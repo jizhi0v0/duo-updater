@@ -44,31 +44,48 @@ enum com_microsoft_VSCode {
         ],
         changelogs: [
         // VS Code — the official `/updates` page redirects to the latest stable
-        // release page (e.g. /updates/v1_123). The top summary is, e.g.:
+        // release page (e.g. /updates/v1_123). The page comes in two layouts, and
+        // the pattern takes either, because only the newest page moved to the
+        // second one (1.139; 1.138 and older still render the first), so a vendor
+        // rollback must not break the recipe a second time.
+        //
+        // Layout 1 (1.138 and earlier):
         //   <h1>Visual Studio Code 1.123</h1>
         //   ...<hr><p><em>Release date: June 3, 2026</em></p>
         //   ...<ul><li><a …>…</a>: …</li>...</ul>
         //   [<blockquote><p>…event plug…</p></blockquote>]   ← optional, varies
         //   [<p><em>…generated using GitHub Copilot…</em></p>]  ← optional, varies
         //   <p>Happy Coding!</p>
-        // The highlights <ul> is the only list before "Happy Coding!", so the
-        // body anchor is unambiguous. Between `</ul>` and the close anchor the
-        // page puts zero or more asides — a <blockquote> (an event plug, e.g.
-        // "VS Code Live at Build") or a plain <p> note (the Copilot disclaimer,
-        // #697) — matched as a run of either, so one appearing, disappearing or
-        // swapping for the other doesn't break the close anchor. A <p> aside
-        // may not contain a <ul>, which keeps it a paragraph and not a way round
-        // the "only list" anchor. We intentionally parse the latest release
-        // only; the page itself is the vendor's stable "what changed now" surface.
+        // Layout 2 (1.139 onward):
+        //   <h1>Visual Studio Code 1.139</h1>
+        //   <p class="release-metadata"><span>Released September 23, 2026</span>…
+        //   …<details class="release-downloads">…<dl>…</dl></details>…
+        //   <section class="release-highlights" …><h2>…</h2><p>…</p>
+        //   <ul><li><p><a …>…</a>: …</p></li>…</ul>
+        //   </section>
+        //
+        // In both, the highlights <ul> is the first list after the date (layout
+        // 2's download links are a <dl>, not a list), and the close anchor pins
+        // it: `</section>` in layout 2, "Happy Coding!" in layout 1. In layout 1,
+        // between `</ul>` and the close anchor the page puts zero or more asides
+        // — a <blockquote> (an event plug, e.g. "VS Code Live at Build") or a
+        // plain <p> note (the Copilot disclaimer, #697) — matched as a run of
+        // either, so one appearing, disappearing or swapping for the other
+        // doesn't break the close anchor. A <p> aside may not contain a <ul>,
+        // which keeps it a paragraph and not a way round the "first list"
+        // anchor. We intentionally parse the latest release only; the page
+        // itself is the vendor's stable "what changed now" surface.
         ChangelogRecipe(
             bundleID: "com.microsoft.VSCode",
             source: URL(string: "https://code.visualstudio.com/updates")!,
             entryPattern:
                 #"<h1>Visual Studio Code (?<version>[0-9.]+)</h1>\s*"#
-                + #".*?<p><em>Release date:\s*(?<date>[^<]+)</em></p>\s*"#
+                + #".*?(?:<p class="release-metadata"><span>Released|<p><em>Release date:)"#
+                + #"\s*(?<date>[^<]+)<"#
                 + #".*?<ul>(?<body>.*?)</ul>\s*"#
-                + #"(?:(?:<blockquote>.*?</blockquote>|<p>(?:(?!</p>|<ul>).)*</p>)\s*)*"#
-                + #"<p>Happy Coding!</p>"#,
+                + #"(?:</section>"#
+                + #"|(?:(?:<blockquote>.*?</blockquote>|<p>(?:(?!</p>|<ul>).)*</p>)\s*)*"#
+                + #"<p>Happy Coding!</p>)"#,
             itemPatterns: [#"<li>\s*(?:<p>)?(?<item>.*?)(?:</p>)?\s*</li>"#],
             maxEntries: 1),
         ],

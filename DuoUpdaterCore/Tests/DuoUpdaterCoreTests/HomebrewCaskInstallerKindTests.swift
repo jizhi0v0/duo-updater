@@ -24,7 +24,7 @@ import Foundation
 /// | expressvpn | `installer: [{script: {…, sudo: true}}]` | `.zip` | detection-only — needs a password, no package |
 /// | figma-agent | `installer: [{manual: "Install Figma Agent.app"}]` | `.dmg` | detection-only — an `.app`, not a package |
 /// | adguard | `pkg` | `.dmg` | package |
-/// | pivy-app | `installer: [{manual: "pivy-….pkg"}]` | `.pkg` | package — the download is the package |
+/// | gyazo | `installer: [{manual: "Gyazo-….pkg"}]` | `.pkg` | package — the download is the package |
 /// | qsync-client | `installer: [{manual: "Qsync Client.pkg"}]` | `.dmg` | package — at the image's root |
 /// | autofirma | `installer: [{manual: "AutoFirma_….pkg"}]` | `.zip` | detection-only — only a `.dmg` is opened |
 /// | fxfactory | `pkg` | `.zip` | detection-only — only a `.dmg` is opened |
@@ -61,7 +61,10 @@ struct HomebrewCaskInstallerKindTests {
     }
 
     @Test func aManualInstallerWhoseDownloadIsThePackageStaysAPackage() throws {
-        #expect(try Self.entry(bundleID: "net.cooperi.pivy-agent").installKind == .package)
+        // Was pivy-app, disabled on 2026-09-01 and so no longer indexed (#881).
+        // gyazo is the one live cask of this shape with a key to look up; it is
+        // `auto_updates`, which `installKind` does not read.
+        #expect(try Self.entry(bundleID: "com.gyazo.menu").installKind == .package)
     }
 
     @Test func aManualPackageAtADiskImageRootStaysAPackage() throws {

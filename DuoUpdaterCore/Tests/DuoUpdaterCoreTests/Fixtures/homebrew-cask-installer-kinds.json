@@ -438,20 +438,18 @@
     ]
   },
   {
-    "token": "pivy-app",
-    "full_token": "pivy-app",
-    "old_tokens": [
-      "pivy"
-    ],
+    "token": "gyazo",
+    "full_token": "gyazo",
+    "old_tokens": [],
     "tap": "homebrew/cask",
     "name": [
-      "pivy"
+      "Nota Gyazo GIF"
     ],
-    "desc": "Client for PIV cards",
-    "homepage": "https://github.com/joyent/pivy",
-    "url": "https://github.com/joyent/pivy/releases/download/v0.12.1/pivy-0.12.1-macos12.pkg",
+    "desc": "Screenshot and screen recording tool",
+    "homepage": "https://gyazo.com/",
+    "url": "https://files.gyazo.com/setup/Gyazo-11.2.0.pkg",
     "url_specs": {},
-    "version": "0.12.1",
+    "version": "11.2.0",
     "autobump": true,
     "no_autobump_message": null,
     "skip_livecheck": false,
@@ -462,26 +460,43 @@
     "pinned": false,
     "pinned_version": null,
     "outdated": false,
-    "sha256": "78340ec28f4e7d6870ebb167059ac21beb00729d300a092f8f6774c2c6ae33fa",
+    "sha256": "c201ad45449c560a4e00d0c2bc79abbde9e9289c5b2b4fe31ddd101ef9e6a9e9",
     "artifacts": [
       {
         "uninstall": [
           {
-            "launchctl": "net.cooperi.pivy-agent",
-            "quit": "net.cooperi.pivy-agent",
-            "pkgutil": "net.cooperi.pivy"
+            "launchctl": "com.gyazo.menu.helper",
+            "quit": "com.gyazo.menu",
+            "pkgutil": "com.gyazo.pkg",
+            "delete": [
+              "/Applications/Gyazo Menu.app",
+              "/Applications/Gyazo Video.app",
+              "/Applications/Gyazo.app"
+            ]
           }
         ]
       },
       {
         "installer": [
           {
-            "manual": "pivy-0.12.1-macos12.pkg"
+            "manual": "Gyazo-11.2.0.pkg"
+          }
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Caches/com.gyazo.gif",
+              "~/Library/Caches/com.gyazo.mac",
+              "~/Library/Preferences/com.gyazo.gif.plist",
+              "~/Library/Preferences/com.gyazo.mac.plist"
+            ]
           }
         ]
       }
     ],
-    "caveats": "The installer will prompt you to insert a YubiKey or other PIV token via a dialog box.\n",
+    "caveats": null,
     "caveats_rosetta": null,
     "depends_on": {
       "macos": {}
@@ -489,29 +504,24 @@
     "conflicts_with": null,
     "container": null,
     "rename": [],
-    "auto_updates": null,
+    "auto_updates": true,
     "deprecated": false,
     "deprecation_date": null,
     "deprecation_reason": null,
     "deprecation_replacement_formula": null,
     "deprecation_replacement_cask": null,
     "deprecate_args": null,
-    "disabled": true,
-    "disable_date": "2026-09-01",
-    "disable_reason": "fails_gatekeeper_check",
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
     "disable_replacement_formula": null,
     "disable_replacement_cask": null,
-    "disable_args": {
-      "date": "2026-09-01",
-      "because": "fails_gatekeeper_check",
-      "replacement_formula": null,
-      "replacement_cask": null
-    },
+    "disable_args": null,
     "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
     "languages": [],
-    "ruby_source_path": "Casks/p/pivy-app.rb",
+    "ruby_source_path": "Casks/g/gyazo.rb",
     "ruby_source_checksum": {
-      "sha256": "fc1daff13f1a359031e16fd7ea4d0955298348b11f0989618d4392daa2fa04b5"
+      "sha256": "c60ab5d83af973ba133c5b59073dada9a4283cc732ce7c9b7c891ac5de690ce7"
     },
     "variations": {},
     "supported_platforms": [

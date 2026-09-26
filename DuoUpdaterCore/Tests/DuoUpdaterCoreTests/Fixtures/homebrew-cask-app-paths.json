@@ -1,0 +1,1318 @@
+[
+  {
+    "token": "box-tools",
+    "full_token": "box-tools",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Box Tools"
+    ],
+    "desc": "Create and edit any file directly from a web browser",
+    "homepage": "https://www.box.com/resources/downloads",
+    "url": "https://e3.boxcdn.net/box-installers/boxedit/mac/currentrelease/BoxToolsInstaller.dmg",
+    "url_specs": {},
+    "version": "4.32",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "no_check",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": [
+              "com.Box.Box-Edit",
+              "com.box.Box-Local-Com-Server"
+            ]
+          }
+        ]
+      },
+      {
+        "app": [
+          "Install Box Tools.app/Contents/Resources/Box Device Trust.app",
+          {
+            "target": "~/Library/Application Support/Box/Box Edit/Box Device Trust.app"
+          }
+        ],
+        "target": "/$HOME/Library/Application Support/Box/Box Edit/Box Device Trust.app"
+      },
+      {
+        "app": [
+          "Install Box Tools.app/Contents/Resources/Box Edit.app",
+          {
+            "target": "~/Library/Application Support/Box/Box Edit/Box Edit.app"
+          }
+        ],
+        "target": "/$HOME/Library/Application Support/Box/Box Edit/Box Edit.app"
+      },
+      {
+        "app": [
+          "Install Box Tools.app/Contents/Resources/Box Local Com Server.app",
+          {
+            "target": "~/Library/Application Support/Box/Box Edit/Box Local Com Server.app"
+          }
+        ],
+        "target": "/$HOME/Library/Application Support/Box/Box Edit/Box Local Com Server.app"
+      },
+      {
+        "app": [
+          "Install Box Tools.app/Contents/Resources/Box Tools Custom Apps.app",
+          {
+            "target": "~/Library/Application Support/Box/Box Edit/Box Tools Custom Apps.app"
+          }
+        ],
+        "target": "/$HOME/Library/Application Support/Box/Box Edit/Box Tools Custom Apps.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": "~/Library/Application Support/Box/Box Edit",
+            "rmdir": "~/Library/Application Support/Box"
+          }
+        ]
+      }
+    ],
+    "caveats": "Box Edit currently only works with Safari and Firefox.\nRestart your browser to load the plugin.\n",
+    "caveats_rosetta": true,
+    "depends_on": {
+      "macos": {
+        ">=": [
+          "13"
+        ]
+      }
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/b/box-tools.rb",
+    "ruby_source_checksum": {
+      "sha256": "96d9e89b663b17a0a782b3c33cdde57696a1eb323305f17d911464b878712056"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura"
+    ]
+  },
+  {
+    "token": "ftdi-vcp-driver",
+    "full_token": "ftdi-vcp-driver",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "FTDI VCP Driver"
+    ],
+    "desc": "Virtual COM port driver",
+    "homepage": "https://ftdichip.com/drivers/vcp-drivers/",
+    "url": "https://ftdichip.com/wp-content/uploads/2022/06/FTDIUSBSerialDextInstaller_1_5_0.dmg",
+    "url_specs": {},
+    "version": "1.5.0,2022,06",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "f535d604d5098c4ecde0f213a80732cd45906339472ae30c0723959336a50b9c",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "delete": [
+              "~/Library/Application Scripts/com.ftdi.vcp.dext",
+              "~/Library/Containers/com.ftdi.vcp.dext"
+            ]
+          }
+        ]
+      },
+      {
+        "installer": [
+          {
+            "manual": "/Applications/FTDIUSBSerialDextInstaller.app"
+          }
+        ]
+      },
+      {
+        "app": [
+          "FTDIUSBSerialDextInstaller_1_5_0.app",
+          {
+            "target": "/Applications/FTDIUSBSerialDextInstaller.app"
+          }
+        ],
+        "target": "/Applications/FTDIUSBSerialDextInstaller.app"
+      }
+    ],
+    "caveats": "Once you've rebooted, you can (re)connect your FTDI\ndevice and it will show up in /dev, usually like this:\n\n  /dev/tty.usbserial-XXXXXXXX\n\nwhere XXXXXXXX is a random ID, based on the serial number.\n\nTo uninstall the driver, you must use the GUI to move the\napplication from /Applications/FTDIUSBSerialDextInstaller.app to Trash,\notherwise the system extension will not be removed.\n\nYou must reboot for the installation of ftdi-vcp-driver to take effect.\n",
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": true,
+    "deprecation_date": "2026-05-16",
+    "deprecation_reason": "unreachable",
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": {
+      "date": "2026-05-16",
+      "because": "unreachable",
+      "replacement_formula": null,
+      "replacement_cask": null
+    },
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/f/ftdi-vcp-driver.rb",
+    "ruby_source_checksum": {
+      "sha256": "358c9f829bbf7e07c5a2d1d70108cc70b09ba4b0a46b7b840a5271e326a993f1"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "j",
+    "full_token": "j",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "J"
+    ],
+    "desc": "Programming language for mathematical, statistical and logical analysis of data",
+    "homepage": "https://www.jsoftware.com/",
+    "url": "https://www.jsoftware.com/download/j9.7/install/j9.7.1_mac.zip",
+    "url_specs": {},
+    "version": "9.7.1",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "fc34fe96fc19520c9f317ecb6b318aeb3bd83a4994b505dfa1216cf1775fd3e3",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "delete": "$HOMEBREW_PREFIX/Caskroom/j/9.7.1/j"
+          }
+        ]
+      },
+      {
+        "installer": [
+          {
+            "script": {
+              "executable": "j9.7/macos-fix.command"
+            }
+          }
+        ]
+      },
+      {
+        "installer": [
+          {
+            "script": {
+              "executable": "j9.7/bin/jconsole",
+              "args": [
+                "-js",
+                "load 'pacman'",
+                "'install' jpkg '*'",
+                "exit 0"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "app": [
+          "j9.7/jbrk.app"
+        ],
+        "target": "/Applications/jbrk.app"
+      },
+      {
+        "app": [
+          "j9.7/jqt.app"
+        ],
+        "target": "/Applications/jqt.app"
+      },
+      {
+        "app": [
+          "j9.7/jcon.app"
+        ],
+        "target": "/Applications/jcon.app"
+      },
+      {
+        "binary": [
+          "j9.7/bin/jconsole",
+          {
+            "target": "jconsole"
+          }
+        ],
+        "target": "$HOMEBREW_PREFIX/bin/jconsole"
+      },
+      {
+        "binary": [
+          "j9.7/bin/jconsole",
+          {
+            "target": "jcon"
+          }
+        ],
+        "target": "$HOMEBREW_PREFIX/bin/jcon"
+      },
+      {
+        "binary": [
+          "j9.7/bin/jbrk.command",
+          {
+            "target": "jbrk"
+          }
+        ],
+        "target": "$HOMEBREW_PREFIX/bin/jbrk"
+      },
+      {
+        "binary": [
+          "j9.7/bin/jhs.command",
+          {
+            "target": "jhs"
+          }
+        ],
+        "target": "$HOMEBREW_PREFIX/bin/jhs"
+      },
+      {
+        "binary": [
+          "j9.7/bin/jqt.command",
+          {
+            "target": "jqt"
+          }
+        ],
+        "target": "$HOMEBREW_PREFIX/bin/jqt"
+      },
+      {
+        "postflight_steps": [
+          {
+            "steps": [
+              {
+                "path": {
+                  "base": "staged_path",
+                  "path": "j{{version.major_minor}}/bin/jbrk.command"
+                },
+                "type": "inreplace",
+                "after": "$(/usr/bin/readlink \"$0\" || /bin/echo \"$0\")",
+                "before": "$0"
+              },
+              {
+                "path": {
+                  "base": "staged_path",
+                  "path": "j{{version.major_minor}}/bin/jhs.command"
+                },
+                "type": "inreplace",
+                "after": "$(/usr/bin/readlink \"$0\" || /bin/echo \"$0\")",
+                "before": "$0"
+              },
+              {
+                "path": {
+                  "base": "staged_path",
+                  "path": "j{{version.major_minor}}/bin/jqt.command"
+                },
+                "type": "inreplace",
+                "after": "$(/usr/bin/readlink \"$0\" || /bin/echo \"$0\")",
+                "before": "$0"
+              },
+              {
+                "path": {
+                  "base": "appdir",
+                  "path": "jbrk.app/Contents/MacOS/apprun"
+                },
+                "regexp": true,
+                "type": "inreplace",
+                "after": "{{staged_path}}/j{{version.major_minor}}/bin",
+                "before": "`dirname \"\\$0\"`.*?/bin"
+              },
+              {
+                "path": {
+                  "base": "appdir",
+                  "path": "jcon.app/Contents/MacOS/apprun"
+                },
+                "regexp": true,
+                "type": "inreplace",
+                "after": "{{staged_path}}/j{{version.major_minor}}/bin",
+                "before": "`dirname \"\\$0\"`.*?/bin"
+              },
+              {
+                "path": {
+                  "base": "appdir",
+                  "path": "jqt.app/Contents/MacOS/apprun"
+                },
+                "regexp": true,
+                "type": "inreplace",
+                "after": "{{staged_path}}/j{{version.major_minor}}/bin",
+                "before": "`dirname \"\\$0\"`.*?/bin"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Support/j",
+              "~/Library/Caches/com.jsoftware.jqt",
+              "~/Library/Caches/j",
+              "~/Library/Preferences/com.jsoftware.jqt.plist",
+              "~/Library/Preferences/jqt.ini",
+              "~/Library/Saved Application State/com.jsoftware.jqt.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/j/j.rb",
+    "ruby_source_checksum": {
+      "sha256": "59c725c028476ce200474f1f498fd9ced7e2f5044b2acabc9bac8c5c9f8f898c"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "omegat",
+    "full_token": "omegat",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "OmegaT"
+    ],
+    "desc": "Translation memory tool",
+    "homepage": "https://omegat.org/",
+    "url": "https://downloads.sourceforge.net/omegat/OmegaT%20-%20Standard/OmegaT%206.0.1/OmegaT_6.0.1_macOS_Notarized.dmg",
+    "url_specs": {},
+    "version": "6.0.1",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "49eb622bdcf32dcb0f4ee7ba2adc43f9837614d7b71435f33f86235c7c75a6bb",
+    "artifacts": [
+      {
+        "app": [
+          "OmegaT.app"
+        ],
+        "target": "/Applications/OmegaT.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Support/OmegaT",
+              "~/Library/Caches/OmegaT",
+              "~/Library/Preferences/OmegaT",
+              "~/Library/Saved Application State/org.omegat.OmegaT.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": true,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": {
+      "cask": [
+        "omegat@latest"
+      ]
+    },
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/o/omegat.rb",
+    "ruby_source_checksum": {
+      "sha256": "5b0d2d527cd0d56d734c1f2d9dc0ab853f3fff795e722224713cdfd917f03184"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "omegat@latest",
+    "full_token": "omegat@latest",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "OmegaT 5"
+    ],
+    "desc": "Translation memory tool",
+    "homepage": "https://omegat.org/",
+    "url": "https://downloads.sourceforge.net/omegat/OmegaT%20-%20Latest/OmegaT%205.7.1/OmegaT_5.7.1_Beta_Mac_Notarized.zip",
+    "url_specs": {},
+    "version": "5.7.1",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "557a4f21533e8f73a4463f4b195c2d81996fbc25e576e447add9f5ce68661949",
+    "artifacts": [
+      {
+        "app": [
+          "OmegaT_5.7.1_Beta_Mac_Notarized//OmegaT.app"
+        ],
+        "target": "/Applications/OmegaT.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Support/OmegaT",
+              "~/Library/Caches/OmegaT",
+              "~/Library/Preferences/OmegaT",
+              "~/Library/Saved Application State/org.omegat.OmegaT.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": true,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": {
+      "cask": [
+        "omegat"
+      ]
+    },
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/o/omegat@latest.rb",
+    "ruby_source_checksum": {
+      "sha256": "03be635c32325e3d04e45d3f54f6dc00e3f9b09fc9980dc07233bed3c59e10bc"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "telegram",
+    "full_token": "telegram",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Telegram for macOS"
+    ],
+    "desc": "Messaging app with a focus on speed and security",
+    "homepage": "https://macos.telegram.org/",
+    "url": "https://osx.telegram.org/updates/Telegram-12.10.282985.app.zip",
+    "url_specs": {},
+    "version": "12.10,282985",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "609cf5bbed3106f919ed6145f5122f125ded88086ee6e3aeac705d03d705248d",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": "ru.keepcoder.Telegram"
+          }
+        ]
+      },
+      {
+        "app": [
+          "Telegram.app"
+        ],
+        "target": "/Applications/Telegram.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Scripts/*.ru.keepcoder.Telegram",
+              "~/Library/Application Scripts/*.ru.keepcoder.Telegram.TelegramShare",
+              "~/Library/Application Scripts/ru.keepcoder.Telegram",
+              "~/Library/Application Scripts/ru.keepcoder.Telegram.TelegramShare",
+              "~/Library/Application Support/ru.keepcoder.Telegram",
+              "~/Library/Caches/com.plausiblelabs.crashreporter.data/ru.keepcoder.Telegram",
+              "~/Library/Caches/ru.keepcoder.Telegram",
+              "~/Library/Containers/ru.keepcoder.Telegram",
+              "~/Library/Containers/ru.keepcoder.Telegram.TelegramShare",
+              "~/Library/Cookies/ru.keepcoder.Telegram.binarycookies",
+              "~/Library/Group Containers/*.ru.keepcoder.Telegram",
+              "~/Library/Group Containers/*.ru.keepcoder.Telegram.TelegramShare",
+              "~/Library/HTTPStorages/ru.keepcoder.Telegram",
+              "~/Library/Preferences/ru.keepcoder.Telegram.plist",
+              "~/Library/Saved Application State/ru.keepcoder.Telegram.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": true,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/t/telegram.rb",
+    "ruby_source_checksum": {
+      "sha256": "8043fc766ebd706deaa0a33411359c904c63413c8a6c639233c899c7cfd29e7c"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "telegram-desktop",
+    "full_token": "telegram-desktop",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Telegram Desktop"
+    ],
+    "desc": "Desktop client for Telegram messenger",
+    "homepage": "https://desktop.telegram.org/",
+    "url": "https://td.telegram.org/mac/td-setup-mac-7.2.9.dmg",
+    "url_specs": {},
+    "version": "7.2.9",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "526aad8d40617fafaa27acb52dd0f5df451cd4683fb7fd63666aece164282bf4",
+    "artifacts": [
+      {
+        "app": [
+          "Telegram.app",
+          {
+            "target": "Telegram Desktop.app"
+          }
+        ],
+        "target": "/Applications/Telegram Desktop.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Support/Telegram Desktop",
+              "~/Library/Preferences/com.tdesktop.Telegram.plist",
+              "~/Library/Saved Application State/com.tdesktop.Telegram.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": {
+      "cask": [
+        "telegram-desktop@beta"
+      ]
+    },
+    "container": null,
+    "rename": [],
+    "auto_updates": true,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/t/telegram-desktop.rb",
+    "ruby_source_checksum": {
+      "sha256": "1e1e3ad2ce1e26cab9c3c88cb95a01479771f92d1b0a1f679661f1846df9e100"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "telegram-desktop@beta",
+    "full_token": "telegram-desktop@beta",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Telegram Desktop"
+    ],
+    "desc": "Desktop client for Telegram messenger",
+    "homepage": "https://desktop.telegram.org/",
+    "url": "https://github.com/telegramdesktop/tdesktop/releases/download/v7.2.9/td-setup-mac-7.2.9.dmg",
+    "url_specs": {},
+    "version": "7.2.9",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "526aad8d40617fafaa27acb52dd0f5df451cd4683fb7fd63666aece164282bf4",
+    "artifacts": [
+      {
+        "app": [
+          "Telegram.app",
+          {
+            "target": "Telegram Desktop.app"
+          }
+        ],
+        "target": "/Applications/Telegram Desktop.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Support/Telegram Desktop",
+              "~/Library/Preferences/com.tdesktop.Telegram.plist",
+              "~/Library/Saved Application State/com.tdesktop.Telegram.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": {
+      "cask": [
+        "telegram-desktop"
+      ]
+    },
+    "container": null,
+    "rename": [],
+    "auto_updates": true,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/t/telegram-desktop@beta.rb",
+    "ruby_source_checksum": {
+      "sha256": "c1dc7ac6e6f42aec4de845d11c997ba9aba4d0fe80f2fb2463740794ce7899e2"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "telegram@beta",
+    "full_token": "telegram@beta",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Telegram for macOS"
+    ],
+    "desc": "Messaging app with a focus on speed and security",
+    "homepage": "https://macos.telegram.org/",
+    "url": "https://mac-updates.telegram.org/beta/Telegram-12.10.283234.app.zip",
+    "url_specs": {},
+    "version": "12.10,283234",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "e2527f8aaac2305031d4f33338b712171d1bfe82f2dbf3166de20fbe66e7132c",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": "ru.keepcoder.Telegram"
+          }
+        ]
+      },
+      {
+        "app": [
+          "Telegram.app"
+        ],
+        "target": "/Applications/Telegram.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Scripts/*.ru.keepcoder.Telegram",
+              "~/Library/Application Scripts/*.ru.keepcoder.Telegram.TelegramShare",
+              "~/Library/Application Scripts/ru.keepcoder.Telegram",
+              "~/Library/Application Scripts/ru.keepcoder.Telegram.TelegramShare",
+              "~/Library/Application Support/ru.keepcoder.Telegram",
+              "~/Library/Caches/com.plausiblelabs.crashreporter.data/ru.keepcoder.Telegram",
+              "~/Library/Caches/ru.keepcoder.Telegram",
+              "~/Library/Containers/ru.keepcoder.Telegram",
+              "~/Library/Containers/ru.keepcoder.Telegram.TelegramShare",
+              "~/Library/Cookies/ru.keepcoder.Telegram.binarycookies",
+              "~/Library/Group Containers/*.ru.keepcoder.Telegram",
+              "~/Library/Group Containers/*.ru.keepcoder.Telegram.TelegramShare",
+              "~/Library/HTTPStorages/ru.keepcoder.Telegram",
+              "~/Library/Preferences/ru.keepcoder.Telegram.plist",
+              "~/Library/Saved Application State/ru.keepcoder.Telegram.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": {
+      "cask": [
+        "telegram"
+      ]
+    },
+    "container": null,
+    "rename": [],
+    "auto_updates": true,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/t/telegram@beta.rb",
+    "ruby_source_checksum": {
+      "sha256": "c24619e86e1cc6f8b4aec20d74464e5cac18a0fc690916bc5bce15d0bbff259b"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "visual-paradigm",
+    "full_token": "visual-paradigm",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Visual Paradigm"
+    ],
+    "desc": "UML, SysML, BPMN modelling platform",
+    "homepage": "https://www.visual-paradigm.com/",
+    "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_AArch64.dmg",
+    "url_specs": {},
+    "version": "18.1,20260913",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "5e969985e4e308b8523aca0fee2a43aefce6f29e2fdf7e593ecd68c87b825189",
+    "artifacts": [
+      {
+        "app": [
+          "Visual Paradigm.app"
+        ],
+        "target": "/Applications/Visual Paradigm.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Support/Visual Paradigm",
+              "~/Library/Application Support/VisualParadigm",
+              "~/Library/Saved Application State/com.install4j.1106-5897-7327-6550.5.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/v/visual-paradigm.rb",
+    "ruby_source_checksum": {
+      "sha256": "261c09bac8b2fcdbb67e007dca5df9a398af315a76d6fc93eb15d1f5f30899df"
+    },
+    "variations": {
+      "golden_gate": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
+      },
+      "tahoe": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
+      },
+      "sequoia": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
+      },
+      "sonoma": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
+      },
+      "ventura": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
+      },
+      "monterey": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
+      },
+      "big_sur": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
+      },
+      "x86_64_linux": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": null
+      },
+      "arm64_linux": {
+        "sha256": null
+      }
+    },
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "visual-paradigm-ce",
+    "full_token": "visual-paradigm-ce",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Visual Paradigm Community Edition"
+    ],
+    "desc": "UML, SysML, BPMN modelling platform",
+    "homepage": "https://www.visual-paradigm.com/",
+    "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_AArch64.dmg",
+    "url_specs": {},
+    "version": "18.1,20260913",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "039f031570c0d541b97639b268f306884bf5753f521cd01d29fffc6ef8b13c4d",
+    "artifacts": [
+      {
+        "app": [
+          "Visual Paradigm.app",
+          {
+            "target": "Visual Paradigm CE.app"
+          }
+        ],
+        "target": "/Applications/Visual Paradigm CE.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Support/Visual Paradigm",
+              "~/Library/Application Support/VisualParadigm",
+              "~/Library/Saved Application State/com.install4j.1106-5897-7327-6550.5.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/v/visual-paradigm-ce.rb",
+    "ruby_source_checksum": {
+      "sha256": "c1ab3a45dbba72812715d8652baa5380530892319542d58cd1dbeddb4ba305f4"
+    },
+    "variations": {
+      "golden_gate": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "tahoe": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "sequoia": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "sonoma": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "ventura": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "monterey": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "big_sur": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "x86_64_linux": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": null
+      },
+      "arm64_linux": {
+        "sha256": null
+      }
+    },
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  }
+]

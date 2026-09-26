@@ -118,6 +118,13 @@ public actor RecipeHealth {
         entries[key] = entry
     }
 
+    /// Stop tracking `id` under `source`: its last outcome no longer says anything
+    /// about the app, because a different source now answers for it (see
+    /// `ElectronManifestSource.supersede(for:)`).
+    public func forget(id: String, source: String) {
+        entries[StorageKey(id: id, source: source)] = nil
+    }
+
     /// Every tracked recipe, unhealthy ones first, then by id — with `source` as
     /// a tie-breaker so two entries sharing an `id` (see `Entry.id`) still sort
     /// deterministically against each other rather than by dictionary order.

@@ -72,7 +72,7 @@ private func appNamed(_ filename: String) -> InstalledApp {
     let entry = CaskEntry(
         token: "postman", version: "12.12.6",
         url: URL(string: "https://dl.pstmn.io/download/version/12.12.6/osx_arm64"),
-        autoUpdates: true, isPkg: false
+        autoUpdates: true, installKind: .brew
     )
     let source = HomebrewCaskSource(
         catalog: catalog(with: entry, appFilename: "Postman.app"),
@@ -89,7 +89,7 @@ private func appNamed(_ filename: String) -> InstalledApp {
     let entry = CaskEntry(
         token: "tableplus", version: "7.1.0",
         url: URL(string: "https://example.com/TablePlus.dmg"),
-        autoUpdates: false, isPkg: false
+        autoUpdates: false, installKind: .brew
     )
     let source = HomebrewCaskSource(
         catalog: catalog(with: entry, appFilename: "TablePlus.app"),

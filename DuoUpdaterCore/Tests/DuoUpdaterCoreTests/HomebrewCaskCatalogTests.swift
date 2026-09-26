@@ -46,7 +46,7 @@ struct HomebrewCaskCatalogTests {
     @Test func concurrentFailedRefreshServesStaleIndexToEveryCaller() async throws {
         let entry = CaskEntry(
             token: "fixture", version: "2.0", url: nil,
-            autoUpdates: false, isPkg: false)
+            autoUpdates: false, installKind: .brew)
         let index = CaskIndex(
             allByAppFilename: ["fixture.app": [entry]],
             allByBundleID: ["com.example.fixture": [entry]])

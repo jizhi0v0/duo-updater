@@ -436,5 +436,711 @@
       "monterey",
       "arm64_monterey"
     ]
+  },
+  {
+    "token": "pivy-app",
+    "full_token": "pivy-app",
+    "old_tokens": [
+      "pivy"
+    ],
+    "tap": "homebrew/cask",
+    "name": [
+      "pivy"
+    ],
+    "desc": "Client for PIV cards",
+    "homepage": "https://github.com/joyent/pivy",
+    "url": "https://github.com/joyent/pivy/releases/download/v0.12.1/pivy-0.12.1-macos12.pkg",
+    "url_specs": {},
+    "version": "0.12.1",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "78340ec28f4e7d6870ebb167059ac21beb00729d300a092f8f6774c2c6ae33fa",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "launchctl": "net.cooperi.pivy-agent",
+            "quit": "net.cooperi.pivy-agent",
+            "pkgutil": "net.cooperi.pivy"
+          }
+        ]
+      },
+      {
+        "installer": [
+          {
+            "manual": "pivy-0.12.1-macos12.pkg"
+          }
+        ]
+      }
+    ],
+    "caveats": "The installer will prompt you to insert a YubiKey or other PIV token via a dialog box.\n",
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": true,
+    "disable_date": "2026-09-01",
+    "disable_reason": "fails_gatekeeper_check",
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": {
+      "date": "2026-09-01",
+      "because": "fails_gatekeeper_check",
+      "replacement_formula": null,
+      "replacement_cask": null
+    },
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/p/pivy-app.rb",
+    "ruby_source_checksum": {
+      "sha256": "fc1daff13f1a359031e16fd7ea4d0955298348b11f0989618d4392daa2fa04b5"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "qsync-client",
+    "full_token": "qsync-client",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Qnap Qsync"
+    ],
+    "desc": "Automatic file synchronisation",
+    "homepage": "https://www.qnap.com/en/utilities/essentials#utliity_3",
+    "url": "https://download.qnap.com/Storage/Utility/QNAPQsyncClientMac-5.1.7.0923.dmg",
+    "url_specs": {},
+    "version": "5.1.7,0923",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "066f87aaa22f0492acaa4bc7921a02352125634a2e6d38a46a5028dee9a1f40b",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": [
+              "com.qnap.qsync",
+              "com.qnap.qsync.findersync"
+            ],
+            "pkgutil": "com.qnap.qsync"
+          }
+        ]
+      },
+      {
+        "installer": [
+          {
+            "manual": "Qsync Client.pkg"
+          }
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Scripts/com.qnap.qsync",
+              "~/Library/Application Scripts/com.qnap.qsync.findersync",
+              "~/Library/Containers/com.qnap.qsync",
+              "~/Library/Containers/com.qnap.qsync.findersync",
+              "~/Library/Group Containers/group.com.qnap.qsync"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/q/qsync-client.rb",
+    "ruby_source_checksum": {
+      "sha256": "4db95b3c061dd66210e92ee6a3a7abfa9577433bd81cf8d10c0f771e34b412e8"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "autofirma",
+    "full_token": "autofirma",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "AutoFirma"
+    ],
+    "desc": "Digital signature editor and validator",
+    "homepage": "https://firmaelectronica.gob.es/ciudadanos/descargas",
+    "url": "https://firmaelectronica.gob.es/content/dam/firmaelectronica/descargas-software/Autofirma_1_9_2_Mac_M1.zip",
+    "url_specs": {},
+    "version": "1.9.2",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "858aa128f2cd2d5e7cf294129193cedb7da4839ba5157deff4b01c9780ad301a",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": "es.gob.afirma",
+            "pkgutil": "es.gob.afirma",
+            "delete": "/Applications/AutoFirma.app"
+          }
+        ]
+      },
+      {
+        "installer": [
+          {
+            "manual": "AutoFirma_1_9_2_aarch64_signed.pkg"
+          }
+        ]
+      },
+      {
+        "uninstall_postflight_steps": [
+          {
+            "steps": [
+              {
+                "name": "AutoFirma ROOT",
+                "type": "delete_keychain_certificate"
+              },
+              {
+                "name": "127.0.0.1",
+                "type": "delete_keychain_certificate"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/.afirma",
+              "~/Library/Application Support/AutoFirma",
+              "~/Library/Preferences/es.gob.afirma.plist"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/a/autofirma.rb",
+    "ruby_source_checksum": {
+      "sha256": "8fa37250322c675732f150a2fbf82543fffa7da4039cd72446e6557dddb6843e"
+    },
+    "variations": {
+      "golden_gate": {
+        "url": "https://firmaelectronica.gob.es/content/dam/firmaelectronica/descargas-software/Autofirma_1_9_2_Mac_x64.zip",
+        "sha256": "ce7c83c9b12cc6fc4a1d9f725ef104c56d32623e8ab04f53c6a778166614a153",
+        "artifacts": [
+          {
+            "uninstall": [
+              {
+                "quit": "es.gob.afirma",
+                "pkgutil": "es.gob.afirma",
+                "delete": "/Applications/AutoFirma.app"
+              }
+            ]
+          },
+          {
+            "installer": [
+              {
+                "manual": "AutoFirma_1_9_2_x64_signed.pkg"
+              }
+            ]
+          },
+          {
+            "uninstall_postflight_steps": [
+              {
+                "steps": [
+                  {
+                    "name": "AutoFirma ROOT",
+                    "type": "delete_keychain_certificate"
+                  },
+                  {
+                    "name": "127.0.0.1",
+                    "type": "delete_keychain_certificate"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "zap": [
+              {
+                "trash": [
+                  "~/.afirma",
+                  "~/Library/Application Support/AutoFirma",
+                  "~/Library/Preferences/es.gob.afirma.plist"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "tahoe": {
+        "url": "https://firmaelectronica.gob.es/content/dam/firmaelectronica/descargas-software/Autofirma_1_9_2_Mac_x64.zip",
+        "sha256": "ce7c83c9b12cc6fc4a1d9f725ef104c56d32623e8ab04f53c6a778166614a153",
+        "artifacts": [
+          {
+            "uninstall": [
+              {
+                "quit": "es.gob.afirma",
+                "pkgutil": "es.gob.afirma",
+                "delete": "/Applications/AutoFirma.app"
+              }
+            ]
+          },
+          {
+            "installer": [
+              {
+                "manual": "AutoFirma_1_9_2_x64_signed.pkg"
+              }
+            ]
+          },
+          {
+            "uninstall_postflight_steps": [
+              {
+                "steps": [
+                  {
+                    "name": "AutoFirma ROOT",
+                    "type": "delete_keychain_certificate"
+                  },
+                  {
+                    "name": "127.0.0.1",
+                    "type": "delete_keychain_certificate"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "zap": [
+              {
+                "trash": [
+                  "~/.afirma",
+                  "~/Library/Application Support/AutoFirma",
+                  "~/Library/Preferences/es.gob.afirma.plist"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "sequoia": {
+        "url": "https://firmaelectronica.gob.es/content/dam/firmaelectronica/descargas-software/Autofirma_1_9_2_Mac_x64.zip",
+        "sha256": "ce7c83c9b12cc6fc4a1d9f725ef104c56d32623e8ab04f53c6a778166614a153",
+        "artifacts": [
+          {
+            "uninstall": [
+              {
+                "quit": "es.gob.afirma",
+                "pkgutil": "es.gob.afirma",
+                "delete": "/Applications/AutoFirma.app"
+              }
+            ]
+          },
+          {
+            "installer": [
+              {
+                "manual": "AutoFirma_1_9_2_x64_signed.pkg"
+              }
+            ]
+          },
+          {
+            "uninstall_postflight_steps": [
+              {
+                "steps": [
+                  {
+                    "name": "AutoFirma ROOT",
+                    "type": "delete_keychain_certificate"
+                  },
+                  {
+                    "name": "127.0.0.1",
+                    "type": "delete_keychain_certificate"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "zap": [
+              {
+                "trash": [
+                  "~/.afirma",
+                  "~/Library/Application Support/AutoFirma",
+                  "~/Library/Preferences/es.gob.afirma.plist"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "sonoma": {
+        "url": "https://firmaelectronica.gob.es/content/dam/firmaelectronica/descargas-software/Autofirma_1_9_2_Mac_x64.zip",
+        "sha256": "ce7c83c9b12cc6fc4a1d9f725ef104c56d32623e8ab04f53c6a778166614a153",
+        "artifacts": [
+          {
+            "uninstall": [
+              {
+                "quit": "es.gob.afirma",
+                "pkgutil": "es.gob.afirma",
+                "delete": "/Applications/AutoFirma.app"
+              }
+            ]
+          },
+          {
+            "installer": [
+              {
+                "manual": "AutoFirma_1_9_2_x64_signed.pkg"
+              }
+            ]
+          },
+          {
+            "uninstall_postflight_steps": [
+              {
+                "steps": [
+                  {
+                    "name": "AutoFirma ROOT",
+                    "type": "delete_keychain_certificate"
+                  },
+                  {
+                    "name": "127.0.0.1",
+                    "type": "delete_keychain_certificate"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "zap": [
+              {
+                "trash": [
+                  "~/.afirma",
+                  "~/Library/Application Support/AutoFirma",
+                  "~/Library/Preferences/es.gob.afirma.plist"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "ventura": {
+        "url": "https://firmaelectronica.gob.es/content/dam/firmaelectronica/descargas-software/Autofirma_1_9_2_Mac_x64.zip",
+        "sha256": "ce7c83c9b12cc6fc4a1d9f725ef104c56d32623e8ab04f53c6a778166614a153",
+        "artifacts": [
+          {
+            "uninstall": [
+              {
+                "quit": "es.gob.afirma",
+                "pkgutil": "es.gob.afirma",
+                "delete": "/Applications/AutoFirma.app"
+              }
+            ]
+          },
+          {
+            "installer": [
+              {
+                "manual": "AutoFirma_1_9_2_x64_signed.pkg"
+              }
+            ]
+          },
+          {
+            "uninstall_postflight_steps": [
+              {
+                "steps": [
+                  {
+                    "name": "AutoFirma ROOT",
+                    "type": "delete_keychain_certificate"
+                  },
+                  {
+                    "name": "127.0.0.1",
+                    "type": "delete_keychain_certificate"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "zap": [
+              {
+                "trash": [
+                  "~/.afirma",
+                  "~/Library/Application Support/AutoFirma",
+                  "~/Library/Preferences/es.gob.afirma.plist"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "monterey": {
+        "url": "https://firmaelectronica.gob.es/content/dam/firmaelectronica/descargas-software/Autofirma_1_9_2_Mac_x64.zip",
+        "sha256": "ce7c83c9b12cc6fc4a1d9f725ef104c56d32623e8ab04f53c6a778166614a153",
+        "artifacts": [
+          {
+            "uninstall": [
+              {
+                "quit": "es.gob.afirma",
+                "pkgutil": "es.gob.afirma",
+                "delete": "/Applications/AutoFirma.app"
+              }
+            ]
+          },
+          {
+            "installer": [
+              {
+                "manual": "AutoFirma_1_9_2_x64_signed.pkg"
+              }
+            ]
+          },
+          {
+            "uninstall_postflight_steps": [
+              {
+                "steps": [
+                  {
+                    "name": "AutoFirma ROOT",
+                    "type": "delete_keychain_certificate"
+                  },
+                  {
+                    "name": "127.0.0.1",
+                    "type": "delete_keychain_certificate"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "zap": [
+              {
+                "trash": [
+                  "~/.afirma",
+                  "~/Library/Application Support/AutoFirma",
+                  "~/Library/Preferences/es.gob.afirma.plist"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "big_sur": {
+        "url": "https://firmaelectronica.gob.es/content/dam/firmaelectronica/descargas-software/Autofirma_1_9_2_Mac_x64.zip",
+        "sha256": "ce7c83c9b12cc6fc4a1d9f725ef104c56d32623e8ab04f53c6a778166614a153",
+        "artifacts": [
+          {
+            "uninstall": [
+              {
+                "quit": "es.gob.afirma",
+                "pkgutil": "es.gob.afirma",
+                "delete": "/Applications/AutoFirma.app"
+              }
+            ]
+          },
+          {
+            "installer": [
+              {
+                "manual": "AutoFirma_1_9_2_x64_signed.pkg"
+              }
+            ]
+          },
+          {
+            "uninstall_postflight_steps": [
+              {
+                "steps": [
+                  {
+                    "name": "AutoFirma ROOT",
+                    "type": "delete_keychain_certificate"
+                  },
+                  {
+                    "name": "127.0.0.1",
+                    "type": "delete_keychain_certificate"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "zap": [
+              {
+                "trash": [
+                  "~/.afirma",
+                  "~/Library/Application Support/AutoFirma",
+                  "~/Library/Preferences/es.gob.afirma.plist"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "x86_64_linux": {
+        "url": "https://firmaelectronica.gob.es/content/dam/firmaelectronica/descargas-software/Autofirma_1_9_2_Mac_x64.zip",
+        "sha256": null,
+        "artifacts": [
+          {
+            "uninstall": [
+              {
+                "quit": "es.gob.afirma",
+                "pkgutil": "es.gob.afirma",
+                "delete": "/Applications/AutoFirma.app"
+              }
+            ]
+          },
+          {
+            "installer": [
+              {
+                "manual": "AutoFirma_1_9_2_x64_signed.pkg"
+              }
+            ]
+          },
+          {
+            "uninstall_postflight_steps": [
+              {
+                "steps": [
+                  {
+                    "name": "AutoFirma ROOT",
+                    "type": "delete_keychain_certificate"
+                  },
+                  {
+                    "name": "127.0.0.1",
+                    "type": "delete_keychain_certificate"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "zap": [
+              {
+                "trash": [
+                  "~/.afirma",
+                  "~/Library/Application Support/AutoFirma",
+                  "~/Library/Preferences/es.gob.afirma.plist"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "arm64_linux": {
+        "sha256": null
+      }
+    },
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
   }
 ]

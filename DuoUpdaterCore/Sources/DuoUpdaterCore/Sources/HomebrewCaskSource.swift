@@ -90,13 +90,16 @@ public struct HomebrewCaskSource: UpdateSource {
         return RemoteVersion(
             shortVersion: marketing,
             version: nil,
-            downloadURL: entry.url,
+            // No URL is what keeps a detection-only cask off the package route
+            // (`UpdatePolicy.requiresInstaller`), the same way Xcode Releases
+            // marks one: the download would be fetched in full only to be refused.
+            downloadURL: entry.installKind == .detectionOnly ? nil : entry.url,
             // `entry.url` is the cask's artifact (a dmg/pkg on the vendor's CDN),
             // so the user-facing page is the cask's own listing instead.
             pageURL: URL(string: "https://formulae.brew.sh/cask/\(entry.token)"),
             sourceName: name,
             sourceIdentifier: entry.token,
-            requiresManualInstaller: entry.isPkg
+            requiresManualInstaller: entry.installKind != .brew
         )
     }
 }

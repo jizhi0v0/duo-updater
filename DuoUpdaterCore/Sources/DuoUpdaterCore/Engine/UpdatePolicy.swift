@@ -398,7 +398,11 @@ public enum UpdatePolicy {
         if environment.isInputMethod(result.app.path) { return false }
         switch result.remote?.sourceName {
         case "Homebrew":
+            // A cask whose installer needs a person but whose download holds no
+            // package we can reach comes without a URL (`CaskInstallKind
+            // .detectionOnly`) and stays detection-only.
             return result.remote?.requiresManualInstaller == true
+                && result.remote?.downloadURL != nil
         case "Vendor", "GitHub", "Electron":
             // electron-builder can publish a `.pkg` alongside (or instead of) the
             // Squirrel `.zip` — `ElectronManifestSource.kind(of:)` recognises it —

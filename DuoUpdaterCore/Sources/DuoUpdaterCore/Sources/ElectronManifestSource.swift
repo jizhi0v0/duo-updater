@@ -35,7 +35,10 @@ import Foundation
 /// work, not something to bolt on here. Until that exists, `RecipeHealth` (see
 /// `latestVersion(for:)`) is this source's only failure signal.
 public struct ElectronManifestSource: UpdateSource {
-    public let name = "Electron"
+    public let name = Self.sourceName
+
+    /// `name`, for a caller holding no instance — `supersede(for:)`'s.
+    static let sourceName = "Electron"
 
     private let session: URLSession
 
@@ -55,10 +58,7 @@ public struct ElectronManifestSource: UpdateSource {
               let fetchURL = config.manifestRequestURL() else {
             return nil
         }
-        // A bundle id when the scanner found one, the manifest address otherwise
-        // (mirrors the `?` this source already logs) — either way a stable key
-        // `RecipeHealth`'s diagnostics can list this manifest under.
-        let healthID = app.bundleID ?? manifestURL.absoluteString
+        let healthID = Self.healthID(bundleID: app.bundleID, manifestURL: manifestURL)
 
         // `fetchURL`, not `manifestURL`: the same address plus electron-updater's
         // `noCache` query, the only thing that gets past a CDN's edge copy — see
@@ -217,6 +217,32 @@ public struct ElectronManifestSource: UpdateSource {
             expectedSHA512: file?.sha512,
             publishedAt: fields.publishedAt,
             vendorDay: fields.vendorDay)
+    }
+
+    /// A bundle id when the scanner found one, the manifest address otherwise
+    /// (mirrors the `?` this source already logs) — either way a stable key
+    /// `RecipeHealth`'s diagnostics can list this manifest under.
+    static func healthID(bundleID: String?, manifestURL: URL) -> String {
+        bundleID ?? manifestURL.absoluteString
+    }
+
+    /// An earlier source in the stack answered for `app`, so this read of its
+    /// manifest is not what the row rests on: drop whatever `RecipeHealth` holds
+    /// for it.
+    ///
+    /// Sitting last, this source runs for an app only on a round where every
+    /// earlier source missed or threw. A bundle whose `app-update.yml` names a
+    /// dead address (Antigravity's and OpenLens's both 404 while their vendor
+    /// probe and GitHub rule answer) records a miss on that round, and the next
+    /// round, where the earlier source answers again, never reaches this source,
+    /// so nothing could clear it: the diagnostics panel flagged a manifest the
+    /// app does not depend on until the process exited. Forgetting the entry
+    /// rather than recording a success, because this read did not succeed; it
+    /// was not needed.
+    static func supersede(for app: InstalledApp) async {
+        guard let manifestURL = app.electronUpdate?.manifestURL else { return }
+        await RecipeHealth.shared.forget(
+            id: healthID(bundleID: app.bundleID, manifestURL: manifestURL), source: sourceName)
     }
 
     /// The archive kind, from the chosen artifact's own extension.

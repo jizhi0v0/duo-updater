@@ -380,6 +380,9 @@ public struct UpdateChecker: Sendable {
                 }
                 let status = Self.evaluate(installed: app, remote: remote)
                 Log.check.info("\(label, privacy: .public): \(source.name, privacy: .public) → \(remote.displayVersion ?? "?", privacy: .public) [\(String(describing: status), privacy: .public)]")
+                if !(source is ElectronManifestSource) {
+                    await ElectronManifestSource.supersede(for: app)
+                }
                 return UpdateResult(app: app, remote: remote, status: status)
             } catch let refused as OSWindowRefused {
                 // Not a failure — the source read the vendor's answer. Still a miss

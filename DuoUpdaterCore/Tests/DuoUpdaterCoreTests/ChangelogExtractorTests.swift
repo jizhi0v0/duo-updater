@@ -457,6 +457,59 @@ private let vscodeCopilotNoteFixture = """
     #expect(changelog.entries[0].items[2] == "Session cleanup (Preview): Automatically mark merged sessions as done and optionally delete them after a grace period.")
 }
 
+// Trimmed real markup from code.visualstudio.com/updates/v1_139, the first page
+// in the redesigned layout: the date moved into `release-metadata`, the
+// download links into a `<details>` of `<dl>`s, the highlights into a
+// `<section class="release-highlights">`, and "Happy Coding!" is gone — so the
+// layout-1 anchors extracted nothing and the pane fell back to the web page.
+// The commented-out TOC after the section carries a `<ul>` of its own, which
+// the `</section>` close anchor must keep out of the body.
+private let vscodeReleaseHighlightsSectionFixture = """
+<h1>Visual Studio Code 1.139</h1>
+<p class="release-metadata"><span>Released September 23, 2026</span> <span class="release-channel">Stable</span></p>
+<p><strong>Update 1.139.1</strong>: The update addresses these <a href="https://github.com/microsoft/vscode/pulls?q=is%3Apr+milestone%3A1.139.1+is%3Aclosed+label%3Acandidate" class="external-link" target="_blank">issues</a>.</p>
+<details class="release-downloads" aria-labelledby="release-downloads-heading"><summary><h2 id="release-downloads-heading">Downloads for 1.139.1</h2></summary><dl><div class="release-downloads-platform"><dt>macOS</dt><dd><a href="https://update.code.visualstudio.com/1.139.1/darwin-universal-dmg/stable" aria-label="Download VS Code 1.139.1 Universal for macOS">Universal</a></dd></div></dl></details>
+<p class="release-update-guidance">Already installed? Use <strong>Check for Updates</strong> in VS Code. For upcoming features, use the <a href="https://code.visualstudio.com/insiders">Insiders build</a>.</p>
+<section class="release-highlights" aria-labelledby="_release-highlights">
+<h2 id="_release-highlights" data-needslink="_release-highlights">Release highlights</h2>
+<p>This release makes large agent session lists faster, extends Dev Container support to remote projects, and improves everyday editing.</p>
+<ul>
+<li>
+<p><a href="#_run-agent-sessions-in-dev-containers-on-remote-hosts">Remote Dev Container sessions</a>: Run agents inside your project's Dev Container on SSH, Tunnel, and WSL hosts.</p>
+</li>
+<li>
+<p><a href="#_faster-session-list-loading">Session list improvements</a>: Load large session lists faster, fit more sessions on screen, and in-place session renaming.</p>
+</li>
+<li>
+<p><a href="#_editor-experience">Editor experience</a>: Identify wrapped lines at a glance and avoid duplicate closing brackets as you type.</p>
+</li>
+</ul>
+</section>
+<!-- TOC
+<div class="toc-nav-layout">
+  <nav id="toc-nav">
+    <div>In this update</div>
+    <ul>
+      <li><a href="#release-highlights">Release highlights</a></li>
+      <li><a href="#agents">Agents</a></li>
+    </ul>
+  </nav>
+Navigation End -->
+<hr class="release-section-divider" aria-hidden="true"><h2 id="_agents" data-needslink="_agents">Agents</h2>
+"""
+
+@Test func extractsVSCodeHighlightsFromTheReleaseHighlightsSection() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.microsoft.VSCode"))
+    let changelog = try #require(ChangelogExtractor.extract(from: vscodeReleaseHighlightsSectionFixture, using: recipe))
+
+    #expect(changelog.entries.count == 1)
+    #expect(changelog.entries[0].version == "1.139")
+    #expect(changelog.entries[0].date == "September 23, 2026")
+    #expect(changelog.entries[0].items.count == 3)
+    #expect(changelog.entries[0].items[0] == "Remote Dev Container sessions: Run agents inside your project's Dev Container on SSH, Tunnel, and WSL hosts.")
+    #expect(changelog.entries[0].items[2] == "Editor experience: Identify wrapped lines at a glance and avoid duplicate closing brackets as you type.")
+}
+
 @Test func extractsCodexAppEntriesAndSkipsGeneralAndCLIReleases() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.openai.codex"))
     let changelog = try #require(ChangelogExtractor.extract(from: codexFixture, using: recipe))

@@ -19,6 +19,20 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.4.6
+
+**Homebrew apps that install through their own setup script, such as Quark Cloud Drive, now update with one click.** Before, every attempt ended with "did not contain an installer package".
+
+**Homebrew apps whose installer needs you to run it now show their update with a link, instead of failing.** Before, DuoUpdater downloaded the whole installer and then stopped with an error.
+
+**More Homebrew apps are recognised.** Apps that Homebrew installs under a different name, like Visual Paradigm Community Edition, are now checked for updates, and a similarly named app is no longer mistaken for them.
+
+**Apps whose Homebrew cask has been withdrawn are no longer offered an update Homebrew refuses to install.** They're checked through the app's own update feed instead, where it has one.
+
+**VS Code release notes show up again.**
+
+**Under the hood.** Settings › Diagnostics no longer keeps warning about Antigravity and OpenLens once their updates are found another way.
+
 ## 0.4.5
 
 **Blender downloaded from blender.org now gets updates, with one click.** Before, only a copy installed with Homebrew was checked.

@@ -1,147 +1,5 @@
 [
   {
-    "token": "alex313031-thorium",
-    "full_token": "alex313031-thorium",
-    "old_tokens": [],
-    "tap": "homebrew/cask",
-    "name": [
-      "Thorium"
-    ],
-    "desc": "Chromium-based web browser",
-    "homepage": "https://thorium.rocks/",
-    "url": "https://github.com/Alex313031/Thorium-MacOS/releases/download/M138.0.7204.303/Thorium_MacOS_ARM64.dmg",
-    "url_specs": {},
-    "version": "M138.0.7204.303",
-    "autobump": true,
-    "no_autobump_message": null,
-    "skip_livecheck": false,
-    "installed": null,
-    "installed_time": null,
-    "bundle_version": null,
-    "bundle_short_version": null,
-    "pinned": false,
-    "pinned_version": null,
-    "outdated": false,
-    "sha256": "01f77352f40445e5c39a838c6e48198a09b64c14b0ec423c83fd9b461e0d7069",
-    "artifacts": [
-      {
-        "app": [
-          "Thorium.app",
-          {
-            "target": "Thorium Browser.app"
-          }
-        ],
-        "target": "/Applications/Thorium Browser.app"
-      },
-      {
-        "command_wrapper": [
-          "thorium",
-          {
-            "executable": "$APPDIR/Thorium Browser.app/Contents/MacOS/Thorium"
-          }
-        ],
-        "target": "$HOMEBREW_PREFIX/bin/thorium"
-      },
-      {
-        "zap": [
-          {
-            "trash": [
-              "~/Library/Application Support/Thorium",
-              "~/Library/Caches/Thorium",
-              "~/Library/Preferences/org.chromium.Thorium.plist",
-              "~/Library/Saved Application State/org.chromium.Thorium.savedState"
-            ]
-          }
-        ]
-      }
-    ],
-    "caveats": null,
-    "caveats_rosetta": null,
-    "depends_on": {
-      "macos": {}
-    },
-    "conflicts_with": null,
-    "container": null,
-    "rename": [],
-    "auto_updates": null,
-    "deprecated": false,
-    "deprecation_date": null,
-    "deprecation_reason": null,
-    "deprecation_replacement_formula": null,
-    "deprecation_replacement_cask": null,
-    "deprecate_args": null,
-    "disabled": true,
-    "disable_date": "2026-09-01",
-    "disable_reason": "fails_gatekeeper_check",
-    "disable_replacement_formula": null,
-    "disable_replacement_cask": null,
-    "disable_args": {
-      "date": "2026-09-01",
-      "because": "fails_gatekeeper_check",
-      "replacement_formula": null,
-      "replacement_cask": null
-    },
-    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
-    "languages": [],
-    "ruby_source_path": "Casks/a/alex313031-thorium.rb",
-    "ruby_source_checksum": {
-      "sha256": "c6dfa7d30773f422d597335b2939cb77cd3940d38ac3828c1406a268431339be"
-    },
-    "variations": {
-      "golden_gate": {
-        "url": "https://github.com/Alex313031/Thorium-MacOS/releases/download/M138.0.7204.303/Thorium_MacOS_x64.dmg",
-        "sha256": "9a31c4d3fea1f6a49f2943f30d3400ef7cffbb8ab815567e83049b88652b8778"
-      },
-      "tahoe": {
-        "url": "https://github.com/Alex313031/Thorium-MacOS/releases/download/M138.0.7204.303/Thorium_MacOS_x64.dmg",
-        "sha256": "9a31c4d3fea1f6a49f2943f30d3400ef7cffbb8ab815567e83049b88652b8778"
-      },
-      "sequoia": {
-        "url": "https://github.com/Alex313031/Thorium-MacOS/releases/download/M138.0.7204.303/Thorium_MacOS_x64.dmg",
-        "sha256": "9a31c4d3fea1f6a49f2943f30d3400ef7cffbb8ab815567e83049b88652b8778"
-      },
-      "sonoma": {
-        "url": "https://github.com/Alex313031/Thorium-MacOS/releases/download/M138.0.7204.303/Thorium_MacOS_x64.dmg",
-        "sha256": "9a31c4d3fea1f6a49f2943f30d3400ef7cffbb8ab815567e83049b88652b8778"
-      },
-      "ventura": {
-        "url": "https://github.com/Alex313031/Thorium-MacOS/releases/download/M138.0.7204.303/Thorium_MacOS_x64.dmg",
-        "sha256": "9a31c4d3fea1f6a49f2943f30d3400ef7cffbb8ab815567e83049b88652b8778"
-      },
-      "monterey": {
-        "url": "https://github.com/Alex313031/Thorium-MacOS/releases/download/M138.0.7204.303/Thorium_MacOS_x64.dmg",
-        "sha256": "9a31c4d3fea1f6a49f2943f30d3400ef7cffbb8ab815567e83049b88652b8778"
-      },
-      "big_sur": {
-        "url": "https://github.com/Alex313031/Thorium-MacOS/releases/download/M138.0.7204.303/Thorium_MacOS_x64.dmg",
-        "sha256": "9a31c4d3fea1f6a49f2943f30d3400ef7cffbb8ab815567e83049b88652b8778"
-      },
-      "x86_64_linux": {
-        "url": "https://github.com/Alex313031/Thorium-MacOS/releases/download/M138.0.7204.303/Thorium_MacOS_x64.dmg",
-        "sha256": null
-      },
-      "arm64_linux": {
-        "sha256": null
-      }
-    },
-    "supported_platforms": [
-      "golden_gate",
-      "arm64_golden_gate",
-      "tahoe",
-      "arm64_tahoe",
-      "sequoia",
-      "arm64_sequoia",
-      "sonoma",
-      "arm64_sonoma",
-      "ventura",
-      "arm64_ventura",
-      "monterey",
-      "arm64_monterey",
-      "big_sur",
-      "arm64_big_sur"
-    ]
-  },
-  {
     "token": "box-tools",
     "full_token": "box-tools",
     "old_tokens": [],
@@ -1207,18 +1065,18 @@
     ]
   },
   {
-    "token": "thorium",
-    "full_token": "thorium",
+    "token": "visual-paradigm",
+    "full_token": "visual-paradigm",
     "old_tokens": [],
     "tap": "homebrew/cask",
     "name": [
-      "Thorium Reader"
+      "Visual Paradigm"
     ],
-    "desc": "Epub reader",
-    "homepage": "https://www.edrlab.org/software/thorium-reader/",
-    "url": "https://github.com/edrlab/thorium-reader/releases/download/v3.4.0/Thorium-3.4.0-arm64.dmg",
+    "desc": "UML, SysML, BPMN modelling platform",
+    "homepage": "https://www.visual-paradigm.com/",
+    "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_AArch64.dmg",
     "url_specs": {},
-    "version": "3.4.0",
+    "version": "18.1,20260913",
     "autobump": true,
     "no_autobump_message": null,
     "skip_livecheck": false,
@@ -1229,20 +1087,21 @@
     "pinned": false,
     "pinned_version": null,
     "outdated": false,
-    "sha256": "2f19dcaf4b717330626ebce7148653da399945467699bef7f0843d7b5f512030",
+    "sha256": "5e969985e4e308b8523aca0fee2a43aefce6f29e2fdf7e593ecd68c87b825189",
     "artifacts": [
       {
         "app": [
-          "Thorium.app"
+          "Visual Paradigm.app"
         ],
-        "target": "/Applications/Thorium.app"
+        "target": "/Applications/Visual Paradigm.app"
       },
       {
         "zap": [
           {
             "trash": [
-              "~/Library/Application Support/EDRLab.ThoriumReader",
-              "~/Library/Preferences/io.github.edrlab.thorium.plist"
+              "~/Library/Application Support/Visual Paradigm",
+              "~/Library/Application Support/VisualParadigm",
+              "~/Library/Saved Application State/com.install4j.1106-5897-7327-6550.5.savedState"
             ]
           }
         ]
@@ -1251,11 +1110,7 @@
     "caveats": null,
     "caveats_rosetta": null,
     "depends_on": {
-      "macos": {
-        ">=": [
-          "12"
-        ]
-      }
+      "macos": {}
     },
     "conflicts_with": null,
     "container": null,
@@ -1275,37 +1130,41 @@
     "disable_args": null,
     "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
     "languages": [],
-    "ruby_source_path": "Casks/t/thorium.rb",
+    "ruby_source_path": "Casks/v/visual-paradigm.rb",
     "ruby_source_checksum": {
-      "sha256": "a80b51f22efe17f31f85f1684af27468e67886019eb45be171fa99524fda6c0f"
+      "sha256": "261c09bac8b2fcdbb67e007dca5df9a398af315a76d6fc93eb15d1f5f30899df"
     },
     "variations": {
       "golden_gate": {
-        "url": "https://github.com/edrlab/thorium-reader/releases/download/v3.4.0/Thorium-3.4.0.dmg",
-        "sha256": "ef1e798792e0b2fc76348e2376453ce21cb7bb8607e8b8dff6d3c2298d69c239"
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
       },
       "tahoe": {
-        "url": "https://github.com/edrlab/thorium-reader/releases/download/v3.4.0/Thorium-3.4.0.dmg",
-        "sha256": "ef1e798792e0b2fc76348e2376453ce21cb7bb8607e8b8dff6d3c2298d69c239"
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
       },
       "sequoia": {
-        "url": "https://github.com/edrlab/thorium-reader/releases/download/v3.4.0/Thorium-3.4.0.dmg",
-        "sha256": "ef1e798792e0b2fc76348e2376453ce21cb7bb8607e8b8dff6d3c2298d69c239"
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
       },
       "sonoma": {
-        "url": "https://github.com/edrlab/thorium-reader/releases/download/v3.4.0/Thorium-3.4.0.dmg",
-        "sha256": "ef1e798792e0b2fc76348e2376453ce21cb7bb8607e8b8dff6d3c2298d69c239"
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
       },
       "ventura": {
-        "url": "https://github.com/edrlab/thorium-reader/releases/download/v3.4.0/Thorium-3.4.0.dmg",
-        "sha256": "ef1e798792e0b2fc76348e2376453ce21cb7bb8607e8b8dff6d3c2298d69c239"
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
       },
       "monterey": {
-        "url": "https://github.com/edrlab/thorium-reader/releases/download/v3.4.0/Thorium-3.4.0.dmg",
-        "sha256": "ef1e798792e0b2fc76348e2376453ce21cb7bb8607e8b8dff6d3c2298d69c239"
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
+      },
+      "big_sur": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "87a20d708cea775f40072d211b6e6bc46cdf9b581632c8aa429777fb2db05ddc"
       },
       "x86_64_linux": {
-        "url": "https://github.com/edrlab/thorium-reader/releases/download/v3.4.0/Thorium-3.4.0.dmg",
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vp18.1/20260913/Visual_Paradigm_18_1_20260913_OSX_WithJRE.dmg",
         "sha256": null
       },
       "arm64_linux": {
@@ -1324,7 +1183,136 @@
       "ventura",
       "arm64_ventura",
       "monterey",
-      "arm64_monterey"
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "visual-paradigm-ce",
+    "full_token": "visual-paradigm-ce",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Visual Paradigm Community Edition"
+    ],
+    "desc": "UML, SysML, BPMN modelling platform",
+    "homepage": "https://www.visual-paradigm.com/",
+    "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_AArch64.dmg",
+    "url_specs": {},
+    "version": "18.1,20260913",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "039f031570c0d541b97639b268f306884bf5753f521cd01d29fffc6ef8b13c4d",
+    "artifacts": [
+      {
+        "app": [
+          "Visual Paradigm.app",
+          {
+            "target": "Visual Paradigm CE.app"
+          }
+        ],
+        "target": "/Applications/Visual Paradigm CE.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Support/Visual Paradigm",
+              "~/Library/Application Support/VisualParadigm",
+              "~/Library/Saved Application State/com.install4j.1106-5897-7327-6550.5.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/v/visual-paradigm-ce.rb",
+    "ruby_source_checksum": {
+      "sha256": "c1ab3a45dbba72812715d8652baa5380530892319542d58cd1dbeddb4ba305f4"
+    },
+    "variations": {
+      "golden_gate": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "tahoe": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "sequoia": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "sonoma": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "ventura": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "monterey": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "big_sur": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": "0b3f2129d0565721db307fa57836aeaeb110afd5cac270610a16ddc03a3c16a4"
+      },
+      "x86_64_linux": {
+        "url": "https://eu8.dl.visual-paradigm.com/visual-paradigm/vpce18.1/20260913/Visual_Paradigm_CE_18_1_20260913_OSX_WithJRE.dmg",
+        "sha256": null
+      },
+      "arm64_linux": {
+        "sha256": null
+      }
+    },
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
     ]
   }
 ]

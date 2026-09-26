@@ -124,7 +124,74 @@ reading for a cask declaring **two** operators at once. None exists today, so
 arbitrary half of it — dictionary iteration order would otherwise make the
 index differ between launches of the same binary.
 
-## §5 The app-filename key is where brew *installs* the app
+## §5 Disabled casks are not indexed
+
+`index(fromCatalogJSON:)` drops every cask whose catalog entry says
+`"disabled": true`, the same way it drops `version == "latest"`. Before this a
+brew-installed app whose cask was disabled resolved like any other, and its
+one-click `brew install --cask --force <token>` was refused by brew.
+
+**What brew does**, read in brew 7.0.6 (`/opt/homebrew/Library/Homebrew`,
+commit `f420e01`, 2026-09-26):
+
+- `cask/installer.rb` `check_deprecate_disable` (lines 223–236), first call in
+  `prelude` (line 969), which `fetch` runs before the download: `:deprecated`
+  prints a warning (`opoo`), `:disabled` raises `CaskCannotBeInstalledError`.
+  `--force` does not skip it.
+- `deprecate_disable.rb` `type` returns `:deprecated` **before** it asks
+  `disabled?`. A cask that carries both a past `deprecate!` and a past
+  `disable!` is therefore only warned about on install. Checked with
+  `brew ruby`, which reported `DeprecateDisable.type` as `:disabled` for
+  `1kc-razer` and as `:deprecated` for `bonitastudiocommunity` and
+  `1password-cli@1`, all three `disabled? == true`.
+- `cask/upgrade.rb` `outdated_casks` (lines 46 and 60) skips **every**
+  `disabled?` cask, deprecated or not, with "Not upgrading <token>, it is …".
+- `docs/Deprecating-Disabling-and-Removing.md`: deprecated "_should_ no longer
+  be used … the action proceeds"; disabled "_cannot_ be used … the action
+  fails", and disabled casks are removed a year after their disable date.
+- `disable!` with a **future** date (`cask/dsl.rb`) sets `deprecated`, not
+  `disabled`, until the date passes. brew re-evaluates the date locally when it
+  loads a cask from the API (`cask/cask_loader.rb` replays `disable!`); the
+  catalog's `disabled` is computed when the JSON is generated.
+
+**So all disabled casks go, not only the ones `brew install` refuses.** The
+one-click stands in for `brew upgrade`, which refuses them all, and the 218
+that `brew install` lets through do so only because of the check order above.
+Deprecated casks stay: brew installs and upgrades them with a warning.
+
+**Not detection-only either.** `SourceStack` takes the first source that
+answers and Homebrew sits ahead of Sparkle. A disabled cask no longer tracks
+upstream, so its version would answer "up to date" or "update to X" from a
+frozen snapshot, and shadow a source that does track upstream. Returning nothing
+lets the row fall through (or end `.unknown`, as for any unmatched app).
+
+**Counts**, the live catalog on 2026-09-26 (`last-modified` 11:01 GMT, 7761
+casks). A one-time measurement, not a tracked metric:
+
+| Fact | Count |
+|---|---|
+| `disabled: true` | 881 |
+| …and also `deprecated: true` (`brew install` only warns) | 218 |
+| …not deprecated (`brew install` raises) | 663 |
+| …also `version == "latest"` (already dropped) | 11 |
+| …matchable by `.app` or `uninstall: quit:`, not `latest`, not `auto_updates` | 650 |
+| `disable_date` in the past but `disabled: false` | 0 |
+| `disable_date` in the future (all `deprecated: true`, `disabled: false`) | 12 |
+| casks indexed, before → after this filter | 5615 → 4745 |
+| `.app` filenames claimed by more than one indexed cask (§2's 135) | 114 |
+
+The zero row is what keeps reading the catalog's `disabled` (rather than
+comparing `disable_date` to today) honest: the JSON had caught up with every
+passed date. The window where it has not is the time until brew next
+regenerates the catalog, plus this index's six-hour TTL; in it, a cask whose
+future `disable!` date just passed is still offered and brew refuses it.
+
+**Not verified:** the actual `brew install --cask --force` terminal output for a
+disabled cask. Running it was declined in the session that made this change, so
+the behaviour above is from the source and from `brew ruby`, not from the CLI.
+Tests and the mutation table: `HomebrewCaskDisabledTests`.
+
+## §6 The app-filename key is where brew *installs* the app
 
 `HomebrewCaskSource` looks up the installed bundle's `lastPathComponent`, so the
 index key has to be the name brew gives the `.app` on disk. Until 2026-09-26 it
@@ -148,37 +215,41 @@ source's. An empty target counts as none, as brew's `.presence` does. The API
 can carry one: it serializes `to_args`, which is `@dsl_args.compact_blank`, and
 `{target: ""}` is not blank.
 
-Measured the same day over the live catalog (7761 casks; 5615 after the
-`version == "latest"` filter). Every `app` artifact had one of two shapes,
-`[source]` (4129) or `[source, {target}]` (64). Every source and target ended in
-`.app`, and none had a trailing slash.
+Measured the same day over the live catalog (7761 casks). Every `app` artifact
+had one of two shapes, `[source]` (4129) or `[source, {target}]` (64). Every
+source and target ended in `.app`, and none had a trailing slash. The last four
+rows count only indexed casks: 4745, after the `version == "latest"` filter and
+§5's disabled filter.
 
 | Fact | Count |
 |---|---|
-| casks with a `/` in an app source | 103 (111 artifacts) |
-| casks with a target | 61 (64 artifacts; in 4 of them the target's name equals the source's) |
-| non-`latest` casks whose key changes | 160 |
-| keys that disappear / appear | 150 / 162 |
-| keys claimed by more than one cask, before → after | 135 → 133 |
+| casks with a `/` in an app source (whole catalog) | 103 (111 artifacts) |
+| casks with a target (whole catalog) | 61 (64 artifacts; in 4 of them the target's name equals the source's) |
+| indexed casks whose key changes | 118 |
+| keys that disappear / appear | 112 / 122 |
+| keys claimed by more than one cask, before → after | 114 → 113 |
 
-The key change creates two collisions and removes four. §2 still holds: the
+The key change creates two collisions and removes three. §2 still holds: the
 index keeps every claiming cask, and the Caskroom picks.
 
 - **New:** `omegat.app` (`omegat`, and `omegat@latest`, whose source is
   `OmegaT_5.7.1_Beta_Mac_Notarized//OmegaT.app`), and `telegram desktop.app`
   (`telegram-desktop`, `telegram-desktop@beta`). Both are channel pairs of a
   single app, which is the shape the provenance gate already resolves.
-- **Removed:** `android studio.app`, `eclipse.app` (ten Eclipse and Scala IDE
-  casks that each install under their own target), `thorium.app` and
-  `visual paradigm.app`. Separately, `telegram.app` loses `telegram-desktop`
-  and `telegram-desktop@beta`.
+- **Removed:** `android studio.app`, `eclipse.app` (eight Eclipse casks that
+  each install under their own target, beside `eclipse-ide`, which really is
+  `Eclipse.app`) and `visual paradigm.app`. Separately, `telegram.app` loses
+  `telegram-desktop` and `telegram-desktop@beta`.
 
-The removals fix wrong adoptions, not just misses. `thorium` is Thorium Reader
-at `Thorium.app`. `alex313031-thorium` is a browser that brew installs as
-`Thorium Browser.app`. Under the old key, a Mac with the browser brew-installed
-passed the provenance gate for Reader, and Reader was offered the browser's
-`M138…` build. `HomebrewCaskAppPathTests` replays this and the other shapes
-against 11 real catalog entries. Its header has the mutation table.
+The removals fix wrong adoptions, not just misses. `visual-paradigm` installs
+`Visual Paradigm.app`. `visual-paradigm-ce` takes the same `Visual Paradigm.app`
+out of its download and installs it as `Visual Paradigm CE.app`. Under the old
+key, a Mac with the CE cask brew-installed passed the provenance gate for the
+commercial app, which was then filed under the CE cask. `HomebrewCaskAppPathTests`
+replays this and the other shapes against 11 real catalog entries. Its header has
+the mutation table. (The first version of this change used the
+`thorium` / `alex313031-thorium` pair as its example. §5 made that pair moot:
+`alex313031-thorium` is disabled, so it is no longer indexed at all.)
 
 Not verified: no cask whose key moved was installed on a real Mac and run
 through the app. The tests drive `HomebrewCaskSource` with an injected Caskroom.

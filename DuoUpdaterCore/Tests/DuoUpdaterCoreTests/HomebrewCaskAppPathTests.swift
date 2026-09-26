@@ -10,14 +10,14 @@ import Foundation
 /// it is installed *away from*.
 ///
 /// The fixture is 11 casks cut from the live `formulae.brew.sh/api/cask.json`,
-/// fetched 2026-09-26, verbatim and in catalog order (positions 139 … 7077):
+/// fetched 2026-09-26, verbatim and in catalog order (positions 545 … 7416):
 /// nested sources (`j`, `omegat@latest` with its `//`, `box-tools`), relative,
 /// absolute and `~` targets (`telegram-desktop`, `ftdi-vcp-driver`,
 /// `box-tools`), and the two pairs whose candidate lists this change moves.
-/// Counts over the whole catalog: `docs/engine-notes/homebrew-cask-catalog.md` §5.
+/// Counts over the whole catalog: `docs/engine-notes/homebrew-cask-catalog.md` §6.
 ///
 /// Mutation table. Each row was applied to `appFilenames(in:)` and run with
-/// `--filter HomebrewCask` on 2026-09-26, which covers this suite and the two
+/// `--filter HomebrewCask` on 2026-09-26, which covers this suite and the other
 /// existing ones. Every row compiles and every row goes red. The "red" column
 /// lists the tests that actually failed.
 ///
@@ -98,7 +98,7 @@ struct HomebrewCaskAppPathTests {
     /// `target: ""` installs under the source's name (`@target_string.presence ||
     /// source.basename`), and the API can carry one: it serializes `to_args`, i.e.
     /// `@dsl_args.compact_blank`, and `{target: ""}` is not blank. Hand-built —
-    /// none of the 64 live targets is empty (§5), so no real body has this shape.
+    /// none of the 64 live targets is empty (§6), so no real body has this shape.
     @Test func anEmptyTargetFallsBackToTheSourceName() throws {
         let json = #"[{"token": "zzfixture", "version": "1.0", "artifacts": [{"app": ["Dir/Foo.app", {"target": ""}]}]}]"#
         let index = try HomebrewCaskCatalog.index(fromCatalogJSON: Data(json.utf8))
@@ -129,17 +129,18 @@ struct HomebrewCaskAppPathTests {
         #expect(stable?.sourceIdentifier == "omegat")
     }
 
-    /// `thorium` is Thorium Reader at `Thorium.app`; `alex313031-thorium` is a
-    /// browser whose `Thorium.app` brew installs as `Thorium Browser.app`. Keyed by
-    /// source, a Mac with the browser brew-installed passed the provenance gate for
-    /// *Reader* and was offered the browser's M138 build. Keyed by the installed
-    /// name, Reader is not adopted, and the browser's own row resolves.
+    /// `visual-paradigm` installs `Visual Paradigm.app`. `visual-paradigm-ce` takes
+    /// the same `Visual Paradigm.app` out of its download and installs it as
+    /// `Visual Paradigm CE.app`. Keyed by source, a Mac with the CE cask
+    /// brew-installed passed the provenance gate for the commercial app, which was
+    /// then filed under the CE cask. Keyed by the installed name, the commercial app
+    /// is not adopted, and the CE app's own row resolves.
     @Test func aTargetedCaskNoLongerAdoptsTheAppAtItsSourceName() async throws {
-        let source = try Self.source(installed: ["alex313031-thorium"])
-        let reader = try await source.latestVersion(for: Self.app("Thorium.app"))
-        #expect(reader == nil)
-        let browser = try await source.latestVersion(for: Self.app("Thorium Browser.app"))
-        #expect(browser?.sourceIdentifier == "alex313031-thorium")
-        #expect(browser?.shortVersion == "M138.0.7204.303")
+        let source = try Self.source(installed: ["visual-paradigm-ce"])
+        let commercial = try await source.latestVersion(for: Self.app("Visual Paradigm.app"))
+        #expect(commercial == nil)
+        let ce = try await source.latestVersion(for: Self.app("Visual Paradigm CE.app"))
+        #expect(ce?.sourceIdentifier == "visual-paradigm-ce")
+        #expect(ce?.shortVersion == "18.1")
     }
 }

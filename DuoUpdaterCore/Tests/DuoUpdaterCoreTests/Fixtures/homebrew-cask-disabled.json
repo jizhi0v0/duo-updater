@@ -1,0 +1,711 @@
+[
+  {
+    "token": "gauntlet",
+    "full_token": "gauntlet",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Gauntlet"
+    ],
+    "desc": "Open-source cross-platform application launcher",
+    "homepage": "https://github.com/project-gauntlet/gauntlet",
+    "url": "https://github.com/project-gauntlet/gauntlet/releases/download/v21/gauntlet-universal-macos.dmg",
+    "url_specs": {},
+    "version": "21",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "70468c9494941289f9db162f21fd85f0df98bc8ea30bb567deb068ef06c1e0b1",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": "dev.project-gauntlet.Gauntlet"
+          }
+        ]
+      },
+      {
+        "uninstall": [
+          {
+            "login_item": "Gauntlet"
+          }
+        ]
+      },
+      {
+        "app": [
+          "Gauntlet.app"
+        ],
+        "target": "/Applications/Gauntlet.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/Library/Application Support/dev.project-gauntlet.Gauntlet",
+              "~/Library/Caches/dev.project-gauntlet.Gauntlet"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": true,
+    "deprecation_date": "2025-11-20",
+    "deprecation_reason": "unmaintained",
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": {
+      "date": "2025-11-20",
+      "because": "unmaintained",
+      "replacement_formula": null,
+      "replacement_cask": null
+    },
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/g/gauntlet.rb",
+    "ruby_source_checksum": {
+      "sha256": "816279a984368a997787daafd19d2632572f0654e87a5d366771c86fda128c9f"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "keepassxc",
+    "full_token": "keepassxc",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "KeePassXC"
+    ],
+    "desc": "Password manager app",
+    "homepage": "https://keepassxc.org/",
+    "url": "https://github.com/keepassxreboot/keepassxc/releases/download/2.7.12/KeePassXC-2.7.12-arm64.dmg",
+    "url_specs": {},
+    "version": "2.7.12",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "65f4f63607180c0a15794b4a4068f85e99ed5391c87c1fb9312648f1b36fed40",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": "org.keepassxc.keepassxc"
+          }
+        ]
+      },
+      {
+        "app": [
+          "KeePassXC.app"
+        ],
+        "target": "/Applications/KeePassXC.app"
+      },
+      {
+        "binary": [
+          "$APPDIR/KeePassXC.app/Contents/MacOS/keepassxc-cli"
+        ],
+        "target": "$HOMEBREW_PREFIX/bin/keepassxc-cli"
+      },
+      {
+        "manpage": [
+          "$APPDIR/KeePassXC.app/Contents/Resources/man/man1/keepassxc.1"
+        ],
+        "target": "$HOMEBREW_PREFIX/share/man/man1/keepassxc.1"
+      },
+      {
+        "manpage": [
+          "$APPDIR/KeePassXC.app/Contents/Resources/man/man1/keepassxc-cli.1"
+        ],
+        "target": "$HOMEBREW_PREFIX/share/man/man1/keepassxc-cli.1"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/.keepassxc",
+              "~/Library/Application Support/CrashReporter/KeePassXC_*.plist",
+              "~/Library/Application Support/keepassxc",
+              "~/Library/Caches/org.keepassx.keepassxc",
+              "~/Library/Logs/DiagnosticReports/KeePassXC_*.crash",
+              "~/Library/Preferences/keepassxc.keepassxc.plist",
+              "~/Library/Preferences/org.keepassx.keepassxc.plist",
+              "~/Library/Saved Application State/org.keepassx.keepassxc.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": null,
+    "depends_on": {
+      "macos": {
+        ">=": [
+          "12"
+        ]
+      }
+    },
+    "conflicts_with": {
+      "cask": [
+        "keepassxc@beta",
+        "keepassxc@snapshot"
+      ]
+    },
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": false,
+    "disable_date": null,
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": null,
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/k/keepassxc.rb",
+    "ruby_source_checksum": {
+      "sha256": "26bdac2b142ef526a3b83ee756e6bc8b9dc7d236e572c73e96dd721c2170474d"
+    },
+    "variations": {
+      "golden_gate": {
+        "url": "https://github.com/keepassxreboot/keepassxc/releases/download/2.7.12/KeePassXC-2.7.12-x86_64.dmg",
+        "sha256": "f55737bf759b7ea622967ae979e8fd0ef06a8133104124c24861fd11a3fe14b5"
+      },
+      "tahoe": {
+        "url": "https://github.com/keepassxreboot/keepassxc/releases/download/2.7.12/KeePassXC-2.7.12-x86_64.dmg",
+        "sha256": "f55737bf759b7ea622967ae979e8fd0ef06a8133104124c24861fd11a3fe14b5"
+      },
+      "sequoia": {
+        "url": "https://github.com/keepassxreboot/keepassxc/releases/download/2.7.12/KeePassXC-2.7.12-x86_64.dmg",
+        "sha256": "f55737bf759b7ea622967ae979e8fd0ef06a8133104124c24861fd11a3fe14b5"
+      },
+      "sonoma": {
+        "url": "https://github.com/keepassxreboot/keepassxc/releases/download/2.7.12/KeePassXC-2.7.12-x86_64.dmg",
+        "sha256": "f55737bf759b7ea622967ae979e8fd0ef06a8133104124c24861fd11a3fe14b5"
+      },
+      "ventura": {
+        "url": "https://github.com/keepassxreboot/keepassxc/releases/download/2.7.12/KeePassXC-2.7.12-x86_64.dmg",
+        "sha256": "f55737bf759b7ea622967ae979e8fd0ef06a8133104124c24861fd11a3fe14b5"
+      },
+      "monterey": {
+        "url": "https://github.com/keepassxreboot/keepassxc/releases/download/2.7.12/KeePassXC-2.7.12-x86_64.dmg",
+        "sha256": "f55737bf759b7ea622967ae979e8fd0ef06a8133104124c24861fd11a3fe14b5"
+      },
+      "big_sur": {
+        "url": "https://github.com/keepassxreboot/keepassxc/releases/download/2.7.12/KeePassXC-2.7.12-x86_64.dmg",
+        "sha256": "f55737bf759b7ea622967ae979e8fd0ef06a8133104124c24861fd11a3fe14b5"
+      },
+      "x86_64_linux": {
+        "url": "https://github.com/keepassxreboot/keepassxc/releases/download/2.7.12/KeePassXC-2.7.12-x86_64.AppImage",
+        "sha256": "564fe8b751b9ef7aa057e4d3d0b2878db24eaa0f6b1c855c82e699ab0913ae49",
+        "artifacts": [
+          {
+            "app_image": [
+              "KeePassXC-2.7.12-x86_64.AppImage",
+              {
+                "target": "KeePassXC.AppImage"
+              }
+            ],
+            "target": "/$HOME/Applications/KeePassXC.AppImage"
+          },
+          {
+            "zap": [
+              {
+                "trash": [
+                  "~/.cache/keepassxc",
+                  "~/.config/keepassxc"
+                ]
+              }
+            ]
+          }
+        ],
+        "depends_on": {
+          "arch": [
+            {
+              "type": "intel",
+              "bits": 64
+            }
+          ]
+        }
+      },
+      "arm64_linux": {
+        "url": "https://github.com/keepassxreboot/keepassxc/releases/download/2.7.12/KeePassXC-2.7.12-arm64.AppImage",
+        "sha256": null,
+        "artifacts": [
+          {
+            "app_image": [
+              "KeePassXC-2.7.12-arm64.AppImage",
+              {
+                "target": "KeePassXC.AppImage"
+              }
+            ],
+            "target": "/$HOME/Applications/KeePassXC.AppImage"
+          },
+          {
+            "zap": [
+              {
+                "trash": [
+                  "~/.cache/keepassxc",
+                  "~/.config/keepassxc"
+                ]
+              }
+            ]
+          }
+        ],
+        "depends_on": {
+          "arch": [
+            {
+              "type": "intel",
+              "bits": 64
+            }
+          ]
+        }
+      }
+    },
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "x86_64_linux"
+    ]
+  },
+  {
+    "token": "keepassxc@snapshot",
+    "full_token": "keepassxc@snapshot",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "KeePassXC"
+    ],
+    "desc": "Password manager app",
+    "homepage": "https://keepassxc.org/",
+    "url": "https://snapshot.keepassxc.org/build-290601/KeePassXC-2.8.0-snapshot.dmg",
+    "url_specs": {},
+    "version": "2.8.0,290601",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "d8406491cee08dbed95404d83a617b2a86cf58c5e5d9006dd4b3109de3ca8344",
+    "artifacts": [
+      {
+        "uninstall": [
+          {
+            "quit": "org.keepassxc.keepassxc"
+          }
+        ]
+      },
+      {
+        "app": [
+          "KeePassXC.app"
+        ],
+        "target": "/Applications/KeePassXC.app"
+      },
+      {
+        "binary": [
+          "$APPDIR/KeePassXC.app/Contents/MacOS/keepassxc-cli"
+        ],
+        "target": "$HOMEBREW_PREFIX/bin/keepassxc-cli"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/.keepassxc",
+              "~/Library/Application Support/CrashReporter/KeePassXC_*.plist",
+              "~/Library/Application Support/keepassxc",
+              "~/Library/Caches/org.keepassx.keepassxc",
+              "~/Library/Logs/DiagnosticReports/KeePassXC_*.crash",
+              "~/Library/Preferences/keepassxc.keepassxc.plist",
+              "~/Library/Preferences/org.keepassx.keepassxc.plist",
+              "~/Library/Saved Application State/org.keepassx.keepassxc.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": true,
+    "depends_on": {
+      "macos": {
+        ">=": [
+          "14"
+        ]
+      }
+    },
+    "conflicts_with": {
+      "cask": [
+        "keepassxc",
+        "keepassxc@beta"
+      ]
+    },
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": true,
+    "disable_date": "2026-09-01",
+    "disable_reason": "fails_gatekeeper_check",
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": {
+      "date": "2026-09-01",
+      "because": "fails_gatekeeper_check",
+      "replacement_formula": null,
+      "replacement_cask": null
+    },
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/k/keepassxc@snapshot.rb",
+    "ruby_source_checksum": {
+      "sha256": "9e774bc0de53df21e4d0d20ebc168e5ccb25c87a92d41b8b3669c1f4138ce019"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma"
+    ]
+  },
+  {
+    "token": "mjolnir",
+    "full_token": "mjolnir",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Mjolnir"
+    ],
+    "desc": "Lightweight automation and productivity app",
+    "homepage": "https://github.com/mjolnirapp/mjolnir",
+    "url": "https://github.com/mjolnirapp/mjolnir/releases/download/1.0.2/Mjolnir.app.zip",
+    "url_specs": {},
+    "version": "1.0.2",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "eb39b9ff76258c3aa7970f70465a7c858290ce798e5b8e411cb5b7d300de16d1",
+    "artifacts": [
+      {
+        "app": [
+          "Mjolnir.app"
+        ],
+        "target": "/Applications/Mjolnir.app"
+      },
+      {
+        "zap": [
+          {
+            "trash": [
+              "~/.mjolnir",
+              "~/Library/Caches/org.degutis.Mjolnir",
+              "~/Library/Preferences/org.degutis.Mjolnir.plist",
+              "~/Library/Saved Application State/org.degutis.Mjolnir.savedState"
+            ]
+          }
+        ]
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": true,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": true,
+    "deprecation_date": "2025-11-30",
+    "deprecation_reason": "unmaintained",
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": {
+      "date": "2025-11-30",
+      "because": "unmaintained",
+      "replacement_formula": null,
+      "replacement_cask": null
+    },
+    "disabled": false,
+    "disable_date": "2026-11-30",
+    "disable_reason": null,
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": {
+      "date": "2026-11-30",
+      "because": "unmaintained",
+      "replacement_formula": null,
+      "replacement_cask": null
+    },
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/m/mjolnir.rb",
+    "ruby_source_checksum": {
+      "sha256": "e8a7e232bc1a6b7a98c98aa40a552b906594cc093cacf0d6cf24cd4d8642cb59"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "sleipnir",
+    "full_token": "sleipnir",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Sleipnir"
+    ],
+    "desc": "Web browser",
+    "homepage": "https://www.fenrir-inc.com/jp/sleipnir/",
+    "url": "https://www.fenrir-inc.com/services/download.php?file=Sleipnir.dmg",
+    "url_specs": {},
+    "version": "4.6.6",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "no_check",
+    "artifacts": [
+      {
+        "app": [
+          "Sleipnir.app"
+        ],
+        "target": "/Applications/Sleipnir.app"
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": true,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": false,
+    "deprecation_date": null,
+    "deprecation_reason": null,
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": null,
+    "disabled": true,
+    "disable_date": "2026-09-01",
+    "disable_reason": "fails_gatekeeper_check",
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": {
+      "date": "2026-09-01",
+      "because": "fails_gatekeeper_check",
+      "replacement_formula": null,
+      "replacement_cask": null
+    },
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/s/sleipnir.rb",
+    "ruby_source_checksum": {
+      "sha256": "d8b2746c7abb68616337d31583702bb1dd3d2a778770ea12248b2bfc90486a42"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  },
+  {
+    "token": "unlox",
+    "full_token": "unlox",
+    "old_tokens": [],
+    "tap": "homebrew/cask",
+    "name": [
+      "Unlox"
+    ],
+    "desc": "Unlock your computer with your fingerprint",
+    "homepage": "https://unlox.it/get",
+    "url": "https://unlox.it/download/",
+    "url_specs": {},
+    "version": "3.0.4.2",
+    "autobump": true,
+    "no_autobump_message": null,
+    "skip_livecheck": false,
+    "installed": null,
+    "installed_time": null,
+    "bundle_version": null,
+    "bundle_short_version": null,
+    "pinned": false,
+    "pinned_version": null,
+    "outdated": false,
+    "sha256": "no_check",
+    "artifacts": [
+      {
+        "app": [
+          "Unlox.app"
+        ],
+        "target": "/Applications/Unlox.app"
+      }
+    ],
+    "caveats": null,
+    "caveats_rosetta": true,
+    "depends_on": {
+      "macos": {}
+    },
+    "conflicts_with": null,
+    "container": null,
+    "rename": [],
+    "auto_updates": null,
+    "deprecated": true,
+    "deprecation_date": "2025-03-02",
+    "deprecation_reason": "unmaintained",
+    "deprecation_replacement_formula": null,
+    "deprecation_replacement_cask": null,
+    "deprecate_args": {
+      "date": "2025-03-02",
+      "because": "unmaintained",
+      "replacement_formula": null,
+      "replacement_cask": null
+    },
+    "disabled": true,
+    "disable_date": "2026-03-02",
+    "disable_reason": "unmaintained",
+    "disable_replacement_formula": null,
+    "disable_replacement_cask": null,
+    "disable_args": {
+      "date": "2026-03-02",
+      "because": "unmaintained",
+      "replacement_formula": null,
+      "replacement_cask": null
+    },
+    "tap_git_head": "eebbe7216b1cb45ce55a30f62bb427cca2ac7533",
+    "languages": [],
+    "ruby_source_path": "Casks/u/unlox.rb",
+    "ruby_source_checksum": {
+      "sha256": "1e32e5b4f8bc130e50f888cc953b18739483237fbdef6c7fcf53bc9101f5dbfb"
+    },
+    "variations": {},
+    "supported_platforms": [
+      "golden_gate",
+      "arm64_golden_gate",
+      "tahoe",
+      "arm64_tahoe",
+      "sequoia",
+      "arm64_sequoia",
+      "sonoma",
+      "arm64_sonoma",
+      "ventura",
+      "arm64_ventura",
+      "monterey",
+      "arm64_monterey",
+      "big_sur",
+      "arm64_big_sur"
+    ]
+  }
+]

@@ -413,8 +413,8 @@ public actor HomebrewCaskCatalog {
     /// is the script's executable: an installer `.app`, a shell script or a
     /// program in the archive, never a `.pkg`, for all 24 such casks on
     /// 2026-09-26 (read off the catalog; the downloads were not opened).
-    /// quarkclouddrive's dmg has no `.pkg`, so its every update failed with "did
-    /// not contain an installer package" (issue #877).
+    /// quarkclouddrive's update failed there with "did not contain an installer
+    /// package" (issue #877).
     private static func hasPackageArtifact(in artifacts: Any?) -> Bool {
         guard let artifacts = artifacts as? [Any] else { return false }
         for artifact in artifacts {

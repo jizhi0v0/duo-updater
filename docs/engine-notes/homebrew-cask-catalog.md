@@ -190,3 +190,66 @@ future `disable!` date just passed is still offered and brew refuses it.
 disabled cask. Running it was declined in the session that made this change, so
 the behaviour above is from the source and from `brew ruby`, not from the CLI.
 Tests and the mutation table: `HomebrewCaskDisabledTests`.
+
+## §6 The app-filename key is where brew *installs* the app
+
+`HomebrewCaskSource` looks up the installed bundle's `lastPathComponent`, so the
+index key has to be the name brew gives the `.app` on disk. Until 2026-09-26 it
+was the artifact's source string, used verbatim. That is wrong in two ways, both
+from brew's `Cask::Artifact::Relocated`
+(`/opt/homebrew/Library/Homebrew/cask/artifact/relocated.rb`, read at
+Homebrew 7.0.6-64-gf420e01):
+
+- `source` is `staged_path.join(<source>)`, a path **inside the download**. So
+  `"app": ["j9.7/jbrk.app"]` lands as `/Applications/jbrk.app`, and the old key
+  `j9.7/jbrk.app` could never match.
+- `target` is `resolve_target(@target_string.presence || source.basename)`. A
+  `{"target": ...}` renames the app (`Telegram.app` → `Telegram Desktop.app`),
+  and a relative target is joined to the appdir. An absolute or `~` target is
+  used as given. The old rule indexed only strings, so it never read the target.
+  It filed the cask under the source name, which is the name the app is moved
+  *away from*.
+
+The key is now the target's last component when there is one, otherwise the
+source's. An empty target counts as none, as brew's `.presence` does. The API
+can carry one: it serializes `to_args`, which is `@dsl_args.compact_blank`, and
+`{target: ""}` is not blank.
+
+Measured the same day over the live catalog (7761 casks). Every `app` artifact
+had one of two shapes, `[source]` (4129) or `[source, {target}]` (64). Every
+source and target ended in `.app`, and none had a trailing slash. The last four
+rows count only indexed casks: 4745, after the `version == "latest"` filter and
+§5's disabled filter.
+
+| Fact | Count |
+|---|---|
+| casks with a `/` in an app source (whole catalog) | 103 (111 artifacts) |
+| casks with a target (whole catalog) | 61 (64 artifacts; in 4 of them the target's name equals the source's) |
+| indexed casks whose key changes | 118 |
+| keys that disappear / appear | 112 / 122 |
+| keys claimed by more than one cask, before → after | 114 → 113 |
+
+The key change creates two collisions and removes three. §2 still holds: the
+index keeps every claiming cask, and the Caskroom picks.
+
+- **New:** `omegat.app` (`omegat`, and `omegat@latest`, whose source is
+  `OmegaT_5.7.1_Beta_Mac_Notarized//OmegaT.app`), and `telegram desktop.app`
+  (`telegram-desktop`, `telegram-desktop@beta`). Both are channel pairs of a
+  single app, which is the shape the provenance gate already resolves.
+- **Removed:** `android studio.app`, `eclipse.app` (eight Eclipse casks that
+  each install under their own target, beside `eclipse-ide`, which really is
+  `Eclipse.app`) and `visual paradigm.app`. Separately, `telegram.app` loses
+  `telegram-desktop` and `telegram-desktop@beta`.
+
+The removals fix wrong adoptions, not just misses. `visual-paradigm` installs
+`Visual Paradigm.app`. `visual-paradigm-ce` takes the same `Visual Paradigm.app`
+out of its download and installs it as `Visual Paradigm CE.app`. Under the old
+key, a Mac with the CE cask brew-installed passed the provenance gate for the
+commercial app, which was then filed under the CE cask. `HomebrewCaskAppPathTests`
+replays this and the other shapes against 11 real catalog entries. Its header has
+the mutation table. (The first version of this change used the
+`thorium` / `alex313031-thorium` pair as its example. §5 made that pair moot:
+`alex313031-thorium` is disabled, so it is no longer indexed at all.)
+
+Not verified: no cask whose key moved was installed on a real Mac and run
+through the app. The tests drive `HomebrewCaskSource` with an injected Caskroom.

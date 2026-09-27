@@ -2,6 +2,16 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.4.7
+
+**Um novo ícone.** Um gato siamês enrolado, com o rabo formando a seta de atualizar. No macOS 26 e posterior, ele segue o seu estilo de ícones claro, escuro ou colorido.
+
+**As verificações em segundo plano esperam enquanto você está no Modo Dados Reduzidos ou numa conexão limitada, como o Acesso Pessoal do iPhone.** Elas rodam assim que você volta a uma rede normal. Verificar manualmente e instalar atualizações funcionam como antes.
+
+**Verificações que falham por uma instabilidade da rede são repetidas uma vez, dois minutos depois.** Antes, as linhas com falha e o aviso ficavam até a próxima verificação agendada, seis horas depois por padrão.
+
+**Nos bastidores.** As imagens das notas de versão ocupam bem menos espaço em disco, o painel Requisições não conta mais duas vezes uma requisição revalidada e a verificação do Muse não baixa mais a página de login dele.
+
 ## 0.4.6
 
 **Apps do Homebrew que se instalam com o próprio script de instalação, como o Quark Cloud Drive, agora são atualizados com um clique.** Antes, toda tentativa terminava com um erro dizendo que não havia nenhum pacote de instalação.

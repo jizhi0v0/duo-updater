@@ -2,6 +2,16 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.4.7
+
+**Ein neues App-Symbol.** Eine zusammengerollte Siamkatze, deren Schwanz der Aktualisieren-Pfeil ist. Ab macOS 26 folgt es deinem hellen, dunklen oder getönten Symbolstil.
+
+**Prüfungen im Hintergrund warten, solange du im Datensparmodus oder in einem getakteten Netz bist, etwa einem iPhone-Hotspot.** Sie laufen, sobald du wieder in einem normalen Netz bist. Manuelles Prüfen und das Installieren von Updates funktionieren wie bisher.
+
+**Prüfungen, die an einem kurzen Netzwerkaussetzer scheitern, werden zwei Minuten später einmal wiederholt.** Bisher blieben die fehlgeschlagenen Zeilen und die Warnung bis zur nächsten geplanten Prüfung stehen, standardmäßig sechs Stunden später.
+
+**Unter der Haube.** Bilder in Versionshinweisen belegen deutlich weniger Speicherplatz, der Bereich Anfragen zählt eine erneut validierte Anfrage nicht mehr doppelt, und die Prüfung von Muse lädt nicht mehr dessen Anmeldeseite herunter.
+
 ## 0.4.6
 
 **Homebrew-Apps, die sich über ein eigenes Setup-Skript installieren, etwa Quark Cloud Drive, lassen sich jetzt mit einem Klick aktualisieren.** Bisher endete jeder Versuch mit der Meldung, es sei kein Installationspaket enthalten.

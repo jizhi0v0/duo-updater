@@ -2,6 +2,16 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.4.7
+
+**Une nouvelle icône.** Un chat siamois enroulé sur lui-même, dont la queue forme la flèche d’actualisation. Sur macOS 26 et ultérieur, elle suit votre style d’icônes clair, sombre ou teinté.
+
+**Les vérifications en arrière-plan attendent tant que vous êtes en mode données faibles ou sur une connexion limitée, comme un partage de connexion iPhone.** Elles s’exécutent dès que vous retrouvez un réseau normal. La vérification manuelle et l’installation des mises à jour fonctionnent comme avant.
+
+**Les vérifications qui échouent à cause d’un raté du réseau sont relancées une fois, deux minutes plus tard.** Avant, les lignes en échec et l’avertissement restaient jusqu’à la vérification programmée suivante, six heures plus tard par défaut.
+
+**Sous le capot.** Les images des notes de version prennent beaucoup moins de place sur le disque, le panneau Requêtes ne compte plus deux fois une requête revalidée, et la vérification de Muse ne télécharge plus sa page de connexion.
+
 ## 0.4.6
 
 **Les apps Homebrew qui s’installent avec leur propre script d’installation, comme Quark Cloud Drive, se mettent désormais à jour en un clic.** Avant, chaque tentative se terminait par une erreur indiquant qu’aucun paquet d’installation n’avait été trouvé.

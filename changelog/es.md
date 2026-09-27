@@ -2,6 +2,16 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.4.7
+
+**Un icono nuevo.** Un gato siamés acurrucado cuya cola es la flecha de actualizar. En macOS 26 y posteriores sigue tu estilo de iconos claro, oscuro o tintado.
+
+**Las comprobaciones en segundo plano esperan mientras estás en modo de datos bajos o en una conexión de uso medido, como un punto de acceso de iPhone.** Se ejecutan en cuanto vuelves a una red normal. Comprobar a mano e instalar actualizaciones funciona como antes.
+
+**Las comprobaciones que fallan por un corte momentáneo de la red se reintentan una vez, dos minutos después.** Antes, las filas fallidas y el aviso seguían ahí hasta la siguiente comprobación programada, seis horas después de forma predeterminada.
+
+**Por dentro.** Las imágenes de las notas de versión ocupan mucho menos espacio en disco, el panel Solicitudes ya no cuenta dos veces una solicitud revalidada y la comprobación de Muse ya no descarga su página de inicio de sesión.
+
 ## 0.4.6
 
 **Las apps de Homebrew que se instalan con su propio script de instalación, como Quark Cloud Drive, ahora se actualizan con un clic.** Antes, cada intento terminaba con un error que decía que no había ningún paquete de instalación.

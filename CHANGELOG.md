@@ -19,6 +19,16 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.4.7
+
+**A new app icon.** A Siamese cat curled up, with its tail as the refresh arrow. On macOS 26 and later it follows your light, dark or tinted icon style.
+
+**Background checks wait while you're in Low Data Mode or on a metered connection, such as an iPhone hotspot.** They run as soon as you're back on a regular network. Checking by hand and installing updates work as before.
+
+**Checks that fail because of a network hiccup are retried once, two minutes later.** Before, the failed rows and the warning stayed until the next scheduled check, six hours later by default.
+
+**Under the hood.** Release-note images take up much less disk space, the Requests pane no longer counts a revalidated request twice, and checking Muse no longer downloads its sign-in page.
+
 ## 0.4.6
 
 **Homebrew apps that install through their own setup script, such as Quark Cloud Drive, now update with one click.** Before, every attempt ended with "did not contain an installer package".

@@ -106,6 +106,12 @@ public enum Requests {
         // Spelled out rather than folded into the request count: these are the
         // three ways a request can be much cheaper, or free, than it looks, and a
         // total that hides them makes revalidation look like re-downloading.
+        //
+        // "Served from cache" was not free before #889: every revalidation also
+        // booked its cache lookup as a separate cached request, so a store that
+        // predates the fix carries those lookups in `requests` and `cached` for
+        // good — totals are running sums and the rows that fed them are gone.
+        // Only what is recorded from then on is a real no-network hit.
         print("\(notModified) answered 304 · \(cached) served from cache · \(failures) failed")
         if !allClients {
             print("(the menu-bar app only; `--all-clients` adds `duo`'s own requests)")

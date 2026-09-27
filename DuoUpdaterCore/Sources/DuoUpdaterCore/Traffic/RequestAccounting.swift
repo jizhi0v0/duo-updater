@@ -84,6 +84,12 @@ public struct RequestTotal: Codable, Sendable, Hashable, Identifiable {
     /// Hops recorded, cache hits and failures included.
     public var requests: Int
     /// Hops `URLCache` answered with no network at all.
+    ///
+    /// True of what is recorded since #889. Before it, every revalidation also
+    /// filed its cache lookup as a hop of its own, so a total that predates the
+    /// fix counts those lookups here *and* in ``requests``. A running sum cannot
+    /// be taken apart afterwards, so those figures stay as they were. A `duo`
+    /// older than the fix still files lookups under its own client.
     public var cachedRequests: Int
     /// Hops that came back 304.
     public var notModified: Int

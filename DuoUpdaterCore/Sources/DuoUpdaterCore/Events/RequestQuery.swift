@@ -90,7 +90,10 @@ public struct RequestQuery: Sendable, Equatable {
     /// `URLSessionTaskMetrics` reports one transaction per hop, and a revalidated
     /// feed is two of them — the cache consultation (0 bytes, never touched the
     /// network) and the network load, sharing a task id. Counting those as two
-    /// requests is what makes one update read as five.
+    /// requests is what makes one update read as five. Since #889 the recorder
+    /// no longer stores that consultation, so what is left to collapse is
+    /// redirect hops — and consultation rows written before it, until retention
+    /// ages them out.
     ///
     /// Off everywhere at the moment: the window shows every transaction, and
     /// `duo events` is a raw dump that must stay per-hop regardless. Kept

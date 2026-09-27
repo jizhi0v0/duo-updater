@@ -67,7 +67,8 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
     /// reports a transaction for each. A feed that 302s to a CDN contacted two
     /// hosts and both belong in a record of which hosts we talk to;
     /// ``RequestEvent/taskID`` and ``RequestEvent/hopIndex`` put them back
-    /// together.
+    /// together. The one transaction left out is a cache lookup that the next
+    /// transaction took to the network for the same URL — see the body.
     ///
     /// Static and pure so a test can feed it metrics without a network.
     public static func events(
@@ -81,9 +82,33 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
         // and how" is a question a bare nil status cannot answer, and it is one of
         // the reasons to keep events at all.
         let error = task?.error as NSError?
-        let lastHop = metrics.transactionMetrics.count - 1
-        return metrics.transactionMetrics.enumerated().compactMap { index, transaction -> RequestEvent? in
+        let transactions = metrics.transactionMetrics
+        let lastHop = transactions.count - 1
+        return transactions.enumerated().compactMap { index, transaction -> RequestEvent? in
             guard let url = transaction.request.url, let host = url.host else { return nil }
+            // A cache consultation is not a request. When `URLCache` holds a copy
+            // it must revalidate, the platform reports two transactions for the
+            // one URL: the lookup (`localCache`, 0 bytes, no socket), then the
+            // conditional request that actually went out (`networkLoad`, 304 or
+            // 200). Recording both booked every revalidation as a cache hit *and*
+            // as two requests — on one real store (2026-09-27), 12,878 of 12,878
+            // `localCache` rows sat directly in front of a `networkLoad` row for
+            // the same host and path (#889). The network row already says what
+            // happened; the lookup row only made the totals lie, so it is not
+            // recorded.
+            //
+            // Only a lookup the *next* transaction took to the network for the
+            // same URL is dropped. A `localCache` transaction with nothing after
+            // it, or followed by a different URL (a redirect served from cache,
+            // then its target), really was answered without asking anyone and
+            // stays a cache hit. `hopIndex` keeps the platform's transaction
+            // index, so a dropped lookup leaves a gap rather than renumbering.
+            if transaction.resourceFetchType == .localCache, index < lastHop {
+                let next = transactions[index + 1]
+                if next.resourceFetchType != .localCache, next.request.url == url {
+                    return nil
+                }
+            }
             let http = transaction.response as? HTTPURLResponse
             // The error belongs to the task, so it is attributed to the hop that
             // actually ended it rather than smeared over all of them, which would

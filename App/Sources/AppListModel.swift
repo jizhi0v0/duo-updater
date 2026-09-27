@@ -8985,7 +8985,7 @@ final class AppListModel {
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled, let self else { return }
             self.automaticRetryTask = nil
-            guard NetworkMonitor.shared.isOnline else {
+            guard NetworkMonitor.shared.path.isSatisfied else {
                 Log.app.info("retry failed: automatic retry dropped — offline")
                 return
             }

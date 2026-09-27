@@ -22,7 +22,7 @@
         "opacity": 0.5
       },
       "translucency": {
-        "enabled": true,
+        "enabled": false,
         "value": 0.4
       },
       "specular": true
@@ -53,6 +53,12 @@
               "value": {
                 "solid": "gray:0.45,1.0"
               }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.66000,0.50000,0.38000,1.00000"
+              }
             }
           ]
         }
@@ -79,6 +85,12 @@
               "appearance": "tinted",
               "value": {
                 "solid": "gray:0.45,1.0"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.66000,0.50000,0.38000,1.00000"
               }
             }
           ]

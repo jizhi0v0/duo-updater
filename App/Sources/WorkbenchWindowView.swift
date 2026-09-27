@@ -1764,6 +1764,15 @@ private struct ReleaseNotesPane: View {
                     .controlSize(.small)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onAppear { model.ensureChangelogLoading(for: result) }
+            case .deferred:
+                // A prewarm put this off (Low Data Mode, an expensive network); the
+                // pane being open is the user asking, so load now. Its own branch,
+                // not folded into `.loading`: a pane already on the `.loading`
+                // spinner when the prewarm settles here must get a fresh `onAppear`.
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onAppear { model.ensureChangelogLoading(for: result) }
             }
         } else if let changelog = result.remote?.structuredChangelog {
             ChangelogEntriesView(changelog: changelog)

@@ -96,7 +96,8 @@ public enum RefreshIntent: Sendable, Equatable {
     /// without asking for a reload, so the wholesale reset was the only thing
     /// that ever retried a prewarm that lost the network. Dropping just those
     /// keeps that retry on the hourly cadence without touching what is on
-    /// screen.
+    /// screen. `failed` is `ChangelogLoadState.owesPrewarm`, which also counts
+    /// a `.deferred` entry — a prewarm that was not allowed to fetch (#898).
     public func dropsChangelogEntry(failed: Bool) -> Bool {
         switch self {
         case .userRequested, .userPresent: true

@@ -4,21 +4,6 @@ import AppKit
 import CryptoKit
 import DuoUpdaterCore
 
-/// Load state for a recipe-backed changelog, driven by the model (not a view) so
-/// it survives the user switching apps mid-fetch.
-enum ChangelogLoadState {
-    case loading
-    case loaded(Changelog)
-    case failed
-
-    /// The one state a scheduled refresh is allowed to drop — see
-    /// `RefreshIntent.dropsChangelogEntry(failed:)`.
-    var isFailed: Bool {
-        if case .failed = self { return true }
-        return false
-    }
-}
-
 /// What kind of volume a backup disk sits on, measured rather than assumed —
 /// the backup destination picker used to draw every disk as an external drive,
 /// which was wrong the moment a network share or (in principle) the boot
@@ -2142,7 +2127,7 @@ final class AppListModel {
         case .loaded:
             if changelogRevalidated.contains(key) { return }
             alreadyPainted = true                    // keep it on screen while re-reading
-        case .failed, .none: break                   // (re)start
+        case .failed, .deferred, .none: break        // (re)start
         }
         if !alreadyPainted { changelogState[key] = .loading }
         // The version whose notes to show: the offered update if any, else the
@@ -2265,6 +2250,12 @@ final class AppListModel {
     private static let prewarmNetworkGate = AsyncSemaphore(value: 4)
 
     private func prewarmChangelogs(for results: [UpdateResult]) {
+        // Prefetching is discretionary: on a path in Low Data Mode or an expensive
+        // one (#898) the prewarm paints what is on disk and fetches nothing — no
+        // notes, no images. A key with nothing on disk settles on `.deferred`,
+        // which the pane loads on open (`ChangelogLoadState.unpainted(mayFetch:)`
+        // has why neither `.failed` nor an unset key works).
+        let mayFetch = NetworkMonitor.shared.path.allowsDiscretionaryTraffic
         for result in results {
             guard let key = changelogKey(for: result),
                   let recipe = applicableRecipe(for: result) else { continue }
@@ -2283,7 +2274,7 @@ final class AppListModel {
                 // case still PAINTS what is on disk — the fetch is on top of it, so
                 // a machine that is offline keeps the notes it had rather than
                 // dropping to the web-view fallback.
-                if changelog == nil || hit?.needsReread == true {
+                if mayFetch, changelog == nil || hit?.needsReread == true {
                     // Cap concurrent network prewarms: a cold cache would otherwise
                     // fan out one fetch per recipe-backed app at once. Disk hits that
                     // owe nothing skip the gate; only genuine network fetches queue
@@ -2313,7 +2304,7 @@ final class AppListModel {
                 }
                 if let changelog {
                     self.changelogState[key] = .loaded(changelog)
-                    self.prewarmImages(in: changelog, for: result.app.id)
+                    if mayFetch { self.prewarmImages(in: changelog, for: result.app.id) }
                 } else {
                     // Network miss during pre-warm: settle on `.failed` so the pane
                     // shows the web-view fallback rather than stranding on the spinner.
@@ -2322,8 +2313,9 @@ final class AppListModel {
                     // the key would leave an in-flight-looking spinner that never
                     // re-triggers a fetch. The next refresh of either kind drops
                     // `.failed` entries before re-prewarming — see `performRefresh` —
-                    // which is the only retry a failed prewarm gets.)
-                    self.changelogState[key] = .failed
+                    // which is the only retry a failed prewarm gets.) A prewarm that
+                    // was not allowed to fetch settles on `.deferred` instead.
+                    self.changelogState[key] = .unpainted(mayFetch: mayFetch)
                 }
             }
         }
@@ -2837,7 +2829,7 @@ final class AppListModel {
             await AppStorePageCache.shared.invalidateAll()
         }
         for (key, state) in changelogState
-        where intent.dropsChangelogEntry(failed: state.isFailed) {
+        where intent.dropsChangelogEntry(failed: state.owesPrewarm) {
             changelogTasks[key]?.cancel()
             changelogTasks[key] = nil
             changelogState[key] = nil
@@ -3675,6 +3667,11 @@ final class AppListModel {
                 // unauthenticated budget. Claiming nothing leaves the on-select
                 // path free to do its job.
                 guard cached != nil || token != nil else { return }
+                // A fetch up front is prefetching: not on a path in Low Data Mode
+                // or an expensive one (#898). Claiming nothing leaves selecting the
+                // formula — which the user asked for — to load it.
+                guard cached != nil || NetworkMonitor.shared.path.allowsDiscretionaryTraffic
+                else { return }
                 // Claiming is what serializes us against a concurrent
                 // `ensureFormulaReleaseLoading` (the user selecting this same
                 // formula): exactly one of the two wins the slot and fetches, and
@@ -8190,13 +8187,16 @@ final class AppListModel {
                 // deferring we leave `lastCheck` untouched, stay overdue, and
                 // re-evaluate on a short backoff — so the moment connectivity
                 // returns the next tick (≤60s away) runs the check immediately.
-                let offline = !NetworkMonitor.shared.isOnline
-                if !offline && self.canRefresh {
+                // A path in Low Data Mode or an expensive one (a hotspot) defers
+                // the same way (#898): this check is discretionary work.
+                let deferral = CheckSchedule.tickDeferral(
+                    path: NetworkMonitor.shared.path, canRefresh: self.canRefresh)
+                if deferral == nil {
                     Log.app.info("scheduler: tick — running background check")
                     await self.backgroundRefresh()
                     isFirstCheck = false
                 } else {
-                    let why = offline ? "offline" : "busy"
+                    let why = deferral ?? "busy"
                     Log.app.info("scheduler: tick deferred (\(why, privacy: .public)) — retrying in 60s")
                     // The only back-off on this path, and the condition that reaches it
                     // is decided elsewhere: `CheckSchedule.nextWait` returns 0 for a cold
@@ -8375,13 +8375,20 @@ final class AppListModel {
         guard results.map(\.app).contains(where: {
             $0.bundleID == XcodeReleasesSource.bundleID && !$0.isMASApp && prefs.deservesCheck($0)
         }) else { return .off("no Xcode outside the App Store") }
-        return NetworkMonitor.shared.isOnline ? .on : .offline
+        let path = NetworkMonitor.shared.path
+        guard path.isSatisfied else { return .offline }
+        // Low Data Mode / an expensive path: the watch's poll and the check it
+        // starts are both background traffic (#898).
+        if let why = path.deferralReason { return .off(why) }
+        return .on
     }
 
     /// The same check the scheduler runs, under the same conditions; false when
     /// it cannot start now, so the watch asks again at its next tick.
     private func runXcodeReleaseWatchCheck() async -> Bool {
-        guard NetworkMonitor.shared.isOnline, canRefresh else { return false }
+        guard CheckSchedule.tickDeferral(
+            path: NetworkMonitor.shared.path, canRefresh: canRefresh) == nil
+        else { return false }
         await backgroundRefresh()
         return true
     }

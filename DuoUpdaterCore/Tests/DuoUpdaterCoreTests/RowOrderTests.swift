@@ -262,3 +262,51 @@ struct CheckScheduleTests {
             isFirstCheck: false, hasResults: true) == 0)
     }
 }
+
+/// Whether a scheduled tick runs, from the path state `NetworkMonitor` reports
+/// (#898). Fabricated states: Low Data Mode is a system setting and an `NWPath`
+/// cannot be constructed, so nothing here reads the live network.
+struct CheckScheduleNetworkPathTests {
+
+    private let clean = NetworkPathState(isSatisfied: true, isConstrained: false, isExpensive: false)
+    private let offline = NetworkPathState(isSatisfied: false, isConstrained: false, isExpensive: false)
+    private let lowDataMode = NetworkPathState(isSatisfied: true, isConstrained: true, isExpensive: false)
+    private let hotspot = NetworkPathState(isSatisfied: true, isConstrained: false, isExpensive: true)
+
+    /// Mutation: drop the `isConstrained` clause from `deferralReason`.
+    @Test func lowDataModeDefersTheScheduledTick() {
+        #expect(CheckSchedule.tickDeferral(path: lowDataMode, canRefresh: true) == "Low Data Mode")
+        #expect(!lowDataMode.allowsDiscretionaryTraffic)
+    }
+
+    /// Mutation: drop the `isExpensive` clause from `deferralReason`.
+    @Test func anExpensivePathDefersTheScheduledTick() {
+        #expect(CheckSchedule.tickDeferral(path: hotspot, canRefresh: true) == "expensive network")
+        #expect(!hotspot.allowsDiscretionaryTraffic)
+    }
+
+    /// The deferral this extends, unchanged.
+    @Test func offlineStillDefersTheScheduledTick() {
+        #expect(CheckSchedule.tickDeferral(path: offline, canRefresh: true) == "offline")
+        #expect(!offline.allowsDiscretionaryTraffic)
+    }
+
+    /// The path clearing is all it takes for the next tick to run: the deferral
+    /// carries no state of its own. Also the case a gate that deferred
+    /// everything would fail.
+    @Test func aCleanPathRunsTheTick() {
+        #expect(CheckSchedule.tickDeferral(path: clean, canRefresh: true) == nil)
+        #expect(clean.allowsDiscretionaryTraffic)
+    }
+
+    /// Busy still defers on a clean path, and a bad path is named ahead of it.
+    @Test func busyDefersOnlyOnAUsablePath() {
+        #expect(CheckSchedule.tickDeferral(path: clean, canRefresh: false) == "busy")
+        #expect(CheckSchedule.tickDeferral(path: lowDataMode, canRefresh: false) == "Low Data Mode")
+    }
+
+    /// Seeded usable, so a check can run before the first path update lands.
+    @Test func theSeedStateAllowsTheCheck() {
+        #expect(NetworkPathState.assumedUsable == clean)
+    }
+}

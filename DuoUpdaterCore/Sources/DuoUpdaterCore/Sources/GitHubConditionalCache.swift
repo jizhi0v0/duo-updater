@@ -289,6 +289,14 @@ public actor GitHubConditionalCache {
     public func flush() {
         flushTask?.cancel()
         flushTask = nil
+        // Here rather than in `load`: entries also age past `maxAge` in memory
+        // (the app runs for days), and every write goes through this line. An
+        // endpoint no installed app asks for (`duo verify` sweeps every rule
+        // into the same file) is never re-requested, so without this its body
+        // was re-encoded every round. Marking dirty makes even a flush with
+        // nothing new stored rewrite a file that still holds expired entries.
+        let kept = Self.unexpired(entries, at: now())
+        if kept.count != entries.count { entries = kept; dirty = true }
         guard dirty else { return }
         guard let data = try? JSONEncoder().encode(entries) else { return }
         do {
@@ -306,6 +314,16 @@ public actor GitHubConditionalCache {
         DuoStateDirectory.base
             .appendingPathComponent("com.duoupdater.app", isDirectory: true)
             .appendingPathComponent("github-conditional-cache.json")
+    }
+
+    /// Every entry `validator(for:authFingerprint:)` could still return. One
+    /// at or past `maxAge` can only ever miss — the next request for its
+    /// endpoint goes out unconditional and `store` replaces it — so keeping it
+    /// changes no request, it just keeps its body in memory and in every
+    /// rewrite. Issue #888 has the measurement of how much of the file that
+    /// was.
+    private static func unexpired(_ entries: [String: Entry], at now: Date) -> [String: Entry] {
+        entries.filter { now.timeIntervalSince($0.value.storedAt) < maxAge }
     }
 
     /// A corrupt or hand-edited file decodes to nothing — costs one full,

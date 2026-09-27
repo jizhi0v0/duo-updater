@@ -118,6 +118,13 @@ struct RecipeCodableTests {
                 expected: .init(
                     declared: URL(string: "https://example.invalid/old.xml")!,
                     live: URL(string: "https://example.invalid/new.xml")!)),
+            .structure(
+                SparkleFeedCatalog.LoginWall.self,
+                keys: SparkleFeedCatalog.LoginWall.CodingKeys.allCases.map(\.stringValue),
+                required: #"{"feed":"https://example.invalid/appcast.xml","login":"https://example.invalid/login/"}"#,
+                expected: .init(
+                    feed: URL(string: "https://example.invalid/appcast.xml")!,
+                    login: URL(string: "https://example.invalid/login/")!)),
 
             // Each sample beside the exact JSON it must encode to. These literals are
             // the format: change one only as a deliberate format change.
@@ -356,6 +363,7 @@ struct RecipeCodableTests {
             try stable(ChannelProofTable(set.bindingProofs), "\(at).bindingProofs")
             try stable(set.sparkleFeeds, "\(at).sparkleFeeds")
             try stable(set.supersededFeeds, "\(at).supersededFeeds")
+            try stable(set.loginWalls, "\(at).loginWalls")
             try stable(set.changelogPages, "\(at).changelogPages")
         }
         #expect(failures.isEmpty, Comment(rawValue: failures.joined(separator: "\n")))
@@ -422,6 +430,7 @@ struct RecipeCodableTests {
             return (v.count, a == b ? nil : "differs after a round trip\n  was: \(a)\n  now: \(b)")
         case let v as [String: URL]: return try check(v, count: v.count)
         case let v as [String: SparkleFeedCatalog.SupersededFeed]: return try check(v, count: v.count)
+        case let v as [String: SparkleFeedCatalog.LoginWall]: return try check(v, count: v.count)
         default: return (0, "no round trip for \(type(of: value))")
         }
     }

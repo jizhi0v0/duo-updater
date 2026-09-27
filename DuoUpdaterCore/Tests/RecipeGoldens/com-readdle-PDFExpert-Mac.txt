@@ -55,4 +55,6 @@ supersededFeeds["com.readdle.pdfexpert-mac"] = struct SparkleFeedCatalog.Superse
 supersededFeeds["com.readdle.pdfexpert-mac"].declared = URL("https://downloads.pdfexpert.com/release/appcast.xml")
 supersededFeeds["com.readdle.pdfexpert-mac"].live = URL("https://downloads.pdfexpert.com/pem3/release/appcast.xml")
 
+loginWalls = Dictionary(count: 0)
+
 changelogPages = Dictionary(count: 0)

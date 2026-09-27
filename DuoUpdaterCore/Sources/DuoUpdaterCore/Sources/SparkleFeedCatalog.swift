@@ -65,6 +65,63 @@ public enum SparkleFeedCatalog {
     static let supersededFeeds: [String: SupersededFeed] =
         AppRecipeIndex.merged(\.supersededFeeds, into: "SparkleFeedCatalog.supersededFeeds")
 
+    /// A feed that the vendor sometimes redirects to a sign-in page, and the page
+    /// it redirects to. The session does not follow that one redirect (see
+    /// `CrossHostCredentialStripper`), so the sign-in page is never downloaded, and
+    /// `SparkleAppcastSource` reports the 3xx as `notAFeed`, the same error the
+    /// downloaded page used to produce. The next source then answers as before.
+    ///
+    /// Declared per feed rather than recognised by a rule. Muse is the one case
+    /// seen (#892). A path rule such as "contains `login`" would also match
+    /// AweSun's `/softwares/SUNLOGIN_X_MAC_ARM`, which is a real download.
+    /// If the vendor moves the page, the match fails and the redirect is
+    /// followed again. That is the old behaviour: the page downloads and is
+    /// still reported as `notAFeed`.
+    struct LoginWall: Sendable, Equatable {
+        /// The feed. Scheme, host and path must match; the query is ignored.
+        let feed: URL
+        /// The sign-in page. Scheme and host must match, and the path must start
+        /// with this path. The trailing slash counts.
+        let login: URL
+
+        /// Whether a redirect from `from` to `target` is this wall.
+        func matches(redirectFrom from: URL?, to target: URL?) -> Bool {
+            guard let from = from.flatMap(Self.parts), let target = target.flatMap(Self.parts),
+                  let feed = Self.parts(feed), let login = Self.parts(login)
+            else { return false }
+            return from == feed
+                && target.scheme == login.scheme && target.host == login.host
+                && target.path.hasPrefix(login.path)
+        }
+
+        /// Lowercased scheme and host, and the path with its trailing slash kept.
+        /// `URL.path` drops the slash, which would let `/login` match `/loginfoo`.
+        private static func parts(_ url: URL) -> Parts? {
+            guard let c = URLComponents(url: url, resolvingAgainstBaseURL: true),
+                  let scheme = c.scheme?.lowercased(), let host = c.host?.lowercased()
+            else { return nil }
+            return Parts(scheme: scheme, host: host, path: c.percentEncodedPath)
+        }
+
+        private struct Parts: Equatable {
+            let scheme: String
+            let host: String
+            let path: String
+        }
+    }
+
+    /// bundleID (lowercased) → the login wall on that app's feed. Only the values
+    /// are used: the session matches redirects by URL.
+    static let loginWalls: [LoginWall] =
+        Array(AppRecipeIndex.merged(\.loginWalls, into: "SparkleFeedCatalog.loginWalls").values)
+
+    /// The wall a redirect from `from` to `target` runs into, if one is declared.
+    static func loginWall(
+        redirectFrom from: URL?, to target: URL?, in walls: [LoginWall] = loginWalls
+    ) -> LoginWall? {
+        walls.first { $0.matches(redirectFrom: from, to: target) }
+    }
+
     /// One catalog entry, in the shape `duo verify` sweeps registries in.
     ///
     /// The catalog is not a recipe registry — there is no pattern to re-derive

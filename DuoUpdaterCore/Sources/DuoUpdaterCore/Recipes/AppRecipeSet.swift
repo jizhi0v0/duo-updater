@@ -5,7 +5,7 @@ import Foundation
 ///
 /// Pure data. `VendorProbeRegistry.recipes`, `ChangelogRecipeRegistry.recipes`,
 /// `GitHubReleaseRegistry.rules`, `MacAppStoreProbeRegistry.cases`, the three
-/// `ChannelProofRegistry` maps, `SparkleFeedCatalog.feeds` / `.supersededFeeds`
+/// `ChannelProofRegistry` maps, `SparkleFeedCatalog.feeds` / `.supersededFeeds` / `.loginWalls`
 /// and `ChangelogCatalog.pages` are all derived from `AppRecipeIndex.all`.
 ///
 /// Order across families carries no meaning. What a family file must keep is
@@ -30,6 +30,7 @@ public struct AppRecipeSet: Sendable {
     public let bindingProofs: [ChannelProofKey: ChannelArtifactProof]
     let sparkleFeeds: [String: URL]
     let supersededFeeds: [String: SparkleFeedCatalog.SupersededFeed]
+    let loginWalls: [String: SparkleFeedCatalog.LoginWall]
     let changelogPages: [String: URL]
 
     init(
@@ -43,6 +44,7 @@ public struct AppRecipeSet: Sendable {
         bindingProofs: [ChannelProofKey: ChannelArtifactProof] = [:],
         sparkleFeeds: [String: URL] = [:],
         supersededFeeds: [String: SparkleFeedCatalog.SupersededFeed] = [:],
+        loginWalls: [String: SparkleFeedCatalog.LoginWall] = [:],
         changelogPages: [String: URL] = [:]
     ) {
         self.family = family
@@ -55,10 +57,11 @@ public struct AppRecipeSet: Sendable {
         self.bindingProofs = bindingProofs
         self.sparkleFeeds = sparkleFeeds
         self.supersededFeeds = supersededFeeds
+        self.loginWalls = loginWalls
         self.changelogPages = changelogPages
     }
 
-    /// Every bundle id this family names, across all ten kinds, as written.
+    /// Every bundle id this family names, across all eleven kinds, as written.
     public var bundleIDs: Set<String> {
         var ids = Set<String>()
         ids.formUnion(probes.map(\.bundleID))
@@ -70,6 +73,7 @@ public struct AppRecipeSet: Sendable {
         ids.formUnion(bindingProofs.keys.map(\.bundleID))
         ids.formUnion(sparkleFeeds.keys)
         ids.formUnion(supersededFeeds.keys)
+        ids.formUnion(loginWalls.keys)
         ids.formUnion(changelogPages.keys)
         return ids
     }

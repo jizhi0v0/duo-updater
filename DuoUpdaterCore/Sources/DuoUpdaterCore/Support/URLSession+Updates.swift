@@ -129,8 +129,23 @@ public extension URLSession {
 
 /// Drops `Authorization`/`Cookie` from a redirect that crosses to a different host,
 /// so a token meant for one API can't leak to a third party; otherwise follows the
-/// redirect unchanged. Stateless, so safe to share across the session's tasks.
-private final class CrossHostCredentialStripper: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+/// redirect unchanged. Holds only immutable data, so safe to share across the
+/// session's tasks.
+///
+/// One exception: a redirect declared as a login wall
+/// (`SparkleFeedCatalog.LoginWall`) is not followed, and the task returns the 3xx.
+/// The check is here, in the session delegate, beside the stripping, so no
+/// request needs a per-task redirect delegate for it and the stripping keeps
+/// running for every other redirect. Not following a redirect sends nothing, so
+/// no credential can leak on that path.
+final class CrossHostCredentialStripper: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    private let loginWalls: [SparkleFeedCatalog.LoginWall]
+
+    init(loginWalls: [SparkleFeedCatalog.LoginWall] = SparkleFeedCatalog.loginWalls) {
+        self.loginWalls = loginWalls
+        super.init()
+    }
+
     func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
@@ -138,6 +153,11 @@ private final class CrossHostCredentialStripper: NSObject, URLSessionDataDelegat
         newRequest request: URLRequest,
         completionHandler: @escaping (URLRequest?) -> Void
     ) {
+        if SparkleFeedCatalog.loginWall(
+            redirectFrom: response.url, to: request.url, in: loginWalls) != nil {
+            completionHandler(nil)
+            return
+        }
         var forwarded = request
         if request.url?.host != task.originalRequest?.url?.host {
             for field in ["Authorization", "Cookie", "Proxy-Authorization"] {

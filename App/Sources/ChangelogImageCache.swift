@@ -34,10 +34,23 @@ actor ImageStore {
     }
 
     /// Soft cap on the on-disk byte cache: once the directory exceeds this, the
-    /// least-recently-modified files are pruned back under it after a write. Changelog
-    /// illustrations are small; this bounds an otherwise unbounded directory that
-    /// would accumulate every version's images forever.
+    /// least-recently-modified files are pruned back under it after a write. Bounds an
+    /// otherwise unbounded directory that would accumulate every version's images
+    /// forever. Illustrations are NOT small at the source — vendors ship 3440 px
+    /// renders of several MB, and full-size copies filled this cap (63 MB, 32 files,
+    /// 2026-09-27) — which is why new ones are stored at ``storedPixelWidth``.
     private static let diskByteCap = 64 * 1024 * 1024   // 64 MB
+
+    /// The widest the changelog draws an illustration, in points (`noteImage` in
+    /// `WorkbenchWindowView` frames ``CachedImage`` to this; it is the only place one
+    /// is shown).
+    static let maxDisplayPointWidth: CGFloat = 480
+
+    /// Pixel width images are stored at: ``maxDisplayPointWidth`` at a Retina
+    /// display's 2x backing scale. Anything wider is downsampled before it is written,
+    /// so neither the file nor the decoded bitmap carries pixels no screen draws.
+    /// Files cached before this existed are read back as they are.
+    static let storedPixelWidth = Int(maxDisplayPointWidth) * 2
 
     /// Running estimate of the directory's byte total, so the cap can be enforced
     /// without a full `contentsOfDirectory` + per-file `resourceValues` sweep after
@@ -67,11 +80,13 @@ actor ImageStore {
                   let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
                   NSImage(data: data) != nil   // only cache things that actually decode
             else { return nil }
+            let stored = ImageDownsample.downsampledIfWider(
+                data, maxPixelWidth: Self.storedPixelWidth)
             try? FileManager.default.createDirectory(
                 at: directory, withIntermediateDirectories: true)
-            try? data.write(
+            try? stored.write(
                 to: directory.appendingPathComponent(Self.filename(for: url)), options: .atomic)
-            return data
+            return stored
         }
         inflight[url] = task
         let result = await task.value

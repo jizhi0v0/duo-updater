@@ -4,21 +4,6 @@ import AppKit
 import CryptoKit
 import DuoUpdaterCore
 
-/// Load state for a recipe-backed changelog, driven by the model (not a view) so
-/// it survives the user switching apps mid-fetch.
-enum ChangelogLoadState {
-    case loading
-    case loaded(Changelog)
-    case failed
-
-    /// The one state a scheduled refresh is allowed to drop — see
-    /// `RefreshIntent.dropsChangelogEntry(failed:)`.
-    var isFailed: Bool {
-        if case .failed = self { return true }
-        return false
-    }
-}
-
 /// What kind of volume a backup disk sits on, measured rather than assumed —
 /// the backup destination picker used to draw every disk as an external drive,
 /// which was wrong the moment a network share or (in principle) the boot
@@ -2142,7 +2127,7 @@ final class AppListModel {
         case .loaded:
             if changelogRevalidated.contains(key) { return }
             alreadyPainted = true                    // keep it on screen while re-reading
-        case .failed, .none: break                   // (re)start
+        case .failed, .deferred, .none: break        // (re)start
         }
         if !alreadyPainted { changelogState[key] = .loading }
         // The version whose notes to show: the offered update if any, else the
@@ -2267,9 +2252,9 @@ final class AppListModel {
     private func prewarmChangelogs(for results: [UpdateResult]) {
         // Prefetching is discretionary: on a path in Low Data Mode or an expensive
         // one (#898) the prewarm paints what is on disk and fetches nothing — no
-        // notes, no images — exactly as it does on a machine that cannot fetch. A
-        // key with nothing on disk settles on `.failed` the way a lost fetch does,
-        // NOT absent: see the `.failed` branch below for why absent strands a pane.
+        // notes, no images. A key with nothing on disk settles on `.deferred`,
+        // which the pane loads on open (`ChangelogLoadState.unpainted(mayFetch:)`
+        // has why neither `.failed` nor an unset key works).
         let mayFetch = NetworkMonitor.shared.path.allowsDiscretionaryTraffic
         for result in results {
             guard let key = changelogKey(for: result),
@@ -2328,8 +2313,9 @@ final class AppListModel {
                     // the key would leave an in-flight-looking spinner that never
                     // re-triggers a fetch. The next refresh of either kind drops
                     // `.failed` entries before re-prewarming — see `performRefresh` —
-                    // which is the only retry a failed prewarm gets.)
-                    self.changelogState[key] = .failed
+                    // which is the only retry a failed prewarm gets.) A prewarm that
+                    // was not allowed to fetch settles on `.deferred` instead.
+                    self.changelogState[key] = .unpainted(mayFetch: mayFetch)
                 }
             }
         }
@@ -2839,7 +2825,7 @@ final class AppListModel {
             await AppStorePageCache.shared.invalidateAll()
         }
         for (key, state) in changelogState
-        where intent.dropsChangelogEntry(failed: state.isFailed) {
+        where intent.dropsChangelogEntry(failed: state.owesPrewarm) {
             changelogTasks[key]?.cancel()
             changelogTasks[key] = nil
             changelogState[key] = nil

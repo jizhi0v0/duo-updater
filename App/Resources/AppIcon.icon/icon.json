@@ -1,0 +1,123 @@
+{
+  "fill": {
+    "automatic-gradient": "extended-srgb:0.80000,0.89000,0.98000,1.00000"
+  },
+  "groups": [
+    {
+      "name": "Features",
+      "layers": [
+        {
+          "name": "eyes",
+          "image-name": "eyes.svg",
+          "glass": true
+        },
+        {
+          "name": "mask",
+          "image-name": "mask.svg",
+          "glass": true
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.4
+      },
+      "specular": true
+    },
+    {
+      "name": "Head",
+      "layers": [
+        {
+          "name": "head",
+          "image-name": "head.svg",
+          "glass": true,
+          "fill-specializations": [
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.96078,0.91765,0.85490,1.00000"
+              }
+            }
+          ]
+        },
+        {
+          "name": "ears",
+          "image-name": "ears.svg",
+          "glass": true,
+          "fill-specializations": [
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "gray:0.45,1.0"
+              }
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.12
+      },
+      "specular": true
+    },
+    {
+      "name": "Ring",
+      "layers": [
+        {
+          "name": "tail",
+          "image-name": "tail.svg",
+          "glass": true,
+          "fill-specializations": [
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "gray:0.45,1.0"
+              }
+            }
+          ]
+        },
+        {
+          "name": "body",
+          "image-name": "body.svg",
+          "glass": true,
+          "fill-specializations": [
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "gray:0.82,1.0"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.96078,0.91765,0.85490,1.00000"
+              }
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.12
+      },
+      "specular": true
+    }
+  ],
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": "shared"
+  }
+}

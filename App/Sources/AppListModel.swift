@@ -2265,6 +2265,12 @@ final class AppListModel {
     private static let prewarmNetworkGate = AsyncSemaphore(value: 4)
 
     private func prewarmChangelogs(for results: [UpdateResult]) {
+        // Prefetching is discretionary: on a path in Low Data Mode or an expensive
+        // one (#898) the prewarm paints what is on disk and fetches nothing — no
+        // notes, no images — exactly as it does on a machine that cannot fetch. A
+        // key with nothing on disk settles on `.failed` the way a lost fetch does,
+        // NOT absent: see the `.failed` branch below for why absent strands a pane.
+        let mayFetch = NetworkMonitor.shared.path.allowsDiscretionaryTraffic
         for result in results {
             guard let key = changelogKey(for: result),
                   let recipe = applicableRecipe(for: result) else { continue }
@@ -2283,7 +2289,7 @@ final class AppListModel {
                 // case still PAINTS what is on disk — the fetch is on top of it, so
                 // a machine that is offline keeps the notes it had rather than
                 // dropping to the web-view fallback.
-                if changelog == nil || hit?.needsReread == true {
+                if mayFetch, changelog == nil || hit?.needsReread == true {
                     // Cap concurrent network prewarms: a cold cache would otherwise
                     // fan out one fetch per recipe-backed app at once. Disk hits that
                     // owe nothing skip the gate; only genuine network fetches queue
@@ -2313,7 +2319,7 @@ final class AppListModel {
                 }
                 if let changelog {
                     self.changelogState[key] = .loaded(changelog)
-                    self.prewarmImages(in: changelog, for: result.app.id)
+                    if mayFetch { self.prewarmImages(in: changelog, for: result.app.id) }
                 } else {
                     // Network miss during pre-warm: settle on `.failed` so the pane
                     // shows the web-view fallback rather than stranding on the spinner.
@@ -3670,6 +3676,11 @@ final class AppListModel {
                 // unauthenticated budget. Claiming nothing leaves the on-select
                 // path free to do its job.
                 guard cached != nil || token != nil else { return }
+                // A fetch up front is prefetching: not on a path in Low Data Mode
+                // or an expensive one (#898). Claiming nothing leaves selecting the
+                // formula — which the user asked for — to load it.
+                guard cached != nil || NetworkMonitor.shared.path.allowsDiscretionaryTraffic
+                else { return }
                 // Claiming is what serializes us against a concurrent
                 // `ensureFormulaReleaseLoading` (the user selecting this same
                 // formula): exactly one of the two wins the slot and fetches, and
@@ -8185,13 +8196,16 @@ final class AppListModel {
                 // deferring we leave `lastCheck` untouched, stay overdue, and
                 // re-evaluate on a short backoff — so the moment connectivity
                 // returns the next tick (≤60s away) runs the check immediately.
-                let offline = !NetworkMonitor.shared.isOnline
-                if !offline && self.canRefresh {
+                // A path in Low Data Mode or an expensive one (a hotspot) defers
+                // the same way (#898): this check is discretionary work.
+                let deferral = CheckSchedule.tickDeferral(
+                    path: NetworkMonitor.shared.path, canRefresh: self.canRefresh)
+                if deferral == nil {
                     Log.app.info("scheduler: tick — running background check")
                     await self.backgroundRefresh()
                     isFirstCheck = false
                 } else {
-                    let why = offline ? "offline" : "busy"
+                    let why = deferral ?? "busy"
                     Log.app.info("scheduler: tick deferred (\(why, privacy: .public)) — retrying in 60s")
                     // The only back-off on this path, and the condition that reaches it
                     // is decided elsewhere: `CheckSchedule.nextWait` returns 0 for a cold
@@ -8370,13 +8384,20 @@ final class AppListModel {
         guard results.map(\.app).contains(where: {
             $0.bundleID == XcodeReleasesSource.bundleID && !$0.isMASApp && prefs.deservesCheck($0)
         }) else { return .off("no Xcode outside the App Store") }
-        return NetworkMonitor.shared.isOnline ? .on : .offline
+        let path = NetworkMonitor.shared.path
+        guard path.isSatisfied else { return .offline }
+        // Low Data Mode / an expensive path: the watch's poll and the check it
+        // starts are both background traffic (#898).
+        if let why = path.deferralReason { return .off(why) }
+        return .on
     }
 
     /// The same check the scheduler runs, under the same conditions; false when
     /// it cannot start now, so the watch asks again at its next tick.
     private func runXcodeReleaseWatchCheck() async -> Bool {
-        guard NetworkMonitor.shared.isOnline, canRefresh else { return false }
+        guard CheckSchedule.tickDeferral(
+            path: NetworkMonitor.shared.path, canRefresh: canRefresh) == nil
+        else { return false }
         await backgroundRefresh()
         return true
     }

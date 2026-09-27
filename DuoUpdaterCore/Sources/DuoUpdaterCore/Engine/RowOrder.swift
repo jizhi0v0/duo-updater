@@ -113,3 +113,62 @@ public enum CheckSchedule {
         return max(0, due.timeIntervalSince(now))
     }
 }
+
+/// What the system says about the current network path, as the three facts the
+/// background work is decided on. `NetworkMonitor` fills it from `NWPath`; tests
+/// build it by hand, since an `NWPath` cannot be made and Low Data Mode is a
+/// system setting.
+public struct NetworkPathState: Sendable, Equatable {
+    /// `NWPath.status == .satisfied`.
+    public var isSatisfied: Bool
+    /// `NWPath.isConstrained`: the path uses an interface in Low Data Mode.
+    public var isConstrained: Bool
+    /// `NWPath.isExpensive`: the path uses an interface the system considers
+    /// expensive, such as cellular or a Personal Hotspot.
+    public var isExpensive: Bool
+
+    public init(isSatisfied: Bool, isConstrained: Bool, isExpensive: Bool) {
+        self.isSatisfied = isSatisfied
+        self.isConstrained = isConstrained
+        self.isExpensive = isExpensive
+    }
+
+    /// What is assumed before the first path update lands (`NWPathMonitor`
+    /// reports the initial state asynchronously): usable, so a check can run.
+    public static let assumedUsable = NetworkPathState(
+        isSatisfied: true, isConstrained: false, isExpensive: false)
+
+    /// Whether work the user did not ask for — the scheduled check, prefetching
+    /// release notes and their images — may use this path.
+    ///
+    /// Apple's guidance for constrained paths (`URLRequest
+    /// .allowsConstrainedNetworkAccess`) is to limit them to user-initiated tasks
+    /// and put off discretionary ones until an unconstrained interface is
+    /// available. An expensive path (a hotspot) is treated the same way.
+    /// Explicit user actions — the Check button, Retry, installs — do not ask this.
+    public var allowsDiscretionaryTraffic: Bool {
+        deferralReason == nil
+    }
+
+    /// Why discretionary work is put off on this path, for the log; nil when it
+    /// is not.
+    public var deferralReason: String? {
+        if !isSatisfied { return "offline" }
+        if isConstrained { return "Low Data Mode" }
+        if isExpensive { return "expensive network" }
+        return nil
+    }
+}
+
+extension CheckSchedule {
+    /// Why a scheduled tick is deferred instead of run; nil means run it.
+    ///
+    /// A deferred tick leaves `lastCheck` untouched, so the check stays overdue
+    /// and runs at the first tick after the reason clears (the caller retries on
+    /// a short back-off). The path comes first: while it is unusable for
+    /// background traffic, "busy" is not the reason the check is not running.
+    public static func tickDeferral(path: NetworkPathState, canRefresh: Bool) -> String? {
+        if let reason = path.deferralReason { return reason }
+        return canRefresh ? nil : "busy"
+    }
+}

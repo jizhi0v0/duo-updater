@@ -2402,7 +2402,7 @@ private struct ChangelogEntryView: View {
     @ViewBuilder
     private func noteImage(_ url: URL) -> some View {
         CachedImage(url: url)
-            .frame(maxWidth: 480, alignment: .leading)
+            .frame(maxWidth: ImageStore.maxDisplayPointWidth, alignment: .leading)
             .padding(.vertical, 2)
     }
 

@@ -968,6 +968,10 @@ private final class AweSunFeedStub: URLProtocol, @unchecked Sendable {
 /// `application/octet-stream` with it and `text/html` without it. Uses a 1-byte
 /// range so it never pulls the ~99 MB dmg.
 ///
+/// Don't spot-check this with plain curl: the WAF lets curl's default UA through
+/// without a `Referer` (206 octet-stream), while `DuoUpdater/0.1` and this test's
+/// CFNetwork UA get 302 → text/html without it (measured 2026-09-27).
+///
 /// A transport failure on the download host is reported as a known issue, not a
 /// failure. This runs in `test`, the check every PR needs, and on 2026-09-26
 /// (run 36248446607) the hosted runner could not resolve `dw.oray.com` at all

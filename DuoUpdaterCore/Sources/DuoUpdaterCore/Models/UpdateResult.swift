@@ -695,6 +695,18 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
     /// would flip to `:stable`. This field is what a failed row falls back to.
     public var provenChannel: ReleaseChannel?
 
+    /// For an `.error` row: at least one source failed in a way a retry a moment
+    /// later routinely clears (`CheckFailureRules.isTransientNetworkError`).
+    /// False for every other status, and for any row that did not come straight
+    /// out of `UpdateChecker`.
+    ///
+    /// Carried beside the status rather than read off it because the message
+    /// cannot say: it is `localizedDescription`, in whatever language the Mac
+    /// runs, and the URL error code it came from is gone by the time it is a
+    /// row. Only
+    /// `CheckFailureRules.automaticRetryTargets` reads it.
+    public var failureIsTransient = false
+
     public var id: String { app.id }
 
     public init(

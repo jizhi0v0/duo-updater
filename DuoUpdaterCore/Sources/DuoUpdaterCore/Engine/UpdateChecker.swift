@@ -346,6 +346,10 @@ public struct UpdateChecker: Sendable {
         }
 
         var lastError: String?
+        // Whether ANY source failed transiently, not just the last one: a feed that
+        // timed out may answer on a retry even when a later source's 404 is the
+        // error the row shows (`UpdateResult.failureIsTransient`).
+        var failedTransiently = false
         // The first source whose newest release the vendor refused for this macOS.
         // First, because sources are in priority order and the row should name the
         // refusal of the source it would otherwise have trusted.
@@ -406,6 +410,7 @@ public struct UpdateChecker: Sendable {
                 continue
             } catch {
                 lastError = error.localizedDescription
+                if CheckFailureRules.isTransientNetworkError(error) { failedTransiently = true }
                 Log.check.error("\(label, privacy: .public): \(source.name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
                 continue
             }
@@ -488,7 +493,9 @@ public struct UpdateChecker: Sendable {
         }
         if let lastError, !app.isToolboxManaged {
             Log.check.error("\(label, privacy: .public): all sources exhausted, last error → .error(\(lastError, privacy: .public))")
-            return UpdateResult(app: app, remote: nil, status: .error(lastError))
+            var failed = UpdateResult(app: app, remote: nil, status: .error(lastError))
+            failed.failureIsTransient = failedTransiently
+            return failed
         }
         if let lastError {
             Log.check.error("\(label, privacy: .public): \(lastError, privacy: .public) — Toolbox owns this app, reporting it as managed")

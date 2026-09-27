@@ -2796,6 +2796,10 @@ final class AppListModel {
         Log.app.info("refresh: start (scan + network check, intent=\(String(describing: intent), privacy: .public), testflight=\(allowTestFlight, privacy: .public), mayReadTestFlight=\(mayReadTestFlight, privacy: .public), detection=\(detection.rawValue, privacy: .public))")
         isRefreshing = true
         defer { isRefreshing = false }
+        // This round re-asks every row, so the retry the last one scheduled has
+        // nothing left to do (#899).
+        automaticRetryTask?.cancel()
+        automaticRetryTask = nil
         // Once per session, before the scan: recover any app left at
         // `<App>.app.duoupdater-old` by a privileged swap that died mid-rename (a
         // power loss / force-quit on the non-admin install path). Restoring it here
@@ -3205,6 +3209,7 @@ final class AppListModel {
         await refreshBackupIndex()
         isChecking = false
         recordCheckOutcomes(checked)
+        scheduleAutomaticRetry(afterRound: checked, intent: intent)
         lastCheck = .now
         prefs.lastCheckDate = lastCheck  // persist so the scheduler survives relaunches
         // Announce anything newly pending — keyed off a persisted baseline, so it
@@ -8893,12 +8898,7 @@ final class AppListModel {
     /// or a user clicking Retry a few times during an outage would mark the whole
     /// outage chronic and hide the very banner they were responding to.
     private func recordCheckOutcomes(_ checked: [UpdateResult]) {
-        var next: [String: Int] = [:]
-        for result in checked {
-            if case .error = result.status {
-                next[result.id] = (consecutiveCheckFailures[result.id] ?? 0) + 1
-            }
-        }
+        let next = CheckFailureRules.streaks(consecutiveCheckFailures, after: .round, checked: checked)
         let newlyChronic = next.filter {
             $0.value == CheckFailureRules.chronicThreshold
         }.keys.sorted()
@@ -8955,6 +8955,37 @@ final class AppListModel {
     /// instead of an armed button.
     private(set) var isRetryingFailedChecks = false
 
+    /// The one automatic retry a scheduled round with transient failures earns,
+    /// while it waits out `CheckFailureRules.automaticRetryDelay` (#899). Cancelled
+    /// by the next round starting; never re-armed by the retry itself.
+    @ObservationIgnored private var automaticRetryTask: Task<Void, Never>?
+
+    /// After a completed round: arm its automatic retry, if it earned one
+    /// (`CheckFailureRules.automaticRetryTargets` decides which rows, if any).
+    ///
+    /// The retry goes through `retryFailedChecks`, never a refresh, so it cannot
+    /// reach `recordCheckOutcomes` and advance a chronic streak. It inherits that
+    /// method's busy/installing guards, and it is dropped if the Mac is offline
+    /// when it fires, rather than failing the same rows a second time. Dropped
+    /// means dropped: the next round has those rows.
+    private func scheduleAutomaticRetry(afterRound checked: [UpdateResult], intent: RefreshIntent) {
+        let targets = CheckFailureRules.automaticRetryTargets(
+            afterRound: checked, intent: intent, streaks: consecutiveCheckFailures)
+        guard !targets.isEmpty else { return }
+        let delay = CheckFailureRules.automaticRetryDelay
+        Log.app.info("retry failed: \(targets.count, privacy: .public) rows failed transiently — one automatic retry in \(delay, privacy: .public)")
+        automaticRetryTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self else { return }
+            self.automaticRetryTask = nil
+            guard NetworkMonitor.shared.isOnline else {
+                Log.app.info("retry failed: automatic retry dropped — offline")
+                return
+            }
+            await self.retryFailedChecks(only: targets)
+        }
+    }
+
     /// Re-check exactly the rows that failed, leaving every settled row alone.
     ///
     /// Deliberately not a plain `refresh()`: a full refresh blanks all ~130 rows to
@@ -8962,12 +8993,20 @@ final class AppListModel {
     /// the handful that errored. Rows already busy with an install are skipped —
     /// their own flow re-checks them.
     func retryFailedChecks() async {
+        await retryFailedChecks(only: nil)
+    }
+
+    /// `only`: the automatic retry's rows. Still intersected with the rows failing
+    /// NOW, so a row that recovered or went chronic in between is not re-asked.
+    private func retryFailedChecks(only ids: Set<String>?) async {
         guard !isRetryingFailedChecks, !isRefreshing, !isInstallingAll, installing.isEmpty else { return }
         // Same rule the full refresh applies: an ignored app is not asked after, so
         // retrying must not spend the request `performRefresh` refuses to spend.
-        let targets = failedCheckResults.filter { prefs.deservesCheck($0.app) }
+        let targets = failedCheckResults.filter {
+            prefs.deservesCheck($0.app) && (ids?.contains($0.id) ?? true)
+        }
         guard !targets.isEmpty else { return }
-        Log.app.info("retry failed: re-checking \(targets.count, privacy: .public) errored rows")
+        Log.app.info("retry failed: re-checking \(targets.count, privacy: .public) errored rows\(ids == nil ? "" : " (automatic)", privacy: .public)")
 
         // `isChecking`, NOT per-row `installing` claims. `installing` is the app's
         // global "something is in flight" predicate — `canRefresh`, `canUpdateAll`,
@@ -8988,6 +9027,9 @@ final class AppListModel {
         }
         let updated = await recheckMany(targets)
         for result in updated { replaceRow(result) }
+        // A no-op, by rule: a retry is not a round (`CheckFailureRules.streaks`).
+        consecutiveCheckFailures = CheckFailureRules.streaks(
+            consecutiveCheckFailures, after: .retry, checked: updated)
         // A row can come back "already updated on disk, needs a restart"; without this
         // it gets no Restart badge until the next rescan.
         await computeRestartInfo()

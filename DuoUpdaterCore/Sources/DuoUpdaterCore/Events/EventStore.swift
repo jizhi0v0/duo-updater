@@ -65,7 +65,10 @@ public actor EventStore {
     /// fires; at five-minute checks the byte budget is the only thing standing
     /// between a diagnostic log and a gigabyte. Both are real; neither is
     /// decoration. Recompute this table if the event grows fields — it is a
-    /// measurement, not an estimate, and it should stay one.
+    /// measurement, not an estimate, and it should stay one. It predates #889,
+    /// which stopped recording the cache lookup in front of each revalidation
+    /// (31% of request rows on one store), so the hops per sweep it assumes are
+    /// now high and the windows short; not yet remeasured.
     public let retentionDays: Int
     /// Ceiling for the database file. **Wins over the day budget** — when the
     /// file is over it, the oldest events go regardless of age, down to

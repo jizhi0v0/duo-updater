@@ -2,6 +2,16 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.4.7
+
+**Yeni bir uygulama simgesi.** Kıvrılmış bir Siyam kedisi; kuyruğu yenileme okunu oluşturuyor. macOS 26 ve sonrasında seçtiğiniz açık, koyu veya renklendirilmiş simge stiline uyuyor.
+
+**Düşük Veri Modu'ndayken veya iPhone erişim noktası gibi ölçülü bir bağlantıdayken arka plan denetimleri bekliyor.** Normal bir ağa döndüğünüz anda çalışıyorlar. Elle denetleme ve güncelleme yükleme eskisi gibi çalışıyor.
+
+**Anlık bir ağ aksaklığı yüzünden başarısız olan denetimler iki dakika sonra bir kez yeniden deneniyor.** Önceden başarısız satırlar ve uyarı, bir sonraki zamanlanmış denetime, varsayılan olarak altı saat sonrasına kadar kalıyordu.
+
+**Perde arkasında.** Sürüm notlarındaki görseller diskte çok daha az yer kaplıyor, İstekler bölmesi yeniden doğrulanan bir isteği artık iki kez saymıyor ve Muse denetimi artık onun giriş sayfasını indirmiyor.
+
 ## 0.4.6
 
 **Quark Cloud Drive gibi kendi kurulum betiğiyle kurulan Homebrew uygulamaları artık tek tıkla güncelleniyor.** Önceden her deneme, kurulum paketi bulunamadığını söyleyen bir hatayla bitiyordu.

@@ -2,6 +2,16 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.4.7
+
+**Una nuova icona.** Un gatto siamese acciambellato, con la coda che fa da freccia di aggiornamento. Su macOS 26 e successivi segue il tuo stile di icone chiaro, scuro o colorato.
+
+**I controlli in background aspettano finché sei in modalità dati ridotti o su una connessione a consumo, come un hotspot iPhone.** Partono appena torni su una rete normale. Il controllo manuale e l’installazione degli aggiornamenti funzionano come prima.
+
+**I controlli che falliscono per un intoppo della rete vengono ripetuti una volta, due minuti dopo.** Prima le righe non riuscite e l’avviso restavano fino al controllo programmato successivo, di norma sei ore dopo.
+
+**Dietro le quinte.** Le immagini delle note di rilascio occupano molto meno spazio su disco, il pannello Richieste non conta più due volte una richiesta riconvalidata e il controllo di Muse non scarica più la sua pagina di accesso.
+
 ## 0.4.6
 
 **Le app di Homebrew che si installano con un proprio script di installazione, come Quark Cloud Drive, ora si aggiornano con un clic.** Prima ogni tentativo finiva con un errore che diceva che non c’era alcun pacchetto di installazione.

@@ -906,12 +906,75 @@ private func committedLastGoodDates() -> [String: Date] {
     }
 }
 
+/// Serves one trimmed AweSun version response for the offline plan test below,
+/// and fails every other request — so the test cannot reach the network even by
+/// accident.
+private final class AweSunFeedStub: URLProtocol, @unchecked Sendable {
+    static let feed = URL(string: "https://client-webapi.oray.com/softwares/SUNLOGIN_X_MAC_ARM?versiontype=stable")!
+    // Trimmed from the live response (2026-09-27). `downloadurl` is on
+    // `d-cdn.oray.com` with escaped slashes, exactly as the vendor sends it.
+    static let body = #"{"versionid":3359,"softwareid":187,"versionno":"16.6.0.32198","md5":"7EFA27277F4A4CC7A7584CBE000C0F07","downloadurl":"https:\/\/d-cdn.oray.com\/sl\/mac\/AweSun_16.6.0.32198_arm64.dmg","downloadurlmultiple":null,"versiontype":"stable"}"#
+
+    static func session() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [AweSunFeedStub.self]
+        return URLSession(configuration: configuration)
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let url = request.url, url == Self.feed else {
+            client?.urlProtocol(self, didFailWithError: URLError(.cannotConnectToHost))
+            return
+        }
+        let response = HTTPURLResponse(
+            url: url, statusCode: 200, httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(Self.body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
 /// AweSun's download host (`dw.oray.com`) sits behind an Aliyun WAF that serves
 /// the dmg only to requests carrying a `Referer` — otherwise an anti-bot JS
-/// challenge page (text/html). This proves (a) the recipe resolves a pkg plan
-/// that carries the `Referer` header, and (b) that header is load-bearing: the
-/// SAME range request serves `application/octet-stream` with it and `text/html`
-/// without it. Uses a 1-byte range so it never pulls the ~99 MB dmg.
+/// challenge page (text/html). The offline half of that proof: the REGISTERED
+/// recipe, run through the real probe against a stubbed version response,
+/// yields a pkg plan on `dw.oray.com` that carries the `Referer`. That the
+/// header is load-bearing is a vendor-side fact only the live test below can
+/// show.
+@Test func aweSunPkgPlanCarriesWAFHeader() async throws {
+    let recipe = try #require(VendorProbeRegistry.recipes.first {
+        $0.bundleID == "com.oray.sunlogin.macclient" && $0.channel == .stable
+    })
+    let outcome = await VendorProbeSource(recipes: [], session: AweSunFeedStub.session())
+        .probeDiagnostic(recipe)
+    #expect(outcome.failure == nil)
+    let remote = try #require(outcome.remote)
+    #expect(remote.shortVersion == "16.6.0.32198")
+    #expect(remote.vendorInstallerKind == .pkg)
+    #expect(remote.requiresManualInstaller == true)             // → system installer
+    // Re-hosted on the WAF'd host, whatever host the feed's own field names.
+    #expect(remote.downloadURL?.absoluteString
+            == "https://dw.oray.com/sl/mac/AweSun_16.6.0.32198_arm64.dmg")
+    #expect(remote.downloadHeaders["Referer"] != nil)           // WAF header present
+}
+
+/// The live half: the `Referer` is load-bearing — the SAME range request serves
+/// `application/octet-stream` with it and `text/html` without it. Uses a 1-byte
+/// range so it never pulls the ~99 MB dmg.
+///
+/// A transport failure on the download host is reported as a known issue, not a
+/// failure. This runs in `test`, the check every PR needs, and on 2026-09-26
+/// (run 36248446607) the hosted runner could not resolve `dw.oray.com` at all
+/// (-1003, "Resolved 0 endpoints in 5028ms") while the version endpoint on
+/// `client-webapi.oray.com` answered. A typo'd host would also be -1003, which
+/// is why the host is pinned offline in `aweSunPkgPlanCarriesWAFHeader` rather
+/// than left to this test.
 @Test func aweSunPkgPlanCarriesLoadBearingWAFHeader() async throws {
     let source = VendorProbeSource()
     let app = InstalledApp(
@@ -937,8 +1000,20 @@ private func committedLastGoodDates() -> [String: Date] {
         return (resp as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type")
     }
 
-    let withHeader = try await contentType(withReferer: true)
-    let without = try await contentType(withReferer: false)
+    let withHeader: String?
+    let without: String?
+    do {
+        withHeader = try await contentType(withReferer: true)
+        without = try await contentType(withReferer: false)
+    } catch let error as URLError where [
+        .cannotFindHost, .dnsLookupFailed, .timedOut, .cannotConnectToHost,
+        .networkConnectionLost, .notConnectedToInternet,
+    ].contains(error.code) {
+        withKnownIssue("\(url.host ?? "download host") unreachable from this runner — not evidence about the recipe") {
+            Issue.record(error)
+        }
+        return
+    }
     #expect(withHeader?.contains("application/octet-stream") == true)  // real dmg
     #expect(without?.contains("text/html") == true)                    // WAF challenge
 }

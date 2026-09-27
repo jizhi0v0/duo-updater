@@ -328,6 +328,51 @@ struct GitHubConditionalCacheTests {
                 == "Sun, 06 Sep 2026 00:00:00 GMT")
     }
 
+    /// Mutation this pins: removing the `maxAge` filter from `flush()`, or the
+    /// `dirty = true` beside it. An expired entry can only miss (see the test
+    /// above), yet it used to be re-encoded into every rewrite (#888). Two
+    /// paths: an expired
+    /// entry read from disk must be dropped by a flush that has nothing new to
+    /// write, and an entry that ages past `maxAge` in memory must be dropped by
+    /// the next ordinary flush.
+    @Test func flushDropsEntriesPastMaxAge() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("duo-conditional-cache-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("cache.json")
+        let t0: TimeInterval = 810280008
+        let expired = "https://api.github.com/repos/example/expired/releases/latest"
+        let fresh = "https://api.github.com/repos/example/fresh/releases/latest"
+        let later = "https://api.github.com/repos/example/later/releases/latest"
+        let body = Data("{}".utf8).base64EncodedString()
+        let fixture = """
+        {"\(expired)": {"etag": "\\"e\\"", "body": "\(body)", "authFingerprint": "fp", "storedAt": \(t0 - 25 * 3600)},
+         "\(fresh)": {"etag": "\\"f\\"", "body": "\(body)", "authFingerprint": "fp", "storedAt": \(t0 - 3600)}}
+        """
+        try Data(fixture.utf8).write(to: file)
+        func keysOnDisk() throws -> Set<String> {
+            Set(try JSONDecoder().decode(
+                [String: GitHubConditionalCache.Entry].self, from: Data(contentsOf: file)).keys)
+        }
+
+        let clock = Clock()
+        clock.now = Date(timeIntervalSinceReferenceDate: t0)
+        let cache = GitHubConditionalCache(fileURL: file, now: { clock.now })
+        // The fixture decoded — otherwise every assertion below is about an
+        // empty store.
+        #expect(await cache.validator(for: fresh, authFingerprint: "fp") != nil)
+
+        await cache.flush()
+        #expect(try keysOnDisk() == [fresh])
+
+        clock.now = clock.now.addingTimeInterval(GitHubConditionalCache.maxAge)
+        await cache.store(endpoint: later, authFingerprint: "fp",
+                          etag: "\"l\"", lastModified: nil, body: Data("{}".utf8))
+        await cache.flush()
+        #expect(try keysOnDisk() == [later])
+    }
+
     private final class Clock: @unchecked Sendable {
         private let lock = NSLock()
         private var _now = Date()

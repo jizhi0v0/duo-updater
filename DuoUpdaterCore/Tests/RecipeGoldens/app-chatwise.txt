@@ -87,5 +87,7 @@ sparkleFeeds = Dictionary(count: 0)
 
 supersededFeeds = Dictionary(count: 0)
 
+loginWalls = Dictionary(count: 0)
+
 changelogPages = Dictionary(count: 1)
 changelogPages["app.chatwise"] = URL("https://chatwise.app/changelog")

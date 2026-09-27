@@ -13,6 +13,7 @@
 | **stable** | ◐ 登录墙 | ✗ auto_updates（版本号由 VendorProbe 读） | — | — | ✓ 只检测 |
 
 当前生效源: **Sparkle**（拿到真 appcast 时，可一键）/ **VendorProbe**（Sparkle 撞登录墙抛 `notAFeed` 时，读 Homebrew cask API 的版本号，只检测）。
+撞墙的 302 在 recipe 里声明为 `loginWalls`，会话停在 302、不再下载登录页（#892）。
 
 ## Channel 详情
 
@@ -21,8 +22,10 @@
 | stable | `com.meta.endo` | appcast `?channel=production`；latest 下载链接 | ✓ |
 
 ## 更新检测
-- Sparkle feed 被 facebook.com 登录墙：匿名请求大多 302 到 `/login`，成段出现（几十秒到一分钟以上）。
-  `SparkleAppcastSource` 对"HTML 且零 item"抛 `SparkleError.notAFeed`，交给后面的源。
+- Sparkle feed 被 facebook.com 登录墙：匿名请求大多 302 到 `/login/?next=…`，成段出现（几十秒到一分钟以上）。
+  这个跳转在 recipe 里声明为 `loginWalls`（feed `www.facebook.com/endo/release/appcast.xml` → `www.facebook.com/login/`），
+  `URLSession.updates` 的会话 delegate 不跟随它，`SparkleAppcastSource` 把这个 302 报成 `SparkleError.notAFeed`，交给后面的源。
+  若 facebook 换了登录页路径，匹配失效，退回旧行为：跟随跳转、下载登录页，仍按"HTML 且零 item"抛 `notAFeed`。
 - 换请求形状逃不出撞墙时段：www / web / m / 裸域、Sparkle UA、`Accept: application/rss+xml` 交替各 10 轮，
   同一窗口里全部 302（2026-09-25）。放行时各 host 也不一致：同一轮 www、m 200 而 web 302（同日稍后）。
 - VendorProbe: `https://formulae.brew.sh/api/cask/muse.json` 的顶层 `"version"`。cask 的 `livecheck`
@@ -78,3 +81,13 @@
 - `duo check Muse` 默认输出曾显示 "Everything is up to date."，实为 `status: error: HTTP 403`
   被过滤掉；同批修改让默认输出列出失败行。
 - 本机 appcast 命中率（账本，05–14 点）：真 appcast 请求 204 次、拿到 60 次（约 29%），每小时至少 2 次。
+
+### 2026-09-27 · 不再下载登录页（#892）
+
+- 请求账本（2026-09-26 14:31Z → 09-27 06:33Z，约 16 h，每 5 分钟检查）：feed 146 × 302 → `/login/` 200，
+  登录页每次线上约 84 KB（解码后约 460 KB），合计 12.2 MB；feed 36 × 200（真 appcast）。
+- 同日 curl 8 次、间隔 15 s：2 × 302（`location: https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2Fendo%2Frelease%2Fappcast.xml%3Fchannel%3Dproduction`，
+  `content-length: 0`），6 × 200 appcast（单 item，4.1 / 1077426479，`length="35748449"`）。
+- 改动：recipe 声明 `loginWalls`，会话停在 302，`SparkleAppcastSource` 从 302 抛同一个 `notAFeed`（消息里的 URL 仍是登录页），
+  VendorProbe 兜底不变。撞墙一轮从两次请求（302 + 登录页）降到一次（302，无响应体）。
+- 没有用通用规则（例如"跳转路径含 login"）：同一账本里 AweSun 的 `/softwares/SUNLOGIN_X_MAC_ARM` 就会被误判，而它是真下载。

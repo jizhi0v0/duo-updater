@@ -50,4 +50,9 @@ sparkleFeeds = Dictionary(count: 0)
 
 supersededFeeds = Dictionary(count: 0)
 
+loginWalls = Dictionary(count: 1)
+loginWalls["com.meta.endo"] = struct SparkleFeedCatalog.LoginWall
+loginWalls["com.meta.endo"].feed = URL("https://www.facebook.com/endo/release/appcast.xml")
+loginWalls["com.meta.endo"].login = URL("https://www.facebook.com/login/")
+
 changelogPages = Dictionary(count: 0)

@@ -10,9 +10,18 @@ public struct SparkleAppcastSource: UpdateSource {
     // installed copy behind it, and a sweep that opened its own session would be
     // sweeping a different client than the one that ships.
     let session: URLSession
+    /// Must be the list the session's `CrossHostCredentialStripper` holds. The
+    /// session stops at these redirects, and this source recognises the 3xx it
+    /// gets back. Both default to `SparkleFeedCatalog.loginWalls`.
+    let loginWalls: [SparkleFeedCatalog.LoginWall]
 
     public init(session: URLSession = .updates) {
+        self.init(session: session, loginWalls: SparkleFeedCatalog.loginWalls)
+    }
+
+    init(session: URLSession, loginWalls: [SparkleFeedCatalog.LoginWall]) {
         self.session = session
+        self.loginWalls = loginWalls
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -23,16 +32,29 @@ public struct SparkleAppcastSource: UpdateSource {
         let (data, response) = try await session.versionFeedData(
             for: request, label: "Sparkle \(app.name)")
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            // A declared login wall (Muse, #892): the session stopped at the 3xx
+            // and did not download the sign-in page. Report it the same way as the
+            // downloaded page below, with the page's URL, so the row, its message
+            // and the next source are the same as before.
+            if (300..<400).contains(http.statusCode),
+               let location = http.value(forHTTPHeaderField: "Location"),
+               let target = URL(string: location, relativeTo: http.url)?.absoluteURL,
+               SparkleFeedCatalog.loginWall(
+                   redirectFrom: http.url, to: target, in: loginWalls) != nil {
+                throw SparkleError.notAFeed(target)
+            }
             throw SparkleError.badStatus(http.statusCode)
         }
 
         let items = SparkleAppcastParser.parse(data, relativeTo: feedURL)
         // An HTML page with no items is not a feed that offers nothing — it is a
         // feed we never got. Muse's (facebook.com/endo/…/appcast.xml) answers most
-        // requests with a 302 to a login page; `URLSession` follows it, and a `nil`
-        // here reads as "no source covers this app", which the pre-install
-        // re-check turns into a row with no offer, so the row vanished on every
-        // Update click. Thrown, it is `.error`: tried and failed, retryable.
+        // requests with a 302 to a login page. That redirect is now a declared
+        // `LoginWall` and is handled above; any other feed that redirects to a web
+        // page still ends up here. Before this check, a `nil` here read as "no
+        // source covers this app", which the pre-install re-check turns into a
+        // row with no offer, so the row vanished on every Update click. Thrown,
+        // it is `.error`: tried and failed, retryable.
         if items.isEmpty, Self.isHTML(response) {
             throw SparkleError.notAFeed(response.url)
         }

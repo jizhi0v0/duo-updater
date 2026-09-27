@@ -768,3 +768,21 @@ extension SparkleFeedCatalog.SupersededFeed: Codable {
         try c.encode(live, forKey: .live)
     }
 }
+
+extension SparkleFeedCatalog.LoginWall: Codable {
+    enum CodingKeys: String, CodingKey, CaseIterable { case feed, login }
+
+    init(from decoder: Decoder) throws {
+        try RecipeCoding.rejectUnknownKeys(in: decoder, allowed: CodingKeys.self)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            feed: try c.decode(URL.self, forKey: .feed),
+            login: try c.decode(URL.self, forKey: .login))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(feed, forKey: .feed)
+        try c.encode(login, forKey: .login)
+    }
+}

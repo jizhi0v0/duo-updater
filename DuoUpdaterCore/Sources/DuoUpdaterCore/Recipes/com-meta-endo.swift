@@ -16,8 +16,10 @@ enum com_meta_endo {
         // agree: www and m 200 in the same round that web 302s.
         // `SparkleAppcastSource` answers first whenever the feed
         // does come through — with the build, and the fbcdn enclosure one-click
-        // installs from — and throws `SparkleError.notAFeed` when it gets the
-        // login page, which is when this recipe answers instead.
+        // installs from. When it hits the login wall it throws
+        // `SparkleError.notAFeed`, and this recipe answers instead. The wall is
+        // declared in `loginWalls` below, so the session stops at the 302 and
+        // does not download the ~84 KB login page (#892).
         //
         // THE ENDPOINT is the Homebrew cask `muse`'s API listing, read for its
         // `version` only. The cask's own `livecheck` reads that same walled
@@ -47,5 +49,13 @@ enum com_meta_endo {
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
             downloadURL: URL(string: "https://muse.ai/")),
+        ],
+        // The wall's redirect: the feed answers `302` with `location:
+        // https://www.facebook.com/login/?next=…`. The session does not follow it,
+        // so a walled check costs one empty 302, not the login page too.
+        loginWalls: [
+            "com.meta.endo": SparkleFeedCatalog.LoginWall(
+                feed: URL(string: "https://www.facebook.com/endo/release/appcast.xml")!,
+                login: URL(string: "https://www.facebook.com/login/")!),
         ])
 }

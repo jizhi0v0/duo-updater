@@ -2,6 +2,12 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.4.8
+
+**El nuevo icono ya se ve bien en macOS 26.** En el estilo oscuro, la flecha y el aro ya no se funden en manchas sólidas, y la cabeza y las orejas del gato tienen bordes limpios en lugar de dentados.
+
+**Al cerrar el workbench se libera la memoria que usaban sus notas de versión.** Antes, una página de notas de versión que hubieras abierto seguía ejecutándose en segundo plano hasta que salías de DuoUpdater.
+
 ## 0.4.7
 
 **Un icono nuevo.** Un gato siamés acurrucado cuya cola es la flecha de actualizar. En macOS 26 y posteriores sigue tu estilo de iconos claro, oscuro o tintado.

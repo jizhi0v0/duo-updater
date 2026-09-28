@@ -2,6 +2,12 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.4.8
+
+**La nuova icona ora si vede correttamente su macOS 26.** Nello stile scuro la freccia e l’anello non si fondono più in macchie piene, e la testa e le orecchie del gatto hanno bordi netti invece che seghettati.
+
+**Chiudere il banco di lavoro ora libera la memoria usata dalle sue note di rilascio.** Prima, una pagina di note di rilascio che avevi aperto restava attiva in background finché non uscivi da DuoUpdater.
+
 ## 0.4.7
 
 **Una nuova icona.** Un gatto siamese acciambellato, con la coda che fa da freccia di aggiornamento. Su macOS 26 e successivi segue il tuo stile di icone chiaro, scuro o colorato.

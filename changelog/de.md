@@ -2,6 +2,12 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.4.8
+
+**Das neue App-Symbol sieht unter macOS 26 jetzt richtig aus.** Im dunklen Stil verschmelzen Pfeil und Ring nicht mehr zu massiven Flecken, und Kopf und Ohren der Katze haben saubere statt gezackter Kanten.
+
+**Wenn du die Werkbank schließt, wird jetzt der Speicher ihrer Versionshinweise freigegeben.** Bisher lief eine geöffnete Seite mit Versionshinweisen im Hintergrund weiter, bis du DuoUpdater beendet hast.
+
 ## 0.4.7
 
 **Ein neues App-Symbol.** Eine zusammengerollte Siamkatze, deren Schwanz der Aktualisieren-Pfeil ist. Ab macOS 26 folgt es deinem hellen, dunklen oder getönten Symbolstil.

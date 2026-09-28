@@ -71,7 +71,7 @@
         "enabled": true,
         "value": 0.12
       },
-      "specular": true
+      "specular": false
     },
     {
       "name": "Ring",

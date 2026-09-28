@@ -2,6 +2,12 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.4.8
+
+**Yeni uygulama simgesi artık macOS 26’da doğru görünüyor.** Koyu stilde ok ve halka artık birbirine karışıp dolu lekelere dönüşmüyor; kedinin başı ve kulakları da tırtıklı değil, temiz kenarlı.
+
+**Çalışma alanını kapatmak artık sürüm notlarının kullandığı belleği serbest bırakıyor.** Önceden, açtığınız bir sürüm notları sayfası DuoUpdater’dan çıkana kadar arka planda çalışmaya devam ediyordu.
+
 ## 0.4.7
 
 **Yeni bir uygulama simgesi.** Kıvrılmış bir Siyam kedisi; kuyruğu yenileme okunu oluşturuyor. macOS 26 ve sonrasında seçtiğiniz açık, koyu veya renklendirilmiş simge stiline uyuyor.

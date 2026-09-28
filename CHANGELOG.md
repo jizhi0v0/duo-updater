@@ -19,6 +19,12 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.4.8
+
+**The new app icon now looks right on macOS 26.** In dark mode the arrow and the ring no longer run together into solid blobs, and the cat's head and ears have clean edges instead of jagged ones.
+
+**Closing the Workbench now frees the memory its release notes were using.** Before, a release notes page you had opened kept running in the background until you quit DuoUpdater.
+
 ## 0.4.7
 
 **A new app icon.** A Siamese cat curled up, with its tail as the refresh arrow. On macOS 26 and later it follows your light, dark or tinted icon style.

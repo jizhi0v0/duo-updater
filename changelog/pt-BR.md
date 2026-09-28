@@ -2,6 +2,12 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.4.8
+
+**O novo ícone agora aparece corretamente no macOS 26.** No estilo escuro, a seta e o anel não se fundem mais em manchas sólidas, e a cabeça e as orelhas do gato têm bordas limpas em vez de serrilhadas.
+
+**Fechar a bancada agora libera a memória usada pelas notas de versão.** Antes, uma página de notas de versão que você tinha aberto continuava rodando em segundo plano até você sair do DuoUpdater.
+
 ## 0.4.7
 
 **Um novo ícone.** Um gato siamês enrolado, com o rabo formando a seta de atualizar. No macOS 26 e posterior, ele segue o seu estilo de ícones claro, escuro ou colorido.

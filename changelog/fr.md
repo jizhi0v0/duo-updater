@@ -2,6 +2,12 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.4.8
+
+**La nouvelle icône s’affiche enfin correctement sur macOS 26.** En style sombre, la flèche et l’anneau ne se fondent plus en taches pleines, et la tête et les oreilles du chat ont des bords nets au lieu de bords crénelés.
+
+**Fermer l’établi libère désormais la mémoire utilisée par ses notes de version.** Auparavant, une page de notes de version ouverte continuait de tourner en arrière-plan jusqu’à ce que vous quittiez DuoUpdater.
+
 ## 0.4.7
 
 **Une nouvelle icône.** Un chat siamois enroulé sur lui-même, dont la queue forme la flèche d’actualisation. Sur macOS 26 et ultérieur, elle suit votre style d’icônes clair, sombre ou teinté.

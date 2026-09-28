@@ -72,6 +72,7 @@ struct WorkbenchWindowView: View {
     @State private var highlightUnchecked = false
 
     @Environment(\.scenePhase) private var scenePhase
+    @State private var isWindowOpen = false
     @Environment(\.openWindow) private var openWindow
 
     /// While the window stays open, re-read on-disk versions periodically so an app
@@ -329,8 +330,19 @@ struct WorkbenchWindowView: View {
         }
         // Keep lifecycle bookkeeping in the model so focus/badge refresh behavior
         // matches the other top-level windows.
-        .onAppear { model.windowAppeared() }
-        .onDisappear { model.windowDisappeared() }
+        .onAppear {
+            isWindowOpen = true
+            model.windowAppeared()
+        }
+        .onDisappear {
+            isWindowOpen = false
+            model.windowDisappeared()
+            // A cached changelog page pins a WebContent process (323–463 MB
+            // measured on 2026-09-28) for as long as the app runs; nobody reads
+            // it with the window closed.
+            WebViewCache.removeAll()
+        }
+        .environment(\.workbenchWindowOpen, isWindowOpen)
         // Debounce the detail pane: the sidebar highlight (`selection`) follows the
         // arrow keys instantly, but `detailSelection` — what the heavy detail renders
         // — only catches up once the selection holds still: 400 ms while scrubbing,
@@ -2698,6 +2710,15 @@ private enum WebViewCache {
         }
         return view
     }
+
+    static func removeAll() {
+        guard !byURL.isEmpty else { return }
+        Log.changelog.info("perf webview cache cleared: \(byURL.count, privacy: .public) view(s)")
+        guardians.values.forEach { $0.cancel() }
+        guardians = [:]
+        byURL = [:]
+        order = []
+    }
 }
 
 /// Per-WebView watchdog. WKWebView won't surface two failure modes on its own,
@@ -2914,7 +2935,30 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
     }
 }
 
-private struct CachedWebView: NSViewRepresentable {
+extension EnvironmentValues {
+    @Entry fileprivate var workbenchWindowOpen = false
+}
+
+/// Renders nothing while the workbench window is closed. Closing the window
+/// does not tear its SwiftUI tree down: the hosting view stays alive and keeps
+/// re-rendering on model changes, so emptying `WebViewCache` alone left the
+/// mounted page (and its WebContent process) alive, and a later re-render built
+/// a fresh one with no window at all — both seen in WebKit's own log on
+/// 2026-09-28.
+private struct CachedWebView: View {
+    let url: URL
+    @Environment(\.workbenchWindowOpen) private var windowOpen
+
+    var body: some View {
+        if windowOpen {
+            CachedWebViewRepresentable(url: url)
+        } else {
+            Color.clear
+        }
+    }
+}
+
+private struct CachedWebViewRepresentable: NSViewRepresentable {
     let url: URL
 
     func makeNSView(context: Context) -> WKWebView {

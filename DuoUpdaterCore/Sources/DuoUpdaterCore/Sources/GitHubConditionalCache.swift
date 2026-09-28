@@ -230,8 +230,12 @@ public actor GitHubConditionalCache {
         etag: String?, lastModified: String?, body: Data
     ) {
         guard etag != nil || lastModified != nil else { return }
+        // Copy rather than keep URLSession's `Data`: that one still references
+        // the whole network receive buffers behind it. Measured 2026-09-28:
+        // 4.8 MB of bodies held 19.3 MB in the running app; a standalone fetch
+        // kept 4.11x the body as-returned vs 1.01x copied.
         entries[endpoint] = Entry(
-            etag: etag, lastModified: lastModified, body: body,
+            etag: etag, lastModified: lastModified, body: Data(Array(body)),
             authFingerprint: authFingerprint, storedAt: now())
         dirty = true
         scheduleFlush()

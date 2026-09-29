@@ -61,6 +61,7 @@ Homebrew 装的副本由 `HomebrewCaskSource` 应答（它只认本地 Caskroom 
 
 ## Changelog
 - 来源: GitHub Release body，`changelogURL` 为 release 页
+- 结构化（2026-09-29，`channel-verify` 的 `changelog pane` 行，从 4.2.1 检查）: ✓ 2 条纯列表，无小标题（正文本身没有标题行）；只带回最新一版的说明（1 个条目）
 - 跟随 channel: 只读 stable
 - Recipe 状态: 不需要
 

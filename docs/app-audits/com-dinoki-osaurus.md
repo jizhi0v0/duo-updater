@@ -65,6 +65,7 @@ binding 手写 channel 名需要一条 `bindingProofs` `.recipeAnchor`（`Channe
 
 ## Changelog
 - 来源: Sparkle inline `<description sparkle:format="markdown">`（GitHub release 正文），channel-verify 读到 900 字符 inline
+- 结构化（2026-09-29，`channel-verify` 的 `changelog pane` 行，从 0.25.13 检查）: ⚠ 结构化但**小标题被压平** — 40 个版本条目，最新 0.25.14 有 14 条，`headings []`，`What's Changed` / `🐛 Bug Fixes` 作为普通条目出现在列表里。原因在 Sparkle markdown 路径（`AppcastMarkdownParser.items` 把标题保留为单独一行），所有用 `sparkle:format="markdown"` 的 app 都一样，不是本 app 的问题
 - 跟随 channel: 不适用（只有一条轨）
 - Recipe 状态: 不需要
 

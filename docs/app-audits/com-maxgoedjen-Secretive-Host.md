@@ -58,6 +58,7 @@ artifact 上传、不建 release，不是可订阅的轨道。
 ## Changelog
 - 来源: GitHub Release body（`GitHubReleasesSource`；`channel-verify` 给出 changelogURL
   `…/releases/tag/v4.0.0`）
+- 结构化（2026-09-29，`channel-verify` 的 `changelog pane` 行，从 3.0.4 检查）: ✓ 分节保留 — `Features` / `Fixes`，19 条；只带回最新一版的说明（1 个条目）
 - 跟随 channel: 单渠道
 - Recipe 状态: 不需要
 

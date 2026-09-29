@@ -60,6 +60,7 @@ prerelease 轨是已知缺口。
 ## Changelog
 - 来源: GitHub Release body（`GitHubReleasesSource` 经 `GitHubMarkdownParser` 结构化带回；
   `channel-verify` 显示 release history 1 条、inline HTML 0 字符、changelogURL 指向 release 页）
+- 结构化（2026-09-29，`channel-verify` 的 `changelog pane` 行，从 3000.0.6 检查）: ✓ 分节保留 — `Added` / `Changed` / `Fixed` / `Security` / `Documentation` / `Infrastructure` / `Known Issues`，53 条；只带回最新一版的说明（1 个条目）
 - 跟随 channel: 只跟 stable
 - Recipe 状态: 不需要
 

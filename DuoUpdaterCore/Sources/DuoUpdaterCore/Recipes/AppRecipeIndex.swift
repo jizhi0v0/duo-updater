@@ -108,6 +108,7 @@ public enum AppRecipeIndex {
         com_mongodb_compass.set,
         com_moonlight_stream_Moonlight.set,
         com_moonshot_kimichat.set,
+        com_neovide_neovide.set,
         com_netease_uuremote.set,
         com_nssurge_surge_mac.set,
         com_nuebling_mac_mouse_fix.set,

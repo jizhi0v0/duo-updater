@@ -232,6 +232,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Kun**](com-xingyuzhong-deepseekgui.md) · `com.xingyuzhong.deepseekgui` — G (one-click arm64 dmg) · 真包 v0.3.7 挂载验证 ✓ · 2026-08-30
 - [x] [**Reviu**](com-jorisgallot-reviu.md) · `com.jorisgallot.reviu` — G (one-click arm64 dmg) · 真包 v1.4.0 挂载验证 ✓ · 一键 1.3.0→1.4.0 端到端 ✓ · 2026-09-29
 - [x] [**CrystalFetch**](llc-turing-CrystalFetch.md) · `llc.turing.CrystalFetch` — G (one-click universal dmg; MAS 副本走商店) · 真包 v2.2.0 挂载验证 ✓ · 2026-09-29
+- [x] [**Neovide**](com-neovide-neovide.md) · `com.neovide.neovide` — G (one-click arm64 dmg) · 真包 0.16.2 挂载验证 ✓ · channel-verify 0.16.1→0.16.2 ✓ · 2026-09-29
 - [x] [**DSH Desktop**](ai-deepseek-dsh-desktop.md) · `ai.deepseek.dsh.desktop` — G (one-click universal dmg) · 真包 v2.0.4 挂载验证 ✓ · 2026-08-30
 - [x] [**Meetily**](com-meetily-ai.md) · `com.meetily.ai` — G (one-click arm64 dmg) · 真包 v0.4.0 挂载验证 ✓ · 2026-08-30
 - [x] [**Paseo**](sh-paseo-desktop.md) · `sh.paseo.desktop` — G (one-click arm64 dmg) · 真包 v0.6.1 挂载验证 ✓（beta 是 prerelease 轨，未接入）· 2026-08-30

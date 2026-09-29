@@ -210,6 +210,7 @@ public enum AppRecipeIndex {
         org_alacritty.set,
         org_audacityteam_audacity.set,
         org_blenderfoundation_blender.set,
+        org_cryptomator.set,
         org_darktable.set,
         org_flameshot_Flameshot.set,
         org_gimp_gimp.set,

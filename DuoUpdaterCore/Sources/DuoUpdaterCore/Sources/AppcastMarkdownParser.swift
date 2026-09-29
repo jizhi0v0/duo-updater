@@ -33,9 +33,17 @@ enum AppcastMarkdownParser {
     /// (`## What's Changed` / `## 🐛 Bug Fixes` / `## 🧰 Maintenance`), and flat,
     /// every heading rendered as one more bullet. When headings qualify, they
     /// become `.heading` blocks in `content` and leave `items` — which then holds
-    /// only the notes, as `Changelog.Entry.items` promises. A heading that does not
-    /// qualify is dropped along with them, and one with no note under it before the
-    /// next heading is never emitted — both the same as `GitHubMarkdownParser`.
+    /// only the notes, as `Changelog.Entry.items` promises. A heading with no note
+    /// under it before the next heading is never emitted, the same as
+    /// `GitHubMarkdownParser`; boilerplate (`New Contributors`, …) is dropped too.
+    ///
+    /// One deliberate difference: once a body qualifies, a heading with a digit in
+    /// it is styled as well. Surge names real sections that way (`### macOS 27`,
+    /// `### HTTP & HTTP/3`, `### Snell v6 Server`), and dropping them left their
+    /// notes reading as part of the section above — 6.8.0's HTTP fixes sat under
+    /// `SSH`. The GitHub rule drops them to keep a version-restating title out of
+    /// the pane; here such a title (TablePro's `# What's New in TablePro 0.76.1`)
+    /// has no note directly under it, so the buffer drops it anyway.
     ///
     /// When none qualify the entry is flat and `items` is `items(from:)` unchanged,
     /// headings included — a release with a single `### Logbook` keeps it as a line,
@@ -46,6 +54,8 @@ enum AppcastMarkdownParser {
             let notes = items(from: markdown)
             return notes.isEmpty ? nil : Changelog.Entry(version: version, date: date, items: notes)
         }
+        let styled = GitHubMarkdownParser.qualifyingHeadings(
+            in: markdown, skipSections: [], allowingVersionLike: true)
         var notes: [String] = []
         var content: [Changelog.Entry.Block] = []
         // Emitted only once a note lands under it — `GitHubMarkdownParser.extractItems`'s
@@ -54,7 +64,7 @@ enum AppcastMarkdownParser {
         for line in lines(from: markdown) {
             switch line {
             case let .heading(raw):
-                pendingHeading = (!raw.isEmpty && qualifying.contains(raw)) ? .heading(stripInline(raw)) : nil
+                pendingHeading = (!raw.isEmpty && styled.contains(raw)) ? .heading(stripInline(raw)) : nil
             case let .note(text):
                 notes.append(text)
                 if let heading = pendingHeading {

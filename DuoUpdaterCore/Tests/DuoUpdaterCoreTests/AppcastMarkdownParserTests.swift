@@ -116,10 +116,11 @@ final class AppcastMarkdownParserTests: XCTestCase {
         ])
     }
 
-    /// A heading with nothing under it before the next one is not emitted, and a
-    /// version-like heading does not qualify and is dropped — both as in
-    /// `GitHubMarkdownParser`.
-    func testDanglingAndVersionLikeHeadingsAreDropped() throws {
+    /// A heading with nothing under it before the next one is not emitted — as in
+    /// `GitHubMarkdownParser`. That covers a version-restating title too
+    /// (TablePro's `# What's New in TablePro 0.76.1`), which is followed straight
+    /// by the first category heading.
+    func testDanglingHeadingsAreDropped() throws {
         let md = """
         ## Release 2.0
         ## Added
@@ -133,6 +134,34 @@ final class AppcastMarkdownParserTests: XCTestCase {
         XCTAssertEqual(entry.content, [
             .heading("Fixed"), .note("Fixed a crash on launch."),
             .heading("Changed"), .note("Faster sync."),
+        ])
+    }
+
+    /// Surge names real sections with digits in them. Trimmed from its live 6.8.0
+    /// notes (fetched 2026-09-29): the GitHub rule dropped `HTTP & HTTP/3`, so its
+    /// fixes read as part of `SSH` above. Here it is styled, because the body
+    /// already qualifies and a note sits under it.
+    ///
+    /// Mutation: look headings up in `qualifying` instead of `styled` in
+    /// `AppcastMarkdownParser.entry` — the HTTP note lands under SSH and this fails.
+    func testHeadingWithADigitIsStyledOnceTheBodyQualifies() throws {
+        let md = """
+        ## What's New
+        ### macOS 27
+        - Began adapting the Surge interface for macOS 27.
+        ### DHCP
+        - Upgraded the ISC DHCP server to version 4.4.3-P1.
+        ### SSH
+        - Added support for importing SSH P-521 keys.
+        ### HTTP & HTTP/3
+        - Fixed HTTP/1.1 pipelining boundaries.
+        """
+        let entry = try XCTUnwrap(AppcastMarkdownParser.entry(from: md, version: "6.8.0", date: nil))
+        XCTAssertEqual(entry.content, [
+            .heading("macOS 27"), .note("Began adapting the Surge interface for macOS 27."),
+            .heading("DHCP"), .note("Upgraded the ISC DHCP server to version 4.4.3-P1."),
+            .heading("SSH"), .note("Added support for importing SSH P-521 keys."),
+            .heading("HTTP & HTTP/3"), .note("Fixed HTTP/1.1 pipelining boundaries."),
         ])
     }
 

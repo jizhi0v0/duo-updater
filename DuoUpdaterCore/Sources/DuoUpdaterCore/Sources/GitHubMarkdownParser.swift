@@ -166,9 +166,11 @@ public enum GitHubMarkdownParser {
     /// all four rendered as `.heading` blocks; after, only the two real ones do.
     ///
     /// Also the rule for Sparkle Markdown notes (`AppcastMarkdownParser.entry`) —
-    /// a change here moves those headings too.
+    /// a change here moves those headings too. That caller alone passes
+    /// `allowingVersionLike`, which drops the digit test; see its doc comment.
     static func qualifyingHeadings(
-        in body: String, skipSections: [String], extraSkipKeywords: [String] = []
+        in body: String, skipSections: [String], extraSkipKeywords: [String] = [],
+        allowingVersionLike: Bool = false
     ) -> Set<String> {
         var candidates: [String] = []
         var inCodeBlock = false
@@ -181,7 +183,7 @@ public enum GitHubMarkdownParser {
             if skippedSectionKeywords.contains(where: { lowered.contains($0) }) { continue }
             if extraSkipKeywords.contains(where: { lowered.contains($0) }) { continue }
             if isSkipped(lowered, by: skipSections) { continue }
-            if isVersionLikeHeading(raw) { continue }
+            if !allowingVersionLike, isVersionLikeHeading(raw) { continue }
             candidates.append(raw)
         }
         return candidates.count >= 2 ? Set(candidates) : []

@@ -17,6 +17,13 @@ Given **one app name** (or bundle ID), produce a full picture of its integration
 in duo-updater — or investigate what integration is possible — then **persist the
 result** as a per-app document.
 
+**"Onboarded" means three things, reported separately:** detection, one-click
+install, and a structured changelog. When any of the three can't be done, state
+which one and why, in the report and in the doc. Reporting what works and saying
+nothing about the rest reads as "all done". The evidence each one needs is in
+`.claude/skills/coverage-discovery/SKILL.md` §「What "onboarded" means」. For
+many apps at once, use that skill; it dispatches this one per app.
+
 ## The two orthogonal dimensions
 
 Every app sits at the intersection of two independent axes. The audit must cover
@@ -680,8 +687,35 @@ electron-updater's `noCache` query, i.e. a CDN edge copy shadowing the origin).
 Only after detection is confirmed. For each supported channel:
 - Stable download URL?
 - Format? (.dmg / .zip / .pkg / .tar.gz)
-- Same Team ID as installed copy?
+- Same Team ID as installed copy? Check the **previous** release's package too,
+  not just the newest one. `SignatureVerifier` requires an exact Team match. A
+  vendor that changed Team between releases makes every older copy's one-click
+  fail safely (OpenInTerminal: `Q33U8R4U57` at 2.3.8, `C8VX3ZLX5U` at 2.3.9).
+  Say so in the doc; the update still shows, but the user has to update by hand
+  once.
+- Nested apps under `Contents/Library/LoginItems` or `Contents/Helpers`?
+  `.claude/skills/coverage-discovery/scripts/check-bundle.sh <package>` lists
+  them with `LSUIElement` / `LSBackgroundOnly`. A resident helper keeps running
+  the replaced code after a swap, and `AppRestarter` only restarts `.regular`
+  nested apps. So read what the helper does before allowing one-click.
+  Secretive's `SecretAgent` (resident SSH agent) is detection-only for this
+  reason. OpenInTerminal's `LSBackgroundOnly` launcher exits right after it
+  starts the app, so it is fine.
 - Authentication or special headers needed?
+
+A one-click route is proven by an end-to-end run: install the previous
+release, then `duo install --yes`. Run it serially, never from a parallel
+agent, following `coverage-discovery` Phase 5 (it needs a permission rule the
+user adds).
+
+**Changelog quality.** `channel-verify` prints a `changelog pane` line: what the
+workbench pane shows, in its order (recipe → source's structured log → raw
+inline notes → web page → none), with the newest entry's item count, kept
+headings and first items when it is structured. `headings []` with a heading's
+text among the items means the headings were flattened. Put what it says into
+the doc's Changelog section. "Sparkle inline" alone doesn't say what the pane
+renders, and neither does the winning source (Fork: Sparkle wins, the recipe is
+shown). Details: `coverage-discovery` Phase 5.
 
 **ASK before implementing**: "检测可以做，要不要也加一键安装？"
 
@@ -747,11 +781,13 @@ same check.
 
 ## Changelog
 - 来源: Sparkle inline / recipe / WebView / 无
+- 结构化: `channel-verify` 的 `changelog pane` 行原文（recipe / source structured + 分节保留或被压平 / raw / web page / none）
 - 跟随 channel: 是/否
 - Recipe 状态: 已有 / 需要 / 不需要
 
 ## 一键安装
 - 状态: 支持 / 仅检测 / 需要验证
+- 端到端: `duo install` 从上一版装到最新版的结果；没跑就写「未跑」及原因
 - 格式: dmg/zip/pkg
 - **读的是**: 轨道最新 / 本机被分配 / 人人可手动下载的 GA  ← 必填,见 Phase 3⅞
   - 若是「轨道最新」: 为什么这个 app 可以接受? (一键会装厂商还没分配给这台机器的构建)
@@ -806,6 +842,11 @@ Every audit produces a document. This keeps documentation in sync with code.
 - [Chrome](com-google-Chrome.md) — 4 channels, VendorProbe, one-click ✓
 - [Firefox](org-mozilla-firefox.md) — 5 channels, Sparkle+MAS, detection only
 ```
+
+Put the line in the README **section that matches how the app is covered**
+(`## Single-channel — GitHub Releases`, `## Sparkle-covered …`, …), not next to
+whatever line you added last. `AppAuditCoverageTests.genericSparkleIndexRowsStayInTheSparkleSection`
+fails a generic-Sparkle row (`— S`) placed anywhere else.
 
 ### Relationship to existing tracking docs
 

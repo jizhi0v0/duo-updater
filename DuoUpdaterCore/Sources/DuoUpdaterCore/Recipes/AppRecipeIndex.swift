@@ -15,6 +15,7 @@ public enum AppRecipeIndex {
         app_chatwise.set,
         app_cyan_markedit.set,
         app_freelens_Freelens.set,
+        app_macdown_macdown3000.set,
         app_yaak_desktop.set,
         app_zen_browser_zen.set,
         art_ginzburg_MiddleClick.set,

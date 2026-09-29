@@ -147,6 +147,16 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
   一旦启用，stable 会变成无标签、`dev` 变成 opt-in，届时 binding 必须改读
   `includePrereleaseVersions`，否则会把 `dev` 推给 stable 用户。见
   [审计](docs/app-audits/app-codeedit-CodeEdit.md)。
+- **Osaurus** `com.dinoki.osaurus`（2026-09-29 接）— Info.plist 自带 `SUFeedURL`，通用
+  `SparkleAppcastSource` 覆盖。feed 160 条 item **全部**打 `<sparkle:channel>release</sparkle:channel>`，
+  没有无 tag 的；0.15.12 及更早的 release 不在 feed 里，没有 binding 时这些副本匹配零条 → unknown。
+  `OsaurusChannel` 是常量 binding：`.stable` + `sparkleChannelNames: ["release"]`，不进
+  `boundBundleIDs`。厂商另有 beta 机制（`-beta` tag → `SPARKLE_CHANNEL=beta`；app 偏好
+  `betaUpdatesEnabled` 放行 `release`+`beta`），但至今没发过任何 beta，**beta 未接**：手写 channel 名的
+  非 stable binding 需要 `bindingProofs` `.recipeAnchor`，没有真实构建可锚。
+  **重开条件**：第一个 `-beta` tag 或第一条 `<sparkle:channel>beta</sparkle:channel>` item 出现 →
+  binding 改读 `betaUpdatesEnabled`、加 beta resolution，并以那个真实构建为锚登记 binding proof。见
+  [审计](docs/app-audits/com-dinoki-osaurus.md)。
 
 ### 版本后缀分流 续 — Yaak（2026-09-06 接）
 

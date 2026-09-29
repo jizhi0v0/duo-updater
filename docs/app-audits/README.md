@@ -231,6 +231,14 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**T3 Code**](com-t3tools-t3code.md) · `com.t3tools.t3code` — G(alpha/nightly) · 2 channels，共享 bundle id，app 名渠道词 + GitHub 双 rule · **两轨一键 ✓**（Team ARK85ZXQ4Z，真包挂载验证）· 2026-08-30 · 仓库出现了未覆盖的 `-preview.` 发布系列（tag 自 2026-09-12、release 自 2026-09-13；2026-09-14 复测）
 - [x] [**Kun**](com-xingyuzhong-deepseekgui.md) · `com.xingyuzhong.deepseekgui` — G (one-click arm64 dmg) · 真包 v0.3.7 挂载验证 ✓ · 2026-08-30
 - [x] [**Reviu**](com-jorisgallot-reviu.md) · `com.jorisgallot.reviu` — G (one-click arm64 dmg) · 真包 v1.4.0 挂载验证 ✓ · 一键 1.3.0→1.4.0 端到端 ✓ · 2026-09-29
+- [x] [**CrystalFetch**](llc-turing-CrystalFetch.md) · `llc.turing.CrystalFetch` — G (one-click universal dmg; MAS 副本走商店) · 真包 v2.2.0 挂载验证 ✓ · 2026-09-29
+- [x] [**Neovide**](com-neovide-neovide.md) · `com.neovide.neovide` — G (one-click arm64 dmg) · 真包 0.16.2 挂载验证 ✓ · channel-verify 0.16.1→0.16.2 ✓ · 2026-09-29
+- [x] [**MacDown 3000**](app-macdown-macdown3000.md) · `app.macdown.macdown3000` — G (one-click universal dmg) · 真包 v3000.0.7 挂载验证 ✓（rc/beta 是 prerelease 轨，未接入）· 2026-09-29
+- [x] [**MeetingBar**](leits-MeetingBar.md) · `leits.MeetingBar` — G+H+MAS (one-click universal dmg) · 真包 v4.11.6 挂载验证 ✓（V5 预发布轨同 bundle id 无信号，未接入）· 2026-09-29
+- [x] [**Finicky**](se-johnste-finicky.md) · `se.johnste.finicky` — G (one-click universal dmg) · 真包 v4.2.2 挂载验证 ✓（alpha/beta 是 prerelease 轨，未接入）· 2026-09-29
+- [x] [**Cryptomator**](org-cryptomator.md) · `org.cryptomator` — G (one-click arm64 dmg) · 真包 1.19.3 挂载验证 ✓（alpha/beta/rc 是 prerelease 轨，未接入）· 2026-09-29
+- [x] [**Secretive**](com-maxgoedjen-Secretive-Host.md) · `com.maxgoedjen.Secretive.Host` — G (detection-only：内嵌 SSH agent 登录项，换包后不被重启) · 真包 v4.0.0 解压验证 ✓ · 2026-09-29
+- [x] [**OpenInTerminal**](wang-jianing-app-OpenInTerminal.md) · `wang.jianing.app.OpenInTerminal` — G (one-click universal zip) · 真包 v2.3.9 解压验证 ✓ · 2026-09-29
 - [x] [**DSH Desktop**](ai-deepseek-dsh-desktop.md) · `ai.deepseek.dsh.desktop` — G (one-click universal dmg) · 真包 v2.0.4 挂载验证 ✓ · 2026-08-30
 - [x] [**Meetily**](com-meetily-ai.md) · `com.meetily.ai` — G (one-click arm64 dmg) · 真包 v0.4.0 挂载验证 ✓ · 2026-08-30
 - [x] [**Paseo**](sh-paseo-desktop.md) · `sh.paseo.desktop` — G (one-click arm64 dmg) · 真包 v0.6.1 挂载验证 ✓（beta 是 prerelease 轨，未接入）· 2026-08-30
@@ -295,6 +303,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Supacode**](app-supabit-supacode.md) · `app.supabit.supacode` — S · default+tip 两轨真包验证 ✓（tip 经 build 反查推断，零 recipe）· **2026-08-31 复验发现 tip 轨当时被判成 default**（tip 包 short 与 default 条目同为 `0.10.8`，渠道推断按文档序先撞上 short），引擎已修为两趟匹配；tip 条目本身无 changelog · 2026-08-31
 - [x] [**PDF Expert**](com-readdle-PDFExpert-Mac.md) · `com.readdle.PDFExpert-Mac` — S C · ⚠️ bundle 的 `SUFeedURL` 指着一份 **2022 年冻结**的 feed（build 764），其中一条没有 `maximumSystemVersion`，于是通用 Sparkle 源在现代 Mac 上读到 2.5.22 并判「已是最新」——零报错、cask 又是 `auto_updates` 无人兜底，这个 app 一直是隐形的。新增 `SparkleFeedCatalog.supersededFeeds` 按**死地址**（不是 bundle id）换到 pem3 feed；判据是 pem3 的 `edSignature` 用装机 bundle 自己的 `SUPublicEDKey` 验签通过 ✓。changelog 走 recipe 解 `fullReleaseNotesLink` 那张页（88 条，appcast 那份只有最新一版）· **一键真机端到端 ✓**（降到官方 3.13.1 再让引擎装回 3.13.2，走的是 781 KB 增量包而非 128 MB 全量，签名/公证/回滚点全绿）· 2026-09-04
 - [x] [**CodeEdit**](app-codeedit-CodeEdit.md) · `app.codeedit.CodeEdit` — S · 每个 release 的 appcast 只有一条、且都打 `dev` tag（没有默认 channel），落后一版的副本会读成 unknown；加常量 `ChannelBinding` 放行 `dev` · 真包 v0.3.6 挂载验证 ✓ · 2026-09-12
+- [x] [**Osaurus**](com-dinoki-osaurus.md) · `com.dinoki.osaurus` — S · feed 每条 item 都打 `release` tag（没有默认 channel），不在 feed 里的旧副本会读成 unknown；加常量 `ChannelBinding` 放行 `release` · beta 厂商未发过，未接 · 真包 0.25.14 / 0.25.13 挂载验证 ✓ · 2026-09-29
 - [x] [**coconutBattery**](com-coconut-flavour-coconutBattery.md) · `com.coconut-flavour.coconutBattery` — S · cask 是 `auto_updates`（Homebrew 让位），Sparkle 排在前面先应答 · 签名 feed，通用一键 ✓ · 真包 4.4.0 验证 ✓ · 2026-09-14 feed 无 beta 条目（08-29 有），beta needs-verify · 2026-09-14 复核
 - [x] [**DaisyDisk**](com-daisydiskapp-DaisyDiskStandAlone.md) · `com.daisydiskapp.DaisyDiskStandAlone` — S · MAS 副本 `com.daisydiskapp.DaisyDisk` 由 App Store 通用覆盖 · cask `auto_updates` 不影响，Sparkle 先应答 · 无 EdDSA（只有 DSA），通用一键 ✓（code signature + Team 闸）· 真包 4.34.2 验证 ✓ · 2026-09-14 复核
 - [x] [**SuperCmd**](com-supercmd-SuperCmd.md) · `com.supercmd.SuperCmd` — S(v2 stable) S(v2 beta，独立 id `com.supercmd.SuperCmd.beta`、独立 feed) G(v1 `com.supercmd.app`，**detection-only**) · 同名两个 app：v2 闭源原生 Sparkle、v1 开源 Electron 已停更，版本号 1.0.0–1.0.7 两边重叠 · 三个真包验证 ✓ · 2026-09-17

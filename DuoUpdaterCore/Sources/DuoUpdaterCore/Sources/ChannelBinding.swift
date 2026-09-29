@@ -157,8 +157,8 @@ public enum ChannelBinding {
     /// "did the user just flip a channel toggle in the vendor app itself" recheck
     /// to only these apps, instead of polling every installed app's prefs.
     ///
-    /// Deliberately excludes Ghostty and CodeEdit: each binding is a constant (a
-    /// fixed stable-only feed override; a fixed `<sparkle:channel>` tag) with no
+    /// Deliberately excludes Ghostty, CodeEdit and Osaurus: each binding is a
+    /// constant (a fixed stable-only feed override; a fixed `<sparkle:channel>` tag) with no
     /// user-settable preference behind it, so there is nothing to watch.
     public static let boundBundleIDs: Set<String> = [
         DuoPasteChannel.bundleID.lowercased(),
@@ -407,6 +407,7 @@ public enum ChannelBinding {
         case SuperconductorChannel.bundleID.lowercased():
             return SuperconductorChannel.resolveCurrent
         case CodeEditChannel.bundleID.lowercased(): return CodeEditChannel.resolveCurrent
+        case OsaurusChannel.bundleID.lowercased(): return OsaurusChannel.resolveCurrent
         case MacMouseFixChannel.bundleID.lowercased():
             return MacMouseFixChannel.resolveCurrent
         case CuaDriverChannel.bundleID.lowercased(): return CuaDriverChannel.resolveCurrent
@@ -470,12 +471,13 @@ public enum ChannelBinding {
          BetterDisplayChannel.resolve(preEnabled: false, internalEnabled: true)),
         (BetterDisplayChannel.bundleID,
          BetterDisplayChannel.resolve(preEnabled: true, internalEnabled: true)),
-        // The remaining three have no user-settable channel choice to drive.
-        // Ghostty is a fixed stable-only feed override and CodeEdit a fixed feed
-        // tag (see `CodeEditChannel`), so `resolveCurrent()` is already a
-        // constant for both.
+        // The remaining four have no user-settable channel choice to drive.
+        // Ghostty is a fixed stable-only feed override, CodeEdit and Osaurus
+        // fixed feed tags (see `CodeEditChannel`, `OsaurusChannel`), so
+        // `resolveCurrent()` is already a constant for each.
         (GhosttyChannel.bundleID, GhosttyChannel.resolveCurrent()),
         (CodeEditChannel.bundleID, CodeEditChannel.resolveCurrent()),
+        (OsaurusChannel.bundleID, OsaurusChannel.resolveCurrent()),
     ] + (CleanShotChannel.resolve(activationKey: CleanShotChannel.placeholderActivationKey)
         .map { [(CleanShotChannel.bundleID, $0)] } ?? [])
     // CotEditor answers for ONE of its two preference values — an unticked box

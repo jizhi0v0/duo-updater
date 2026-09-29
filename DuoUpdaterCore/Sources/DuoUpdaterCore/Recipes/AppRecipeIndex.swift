@@ -82,6 +82,7 @@ public enum AppRecipeIndex {
         com_jetbrains_intellij.set,
         com_jetbrains_toolbox.set,
         com_jgraph_drawio_desktop.set,
+        com_jorisgallot_reviu.set,
         com_kagi_kagimacOS.set,
         com_kangfenmao_CherryStudio.set,
         com_kimi_code_desktop.set,

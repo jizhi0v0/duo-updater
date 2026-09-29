@@ -189,6 +189,7 @@ public enum AppRecipeIndex {
         io_rancherdesktop_app.set,
         io_tailscale_ipn_macsys.set,
         jan_ai_app.set,
+        leits_MeetingBar.set,
         llc_turing_CrystalFetch.set,
         md_obsidian.set,
         me_qii404_another_redis_desktop_manager.set,

@@ -237,6 +237,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**MeetingBar**](leits-MeetingBar.md) · `leits.MeetingBar` — G+H+MAS (one-click universal dmg) · 真包 v4.11.6 挂载验证 ✓（V5 预发布轨同 bundle id 无信号，未接入）· 2026-09-29
 - [x] [**Finicky**](se-johnste-finicky.md) · `se.johnste.finicky` — G (one-click universal dmg) · 真包 v4.2.2 挂载验证 ✓（alpha/beta 是 prerelease 轨，未接入）· 2026-09-29
 - [x] [**Cryptomator**](org-cryptomator.md) · `org.cryptomator` — G (one-click arm64 dmg) · 真包 1.19.3 挂载验证 ✓（alpha/beta/rc 是 prerelease 轨，未接入）· 2026-09-29
+- [x] [**Secretive**](com-maxgoedjen-Secretive-Host.md) · `com.maxgoedjen.Secretive.Host` — G (detection-only：内嵌 SSH agent 登录项，换包后不被重启) · 真包 v4.0.0 解压验证 ✓ · 2026-09-29
 - [x] [**DSH Desktop**](ai-deepseek-dsh-desktop.md) · `ai.deepseek.dsh.desktop` — G (one-click universal dmg) · 真包 v2.0.4 挂载验证 ✓ · 2026-08-30
 - [x] [**Meetily**](com-meetily-ai.md) · `com.meetily.ai` — G (one-click arm64 dmg) · 真包 v0.4.0 挂载验证 ✓ · 2026-08-30
 - [x] [**Paseo**](sh-paseo-desktop.md) · `sh.paseo.desktop` — G (one-click arm64 dmg) · 真包 v0.6.1 挂载验证 ✓（beta 是 prerelease 轨，未接入）· 2026-08-30

@@ -92,6 +92,7 @@ public enum AppRecipeIndex {
         com_longbridge_app_desktop.set,
         com_macpaw_site_theunarchiver.set,
         com_mak5er_aircard.set,
+        com_maxgoedjen_Secretive_Host.set,
         com_meetily_ai.set,
         com_meta_endo.set,
         com_microsoft_edgemac.set,

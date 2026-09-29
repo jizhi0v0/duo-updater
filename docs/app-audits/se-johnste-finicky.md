@@ -53,7 +53,7 @@ Homebrew 装的副本由 `HomebrewCaskSource` 应答（它只认本地 Caskroom 
 | | 客户端能力 | 服务端实际下发 | 我们能否消费 |
 |---|---|---|---|
 | 结论 | 无 | 无 | 不能 |
-| 证据 | `version.go` 只取 `downloadUrl` 给用户点（读源码） | 每个 release 只有一个整包 `Finicky.dmg`（2026-09-29） | — |
+| 证据 | `version.go` 只取 `downloadUrl` 给用户点（读源码） | v4.0.0 起每个 release 只有一个整包 `Finicky.dmg`（v3 是 `Finicky.zip`；2026-09-29） | — |
 
 ## 按 OS 分轨
 - 包的 `LSMinimumSystemVersion` 是 `12.0`（v4.2.1、v4.2.2 相同）；update-check 响应没有
@@ -66,7 +66,7 @@ Homebrew 装的副本由 `HomebrewCaskSource` 应答（它只认本地 Caskroom 
 
 ## 一键安装
 - 状态: **支持**
-- 格式: dmg — 每个 release 一个不带版本号的 `Finicky.dmg`，universal（x86_64 + arm64）
+- 格式: dmg — v4.0.0 起每个 release 一个不带版本号的 `Finicky.dmg`（v3 线是 `Finicky.zip`，pattern 不收），universal（x86_64 + arm64）
 - Pattern: `^Finicky\.dmg$`, kind `.dmg`
 - **读的是**: 人人可手动下载的 GA（官方 repo 公开资产；Homebrew cask 的 `url` 也是它）
 - 包验（2026-09-29，v4.2.2 只读挂载）: `se.johnste.finicky` / `4.2.2`，Team `C3XWNKDP3M`，

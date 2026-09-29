@@ -11,7 +11,8 @@ enum se_johnste_finicky {
         // stable releases are plain `vX.Y.Z`, alpha/beta tracks are GitHub
         // prereleases with a `-alpha`/`-beta` suffix, which the anchored pattern
         // and usePrereleases=false both keep out. short == tag == CFBundleVersion.
-        // One unversioned `Finicky.dmg` per release, universal; Team C3XWNKDP3M,
+        // One unversioned `Finicky.dmg` per release since v4.0.0 (the v3 line
+        // shipped `Finicky.zip`, which the pattern skips), universal; Team C3XWNKDP3M,
         // notarized.
         GitHubReleaseRule(
             bundleID: "se.johnste.finicky",

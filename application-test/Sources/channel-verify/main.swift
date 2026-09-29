@@ -509,6 +509,24 @@ case .outsideOSWindow(let refusal): chainStatus = "not for this macOS: \(refusal
 case .error(let e): chainStatus = "error: \(e)"
 }
 
+// What the changelog view will get. `release notes` above counts only the raw
+// fallback, so "0 chars" means the body parsed; this line says how well: a
+// newest entry with section headings, a flat list, or nothing at all. Headings
+// only exist as `content` blocks — a parser that keeps them as plain items
+// (the Sparkle markdown path) shows `headings []` with the heading text among
+// the items, which `first items` makes visible.
+let structuredSummary: String = {
+    guard let log = chained.remote?.structuredChangelog, let newest = log.entries.first else {
+        return "none"
+    }
+    let headings = newest.content.compactMap { block -> String? in
+        if case .heading(let h) = block { return h }
+        return nil
+    }
+    let first = newest.items.prefix(3).map { "\"\($0.prefix(40))\"" }.joined(separator: ", ")
+    return "\(log.entries.count) entries; newest \(newest.version): \(newest.items.count) items, headings \(headings); first items [\(first)]"
+}()
+
 print("""
   ─────────────────────────────────────────────
   UpdateChecker.check() — full production source chain
@@ -517,6 +535,7 @@ print("""
     latest          \(chained.remote?.displayVersion ?? "<none>")
     download        \(chained.remote?.downloadURL?.absoluteString ?? "<nil>")
     release notes   \(chained.remote?.releaseNotesHTML?.count ?? 0) chars inline, changelogURL \(chained.remote?.changelogURL?.absoluteString ?? "<nil>")
+    structured      \(structuredSummary)
     release history \(chained.remote?.releaseHistory.count ?? 0) entries
     deltas          \(chained.remote?.deltas.count ?? 0)
     status          \(chainStatus)

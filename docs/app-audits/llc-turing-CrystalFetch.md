@@ -55,10 +55,9 @@ Homebrew 与 MAS 列走的是通用源（cask 安装 / 商店收据），不需�
 
 ## Changelog
 - 来源: GitHub Release body（v2.2.0 body 217 字符，v1.0.0 为空）
+- 结构化（2026-09-29，`channel-verify` 的 `changelog pane` 行，从 2.1.1 检查）: ✓ 4 条纯列表，无小标题（正文本身没有标题行，不是被压平）；只带回最新一版的说明（1 个条目）
 - 跟随 channel: 单渠道
 - Recipe 状态: 不需要
-- channel-verify 输出为 `release notes 0 chars inline, changelogURL …/releases/tag/v2.2.0`；
-  body 是否在 app 里被结构化带回未在本次验证（未验证）
 
 ## 一键安装
 - 状态: **支持**

@@ -65,6 +65,7 @@ brew 安装的副本由 `HomebrewCaskSource` 先应答（cask 非 `auto_updates`
 ## Changelog
 - 来源: GitHub Release 正文（`v4.11.6` 正文 135 字符，一句说明 + compare 链接）。
   `channel-verify` 显示 `0 chars inline`，changelogURL 指向 release 页。
+- 结构化（2026-09-29，`channel-verify` 的 `changelog pane` 行，从 4.11.5 检查）: ✓ 1 条（正文只有一句说明加 `**Full Changelog**` 链接，链接被当作全量链接跳过），无小标题；只带回最新一版的说明（1 个条目）
 - 跟随 channel: 只接 stable
 - Recipe 状态: 不需要
 

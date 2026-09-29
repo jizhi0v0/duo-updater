@@ -60,6 +60,7 @@ tag `nightly` 的 release（`prerelease: true`）。2026-09-29 挂载 nightly �
 
 ## Changelog
 - 来源: GitHub Release body（`GitHubReleasesSource` 经 `GitHubMarkdownParser` 结构化带回）
+- 结构化（2026-09-29，`channel-verify` 的 `changelog pane` 行，从 0.16.1 检查）: ✓ 分节保留 — `Bug Fixes` / `Docs`，5 条；只带回最新一版的说明（1 个条目）
 - 跟随 channel: 单渠道
 - Recipe 状态: 不需要
 

@@ -509,22 +509,39 @@ case .outsideOSWindow(let refusal): chainStatus = "not for this macOS: \(refusal
 case .error(let e): chainStatus = "error: \(e)"
 }
 
-// What the changelog view will get. `release notes` above counts only the raw
-// fallback, so "0 chars" means the body parsed; this line says how well: a
-// newest entry with section headings, a flat list, or nothing at all. Headings
-// only exist as `content` blocks — a parser that keeps them as plain items
-// (the Sparkle markdown path) shows `headings []` with the heading text among
-// the items, which `first items` makes visible.
-let structuredSummary: String = {
-    guard let log = chained.remote?.structuredChangelog, let newest = log.entries.first else {
-        return "none"
-    }
+// Which changelog the workbench pane shows for this result, in the pane's own
+// order (`ReleaseNotesPane.body` in App/Sources/WorkbenchWindowView.swift): a
+// changelog recipe, then the source's structured log, then raw inline notes,
+// then the vendor page in a web view. A recipe is fetched here the way the app
+// fetches it (`ChangelogService`, uncached), so its structure is reported too.
+// Headings only exist as `content` blocks: a parser that keeps them as plain
+// items (the Sparkle markdown path) shows `headings []` with the heading text
+// among `first items`.
+func describe(_ log: Changelog) -> String {
+    guard let newest = log.entries.first else { return "0 entries" }
     let headings = newest.content.compactMap { block -> String? in
         if case .heading(let h) = block { return h }
         return nil
     }
     let first = newest.items.prefix(3).map { "\"\($0.prefix(40))\"" }.joined(separator: ", ")
     return "\(log.entries.count) entries; newest \(newest.version): \(newest.items.count) items, headings \(headings); first items [\(first)]"
+}
+let changelogPane: String = await {
+    if let recipe = ChangelogRecipeSelection.recipe(for: chained) {
+        let log = await ChangelogService.loadUncached(
+            recipe, version: ChangelogRecipeSelection.targetVersion(for: chained),
+            feedPage: ChangelogRecipeSelection.feedPage(for: chained, recipe: recipe))
+        // A failed recipe load falls back to the vendor page, as the pane does.
+        let fallback = ChangelogURLPolicy.displayable(ChangelogRecipeSelection.fallbackPage(for: chained).url)
+        return "recipe \(recipe.recipeID): " + (log.map(describe)
+            ?? "FAILED to load → pane shows \(fallback.map { "web page \($0.absoluteString)" } ?? "raw notes or nothing")")
+    }
+    if let log = chained.remote?.structuredChangelog { return "source structured: " + describe(log) }
+    if let html = chained.remote?.releaseNotesHTML { return "raw inline notes, \(html.count) chars, no structure" }
+    if let url = ChangelogURLPolicy.displayable(ChangelogRecipeSelection.fallbackPage(for: chained).url) {
+        return "web page \(url.absoluteString), no structure"
+    }
+    return "none — the pane says there are no release notes"
 }()
 
 print("""
@@ -535,7 +552,7 @@ print("""
     latest          \(chained.remote?.displayVersion ?? "<none>")
     download        \(chained.remote?.downloadURL?.absoluteString ?? "<nil>")
     release notes   \(chained.remote?.releaseNotesHTML?.count ?? 0) chars inline, changelogURL \(chained.remote?.changelogURL?.absoluteString ?? "<nil>")
-    structured      \(structuredSummary)
+    changelog pane  \(changelogPane)
     release history \(chained.remote?.releaseHistory.count ?? 0) entries
     deltas          \(chained.remote?.deltas.count ?? 0)
     status          \(chainStatus)

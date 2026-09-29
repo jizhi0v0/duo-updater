@@ -32,7 +32,7 @@ An app is onboarded when **all three** hold:
 |---|---|---|
 | **Detection** | an old copy is offered the newest version; the newest copy is up to date | `channel-verify` on the previous and the newest real package |
 | **One-click install** | `duo install` replaces an old copy with the new one, same Team, signature intact | the end-to-end run in Phase 5 |
-| **Structured changelog** | the changelog view gets entries, with the vendor's section headings kept as headings | the `structured` line of `channel-verify` (Phase 5) |
+| **Structured changelog** | the changelog view gets entries, with the vendor's section headings kept as headings | the `changelog pane` line of `channel-verify` (Phase 5) |
 
 When one of the three can't be done, **say so, with the reason**, in the report
 and in the audit doc. Reporting only the parts that work, so the reader assumes
@@ -165,7 +165,7 @@ duo install "<App>" --yes
 codesign -dvv "/Applications/<App>.app" 2>&1 | grep TeamIdentifier
 codesign --verify --deep --strict "/Applications/<App>.app"; echo $?
 spctl -a -vv -t exec "/Applications/<App>.app"
-swift run --package-path application-test channel-verify <previous package> --expect stable   # the `structured` line
+swift run --package-path application-test channel-verify <previous package> --expect stable   # the `changelog pane` line
 ```
 
 Expected outcomes, all seen in practice:
@@ -177,12 +177,16 @@ Expected outcomes, all seen in practice:
 | `Team Identifier mismatch … Refusing to install.` | The vendor changed Team. The old copy must be untouched; check it |
 | `Skipping: … detection only` | `installAssetPattern` is nil, as designed |
 
-**Reading the `structured` line.** On the GitHub route, `release notes 0 chars
-inline` means the body parsed (a failed parse puts the raw body there). The
-Sparkle route carries both inline HTML and a structured log, so a non-zero count
-there proves nothing. Judge quality from `structured`. `headings [...]` means
-sections were kept. `headings []` with a heading's text among the first items
-means they were flattened. `none` means there is no changelog.
+**Reading the `changelog pane` line.** It names what the workbench pane shows,
+in the pane's own order: a changelog recipe (fetched, as the app does) beats the
+source's structured log, which beats raw inline notes, which beat the vendor
+page in a web view. The *winning source* does not decide it: Fork is detected
+through Sparkle but shows its recipe. `release notes N chars inline` above is
+not evidence either way, since the Sparkle route carries inline HTML and a
+structured log at once. For `recipe …` / `source structured …`, `headings [...]`
+means sections were kept; `headings []` with a heading's text among the first
+items means they were flattened (Osaurus, Mos). `raw inline notes`, `web page`
+and `none` are all "not structured": say which, and why.
 
 **Clean up — reversibly.** Nothing launched, so nothing is running. Check with
 `pgrep -f "/Applications/<App>.app/"` anyway. Move the test installs to the
@@ -227,4 +231,4 @@ after the review round is read and found free of blocking findings. A green
 - `scripts/integrate.sh` — cherry-pick with README/index conflict resolution
 - `.claude/skills/app-audit/SKILL.md` — the per-app method each agent follows
 - `.claude/skills/channel-discovery/SKILL.md` — the sibling breadth pass, for channels of covered apps
-- `application-test/` — `feed-discover` (Phase 2), `channel-verify` (detection and the `structured` line)
+- `application-test/` — `feed-discover` (Phase 2), `channel-verify` (detection and the `changelog pane` line)

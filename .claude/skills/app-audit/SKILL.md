@@ -708,11 +708,14 @@ release, then `duo install --yes`. Run it serially, never from a parallel
 agent, following `coverage-discovery` Phase 5 (it needs a permission rule the
 user adds).
 
-**Changelog quality.** `channel-verify` prints a `structured` line for the
-newest entry: item count, the section headings kept, and the first items.
-`headings []` with a heading's text among the items means the headings were
-flattened; `none` means no changelog. Put what it says into the doc's Changelog
-section; "Sparkle inline" alone doesn't say whether the view renders sections.
+**Changelog quality.** `channel-verify` prints a `changelog pane` line: what the
+workbench pane shows, in its order (recipe → source's structured log → raw
+inline notes → web page → none), with the newest entry's item count, kept
+headings and first items when it is structured. `headings []` with a heading's
+text among the items means the headings were flattened. Put what it says into
+the doc's Changelog section. "Sparkle inline" alone doesn't say what the pane
+renders, and neither does the winning source (Fork: Sparkle wins, the recipe is
+shown). Details: `coverage-discovery` Phase 5.
 
 **ASK before implementing**: "检测可以做，要不要也加一键安装？"
 
@@ -778,7 +781,7 @@ same check.
 
 ## Changelog
 - 来源: Sparkle inline / recipe / WebView / 无
-- 结构化: `channel-verify` 的 `structured` 行原文（分节保留 / 小标题被压平 / none）
+- 结构化: `channel-verify` 的 `changelog pane` 行原文（recipe / source structured + 分节保留或被压平 / raw / web page / none）
 - 跟随 channel: 是/否
 - Recipe 状态: 已有 / 需要 / 不需要
 

@@ -240,6 +240,7 @@ public enum AppRecipeIndex {
         pl_maketheweb_cleanshotx.set,
         pro_betterdisplay_BetterDisplay.set,
         ru_starmel_OpenSuperWhisper.set,
+        se_johnste_finicky.set,
         sh_brew_app.set,
         sh_paseo_desktop.set,
         sh_waku.set,

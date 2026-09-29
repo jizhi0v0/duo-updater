@@ -67,7 +67,9 @@ Homebrew 与 MAS 列走的是通用源（cask 安装 / 商店收据），不需�
 - **读的是**: 人人可手动下载的 GA（官方 repo 公开资产；Homebrew cask 下的也是同一个 url）
 - 包验（2026-09-29，v2.2.0 与 v2.1.1 挂载）: `llc.turing.CrystalFetch`，Team `WDNLXAD4W8`，
   `spctl accepted / source=Notarized Developer ID`，universal
-- 端到端安装: 未在本次跑（只跑了 channel-verify 的检测链）
+- 端到端（2026-09-29）: 装 2.1.1 → `duo check` 报 `2.1.1 → 2.2.0 [GitHub, in-place]` → `duo install --yes`
+  走完 backup / download / verifyingCodeSignature / install → 装好的包 `2.2.0`、Team `WDNLXAD4W8`、
+  `codesign --verify --deep --strict` 通过、`spctl` Notarized
 
 ## 已知问题
 - 无。
@@ -83,4 +85,4 @@ swift run --package-path application-test channel-verify <v2.1.1 CrystalFetch.dm
 ```
 
 ## 建议下一步
-无。检测 + 一键均已覆盖；可选：真机跑一次 2.1.1 → 2.2.0 的一键端到端。
+无。检测 + 一键均已覆盖（含端到端）。

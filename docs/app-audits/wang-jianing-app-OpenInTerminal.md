@@ -77,10 +77,15 @@ short `1.2.8` == tag，universal，Team `C8VX3ZLX5U`，`spctl` Notarized Develop
 - 包验（2026-09-29，v2.3.9 解压）: `wang.jianing.app.OpenInTerminal` / `2.3.9`，
   Team `C8VX3ZLX5U`，`Notarization Ticket=stapled`，`spctl accepted / Notarized Developer ID`
 - 包内有 Finder Sync 扩展与登录项 helper（`Contents/Library/LoginItems`），整包替换会一起换掉。
+  helper（`OpenInTerminalHelper/AppDelegate.swift`）只在登录时拉起主 app 后即退出，不常驻，
+  所以不存在换包后旧进程继续跑的问题。
 - ⚠️ Team 变更: v2.3.8 包的 Team 是 `Q33U8R4U57`，v2.3.9 是 `C8VX3ZLX5U`。`SignatureVerifier`
   的 Team-ID 闸要求已装与下载一致，所以从 2.3.8（以及其他 `Q33U8R4U57` 签名的旧版）一键到 2.3.9
-  会被拒绝（读代码得出，未实跑安装）；检测仍会报出更新，用户需手动下载一次。2.3.9 之后的版本
+  会被拒绝；检测仍会报出更新，用户需手动下载一次。2.3.9 之后的版本
   若保持 `C8VX3ZLX5U`，一键正常。
+- 端到端（2026-09-29）: 装 2.3.8 → `duo check` 报 `2.3.8 → 2.3.9 [GitHub, in-place]` → `duo install --yes`
+  在 verifyingCodeSignature 失败：`Team Identifier mismatch: installed “Q33U8R4U57” vs downloaded
+  “C8VX3ZLX5U”. Refusing to install.`；已装的 2.3.8 原样保留（版本、Team、`codesign --verify` 均不变）
 
 ## 已知问题
 - 上述 Team 变更使旧版一键被 Team-ID 闸拒绝（fail-closed，不会替换）。

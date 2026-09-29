@@ -79,6 +79,8 @@ artifact 上传、不建 release，不是可订阅的轨道。
     from earlier update still"。我们的一键更新只在主 app 原本就开着时才重开它，而日常主 app 是关着的。
   - 换包后旧 agent 还能不能正常签名（比如它按需拉起的 `SecretAgentInputParser.xpc` 在 bundle
     被替换后能否启动）**未验证**。按规定没有启动真包去测，所以这条风险证明不了是安全的，只好不接一键。
+- 端到端（2026-09-29）: 装 3.0.4 → `duo check` 报 `3.0.4 → 4.0.0 [GitHub]`（无 in-place）→
+  `duo install --yes` 输出 `Skipping: Secretive — detection only`，未改动已装副本
 
 ## 已知问题
 - 装不了新版的系统上会报「有更新」。4.0.0 要求 macOS 15。macOS 14 上装着 3.0.4 的用户会看到

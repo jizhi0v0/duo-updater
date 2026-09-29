@@ -77,6 +77,9 @@ brew 安装的副本由 `HomebrewCaskSource` 先应答（cask 非 `auto_updates`
 - 包验（2026-09-29）: `4.11.6` 与 `4.11.5` 两个 dmg 均为 Team `KGH289N6T8`、
   `Notarization Ticket=stapled`、`spctl` `accepted / Notarized Developer ID`，universal。
   `4.11.6` 资产 sha256 `4f19af49…38d7`，与 GitHub API 的 `digest` 一致。
+- 端到端（2026-09-29）: 装 4.11.5 → `duo check` 报 `4.11.5 → 4.11.6 [GitHub, in-place]` → `duo install --yes`
+  走完 backup / download / verifyingCodeSignature / install → 装好的包 `4.11.6`、Team `KGH289N6T8`、
+  `codesign --verify --deep --strict` 通过、`spctl` Notarized
 
 ## 已知问题
 - V5 预发布轨（同 bundle id、无检测信号）未接入，见上。

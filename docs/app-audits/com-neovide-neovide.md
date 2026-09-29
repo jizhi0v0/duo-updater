@@ -71,6 +71,9 @@ tag `nightly` 的 release（`prerelease: true`）。2026-09-29 挂载 nightly �
 - 包验（2026-09-29，0.16.2 挂载）: `com.neovide.neovide` / `0.16.2`，Team `X8CNW77992`，
   hardened runtime，`spctl accepted / Notarized Developer ID`，arm64 单架构；
   dmg sha256 `5eb745ea…6b26` 与 GitHub 资产 digest 相同
+- 端到端（2026-09-29）: 装 0.16.1 → `duo check` 报 `0.16.1 → 0.16.2 [GitHub, in-place]` → `duo install --yes`
+  走完 backup / download / verifyingCodeSignature / install → 装好的包 `0.16.2`、Team `X8CNW77992`、
+  `codesign --verify --deep --strict` 通过、`spctl` Notarized
 
 ## 已知问题
 - nightly 轨与 stable 共享 bundle id 且包内无区分信号，未覆盖（见上）。

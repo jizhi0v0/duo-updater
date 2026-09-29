@@ -90,6 +90,9 @@
   `Developer ID Application: Skymatic GmbH (YZQJQUHA3L)`，hardened runtime，
   `spctl -a -t exec`: accepted / Notarized Developer ID。1.19.2 真包同 Team `YZQJQUHA3L`。
 - 阻塞: Intel Mac 没有一键（pattern 只收 arm64）。
+- 端到端（2026-09-29）: 装 1.19.2 → `duo check` 报 `1.19.2 → 1.19.3 [GitHub, in-place]` → `duo install --yes`
+  走完 backup / download / verifyingCodeSignature / install → 装好的包 `1.19.3`、Team `YZQJQUHA3L`、
+  `codesign --verify --deep --strict` 通过、`spctl` Notarized
 
 ## 已知问题
 - prerelease 轨（alpha/beta/rc）未接入：Info.plist 剥掉了后缀，装着 rc 的机器会被当成同号 stable。

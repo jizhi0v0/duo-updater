@@ -72,7 +72,9 @@ Homebrew 装的副本由 `HomebrewCaskSource` 应答（它只认本地 Caskroom 
 - 包验（2026-09-29，v4.2.2 只读挂载）: `se.johnste.finicky` / `4.2.2`，Team `C3XWNKDP3M`，
   `spctl accepted / Notarized Developer ID`，hardened runtime，universal；dmg 根下为
   `Finicky.app` + `Applications` 链接。v4.2.1 同样 Notarized、同 Team。
-- 端到端: 未做（没有在真机上跑一键安装）。
+- 端到端（2026-09-29）: 装 4.2.1 → `duo check` 报 `4.2.1 → 4.2.2 [GitHub, in-place]` → `duo install --yes`
+  走完 backup / download / verifyingCodeSignature / install → 装好的包 `4.2.2`、Team `C3XWNKDP3M`、
+  `codesign --verify --deep --strict` 通过、`spctl` Notarized
 
 ## 已知问题
 - 预发布轨（alpha/beta）未接入，装着预发布版的副本按 stable 规则比较。

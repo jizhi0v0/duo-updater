@@ -70,7 +70,10 @@ binding 手写 channel 名需要一条 `bindingProofs` `.recipeAnchor`（`Channe
 
 ## 一键安装
 - 状态: 走 Sparkle 通用一键路径（enclosure = GitHub release 的 `Osaurus-<v>.dmg`，带 `sparkle:edSignature`）。
-  **端到端安装未跑；edSignature 未用 bundle 的公钥核对（未验证）。**
+- 端到端（2026-09-29）: 装 0.25.13 → `duo check` 报 `0.25.13 → 0.25.14 [Sparkle, in-place]` →
+  `duo install --yes` 走完 backup / download / verifyingSignature（EdDSA）/ extracting /
+  verifyingCodeSignature / install → 装好的包 `0.25.14`、Team `4W8QF9VR2F`、
+  `codesign --verify --deep --strict` 通过、`spctl` Notarized → 再 `duo check` 为 up to date
 - 格式: dmg
 - **读的是**: 人人可手动下载的 GA——enclosure 就是 GitHub Releases 页上公开的 dmg，没有灰度参数。
 - 阻塞: 无

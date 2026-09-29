@@ -71,7 +71,9 @@ prerelease 轨是已知缺口。
 - 包验（2026-09-29，v3000.0.7 挂载只读）: `app.macdown.macdown3000` / `3000.0.7`，
   `Developer ID Application: Schuyler Erle (EDUS6QCV5X)`，hardened runtime，
   `spctl accepted / source=Notarized Developer ID`
-- 端到端安装: 未做（本次只做了检测侧 old→new 验证）
+- 端到端（2026-09-29）: 装 3000.0.6 → `duo check` 报 `3000.0.6 → 3000.0.7 [GitHub, in-place]` → `duo install --yes`
+  走完 backup / download / verifyingCodeSignature / install → 装好的包 `3000.0.7`、Team `EDUS6QCV5X`、
+  `codesign --verify --deep --strict` 通过、`spctl` Notarized
 
 ## 已知问题
 - prerelease 轨（`-beta.N` / `-rc.N`）未接入。

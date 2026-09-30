@@ -514,17 +514,28 @@ case .error(let e): chainStatus = "error: \(e)"
 // changelog recipe, then the source's structured log, then raw inline notes,
 // then the vendor page in a web view. A recipe is fetched here the way the app
 // fetches it (`ChangelogService`, uncached), so its structure is reported too.
-// Headings only exist as `content` blocks: a parser that keeps them as plain
-// items (the Sparkle markdown path) shows `headings []` with the heading text
-// among `first items`.
+// Headings are read from what the pane draws. An entry that carries `markdown`
+// (the Sparkle markdown path) is drawn from it block by block, so its headings
+// are that Markdown's (`ChangelogMarkdown.blocks`) and the line says `markdown`;
+// its `items` are only the flat fallback and keep headings as lines. Any other
+// entry's headings are its `content` blocks.
 func describe(_ log: Changelog) -> String {
     guard let newest = log.entries.first else { return "0 entries" }
-    let headings = newest.content.compactMap { block -> String? in
-        if case .heading(let h) = block { return h }
-        return nil
+    let headings: [String]
+    if let markdown = newest.markdown {
+        headings = ChangelogMarkdown.blocks(from: markdown).compactMap { block in
+            if case .heading = block.kind { return String(block.text.characters) }
+            return nil
+        }
+    } else {
+        headings = newest.content.compactMap { block -> String? in
+            if case .heading(let h) = block { return h }
+            return nil
+        }
     }
+    let rendered = newest.markdown == nil ? "" : " (rendered as markdown)"
     let first = newest.items.prefix(3).map { "\"\($0.prefix(40))\"" }.joined(separator: ", ")
-    return "\(log.entries.count) entries; newest \(newest.version): \(newest.items.count) items, headings \(headings); first items [\(first)]"
+    return "\(log.entries.count) entries; newest \(newest.version): \(newest.items.count) items, headings \(headings)\(rendered); first items [\(first)]"
 }
 let changelogPane: String = await {
     if let recipe = ChangelogRecipeSelection.recipe(for: chained) {

@@ -44,6 +44,36 @@ public struct ClaudeCodeStatus: Sendable, Equatable, Codable {
     public let oneClick: Command?
     /// Why there is no one-click, when there is an update and no command.
     public let note: String?
+
+    /// The gate that stopped the verdict short, as a value a UI can word in its own
+    /// language — `note` is the English sentence for `duo`.
+    public enum Withheld: String, Sendable, Codable {
+        /// `install.problem` is set: the copy is broken, not outdated.
+        case broken
+        case notAnthropic
+        case versionUnreadable
+        /// The channel could not be read (network).
+        case channelUnreadable
+        /// `DISABLE_UPDATES`: every update path is blocked.
+        case updatesDisabled
+        /// `DISABLE_AUTOUPDATER`: reported, never offered.
+        case autoUpdateOff
+        /// An update is already running (`ClaudeCodeActivity.Busy`).
+        case busy
+        /// The file on disk is not the release its layout names.
+        case versionMismatch
+        /// No vendor-documented update for this installer (pnpm, bun, unknown).
+        case unsupportedInstaller
+        /// An npm install whose prefix has no `bin/node` or `bin/npm` of its own —
+        /// `~/.npm-global` set up with `npm config set prefix` holds only the
+        /// package links. npm has a documented update; which npm to run it with is
+        /// what cannot be told, so it is reported only. Not `unsupportedInstaller`:
+        /// the UI would then say npm has no update, which is false.
+        case noOwnNpm
+    }
+
+    /// Which gate withheld one-click or the comparison, or nil when none did.
+    public internal(set) var withheld: Withheld? = nil
 }
 
 public struct ClaudeCodeCheck: Sendable {
@@ -75,27 +105,31 @@ public struct ClaudeCodeCheck: Sendable {
     ) async -> ClaudeCodeStatus {
         func verdict(
             _ state: ClaudeCodeStatus.State, latest: String? = nil, confirmed: Bool? = nil,
-            oneClick: ClaudeCodeStatus.Command? = nil, note: String? = nil
+            oneClick: ClaudeCodeStatus.Command? = nil, note: String? = nil,
+            withheld: ClaudeCodeStatus.Withheld? = nil
         ) -> ClaudeCodeStatus {
             ClaudeCodeStatus(
                 install: install, channel: settings.channel, latestVersion: latest,
-                versionConfirmed: confirmed, state: state, oneClick: oneClick, note: note)
+                versionConfirmed: confirmed, state: state, oneClick: oneClick, note: note,
+                withheld: withheld)
         }
 
         if let problem = install.problem {
-            return verdict(.unknown, note: Self.describe(problem))
+            return verdict(.unknown, note: Self.describe(problem), withheld: .broken)
         }
         guard install.signature == .anthropic else {
-            return verdict(.unknown, note: "not signed by Anthropic (Team \(ClaudeCodeScanner.teamIdentifier))")
+            return verdict(.unknown, note: "not signed by Anthropic (Team \(ClaudeCodeScanner.teamIdentifier))",
+                           withheld: .notAnthropic)
         }
         guard let installed = install.version else {
-            return verdict(.unknown, note: "version not readable from the layout")
+            return verdict(.unknown, note: "version not readable from the layout", withheld: .versionUnreadable)
         }
         let latest: String
         do {
             latest = try await self.latest(settings.channel, install.method)
         } catch {
-            return verdict(.unknown, note: "could not read the \(settings.channel.rawValue) channel: \(error)")
+            return verdict(.unknown, note: "could not read the \(settings.channel.rawValue) channel: \(error)",
+                           withheld: .channelUnreadable)
         }
         let confirmed = await confirm(install, version: installed)
 
@@ -114,29 +148,35 @@ public struct ClaudeCodeCheck: Sendable {
         guard state == .updateAvailable else { return verdict(state, latest: latest, confirmed: confirmed) }
 
         if settings.updatesDisabled {
-            return verdict(state, latest: latest, confirmed: confirmed, note: "updates are disabled (DISABLE_UPDATES)")
+            return verdict(state, latest: latest, confirmed: confirmed, note: "updates are disabled (DISABLE_UPDATES)",
+                           withheld: .updatesDisabled)
         }
         if settings.autoUpdatesDisabled {
             return verdict(state, latest: latest, confirmed: confirmed,
-                           note: "auto-update is off (DISABLE_AUTOUPDATER): reported only")
+                           note: "auto-update is off (DISABLE_AUTOUPDATER): reported only", withheld: .autoUpdateOff)
         }
         if let busy {
-            return verdict(state, latest: latest, confirmed: confirmed, note: busy.description)
+            return verdict(state, latest: latest, confirmed: confirmed, note: busy.description, withheld: .busy)
         }
         if confirmed == false {
             return verdict(state, latest: latest, confirmed: confirmed,
-                           note: "the file on disk is not the \(installed) release its layout names")
+                           note: "the file on disk is not the \(installed) release its layout names",
+                           withheld: .versionMismatch)
         }
         guard let command = Self.updateCommand(for: install, channel: settings.channel) else {
             return verdict(state, latest: latest, confirmed: confirmed,
-                           note: "no supported way to update a \(install.method.rawValue) install: reported only")
+                           note: "no supported way to update a \(install.method.rawValue) install: reported only",
+                           withheld: install.method == .npm ? .noOwnNpm : .unsupportedInstaller)
         }
         return verdict(state, latest: latest, confirmed: confirmed, oneClick: command)
     }
 
     /// The vendor's documented update for each installer — and nothing for the
     /// ones we have not verified end to end.
-    static func updateCommand(
+    ///
+    /// Public for the app: with auto-update off the update is reported, never
+    /// run, and the workbench hands the user this same command to run themselves.
+    public static func updateCommand(
         for install: ClaudeCodeInstall, channel: ClaudeCodeSettings.Channel
     ) -> ClaudeCodeStatus.Command? {
         let fm = FileManager.default

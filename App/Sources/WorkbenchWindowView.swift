@@ -58,18 +58,24 @@ struct WorkbenchWindowView: View {
     @State private var tabFrames: [SidebarTab: CGRect] = [:]
     /// Release notes, or the bundle diff against the app's backup. Only offered for
     /// an app that has a backup. Set by the tab — the Rollback tab opens on the diff,
-    /// Apps and Brew on the notes — and kept across selections within it, so
+    /// Apps and CLI on the notes — and kept across selections within it, so
     /// comparing several apps in a row does not mean switching back each time.
     @State private var detailMode: DetailMode = .releaseNotes
     /// Bumped by each "Show in Window" request from the popover's unchecked-brew
-    /// tip; the Brew list scrolls to those rows when it sees a value it hasn't
+    /// tip; the CLI list scrolls to those rows when it sees a value it hasn't
     /// handled. A counter, not a flag, so the list can mark it handled without
     /// changing its own `.task(id:)` and cancelling the highlight it just started —
-    /// and so leaving the Brew tab and coming back later doesn't replay it.
+    /// and so leaving the CLI tab and coming back later doesn't replay it.
     @State private var uncheckedRevealRequest = 0
     @State private var uncheckedRevealHandled = 0
     /// Briefly true after a reveal, so the rows it scrolled to stand out.
     @State private var highlightUnchecked = false
+    /// Whether the user keeps the CLI tab's Homebrew group open. Remembered across
+    /// launches, like the changelog layout; closed until they open it. What else
+    /// opens the group, and why that never writes here: `HomebrewGroupState`.
+    @AppStorage("workbenchHomebrewExpanded") private var homebrewExpandedPreference = false
+    /// A deep link opened the Homebrew group (`HomebrewGroupState.revealing`).
+    @State private var homebrewRevealing = false
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var isWindowOpen = false
@@ -150,6 +156,15 @@ struct WorkbenchWindowView: View {
         searchQuery.isEmpty || name.localizedStandardContains(searchQuery)
     }
 
+    /// A Claude Code row matches by the tool's name, so "claude" finds every copy,
+    /// and by the title and the path it stands for.
+    private func matchesSearch(_ status: ClaudeCodeStatus) -> Bool {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return matchesSearch("Claude Code")
+            || matchesSearch(ClaudeCodePresentation.title(of: status.install, home: home))
+            || matchesSearch(status.install.path)
+    }
+
     /// The derived lists the sidebar draws, built ONCE per body pass and handed down.
     ///
     /// They used to be computed properties read from the view builders that need
@@ -160,22 +175,25 @@ struct WorkbenchWindowView: View {
     /// `model.installing`, so every download tick re-runs all of it.
     ///
     /// Each list is already narrowed by the search, so a tab's count pill and its
-    /// rows always agree. `hasBrew` is not: a search that matches no Brew row must
-    /// not make the Brew tab disappear from under the reader.
+    /// rows always agree. `hasCLI` is not: a search that matches no CLI row must
+    /// not make the CLI tab disappear from under the reader.
     struct SidebarLists {
         let filteredApps: [UpdateResult]
+        /// The CLI tab's Claude Code group.
+        let claudeCode: [ClaudeCodeStatus]
         let brewCasks: [UpdateResult]
         let brewFormulae: [BrewInstalledFormula]
         let brewUnchecked: [BrewUncheckedPackage]
         /// The "Homebrew x is available" row, searched by the name it shows, so a
-        /// query that matches nothing empties the Brew tab like the other two.
+        /// query that matches nothing empties the Homebrew group like the other two.
         let homebrewSelfUpdate: HomebrewSelfUpdate?
         let rollbackable: [UpdateResult]
-        let hasBrew: Bool
+        /// The CLI tab has anything to show: Homebrew, or a Claude Code install.
+        let hasCLI: Bool
         /// Each tab's count before the search, which the count's slot is sized to so
         /// the icon and title hold still while typing narrows the count.
         let appsTotal: Int
-        let brewTotal: Int
+        let cliTotal: Int
         let rollbackTotal: Int
     }
 
@@ -185,16 +203,18 @@ struct WorkbenchWindowView: View {
         let allRollbackable = rollbackableApps
         let brewTotal = allCasks.count + model.brewFormulae.count + model.brewUnchecked.count
             + (model.homebrewSelfUpdate == nil ? 0 : 1)
+        let claudeCode = model.cliTools.claudeCode
         return SidebarLists(
             filteredApps: allApps.filter(matchesSearch),
+            claudeCode: claudeCode.filter(matchesSearch),
             brewCasks: allCasks.filter(matchesSearch),
             brewFormulae: model.brewFormulae.filter { matchesSearch($0.name) },
             brewUnchecked: model.brewUnchecked.filter { matchesSearch($0.fullName) },
             homebrewSelfUpdate: matchesSearch("Homebrew") ? model.homebrewSelfUpdate : nil,
             rollbackable: allRollbackable.filter(matchesSearch),
-            hasBrew: brewTotal > 0,
+            hasCLI: brewTotal > 0 || !claudeCode.isEmpty,
             appsTotal: allApps.count,
-            brewTotal: brewTotal,
+            cliTotal: brewTotal + claudeCode.count,
             rollbackTotal: allRollbackable.count)
     }
 
@@ -222,6 +242,15 @@ struct WorkbenchWindowView: View {
         return model.brewUnchecked.first { $0.id == packageID }
     }
 
+    /// The Claude Code install selected, when the selection is one of those rows
+    /// (tagged `claude:<install path>`).
+    private var selectedClaudeCode: ClaudeCodeStatus? {
+        let prefix = "claude:"
+        guard let id = detailSelection, id.hasPrefix(prefix) else { return nil }
+        let path = String(id.dropFirst(prefix.count))
+        return model.cliTools.claudeCode.first { $0.install.path == path }
+    }
+
     var body: some View {
         let lists = sidebarLists
         return NavigationSplitView {
@@ -237,6 +266,9 @@ struct WorkbenchWindowView: View {
             } else if let package = selectedUnchecked {
                 BrewUncheckedDetailPane(package: package)
                     .id("brew:unchecked:\(package.id)")
+            } else if let status = selectedClaudeCode {
+                ClaudeCodeDetailPane(status: status, cli: model.cliTools)
+                    .id("claude:\(status.install.path)")
             } else {
                 ContentUnavailableView(
                     "Select an app",
@@ -266,6 +298,7 @@ struct WorkbenchWindowView: View {
             let hadRequest = model.requestedWorkbenchAppID != nil
             if hadRequest { applyRequestedApp() }
             applyRequestedBrewUnchecked()
+            applyRequestedCLITools()
             // First open with no data: full (networked) check. Otherwise, if no
             // round has read TestFlight yet this launch and one may
             // (`owesTestFlightRead`), run one full refresh; past that a cheap,
@@ -290,6 +323,10 @@ struct WorkbenchWindowView: View {
         // Separate task so the Homebrew check (login shell + `brew config`) never
         // holds up the tree itself.
         .task { await model.refreshHomebrewSelfUpdate() }
+        // The CLI tab's other group: Claude Code installs and their channels.
+        // The popover's rule: a local scan, and the networked check only when the
+        // report on screen may be wrong.
+        .task { await model.cliTools.refreshOnOpen() }
         // Refocus → re-read on-disk versions. Scoped to THIS window: the
         // notification carries whichever window became key, and with `object: nil`
         // we heard every one of them — so merely opening Settings, the Release Log,
@@ -381,6 +418,7 @@ struct WorkbenchWindowView: View {
         // `.task` above only fires on a fresh open, so catch the in-flight case here.
         .onChange(of: model.requestedWorkbenchAppID) { applyRequestedApp() }
         .onChange(of: model.requestedWorkbenchBrewUnchecked) { applyRequestedBrewUnchecked() }
+        .onChange(of: model.requestedWorkbenchCLITools) { applyRequestedCLITools() }
     }
 
     /// Whether a `didBecomeKey` notification's object is this workbench's own
@@ -405,16 +443,19 @@ struct WorkbenchWindowView: View {
         if let result = model.results.first(where: { $0.id == id }), !matchesSearch(result) {
             searchText = ""
         }
-        // The row may be a Homebrew cask, which lives on the Brew tab. The tab is
+        // The row may be a Homebrew cask, which lives on the CLI tab. The tab is
         // set first; `tabChanged` then finds the selection already in its list and
         // leaves it alone.
-        sidebarTab = brewCasks.contains { $0.id == id } ? .brew : .apps
+        let isCask = brewCasks.contains { $0.id == id }
+        sidebarTab = isCask ? .cli : .apps
+        // A cask row is inside the Homebrew group, which may be closed.
+        if isCask { homebrewRevealing = true }
         selection = id
         detailSelection = id
     }
 
     /// Honor a pending "Show in Window" from the popover's unchecked-brew tip:
-    /// switch to the Brew tab and ask its list to reveal those rows. Clears the
+    /// switch to the CLI tab and ask its list to reveal those rows. Clears the
     /// request like `applyRequestedApp`.
     private func applyRequestedBrewUnchecked() {
         guard model.requestedWorkbenchBrewUnchecked else { return }
@@ -422,8 +463,20 @@ struct WorkbenchWindowView: View {
         guard !model.brewUnchecked.isEmpty else { return }
         // A search would hide the very rows being revealed.
         searchText = ""
-        sidebarTab = .brew
+        sidebarTab = .cli
+        // Open the group first: a closed one has no rows to scroll to.
+        homebrewRevealing = true
         uncheckedRevealRequest += 1
+    }
+
+    /// Honor a pending "Show in Window" from the popover's command-line tools row:
+    /// switch to the CLI tab. Clears the request like `applyRequestedApp`.
+    private func applyRequestedCLITools() {
+        guard model.requestedWorkbenchCLITools else { return }
+        model.requestedWorkbenchCLITools = false
+        // A search could hide the rows the click was about.
+        searchText = ""
+        sidebarTab = .cli
     }
 
     // MARK: - Sidebar
@@ -434,20 +487,34 @@ struct WorkbenchWindowView: View {
     /// sharing a split, and Rollback pinned beneath them, collapsed by default and
     /// capped at 240 pt. The Rollback list, where a backup's Bundle Diff lives, was
     /// the hardest part of the window to find and the one with the least room.
+    ///
+    /// `cli` was the Brew tab. It holds command-line tools by group now — Homebrew,
+    /// Claude Code — and a later tool adds a group rather than a tab.
     enum SidebarTab: Hashable {
-        case apps, brew, rollback
+        case apps, cli, rollback
     }
 
-    /// Rows the Brew list shows after the search, for the tab's count.
+    /// Homebrew has anything for the CLI tab to show, before the search.
+    private var homebrewHasAnything: Bool {
+        !model.brewCaskResults.isEmpty || !model.brewFormulae.isEmpty || !model.brewUnchecked.isEmpty
+            || model.homebrewSelfUpdate != nil
+    }
+
+    /// Rows the Homebrew group shows after the search.
     private func brewItemCount(_ lists: SidebarLists) -> Int {
         lists.brewCasks.count + lists.brewFormulae.count + lists.brewUnchecked.count
             + (lists.homebrewSelfUpdate == nil ? 0 : 1)
     }
 
-    /// The tab actually drawn: a remembered Brew tab falls back to Apps once there
-    /// is nothing brew-managed left to show.
+    /// Rows the CLI tab shows after the search, for the tab's count.
+    private func cliItemCount(_ lists: SidebarLists) -> Int {
+        brewItemCount(lists) + lists.claudeCode.count
+    }
+
+    /// The tab actually drawn: a remembered CLI tab falls back to Apps once there
+    /// is no command-line tool left to show.
     private func shownTab(_ lists: SidebarLists) -> SidebarTab {
-        sidebarTab == .brew && !lists.hasBrew ? .apps : sidebarTab
+        sidebarTab == .cli && !lists.hasCLI ? .apps : sidebarTab
     }
 
     @ViewBuilder
@@ -466,14 +533,14 @@ struct WorkbenchWindowView: View {
             // like the system segmented control. Simultaneous, so a plain click still
             // reaches the tab's button. Only on release: entering a tab moves the
             // selection and the detail pane, and a drag from Apps to Rollback should
-            // not open Brew's first row on the way.
+            // not open CLI's first row on the way.
             .simultaneousGesture(
                 DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.tabTrackSpace))
                     .updating($draggedTab) { value, dragged, _ in
-                        dragged = tabAt(x: value.location.x, hasBrew: lists.hasBrew) ?? dragged
+                        dragged = tabAt(x: value.location.x, hasCLI: lists.hasCLI) ?? dragged
                     }
                     .onEnded { value in
-                        if let target = tabAt(x: value.location.x, hasBrew: lists.hasBrew) {
+                        if let target = tabAt(x: value.location.x, hasCLI: lists.hasCLI) {
                             sidebarTab = target
                         }
                     })
@@ -493,16 +560,8 @@ struct WorkbenchWindowView: View {
             switch tab {
             case .apps:
                 appsListView(lists)
-            case .brew:
-                if !model.brewOutdatedFormulae.isEmpty {
-                    HStack {
-                        Spacer()
-                        brewBulkUpgrade
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 6)
-                }
-                brewListView(lists)
+            case .cli:
+                cliListView(lists)
             case .rollback:
                 // Shown even with nothing restorable locally: that is precisely the
                 // case where the list would otherwise look empty rather than partial.
@@ -518,11 +577,11 @@ struct WorkbenchWindowView: View {
     private static let tabTrackSpace = "sidebarTabTrack"
 
     /// The tab at a horizontal position in the track, clamped to the first and last
-    /// tab so dragging past either end keeps the end tab. A Brew frame outlives the
-    /// Brew tab once nothing brew-managed is left, so it is skipped then.
-    private func tabAt(x: CGFloat, hasBrew: Bool) -> SidebarTab? {
+    /// tab so dragging past either end keeps the end tab. A CLI frame outlives the
+    /// CLI tab once no command-line tool is left, so it is skipped then.
+    private func tabAt(x: CGFloat, hasCLI: Bool) -> SidebarTab? {
         let ordered = tabFrames
-            .filter { hasBrew || $0.key != .brew }
+            .filter { hasCLI || $0.key != .cli }
             .sorted { $0.value.minX < $1.value.minX }
         guard let first = ordered.first, let last = ordered.last else { return nil }
         if x < first.value.minX { return first.key }
@@ -536,9 +595,11 @@ struct WorkbenchWindowView: View {
             tabButton(.apps, title: String(localized: "Apps"), systemImage: "square.grid.2x2.fill",
                       count: lists.filteredApps.count, reservedCount: lists.appsTotal,
                       shown: shown, stacked: stacked)
-            if lists.hasBrew {
-                tabButton(.brew, title: String(localized: "Brew"), systemImage: "mug.fill",
-                          count: brewItemCount(lists), reservedCount: lists.brewTotal,
+            if lists.hasCLI {
+                // A terminal, not Homebrew's mug: the tab is every command-line tool
+                // now. Filled, like the Apps tab's glyph beside it.
+                tabButton(.cli, title: String(localized: "CLI"), systemImage: "terminal.fill",
+                          count: cliItemCount(lists), reservedCount: lists.cliTotal,
                           shown: shown, stacked: stacked)
             }
             tabButton(.rollback, title: String(localized: "Rollback"), systemImage: "arrow.uturn.backward",
@@ -648,15 +709,22 @@ struct WorkbenchWindowView: View {
     /// an app the visible list does not contain reads as a bug.
     private func tabChanged(to tab: SidebarTab) {
         detailMode = tab == .rollback ? .bundleDiff : .releaseNotes
+        // A reveal is for the visit it was made for.
+        if tab != .cli { homebrewRevealing = false }
         let lists = sidebarLists
         let ids: [String]
         switch tab {
         case .apps:
             ids = lists.filteredApps.map(\.id)
-        case .brew:
-            ids = lists.brewCasks.map(\.id)
-                + lists.brewFormulae.map { "brew:formula:\($0.name)" }
-                + lists.brewUnchecked.map { "brew:unchecked:\($0.id)" }
+        case .cli:
+            // In the order `cliListView` draws them; a closed Homebrew group has no
+            // rows to select.
+            let brewIDs = homebrewExpanded(lists)
+                ? lists.brewCasks.map(\.id)
+                    + lists.brewFormulae.map { "brew:formula:\($0.name)" }
+                    + lists.brewUnchecked.map { "brew:unchecked:\($0.id)" }
+                : []
+            ids = brewIDs + lists.claudeCode.map { "claude:\($0.install.path)" }
         case .rollback:
             ids = lists.rollbackable.map(\.id)
         }
@@ -719,7 +787,7 @@ struct WorkbenchWindowView: View {
         }
     }
 
-    /// Bulk "Upgrade All" for the Brew tab — runs `brew upgrade --formula` (all
+    /// Bulk "Upgrade All" for the Homebrew group — runs `brew upgrade --formula` (all
     /// outdated CLI formulae at once). Only shown when there are formulae to upgrade;
     /// casks stay per-row (their own distribution channel). A spinner replaces it
     /// while the bulk run is in flight.
@@ -743,6 +811,90 @@ struct WorkbenchWindowView: View {
                     .disabled(!model.upgradingFormulae.isEmpty || model.homebrewUpdating)
                     .help("Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above.")
             }
+        }
+    }
+
+    // MARK: - Homebrew group
+
+    private var homebrewGroup: HomebrewGroupState {
+        HomebrewGroupState(preferenceExpanded: homebrewExpandedPreference, revealing: homebrewRevealing)
+    }
+
+    /// A search is typed and matches a row inside the Homebrew group.
+    private func homebrewSearchHits(_ lists: SidebarLists) -> Bool {
+        !searchQuery.isEmpty && brewItemCount(lists) > 0
+    }
+
+    /// Whether `id` is one of the Homebrew group's rows: a cask, a formula, or an
+    /// unchecked package.
+    private func isHomebrewRow(_ id: String?) -> Bool {
+        guard let id else { return false }
+        return id.hasPrefix("brew:") || model.brewCaskResults.contains { $0.id == id }
+    }
+
+    private func homebrewExpanded(_ lists: SidebarLists) -> Bool {
+        homebrewGroup.isExpanded(searchHits: homebrewSearchHits(lists), holdsSelection: isHomebrewRow(selection))
+    }
+
+    /// A click on the Homebrew header. Closing it moves a selection that was one of
+    /// its rows to the first Claude Code row (or none), since that row is going.
+    private func toggleHomebrewGroup() {
+        var group = homebrewGroup
+        let holdsSelection = isHomebrewRow(selection)
+        group.toggle(holdsSelection: holdsSelection)
+        homebrewExpandedPreference = group.preferenceExpanded
+        homebrewRevealing = group.revealing
+        if !group.preferenceExpanded, holdsSelection {
+            selection = sidebarLists.claudeCode.first.map { "claude:\($0.install.path)" }
+            detailSelection = selection
+        }
+    }
+
+    /// The Homebrew group's header (`HomebrewGroupHeader`), fed from the model.
+    private func homebrewHeader(_ lists: SidebarLists, expanded: Bool) -> some View {
+        HomebrewGroupHeader(
+            expanded: expanded,
+            // A search holds the group open while it matches rows inside; closing
+            // it then would hide exactly what was searched for.
+            toggleDisabled: homebrewSearchHits(lists),
+            toggle: { withAnimation(.snappy(duration: 0.2)) { toggleHomebrewGroup() } }
+        ) {
+            brewBulkUpgrade
+        }
+    }
+
+    /// The counts-and-marks row under that header (`HomebrewGroupSummary`). The
+    /// whole group's, not the search's: a search that matches inside opens the
+    /// group, and its rows show what matched.
+    private func homebrewSummary(_ lists: SidebarLists) -> some View {
+        let casks = model.brewCaskResults
+        return HomebrewGroupSummary(
+            packages: casks.count + model.brewFormulae.count + model.brewUnchecked.count,
+            outdated: casks.filter(\.hasUpdate).count + model.brewFormulae.filter(\.hasUpdate).count,
+            unchecked: model.brewUnchecked.count,
+            homebrewUpdate: model.homebrewSelfUpdate?.latest,
+            toggleDisabled: homebrewSearchHits(lists),
+            toggle: { withAnimation(.snappy(duration: 0.2)) { toggleHomebrewGroup() } })
+    }
+
+    /// The Claude Code group's header: the channel its installs are checked
+    /// against and whether auto-update is on — which decides whether any of them
+    /// can offer one-click at all.
+    private var claudeCodeHeader: some View {
+        HStack(spacing: 6) {
+            Text(verbatim: "Claude Code")
+            Spacer()
+            if model.cliTools.checking {
+                ProgressView().controlSize(.mini)
+            }
+            let summary = ClaudeCodePresentation.settingsSummary(model.cliTools.claudeCodeSettings)
+            // Several languages say "auto-update off" in twice the English width;
+            // shrunk a little, then cut, with the whole line on hover.
+            Text(verbatim: summary)
+                .fontWeight(.regular)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .help(summary)
         }
     }
 
@@ -778,48 +930,76 @@ struct WorkbenchWindowView: View {
         }
     }
 
-    /// The Brew tab's list: brew-managed casks (reusing the app row + its
-    /// existing install path) above outdated CLI formulae (their own inline action).
-    private func brewListView(_ lists: SidebarLists) -> some View {
-        ScrollViewReader { proxy in
+    /// The CLI tab's list, one group per tool: Homebrew, then Claude Code.
+    ///
+    /// The Homebrew group is what the Brew tab was — brew-managed casks (reusing
+    /// the app row + its existing install path) above CLI formulae (their own inline
+    /// action) — and opens and closes (`HomebrewGroupState`). Claude Code's is a
+    /// handful of rows at most and is always open.
+    private func cliListView(_ lists: SidebarLists) -> some View {
+        let brewExpanded = homebrewExpanded(lists)
+        // With nothing typed, the group is there whenever Homebrew has anything;
+        // a search that matches nothing inside it hides it like any other row.
+        let showsBrew = searchQuery.isEmpty ? homebrewHasAnything : brewItemCount(lists) > 0
+        return ScrollViewReader { proxy in
             List(selection: $selection) {
-                if let update = lists.homebrewSelfUpdate {
-                    HomebrewSelfUpdateSidebarRow(update: update, model: model)
-                        // Nothing to show in the detail pane for Homebrew itself.
-                        .selectionDisabled()
+                if showsBrew {
+                    Section {
+                        homebrewSummary(lists)
+                            .selectionDisabled()
+                        if brewExpanded {
+                            if let update = lists.homebrewSelfUpdate {
+                                HomebrewSelfUpdateSidebarRow(update: update, model: model)
+                                    // Nothing to show in the detail pane for Homebrew itself.
+                                    .selectionDisabled()
+                            }
+                            ForEach(lists.brewCasks) { result in
+                                WorkbenchSidebarRow(
+                                    result: result,
+                                    checkAgain: { Task { await model.retry(result) } },
+                                    isChecking: model.installing[result.id] != nil,
+                                    isSelected: result.id == selection,
+                                    isRunning: model.isRunning(result),
+                                    versionLineState: model.versionLineState(for: result),
+                                    showsRuntime: model.prefs.showRuntimeTags,
+                                    isIgnored: model.prefs.isIgnored(result.app),
+                                    isVersionSkipped: model.prefs.isVersionSkipped(
+                                        result.app, version: result.remote?.versionSide),
+                                    toggleIgnore: { model.toggleIgnore(result) },
+                                    skipVersion: { model.skipThisVersion(result) },
+                                    clearSkip: { model.prefs.clearSkip(result.app) },
+                                    fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
+                                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() })
+                                    .tag(result.id)
+                            }
+                            ForEach(lists.brewFormulae) { formula in
+                                BrewFormulaSidebarRow(formula: formula, model: model)
+                                    .tag("brew:formula:\(formula.name)")
+                            }
+                            ForEach(lists.brewUnchecked) { package in
+                                BrewUncheckedSidebarRow(package: package, highlighted: highlightUnchecked)
+                                    .tag("brew:unchecked:\(package.id)")
+                            }
+                        }
+                    } header: {
+                        homebrewHeader(lists, expanded: brewExpanded)
+                    }
                 }
-                ForEach(lists.brewCasks) { result in
-                    WorkbenchSidebarRow(
-                        result: result,
-                        checkAgain: { Task { await model.retry(result) } },
-                        isChecking: model.installing[result.id] != nil,
-                        isSelected: result.id == selection,
-                        isRunning: model.isRunning(result),
-                        versionLineState: model.versionLineState(for: result),
-                        showsRuntime: model.prefs.showRuntimeTags,
-                        isIgnored: model.prefs.isIgnored(result.app),
-                        isVersionSkipped: model.prefs.isVersionSkipped(
-                            result.app, version: result.remote?.versionSide),
-                        toggleIgnore: { model.toggleIgnore(result) },
-                        skipVersion: { model.skipThisVersion(result) },
-                        clearSkip: { model.prefs.clearSkip(result.app) },
-                        fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
-                        grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() })
-                        .tag(result.id)
-                }
-                ForEach(lists.brewFormulae) { formula in
-                    BrewFormulaSidebarRow(formula: formula, model: model)
-                        .tag("brew:formula:\(formula.name)")
-                }
-                ForEach(lists.brewUnchecked) { package in
-                    BrewUncheckedSidebarRow(package: package, highlighted: highlightUnchecked)
-                        .tag("brew:unchecked:\(package.id)")
+                if !lists.claudeCode.isEmpty {
+                    Section {
+                        ForEach(lists.claudeCode, id: \.install.path) { status in
+                            ClaudeCodeSidebarRow(status: status, cli: model.cliTools)
+                                .tag("claude:\(status.install.path)")
+                        }
+                    } header: {
+                        claudeCodeHeader
+                    }
                 }
             }
             .listStyle(.sidebar)
             .focused($listFocused)
             .overlay {
-                if brewItemCount(lists) == 0, !searchQuery.isEmpty {
+                if cliItemCount(lists) == 0, !searchQuery.isEmpty {
                     ContentUnavailableView.search(text: searchText)
                 }
             }
@@ -838,8 +1018,8 @@ struct WorkbenchWindowView: View {
                 guard !Task.isCancelled, let last = lists.brewUnchecked.last else { return }
                 uncheckedRevealHandled = uncheckedRevealRequest
                 withAnimation(.easeIn(duration: 0.2)) { highlightUnchecked = true }
-                // The unchecked rows are the tail of the list; anchoring the last one
-                // at the bottom brings the whole run into view.
+                // The unchecked rows are the tail of the Homebrew group; anchoring the
+                // last one at the bottom brings the whole run into view.
                 //
                 // Twice, on purpose. In a freshly opened window one scroll stopped
                 // several rows short, the same spot every time (measured: two runs,

@@ -124,12 +124,11 @@ import Foundation
 
 // MARK: - End to end
 
-/// Surge's beta 6.10.0 has a single `### Improvements`. The flattened path keeps
-/// it a bullet (one heading is below the styling threshold); rendered as Markdown
-/// it is the heading the vendor wrote.
+/// Surge's beta 6.10.0 has a single `### Improvements`. In `items` it is one
+/// more line; rendered as Markdown it is the heading the vendor wrote.
 ///
-/// Mutation: stop passing `markdown:` in `AppcastMarkdownParser.entry`'s flat
-/// branch — `entry.markdown` is nil and this fails.
+/// Mutation: stop passing `markdown:` in `AppcastMarkdownParser.entry` —
+/// `entry.markdown` is nil and this fails.
 @Test func singleHeadingReleaseRendersItsHeading() throws {
     let md = """
     ### Improvements

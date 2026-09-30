@@ -204,7 +204,9 @@ public struct Changelog: Codable, Sendable, Hashable {
         /// of text lines, even when `content` also carries them interleaved with
         /// images or headings — so a text-only consumer never needs to walk
         /// `content`. A category heading (`### Added`) is NOT a change line and
-        /// never appears here, styled or not — see `Block.heading`.
+        /// never appears here, styled or not — see `Block.heading` — except in an
+        /// entry that carries `markdown`, where this is only the flat fallback
+        /// reading of that body and keeps its headings as lines.
         public let items: [String]
         /// Notes, illustration images, and category headings in their original
         /// document order. Empty for the common (flat) case, where the renderer

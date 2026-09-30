@@ -27,7 +27,8 @@ public struct ClaudeCodeInstall: Sendable, Equatable, Codable {
         case npm
         /// `pnpm add -g`, under pnpm's content-addressed `.pnpm` store.
         case pnpm
-        /// `bun add -g`. Layout not verified on a real install: detection only.
+        /// `bun add -g`, under `~/.bun/install/global`. Detection only: Anthropic's
+        /// docs name no bun update command.
         case bun
         /// A path the user added that matches none of the layouts above.
         case unknown
@@ -56,9 +57,10 @@ public struct ClaudeCodeInstall: Sendable, Equatable, Codable {
         /// native install leaves behind in `versions/`.
         case executableMissing
         /// The npm-family package is present but its native binary is not. pnpm
-        /// 10.33 skips postinstall by default (measured; bun is said to as well,
-        /// unverified), and then `bin/claude.exe` is a 500-byte script that prints
-        /// "claude native binary not installed".
+        /// 10.33 skips postinstall by default (measured), and then `bin/claude.exe`
+        /// is a 500-byte script that prints "claude native binary not installed".
+        /// bun 1.4.2 skips it too, but links its shim past that script to the
+        /// platform package's binary, so a bun install runs (measured).
         case nativeBinaryNotLinked
     }
 
@@ -139,7 +141,7 @@ public struct ClaudeCodeScanner: Sendable {
         found.append(contentsOf: pnpmInstalls())
         if let bun = packageInstall(
             at: home.appendingPathComponent(".bun/install/global").appendingPathComponent(Self.packagePath),
-            method: .bun, origin: .conventional
+            method: .bun, origin: .conventional, launcher: home.appendingPathComponent(".bun/bin/claude")
         ) {
             found.append(bun)
         }
@@ -148,7 +150,29 @@ public struct ClaudeCodeScanner: Sendable {
             guard let install = userInstall(at: raw), seen.insert(install.path).inserted else { continue }
             found.append(install)
         }
-        return found.filter { Self.owningApp(of: $0.path) == nil && Self.owningApp(of: $0.executable) == nil }
+        return found.filter {
+            Self.owningApp(of: $0.path) == nil && Self.owningApp(of: $0.executable) == nil
+                && Self.homebrewCask(of: $0.path) == nil
+        }
+    }
+
+    /// The Homebrew cask a path belongs to (`claude-code` or `claude-code@latest`),
+    /// as given or once symlinks are resolved, or nil.
+    ///
+    /// Such a copy is Homebrew's: the cask name picks its channel, `brew upgrade`
+    /// updates it, and DuoUpdater's Homebrew list already shows it — an app-less
+    /// cask has a row there. Reporting it here too would offer the same update
+    /// twice, from two installers.
+    public static func homebrewCask(of path: String?) -> String? {
+        guard let path, !path.isEmpty else { return nil }
+        let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
+        for candidate in [url, url.resolvingSymlinksInPath()] {
+            let components = candidate.pathComponents
+            if let index = components.firstIndex(of: "Caskroom"), index + 1 < components.count {
+                return components[index + 1]
+            }
+        }
+        return nil
     }
 
     /// The `.app` a path lives inside — as given, or once symlinks are resolved —
@@ -230,16 +254,26 @@ public struct ClaudeCodeScanner: Sendable {
     /// The package directory is the install. Its `bin/claude.exe` is what the
     /// package manager's shim runs; postinstall hard-links the platform package's
     /// binary there, and when postinstall was skipped it is a placeholder script.
+    ///
+    /// A `launcher` that links somewhere under the same `node_modules` is what
+    /// runs instead — bun's `~/.bun/bin/claude` points straight at
+    /// `@anthropic-ai/claude-code-darwin-<arch>/claude`.
     func packageInstall(
         at package: URL, method: ClaudeCodeInstall.Method, origin: ClaudeCodeInstall.Origin,
-        nodePrefix: URL? = nil
+        nodePrefix: URL? = nil, launcher: URL? = nil
     ) -> ClaudeCodeInstall? {
         let manifest = package.appendingPathComponent("package.json")
         guard let data = try? Data(contentsOf: manifest),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               json["name"] as? String == "@anthropic-ai/claude-code"
         else { return nil }
-        let executable = package.appendingPathComponent("bin/claude.exe").resolvingSymlinksInPath()
+        let modules = package.deletingLastPathComponent().deletingLastPathComponent().resolvingSymlinksInPath()
+        let linked = launcher.flatMap { launcher -> URL? in
+            guard (try? FileManager.default.destinationOfSymbolicLink(atPath: launcher.path)) != nil else { return nil }
+            let target = launcher.resolvingSymlinksInPath()
+            return target.path.hasPrefix(modules.path + "/") ? target : nil
+        }
+        let executable = linked ?? package.appendingPathComponent("bin/claude.exe").resolvingSymlinksInPath()
         let isBinary = Self.isMachO(executable)
         return ClaudeCodeInstall(
             path: package.path, method: method, origin: origin,
@@ -280,13 +314,23 @@ public struct ClaudeCodeScanner: Sendable {
     }
 
     /// A package directory outside the conventional roots, classified by the same
-    /// layout rules: inside a `.pnpm` store it is pnpm's; directly under a node
+    /// layout rules: inside a `.pnpm` store it is pnpm's; under `<root>/install/global`
+    /// it is bun's; directly under a node
     /// prefix (`<prefix>/lib/node_modules/…`) with that prefix's own `bin/npm`, it
     /// is npm's and is updated by that npm.
     func userPackage(_ package: URL) -> ClaudeCodeInstall? {
         let path = package.resolvingSymlinksInPath().path
         if path.contains("/.pnpm/") {
             return packageInstall(at: package, method: .pnpm, origin: .userAdded)
+        }
+        // bun's global directory under a custom `BUN_INSTALL`: `<root>/install/global`,
+        // with the shim at `<root>/bin/claude`.
+        let bunSuffix = "/install/global/" + Self.packagePath
+        if package.path.hasSuffix(bunSuffix) {
+            let root = URL(fileURLWithPath: String(package.path.dropLast(bunSuffix.count)))
+            return packageInstall(
+                at: package, method: .bun, origin: .userAdded,
+                launcher: root.appendingPathComponent("bin/claude"))
         }
         let suffix = "/lib/" + Self.packagePath
         if package.path.hasSuffix(suffix) {

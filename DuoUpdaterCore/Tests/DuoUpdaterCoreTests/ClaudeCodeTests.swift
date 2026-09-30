@@ -140,6 +140,54 @@ import Foundation
         #expect(install.signature == nil)
     }
 
+    /// bun skips postinstall, so `bin/claude.exe` stays the placeholder — but its
+    /// shim links straight to the platform package's binary, which runs (bun 1.4.2).
+    @Test func bunShimToThePlatformBinaryIsTheExecutable() throws {
+        let box = try Sandbox()
+        let modules = "home/.bun/install/global/node_modules/@anthropic-ai"
+        try box.package(modules + "/claude-code", version: "2.1.280", linked: false)
+        let binary = try box.machO(modules + "/claude-code-darwin-arm64/claude")
+        try box.symlink("home/.bun/bin/claude", to: "../install/global/node_modules/@anthropic-ai/claude-code-darwin-arm64/claude")
+
+        let install = try #require(box.scanner().scan().first)
+        #expect(install.method == .bun)
+        #expect(install.problem == nil)
+        #expect(install.signature == .anthropic)
+        #expect(install.executable == binary.resolvingSymlinksInPath().path)
+    }
+
+    @Test func bunWithoutItsShimFallsBackToThePackagesBinary() throws {
+        let box = try Sandbox()
+        try box.package("home/.bun/install/global/node_modules/@anthropic-ai/claude-code", version: "2.1.280", linked: false)
+        let install = try #require(box.scanner().scan().first)
+        #expect(install.problem == .nativeBinaryNotLinked)
+    }
+
+    /// `BUN_INSTALL` moved somewhere else, added by hand: the same bun reading.
+    @Test func userAddedBunGlobalUnderACustomRootIsBun() throws {
+        let box = try Sandbox()
+        let modules = "tools/bun/install/global/node_modules/@anthropic-ai"
+        try box.package(modules + "/claude-code", version: "2.1.280", linked: false)
+        try box.machO(modules + "/claude-code-darwin-arm64/claude")
+        try box.symlink("tools/bun/bin/claude", to: "../install/global/node_modules/@anthropic-ai/claude-code-darwin-arm64/claude")
+
+        let package = box.root.appendingPathComponent(modules + "/claude-code").path
+        let install = try #require(box.scanner().scan(userPaths: [package]).first)
+        #expect(install.method == .bun)
+        #expect(install.origin == .userAdded)
+        #expect(install.problem == nil)
+    }
+
+    /// A shim pointing outside this install's `node_modules` is some other copy.
+    @Test func bunShimPointingElsewhereIsNotBelieved() throws {
+        let box = try Sandbox()
+        try box.package("home/.bun/install/global/node_modules/@anthropic-ai/claude-code", version: "2.1.280", linked: false)
+        let other = try box.machO("elsewhere/claude")
+        try box.symlink("home/.bun/bin/claude", to: other.path)
+        let install = try #require(box.scanner().scan().first)
+        #expect(install.problem == .nativeBinaryNotLinked)
+    }
+
     @Test func aDifferentPackageInTheSamePlaceIsIgnored() throws {
         let box = try Sandbox()
         try box.write("brew/lib/node_modules/@anthropic-ai/claude-code/package.json", #"{"name":"not-claude","version":"1.0.0"}"#)
@@ -198,6 +246,18 @@ import Foundation
         let box = try Sandbox()
         try box.package("Host.app/Contents/Resources/node/lib/node_modules/@anthropic-ai/claude-code", version: "2.1.280", linked: true)
         #expect(box.scanner(prefixes: ["Host.app/Contents/Resources/node"]).scan().isEmpty)
+    }
+
+    /// `brew install --cask claude-code`: `<prefix>/bin/claude` links into the
+    /// Caskroom. Homebrew updates it, and the Homebrew list already shows it.
+    @Test func aHomebrewCaskCopyIsNeverAnInstall() throws {
+        let box = try Sandbox()
+        let binary = try box.machO("brew/Caskroom/claude-code@latest/2.1.285/claude")
+        try box.symlink("brew/bin/claude", to: binary.path)
+        let launcher = box.root.appendingPathComponent("brew/bin/claude").path
+        #expect(box.scanner().scan(userPaths: [launcher]).isEmpty)
+        #expect(ClaudeCodeScanner.homebrewCask(of: launcher) == "claude-code@latest")
+        #expect(ClaudeCodeScanner.homebrewCask(of: "/Users/x/.local/share/claude/versions/2.1.274") == nil)
     }
 
     @Test func pathsOutsideAnyAppHaveNoOwner() {
@@ -329,6 +389,39 @@ import Foundation
         #expect(ClaudeCodeActivity.busy(native, processes: [], stagingDirectory: staging, isAlive: { $0 == 1352 })
             == .staging(version: "2.1.280", pid: 1352))
         #expect(ClaudeCodeActivity.busy(native, processes: [], stagingDirectory: staging, isAlive: { _ in false }) == nil)
+    }
+
+    /// 2.1.280 and later add a random suffix: `<version>.<pid>.<ms>.<8 hex>` —
+    /// the shape a background `claude update` of today's releases leaves.
+    @Test func stagingDirectoryWithARandomSuffixStillNamesItsProcess() throws {
+        let (box, staging) = try emptyStaging()
+        _ = box
+        try FileManager.default.createDirectory(
+            at: staging.appendingPathComponent("2.1.285.14423.1790776714136.d3714f38"), withIntermediateDirectories: true)
+        #expect(ClaudeCodeActivity.busy(native, processes: [], stagingDirectory: staging, isAlive: { $0 == 14423 })
+            == .staging(version: "2.1.285", pid: 14423))
+    }
+
+    @Test(arguments: [
+        ("2.1.280.1352.1790771006787", "2.1.280", Int32(1352)),
+        ("2.1.285.14423.1790776714136.d3714f38", "2.1.285", 14423),
+        ("2.1.285.14423.1790776714136.12345678", "2.1.285", 14423),  // an all-digit suffix
+    ])
+    func stagingNamesParse(name: String, version: String, pid: Int32) {
+        let owner = ClaudeCodeActivity.stagingOwner(name)
+        #expect(owner?.version == version)
+        #expect(owner?.pid == pid)
+    }
+
+    /// The bare `<version>` shape carries no pid, so it cannot be tied to a process.
+    /// Read loosely it would be "version 2, pid 1", and launchd is always alive.
+    @Test func stagingNameWithoutAPidHasNoOwner() throws {
+        #expect(ClaudeCodeActivity.stagingOwner("2.1.285") == nil)
+        let (box, staging) = try emptyStaging()
+        _ = box
+        try FileManager.default.createDirectory(
+            at: staging.appendingPathComponent("2.1.285"), withIntermediateDirectories: true)
+        #expect(ClaudeCodeActivity.busy(native, processes: [], stagingDirectory: staging, isAlive: { _ in true }) == nil)
     }
 
     @Test func npmInstallingThePackageMakesTheNpmInstallBusy() throws {

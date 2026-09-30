@@ -27,7 +27,7 @@ public struct ClaudeCodeInstall: Sendable, Equatable, Codable {
         case npm
         /// `pnpm add -g`, under pnpm's content-addressed `.pnpm` store.
         case pnpm
-        /// `bun add -g`. Layout not verified on a real install yet.
+        /// `bun add -g`. Layout not verified on a real install: detection only.
         case bun
         /// A path the user added that matches none of the layouts above.
         case unknown
@@ -55,9 +55,10 @@ public struct ClaudeCodeInstall: Sendable, Equatable, Codable {
         /// The launcher points at nothing, or at a zero-byte file — what a failed
         /// native install leaves behind in `versions/`.
         case executableMissing
-        /// The npm-family package is present but its native binary is not: pnpm 10
-        /// and bun skip postinstall by default, and then `bin/claude.exe` is a
-        /// 500-byte script that prints "claude native binary not installed".
+        /// The npm-family package is present but its native binary is not. pnpm
+        /// 10.33 skips postinstall by default (measured; bun is said to as well,
+        /// unverified), and then `bin/claude.exe` is a 500-byte script that prints
+        /// "claude native binary not installed".
         case nativeBinaryNotLinked
     }
 
@@ -251,9 +252,12 @@ public struct ClaudeCodeScanner: Sendable {
     // MARK: - User-added
 
     /// A path the user pointed at: a launcher, a binary, or a package directory.
-    /// It gets the same reading as a conventional one when its layout is one we
-    /// know, so a native install or npm prefix outside the usual places can still
-    /// be updated the way its installer would; otherwise it is detection only.
+    ///
+    /// Only an npm-family package gets the same reading as a conventional one:
+    /// its prefix's own npm updates it where it is. A native binary outside
+    /// `~/.local/share/claude` stays `.unknown` — detection only — because
+    /// `claude update` always writes to that fixed location, so offering it here
+    /// would update a different place than the row shows.
     func userInstall(at raw: String) -> ClaudeCodeInstall? {
         let url = URL(fileURLWithPath: (raw as NSString).expandingTildeInPath).standardizedFileURL
         let resolved = url.resolvingSymlinksInPath()

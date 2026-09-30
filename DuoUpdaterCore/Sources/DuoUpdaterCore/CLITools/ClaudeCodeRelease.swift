@@ -57,9 +57,23 @@ public struct ClaudeCodeRelease: Sendable {
         return Artifact(size: size, sha256: sha)
     }
 
-    /// The manifest's platform key for this Mac.
-    public static var platform: String {
-        HostArch.current == .arm64 ? "darwin-arm64" : "darwin-x64"
+    /// The manifest's platform key for the architecture `executable` was built
+    /// for, read from its own Mach-O header — not the Mac's. An Apple Silicon Mac
+    /// can hold a `darwin-x64` copy (npm under an Intel Homebrew node in
+    /// `/usr/local` installs the x64 package), and checking that against the
+    /// arm64 entry would call a genuine release a mismatch. nil for a fat or
+    /// unrecognised header: the version is then left unchecked, not mismatched.
+    public static func platform(of executable: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: executable) else { return nil }
+        defer { try? handle.close() }
+        guard let head = try? handle.read(upToCount: 8), head.count == 8 else { return nil }
+        let magic = head.prefix(4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
+        guard magic == 0xFEEDFACF else { return nil }  // thin 64-bit, host byte order
+        switch head.suffix(4).withUnsafeBytes({ $0.loadUnaligned(as: UInt32.self) }) {
+        case 0x0100_000C: return "darwin-arm64"  // CPU_TYPE_ARM64
+        case 0x0100_0007: return "darwin-x64"    // CPU_TYPE_X86_64
+        default: return nil
+        }
     }
 
     /// Does the file on disk have the size the manifest gives for the version the

@@ -50,8 +50,8 @@ public struct ClaudeCodeCheck: Sendable {
 
     /// The version a channel points at, for an install's method.
     typealias Latest = @Sendable (ClaudeCodeSettings.Channel, ClaudeCodeInstall.Method) async throws -> String
-    /// This Mac's artifact in a version's manifest.
-    typealias Manifest = @Sendable (String) async throws -> ClaudeCodeRelease.Artifact
+    /// One platform's artifact in a version's manifest: (version, platform).
+    typealias Manifest = @Sendable (String, String) async throws -> ClaudeCodeRelease.Artifact
 
     let latest: Latest
     let manifest: Manifest
@@ -59,7 +59,7 @@ public struct ClaudeCodeCheck: Sendable {
     public init(release: ClaudeCodeRelease = ClaudeCodeRelease()) {
         self.init(
             latest: { try await release.latestVersion(channel: $0, for: $1) },
-            manifest: { try await release.artifact(version: $0, platform: ClaudeCodeRelease.platform) })
+            manifest: { try await release.artifact(version: $0, platform: $1) })
     }
 
     /// The seam tests use, so no verdict depends on the network.
@@ -142,8 +142,10 @@ public struct ClaudeCodeCheck: Sendable {
         let fm = FileManager.default
         switch install.method {
         case .native:
-            // `claude update` reads `autoUpdatesChannel` and `minimumVersion` and
-            // takes the native installer's own lock — the documented manual update.
+            // `claude update` is the documented manual update; it reads
+            // `autoUpdatesChannel` and `minimumVersion` itself. It always writes to
+            // its own fixed location, which is why only the conventional native
+            // install (`origin: .conventional`) is ever classified `.native`.
             return .init(executable: install.path, arguments: ["update"], pathPrefix: nil)
         case .npm:
             // "To upgrade an npm installation, run
@@ -168,12 +170,14 @@ public struct ClaudeCodeCheck: Sendable {
 
     /// Hold the file against the manifest of the version its layout claims.
     /// Only the native binary and the npm package's linked binary are the
-    /// manifest's artifact; anything else is left unchecked (nil).
+    /// manifest's artifact; anything else is left unchecked (nil). The platform
+    /// entry is the one the file was built for, not the Mac's.
     func confirm(_ install: ClaudeCodeInstall, version: String) async -> Bool? {
-        guard let executable = install.executable,
-              let artifact = try? await manifest(version)
+        guard let executable = install.executable.map({ URL(fileURLWithPath: $0) }),
+              let platform = ClaudeCodeRelease.platform(of: executable),
+              let artifact = try? await manifest(version, platform)
         else { return nil }
-        return ClaudeCodeRelease.sizeMatches(URL(fileURLWithPath: executable), artifact)
+        return ClaudeCodeRelease.sizeMatches(executable, artifact)
     }
 
     static func describe(_ problem: ClaudeCodeInstall.Problem) -> String {

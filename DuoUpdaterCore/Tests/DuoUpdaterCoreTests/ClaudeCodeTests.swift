@@ -25,11 +25,12 @@ import Foundation
 
         deinit { try? FileManager.default.removeItem(at: root) }
 
-        /// A file that starts with a 64-bit Mach-O magic, `size` bytes long.
+        /// A thin 64-bit Mach-O header for `cpu` (arm64 by default), `size` bytes long.
         @discardableResult
-        func machO(_ path: String, size: Int = 64) throws -> URL {
+        func machO(_ path: String, size: Int = 64, cpu: UInt8 = 0x0C) throws -> URL {
             var bytes = [UInt8](repeating: 0, count: size)
             bytes[0] = 0xCF; bytes[1] = 0xFA; bytes[2] = 0xED; bytes[3] = 0xFE
+            bytes[4] = cpu; bytes[7] = 0x01
             return try write(path, Data(bytes))
         }
 
@@ -350,12 +351,13 @@ import Foundation
 
     // MARK: - Check
 
-    func check(latest: String, manifestSize: Int? = nil) -> ClaudeCodeCheck {
+    /// `manifest` maps a platform key to the size its entry gives.
+    func check(latest: String, manifest: [String: Int] = [:]) -> ClaudeCodeCheck {
         ClaudeCodeCheck(
             latest: { _, _ in latest },
-            manifest: { _ in
-                guard let manifestSize else { throw ClaudeCodeRelease.Failure.unreadable }
-                return .init(size: manifestSize, sha256: "")
+            manifest: { _, platform in
+                guard let size = manifest[platform] else { throw ClaudeCodeRelease.Failure.unreadable }
+                return .init(size: size, sha256: "")
             })
     }
 
@@ -449,13 +451,50 @@ import Foundation
             path: "/h/.local/bin/claude", method: .native, origin: .conventional,
             executable: binary.path, version: "2.1.274", signature: .anthropic, problem: nil)
 
-        let mismatch = await check(latest: "2.1.285", manifestSize: 99).status(of: install, settings: ClaudeCodeSettings(), busy: nil)
+        let mismatch = await check(latest: "2.1.285", manifest: ["darwin-arm64": 99]).status(of: install, settings: ClaudeCodeSettings(), busy: nil)
         #expect(mismatch.versionConfirmed == false)
         #expect(mismatch.oneClick == nil)
 
-        let match = await check(latest: "2.1.285", manifestSize: 100).status(of: install, settings: ClaudeCodeSettings(), busy: nil)
+        let match = await check(latest: "2.1.285", manifest: ["darwin-arm64": 100]).status(of: install, settings: ClaudeCodeSettings(), busy: nil)
         #expect(match.versionConfirmed == true)
         #expect(match.oneClick != nil)
+    }
+
+    /// An x64 copy (npm under an Intel Homebrew node) is held against the
+    /// `darwin-x64` entry whatever Mac it sits on — not against the host's.
+    @Test func theManifestEntryIsTheBinarysOwnArchitecture() async throws {
+        let box = try Sandbox()
+        let binary = try box.machO("x64/claude.exe", size: 100, cpu: 0x07)
+        let install = ClaudeCodeInstall(
+            path: "/usr/local/lib/node_modules/@anthropic-ai/claude-code", method: .npm, origin: .conventional,
+            executable: binary.path, version: "2.1.280", signature: .anthropic, problem: nil)
+        let status = await check(latest: "2.1.285", manifest: ["darwin-arm64": 999, "darwin-x64": 100])
+            .status(of: install, settings: ClaudeCodeSettings(), busy: nil)
+        #expect(status.versionConfirmed == true)
+    }
+
+    @Test func platformIsReadFromTheMachOHeader() throws {
+        let box = try Sandbox()
+        #expect(ClaudeCodeRelease.platform(of: try box.machO("a", cpu: 0x0C)) == "darwin-arm64")
+        #expect(ClaudeCodeRelease.platform(of: try box.machO("b", cpu: 0x07)) == "darwin-x64")
+        // Fat (universal) header: which slice runs is not ours to guess — unchecked.
+        let fat = try box.write("c", Data([0xCA, 0xFE, 0xBA, 0xBE, 0, 0, 0, 2]))
+        #expect(ClaudeCodeRelease.platform(of: fat) == nil)
+        #expect(ClaudeCodeRelease.platform(of: box.root.appendingPathComponent("missing")) == nil)
+    }
+
+    /// `claude update` writes to `~/.local/share/claude` whatever it is run from,
+    /// so a native copy elsewhere must not be offered it: that would update a
+    /// different place than the row shows.
+    @Test func aUserAddedNativeBinaryElsewhereIsDetectionOnly() async throws {
+        let box = try Sandbox()
+        let binary = try box.machO("other/claude/versions/2.1.274")
+        let install = try #require(box.scanner().scan(userPaths: [binary.path]).first)
+        #expect(install.method == .unknown)
+        #expect(install.version == "2.1.274")
+        let status = await check(latest: "2.1.285").status(of: install, settings: ClaudeCodeSettings(), busy: nil)
+        #expect(status.state == .updateAvailable)
+        #expect(status.oneClick == nil)
     }
 
     @Test func notAnthropicsIsNeverCompared() async {

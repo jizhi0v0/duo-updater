@@ -292,6 +292,7 @@ struct WorkbenchWindowView: View {
             let hadRequest = model.requestedWorkbenchAppID != nil
             if hadRequest { applyRequestedApp() }
             applyRequestedBrewUnchecked()
+            applyRequestedCLITools()
             // First open with no data: full (networked) check. Otherwise, if no
             // round has read TestFlight yet this launch and one may
             // (`owesTestFlightRead`), run one full refresh; past that a cheap,
@@ -317,7 +318,9 @@ struct WorkbenchWindowView: View {
         // holds up the tree itself.
         .task { await model.refreshHomebrewSelfUpdate() }
         // The CLI tab's other group: Claude Code installs and their channels.
-        .task { await model.cliTools.refresh() }
+        // The popover's rule: a local scan, and the networked check only when the
+        // report on screen may be wrong.
+        .task { await model.cliTools.refreshOnOpen() }
         // Refocus → re-read on-disk versions. Scoped to THIS window: the
         // notification carries whichever window became key, and with `object: nil`
         // we heard every one of them — so merely opening Settings, the Release Log,
@@ -409,6 +412,7 @@ struct WorkbenchWindowView: View {
         // `.task` above only fires on a fresh open, so catch the in-flight case here.
         .onChange(of: model.requestedWorkbenchAppID) { applyRequestedApp() }
         .onChange(of: model.requestedWorkbenchBrewUnchecked) { applyRequestedBrewUnchecked() }
+        .onChange(of: model.requestedWorkbenchCLITools) { applyRequestedCLITools() }
     }
 
     /// Whether a `didBecomeKey` notification's object is this workbench's own
@@ -452,6 +456,16 @@ struct WorkbenchWindowView: View {
         searchText = ""
         sidebarTab = .cli
         uncheckedRevealRequest += 1
+    }
+
+    /// Honor a pending "Show in Window" from the popover's command-line tools row:
+    /// switch to the CLI tab. Clears the request like `applyRequestedApp`.
+    private func applyRequestedCLITools() {
+        guard model.requestedWorkbenchCLITools else { return }
+        model.requestedWorkbenchCLITools = false
+        // A search could hide the rows the click was about.
+        searchText = ""
+        sidebarTab = .cli
     }
 
     // MARK: - Sidebar

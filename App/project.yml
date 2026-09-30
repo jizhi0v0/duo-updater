@@ -62,6 +62,9 @@ targets:
       - path: Sources/RequestCoverageHonesty.swift
       # How the workbench's CLI tab words a Claude Code install. Foundation only.
       - path: Sources/ClaudeCodePresentation.swift
+      # The CLI tools model: Foundation + Core only, with its check, scan and
+      # updater injected, so its tests run no installer and reach no network.
+      - path: Sources/CLIToolsModel.swift
       # The Xcode downloader and what it references, so a test can ask the
       # Objective-C runtime which WebKit callbacks are really registered.
       - path: Sources/WebKitXcodeDownloader.swift

@@ -27,6 +27,9 @@ commands:
                 backup disk, or check that they are still intact.
   doctor        Whether this machine can actually install anything, and what
                 is missing if not.
+  claude-code   Every Claude Code install (native, npm, pnpm, bun), whether it
+                is behind its own channel, and the command a one-click update
+                would run. Runs nothing.
   requests      What DuoUpdater itself put on the network: which hosts, what
                 for, and what it cost.
   events        The same activity as raw NDJSON, one event per line, for piping
@@ -140,6 +143,16 @@ backups options:
   written to isn't connected, list and verify say so on stderr and report what
   is on this Mac and any other backup disk that's connected, rather than
   reporting nothing.
+
+claude-code options:
+  --json              One JSON object per install.
+  --path <p,…>        Also look at these paths, comma-separated: a launcher, a
+                      binary, or an `@anthropic-ai/claude-code` package directory.
+                      A bare binary is only reported if Anthropic signed it.
+
+  Exits 1 when any install is behind its channel. An update is offered only
+  while Claude Code's own auto-update is on, and only through the installer
+  that put it there.
 
 doctor options:
   --json              Machine-readable form of the same report.
@@ -494,6 +507,14 @@ case "events":
 case "doctor":
     let json = args.has("json")
     run = { await Doctor.run(json: json) }
+
+case "claude-code":
+    var claudeCode = ClaudeCode.Options()
+    claudeCode.json = args.has("json")
+    // Split by hand: `args.list` lowercases, and a path is case-sensitive.
+    claudeCode.userPaths = (args.value("path") ?? "").split(separator: ",").map(String.init)
+    let claudeCodeOptions = claudeCode
+    run = { await ClaudeCode.run(claudeCodeOptions) }
 
 case "verify":
     // Answered before any option is read: this prints what the sources here hash to and

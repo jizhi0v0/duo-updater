@@ -119,9 +119,12 @@ struct CLIToolsModelTests {
     }
 
     static func model(check: FakeCheck, updater: FakeUpdater = FakeUpdater(),
-                      scan: CLIToolsModel.Scan? = nil, clock: Clock = Clock()) -> CLIToolsModel {
+                      scan: CLIToolsModel.Scan? = nil, clock: Clock = Clock(),
+                      confirmationWindow: Duration = .seconds(3600)) -> CLIToolsModel {
+        // An hour: the tests that read `justUpdated` right after an update must not
+        // race its clearing. `theConfirmationClearsItself` passes a short one.
         CLIToolsModel(check: check.closure, scan: scan ?? { [] }, update: updater.closure,
-                      now: { clock.now })
+                      now: { clock.now }, confirmationWindow: confirmationWindow)
     }
 
     /// A settable clock. Written only from the test's main actor, read by the
@@ -254,6 +257,33 @@ struct CLIToolsModelTests {
         #expect(model.justUpdated[Self.native] == "2.1.285")
         #expect(model.outdated.isEmpty)
         #expect(await check.calls == 2)
+    }
+
+    /// "Updated to X" is a confirmation that goes away by itself, like an app
+    /// row's "Updated ✓" — not a state that waits for the copy to change again.
+    ///
+    /// Mutation: drop the clearing in `confirmUpdate`.
+    @Test func theConfirmationClearsItself() async throws {
+        let check = FakeCheck([
+            (Self.report(Self.status(Self.native)), nil),
+            (Self.report(Self.status(Self.native, version: "2.1.285", state: "upToDate", oneClick: false)), nil),
+        ])
+        let updater = FakeUpdater()
+        await updater.set(Self.native, .updated(version: "2.1.285"))
+        let model = Self.model(check: check, updater: updater, confirmationWindow: .milliseconds(50))
+        await model.refresh()
+
+        await model.update(path: Self.native)
+        // Not asserted present here: with a 50 ms window, a loaded machine may
+        // already have cleared it. `anUpdateRecordsItsVersionAndRechecks` pins that
+        // it is set, with the hour-long window.
+
+        // An upper bound on the wait only, never on how soon: a slow machine
+        // takes longer to clear, it does not fail.
+        for _ in 0..<200 where model.justUpdated[Self.native] != nil {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(model.justUpdated[Self.native] == nil)
     }
 
     /// When the updater could not read the new version, the re-check's does.

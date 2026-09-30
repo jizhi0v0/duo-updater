@@ -55,8 +55,14 @@ final class CLIToolsModel {
     private(set) var errors: [String: String] = [:]
     /// The full output of each failed update, by path: the detail pane's log.
     private(set) var errorLogs: [String: String] = [:]
-    /// Installs updated in this session, by path → the version they now read as.
-    /// Open sessions keep the old version until restarted, so the row says so.
+    /// Installs just updated, by path → the version they now read as. Open
+    /// sessions keep the old version until restarted, so the row says so.
+    ///
+    /// A confirmation, not a state: each entry clears itself after
+    /// `confirmationWindow`, as an app row's "Updated ✓" does
+    /// (`AppListModel.markJustUpdated`). Kept until something changed the copy, it
+    /// pinned "Claude Code updated to 2.1.285" on the popover for good — the first
+    /// thing the user saw after a real update on 2026-10-01.
     private(set) var justUpdated: [String: String] = [:]
 
     /// Installs with an update on their own channel.
@@ -80,6 +86,11 @@ final class CLIToolsModel {
     /// The clock `refreshOnOpen` measures a report's age by. Injected so the
     /// interval can be tested without waiting it out.
     @ObservationIgnored private let now: @Sendable () -> Date
+    /// How long an "Updated to X" confirmation stays. Injected so tests can end it
+    /// without waiting.
+    @ObservationIgnored private let confirmationWindow: Duration
+    /// The running confirmation window per path, so a second update restarts it.
+    @ObservationIgnored private var confirmationTimers: [String: Task<Void, Never>] = [:]
 
     /// When the report on screen was taken; nil until a check has completed.
     @ObservationIgnored private var lastChecked: Date?
@@ -97,12 +108,14 @@ final class CLIToolsModel {
         check: @escaping Check = { await ClaudeCodeReport.check() },
         scan: @escaping Scan = { await offCooperativePool { ClaudeCodeScanner().scan() } },
         update: @escaping Update = { await ClaudeCodeUpdater().update($0, progress: $1) },
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        confirmationWindow: Duration = .seconds(2)
     ) {
         self.check = check
         self.scan = scan
         self.runUpdate = update
         self.now = now
+        self.confirmationWindow = confirmationWindow
     }
 
     /// Find the installs without checking them — local and network-free — so the
@@ -205,7 +218,7 @@ final class CLIToolsModel {
             let before = status.install.version
             let after = version ?? claudeCode.first { $0.install.path == path }?.install.version
             if let after, after != before {
-                justUpdated[path] = after
+                confirmUpdate(path, version: after)
             } else {
                 Log.app.info("claude-code update at \(path, privacy: .public) exited 0 but left \(after ?? "an unreadable version", privacy: .public)")
                 // Brew's "brew update finished, but Homebrew is still X" rule: a
@@ -222,6 +235,21 @@ final class CLIToolsModel {
             // update started elsewhere, or the offer went away — so re-check and let
             // the row say what is true now.
             await refresh()
+        }
+    }
+
+    /// Show "Updated to X" for `confirmationWindow`, then let the row say what it
+    /// says of any current copy. Re-entry restarts the window.
+    private func confirmUpdate(_ path: String, version: String) {
+        justUpdated[path] = version
+        confirmationTimers[path]?.cancel()
+        let window = confirmationWindow
+        confirmationTimers[path] = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: window)
+            // A newer window owns the clearing.
+            guard !Task.isCancelled, let self else { return }
+            self.confirmationTimers[path] = nil
+            self.justUpdated[path] = nil
         }
     }
 

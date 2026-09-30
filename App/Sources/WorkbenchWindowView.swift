@@ -70,6 +70,12 @@ struct WorkbenchWindowView: View {
     @State private var uncheckedRevealHandled = 0
     /// Briefly true after a reveal, so the rows it scrolled to stand out.
     @State private var highlightUnchecked = false
+    /// Whether the user keeps the CLI tab's Homebrew group open. Remembered across
+    /// launches, like the changelog layout; closed until they open it. What else
+    /// opens the group, and why that never writes here: `HomebrewGroupState`.
+    @AppStorage("workbenchHomebrewExpanded") private var homebrewExpandedPreference = false
+    /// A deep link opened the Homebrew group (`HomebrewGroupState.revealing`).
+    @State private var homebrewRevealing = false
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var isWindowOpen = false
@@ -440,7 +446,10 @@ struct WorkbenchWindowView: View {
         // The row may be a Homebrew cask, which lives on the CLI tab. The tab is
         // set first; `tabChanged` then finds the selection already in its list and
         // leaves it alone.
-        sidebarTab = brewCasks.contains { $0.id == id } ? .cli : .apps
+        let isCask = brewCasks.contains { $0.id == id }
+        sidebarTab = isCask ? .cli : .apps
+        // A cask row is inside the Homebrew group, which may be closed.
+        if isCask { homebrewRevealing = true }
         selection = id
         detailSelection = id
     }
@@ -455,6 +464,8 @@ struct WorkbenchWindowView: View {
         // A search would hide the very rows being revealed.
         searchText = ""
         sidebarTab = .cli
+        // Open the group first: a closed one has no rows to scroll to.
+        homebrewRevealing = true
         uncheckedRevealRequest += 1
     }
 
@@ -481,6 +492,12 @@ struct WorkbenchWindowView: View {
     /// Claude Code — and a later tool adds a group rather than a tab.
     enum SidebarTab: Hashable {
         case apps, cli, rollback
+    }
+
+    /// Homebrew has anything for the CLI tab to show, before the search.
+    private var homebrewHasAnything: Bool {
+        !model.brewCaskResults.isEmpty || !model.brewFormulae.isEmpty || !model.brewUnchecked.isEmpty
+            || model.homebrewSelfUpdate != nil
     }
 
     /// Rows the Homebrew group shows after the search.
@@ -692,17 +709,22 @@ struct WorkbenchWindowView: View {
     /// an app the visible list does not contain reads as a bug.
     private func tabChanged(to tab: SidebarTab) {
         detailMode = tab == .rollback ? .bundleDiff : .releaseNotes
+        // A reveal is for the visit it was made for.
+        if tab != .cli { homebrewRevealing = false }
         let lists = sidebarLists
         let ids: [String]
         switch tab {
         case .apps:
             ids = lists.filteredApps.map(\.id)
         case .cli:
-            // In the order `cliListView` draws them.
-            ids = lists.claudeCode.map { "claude:\($0.install.path)" }
-                + lists.brewCasks.map(\.id)
-                + lists.brewFormulae.map { "brew:formula:\($0.name)" }
-                + lists.brewUnchecked.map { "brew:unchecked:\($0.id)" }
+            // In the order `cliListView` draws them; a closed Homebrew group has no
+            // rows to select.
+            let brewIDs = homebrewExpanded(lists)
+                ? lists.brewCasks.map(\.id)
+                    + lists.brewFormulae.map { "brew:formula:\($0.name)" }
+                    + lists.brewUnchecked.map { "brew:unchecked:\($0.id)" }
+                : []
+            ids = brewIDs + lists.claudeCode.map { "claude:\($0.install.path)" }
         case .rollback:
             ids = lists.rollbackable.map(\.id)
         }
@@ -792,6 +814,69 @@ struct WorkbenchWindowView: View {
         }
     }
 
+    // MARK: - Homebrew group
+
+    private var homebrewGroup: HomebrewGroupState {
+        HomebrewGroupState(preferenceExpanded: homebrewExpandedPreference, revealing: homebrewRevealing)
+    }
+
+    /// A search is typed and matches a row inside the Homebrew group.
+    private func homebrewSearchHits(_ lists: SidebarLists) -> Bool {
+        !searchQuery.isEmpty && brewItemCount(lists) > 0
+    }
+
+    /// Whether `id` is one of the Homebrew group's rows: a cask, a formula, or an
+    /// unchecked package.
+    private func isHomebrewRow(_ id: String?) -> Bool {
+        guard let id else { return false }
+        return id.hasPrefix("brew:") || model.brewCaskResults.contains { $0.id == id }
+    }
+
+    private func homebrewExpanded(_ lists: SidebarLists) -> Bool {
+        homebrewGroup.isExpanded(searchHits: homebrewSearchHits(lists), holdsSelection: isHomebrewRow(selection))
+    }
+
+    /// A click on the Homebrew header. Closing it moves a selection that was one of
+    /// its rows to the first Claude Code row (or none), since that row is going.
+    private func toggleHomebrewGroup() {
+        var group = homebrewGroup
+        let holdsSelection = isHomebrewRow(selection)
+        group.toggle(holdsSelection: holdsSelection)
+        homebrewExpandedPreference = group.preferenceExpanded
+        homebrewRevealing = group.revealing
+        if !group.preferenceExpanded, holdsSelection {
+            selection = sidebarLists.claudeCode.first.map { "claude:\($0.install.path)" }
+            detailSelection = selection
+        }
+    }
+
+    /// The Homebrew group's header (`HomebrewGroupHeader`), fed from the model.
+    private func homebrewHeader(_ lists: SidebarLists, expanded: Bool) -> some View {
+        HomebrewGroupHeader(
+            expanded: expanded,
+            // A search holds the group open while it matches rows inside; closing
+            // it then would hide exactly what was searched for.
+            toggleDisabled: homebrewSearchHits(lists),
+            toggle: { withAnimation(.snappy(duration: 0.2)) { toggleHomebrewGroup() } }
+        ) {
+            brewBulkUpgrade
+        }
+    }
+
+    /// The counts-and-marks row under that header (`HomebrewGroupSummary`). The
+    /// whole group's, not the search's: a search that matches inside opens the
+    /// group, and its rows show what matched.
+    private func homebrewSummary(_ lists: SidebarLists) -> some View {
+        let casks = model.brewCaskResults
+        return HomebrewGroupSummary(
+            packages: casks.count + model.brewFormulae.count + model.brewUnchecked.count,
+            outdated: casks.filter(\.hasUpdate).count + model.brewFormulae.filter(\.hasUpdate).count,
+            unchecked: model.brewUnchecked.count,
+            homebrewUpdate: model.homebrewSelfUpdate?.latest,
+            toggleDisabled: homebrewSearchHits(lists),
+            toggle: { withAnimation(.snappy(duration: 0.2)) { toggleHomebrewGroup() } })
+    }
+
     /// The Claude Code group's header: the channel its installs are checked
     /// against and whether auto-update is on — which decides whether any of them
     /// can offer one-click at all.
@@ -845,17 +930,61 @@ struct WorkbenchWindowView: View {
         }
     }
 
-    /// The CLI tab's list, one group per tool.
+    /// The CLI tab's list, one group per tool: Homebrew, then Claude Code.
     ///
-    /// Claude Code first: it is a handful of rows at most, and below a Homebrew
-    /// group that can run to a hundred formulae nobody would scroll down to it.
-    ///
-    /// The Homebrew group is what the Brew tab was: brew-managed casks (reusing the
-    /// app row + its existing install path) above outdated CLI formulae (their own
-    /// inline action).
+    /// The Homebrew group is what the Brew tab was — brew-managed casks (reusing
+    /// the app row + its existing install path) above CLI formulae (their own inline
+    /// action) — and opens and closes (`HomebrewGroupState`). Claude Code's is a
+    /// handful of rows at most and is always open.
     private func cliListView(_ lists: SidebarLists) -> some View {
-        ScrollViewReader { proxy in
+        let brewExpanded = homebrewExpanded(lists)
+        // With nothing typed, the group is there whenever Homebrew has anything;
+        // a search that matches nothing inside it hides it like any other row.
+        let showsBrew = searchQuery.isEmpty ? homebrewHasAnything : brewItemCount(lists) > 0
+        return ScrollViewReader { proxy in
             List(selection: $selection) {
+                if showsBrew {
+                    Section {
+                        homebrewSummary(lists)
+                            .selectionDisabled()
+                        if brewExpanded {
+                            if let update = lists.homebrewSelfUpdate {
+                                HomebrewSelfUpdateSidebarRow(update: update, model: model)
+                                    // Nothing to show in the detail pane for Homebrew itself.
+                                    .selectionDisabled()
+                            }
+                            ForEach(lists.brewCasks) { result in
+                                WorkbenchSidebarRow(
+                                    result: result,
+                                    checkAgain: { Task { await model.retry(result) } },
+                                    isChecking: model.installing[result.id] != nil,
+                                    isSelected: result.id == selection,
+                                    isRunning: model.isRunning(result),
+                                    versionLineState: model.versionLineState(for: result),
+                                    showsRuntime: model.prefs.showRuntimeTags,
+                                    isIgnored: model.prefs.isIgnored(result.app),
+                                    isVersionSkipped: model.prefs.isVersionSkipped(
+                                        result.app, version: result.remote?.versionSide),
+                                    toggleIgnore: { model.toggleIgnore(result) },
+                                    skipVersion: { model.skipThisVersion(result) },
+                                    clearSkip: { model.prefs.clearSkip(result.app) },
+                                    fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
+                                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() })
+                                    .tag(result.id)
+                            }
+                            ForEach(lists.brewFormulae) { formula in
+                                BrewFormulaSidebarRow(formula: formula, model: model)
+                                    .tag("brew:formula:\(formula.name)")
+                            }
+                            ForEach(lists.brewUnchecked) { package in
+                                BrewUncheckedSidebarRow(package: package, highlighted: highlightUnchecked)
+                                    .tag("brew:unchecked:\(package.id)")
+                            }
+                        }
+                    } header: {
+                        homebrewHeader(lists, expanded: brewExpanded)
+                    }
+                }
                 if !lists.claudeCode.isEmpty {
                     Section {
                         ForEach(lists.claudeCode, id: \.install.path) { status in
@@ -864,50 +993,6 @@ struct WorkbenchWindowView: View {
                         }
                     } header: {
                         claudeCodeHeader
-                    }
-                }
-                if brewItemCount(lists) > 0 {
-                    Section {
-                        if let update = lists.homebrewSelfUpdate {
-                            HomebrewSelfUpdateSidebarRow(update: update, model: model)
-                                // Nothing to show in the detail pane for Homebrew itself.
-                                .selectionDisabled()
-                        }
-                        ForEach(lists.brewCasks) { result in
-                            WorkbenchSidebarRow(
-                                result: result,
-                                checkAgain: { Task { await model.retry(result) } },
-                                isChecking: model.installing[result.id] != nil,
-                                isSelected: result.id == selection,
-                                isRunning: model.isRunning(result),
-                                versionLineState: model.versionLineState(for: result),
-                                showsRuntime: model.prefs.showRuntimeTags,
-                                isIgnored: model.prefs.isIgnored(result.app),
-                                isVersionSkipped: model.prefs.isVersionSkipped(
-                                    result.app, version: result.remote?.versionSide),
-                                toggleIgnore: { model.toggleIgnore(result) },
-                                skipVersion: { model.skipThisVersion(result) },
-                                clearSkip: { model.prefs.clearSkip(result.app) },
-                                fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
-                                grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() })
-                                .tag(result.id)
-                        }
-                        ForEach(lists.brewFormulae) { formula in
-                            BrewFormulaSidebarRow(formula: formula, model: model)
-                                .tag("brew:formula:\(formula.name)")
-                        }
-                        ForEach(lists.brewUnchecked) { package in
-                            BrewUncheckedSidebarRow(package: package, highlighted: highlightUnchecked)
-                                .tag("brew:unchecked:\(package.id)")
-                        }
-                    } header: {
-                        // The bulk upgrade lives on its group's header: it is
-                        // Homebrew's, and says nothing about the other groups.
-                        HStack {
-                            Text(verbatim: "Homebrew")
-                            Spacer()
-                            brewBulkUpgrade
-                        }
                     }
                 }
             }
@@ -933,8 +1018,8 @@ struct WorkbenchWindowView: View {
                 guard !Task.isCancelled, let last = lists.brewUnchecked.last else { return }
                 uncheckedRevealHandled = uncheckedRevealRequest
                 withAnimation(.easeIn(duration: 0.2)) { highlightUnchecked = true }
-                // The unchecked rows are the tail of the list; anchoring the last one
-                // at the bottom brings the whole run into view.
+                // The unchecked rows are the tail of the Homebrew group; anchoring the
+                // last one at the bottom brings the whole run into view.
                 //
                 // Twice, on purpose. In a freshly opened window one scroll stopped
                 // several rows short, the same spot every time (measured: two runs,

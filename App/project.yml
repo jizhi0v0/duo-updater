@@ -62,6 +62,8 @@ targets:
       - path: Sources/RequestCoverageHonesty.swift
       # How the workbench's CLI tab words a Claude Code install. Foundation only.
       - path: Sources/ClaudeCodePresentation.swift
+      # When the CLI tab's Homebrew group is open. Foundation only.
+      - path: Sources/HomebrewGroupState.swift
       # The CLI tools model: Foundation + Core only, with its check, scan and
       # updater injected, so its tests run no installer and reach no network.
       - path: Sources/CLIToolsModel.swift

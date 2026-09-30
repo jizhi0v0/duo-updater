@@ -59,11 +59,26 @@ enum ClaudeCodePresentation {
         }
     }
 
-    /// The installer as a row's caption names it, beside the versions. Shorter than
-    /// `installer`: at the sidebar's width, beside an Update button, "Native
-    /// installer · 2.1.274 → 2.1.285" cut off the version it was there to show.
+    /// The installer as a row's caption names it, beside the version. Shorter than
+    /// `installer`, which the detail pane uses.
     static func shortInstaller(_ method: ClaudeCodeInstall.Method) -> String {
         method == .native ? String(localized: "Native") : installer(method)
+    }
+
+    /// A row's caption when it shows versions: `2.1.274 → 2.1.285` when there is an
+    /// update, the versions alone; otherwise `npm · 2.1.285`.
+    ///
+    /// No installer before the arrow: beside the Update button at the sidebar's
+    /// 260 pt, even "Native · 2.1.274 → 2.1.285" cut off the target version — the
+    /// one fact the row is there to show (rendered, English). The title already
+    /// says where the copy is, and the detail pane says who installed it.
+    static func versionCaption(_ status: ClaudeCodeStatus) -> String {
+        if status.state == .updateAvailable, let installed = status.install.version,
+           let latest = status.latestVersion {
+            return "\(installed) → \(latest)"
+        }
+        return [shortInstaller(status.install.method), status.install.version]
+            .compactMap { $0 }.joined(separator: " · ")
     }
 
     /// The Claude Code group's header: the channel every install is checked

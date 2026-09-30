@@ -39,7 +39,6 @@ struct ClaudeCodeSidebarRow: View {
 
     @ViewBuilder
     private var caption: some View {
-        let installer = ClaudeCodePresentation.shortInstaller(status.install.method)
         if let error = cli.errors[path] {
             Text(verbatim: error).font(.caption).foregroundStyle(.red).lineLimit(1)
         } else if updating {
@@ -54,13 +53,12 @@ struct ClaudeCodeSidebarRow: View {
                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
         } else if let warning = ClaudeCodePresentation.rowWarning(status) {
             Text(verbatim: warning).font(.caption).foregroundStyle(.orange).lineLimit(1)
-        } else if status.state == .updateAvailable, let installed = status.install.version,
-                  let latest = status.latestVersion {
-            Text(verbatim: "\(installer) · \(installed) → \(latest)")
-                .font(.caption).foregroundStyle(.tint).lineLimit(1)
         } else {
-            Text(verbatim: [installer, status.install.version].compactMap { $0 }.joined(separator: " · "))
-                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            // Tinted when it is an update, like a formula row's `a → b`.
+            Text(verbatim: ClaudeCodePresentation.versionCaption(status))
+                .font(.caption)
+                .foregroundStyle(status.state == .updateAvailable ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                .lineLimit(1)
         }
     }
 

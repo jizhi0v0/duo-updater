@@ -95,6 +95,30 @@ struct ClaudeCodePresentationTests {
         return try JSONDecoder().decode(ClaudeCodeStatus.self, from: JSONSerialization.data(withJSONObject: json))
     }
 
+    // MARK: - The row's version caption
+
+    /// Outdated: the versions alone, so the target survives the sidebar's width
+    /// beside the Update button. Mutation: putting the installer back in front
+    /// ("Native · 2.1.274 → 2.1.285") fails this.
+    @Test func anOutdatedCaptionIsTheVersionsAlone() throws {
+        #expect(ClaudeCodePresentation.versionCaption(try status(withheld: nil, oneClick: true))
+                == "2.1.274 → 2.1.285")
+    }
+
+    /// No arrow, so there is room for who installed it. Mutation: dropping the
+    /// `updateAvailable` check shows "2.1.285 → 2.1.285".
+    @Test func anUpToDateCaptionNamesTheInstaller() throws {
+        let json: [String: Any] = [
+            "channel": "latest", "state": "upToDate", "latestVersion": "2.1.285",
+            "install": [
+                "path": "/Users/ann/.nvm/versions/node/v24.13.0/lib/node_modules/@anthropic-ai/claude-code",
+                "method": "npm", "origin": "conventional", "version": "2.1.285", "signature": "anthropic",
+            ],
+        ]
+        let current = try JSONDecoder().decode(ClaudeCodeStatus.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(ClaudeCodePresentation.versionCaption(current) == "npm · 2.1.285")
+    }
+
     /// With auto-update off the update is the user's to take: they get the same
     /// command a one-click update would run.
     @Test func autoUpdateOffHandsOutTheCommand() throws {

@@ -2361,7 +2361,12 @@ private struct ChangelogEntryView: View {
             // change lines — and an eager stack built every one of them on each
             // version switch. (The HTML fallback this path replaced was already
             // lazy; going native must not lose that.)
-            if entry.content.isEmpty {
+            if let markdown = entry.markdown {
+                // Notes that ARE Markdown (Sparkle's inline notes) are drawn as the
+                // author wrote them — their own headings, nesting and code — rather
+                // than through `content`/`items`, which flatten that structure.
+                ChangelogMarkdownView(markdown: markdown, fallbackItems: entry.items)
+            } else if entry.content.isEmpty {
                 LazyVStack(alignment: .leading, spacing: itemStyle == .paragraphs ? 14 : 6) {
                     ForEach(Array(entry.items.enumerated()), id: \.offset) { _, item in
                         noteRow(item)
@@ -2466,6 +2471,85 @@ private struct ChangelogEntryView: View {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+}
+
+// MARK: - Markdown notes
+
+/// `Changelog.Entry.markdown` drawn block by block (`ChangelogMarkdown.blocks`):
+/// headings, list items indented by depth, code in a box, quotes with a rule.
+/// Inline emphasis, code spans and links are already on each block's text, which
+/// `Text` draws. Matches the bulleted rows and `headingRow` above in size and
+/// spacing, so a Markdown entry sits in the pane like every other one.
+private struct ChangelogMarkdownView: View {
+    let markdown: String
+    /// Drawn as plain bullets if Foundation parses no blocks at all, so a body it
+    /// cannot read shows its lines instead of an empty pane.
+    let fallbackItems: [String]
+
+    var body: some View {
+        let blocks = Self.blocks(for: markdown)
+        // Lazy for the same reason the item list is: TablePro's notes run to
+        // hundreds of lines.
+        LazyVStack(alignment: .leading, spacing: 6) {
+            if blocks.isEmpty {
+                ForEach(Array(fallbackItems.enumerated()), id: \.offset) { _, item in
+                    row(ChangelogMarkdown.Block(kind: .listItem(depth: 1, marker: "•"), text: AttributedString(item)))
+                }
+            } else {
+                ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                    row(block)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func row(_ block: ChangelogMarkdown.Block) -> some View {
+        switch block.kind {
+        case let .heading(level):
+            Text(block.text)
+                .font(level <= 2 ? .headline : .subheadline).bold()
+                .padding(.top, 6)
+        case .paragraph:
+            Text(block.text)
+                .fixedSize(horizontal: false, vertical: true)
+        case let .listItem(depth, marker):
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                // A later paragraph of an item keeps the marker's width, invisible,
+                // so its text lines up with the item's first line.
+                Text(marker ?? "•").foregroundStyle(.secondary).opacity(marker == nil ? 0 : 1)
+                Text(block.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.leading, CGFloat(depth - 1) * 18)
+        case .code:
+            Text(block.text)
+                .font(.system(.callout, design: .monospaced))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+        case .quote:
+            HStack(alignment: .top, spacing: 8) {
+                Rectangle().fill(.tertiary).frame(width: 3)
+                Text(block.text)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// Parsed once per body, not on every redraw of the pane. Bounded by the
+    /// entries a user actually opens; cleared wholesale if that ever grows large.
+    private static var cache: [String: [ChangelogMarkdown.Block]] = [:]
+
+    private static func blocks(for markdown: String) -> [ChangelogMarkdown.Block] {
+        if let hit = cache[markdown] { return hit }
+        if cache.count > 200 { cache.removeAll() }
+        let blocks = ChangelogMarkdown.blocks(from: markdown)
+        cache[markdown] = blocks
+        return blocks
+    }
 }
 
 // MARK: - Inline release notes

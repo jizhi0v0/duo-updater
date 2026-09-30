@@ -50,9 +50,11 @@ enum AppcastMarkdownParser {
     /// as it always did.
     static func entry(from markdown: String, version: String, date: String?) -> Changelog.Entry? {
         let qualifying = GitHubMarkdownParser.qualifyingHeadings(in: markdown, skipSections: [])
+        let renderable = renderableMarkdown(from: markdown, version: version)
         guard !qualifying.isEmpty else {
             let notes = items(from: markdown)
-            return notes.isEmpty ? nil : Changelog.Entry(version: version, date: date, items: notes)
+            return notes.isEmpty ? nil
+                : Changelog.Entry(version: version, date: date, items: notes, markdown: renderable)
         }
         let styled = GitHubMarkdownParser.qualifyingHeadings(
             in: markdown, skipSections: [], allowingVersionLike: true)
@@ -77,7 +79,60 @@ enum AppcastMarkdownParser {
         guard !notes.isEmpty else { return nil }
         return Changelog.Entry(
             version: version, date: date, items: notes,
-            content: GitHubMarkdownParser.hasHeadingBlock(content) ? content : [])
+            content: GitHubMarkdownParser.hasHeadingBlock(content) ? content : [],
+            markdown: renderable)
+    }
+
+    /// The body with the lines not worth showing taken out, for rendering as
+    /// Markdown; nil when nothing is left. Everything else stays byte-for-byte —
+    /// blank lines and indentation included — because they ARE the block structure
+    /// the renderer reads.
+    ///
+    /// Taken out, with `GitHubMarkdownParser`'s own predicates so the two paths
+    /// agree on what is noise:
+    ///   - a boilerplate section (`## New Contributors`, `## Full Changelog`, …),
+    ///     heading and body, up to the next heading;
+    ///   - a `**Full Changelog**: <compare url>` line — every Osaurus entry ends
+    ///     with one;
+    ///   - a line that is only an image or badge, only a URL, or a checksum;
+    ///   - a heading that restates this entry's own version (TablePro opens every
+    ///     body with `# What's New in TablePro 0.76.1`), which the rail beside the
+    ///     notes already shows.
+    /// Nothing inside a fenced code block is judged: it is shown as the vendor
+    /// wrote it, unless its whole section is boilerplate.
+    static func renderableMarkdown(from markdown: String, version: String) -> String? {
+        var kept: [String] = []
+        var inFence = false
+        var inSkippedSection = false
+        for rawLine in markdown.components(separatedBy: .newlines) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("```") {
+                inFence.toggle()
+                if !inSkippedSection { kept.append(rawLine) }
+                continue
+            }
+            if inFence {
+                if !inSkippedSection { kept.append(rawLine) }
+                continue
+            }
+            if let heading = GitHubMarkdownParser.headingRawText(of: line) {
+                let lowered = heading.lowercased()
+                inSkippedSection = GitHubMarkdownParser.skippedSectionKeywords
+                    .contains { lowered.contains($0) }
+                if restatesVersion(heading, version) { continue }
+            }
+            if inSkippedSection { continue }
+            let lowered = line.lowercased()
+            if GitHubMarkdownParser.skippedSectionKeywords.contains(where: { lowered.hasPrefix("**\($0)") })
+                || GitHubMarkdownParser.isImageOnly(line)
+                || GitHubMarkdownParser.isBareURL(line)
+                || GitHubMarkdownParser.isChecksum(line) {
+                continue
+            }
+            kept.append(rawLine)
+        }
+        let body = kept.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return body.isEmpty ? nil : body
     }
 
     /// A body line after classification: a heading's raw text (verbatim, possibly
@@ -155,6 +210,14 @@ enum AppcastMarkdownParser {
     }
 
     // MARK: - Internals
+
+    /// `version` appears in `heading` as a whole version — not as the tail of a
+    /// longer number, so `6.0` is not found in `macOS 26.0` or `6.0.1`.
+    private static func restatesVersion(_ heading: String, _ version: String) -> Bool {
+        guard !version.isEmpty else { return false }
+        let pattern = #"(?<![0-9.])"# + NSRegularExpression.escapedPattern(for: version) + #"(?![0-9]|\.[0-9])"#
+        return heading.range(of: pattern, options: .regularExpression) != nil
+    }
 
     /// Strip the lightweight inline emphasis markers (`**`, `` ` ``) that would
     /// otherwise render literally in the plain-text item view; a single `*` is

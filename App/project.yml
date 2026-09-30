@@ -60,6 +60,8 @@ targets:
       - path: Tests
       - path: Sources/ScanRowAssembly.swift
       - path: Sources/RequestCoverageHonesty.swift
+      # How the workbench's CLI tab words a Claude Code install. Foundation only.
+      - path: Sources/ClaudeCodePresentation.swift
       # The Xcode downloader and what it references, so a test can ask the
       # Objective-C runtime which WebKit callbacks are really registered.
       - path: Sources/WebKitXcodeDownloader.swift

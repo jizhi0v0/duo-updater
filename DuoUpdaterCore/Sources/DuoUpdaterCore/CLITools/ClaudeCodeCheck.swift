@@ -167,7 +167,10 @@ public struct ClaudeCodeCheck: Sendable {
 
     /// The vendor's documented update for each installer — and nothing for the
     /// ones we have not verified end to end.
-    static func updateCommand(
+    ///
+    /// Public for the app: with auto-update off the update is reported, never
+    /// run, and the workbench hands the user this same command to run themselves.
+    public static func updateCommand(
         for install: ClaudeCodeInstall, channel: ClaudeCodeSettings.Channel
     ) -> ClaudeCodeStatus.Command? {
         let fm = FileManager.default

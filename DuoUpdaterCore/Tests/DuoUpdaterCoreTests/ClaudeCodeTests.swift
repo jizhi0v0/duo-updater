@@ -459,6 +459,7 @@ import Foundation
         #expect(status.state == .updateAvailable)
         #expect(status.oneClick == .init(executable: "/h/.local/bin/claude", arguments: ["update"], pathPrefix: nil))
         #expect(status.note == nil)
+        #expect(status.withheld == nil)
     }
 
     @Test func autoUpdateOffMeansReportedButNotOffered() async {
@@ -468,6 +469,7 @@ import Foundation
         #expect(status.state == .updateAvailable)
         #expect(status.oneClick == nil)
         #expect(status.note?.contains("DISABLE_AUTOUPDATER") == true)
+        #expect(status.withheld == .autoUpdateOff)
     }
 
     @Test func updatesDisabledMeansReportedButNotOffered() async {
@@ -476,6 +478,10 @@ import Foundation
         let status = await check(latest: "2.1.285").status(of: native, settings: settings, busy: nil)
         #expect(status.state == .updateAvailable)
         #expect(status.oneClick == nil)
+        #expect(status.withheld == .updatesDisabled)
+        // Both set: the stronger switch is the one named.
+        settings.autoUpdatesDisabled = true
+        #expect(await check(latest: "2.1.285").status(of: native, settings: settings, busy: nil).withheld == .updatesDisabled)
     }
 
     @Test func anUpdateAlreadyRunningWithholdsOneClick() async {
@@ -483,6 +489,7 @@ import Foundation
         #expect(status.state == .updateAvailable)
         #expect(status.oneClick == nil)
         #expect(status.note == ClaudeCodeActivity.Busy.updateCommand(7).description)
+        #expect(status.withheld == .busy)
     }
 
     @Test func aChannelBelowTheFloorIsNotAnUpdate() async {
@@ -491,12 +498,14 @@ import Foundation
         let status = await check(latest: "2.1.285").status(of: native, settings: settings, busy: nil)
         #expect(status.state == .upToDate)
         #expect(status.oneClick == nil)
+        #expect(status.withheld == nil)  // nothing to offer is not something withheld
     }
 
     @Test func aheadOfTheChannelIsNotAnUpdate() async {
         let status = await check(latest: "2.1.270").status(of: native, settings: ClaudeCodeSettings(), busy: nil)
         #expect(status.state == .ahead)
         #expect(status.oneClick == nil)
+        #expect(status.withheld == nil)
     }
 
     /// The npm command names this prefix's own node and npm, pins `--prefix`, and
@@ -518,12 +527,14 @@ import Foundation
         #expect(command.executable == prefix + "/bin/node")
         #expect(command.arguments == [prefix + "/bin/npm", "install", "-g", "--prefix", prefix, "@anthropic-ai/claude-code@stable"])
         #expect(command.pathPrefix == prefix + "/bin")
+        #expect(status.withheld == nil)
     }
 
     @Test func npmPrefixWithoutItsOwnNodeIsNotOffered() async {
         let status = await check(latest: "2.1.285").status(of: npm, settings: ClaudeCodeSettings(), busy: nil)
         #expect(status.state == .updateAvailable)
         #expect(status.oneClick == nil)
+        #expect(status.withheld == .unsupportedInstaller)
     }
 
     @Test func pnpmAndUnknownInstallsAreDetectionOnly() async {
@@ -534,6 +545,7 @@ import Foundation
             let status = await check(latest: "2.1.285").status(of: install, settings: ClaudeCodeSettings(), busy: nil)
             #expect(status.state == .updateAvailable)
             #expect(status.oneClick == nil, "\(method)")
+            #expect(status.withheld == .unsupportedInstaller, "\(method)")
         }
     }
 
@@ -547,10 +559,12 @@ import Foundation
         let mismatch = await check(latest: "2.1.285", manifest: ["darwin-arm64": 99]).status(of: install, settings: ClaudeCodeSettings(), busy: nil)
         #expect(mismatch.versionConfirmed == false)
         #expect(mismatch.oneClick == nil)
+        #expect(mismatch.withheld == .versionMismatch)
 
         let match = await check(latest: "2.1.285", manifest: ["darwin-arm64": 100]).status(of: install, settings: ClaudeCodeSettings(), busy: nil)
         #expect(match.versionConfirmed == true)
         #expect(match.oneClick != nil)
+        #expect(match.withheld == nil)
     }
 
     /// An x64 copy (npm under an Intel Homebrew node) is held against the
@@ -597,5 +611,36 @@ import Foundation
         let status = await check(latest: "2.1.285").status(of: install, settings: ClaudeCodeSettings(), busy: nil)
         #expect(status.state == .unknown)
         #expect(status.oneClick == nil)
+        #expect(status.withheld == .notAnthropic)
+    }
+
+    /// A broken copy is reported as broken before anything else is asked of it —
+    /// its signature included (a missing file has none).
+    @Test func aBrokenInstallIsNeverCompared() async {
+        let install = ClaudeCodeInstall(
+            path: "/x", method: .native, origin: .conventional, executable: "/x", version: "2.1.280",
+            signature: nil, problem: .executableMissing)
+        let status = await check(latest: "2.1.285").status(of: install, settings: ClaudeCodeSettings(), busy: nil)
+        #expect(status.state == .unknown)
+        #expect(status.withheld == .broken)
+    }
+
+    @Test func anUnreadableVersionIsNeverCompared() async {
+        let install = ClaudeCodeInstall(
+            path: "/x", method: .unknown, origin: .userAdded, executable: "/x", version: nil,
+            signature: .anthropic, problem: nil)
+        let status = await check(latest: "2.1.285").status(of: install, settings: ClaudeCodeSettings(), busy: nil)
+        #expect(status.state == .unknown)
+        #expect(status.withheld == .versionUnreadable)
+    }
+
+    @Test func anUnreadableChannelIsNotAVerdict() async {
+        let check = ClaudeCodeCheck(
+            latest: { _, _ in throw ClaudeCodeRelease.Failure.http(503) },
+            manifest: { _, _ in throw ClaudeCodeRelease.Failure.unreadable })
+        let status = await check.status(of: native, settings: ClaudeCodeSettings(), busy: nil)
+        #expect(status.state == .unknown)
+        #expect(status.oneClick == nil)
+        #expect(status.withheld == .channelUnreadable)
     }
 }

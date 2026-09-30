@@ -57,6 +57,7 @@ bundle id 不变，不对外分发。仓库 36 个 release 全部非 prerelease�
 ## Changelog
 - 来源: GitHub Release body（`GitHubReleasesSource` 经 `GitHubMarkdownParser` 结构化带回）；
   官网 `/changelog` 页读的是同一份（`/desktop/update/changelog`）
+- 结构化（2026-09-29，`channel-verify` 的 `changelog pane` 行，从 1.3.0 检查）: ✓ 分节保留 — 8 个小标题（每个功能一个，如 `Terminals In Split Panes`），8 条；只带回最新一版的说明（1 个条目）
 - 跟随 channel: 单渠道
 - Recipe 状态: 不需要
 

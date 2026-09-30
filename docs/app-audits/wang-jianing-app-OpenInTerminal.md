@@ -66,6 +66,7 @@ short `1.2.8` == tag，universal，Team `C8VX3ZLX5U`，`spctl` Notarized Develop
 ## Changelog
 - 来源: GitHub Release body（`GitHubReleasesSource` 经 `GitHubMarkdownParser` 结构化带回；
   `channel-verify` 显示 changelogURL 指向 `releases/tag/v2.3.9`）
+- 结构化（2026-09-29，`channel-verify` 的 `changelog pane` 行，从 2.3.8 检查）: ✓ 8 条纯列表，无小标题（正文本身没有标题行）；只带回最新一版的说明（1 个条目）
 - 跟随 channel: 单渠道
 - Recipe 状态: 不需要
 

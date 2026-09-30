@@ -78,6 +78,7 @@
 
 ## Changelog
 - 来源: GitHub Release body（`GitHubReleasesSource` 经 `GitHubMarkdownParser` 结构化带回）
+- 结构化（2026-09-29，`channel-verify` 的 `changelog pane` 行，从 1.19.2 检查）: ✓ 分节保留 — `What's New 🎉` / `Bugfixes 🐛` / `Other Changes 📎`，12 条；只带回最新一版的说明（1 个条目）
 - 跟随 channel: 单渠道
 - Recipe 状态: 不需要
 

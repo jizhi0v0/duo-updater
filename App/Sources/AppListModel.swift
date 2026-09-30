@@ -1108,6 +1108,10 @@ final class AppListModel {
     /// popover's "not checked" tip. `WorkbenchWindowView` consumes and clears it,
     /// expanding the Brew tree and scrolling to and highlighting those rows.
     var requestedWorkbenchBrewUnchecked = false
+    /// The same kind of request for the CLI tab — set by clicking the popover's
+    /// command-line tools row. The workbench consumes and clears it, switching to
+    /// that tab.
+    var requestedWorkbenchCLITools = false
 
     /// Whether a GitHub token resolved (explicit, env, or `gh` login) the last
     /// time the source stack was built. Drives the aggregate rate-limit banner:
@@ -1758,6 +1762,11 @@ final class AppListModel {
         // process, and doing it at launch means the banner is right the first time
         // the menu opens rather than after some later event.
         resolveSilentSelfUpdate()
+        // Find Claude Code installs now, locally and without the network, so the
+        // popover's first open already knows whether to reserve the command-line
+        // tools row — the role `brewInstalled` plays for the brew row. The
+        // networked check runs when the popover opens.
+        Task { await cliTools.scanInstalls() }
     }
 
     /// The explicit GitHub token preference as the resolver should see it: nil when

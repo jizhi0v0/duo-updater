@@ -114,6 +114,15 @@ struct MenuContentView: View {
                 Divider()
                 brewFormulaRow
             }
+            if showCLIToolsRow {
+                Divider()
+                CLIToolsRow(tools: model.cliTools, showInWindow: {
+                    // Target first, then open — the Changelog deep link's order.
+                    model.requestedWorkbenchCLITools = true
+                    openWindow(id: WorkbenchWindowView.windowID)
+                    model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
+                })
+            }
             Divider()
             footer
         }
@@ -175,6 +184,9 @@ struct MenuContentView: View {
         // CLI formulae: a separate brew-upgrade surface (formula-only), kicked off
         // concurrently so it never delays the app check above.
         .task { await model.refreshBrewFormulae() }
+        // Claude Code: its own surface, checked beside brew for the same reason —
+        // the channel read is networked and must not delay the app check.
+        .task { await model.cliTools.refresh() }
     }
 
     @ViewBuilder
@@ -695,6 +707,14 @@ struct MenuContentView: View {
         model.brewInstalled
     }
 
+    /// Reserve the command-line tools row as soon as an install is known. The launch
+    /// scan (`CLIToolsModel.scanInstalls`, local and fast) answers that long before
+    /// the networked check, so the check lands in a row that is already there and
+    /// the popover does not grow under the cursor. No install, no row.
+    private var showCLIToolsRow: Bool {
+        !model.cliTools.claudeCodeInstalls.isEmpty
+    }
+
     /// A single footer row mirroring a bare terminal `brew upgrade`, scoped to CLI
     /// formulae. Casks are managed per-app in the list above, so this never
     /// double-counts them.
@@ -836,6 +856,145 @@ struct MenuContentView: View {
         let n = model.brewFormulae.count
         guard n > 0 else { return String(localized: "All command-line formulae are current.") }
         return String(localized: "\(n) top-level formulae · all current")
+    }
+}
+
+/// The popover's one row for command-line tools that are not Homebrew's — Claude
+/// Code today; a later tool joins this row rather than getting its own. Built like
+/// the brew row above it (icon, two caption lines, trailing control, same padding)
+/// and every state keeps that two-line shape, so a state change never moves
+/// anything below it.
+private struct CLIToolsRow: View {
+    let tools: CLIToolsModel
+    /// Opens the workbench on the CLI tab.
+    let showInWindow: () -> Void
+
+    /// Which state the row is in, most urgent first.
+    private enum Phase {
+        case updating, checking, outdated, unchecked
+        case justUpdated(version: String)
+        case upToDate
+    }
+
+    private var phase: Phase {
+        if tools.updatingAll || !tools.updating.isEmpty { return .updating }
+        // Before the first verdict only. A re-check keeps showing the last answer
+        // until it is replaced, like the brew row, instead of blinking to "Checking".
+        if !tools.checked { return .checking }
+        if !tools.outdated.isEmpty { return .outdated }
+        // Not "up to date" while any copy went unanswered — that seal would be a
+        // claim about it too.
+        if !tools.unchecked.isEmpty { return .unchecked }
+        if let version = tools.claudeCode.lazy.compactMap({ tools.justUpdated[$0.install.path] }).first {
+            return .justUpdated(version: version)
+        }
+        return .upToDate
+    }
+
+    var body: some View {
+        let phase = phase
+        HStack(spacing: 8) {
+            // Laid out in the brew row's `terminal` glyph's width, so the two rows'
+            // text starts on one column; this glyph is a few points wider and
+            // overhangs that slot by a point or two on each side.
+            Image(systemName: "terminal").hidden()
+                .overlay {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right").foregroundStyle(.secondary)
+                }
+            // The text opens the workbench, where each copy has its own row; the
+            // trailing control stays the row's one action.
+            Button(action: showInWindow) {
+                VStack(alignment: .leading, spacing: 1) {
+                    // One line, always: a title that wrapped in a longer language
+                    // would change the row's height with its state.
+                    Text(title(phase))
+                        .font(.caption).fontWeight(.medium).lineLimit(1)
+                    subtitle(phase)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "Show in Window"))
+            trailing(phase)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private func title(_ phase: Phase) -> String {
+        switch phase {
+        case .updating: return String(localized: "Updating Claude Code")
+        case .checking: return String(localized: "Checking command-line tools…")
+        case .outdated: return String(localized: "\(tools.outdated.count) command-line tool updates")
+        case .unchecked: return String(localized: "\(tools.unchecked.count) command-line tools not checked")
+        case .justUpdated(let version):
+            return version.isEmpty
+                ? String(localized: "Claude Code updated")
+                : String(localized: "Claude Code updated to \(version)")
+        case .upToDate: return String(localized: "Command-line tools up to date")
+        }
+    }
+
+    @ViewBuilder
+    private func subtitle(_ phase: Phase) -> some View {
+        switch phase {
+        case .updating:
+            // The first running copy's live line; `updateAll` runs one at a time.
+            let line = tools.claudeCode.lazy.compactMap { tools.progress[$0.install.path] }.first
+            Text(line ?? String(localized: "Starting…"))
+                .font(.caption2).foregroundStyle(.secondary)
+                .lineLimit(1).truncationMode(.middle)
+                .monospacedDigit()
+        case .outdated:
+            if let error = tools.outdated.lazy.compactMap({ tools.errors[$0.install.path] }).first {
+                Text(error).font(.caption2).foregroundStyle(.red).lineLimit(1)
+            } else if !tools.oneClickable.isEmpty {
+                secondary(CLIToolsModel.summary(tools.outdated.map(\.install)))
+            } else if let withheld = tools.outdated.lazy.compactMap(\.withheld).first {
+                // Nothing to click, so the line says why — in the user's terms.
+                secondary(CLIToolsModel.reason(withheld))
+            } else {
+                secondary(CLIToolsModel.summary(tools.outdated.map(\.install)))
+            }
+        case .unchecked:
+            if let withheld = tools.unchecked.lazy.compactMap(\.withheld).first {
+                secondary(CLIToolsModel.reason(withheld))
+            } else {
+                secondary(CLIToolsModel.summary(tools.unchecked.map(\.install)))
+            }
+        case .justUpdated:
+            // A running session keeps the binary it started with, so the new
+            // version reaches only sessions started from now on.
+            secondary(String(localized: "New sessions use it; restart open ones"))
+        case .checking, .upToDate:
+            secondary(CLIToolsModel.summary(tools.claudeCodeInstalls))
+        }
+    }
+
+    private func secondary(_ text: String) -> some View {
+        Text(text).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+    }
+
+    @ViewBuilder
+    private func trailing(_ phase: Phase) -> some View {
+        switch phase {
+        case .updating, .checking:
+            ProgressView().controlSize(.small)
+        case .outdated:
+            if !tools.oneClickable.isEmpty {
+                Button("Update") { Task { await tools.updateAll() } }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .controlSize(.small)
+                    .buttonStyle(.borderedProminent)
+                    .help(String(localized: "Updates each copy in place, with the installer that installed it and on your Claude Code channel. Copies Claude Code won’t auto-update are left alone."))
+            }
+        case .unchecked:
+            Image(systemName: "questionmark.circle").foregroundStyle(.secondary)
+        case .justUpdated, .upToDate:
+            Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
+        }
     }
 }
 

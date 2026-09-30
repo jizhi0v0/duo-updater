@@ -184,9 +184,10 @@ struct MenuContentView: View {
         // CLI formulae: a separate brew-upgrade surface (formula-only), kicked off
         // concurrently so it never delays the app check above.
         .task { await model.refreshBrewFormulae() }
-        // Claude Code: its own surface, checked beside brew for the same reason —
-        // the channel read is networked and must not delay the app check.
-        .task { await model.cliTools.refresh() }
+        // Claude Code: its own surface, beside brew so it never delays the app
+        // check. A local rescan; the networked check only when the model judges
+        // the report stale (`refreshOnOpen`).
+        .task { await model.cliTools.refreshOnOpen() }
     }
 
     @ViewBuilder
@@ -929,9 +930,7 @@ private struct CLIToolsRow: View {
         case .outdated: return String(localized: "\(tools.outdated.count) command-line tool updates")
         case .unchecked: return String(localized: "\(tools.unchecked.count) command-line tools not checked")
         case .justUpdated(let version):
-            return version.isEmpty
-                ? String(localized: "Claude Code updated")
-                : String(localized: "Claude Code updated to \(version)")
+            return String(localized: "Claude Code updated to \(version)")
         case .upToDate: return String(localized: "Command-line tools up to date")
         }
     }

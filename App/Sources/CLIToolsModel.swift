@@ -50,7 +50,8 @@ final class CLIToolsModel {
     private(set) var updatingAll = false
     /// The latest output line of each running update, by install path.
     private(set) var progress: [String: String] = [:]
-    /// The last failed update of each install, by path: the row's one line.
+    /// The last failed update of each install, by path: the row's one line. Also
+    /// an update that exited 0 but left the version where it was.
     private(set) var errors: [String: String] = [:]
     /// The full output of each failed update, by path: the detail pane's log.
     private(set) var errorLogs: [String: String] = [:]
@@ -76,9 +77,17 @@ final class CLIToolsModel {
     @ObservationIgnored private let check: Check
     @ObservationIgnored private let scan: Scan
     @ObservationIgnored private let runUpdate: Update
+    /// The clock `refreshOnOpen` measures a report's age by. Injected so the
+    /// interval can be tested without waiting it out.
+    @ObservationIgnored private let now: @Sendable () -> Date
+
+    /// When the report on screen was taken; nil until a check has completed.
+    @ObservationIgnored private var lastChecked: Date?
+    /// How old a report may get before an open of the popover checks again.
+    static let recheckInterval: TimeInterval = 15 * 60
 
     /// Bumped by every `refresh`; a check applies its report only if it is still
-    /// the latest one started. Reads overlap — every popover open starts one, and
+    /// the latest one started. Reads overlap — a popover open can start one, and
     /// each update ends with one — and a check started before an update finished
     /// must not land after the re-check that follows it and put the stale
     /// "outdated" verdict back. `refreshBrewFormulae`'s rule.
@@ -87,11 +96,13 @@ final class CLIToolsModel {
     init(
         check: @escaping Check = { await ClaudeCodeReport.check() },
         scan: @escaping Scan = { await offCooperativePool { ClaudeCodeScanner().scan() } },
-        update: @escaping Update = { await ClaudeCodeUpdater().update($0, progress: $1) }
+        update: @escaping Update = { await ClaudeCodeUpdater().update($0, progress: $1) },
+        now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.check = check
         self.scan = scan
         self.runUpdate = update
+        self.now = now
     }
 
     /// Find the installs without checking them — local and network-free — so the
@@ -101,6 +112,28 @@ final class CLIToolsModel {
         let installs = await scan()
         guard !checked else { return }
         claudeCodeInstalls = installs
+    }
+
+    /// What an open of the popover does: a local scan, and the networked check
+    /// only when the report on screen may be wrong — the app list's rule (a full
+    /// check on the first open, a local rescan on later ones) applied here. Checks
+    /// when there is no completed report yet, when it is older than
+    /// `recheckInterval`, when the scan disagrees with it (a copy appeared or went,
+    /// or its version moved — a `claude update` in a terminal), or when it left a
+    /// copy unanswered. An update re-checks by itself and does not go through here.
+    func refreshOnOpen() async {
+        guard let lastChecked else { return await refresh() }
+        let installs = await scan()
+        let stale = now().timeIntervalSince(lastChecked) >= Self.recheckInterval
+        let moved = Self.identity(installs) != Self.identity(claudeCode.map(\.install))
+        guard stale || moved || !unchecked.isEmpty else { return }
+        await refresh()
+    }
+
+    /// What the scan can see change without a check: which copies there are, and
+    /// the version each one's layout names.
+    private static func identity(_ installs: [ClaudeCodeInstall]) -> Set<String> {
+        Set(installs.map { "\($0.path)\u{0}\($0.version ?? "")" })
     }
 
     /// Re-scan and re-check every tool.
@@ -119,6 +152,7 @@ final class CLIToolsModel {
         claudeCode = report.statuses
         claudeCodeInstalls = report.statuses.map(\.install)
         checked = true
+        lastChecked = now()
         let byPath = Dictionary(report.statuses.map { ($0.install.path, $0) }, uniquingKeysWith: { a, _ in a })
         // An error describes an attempt at an update that is still on offer. Once
         // the copy is no longer behind — updated from a terminal, or gone — it
@@ -130,8 +164,7 @@ final class CLIToolsModel {
         // "Updated to X" is about the copy as DuoUpdater left it. Something else
         // has changed it since (or it is gone) — the claim no longer holds.
         for (path, version) in justUpdated {
-            guard let now = byPath[path] else { justUpdated[path] = nil; continue }
-            if !version.isEmpty, now.install.version != version { justUpdated[path] = nil }
+            if byPath[path]?.install.version != version { justUpdated[path] = nil }
         }
     }
 
@@ -164,10 +197,22 @@ final class CLIToolsModel {
         case .updated(let version):
             progress[path] = String(localized: "Checking…")
             await refresh()
-            // The updater's own re-read first; the fresh scan's when it had none.
-            justUpdated[path] = version
-                ?? claudeCode.first { $0.install.path == path }?.install.version
-                ?? ""
+            // Exit 0 is not proof of an update: measured, `claude update` exits 0
+            // having stayed put ("… predates release-signature enforcement; staying
+            // on X"), and the updater then reports the version it left. Only a
+            // version other than the one clicked on counts — the updater's own
+            // re-read first, the fresh scan's when it had none.
+            let before = status.install.version
+            let after = version ?? claudeCode.first { $0.install.path == path }?.install.version
+            if let after, after != before {
+                justUpdated[path] = after
+            } else {
+                Log.app.info("claude-code update at \(path, privacy: .public) exited 0 but left \(after ?? "an unreadable version", privacy: .public)")
+                // Brew's "brew update finished, but Homebrew is still X" rule: a
+                // run that changed nothing reads as a failure, not as silence.
+                errors[path] = after.map { String(localized: "Still \($0) after the update") }
+                    ?? String(localized: "Couldn’t read the version after the update")
+            }
         case .failed(let message, let output):
             Log.app.info("claude-code update failed at \(path, privacy: .public): \(message, privacy: .public)")
             errors[path] = message

@@ -119,8 +119,21 @@ struct CLIToolsModelTests {
     }
 
     static func model(check: FakeCheck, updater: FakeUpdater = FakeUpdater(),
-                      scan: CLIToolsModel.Scan? = nil) -> CLIToolsModel {
-        CLIToolsModel(check: check.closure, scan: scan ?? { [] }, update: updater.closure)
+                      scan: CLIToolsModel.Scan? = nil, clock: Clock = Clock()) -> CLIToolsModel {
+        CLIToolsModel(check: check.closure, scan: scan ?? { [] }, update: updater.closure,
+                      now: { clock.now })
+    }
+
+    /// A settable clock. Written only from the test's main actor, read by the
+    /// model on the same actor.
+    final class Clock: @unchecked Sendable {
+        var now = Date(timeIntervalSince1970: 1_790_000_000)
+    }
+
+    /// What the local scan finds; the test changes it between opens.
+    final class ScanResult: @unchecked Sendable {
+        var installs: [ClaudeCodeInstall] = []
+        init(_ installs: [ClaudeCodeInstall]) { self.installs = installs }
     }
 
     /// Poll until `condition` holds. The deadline only turns a hang into a
@@ -259,6 +272,25 @@ struct CLIToolsModelTests {
         await model.update(path: Self.native)
 
         #expect(model.justUpdated[Self.native] == "2.1.285")
+    }
+
+    /// Exit 0 is not an update. `claude update` can exit 0 having stayed on the
+    /// version it had (measured by the updater's author), and then reports that
+    /// version: no "updated to", a line saying it is still there, and a re-check.
+    ///
+    /// Mutation: `if let after {` in place of `if let after, after != before {`.
+    @Test func anUnchangedVersionIsNotAnUpdate() async {
+        let check = FakeCheck([(Self.report(Self.status(Self.native)), nil)])
+        let updater = FakeUpdater()
+        await updater.set(Self.native, .updated(version: "2.1.274"))
+        let model = Self.model(check: check, updater: updater)
+        await model.refresh()
+
+        await model.update(path: Self.native)
+
+        #expect(model.justUpdated[Self.native] == nil)
+        #expect(model.errors[Self.native]?.contains("2.1.274") == true)
+        #expect(await check.calls == 2)
     }
 
     /// The row stays "updating" through the re-check that follows a success: that
@@ -533,6 +565,81 @@ struct CLIToolsModelTests {
         await model.refresh()
 
         #expect(model.justUpdated[Self.native] == nil)
+    }
+
+    // MARK: opening the popover
+
+    /// (a) With no completed check, an open checks — even when the scan finds
+    /// nothing to disagree with.
+    ///
+    /// Mutation: drop `guard let lastChecked else { return await refresh() }`
+    /// (and read `lastChecked ?? now()` below it).
+    @Test func theFirstOpenChecks() async {
+        let check = FakeCheck([(Self.report(), nil)])
+        let model = Self.model(check: check, scan: { [] })
+
+        await model.refreshOnOpen()
+
+        #expect(await check.calls == 1)
+        #expect(model.checked)
+    }
+
+    /// (b) A report younger than the interval is kept; one that old is re-checked.
+    /// The first half is the promise itself: an open with nothing changed costs
+    /// no network.
+    ///
+    /// Mutation: drop `stale ||` from the guard.
+    @Test func anOpenRechecksOnlyAStaleReport() async {
+        let status = Self.status(Self.native)
+        let found = ScanResult([status.install])
+        let clock = Clock()
+        let check = FakeCheck([(Self.report(status), nil)])
+        let model = Self.model(check: check, scan: { found.installs }, clock: clock)
+        await model.refresh()
+
+        clock.now += CLIToolsModel.recheckInterval - 60
+        await model.refreshOnOpen()
+        #expect(await check.calls == 1)
+
+        clock.now += 60
+        await model.refreshOnOpen()
+        #expect(await check.calls == 2)
+    }
+
+    /// (c) The scan disagreeing with the report — a version moved (a `claude
+    /// update` in a terminal), or a copy appeared — re-checks at once.
+    ///
+    /// Mutation: drop `moved ||` from the guard.
+    @Test func aScanThatDisagreesRechecks() async {
+        let status = Self.status(Self.native)
+        let found = ScanResult([status.install])
+        let check = FakeCheck([(Self.report(status), nil)])
+        let model = Self.model(check: check, scan: { found.installs })
+        await model.refresh()
+
+        found.installs = [Self.status(Self.native, version: "2.1.285").install]
+        await model.refreshOnOpen()
+        #expect(await check.calls == 2)
+
+        found.installs = [status.install, Self.status(Self.npm, method: "npm").install]
+        await model.refreshOnOpen()
+        #expect(await check.calls == 3)
+    }
+
+    /// (d) A report that left a copy unanswered (offline, say) is retried on the
+    /// next open rather than kept for fifteen minutes.
+    ///
+    /// Mutation: drop `|| !unchecked.isEmpty` from the guard.
+    @Test func anUnansweredCopyRechecks() async {
+        let status = Self.status(Self.native, state: "unknown", oneClick: false, withheld: "channelUnreadable")
+        let found = ScanResult([status.install])
+        let check = FakeCheck([(Self.report(status), nil)])
+        let model = Self.model(check: check, scan: { found.installs })
+        await model.refresh()
+
+        await model.refreshOnOpen()
+
+        #expect(await check.calls == 2)
     }
 
     // MARK: wording

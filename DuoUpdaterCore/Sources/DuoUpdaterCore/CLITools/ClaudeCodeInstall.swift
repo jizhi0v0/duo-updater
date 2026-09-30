@@ -1,0 +1,332 @@
+import Foundation
+import Security
+
+/// One copy of Claude Code on this Mac, identified by **where it is**.
+///
+/// Claude Code is the first command-line tool DuoUpdater tracks, and it is not an
+/// `.app`: nothing the bundle scanner finds, no Info.plist (`codesign` reports
+/// `Info.plist=not bound`). What makes it trackable anyway is that every way of
+/// installing it lands the *same* Developer ID binary — Team `Q6L2SF6YDW`,
+/// signed identifier `com.anthropic.claude-code` — so the signature is as hard an
+/// anchor as it is for an app, and the vendor publishes a per-version manifest
+/// (size + sha256 per platform) that pins which release a file is.
+///
+/// Identity is the path. Two copies under two nvm node versions are two installs,
+/// each updated by its own npm; a native install and an npm install are never
+/// merged, and an update never moves a copy from one to the other. `method` says
+/// who installed it, and so who is allowed to update it.
+public struct ClaudeCodeInstall: Sendable, Equatable, Codable {
+
+    /// Who put it there, read from the layout on disk — never from `PATH`, which
+    /// a GUI process does not have.
+    public enum Method: String, Sendable, Codable {
+        /// `curl -fsSL https://claude.ai/install.sh | bash`: `~/.local/bin/claude`
+        /// is a symlink into `~/.local/share/claude/versions/<version>`.
+        case native
+        /// `npm install -g @anthropic-ai/claude-code` under one node prefix.
+        case npm
+        /// `pnpm add -g`, under pnpm's content-addressed `.pnpm` store.
+        case pnpm
+        /// `bun add -g`. Layout not verified on a real install yet.
+        case bun
+        /// A path the user added that matches none of the layouts above.
+        case unknown
+    }
+
+    public enum Origin: String, Sendable, Codable {
+        /// Found by looking where the vendor's installers put it.
+        case conventional
+        /// Added by hand, for a layout we do not look in by ourselves.
+        case userAdded
+    }
+
+    /// Whether the executable is Anthropic's, checked against the code seal —
+    /// not just what the signature *claims*, which a tampered file still reports.
+    public enum Signature: String, Sendable, Codable {
+        case anthropic
+        /// Signed, and the seal is intact, but not by Anthropic's team — or not
+        /// as `com.anthropic.claude-code`.
+        case otherSigner
+        /// Unsigned, a broken seal, or not code at all.
+        case invalid
+    }
+
+    public enum Problem: String, Sendable, Codable {
+        /// The launcher points at nothing, or at a zero-byte file — what a failed
+        /// native install leaves behind in `versions/`.
+        case executableMissing
+        /// The npm-family package is present but its native binary is not: pnpm 10
+        /// and bun skip postinstall by default, and then `bin/claude.exe` is a
+        /// 500-byte script that prints "claude native binary not installed".
+        case nativeBinaryNotLinked
+    }
+
+    /// The identity: the launcher for a native install, the package directory for
+    /// the npm family, or whatever the user added.
+    public let path: String
+    public let method: Method
+    public let origin: Origin
+    /// The file that actually runs, symlinks resolved.
+    public let executable: String?
+    /// What the layout says the version is: the `versions/` file name, or the
+    /// package's `package.json`. A claim until `ClaudeCodeRelease.confirm` has
+    /// held it against the vendor's manifest.
+    public let version: String?
+    public let signature: Signature?
+    public let problem: Problem?
+    /// The node prefix an npm install lives in. Its own `bin/node` and `bin/npm`
+    /// are the only tools that may update it.
+    public let nodePrefix: String?
+
+    public init(
+        path: String, method: Method, origin: Origin, executable: String?,
+        version: String?, signature: Signature?, problem: Problem?, nodePrefix: String? = nil
+    ) {
+        self.path = path
+        self.method = method
+        self.origin = origin
+        self.executable = executable
+        self.version = version
+        self.signature = signature
+        self.problem = problem
+        self.nodePrefix = nodePrefix
+    }
+}
+
+/// Finds Claude Code installs: convention first — the places each vendor-documented
+/// installer writes to — plus any paths the user added by hand.
+///
+/// Network-free and does not run the binary: every fact comes from the layout, the
+/// package metadata and the code signature.
+public struct ClaudeCodeScanner: Sendable {
+
+    public static let teamIdentifier = "Q6L2SF6YDW"
+    public static let signingIdentifier = "com.anthropic.claude-code"
+    static let packagePath = "node_modules/@anthropic-ai/claude-code"
+
+    /// Checks a file's signature. Injected so tests can build fake installs out of
+    /// plain files without depending on what is signed on the host.
+    public typealias SignatureCheck = @Sendable (URL) -> ClaudeCodeInstall.Signature
+
+    let home: URL
+    let systemPrefixes: [URL]
+    let checkSignature: SignatureCheck
+
+    public init(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        systemPrefixes: [URL] = [URL(fileURLWithPath: "/opt/homebrew"), URL(fileURLWithPath: "/usr/local")],
+        checkSignature: @escaping SignatureCheck = ClaudeCodeScanner.verifyAnthropicSignature
+    ) {
+        self.home = home
+        self.systemPrefixes = systemPrefixes
+        self.checkSignature = checkSignature
+    }
+
+    /// Every install found, conventional ones first, each path at most once.
+    /// Blocking file-system and Security work: keep it off the cooperative pool.
+    public func scan(userPaths: [String] = []) -> [ClaudeCodeInstall] {
+        var found: [ClaudeCodeInstall] = []
+        if let native = nativeInstall() { found.append(native) }
+        for prefix in nodePrefixes() {
+            if let npm = packageInstall(
+                at: prefix.appendingPathComponent("lib").appendingPathComponent(Self.packagePath),
+                method: .npm, origin: .conventional, nodePrefix: prefix
+            ) {
+                found.append(npm)
+            }
+        }
+        found.append(contentsOf: pnpmInstalls())
+        if let bun = packageInstall(
+            at: home.appendingPathComponent(".bun/install/global").appendingPathComponent(Self.packagePath),
+            method: .bun, origin: .conventional
+        ) {
+            found.append(bun)
+        }
+        var seen = Set(found.map(\.path))
+        for raw in userPaths {
+            guard let install = userInstall(at: raw), seen.insert(install.path).inserted else { continue }
+            found.append(install)
+        }
+        return found.filter { Self.owningApp(of: $0.path) == nil && Self.owningApp(of: $0.executable) == nil }
+    }
+
+    /// The `.app` a path lives inside — as given, or once symlinks are resolved —
+    /// or nil.
+    ///
+    /// A copy inside an app bundle belongs to that app: it ships and updates with
+    /// it (Claude.app runs its own `…/claude-code/<v>/claude.app/Contents/MacOS/claude`;
+    /// `~/.local/bin/cua-driver` links into `CuaDriver.app`). Detecting it would
+    /// report an "update" the app is about to deliver itself, and updating it would
+    /// break the bundle's seal — so such a path is neither checked nor updated,
+    /// even when the user adds it by hand.
+    public static func owningApp(of path: String?) -> URL? {
+        guard let path, !path.isEmpty else { return nil }
+        let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
+        for candidate in [url, url.resolvingSymlinksInPath()] {
+            var directory = candidate
+            while directory.path != "/" {
+                if directory.pathExtension.lowercased() == "app" { return directory }
+                directory.deleteLastPathComponent()
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Native
+
+    var nativeLauncher: URL { home.appendingPathComponent(".local/bin/claude") }
+    var nativeVersions: URL { home.appendingPathComponent(".local/share/claude/versions") }
+
+    /// The launcher is the install; the `versions/` entry it points at is which
+    /// release it runs. Older entries beside it are the native installer's own
+    /// rollback copies, not further installs.
+    func nativeInstall() -> ClaudeCodeInstall? {
+        let fm = FileManager.default
+        let launcher = nativeLauncher
+        guard let destination = try? fm.destinationOfSymbolicLink(atPath: launcher.path) else {
+            // A regular file here is a custom launcher, which the docs allow (it
+            // "decides which version runs"). We cannot tell which version that is
+            // without running it, so it is not reported as a native install.
+            return nil
+        }
+        let target = URL(fileURLWithPath: destination, relativeTo: launcher.deletingLastPathComponent())
+            .standardizedFileURL
+        guard target.deletingLastPathComponent().path == nativeVersions.standardizedFileURL.path else {
+            return nil
+        }
+        return ClaudeCodeInstall(
+            path: launcher.path, method: .native, origin: .conventional,
+            executable: target.path, version: target.lastPathComponent,
+            signature: nonEmptyFile(target) ? checkSignature(target) : nil,
+            problem: nonEmptyFile(target) ? nil : .executableMissing)
+    }
+
+    // MARK: - npm family
+
+    /// Node prefixes whose `lib/node_modules` is a global npm root: Homebrew's and
+    /// `/usr/local`'s node, and each node version nvm manages.
+    func nodePrefixes() -> [URL] {
+        var prefixes = systemPrefixes
+        let nvm = home.appendingPathComponent(".nvm/versions/node")
+        let versions = (try? FileManager.default.contentsOfDirectory(atPath: nvm.path)) ?? []
+        prefixes += versions.sorted().map { nvm.appendingPathComponent($0) }
+        prefixes.append(home.appendingPathComponent(".npm-global"))
+        return prefixes
+    }
+
+    /// pnpm's global directory on macOS is `~/Library/pnpm/global/<layout version>`,
+    /// whose `node_modules/@anthropic-ai/claude-code` links into `.pnpm/…`.
+    func pnpmInstalls() -> [ClaudeCodeInstall] {
+        let root = home.appendingPathComponent("Library/pnpm/global")
+        let layouts = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
+        return layouts.sorted().compactMap {
+            packageInstall(
+                at: root.appendingPathComponent($0).appendingPathComponent(Self.packagePath),
+                method: .pnpm, origin: .conventional)
+        }
+    }
+
+    /// The package directory is the install. Its `bin/claude.exe` is what the
+    /// package manager's shim runs; postinstall hard-links the platform package's
+    /// binary there, and when postinstall was skipped it is a placeholder script.
+    func packageInstall(
+        at package: URL, method: ClaudeCodeInstall.Method, origin: ClaudeCodeInstall.Origin,
+        nodePrefix: URL? = nil
+    ) -> ClaudeCodeInstall? {
+        let manifest = package.appendingPathComponent("package.json")
+        guard let data = try? Data(contentsOf: manifest),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              json["name"] as? String == "@anthropic-ai/claude-code"
+        else { return nil }
+        let executable = package.appendingPathComponent("bin/claude.exe").resolvingSymlinksInPath()
+        let isBinary = Self.isMachO(executable)
+        return ClaudeCodeInstall(
+            path: package.path, method: method, origin: origin,
+            executable: executable.path, version: json["version"] as? String,
+            signature: isBinary ? checkSignature(executable) : nil,
+            problem: isBinary ? nil : .nativeBinaryNotLinked,
+            nodePrefix: nodePrefix?.path)
+    }
+
+    // MARK: - User-added
+
+    /// A path the user pointed at: a launcher, a binary, or a package directory.
+    /// It gets the same reading as a conventional one when its layout is one we
+    /// know, so a native install or npm prefix outside the usual places can still
+    /// be updated the way its installer would; otherwise it is detection only.
+    func userInstall(at raw: String) -> ClaudeCodeInstall? {
+        let url = URL(fileURLWithPath: (raw as NSString).expandingTildeInPath).standardizedFileURL
+        let resolved = url.resolvingSymlinksInPath()
+        if url.path.hasSuffix("/" + Self.packagePath) {
+            return userPackage(url)
+        }
+        if let range = resolved.path.range(of: "/" + Self.packagePath + "/") {
+            return userPackage(URL(fileURLWithPath: String(resolved.path[..<range.lowerBound]) + "/" + Self.packagePath))
+        }
+        guard nonEmptyFile(resolved) else { return nil }
+        let signature = checkSignature(resolved)
+        // Nothing to say it is Claude Code but the signature — so a file that is
+        // not Anthropic's is not reported at all, rather than as a broken install.
+        guard signature == .anthropic else { return nil }
+        let version = resolved.deletingLastPathComponent().lastPathComponent == "versions"
+            ? resolved.lastPathComponent : nil
+        return ClaudeCodeInstall(
+            path: url.path, method: .unknown, origin: .userAdded,
+            executable: resolved.path, version: version, signature: signature, problem: nil)
+    }
+
+    /// A package directory outside the conventional roots, classified by the same
+    /// layout rules: inside a `.pnpm` store it is pnpm's; directly under a node
+    /// prefix (`<prefix>/lib/node_modules/…`) with that prefix's own `bin/npm`, it
+    /// is npm's and is updated by that npm.
+    func userPackage(_ package: URL) -> ClaudeCodeInstall? {
+        let path = package.resolvingSymlinksInPath().path
+        if path.contains("/.pnpm/") {
+            return packageInstall(at: package, method: .pnpm, origin: .userAdded)
+        }
+        let suffix = "/lib/" + Self.packagePath
+        if package.path.hasSuffix(suffix) {
+            let prefix = URL(fileURLWithPath: String(package.path.dropLast(suffix.count)))
+            if FileManager.default.fileExists(atPath: prefix.appendingPathComponent("bin/npm").path) {
+                return packageInstall(at: package, method: .npm, origin: .userAdded, nodePrefix: prefix)
+            }
+        }
+        return packageInstall(at: package, method: .unknown, origin: .userAdded)
+    }
+
+    // MARK: - Files
+
+    func nonEmptyFile(_ url: URL) -> Bool {
+        let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+        return size > 0
+    }
+
+    /// A Mach-O (thin or fat) header, as opposed to the placeholder shell script
+    /// the npm package ships at `bin/claude.exe` until postinstall replaces it.
+    static func isMachO(_ url: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        guard let head = try? handle.read(upToCount: 4), head.count == 4 else { return false }
+        let magic = head.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
+        return [0xFEEDFACF, 0xCFFAEDFE, 0xCAFEBABE, 0xBEBAFECA].contains(magic)
+    }
+
+    /// The code seal must be intact **and** satisfy Anthropic's designated
+    /// requirement — a Developer ID leaf for team `Q6L2SF6YDW` with identifier
+    /// `com.anthropic.claude-code` — before anything about the file is believed.
+    public static func verifyAnthropicSignature(_ url: URL) -> ClaudeCodeInstall.Signature {
+        var code: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(url as CFURL, [], &code) == errSecSuccess, let code else {
+            return .invalid
+        }
+        let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSStrictValidate)
+        guard SecStaticCodeCheckValidity(code, flags, nil) == errSecSuccess else { return .invalid }
+        let text = "anchor apple generic and certificate leaf[subject.OU] = \"\(teamIdentifier)\""
+            + " and identifier \"\(signingIdentifier)\""
+        var requirement: SecRequirement?
+        guard SecRequirementCreateWithString(text as CFString, [], &requirement) == errSecSuccess,
+              let requirement
+        else { return .invalid }
+        return SecStaticCodeCheckValidity(code, [], requirement) == errSecSuccess ? .anthropic : .otherSigner
+    }
+}

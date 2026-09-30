@@ -32,16 +32,8 @@ public enum ClaudeCode {
                     "skipped \(path): installed by the Homebrew cask \(cask), which brew upgrade updates\n".utf8))
             }
         }
-        let (installs, settings) = await offCooperativePool {
-            (ClaudeCodeScanner().scan(userPaths: options.userPaths), ClaudeCodeSettings.read())
-        }
-        let processes = await offCooperativePool { ClaudeCodeActivity.runningProcesses() }
-        let check = ClaudeCodeCheck()
-        var statuses: [ClaudeCodeStatus] = []
-        for install in installs {
-            let busy = ClaudeCodeActivity.busy(install, processes: processes)
-            statuses.append(await check.status(of: install, settings: settings, busy: busy))
-        }
+        let report = await ClaudeCodeReport.check(userPaths: options.userPaths)
+        let (settings, statuses) = (report.settings, report.statuses)
 
         if options.json {
             let encoder = JSONEncoder()

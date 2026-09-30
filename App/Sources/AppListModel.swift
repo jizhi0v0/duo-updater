@@ -974,6 +974,9 @@ final class AppListModel {
     }
     @ObservationIgnored private var heldBadgeCount = 0
 
+    /// Command-line tools that are not Homebrew's (Claude Code). See `CLIToolsModel`.
+    let cliTools = CLIToolsModel()
+
     // MARK: - Homebrew formulae (CLI tools)
     //
     // A standalone surface that mirrors a bare terminal `brew upgrade`, scoped to

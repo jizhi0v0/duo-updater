@@ -81,7 +81,7 @@ public enum GitHubMarkdownParser {
 
     // MARK: - Internals
 
-    private static let skippedSectionKeywords = [
+    static let skippedSectionKeywords = [
         "new contributors", "contributors", "full changelog",
     ]
 
@@ -302,7 +302,7 @@ public enum GitHubMarkdownParser {
     /// must still yield nothing, and without this the bare link became its one
     /// "change". A sentence that merely CONTAINS a URL is untouched (kitty's notes
     /// are exactly that), because the whole line has to be the URL.
-    private static func isBareURL(_ line: String) -> Bool {
+    static func isBareURL(_ line: String) -> Bool {
         line.range(of: #"^<?https?://\S+>?$"#, options: .regularExpression) != nil
     }
 
@@ -313,7 +313,7 @@ public enum GitHubMarkdownParser {
     /// `<a href="…dmg"><img src="…" alt="Download for macOS"/></a>` button. Neither
     /// is a change, and as an "item" both are markup the reader cannot use — the
     /// HTML one worse, since it reaches the pane as literal angle brackets.
-    private static func isImageOnly(_ line: String) -> Bool {
+    static func isImageOnly(_ line: String) -> Bool {
         line.range(
             of: #"^\[?!\[[^\]]*\]\([^)]*\)\]?(\([^)]*\))?$"#,
             options: .regularExpression) != nil
@@ -323,7 +323,7 @@ public enum GitHubMarkdownParser {
     }
 
     /// A checksum label (`… SHA256 …:`) or a line carrying a 32+ character hex run.
-    private static func isChecksum(_ line: String) -> Bool {
+    static func isChecksum(_ line: String) -> Bool {
         let lower = line.lowercased()
         if lower.hasSuffix(":"),
            lenientExtraSkipKeywords.contains(where: { lower.contains($0) }) {

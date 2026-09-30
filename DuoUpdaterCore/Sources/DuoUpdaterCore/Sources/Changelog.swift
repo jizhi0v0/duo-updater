@@ -216,6 +216,13 @@ public struct Changelog: Codable, Sendable, Hashable {
         /// populate this independent of the other, so an entry can carry headings
         /// with no images, images with no headings, or both.
         public let content: [Block]
+        /// The notes as Markdown to render as written — the author's own headings,
+        /// nested lists, code and emphasis — with the lines not worth showing
+        /// already taken out (`AppcastMarkdownParser.renderableMarkdown`). Set only
+        /// where the source IS Markdown (Sparkle's inline Markdown notes); nil
+        /// everywhere else. When set, the Workbench renders this instead of
+        /// `content`/`items`, which stay populated for text-only consumers.
+        public let markdown: String?
 
         /// One ordered piece of a rich entry: a change line, an embedded image, or
         /// a category heading (`### Added`, `### Fixed`, …) worth styling as its
@@ -229,13 +236,14 @@ public struct Changelog: Codable, Sendable, Hashable {
 
         public init(
             title: String? = nil, version: String, date: String?,
-            items: [String], content: [Block] = []
+            items: [String], content: [Block] = [], markdown: String? = nil
         ) {
             self.title = title
             self.version = version
             self.date = date
             self.items = items
             self.content = content
+            self.markdown = markdown
         }
 
         // Custom decode so an `Entry` encoded before `content` existed still
@@ -252,6 +260,7 @@ public struct Changelog: Codable, Sendable, Hashable {
             date = try c.decodeIfPresent(String.self, forKey: .date)
             items = try c.decode([String].self, forKey: .items)
             content = try c.decodeIfPresent([Block].self, forKey: .content) ?? []
+            markdown = try c.decodeIfPresent(String.self, forKey: .markdown)
         }
     }
 }

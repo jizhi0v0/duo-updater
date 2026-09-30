@@ -318,7 +318,14 @@ import Foundation
         let outcome = await updater(
             box, deadline: .init(terminateAfter: .seconds(1), killAfter: .seconds(3))
         ).update(scriptStatus(box, "run"))
-        #expect(outcome == .failed(message: "stopped: still running after 1 s", output: "started"))
+        // The message only. Whether "started" made it into the log before SIGTERM
+        // is up to the scheduler: in the full parallel `make test` the child was
+        // stopped before its first line (2026-09-30, output ""), so pinning the
+        // log here would pin the machine's load, not the deadline rule.
+        guard case .failed(let message, _) = outcome else {
+            Issue.record("expected a failure, got \(outcome)"); return
+        }
+        #expect(message == "stopped: still running after 1 s")
     }
 
     /// Cancelling the task does not stop the child: an update killed halfway is

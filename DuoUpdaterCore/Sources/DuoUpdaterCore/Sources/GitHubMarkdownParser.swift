@@ -90,7 +90,7 @@ public enum GitHubMarkdownParser {
     /// (the bullet passes, the prose pass, and `qualifyingHeadings`) agrees on
     /// what counts as a heading; each lowercases the result itself where a
     /// case-insensitive comparison is what it needs.
-    private static func headingRawText(of trimmedLine: String) -> String? {
+    static func headingRawText(of trimmedLine: String) -> String? {
         guard trimmedLine.hasPrefix("#") else { return nil }
         return trimmedLine
             .drop(while: { $0 == "#" })
@@ -164,8 +164,13 @@ public enum GitHubMarkdownParser {
     /// with a fixture reproducing the shape this fixes: two headings live only
     /// between a pair of ``` fences, alongside two real ones outside — before,
     /// all four rendered as `.heading` blocks; after, only the two real ones do.
-    private static func qualifyingHeadings(
-        in body: String, skipSections: [String], extraSkipKeywords: [String] = []
+    ///
+    /// Also the rule for Sparkle Markdown notes (`AppcastMarkdownParser.entry`) —
+    /// a change here moves those headings too. That caller alone passes
+    /// `allowingVersionLike`, which drops the digit test; see its doc comment.
+    static func qualifyingHeadings(
+        in body: String, skipSections: [String], extraSkipKeywords: [String] = [],
+        allowingVersionLike: Bool = false
     ) -> Set<String> {
         var candidates: [String] = []
         var inCodeBlock = false
@@ -178,7 +183,7 @@ public enum GitHubMarkdownParser {
             if skippedSectionKeywords.contains(where: { lowered.contains($0) }) { continue }
             if extraSkipKeywords.contains(where: { lowered.contains($0) }) { continue }
             if isSkipped(lowered, by: skipSections) { continue }
-            if isVersionLikeHeading(raw) { continue }
+            if !allowingVersionLike, isVersionLikeHeading(raw) { continue }
             candidates.append(raw)
         }
         return candidates.count >= 2 ? Set(candidates) : []
@@ -190,7 +195,7 @@ public enum GitHubMarkdownParser {
     /// got dropped — `Changelog.Entry.content`'s own doc comment promises it is
     /// populated only when there is something extra to walk, so that case must
     /// reset to `[]` exactly like the "no headings qualified at all" case does.
-    private static func hasHeadingBlock(_ content: [Changelog.Entry.Block]) -> Bool {
+    static func hasHeadingBlock(_ content: [Changelog.Entry.Block]) -> Bool {
         content.contains { if case .heading = $0 { return true }; return false }
     }
 

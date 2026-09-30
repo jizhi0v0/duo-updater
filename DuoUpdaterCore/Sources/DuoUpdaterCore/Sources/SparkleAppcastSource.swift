@@ -199,9 +199,9 @@ public struct SparkleAppcastSource: UpdateSource {
             let date = AppcastMarkdownParser.displayDate(from: item.pubDate)
 
             if let md = item.markdownDescription {
-                let notes = AppcastMarkdownParser.items(from: md)
-                guard !notes.isEmpty else { continue }
-                entries.append(Changelog.Entry(version: version, date: date, items: notes))
+                guard let entry = AppcastMarkdownParser.entry(from: md, version: version, date: date)
+                else { continue }
+                entries.append(entry)
                 seen.insert(version)
                 continue
             }

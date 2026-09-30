@@ -62,7 +62,9 @@ public struct ClaudeCodeStatus: Sendable, Equatable, Codable {
         case busy
         /// The file on disk is not the release its layout names.
         case versionMismatch
-        /// No vendor-documented update for this installer (pnpm, bun, unknown).
+        /// No vendor-documented update for this installer (pnpm, bun, unknown) —
+        /// or an npm install whose prefix lacks its own `bin/node` or `bin/npm`,
+        /// the only tools allowed to update it.
         case unsupportedInstaller
     }
 

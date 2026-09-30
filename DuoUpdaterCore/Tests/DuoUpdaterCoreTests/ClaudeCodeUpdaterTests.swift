@@ -102,6 +102,7 @@ import Foundation
         let versions = box.home.appendingPathComponent(".local/share/claude/versions").path
         let launcher = box.home.appendingPathComponent(".local/bin/claude").path
         try box.script("home/.local/share/claude/versions/2.1.280", """
+            echo "PATH=$PATH"
             echo "Current version: 2.1.280"
             echo "Checking for updates to latest version..."
             echo "Updating to 2.1.285..."
@@ -163,7 +164,8 @@ import Foundation
 
     /// The native command `ClaudeCodeCheck` offers, run for real against the fake
     /// install: every line reaches `progress`, and the version reported is what
-    /// the launcher points at *afterwards*.
+    /// the launcher points at *afterwards*. The launcher's own directory is first
+    /// on `PATH`, so the real one has no "not in your PATH" warning to print.
     @Test func nativeUpdateReportsTheVersionTheLauncherNowNames() async throws {
         let box = try Sandbox()
         let install = try nativeInstall(box)
@@ -172,6 +174,7 @@ import Foundation
         let outcome = await updater(box).update(status(install, oneClick: command), progress: { lines.add($0) })
         #expect(outcome == .updated(version: "2.1.285"))
         #expect(lines.all == [
+            "PATH=\(box.home.path)/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
             "Current version: 2.1.280",
             "Checking for updates to latest version...",
             "Updating to 2.1.285...",
@@ -234,7 +237,9 @@ import Foundation
         guard case .failed(let message, let output) = await updater(box).update(scriptStatus(box, "run")) else {
             Issue.record("expected a failure"); return
         }
-        #expect(message == "TelemetrySafeError: Failed to fetch version from https://downloads.claude.ai/claude-code-releases/latest after 3 attempt(s): connect ECONNREFUSED 127.0.0.1:9")
+        // Without the internal class name; the log keeps the line as printed.
+        #expect(message == "Failed to fetch version from https://downloads.claude.ai/claude-code-releases/latest after 3 attempt(s): connect ECONNREFUSED 127.0.0.1:9")
+        #expect(output.contains("\nTelemetrySafeError: Failed to fetch version"))
         // stderr is in the log, in order.
         #expect(output.split(separator: "\n").count == 5)
         #expect(output.hasSuffix(#"Try running "claude doctor" for diagnostics"#))
@@ -316,18 +321,21 @@ import Foundation
         #expect(outcome == .failed(message: "stopped: still running after 1 s", output: "started"))
     }
 
-    /// Cancelling the task stops the child (SIGTERM first — the default deadline's
-    /// ladder) instead of waiting it out.
-    @Test func cancellingStopsTheCommand() async throws {
+    /// Cancelling the task does not stop the child: an update killed halfway is
+    /// worse than one allowed to finish. It runs to its end and the outcome is
+    /// reported as if nothing had happened.
+    @Test func cancellingLetsTheCommandFinish() async throws {
         let box = try Sandbox()
-        try box.script("run", "echo started\nexec sleep 8")
+        try box.script("run", "echo started\nsleep 1\ntouch '\(box.path("finished"))'\necho done")
         let (started, signal) = AsyncStream<Void>.makeStream()
         let update = updater(box)
         let status = scriptStatus(box, "run")
         let task = Task { await update.update(status, progress: { _ in signal.yield() }) }
         for await _ in started { break }
         task.cancel()
-        #expect(await task.value == .failed(message: "cancelled", output: "started"))
+        // The fake install is not on disk, so there is no version to re-read.
+        #expect(await task.value == .updated(version: nil))
+        #expect(box.exists("finished"))
     }
 
     // MARK: - Output

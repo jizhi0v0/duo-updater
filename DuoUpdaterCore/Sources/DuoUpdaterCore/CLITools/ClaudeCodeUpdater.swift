@@ -87,21 +87,20 @@ public struct ClaudeCodeUpdater: Sendable {
         }
 
         var environment = self.environment()
-        environment["PATH"] = Self.path(prefix: command.pathPrefix)
+        environment["PATH"] = Self.path(prefix: Self.pathPrefix(command, install))
         let log = OutputLog(onLine: progress)
         let outcome: ChildProcess.Outcome
         do {
-            // `.terminateChild`: cancelling is the user saying stop. With the
-            // deadline set, the teardown is its ladder — SIGTERM, then SIGKILL
-            // after the grace — not an immediate SIGKILL.
+            // Runs to completion if the caller is cancelled, as brew's upgrade
+            // does: this replaces what is installed, and a kill halfway is worse
+            // than letting it finish — an interrupted `npm install -g` may leave a
+            // half-installed package (not measured either way, so the safe side).
+            // The deadline still stops a child that hangs.
             outcome = try await ChildProcess.run(
                 command.executable, command.arguments, environment: environment,
                 standardOutput: .discard, standardError: .mergeIntoOutput,
-                deadline: deadline, onCancel: .terminateChild,
+                deadline: deadline, onCancel: .runToCompletion,
                 onOutputChunk: { log.append($0) })
-        } catch is CancellationError {
-            log.finish()
-            return .failed(message: "cancelled", output: log.text)
         } catch {
             log.finish()
             return .failed(message: "could not run \(command.executable): \(error)", output: log.text)
@@ -131,6 +130,17 @@ public struct ClaudeCodeUpdater: Sendable {
         [prefix, systemPath].compactMap { $0 }.joined(separator: ":")
     }
 
+    /// The command's own prefix; for a native install, the launcher's directory
+    /// (`~/.local/bin`). Without it `claude update` prints "Warning: Native
+    /// installation exists but ~/.local/bin is not in your PATH" and a `Fix:` line
+    /// telling the user to edit `~/.zshrc` (2.1.280 and 2.1.285, measured
+    /// 2026-09-30) — advice about the app's environment, not the user's shell.
+    static func pathPrefix(_ command: ClaudeCodeStatus.Command, _ install: ClaudeCodeInstall) -> String? {
+        if let prefix = command.pathPrefix { return prefix }
+        guard install.method == .native else { return nil }
+        return (install.path as NSString).deletingLastPathComponent
+    }
+
     // MARK: - Afterwards
 
     /// The install at the same path, read from disk again. A full scan rather than
@@ -154,7 +164,9 @@ public struct ClaudeCodeUpdater: Sendable {
     ///     TelemetrySafeError: Failed to fetch version from https://downloads.claude.ai/claude-code-releases/latest after 3 attempt(s): connect ECONNREFUSED 127.0.0.1:9
     ///     Try running "claude doctor" for diagnostics
     ///
-    /// The reason is the middle one. `claude install` ends on its reason instead,
+    /// The reason is the middle one, shown without its `TelemetrySafeError: `
+    /// prefix — the name of an internal error class, not something for the user
+    /// to read (`output` keeps it). `claude install` ends on its reason instead,
     /// after a bare `✘ Installation failed`.
     ///
     /// npm needs its own rule. Its last line is always the pointer to its debug log
@@ -176,7 +188,8 @@ public struct ClaudeCodeUpdater: Sendable {
         }
         if let npm = npmReason(lines) { return npm }
         if let last = lines.last(where: { isMeaningful($0) && !$0.hasPrefix(claudeDoctorHint) }) {
-            return last.trimmingCharacters(in: .whitespaces)
+            let line = last.trimmingCharacters(in: .whitespaces)
+            return line.hasPrefix(telemetrySafeError) ? String(line.dropFirst(telemetrySafeError.count)) : line
         }
         return outcome.uncaughtSignal
             ? "terminated by signal \(outcome.terminationStatus)"
@@ -184,6 +197,7 @@ public struct ClaudeCodeUpdater: Sendable {
     }
 
     static let claudeDoctorHint = #"Try running "claude doctor""#
+    static let telemetrySafeError = "TelemetrySafeError: "
 
     static func isMeaningful(_ line: String) -> Bool {
         line.unicodeScalars.contains { CharacterSet.letters.contains($0) }

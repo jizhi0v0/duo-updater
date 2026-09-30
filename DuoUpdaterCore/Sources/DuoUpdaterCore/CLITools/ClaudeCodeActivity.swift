@@ -40,6 +40,11 @@ public enum ClaudeCodeActivity {
     }
 
     /// The first sign of an update in flight for `install`, or nil.
+    ///
+    /// `~/.local/state/claude/locks/<version>.lock` is deliberately not a sign:
+    /// every running native session holds one on the version it runs (JSON with
+    /// `pid`, `version`, `execPath`, `acquiredAt`; measured 2026-09-30), so it
+    /// means "in use", not "updating".
     public static func busy(
         _ install: ClaudeCodeInstall,
         processes: [Process],
@@ -52,14 +57,10 @@ public enum ClaudeCodeActivity {
             for process in processes where isClaudeUpdateCommand(process.arguments) {
                 return .updateCommand(process.pid)
             }
-            // Observed layout (one `claude install` on 2026-09-30, n=1):
-            // `staging/<version>.<pid>.<epoch ms>/`, plus a zero-byte
-            // `versions/<version>` placeholder the whole time it downloads.
             let entries = (try? FileManager.default.contentsOfDirectory(atPath: stagingDirectory.path)) ?? []
             for entry in entries.sorted() {
-                let parts = entry.split(separator: ".")
-                guard parts.count >= 3, let pid = pid_t(parts[parts.count - 2]), isAlive(pid) else { continue }
-                return .staging(version: parts.dropLast(2).joined(separator: "."), pid: pid)
+                guard let (version, pid) = stagingOwner(entry), isAlive(pid) else { continue }
+                return .staging(version: version, pid: pid)
             }
             return nil
         case .npm, .pnpm, .bun:
@@ -68,6 +69,27 @@ public enum ClaudeCodeActivity {
             }
             return nil
         }
+    }
+
+    /// The version and pid a native staging directory's name carries, or nil.
+    ///
+    /// Two shapes, both measured 2026-09-30 in a scratch HOME while downloading,
+    /// and matching the template string in each binary:
+    /// - up to 2.1.274: `<version>.<pid>.<epoch ms>`;
+    /// - 2.1.280 and later: `<version>.<pid>.<epoch ms>.<8 hex digits>`.
+    ///
+    /// Behind a flag the directory is the bare `<version>`, with no pid to check;
+    /// that is not read as busy. The epoch is what tells the shapes apart: read
+    /// loosely, `2.1.285` is "version 2, pid 1" — and pid 1, launchd, is always alive.
+    static func stagingOwner(_ name: String) -> (version: String, pid: pid_t)? {
+        var parts = name.split(separator: ".")
+        // An epoch in ms has 13 digits, so an 8-character suffix is never it.
+        if parts.count >= 4, let last = parts.last, last.count == 8, last.allSatisfy(\.isHexDigit) {
+            parts.removeLast()
+        }
+        guard parts.count >= 3, let epoch = parts.last, epoch.count >= 12, epoch.allSatisfy(\.isASCII),
+              epoch.allSatisfy(\.isNumber), let pid = pid_t(parts[parts.count - 2]) else { return nil }
+        return (parts.dropLast(2).joined(separator: "."), pid)
     }
 
     /// `claude update`, `claude install [target]` — however the binary was named.

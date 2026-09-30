@@ -27,6 +27,9 @@ public enum ClaudeCode {
             if let app = ClaudeCodeScanner.owningApp(of: path) {
                 FileHandle.standardError.write(Data(
                     "skipped \(path): inside \(app.path), which ships and updates it\n".utf8))
+            } else if let cask = ClaudeCodeScanner.homebrewCask(of: path) {
+                FileHandle.standardError.write(Data(
+                    "skipped \(path): installed by the Homebrew cask \(cask), which brew upgrade updates\n".utf8))
             }
         }
         let (installs, settings) = await offCooperativePool {

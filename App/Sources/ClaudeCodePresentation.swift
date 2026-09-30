@@ -143,6 +143,9 @@ enum ClaudeCodePresentation {
             }
             let name = Self.installer(status.install.method)
             return String(localized: "Anthropic documents no update command for \(name) installs, so this copy is only reported.")
+        case .noOwnNpm:
+            let tag = status.channel.rawValue
+            return String(localized: "This npm prefix has no node or npm of its own, so DuoUpdater can’t tell which npm installed this copy and only reports updates. To update it, run npm install -g @anthropic-ai/claude-code@\(tag) with the npm that installed it.")
         }
     }
 

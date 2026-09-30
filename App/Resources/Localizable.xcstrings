@@ -22323,71 +22323,6 @@
         }
       }
     },
-    "No one-click update for pnpm or bun installs": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kein Ein-Klick-Update für pnpm oder bun"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sin actualización en un clic para pnpm o bun"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pas de mise à jour en un clic pour pnpm ou bun"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nessun aggiornamento in un clic per pnpm o bun"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "pnpm・bun はワンクリック更新に非対応"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sem atualização em um clique para pnpm ou bun"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для pnpm и bun нет обновления в один клик"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "pnpm veya bun için tek tıkla güncelleme yok"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "pnpm 或 bun 的安装不支持一键更新"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "pnpm 或 bun 的安裝不支援一鍵更新"
-          }
-        }
-      }
-    },
     "Not signed by Anthropic": {
       "extractionState": "manual",
       "localizations": {
@@ -55562,6 +55497,201 @@
           "stringUnit": {
             "state": "translated",
             "value": "顯示套件"
+          }
+        }
+      }
+    },
+    "No one-click update for this kind of install": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Ein-Klick-Update für diese Installationsart"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin actualización en un clic para este tipo de instalación"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas de mise à jour en un clic pour ce type d’installation"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun aggiornamento in un clic per questo tipo di installazione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この種類のインストールはワンクリック更新に非対応"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sem atualização em um clique para este tipo de instalação"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для такой установки нет обновления в один клик"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kurulum türü için tek tıkla güncelleme yok"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这种安装方式不支持一键更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這種安裝方式不支援一鍵更新"
+          }
+        }
+      }
+    },
+    "Can’t tell which npm installed it": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unklar, welches npm es installiert hat"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se sabe qué npm lo instaló"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de savoir quel npm l’a installé"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non si sa quale npm l’ha installato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "どの npm でインストールしたか判別できません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não dá para saber qual npm o instalou"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неясно, каким npm это установлено"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hangi npm ile kurulduğu anlaşılamıyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法判断是哪个 npm 安装的"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法判斷是哪個 npm 安裝的"
+          }
+        }
+      }
+    },
+    "This npm prefix has no node or npm of its own, so DuoUpdater can’t tell which npm installed this copy and only reports updates. To update it, run npm install -g @anthropic-ai/claude-code@%@ with the npm that installed it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses npm-Präfix hat kein eigenes node oder npm, daher kann DuoUpdater nicht erkennen, mit welchem npm diese Kopie installiert wurde, und meldet Updates nur. Führe zum Aktualisieren npm install -g @anthropic-ai/claude-code@%@ mit dem npm aus, das sie installiert hat."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este prefijo de npm no tiene node ni npm propios, así que DuoUpdater no puede saber qué npm instaló esta copia y solo notifica las actualizaciones. Para actualizarla, ejecuta npm install -g @anthropic-ai/claude-code@%@ con el npm que la instaló."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce préfixe npm n’a ni node ni npm à lui ; DuoUpdater ne peut donc pas savoir quel npm a installé cette copie et se contente de signaler les mises à jour. Pour la mettre à jour, exécutez npm install -g @anthropic-ai/claude-code@%@ avec le npm qui l’a installée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo prefisso npm non ha un node né un npm propri, quindi DuoUpdater non può sapere quale npm ha installato questa copia e si limita a segnalare gli aggiornamenti. Per aggiornarla, esegui npm install -g @anthropic-ai/claude-code@%@ con l’npm che l’ha installata."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この npm プレフィックスには専用の node も npm もないため、DuoUpdater はどの npm でこのコピーをインストールしたか判別できず、アップデートの報告のみ行います。更新するには、インストールに使った npm で npm install -g @anthropic-ai/claude-code@%@ を実行してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este prefixo do npm não tem node nem npm próprios, então o DuoUpdater não consegue saber qual npm instalou esta cópia e apenas informa as atualizações. Para atualizá-la, execute npm install -g @anthropic-ai/claude-code@%@ com o npm que a instalou."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этом префиксе npm нет собственных node и npm, поэтому DuoUpdater не может определить, каким npm установлена эта копия, и только сообщает об обновлениях. Чтобы обновить её, выполните npm install -g @anthropic-ai/claude-code@%@ тем npm, которым она была установлена."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu npm önekinin kendine ait node ya da npm'i yok; bu yüzden DuoUpdater bu kopyayı hangi npm'in kurduğunu anlayamıyor ve güncellemeleri yalnızca bildiriyor. Güncellemek için, onu kuran npm ile npm install -g @anthropic-ai/claude-code@%@ komutunu çalıştırın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个 npm 前缀下没有它自己的 node 或 npm，DuoUpdater 无法判断这份副本是用哪个 npm 安装的，因此只做提示。要更新它，请用安装它的那个 npm 运行 npm install -g @anthropic-ai/claude-code@%@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個 npm 前綴下沒有它自己的 node 或 npm，DuoUpdater 無法判斷這份副本是用哪個 npm 安裝的，因此只做提示。要更新它，請用安裝它的那個 npm 執行 npm install -g @anthropic-ai/claude-code@%@。"
           }
         }
       }

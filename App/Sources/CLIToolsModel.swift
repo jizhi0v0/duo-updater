@@ -283,7 +283,9 @@ final class CLIToolsModel {
         case .versionMismatch:
             return String(localized: "Can’t confirm which version is installed")
         case .unsupportedInstaller:
-            return String(localized: "No one-click update for pnpm or bun installs")
+            return String(localized: "No one-click update for this kind of install")
+        case .noOwnNpm:
+            return String(localized: "Can’t tell which npm installed it")
         case .broken:
             return String(localized: "An install is broken")
         case .notAnthropic:

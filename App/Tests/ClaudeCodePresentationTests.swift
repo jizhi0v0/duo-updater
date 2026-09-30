@@ -81,11 +81,11 @@ struct ClaudeCodePresentationTests {
 
     /// `ClaudeCodeStatus` has no public initializer; it is `Codable`, and this is
     /// the JSON `duo claude-code --json` prints for one.
-    private func status(withheld: String?, oneClick: Bool = false) throws -> ClaudeCodeStatus {
+    private func status(withheld: String?, oneClick: Bool = false, method: String = "native") throws -> ClaudeCodeStatus {
         var json: [String: Any] = [
             "channel": "latest", "state": "updateAvailable", "latestVersion": "2.1.285",
             "install": [
-                "path": "/Users/ann/.local/bin/claude", "method": "native", "origin": "conventional",
+                "path": "/Users/ann/.local/bin/claude", "method": method, "origin": "conventional",
                 "executable": "/Users/ann/.local/share/claude/versions/2.1.274", "version": "2.1.274",
                 "signature": "anthropic",
             ],
@@ -134,5 +134,18 @@ struct ClaudeCodePresentationTests {
         #expect(ClaudeCodePresentation.manualCommand(try status(withheld: "busy")) == nil)
         #expect(ClaudeCodePresentation.manualCommand(try status(withheld: "updatesDisabled")) == nil)
         #expect(ClaudeCodePresentation.manualCommand(try status(withheld: nil, oneClick: true)) == nil)
+    }
+
+    // MARK: - Why none is offered
+
+    /// An npm prefix with no node of its own (`~/.npm-global`) is reported only,
+    /// but npm HAS a documented update — the sentence must not say otherwise, and
+    /// names that update with the user's channel. Found by review on #939: it read
+    /// "Anthropic documents no update command for npm installs". Mutation: routing
+    /// `.noOwnNpm` to the `.unsupportedInstaller` sentence.
+    @Test func anNpmPrefixWithoutItsOwnNodeIsExplainedTruthfully() throws {
+        let text = try #require(ClaudeCodePresentation.explanation(try status(withheld: "noOwnNpm", method: "npm")))
+        #expect(!text.contains("documents no update command"))
+        #expect(text.contains("npm install -g @anthropic-ai/claude-code@latest"))
     }
 }

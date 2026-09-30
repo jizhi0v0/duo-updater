@@ -62,10 +62,14 @@ public struct ClaudeCodeStatus: Sendable, Equatable, Codable {
         case busy
         /// The file on disk is not the release its layout names.
         case versionMismatch
-        /// No vendor-documented update for this installer (pnpm, bun, unknown) —
-        /// or an npm install whose prefix lacks its own `bin/node` or `bin/npm`,
-        /// the only tools allowed to update it.
+        /// No vendor-documented update for this installer (pnpm, bun, unknown).
         case unsupportedInstaller
+        /// An npm install whose prefix has no `bin/node` or `bin/npm` of its own —
+        /// `~/.npm-global` set up with `npm config set prefix` holds only the
+        /// package links. npm has a documented update; which npm to run it with is
+        /// what cannot be told, so it is reported only. Not `unsupportedInstaller`:
+        /// the UI would then say npm has no update, which is false.
+        case noOwnNpm
     }
 
     /// Which gate withheld one-click or the comparison, or nil when none did.
@@ -162,7 +166,7 @@ public struct ClaudeCodeCheck: Sendable {
         guard let command = Self.updateCommand(for: install, channel: settings.channel) else {
             return verdict(state, latest: latest, confirmed: confirmed,
                            note: "no supported way to update a \(install.method.rawValue) install: reported only",
-                           withheld: .unsupportedInstaller)
+                           withheld: install.method == .npm ? .noOwnNpm : .unsupportedInstaller)
         }
         return verdict(state, latest: latest, confirmed: confirmed, oneClick: command)
     }

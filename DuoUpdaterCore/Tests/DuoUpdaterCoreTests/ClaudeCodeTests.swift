@@ -534,7 +534,7 @@ import Foundation
         let status = await check(latest: "2.1.285").status(of: npm, settings: ClaudeCodeSettings(), busy: nil)
         #expect(status.state == .updateAvailable)
         #expect(status.oneClick == nil)
-        #expect(status.withheld == .unsupportedInstaller)
+        #expect(status.withheld == .noOwnNpm)
     }
 
     @Test func pnpmAndUnknownInstallsAreDetectionOnly() async {

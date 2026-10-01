@@ -229,14 +229,10 @@ public struct ClaudeCodeScanner: Sendable {
     // MARK: - npm family
 
     /// Node prefixes whose `lib/node_modules` is a global npm root: Homebrew's and
-    /// `/usr/local`'s node, and each node version nvm manages.
+    /// `/usr/local`'s node, each node version nvm and fnm manage, and
+    /// `~/.npm-global` (`NodePrefixes`, shared with the npm packages group).
     func nodePrefixes() -> [URL] {
-        var prefixes = systemPrefixes
-        let nvm = home.appendingPathComponent(".nvm/versions/node")
-        let versions = (try? FileManager.default.contentsOfDirectory(atPath: nvm.path)) ?? []
-        prefixes += versions.sorted().map { nvm.appendingPathComponent($0) }
-        prefixes.append(home.appendingPathComponent(".npm-global"))
-        return prefixes
+        NodePrefixes(home: home, systemPrefixes: systemPrefixes).discover(NodePrefixes.claudeCodeSources).map(\.url)
     }
 
     /// pnpm's global directory on macOS is `~/Library/pnpm/global/<layout version>`,

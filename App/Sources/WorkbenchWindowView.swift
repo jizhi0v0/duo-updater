@@ -1012,7 +1012,9 @@ struct WorkbenchWindowView: View {
                     if !statuses.isEmpty {
                         Section {
                             ForEach(statuses, id: \.toolID) { status in
-                                CLIToolSidebarRow(status: status, cli: model.cliTools)
+                                CLIToolSidebarRow(
+                                    status: status, cli: model.cliTools,
+                                    isSelected: selection == status.toolID.tag)
                                     .tag(status.toolID.tag)
                             }
                         } header: {

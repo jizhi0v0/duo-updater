@@ -18,6 +18,14 @@ private var homeDirectory: String { FileManager.default.homeDirectoryForCurrentU
 struct CLIToolSidebarRow: View {
     let status: CLIToolStatus
     let cli: CLIToolsModel
+    /// On the selection's accent fill a tinted caption is the fill's own colour
+    /// and vanishes (seen on 2026-10-01: a selected bub row read as title only),
+    /// so it turns white there, like the app and formula rows'.
+    var isSelected = false
+
+    private func emphasis(_ style: some ShapeStyle) -> AnyShapeStyle {
+        isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(style)
+    }
 
     private var id: CLIToolID { status.toolID }
     private var updating: Bool { cli.updating.contains(id) }
@@ -42,7 +50,7 @@ struct CLIToolSidebarRow: View {
     @ViewBuilder
     private var caption: some View {
         if let error = cli.errors[id] {
-            Text(verbatim: error).font(.caption).foregroundStyle(.red).lineLimit(1)
+            Text(verbatim: error).font(.caption).foregroundStyle(emphasis(.red)).lineLimit(1)
         } else if updating {
             // The update's own output ("Downloading…"), so it visibly moves, like a
             // formula upgrade's row.
@@ -60,12 +68,12 @@ struct CLIToolSidebarRow: View {
             }
             .font(.caption).foregroundStyle(.secondary).lineLimit(1)
         } else if let warning = CLIToolPresentation.rowWarning(status) {
-            Text(verbatim: warning).font(.caption).foregroundStyle(.orange).lineLimit(1)
+            Text(verbatim: warning).font(.caption).foregroundStyle(emphasis(.orange)).lineLimit(1)
         } else {
             // Tinted when it is an update, like a formula row's `a → b`.
             Text(verbatim: CLIToolPresentation.versionCaption(status))
                 .font(.caption)
-                .foregroundStyle(status.state == .updateAvailable ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                .foregroundStyle(status.state == .updateAvailable ? emphasis(.tint) : AnyShapeStyle(.secondary))
                 .lineLimit(1)
         }
     }

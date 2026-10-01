@@ -276,8 +276,10 @@ final class BubSandbox {
         try box.venv("home/.local/share/uv/tools/bub")
         let other = box.path("home/.local/share/uv/tools/bub")
         #expect(BubActivity.busy(install, processes: [process(7, other + "/bin/python", other + "/bin/bub", "update", "bub")]) == nil)
-        // A relative script path cannot be attributed at all.
+        // A relative script path is this venv's only when this venv's Python runs it.
         #expect(BubActivity.busy(install, processes: [process(8, "/usr/bin/python3", "bub", "update")]) == nil)
+        #expect(BubActivity.busy(install, processes: [process(9, install.path + "/bin/python", "bub", "update")])
+                == .bubCommand("update", pid: 9))
     }
 
     /// The official installer's own steps name the venv.

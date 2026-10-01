@@ -71,7 +71,7 @@ public enum BubActivity {
                   changingCommands.contains(arguments[index + 1]) else { continue }
             let resolved = URL(fileURLWithPath: candidate).resolvingSymlinksInPath().path
             let interpreterIsOurs = index == 1 && isInside(arguments[0], roots: roots)
-            if candidate.hasPrefix("/") && (resolved == script || interpreterIsOurs) {
+            if resolved == script || interpreterIsOurs {
                 return arguments[index + 1]
             }
         }

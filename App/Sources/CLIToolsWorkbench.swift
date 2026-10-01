@@ -192,8 +192,11 @@ struct ClaudeCodeDetailPane: View {
                 .padding(16)
                 .frame(maxWidth: 640, alignment: .topLeading)
             Divider()
-            CLIToolReleaseNotesView(
-                kind: .claudeCode, installed: status.install.version, latest: status.latestVersion, cli: cli)
+            // The shared status of the same install: the release notes are asked
+            // for by it, like every other tool's.
+            if let shared = cli.status(CLIToolID(kind: .claudeCode, path: status.install.path)) {
+                CLIToolReleaseNotesView(status: shared, cli: cli)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }

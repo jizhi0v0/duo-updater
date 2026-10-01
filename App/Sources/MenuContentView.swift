@@ -184,9 +184,9 @@ struct MenuContentView: View {
         // CLI formulae: a separate brew-upgrade surface (formula-only), kicked off
         // concurrently so it never delays the app check above.
         .task { await model.refreshBrewFormulae() }
-        // Claude Code: its own surface, beside brew so it never delays the app
-        // check. A local rescan; the networked check only when the model judges
-        // the report stale (`refreshOnOpen`).
+        // The other command-line tools (Claude Code, …): their own surface, beside
+        // brew so it never delays the app check. A local rescan; the networked
+        // check only when the model judges the report stale (`refreshOnOpen`).
         .task { await model.cliTools.refreshOnOpen() }
     }
 
@@ -713,7 +713,7 @@ struct MenuContentView: View {
     /// the networked check, so the check lands in a row that is already there and
     /// the popover does not grow under the cursor. No install, no row.
     private var showCLIToolsRow: Bool {
-        !model.cliTools.claudeCodeInstalls.isEmpty
+        !model.cliTools.sightings.isEmpty
     }
 
     /// A single footer row mirroring a bare terminal `brew upgrade`, scoped to CLI
@@ -861,10 +861,10 @@ struct MenuContentView: View {
 }
 
 /// The popover's one row for command-line tools that are not Homebrew's — Claude
-/// Code today; a later tool joins this row rather than getting its own. Built like
-/// the brew row above it (icon, two caption lines, trailing control, same padding)
-/// and every state keeps that two-line shape, so a state change never moves
-/// anything below it.
+/// Code, bub, fx; a later tool joins this row rather than getting its own. Built
+/// like the brew row above it (icon, two caption lines, trailing control, same
+/// padding) and every state keeps that two-line shape, so a state change never
+/// moves anything below it.
 private struct CLIToolsRow: View {
     let tools: CLIToolsModel
     /// Opens the workbench on the CLI tab.
@@ -872,13 +872,17 @@ private struct CLIToolsRow: View {
 
     /// Which state the row is in, most urgent first.
     private enum Phase {
-        case updating, checking, outdated, unchecked
-        case justUpdated(version: String)
+        /// `tool` is the one running now; nil between two copies of `updateAll`.
+        case updating(tool: CLIToolKind?)
+        case checking, outdated, unchecked
+        case justUpdated(tool: CLIToolKind, version: String)
         case upToDate
     }
 
     private var phase: Phase {
-        if tools.updatingAll || !tools.updating.isEmpty { return .updating }
+        if tools.updatingAll || !tools.updating.isEmpty {
+            return .updating(tool: tools.statuses.first { tools.updating.contains($0.toolID) }?.kind)
+        }
         // Before the first verdict only. A re-check keeps showing the last answer
         // until it is replaced, like the brew row, instead of blinking to "Checking".
         if !tools.checked { return .checking }
@@ -886,8 +890,9 @@ private struct CLIToolsRow: View {
         // Not "up to date" while any copy went unanswered — that seal would be a
         // claim about it too.
         if !tools.unchecked.isEmpty { return .unchecked }
-        if let version = tools.claudeCode.lazy.compactMap({ tools.justUpdated[$0.install.path] }).first {
-            return .justUpdated(version: version)
+        if let status = tools.statuses.first(where: { tools.justUpdated[$0.toolID] != nil }),
+           let version = tools.justUpdated[status.toolID] {
+            return .justUpdated(tool: status.kind, version: version)
         }
         return .upToDate
     }
@@ -925,12 +930,13 @@ private struct CLIToolsRow: View {
 
     private func title(_ phase: Phase) -> String {
         switch phase {
-        case .updating: return String(localized: "Updating Claude Code")
+        case .updating(let tool?): return String(localized: "Updating \(tool.displayName)")
+        case .updating(nil): return String(localized: "Updating command-line tools")
         case .checking: return String(localized: "Checking command-line tools…")
         case .outdated: return String(localized: "\(tools.outdated.count) command-line tool updates")
         case .unchecked: return String(localized: "\(tools.unchecked.count) command-line tools not checked")
-        case .justUpdated(let version):
-            return String(localized: "Claude Code updated to \(version)")
+        case .justUpdated(let tool, let version):
+            return String(localized: "\(tool.displayName) updated to \(version)")
         case .upToDate: return String(localized: "Command-line tools up to date")
         }
     }
@@ -940,34 +946,42 @@ private struct CLIToolsRow: View {
         switch phase {
         case .updating:
             // The first running copy's live line; `updateAll` runs one at a time.
-            let line = tools.claudeCode.lazy.compactMap { tools.progress[$0.install.path] }.first
+            let line = tools.statuses.lazy.compactMap { tools.progress[$0.toolID] }.first
             Text(line ?? String(localized: "Starting…"))
                 .font(.caption2).foregroundStyle(.secondary)
                 .lineLimit(1).truncationMode(.middle)
                 .monospacedDigit()
         case .outdated:
-            if let error = tools.outdated.lazy.compactMap({ tools.errors[$0.install.path] }).first {
+            if let error = tools.outdated.lazy.compactMap({ tools.errors[$0.toolID] }).first {
                 Text(error).font(.caption2).foregroundStyle(.red).lineLimit(1)
             } else if !tools.oneClickable.isEmpty {
-                secondary(CLIToolsModel.summary(tools.outdated.map(\.install)))
-            } else if let withheld = tools.outdated.lazy.compactMap(\.withheld).first {
+                secondary(CLIToolsModel.summary(tools.outdated))
+            } else if let status = tools.outdated.first(where: { $0.withheld != nil }),
+                      let withheld = status.withheld {
                 // Nothing to click, so the line says why — in the user's terms.
-                secondary(CLIToolsModel.reason(withheld))
+                secondary(CLIToolsModel.reason(withheld, of: status.kind))
             } else {
-                secondary(CLIToolsModel.summary(tools.outdated.map(\.install)))
+                secondary(CLIToolsModel.summary(tools.outdated))
             }
         case .unchecked:
-            if let withheld = tools.unchecked.lazy.compactMap(\.withheld).first {
-                secondary(CLIToolsModel.reason(withheld))
+            if let status = tools.unchecked.first(where: { $0.withheld != nil }),
+               let withheld = status.withheld {
+                secondary(CLIToolsModel.reason(withheld, of: status.kind))
             } else {
-                secondary(CLIToolsModel.summary(tools.unchecked.map(\.install)))
+                secondary(CLIToolsModel.summary(tools.unchecked))
             }
-        case .justUpdated:
-            // A running session keeps the binary it started with, so the new
-            // version reaches only sessions started from now on.
-            secondary(String(localized: "New sessions use it; restart open ones"))
-        case .checking, .upToDate:
-            secondary(CLIToolsModel.summary(tools.claudeCodeInstalls))
+        case .justUpdated(let tool, _):
+            // A running process keeps the binary it started with, so the new
+            // version reaches only what starts from now on — for Claude Code,
+            // sessions, which stay open for hours.
+            secondary(tool == .claudeCode
+                ? String(localized: "New sessions use it; restart open ones")
+                : String(localized: "Takes effect the next time it runs"))
+        case .checking:
+            // Before any check, only the scan's counts are known.
+            secondary(CLIToolsModel.summary(tools.sightings))
+        case .upToDate:
+            secondary(CLIToolsModel.summary(tools.statuses))
         }
     }
 
@@ -987,7 +1001,7 @@ private struct CLIToolsRow: View {
                     .minimumScaleFactor(0.7)
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
-                    .help(String(localized: "Updates each copy in place, with the installer that installed it and on your Claude Code channel. Copies Claude Code won’t auto-update are left alone."))
+                    .help(String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update are left alone."))
             }
         case .unchecked:
             Image(systemName: "questionmark.circle").foregroundStyle(.secondary)

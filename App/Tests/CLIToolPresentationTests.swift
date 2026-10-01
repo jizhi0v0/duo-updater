@@ -1,0 +1,77 @@
+import Foundation
+import Testing
+import DuoUpdaterCore
+
+/// How the workbench's CLI tab words an install of a tool without wording of its
+/// own (bub, fx), from `CLIToolStatus`'s shared fields alone. Every path is made
+/// up and `home` is passed in, so no answer depends on the Mac running the tests.
+///
+/// Each case names the one-line mutation of `CLIToolPresentation` it fails under.
+struct CLIToolPresentationTests {
+
+    private static let home = "/Users/ann"
+
+    private func fx(
+        _ path: String = "/Users/ann/.fx/bin/fx", version: String? = "0.4.0", latest: String? = "0.5.0",
+        state: CLIToolState = .updateAvailable, channel: String? = "stable",
+        oneClick: Bool = true, withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        CLIToolStatus(
+            kind: .fx, path: path, installedVersion: version, latestVersion: latest, channel: channel,
+            state: state,
+            oneClick: oneClick ? CLIToolCommand(executable: path, arguments: ["upgrade"], pathPrefix: nil) : nil,
+            withheld: withheld, note: nil, detail: .fx(FxInstall(path: path, version: version)))
+    }
+
+    /// Mutation: drop the `.claudeCode` branch from `title(of:home:)` — an nvm
+    /// copy of Claude Code would then be named by its whole package path.
+    @Test func theTitleIsThePathWithHomeAsTildeAndClaudeCodeKeepsItsOwn() {
+        #expect(CLIToolPresentation.title(of: fx(), home: Self.home) == "~/.fx/bin/fx")
+
+        let prefix = "/Users/ann/.nvm/versions/node/v24.13.0"
+        let path = prefix + "/lib/node_modules/@anthropic-ai/claude-code"
+        let json: [String: Any] = [
+            "install": ["path": path, "method": "npm", "origin": "conventional", "nodePrefix": prefix],
+            "channel": "latest", "state": "upToDate",
+        ]
+        let claudeCode = try! JSONDecoder().decode(
+            ClaudeCodeStatus.self, from: try! JSONSerialization.data(withJSONObject: json))
+        let status = CLIToolStatus(
+            kind: .claudeCode, path: path, installedVersion: nil, latestVersion: nil, channel: "latest",
+            state: .upToDate, oneClick: nil, withheld: nil, note: nil, detail: .claudeCode(claudeCode))
+        #expect(CLIToolPresentation.title(of: status, home: Self.home) == "nvm · node v24.13.0")
+    }
+
+    /// An update shows both versions; otherwise the version alone.
+    ///
+    /// Mutation: drop `status.state == .updateAvailable,` from `versionCaption`.
+    @Test func theCaptionShowsTheUpdateOnlyWhenThereIsOne() {
+        #expect(CLIToolPresentation.versionCaption(fx()) == "0.4.0 → 0.5.0")
+        #expect(CLIToolPresentation.versionCaption(fx(state: .ahead)) == "0.4.0")
+    }
+
+    /// The row's warning replaces the versions only when there is no verdict. An
+    /// outdated copy that is only held back keeps its versions on the row; why it
+    /// is held back is the pane's (and the tooltip's) to say.
+    ///
+    /// Mutation: drop `status.state == .unknown,` from `rowWarning`.
+    @Test func onlyAnUncheckedCopyWarnsOnTheRow() {
+        let heldBack = fx(oneClick: false, withheld: .autoUpdateOff)
+        #expect(CLIToolPresentation.rowWarning(heldBack) == nil)
+        #expect(CLIToolPresentation.explanation(heldBack) == "Auto-update is off in fx’s settings")
+
+        let unchecked = fx(latest: nil, state: .unknown, oneClick: false, withheld: .wrongSigner)
+        #expect(CLIToolPresentation.rowWarning(unchecked) == "Not signed by Vercel")
+    }
+
+    /// The group header names a channel once however many copies are on it, and
+    /// each when they differ.
+    ///
+    /// Mutation: drop `where !seen.contains(channel)` from `channels(of:)`.
+    @Test func theHeaderNamesEachChannelOnce() {
+        #expect(CLIToolPresentation.channels(of: [fx(), fx("/opt/homebrew/bin/fx")]) == "stable")
+        #expect(CLIToolPresentation.channels(of: [fx(), fx("/opt/homebrew/bin/fx", channel: "canary")])
+            == "stable, canary")
+        #expect(CLIToolPresentation.channels(of: [fx(channel: nil)]) == nil)
+    }
+}

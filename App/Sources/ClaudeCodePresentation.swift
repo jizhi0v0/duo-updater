@@ -6,7 +6,7 @@ import DuoUpdaterCore
 ///
 /// Foundation only, and no `AppListModel`, so the app test target can compile it
 /// (see `DuoUpdaterAppTests` in `App/project.yml`). The views in
-/// `ClaudeCodeWorkbench.swift` only lay these strings out.
+/// `CLIToolsWorkbench.swift` only lay these strings out.
 enum ClaudeCodePresentation {
 
     /// The install's identity, shortened for a person.

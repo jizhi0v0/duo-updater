@@ -68,7 +68,13 @@ public struct BubInstall: Sendable, Equatable, Codable {
     /// `bub update` syncs from. Read only for the official installer's venv.
     public enum Project: String, Sendable, Codable {
         /// No `pyproject.toml` yet: `bub update` creates the project — `uv init`,
-        /// then `uv add bub` — before it syncs.
+        /// then `uv add bub` — before it syncs. `uv init` writes the Python uv
+        /// picks by default as the floor, and when that is newer than the venv's,
+        /// the sync replaces the whole venv: measured on the user's Mac on
+        /// 2026-10-01, the installer's 3.12 venv came back as 3.13
+        /// (`requires-python = ">=3.13"`), bub 0.5.0 in it and running. The same
+        /// happens to the same command run in a terminal; the workbench says so
+        /// beside the click (`CLIToolPresentation.caution`).
         case absent
         /// The project depends on bub, so `bub update bub` can move it.
         case listsBub

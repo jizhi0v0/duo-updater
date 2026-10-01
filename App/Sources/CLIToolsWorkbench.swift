@@ -439,9 +439,17 @@ struct CLIToolDetailPane: View {
     @ViewBuilder
     private var updateValue: some View {
         if let command = status.oneClick {
-            // Exactly what the Update button runs, so nothing about it is a surprise.
-            Text(verbatim: command.display)
-                .font(.system(.body, design: .monospaced))
+            VStack(alignment: .leading, spacing: 6) {
+                // Exactly what the Update button runs, so nothing about it is a surprise.
+                Text(verbatim: command.display)
+                    .font(.system(.body, design: .monospaced))
+                if let caution = CLIToolPresentation.caution(status) {
+                    Text(verbatim: caution)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         } else if let explanation = CLIToolPresentation.explanation(status) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(verbatim: explanation)

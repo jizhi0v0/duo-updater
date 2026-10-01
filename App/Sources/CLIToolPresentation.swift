@@ -56,6 +56,16 @@ enum CLIToolPresentation {
         return CLIToolsModel.reason(withheld, of: status.kind)
     }
 
+    /// What the click will do besides updating, said beside an update that is
+    /// offered. Only bub's first update today: with no `~/.bub/bub-project`,
+    /// `bub update bub` creates it and may rebuild the venv on another Python
+    /// (`BubInstall.Project.absent`). The user chose to keep the click and say so
+    /// (2026-10-01).
+    static func caution(_ status: CLIToolStatus) -> String? {
+        guard status.oneClick != nil, case .bub(let bub) = status.detail, bub.project == .absent else { return nil }
+        return String(localized: "The first update creates bub’s project in ~/.bub/bub-project and may rebuild its environment with a newer Python. Packages installed into it by hand would be lost.")
+    }
+
     /// The command to copy beside an update the user turned the tool's auto-update
     /// off for — the same command a one-click would run. nil otherwise: every
     /// other gate means it should not be run now, or it is DuoUpdater's to run.

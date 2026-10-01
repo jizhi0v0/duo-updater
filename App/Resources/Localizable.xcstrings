@@ -56410,6 +56410,71 @@
           }
         }
       }
+    },
+    "The first update creates bub’s project in ~/.bub/bub-project and may rebuild its environment with a newer Python. Packages installed into it by hand would be lost.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das erste Update legt das Projekt von bub in ~/.bub/bub-project an und baut die Umgebung dabei eventuell mit einer neueren Python-Version neu auf. Von Hand darin installierte Pakete gingen verloren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La primera actualización crea el proyecto de bub en ~/.bub/bub-project y puede reconstruir su entorno con un Python más reciente. Los paquetes instalados a mano en él se perderían."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La première mise à jour crée le projet de bub dans ~/.bub/bub-project et peut reconstruire son environnement avec une version plus récente de Python. Les paquets qui y ont été installés à la main seraient perdus."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il primo aggiornamento crea il progetto di bub in ~/.bub/bub-project e può ricostruirne l’ambiente con un Python più recente. I pacchetti installati a mano andrebbero persi."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最初の更新で bub のプロジェクトが ~/.bub/bub-project に作成され、環境がより新しい Python で作り直されることがあります。手動でインストールしたパッケージは失われます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A primeira atualização cria o projeto do bub em ~/.bub/bub-project e pode reconstruir o ambiente com um Python mais recente. Pacotes instalados nele manualmente seriam perdidos."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Первое обновление создаёт проект bub в ~/.bub/bub-project и может пересобрать окружение на более новом Python. Пакеты, установленные в него вручную, будут потеряны."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İlk güncelleme bub’ın projesini ~/.bub/bub-project içinde oluşturur ve ortamı daha yeni bir Python ile yeniden kurabilir. Elle kurulan paketler kaybolur."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第一次更新会在 ~/.bub/bub-project 创建 bub 的项目，可能用更新的 Python 重建它的环境。手动装进去的包会丢失。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第一次更新會在 ~/.bub/bub-project 建立 bub 的專案，可能用更新的 Python 重建它的環境。手動裝進去的套件會遺失。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

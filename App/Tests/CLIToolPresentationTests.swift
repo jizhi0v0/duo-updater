@@ -27,6 +27,27 @@ struct CLIToolPresentationTests {
     /// The command to copy only beside an update withheld because the user turned
     /// the tool's auto-update off. Mutation: dropping the `withheld` check hands it
     /// out beside a running update.
+    /// bub's first update creates its project and may rebuild the venv on
+    /// another Python (measured on the user's Mac, 2026-10-01): said beside the
+    /// click, only then. Mutation: dropping the `.absent` check says it beside
+    /// every bub update.
+    @Test func onlyBubsFirstUpdateCarriesTheCaution() {
+        func bub(_ project: BubInstall.Project?, oneClick: Bool = true) -> CLIToolStatus {
+            let path = "/Users/ann/.bub/.venv"
+            return CLIToolStatus(
+                kind: .bub, path: path, installedVersion: "0.4.4", latestVersion: "0.5.0", channel: nil,
+                state: .updateAvailable,
+                oneClick: oneClick ? CLIToolCommand(executable: path + "/bin/bub", arguments: ["update", "bub"], pathPrefix: nil) : nil,
+                withheld: oneClick ? nil : .updaterMissing, note: nil,
+                detail: .bub(BubInstall(path: path, method: .installer, executable: path + "/bin/bub",
+                                        version: "0.4.4", project: project)))
+        }
+        #expect(CLIToolPresentation.caution(bub(.absent)) != nil)
+        #expect(CLIToolPresentation.caution(bub(.listsBub)) == nil)
+        #expect(CLIToolPresentation.caution(bub(.absent, oneClick: false)) == nil)
+        #expect(CLIToolPresentation.caution(fx()) == nil)
+    }
+
     @Test func onlyAutoUpdateOffHandsOutTheCommand() {
         #expect(CLIToolPresentation.manualCommand(fx(oneClick: false, withheld: .autoUpdateOff, manual: true))
                 == "/Users/ann/.fx/bin/fx upgrade")

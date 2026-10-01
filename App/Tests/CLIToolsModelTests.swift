@@ -45,7 +45,7 @@ struct CLIToolsModelTests {
             let json: [String: Any] = ["install": install, "channel": "latest", "state": state.rawValue]
             let data = try! JSONSerialization.data(withJSONObject: json)
             detail = .claudeCode(try! JSONDecoder().decode(ClaudeCodeStatus.self, from: data))
-        case .bub: detail = .bub(BubInstall(path: path, version: version))
+        case .bub: detail = .bub(BubInstall(path: path, method: .installer, executable: path + "/bin/bub", version: version))
         case .fx: detail = .fx(FxInstall(path: path, version: version))
         }
         return CLIToolStatus(

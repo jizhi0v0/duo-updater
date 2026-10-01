@@ -137,7 +137,7 @@ final class CLIToolsModel {
     @ObservationIgnored private var releaseNotesCache: [CLIToolKind: Changelog] = [:]
 
     init(
-        providers: [any CLIToolProvider] = [ClaudeCodeProvider()],
+        providers: [any CLIToolProvider] = [ClaudeCodeProvider(), BubProvider(), FxProvider()],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
     ) {

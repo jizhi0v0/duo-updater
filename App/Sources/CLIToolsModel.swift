@@ -198,9 +198,19 @@ final class CLIToolsModel {
     /// for one repaired in place — which `moved` already catches; re-checking them on
     /// every open re-ran every tool's network check for nothing (found in
     /// review, 2026-10-01).
+    ///
+    /// The three later reasons are disk changes too. `.staged` ends when Junie
+    /// applies its update at a launch — a new build and no `pending-update.json`,
+    /// both in its sighting. `.unverified` ends with another file or a lifted
+    /// quarantine flag: uv's hash verdict, rustup's sha256, an npm prefix's node
+    /// signature and quarantine are all in theirs. `.runtimeTooOld` ends with
+    /// another node in the prefix (its sighting) or a new release, which the
+    /// report's age covers as for any verdict — and it comes with a verdict,
+    /// `.updateAvailable`, so it is never among `unchecked` anyway.
     nonisolated static func mayClearByItself(_ status: CLIToolStatus) -> Bool {
         switch status.withheld {
         case nil, .channelUnreadable, .busy, .versionUnreadable: return true
+        case .staged, .unverified, .runtimeTooOld: return false
         default: return false
         }
     }
@@ -392,13 +402,19 @@ final class CLIToolsModel {
 
     /// Who signs `kind`'s releases, as `wrongSigner` names them; nil for a tool
     /// whose releases carry no signature to check (bub, a Python package).
+    ///
+    /// uv's builds from 0.12.12 carry the certificate of "OpenAI OpCo, LLC"
+    /// (`UvInstall`); the short reason still names Astral, whose tool it is, and
+    /// the detail pane's signature fact says who signed it. rustup is only ever
+    /// ad hoc or unsigned — trusted by its published sha256 — and an npm
+    /// package by the registry's integrity hash.
     nonisolated static func vendor(of kind: CLIToolKind) -> String? {
         switch kind {
         case .claudeCode: return "Anthropic"
         case .fx: return "Vercel"
-        case .bub: return nil
-        // Filled in with each tool's integration.
-        case .uv, .junie, .rust, .npm: return nil
+        case .uv: return "Astral"
+        case .junie: return "JetBrains"
+        case .bub, .rust, .npm: return nil
         }
     }
 
@@ -430,9 +446,27 @@ final class CLIToolsModel {
                 return String(localized: "Builds on this channel aren’t signed by its developer")
             }
             return String(localized: "Builds on this channel aren’t signed by \(vendor)")
-        case .unverified, .runtimeTooOld, .staged:
-            // Worded with each tool's integration.
-            return String(localized: "No one-click update for this kind of install")
+        case .unverified:
+            switch kind {
+            case .rust:
+                // The rustup row's; a toolchain's is worded from its status.
+                return String(localized: "Not a published rustup build")
+            case .npm:
+                // What is run is the prefix's node: trusted when the Node.js
+                // Foundation signed it or a Homebrew keg installed it
+                // (`NpmRuntime.nodeIsTrusted`). A quarantined one is worded from
+                // its status.
+                return String(localized: "Its node is neither Node.js’s nor Homebrew’s")
+            default:
+                guard let vendor = vendor(of: kind) else {
+                    return String(localized: "Not the build its developer published")
+                }
+                return String(localized: "Not the build \(vendor) published")
+            }
+        case .runtimeTooOld:
+            return String(localized: "Needs a newer Node")
+        case .staged:
+            return String(localized: "\(tool) installs its downloaded update at its next launch")
         case .projectIncomplete:
             return String(localized: "\(tool)’s project doesn’t list \(tool)")
         case .wrongSigner:
@@ -445,6 +479,98 @@ final class CLIToolsModel {
         case .channelUnreadable:
             return String(localized: "Couldn’t reach \(tool)’s release channel")
         }
+    }
+
+    /// Why `status` has no one-click, with what its own tool's payload adds: the
+    /// version Junie staged, the Node a newer npm release needs, which row of the
+    /// Rust group, where an npm package came from. Every other case is the
+    /// tool-wide wording above.
+    nonisolated static func reason(_ withheld: CLIToolWithheld, of status: CLIToolStatus) -> String {
+        let quarantined = String(localized: "Quarantined, so not run")
+        switch (withheld, status.detail) {
+        case (.staged, .junie(let junie)):
+            if let pending = junie.pendingUpdate {
+                return String(localized: "Junie installs the downloaded \(pending) at its next launch")
+            }
+        case (.runtimeTooOld, .npm(let package)):
+            if let gap = package.gap { return requirement(gap, of: "\(package.install.name) \(gap.version)") }
+        case (.unverified, .rust(let item)):
+            switch item.kind {
+            // A rustup whose hash did match carries its version: only the
+            // quarantine flag held it back (`RustCheck.rustupStatus`).
+            case .rustup where item.version != nil: return quarantined
+            case .rustup: break
+            // Its rustup matched nothing published, is broken or quarantined —
+            // the rustup row says which.
+            case .toolchain: return String(localized: "Its rustup isn’t verified")
+            }
+        case (.unverified, .npm(let package)) where package.install.runtime.nodeQuarantined:
+            return String(localized: "Its node is quarantined, so not run")
+        case (.wrongSigner, .npm):
+            return String(localized: "Its node isn’t signed by the Node.js Foundation")
+        case (.versionUnreadable, .uv(let uv)) where uv.quarantined:
+            return quarantined
+        case (.updaterMissing, .rust):
+            return String(localized: "No rustup in ~/.cargo/bin")
+        case (.autoUpdateOff, .rust):
+            // Only the rustup row: its `auto_self_update`.
+            let rustup = "rustup"
+            return String(localized: "Auto-update is off in \(rustup)’s settings")
+        case (.autoUpdateOff, .npm(let package)):
+            // openclaw's own `update.auto.enabled`.
+            return String(localized: "Auto-update is off in \(package.install.name)’s settings")
+        case (.busy, .rust):
+            // One gate for every Rust row (`RustActivity`).
+            return String(localized: "rustup is already running")
+        case (.busy, .npm):
+            // Attributed by the node running it (`NpmActivity`): any package of
+            // the prefix, or the package's own updater, which runs npm too.
+            return String(localized: "npm is busy in this prefix")
+        case (.unsupportedInstaller, .uv(let uv)):
+            switch uv.layout {
+            case .link: return String(localized: "A uv tool or pipx link")
+            case .unreceipted: return String(localized: "Not the copy uv’s installer recorded")
+            case .standalone: break
+            }
+        case (.unsupportedInstaller, .junie(let junie)):
+            // Only `experimental` today: release, eap and nightly have installers.
+            if let channel = junie.channel { return String(localized: "The \(channel) channel has no installer") }
+        case (.unsupportedInstaller, .npm(let package)):
+            return origin(of: package)
+        default:
+            break
+        }
+        return reason(withheld, of: status.kind)
+    }
+
+    /// Where an npm package that is only reported came from, in `NpmCheck`'s
+    /// order. The registry's two answers — no such package, no such version —
+    /// leave nothing in the payload apart, and both mean the same thing here.
+    nonisolated private static func origin(of package: NpmPackage) -> String {
+        let install = package.install
+        if install.linkTarget != nil {
+            return String(localized: "Linked to a local folder")
+        }
+        if let manifest = install.manifestName, manifest != install.name {
+            return String(localized: "Installed as an alias of \(manifest)")
+        }
+        if install.customRegistry != nil {
+            return String(localized: "From a registry other than npm’s")
+        }
+        if case .openclaw(let settings) = install.ownUpdate, settings.effectiveChannel == "dev" {
+            return String(localized: "openclaw is on its dev channel")
+        }
+        return String(localized: "Not a release from the npm registry")
+    }
+
+    /// "openclaw 2026.9.7 needs Node ≥ 24.16.0": what a newer npm release asks of
+    /// the runtime, `label` naming the release. The lowest Node above the
+    /// prefix's when the range has one; else the range as written, or npm's.
+    nonisolated static func requirement(_ gap: NpmPackage.RuntimeGap, of label: String) -> String {
+        if let minimum = gap.minimumNode { return String(localized: "\(label) needs Node ≥ \(minimum)") }
+        if let node = gap.node { return String(localized: "\(label) needs Node \(node)") }
+        if let npm = gap.npm { return String(localized: "\(label) needs npm \(npm)") }
+        return String(localized: "\(label) needs a newer Node")
     }
 
     /// Which installer a Claude Code copy came from, as the summary names it:

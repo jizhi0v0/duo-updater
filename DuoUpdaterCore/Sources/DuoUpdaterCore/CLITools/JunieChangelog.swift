@@ -52,32 +52,60 @@ public enum JunieChangelog {
         builds: [String], installed: String?, latest: String?, force: Bool, fetch: @escaping Fetch
     ) async throws -> Changelog {
         let wanted = window(builds: builds, installed: installed, latest: latest)
-        var entries: [String: Changelog.Entry] = [:]
-        var answered = 0
-        var failure: Error?
-        await withTaskGroup(of: (String, Result<(Data, Int), Error>).self) { group in
+        // Each child parses its own answer and the group is drained with
+        // `next()`, into state of the group's own. The first shape — children
+        // returning `(String, Result<(Data, Int), Error>)`, read with `for await`
+        // into this function's variables — misbehaved in an optimized build:
+        // the loop saw no child at all, `fetch` returned no entries, and the
+        // children then completed into the finished group and aborted the app
+        // in `AsyncTask::completeFuture` (`__cxa_pure_virtual`) on opening
+        // Junie's pane (2026-10-02, Swift 6.4, macOS 27.2 beta; the debug build
+        // was right). Measured with `swift test -c release`; why that shape is
+        // miscompiled was not pinned down.
+        let (entries, answered, failure) = await withTaskGroup(
+            of: Answer.self, returning: ([String: Changelog.Entry], Int, Error?).self
+        ) { group in
             for build in wanted {
-                group.addTask {
-                    guard let url = URL(string: api + build) else { return (build, .failure(URLError(.badURL))) }
-                    do { return (build, .success(try await fetch(url, force))) } catch { return (build, .failure(error)) }
-                }
+                group.addTask { await answer(build: build, force: force, fetch: fetch) }
             }
-            for await (build, result) in group {
-                switch result {
-                case .success(let (data, status)) where status == 200:
-                    answered += 1
-                    if let entry = parse(data, build: build) { entries[build] = entry }
-                case .success(let (_, status)) where status == 404:
-                    answered += 1
-                case .success(let (_, status)):
-                    failure = CLIToolReleaseNotesError.http(status)
-                case .failure(let error):
-                    failure = error
-                }
+            var entries: [String: Changelog.Entry] = [:]
+            var answered = 0
+            var failure: Error?
+            while let next = await group.next() {
+                if next.answered { answered += 1 }
+                if let entry = next.entry { entries[next.build] = entry }
+                if let error = next.failure { failure = error }
             }
+            return (entries, answered, failure)
         }
         if answered == 0, let failure { throw failure }
         return Changelog(entries: wanted.compactMap { entries[$0] }, itemSyntax: .markdown)
+    }
+
+    /// One build's request, answered: a 200 (with its entry, when the release has
+    /// notes) or a 404 is an answer; anything else is a failure.
+    struct Answer: Sendable {
+        let build: String
+        let answered: Bool
+        let entry: Changelog.Entry?
+        let failure: Error?
+    }
+
+    static func answer(build: String, force: Bool, fetch: Fetch) async -> Answer {
+        guard let url = URL(string: api + build) else {
+            return Answer(build: build, answered: false, entry: nil, failure: URLError(.badURL))
+        }
+        do {
+            let (data, status) = try await fetch(url, force)
+            switch status {
+            case 200: return Answer(build: build, answered: true, entry: parse(data, build: build), failure: nil)
+            case 404: return Answer(build: build, answered: true, entry: nil, failure: nil)
+            default:
+                return Answer(build: build, answered: false, entry: nil, failure: CLIToolReleaseNotesError.http(status))
+            }
+        } catch {
+            return Answer(build: build, answered: false, entry: nil, failure: error)
+        }
     }
 
     /// One release object → its entry, or nil when its body has no notes or the

@@ -204,8 +204,7 @@ import Foundation
 
     /// fx's `auto_upgrade`: a JSON bool, absent means on, any other type makes fx
     /// drop the whole file — channel included. Mutation: accepting any NSNumber
-    /// reads `1` as off-able and `0` as off; dropping the bool-type check fails the
-    /// last two.
+    /// (dropping the bool-type check) reads `0` as "off" and keeps the channel.
     @Test func autoUpgradeIsABoolThatDefaultsOnAsFxReadsIt() {
         func settings(_ json: String) -> FxSettings { FxSettings.parse(Data(json.utf8)) }
         #expect(settings(#"{}"#).autoUpgrade)

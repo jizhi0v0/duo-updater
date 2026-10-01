@@ -287,7 +287,7 @@ import Foundation
         #expect(status.latestVersion == "0.12.21")
         #expect(status.oneClick == CLIToolCommand(
             executable: "/ZZFixture-uv/.local/bin/uv", arguments: ["self", "update"], pathPrefix: "/ZZFixture-uv/.local/bin"))
-        #expect(status.releaseNotesKey == "uv")
+        #expect(status.releaseNotesKey == "uv:0.12")
         #expect(status.channel == nil)
 
         #expect(await Self.status(Self.standalone(version: "0.12.21", receipt: "0.12.21")).state == .upToDate)

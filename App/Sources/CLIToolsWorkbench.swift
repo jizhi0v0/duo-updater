@@ -36,7 +36,7 @@ struct CLIToolSidebarRow: View {
                 .frame(width: 22, height: 22)
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 1) {
-                Text(verbatim: CLIToolPresentation.title(of: status, home: homeDirectory))
+                Text(verbatim: CLIToolPresentation.title(of: status, home: homeDirectory, among: cli.statuses))
                     .font(.body).lineLimit(1).truncationMode(.middle)
                 caption
             }
@@ -346,10 +346,11 @@ struct ClaudeCodeDetailPane: View {
 
 // MARK: - Every other tool's detail pane
 
-/// A selected install of a tool without a pane of its own (bub, fx): built from
-/// `CLIToolStatus`'s shared fields alone — where it is, what it reads as against
-/// what its channel has, what the Update button runs or why there is none, the
-/// last failed update's log, and the release notes in between.
+/// A selected install of a tool without a pane of its own (every tool but Claude
+/// Code): built from `CLIToolStatus`'s shared fields — where it is, what it reads
+/// as against what its channel has, the facts its tool's payload adds
+/// (`CLIToolPresentation.facts`), what the Update button runs or why there is
+/// none, the last failed update's log, and the release notes in between.
 struct CLIToolDetailPane: View {
     let status: CLIToolStatus
     let cli: CLIToolsModel
@@ -377,7 +378,9 @@ struct CLIToolDetailPane: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 44, height: 44)
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: status.kind.displayName).font(.title2).fontWeight(.semibold)
+                // "rustup", an npm package's name: the install's own name when the
+                // tool's group holds several kinds of thing. The path says which.
+                Text(verbatim: status.name ?? status.kind.displayName).font(.title2).fontWeight(.semibold)
                 Text(verbatim: ClaudeCodePresentation.abbreviate(status.path, home: homeDirectory))
                     .font(.callout).foregroundStyle(.secondary)
                     .lineLimit(2).truncationMode(.middle)
@@ -409,6 +412,14 @@ struct CLIToolDetailPane: View {
                 // A tool without channels has one line of releases: its latest.
                 if status.channel == nil { label("Latest") } else { label("Channel") }
                 Text(verbatim: latest)
+            }
+            // The tool's own: signature, how it got there, what else the verdict
+            // rests on (`CLIToolPresentation.facts`).
+            ForEach(CLIToolPresentation.facts(of: status, home: homeDirectory), id: \.label) { fact in
+                GridRow {
+                    Text(verbatim: fact.label).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
+                    Text(verbatim: fact.value).fixedSize(horizontal: false, vertical: true)
+                }
             }
             GridRow {
                 label("Update")

@@ -157,10 +157,12 @@ struct WorkbenchWindowView: View {
     }
 
     /// A command-line tool's row matches by the tool's name, so "claude" finds every
-    /// copy of Claude Code, and by the title and the path it stands for.
+    /// copy of Claude Code, by the install's own name ("rustup", an npm package),
+    /// and by the title and the path it stands for.
     private func matchesSearch(_ status: CLIToolStatus) -> Bool {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return matchesSearch(status.kind.displayName)
+            || status.name.map(matchesSearch) == true
             || matchesSearch(CLIToolPresentation.title(of: status, home: home))
             || matchesSearch(status.path)
     }
@@ -916,9 +918,9 @@ struct WorkbenchWindowView: View {
             return CLIToolPresentation.channels(of: model.cliTools.statuses.filter { $0.kind == .fx })
         case .bub:
             return nil
-        // Worded with each tool's integration.
         case .uv, .junie, .rust, .npm:
-            return CLIToolPresentation.channels(of: model.cliTools.statuses.filter { $0.kind == kind })
+            return CLIToolPresentation.headerSummary(
+                kind, statuses: model.cliTools.statuses, context: model.cliTools.contexts[kind])
         }
     }
 

@@ -858,7 +858,8 @@ struct CLIToolsModelTests {
     ///
     /// Mutation: `mayClearByItself` returning true for every reason.
     @Test func aCopyOnlyADiskChangeCanClearIsNotRecheckedOnOpen() async {
-        for withheld in [CLIToolWithheld.wrongSigner, .channelUnsigned, .broken, .unsupportedInstaller] {
+        for withheld in [CLIToolWithheld.wrongSigner, .channelUnsigned, .broken, .unsupportedInstaller,
+                         .unverified, .staged, .runtimeTooOld] {
             let status = Self.status(Self.native, state: .unknown, oneClick: false, withheld: withheld)
             let found = ScanResult([status])
             let check = FakeCheck([(Self.report(status), nil)])
@@ -975,5 +976,134 @@ struct CLIToolsModelTests {
     @Test func aWrongSignerNamesTheToolsVendor() {
         #expect(CLIToolsModel.reason(.wrongSigner, of: .claudeCode) == "Not signed by Anthropic")
         #expect(CLIToolsModel.reason(.wrongSigner, of: .fx) == "Not signed by Vercel")
+        #expect(CLIToolsModel.reason(.wrongSigner, of: .uv) == "Not signed by Astral")
+        #expect(CLIToolsModel.reason(.wrongSigner, of: .junie) == "Not signed by JetBrains")
+        // An npm row's signature is its prefix's node's.
+        #expect(CLIToolsModel.reason(.wrongSigner, of: F.npm(withheld: .wrongSigner))
+            == "Its node isn’t signed by the Node.js Foundation")
+    }
+
+    private typealias F = CLIToolFixtures
+
+    /// `.unverified` says which file is not the vendor's: uv's own, rustup's —
+    /// or, on a toolchain row, the rustup that would update it — and an npm
+    /// prefix's node; a rustup whose hash did match is held back by its
+    /// quarantine flag alone, and says so.
+    ///
+    /// Mutations: drop the `.rustup where item.version != nil` arm (a quarantined
+    /// rustup reads as not rust-lang's); drop the `.toolchain` arm (a toolchain
+    /// reads as if it were rustup); drop the npm `nodeQuarantined` case.
+    @Test func unverifiedNamesTheFileThatIsNotTheVendors() {
+        #expect(CLIToolsModel.reason(.unverified, of: F.uv(hashVerdict: .differs))
+            == "Not the build Astral published")
+        #expect(CLIToolsModel.reason(.unverified, of: F.rustup(version: nil, trusted: false, state: .unknown))
+            == "Not a published rustup build")
+        #expect(CLIToolsModel.reason(.unverified, of: F.rustup(trusted: false, state: .unknown))
+            == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.unverified, of: F.toolchain())
+            == "Its rustup isn’t verified")
+        #expect(CLIToolsModel.reason(.unverified, of: F.npm(F.npmInstall(nodeQuarantined: true)))
+            == "Its node is quarantined, so not run")
+        #expect(CLIToolsModel.reason(.unverified, of: F.npm(F.npmInstall(nodeSignature: .adHoc)))
+            == "Its node is neither Node.js’s nor Homebrew’s")
+        // A quarantined uv is never run, so its version is unreadable: why.
+        #expect(CLIToolsModel.reason(.versionUnreadable, of: F.uv(quarantined: true))
+            == "Quarantined, so not run")
+    }
+
+    /// A newer npm release this prefix's node cannot run names the package, the
+    /// release and the Node it needs — the lowest one when the range says it,
+    /// else the range, else npm's.
+    ///
+    /// Mutation: drop the `minimumNode` line from `requirement(_:of:)` (the
+    /// raw range `>=24.16.0 <25 || >=26.1.0` instead of "≥ 24.16.0").
+    @Test func runtimeTooOldSaysWhichNodeTheReleaseNeeds() {
+        #expect(CLIToolsModel.reason(.runtimeTooOld, of: F.npm(offered: nil))
+            == "openclaw 2026.9.7 needs Node ≥ 24.16.0")
+        let range = NpmPackage.RuntimeGap(version: "3.0.0", node: ">=26 <27", npm: nil, nodeVersion: "24.13.0",
+                                          minimumNode: nil)
+        #expect(CLIToolsModel.reason(.runtimeTooOld, of: F.npm(offered: nil, gap: range))
+            == "openclaw 3.0.0 needs Node >=26 <27")
+        let npm = NpmPackage.RuntimeGap(version: "3.0.0", node: nil, npm: ">=11", nodeVersion: "24.13.0",
+                                        minimumNode: nil)
+        #expect(CLIToolsModel.reason(.runtimeTooOld, of: F.npm(offered: nil, gap: npm))
+            == "openclaw 3.0.0 needs npm >=11")
+        #expect(CLIToolsModel.reason(.runtimeTooOld, of: .npm) == "Needs a newer Node")
+    }
+
+    /// Junie's staged update names the build it downloaded.
+    ///
+    /// Mutation: drop the `(.staged, .junie)` case (the build goes unnamed).
+    @Test func stagedNamesTheBuildJunieDownloaded() {
+        #expect(CLIToolsModel.reason(.staged, of: F.junie(pending: "3612.1"))
+            == "Junie installs the downloaded 3612.1 at its next launch")
+        #expect(CLIToolsModel.reason(.staged, of: .junie)
+            == "Junie installs its downloaded update at its next launch")
+    }
+
+    /// The gates every tool shares, said of the right thing: rustup for the Rust
+    /// rows, the package or its prefix for npm's, uv's and Junie's own installers.
+    ///
+    /// Mutations: drop the `(.updaterMissing, .rust)` case (a toolchain blames
+    /// "the program that updates it"); drop the `(.autoUpdateOff, .npm)` case
+    /// ("npm’s settings" for openclaw's own switch); drop the `.link` check from
+    /// `origin(of:)` (a working copy reads as a non-registry release).
+    @Test func eachGateNamesWhatItIsAbout() {
+        #expect(CLIToolsModel.reason(.updaterMissing, of: F.toolchain())
+            == "No rustup in ~/.cargo/bin")
+        #expect(CLIToolsModel.reason(.updaterMissing, of: .bub) == "bub updates with uv, and uv wasn’t found")
+        #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.rustup()) == "Auto-update is off in rustup’s settings")
+        #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.npm()) == "Auto-update is off in openclaw’s settings")
+        #expect(CLIToolsModel.reason(.busy, of: F.toolchain()) == "rustup is already running")
+        #expect(CLIToolsModel.reason(.busy, of: F.npm()) == "npm is busy in this prefix")
+        #expect(CLIToolsModel.reason(.busy, of: F.uv()) == "uv is already being updated")
+
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.uv(layout: .link))
+            == "A uv tool or pipx link")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.uv(layout: .unreceipted))
+            == "Not the copy uv’s installer recorded")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.junie(channel: "experimental"))
+            == "The experimental channel has no installer")
+
+        func npm(_ install: NpmInstall) -> String {
+            CLIToolsModel.reason(.unsupportedInstaller, of: F.npm(install))
+        }
+        #expect(npm(F.npmInstall(linkTarget: "/Users/ann/src/openclaw"))
+            == "Linked to a local folder")
+        #expect(npm(F.npmInstall("claw", manifestName: "openclaw")) == "Installed as an alias of openclaw")
+        #expect(npm(F.npmInstall(ownUpdate: .openclaw(OpenClawSettings(channel: "dev", autoUpdate: nil,
+                                                                       supportsTag: true))))
+            == "openclaw is on its dev channel")
+        #expect(npm(F.npmInstall()) == "Not a release from the npm registry")
+    }
+
+    /// A custom registry is only in Core's decoded form (its initializer is
+    /// internal), so the install is built from JSON — the shape it encodes to.
+    ///
+    /// Mutation: drop the `customRegistry` check from `origin(of:)`.
+    @Test func aCustomRegistryIsSaid() throws {
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(F.npmInstall())) as! [String: Any]
+        json["customRegistry"] = ["url": "https://npm.example.com/", "file": "/Users/ann/.npmrc"]
+        let install = try JSONDecoder().decode(NpmInstall.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.npm(install))
+            == "From a registry other than npm’s")
+    }
+
+    /// The popover's line with many npm and Rust rows: each tool once, counted.
+    @Test func theSummaryCountsManyRowsOfOneTool() {
+        let npm = ["a", "b", "c", "d", "e"].map { F.npm(F.npmInstall($0)) }
+        let rust = [F.rustup(), F.toolchain()]
+        #expect(CLIToolsModel.summary(npm + rust + [F.uv()]) == "uv · Rust ×2 · npm ×5")
+    }
+
+    /// `.staged`, `.unverified` and `.runtimeTooOld` clear only through a disk
+    /// change the scan's sighting records (or, for a too-old runtime, a new
+    /// release the report's age covers).
+    ///
+    /// Mutation: add any of the three to `mayClearByItself`'s `true` case.
+    @Test func theNewReasonsDoNotClearByThemselves() {
+        for withheld in [CLIToolWithheld.staged, .unverified, .runtimeTooOld] {
+            #expect(!CLIToolsModel.mayClearByItself(F.rustup(state: .unknown, withheld: withheld)), "\(withheld)")
+        }
     }
 }

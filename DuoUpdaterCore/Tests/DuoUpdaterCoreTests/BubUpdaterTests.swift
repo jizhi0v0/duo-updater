@@ -232,6 +232,8 @@ import Foundation
         #expect(message("Command 'uv sync --active' failed with exit code 2.")
                 == "Command 'uv sync --active' failed with exit code 2.")
         #expect(message("") == "exited with status 2")
+        #expect(message("Resolving…\nsomething uv said without a prefix\nCommand 'uv sync --active' failed with exit code 2.")
+                == "something uv said without a prefix")
         #expect(BubUpdater.isBubWrapper("Command 'uv add --active --no-sync bub' failed with exit code 2."))
         #expect(!BubUpdater.isBubWrapper("error: Command failed"))
     }

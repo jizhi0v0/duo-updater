@@ -24,6 +24,15 @@ public enum RustChangelog {
     public static let rustSource = URL(
         string: "https://raw.githubusercontent.com/rust-lang/rust/stable/RELEASES.md")!
 
+    /// Which document a toolchain on `channel` reads (`CLIToolStatus
+    /// .releaseNotesKey`). `RELEASES.md` has sections for stable releases only:
+    /// a beta or nightly row has no notes of its own, and under the stable key it
+    /// would be shown stable's newest sections as if already taken — and, since
+    /// its `latestVersion` never appears there, refetch 930 KB on every open.
+    static func releaseNotesKey(channel: String) -> String {
+        channel == "beta" || channel == "nightly" ? "rust:\(channel)" : "rust"
+    }
+
     // MARK: - rustup
 
     /// rustup's `CHANGELOG.md`, read from its `stable` branch: on 2026-10-01

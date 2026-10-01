@@ -70,6 +70,7 @@ public struct UvCheck: Sendable {
             CLIToolStatus(
                 kind: .uv, path: install.path, installedVersion: install.version, latestVersion: latest,
                 channel: nil, state: state, oneClick: oneClick, withheld: withheld, note: note,
+                releaseNotesKey: UvChangelog.releaseNotesKey(installed: install.version),
                 detail: .uv(install))
         }
         /// The channel, compared — for a copy that is reported whatever happens.

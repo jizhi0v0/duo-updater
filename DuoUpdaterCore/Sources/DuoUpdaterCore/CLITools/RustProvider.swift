@@ -95,6 +95,10 @@ public struct RustProvider: CLIToolProvider {
     /// rustup's `CHANGELOG.md` for the rustup row, Rust's `RELEASES.md` for a
     /// toolchain's (`RustChangelog`), by the status's `releaseNotesKey`.
     public func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog {
+        // A beta or nightly toolchain: no document has its sections.
+        guard status.releaseNotesKey == "rustup" || status.releaseNotesKey == "rust" else {
+            return Changelog(entries: [])
+        }
         let isRustup = status.releaseNotesKey == "rustup"
         var request = URLRequest(url: isRustup ? RustChangelog.rustupSource : RustChangelog.rustSource)
         request.cachePolicy = force ? .reloadIgnoringLocalCacheData : URLRequest.versionFeedCachePolicy

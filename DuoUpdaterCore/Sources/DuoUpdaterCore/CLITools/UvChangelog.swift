@@ -54,6 +54,16 @@ public enum UvChangelog {
         return entries.isEmpty ? nil : Changelog(entries: entries, itemSyntax: .markdown)
     }
 
+    /// The app's cache key for the notes `installed` reads (`CLIToolStatus
+    /// .releaseNotesKey`): one per series, because `fetch` reaches back only as
+    /// far as the installed series — notes fetched for a copy on 0.12 lack the
+    /// 0.9–0.11 files a copy on 0.9 needs, and under one key the second copy
+    /// would be shown the first one's.
+    static func releaseNotesKey(installed: String?) -> String {
+        guard let installed else { return "uv" }
+        return "uv:" + installed.split(separator: ".").prefix(2).joined(separator: ".")
+    }
+
     /// The whole notes `installed` needs: the current file, then each older
     /// series, newest first, until the entries reach `installed` and hold what
     /// `CLIToolChangelog.relevant` shows around it — every release after it, and

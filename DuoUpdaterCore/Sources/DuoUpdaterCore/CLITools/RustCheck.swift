@@ -131,7 +131,7 @@ public struct RustCheck: Sendable {
             CLIToolStatus(
                 kind: .rust, path: toolchain.path, installedVersion: toolchain.version?.display, latestVersion: latest,
                 channel: name.channel, state: state, oneClick: oneClick, withheld: withheld, note: note,
-                name: name.name, releaseNotesKey: "rust",
+                name: name.name, releaseNotesKey: RustChangelog.releaseNotesKey(channel: name.channel),
                 detail: .rust(RustItem(
                     path: toolchain.path, version: toolchain.version?.display, kind: .toolchain(name),
                     trustedRustup: oneClick == nil ? nil : updater.trusted)))

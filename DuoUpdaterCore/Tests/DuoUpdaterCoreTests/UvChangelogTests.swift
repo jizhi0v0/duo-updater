@@ -297,4 +297,14 @@ import Foundation
             try await UvChangelog.fetch(installed: nil, force: false) { _, _ in Data("<html></html>".utf8) }
         }
     }
+
+    /// Two copies on different series read different documents, so the app must
+    /// not keep one for both; two on the same series share one.
+    ///
+    /// Mutation: return "uv" for every version.
+    @Test func eachSeriesHasItsOwnReleaseNotesKey() {
+        #expect(UvChangelog.releaseNotesKey(installed: "0.9.18") == "uv:0.9")
+        #expect(UvChangelog.releaseNotesKey(installed: "0.9.2") == "uv:0.9")
+        #expect(UvChangelog.releaseNotesKey(installed: "0.12.21") != UvChangelog.releaseNotesKey(installed: "0.9.18"))
+    }
 }

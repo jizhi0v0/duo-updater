@@ -379,6 +379,20 @@ import Foundation
         #expect(ClaudeCodeActivity.busy(native, processes: [processes[0]], stagingDirectory: staging) == nil)
     }
 
+    /// An npm install of the package reads as busy in both shapes the process
+    /// table shows it in: before npm sets its title, and after — when argv[0] is
+    /// the whole title and the rest is blank (measured 2026-10-02).
+    ///
+    /// Mutation: take `lastPathComponent` of the whole argument again.
+    @Test func anNpmInstallOfClaudeCodeIsBusyUnderItsTitleToo() {
+        let before = ["node", "/n/lib/node_modules/npm/bin/npm-cli.js", "install", "-g", "@anthropic-ai/claude-code"]
+        let titled = ["npm install @anthropic-ai/claude-code@latest", "", "", "", ""]
+        let other = ["npm install typescript@5.4.5", "", "", ""]
+        #expect(ClaudeCodeActivity.isPackageManagerTouchingClaude(before))
+        #expect(ClaudeCodeActivity.isPackageManagerTouchingClaude(titled))
+        #expect(!ClaudeCodeActivity.isPackageManagerTouchingClaude(other))
+    }
+
     /// `staging/<version>.<pid>.<ms>` — busy only while that pid is alive; a failed
     /// install leaves the directory behind with a dead pid.
     @Test func stagingDirectoryCountsOnlyWhileItsProcessLives() throws {

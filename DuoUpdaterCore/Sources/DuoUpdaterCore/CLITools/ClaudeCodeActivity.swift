@@ -102,11 +102,17 @@ public enum ClaudeCodeActivity {
     }
 
     /// npm, pnpm or bun with the package on its command line — including the
-    /// `node …/npm-cli.js install -g @anthropic-ai/claude-code` shape.
+    /// `node …/npm-cli.js install -g @anthropic-ai/claude-code` shape, and the
+    /// title npm writes over its own argv once it has parsed it: one argv[0] of
+    /// `npm install @anthropic-ai/claude-code@latest` and the rest empty (measured
+    /// 2026-10-02 with `ps` during an `npm install -g`, as `NpmActivity` found).
+    /// Read whole, that argv[0]'s last path component is `claude-code@latest`, so
+    /// for nearly all of an npm install the copy did not read as busy.
     static func isPackageManagerTouchingClaude(_ arguments: [String]) -> Bool {
         guard arguments.contains(where: { $0.contains("@anthropic-ai/claude-code") }) else { return false }
         return arguments.prefix(2).contains {
-            let name = ($0 as NSString).lastPathComponent
+            let command = $0.split(separator: " ", maxSplits: 1).first.map(String.init) ?? $0
+            let name = (command as NSString).lastPathComponent
             return ["npm", "npm-cli.js", "pnpm", "pnpm.js", "pnpm.cjs", "bun", "node"].contains(name)
         }
     }

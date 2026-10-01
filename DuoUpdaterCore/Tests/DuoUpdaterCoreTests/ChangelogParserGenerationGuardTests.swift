@@ -84,8 +84,13 @@ import Foundation
     /// 7 (Blender follows the target minor's page and parses LTS pages) moves
     /// neither fixture: it is one app's recipe. Pinned by
     /// `BlenderChangelogRecipeTests`.
+    ///
+    /// 8 (`GitHubMarkdownParser` reads changelogithub bodies: `&nbsp;` heading
+    /// indents, `&nbsp;-&nbsp;` attribution tails, nested `**scope**:` changes)
+    /// moves neither fixture: neither has an `&nbsp;` or a bare `**scope**:`
+    /// bullet. Pinned by `BubChangelogTests`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 7)
+        #expect(Changelog.parserGeneration == 8)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

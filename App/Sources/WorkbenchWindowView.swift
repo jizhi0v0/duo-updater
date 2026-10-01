@@ -156,13 +156,13 @@ struct WorkbenchWindowView: View {
         searchQuery.isEmpty || name.localizedStandardContains(searchQuery)
     }
 
-    /// A Claude Code row matches by the tool's name, so "claude" finds every copy,
-    /// and by the title and the path it stands for.
-    private func matchesSearch(_ status: ClaudeCodeStatus) -> Bool {
+    /// A command-line tool's row matches by the tool's name, so "claude" finds every
+    /// copy of Claude Code, and by the title and the path it stands for.
+    private func matchesSearch(_ status: CLIToolStatus) -> Bool {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return matchesSearch("Claude Code")
-            || matchesSearch(ClaudeCodePresentation.title(of: status.install, home: home))
-            || matchesSearch(status.install.path)
+        return matchesSearch(status.kind.displayName)
+            || matchesSearch(CLIToolPresentation.title(of: status, home: home))
+            || matchesSearch(status.path)
     }
 
     /// The derived lists the sidebar draws, built ONCE per body pass and handed down.
@@ -179,8 +179,9 @@ struct WorkbenchWindowView: View {
     /// not make the CLI tab disappear from under the reader.
     struct SidebarLists {
         let filteredApps: [UpdateResult]
-        /// The CLI tab's Claude Code group.
-        let claudeCode: [ClaudeCodeStatus]
+        /// The CLI tab's tool groups after Homebrew's, every tool's installs in
+        /// `CLIToolKind.allCases` order — the order the groups are drawn in.
+        let cliTools: [CLIToolStatus]
         let brewCasks: [UpdateResult]
         let brewFormulae: [BrewInstalledFormula]
         let brewUnchecked: [BrewUncheckedPackage]
@@ -188,7 +189,7 @@ struct WorkbenchWindowView: View {
         /// query that matches nothing empties the Homebrew group like the other two.
         let homebrewSelfUpdate: HomebrewSelfUpdate?
         let rollbackable: [UpdateResult]
-        /// The CLI tab has anything to show: Homebrew, or a Claude Code install.
+        /// The CLI tab has anything to show: Homebrew, or an install of another tool.
         let hasCLI: Bool
         /// Each tab's count before the search, which the count's slot is sized to so
         /// the icon and title hold still while typing narrows the count.
@@ -203,18 +204,18 @@ struct WorkbenchWindowView: View {
         let allRollbackable = rollbackableApps
         let brewTotal = allCasks.count + model.brewFormulae.count + model.brewUnchecked.count
             + (model.homebrewSelfUpdate == nil ? 0 : 1)
-        let claudeCode = model.cliTools.claudeCode
+        let cliTools = model.cliTools.statuses
         return SidebarLists(
             filteredApps: allApps.filter(matchesSearch),
-            claudeCode: claudeCode.filter(matchesSearch),
+            cliTools: cliTools.filter(matchesSearch),
             brewCasks: allCasks.filter(matchesSearch),
             brewFormulae: model.brewFormulae.filter { matchesSearch($0.name) },
             brewUnchecked: model.brewUnchecked.filter { matchesSearch($0.fullName) },
             homebrewSelfUpdate: matchesSearch("Homebrew") ? model.homebrewSelfUpdate : nil,
             rollbackable: allRollbackable.filter(matchesSearch),
-            hasCLI: brewTotal > 0 || !claudeCode.isEmpty,
+            hasCLI: brewTotal > 0 || !cliTools.isEmpty,
             appsTotal: allApps.count,
-            cliTotal: brewTotal + claudeCode.count,
+            cliTotal: brewTotal + cliTools.count,
             rollbackTotal: allRollbackable.count)
     }
 
@@ -242,13 +243,11 @@ struct WorkbenchWindowView: View {
         return model.brewUnchecked.first { $0.id == packageID }
     }
 
-    /// The Claude Code install selected, when the selection is one of those rows
-    /// (tagged `claude:<install path>`).
-    private var selectedClaudeCode: ClaudeCodeStatus? {
-        let prefix = "claude:"
-        guard let id = detailSelection, id.hasPrefix(prefix) else { return nil }
-        let path = String(id.dropFirst(prefix.count))
-        return model.cliTools.claudeCode.first { $0.install.path == path }
+    /// The command-line tool install selected, when the selection is one of those
+    /// rows (tagged `<kind>:<install path>`, `CLIToolID.tag`).
+    private var selectedCLITool: CLIToolStatus? {
+        guard let id = detailSelection else { return nil }
+        return model.cliTools.statuses.first { $0.toolID.tag == id }
     }
 
     var body: some View {
@@ -266,9 +265,15 @@ struct WorkbenchWindowView: View {
             } else if let package = selectedUnchecked {
                 BrewUncheckedDetailPane(package: package)
                     .id("brew:unchecked:\(package.id)")
-            } else if let status = selectedClaudeCode {
-                ClaudeCodeDetailPane(status: status, cli: model.cliTools)
-                    .id("claude:\(status.install.path)")
+            } else if let status = selectedCLITool {
+                Group {
+                    if case .claudeCode(let claudeCode) = status.detail {
+                        ClaudeCodeDetailPane(status: claudeCode, cli: model.cliTools)
+                    } else {
+                        CLIToolDetailPane(status: status, cli: model.cliTools)
+                    }
+                }
+                .id(status.toolID.tag)
             } else {
                 ContentUnavailableView(
                     "Select an app",
@@ -323,7 +328,7 @@ struct WorkbenchWindowView: View {
         // Separate task so the Homebrew check (login shell + `brew config`) never
         // holds up the tree itself.
         .task { await model.refreshHomebrewSelfUpdate() }
-        // The CLI tab's other group: Claude Code installs and their channels.
+        // The CLI tab's other groups: each tool's installs and their channels.
         // The popover's rule: a local scan, and the networked check only when the
         // report on screen may be wrong.
         .task { await model.cliTools.refreshOnOpen() }
@@ -489,7 +494,7 @@ struct WorkbenchWindowView: View {
     /// the hardest part of the window to find and the one with the least room.
     ///
     /// `cli` was the Brew tab. It holds command-line tools by group now — Homebrew,
-    /// Claude Code — and a later tool adds a group rather than a tab.
+    /// then one per `CLIToolKind` — and a later tool adds a group rather than a tab.
     enum SidebarTab: Hashable {
         case apps, cli, rollback
     }
@@ -508,7 +513,7 @@ struct WorkbenchWindowView: View {
 
     /// Rows the CLI tab shows after the search, for the tab's count.
     private func cliItemCount(_ lists: SidebarLists) -> Int {
-        brewItemCount(lists) + lists.claudeCode.count
+        brewItemCount(lists) + lists.cliTools.count
     }
 
     /// The tab actually drawn: a remembered CLI tab falls back to Apps once there
@@ -724,7 +729,7 @@ struct WorkbenchWindowView: View {
                     + lists.brewFormulae.map { "brew:formula:\($0.name)" }
                     + lists.brewUnchecked.map { "brew:unchecked:\($0.id)" }
                 : []
-            ids = brewIDs + lists.claudeCode.map { "claude:\($0.install.path)" }
+            ids = brewIDs + lists.cliTools.map(\.toolID.tag)
         case .rollback:
             ids = lists.rollbackable.map(\.id)
         }
@@ -837,7 +842,8 @@ struct WorkbenchWindowView: View {
     }
 
     /// A click on the Homebrew header. Closing it moves a selection that was one of
-    /// its rows to the first Claude Code row (or none), since that row is going.
+    /// its rows to the first row of the tool groups below it (or none), since that
+    /// row is going.
     private func toggleHomebrewGroup() {
         var group = homebrewGroup
         let holdsSelection = isHomebrewRow(selection)
@@ -845,7 +851,7 @@ struct WorkbenchWindowView: View {
         homebrewExpandedPreference = group.preferenceExpanded
         homebrewRevealing = group.revealing
         if !group.preferenceExpanded, holdsSelection {
-            selection = sidebarLists.claudeCode.first.map { "claude:\($0.install.path)" }
+            selection = sidebarLists.cliTools.first?.toolID.tag
             detailSelection = selection
         }
     }
@@ -877,24 +883,39 @@ struct WorkbenchWindowView: View {
             toggle: { withAnimation(.snappy(duration: 0.2)) { toggleHomebrewGroup() } })
     }
 
-    /// The Claude Code group's header: the channel its installs are checked
-    /// against and whether auto-update is on — which decides whether any of them
-    /// can offer one-click at all.
-    private var claudeCodeHeader: some View {
+    /// A tool group's header: the tool's name, and what decides its installs'
+    /// verdicts tool-wide. Claude Code's channel and whether auto-update is on —
+    /// which decides whether any of them can offer one-click at all; fx's channel;
+    /// nothing for bub, which has neither.
+    private func cliToolHeader(_ kind: CLIToolKind) -> some View {
         HStack(spacing: 6) {
-            Text(verbatim: "Claude Code")
+            Text(verbatim: kind.displayName)
             Spacer()
             if model.cliTools.checking {
                 ProgressView().controlSize(.mini)
             }
-            let summary = ClaudeCodePresentation.settingsSummary(model.cliTools.claudeCodeSettings)
-            // Several languages say "auto-update off" in twice the English width;
-            // shrunk a little, then cut, with the whole line on hover.
-            Text(verbatim: summary)
-                .fontWeight(.regular)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .help(summary)
+            if let summary = cliToolHeaderSummary(kind) {
+                // Several languages say "auto-update off" in twice the English width;
+                // shrunk a little, then cut, with the whole line on hover.
+                Text(verbatim: summary)
+                    .fontWeight(.regular)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .help(summary)
+            }
+        }
+    }
+
+    private func cliToolHeaderSummary(_ kind: CLIToolKind) -> String? {
+        switch kind {
+        case .claudeCode:
+            return ClaudeCodePresentation.settingsSummary(model.cliTools.claudeCodeSettings ?? ClaudeCodeSettings())
+        case .fx:
+            // What the installs were checked on, as their statuses say. The whole
+            // group's, not the search's, like the Homebrew summary.
+            return CLIToolPresentation.channels(of: model.cliTools.statuses.filter { $0.kind == .fx })
+        case .bub:
+            return nil
         }
     }
 
@@ -930,12 +951,13 @@ struct WorkbenchWindowView: View {
         }
     }
 
-    /// The CLI tab's list, one group per tool: Homebrew, then Claude Code.
+    /// The CLI tab's list, one group per tool: Homebrew, then each `CLIToolKind`
+    /// with an install, in `allCases` order.
     ///
     /// The Homebrew group is what the Brew tab was — brew-managed casks (reusing
     /// the app row + its existing install path) above CLI formulae (their own inline
-    /// action) — and opens and closes (`HomebrewGroupState`). Claude Code's is a
-    /// handful of rows at most and is always open.
+    /// action) — and opens and closes (`HomebrewGroupState`). Every other tool's is
+    /// a handful of rows at most and is always open.
     private func cliListView(_ lists: SidebarLists) -> some View {
         let brewExpanded = homebrewExpanded(lists)
         // With nothing typed, the group is there whenever Homebrew has anything;
@@ -985,14 +1007,19 @@ struct WorkbenchWindowView: View {
                         homebrewHeader(lists, expanded: brewExpanded)
                     }
                 }
-                if !lists.claudeCode.isEmpty {
-                    Section {
-                        ForEach(lists.claudeCode, id: \.install.path) { status in
-                            ClaudeCodeSidebarRow(status: status, cli: model.cliTools)
-                                .tag("claude:\(status.install.path)")
+                ForEach(CLIToolKind.allCases, id: \.self) { kind in
+                    let statuses = lists.cliTools.filter { $0.kind == kind }
+                    if !statuses.isEmpty {
+                        Section {
+                            ForEach(statuses, id: \.toolID) { status in
+                                CLIToolSidebarRow(
+                                    status: status, cli: model.cliTools,
+                                    isSelected: selection == status.toolID.tag)
+                                    .tag(status.toolID.tag)
+                            }
+                        } header: {
+                            cliToolHeader(kind)
                         }
-                    } header: {
-                        claudeCodeHeader
                     }
                 }
             }

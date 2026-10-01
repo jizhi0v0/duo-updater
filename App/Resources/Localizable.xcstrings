@@ -781,6 +781,71 @@
         }
       }
     },
+    "%@ is already being updated": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wird bereits aktualisiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ya se está actualizando"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ est déjà en cours de mise à jour"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ è già in aggiornamento"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はすでにアップデート中です"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ já está sendo atualizado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ уже обновляется"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ zaten güncelleniyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已在更新中"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已在更新中"
+          }
+        }
+      }
+    },
     "%@ quit, but its own updater didn’t apply the update in time.": {
       "extractionState": "manual",
       "localizations": {
@@ -2534,6 +2599,71 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%@’s release notes have no section for these versions yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Versionshinweise von %@ haben noch keinen Abschnitt für diese Versionen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las notas de la versión de %@ aún no tienen una sección para estas versiones."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les notes de version de %@ n’ont pas encore de section pour ces versions."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le note di rilascio di %@ non hanno ancora una sezione per queste versioni."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ のリリースノートには、これらのバージョンのセクションがまだありません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As notas de versão do %@ ainda não têm uma seção para estas versões."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В примечаниях к выпускам %@ пока нет раздела для этих версий."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ sürüm notlarında bu sürümler için henüz bir bölüm yok."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的版本说明里还没有这些版本的内容。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的版本說明裡還沒有這些版本的內容。"
           }
         }
       }
@@ -10517,67 +10647,67 @@
         }
       }
     },
-    "Auto-update is off in Claude Code’s settings": {
+    "Auto-update is off in %@’s settings": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Automatische Updates in Claude Code aus"
+            "value": "Automatische Updates in %@ aus"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Actualización automática desactivada en Claude Code"
+            "value": "Actualización automática desactivada en %@"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mise à jour auto désactivée dans Claude Code"
+            "value": "Mise à jour auto désactivée dans %@"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aggiornamento automatico disattivato in Claude Code"
+            "value": "Aggiornamento automatico disattivato in %@"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Code の設定で自動アップデートがオフ"
+            "value": "%@ の設定で自動アップデートがオフ"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Atualização automática desativada no Claude Code"
+            "value": "Atualização automática desativada no %@"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Автообновление выключено в Claude Code"
+            "value": "Автообновление выключено в %@"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Code’da otomatik güncelleme kapalı"
+            "value": "%@ ayarlarında otomatik güncelleme kapalı"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Code 的设置里关闭了自动更新"
+            "value": "%@ 的设置里关闭了自动更新"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Code 的設定中已關閉自動更新"
+            "value": "%@ 的設定中已關閉自動更新"
           }
         }
       }
@@ -10643,6 +10773,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "備份已關閉"
+          }
+        }
+      }
+    },
+    "bub updates with uv, and uv wasn’t found": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bub wird mit uv aktualisiert, und uv wurde nicht gefunden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bub se actualiza con uv, y no se encontró uv"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bub se met à jour avec uv, qui est introuvable"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bub si aggiorna con uv, e uv non è stato trovato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bub のアップデートには uv が必要ですが、見つかりません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O bub é atualizado com o uv, e o uv não foi encontrado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bub обновляется через uv, а uv не найден"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bub, uv ile güncellenir ve uv bulunamadı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bub 需要用 uv 更新，但没有找到 uv"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bub 需要用 uv 更新，但找不到 uv"
           }
         }
       }
@@ -12802,136 +12997,6 @@
         }
       }
     },
-    "Claude Code is already being updated": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code wird bereits aktualisiert"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code ya se está actualizando"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code est déjà en cours de mise à jour"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code è già in aggiornamento"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code はすでにアップデート中です"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Claude Code já está sendo atualizado"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code уже обновляется"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code zaten güncelleniyor"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code 已在更新中"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code 已在更新中"
-          }
-        }
-      }
-    },
-    "Claude Code updated to %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code auf %@ aktualisiert"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code actualizado a %@"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code mis à jour vers %@"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code aggiornato a %@"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code を %@ にアップデートしました"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code atualizado para %@"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code обновлён до %@"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code %@ sürümüne güncellendi"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code 已更新至 %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code 已更新至 %@"
-          }
-        }
-      }
-    },
     "Clean Up…": {
       "extractionState": "manual",
       "localizations": {
@@ -14102,6 +14167,71 @@
         }
       }
     },
+    "Couldn’t reach %@’s release channel": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release-Kanal von %@ nicht erreichbar"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canal de versiones de %@ inaccesible"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canal de publication de %@ injoignable"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canale di rilascio di %@ irraggiungibile"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ のリリースチャンネルに接続できません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canal de versões do %@ inacessível"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Канал выпусков %@ недоступен"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ sürüm kanalına ulaşılamadı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法连接 %@ 的发布渠道"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法連線到 %@ 的發布頻道"
+          }
+        }
+      }
+    },
     "Couldn’t reach Alcove: %@": {
       "extractionState": "manual",
       "localizations": {
@@ -14163,71 +14293,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "無法連線到 Alcove：%@"
-          }
-        }
-      }
-    },
-    "Couldn’t reach Claude Code’s release channel": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Release-Kanal von Claude Code nicht erreichbar"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Canal de versiones de Claude Code inaccesible"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Canal de publication de Claude Code injoignable"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Canale di rilascio di Claude Code irraggiungibile"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code のリリースチャンネルに接続できません"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Canal de versões do Claude Code inacessível"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Канал выпусков Claude Code недоступен"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code’un sürüm kanalına ulaşılamadı"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法连接 Claude Code 的发布渠道"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無法連線到 Claude Code 的發布頻道"
           }
         }
       }
@@ -21738,6 +21803,71 @@
         }
       }
     },
+    "Latest": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neueste Version"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Última versión"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dernière version"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ultima versione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新バージョン"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versão mais recente"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последняя версия"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En son sürüm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新版本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新版本"
+          }
+        }
+      }
+    },
     "Launch at login": {
       "extractionState": "manual",
       "localizations": {
@@ -22323,6 +22453,71 @@
         }
       }
     },
+    "Not signed by %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht von %@ signiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No firmado por %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non signé par %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non firmato da %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ の署名なし"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não assinado por %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не подписано %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ tarafından imzalanmamış"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "非 %@ 签名"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "非 %@ 簽署"
+          }
+        }
+      }
+    },
     "Not signed by Anthropic": {
       "extractionState": "manual",
       "localizations": {
@@ -22384,6 +22579,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "非 Anthropic 簽署"
+          }
+        }
+      }
+    },
+    "Not signed by its developer": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht vom Entwickler signiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No firmado por su desarrollador"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non signé par son développeur"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non firmato dallo sviluppatore"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開発元の署名なし"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não assinado pelo desenvolvedor"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не подписано разработчиком"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geliştiricisi tarafından imzalanmamış"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "非开发者签名"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "非開發者簽署"
           }
         }
       }
@@ -34863,6 +35123,71 @@
         }
       }
     },
+    "Takes effect the next time it runs": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wirkt ab dem nächsten Start"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se aplica la próxima vez que se ejecute"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prend effet à sa prochaine exécution"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ha effetto dalla prossima esecuzione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "次回の実行から反映されます"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vale a partir da próxima execução"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вступит в силу при следующем запуске"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir sonraki çalıştırmada geçerli olur"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下次运行时生效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下次執行時生效"
+          }
+        }
+      }
+    },
     "TestFlight keeps the builds it offers you in its own database, and only TestFlight itself ever brings that database up to date — so a fresh answer means starting TestFlight. Reading the database needs Full Disk Access; without it, beta rows say so.": {
       "extractionState": "manual",
       "localizations": {
@@ -34989,6 +35314,136 @@
           "stringUnit": {
             "state": "translated",
             "value": "預設選項。下載廠商自己的安裝程式，即使 App 開著也會套用，之後再結束並重新開啟它。"
+          }
+        }
+      }
+    },
+    "The program that updates it wasn’t found": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Programm, das es aktualisiert, wurde nicht gefunden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró el programa que lo actualiza"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Programme de mise à jour introuvable"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il programma che lo aggiorna non è stato trovato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートに使うプログラムが見つかりません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O programa que o atualiza não foi encontrado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Программа для его обновления не найдена"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onu güncelleyen program bulunamadı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到用来更新它的程序"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到用來更新它的程式"
+          }
+        }
+      }
+    },
+    "The server answered HTTP %lld.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Server antwortete mit HTTP %lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servidor respondió con HTTP %lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur a répondu HTTP %lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il server ha risposto HTTP %lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバからHTTP %lldが返されました。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O servidor respondeu HTTP %lld."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер ответил HTTP %lld."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucu HTTP %lld yanıtı verdi."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器返回了 HTTP %lld。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器回應了 HTTP %lld。"
           }
         }
       }
@@ -38249,6 +38704,71 @@
         }
       }
     },
+    "Updated to %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf %@ aktualisiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizado a %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mis à jour vers %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiornato a %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ にアップデート済み"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizado para %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновлено до %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ sürümüne güncellendi"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已更新到 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已更新至 %@"
+          }
+        }
+      }
+    },
     "Updated to %@.": {
       "extractionState": "manual",
       "localizations": {
@@ -38444,132 +38964,132 @@
         }
       }
     },
-    "Updates are turned off in Claude Code’s settings": {
+    "Updates are turned off in %@’s settings": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Updates in Claude Code ausgeschaltet"
+            "value": "Updates in %@ ausgeschaltet"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Actualizaciones desactivadas en Claude Code"
+            "value": "Actualizaciones desactivadas en %@"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mises à jour désactivées dans Claude Code"
+            "value": "Mises à jour désactivées dans %@"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aggiornamenti disattivati in Claude Code"
+            "value": "Aggiornamenti disattivati in %@"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Code の設定でアップデートがオフ"
+            "value": "%@ の設定でアップデートがオフ"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Atualizações desativadas no Claude Code"
+            "value": "Atualizações desativadas no %@"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обновления выключены в Claude Code"
+            "value": "Обновления выключены в %@"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Code’da güncellemeler kapalı"
+            "value": "%@ ayarlarında güncellemeler kapalı"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Code 的设置里关闭了更新"
+            "value": "%@ 的设置里关闭了更新"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Code 的設定中已關閉更新"
+            "value": "%@ 的設定中已關閉更新"
           }
         }
       }
     },
-    "Updates each copy in place, with the installer that installed it and on your Claude Code channel. Copies Claude Code won’t auto-update are left alone.": {
+    "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update are left alone.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aktualisiert jede Kopie an Ort und Stelle, mit dem Installer, der sie installiert hat, und auf deinem Claude-Code-Kanal. Kopien, die Claude Code nicht automatisch aktualisiert, bleiben unberührt."
+            "value": "Aktualisiert jede Kopie an Ort und Stelle mit dem Update-Befehl ihres eigenen Tools, auf dem Kanal, den dieses Tool eingestellt hat. Kopien ohne Ein-Klick-Update bleiben unberührt."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Actualiza cada copia en su sitio, con el instalador que la instaló y en tu canal de Claude Code. Las copias que Claude Code no actualiza automáticamente no se tocan."
+            "value": "Actualiza cada copia en su sitio con el comando de actualización de su propia herramienta, en el canal que esa herramienta tenga configurado. Las copias sin actualización en un clic no se tocan."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Met à jour chaque copie sur place, avec l’installateur qui l’a installée et sur votre canal Claude Code. Les copies que Claude Code ne met pas à jour automatiquement ne sont pas touchées."
+            "value": "Met à jour chaque copie sur place avec la commande de mise à jour de son propre outil, sur le canal choisi dans cet outil. Les copies sans mise à jour en un clic ne sont pas touchées."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aggiorna ogni copia sul posto, con l’installer che l’ha installata e sul tuo canale di Claude Code. Le copie che Claude Code non aggiorna automaticamente non vengono toccate."
+            "value": "Aggiorna ogni copia sul posto con il comando di aggiornamento del suo strumento, sul canale impostato in quello strumento. Le copie senza aggiornamento in un clic non vengono toccate."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "各コピーを、インストールしたインストーラで、その場所のまま、Claude Code のチャンネルでアップデートします。Claude Code が自動アップデートしないコピーには触れません。"
+            "value": "各コピーを、その場所のまま、それぞれのツール自身のアップデートコマンドで、そのツールに設定されたチャンネルでアップデートします。ワンクリック更新のないコピーには触れません。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Atualiza cada cópia no lugar, com o instalador que a instalou e no seu canal do Claude Code. Cópias que o Claude Code não atualiza automaticamente não são alteradas."
+            "value": "Atualiza cada cópia no lugar com o comando de atualização da própria ferramenta, no canal definido nessa ferramenta. Cópias sem atualização em um clique não são alteradas."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обновляет каждую копию на месте — тем установщиком, которым она установлена, и на вашем канале Claude Code. Копии, которые Claude Code не обновляет автоматически, не затрагиваются."
+            "value": "Обновляет каждую копию на месте командой обновления её собственного инструмента, на канале, выбранном в этом инструменте. Копии без обновления в один клик не затрагиваются."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Her kopyayı yerinde, onu kuran yükleyiciyle ve Claude Code kanalınızda günceller. Claude Code’un otomatik güncellemediği kopyalara dokunulmaz."
+            "value": "Her kopyayı yerinde, kendi aracının güncelleme komutuyla ve o araçta ayarlı kanalda günceller. Tek tıkla güncellemesi olmayan kopyalara dokunulmaz."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "用当初安装它的安装器、在原位置、按你的 Claude Code 渠道更新每一份副本。Claude Code 不会自动更新的副本保持不动。"
+            "value": "在原位置、用各自工具自己的更新命令、按该工具设定的渠道更新每一份副本。没有一键更新的副本保持不动。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "用當初安裝它的安裝程式、在原位置、依你的 Claude Code 頻道更新每一份副本。Claude Code 不會自動更新的副本維持不動。"
+            "value": "在原位置、用各自工具自己的更新指令、依該工具設定的頻道更新每一份副本。沒有一鍵更新的副本維持不動。"
           }
         }
       }
@@ -38639,67 +39159,132 @@
         }
       }
     },
-    "Updating Claude Code": {
+    "Updating %@": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Code wird aktualisiert"
+            "value": "%@ wird aktualisiert"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Actualizando Claude Code"
+            "value": "Actualizando %@"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mise à jour de Claude Code"
+            "value": "Mise à jour de %@"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aggiornamento di Claude Code"
+            "value": "Aggiornamento di %@"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Code をアップデート中"
+            "value": "%@ をアップデート中"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Atualizando o Claude Code"
+            "value": "Atualizando %@"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обновление Claude Code"
+            "value": "Обновление %@"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Code güncelleniyor"
+            "value": "%@ güncelleniyor"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在更新 Claude Code"
+            "value": "正在更新 %@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在更新 Claude Code"
+            "value": "正在更新 %@"
+          }
+        }
+      }
+    },
+    "Updating command-line tools": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Befehlszeilentools werden aktualisiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizando herramientas de línea de comandos"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mise à jour des outils en ligne de commande"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiornamento degli strumenti da riga di comando"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コマンドラインツールをアップデート中"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizando ferramentas de linha de comando"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновление инструментов командной строки"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komut satırı araçları güncelleniyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在更新命令行工具"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在更新命令列工具"
           }
         }
       }
@@ -53025,71 +53610,6 @@
         }
       }
     },
-    "Claude Code’s changelog has no section for these versions yet.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Das Änderungsprotokoll von Claude Code hat noch keinen Abschnitt für diese Versionen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El registro de cambios de Claude Code aún no tiene una sección para estas versiones."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le journal des modifications de Claude Code n’a pas encore de section pour ces versions."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Il changelog di Claude Code non ha ancora una sezione per queste versioni."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code の変更履歴には、これらのバージョンのセクションがまだありません。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O registro de alterações do Claude Code ainda não tem uma seção para estas versões."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "В журнале изменений Claude Code пока нет раздела для этих версий."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code’un değişiklik günlüğünde bu sürümler için henüz bir bölüm yok."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code 的更新日志里还没有这些版本的内容。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude Code 的更新日誌裡還沒有這些版本的內容。"
-          }
-        }
-      }
-    },
     "Copy Command": {
       "extractionState": "manual",
       "localizations": {
@@ -55692,6 +56212,266 @@
           "stringUnit": {
             "state": "translated",
             "value": "這個 npm 前綴下沒有它自己的 node 或 npm，DuoUpdater 無法判斷這份副本是用哪個 npm 安裝的，因此只做提示。要更新它，請用安裝它的那個 npm 執行 npm install -g @anthropic-ai/claude-code@%@。"
+          }
+        }
+      }
+    },
+    "Builds on this channel aren’t signed by %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Builds dieses Kanals sind nicht von %@ signiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las compilaciones de este canal no están firmadas por %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les versions de ce canal ne sont pas signées par %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le build di questo canale non sono firmate da %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このチャンネルのビルドは %@ の署名がありません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As compilações deste canal não são assinadas por %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сборки этого канала не подписаны %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kanalın derlemeleri %@ tarafından imzalanmamış"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此渠道的构建没有 %@ 的签名"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此頻道的建置沒有 %@ 的簽署"
+          }
+        }
+      }
+    },
+    "Builds on this channel aren’t signed by its developer": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Builds dieses Kanals sind nicht vom Entwickler signiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las compilaciones de este canal no están firmadas por su desarrollador"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les versions de ce canal ne sont pas signées par leur développeur"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le build di questo canale non sono firmate dallo sviluppatore"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このチャンネルのビルドは開発元の署名がありません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As compilações deste canal não são assinadas pelo desenvolvedor"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сборки этого канала не подписаны разработчиком"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kanalın derlemeleri geliştiricisi tarafından imzalanmamış"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此渠道的构建没有开发者签名"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此頻道的建置沒有開發者簽署"
+          }
+        }
+      }
+    },
+    "%@’s project doesn’t list %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Projekt von %1$@ führt %2$@ nicht auf"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El proyecto de %1$@ no incluye %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le projet de %1$@ ne mentionne pas %2$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il progetto di %1$@ non elenca %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ のプロジェクトに %2$@ が含まれていません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O projeto do %1$@ não lista o %2$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В проекте %1$@ нет %2$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ projesi %2$@ paketini listelemiyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 的项目里没有列出 %2$@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 的專案裡沒有列出 %2$@"
+          }
+        }
+      }
+    },
+    "The first update creates bub’s project in ~/.bub/bub-project and may rebuild its environment with a newer Python. Packages installed into it by hand would be lost.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das erste Update legt das Projekt von bub in ~/.bub/bub-project an und baut die Umgebung dabei eventuell mit einer neueren Python-Version neu auf. Von Hand darin installierte Pakete gingen verloren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La primera actualización crea el proyecto de bub en ~/.bub/bub-project y puede reconstruir su entorno con un Python más reciente. Los paquetes instalados a mano en él se perderían."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La première mise à jour crée le projet de bub dans ~/.bub/bub-project et peut reconstruire son environnement avec une version plus récente de Python. Les paquets qui y ont été installés à la main seraient perdus."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il primo aggiornamento crea il progetto di bub in ~/.bub/bub-project e può ricostruirne l’ambiente con un Python più recente. I pacchetti installati a mano andrebbero persi."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最初の更新で bub のプロジェクトが ~/.bub/bub-project に作成され、環境がより新しい Python で作り直されることがあります。手動でインストールしたパッケージは失われます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A primeira atualização cria o projeto do bub em ~/.bub/bub-project e pode reconstruir o ambiente com um Python mais recente. Pacotes instalados nele manualmente seriam perdidos."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Первое обновление создаёт проект bub в ~/.bub/bub-project и может пересобрать окружение на более новом Python. Пакеты, установленные в него вручную, будут потеряны."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İlk güncelleme bub’ın projesini ~/.bub/bub-project içinde oluşturur ve ortamı daha yeni bir Python ile yeniden kurabilir. Elle kurulan paketler kaybolur."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第一次更新会在 ~/.bub/bub-project 创建 bub 的项目，可能用更新的 Python 重建它的环境。手动装进去的包会丢失。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第一次更新會在 ~/.bub/bub-project 建立 bub 的專案，可能用更新的 Python 重建它的環境。手動裝進去的套件會遺失。"
           }
         }
       }

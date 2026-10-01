@@ -974,7 +974,7 @@ final class AppListModel {
     }
     @ObservationIgnored private var heldBadgeCount = 0
 
-    /// Command-line tools that are not Homebrew's (Claude Code). See `CLIToolsModel`.
+    /// Command-line tools that are not Homebrew's (Claude Code, …). See `CLIToolsModel`.
     let cliTools = CLIToolsModel()
 
     // MARK: - Homebrew formulae (CLI tools)
@@ -1762,10 +1762,10 @@ final class AppListModel {
         // process, and doing it at launch means the banner is right the first time
         // the menu opens rather than after some later event.
         resolveSilentSelfUpdate()
-        // Find Claude Code installs now, locally and without the network, so the
-        // popover's first open already knows whether to reserve the command-line
-        // tools row — the role `brewInstalled` plays for the brew row. The
-        // networked check runs when the popover opens.
+        // Find command-line tool installs now, locally and without the network, so
+        // the popover's first open already knows whether to reserve the
+        // command-line tools row — the role `brewInstalled` plays for the brew
+        // row. The networked check runs when the popover opens.
         Task { await cliTools.scanInstalls() }
     }
 

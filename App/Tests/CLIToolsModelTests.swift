@@ -2,10 +2,10 @@ import Foundation
 import Testing
 import DuoUpdaterCore
 
-/// `CLIToolsModel`'s state machine, driven by an injected check, scan and
-/// updater — so nothing here reaches the network, reads the host's installs or
-/// runs an installer. The user's real Claude Code copies must not change because
-/// a test ran.
+/// `CLIToolsModel`'s state machine, driven by injected providers whose check,
+/// scan, updater and release notes are scripted — so nothing here reaches the
+/// network, reads the host's installs or runs an installer. The user's real
+/// command-line tools must not change because a test ran.
 ///
 /// Each case names the single-line mutation it must fail under.
 @MainActor
@@ -15,33 +15,62 @@ struct CLIToolsModelTests {
 
     static let native = "/Users/u/.local/bin/claude"
     static let npm = "/Users/u/.nvm/versions/node/v24.11.0/lib/node_modules/@anthropic-ai/claude-code"
+    static let fx = "/Users/u/.fx/bin/fx"
+    static let bub = "/Users/u/.local/bin/bub"
 
-    /// A status as the check would return it. Built through `Codable` because the
-    /// memberwise initializer is internal to Core — the same shape `duo
-    /// claude-code --json` prints, so no field here is one the check cannot produce.
-    static func status(
-        _ path: String, method: String = "native", version: String = "2.1.274",
-        state: String = "updateAvailable", latest: String = "2.1.285",
-        oneClick: Bool = true, withheld: String? = nil, nodePrefix: String? = nil
-    ) -> ClaudeCodeStatus {
-        var install: [String: Any] = [
-            "path": path, "method": method, "origin": "conventional",
-            "executable": path, "version": version, "signature": "anthropic",
-        ]
-        if let nodePrefix { install["nodePrefix"] = nodePrefix }
-        var json: [String: Any] = [
-            "install": install, "channel": "latest", "latestVersion": latest, "state": state,
-        ]
-        if oneClick {
-            json["oneClick"] = ["executable": path, "arguments": ["update"]]
-        }
-        if let withheld { json["withheld"] = withheld }
-        let data = try! JSONSerialization.data(withJSONObject: json)
-        return try! JSONDecoder().decode(ClaudeCodeStatus.self, from: data)
+    static func id(_ path: String, _ kind: CLIToolKind = .claudeCode) -> CLIToolID {
+        CLIToolID(kind: kind, path: path)
     }
 
-    static func report(_ statuses: ClaudeCodeStatus...) -> ClaudeCodeReport {
-        ClaudeCodeReport(settings: ClaudeCodeSettings(), statuses: statuses)
+    /// A status as a provider would return it. Claude Code's own detail is built
+    /// through `Codable` because its memberwise initializer is internal to Core —
+    /// the same shape `duo claude-code --json` prints, so no field here is one the
+    /// check cannot produce. Only its install is read (the summary's labels); the
+    /// verdict the model acts on is the shared fields'.
+    static func status(
+        _ path: String, kind: CLIToolKind = .claudeCode, method: String = "native",
+        version: String? = "2.1.274", state: CLIToolState = .updateAvailable,
+        latest: String? = "2.1.285", oneClick: Bool = true, withheld: CLIToolWithheld? = nil,
+        nodePrefix: String? = nil
+    ) -> CLIToolStatus {
+        let detail: CLIToolStatus.Detail
+        switch kind {
+        case .claudeCode:
+            var install: [String: Any] = [
+                "path": path, "method": method, "origin": "conventional",
+                "executable": path, "signature": "anthropic",
+            ]
+            if let version { install["version"] = version }
+            if let nodePrefix { install["nodePrefix"] = nodePrefix }
+            let json: [String: Any] = ["install": install, "channel": "latest", "state": state.rawValue]
+            let data = try! JSONSerialization.data(withJSONObject: json)
+            detail = .claudeCode(try! JSONDecoder().decode(ClaudeCodeStatus.self, from: data))
+        case .bub: detail = .bub(BubInstall(path: path, method: .installer, executable: path + "/bin/bub", version: version))
+        case .fx: detail = .fx(FxInstall(path: path, version: version))
+        }
+        return CLIToolStatus(
+            kind: kind, path: path, installedVersion: version, latestVersion: latest,
+            channel: kind == .bub ? nil : "latest", state: state,
+            oneClick: oneClick ? CLIToolCommand(executable: path, arguments: ["update"], pathPrefix: nil) : nil,
+            withheld: withheld, note: nil, detail: detail)
+    }
+
+    static func report(_ statuses: CLIToolStatus...) -> CLIToolReport {
+        report(.claudeCode, statuses)
+    }
+
+    static func report(_ kind: CLIToolKind, _ statuses: [CLIToolStatus]) -> CLIToolReport {
+        let context: CLIToolReport.Context
+        switch kind {
+        case .claudeCode: context = .claudeCode(ClaudeCodeSettings())
+        case .bub: context = .bub
+        case .fx: context = .fx(FxSettings())
+        }
+        return CLIToolReport(kind: kind, statuses: statuses, context: context)
+    }
+
+    nonisolated static func sighting(_ status: CLIToolStatus) -> CLIToolSighting {
+        CLIToolSighting(kind: status.kind, path: status.path, version: status.installedVersion)
     }
 
     /// Suspends callers until opened. Counts arrivals, so a test can wait for the
@@ -67,40 +96,37 @@ struct CLIToolsModelTests {
     /// Answers each check with the next scripted report (the last one repeats),
     /// optionally held at a gate first.
     actor FakeCheck {
-        private var script: [(ClaudeCodeReport, Gate?)]
+        private var script: [(CLIToolReport, Gate?)]
         private(set) var calls = 0
 
-        init(_ script: [(ClaudeCodeReport, Gate?)]) { self.script = script }
+        init(_ script: [(CLIToolReport, Gate?)]) { self.script = script }
 
-        func next() -> (ClaudeCodeReport, Gate?) {
+        func next() -> (CLIToolReport, Gate?) {
             calls += 1
             return script.count > 1 ? script.removeFirst() : script[0]
         }
-
-        nonisolated var closure: CLIToolsModel.Check {
-            { let (report, gate) = await self.next(); await gate?.wait(); return report }
-        }
     }
 
-    /// Records every update it is asked to run and how many ran at once.
+    /// Records every update it is asked to run and how many ran at once. One can
+    /// stand behind several providers, so "at once" spans tools.
     actor FakeUpdater {
-        var outcomes: [String: ClaudeCodeUpdater.Outcome] = [:]
+        var outcomes: [CLIToolID: CLIToolUpdateOutcome] = [:]
         var linesBeforeReturn: [String] = []
         var gate: Gate?
-        private(set) var calls: [String] = []
+        private(set) var calls: [CLIToolID] = []
         private(set) var maxRunning = 0
         private var running = 0
         /// The progress callback of the latest call, kept past its return.
         private(set) var lastProgress: (@Sendable (String) -> Void)?
 
-        func set(_ path: String, _ outcome: ClaudeCodeUpdater.Outcome) { outcomes[path] = outcome }
+        func set(_ id: CLIToolID, _ outcome: CLIToolUpdateOutcome) { outcomes[id] = outcome }
         func setGate(_ gate: Gate?) { self.gate = gate }
         func setLines(_ lines: [String]) { linesBeforeReturn = lines }
 
-        func run(_ status: ClaudeCodeStatus, _ progress: @escaping @Sendable (String) -> Void) async
-            -> ClaudeCodeUpdater.Outcome
+        func run(_ status: CLIToolStatus, _ progress: @escaping @Sendable (String) -> Void) async
+            -> CLIToolUpdateOutcome
         {
-            calls.append(status.install.path)
+            calls.append(status.toolID)
             running += 1
             maxRunning = max(maxRunning, running)
             lastProgress = progress
@@ -110,21 +136,56 @@ struct CLIToolsModelTests {
             // counted as running at the same time.
             try? await Task.sleep(for: .milliseconds(20))
             running -= 1
-            return outcomes[status.install.path] ?? .updated(version: nil)
-        }
-
-        nonisolated var closure: CLIToolsModel.Update {
-            { status, progress in await self.run(status, progress) }
+            return outcomes[status.toolID] ?? .updated(version: nil)
         }
     }
 
+    /// Counts release-notes fetches and answers each with `changelog`.
+    actor FakeNotes {
+        let changelog: Changelog
+        private(set) var fetches = 0
+        init(_ changelog: Changelog) { self.changelog = changelog }
+        func fetch() -> Changelog { fetches += 1; return changelog }
+    }
+
+    /// One tool, every answer scripted.
+    struct FakeProvider: CLIToolProvider {
+        let kind: CLIToolKind
+        let checker: FakeCheck
+        var updater = FakeUpdater()
+        var scanner: @Sendable () async -> [CLIToolSighting] = { [] }
+        var notes = FakeNotes(Changelog(entries: []))
+
+        func scan() async -> [CLIToolSighting] { await scanner() }
+
+        func check() async -> CLIToolReport {
+            let (report, gate) = await checker.next()
+            await gate?.wait()
+            return report
+        }
+
+        func update(
+            _ status: CLIToolStatus, progress: @escaping @Sendable (String) -> Void
+        ) async -> CLIToolUpdateOutcome {
+            await updater.run(status, progress)
+        }
+
+        func releaseNotes(force: Bool) async throws -> Changelog { await notes.fetch() }
+    }
+
     static func model(check: FakeCheck, updater: FakeUpdater = FakeUpdater(),
-                      scan: CLIToolsModel.Scan? = nil, clock: Clock = Clock(),
+                      scan: (@Sendable () async -> [CLIToolSighting])? = nil, clock: Clock = Clock(),
+                      confirmationWindow: Duration = .seconds(3600),
+                      others: [FakeProvider] = []) -> CLIToolsModel {
+        let claudeCode = FakeProvider(kind: .claudeCode, checker: check, updater: updater, scanner: scan ?? { [] })
+        return model([claudeCode] + others, clock: clock, confirmationWindow: confirmationWindow)
+    }
+
+    static func model(_ providers: [FakeProvider], clock: Clock = Clock(),
                       confirmationWindow: Duration = .seconds(3600)) -> CLIToolsModel {
         // An hour: the tests that read `justUpdated` right after an update must not
         // race its clearing. `theConfirmationClearsItself` passes a short one.
-        CLIToolsModel(check: check.closure, scan: scan ?? { [] }, update: updater.closure,
-                      now: { clock.now }, confirmationWindow: confirmationWindow)
+        CLIToolsModel(providers: providers, now: { clock.now }, confirmationWindow: confirmationWindow)
     }
 
     /// A settable clock. Written only from the test's main actor, read by the
@@ -133,10 +194,11 @@ struct CLIToolsModelTests {
         var now = Date(timeIntervalSince1970: 1_790_000_000)
     }
 
-    /// What the local scan finds; the test changes it between opens.
+    /// What a local scan finds; the test changes it between opens.
     final class ScanResult: @unchecked Sendable {
-        var installs: [ClaudeCodeInstall] = []
-        init(_ installs: [ClaudeCodeInstall]) { self.installs = installs }
+        var sightings: [CLIToolSighting] = []
+        init(_ statuses: [CLIToolStatus]) { self.sightings = statuses.map(CLIToolsModelTests.sighting) }
+        func set(_ statuses: [CLIToolStatus]) { sightings = statuses.map(CLIToolsModelTests.sighting) }
     }
 
     /// Poll until `condition` holds. The deadline only turns a hang into a
@@ -154,7 +216,7 @@ struct CLIToolsModelTests {
     /// The offer excludes a copy DuoUpdater is already updating, and a second
     /// click on it runs nothing.
     ///
-    /// Mutation: drop `&& !updating.contains($0.install.path)` from `oneClickable`.
+    /// Mutation: drop `&& !updating.contains($0.toolID)` from `oneClickable`.
     @Test func aCopyBeingUpdatedIsNotOfferedAgain() async {
         let check = FakeCheck([(Self.report(Self.status(Self.native)), nil)])
         let updater = FakeUpdater()
@@ -164,18 +226,18 @@ struct CLIToolsModelTests {
         await model.refresh()
         #expect(model.oneClickable.count == 1)
 
-        let first = Task { await model.update(path: Self.native) }
+        let first = Task { await model.update(Self.id(Self.native)) }
         await until { await gate.arrived == 1 }
         #expect(model.oneClickable.isEmpty)
         // In a task of its own: were it let through, it would wait at the same
         // closed gate as the first.
-        let second = Task { await model.update(path: Self.native) }
+        let second = Task { await model.update(Self.id(Self.native)) }
         try? await Task.sleep(for: .milliseconds(30))
         await gate.open()
         await first.value
         await second.value
 
-        #expect(await updater.calls == [Self.native])
+        #expect(await updater.calls == [Self.id(Self.native)])
     }
 
     /// A copy the check withheld one-click from (auto-update off) is reported,
@@ -183,7 +245,7 @@ struct CLIToolsModelTests {
     ///
     /// Mutation: drop `$0.oneClick != nil &&` from `oneClickable`.
     @Test func aWithheldCopyIsNeverUpdated() async {
-        let withheld = Self.status(Self.native, oneClick: false, withheld: "autoUpdateOff")
+        let withheld = Self.status(Self.native, oneClick: false, withheld: .autoUpdateOff)
         let check = FakeCheck([(Self.report(withheld), nil)])
         let updater = FakeUpdater()
         let model = Self.model(check: check, updater: updater)
@@ -191,7 +253,7 @@ struct CLIToolsModelTests {
 
         #expect(model.outdated.count == 1)
         #expect(model.oneClickable.isEmpty)
-        await model.update(path: Self.native)
+        await model.update(Self.id(Self.native))
         await model.updateAll()
         #expect(await updater.calls.isEmpty)
     }
@@ -205,36 +267,36 @@ struct CLIToolsModelTests {
     @Test func aFailedUpdateMapsToTheRowLineAndTheLog() async {
         let check = FakeCheck([(Self.report(Self.status(Self.native)), nil)])
         let updater = FakeUpdater()
-        await updater.set(Self.native, .failed(message: "EACCES", output: "line 1\nEACCES"))
+        await updater.set(Self.id(Self.native), .failed(message: "EACCES", output: "line 1\nEACCES"))
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
 
-        await model.update(path: Self.native)
+        await model.update(Self.id(Self.native))
 
-        #expect(model.errors[Self.native] == "EACCES")
-        #expect(model.errorLogs[Self.native] == "line 1\nEACCES")
+        #expect(model.errors[Self.id(Self.native)] == "EACCES")
+        #expect(model.errorLogs[Self.id(Self.native)] == "line 1\nEACCES")
         #expect(model.updating.isEmpty)
-        #expect(model.progress[Self.native] == nil)
+        #expect(model.progress[Self.id(Self.native)] == nil)
         #expect(model.justUpdated.isEmpty)
     }
 
     /// A retry clears the previous failure before it runs.
     ///
-    /// Mutation: drop `errors[path] = nil` at the top of `update(path:)`.
+    /// Mutation: drop `errors[id] = nil` at the top of `update(_:)`.
     @Test func aRetryClearsThePreviousFailure() async {
         let check = FakeCheck([(Self.report(Self.status(Self.native)), nil)])
         let updater = FakeUpdater()
-        await updater.set(Self.native, .failed(message: "EACCES", output: "EACCES"))
+        await updater.set(Self.id(Self.native), .failed(message: "EACCES", output: "EACCES"))
         let gate = Gate()
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
-        await model.update(path: Self.native)
-        #expect(model.errors[Self.native] == "EACCES")
+        await model.update(Self.id(Self.native))
+        #expect(model.errors[Self.id(Self.native)] == "EACCES")
 
         await updater.setGate(gate)
-        let retry = Task { await model.update(path: Self.native) }
+        let retry = Task { await model.update(Self.id(Self.native)) }
         await until { await gate.arrived == 1 }
-        #expect(model.errors[Self.native] == nil)
+        #expect(model.errors[Self.id(Self.native)] == nil)
         await gate.open()
         await retry.value
     }
@@ -245,16 +307,16 @@ struct CLIToolsModelTests {
     @Test func anUpdateRecordsItsVersionAndRechecks() async {
         let check = FakeCheck([
             (Self.report(Self.status(Self.native)), nil),
-            (Self.report(Self.status(Self.native, version: "2.1.285", state: "upToDate", oneClick: false)), nil),
+            (Self.report(Self.status(Self.native, version: "2.1.285", state: .upToDate, oneClick: false)), nil),
         ])
         let updater = FakeUpdater()
-        await updater.set(Self.native, .updated(version: "2.1.285"))
+        await updater.set(Self.id(Self.native), .updated(version: "2.1.285"))
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
 
-        await model.update(path: Self.native)
+        await model.update(Self.id(Self.native))
 
-        #expect(model.justUpdated[Self.native] == "2.1.285")
+        #expect(model.justUpdated[Self.id(Self.native)] == "2.1.285")
         #expect(model.outdated.isEmpty)
         #expect(await check.calls == 2)
     }
@@ -266,42 +328,42 @@ struct CLIToolsModelTests {
     @Test func theConfirmationClearsItself() async throws {
         let check = FakeCheck([
             (Self.report(Self.status(Self.native)), nil),
-            (Self.report(Self.status(Self.native, version: "2.1.285", state: "upToDate", oneClick: false)), nil),
+            (Self.report(Self.status(Self.native, version: "2.1.285", state: .upToDate, oneClick: false)), nil),
         ])
         let updater = FakeUpdater()
-        await updater.set(Self.native, .updated(version: "2.1.285"))
+        await updater.set(Self.id(Self.native), .updated(version: "2.1.285"))
         let model = Self.model(check: check, updater: updater, confirmationWindow: .milliseconds(50))
         await model.refresh()
 
-        await model.update(path: Self.native)
+        await model.update(Self.id(Self.native))
         // Not asserted present here: with a 50 ms window, a loaded machine may
         // already have cleared it. `anUpdateRecordsItsVersionAndRechecks` pins that
         // it is set, with the hour-long window.
 
         // An upper bound on the wait only, never on how soon: a slow machine
         // takes longer to clear, it does not fail.
-        for _ in 0..<200 where model.justUpdated[Self.native] != nil {
+        for _ in 0..<200 where model.justUpdated[Self.id(Self.native)] != nil {
             try await Task.sleep(for: .milliseconds(25))
         }
-        #expect(model.justUpdated[Self.native] == nil)
+        #expect(model.justUpdated[Self.id(Self.native)] == nil)
     }
 
     /// When the updater could not read the new version, the re-check's does.
     ///
-    /// Mutation: `justUpdated[path] = version ?? ""`.
+    /// Mutation: `justUpdated[id] = version ?? ""`.
     @Test func anUpdateWithoutAVersionTakesTheRechecksVersion() async {
         let check = FakeCheck([
             (Self.report(Self.status(Self.native)), nil),
-            (Self.report(Self.status(Self.native, version: "2.1.285", state: "upToDate", oneClick: false)), nil),
+            (Self.report(Self.status(Self.native, version: "2.1.285", state: .upToDate, oneClick: false)), nil),
         ])
         let updater = FakeUpdater()
-        await updater.set(Self.native, .updated(version: nil))
+        await updater.set(Self.id(Self.native), .updated(version: nil))
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
 
-        await model.update(path: Self.native)
+        await model.update(Self.id(Self.native))
 
-        #expect(model.justUpdated[Self.native] == "2.1.285")
+        #expect(model.justUpdated[Self.id(Self.native)] == "2.1.285")
     }
 
     /// Exit 0 is not an update. `claude update` can exit 0 having stayed on the
@@ -312,14 +374,14 @@ struct CLIToolsModelTests {
     @Test func anUnchangedVersionIsNotAnUpdate() async {
         let check = FakeCheck([(Self.report(Self.status(Self.native)), nil)])
         let updater = FakeUpdater()
-        await updater.set(Self.native, .updated(version: "2.1.274"))
+        await updater.set(Self.id(Self.native), .updated(version: "2.1.274"))
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
 
-        await model.update(path: Self.native)
+        await model.update(Self.id(Self.native))
 
-        #expect(model.justUpdated[Self.native] == nil)
-        #expect(model.errors[Self.native]?.contains("2.1.274") == true)
+        #expect(model.justUpdated[Self.id(Self.native)] == nil)
+        #expect(model.errors[Self.id(Self.native)]?.contains("2.1.274") == true)
         #expect(await check.calls == 2)
     }
 
@@ -327,22 +389,22 @@ struct CLIToolsModelTests {
     /// check waits on the network, and releasing the row earlier shows the old
     /// "outdated" verdict with a live Update button for its whole length.
     ///
-    /// Mutation: move `updating.remove(path)` from the `defer` to right after
-    /// `runUpdate` returns.
+    /// Mutation: move `updating.remove(id)` from the `defer` to right after the
+    /// provider's `update` returns.
     @Test func theRowStaysUpdatingThroughTheRecheck() async {
         let recheck = Gate()
         let check = FakeCheck([
             (Self.report(Self.status(Self.native)), nil),
-            (Self.report(Self.status(Self.native, version: "2.1.285", state: "upToDate", oneClick: false)), recheck),
+            (Self.report(Self.status(Self.native, version: "2.1.285", state: .upToDate, oneClick: false)), recheck),
         ])
         let updater = FakeUpdater()
-        await updater.set(Self.native, .updated(version: "2.1.285"))
+        await updater.set(Self.id(Self.native), .updated(version: "2.1.285"))
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
 
-        let running = Task { await model.update(path: Self.native) }
+        let running = Task { await model.update(Self.id(Self.native)) }
         await until { await recheck.arrived == 1 }
-        #expect(model.updating.contains(Self.native))
+        #expect(model.updating.contains(Self.id(Self.native)))
         #expect(model.oneClickable.isEmpty)
         await recheck.open()
         await running.value
@@ -356,14 +418,14 @@ struct CLIToolsModelTests {
     @Test func aBusyCopyIsRechecked() async {
         let check = FakeCheck([
             (Self.report(Self.status(Self.native)), nil),
-            (Self.report(Self.status(Self.native, oneClick: false, withheld: "busy")), nil),
+            (Self.report(Self.status(Self.native, oneClick: false, withheld: .busy)), nil),
         ])
         let updater = FakeUpdater()
-        await updater.set(Self.native, .busy(.updateCommand(4242)))
+        await updater.set(Self.id(Self.native), .busy("claude update (pid 4242) is running"))
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
 
-        await model.update(path: Self.native)
+        await model.update(Self.id(Self.native))
 
         #expect(await check.calls == 2)
         #expect(model.outdated.first?.withheld == .busy)
@@ -375,7 +437,7 @@ struct CLIToolsModelTests {
 
     /// Output lines reach the row while the update runs…
     ///
-    /// Mutation: drop `self.progress[path] = line` in the progress callback.
+    /// Mutation: drop `self.progress[id] = line` in the progress callback.
     @Test func progressLinesReachTheRow() async {
         let check = FakeCheck([(Self.report(Self.status(Self.native)), nil)])
         let updater = FakeUpdater()
@@ -385,24 +447,24 @@ struct CLIToolsModelTests {
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
 
-        let running = Task { await model.update(path: Self.native) }
-        await until { model.progress[Self.native] == "Downloading 2.1.285" }
+        let running = Task { await model.update(Self.id(Self.native)) }
+        await until { model.progress[Self.id(Self.native)] == "Downloading 2.1.285" }
         await gate.open()
         await running.value
-        #expect(model.progress[Self.native] == nil)
+        #expect(model.progress[Self.id(Self.native)] == nil)
     }
 
     /// …but one that arrives after the update finished is dropped, instead of
     /// pinning a stale line on a row that is no longer updating.
     ///
-    /// Mutation: drop `self.updating.contains(path)` from the callback's guard.
+    /// Mutation: drop `self.updating.contains(id)` from the callback's guard.
     @Test func aLateProgressLineIsDropped() async {
         let check = FakeCheck([(Self.report(Self.status(Self.native)), nil)])
         let updater = FakeUpdater()
-        await updater.set(Self.native, .failed(message: "x", output: "x"))
+        await updater.set(Self.id(Self.native), .failed(message: "x", output: "x"))
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
-        await model.update(path: Self.native)
+        await model.update(Self.id(Self.native))
 
         let late = await updater.lastProgress
         late?("late line")
@@ -410,14 +472,14 @@ struct CLIToolsModelTests {
         for _ in 0..<50 { await Task.yield() }
         try? await Task.sleep(for: .milliseconds(20))
 
-        #expect(model.progress[Self.native] == nil)
+        #expect(model.progress[Self.id(Self.native)] == nil)
     }
 
     // MARK: updateAll
 
     /// One copy at a time, each of them.
     ///
-    /// Mutation: run the loop's `update(path:)` calls in a `withTaskGroup`.
+    /// Mutation: run the loop's `update(_:)` calls in a `withTaskGroup`.
     @Test func updateAllRunsOneAtATime() async {
         let npm = Self.status(Self.npm, method: "npm", nodePrefix: "/Users/u/.nvm/versions/node/v24.11.0")
         let check = FakeCheck([(Self.report(Self.status(Self.native), npm), nil)])
@@ -427,7 +489,7 @@ struct CLIToolsModelTests {
 
         await model.updateAll()
 
-        #expect(await updater.calls == [Self.native, Self.npm])
+        #expect(await updater.calls == [Self.id(Self.native), Self.id(Self.npm)])
         #expect(await updater.maxRunning == 1)
     }
 
@@ -460,24 +522,122 @@ struct CLIToolsModelTests {
     /// Each update ends in a re-check; an offer that re-check withdrew (auto-update
     /// switched off meanwhile) is not taken for the copies still to go.
     ///
-    /// Mutation: in `update(path:)`, look the status up in `claudeCode` instead of
+    /// Mutation: in `update(_:)`, look the status up in `statuses` instead of
     /// `oneClickable`.
     @Test func updateAllHonoursAnOfferWithdrawnMidway() async {
         let npm = Self.status(Self.npm, method: "npm", nodePrefix: "/Users/u/.nvm/versions/node/v24.11.0")
-        let npmOff = Self.status(Self.npm, method: "npm", oneClick: false, withheld: "autoUpdateOff",
+        let npmOff = Self.status(Self.npm, method: "npm", oneClick: false, withheld: .autoUpdateOff,
                                  nodePrefix: "/Users/u/.nvm/versions/node/v24.11.0")
         let check = FakeCheck([
             (Self.report(Self.status(Self.native), npm), nil),
-            (Self.report(Self.status(Self.native, version: "2.1.285", state: "upToDate", oneClick: false), npmOff), nil),
+            (Self.report(Self.status(Self.native, version: "2.1.285", state: .upToDate, oneClick: false), npmOff), nil),
         ])
         let updater = FakeUpdater()
-        await updater.set(Self.native, .updated(version: "2.1.285"))
+        await updater.set(Self.id(Self.native), .updated(version: "2.1.285"))
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
 
         await model.updateAll()
 
-        #expect(await updater.calls == [Self.native])
+        #expect(await updater.calls == [Self.id(Self.native)])
+    }
+
+    // MARK: across tools
+
+    /// Update All covers every tool's offers, still one at a time across them: a
+    /// Claude Code copy and an fx copy behind two providers never run together.
+    /// And in `CLIToolKind.allCases` order, whatever order the providers came in.
+    ///
+    /// Mutations: run the loop's `update(_:)` calls in a `withTaskGroup`; keep
+    /// `providers` in the order passed to `init`.
+    @Test func updateAllCrossesToolsOneAtATime() async {
+        let updater = FakeUpdater()
+        let claudeCode = FakeProvider(
+            kind: .claudeCode, checker: FakeCheck([(Self.report(Self.status(Self.native)), nil)]), updater: updater)
+        let fx = FakeProvider(
+            kind: .fx,
+            checker: FakeCheck([(Self.report(.fx, [Self.status(Self.fx, kind: .fx, version: "0.4.0", latest: "0.5.0")]), nil)]),
+            updater: updater)
+        let model = Self.model([fx, claudeCode])
+        await model.refresh()
+
+        await model.updateAll()
+
+        #expect(await updater.calls == [Self.id(Self.native), Self.id(Self.fx, .fx)])
+        #expect(await updater.maxRunning == 1)
+    }
+
+    /// An install is updated by its own tool's provider and never another's: the
+    /// command each runs is the one its vendor documents for its own installs.
+    ///
+    /// Mutation: drop `$0.kind == status.kind` from the provider lookup in
+    /// `update(_:)` (taking the first provider, Claude Code's).
+    @Test func anInstallIsUpdatedOnlyByItsOwnTool() async {
+        let claudeUpdater = FakeUpdater()
+        let fxUpdater = FakeUpdater()
+        let claudeCode = FakeProvider(
+            kind: .claudeCode, checker: FakeCheck([(Self.report(Self.status(Self.native)), nil)]),
+            updater: claudeUpdater)
+        let fx = FakeProvider(
+            kind: .fx,
+            checker: FakeCheck([(Self.report(.fx, [Self.status(Self.fx, kind: .fx, version: "0.4.0", latest: "0.5.0")]), nil)]),
+            updater: fxUpdater)
+        let model = Self.model([claudeCode, fx])
+        await model.refresh()
+
+        await model.update(Self.id(Self.fx, .fx))
+
+        #expect(await fxUpdater.calls == [Self.id(Self.fx, .fx)])
+        #expect(await claudeUpdater.calls.isEmpty)
+    }
+
+    /// Two tools at one path are two installs: one's failure is not the other's,
+    /// and updating one leaves the other on offer.
+    ///
+    /// Mutation: `toolID` returns `CLIToolID(kind: .claudeCode, path: path)`.
+    @Test func twoToolsAtOnePathAreTwoInstalls() async {
+        let shared = "/Users/u/bin/tool"
+        let updater = FakeUpdater()
+        await updater.set(Self.id(shared, .fx), .failed(message: "EACCES", output: "EACCES"))
+        let claudeCode = FakeProvider(
+            kind: .claudeCode, checker: FakeCheck([(Self.report(Self.status(shared)), nil)]), updater: updater)
+        let fx = FakeProvider(
+            kind: .fx, checker: FakeCheck([(Self.report(.fx, [Self.status(shared, kind: .fx)]), nil)]),
+            updater: updater)
+        let model = Self.model([claudeCode, fx])
+        await model.refresh()
+
+        await model.update(Self.id(shared, .fx))
+
+        #expect(model.errors[Self.id(shared, .fx)] == "EACCES")
+        #expect(model.errors[Self.id(shared)] == nil)
+        #expect(model.oneClickable.map(\.toolID) == [Self.id(shared), Self.id(shared, .fx)])
+    }
+
+    /// Verdicts are applied together, when the last tool's check lands: while
+    /// one tool is still being asked, the row has no verdict to sum up rather
+    /// than a partial one that leaves that tool out of an "up to date".
+    ///
+    /// Mutation: in `refresh`, apply each provider's report as it lands.
+    @Test func verdictsLandTogether() async {
+        let slow = Gate()
+        let claudeCode = FakeProvider(
+            kind: .claudeCode,
+            checker: FakeCheck([(Self.report(Self.status(Self.native, state: .upToDate, oneClick: false)), nil)]))
+        let fx = FakeProvider(
+            kind: .fx, checker: FakeCheck([(Self.report(.fx, [Self.status(Self.fx, kind: .fx)]), slow)]))
+        let model = Self.model([claudeCode, fx])
+
+        let refresh = Task { await model.refresh() }
+        await until { await slow.arrived == 1 }
+        // Let Claude Code's answer reach the model, were it to be applied alone.
+        try? await Task.sleep(for: .milliseconds(30))
+        #expect(!model.checked)
+        #expect(model.statuses.isEmpty)
+        await slow.open()
+        await refresh.value
+
+        #expect(model.statuses.map(\.toolID) == [Self.id(Self.native), Self.id(Self.fx, .fx)])
     }
 
     // MARK: refresh
@@ -490,7 +650,7 @@ struct CLIToolsModelTests {
         let slow = Gate()
         let check = FakeCheck([
             (Self.report(Self.status(Self.native)), slow),
-            (Self.report(Self.status(Self.native, version: "2.1.285", state: "upToDate", oneClick: false)), nil),
+            (Self.report(Self.status(Self.native, version: "2.1.285", state: .upToDate, oneClick: false)), nil),
         ])
         let model = Self.model(check: check)
 
@@ -501,7 +661,7 @@ struct CLIToolsModelTests {
         await older.value
 
         #expect(model.outdated.isEmpty)
-        #expect(model.claudeCode.first?.install.version == "2.1.285")
+        #expect(model.statuses.first?.installedVersion == "2.1.285")
         #expect(!model.checking)
     }
 
@@ -511,7 +671,7 @@ struct CLIToolsModelTests {
     /// Mutation: drop `guard !checked else { return }` from `scanInstalls`.
     @Test func aLateScanDoesNotOverwriteACheck() async {
         let scanGate = Gate()
-        let stale = [Self.status(Self.native).install, Self.status(Self.npm).install]
+        let stale = [Self.status(Self.native), Self.status(Self.npm)].map(Self.sighting)
         let check = FakeCheck([(Self.report(Self.status(Self.native)), nil)])
         let model = Self.model(check: check, scan: { await scanGate.wait(); return stale })
 
@@ -521,20 +681,22 @@ struct CLIToolsModelTests {
         await scanGate.open()
         await scan.value
 
-        #expect(model.claudeCodeInstalls.map(\.path) == [Self.native])
+        #expect(model.sightings.map(\.path) == [Self.native])
     }
 
-    /// Before any check, the scan alone is what reserves the row.
+    /// Before any check, the scan alone is what reserves the row — every tool's.
     ///
-    /// Mutation: drop `claudeCodeInstalls = installs` from `scanInstalls`.
+    /// Mutation: drop `sightings = found` from `scanInstalls`.
     @Test func theScanReservesTheRowBeforeAnyCheck() async {
-        let check = FakeCheck([(Self.report(), nil)])
-        let installs = [Self.status(Self.native).install]
-        let model = Self.model(check: check, scan: { installs })
+        let found = [Self.sighting(Self.status(Self.native))]
+        let fxFound = [Self.sighting(Self.status(Self.fx, kind: .fx))]
+        let fx = FakeProvider(
+            kind: .fx, checker: FakeCheck([(Self.report(.fx, []), nil)]), scanner: { fxFound })
+        let model = Self.model(check: FakeCheck([(Self.report(), nil)]), scan: { found }, others: [fx])
 
         await model.scanInstalls()
 
-        #expect(model.claudeCodeInstalls.map(\.path) == [Self.native])
+        #expect(model.sightings.map(\.toolID) == [Self.id(Self.native), Self.id(Self.fx, .fx)])
         #expect(!model.checked)
     }
 
@@ -545,19 +707,19 @@ struct CLIToolsModelTests {
     @Test func anErrorGoesOnceTheCopyIsCurrent() async {
         let check = FakeCheck([
             (Self.report(Self.status(Self.native)), nil),
-            (Self.report(Self.status(Self.native, version: "2.1.285", state: "upToDate", oneClick: false)), nil),
+            (Self.report(Self.status(Self.native, version: "2.1.285", state: .upToDate, oneClick: false)), nil),
         ])
         let updater = FakeUpdater()
-        await updater.set(Self.native, .failed(message: "EACCES", output: "EACCES"))
+        await updater.set(Self.id(Self.native), .failed(message: "EACCES", output: "EACCES"))
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
-        await model.update(path: Self.native)
-        #expect(model.errors[Self.native] == "EACCES")
+        await model.update(Self.id(Self.native))
+        #expect(model.errors[Self.id(Self.native)] == "EACCES")
 
         await model.refresh()
 
-        #expect(model.errors[Self.native] == nil)
-        #expect(model.errorLogs[Self.native] == nil)
+        #expect(model.errors[Self.id(Self.native)] == nil)
+        #expect(model.errorLogs[Self.id(Self.native)] == nil)
     }
 
     /// …but stays while it is still behind.
@@ -566,35 +728,35 @@ struct CLIToolsModelTests {
     @Test func anErrorStaysWhileTheCopyIsBehind() async {
         let check = FakeCheck([(Self.report(Self.status(Self.native)), nil)])
         let updater = FakeUpdater()
-        await updater.set(Self.native, .failed(message: "EACCES", output: "EACCES"))
+        await updater.set(Self.id(Self.native), .failed(message: "EACCES", output: "EACCES"))
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
-        await model.update(path: Self.native)
+        await model.update(Self.id(Self.native))
 
         await model.refresh()
 
-        #expect(model.errors[Self.native] == "EACCES")
+        #expect(model.errors[Self.id(Self.native)] == "EACCES")
     }
 
     /// "Updated to X" is dropped once the copy reads as something else.
     ///
-    /// Mutation: drop the `now.install.version != version` clause in `apply`.
+    /// Mutation: drop the `installedVersion != version` clause in `apply`.
     @Test func justUpdatedGoesWhenTheVersionMoves() async {
         let check = FakeCheck([
             (Self.report(Self.status(Self.native)), nil),
-            (Self.report(Self.status(Self.native, version: "2.1.285", state: "upToDate", oneClick: false)), nil),
-            (Self.report(Self.status(Self.native, version: "2.1.290", state: "upToDate", oneClick: false)), nil),
+            (Self.report(Self.status(Self.native, version: "2.1.285", state: .upToDate, oneClick: false)), nil),
+            (Self.report(Self.status(Self.native, version: "2.1.290", state: .upToDate, oneClick: false)), nil),
         ])
         let updater = FakeUpdater()
-        await updater.set(Self.native, .updated(version: "2.1.285"))
+        await updater.set(Self.id(Self.native), .updated(version: "2.1.285"))
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
-        await model.update(path: Self.native)
-        #expect(model.justUpdated[Self.native] == "2.1.285")
+        await model.update(Self.id(Self.native))
+        #expect(model.justUpdated[Self.id(Self.native)] == "2.1.285")
 
         await model.refresh()
 
-        #expect(model.justUpdated[Self.native] == nil)
+        #expect(model.justUpdated[Self.id(Self.native)] == nil)
     }
 
     // MARK: opening the popover
@@ -621,10 +783,10 @@ struct CLIToolsModelTests {
     /// Mutation: drop `stale ||` from the guard.
     @Test func anOpenRechecksOnlyAStaleReport() async {
         let status = Self.status(Self.native)
-        let found = ScanResult([status.install])
+        let found = ScanResult([status])
         let clock = Clock()
         let check = FakeCheck([(Self.report(status), nil)])
-        let model = Self.model(check: check, scan: { found.installs }, clock: clock)
+        let model = Self.model(check: check, scan: { found.sightings }, clock: clock)
         await model.refresh()
 
         clock.now += CLIToolsModel.recheckInterval - 60
@@ -637,39 +799,134 @@ struct CLIToolsModelTests {
     }
 
     /// (c) The scan disagreeing with the report — a version moved (a `claude
-    /// update` in a terminal), or a copy appeared — re-checks at once.
+    /// update` in a terminal), a copy appeared, or a copy of another tool did —
+    /// re-checks at once, and re-checks every tool.
     ///
     /// Mutation: drop `moved ||` from the guard.
     @Test func aScanThatDisagreesRechecks() async {
         let status = Self.status(Self.native)
-        let found = ScanResult([status.install])
+        let found = ScanResult([status])
+        let fxFound = ScanResult([])
         let check = FakeCheck([(Self.report(status), nil)])
-        let model = Self.model(check: check, scan: { found.installs })
+        let fxCheck = FakeCheck([(Self.report(.fx, []), nil)])
+        let fx = FakeProvider(kind: .fx, checker: fxCheck, scanner: { fxFound.sightings })
+        let model = Self.model(check: check, scan: { found.sightings }, others: [fx])
         await model.refresh()
 
-        found.installs = [Self.status(Self.native, version: "2.1.285").install]
+        found.set([Self.status(Self.native, version: "2.1.285")])
         await model.refreshOnOpen()
         #expect(await check.calls == 2)
 
-        found.installs = [status.install, Self.status(Self.npm, method: "npm").install]
+        found.set([status, Self.status(Self.npm, method: "npm")])
         await model.refreshOnOpen()
         #expect(await check.calls == 3)
+
+        fxFound.set([Self.status(Self.fx, kind: .fx)])
+        await model.refreshOnOpen()
+        #expect(await check.calls == 4)
+        #expect(await fxCheck.calls == 4)
     }
 
     /// (d) A report that left a copy unanswered (offline, say) is retried on the
     /// next open rather than kept for fifteen minutes.
     ///
-    /// Mutation: drop `|| !unchecked.isEmpty` from the guard.
+    /// Mutation: drop the `unchecked.contains(where:)` clause from the guard.
     @Test func anUnansweredCopyRechecks() async {
-        let status = Self.status(Self.native, state: "unknown", oneClick: false, withheld: "channelUnreadable")
-        let found = ScanResult([status.install])
+        let status = Self.status(Self.native, state: .unknown, oneClick: false, withheld: .channelUnreadable)
+        let found = ScanResult([status])
         let check = FakeCheck([(Self.report(status), nil)])
-        let model = Self.model(check: check, scan: { found.installs })
+        let model = Self.model(check: check, scan: { found.sightings })
         await model.refresh()
 
         await model.refreshOnOpen()
 
         #expect(await check.calls == 2)
+    }
+
+    /// (e) …but a copy whose reason only a change on disk can clear — not the
+    /// vendor's signature, a dev-channel fx — is not re-checked on every open: the
+    /// scan already catches the file changing. Found in review: each open re-ran
+    /// every tool's network check for a dev-channel fx user.
+    ///
+    /// Mutation: `mayClearByItself` returning true for every reason.
+    @Test func aCopyOnlyADiskChangeCanClearIsNotRecheckedOnOpen() async {
+        for withheld in [CLIToolWithheld.wrongSigner, .channelUnsigned, .broken, .unsupportedInstaller] {
+            let status = Self.status(Self.native, state: .unknown, oneClick: false, withheld: withheld)
+            let found = ScanResult([status])
+            let check = FakeCheck([(Self.report(status), nil)])
+            let model = Self.model(check: check, scan: { found.sightings })
+            await model.refresh()
+
+            await model.refreshOnOpen()
+
+            #expect(await check.calls == 1, "\(withheld)")
+        }
+    }
+
+    /// (f) …and a copy repaired in place at the same version — a broken venv
+    /// reinstalled — is re-checked: the scan's `state` differs from what the last
+    /// check's scan saw. Found by the PR review on #942: comparing kind, path and
+    /// version alone kept "An install is broken" for up to fifteen minutes.
+    ///
+    /// Mutation: comparing sightings without `state` (or against the statuses
+    /// instead of the check's own sightings).
+    @Test func aCopyRepairedInPlaceAtTheSameVersionRechecks() async {
+        let broken = Self.status(Self.native, state: .unknown, oneClick: false, withheld: .broken)
+        let sighting = CLIToolSighting(kind: .claudeCode, path: Self.native, version: "2.1.274", state: "problem")
+        let report = CLIToolReport(
+            kind: .claudeCode, statuses: [broken], context: .claudeCode(ClaudeCodeSettings()), sightings: [sighting])
+        let check = FakeCheck([(report, nil)])
+        let found = ScanResult([])
+        found.sightings = [sighting]
+        let model = Self.model(check: check, scan: { found.sightings })
+        await model.refresh()
+
+        await model.refreshOnOpen()
+        #expect(await check.calls == 1)
+
+        found.sightings = [CLIToolSighting(kind: .claudeCode, path: Self.native, version: "2.1.274", state: "fine")]
+        await model.refreshOnOpen()
+        #expect(await check.calls == 2)
+    }
+
+    // MARK: release notes
+
+    /// A tool's release notes are fetched once per session — unless the kept copy
+    /// lacks the version the channel now points at, and then they are fetched again.
+    ///
+    /// Mutation: drop the `latest.map { … } ?? true` clause from `releaseNotes`.
+    @Test func releaseNotesAreKeptUntilTheChannelMovesPastThem() async throws {
+        let notes = FakeNotes(Changelog(entries: [
+            .init(version: "2.1.285", date: nil, items: ["a"]),
+            .init(version: "2.1.274", date: nil, items: ["b"]),
+        ]))
+        let claudeCode = FakeProvider(kind: .claudeCode, checker: FakeCheck([(Self.report(), nil)]), notes: notes)
+        let model = Self.model([claudeCode])
+
+        _ = try await model.releaseNotes(of: .claudeCode, covering: "2.1.285", force: false)
+        _ = try await model.releaseNotes(of: .claudeCode, covering: "2.1.285", force: false)
+        #expect(await notes.fetches == 1)
+
+        _ = try await model.releaseNotes(of: .claudeCode, covering: "2.1.290", force: false)
+        #expect(await notes.fetches == 2)
+    }
+
+    /// Each tool keeps its own: Claude Code's notes never answer for fx's.
+    ///
+    /// Mutation: read the cache as `releaseNotesCache.values.first`.
+    @Test func eachToolKeepsItsOwnReleaseNotes() async throws {
+        let claudeNotes = FakeNotes(Changelog(entries: [.init(version: "2.1.285", date: nil, items: ["a"])]))
+        let fxNotes = FakeNotes(Changelog(entries: [.init(version: "0.5.0", date: nil, items: ["b"])]))
+        let claudeCode = FakeProvider(
+            kind: .claudeCode, checker: FakeCheck([(Self.report(), nil)]), notes: claudeNotes)
+        let fx = FakeProvider(kind: .fx, checker: FakeCheck([(Self.report(.fx, []), nil)]), notes: fxNotes)
+        let model = Self.model([claudeCode, fx])
+
+        _ = try await model.releaseNotes(of: .claudeCode, covering: nil, force: false)
+        let fxChangelog = try await model.releaseNotes(of: .fx, covering: nil, force: false)
+
+        #expect(fxChangelog.entries.map(\.version) == ["0.5.0"])
+        #expect(await fxNotes.fetches == 1)
     }
 
     // MARK: wording
@@ -679,13 +936,36 @@ struct CLIToolsModelTests {
     ///
     /// Mutation: return "npm" for every npm install in `label`.
     @Test func theSummaryNamesEachInstaller() {
-        let native = Self.status(Self.native).install
-        let nvm = Self.status(Self.npm, method: "npm", nodePrefix: "/Users/u/.nvm/versions/node/v24.11.0").install
+        let native = Self.status(Self.native)
+        let nvm = Self.status(Self.npm, method: "npm", nodePrefix: "/Users/u/.nvm/versions/node/v24.11.0")
         let brew = Self.status("/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code", method: "npm",
-                               nodePrefix: "/opt/homebrew").install
+                               nodePrefix: "/opt/homebrew")
 
         #expect(CLIToolsModel.summary([native, nvm, brew])
             == "Claude Code ×3 — native, npm (node v24), npm (Homebrew)")
         #expect(CLIToolsModel.summary([native]) == "Claude Code — native")
+    }
+
+    /// Every tool once, in `CLIToolKind.allCases` order whatever order the copies
+    /// come in, with its count; the scan's line has counts alone.
+    ///
+    /// Mutation: return only the first tool's part from `summary`.
+    @Test func theSummaryListsEveryTool() {
+        let fx = Self.status(Self.fx, kind: .fx)
+        let bub = Self.status(Self.bub, kind: .bub)
+        let nvm = Self.status(Self.npm, method: "npm", nodePrefix: "/Users/u/.nvm/versions/node/v24.11.0")
+
+        #expect(CLIToolsModel.summary([fx, Self.status(Self.native), bub, nvm])
+            == "Claude Code ×2 — native, npm (node v24) · bub · fx")
+        #expect(CLIToolsModel.summary([fx, Self.status(Self.native), nvm].map(Self.sighting))
+            == "Claude Code ×2 · fx")
+    }
+
+    /// "Not signed by" names the tool's own vendor.
+    ///
+    /// Mutation: return "Anthropic" for every kind from `vendor(of:)`.
+    @Test func aWrongSignerNamesTheToolsVendor() {
+        #expect(CLIToolsModel.reason(.wrongSigner, of: .claudeCode) == "Not signed by Anthropic")
+        #expect(CLIToolsModel.reason(.wrongSigner, of: .fx) == "Not signed by Vercel")
     }
 }

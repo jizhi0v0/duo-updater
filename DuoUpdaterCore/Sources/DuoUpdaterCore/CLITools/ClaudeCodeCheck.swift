@@ -13,25 +13,12 @@ import Foundation
 /// 3. **Never race an update already running** (`ClaudeCodeActivity`).
 public struct ClaudeCodeStatus: Sendable, Equatable, Codable {
 
-    public enum State: String, Sendable, Codable {
-        case upToDate
-        case updateAvailable
-        /// Newer than the channel — a `latest` build on a machine now on `stable`.
-        case ahead
-        /// No comparison possible; `note` says why.
-        case unknown
-    }
+    /// The same values every tool's verdict uses; the JSON `duo claude-code --json`
+    /// prints is unchanged.
+    public typealias State = CLIToolState
 
     /// A command to run, spelled out in full: no `PATH` lookup, no shell.
-    public struct Command: Sendable, Equatable, Codable {
-        public let executable: String
-        public let arguments: [String]
-        /// Put first on the child's `PATH`, so a `#!/usr/bin/env node` script
-        /// finds the node of *this* prefix and not whichever one the GUI sees.
-        public let pathPrefix: String?
-
-        public var display: String { ([executable] + arguments).joined(separator: " ") }
-    }
+    public typealias Command = CLIToolCommand
 
     public let install: ClaudeCodeInstall
     public let channel: ClaudeCodeSettings.Channel

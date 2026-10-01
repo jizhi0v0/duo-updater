@@ -362,8 +362,7 @@ struct CLIToolDetailPane: View {
                 .padding(16)
                 .frame(maxWidth: 640, alignment: .topLeading)
             Divider()
-            CLIToolReleaseNotesView(
-                kind: status.kind, installed: status.installedVersion, latest: status.latestVersion, cli: cli)
+            CLIToolReleaseNotesView(status: status, cli: cli)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -482,10 +481,12 @@ struct CLIToolDetailPane: View {
 /// changelog, with their own version marked in the rail. The fetched document is
 /// kept for the session by `CLIToolsModel.releaseNotes`.
 private struct CLIToolReleaseNotesView: View {
-    let kind: CLIToolKind
-    let installed: String?
-    let latest: String?
+    let status: CLIToolStatus
     let cli: CLIToolsModel
+
+    private var kind: CLIToolKind { status.kind }
+    private var installed: String? { status.installedVersion }
+    private var latest: String? { status.latestVersion }
 
     private enum LoadState {
         case loading
@@ -499,7 +500,7 @@ private struct CLIToolReleaseNotesView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             // Keyed on both versions: a refresh that finds a newer latest, or an
             // update that moves the installed one, re-cuts the notes.
-            .task(id: "\(kind.rawValue)|\(installed ?? "")|\(latest ?? "")") { await load(force: false) }
+            .task(id: "\(status.releaseNotesKey)|\(installed ?? "")|\(latest ?? "")") { await load(force: false) }
     }
 
     @ViewBuilder
@@ -536,7 +537,7 @@ private struct CLIToolReleaseNotesView: View {
     private func load(force: Bool) async {
         if force { state = .loading }
         do {
-            let changelog = try await cli.releaseNotes(of: kind, covering: latest, force: force)
+            let changelog = try await cli.releaseNotes(for: status, force: force)
             state = .loaded(CLIToolChangelog.relevant(changelog, installed: installed, latest: latest))
         } catch CLIToolReleaseNotesError.http(let status) {
             state = .failed(String(localized: "The server answered HTTP \(status)."))

@@ -47,6 +47,10 @@ struct CLIToolsModelTests {
             detail = .claudeCode(try! JSONDecoder().decode(ClaudeCodeStatus.self, from: data))
         case .bub: detail = .bub(BubInstall(path: path, method: .installer, executable: path + "/bin/bub", version: version))
         case .fx: detail = .fx(FxInstall(path: path, version: version))
+        case .uv: detail = .uv(UvInstall(path: path, version: version))
+        case .junie: detail = .junie(JunieInstall(path: path, version: version))
+        case .rust: detail = .rust(RustItem(path: path, version: version))
+        case .npm: detail = .npm(NpmPackage(path: path, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -65,6 +69,10 @@ struct CLIToolsModelTests {
         case .claudeCode: context = .claudeCode(ClaudeCodeSettings())
         case .bub: context = .bub
         case .fx: context = .fx(FxSettings())
+        case .uv: context = .uv
+        case .junie: context = .junie(JunieSettings())
+        case .rust: context = .rust(RustupSettings())
+        case .npm: context = .npm
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }
@@ -170,7 +178,7 @@ struct CLIToolsModelTests {
             await updater.run(status, progress)
         }
 
-        func releaseNotes(force: Bool) async throws -> Changelog { await notes.fetch() }
+        func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog { await notes.fetch() }
     }
 
     static func model(check: FakeCheck, updater: FakeUpdater = FakeUpdater(),
@@ -894,7 +902,7 @@ struct CLIToolsModelTests {
     /// A tool's release notes are fetched once per session — unless the kept copy
     /// lacks the version the channel now points at, and then they are fetched again.
     ///
-    /// Mutation: drop the `latest.map { … } ?? true` clause from `releaseNotes`.
+    /// Mutation: drop the `status.latestVersion.map { … } ?? true` clause from `releaseNotes`.
     @Test func releaseNotesAreKeptUntilTheChannelMovesPastThem() async throws {
         let notes = FakeNotes(Changelog(entries: [
             .init(version: "2.1.285", date: nil, items: ["a"]),
@@ -903,11 +911,11 @@ struct CLIToolsModelTests {
         let claudeCode = FakeProvider(kind: .claudeCode, checker: FakeCheck([(Self.report(), nil)]), notes: notes)
         let model = Self.model([claudeCode])
 
-        _ = try await model.releaseNotes(of: .claudeCode, covering: "2.1.285", force: false)
-        _ = try await model.releaseNotes(of: .claudeCode, covering: "2.1.285", force: false)
+        _ = try await model.releaseNotes(for: Self.status("/c", latest: "2.1.285"), force: false)
+        _ = try await model.releaseNotes(for: Self.status("/c", latest: "2.1.285"), force: false)
         #expect(await notes.fetches == 1)
 
-        _ = try await model.releaseNotes(of: .claudeCode, covering: "2.1.290", force: false)
+        _ = try await model.releaseNotes(for: Self.status("/c", latest: "2.1.290"), force: false)
         #expect(await notes.fetches == 2)
     }
 
@@ -922,8 +930,8 @@ struct CLIToolsModelTests {
         let fx = FakeProvider(kind: .fx, checker: FakeCheck([(Self.report(.fx, []), nil)]), notes: fxNotes)
         let model = Self.model([claudeCode, fx])
 
-        _ = try await model.releaseNotes(of: .claudeCode, covering: nil, force: false)
-        let fxChangelog = try await model.releaseNotes(of: .fx, covering: nil, force: false)
+        _ = try await model.releaseNotes(for: Self.status("/c", latest: nil), force: false)
+        let fxChangelog = try await model.releaseNotes(for: Self.status("/f", kind: .fx, latest: nil), force: false)
 
         #expect(fxChangelog.entries.map(\.version) == ["0.5.0"])
         #expect(await fxNotes.fetches == 1)

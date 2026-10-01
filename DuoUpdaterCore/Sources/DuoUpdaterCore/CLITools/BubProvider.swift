@@ -35,7 +35,7 @@ public struct BubProvider: CLIToolProvider {
     }
 
     /// bub's GitHub Releases (`BubChangelog`).
-    public func releaseNotes(force: Bool) async throws -> Changelog {
+    public func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog {
         try await BubChangelog.fetch(force: force)
     }
 }

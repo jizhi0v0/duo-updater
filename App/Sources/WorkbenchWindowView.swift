@@ -916,6 +916,9 @@ struct WorkbenchWindowView: View {
             return CLIToolPresentation.channels(of: model.cliTools.statuses.filter { $0.kind == .fx })
         case .bub:
             return nil
+        // Worded with each tool's integration.
+        case .uv, .junie, .rust, .npm:
+            return CLIToolPresentation.channels(of: model.cliTools.statuses.filter { $0.kind == kind })
         }
     }
 

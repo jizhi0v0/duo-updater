@@ -134,14 +134,17 @@ final class CLIToolsModel {
     /// "outdated" verdict back. `refreshBrewFormulae`'s rule.
     @ObservationIgnored private var refreshGeneration = 0
 
-    /// Each tool's whole release notes, fetched once and kept for the session:
+    /// Each document's whole release notes, fetched once and kept for the session:
     /// every install's pane reads the same document (Claude Code's is ~860 KB, 407
     /// sections on 2026-09-30), so switching between installs should not fetch and
-    /// parse it again. By kind, since each tool has its own.
-    @ObservationIgnored private var releaseNotesCache: [CLIToolKind: Changelog] = [:]
+    /// parse it again. By `CLIToolStatus.releaseNotesKey`, since a tool can have
+    /// several (rustup's and Rust's; one per npm package).
+    @ObservationIgnored private var releaseNotesCache: [String: Changelog] = [:]
 
     init(
-        providers: [any CLIToolProvider] = [ClaudeCodeProvider(), BubProvider(), FxProvider()],
+        providers: [any CLIToolProvider] = [
+            ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
+        ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
     ) {
@@ -362,17 +365,18 @@ final class CLIToolsModel {
 
     // MARK: - Release notes
 
-    /// `kind`'s whole release notes from its provider, kept for the session —
-    /// unless the kept copy predates `latest`: the channel moved on since it was
-    /// fetched, and the one section the reader most wants would be missing.
-    func releaseNotes(of kind: CLIToolKind, covering latest: String?, force: Bool) async throws -> Changelog {
-        if !force, let cached = releaseNotesCache[kind],
-           latest.map({ latest in cached.entries.contains { $0.version == latest } }) ?? true {
+    /// The release notes `status` reads, from its provider, kept for the session —
+    /// unless the kept copy predates its `latestVersion`: the channel moved on since
+    /// it was fetched, and the one section the reader most wants would be missing.
+    func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog {
+        let key = status.releaseNotesKey
+        if !force, let cached = releaseNotesCache[key],
+           status.latestVersion.map({ latest in cached.entries.contains { $0.version == latest } }) ?? true {
             return cached
         }
-        guard let provider = providers.first(where: { $0.kind == kind }) else { throw NoProvider() }
-        let changelog = try await provider.releaseNotes(force: force)
-        releaseNotesCache[kind] = changelog
+        guard let provider = providers.first(where: { $0.kind == status.kind }) else { throw NoProvider() }
+        let changelog = try await provider.releaseNotes(for: status, force: force)
+        releaseNotesCache[key] = changelog
         return changelog
     }
 
@@ -393,6 +397,8 @@ final class CLIToolsModel {
         case .claudeCode: return "Anthropic"
         case .fx: return "Vercel"
         case .bub: return nil
+        // Filled in with each tool's integration.
+        case .uv, .junie, .rust, .npm: return nil
         }
     }
 
@@ -424,6 +430,9 @@ final class CLIToolsModel {
                 return String(localized: "Builds on this channel aren’t signed by its developer")
             }
             return String(localized: "Builds on this channel aren’t signed by \(vendor)")
+        case .unverified, .runtimeTooOld, .staged:
+            // Worded with each tool's integration.
+            return String(localized: "No one-click update for this kind of install")
         case .projectIncomplete:
             return String(localized: "\(tool)’s project doesn’t list \(tool)")
         case .wrongSigner:

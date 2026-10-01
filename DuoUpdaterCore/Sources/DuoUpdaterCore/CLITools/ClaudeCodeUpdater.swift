@@ -88,27 +88,17 @@ public struct ClaudeCodeUpdater: Sendable {
 
         var environment = self.environment()
         environment["PATH"] = Self.path(prefix: Self.pathPrefix(command, install))
-        let log = OutputLog(onLine: progress)
+        let run = await CLIToolCommandRunner.run(
+            command, environment: environment, deadline: deadline, progress: progress)
         let outcome: ChildProcess.Outcome
-        do {
-            // Runs to completion if the caller is cancelled, as brew's upgrade
-            // does: this replaces what is installed, and a kill halfway is worse
-            // than letting it finish — an interrupted `npm install -g` may leave a
-            // half-installed package (not measured either way, so the safe side).
-            // The deadline still stops a child that hangs.
-            outcome = try await ChildProcess.run(
-                command.executable, command.arguments, environment: environment,
-                standardOutput: .discard, standardError: .mergeIntoOutput,
-                deadline: deadline, onCancel: .runToCompletion,
-                onOutputChunk: { log.append($0) })
-        } catch {
-            log.finish()
-            return .failed(message: "could not run \(command.executable): \(error)", output: log.text)
+        switch run.result {
+        case .couldNotStart(let error):
+            return .failed(message: "could not run \(command.executable): \(error)", output: run.text)
+        case .finished(let finished):
+            outcome = finished
         }
-        log.finish()
-
         guard outcome.succeeded else {
-            return .failed(message: Self.failureMessage(log.lines, outcome, deadline: deadline), output: log.text)
+            return .failed(message: Self.failureMessage(run.lines, outcome, deadline: deadline), output: run.text)
         }
         let scanner = self.scanner
         let after = await offCooperativePool { Self.reread(install, with: scanner) }
@@ -117,18 +107,10 @@ public struct ClaudeCodeUpdater: Sendable {
 
     // MARK: - Environment
 
-    /// What a launchd-started app gets as `PATH`: `/etc/paths` without
-    /// `/usr/local/bin` (where an Intel Homebrew's node lives) and the cryptex
-    /// directory. Enough for a `#!/bin/sh` step inside npm, and nothing that could
-    /// pick another node.
-    static let systemPath = "/usr/bin:/bin:/usr/sbin:/sbin"
+    /// See `CLIToolCommandRunner.systemPath`.
+    static let systemPath = CLIToolCommandRunner.systemPath
 
-    /// `prefix` first, so an npm install's `#!/usr/bin/env node` (npm itself, the
-    /// package's postinstall) finds the node of *its* prefix — not whatever node
-    /// the inherited `PATH` of a terminal-run `duo` happens to name first.
-    static func path(prefix: String?) -> String {
-        [prefix, systemPath].compactMap { $0 }.joined(separator: ":")
-    }
+    static func path(prefix: String?) -> String { CLIToolCommandRunner.path(prefix: prefix) }
 
     /// The command's own prefix; for a native install, the launcher's directory
     /// (`~/.local/bin`). Without it `claude update` prints "Warning: Native
@@ -221,81 +203,8 @@ public struct ClaudeCodeUpdater: Sendable {
 
     // MARK: - Output
 
-    /// Everything but printable text: CSI (colours, cursor moves, `ESC[?25l`),
-    /// OSC (titles, `ESC]8;;` hyperlinks) and the two-byte escapes.
-    static func stripEscapes(_ s: String) -> String {
-        guard s.contains("\u{1B}") else { return s }
-        return s.replacingOccurrences(
-            of: "\u{1B}(?:\\[[0-?]*[ -/]*[@-~]|\\][^\u{07}\u{1B}]*(?:\u{07}|\u{1B}\\\\)|[@-Z\\\\-_])",
-            with: "", options: .regularExpression)
-    }
+    /// See `CLIToolCommandRunner.stripEscapes`.
+    static func stripEscapes(_ s: String) -> String { CLIToolCommandRunner.stripEscapes(s) }
 
-    /// The child's output as lines, as a terminal would have left them.
-    ///
-    /// Split on `\n` and `\r` both, before decoding — neither byte occurs inside a
-    /// UTF-8 sequence, so a character straddling two chunks survives (the failure
-    /// `StreamedLines` records for brew). A line ended by `\r` is a progress redraw:
-    /// it goes to `progress` like any other, and the next line replaces it in the
-    /// log, so the detail pane shows the final state of a progress bar rather than
-    /// every tick of it.
-    final class OutputLog: @unchecked Sendable {
-        private let lock = NSLock()
-        private let onLine: @Sendable (String) -> Void
-        private var pending = Data()
-        private var kept: [String] = []
-        private var overwrite = false
-
-        init(onLine: @escaping @Sendable (String) -> Void) {
-            self.onLine = onLine
-        }
-
-        /// Chunks come from one reader, in order, so calling `onLine` outside the
-        /// lock keeps their order.
-        func append(_ chunk: Data) {
-            let completed: [String] = lock.withLock {
-                pending.append(chunk)
-                var out: [String] = []
-                var start = pending.startIndex
-                while let end = pending[start...].firstIndex(where: { $0 == 0x0A || $0 == 0x0D }) {
-                    if let line = commit(pending[start..<end], carriageReturn: pending[end] == 0x0D) {
-                        out.append(line)
-                    }
-                    start = pending.index(after: end)
-                }
-                pending.removeSubrange(pending.startIndex..<start)
-                return out
-            }
-            completed.forEach(onLine)
-        }
-
-        /// The output has ended: a last line without a newline is still a line.
-        func finish() {
-            let tail: String? = lock.withLock {
-                defer { pending.removeAll() }
-                return pending.isEmpty ? nil : commit(pending[...], carriageReturn: false)
-            }
-            if let tail { onLine(tail) }
-        }
-
-        var lines: [String] { lock.withLock { kept } }
-        var text: String { lines.joined(separator: "\n") }
-
-        /// Under the lock.
-        private func commit(_ bytes: Data, carriageReturn: Bool) -> String? {
-            var line = ClaudeCodeUpdater.stripEscapes(String(decoding: bytes, as: UTF8.self))
-            while let last = line.last, last.isWhitespace { line.removeLast() }
-            guard !line.trimmingCharacters(in: .whitespaces).isEmpty else {
-                // `\r\n` ends the redraw it follows: the bare `\n` commits it.
-                if !carriageReturn { overwrite = false }
-                return nil
-            }
-            if overwrite, !kept.isEmpty {
-                kept[kept.count - 1] = line
-            } else {
-                kept.append(line)
-            }
-            overwrite = carriageReturn
-            return line
-        }
-    }
+    typealias OutputLog = CLIToolCommandRunner.OutputLog
 }

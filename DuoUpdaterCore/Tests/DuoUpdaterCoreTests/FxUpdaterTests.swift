@@ -76,9 +76,10 @@ import Foundation
     }
 
     func updater(
-        _ box: Sandbox, busy: @escaping FxUpdater.BusyCheck = { _ in nil }, environment: [String: String] = [:]
+        _ box: Sandbox, busy: @escaping FxUpdater.BusyCheck = { _ in nil }, environment: [String: String] = [:],
+        settings: FxSettings = FxSettings()
     ) -> FxUpdater {
-        FxUpdater(busy: busy, scanner: box.scanner, environment: { environment })
+        FxUpdater(busy: busy, scanner: box.scanner, environment: { environment }, settings: { settings })
     }
 
     @Test func runsFxUpgradeAndRereadsTheVersion() async throws {
@@ -124,6 +125,20 @@ import Foundation
         let status = try await box.status()
         let outcome = await updater(box, busy: { _ in .upgradeCommand(99) }).update(status)
         #expect(outcome == .busy("fx upgrade is running (pid 99)"))
+        #expect(!box.exists("home/.local/bin/RAN"))
+    }
+
+    /// fx's settings are read again at the click: switched to `dev` since the
+    /// check, `fx upgrade` would install an ad hoc build the check never
+    /// approved; auto-upgrade turned off, the update is the user's. Nothing runs.
+    /// Mutation: dropping either half of the guard runs the fake.
+    @Test func settingsChangedSinceTheCheckRunNothing() async throws {
+        let box = try Sandbox()
+        try box.fake("touch \"$(dirname \"$0\")/RAN\"")
+        let status = try await box.status()
+        #expect(await updater(box, settings: FxSettings(channel: .dev)).update(status) == .notOffered)
+        #expect(await updater(box, settings: FxSettings(channel: .stable, autoUpgrade: false)).update(status)
+                == .notOffered)
         #expect(!box.exists("home/.local/bin/RAN"))
     }
 

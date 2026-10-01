@@ -125,9 +125,11 @@ public struct BubScanner: Sendable {
 
     /// The official installer's venv, `~/.bub/.venv`.
     var installerVenv: URL { home.appendingPathComponent(".bub/.venv") }
-    /// bub's own uv project, beside that venv. `BUB_HOME` would move it, but a GUI
-    /// process cannot see the shell's `BUB_HOME`, and neither can the `bub update`
-    /// it starts — so the project the one-click syncs is this one.
+    /// bub's own uv project, beside that venv. `BUB_HOME` or `BUB_PROJECT` would
+    /// move it, but a GUI process cannot see the shell's environment, and neither
+    /// can the `bub update` it starts — so the project the one-click syncs is this
+    /// one. A user who keeps their project elsewhere gets a second one here on the
+    /// first click (not measured how their own project then behaves).
     var project: URL { home.appendingPathComponent(".bub/bub-project") }
 
     /// Each conventional venv with the method that put it there, in the order

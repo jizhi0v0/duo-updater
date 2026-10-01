@@ -98,7 +98,10 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   separator, and the changes nested under a bare `**scope**:` bullet become
     ///   items (`**scope**: change`) instead of the label alone. Notes already
     ///   cached from such a body kept the entities and tails and lost the nested
-    ///   changes.
+    ///   changes. The nested-scope rule is not changelogithub's alone: of 2,652
+    ///   release bodies (the last 30 of each GitHub source, 2026-10-01) it also
+    ///   changed AirCard v1.2.5 and cc-switch v3.10.1–v3.10.3, each label-only item
+    ///   replaced by its nested changes.
     public static let parserGeneration = 8
 
     public let entries: [Entry]

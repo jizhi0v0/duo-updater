@@ -110,7 +110,7 @@ public struct BubCheck: Sendable {
         if install.project == .missingBub {
             return verdict(state, latest: newest,
                            note: "~/.bub/bub-project does not depend on bub (left by an interrupted bub update or install), so `bub update bub` would change nothing",
-                           withheld: .broken)
+                           withheld: .projectIncomplete)
         }
         guard let uv = uv(install) else {
             return verdict(state, latest: newest, note: "uv not found: `bub update` needs it", withheld: .updaterMissing)
@@ -124,9 +124,7 @@ public struct BubCheck: Sendable {
     /// `bub update bub`, run by this venv's own `bin/bub`, with the directory of
     /// the uv it is to use first on `PATH`.
     ///
-    /// Public for the app: where one-click is withheld, the workbench can hand
-    /// the user this same command.
-    public static func updateCommand(for install: BubInstall, uv: String) -> CLIToolCommand {
+    static func updateCommand(for install: BubInstall, uv: String) -> CLIToolCommand {
         CLIToolCommand(
             executable: install.executable, arguments: ["update", "bub"],
             pathPrefix: (uv as NSString).deletingLastPathComponent)

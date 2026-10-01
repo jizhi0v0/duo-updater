@@ -830,7 +830,7 @@ struct CLIToolsModelTests {
     /// (d) A report that left a copy unanswered (offline, say) is retried on the
     /// next open rather than kept for fifteen minutes.
     ///
-    /// Mutation: drop `|| !unchecked.isEmpty` from the guard.
+    /// Mutation: drop the `unchecked.contains(where:)` clause from the guard.
     @Test func anUnansweredCopyRechecks() async {
         let status = Self.status(Self.native, state: .unknown, oneClick: false, withheld: .channelUnreadable)
         let found = ScanResult([status])
@@ -841,6 +841,26 @@ struct CLIToolsModelTests {
         await model.refreshOnOpen()
 
         #expect(await check.calls == 2)
+    }
+
+    /// (e) …but a copy whose reason only a change on disk can clear — not the
+    /// vendor's signature, a dev-channel fx — is not re-checked on every open: the
+    /// scan already catches the file changing. Found in review: each open re-ran
+    /// every tool's network check for a dev-channel fx user.
+    ///
+    /// Mutation: `mayClearByItself` returning true for every reason.
+    @Test func aCopyOnlyADiskChangeCanClearIsNotRecheckedOnOpen() async {
+        for withheld in [CLIToolWithheld.wrongSigner, .channelUnsigned, .broken, .unsupportedInstaller] {
+            let status = Self.status(Self.native, state: .unknown, oneClick: false, withheld: withheld)
+            let found = ScanResult([status])
+            let check = FakeCheck([(Self.report(status), nil)])
+            let model = Self.model(check: check, scan: { found.sightings })
+            await model.refresh()
+
+            await model.refreshOnOpen()
+
+            #expect(await check.calls == 1, "\(withheld)")
+        }
     }
 
     // MARK: release notes

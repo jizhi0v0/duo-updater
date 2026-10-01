@@ -69,6 +69,8 @@ public struct FxUpdater: Sendable {
     let scanner: FxScanner
     /// The child's environment before `PATH` is set.
     let environment: @Sendable () -> [String: String]
+    /// fx's settings as they are at the click (`~/.fx/settings.json`).
+    let settings: @Sendable () -> FxSettings
     let deadline: ChildProcess.Deadline
 
     /// A release archive is ~4 MB (0.0.12 `fx-macos-aarch64.tar.gz`: 4,248,845
@@ -85,18 +87,21 @@ public struct FxUpdater: Sendable {
             // system proxy changes nothing for it today; passed the same way as
             // to every other updater, so a later fx that reads `https_proxy` sees
             // what a terminal would.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy })
+            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            settings: { FxSettings.read() })
     }
 
     init(
         busy: @escaping BusyCheck,
         scanner: FxScanner,
         environment: @escaping @Sendable () -> [String: String],
+        settings: @escaping @Sendable () -> FxSettings = { FxSettings() },
         deadline: ChildProcess.Deadline = FxUpdater.defaultDeadline
     ) {
         self.busy = busy
         self.scanner = scanner
         self.environment = environment
+        self.settings = settings
         self.deadline = deadline
     }
 
@@ -108,6 +113,12 @@ public struct FxUpdater: Sendable {
         if let running = await offCooperativePool({ busy(install) }) {
             return .busy(running.description)
         }
+        // The two settings that withhold the click, read again: switched to `dev`
+        // since the check, `fx upgrade` would install an ad hoc build the check
+        // never approved; auto-upgrade turned off, the update is the user's.
+        let settings = self.settings
+        let now = await offCooperativePool { settings() }
+        guard now.channel == .stable, now.autoUpgrade else { return .notOffered }
         // Rule 1 holds at the click too: never run an fx that fails the check.
         guard let current = await scanner.reread(install), current.signature == .vercel, !current.quarantined,
               current.executable == command.executable

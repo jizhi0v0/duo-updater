@@ -74,6 +74,13 @@ public enum CLIToolWithheld: String, Sendable, Codable {
     /// Claude Code's npm prefix without a node and npm of its own
     /// (`ClaudeCodeStatus.Withheld.noOwnNpm`).
     case noOwnNpm
+    /// The user's channel ships builds without the vendor's signature — fx's `dev`
+    /// channel is ad hoc signed — so its builds are neither run nor installed.
+    case channelUnsigned
+    /// The tool's own project file, which its update syncs from, no longer lists
+    /// the tool: bub's `~/.bub/bub-project` left by an interrupted `bub update`,
+    /// where `bub update bub` would exit 0 having changed nothing.
+    case projectIncomplete
     /// The program the documented update runs with cannot be found — `uv`, which
     /// `bub update` needs on its `PATH`.
     case updaterMissing

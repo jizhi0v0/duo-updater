@@ -325,7 +325,7 @@ import Foundation
         #expect(status.channel == "dev")
         #expect(status.state == .updateAvailable)
         #expect(status.latestVersion == "0.0.12-d44cd84")
-        #expect(status.withheld == .unsupportedInstaller)
+        #expect(status.withheld == .channelUnsigned)
         #expect(status.oneClick == nil)
     }
 
@@ -336,6 +336,22 @@ import Foundation
         #expect(status.state == .unknown)
         #expect(status.withheld == .wrongSigner)
         #expect(asked.all.isEmpty)
+    }
+
+    /// On `dev`, a copy that is not Vercel's is fx's own ad hoc dev build: said
+    /// so, not "not signed by Vercel". Still not run, still no channel asked.
+    /// Mutation: dropping the `.dev` branch reads it `.wrongSigner`.
+    @Test func anUnsignedCopyOnDevIsTheChannelsBuild() async {
+        let asked = Asked()
+        let status = await check(.stable(version: "0.0.12"), asked: asked)
+            .status(of: install(version: nil, signature: .otherSigner), settings: FxSettings(channel: .dev), busy: nil)
+        #expect(status.state == .unknown)
+        #expect(status.withheld == .channelUnsigned)
+        #expect(asked.all.isEmpty)
+        // A copy whose seal is broken is not a dev build, whatever the channel.
+        let invalid = await check(.stable(version: "0.0.12"))
+            .status(of: install(version: nil, signature: .invalid), settings: FxSettings(channel: .dev), busy: nil)
+        #expect(invalid.withheld == .wrongSigner)
     }
 
     @Test func unreadableVersionQuarantineAndBrokenAreWithheld() async {

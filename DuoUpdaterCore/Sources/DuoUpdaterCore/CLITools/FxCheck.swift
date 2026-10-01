@@ -104,9 +104,10 @@ public struct FxRelease: Sendable {
 /// 1. **Signature first, then `--version`** (`FxScanner`): nothing about a copy
 ///    is believed, and nothing is run, until it passes.
 /// 2. **One-click is fx's own `upgrade`**, with no `--channel`: fx then keeps the
-///    channel the user chose, and DuoUpdater never switches it. fx's background
-///    auto-upgrade cannot be seen from the app (`FX_AUTO_UPGRADE` lives in the
-///    user's shell), and fx gets one-click anyway.
+///    channel the user chose, and DuoUpdater never switches it. Only while fx's
+///    own auto-upgrade is on (`auto_upgrade` in `~/.fx/settings.json`); off, the
+///    update is reported with the command (`manualCommand`). `FX_AUTO_UPGRADE`
+///    lives in the user's shell and cannot be seen from the app.
 /// 3. **Compared per channel the way fx compares** (`update_target.shouldInstall`).
 /// 4. **Never race an upgrade already running** (`FxActivity`).
 public struct FxCheck: Sendable {
@@ -139,6 +140,14 @@ public struct FxCheck: Sendable {
             return verdict(.unknown, note: "the path points at a missing or empty file", withheld: .broken)
         }
         guard install.signature == .vercel else {
+            // On `dev` this is almost always fx's own dev build — ad hoc signed —
+            // so say that, rather than "not Vercel's".
+            if settings.channel == .dev, install.signature == .otherSigner {
+                return verdict(
+                    .unknown,
+                    note: "on the dev channel, whose builds are ad hoc signed (no Developer ID): not run",
+                    withheld: .channelUnsigned)
+            }
             return verdict(
                 .unknown,
                 note: "not signed by Vercel (Team \(FxScanner.teamIdentifier), \(FxScanner.signingIdentifier)): "
@@ -205,7 +214,7 @@ public struct FxCheck: Sendable {
             return verdict(
                 .updateAvailable, latest: label,
                 note: "the dev channel ships ad hoc signed builds (no Developer ID): reported only",
-                withheld: .unsupportedInstaller)
+                withheld: .channelUnsigned)
         }
     }
 }

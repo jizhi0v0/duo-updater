@@ -179,8 +179,22 @@ final class CLIToolsModel {
         let moved = Set(found) != Set(statuses.map {
             CLIToolSighting(kind: $0.kind, path: $0.path, version: $0.installedVersion)
         })
-        guard stale || moved || !unchecked.isEmpty else { return }
+        guard stale || moved || unchecked.contains(where: Self.mayClearByItself) else { return }
         await refresh()
+    }
+
+    /// Whether an unchecked install's reason can go away without anything on disk
+    /// changing — the network came back, the other update finished — and so is
+    /// worth a re-check on the next open. The others (a dev-channel fx, a copy not
+    /// signed by its vendor, an editable bub, a broken venv) stay until the scan
+    /// sees the file change, which `moved` already catches; re-checking them on
+    /// every open re-ran every tool's network check for nothing (found in
+    /// review, 2026-10-01).
+    nonisolated static func mayClearByItself(_ status: CLIToolStatus) -> Bool {
+        switch status.withheld {
+        case nil, .channelUnreadable, .busy, .versionUnreadable: return true
+        default: return false
+        }
     }
 
     /// Re-scan and re-check every tool.
@@ -399,6 +413,13 @@ final class CLIToolsModel {
                 : String(localized: "The program that updates it wasn’t found")
         case .broken:
             return String(localized: "An install is broken")
+        case .channelUnsigned:
+            guard let vendor = vendor(of: kind) else {
+                return String(localized: "Builds on this channel aren’t signed by its developer")
+            }
+            return String(localized: "Builds on this channel aren’t signed by \(vendor)")
+        case .projectIncomplete:
+            return String(localized: "\(tool)’s project doesn’t list \(tool)")
         case .wrongSigner:
             guard let vendor = vendor(of: kind) else {
                 return String(localized: "Not signed by its developer")

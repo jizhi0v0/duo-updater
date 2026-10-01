@@ -434,7 +434,7 @@ final class BubSandbox {
 
     @Test func aProjectWithoutBubWithholdsOneClick() async {
         let status = await check().status(of: install(project: .missingBub), busy: nil)
-        #expect(status.state == .updateAvailable && status.withheld == .broken && status.oneClick == nil)
+        #expect(status.state == .updateAvailable && status.withheld == .projectIncomplete && status.oneClick == nil)
     }
 
     @Test func pypiIsAskedOnceForEveryInstall() async {

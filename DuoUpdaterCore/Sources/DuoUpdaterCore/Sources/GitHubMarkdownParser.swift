@@ -90,10 +90,16 @@ public enum GitHubMarkdownParser {
     /// (the bullet passes, the prose pass, and `qualifyingHeadings`) agrees on
     /// what counts as a heading; each lowercases the result itself where a
     /// case-insensitive comparison is what it needs.
+    ///
+    /// Leading `&nbsp;` entities go with the whitespace: changelogithub indents
+    /// every heading it writes with them (`### &nbsp;&nbsp;&nbsp;🚀 Features`, bub's
+    /// releases, 2026-10-01), and kept they reach the pane as three non-breaking
+    /// spaces before the title and `duo` as the literal entity.
     static func headingRawText(of trimmedLine: String) -> String? {
         guard trimmedLine.hasPrefix("#") else { return nil }
         return trimmedLine
             .drop(while: { $0 == "#" })
+            .replacingOccurrences(of: #"^(?:\s|&nbsp;)+"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespaces)
     }
 
@@ -355,6 +361,9 @@ public enum GitHubMarkdownParser {
         var inSkippedSection = false
         var inCodeBlock = false
         var inFencedBlock = false
+        // Strict pass only: a top-level `**scope**:` bullet whose changes are
+        // nested under it (see the strict branch below).
+        var scope: String?
 
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -376,6 +385,7 @@ public enum GitHubMarkdownParser {
             // Section heading: ## Title or ### Title
             if let raw = headingRawText(of: trimmed) {
                 let heading = raw.lowercased()
+                scope = nil
                 // Computed for a fenced heading too, exactly as before this guard
                 // existed: in the strict pass a fenced `## New Contributors` has
                 // always opened a skipped section, and which lines become items is
@@ -437,10 +447,36 @@ public enum GitHubMarkdownParser {
                 // Skip any indented sub-bullet — a leading space or tab marks PR-body
                 // detail that usually duplicates the top-level item. (Checked on the
                 // raw line; `trimmed` below has the indentation stripped.)
-                guard let first = line.first, first != " ", first != "\t" else { continue }
+                //
+                // Except under a bare scope label. changelogithub writes a scope with
+                // one change as `- **cli**: Title`, and one with several as
+                // `- **agent**:` with the changes nested under it — so there the
+                // nested bullets ARE the changes, and the label alone is not one
+                // (bub 0.4.3's "Bug Fixes": two `**scope**:` items, four changes
+                // dropped). Each nested change becomes `**agent**: Title`, the
+                // shape of the one-change form.
+                guard let first = line.first, first != " ", first != "\t" else {
+                    if let scope, let raw = bulletContent(from: trimmed) {
+                        let cleaned = scope + " " + cleanItem(raw)
+                        items.append(cleaned)
+                        if !qualifying.isEmpty {
+                            if let heading = pendingHeading {
+                                content.append(heading)
+                                pendingHeading = nil
+                            }
+                            content.append(.note(cleaned))
+                        }
+                    }
+                    continue
+                }
+                scope = nil
 
                 if let raw = bulletContent(from: trimmed) {
                     let cleaned = cleanItem(raw)
+                    if cleaned.range(of: #"^\*\*[^*]+\*\*:$"#, options: .regularExpression) != nil {
+                        scope = cleaned
+                        continue
+                    }
                     // Drop very short items (emoji-only, single-word, link-only lines).
                     if cleaned.count >= 6 {
                         items.append(cleaned)
@@ -476,8 +512,21 @@ public enum GitHubMarkdownParser {
 
     /// Strip the "by @user in https://..." suffix GitHub appends to auto-generated
     /// PR-merge entries so only the human-readable change title remains.
+    ///
+    /// changelogithub's attribution is cut whole, at the separator it always
+    /// writes before it — `Title &nbsp;-&nbsp; by @a and **B** in <url> [<samp>(abc12)</samp>](<url>)`.
+    /// Its tail comes in more shapes than the `by @user in URL` rule below reads
+    /// (several authors, no author, no PR, a commit link after the PR), and that
+    /// rule left the separator and, for the other shapes, the whole tail in the
+    /// item: of bub's 104 bullets from 0.3.6 to 0.5.0, 102 kept the separator and
+    /// 44 the attribution after it as well (2026-10-01).
     private static func cleanItem(_ item: String) -> String {
         var s = item
+
+        // changelogithub: "Title &nbsp;-&nbsp; by @user in https://… [<samp>(abc12)</samp>](https://…)"
+        if let r = s.range(of: #"\s*&nbsp;-&nbsp;(?:\s.*)?$"#, options: .regularExpression) {
+            s = String(s[..<r.lowerBound])
+        }
 
         // "Something by @user in https://github.com/owner/repo/pull/123"
         if let r = s.range(of: #"\s+by\s+@\S+\s+in\s+https?://\S+"#, options: .regularExpression) {

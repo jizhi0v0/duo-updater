@@ -740,3 +740,51 @@ final class NpmRecorder: @unchecked Sendable {
         #expect(before.path == install.path)
     }
 }
+
+/// Which prefixes' node may be run: the Node.js Foundation's, or Homebrew's own
+/// keg (ad hoc signed; the user chose to trust it on 2026-10-02).
+@Suite struct NpmNodeTrustTests {
+
+    func runtime(_ signature: CLIToolTrust.Signature?, keg: String?, quarantined: Bool = false) -> NpmRuntime {
+        NpmRuntime(node: "/ZZFixture-node/bin/node", npm: "/ZZFixture-node/bin/npm", npmVersion: "11.6.2",
+                   nodeSignature: signature, nodeQuarantined: quarantined, nodeVersion: "24.13.0", homebrewKeg: keg)
+    }
+
+    /// Mutation: return `true` for `.adHoc` whatever the keg.
+    @Test func anAdHocNodeIsTrustedOnlyAsAHomebrewKeg() {
+        #expect(runtime(.vendor, keg: nil).nodeIsTrusted)
+        #expect(runtime(.adHoc, keg: "/opt/homebrew/Cellar/node/26.10.0_1").nodeIsTrusted)
+        #expect(!runtime(.adHoc, keg: nil).nodeIsTrusted)
+        #expect(!runtime(.otherSigner, keg: "/opt/homebrew/Cellar/node/26.10.0_1").nodeIsTrusted)
+        #expect(!runtime(.invalid, keg: "/opt/homebrew/Cellar/node/26.10.0_1").nodeIsTrusted)
+    }
+
+    /// Mutation: drop the quarantine guard in `nodeIsTrusted`.
+    @Test func aQuarantinedNodeIsNeverTrusted() {
+        #expect(!runtime(.vendor, keg: nil, quarantined: true).nodeIsTrusted)
+        #expect(!runtime(.adHoc, keg: "/opt/homebrew/Cellar/node/26.10.0_1", quarantined: true).nodeIsTrusted)
+    }
+
+    /// A keg is a node under `<root>/Cellar/node[@n]/<v>/bin/node` with brew's
+    /// receipt beside it, for a Homebrew root only.
+    ///
+    /// Mutations: drop the receipt check; drop the root check.
+    @Test func aHomebrewKegNeedsItsRootItsCellarAndItsReceipt() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-brew-\(UUID().uuidString)").resolvingSymlinksInPath()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let keg = root.appendingPathComponent("Cellar/node/26.10.0_1")
+        let node = keg.appendingPathComponent("bin/node")
+        try FileManager.default.createDirectory(at: node.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: node)
+        let roots = [root.path]
+
+        #expect(NodePrefixes.homebrewKeg(ofNode: node, prefix: root, homebrewRoots: roots) == nil)
+        try Data("{}".utf8).write(to: keg.appendingPathComponent("INSTALL_RECEIPT.json"))
+        #expect(NodePrefixes.homebrewKeg(ofNode: node, prefix: root, homebrewRoots: roots) == keg.path)
+        #expect(NodePrefixes.homebrewKeg(ofNode: node, prefix: root) == nil)
+
+        let elsewhere = root.appendingPathComponent("opt/node/bin/node")
+        #expect(NodePrefixes.homebrewKeg(ofNode: elsewhere, prefix: root, homebrewRoots: roots) == nil)
+    }
+}

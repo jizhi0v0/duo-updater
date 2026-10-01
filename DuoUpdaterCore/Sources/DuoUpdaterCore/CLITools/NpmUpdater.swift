@@ -25,6 +25,9 @@ public struct NpmUpdater: Sendable {
     typealias BusyCheck = @Sendable (NpmInstall) -> NpmActivity.Busy?
 
     let busy: BusyCheck
+    /// Whether the prefix's node may still be run, asked again at the click: the
+    /// node a check trusted can be replaced before it (`NpmRuntime.nodeIsTrusted`).
+    let trustsNode: @Sendable (NpmInstall) -> Bool
     /// The child's environment before `PATH` is set.
     let environment: @Sendable () -> [String: String]
     let deadline: ChildProcess.Deadline
@@ -38,6 +41,7 @@ public struct NpmUpdater: Sendable {
     public init() {
         self.init(
             busy: { NpmActivity.busy($0, processes: NpmActivity.runningProcesses()) },
+            trustsNode: { NpmUpdater.nodeIsTrustedNow($0) },
             // A GUI app launched by launchd has no proxy variables; npm honours
             // `https_proxy` & co. when its own `https-proxy` is unset (npm 11's
             // `config.md`). See `SystemProxyEnvironment`.
@@ -46,10 +50,12 @@ public struct NpmUpdater: Sendable {
 
     init(
         busy: @escaping BusyCheck,
+        trustsNode: @escaping @Sendable (NpmInstall) -> Bool = { _ in true },
         environment: @escaping @Sendable () -> [String: String],
         deadline: ChildProcess.Deadline = NpmUpdater.defaultDeadline
     ) {
         self.busy = busy
+        self.trustsNode = trustsNode
         self.environment = environment
         self.deadline = deadline
     }
@@ -64,6 +70,12 @@ public struct NpmUpdater: Sendable {
         let busy = self.busy
         if let running = await offCooperativePool({ busy(install) }) {
             return .busy(running.description)
+        }
+        let trustsNode = self.trustsNode
+        guard await offCooperativePool({ trustsNode(install) }) else {
+            return .failed(
+                message: "not run: \(install.runtime.node ?? "this prefix's node") is no longer a node DuoUpdater may run",
+                output: "")
         }
 
         let run = await Self.run(
@@ -86,6 +98,18 @@ public struct NpmUpdater: Sendable {
                 output: run.text)
         }
         return .updated(version: after)
+    }
+
+    /// The prefix's node read again from disk: its signature, quarantine and keg.
+    static func nodeIsTrustedNow(_ install: NpmInstall) -> Bool {
+        guard let node = install.runtime.node else { return false }
+        let resolved = URL(fileURLWithPath: node).resolvingSymlinksInPath()
+        return NpmRuntime(
+            node: node, npm: install.runtime.npm, npmVersion: install.runtime.npmVersion,
+            nodeSignature: CLIToolTrust.signature(of: resolved, teamIdentifier: NpmScanner.nodeTeamIdentifier),
+            nodeQuarantined: CLIToolTrust.hasQuarantine(resolved), nodeVersion: install.runtime.nodeVersion,
+            homebrewKeg: NodePrefixes.homebrewKeg(ofNode: resolved, prefix: install.prefix.url)
+        ).nodeIsTrusted
     }
 
     // MARK: - Environment

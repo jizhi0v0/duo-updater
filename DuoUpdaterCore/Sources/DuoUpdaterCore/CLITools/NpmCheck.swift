@@ -160,13 +160,13 @@ public struct NpmCheck: Sendable {
                            note: "this prefix's node is quarantined, so it is not run\(alongside)", withheld: .unverified)
         }
         switch install.runtime.nodeSignature {
-        case .vendor?:
+        case _ where install.runtime.nodeIsTrusted:
             break
         case .adHoc?, .unsigned?:
             return verdict(.updateAvailable, pick: pick,
-                           note: "this prefix's node is not signed by the Node.js Foundation (Team \(NpmScanner.nodeTeamIdentifier)) — Homebrew's is ad hoc — so it is not run\(alongside)",
+                           note: "this prefix's node is neither signed by the Node.js Foundation (Team \(NpmScanner.nodeTeamIdentifier)) nor a Homebrew keg, so it is not run\(alongside)",
                            withheld: .unverified)
-        case .otherSigner?, .invalid?, nil:
+        case .vendor?, .otherSigner?, .invalid?, nil:
             return verdict(.updateAvailable, pick: pick,
                            note: "this prefix's node is not signed by the Node.js Foundation (Team \(NpmScanner.nodeTeamIdentifier))\(alongside)",
                            withheld: .wrongSigner)

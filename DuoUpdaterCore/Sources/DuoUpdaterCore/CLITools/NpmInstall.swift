@@ -79,10 +79,17 @@ public struct NpmRuntime: Sendable, Equatable, Codable {
     /// From the layout (`NodePrefix.layoutNodeVersion`), or from
     /// `node --version` of a Node.js-signed binary when the layout does not say.
     public let nodeVersion: String?
+    /// The Homebrew keg the node is, when it is one (`/opt/homebrew/Cellar/node/
+    /// 26.10.0_1`): `bin/node` resolves into it and brew's `INSTALL_RECEIPT.json`
+    /// is there. Homebrew's node is ad hoc signed, so it can never pass the
+    /// Node.js Foundation's Team ID; the user chose on 2026-10-02 to trust it all
+    /// the same — it is what their own package manager installed (brew checks a
+    /// bottle's sha256 before pouring it), and the node their terminal runs.
+    public let homebrewKeg: String?
 
     public init(
         node: String?, npm: String?, npmVersion: String?, nodeSignature: CLIToolTrust.Signature?,
-        nodeQuarantined: Bool, nodeVersion: String?
+        nodeQuarantined: Bool, nodeVersion: String?, homebrewKeg: String? = nil
     ) {
         self.node = node
         self.npm = npm
@@ -90,11 +97,23 @@ public struct NpmRuntime: Sendable, Equatable, Codable {
         self.nodeSignature = nodeSignature
         self.nodeQuarantined = nodeQuarantined
         self.nodeVersion = nodeVersion
+        self.homebrewKeg = homebrewKeg
     }
 
     public func with(nodeVersion: String?) -> NpmRuntime {
         NpmRuntime(node: node, npm: npm, npmVersion: npmVersion, nodeSignature: nodeSignature,
-                   nodeQuarantined: nodeQuarantined, nodeVersion: nodeVersion)
+                   nodeQuarantined: nodeQuarantined, nodeVersion: nodeVersion, homebrewKeg: homebrewKeg)
+    }
+
+    /// Whether this node may be run, by the trust rule: signed by the Node.js
+    /// Foundation, or Homebrew's own (`homebrewKeg`). Never when quarantined.
+    public var nodeIsTrusted: Bool {
+        guard node != nil, !nodeQuarantined else { return false }
+        switch nodeSignature {
+        case .vendor?: return true
+        case .adHoc?, .unsigned?: return homebrewKeg != nil
+        case .otherSigner?, .invalid?, nil: return false
+        }
     }
 }
 
@@ -278,7 +297,8 @@ public struct NpmScanner: Sendable {
             node: node, npm: npm, npmVersion: npmVersion,
             nodeSignature: node == nil ? nil : checkSignature(resolved),
             nodeQuarantined: node == nil ? false : CLIToolTrust.hasQuarantine(resolved),
-            nodeVersion: prefix.layoutNodeVersion)
+            nodeVersion: prefix.layoutNodeVersion,
+            homebrewKeg: node == nil ? nil : NodePrefixes.homebrewKeg(ofNode: resolved, prefix: prefix.url))
     }
 
     /// The npmrc that sets a `prefix` other than `prefix`, or nil. The user's

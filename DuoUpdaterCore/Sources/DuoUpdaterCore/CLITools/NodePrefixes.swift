@@ -129,6 +129,26 @@ public struct NodePrefixes: Sendable {
         return NpmVersion(bare) == nil ? nil : bare
     }
 
+    /// The Homebrew keg a prefix's node is — `<prefix>/Cellar/node/<v>` or
+    /// `node@<n>/<v>`, holding brew's `INSTALL_RECEIPT.json` — for a prefix that
+    /// is Homebrew's own (`/opt/homebrew`, `/usr/local`); nil otherwise.
+    /// `resolvedNode` is `<prefix>/bin/node` with its links followed.
+    static func homebrewKeg(
+        ofNode resolvedNode: URL, prefix: URL, homebrewRoots: [String] = ["/opt/homebrew", "/usr/local"]
+    ) -> String? {
+        let root = prefix.resolvingSymlinksInPath().pathComponents
+        guard homebrewRoots.contains(where: { URL(fileURLWithPath: $0).pathComponents == root }) else { return nil }
+        let components = resolvedNode.pathComponents
+        guard components.count == root.count + 5, Array(components.prefix(root.count)) == root,
+              components[root.count] == "Cellar",
+              components[root.count + 1] == "node" || components[root.count + 1].hasPrefix("node@"),
+              components.suffix(2) == ["bin", "node"]
+        else { return nil }
+        let keg = NSString.path(withComponents: Array(components.prefix(root.count + 3)))
+        let receipt = (keg as NSString).appendingPathComponent("INSTALL_RECEIPT.json")
+        return FileManager.default.fileExists(atPath: receipt) ? keg : nil
+    }
+
     /// The version of the Homebrew keg `<prefix>/bin/node` links into
     /// (`../Cellar/node/26.10.0_1/bin/node` → `26.10.0`; `node@22` alike), or nil.
     /// The `_1` is Homebrew's rebuild counter, not part of node's version.

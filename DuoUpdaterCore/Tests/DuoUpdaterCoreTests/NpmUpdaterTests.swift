@@ -69,6 +69,23 @@ import Foundation
         #expect(!FileManager.default.fileExists(atPath: box.path("ran")))
     }
 
+    /// The node the check trusted is asked again at the click — replaced since by
+    /// one that is neither the Node.js Foundation's nor Homebrew's, nothing runs.
+    ///
+    /// Mutation: drop the click-time `trustsNode` guard → the command runs.
+    @Test func aNodeNoLongerTrustedAtTheClickIsNotRun() async throws {
+        let box = try NpmSandbox()
+        let status = try await status(box, node: "touch '\(box.path("ran"))'")
+        let outcome = await NpmUpdater(busy: { _ in nil }, trustsNode: { _ in false }, environment: { [:] })
+            .update(status)
+        guard case .failed(let message, _) = outcome else {
+            Issue.record("expected a failure, got \(outcome)")
+            return
+        }
+        #expect(message.hasPrefix("not run:"))
+        #expect(!FileManager.default.fileExists(atPath: box.path("ran")))
+    }
+
     @Test func runsTheExactCommandWithThePrefixFirstOnPath() async throws {
         let box = try NpmSandbox()
         let status = try await status(box, node: installing(box))

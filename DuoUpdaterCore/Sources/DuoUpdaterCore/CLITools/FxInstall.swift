@@ -202,10 +202,9 @@ public struct FxScanner: Sendable {
         }
         // A copy inside an `.app` ships and updates with that app; updating it
         // would break the bundle's seal. Neither checked nor updated, even when
-        // the user adds it by hand (see `ClaudeCodeScanner.owningApp`).
-        return found.filter {
-            ClaudeCodeScanner.owningApp(of: $0.path) == nil && ClaudeCodeScanner.owningApp(of: $0.executable) == nil
-        }
+        // the user adds it by hand. `owningApp` looks at the path as given and
+        // once resolved, which covers a link into a bundle.
+        return found.filter { ClaudeCodeScanner.owningApp(of: $0.path) == nil }
     }
 
     /// The signature is the gate: `--version` runs only for a Vercel-signed file

@@ -56,6 +56,8 @@ public struct ClaudeCodeProvider: CLIToolProvider {
             kind: .claudeCode, path: status.install.path, installedVersion: status.install.version,
             latestVersion: status.latestVersion, channel: status.channel.rawValue, state: status.state,
             oneClick: status.oneClick, withheld: status.withheld.map(withheld), note: status.note,
+            manualCommand: status.withheld == .autoUpdateOff
+                ? ClaudeCodeCheck.updateCommand(for: status.install, channel: status.channel) : nil,
             detail: .claudeCode(status))
     }
 

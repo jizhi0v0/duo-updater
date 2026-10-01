@@ -13,7 +13,7 @@ private var homeDirectory: String { FileManager.default.homeDirectoryForCurrentU
 
 /// One install of any tool in the CLI tab. The trailing control follows the rules
 /// the user set: Update only when every gate passed (`oneClick`), the command to
-/// copy when Claude Code's auto-update is off, and otherwise nothing — the caption
+/// copy when the tool's own auto-update is off, and otherwise nothing — the caption
 /// says why.
 struct CLIToolSidebarRow: View {
     let status: CLIToolStatus
@@ -78,8 +78,7 @@ struct CLIToolSidebarRow: View {
             Button("Update") { Task { await cli.update(id) } }
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
-        } else if case .claudeCode(let claudeCode) = status.detail,
-                  let command = ClaudeCodePresentation.manualCommand(claudeCode) {
+        } else if let command = CLIToolPresentation.manualCommand(status) {
             // A glyph, like the Brew trust command's row button: a labelled button
             // would leave a 260 pt sidebar too little room for the title beside it.
             CopyCommandButton(command: command)
@@ -436,8 +435,22 @@ struct CLIToolDetailPane: View {
             Text(verbatim: command.display)
                 .font(.system(.body, design: .monospaced))
         } else if let explanation = CLIToolPresentation.explanation(status) {
-            Text(verbatim: explanation)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(verbatim: explanation)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let command = CLIToolPresentation.manualCommand(status) {
+                    Text("To update it yourself, run:")
+                    HStack(spacing: 8) {
+                        Text(verbatim: command)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                        Spacer()
+                        CopyCommandButton(command: command)
+                    }
+                    .padding(10)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                }
+            }
         } else if status.state == .ahead {
             Text("Newer than the channel’s latest")
         } else {

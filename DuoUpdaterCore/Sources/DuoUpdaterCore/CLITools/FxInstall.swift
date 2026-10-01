@@ -72,9 +72,9 @@ public struct FxInstall: Sendable, Equatable, Codable {
     }
 }
 
-/// fx's user-wide settings that govern its updates: the channel in
-/// `~/.fx/settings.json`, which `fx upgrade` without `--channel` reads and the
-/// background auto-upgrade follows.
+/// fx's user-wide settings that govern its updates, in `~/.fx/settings.json`: the
+/// channel, which `fx upgrade` without `--channel` reads and the background
+/// auto-upgrade follows, and whether that auto-upgrade runs at all.
 ///
 /// From fx's source (`vercel-labs/fx` at `d44cd84`, read 2026-10-01):
 /// - the file is `$HOME/.fx/settings.json` (`profile_paths.settingsPath`), key
@@ -87,7 +87,15 @@ public struct FxInstall: Sendable, Equatable, Codable {
 ///   diagnostic (`mergeDetailedSettingsLayer`) — so a malformed file, or an
 ///   `update_channel` that is not one of the two, means `stable`.
 ///
-/// What this does not see: the other keys' validity (a bad `model` value also
+/// - `auto_upgrade`, a bool, absent means on (`app_lifecycle`:
+///   `settings.auto_upgrade orelse true`); any other type is an error that drops
+///   the file whole like a bad channel (`config_runtime`:
+///   `InvalidAutoUpgradeType`).
+///
+/// What this does not see: a workspace's own settings, which may set
+/// `auto_upgrade` for sessions in that workspace (the channel they may not);
+/// `FX_AUTO_UPGRADE=0`, an environment variable in the user's shell that a GUI
+/// process never sees; the other keys' validity (a bad `model` value also
 /// makes fx drop the file, and so fall back to `stable`) and the
 /// `.preference-migration.update_channel.json` journal beside the file, which fx
 /// writes while it saves a preference and folds back on its next load.
@@ -99,11 +107,15 @@ public struct FxSettings: Sendable, Equatable, Codable {
     }
 
     public var channel: Channel = .stable
+    /// fx's background auto-upgrade. Off means the update is the user's to take:
+    /// reported with the command, never run (`FxCheck`) — Claude Code's rule.
+    public var autoUpgrade: Bool = true
 
     public init() {}
 
-    public init(channel: Channel) {
+    public init(channel: Channel, autoUpgrade: Bool = true) {
         self.channel = channel
+        self.autoUpgrade = autoUpgrade
     }
 
     public static var standardLocation: URL {
@@ -117,14 +129,24 @@ public struct FxSettings: Sendable, Equatable, Codable {
     }
 
     static func parse(_ data: Data) -> FxSettings {
-        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let raw = root["update_channel"]
-        else { return FxSettings() }
-        guard let text = raw as? String, let channel = Channel(rawValue: text.lowercased()) else {
-            // fx drops the whole file over this, and so runs on `stable`.
-            return FxSettings()
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return FxSettings() }
+        var settings = FxSettings()
+        if let raw = root["update_channel"] {
+            guard let text = raw as? String, let channel = Channel(rawValue: text.lowercased()) else {
+                // fx drops the whole file over this, and so runs on its defaults.
+                return FxSettings()
+            }
+            settings.channel = channel
         }
-        return FxSettings(channel: channel)
+        if let raw = root["auto_upgrade"] {
+            // A JSON bool only: `JSONSerialization` hands `1` and `true` back as the
+            // same NSNumber, and fx rejects the number (dropping the file).
+            guard let number = raw as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else {
+                return FxSettings()
+            }
+            settings.autoUpgrade = number.boolValue
+        }
+        return settings
     }
 }
 

@@ -99,6 +99,11 @@ public struct CLIToolStatus: Sendable, Equatable {
     public let withheld: CLIToolWithheld?
     /// Why, in English, for `duo` and the log.
     public let note: String?
+    /// The command for the user to run themselves, when the update is theirs to
+    /// take: only with `withheld == .autoUpdateOff` — the user turned the tool's own
+    /// auto-update off, so DuoUpdater reports the update and hands over the very
+    /// command a one-click would have run, instead of running it.
+    public let manualCommand: CLIToolCommand?
     /// The tool's own view of the install, for its detail pane.
     public let detail: Detail
 
@@ -111,7 +116,7 @@ public struct CLIToolStatus: Sendable, Equatable {
     public init(
         kind: CLIToolKind, path: String, installedVersion: String?, latestVersion: String?,
         channel: String?, state: CLIToolState, oneClick: CLIToolCommand?,
-        withheld: CLIToolWithheld?, note: String?, detail: Detail
+        withheld: CLIToolWithheld?, note: String?, manualCommand: CLIToolCommand? = nil, detail: Detail
     ) {
         self.kind = kind
         self.path = path
@@ -122,6 +127,7 @@ public struct CLIToolStatus: Sendable, Equatable {
         self.oneClick = oneClick
         self.withheld = withheld
         self.note = note
+        self.manualCommand = manualCommand
         self.detail = detail
     }
 }

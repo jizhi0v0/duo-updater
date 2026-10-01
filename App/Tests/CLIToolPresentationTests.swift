@@ -14,13 +14,25 @@ struct CLIToolPresentationTests {
     private func fx(
         _ path: String = "/Users/ann/.fx/bin/fx", version: String? = "0.4.0", latest: String? = "0.5.0",
         state: CLIToolState = .updateAvailable, channel: String? = "stable",
-        oneClick: Bool = true, withheld: CLIToolWithheld? = nil
+        oneClick: Bool = true, withheld: CLIToolWithheld? = nil, manual: Bool = false
     ) -> CLIToolStatus {
-        CLIToolStatus(
+        let command = CLIToolCommand(executable: path, arguments: ["upgrade"], pathPrefix: nil)
+        return CLIToolStatus(
             kind: .fx, path: path, installedVersion: version, latestVersion: latest, channel: channel,
-            state: state,
-            oneClick: oneClick ? CLIToolCommand(executable: path, arguments: ["upgrade"], pathPrefix: nil) : nil,
-            withheld: withheld, note: nil, detail: .fx(FxInstall(path: path, version: version)))
+            state: state, oneClick: oneClick ? command : nil,
+            withheld: withheld, note: nil, manualCommand: manual ? command : nil,
+            detail: .fx(FxInstall(path: path, version: version)))
+    }
+
+    /// The command to copy only beside an update withheld because the user turned
+    /// the tool's auto-update off. Mutation: dropping the `withheld` check hands it
+    /// out beside a running update.
+    @Test func onlyAutoUpdateOffHandsOutTheCommand() {
+        #expect(CLIToolPresentation.manualCommand(fx(oneClick: false, withheld: .autoUpdateOff, manual: true))
+                == "/Users/ann/.fx/bin/fx upgrade")
+        #expect(CLIToolPresentation.manualCommand(fx(oneClick: false, withheld: .busy, manual: true)) == nil)
+        #expect(CLIToolPresentation.manualCommand(
+            fx(state: .upToDate, oneClick: false, withheld: .autoUpdateOff, manual: true)) == nil)
     }
 
     /// Mutation: drop the `.claudeCode` branch from `title(of:home:)` — an nvm

@@ -56,6 +56,17 @@ enum CLIToolPresentation {
         return CLIToolsModel.reason(withheld, of: status.kind)
     }
 
+    /// The command to copy beside an update the user turned the tool's auto-update
+    /// off for — the same command a one-click would run. nil otherwise: every
+    /// other gate means it should not be run now, or it is DuoUpdater's to run.
+    static func manualCommand(_ status: CLIToolStatus) -> String? {
+        if case .claudeCode(let claudeCode) = status.detail {
+            return ClaudeCodePresentation.manualCommand(claudeCode)
+        }
+        guard status.state == .updateAvailable, status.withheld == .autoUpdateOff else { return nil }
+        return status.manualCommand?.display
+    }
+
     /// The channel a tool's group header names, read off its installs: one name
     /// when they agree, each when they do not. nil for a tool without channels.
     static func channels(of statuses: [CLIToolStatus]) -> String? {

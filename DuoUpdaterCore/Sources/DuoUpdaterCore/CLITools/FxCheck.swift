@@ -127,12 +127,12 @@ public struct FxCheck: Sendable {
     public func status(of install: FxInstall, settings: FxSettings, busy: FxActivity.Busy?) async -> CLIToolStatus {
         func verdict(
             _ state: CLIToolState, latest: String? = nil, oneClick: CLIToolCommand? = nil,
-            note: String? = nil, withheld: CLIToolWithheld? = nil
+            note: String? = nil, withheld: CLIToolWithheld? = nil, manualCommand: CLIToolCommand? = nil
         ) -> CLIToolStatus {
             CLIToolStatus(
                 kind: .fx, path: install.path, installedVersion: install.version, latestVersion: latest,
                 channel: settings.channel.rawValue, state: state, oneClick: oneClick, withheld: withheld,
-                note: note, detail: .fx(install))
+                note: note, manualCommand: manualCommand, detail: .fx(install))
         }
 
         if install.problem == .executableMissing {
@@ -168,6 +168,17 @@ public struct FxCheck: Sendable {
             case .orderedDescending: state = .ahead
             }
             guard state == .updateAvailable else { return verdict(state, latest: latest) }
+            // The user's own auto-upgrade switch: off, the update is reported with
+            // the command a one-click would run, and never run by DuoUpdater —
+            // Claude Code's `DISABLE_AUTOUPDATER` rule (the user's, 2026-10-01).
+            if !settings.autoUpgrade {
+                return verdict(
+                    state, latest: latest, note: "auto-upgrade is off (auto_upgrade: false): reported only",
+                    withheld: .autoUpdateOff,
+                    manualCommand: install.executable.map {
+                        CLIToolCommand(executable: $0, arguments: ["upgrade"], pathPrefix: nil)
+                    })
+            }
             if let busy {
                 return verdict(state, latest: latest, note: busy.description, withheld: .busy)
             }

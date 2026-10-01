@@ -202,6 +202,21 @@ import Foundation
         #expect(channel("not json") == .stable)
     }
 
+    /// fx's `auto_upgrade`: a JSON bool, absent means on, any other type makes fx
+    /// drop the whole file — channel included. Mutation: accepting any NSNumber
+    /// reads `1` as off-able and `0` as off; dropping the bool-type check fails the
+    /// last two.
+    @Test func autoUpgradeIsABoolThatDefaultsOnAsFxReadsIt() {
+        func settings(_ json: String) -> FxSettings { FxSettings.parse(Data(json.utf8)) }
+        #expect(settings(#"{}"#).autoUpgrade)
+        #expect(settings(#"{"auto_upgrade":true}"#).autoUpgrade)
+        #expect(!settings(#"{"auto_upgrade":false}"#).autoUpgrade)
+        #expect(settings(#"{"auto_upgrade":false,"update_channel":"dev"}"#) == FxSettings(channel: .dev, autoUpgrade: false))
+        // Not a bool: fx drops the file, so auto-upgrade is on and the channel stable.
+        #expect(settings(#"{"auto_upgrade":0,"update_channel":"dev"}"#) == FxSettings())
+        #expect(settings(#"{"auto_upgrade":"false","update_channel":"dev"}"#) == FxSettings())
+    }
+
     @Test func missingSettingsFileIsStable() throws {
         let box = try Sandbox()
         #expect(FxSettings.read(from: box.home.appendingPathComponent(".fx/settings.json")).channel == .stable)
@@ -282,6 +297,23 @@ import Foundation
         #expect(status.withheld == .busy)
         #expect(status.oneClick == nil)
         #expect(status.note == "fx upgrade is running (pid 42)")
+    }
+
+    /// Auto-upgrade off: reported with the command a one-click would run, never
+    /// offered — Claude Code's rule. Mutation: dropping the `autoUpgrade` gate
+    /// offers the click.
+    @Test func autoUpgradeOffReportsTheCommandInsteadOfOfferingIt() async {
+        let status = await check(.stable(version: "0.0.12"))
+            .status(of: install(), settings: FxSettings(channel: .stable, autoUpgrade: false), busy: nil)
+        #expect(status.state == .updateAvailable)
+        #expect(status.withheld == .autoUpdateOff)
+        #expect(status.oneClick == nil)
+        #expect(status.manualCommand
+            == CLIToolCommand(executable: "/Users/u/.local/bin/fx", arguments: ["upgrade"], pathPrefix: nil))
+        let current = await check(.stable(version: "0.0.11"))
+            .status(of: install(), settings: FxSettings(channel: .stable, autoUpgrade: false), busy: nil)
+        #expect(current.state == .upToDate)
+        #expect(current.manualCommand == nil)
     }
 
     /// On `dev` fx replaces any stable build — and what it installs is an ad hoc

@@ -546,8 +546,10 @@ struct CLIToolsModelTests {
 
     /// Update All covers every tool's offers, still one at a time across them: a
     /// Claude Code copy and an fx copy behind two providers never run together.
+    /// And in `CLIToolKind.allCases` order, whatever order the providers came in.
     ///
-    /// Mutation: run the loop's `update(_:)` calls in a `withTaskGroup`.
+    /// Mutations: run the loop's `update(_:)` calls in a `withTaskGroup`; keep
+    /// `providers` in the order passed to `init`.
     @Test func updateAllCrossesToolsOneAtATime() async {
         let updater = FakeUpdater()
         let claudeCode = FakeProvider(

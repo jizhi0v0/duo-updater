@@ -863,6 +863,32 @@ struct CLIToolsModelTests {
         }
     }
 
+    /// (f) …and a copy repaired in place at the same version — a broken venv
+    /// reinstalled — is re-checked: the scan's `state` differs from what the last
+    /// check's scan saw. Found by the PR review on #942: comparing kind, path and
+    /// version alone kept "An install is broken" for up to fifteen minutes.
+    ///
+    /// Mutation: comparing sightings without `state` (or against the statuses
+    /// instead of the check's own sightings).
+    @Test func aCopyRepairedInPlaceAtTheSameVersionRechecks() async {
+        let broken = Self.status(Self.native, state: .unknown, oneClick: false, withheld: .broken)
+        let sighting = CLIToolSighting(kind: .claudeCode, path: Self.native, version: "2.1.274", state: "problem")
+        let report = CLIToolReport(
+            kind: .claudeCode, statuses: [broken], context: .claudeCode(ClaudeCodeSettings()), sightings: [sighting])
+        let check = FakeCheck([(report, nil)])
+        let found = ScanResult([])
+        found.sightings = [sighting]
+        let model = Self.model(check: check, scan: { found.sightings })
+        await model.refresh()
+
+        await model.refreshOnOpen()
+        #expect(await check.calls == 1)
+
+        found.sightings = [CLIToolSighting(kind: .claudeCode, path: Self.native, version: "2.1.274", state: "fine")]
+        await model.refreshOnOpen()
+        #expect(await check.calls == 2)
+    }
+
     // MARK: release notes
 
     /// A tool's release notes are fetched once per session — unless the kept copy

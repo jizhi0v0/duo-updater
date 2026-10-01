@@ -145,6 +145,10 @@ public struct CLIToolReport: Sendable, Equatable {
     public let statuses: [CLIToolStatus]
     /// The tool-wide settings the verdicts were made under, for its group header.
     public let context: Context
+    /// What `scan()` would have answered for the installs this report checked —
+    /// built by the same rule, so an open of the popover can tell whether the disk
+    /// moved since.
+    public let sightings: [CLIToolSighting]
 
     public enum Context: Sendable, Equatable {
         case claudeCode(ClaudeCodeSettings)
@@ -152,25 +156,38 @@ public struct CLIToolReport: Sendable, Equatable {
         case fx(FxSettings)
     }
 
-    public init(kind: CLIToolKind, statuses: [CLIToolStatus], context: Context) {
+    public init(
+        kind: CLIToolKind, statuses: [CLIToolStatus], context: Context, sightings: [CLIToolSighting]? = nil
+    ) {
         self.kind = kind
         self.statuses = statuses
         self.context = context
+        self.sightings = sightings ?? statuses.map {
+            CLIToolSighting(kind: $0.kind, path: $0.path, version: $0.installedVersion)
+        }
     }
 }
 
-/// What a local, network-free look finds: which installs there are and the
-/// version each one reads as. Enough to reserve the popover row and to tell that
-/// something changed since the last check.
+/// What a local, network-free look finds: which installs there are, the version
+/// each one reads as, and what else on disk its verdict rests on. Enough to
+/// reserve the popover row and to tell that something changed since the last
+/// check.
 public struct CLIToolSighting: Sendable, Hashable {
     public let kind: CLIToolKind
     public let path: String
     public let version: String?
+    /// The rest of what the scan sees that decides a verdict — signature, a
+    /// problem, where the package came from — in the tool's own opaque spelling.
+    /// Without it a copy repaired in place at the same version (a broken venv
+    /// reinstalled, an editable bub reinstalled from PyPI) looked unchanged, and
+    /// its stale "not checked" stayed until the report aged out (review, #942).
+    public let state: String
 
-    public init(kind: CLIToolKind, path: String, version: String?) {
+    public init(kind: CLIToolKind, path: String, version: String?, state: String = "") {
         self.kind = kind
         self.path = path
         self.version = version
+        self.state = state
     }
 }
 

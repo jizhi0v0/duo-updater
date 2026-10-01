@@ -118,6 +118,10 @@ final class CLIToolsModel {
     /// The running confirmation window per install, so a second update restarts it.
     @ObservationIgnored private var confirmationTimers: [CLIToolID: Task<Void, Never>] = [:]
 
+    /// What the last check's own scans saw, for `refreshOnOpen` to hold a fresh
+    /// scan against.
+    @ObservationIgnored private var checkedSightings: [CLIToolSighting] = []
+
     /// When the report on screen was taken; nil until a check has completed.
     @ObservationIgnored private var lastChecked: Date?
     /// How old a report may get before an open of the popover checks again.
@@ -175,10 +179,10 @@ final class CLIToolsModel {
         let found = await scanAll()
         let stale = now().timeIntervalSince(lastChecked) >= Self.recheckInterval
         // What the scan can see change without a check: which copies of which
-        // tool there are, and the version each one reads as.
-        let moved = Set(found) != Set(statuses.map {
-            CLIToolSighting(kind: $0.kind, path: $0.path, version: $0.installedVersion)
-        })
+        // tool there are, the version each one reads as, and the rest of what its
+        // verdict rests on (`CLIToolSighting.state`) — held against what the last
+        // check's own scan saw, built by the same rule.
+        let moved = Set(found) != Set(checkedSightings)
         guard stale || moved || unchecked.contains(where: Self.mayClearByItself) else { return }
         await refresh()
     }
@@ -187,7 +191,8 @@ final class CLIToolsModel {
     /// changing — the network came back, the other update finished — and so is
     /// worth a re-check on the next open. The others (a dev-channel fx, a copy not
     /// signed by its vendor, an editable bub, a broken venv) stay until the scan
-    /// sees the file change, which `moved` already catches; re-checking them on
+    /// sees the disk change — a new version, or a new `CLIToolSighting.state`
+    /// for one repaired in place — which `moved` already catches; re-checking them on
     /// every open re-ran every tool's network check for nothing (found in
     /// review, 2026-10-01).
     nonisolated static func mayClearByItself(_ status: CLIToolStatus) -> Bool {
@@ -242,7 +247,8 @@ final class CLIToolsModel {
     private func apply(_ reports: [CLIToolReport]) {
         contexts = Dictionary(reports.map { ($0.kind, $0.context) }, uniquingKeysWith: { a, _ in a })
         statuses = reports.flatMap(\.statuses)
-        sightings = statuses.map { CLIToolSighting(kind: $0.kind, path: $0.path, version: $0.installedVersion) }
+        checkedSightings = reports.flatMap(\.sightings)
+        sightings = checkedSightings
         checked = true
         lastChecked = now()
         let byID = Dictionary(statuses.map { ($0.toolID, $0) }, uniquingKeysWith: { a, _ in a })

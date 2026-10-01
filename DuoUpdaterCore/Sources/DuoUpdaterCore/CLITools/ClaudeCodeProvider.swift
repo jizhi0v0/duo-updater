@@ -13,8 +13,16 @@ public struct ClaudeCodeProvider: CLIToolProvider {
 
     public func scan() async -> [CLIToolSighting] {
         let userPaths = self.userPaths
-        return await offCooperativePool { ClaudeCodeScanner().scan(userPaths: userPaths) }
-            .map { CLIToolSighting(kind: .claudeCode, path: $0.path, version: $0.version) }
+        return await offCooperativePool { ClaudeCodeScanner().scan(userPaths: userPaths) }.map(Self.sighting)
+    }
+
+    /// What a verdict rests on besides the version: the signature, a problem,
+    /// and who installed it (an npm prefix that gained its own node).
+    static func sighting(_ install: ClaudeCodeInstall) -> CLIToolSighting {
+        CLIToolSighting(
+            kind: .claudeCode, path: install.path, version: install.version,
+            state: [install.signature?.rawValue, install.problem?.rawValue, install.method.rawValue, install.nodePrefix]
+                .map { $0 ?? "-" }.joined(separator: "|"))
     }
 
     public func check() async -> CLIToolReport {
@@ -48,7 +56,8 @@ public struct ClaudeCodeProvider: CLIToolProvider {
 
     static func report(_ report: ClaudeCodeReport) -> CLIToolReport {
         CLIToolReport(
-            kind: .claudeCode, statuses: report.statuses.map(status), context: .claudeCode(report.settings))
+            kind: .claudeCode, statuses: report.statuses.map(status), context: .claudeCode(report.settings),
+            sightings: report.statuses.map { sighting($0.install) })
     }
 
     static func status(_ status: ClaudeCodeStatus) -> CLIToolStatus {

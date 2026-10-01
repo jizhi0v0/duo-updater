@@ -14,8 +14,17 @@ public struct FxProvider: CLIToolProvider {
     /// Runs each Vercel-signed copy's `--version` (`FxScanner`): nothing else
     /// says which version a copy is.
     public func scan() async -> [CLIToolSighting] {
-        await FxScanner().scan(userPaths: userPaths)
-            .map { CLIToolSighting(kind: .fx, path: $0.path, version: $0.version) }
+        await FxScanner().scan(userPaths: userPaths).map(Self.sighting)
+    }
+
+    /// What a verdict rests on besides the version: the signature, quarantine,
+    /// a problem, and which file the path resolves to.
+    static func sighting(_ install: FxInstall) -> CLIToolSighting {
+        CLIToolSighting(
+            kind: .fx, path: install.path, version: install.version,
+            state: [install.signature?.rawValue, install.quarantined ? "quarantined" : nil,
+                    install.problem?.rawValue, install.executable]
+                .map { $0 ?? "-" }.joined(separator: "|"))
     }
 
     public func check() async -> CLIToolReport {
@@ -35,7 +44,7 @@ public struct FxProvider: CLIToolProvider {
             let busy = FxActivity.busy(install, processes: processes)
             statuses.append(await check.status(of: install, settings: settings, busy: busy))
         }
-        return CLIToolReport(kind: .fx, statuses: statuses, context: .fx(settings))
+        return CLIToolReport(kind: .fx, statuses: statuses, context: .fx(settings), sightings: installs.map(sighting))
     }
 
     public func update(

@@ -8,15 +8,24 @@ public struct BubProvider: CLIToolProvider {
     public init() {}
 
     public func scan() async -> [CLIToolSighting] {
-        await offCooperativePool { BubScanner().scan() }
-            .map { CLIToolSighting(kind: .bub, path: $0.path, version: $0.version) }
+        await offCooperativePool { BubScanner().scan() }.map(Self.sighting)
+    }
+
+    /// What a verdict rests on besides the version: a problem, where the package
+    /// came from, and the state of bub's project.
+    static func sighting(_ install: BubInstall) -> CLIToolSighting {
+        CLIToolSighting(
+            kind: .bub, path: install.path, version: install.version,
+            state: [install.method.rawValue, install.problem?.rawValue, install.directSource?.rawValue,
+                    install.project?.rawValue]
+                .map { $0 ?? "-" }.joined(separator: "|"))
     }
 
     public func check() async -> CLIToolReport {
         let installs = await offCooperativePool { BubScanner().scan() }
         let processes = installs.isEmpty ? [] : await offCooperativePool { ClaudeCodeActivity.runningProcesses() }
         let statuses = await BubCheck().statuses(of: installs) { BubActivity.busy($0, processes: processes) }
-        return CLIToolReport(kind: .bub, statuses: statuses, context: .bub)
+        return CLIToolReport(kind: .bub, statuses: statuses, context: .bub, sightings: installs.map(Self.sighting))
     }
 
     public func update(

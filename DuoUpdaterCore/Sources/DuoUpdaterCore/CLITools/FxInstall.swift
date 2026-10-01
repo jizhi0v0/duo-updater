@@ -295,8 +295,9 @@ public struct FxScanner: Sendable {
     ///
     /// Measured 2026-10-01 on 0.0.11 under `sandbox-exec` denying all network and
     /// file writes, with an empty `HOME` and `TMPDIR`: printed `0.0.11`, exit 0,
-    /// 0.04 s, no file created, no sandbox denial but dyld's `/dev/dtracehelper`;
-    /// with no environment at all it printed the same. So the child gets only a
+    /// 0.04 s, no file created, and the only sandbox denial logged was the
+    /// launch-time write to `/dev/dtracehelper`; with no environment at all it
+    /// printed the same. So the child gets only a
     /// `PATH`, and a deadline far above that.
     public static func runVersion(_ executable: URL) async -> String? {
         guard let outcome = try? await ChildProcess.run(

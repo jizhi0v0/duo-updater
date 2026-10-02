@@ -151,8 +151,9 @@ public struct GitHubReleaseRule: Sendable {
     /// installer to one-click install in place. nil keeps the rule detection-only
     /// (the default and safe stance): we surface the version and link to the
     /// releases page, never install an artifact. Only set this once the asset is
-    /// confirmed to be a notarized build signed by the **same Team ID** as the
+    /// confirmed to be a Developer ID build signed by the **same Team ID** as the
     /// installed app — `VendorInstaller` enforces that gate, but author defensively.
+    /// Notarization is not one of the gates (BlueBubbles Server is unnotarized).
     public let installAssetPattern: String?
     /// Archive format of the matched asset, so the installer unpacks it correctly.
     /// Required when `installAssetPattern` is set; ignored otherwise.

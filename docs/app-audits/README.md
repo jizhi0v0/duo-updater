@@ -342,6 +342,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Xcode**](com-apple-dt-Xcode.md) · `com.apple.dt.Xcode` — 仅迁出历史：release notes SPA 壳 · 另记 `requires`（索引里每个版本的 macOS 下限，同一版本内不等：27.0 RC 要 26.6、27.0 beta 要 26.4）2026-09-15 实测
 - [ ] [**Bitwarden**](com-bitwarden-desktop.md) · `com.bitwarden.desktop` — 仅迁出历史：monorepo 里 `desktop-v` tag 间隔的测量
 - [ ] [**iStat Menus**](com-bjango-istatmenus.md) · `com.bjango.istatmenus` — 仅迁出历史：重发的 zip 里 marketing 不动、只涨 build；改为按 Range 读包内 Info.plist 的版本与 build
+- [ ] [**BlueBubbles Server**](com-BlueBubbles-BlueBubbles-Server.md) · `com.BlueBubbles.BlueBubbles-Server` — 仅迁出历史：一键 dmg 的签名核对（Developer ID、未公证）与换装后 Gatekeeper 的未验证项
 - [ ] [**Brave Browser Beta / Nightly**](com-brave-Browser.md) · `com.brave.Browser.beta` / `com.brave.Browser.nightly` — 仅迁出历史：arm64 appcast 的签名核对
 - [ ] [**MacUpdater**](com-corecode-MacUpdater.md) · `com.corecode.MacUpdater` — 仅迁出历史：一键 dmg 的签名核对
 - [ ] [**Macs Fan Control**](com-crystalidea-macsfancontrol.md) · `com.crystalidea.macsfancontrol` — 仅迁出历史：一键 zip 的签名核对
@@ -386,7 +387,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Bear**](net-shinyfrog-bear.md) · `net.shinyfrog.bear` — 仅迁出历史：App Store 探测用例的上线核对
 - [ ] [**GrandPerspective**](net-sourceforge-grandperspectiv.md) · `net.sourceforge.grandperspectiv` — 仅迁出历史：一键 dmg 的核对
 - [ ] [**WhatsApp**](net-whatsapp-WhatsApp.md) · `net.whatsapp.WhatsApp` — 仅迁出历史：一键 dmg 的核对、两次 App Store lookup 的版本差、catalog key 大小写那次事故
-- [ ] [**Alacritty**](org-alacritty.md) · `org.alacritty` — 仅迁出历史：七个只检测 rule 共享说明里的签名核对
+- [ ] [**Alacritty**](org-alacritty.md) · `org.alacritty` — 仅迁出历史：七个无 Team ID 的 rule 共享说明里的签名核对（2026-10-02 更正：BlueBubbles Server 有 Team ID，移出）
 - [ ] [**GIMP**](org-gimp-gimp.md) · `org.gimp.gimp` — 仅迁出历史：`gimp_versions.json` 的实测、`STABLE` 结构说法的更正、包身份核对
 - [ ] [**Meld**](org-gnome-Meld.md) · `org.gnome.Meld` — 仅迁出历史：上游与重打包的版本、releases 接口的实测、包身份核对
 - [ ] [**Emacs for Mac OS X**](org-gnu-Emacs.md) · `org.gnu.Emacs` — 仅迁出历史：一键 dmg 的挂载核对

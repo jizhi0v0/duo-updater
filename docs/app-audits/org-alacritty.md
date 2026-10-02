@@ -36,3 +36,13 @@ send the user to the releases page. Verified 2026-08-16 by running
 | `BlueBubbles-1.9.9-arm64.dmg` | API 为 null | com.BlueBubbles.BlueBubbles-Server / 1.9.9 | Developer ID（WPV275H8W7），`spctl`：Unnotarized Developer ID | 通过 |
 
 `digest` 在 2025 年中以前上传的资产上一律为 null（Alacritty v0.15.1、darktable 5.0.1、BlueBubbles 1.9.9），之后的都有——GitHub 没有回填。资产名模式按各仓库全部稳定 release 的资产名核过：每个 release 每个架构恰好命中一个 dmg。
+
+### 更正（2026-10-02）：BlueBubbles Server 不属于这一组，「未公证」也不是闸会拒的理由
+
+最上面那段（2026-08-16）把 `com.BlueBubbles.BlueBubbles-Server` 算进七个只检测 rule，理由是产物
+「NOT a notarized Developer ID build」，`VendorInstaller` 会拒。两半都不对：它是 Developer ID 签名
+（Team WPV275H8W7，上表那一行），只是没公证；而没有任何安装闸检查公证或 Gatekeeper 评估。
+另外六条在普通路线上被拒的真正原因是**没有 Team ID**：unsigned 挂在 gate 2
+（`verifyCodeSignature`），ad-hoc 挂在 gate 3（`verifyTeamIdentifierMatch` 抛 `noTeamIdentifier`）。
+BlueBubbles 2026-10-02 起走普通 Team ID 路线一键；实测与依据见
+[com-BlueBubbles-BlueBubbles-Server.md](com-BlueBubbles-BlueBubbles-Server.md)。

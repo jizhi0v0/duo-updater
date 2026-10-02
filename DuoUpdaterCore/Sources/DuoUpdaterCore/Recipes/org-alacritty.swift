@@ -22,10 +22,12 @@ enum org_alacritty {
         // identifier is its bundle id, and whose version is the tag's. Those are
         // `installTrust: .publishedDigestOnly`: one-click only when the user allows
         // it, checked against the SHA-256 GitHub publishes for the asset (see
-        // `InstallTrust`). The other four stay detection-only (`installAssetPattern`
-        // nil): MarkText is linker-signed with no sealed resources, so its
-        // signature does not verify; ZAP and Wine are unsigned; BlueBubbles carries
-        // a Team ID and is a question for the ordinary gate, not this one.
+        // `InstallTrust`). Three stay detection-only (`installAssetPattern` nil):
+        // MarkText is linker-signed with no sealed resources, so its signature does
+        // not verify; ZAP and Wine are unsigned. BlueBubbles never belonged here:
+        // it is Developer ID signed (Team WPV275H8W7), only unnotarized, and no
+        // install gate checks notarization — it installs on the ordinary Team-ID
+        // route since 2026-10-02 (`Recipes/com-BlueBubbles-BlueBubbles-Server.swift`).
 
         // Alacritty — ad-hoc signed, no Team ID; one universal dmg per release.
         GitHubReleaseRule(

@@ -36,7 +36,7 @@ struct CLIToolSidebarRow: View {
                 .frame(width: 22, height: 22)
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 1) {
-                Text(verbatim: CLIToolPresentation.title(of: status, home: homeDirectory))
+                Text(verbatim: CLIToolPresentation.title(of: status, home: homeDirectory, among: cli.statuses))
                     .font(.body).lineLimit(1).truncationMode(.middle)
                 caption
             }
@@ -192,8 +192,11 @@ struct ClaudeCodeDetailPane: View {
                 .padding(16)
                 .frame(maxWidth: 640, alignment: .topLeading)
             Divider()
-            CLIToolReleaseNotesView(
-                kind: .claudeCode, installed: status.install.version, latest: status.latestVersion, cli: cli)
+            // The shared status of the same install: the release notes are asked
+            // for by it, like every other tool's.
+            if let shared = cli.status(CLIToolID(kind: .claudeCode, path: status.install.path)) {
+                CLIToolReleaseNotesView(status: shared, cli: cli)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -319,7 +322,6 @@ struct ClaudeCodeDetailPane: View {
         } else if let explanation = ClaudeCodePresentation.explanation(status) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(verbatim: explanation)
-                    .fixedSize(horizontal: false, vertical: true)
                 if let command = ClaudeCodePresentation.manualCommand(status) {
                     Text("To update it yourself, run:")
                     HStack(spacing: 8) {
@@ -343,10 +345,11 @@ struct ClaudeCodeDetailPane: View {
 
 // MARK: - Every other tool's detail pane
 
-/// A selected install of a tool without a pane of its own (bub, fx): built from
-/// `CLIToolStatus`'s shared fields alone — where it is, what it reads as against
-/// what its channel has, what the Update button runs or why there is none, the
-/// last failed update's log, and the release notes in between.
+/// A selected install of a tool without a pane of its own (every tool but Claude
+/// Code): built from `CLIToolStatus`'s shared fields — where it is, what it reads
+/// as against what its channel has, the facts its tool's payload adds
+/// (`CLIToolPresentation.facts`), what the Update button runs or why there is
+/// none, the last failed update's log, and the release notes in between.
 struct CLIToolDetailPane: View {
     let status: CLIToolStatus
     let cli: CLIToolsModel
@@ -362,8 +365,7 @@ struct CLIToolDetailPane: View {
                 .padding(16)
                 .frame(maxWidth: 640, alignment: .topLeading)
             Divider()
-            CLIToolReleaseNotesView(
-                kind: status.kind, installed: status.installedVersion, latest: status.latestVersion, cli: cli)
+            CLIToolReleaseNotesView(status: status, cli: cli)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -375,7 +377,9 @@ struct CLIToolDetailPane: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 44, height: 44)
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: status.kind.displayName).font(.title2).fontWeight(.semibold)
+                // "rustup", an npm package's name: the install's own name when the
+                // tool's group holds several kinds of thing. The path says which.
+                Text(verbatim: status.name ?? status.kind.displayName).font(.title2).fontWeight(.semibold)
                 Text(verbatim: ClaudeCodePresentation.abbreviate(status.path, home: homeDirectory))
                     .font(.callout).foregroundStyle(.secondary)
                     .lineLimit(2).truncationMode(.middle)
@@ -407,6 +411,20 @@ struct CLIToolDetailPane: View {
                 // A tool without channels has one line of releases: its latest.
                 if status.channel == nil { label("Latest") } else { label("Channel") }
                 Text(verbatim: latest)
+            }
+            // The tool's own: signature, how it got there, what else the verdict
+            // rests on (`CLIToolPresentation.facts`).
+            ForEach(CLIToolPresentation.facts(of: status, home: homeDirectory), id: \.label) { fact in
+                GridRow {
+                    Text(verbatim: fact.label).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
+                    // No `fixedSize(vertical:)` on any text of this pane: the window's
+                    // `.contentMinSize` measures it at a near-zero width, where a
+                    // fixed-size paragraph wraps a character a line — uv's facts
+                    // pushed the workbench's minimum height to 3857 pt, off the
+                    // bottom of the screen (2026-10-02; the Rollback notice did the
+                    // same in September). Unfixed, the text still wraps in full.
+                    Text(verbatim: fact.value)
+                }
             }
             GridRow {
                 label("Update")
@@ -447,13 +465,11 @@ struct CLIToolDetailPane: View {
                     Text(verbatim: caution)
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         } else if let explanation = CLIToolPresentation.explanation(status) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(verbatim: explanation)
-                    .fixedSize(horizontal: false, vertical: true)
                 if let command = CLIToolPresentation.manualCommand(status) {
                     Text("To update it yourself, run:")
                     HStack(spacing: 8) {
@@ -482,10 +498,12 @@ struct CLIToolDetailPane: View {
 /// changelog, with their own version marked in the rail. The fetched document is
 /// kept for the session by `CLIToolsModel.releaseNotes`.
 private struct CLIToolReleaseNotesView: View {
-    let kind: CLIToolKind
-    let installed: String?
-    let latest: String?
+    let status: CLIToolStatus
     let cli: CLIToolsModel
+
+    private var kind: CLIToolKind { status.kind }
+    private var installed: String? { status.installedVersion }
+    private var latest: String? { status.latestVersion }
 
     private enum LoadState {
         case loading
@@ -499,7 +517,7 @@ private struct CLIToolReleaseNotesView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             // Keyed on both versions: a refresh that finds a newer latest, or an
             // update that moves the installed one, re-cuts the notes.
-            .task(id: "\(kind.rawValue)|\(installed ?? "")|\(latest ?? "")") { await load(force: false) }
+            .task(id: "\(status.releaseNotesKey)|\(installed ?? "")|\(latest ?? "")") { await load(force: false) }
     }
 
     @ViewBuilder
@@ -536,7 +554,7 @@ private struct CLIToolReleaseNotesView: View {
     private func load(force: Bool) async {
         if force { state = .loading }
         do {
-            let changelog = try await cli.releaseNotes(of: kind, covering: latest, force: force)
+            let changelog = try await cli.releaseNotes(for: status, force: force)
             state = .loaded(CLIToolChangelog.relevant(changelog, installed: installed, latest: latest))
         } catch CLIToolReleaseNotesError.http(let status) {
             state = .failed(String(localized: "The server answered HTTP \(status)."))

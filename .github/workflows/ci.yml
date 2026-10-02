@@ -85,6 +85,17 @@ jobs:
           DUO_DOWNLOAD_GATE: "1"
         run: scripts/run-with-hang-report.sh 1800 make test
 
+      # Core's tests once more, optimized — the configuration the app ships in.
+      # `make test` builds them in debug only, and on 2026-10-02 that let a
+      # crash through: Junie's release-notes task group returned nothing and
+      # aborted the app in Release (`__cxa_pure_virtual` in
+      # `AsyncTask::completeFuture`) while every debug test passed. The same
+      # JunieChangelogTests, built `-c release` against the broken code, die on
+      # signal 6. ~30 s on the author's Mac once built; through the wrapper for
+      # the same reason as `make test`.
+      - name: Core tests (Release)
+        run: scripts/run-with-hang-report.sh 1200 swift test --package-path DuoUpdaterCore -c release
+
       # scripts/app-tests.sh prints only an excerpt and leaves the full xcodebuild
       # output in the derived-data dir, which dies with the runner. Two first
       # attempts on 2026-09-16 failed there and could not be diagnosed after the

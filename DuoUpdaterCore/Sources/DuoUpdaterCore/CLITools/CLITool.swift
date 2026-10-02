@@ -4,7 +4,8 @@ import Foundation
 ///
 /// Each one has its own rules — where its installers put it, how its version is
 /// read, which command updates it and when that may run — so each keeps its own
-/// detection and update code (`ClaudeCode*`, `Bub*`, `Fx*`). What they share is
+/// detection and update code (`ClaudeCode*`, `Bub*`, `Fx*`, `Uv*`, `Junie*`,
+/// `Rust*`, `Npm*`). What they share is
 /// how the app lists them, sums them up and runs their updates: `CLIToolStatus`,
 /// `CLIToolReport` and `CLIToolProvider` below. A later tool is a new provider and
 /// a new `Kind`; the popover row and the workbench's CLI tab read it the same way.
@@ -12,6 +13,12 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case claudeCode = "claude-code"
     case bub
     case fx
+    case uv
+    case junie
+    /// rustup and the toolchains it keeps on a channel: one group, a row each.
+    case rust
+    /// Packages installed with `npm install -g`, one row per package and prefix.
+    case npm
 
     /// The tool's own name, as its vendor writes it. Untranslated, like a formula
     /// name on the brew row.
@@ -20,6 +27,10 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .claudeCode: return "Claude Code"
         case .bub: return "bub"
         case .fx: return "fx"
+        case .uv: return "uv"
+        case .junie: return "Junie"
+        case .rust: return "Rust"
+        case .npm: return "npm"
         }
     }
 }
@@ -84,6 +95,17 @@ public enum CLIToolWithheld: String, Sendable, Codable {
     /// The program the documented update runs with cannot be found — `uv`, which
     /// `bub update` needs on its `PATH`.
     case updaterMissing
+    /// No vendor signature to check, and the file is not byte for byte the build
+    /// the vendor published for its version (`CLIToolTrust`): nothing of it is
+    /// run. The user agreed the rule on 2026-10-01 — a binary is run only when it
+    /// carries the vendor's Team ID or its sha256 equals the vendor's own.
+    case unverified
+    /// The newer release needs a newer runtime than the one this install runs on
+    /// — an npm package whose `engines.node` excludes its prefix's node.
+    case runtimeTooOld
+    /// The tool has already downloaded the update and installs it itself the next
+    /// time it starts (Junie's `pending-update.json`).
+    case staged
 }
 
 /// One install of one tool and its verdict: what every surface reads the same way
@@ -111,6 +133,14 @@ public struct CLIToolStatus: Sendable, Equatable {
     /// auto-update off, so DuoUpdater reports the update and hands over the very
     /// command a one-click would have run, instead of running it.
     public let manualCommand: CLIToolCommand?
+    /// The install's own name when the tool's group holds more than one kind of
+    /// thing — "rustup", "stable-aarch64-apple-darwin", an npm package's name;
+    /// nil when the tool's name says it.
+    public let name: String?
+    /// Which release notes this install reads, for the app's session cache: the
+    /// kind's raw value unless one tool has several documents (rustup's own
+    /// changelog and Rust's, one per npm package).
+    public let releaseNotesKey: String
     /// The tool's own view of the install, for its detail pane.
     public let detail: Detail
 
@@ -118,12 +148,17 @@ public struct CLIToolStatus: Sendable, Equatable {
         case claudeCode(ClaudeCodeStatus)
         case bub(BubInstall)
         case fx(FxInstall)
+        case uv(UvInstall)
+        case junie(JunieInstall)
+        case rust(RustItem)
+        case npm(NpmPackage)
     }
 
     public init(
         kind: CLIToolKind, path: String, installedVersion: String?, latestVersion: String?,
         channel: String?, state: CLIToolState, oneClick: CLIToolCommand?,
-        withheld: CLIToolWithheld?, note: String?, manualCommand: CLIToolCommand? = nil, detail: Detail
+        withheld: CLIToolWithheld?, note: String?, manualCommand: CLIToolCommand? = nil,
+        name: String? = nil, releaseNotesKey: String? = nil, detail: Detail
     ) {
         self.kind = kind
         self.path = path
@@ -135,6 +170,8 @@ public struct CLIToolStatus: Sendable, Equatable {
         self.withheld = withheld
         self.note = note
         self.manualCommand = manualCommand
+        self.name = name
+        self.releaseNotesKey = releaseNotesKey ?? kind.rawValue
         self.detail = detail
     }
 }
@@ -154,6 +191,10 @@ public struct CLIToolReport: Sendable, Equatable {
         case claudeCode(ClaudeCodeSettings)
         case bub
         case fx(FxSettings)
+        case uv
+        case junie(JunieSettings)
+        case rust(RustupSettings)
+        case npm
     }
 
     public init(
@@ -231,9 +272,10 @@ public protocol CLIToolProvider: Sendable {
     /// change between the check and the click.
     func update(_ status: CLIToolStatus, progress: @escaping @Sendable (String) -> Void) async -> CLIToolUpdateOutcome
 
-    /// The tool's release notes, newest first, one entry per version. The app
-    /// cuts them to one install with `CLIToolChangelog.relevant`.
-    func releaseNotes(force: Bool) async throws -> Changelog
+    /// The release notes `status` reads (`CLIToolStatus.releaseNotesKey` names
+    /// the document), newest first, one entry per version. The app cuts them to
+    /// one install with `CLIToolChangelog.relevant`.
+    func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog
 }
 
 public enum CLIToolChangelog {

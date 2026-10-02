@@ -37,7 +37,7 @@ public struct ClaudeCodeProvider: CLIToolProvider {
     }
 
     /// Claude Code's own `CHANGELOG.md` (`ClaudeCodeChangelog`).
-    public func releaseNotes(force: Bool) async throws -> Changelog {
+    public func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog {
         var request = URLRequest(url: ClaudeCodeChangelog.source)
         request.cachePolicy = force ? .reloadIgnoringLocalCacheData : URLRequest.versionFeedCachePolicy
         request.timeoutInterval = 15

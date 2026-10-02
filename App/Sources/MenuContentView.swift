@@ -959,14 +959,14 @@ private struct CLIToolsRow: View {
             } else if let status = tools.outdated.first(where: { $0.withheld != nil }),
                       let withheld = status.withheld {
                 // Nothing to click, so the line says why — in the user's terms.
-                secondary(CLIToolsModel.reason(withheld, of: status.kind))
+                secondary(CLIToolsModel.reason(withheld, of: status))
             } else {
                 secondary(CLIToolsModel.summary(tools.outdated))
             }
         case .unchecked:
             if let status = tools.unchecked.first(where: { $0.withheld != nil }),
                let withheld = status.withheld {
-                secondary(CLIToolsModel.reason(withheld, of: status.kind))
+                secondary(CLIToolsModel.reason(withheld, of: status))
             } else {
                 secondary(CLIToolsModel.summary(tools.unchecked))
             }

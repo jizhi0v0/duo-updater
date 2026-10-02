@@ -1837,6 +1837,23 @@ private struct DetailHeader: View {
                 .font(.caption)
                 .buttonStyle(.link)
             }
+            // An app with no developer signature: what its one-click rests on, or
+            // why there is none — said beside the button rather than after a click.
+            if let note = model.digestOnlyNote(for: result) {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if model.digestOnlyIsTurnedOff(for: result) {
+                    Button("Open Settings") {
+                        model.requestedSettingsSection = .general
+                        openWindow(id: SettingsView.windowID)
+                        model.surfaceWindow(sceneID: SettingsView.windowID)
+                    }
+                    .font(.caption)
+                    .buttonStyle(.link)
+                }
+            }
         }
         .padding(16)
     }

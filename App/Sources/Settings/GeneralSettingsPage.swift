@@ -137,6 +137,14 @@ struct GeneralSettingsPage: View {
                 .settingsRow()
             }
 
+            SettingsCard {
+                SettingsToggle(
+                    "Allow one-click updates for apps without a developer signature",
+                    detail: "Checks only that the download is byte for byte the file GitHub publishes for the release. That does not protect you if the developer’s account is taken over, which a developer signature would — and macOS may ask you to grant these apps’ privacy permissions again after each update.",
+                    info: "For apps whose GitHub releases are only ad-hoc signed: Alacritty, Flameshot and darktable. An app installed with a developer signature is never replaced by one without, whatever this says.",
+                    isOn: $prefs.allowsDigestOnlyInstalls)
+            }
+
             testFlightCard.settingsAnchor(.testFlightDetection)
         }
     }

@@ -322,7 +322,6 @@ struct ClaudeCodeDetailPane: View {
         } else if let explanation = ClaudeCodePresentation.explanation(status) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(verbatim: explanation)
-                    .fixedSize(horizontal: false, vertical: true)
                 if let command = ClaudeCodePresentation.manualCommand(status) {
                     Text("To update it yourself, run:")
                     HStack(spacing: 8) {
@@ -418,7 +417,13 @@ struct CLIToolDetailPane: View {
             ForEach(CLIToolPresentation.facts(of: status, home: homeDirectory), id: \.label) { fact in
                 GridRow {
                     Text(verbatim: fact.label).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
-                    Text(verbatim: fact.value).fixedSize(horizontal: false, vertical: true)
+                    // No `fixedSize(vertical:)` on any text of this pane: the window's
+                    // `.contentMinSize` measures it at a near-zero width, where a
+                    // fixed-size paragraph wraps a character a line — uv's facts
+                    // pushed the workbench's minimum height to 3857 pt, off the
+                    // bottom of the screen (2026-10-02; the Rollback notice did the
+                    // same in September). Unfixed, the text still wraps in full.
+                    Text(verbatim: fact.value)
                 }
             }
             GridRow {
@@ -460,13 +465,11 @@ struct CLIToolDetailPane: View {
                     Text(verbatim: caution)
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         } else if let explanation = CLIToolPresentation.explanation(status) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(verbatim: explanation)
-                    .fixedSize(horizontal: false, vertical: true)
                 if let command = CLIToolPresentation.manualCommand(status) {
                     Text("To update it yourself, run:")
                     HStack(spacing: 8) {

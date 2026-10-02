@@ -136,6 +136,8 @@ enum CLIToolPresentation {
         case .rust(let item): return facts(of: item, withheld: status.withheld)
         case .npm(let package): return facts(of: package, withheld: status.withheld, home: home)
         case .claudeCode, .bub, .fx: return []
+        // Filled in with each tool's integration.
+        case .codex, .opencode, .uvTool: return []
         }
     }
 

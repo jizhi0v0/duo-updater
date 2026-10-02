@@ -51,6 +51,9 @@ struct CLIToolsModelTests {
         case .junie: detail = .junie(JunieInstall(path: path, version: version))
         case .rust: detail = .rust(RustItem(path: path, version: version))
         case .npm: detail = .npm(NpmPackage(path: path, version: version))
+        case .codex: detail = .codex(CodexInstall(path: path, version: version))
+        case .opencode: detail = .opencode(OpencodeInstall(path: path, version: version))
+        case .uvTool: detail = .uvTool(UvToolPackage(path: path, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -73,6 +76,9 @@ struct CLIToolsModelTests {
         case .junie: context = .junie(JunieSettings())
         case .rust: context = .rust(RustupSettings())
         case .npm: context = .npm
+        case .codex: context = .codex(CodexSettings())
+        case .opencode: context = .opencode(OpencodeSettings())
+        case .uvTool: context = .uvTool
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }

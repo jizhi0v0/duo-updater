@@ -5,7 +5,7 @@ import Foundation
 /// Each one has its own rules — where its installers put it, how its version is
 /// read, which command updates it and when that may run — so each keeps its own
 /// detection and update code (`ClaudeCode*`, `Bub*`, `Fx*`, `Uv*`, `Junie*`,
-/// `Rust*`, `Npm*`). What they share is
+/// `Rust*`, `Npm*`, `Codex*`, `Opencode*`, `UvTool*`). What they share is
 /// how the app lists them, sums them up and runs their updates: `CLIToolStatus`,
 /// `CLIToolReport` and `CLIToolProvider` below. A later tool is a new provider and
 /// a new `Kind`; the popover row and the workbench's CLI tab read it the same way.
@@ -19,6 +19,12 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case rust
     /// Packages installed with `npm install -g`, one row per package and prefix.
     case npm
+    /// OpenAI's Codex CLI from its own installer (`~/.codex/packages/standalone`).
+    case codex
+    /// opencode's CLI from its own installer (`~/.opencode/bin`).
+    case opencode
+    /// Packages installed with `uv tool install`, one row per tool.
+    case uvTool = "uv-tool"
 
     /// The tool's own name, as its vendor writes it. Untranslated, like a formula
     /// name on the brew row.
@@ -31,6 +37,9 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .junie: return "Junie"
         case .rust: return "Rust"
         case .npm: return "npm"
+        case .codex: return "Codex"
+        case .opencode: return "opencode"
+        case .uvTool: return "uv tool"
         }
     }
 }
@@ -152,6 +161,9 @@ public struct CLIToolStatus: Sendable, Equatable {
         case junie(JunieInstall)
         case rust(RustItem)
         case npm(NpmPackage)
+        case codex(CodexInstall)
+        case opencode(OpencodeInstall)
+        case uvTool(UvToolPackage)
     }
 
     public init(
@@ -195,6 +207,9 @@ public struct CLIToolReport: Sendable, Equatable {
         case junie(JunieSettings)
         case rust(RustupSettings)
         case npm
+        case codex(CodexSettings)
+        case opencode(OpencodeSettings)
+        case uvTool
     }
 
     public init(

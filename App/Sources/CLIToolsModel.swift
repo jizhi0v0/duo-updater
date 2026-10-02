@@ -144,6 +144,7 @@ final class CLIToolsModel {
     init(
         providers: [any CLIToolProvider] = [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
+            CodexProvider(), OpencodeProvider(), UvToolProvider(),
         ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
@@ -419,6 +420,8 @@ final class CLIToolsModel {
         case .uv: return "Astral"
         case .junie: return "JetBrains"
         case .bub, .rust, .npm: return nil
+        // Filled in with each tool's integration.
+        case .codex, .opencode, .uvTool: return nil
         }
     }
 

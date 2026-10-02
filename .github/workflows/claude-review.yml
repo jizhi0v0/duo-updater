@@ -101,10 +101,15 @@ jobs:
           # change without a pull request. Unset means the action's default.
           # Effort is set explicitly: claude-opus-5-5 defaults to medium, which is
           # what day-to-day authoring runs at, and the reviewer sits one above it.
+          # No subagents: on #949 (64 files) the reviewer handed uv, Junie and Rust
+          # to three Agent calls, which run in the background, then ended its turn
+          # before any came back — no review.md, three runs in a row. The run
+          # Summary's report showed it; the log does not.
           claude_args: >-
             ${{ vars.CLAUDE_REVIEW_MODEL && format('--model {0}', vars.CLAUDE_REVIEW_MODEL) || '' }}
             --effort high
             --allowedTools "Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
+            --disallowedTools "Agent"
 
       - name: Post the review
         if: steps.prep.outputs.mode != 'skip'

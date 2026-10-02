@@ -43,7 +43,9 @@ tag 建成 GitHub prerelease，`/releases/latest` 不返回它，规则的锚定
   - `<sparkle:minimumSystemVersion>` 取自包的 `LSMinimumSystemVersion`；enclosure 是 zip，带 EdDSA
   - 同一 release 还有合并的 `latest-mac.yml`（electron-updater 兜底用）
   - 2026-10-02 两个 appcast 地址都是 404（latest 还是 v0.2.2，没有这些资产）；仓库已有 `v0.2.3`
-    tag 但没有已发布的 release
+    tag 但没有已发布的 release。该 tag 打在 2026-08-13 的 `chore(release): prepare Obelisk v0.2.3`
+    上，那一版既没有 `release-app.yml` 也没有 `update-release.mjs`（按 `?ref=v0.2.3` 读都是 404），
+    所以**首个带 feed 的版本不会是 0.2.3**；main 上 `app/package.json` 已是 `0.2.4`
 - 注意事项: 无设备标识、无灰度；读的是公开 GA
 
 ## 增量更新（delta / binary patch）
@@ -84,7 +86,7 @@ tag 建成 GitHub prerelease，`/releases/latest` 不返回它，规则的锚定
 - digest-only 路线（`installTrust: .publishedDigestOnly`，#952）也不行，和 MarkText 同类。2026-10-02
   对 0.2.2 真包直接调生产代码：gate 2 `verifyCodeSignature` 抛 `codeSignatureInvalid(-67056)`；
   `verifyDigestOnlyIdentity` 抛 `infoPlistIdentifierMismatch`（签名标识是 `Electron`，不是 bundle id）。
-  何况下一版是 Developer ID 包，该路线对「ad-hoc 已装 → 下载带 Team ID」一律拒绝（`teamIdentifierAppeared`）
+  何况上游发布 workflow 签的是 Developer ID，该路线对「ad-hoc 已装 → 下载带 Team ID」一律拒绝（`teamIdentifierAppeared`）
 - **读的是**: 人人可手动下载的 GA（公开 release 资产）
 - 之后: `release-app.yml` 要求 Developer ID 签名 + 公证（强制 `forceCodeSigning` / `notarize`，
   并 `grep TeamIdentifier=$APPLE_TEAM_ID`）。这样签出来的副本走 Sparkle 源 + 通用一键（代码签名闸

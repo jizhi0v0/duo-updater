@@ -3234,7 +3234,8 @@ final class AppListModel {
         UpdateSettings(
             appStoreUpdateStrategy: prefs.appStoreUpdateStrategy,
             vendorInstallPolicy: prefs.vendorInstallPolicy,
-            declinedElevationKeys: prefs.declinedElevationKeys)
+            declinedElevationKeys: prefs.declinedElevationKeys,
+            allowsDigestOnlyInstalls: prefs.allowsDigestOnlyInstalls)
     }
     /// Whether App Store updates take the mas route. Read by the row views: a
     /// wrapped iPhone/iPad app is a store redirect there and a one-click on the
@@ -4429,6 +4430,9 @@ final class AppListModel {
                     // updater cache directory. Same expression the staging sweep
                     // uses for the same reason (`computeSelfUpdateStaging`).
                     installedPopulation: results.map(\.app),
+                    // Read now, after the re-check: the row's offer may predate
+                    // the user turning this off.
+                    digestOnlyAllowed: prefs.allowsDigestOnlyInstalls,
                     progress: { stage in Task { @MainActor in self.setStage(id, stage) } },
                     releaseAfterDownload: { await releaseAfterDownload?.release() },
                     beforeInstallerOpen: { await self.retireStagedPackage(for: id) })

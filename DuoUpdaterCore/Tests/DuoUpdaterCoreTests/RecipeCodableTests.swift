@@ -188,6 +188,7 @@ struct RecipeCodableTests {
                 keyForLabel: ["recipeAnchor.in": "fields"]),
 
             .caseName(VendorInstallerKind.self, all: VendorInstallerKind.allCases, name: { "\($0)" }),
+            .caseName(InstallTrust.self, all: InstallTrust.allCases, name: { "\($0)" }),
             .caseName(HostArch.self, all: HostArch.allCases, name: { "\($0)" }),
 
             // Standard-library `RawRepresentable` coding, not code in this file:

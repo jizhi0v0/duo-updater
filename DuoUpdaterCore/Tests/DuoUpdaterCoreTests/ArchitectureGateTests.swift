@@ -661,7 +661,8 @@ struct ArchitectureDowngradeWiringTests {
             app: fixture.installed, remote: remote, status: .updateAvailable(latest: "0.0.1"))
 
         do {
-            try await VendorInstaller().apply(result, download: fixture.download, onStage: { _ in })
+            try await VendorInstaller().apply(
+                result, download: fixture.download, digestOnlyAllowed: false, onStage: { _ in })
             Issue.record("VendorInstaller.apply must refuse an arm64→x86_64-only swap")
         } catch {
             Self.expectArchitectureDowngrade(error, from: "VendorInstaller")

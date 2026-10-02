@@ -241,6 +241,16 @@ public enum UpdatePolicy {
             //
             // Electron is deliberately NOT in `UpdateResult.licenseNeutralSources`
             // (Models/UpdateResult.swift) — see that property's comment for why.
+            //
+            // A digest-only GitHub rule (ad-hoc signed app, no Team ID to gate on)
+            // is offered only when the user allowed it, and only with a published
+            // digest to check the download against. `VendorInstaller` asks both
+            // again at click time; this is the offer, not the gate.
+            if result.remote?.installTrust == .publishedDigestOnly {
+                guard settings.allowsDigestOnlyInstalls,
+                      result.remote?.expectedSHA256 != nil,
+                      result.remote?.vendorInstallerKind != .pkg else { return false }
+            }
             return result.remote?.vendorInstallerKind != nil
                 && result.remote?.requiresManualInstaller == false
         case "App Store":
@@ -297,6 +307,27 @@ public enum UpdatePolicy {
         default:
             return false
         }
+    }
+
+    /// What a digest-only update's row should say about its one-click, or nil for
+    /// any other row and while nothing is on offer. The detail pane words these;
+    /// the decision is here so it cannot drift from `canAutoInstall`'s.
+    public enum DigestOnlyOffer: Sendable, Equatable {
+        /// The user has not allowed digest-only installs.
+        case turnedOff
+        /// Allowed, but GitHub published no digest for this asset.
+        case noPublishedDigest
+        /// Offered, checked against the published digest only.
+        case offered
+    }
+
+    public static func digestOnlyOffer(
+        _ result: UpdateResult, settings: UpdateSettings
+    ) -> DigestOnlyOffer? {
+        guard result.hasUpdate, result.remote?.installTrust == .publishedDigestOnly else { return nil }
+        guard settings.allowsDigestOnlyInstalls else { return .turnedOff }
+        guard result.remote?.expectedSHA256 != nil else { return .noPublishedDigest }
+        return .offered
     }
 
     /// Whether installing over *this exact install* has to go through an
@@ -407,8 +438,10 @@ public enum UpdatePolicy {
             // electron-builder can publish a `.pkg` alongside (or instead of) the
             // Squirrel `.zip` — `ElectronManifestSource.kind(of:)` recognises it —
             // so this needs the same route as Vendor/GitHub: system installer, not
-            // an in-place swap.
+            // an in-place swap. Never for a digest-only rule: a package has no
+            // bundle for the installer's bundle-id and version gates to read.
             return result.remote?.vendorInstallerKind == .pkg
+                && result.remote?.installTrust != .publishedDigestOnly
         case "Sparkle":
             // Sparkle permits signed package enclosures. They must retain Gate 1
             // (EdDSA over the exact enclosure bytes) before PackageInstaller applies

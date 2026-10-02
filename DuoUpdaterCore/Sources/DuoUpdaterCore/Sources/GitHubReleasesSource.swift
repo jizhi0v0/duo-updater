@@ -158,6 +158,16 @@ public struct GitHubReleaseRule: Sendable {
     /// Required when `installAssetPattern` is set; ignored otherwise.
     public let installerKind: VendorInstallerKind?
 
+    /// What the matched asset's trust rests on. `.developerID` (the default) is
+    /// the Team-ID gate described on `installAssetPattern`. `.publishedDigestOnly`
+    /// is for a project whose macOS build is ad-hoc signed — no Team ID to match —
+    /// and is set only after checking the real artifact: its seal passes
+    /// `codesign --verify --deep --strict`, its signed identifier is its bundle id,
+    /// and its `CFBundleShortVersionString` is the tag's version. Such a rule
+    /// offers a one-click only when the user allowed it and the asset carries a
+    /// GitHub `digest` (see `InstallTrust`). Never with `.pkg`.
+    public let installTrust: InstallTrust
+
     public init(
         bundleID: String,
         owner: String,
@@ -169,6 +179,7 @@ public struct GitHubReleaseRule: Sendable {
         installedTagPrefix: String? = nil,
         installAssetPattern: String? = nil,
         installerKind: VendorInstallerKind? = nil,
+        installTrust: InstallTrust = .developerID,
         channel: ReleaseChannel = .stable,
         probesNewestFirst: Bool = true
     ) {
@@ -184,6 +195,7 @@ public struct GitHubReleaseRule: Sendable {
         self.installedTagPrefix = installedTagPrefix
         self.installAssetPattern = installAssetPattern
         self.installerKind = installerKind
+        self.installTrust = installTrust
     }
 
     /// Field labels deliberately kept OUT of `channelAnchorSurface` — the ones
@@ -200,7 +212,10 @@ public struct GitHubReleaseRule: Sendable {
     /// anchor could never legitimately be pinned to its digits.
     /// `probesNewestFirst` is the same kind of knob: it changes how many rows
     /// the first request asks for, never which release or asset is accepted.
-    static let nonAnchorFields: Set<String> = ["bundleID", "channel", "listPageSize", "probesNewestFirst"]
+    /// `installTrust` says which gate the chosen asset must pass, never which
+    /// asset is chosen.
+    static let nonAnchorFields: Set<String> = [
+        "bundleID", "channel", "listPageSize", "probesNewestFirst", "installTrust"]
 
     /// Everything this rule says about WHICH repository it reads and WHICH
     /// releases and assets it will accept — the text a
@@ -1385,7 +1400,15 @@ public struct GitHubReleasesSource: UpdateSource {
                         from: release.assets, matching: $0,
                         preferring: hostArch, allowingIntelTranslation: canRunIntel)
                 }
+                // A digest-only rule rests entirely on the digest GitHub publishes
+                // for THIS asset, read from the same release object as its URL —
+                // never from the URL or a sidecar file. No digest, no one-click.
+                let digest = asset.flatMap { chosen in
+                    release.assets.first { $0.url == chosen.url }
+                        .flatMap { release.assetDigests[$0.name] }
+                }
                 let installable = asset?.url != nil && rule.installerKind != nil
+                    && (rule.installTrust == .developerID || digest != nil)
 
                 // `recipeID`, not `slug`: two rules can share one repo (Zed and Zed
                 // Preview, UTM Stable and Beta, GitHub Desktop's two channels), and
@@ -1406,6 +1429,8 @@ public struct GitHubReleasesSource: UpdateSource {
                     sourceName: name,
                     requiresManualInstaller: !installable,
                     vendorInstallerKind: installable ? rule.installerKind : nil,
+                    expectedSHA256: rule.installTrust == .publishedDigestOnly ? digest : nil,
+                    installTrust: rule.installTrust,
                     releaseNotesHTML: structured == nil ? body : nil,
                     structuredChangelog: structured,
                     changelogURL: page,
@@ -1465,6 +1490,10 @@ public struct GitHubReleasesSource: UpdateSource {
         let htmlURL: URL?
         let publishedAt: String?
         let assets: [(name: String, url: URL, size: Int64?)]
+        /// Asset name → the SHA-256 GitHub reports in its `digest`, for the assets
+        /// that have a well-formed one (see `sha256Digest`). Keyed by name because
+        /// GitHub keeps asset names unique within a release.
+        var assetDigests: [String: String] = [:]
         /// Consulted on list endpoints and exact-tag channel discovery.
         /// `/releases/latest` is computed by GitHub with prereleases excluded,
         /// which is precisely why stable rules use it — see `resolve`.
@@ -1482,6 +1511,18 @@ public struct GitHubReleasesSource: UpdateSource {
     /// macOS asset, which is far too late to find out.
     static func stableOnly(_ releases: [Release]) -> [Release] {
         releases.filter { !$0.isPrerelease && !$0.isDraft }
+    }
+
+    /// The lowercase hex out of an asset's `digest`, or nil unless it is exactly
+    /// `sha256:` and 64 hex digits. The field is `string or null` in GitHub's
+    /// schema and null on every asset uploaded before June 2025 (measured: Alacritty
+    /// v0.15.1, darktable 5.0.1, BlueBubbles 1.9.9); any other algorithm or shape
+    /// is not something we know how to compare, so it reads as no digest.
+    static func sha256Digest(_ value: Any?) -> String? {
+        guard let text = value as? String, text.hasPrefix("sha256:") else { return nil }
+        let hex = text.dropFirst("sha256:".count).lowercased()
+        guard hex.count == 64, hex.allSatisfy(\.isHexDigit) else { return nil }
+        return hex
     }
 
     /// Extract releases from either a single release object or a list.
@@ -1503,12 +1544,19 @@ public struct GitHubReleasesSource: UpdateSource {
                     let size = (asset["size"] as? NSNumber)?.int64Value
                     return (name, url, size)
                 }
+            var digests: [String: String] = [:]
+            for asset in obj["assets"] as? [[String: Any]] ?? [] {
+                if let name = asset["name"] as? String, let digest = sha256Digest(asset["digest"]) {
+                    digests[name] = digest
+                }
+            }
             return Release(
                 tag: tag,
                 body: obj["body"] as? String,
                 htmlURL: (obj["html_url"] as? String).flatMap { URL(string: $0) },
                 publishedAt: obj["published_at"] as? String,
                 assets: assets,
+                assetDigests: digests,
                 isPrerelease: (obj["prerelease"] as? Bool) ?? false,
                 isDraft: (obj["draft"] as? Bool) ?? false,
                 hasExplicitReleaseState: obj["prerelease"] is Bool && obj["draft"] is Bool

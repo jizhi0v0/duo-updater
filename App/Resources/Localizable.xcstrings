@@ -11687,6 +11687,71 @@
         }
       }
     },
+    "GitHub publishes no file hash for this release, so an app without a developer signature can’t be updated in one click.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub veröffentlicht für dieses Release keinen Datei-Hash, daher kann eine App ohne Entwicklersignatur nicht per Klick aktualisiert werden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub no publica ningún hash de archivo para esta versión, así que una app sin firma de desarrollador no se puede actualizar con un clic."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub ne publie aucun hachage de fichier pour cette version : une app sans signature de développeur ne peut pas être mise à jour en un clic."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub non pubblica alcun hash del file per questa release, quindi un’app senza firma dello sviluppatore non può essere aggiornata con un clic."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub がこのリリースのファイルハッシュを公開していないため、開発元の署名がない App をワンクリックでアップデートすることはできません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O GitHub não publica hash de arquivo para esta versão, então um app sem assinatura de desenvolvedor não pode ser atualizado com um clique."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub не публикует хеш файла для этого релиза, поэтому приложение без подписи разработчика нельзя обновить в один клик."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub bu sürüm için dosya karması yayımlamıyor; bu yüzden geliştirici imzası olmayan bir uygulama tek tıkla güncellenemez."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 没有为这个版本公布文件哈希，所以没有开发者签名的 App 无法一键更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 沒有為這個版本公布檔案雜湊，所以沒有開發者簽名的 App 無法一鍵更新。"
+          }
+        }
+      }
+    },
     "Installed as an alias of %@": {
       "extractionState": "manual",
       "localizations": {
@@ -13763,6 +13828,201 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 頻道沒有安裝程式"
+          }
+        }
+      }
+    },
+    "The download doesn’t match the file hash GitHub publishes for it — it may be corrupt or replaced. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Download stimmt nicht mit dem Datei-Hash überein, den GitHub dafür veröffentlicht – er ist womöglich beschädigt oder ausgetauscht. Es wurde nichts geändert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La descarga no coincide con el hash de archivo que GitHub publica para ella; puede estar dañada o haber sido sustituida. No se ha cambiado nada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le téléchargement ne correspond pas au hachage de fichier que GitHub publie pour lui — il est peut-être corrompu ou remplacé. Rien n’a été modifié."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il download non corrisponde all’hash del file pubblicato da GitHub: potrebbe essere danneggiato o sostituito. Non è stato modificato nulla."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードしたファイルが、GitHub が公開しているファイルハッシュと一致しません。破損しているか、差し替えられている可能性があります。何も変更していません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O download não corresponde ao hash de arquivo que o GitHub publica para ele — pode estar corrompido ou ter sido substituído. Nada foi alterado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загрузка не совпадает с хешем файла, который публикует GitHub, — возможно, файл повреждён или подменён. Ничего не изменено."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndirilen dosya, GitHub’ın onun için yayımladığı dosya karmasıyla eşleşmiyor — bozuk ya da değiştirilmiş olabilir. Hiçbir şey değiştirilmedi."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载的文件与 GitHub 公布的文件哈希不一致——可能已损坏或被替换。没有做任何改动。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載的檔案與 GitHub 公布的檔案雜湊不一致——可能已損壞或被替換。沒有做任何變更。"
+          }
+        }
+      }
+    },
+    "The installed copy has no developer signature, but this version is signed by a developer (Team %@). DuoUpdater can’t confirm they’re the same app, so it won’t replace it — install this version by hand once.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die installierte Kopie hat keine Entwicklersignatur, diese Version ist aber von einem Entwickler signiert (Team %@). DuoUpdater kann nicht bestätigen, dass es dieselbe App ist, und ersetzt sie daher nicht – installiere diese Version einmal von Hand."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La copia instalada no tiene firma de desarrollador, pero esta versión está firmada por un desarrollador (equipo %@). DuoUpdater no puede confirmar que sean la misma app, así que no la sustituirá: instala esta versión a mano una vez."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La copie installée n’a pas de signature de développeur, mais cette version est signée par un développeur (équipe %@). DuoUpdater ne peut pas confirmer qu’il s’agit de la même app et ne la remplacera donc pas — installe cette version à la main une fois."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La copia installata non ha la firma dello sviluppatore, ma questa versione è firmata da uno sviluppatore (team %@). DuoUpdater non può confermare che sia la stessa app, quindi non la sostituisce: installa questa versione a mano una volta."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インストール済みのコピーには開発元の署名がありませんが、このバージョンは開発元が署名しています（チーム %@）。同じ App であることを DuoUpdater では確認できないため置き換えません。このバージョンは一度だけ手動でインストールしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A cópia instalada não tem assinatura de desenvolvedor, mas esta versão é assinada por um desenvolvedor (equipe %@). O DuoUpdater não consegue confirmar que são o mesmo app, então não vai substituí-lo — instale esta versão manualmente uma vez."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У установленной копии нет подписи разработчика, а эта версия подписана разработчиком (команда %@). DuoUpdater не может подтвердить, что это то же приложение, поэтому не заменит его — установите эту версию вручную один раз."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yüklü kopyanın geliştirici imzası yok, ama bu sürüm bir geliştirici tarafından imzalanmış (ekip %@). DuoUpdater bunların aynı uygulama olduğunu doğrulayamadığı için değiştirmeyecek — bu sürümü bir kez elle yükle."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已装的副本没有开发者签名，而这个版本有开发者签名（团队 %@）。DuoUpdater 无法确认两者是同一个 App，所以不会替换——请手动安装一次这个版本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已裝的副本沒有開發者簽名，而這個版本有開發者簽名（團隊 %@）。DuoUpdater 無法確認兩者是同一個 App，所以不會取代——請手動安裝一次這個版本。"
+          }
+        }
+      }
+    },
+    "This app has no developer signature, and one-click updates for such apps are turned off in Settings. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese App hat keine Entwicklersignatur, und One-Click-Updates für solche Apps sind in den Einstellungen ausgeschaltet. Es wurde nichts geändert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta app no tiene firma de desarrollador y las actualizaciones con un clic para estas apps están desactivadas en Ajustes. No se ha cambiado nada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette app n’a pas de signature de développeur et les mises à jour en un clic de ces apps sont désactivées dans les Réglages. Rien n’a été modifié."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa app non ha la firma dello sviluppatore e gli aggiornamenti con un clic per queste app sono disattivati in Impostazioni. Non è stato modificato nulla."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この App には開発元の署名がなく、そうした App のワンクリックアップデートは設定でオフになっています。何も変更していません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este app não tem assinatura de desenvolvedor e as atualizações com um clique para esses apps estão desativadas em Ajustes. Nada foi alterado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У этого приложения нет подписи разработчика, а обновление таких приложений в один клик выключено в настройках. Ничего не изменено."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu uygulamanın geliştirici imzası yok ve bu tür uygulamalar için tek tıkla güncelleme Ayarlar’da kapalı. Hiçbir şey değiştirilmedi."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个 App 没有开发者签名，而这类 App 的一键更新在设置里是关闭的。没有做任何改动。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個 App 沒有開發者簽名，而這類 App 的一鍵更新在設定裡是關閉的。沒有做任何變更。"
           }
         }
       }

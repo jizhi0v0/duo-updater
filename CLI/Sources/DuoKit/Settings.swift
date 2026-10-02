@@ -118,7 +118,10 @@ public struct Settings: Sendable {
                 // the menu bar has to stop `duo install` re-raising that panel too,
                 // or the two disagree about the same app.
                 declinedElevationKeys: Set(
-                    defaults.stringArray(forKey: UpdateSettings.declinedElevationKeysKey) ?? [])),
+                    defaults.stringArray(forKey: UpdateSettings.declinedElevationKeysKey) ?? []),
+                // Absent reads as false, as in the app.
+                allowsDigestOnlyInstalls: defaults.bool(
+                    forKey: UpdateSettings.allowsDigestOnlyInstallsKey)),
             ignoredKeys: Set(defaults.stringArray(forKey: UpdateSettings.ignoredKeysKey) ?? []),
             skippedVersions: defaults.dictionary(forKey: UpdateSettings.skippedVersionsKey)
                 as? [String: String] ?? [:],

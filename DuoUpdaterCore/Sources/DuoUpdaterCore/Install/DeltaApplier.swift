@@ -239,6 +239,11 @@ public func deltaRouteFailureIsWorthRetrying(_ error: Error) -> Bool {
          .noTeamIdentifier, .teamIdentifierMismatch,
          .noBundleIdentifier, .bundleIdentifierMismatch:
         return true
+    // The digest-only route never takes a patch (`VendorInstaller.download`), so
+    // these cannot arrive here; classed with the trust gates they stand in for.
+    case .publishedDigestMissing, .publishedDigestMismatch, .teamIdentifierAppeared,
+         .notAdHocSigned, .infoPlistIdentifierMismatch, .infoPlistVersionMismatch:
+        return true
     }
 }
 

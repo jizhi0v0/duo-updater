@@ -298,10 +298,15 @@ public actor InstallCoordinator {
     ///   claims the updater cache directory this app's download would come from.
     ///   **No default**, so every call site has to answer it rather than one of
     ///   them silently inheriting "unknown"; nil is refused, not assumed safe.
+    /// - Parameter digestOnlyAllowed: `UpdateSettings.allowsDigestOnlyInstalls`
+    ///   as it stands now, read by the host after its pre-install re-check — the
+    ///   offer the row showed may predate the user turning it off. No default,
+    ///   for the same reason as `installedPopulation`.
     public func perform(
         _ result: UpdateResult,
         route: Route,
         installedPopulation: [InstalledApp]?,
+        digestOnlyAllowed: Bool,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void = {},
         beforeInstallerOpen: @Sendable () async -> Void = {}
@@ -320,6 +325,7 @@ public actor InstallCoordinator {
             let outcome = try await RequestAttribution.withApp(result.app.id) {
                 try await performRoute(
                     result, route: route, installedPopulation: installedPopulation,
+                    digestOnlyAllowed: digestOnlyAllowed,
                     progress: progress,
                     releaseAfterDownload: releaseAfterDownload,
                     beforeInstallerOpen: beforeInstallerOpen)
@@ -341,6 +347,7 @@ public actor InstallCoordinator {
         _ result: UpdateResult,
         route: Route,
         installedPopulation: [InstalledApp]?,
+        digestOnlyAllowed: Bool,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void,
         beforeInstallerOpen: @Sendable () async -> Void
@@ -409,7 +416,10 @@ public actor InstallCoordinator {
                             $0, preferDelta: true,
                             population: installedPopulation, onStage: $1)
                     },
-                    apply: { _ = try await self.vendor.apply($0, download: $1, onStage: $2) })
+                    apply: {
+                        _ = try await self.vendor.apply(
+                            $0, download: $1, digestOnlyAllowed: digestOnlyAllowed, onStage: $2)
+                    })
             } catch let failure as DeltaRouteFailure {
                 Log.install.info("delta route failed, retrying with the full archive: \(result.app.name, privacy: .public) — \(failure.errorDescription ?? "unknown", privacy: .public)")
                 // The patch's bytes were spent whether or not it worked, so they
@@ -421,7 +431,10 @@ public actor InstallCoordinator {
                             $0, preferDelta: false,
                             population: installedPopulation, onStage: $1)
                     },
-                    apply: { _ = try await self.vendor.apply($0, download: $1, onStage: $2) }) }
+                    apply: {
+                        _ = try await self.vendor.apply(
+                            $0, download: $1, digestOnlyAllowed: digestOnlyAllowed, onStage: $2)
+                    }) }
             }
 
         case .sparkle:

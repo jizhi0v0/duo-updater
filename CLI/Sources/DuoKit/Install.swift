@@ -322,6 +322,17 @@ public enum Install {
             // (a message asserting something false) to the other bucket. One
             // message, worded to be accurate for both "never has one" and
             // "doesn't have one this time" is available.
+            //
+            // A digest-only rule is the exception: it does publish one, and what
+            // stops it is the user's setting or a missing GitHub digest — both
+            // things the user can tell apart and one they can change.
+            if result.remote?.installTrust == .publishedDigestOnly {
+                return .refuse(settings.updateSettings.allowsDigestOnlyInstalls
+                    ? "no developer signature, and GitHub publishes no file hash for this release"
+                    : "no developer signature — turn on one-click updates for such apps "
+                        + "in DuoUpdater's Settings → General to install it checked by file hash only",
+                    nil)
+            }
             return .refuse("detection only — this source publishes no installable artefact", nil)
         }
         if UpdatePolicy.defersToSelfUpdater(
@@ -850,6 +861,9 @@ public enum Install {
                     // no contest. See this function's parameter for why it is the
                     // whole scan and not `plan`.
                     installedPopulation: installedPopulation,
+                    // Read when `duo` started, which is this click: the CLI's
+                    // offer and its install are one run.
+                    digestOnlyAllowed: settings.updateSettings.allowsDigestOnlyInstalls,
                     progress: { stage in
                         guard !json else { return }
                         if let text = describe(stage) { print("   \(text)") }

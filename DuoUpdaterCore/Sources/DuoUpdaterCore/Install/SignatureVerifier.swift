@@ -39,6 +39,23 @@ public enum SignatureVerifier {
         case unrunnableArchitecture(built: String, host: String)
         case architectureDowngrade(installed: String, downloaded: String)
         case unsupportedSystemVersion(required: String, host: String)
+        /// Digest-only route: GitHub published no usable `digest` for the asset.
+        case publishedDigestMissing
+        /// Digest-only route: the downloaded bytes are not the published asset.
+        case publishedDigestMismatch
+        /// Digest-only route: the installed copy has no Team ID but the download
+        /// has one. A Team ID cannot be pinned to an install that never had one,
+        /// so this refuses exactly as gate 3 would — said in words a row can carry.
+        case teamIdentifierAppeared(downloaded: String)
+        /// Digest-only route: the download is signed, has no Team ID, and is not
+        /// ad-hoc — a shape no rule was checked against.
+        case notAdHocSigned
+        /// Digest-only route: `CFBundleIdentifier` (or the signed identifier) is
+        /// not the app this rule is for.
+        case infoPlistIdentifierMismatch(expected: String, installed: String, downloaded: String)
+        /// Digest-only route: the download's `CFBundleShortVersionString` is not
+        /// the release the digest was published for.
+        case infoPlistVersionMismatch(expected: String, downloaded: String)
 
         public var errorDescription: String? {
             switch self {
@@ -62,8 +79,47 @@ public enum SignatureVerifier {
                 return "The installed app runs natively (\(installed)) but this download only has \(downloaded). The download would still launch — under translation, from here on — so this is a downgrade, not an unrunnable build. Refusing to install it."
             case .unsupportedSystemVersion(let required, let host):
                 return "The download requires macOS \(required) and this Mac runs macOS \(host). Refusing to install a build it cannot launch."
+            case .publishedDigestMissing:
+                return String(localized: "GitHub publishes no file hash for this release, so an app without a developer signature can’t be updated in one click.")
+            case .publishedDigestMismatch:
+                return String(localized: "The download doesn’t match the file hash GitHub publishes for it — it may be corrupt or replaced. Nothing was changed.")
+            case .teamIdentifierAppeared(let downloaded):
+                return String(localized: "The installed copy has no developer signature, but this version is signed by a developer (Team \(downloaded)). DuoUpdater can’t confirm they’re the same app, so it won’t replace it — install this version by hand once.")
+            case .notAdHocSigned:
+                return "The downloaded app has neither a Team Identifier nor an ad-hoc signature. Refusing to install it."
+            case .infoPlistIdentifierMismatch(let expected, let installed, let downloaded):
+                return "Bundle identifier mismatch: expected “\(expected)”, installed “\(installed)”, downloaded “\(downloaded)”. Refusing to install."
+            case .infoPlistVersionMismatch(let expected, let downloaded):
+                return "The download says it is version “\(downloaded)”, not the “\(expected)” it was published as. Refusing to install."
             }
         }
+    }
+
+    /// Proof that `verifyPublishedDigest` passed. Only that function can make one,
+    /// so the digest-only gates below cannot be reached without the hash check
+    /// having run first.
+    public struct VerifiedDigest: Sendable {
+        fileprivate init() {}
+    }
+
+    /// Which identity gates a swap runs. `.developerID` is gates 3 and 4 as they
+    /// have always been. `.publishedDigest` is the ad-hoc route — see
+    /// `verifyDigestOnlyIdentity`.
+    enum ArtifactTrust: Sendable {
+        case developerID
+        case publishedDigest(VerifiedDigest, bundleID: String, version: String)
+    }
+
+    /// The digest-only route's whole proof of origin: the SHA-256 of `file` — the
+    /// exact archive that is then unpacked — equals the `digest` GitHub's API
+    /// published for that asset. Blocking file read; callers stay off the pool.
+    static func verifyPublishedDigest(of file: URL, expected: String?) throws -> VerifiedDigest {
+        guard let expected, !expected.isEmpty else { throw VerifyError.publishedDigestMissing }
+        let actual = try BundleArchive.sha256(of: file)
+        guard CLIToolTrust.matches(actual, published: expected) else {
+            throw VerifyError.publishedDigestMismatch
+        }
+        return VerifiedDigest()
     }
 
     /// Shared app-bundle gates for Sparkle and vendor installs, after extraction
@@ -85,15 +141,24 @@ public enum SignatureVerifier {
         installedApp: URL,
         host: HostArch = .current,
         canRunIntel: Bool = HostArch.canRunIntelBuilds,
-        osVersion: String = HostOS.numericVersion()
+        osVersion: String = HostOS.numericVersion(),
+        trust: ArtifactTrust = .developerID
     ) async throws {
         try await offCooperativePool {
             // Gates 2–4 pin a valid signature to this vendor AND this exact app.
+            // Gate 2 is the same on both routes: an ad-hoc seal must still verify.
             try verifyCodeSignature(appAt: downloadedApp)
-            try verifyTeamIdentifierMatch(
-                installedApp: installedApp, downloadedApp: downloadedApp)
-            try verifyBundleIdentifierMatch(
-                installedApp: installedApp, downloadedApp: downloadedApp)
+            switch trust {
+            case .developerID:
+                try verifyTeamIdentifierMatch(
+                    installedApp: installedApp, downloadedApp: downloadedApp)
+                try verifyBundleIdentifierMatch(
+                    installedApp: installedApp, downloadedApp: downloadedApp)
+            case .publishedDigest(_, let bundleID, let version):
+                try verifyDigestOnlyIdentity(
+                    installedApp: installedApp, downloadedApp: downloadedApp,
+                    bundleID: bundleID, version: version)
+            }
 
             // Gate 5 reads the actual Mach-O slices; artifact filenames cannot
             // prove that the downloaded build can launch on this Mac.
@@ -107,6 +172,77 @@ public enum SignatureVerifier {
             // Gate 6 reads the bundle's OS floor even when the source omits it.
             try verifyRunnableSystemVersion(appAt: downloadedApp, osVersion: osVersion)
         }
+    }
+
+    // MARK: Gates 3 + 4, digest-only route
+
+    /// Which identity gate a digest-only swap may take, from the two Team IDs
+    /// alone. Trust is never lowered: an installed Team ID always means gate 3 as
+    /// usual (which refuses a download without one), and so does a download that
+    /// unexpectedly has one. Only "neither side has a Team ID" is the hash route.
+    enum DigestOnlyIdentity: Equatable {
+        case teamGate
+        case teamAppeared(String)
+        case adHoc
+    }
+
+    static func digestOnlyIdentity(installedTeam: String?, downloadedTeam: String?) -> DigestOnlyIdentity {
+        if installedTeam != nil { return .teamGate }
+        if let downloadedTeam { return .teamAppeared(downloadedTeam) }
+        return .adHoc
+    }
+
+    /// Gates 3 and 4 for an app with no Team ID on either side. The signed
+    /// identifier cannot carry gate 4 here — a linker-signed ad-hoc build reports
+    /// `Electron` (MarkText 0.20.0, measured 2026-10-02) — so the bundle's own
+    /// `CFBundleIdentifier` is compared on both sides and against the rule's, and
+    /// the download's signed identifier must also equal it. Gate 2 has already
+    /// verified the seal, which covers `Info.plist`. The version gate pins the
+    /// bundle to the release whose digest was checked; the Team-ID route has no
+    /// such gate because a Developer ID signature does not need one.
+    static func verifyDigestOnlyIdentity(
+        installedApp: URL, downloadedApp: URL, bundleID: String, version: String
+    ) throws {
+        switch digestOnlyIdentity(
+            installedTeam: try teamIdentifier(at: installedApp),
+            downloadedTeam: try teamIdentifier(at: downloadedApp)) {
+        case .teamGate:
+            try verifyTeamIdentifierMatch(installedApp: installedApp, downloadedApp: downloadedApp)
+            try verifyBundleIdentifierMatch(installedApp: installedApp, downloadedApp: downloadedApp)
+            return
+        case .teamAppeared(let team):
+            throw VerifyError.teamIdentifierAppeared(downloaded: team)
+        case .adHoc:
+            break
+        }
+        let info = try signingInfo(at: downloadedApp)
+        let flags = (info[kSecCodeInfoFlags as String] as? NSNumber)?.uint32Value ?? 0
+        guard flags & SecCodeSignatureFlags.adhoc.rawValue != 0 else {
+            throw VerifyError.notAdHocSigned
+        }
+        let installedPlist = infoPlist(of: installedApp)
+        let downloadedPlist = infoPlist(of: downloadedApp)
+        let installedID = installedPlist["CFBundleIdentifier"] as? String ?? ""
+        let downloadedID = downloadedPlist["CFBundleIdentifier"] as? String ?? ""
+        let signedID = info[kSecCodeInfoIdentifier as String] as? String
+        guard installedID == bundleID, downloadedID == bundleID, signedID == bundleID else {
+            throw VerifyError.infoPlistIdentifierMismatch(
+                expected: bundleID, installed: installedID,
+                downloaded: signedID == downloadedID ? downloadedID : "\(downloadedID) (signed as \(signedID ?? "nothing"))")
+        }
+        let downloadedVersion = (downloadedPlist["CFBundleShortVersionString"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard downloadedVersion == version else {
+            throw VerifyError.infoPlistVersionMismatch(expected: version, downloaded: downloadedVersion)
+        }
+    }
+
+    private static func infoPlist(of app: URL) -> [String: Any] {
+        guard let data = try? Data(contentsOf: app.appendingPathComponent("Contents/Info.plist")),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil)
+                as? [String: Any]
+        else { return [:] }
+        return plist
     }
 
     // MARK: Gate 1 — EdDSA signature over the downloaded file

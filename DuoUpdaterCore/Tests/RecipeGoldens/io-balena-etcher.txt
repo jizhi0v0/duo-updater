@@ -21,6 +21,7 @@ githubRules[0].installedTagPrefix = nil
 githubRules[0].channel = .stable
 githubRules[0].installAssetPattern? = "^balenaEtcher-[0-9.]+-arm64\\.dmg$"
 githubRules[0].installerKind? = .dmg
+githubRules[0].installTrust = .developerID
 
 appStoreCases = Array(count: 0)
 

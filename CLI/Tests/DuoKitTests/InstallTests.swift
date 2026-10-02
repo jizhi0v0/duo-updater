@@ -86,6 +86,49 @@ import DuoUpdaterCore
         #expect(route == .vendor)
     }
 
+    /// A digest-only GitHub app (ad-hoc signed) follows the menu bar's setting —
+    /// one shared key — and a refusal names the setting rather than calling the
+    /// source detection-only, which it is not.
+    ///
+    /// Mutation: drop the `.publishedDigestOnly` branch in `classify` → the
+    /// refusal says "detection only".
+    @Test func aDigestOnlyAppFollowsTheSharedSetting() {
+        func digestOnly(digest: String?) -> UpdateResult {
+            UpdateResult(
+                app: app(),
+                remote: RemoteVersion(
+                    shortVersion: "2.0", version: nil,
+                    downloadURL: URL(string: "https://github.com/x/y/releases/download/v2.0/App.dmg"),
+                    sourceName: "GitHub", requiresManualInstaller: digest == nil,
+                    vendorInstallerKind: digest == nil ? nil : .dmg,
+                    expectedSHA256: digest, installTrust: .publishedDigestOnly),
+                status: .updateAvailable(latest: "2.0"))
+        }
+        var allowed = settings()
+        allowed.updateSettings.allowsDigestOnlyInstalls = true
+        let digest = String(repeating: "a", count: 64)
+
+        guard case .refuse(let off, _) = Install.classify(
+            digestOnly(digest: digest), settings: settings(), environment: environment()) else {
+            Issue.record("expected a refusal with the setting off")
+            return
+        }
+        #expect(off.contains("no developer signature") && off.contains("Settings"))
+        #expect(!off.contains("detection only"))
+
+        guard case .install(.vendor) = Install.classify(
+            digestOnly(digest: digest), settings: allowed, environment: environment()) else {
+            Issue.record("expected an install with the setting on")
+            return
+        }
+        guard case .refuse(let noDigest, _) = Install.classify(
+            digestOnly(digest: nil), settings: allowed, environment: environment()) else {
+            Issue.record("expected a refusal without a digest")
+            return
+        }
+        #expect(noDigest.contains("no file hash"))
+    }
+
     /// #192: `VendorInstaller.download()` already vetted "Electron" (electron-
     /// builder manifests) — the policy switches and `route(for:)` just hadn't
     /// caught up, so this one-clicked to nothing. Same shape as

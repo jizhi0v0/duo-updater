@@ -121,6 +121,11 @@ public struct UvUpdater: Sendable {
         } else {
             return .failed(message: "not run: \(install.path) is not signed by Astral", output: "")
         }
+        // Asked again: the check above can download Astral's ~19 MB archive, long
+        // enough for a `uv self update` started in a terminal to be under way.
+        if let running = await offCooperativePool({ busy() }) {
+            return .busy(running.description)
+        }
 
         var environment = self.environment()
         // The receipt `UvCheck` read is `$HOME/.config/uv/uv-receipt.json`: the

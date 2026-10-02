@@ -103,8 +103,8 @@ public enum RustChangelog {
     /// or a nested bullet under it. A patch release (1.98.1) is a few bullets
     /// under no subsection, `*` or `-`.
     ///
-    /// Only stable releases have sections: a beta or nightly toolchain's row
-    /// reads the newest of them, all at or below its own version.
+    /// Only stable releases have sections, so a beta or nightly toolchain reads
+    /// no document (`releaseNotesKey(channel:)`).
     public static func parseRust(_ markdown: String) -> Changelog? {
         let lines = markdown.components(separatedBy: "\n")
         let links = referenceLinks(lines)

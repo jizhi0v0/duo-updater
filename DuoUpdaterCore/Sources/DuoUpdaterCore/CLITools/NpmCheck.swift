@@ -76,7 +76,7 @@ public struct NpmCheck: Sendable {
                 kind: .npm, path: install.path, installedVersion: install.version,
                 latestVersion: pick.map { $0.offered ?? $0.tagVersion }, channel: pick?.tag, state: state,
                 oneClick: oneClick, withheld: withheld, note: note, manualCommand: manual,
-                name: install.name, releaseNotesKey: "npm:\(install.name)",
+                name: install.name, releaseNotesKey: NpmChangelog.releaseNotesKey(name: install.name, installed: install.version),
                 detail: .npm(NpmPackage(
                     install: install, tag: pick?.tag, newest: pick?.tagVersion, offered: pick?.offered,
                     gap: pick?.gap, pending: pending, updater: updater)))
@@ -145,7 +145,13 @@ public struct NpmCheck: Sendable {
                                note: "\(gap.version) \(gap.requirement)\(gap.nodeVersion.map { " (this prefix has \($0))" } ?? ""): no version above \(installed) runs here",
                                withheld: .runtimeTooOld)
             }
-            return verdict(.upToDate, pick: pick, note: "\(pick.tagVersion) is deprecated")
+            // Nothing above `installed` may be offered, and not for the runtime:
+            // the tag names a prerelease this copy, on releases, does not follow,
+            // or a version deprecated or missing from the registry.
+            let why = NpmVersion(pick.tagVersion).map { $0.isPrerelease && !current.isPrerelease } == true
+                ? "is a prerelease, and this copy follows releases"
+                : "is deprecated or not in the registry's versions"
+            return verdict(.upToDate, pick: pick, note: "\(pick.tag)'s \(pick.tagVersion) \(why)")
         }
         let alongside = pick.gap.map { "; \($0.version) \($0.requirement)" } ?? ""
 

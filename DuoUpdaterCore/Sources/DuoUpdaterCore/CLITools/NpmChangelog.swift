@@ -25,6 +25,14 @@ import Foundation
 /// redirect named, so they keep the token.
 public enum NpmChangelog {
 
+    /// The app's cache key for one copy's notes (`CLIToolStatus.releaseNotesKey`):
+    /// per installed version, since `fetch` asks only for the releases above it —
+    /// under the name alone, a copy on the latest release, opened first, left
+    /// another prefix's older copy shown only the latest section (review, #949).
+    static func releaseNotesKey(name: String, installed: String?) -> String {
+        "npm:\(name)@\(installed ?? "")"
+    }
+
     public struct Repository: Sendable, Equatable {
         public let owner: String
         public let name: String

@@ -392,7 +392,7 @@ final class NpmRecorder: @unchecked Sendable {
         #expect(status.latestVersion == "0.14.3")
         #expect(status.channel == "latest")
         #expect(status.name == "mcp-remote")
-        #expect(status.releaseNotesKey == "npm:mcp-remote")
+        #expect(status.releaseNotesKey == "npm:mcp-remote@\(status.installedVersion ?? "")")
         #expect(status.withheld == nil)
         #expect(status.oneClick == CLIToolCommand(
             executable: box.path("p/bin/node"),

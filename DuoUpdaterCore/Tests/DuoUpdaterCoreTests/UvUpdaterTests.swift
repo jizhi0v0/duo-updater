@@ -201,6 +201,23 @@ import CryptoKit
         #expect(stored[box.uv.path]?.identity == identity)
     }
 
+    /// An update started elsewhere while the first click checks the archive is
+    /// not raced: busy is asked again after the check.
+    ///
+    /// Mutation: drop the busy check after the trust block.
+    @Test func busyAfterTheHashCheckRunsNothing() async throws {
+        let box = try Sandbox()
+        try box.install(version: "0.9.18", signer: "adhoc", selfUpdate: box.installerBody(to: "0.12.21"))
+        let status = try await box.status()
+        let asked = Lines()
+        let outcome = await updater(box, busy: {
+            asked.add("asked")
+            return asked.all.count > 1 ? .installer(77) : nil
+        }).update(status)
+        #expect(outcome == .busy("the uv installer is running (pid 77)"))
+        #expect(!box.ran)
+    }
+
     /// Kills: running the update without the verifier's verdict (treating
     /// `.differs` as a pass), and not remembering it.
     @Test func unsignedCopyThatIsNotTheReleaseIsNeverRun() async throws {

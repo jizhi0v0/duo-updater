@@ -86,6 +86,33 @@ import Foundation
         #expect(!FileManager.default.fileExists(atPath: box.path("ran")))
     }
 
+    /// Two copies of one package read different notes — each only the releases
+    /// above its own version — so they never share the app's cache entry.
+    ///
+    /// Mutation: key by the package name alone.
+    @Test func eachInstalledVersionHasItsOwnReleaseNotesKey() {
+        #expect(NpmChangelog.releaseNotesKey(name: "foo", installed: "1.0.0")
+            != NpmChangelog.releaseNotesKey(name: "foo", installed: "2.0.0"))
+        #expect(NpmChangelog.releaseNotesKey(name: "foo", installed: "1.0.0")
+            == NpmChangelog.releaseNotesKey(name: "foo", installed: "1.0.0"))
+    }
+
+    /// `latest` naming a prerelease while the copy is on a release: nothing is
+    /// offered, and the note says why — not that the release is deprecated.
+    ///
+    /// Mutation: restore the unconditional "is deprecated" note.
+    @Test func aPrereleaseOnLatestIsNotCalledDeprecated() async throws {
+        let box = try NpmSandbox()
+        try box.runtime("p", node: "#!/bin/sh\n")
+        try box.package("p", "mcp-remote", version: "1.5.0")
+        let install = try #require(box.scanner([box.prefix("p")]).scan().first)
+        let packument = NpmPackument(distTags: ["latest": "2.0.0-rc.1"], versions: ["1.5.0": .init(), "2.0.0-rc.1": .init()])
+        let status = await NpmCheck(packument: { _ in packument }).status(of: install, busy: nil)
+        #expect(status.oneClick == nil)
+        #expect(status.note?.contains("prerelease") == true)
+        #expect(status.note?.contains("deprecated") == false)
+    }
+
     @Test func runsTheExactCommandWithThePrefixFirstOnPath() async throws {
         let box = try NpmSandbox()
         let status = try await status(box, node: installing(box))

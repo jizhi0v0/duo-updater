@@ -202,17 +202,6 @@ import Foundation
         #expect(RustChangelog.parseRustup("<html><body>Not Found</body></html>") == nil)
     }
 
-    /// Beta and nightly toolchains read the same document; it has no section
-    /// above the stable release, so the cut is the newest stable sections, all
-    /// already in the toolchain — nothing new, and not an error.
-    @Test func nightlyReaderGetsStableSectionsAsAlreadyTaken() throws {
-        let changelog = try #require(RustChangelog.parseRust(Self.releases))
-        let cut = try #require(CLIToolChangelog.relevant(
-            changelog, installed: "1.101.0-nightly (21b707e3f 2026-09-30)",
-            latest: "1.101.0-nightly (0a1b2c3d4 2026-10-01)"))
-        #expect(cut.entries.first?.version == "1.99.0")
-    }
-
     /// A beta or nightly toolchain reads no document — `RELEASES.md` has stable
     /// sections only — and is answered without a fetch; stable and `X.Y` share
     /// Rust's.

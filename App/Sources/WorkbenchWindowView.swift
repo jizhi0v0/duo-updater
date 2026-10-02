@@ -1839,11 +1839,13 @@ private struct DetailHeader: View {
             }
             // An app with no developer signature: what its one-click rests on, or
             // why there is none — said beside the button rather than after a click.
+            // No `fixedSize(vertical:)`, as in `offlineBackupNotice`: with it,
+            // selecting Alacritty held the Workbench at 1,870 pt on a 1,083 pt
+            // screen (measured 2026-10-02).
             if let note = model.digestOnlyNote(for: result) {
                 Text(note)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
                 if model.digestOnlyIsTurnedOff(for: result) {
                     Button("Open Settings") {
                         model.requestedSettingsSection = .general

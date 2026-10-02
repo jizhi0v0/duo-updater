@@ -537,7 +537,7 @@ extension GitHubReleaseRule: Codable {
     enum CodingKeys: String, CodingKey, CaseIterable {
         case bundleID, owner, repo, usePrereleases, listPageSize, versionPattern
         case candidateScope, probesNewestFirst, installedTagPrefix, channel
-        case installAssetPattern, installerKind
+        case installAssetPattern, installerKind, installTrust
     }
 
     private static var codingDefaults: GitHubReleaseRule {
@@ -565,6 +565,8 @@ extension GitHubReleaseRule: Codable {
                 String.self, forKey: .installAssetPattern, default: d.installAssetPattern),
             installerKind: try c.decodeOptional(
                 VendorInstallerKind.self, forKey: .installerKind, default: d.installerKind),
+            installTrust: try c.decode(
+                InstallTrust.self, forKey: .installTrust, default: d.installTrust),
             channel: try c.decode(ReleaseChannel.self, forKey: .channel, default: d.channel),
             probesNewestFirst: try c.decode(
                 Bool.self, forKey: .probesNewestFirst, default: d.probesNewestFirst))
@@ -588,6 +590,24 @@ extension GitHubReleaseRule: Codable {
             installAssetPattern, forKey: .installAssetPattern,
             defaultIsNil: d.installAssetPattern == nil)
         try c.encodeOptional(installerKind, forKey: .installerKind, defaultIsNil: d.installerKind == nil)
+        try c.encode(installTrust, forKey: .installTrust)
+    }
+}
+
+extension InstallTrust: Codable {
+    var codingName: String {
+        switch self {
+        case .developerID: return "developerID"
+        case .publishedDigestOnly: return "publishedDigestOnly"
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        self = try decodeCaseName(Self.allCases, name: \.codingName, from: decoder)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        try codingName.encode(to: encoder)
     }
 }
 

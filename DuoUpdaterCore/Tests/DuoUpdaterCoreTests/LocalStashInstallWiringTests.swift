@@ -86,7 +86,8 @@ struct LocalStashInstallWiringTests {
         for download: DownloadedUpdate, result: UpdateResult
     ) async -> Error? {
         do {
-            try await VendorInstaller().apply(result, download: download, onStage: { _ in })
+            try await VendorInstaller().apply(
+                result, download: download, digestOnlyAllowed: false, onStage: { _ in })
             return nil
         } catch {
             return error

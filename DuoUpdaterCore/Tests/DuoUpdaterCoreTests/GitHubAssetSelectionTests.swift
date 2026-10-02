@@ -121,6 +121,12 @@ struct GitHubAssetSelectionTests {
         // OpenLens: the same respin-tolerant `[0-9.\-]+` run KeePassXC uses.
         (#"^OpenLens-[0-9.\-]+-arm64\.dmg$"#,
          ["OpenLens-6.5.2-366-arm64.dmg", "OpenLens-6.5.2-367-arm64.dmg"]),
+        // Flameshot / darktable: one dmg per architecture under one tag (v14.0.0,
+        // release-5.6.1 — every stable release with a macOS build ships both).
+        (#"^Flameshot-.+-macos-(arm64|intel)\.dmg$"#,
+         ["Flameshot-14.0-macos-arm64.dmg", "Flameshot-14.0-macos-intel.dmg"]),
+        (#"^darktable-[0-9.]+-(arm64|x86_64)\.dmg$"#,
+         ["darktable-5.6.1-arm64.dmg", "darktable-5.6.1-x86_64.dmg"]),
     ]
 
     /// Registry patterns whose alternation chooses between TAGS rather than

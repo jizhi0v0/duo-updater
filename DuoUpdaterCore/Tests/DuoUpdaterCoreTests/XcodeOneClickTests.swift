@@ -254,7 +254,8 @@ import Foundation
         let coordinator = InstallCoordinator(permits: InstallPermits(downloads: 1, applies: 1))
         do {
             _ = try await coordinator.perform(
-                Self.result(), route: .xcode, installedPopulation: [], progress: { _ in })
+                Self.result(), route: .xcode, installedPopulation: [], digestOnlyAllowed: false,
+                progress: { _ in })
             Issue.record("expected a refusal")
         } catch InstallCoordinator.CoordinatorError.routeNotSupportedHere(let route) {
             #expect(route == .xcode)
@@ -273,7 +274,8 @@ import Foundation
             permits: InstallPermits(downloads: 1, applies: 1), xcodeDownloader: fake)
         await #expect(throws: ZZDownloadFailed.self) {
             _ = try await coordinator.perform(
-                Self.result(), route: .xcode, installedPopulation: [], progress: { _ in })
+                Self.result(), route: .xcode, installedPopulation: [], digestOnlyAllowed: false,
+                progress: { _ in })
         }
         let dir = try #require(fake.directory)
         #expect(!FileManager.default.fileExists(atPath: dir.path))

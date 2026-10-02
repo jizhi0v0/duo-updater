@@ -155,6 +155,22 @@ public struct DeltaPatch: Sendable, Hashable {
     }
 }
 
+/// What a downloaded build's trust rests on, as declared by the rule that
+/// resolved it — so the policy and the detail pane know it before anything is
+/// downloaded, and the installer knows which gate 3 to run.
+public enum InstallTrust: Sendable, Hashable, CaseIterable {
+    /// A Developer ID signature with the installed app's Team ID. Every route
+    /// but the one below.
+    case developerID
+    /// No Team ID on either side (ad-hoc signed): the download's only proof is
+    /// that its SHA-256 equals the `digest` GitHub's API publishes for that
+    /// release asset. That proves "the bytes on the release page", not who put
+    /// them there — so it is offered only when the user turned on
+    /// `UpdateSettings.allowsDigestOnlyInstalls`, and the installer re-checks
+    /// that at click time (`VendorInstaller`).
+    case publishedDigestOnly
+}
+
 /// What a single update source reports as the newest available release.
 public struct RemoteVersion: Sendable, Hashable {
     /// Marketing version, e.g. "1.96.0" (`sparkle:shortVersionString`).
@@ -264,6 +280,15 @@ public struct RemoteVersion: Sendable, Hashable {
     /// Optional expected SHA-512 (base64) of the vendor download, verified before
     /// unpacking. Nil when the feed doesn't publish one.
     public let expectedSHA512: String?
+
+    /// SHA-256 (lowercase hex) GitHub's API reports for the release asset in
+    /// `downloadURL` — its `digest` field, read from the same release object as
+    /// the URL. Set only for a `.publishedDigestOnly` rule; nil when the asset
+    /// has none (GitHub did not backfill assets uploaded before June 2025).
+    public let expectedSHA256: String?
+
+    /// What this download's trust rests on. See `InstallTrust`.
+    public let installTrust: InstallTrust
 
     /// Path inside the unpacked download of a second archive holding the real
     /// app, for vendors who ship an installer stub. See
@@ -375,6 +400,8 @@ public struct RemoteVersion: Sendable, Hashable {
         requiresManualInstaller: Bool = false,
         vendorInstallerKind: VendorInstallerKind? = nil,
         expectedSHA512: String? = nil,
+        expectedSHA256: String? = nil,
+        installTrust: InstallTrust = .developerID,
         nestedArchivePath: String? = nil,
         contentsArchivePattern: String? = nil,
         downloadHeaders: [String: String] = [:],
@@ -405,6 +432,8 @@ public struct RemoteVersion: Sendable, Hashable {
         self.requiresManualInstaller = requiresManualInstaller
         self.vendorInstallerKind = vendorInstallerKind
         self.expectedSHA512 = expectedSHA512
+        self.expectedSHA256 = expectedSHA256
+        self.installTrust = installTrust
         self.nestedArchivePath = nestedArchivePath
         self.contentsArchivePattern = contentsArchivePattern
         self.downloadHeaders = downloadHeaders

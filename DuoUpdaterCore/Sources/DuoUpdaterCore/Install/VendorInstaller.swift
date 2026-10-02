@@ -23,6 +23,12 @@ import CryptoKit
 ///     "can this Mac run it" — on Apple silicon with Rosetta that is true of an
 ///     Intel-only build too, so without this a native install silently becomes
 ///     translated, permanently (see `SignatureVerifier.verifyNoArchitectureDowngrade`).
+///   - **Digest-only** (`InstallTrust.publishedDigestOnly`, GitHub rules for
+///     ad-hoc signed apps): no Team ID on either side, so gates 3 and 4 become
+///     the SHA-256 GitHub publishes for the asset — checked before unpacking —
+///     plus the bundle id and version from the bundle's own `Info.plist`. Only
+///     while the user allows it; trust is never lowered (see
+///     `SignatureVerifier.verifyDigestOnlyIdentity`).
 ///   - **Gate 6**, liveness too: this Mac must not be below the
 ///     `LSMinimumSystemVersion` the bundle declares. Vendor probes and GitHub
 ///     releases mostly publish no OS requirement anywhere we can read before
@@ -57,6 +63,13 @@ public actor VendorInstaller {
         /// carrying is not where the recipe says it is. Carries the detail,
         /// because the fix is a recipe edit and the path is the whole diagnosis.
         case nestedPayloadMissing(String)
+        /// A digest-only update reached the installer while the user has not
+        /// allowed them (or turned it off after the row was offered).
+        case digestOnlyNotAllowed
+        /// A digest-only update arrived as something other than the downloaded
+        /// asset itself — a stash or a patch — so the published digest cannot
+        /// speak for these bytes.
+        case digestOnlyNeedsTheAsset
 
         public var errorDescription: String? {
             switch self {
@@ -70,6 +83,10 @@ public actor VendorInstaller {
                 return "The download's checksum didn't match — it may be corrupt or tampered. Nothing was changed."
             case .nestedPayloadMissing(let detail):
                 return "The installer package did not contain the app: \(detail)"
+            case .digestOnlyNotAllowed:
+                return String(localized: "This app has no developer signature, and one-click updates for such apps are turned off in Settings. Nothing was changed.")
+            case .digestOnlyNeedsTheAsset:
+                return "Only the release asset itself can be checked against GitHub's published hash. Nothing was changed."
             }
         }
     }
@@ -115,14 +132,19 @@ public actor VendorInstaller {
         // and this is no download at all, so the cheaper answer has to be asked
         // first for the log to be true. See `SelfUpdaterStash` for the gates, and
         // `applyVerified` for what the substitution switches off.
-        let stash = await SelfUpdaterStash.resolve(for: result, population: population)
+        //
+        // Neither a stash nor a patch for a digest-only update: GitHub's digest
+        // describes the release asset, and those are other bytes.
+        let digestOnly = remote.installTrust == .publishedDigestOnly
+        let stash = digestOnly
+            ? nil : await SelfUpdaterStash.resolve(for: result, population: population)
 
         // A patch published for exactly the build on disk. Vendors reached through
         // a probe can still serve a Sparkle appcast — ChatGPT does, and every one
         // of its installs comes through here rather than SparkleInstaller, so the
         // delta route has to exist on this side too or it misses the app it was
         // built for. `preferDelta` is false on the coordinator's retry.
-        let patch = stash == nil && preferDelta && DeltaApplier.isAvailable
+        let patch = stash == nil && !digestOnly && preferDelta && DeltaApplier.isAvailable
             ? DeltaApplier.patch(for: result.app, in: remote)
             : nil
         if let patch {
@@ -186,13 +208,19 @@ public actor VendorInstaller {
     /// the archive `download` produced. Returns once the new bundle has been
     /// swapped in place ("the swap has landed"); everything the caller does
     /// after this is restart bookkeeping and needs no permit.
+    ///
+    /// `digestOnlyAllowed` is the user's setting as it stands at click time
+    /// (`UpdateSettings.allowsDigestOnlyInstalls`). No default: every caller has
+    /// to say, because the offer the row showed may predate turning it off.
     public func apply(
         _ result: UpdateResult,
         download: DownloadedUpdate,
+        digestOnlyAllowed: Bool,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws {
         guard download.appliedPatch != nil else {
-            return try await applyVerified(result, download: download, onStage: onStage)
+            return try await applyVerified(
+                result, download: download, digestOnlyAllowed: digestOnlyAllowed, onStage: onStage)
         }
         // A failure on the patch route is recoverable by taking the full archive,
         // which is always published alongside it — except a liveness gate (OS
@@ -200,7 +228,8 @@ public actor VendorInstaller {
         // reason and is re-thrown unwrapped instead. The coordinator retries on
         // this type alone, so a real gate failure on the full route still stops.
         do {
-            try await applyVerified(result, download: download, onStage: onStage)
+            try await applyVerified(
+                result, download: download, digestOnlyAllowed: digestOnlyAllowed, onStage: onStage)
         } catch {
             // A liveness gate (OS floor, architecture) fails identically on the
             // full archive, so re-downloading it spends the bytes to learn
@@ -214,10 +243,32 @@ public actor VendorInstaller {
     private func applyVerified(
         _ result: UpdateResult,
         download: DownloadedUpdate,
+        digestOnlyAllowed: Bool,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws {
         guard let remote = result.remote else {
             throw InstallError.notVendorUpdate
+        }
+
+        // Digest-only (ad-hoc signed, no Team ID to gate on): the published
+        // digest over the exact archive about to be unpacked is the whole proof of
+        // origin, so it runs before anything is extracted — and only if the user
+        // still allows this route now. See `InstallTrust.publishedDigestOnly`.
+        var trust: SignatureVerifier.ArtifactTrust = .developerID
+        if remote.installTrust == .publishedDigestOnly {
+            guard digestOnlyAllowed else { throw InstallError.digestOnlyNotAllowed }
+            guard download.localStash == nil, download.appliedPatch == nil else {
+                throw InstallError.digestOnlyNeedsTheAsset
+            }
+            onStage(.verifyingSignature)
+            let archive = download.archiveURL
+            let expected = remote.expectedSHA256
+            let proof = try await offCooperativePool {
+                try SignatureVerifier.verifyPublishedDigest(of: archive, expected: expected)
+            }
+            trust = .publishedDigest(
+                proof, bundleID: result.app.bundleID ?? "",
+                version: remote.shortVersion ?? "")
         }
 
         var newApp: URL
@@ -319,7 +370,8 @@ public actor VendorInstaller {
         onStage(.verifyingCodeSignature)
         try await SignatureVerifier.verifyInstallArtifact(
             downloadedApp: newApp,
-            installedApp: result.app.path
+            installedApp: result.app.path,
+            trust: trust
         )
 
         // 5. Swap the bundle into place. We do this even while the app is

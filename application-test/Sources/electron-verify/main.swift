@@ -304,7 +304,9 @@ for app in electron {
         // bundle, so a second copy claiming the same updater cache directory is
         // visible from here.
         let outcome = try await coordinator.perform(
-            result, route: route, installedPopulation: scanned
+            result, route: route, installedPopulation: scanned,
+            // Electron manifests are never a digest-only route.
+            digestOnlyAllowed: false
         ) { stage in
             if case .downloading(let fraction) = stage, fraction > 0 {
                 // One line, overwritten — a 120 MB electron zip is the common size

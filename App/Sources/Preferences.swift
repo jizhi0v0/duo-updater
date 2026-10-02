@@ -82,6 +82,7 @@ final class Preferences {
         static let hideDockIcon = "HideDockIcon"
         static let appStoreUpdateStrategy = UpdateSettings.appStoreUpdateStrategyKey
         static let vendorInstallPolicy = UpdateSettings.vendorInstallPolicyKey
+        static let allowsDigestOnlyInstalls = UpdateSettings.allowsDigestOnlyInstallsKey
         static let testFlightDetection = UpdateSettings.testFlightDetectionKey
         static let customScanPaths = "CustomScanPaths"
         static let ignoredKeys = UpdateSettings.ignoredKeysKey
@@ -308,6 +309,13 @@ final class Preferences {
     /// How to apply self-updating vendor-app updates. See `VendorInstallPolicy`.
     var vendorInstallPolicy: VendorInstallPolicy {
         didSet { defaults.set(vendorInstallPolicy.rawValue, forKey: Key.vendorInstallPolicy) }
+    }
+
+    /// Whether an app without a developer signature may be updated in one click,
+    /// checked only against the file hash GitHub publishes. Off by default. See
+    /// `UpdateSettings.allowsDigestOnlyInstalls`.
+    var allowsDigestOnlyInstalls: Bool {
+        didSet { defaults.set(allowsDigestOnlyInstalls, forKey: Key.allowsDigestOnlyInstalls) }
     }
 
     /// What DuoUpdater does about TestFlight betas. See `TestFlightDetection`.
@@ -561,6 +569,7 @@ final class Preferences {
         }
         self.vendorInstallPolicy = VendorInstallPolicy(
             rawValue: defaults.string(forKey: Key.vendorInstallPolicy) ?? "") ?? UpdateSettings.vendorInstallPolicyDefault
+        self.allowsDigestOnlyInstalls = defaults.bool(forKey: Key.allowsDigestOnlyInstalls)
         // First launch that finds no choice recorded decides one from the Full Disk
         // Access this Mac has right now, and writes it down
         // (`TestFlightDetection.firstRunDefault` explains both halves). Written here

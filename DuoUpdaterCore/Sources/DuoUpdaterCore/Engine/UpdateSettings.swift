@@ -117,6 +117,11 @@ public struct UpdateSettings: Sendable {
     /// `InstallPreferenceKey.key(for:)` — an install PATH, never a bundle id.
     /// See `ElevationRules` for why this is remembered at all.
     public var declinedElevationKeys: Set<String>
+    /// Whether an ad-hoc signed app may be updated in one click on the strength of
+    /// the file hash GitHub publishes alone — see `InstallTrust.publishedDigestOnly`.
+    /// Off unless the user turns it on: a hash proves the bytes are the ones on the
+    /// release page, not who put them there.
+    public var allowsDigestOnlyInstalls: Bool
 
     /// The UserDefaults key the app persists `appStoreUpdateStrategy` under.
     /// Shared here (not in the app) so a CLI reading the same suite can never
@@ -154,6 +159,10 @@ public struct UpdateSettings: Sendable {
     /// would not read as empty — it would silently keep offering a one-click the
     /// user already refused in the menu bar.
     public static let declinedElevationKeysKey = "DeclinedElevatedInstalls"
+    /// Where `allowsDigestOnlyInstalls` lives. Shared for the reason the policy
+    /// keys above are: `duo install` must not one-click what the menu bar would
+    /// refuse, or the reverse. Absent reads as false in both.
+    public static let allowsDigestOnlyInstallsKey = "AllowDigestOnlyInstalls"
 
     /// Where rollback backups are kept, and how they are packed. See
     /// ``BackupDestination`` and ``BundleArchive/Compression``.
@@ -201,11 +210,13 @@ public struct UpdateSettings: Sendable {
     public init(
         appStoreUpdateStrategy: AppStoreUpdateStrategy,
         vendorInstallPolicy: VendorInstallPolicy,
-        declinedElevationKeys: Set<String> = []
+        declinedElevationKeys: Set<String> = [],
+        allowsDigestOnlyInstalls: Bool = false
     ) {
         self.appStoreUpdateStrategy = appStoreUpdateStrategy
         self.vendorInstallPolicy = vendorInstallPolicy
         self.declinedElevationKeys = declinedElevationKeys
+        self.allowsDigestOnlyInstalls = allowsDigestOnlyInstalls
     }
 }
 

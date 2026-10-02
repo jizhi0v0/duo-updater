@@ -1016,13 +1016,18 @@ private func matches(
 }
 
 @Test func unsignedBuildsStayDetectionOnly() {
-    // Their artifacts are ad-hoc signed or unsigned, so the install gate would
-    // refuse them; the rules must not carry an install spec at all.
-    for id in ["org.alacritty", "org.flameshot.Flameshot", "com.github.marktext.marktext",
-               "org.darktable", "org.zaproxy.zap.ZAP",
+    // Their artifacts are unsigned, or ad-hoc signed with a seal that does not
+    // verify, or (BlueBubbles) a question for the Team-ID gate; the rules must not
+    // carry an install spec at all.
+    for id in ["com.github.marktext.marktext", "org.zaproxy.zap.ZAP",
                "com.BlueBubbles.BlueBubbles-Server", "org.winehq.wine-staging.wine"] {
         #expect(rule(id).installAssetPattern == nil, "\(id) must stay detection-only")
         #expect(rule(id).installerKind == nil, "\(id) must stay detection-only")
+    }
+    // The three whose ad-hoc build verifies install only on the digest route —
+    // never through the Team-ID gate's default, which would refuse every one.
+    for id in ["org.alacritty", "org.flameshot.Flameshot", "org.darktable"] {
+        #expect(rule(id).installTrust == .publishedDigestOnly, "\(id) is ad-hoc signed")
     }
     #expect(extract("release-5.6.0", "org.darktable") == "5.6.0")
     #expect(extract("11.15", "org.winehq.wine-staging.wine") == "11.15")

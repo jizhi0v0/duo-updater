@@ -3234,7 +3234,8 @@ final class AppListModel {
         UpdateSettings(
             appStoreUpdateStrategy: prefs.appStoreUpdateStrategy,
             vendorInstallPolicy: prefs.vendorInstallPolicy,
-            declinedElevationKeys: prefs.declinedElevationKeys)
+            declinedElevationKeys: prefs.declinedElevationKeys,
+            allowsDigestOnlyInstalls: prefs.allowsDigestOnlyInstalls)
     }
     /// Whether App Store updates take the mas route. Read by the row views: a
     /// wrapped iPhone/iPad app is a store redirect there and a one-click on the
@@ -3335,6 +3336,32 @@ final class AppListModel {
     /// channel — no cross-channel mixing.
     func canAutoInstall(_ result: UpdateResult) -> Bool {
         UpdatePolicy.canAutoInstall(result, settings: policySettings, environment: policyEnvironment)
+    }
+
+    /// The detail pane's caption for an app whose only one-click proof is the file
+    /// hash GitHub publishes (`InstallTrust.publishedDigestOnly`): what its update
+    /// is checked against, or why it is not offered. Nil for every other app, and
+    /// while nothing is on offer (`UpdatePolicy.digestOnlyOffer`). The "may ask …
+    /// again" wording is TN3127's: an ad-hoc signature's designated requirement is
+    /// tied to that one build, so macOS "can't reliably track the identity of the
+    /// code" across updates.
+    func digestOnlyNote(for result: UpdateResult) -> String? {
+        switch UpdatePolicy.digestOnlyOffer(result, settings: policySettings) {
+        case nil:
+            return nil
+        case .turnedOff?:
+            return String(localized: "This app has no developer signature, so it isn’t updated in one click unless you allow it in Settings — checked only against the file hash GitHub publishes.")
+        case .noPublishedDigest?:
+            return String(localized: "This app has no developer signature, and GitHub publishes no file hash for this release, so it can’t be updated in one click.")
+        case .offered?:
+            return String(localized: "This app has no developer signature, so only the file hash GitHub publishes is checked. macOS may ask you to grant its privacy permissions (like Screen Recording or Accessibility) again after each update.")
+        }
+    }
+
+    /// Whether `digestOnlyNote` is the "turned off" one, which the pane follows
+    /// with a way to the setting.
+    func digestOnlyIsTurnedOff(for result: UpdateResult) -> Bool {
+        UpdatePolicy.digestOnlyOffer(result, settings: policySettings) == .turnedOff
     }
 
     /// A row updated through the Apple Developer sign-in (`.xcode` route).
@@ -4429,6 +4456,9 @@ final class AppListModel {
                     // updater cache directory. Same expression the staging sweep
                     // uses for the same reason (`computeSelfUpdateStaging`).
                     installedPopulation: results.map(\.app),
+                    // Read now, after the re-check: the row's offer may predate
+                    // the user turning this off.
+                    digestOnlyAllowed: prefs.allowsDigestOnlyInstalls,
                     progress: { stage in Task { @MainActor in self.setStage(id, stage) } },
                     releaseAfterDownload: { await releaseAfterDownload?.release() },
                     beforeInstallerOpen: { await self.retireStagedPackage(for: id) })

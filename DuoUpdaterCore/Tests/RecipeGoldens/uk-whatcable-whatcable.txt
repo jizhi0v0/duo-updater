@@ -21,6 +21,7 @@ githubRules[0].installedTagPrefix = nil
 githubRules[0].channel = .stable
 githubRules[0].installAssetPattern? = "^WhatCable\\.zip$"
 githubRules[0].installerKind? = .zip
+githubRules[0].installTrust = .developerID
 githubRules[1] = struct GitHubReleaseRule
 githubRules[1].bundleID = "uk.whatcable.whatcable"
 githubRules[1].owner = "darrylmorley"
@@ -34,6 +35,7 @@ githubRules[1].installedTagPrefix = nil
 githubRules[1].channel = .beta
 githubRules[1].installAssetPattern? = "^WhatCable\\.zip$"
 githubRules[1].installerKind? = .zip
+githubRules[1].installTrust = .developerID
 
 appStoreCases = Array(count: 0)
 

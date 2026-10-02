@@ -170,6 +170,20 @@ public struct NpmUpdater: Sendable {
         _ lines: [String], _ outcome: ChildProcess.Outcome, deadline: ChildProcess.Deadline
     ) -> String {
         if !outcome.timedOut, let npm = ClaudeCodeUpdater.npmReason(lines) { return npm }
+        if !outcome.timedOut, let openclaw = openclawReason(lines) { return openclaw }
         return CLIToolCommandRunner.failureMessage(lines, outcome, deadline: deadline)
+    }
+
+    /// The reason in the summary `openclaw update` ends with: `Update Result:
+    /// ERROR`, `  Reason: global install verify`, its steps, then `Total time:
+    /// 25.41s` — the line the shared rule would have shown (the first real
+    /// one-click, 2026-10-02, where openclaw 2026.3.28's own check failed after
+    /// npm had installed 2026.6.35 whole).
+    static func openclawReason(_ lines: [String]) -> String? {
+        let trimmed = lines.map { $0.trimmingCharacters(in: .whitespaces) }
+        guard let result = trimmed.lastIndex(where: { $0.hasPrefix("Update Result:") }),
+              let reason = trimmed[result...].first(where: { $0.hasPrefix("Reason: ") })
+        else { return nil }
+        return "openclaw update: " + reason.dropFirst("Reason: ".count)
     }
 }

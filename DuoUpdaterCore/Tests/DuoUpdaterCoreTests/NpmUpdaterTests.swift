@@ -136,6 +136,28 @@ import Foundation
         #expect(output.contains("A complete log"))
     }
 
+    /// openclaw's own update ends with a summary whose last line is its timing;
+    /// the row shows the summary's reason instead (output of the first real
+    /// one-click, 2026-10-02, shortened).
+    ///
+    /// Mutation: drop the `openclawReason` line from `failureMessage`.
+    @Test func openclawsReasonIsTheRowsMessage() async throws {
+        let box = try NpmSandbox()
+        let status = try await status(box, node: """
+            echo 'Updating OpenClaw...'
+            echo 'Update Result: ERROR'
+            echo '  Root: /x/lib/node_modules/openclaw'
+            echo '  Reason: global install verify'
+            echo 'Steps:'
+            echo '  ✓ global update (15.13s)'
+            echo '  ✗ global install verify (0ms)'
+            echo 'Total time: 25.41s'
+            exit 1
+            """)
+        guard case .failed(let message, _) = await updater().update(status) else { Issue.record("not failed"); return }
+        #expect(message == "openclaw update: global install verify")
+    }
+
     /// Variables that would move the install elsewhere are not passed on.
     ///
     /// Mutation: keep the base environment as is → the prefix override reaches npm.

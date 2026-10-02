@@ -10,10 +10,10 @@ enum com_obelisk_app {
         // Sparkle updater, declare `SUFeedURL`
         // (`releases/latest/download/appcast-<arch>.xml`), so detection moves to
         // `SparkleAppcastSource` without a recipe. The `v0.2.3` tag predates that
-        // workflow; no such build has been published yet. But the vendor's
-        // release script (`app/scripts/update-release.mjs`) writes the GitHub
-        // release body — Markdown — into a plain `<description>` with no
-        // `sparkle:format`, and each feed holds one item. The production parser yields no entries for
+        // workflow; no such build has been published yet. But the vendor's release
+        // script (`app/scripts/update-release.mjs`) writes the GitHub release body
+        // — Markdown — into a plain `<description>` with no `sparkle:format`, and
+        // each feed holds one item. The production parser yields no entries for
         // that shape (the same raw-Markdown case as Waku), so the pane would draw
         // one unstructured blob for one version. The releases API carries the same
         // body, with its `##` sections, for every version.

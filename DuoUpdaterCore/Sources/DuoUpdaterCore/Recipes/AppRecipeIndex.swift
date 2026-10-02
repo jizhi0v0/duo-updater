@@ -114,6 +114,7 @@ public enum AppRecipeIndex {
         com_netease_uuremote.set,
         com_nssurge_surge_mac.set,
         com_nuebling_mac_mouse_fix.set,
+        com_obelisk_app.set,
         com_objective_see_lulu_app.set,
         com_openai_chat.set,
         com_openai_codex.set,

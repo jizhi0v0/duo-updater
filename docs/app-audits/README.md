@@ -231,6 +231,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**T3 Code**](com-t3tools-t3code.md) · `com.t3tools.t3code` — G(alpha/nightly) · 2 channels，共享 bundle id，app 名渠道词 + GitHub 双 rule · **两轨一键 ✓**（Team ARK85ZXQ4Z，真包挂载验证）· 2026-08-30 · 仓库出现了未覆盖的 `-preview.` 发布系列（tag 自 2026-09-12、release 自 2026-09-13；2026-09-14 复测）
 - [x] [**Kun**](com-xingyuzhong-deepseekgui.md) · `com.xingyuzhong.deepseekgui` — G (one-click arm64 dmg) · 真包 v0.3.7 挂载验证 ✓ · 2026-08-30
 - [x] [**Reviu**](com-jorisgallot-reviu.md) · `com.jorisgallot.reviu` — G (one-click arm64 dmg) · 真包 v1.4.0 挂载验证 ✓ · 一键 1.3.0→1.4.0 端到端 ✓ · 2026-09-29
+- [x] [**Obelisk**](com-obelisk-app.md) · `com.obelisk.app` — G (**detection-only**：0.2.2 为 ad-hoc 签名) C (GitHub releases) · 真包 v0.2.2 挂载验证 ✓ · 下一版起 bundle 自带 Sparkle feed，待复验 · 2026-10-02
 - [x] [**CrystalFetch**](llc-turing-CrystalFetch.md) · `llc.turing.CrystalFetch` — G (one-click universal dmg; MAS 副本走商店) · 真包 v2.2.0 挂载验证 ✓ · 2026-09-29
 - [x] [**Neovide**](com-neovide-neovide.md) · `com.neovide.neovide` — G (one-click arm64 dmg) · 真包 0.16.2 挂载验证 ✓ · channel-verify 0.16.1→0.16.2 ✓ · 2026-09-29
 - [x] [**MacDown 3000**](app-macdown-macdown3000.md) · `app.macdown.macdown3000` — G (one-click universal dmg) · 真包 v3000.0.7 挂载验证 ✓（rc/beta 是 prerelease 轨，未接入）· 2026-09-29

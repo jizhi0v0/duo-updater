@@ -267,8 +267,12 @@ final class CLIToolsModel {
         let byID = Dictionary(statuses.map { ($0.toolID, $0) }, uniquingKeysWith: { a, _ in a })
         // An error describes an attempt at an update that is still on offer. Once
         // the copy is no longer behind — updated from a terminal, or gone — it
-        // would otherwise sit beside a current install in the workbench.
-        for id in errors.keys where byID[id]?.state != .updateAvailable {
+        // would otherwise sit beside a current install in the workbench. Nor once
+        // nothing is offered: openclaw's own update reported a failed check after
+        // installing the newest release its node runs (2026-10-02), and the row
+        // went on showing that failure where it should say the next release
+        // needs a newer Node.
+        for id in errors.keys where byID[id]?.state != .updateAvailable || byID[id]?.oneClick == nil {
             errors[id] = nil
             errorLogs[id] = nil
         }

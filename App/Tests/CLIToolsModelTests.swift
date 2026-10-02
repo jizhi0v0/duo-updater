@@ -730,6 +730,27 @@ struct CLIToolsModelTests {
         #expect(model.errorLogs[Self.id(Self.native)] == nil)
     }
 
+    /// …and once no update is offered any more — still behind, but on a release
+    /// that needs a newer runtime, say — since the failure was about an offer.
+    ///
+    /// Mutation: drop `|| byID[id]?.oneClick == nil` from that loop.
+    @Test func anErrorGoesOnceNoUpdateIsOffered() async {
+        let check = FakeCheck([
+            (Self.report(Self.status(Self.native)), nil),
+            (Self.report(Self.status(Self.native, version: "2.1.280", oneClick: false, withheld: .runtimeTooOld)), nil),
+        ])
+        let updater = FakeUpdater()
+        await updater.set(Self.id(Self.native), .failed(message: "EACCES", output: "EACCES"))
+        let model = Self.model(check: check, updater: updater)
+        await model.refresh()
+        await model.update(Self.id(Self.native))
+        #expect(model.errors[Self.id(Self.native)] == "EACCES")
+
+        await model.refresh()
+
+        #expect(model.errors[Self.id(Self.native)] == nil)
+    }
+
     /// …but stays while it is still behind.
     ///
     /// Mutation: clear `errors` unconditionally in `apply`.

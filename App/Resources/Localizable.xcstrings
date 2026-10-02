@@ -8244,7 +8244,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "One-Click-Updates für Apps ohne Entwicklersignatur erlauben"
+            "value": "Ein-Klick-Updates für Apps ohne Entwicklersignatur erlauben"
           }
         },
         "es": {
@@ -8268,7 +8268,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "開発元の署名がない App もワンクリックでアップデートする"
+            "value": "開発元の署名がない App のワンクリックアップデートを許可"
           }
         },
         "pt-BR": {
@@ -8298,7 +8298,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "允許一鍵更新沒有開發者簽名的 App"
+            "value": "允許一鍵更新沒有開發者簽署的 App"
           }
         }
       }
@@ -11498,25 +11498,25 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prüft nur, ob der Download Byte für Byte die Datei ist, die GitHub für das Release veröffentlicht. Das schützt dich nicht, wenn das Konto des Entwicklers übernommen wird – eine Entwicklersignatur würde das –, und macOS fragt nach jedem Update womöglich erneut nach den Datenschutzberechtigungen dieser Apps."
+            "value": "Prüft nur, ob der Download Byte für Byte die Datei ist, die GitHub für das Release veröffentlicht. Das schützt dich nicht, wenn das Konto des Entwicklers übernommen wird; eine Entwicklersignatur würde davor schützen. Außerdem fragt macOS nach jedem Update womöglich erneut nach den Datenschutzberechtigungen dieser Apps."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Solo comprueba que la descarga sea, byte a byte, el archivo que GitHub publica para la versión. Eso no te protege si alguien se hace con la cuenta del desarrollador, cosa que una firma de desarrollador sí haría, y es posible que macOS te pida conceder de nuevo los permisos de privacidad de estas apps tras cada actualización."
+            "value": "Solo comprueba que la descarga sea, byte a byte, el archivo que GitHub publica para la versión. Eso no te protege si alguien se hace con la cuenta del desarrollador, algo que una firma de desarrollador sí evitaría, y es posible que macOS te pida conceder de nuevo los permisos de privacidad de estas apps tras cada actualización."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vérifie seulement que le téléchargement est, octet pour octet, le fichier que GitHub publie pour la version. Cela ne te protège pas si le compte du développeur est piraté, ce que ferait une signature de développeur — et macOS peut te redemander les autorisations de confidentialité de ces apps après chaque mise à jour."
+            "value": "Vérifie seulement que le téléchargement est, octet pour octet, le fichier que GitHub publie pour la version. Cela ne vous protège pas si le compte du développeur est piraté, contrairement à une signature de développeur — et macOS peut vous redemander les autorisations de confidentialité de ces apps après chaque mise à jour."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verifica solo che il download sia, byte per byte, il file che GitHub pubblica per la release. Non ti protegge se l’account dello sviluppatore viene compromesso, cosa che una firma dello sviluppatore farebbe, e macOS potrebbe chiederti di nuovo i permessi per la privacy di queste app dopo ogni aggiornamento."
+            "value": "Verifica solo che il download sia, byte per byte, il file che GitHub pubblica per la release. Non ti protegge se l’account dello sviluppatore viene compromesso, mentre una firma dello sviluppatore sì, e macOS potrebbe chiederti di nuovo i permessi per la privacy di queste app dopo ogni aggiornamento."
           }
         },
         "ja": {
@@ -11528,7 +11528,7 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verifica apenas se o download é, byte a byte, o arquivo que o GitHub publica para a versão. Isso não protege você se a conta do desenvolvedor for invadida, o que uma assinatura de desenvolvedor faria — e o macOS pode pedir que você conceda de novo as permissões de privacidade desses apps após cada atualização."
+            "value": "Verifica apenas se o download é, byte a byte, o arquivo que o GitHub publica para a versão. Isso não protege você se a conta do desenvolvedor for invadida, coisa que uma assinatura de desenvolvedor evitaria — e o macOS pode pedir que você conceda de novo as permissões de privacidade desses apps após cada atualização."
           }
         },
         "ru": {
@@ -11540,7 +11540,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yalnızca indirilen dosyanın, GitHub’ın sürüm için yayımladığı dosyayla bayt bayt aynı olduğunu denetler. Geliştiricinin hesabı ele geçirilirse bu seni korumaz; geliştirici imzası korurdu. Ayrıca macOS her güncellemeden sonra bu uygulamaların gizlilik izinlerini yeniden isteyebilir."
+            "value": "Yalnızca indirilen dosyanın, GitHub’ın sürüm için yayımladığı dosyayla bayt bayt aynı olduğunu denetler. Geliştiricinin hesabı ele geçirilirse bu sizi korumaz; geliştirici imzası korurdu. Ayrıca macOS her güncellemeden sonra bu uygulamaların gizlilik izinlerini yeniden isteyebilir."
           }
         },
         "zh-Hans": {
@@ -11552,7 +11552,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "只核對下載的檔案與 GitHub 為該版本公布的檔案逐位元組一致。如果開發者的帳號被盜，這擋不住——開發者簽名能擋住。另外，每次更新後 macOS 可能會要求你重新授予這些 App 的隱私權限。"
+            "value": "只核對下載的檔案與 GitHub 為該版本公布的檔案逐位元組一致。如果開發者的帳號被盜，這擋不住——開發者簽署能擋住。另外，每次更新後 macOS 可能會要求你重新授予這些 App 的隱私權限。"
           }
         }
       }
@@ -11764,7 +11764,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Para apps cuyas versiones en GitHub solo tienen firma ad hoc: Alacritty, Flameshot y darktable. Una app instalada con firma de desarrollador nunca se sustituye por una sin ella, diga lo que diga este ajuste."
+            "value": "Para apps cuyas versiones en GitHub solo tienen firma ad hoc: Alacritty, Flameshot y darktable. Una app instalada con firma de desarrollador nunca se sustituye por una sin ella, sea cual sea este ajuste."
           }
         },
         "fr": {
@@ -11800,7 +11800,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub sürümleri yalnızca ad hoc imzalı uygulamalar için: Alacritty, Flameshot ve darktable. Geliştirici imzasıyla yüklenmiş bir uygulama, bu ayar ne olursa olsun, imzasız bir sürümle asla değiştirilmez."
+            "value": "GitHub sürümleri yalnızca ad hoc imzalı olan uygulamalar için: Alacritty, Flameshot ve darktable. Geliştirici imzasıyla yüklenmiş bir uygulama, bu ayar ne olursa olsun, imzasız bir sürümle asla değiştirilmez."
           }
         },
         "zh-Hans": {
@@ -11812,7 +11812,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "適用於 GitHub 發佈版只有 ad hoc 簽名的 App：Alacritty、Flameshot 和 darktable。已裝的 App 如果帶開發者簽名，無論這裡怎麼設，都不會被沒有簽名的版本取代。"
+            "value": "適用於 GitHub 發布版只有 ad hoc 簽署的 App：Alacritty、Flameshot 和 darktable。已安裝的 App 如果帶開發者簽署，無論這裡怎麼設，都不會被未簽署的版本替換。"
           }
         }
       }
@@ -11942,7 +11942,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub 沒有為這個版本公布檔案雜湊，所以沒有開發者簽名的 App 無法一鍵更新。"
+            "value": "GitHub 沒有為這個版本公布檔案雜湊，所以沒有開發者簽署的 App 無法一鍵更新。"
           }
         }
       }
@@ -14110,7 +14110,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La copie installée n’a pas de signature de développeur, mais cette version est signée par un développeur (équipe %@). DuoUpdater ne peut pas confirmer qu’il s’agit de la même app et ne la remplacera donc pas — installe cette version à la main une fois."
+            "value": "La copie installée n’a pas de signature de développeur, mais cette version est signée par un développeur (équipe %@). DuoUpdater ne peut pas confirmer qu’il s’agit de la même app et ne la remplacera donc pas — installez cette version à la main, une seule fois."
           }
         },
         "it": {
@@ -14140,7 +14140,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yüklü kopyanın geliştirici imzası yok, ama bu sürüm bir geliştirici tarafından imzalanmış (ekip %@). DuoUpdater bunların aynı uygulama olduğunu doğrulayamadığı için değiştirmeyecek — bu sürümü bir kez elle yükle."
+            "value": "Yüklü kopyanın geliştirici imzası yok, ama bu sürüm bir geliştirici tarafından imzalanmış (ekip %@). DuoUpdater bunların aynı uygulama olduğunu doğrulayamadığı için değiştirmeyecek — bu sürümü bir kez elle yükleyin."
           }
         },
         "zh-Hans": {
@@ -14152,7 +14152,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "已裝的副本沒有開發者簽名，而這個版本有開發者簽名（團隊 %@）。DuoUpdater 無法確認兩者是同一個 App，所以不會取代——請手動安裝一次這個版本。"
+            "value": "已安裝的副本沒有開發者簽署，而這個版本有開發者簽署（團隊 %@）。DuoUpdater 無法確認兩者是同一個 App，所以不會替換——請手動安裝一次這個版本。"
           }
         }
       }
@@ -14217,7 +14217,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這個 App 沒有開發者簽名，GitHub 也沒有為這個版本公布檔案雜湊，所以無法一鍵更新。"
+            "value": "這個 App 沒有開發者簽署，GitHub 也沒有為這個版本公布檔案雜湊，所以無法一鍵更新。"
           }
         }
       }
@@ -14228,7 +14228,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diese App hat keine Entwicklersignatur, und One-Click-Updates für solche Apps sind in den Einstellungen ausgeschaltet. Es wurde nichts geändert."
+            "value": "Diese App hat keine Entwicklersignatur, und Ein-Klick-Updates für solche Apps sind in den Einstellungen ausgeschaltet. Es wurde nichts geändert."
           }
         },
         "es": {
@@ -14282,7 +14282,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這個 App 沒有開發者簽名，而這類 App 的一鍵更新在設定裡是關閉的。沒有做任何變更。"
+            "value": "這個 App 沒有開發者簽署，而這類 App 的一鍵更新在「設定」中是關閉的。沒有做任何變更。"
           }
         }
       }
@@ -14299,19 +14299,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta app no tiene firma de desarrollador, así que no se actualiza con un clic a menos que lo permitas en Ajustes; solo se comprobaría con el hash de archivo que publica GitHub."
+            "value": "Esta app no tiene firma de desarrollador, así que no se actualiza con un clic a menos que lo permitas en Ajustes, y entonces solo se comprueba con el hash de archivo que publica GitHub."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cette app n’a pas de signature de développeur : elle n’est mise à jour en un clic que si tu l’autorises dans les Réglages — vérifiée uniquement par le hachage de fichier que publie GitHub."
+            "value": "Cette app n’a pas de signature de développeur : elle n’est mise à jour en un clic que si vous l’autorisez dans les Réglages — vérifiée uniquement par le hachage de fichier que publie GitHub."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Questa app non ha la firma dello sviluppatore, quindi non viene aggiornata con un clic a meno che tu non lo consenta in Impostazioni; la verifica avverrebbe solo con l’hash del file pubblicato da GitHub."
+            "value": "Questa app non ha la firma dello sviluppatore, quindi non viene aggiornata con un clic a meno che tu non lo consenta in Impostazioni, e in tal caso la verifica avviene solo con l’hash del file pubblicato da GitHub."
           }
         },
         "ja": {
@@ -14335,7 +14335,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bu uygulamanın geliştirici imzası yok; bu yüzden Ayarlar’da izin vermedikçe tek tıkla güncellenmez — izin verirsen yalnızca GitHub’ın yayımladığı dosya karmasıyla denetlenir."
+            "value": "Bu uygulamanın geliştirici imzası yok; bu yüzden Ayarlar’da izin vermedikçe tek tıkla güncellenmez — izin verirseniz yalnızca GitHub’ın yayımladığı dosya karmasıyla denetlenir."
           }
         },
         "zh-Hans": {
@@ -14347,7 +14347,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這個 App 沒有開發者簽名，除非你在設定裡允許，否則不會一鍵更新——允許後也只按 GitHub 公布的檔案雜湊核對。"
+            "value": "這個 App 沒有開發者簽署，除非你在「設定」中允許，否則不會一鍵更新——允許後也只按 GitHub 公布的檔案雜湊核對。"
           }
         }
       }
@@ -14370,7 +14370,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cette app n’a pas de signature de développeur : seul le hachage de fichier publié par GitHub est vérifié. macOS peut te redemander ses autorisations de confidentialité (comme l’enregistrement de l’écran ou l’accessibilité) après chaque mise à jour."
+            "value": "Cette app n’a pas de signature de développeur : seul le hachage de fichier publié par GitHub est vérifié. macOS peut vous redemander ses autorisations de confidentialité (comme « Enregistrement de l’écran » ou « Accessibilité ») après chaque mise à jour."
           }
         },
         "it": {
@@ -14412,7 +14412,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這個 App 沒有開發者簽名，所以只核對 GitHub 公布的檔案雜湊。每次更新後，macOS 可能會要求你重新授予它的隱私權限（如螢幕錄製或輔助使用）。"
+            "value": "這個 App 沒有開發者簽署，所以只核對 GitHub 公布的檔案雜湊。每次更新後，macOS 可能會要求你重新授予它的隱私權限（如螢幕錄製或輔助使用）。"
           }
         }
       }

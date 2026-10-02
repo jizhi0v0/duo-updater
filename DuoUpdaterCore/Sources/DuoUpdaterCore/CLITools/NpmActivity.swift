@@ -70,8 +70,8 @@ public enum NpmActivity {
         for process in processes {
             if let node, let executable = process.executable,
                URL(fileURLWithPath: executable).resolvingSymlinksInPath().path == node,
-               let command = npmCommand(process.arguments) {
-                return .npm(command, pid: process.pid)
+               let command = npmCommand(process.arguments) ?? ownUpdaterTitle(process.arguments, install: install) {
+                return command.hasPrefix("npm") ? .npm(command, pid: process.pid) : .ownUpdater(command, pid: process.pid)
             }
             if let command = ownUpdater(process.arguments, install: install) {
                 return .ownUpdater(command, pid: process.pid)
@@ -120,6 +120,22 @@ public enum NpmActivity {
             }
         }
         return nil
+    }
+
+    /// openclaw's update under the title it gives itself. openclaw names each
+    /// process after its command (`setProcessTitleForCommand`: `openclaw-<name>`),
+    /// so once running, `openclaw update` is argv `["openclaw-update", "", …]`,
+    /// and the doctor it runs next `openclaw-doctor` — seen with `ps` during a real
+    /// one-click from DuoUpdater, 2026-10-02, where the argv form below matched
+    /// for none of it. Like npm's title, attributed to the prefix by its node
+    /// (`busy`). A doctor the user runs by hand also counts: busy for a while,
+    /// never a race.
+    static func ownUpdaterTitle(_ arguments: [String], install: NpmInstall) -> String? {
+        guard case .openclaw = install.ownUpdate, let first = arguments.first,
+              arguments.dropFirst().allSatisfy(\.isEmpty),
+              first == "openclaw-update" || first == "openclaw-doctor"
+        else { return nil }
+        return "openclaw " + first.dropFirst("openclaw-".count)
     }
 
     // MARK: - Reading the process table

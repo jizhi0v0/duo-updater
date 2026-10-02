@@ -706,6 +706,25 @@ final class NpmRecorder: @unchecked Sendable {
         #expect(NpmActivity.busy(install, processes: [status]) == nil)
     }
 
+    /// Once running, openclaw's update and its doctor carry only their titles —
+    /// `openclaw-update`, `openclaw-doctor` — and count, run by this prefix's node.
+    /// Its other commands, and another node's, do not.
+    ///
+    /// Mutation: drop `ownUpdaterTitle` from `busy`.
+    @Test func openclawsOwnUpdateIsBusyUnderItsTitle() throws {
+        let box = try NpmSandbox()
+        let install = try activityInstall(box, "openclaw")
+        let node = box.path("p/bin/node")
+        for title in ["openclaw-update", "openclaw-doctor"] {
+            let running = NpmActivity.Process(pid: 5, arguments: [title, "", ""], executable: node)
+            #expect(NpmActivity.busy(install, processes: [running]) == .ownUpdater("openclaw " + title.dropFirst(9), pid: 5))
+        }
+        let gateway = NpmActivity.Process(pid: 6, arguments: ["openclaw-gateway", "", ""], executable: node)
+        #expect(NpmActivity.busy(install, processes: [gateway]) == nil)
+        let elsewhere = NpmActivity.Process(pid: 7, arguments: ["openclaw-update", ""], executable: "/ZZFixture-other/bin/node")
+        #expect(NpmActivity.busy(install, processes: [elsewhere]) == nil)
+    }
+
     // MARK: - Provider
 
     /// A Node.js-signed node whose layout does not name its version is asked,

@@ -36,11 +36,12 @@ enum com_workbuddy_workbuddy {
         // `workBuddyHeadingPattern` turns the bracketed labels into headings
         // (it finds none on the CN page, so sharing it costs that page nothing).
         //
-        // TRAP: the CN page's date parentheses are FULLWIDTH（）in the bytes —
-        // they render close enough to ASCII that reading the page in a browser
-        // tells you nothing — while the intl page's are ASCII `()` (it used
-        // fullwidth too until its rebuild; History). A pattern written for only
-        // one form misses the other site, so both are accepted.
+        // TRAP: the date parentheses are FULLWIDTH（）on most CN headings but
+        // ASCII `()` on others (5.1.0 back to 4.8.0 mix the two), and ASCII on
+        // the intl page (it used fullwidth too until its rebuild; History). The
+        // two render close enough that reading the page in a browser tells you
+        // nothing. A pattern written for only one form drops dates on BOTH
+        // sites, so both are accepted.
         //
         // The heading text between version and date varies by era — "版本发布 🚀",
         // "Lanched 🚀" (the vendor's own typo), or nothing at all — so the pattern

@@ -83,9 +83,10 @@ struct WorkBuddyChangelogTests {
         #expect(!log.entries.contains { $0.items.contains { $0.contains("[") } })
     }
 
-    /// The trap that reading the page in a browser cannot reveal: the CN page's
-    /// date parentheses are FULLWIDTH（）, the intl page's are ASCII. A pattern
-    /// written for one form silently drops every date on the other site.
+    /// The trap that reading the page in a browser cannot reveal: most of the CN
+    /// page's date parentheses are FULLWIDTH（）(some older ones are ASCII), the
+    /// intl page's are ASCII. A pattern written for one form silently drops dates
+    /// on both sites.
     @Test func theDateParenthesesDifferBetweenTheSites() throws {
         #expect(cnFixture.contains("（2026-08-17）"))
         #expect(!cnFixture.contains("(2026-08-17)"))

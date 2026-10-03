@@ -71,7 +71,7 @@ jobs:
       # The default pull_request checkout is the synthetic merge commit; the
       # markers record head SHAs, so check out the head itself, with history.
       - name: Check out
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -85,10 +85,10 @@ jobs:
 
       - name: Review
         if: steps.prep.outputs.mode != 'skip'
-        # Unreleased main: the first commit that installs Claude Code 2.1.280,
-        # the minimum for claude-opus-5-5 (v1.0.231 still installs 2.1.278).
-        # Move back to a release tag once one ships with 2.1.280 or newer.
-        uses: anthropics/claude-code-action@9ca9355b36297178e28d37c799d1c9c8a28e6507 # main, 2026-09-22
+        # A release at or after 9ca9355 (main, 2026-09-22), the first commit that
+        # installs Claude Code 2.1.280, the minimum for claude-opus-5-5
+        # (v1.0.231 still installs 2.1.278). Don't go below it.
+        uses: anthropics/claude-code-action@ed670b4cf9de2a5a570d130d2f6197b9e543cd64 # v1.0.240
         # Subagents in the foreground. On #949 the reviewer split the work across
         # three Agent calls, which ran in the background, and ended its turn: no
         # review.md, three runs in a row (the run Summary's report showed it; the

@@ -757,6 +757,23 @@ struct MacAppStorePageCacheTests {
         #expect(ScriptedHTTP.count(matching: { $0.host == "itunes.apple.com" }) == 1)
     }
 
+    /// The batch's `bundleId` list is part of its URL, and the URL is the
+    /// `URLCache` key: the same apps must produce the same lists every round,
+    /// whatever order they arrive in and however often one repeats.
+    ///
+    /// Pins `lookupBatches` sorting. Mutation run: putting back the old
+    /// `Array(Set(...))` turns this red — the flattened batches stop matching
+    /// the sorted ids, and fresh sets of the same ids disagree with each other.
+    @Test func lookupBatchesDoNotDependOnInputOrder() {
+        let ids = (1...45).map { "com.example.app\($0)" }
+        let reference = MacAppStoreSource.lookupBatches(ids)
+        #expect(reference.map(\.count) == [20, 20, 5])
+        #expect(reference.flatMap { $0 } == ids.sorted())
+        for _ in 0..<20 {
+            #expect(MacAppStoreSource.lookupBatches(ids.shuffled() + ids.prefix(3)) == reference)
+        }
+    }
+
     /// A REBUILT source stack still sees the cached page.
     ///
     /// This is the case whose absence let the original bug ship. The two TTL

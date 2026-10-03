@@ -74,8 +74,8 @@ public struct MacAppStoreSource: UpdateSource {
     /// waiting here still occupies one of that window's slots, the same as
     /// any other in-flight check would.
     public func prewarm(_ apps: [InstalledApp]) async {
-        let bundleIDs = Array(Set(apps.compactMap { $0.isMASApp ? $0.bundleID : nil }))
-        guard !bundleIDs.isEmpty else { return }
+        let batches = Self.lookupBatches(apps.compactMap { $0.isMASApp ? $0.bundleID : nil })
+        guard !batches.isEmpty else { return }
         // Chunks run CONCURRENTLY, and that is still not a micro-optimisation
         // — just not for the old reason. It no longer keeps a chunk's timeout
         // out of the main fan-out's way; `prewarm` already does that above by
@@ -101,7 +101,7 @@ public struct MacAppStoreSource: UpdateSource {
         // which is what `batchLookup` wants) but not its lifetime.
         let work = Task { [self] in
         await withTaskGroup(of: (region: String, lang: String?, batch: [String: LookupResult?])?.self) { group in
-            for chunk in Self.chunked(bundleIDs, size: 20) {
+            for chunk in batches {
                 group.addTask {
                     do {
                         return (self.homeRegion, lang, try await self.batchLookup(
@@ -134,6 +134,21 @@ public struct MacAppStoreSource: UpdateSource {
     /// than `latestVersion(for:)` actually reads, silently doing nothing.
     public func invalidateMemo(for apps: [InstalledApp]) async {
         await pageCache.invalidate(bundleIDs: apps.compactMap(\.bundleID))
+    }
+
+    /// The `bundleId` lists `prewarm` sends, 20 to a request, de-duplicated and
+    /// SORTED.
+    ///
+    /// Sorted because the list is the URL, and the URL is the `URLCache` key. This
+    /// used to be `Array(Set(ids))`, and a Swift `Set` is seeded per instance, so
+    /// the same ids come out in a different order from one round to the next
+    /// (measured 2026-10-03: 4 distinct orders from 20 fresh sets of the same 12
+    /// strings, in one process). Every new order was a new URL — a fresh ~32 KB
+    /// response stored next to the old ones and never read again, in a cache
+    /// whose real memory cost is about twice what it counts (see
+    /// `URLSession.updatesCacheCapacity`).
+    static func lookupBatches(_ bundleIDs: [String], size: Int = 20) -> [[String]] {
+        chunked(Set(bundleIDs).sorted(), size: size)
     }
 
     private static func chunked(_ items: [String], size: Int) -> [[String]] {

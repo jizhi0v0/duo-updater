@@ -72,7 +72,7 @@ public struct ElectronManifestSource: UpdateSource {
         // never anything here to revalidate, so each check is a full body — a few
         // hundred bytes, the same cost the app's own updater pays. The session's
         // memory cache still stores each one-off response under a key nothing asks
-        // for again; at that size against its 64 MB cap it is noise.
+        // for again; at that size against its cap (`updatesCacheCapacity`) it is noise.
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
 

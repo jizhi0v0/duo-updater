@@ -61,21 +61,22 @@ struct GitHubListPageSizeTests {
         "com.microsoft.Headlamp/stable": 5,   // gap 4 (v0.23.0→v0.22.0), +1
         "com.bitwarden.desktop/stable": 8,    // gap 7 (desktop-v2026.6.0→…2026.5.0), +1
         "com.t3tools.t3code/nightly": 3,      // gap 2 (…20260902.1252→…20260901.1250), +1
-        // Cua Driver: newest 100 releases on 2026-09-16, 21 `cua-driver-rs-v`
-        // tags; worst gap 18 (v0.20.0 → v0.19.3 — five days of nightlies, lume,
-        // fleet and sandbox releases between two stable driver cuts), so 19.
-        // Re-walked over the repo's whole history the same day (683 releases, 88
-        // matches) and the worst gap is still 18, so this floor does not depend on
-        // the 100-row window the rest of this table uses. The deepest floor here
-        // by a wide margin, and the rule pays for it in bytes; the audit carries
-        // the wire cost.
-        "com.trycua.driver/stable": 19,
-        // Cua Driver nightly: the mirror image — the nightly job cuts a release
-        // most mornings, so a matching tag is usually row 0. All 23 nightly tags
-        // ever published sit inside the newest 100 rows; worst gap 8, so 9. (Both
-        // windows give the same answer here for a duller reason than stable's:
-        // the nightly train is younger than the 100-row window.)
-        "com.trycua.driver/nightly": 9,
+        // Cua Driver: the one row here whose floor comes from the LEADING run —
+        // the rows ahead of the newest match — rather than from a gap between
+        // two matches. Newest 300 releases on 2026-10-03: the first
+        // `cua-driver-rs-v` tag sat at index 26, under two days of a brand-new
+        // `cua-spaces`/`cua-spacesd` burst plus a release of nearly every other
+        // product in the monorepo, so 27. The worst gap between two matches in
+        // that window is 17 (v0.20.0 → v0.19.3; 18 over the full history on
+        // 2026-09-16). The deepest floor here by a wide margin, and the rule pays
+        // for it in bytes; the audit carries the wire cost.
+        "com.trycua.driver/stable": 27,
+        // Cua Driver nightly: usually row 0 (the job cuts a release most
+        // mornings; worst gap between two nightlies in the newest 300 rows is
+        // 7), but the same 2026-10-03 walk found the newest nightly at index 30:
+        // the job had cut nothing for four days while the burst above landed.
+        // So 31.
+        "com.trycua.driver/nightly": 31,
         "uk.whatcable.whatcable/beta": 1,     // gap 0 (all 100 tags match), +1
         // CotEditor: gap 0 — its beta rule accepts plain tags as well as `-beta`
         // ones (a cyclical train whose copies must be able to take the release

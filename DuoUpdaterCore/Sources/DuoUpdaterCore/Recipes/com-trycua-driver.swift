@@ -38,17 +38,20 @@ enum com_trycua_driver {
         // grammar is the vendor's own, copied from `_install-rust.sh`: stable is
         // exactly `x.y.z`, nightly is that plus the `-nightly.…` suffix.
         //
-        // listPageSize: 25, against a floor of 19 registered in
+        // listPageSize: 50, against a floor of 27 registered in
         // `GitHubListPageSizeTests.measuredMinimumDepth` — History has the walk
-        // (newest 100 releases, recomputed in Python rather than reread out of this
-        // rule) and the worst gap it found. 25 carries margin over that floor the
-        // way Bitwarden's 10 carries margin over its 8, and it is NOT free: this is
-        // the most expensive GitHub rule in the registry, because a page of this
-        // repo is mostly other products' release bodies (History has the wire
-        // bytes at three page sizes). A stable train that went quiet for longer
-        // than the page could hold would push the newest match off it, which
-        // surfaces as a `recordMiss` and a row going `.unknown`, not as a confident
-        // "up to date".
+        // (recomputed in Python rather than reread out of this rule). The floor
+        // is set by the run of OTHER products' releases sitting AHEAD of the
+        // newest driver tag, not by a gap between two driver tags: this monorepo
+        // keeps adding trains, and a new one can put a burst of releases on top
+        // of the list within a couple of days. That is how both rules here once
+        // fell off their pages at the same time (History). 50 leaves roughly
+        // one more such burst of headroom, and it is NOT free: this is the most
+        // expensive GitHub rule in the registry, because a page of this repo is
+        // mostly other products' release bodies (History has the wire bytes per
+        // page size). A burst longer than the page still pushes the newest
+        // match off it, which surfaces as a `recordMiss` and a row going
+        // `.unknown`, not as a confident "up to date".
         //
         // probesNewestFirst is off for Bitwarden's reason, only with a wider
         // margin: stable driver tags are about an eighth of this repo's rows and
@@ -91,7 +94,7 @@ enum com_trycua_driver {
             bundleID: "com.trycua.driver",
             owner: "trycua", repo: "cua",
             usePrereleases: true,
-            listPageSize: 25,
+            listPageSize: 50,
             versionPattern: #"^cua-driver-rs-v([0-9]+\.[0-9]+\.[0-9]+)$"#,
             installAssetPattern:
                 #"^cua-driver-rs-[0-9]+\.[0-9]+\.[0-9]+-darwin-universal\.tar\.gz$"#,
@@ -119,11 +122,21 @@ enum com_trycua_driver {
         // third-party executables to learn a version is not a trade this project
         // makes.
         //
-        // Cheap where the stable rule is expensive, and for the mirror-image
-        // reason: the nightly job cuts a release most mornings, so a matching tag
-        // is usually row 0 — hence the small page and `probesNewestFirst` left at
-        // its default. Floor measured the same way as stable's; see
+        // `probesNewestFirst` stays at its default for the mirror image of
+        // stable's reason: the nightly job cuts a release most mornings, so a
+        // matching tag is usually row 0 and a page of one answers. The full page
+        // is still about as deep as stable's, because "most mornings" is not
+        // every morning: the job skips days (its release gate fails, or there is
+        // nothing new to cut), and other trains keep publishing meanwhile, so
+        // the newest nightly can sink under the same burst that sinks stable.
+        // Floor measured the same way as stable's; see
         // `GitHubListPageSizeTests.measuredMinimumDepth`.
+        //
+        // 48, not stable's 50, on purpose: equal sizes would give both rules
+        // the same list URL, and `newestProbeSize(for:)` reads "this rule's full
+        // page was already fetched once" off that URL's validator. A stable
+        // fetch would then pass for the nightly rule's seeding page, and the
+        // nightly timeline would never be back-filled.
         //
         // One-click: same artifact shape, same `-binary` exclusion, and the
         // nightly build is signed and notarized exactly like stable (Developer ID
@@ -135,7 +148,7 @@ enum com_trycua_driver {
             bundleID: "com.trycua.driver",
             owner: "trycua", repo: "cua",
             usePrereleases: true,
-            listPageSize: 12,
+            listPageSize: 48,
             versionPattern:
                 #"^nightly-cua-driver-rs-v([0-9]+\.[0-9]+\.[0-9]+)-nightly\.[0-9]{8}\.[1-9][0-9]*$"#,
             installAssetPattern:

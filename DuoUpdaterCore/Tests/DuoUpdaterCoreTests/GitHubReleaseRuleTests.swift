@@ -1017,10 +1017,9 @@ private func matches(
 
 @Test func unsignedBuildsStayDetectionOnly() {
     // Their artifacts are unsigned, or ad-hoc signed with a seal that does not
-    // verify, or (BlueBubbles) a question for the Team-ID gate; the rules must not
-    // carry an install spec at all.
+    // verify; the rules must not carry an install spec at all.
     for id in ["com.github.marktext.marktext", "org.zaproxy.zap.ZAP",
-               "com.BlueBubbles.BlueBubbles-Server", "org.winehq.wine-staging.wine"] {
+               "org.winehq.wine-staging.wine"] {
         #expect(rule(id).installAssetPattern == nil, "\(id) must stay detection-only")
         #expect(rule(id).installerKind == nil, "\(id) must stay detection-only")
     }
@@ -1031,6 +1030,27 @@ private func matches(
     }
     #expect(extract("release-5.6.0", "org.darktable") == "5.6.0")
     #expect(extract("11.15", "org.winehq.wine-staging.wine") == "11.15")
+}
+
+/// BlueBubbles Server left the detection-only group on 2026-10-02: its dmg is
+/// Developer ID signed (Team WPV275H8W7) and only unnotarized, which no install
+/// gate checks. Real v1.9.9 assets; DuoUpdater is arm64-only, so the bare dmg
+/// (BUILD_PLAIN_ARCH) must never be picked.
+@Test func blueBubblesServerInstallsTheArm64Dmg() {
+    let id = "com.BlueBubbles.BlueBubbles-Server"
+    #expect(rule(id).installerKind == .dmg)
+    #expect(extract("v1.9.9", id) == "1.9.9")
+    #expect(matches("BlueBubbles-1.9.9-arm64.dmg", id))
+    #expect(!matches("BlueBubbles-1.9.9.dmg", id))
+    #expect(!matches("BlueBubbles-1.9.9-arm64.dmg.blockmap", id))
+    #expect(!matches("BlueBubbles-1.9.6-mac.zip", id))
+    guard let pattern = rule(id).installAssetPattern else {
+        Issue.record("\(id) has no installAssetPattern")
+        return
+    }
+    let v199 = assetList(["BlueBubbles-1.9.9-arm64.dmg", "BlueBubbles-1.9.9.dmg"])
+    #expect(GitHubReleaseRule.installableAsset(from: v199, matching: pattern, preferring: .arm64)?
+        .url.lastPathComponent == "BlueBubbles-1.9.9-arm64.dmg")
 }
 
 @Test func registryHasNoDuplicateBundleChannelPairs() {

@@ -75,4 +75,46 @@ enum LittleSnitchFeedFixture {
 </array>
 </plist>
 """#
+
+    /// The real body as read on 2026-10-03, verbatim: the feed BETWEEN nightly
+    /// cycles. 6.5 final (7303) has superseded the 6.5 nightly (7301), and the
+    /// array lists the `final` entry alone — no `nightly` entry at all, while
+    /// `download-nightly.html` 302s to the stable download page. Issues #861
+    /// (the nightly recipe read this as broken) and #862 (the stable recipe
+    /// warned `entryPatternNoMatch` on a one-entry array).
+    static let body20261003 = #"""
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<array>
+    <dict>
+        <key>ReleaseLifecycle</key>
+        <string>final</string>
+        <key>BundleVersion</key>
+        <string>7303</string>
+        <key>BundleShortVersionString</key>
+        <string>6.5</string>
+        <key>MinimumSystemVersion</key>
+        <string>14.0</string>
+        <key>MaximumSystemVersion</key>
+        <string>27.99</string>
+        <key>ReleaseNotesURL</key>
+        <string>https://sw-update.obdev.at/update-feeds/releasenotes-legacy-swu.php?product=3&amp;version=7303&amp;installed=</string>
+        <key>DownloadPageURL</key>
+        <dict>
+            <key>en</key>
+            <string>https://obdev.at/littlesnitch/download.html</string>
+            <key>de</key>
+            <string>https://obdev.at/de/littlesnitch/download.html</string>
+        </dict>
+        <key>DownloadURL</key>
+        <string>https://sw-update.obdev.at/ftp/pub/Products/LittleSnitch/LittleSnitch-6.5.dmg</string>
+        <key>InstallationObject</key>
+        <string>Little Snitch.app</string>
+        <key>InstallationMechanism</key>
+        <string>ReplaceBundle</string>
+    </dict>
+</array>
+</plist>
+"""#
 }

@@ -60,6 +60,10 @@ Mozilla 的 `aN`/`bN`/`esr` 形状,是空格 + 括号构建号）,`ReleaseChanne
   `ReleaseNotesURL`/`InstallationMechanism`。
 - Recipe 用 `entryStartPattern` 把两条记录切开,`final`/`nightly` 关键字锚定各自记录的
   `BundleVersion`,不依赖 feed 里两条记录谁先谁后。
+- **两个 nightly 周期之间** feed 只剩 `final` 一条记录（`download-nightly.html` 同时 302 到
+  stable 下载页）。nightly recipe 用 `trackClosedPattern`（"所有 lifecycle 都是 `final`"）
+  把它读成轨道关闭 → `.notApplicable`,不红、`duo verify` 记为 skipped;stable recipe 把
+  单条记录当作一个条目切片,不再报 `entryPatternNoMatch`（#861、#862）。
 - **版本方案**：feed 的 `BundleVersion` 与真实安装包的 `CFBundleVersion` 逐字节一致
   （stable `7212`、nightly `7301`），`versionIsBuild: true`。
 - **是"轨道最新"还是"本机被分配"**：这个端点不带任何设备标识或分批参数,是一份公开的静态
@@ -169,3 +173,12 @@ notes endpoint the feed points at
 (`releasenotes-legacy-swu.php?version=<build>`) is pinned to whichever
 build this comment was written against, which would go stale the next
 nightly ships.
+
+**两个 nightly 周期之间（2026-10-03，#861 / #862）**：`littlesnitch6.plist` 只剩一条 `final`
+6.5/7303（1288 字节），`nightly` 条目整条消失；`obdev.at/littlesnitch/download-nightly.html`
+302 → `products/littlesnitch/download-nightly.html` 302 → `products/littlesnitch/download.html`
+（页面只给 6.5 正式版），Homebrew `little-snitch@nightly` 仍写着 6.5,7301，但它的
+`LittleSnitch-6.5-nightly-(7301).dmg` 已 404。修复前 sweep 连续 29+ 次：nightly 报
+`versionPatternNoMatch`，stable 解析出 6.5 但报 `entryPatternNoMatch`（`highestVersionEntry`
+当时把"只有一条记录"当作回退）。响应体原样存为 `Tests/LittleSnitchFeedFixture.swift` 的
+`body20261003`。

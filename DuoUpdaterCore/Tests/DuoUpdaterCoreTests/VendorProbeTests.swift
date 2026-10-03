@@ -1139,10 +1139,26 @@ private func verdict(
 /// into "search the whole body" — see `VendorProbeSource.probeOutcome`) rather
 /// than crash or silently pick something arbitrary.
 @Test func highestVersionEntryFallsBackWhenThereIsNothingToDisambiguate() {
-    // Fewer than two `entryStartPattern` matches: nothing to slice.
+    // No `entryStartPattern` match at all: nothing to slice.
     #expect(
         VendorProbeRecipe.highestVersionEntry(
-            in: #"{"date":"x","build":"AI-1.0"}"#,
+            in: #"{ "date":"x","build":"AI-1.0"}"#,
+            entryStartPattern: #"\{"date":""#,
+            versionPattern: #""build":"(AI-[^"]+)""#) == nil)
+
+    // ONE match is a one-entry feed, not a fallback (issue #862): the slice
+    // from it to the end is that entry, minus whatever precedes it.
+    #expect(
+        VendorProbeRecipe.highestVersionEntry(
+            in: #"{"content":[{"date":"x","build":"AI-1.0"}]}"#,
+            entryStartPattern: #"\{"date":""#,
+            versionPattern: #""build":"(AI-[^"]+)""#) == #"{"date":"x","build":"AI-1.0"}]}"#)
+
+    // ...and goes through the same straddle guard as any winner: one marker in
+    // front of two releases is not one release.
+    #expect(
+        VendorProbeRecipe.highestVersionEntry(
+            in: #"{"date":"x","build":"AI-2.0"},{ "date":"y","build":"AI-1.0"}"#,
             entryStartPattern: #"\{"date":""#,
             versionPattern: #""build":"(AI-[^"]+)""#) == nil)
 
@@ -1242,15 +1258,16 @@ private func verdict(
 }
 
 /// The other two silent paths #79 names, at the primitive's own level: an
-/// `entryStartPattern` that matches fewer than two entries, and a winning entry
-/// that trips the self-containment guard. Both return nil — which is precisely
-/// what `VendorProbeSource` now turns into the warning — so pinning them here
-/// keeps the warning's coverage tied to the primitive's contract rather than to
-/// the one reformatting scenario exercised end to end above.
+/// `entryStartPattern` that matches no entry, and a winning entry that trips the
+/// self-containment guard. Both return nil — which is precisely what
+/// `VendorProbeSource` now turns into the warning — so pinning them here keeps
+/// the warning's coverage tied to the primitive's contract rather than to the
+/// one reformatting scenario exercised end to end above. (One entry is not on
+/// this list: it is a one-release feed, scoped normally — issue #862.)
 @Test func everyWayHighestVersionEntryDeclinesIsAWarnedFallback() {
     let versionPattern = #"AI-([0-9.]+)"#
     let cases: [(why: String, body: String)] = [
-        ("fewer than two entries", #"{"date":"a","build":"AI-1.0"}"#),
+        ("no entries", #"{ "date":"a","build":"AI-1.0"}"#),
         ("no entry matches versionPattern",
          #"{"date":"a","other":"1"}{"date":"b","other":"2"}"#),
         ("the winning entry is not self-contained",

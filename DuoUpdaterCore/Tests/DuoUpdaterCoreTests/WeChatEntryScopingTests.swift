@@ -105,7 +105,7 @@ import Foundation
 
     /// The slicer must survive an attribute on the tag. A literal `<item>`
     /// pattern fails OPEN in the worst possible way: zero matches means
-    /// `highestVersionEntry` sees fewer than two entries, returns nil, and every
+    /// `highestVersionEntry` sees no entries, returns nil, and every
     /// reader reverts to whole-body first-match — this PR's bug, restored,
     /// behind nothing but a warning in the nightly sweep.
     ///

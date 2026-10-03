@@ -285,10 +285,12 @@ public enum ProbeWarning: Sendable, Equatable {
     /// Three runtime paths reach it, and none of them fails anything:
     ///  - the pattern doesn't compile (closed for authored recipes by
     ///    `entryStartPatternsInTheRegistryAreValidRegexes`, still reachable here),
-    ///  - it matches fewer than two entries — the vendor reformatted the feed.
+    ///  - it matches no entry at all — the vendor reformatted the feed.
     ///    Android Studio's `\{"date":"` is a byte-exact bet on minified JSON with
     ///    `date` as the first key: 671 matches on the live feed 2026-08-27, zero
-    ///    for `{ "date"`, so pretty-printing it is enough,
+    ///    for `{ "date"`, so pretty-printing it is enough. (One match is a feed
+    ///    listing one release, which is scoped normally and warns about nothing:
+    ///    issue #862),
     ///  - no entry matches `versionPattern`, or the winning entry matches it more
     ///    than once and the self-containment guard declines it.
     case entryPatternNoMatch

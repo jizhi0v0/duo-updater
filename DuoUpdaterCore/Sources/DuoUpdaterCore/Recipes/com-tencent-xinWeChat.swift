@@ -62,17 +62,15 @@ enum com_tencent_xinWeChat {
         // The pattern is `<item[\s>]`, not the literal `<item>` the feed uses
         // today, because the literal form fails OPEN in the worst way: an
         // attribute on the tag (`<item id="269579">`) would match zero times,
-        // `highestVersionEntry` would return nil for having fewer than two
-        // entries, and every reader would revert to whole-body first-match —
+        // `highestVersionEntry` would return nil for having no entries, and
+        // every reader would revert to whole-body first-match —
         // this bug, back, behind nothing but a `entryPatternNoMatch` warning
         // nobody reads until the nightly sweep. The character class costs
         // nothing and cannot match `<items>`.
         //
-        // One property worth knowing before reading a sweep report: slicing
-        // needs at least TWO matches to mean anything, so if Tencent ever trims
-        // the feed to a single item this recipe still answers correctly (the
-        // whole body IS that item) while reporting `entryPatternNoMatch`. That
-        // warning would be a false alarm, not a regression. Structured notes come from a
+        // If Tencent ever trims the feed to a single item, that item is scoped
+        // like any other and nothing is warned about (issue #862 made one match
+        // a one-entry feed rather than a fallback). Structured notes come from a
         // ChangelogRecipe over the official per-version updates page; changelogURL is
         // the webview fallback.
         VendorProbeRecipe(

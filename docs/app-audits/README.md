@@ -273,6 +273,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Kimi Code**](com-kimi-code-desktop.md) · `com.kimi.code.desktop` — C（`versionFromTemplate`：每版一个不带版本号的 `changelog.en.md`）· 检测与 zip 一键走 ElectronManifestSource · canary 在私有 GitHub 仓库，不接 · 2026-09-18
 - [x] [**Qoder CN**](com-qodercn-app.md) · `com.qodercn.app` — C · 检测与 zip 一键走 ElectronManifestSource（`static.qoder.com.cn` 的 `latest-mac.yml`）· 与 `com.qoder.app` 是两个产品：bundle id、Team（`9DFNGU9AK5`）、说明页都分开 · 真包 0.3.4 解包验证 ✓ · 2026-09-22
 - [x] [**Douchat**](ai-thinkany-douchat.md) · `ai.thinkany.douchat` — 检测与 zip 一键走 ElectronManifestSource（`cdn.douchat.ai` 的 `latest-mac.yml`）· 真包 0.1.8 挂载 + zip 解包验证 ✓（Team `JU9K7W6T6W`）· 无 changelog · 2026-09-22
+- [x] [**Ducoro**](ai-ducoro-desktop.md) · `ai.ducoro.desktop` — 检测与 zip 一键走 ElectronManifestSource（`static.ducoro.ai/desktop` 的 `latest-mac.yml`）· 真包 2026.1002.354 挂载 + zip 解包验证 ✓（Team `6YU2PK44KX`）· `release.json` 的 `channel: alpha` 是成熟度标签不是另一条轨 · 无结构化 changelog：What's New 只按日期、无版本号 · 包内常驻 `ducoro-cli` daemon，行为同厂商自更新 · 2026-10-04
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 

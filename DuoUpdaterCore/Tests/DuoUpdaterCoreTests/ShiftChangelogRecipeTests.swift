@@ -85,6 +85,36 @@ struct ShiftChangelogRecipeTests {
         #expect(items.contains { $0.hasPrefix("add desktop application updates") })
     }
 
+    /// Release Please writes a repo's FIRST release without brackets or a compare
+    /// link (googleapis/release-please-action's CHANGELOG ends with
+    /// `## 1.0.0 (2020-05-09)`). Shift's file has no such entry yet, but its
+    /// oldest one will take that shape once history accumulates past it.
+    /// Mutation: make `\[?` / `\]?` / the link group required → the oldest entry
+    /// disappears.
+    @Test func aFirstReleaseWithoutACompareLinkIsStillAnEntry() throws {
+        let body = """
+        # Changelog
+
+        ## [0.1.1](https://github.com/shift-editor/shift/compare/v0.1.0...v0.1.1) (2026-10-01)
+
+
+        ### Features
+
+        * add desktop application updates ([92d54f1](https://github.com/shift-editor/shift/commit/92d54f17d0e41ad3080dbfd560a2151f4faec3c6))
+
+        ## 0.1.0 (2026-09-01)
+
+
+        ### Features
+
+        * first preview ([#1](https://github.com/shift-editor/shift/issues/1)) ([0000000](https://github.com/shift-editor/shift/commit/0000000000000000000000000000000000000000))
+        """
+        let parsed = try #require(ChangelogService.parse(try Self.recipe, body: body))
+        #expect(parsed.entries.map(\.version) == ["0.1.1", "0.1.0"])
+        #expect(parsed.entries.last?.date == "2026-09-01")
+        #expect(parsed.entries.last?.items.count == 1)
+    }
+
     @Test func theThreeGroupsSurviveAsHeadings() throws {
         let parsed = try #require(ChangelogService.parse(try Self.recipe, body: Self.fixture))
         let entry = try #require(parsed.entries.first)

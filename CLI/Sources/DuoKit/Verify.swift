@@ -189,13 +189,7 @@ public enum Verify {
         // the RC recipe the Stable version 404s — a failure invented by the sweep,
         // not by the vendor. The bare-id entries stay as the fallback for the common
         // case (one recipe, `channel: nil`), where there is nothing to disambiguate.
-        var knownVersions: [String: String] = [:]
-        for finding in findings {
-            guard let version = finding.version else { continue }
-            let keyed = "\(finding.bundleID):\(finding.channel)"
-            if knownVersions[keyed] == nil { knownVersions[keyed] = version }
-            if knownVersions[finding.bundleID] == nil { knownVersions[finding.bundleID] = version }
-        }
+        let knownVersions = knownVersions(from: findings)
         if options.registries.contains(.changelog) {
             // Fall back to the installed copy's version for templated recipes
             // when no version source ran this sweep (`--changelog` on its own).
@@ -278,6 +272,11 @@ public enum Verify {
         known: [String: String], installed: [String: InstalledVersion]
     ) -> [String: String] {
         var versions = known
+        // Bare ids this loop filled, and from which channel. A live answer in
+        // `known` always wins; among installed copies, Stable does (see
+        // `knownVersions(from:)` — `installed` is a dictionary, so without this
+        // the bare value would be whichever channel it happened to iterate first).
+        var bareFromInstalled: [String: Bool] = [:]
         let prefix = "vendor:"
         for (key, value) in installed {
             guard key.hasPrefix(prefix), let marketing = value.marketing else { continue }
@@ -286,9 +285,52 @@ public enum Verify {
 
             guard let channelSeparator = channelKey.lastIndex(of: ":") else { continue }
             let bundleID = String(channelKey[..<channelSeparator])
-            if versions[bundleID] == nil { versions[bundleID] = marketing }
+            let stable = isStableChannel(String(channelKey[channelKey.index(after: channelSeparator)...]))
+            let filled = bareFromInstalled[bundleID]
+            if (versions[bundleID] == nil && filled == nil) || (filled == false && stable) {
+                versions[bundleID] = marketing
+                bareFromInstalled[bundleID] = stable
+            }
         }
         return versions
+    }
+
+    /// The versions this sweep's probes and rules answered, keyed by
+    /// `<bundle-id>:<channel>` and by bare bundle id.
+    ///
+    /// The bare key serves a changelog recipe with `channel: nil`, and it takes
+    /// the Stable answer whenever there is one. It used to take whichever finding
+    /// came first, and the vendor sweep runs hosts concurrently: once Blender
+    /// gained an alpha track on builder.blender.org beside its stable probe on
+    /// www.blender.org, the alpha's 5.3.0 often won, templated the in-development
+    /// 5.3 notes page — which deliberately yields no entries — and reported the
+    /// stable changelog broken (#874).
+    ///
+    /// A non-stable answer fills the bare key only for a family with no Stable
+    /// source at all, so one whose only source is a channel track keeps a
+    /// version. When a Stable source ran and came back empty, the bare key stays
+    /// empty: the installed copy's version (`changelogVersions`) or an honest
+    /// skip (`templatedSkipDetail`) follows, not the alpha's page.
+    static func knownVersions(from findings: [Finding]) -> [String: String] {
+        let hasStableSource = Set(findings.lazy
+            .filter { isStableChannel($0.channel) }.map(\.bundleID))
+        var versions: [String: String] = [:]
+        for finding in findings {
+            guard let version = finding.version else { continue }
+            let keyed = "\(finding.bundleID):\(finding.channel)"
+            if versions[keyed] == nil { versions[keyed] = version }
+            let usable = isStableChannel(finding.channel)
+                || !hasStableSource.contains(finding.bundleID)
+            if usable, versions[finding.bundleID] == nil {
+                versions[finding.bundleID] = version
+            }
+        }
+        return versions
+    }
+
+    /// `-` is a finding with no channel at all, which is a Stable answer.
+    static func isStableChannel(_ channel: String) -> Bool {
+        channel == ReleaseChannel.stable.rawValue || channel == "-"
     }
 
     /// A channel-scoped recipe may only use that channel's version. Falling back

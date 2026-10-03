@@ -19,10 +19,17 @@ enum com_google_antigravity {
         // The artifact is com.google.antigravity, Team EQHXZ8M8AV, notarized, with
         // no SUFeedURL (so nothing else covers it). The app sends an
         // `x-user-staging-id` header for its staged rollout; we deliberately do
-        // not — the feed answers the same manifest without it, and that header is
-        // a per-machine identifier. The consequence is that a release still
-        // rolling out (`stagingPercentage` below 100) would be offered here
-        // before the app itself takes it.
+        // not — that header is a per-machine identifier. The feed `vary`s on it,
+        // and what a header-less request gets during a rollout has gone BOTH
+        // ways (History has both measurements): on 2026-09-14 it was served
+        // 2.13.0 at `stagingPercentage: 10`, i.e. offered here before most
+        // installs take it; on 2026-09-23 it got the previous 2.15.1 every time
+        // while random staging ids drew 2.16.0 by bucket, i.e. trailing. So
+        // neither direction is a rule. When it trails, the changelog page lists
+        // the release from its first day and `duo verify` reports the notes
+        // "AHEAD of every probe row" until the feed catches up; when it leads,
+        // an installed copy can be offered a build its own feed hasn't given it
+        // yet. Check the live feed before dismissing either as the rollout.
         //
         // The feed's `sha512` is verifiable: on both checks (History) the served zip's
         // Content-Length was exactly the `size` it states, so the hash was
@@ -34,7 +41,7 @@ enum com_google_antigravity {
                 + ".us-central1.run.app/manifest/latest-arm64-mac.yml")!,
             mode: .responseBody,
             versionPattern: #"(?m)^version:\s*([0-9][0-9.]*)\s*$"#,
-            changelogURL: URL(string: "https://antigravity.google/changelog"),
+            changelogURL: URL(string: "https://antigravity.google/docs/changelog"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"url:\s*(https://storage\.googleapis\.com/\S+\.zip)"#),
@@ -97,70 +104,67 @@ enum com_google_antigravity {
             // No `changelogURL`, and no `ChangelogCatalog` entry either, so
             // `ChangelogRecipeSelection.fallbackPage` has no web page to offer for
             // this app; its notes come from the IDE `ChangelogRecipe` below, which
-            // reads the `tab=ide` panel of `antigravity.google/changelog`.
+            // reads the `ide` panel of `antigravity.google/docs/changelog`.
             downloadURL: URL(string: "https://antigravity.google/download")),
         ],
         changelogs: [
-        // Antigravity — antigravity.google/changelog, which the hub's
-        // `VendorProbeRecipe` already links as its `changelogURL`.
+        // History: docs/app-audits/com-google-antigravity.md#历史与实测
+        // Antigravity — antigravity.google/docs/changelog, which the hub's
+        // `VendorProbeRecipe` also links as its `changelogURL`. The old
+        // `/changelog` is now a meta-refresh stub pointing here; a meta refresh is
+        // not an HTTP redirect, so URLSession does not follow it and the recipe
+        // must name the new URL itself.
         //
-        // Read the DECODED body: when checked (History) the server answered gzip even
-        // for `Accept-Encoding: identity`, and counting the compressed stream is how
+        // Read the DECODED body: the server answers gzip even for
+        // `Accept-Encoding: identity`, and counting the compressed stream is how
         // this page was once misread as a JS-rendered shell with no versions.
-        // Decoded, it was fully server-rendered Astro markup carrying every release
+        // Decoded, it is fully server-rendered Astro markup carrying every release
         // for all four products — which is also why both apps can be covered from
         // the one page.
         //
-        // One page, four products, one panel each (`data-list-panel`), so the two
-        // recipes must not read each other's releases. They anchor on the release
-        // link instead of the panel wrapper, because the wrapper is an ancestor a
-        // flat regex cannot scope to: every row's version link carries the product
-        // in its own href — e.g. `/releases?tab=hub&version=2.12.0`.
+        // One page, four products, one panel each (`data-panel-id`), so the two
+        // recipes must not read each other's releases. They anchor on the row
+        // instead of the panel wrapper, because the wrapper is an ancestor a flat
+        // regex cannot scope to: every row is an `<article>` whose id carries the
+        // product and the bare version, e.g. `id="rel-hub-2.19.1"`. The id is read
+        // rather than the link text, which is `v`-prefixed (`v2.19.1`).
         //
-        // `body` stops at the next row, the next panel, or the section close, so a
-        // row can never absorb the one after it — and the run up to the `<h3>` is
-        // fenced by the same two markers, because it is otherwise the one
-        // unbounded part of the match: a row shipped without a heading would pair
-        // its version with the NEXT row's notes, and the last hub row would reach
-        // into the IDE panel. Every row on the live page has a heading today, which
-        // is exactly why nothing would have noticed. Items are the lead paragraph
-        // (`div.changes`) followed by every `li.caption` in the "Improvements" /
-        // "Fixes" / "Patches" disclosure groups — the group labels themselves are
-        // dropped, as everywhere else. `<code>/boost</code>` survives as `/boost`
-        // through `stripTags`.
+        // `body` stops at the row's own `</article>` (rows do not nest), and the
+        // runs up to the date and the `<h3>` are fenced by it too: a row shipped
+        // without a headline would otherwise pair its version with the NEXT row's
+        // notes, and the last hub row would reach into the next panel. Items are
+        // the lead paragraph (`div.rn-summary`) followed by every `li.rn-item` in
+        // the "Improvements" / "Fixes" disclosure groups — the group labels
+        // themselves are dropped, as everywhere else.
         ChangelogRecipe(
             bundleID: "com.google.antigravity",
-            source: URL(string: "https://antigravity.google/changelog")!,
-            entryPattern:
-                #"href="/releases\?tab=hub&amp;version=[^"]*"[^>]*>(?<version>[^<]+)</a>"#
-                + #"<br[^>]*>(?<date>[^<]*)</p>"#
-                + #"(?:(?!section-row-wrapper|grid-body).)*?"#
-                + #"<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>"#
-                + #"(?<body>.*?)(?=<div class="section-row-wrapper|<div class="grid-body|</section>)"#,
-            itemPatterns: [
-                #"(?:<div class="changes[^"]*"[^>]*><p>|<li[^>]*class="caption[^"]*"[^>]*>)"#
-                + #"(?<item>.*?)(?:</p>|</li>)"#
-            ],
+            source: URL(string: "https://antigravity.google/docs/changelog")!,
+            entryPattern: antigravityEntryPattern(tab: "hub"),
+            itemPatterns: [antigravityItemPattern],
             maxEntries: 20),
 
         // Antigravity IDE — the `ide` panel of the same page, for the second,
         // separate app (`com.google.antigravity-ide`, a VS Code fork), whose probe
         // recipe carries no `changelogURL`. The page does describe the IDE: its own
         // tab strip has an "Antigravity IDE" panel. See the hub recipe above for the
-        // shape; this differs only in the `tab=ide` anchor.
+        // shape; this differs only in the `rel-ide-` anchor.
         ChangelogRecipe(
             bundleID: "com.google.antigravity-ide",
-            source: URL(string: "https://antigravity.google/changelog")!,
-            entryPattern:
-                #"href="/releases\?tab=ide&amp;version=[^"]*"[^>]*>(?<version>[^<]+)</a>"#
-                + #"<br[^>]*>(?<date>[^<]*)</p>"#
-                + #"(?:(?!section-row-wrapper|grid-body).)*?"#
-                + #"<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>"#
-                + #"(?<body>.*?)(?=<div class="section-row-wrapper|<div class="grid-body|</section>)"#,
-            itemPatterns: [
-                #"(?:<div class="changes[^"]*"[^>]*><p>|<li[^>]*class="caption[^"]*"[^>]*>)"#
-                + #"(?<item>.*?)(?:</p>|</li>)"#
-            ],
+            source: URL(string: "https://antigravity.google/docs/changelog")!,
+            entryPattern: antigravityEntryPattern(tab: "ide"),
+            itemPatterns: [antigravityItemPattern],
             maxEntries: 20),
         ])
+
+    /// One row of the `tab` panel — see the hub `ChangelogRecipe` for the shape.
+    private static func antigravityEntryPattern(tab: String) -> String {
+        #"<article[^>]*\bid="rel-"# + tab + #"-(?<version>[^"]+)"[^>]*>"#
+            + #"(?:(?!</article>).)*?<time[^>]*>(?<date>[^<]*)</time>"#
+            + #"(?:(?!</article>).)*?<h3[^>]*class="rn-headline[^"]*"[^>]*>(?<title>.*?)</h3>"#
+            + #"(?<body>.*?)</article>"#
+    }
+
+    private static let antigravityItemPattern =
+        #"(?:<div class="rn-summary[^"]*"[^>]*><p>|<li[^>]*class="rn-item[^"]*"[^>]*>)"#
+        + #"(?<item>.*?)(?:</p>|</li>)"#
 }

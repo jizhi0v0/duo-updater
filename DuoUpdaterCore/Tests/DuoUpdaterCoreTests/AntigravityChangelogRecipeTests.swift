@@ -2,15 +2,16 @@ import Testing
 import Foundation
 @testable import DuoUpdaterCore
 
-/// One page, two apps. `antigravity.google/changelog` lists the hub
+/// One page, two apps. `antigravity.google/docs/changelog` lists the hub
 /// (`com.google.antigravity`) and the IDE (`com.google.antigravity-ide`) in
 /// separate panels of the same document, and the two recipes tell them apart by
-/// the product token in each row's release link rather than by the panel
-/// wrapper, which a flat regex cannot scope to. So the test that matters is that
-/// neither recipe can see the other's releases.
+/// the product token in each row's own id (`rel-hub-…` / `rel-ide-…`) rather
+/// than by the panel wrapper, which a flat regex cannot scope to. So the test
+/// that matters is that neither recipe can see the other's releases.
 ///
 /// Fixture: two hub rows and one IDE row from the live page (fetched
-/// 2026-09-03), each disclosure list trimmed to its first item or two.
+/// 2026-10-03), each disclosure list trimmed to its first two items and the
+/// chevron SVGs dropped.
 @Suite struct AntigravityChangelogRecipeTests {
 
     @Test func hubReadsOnlyTheHubPanel() throws {
@@ -19,18 +20,19 @@ import Foundation
         let changelog = try #require(
             ChangelogExtractor.extract(from: antigravityChangelogFixture, using: recipe))
 
-        #expect(changelog.entries.map(\.version) == ["2.12.0", "2.11.0"])
+        // The bare version from the row id, not the `v`-prefixed link text.
+        #expect(changelog.entries.map(\.version) == ["2.19.1", "2.18.1"])
         let newest = try #require(changelog.entries.first)
-        #expect(newest.date == "September 2, 2026")
-        #expect(newest.title == "Quoting, /boost, and improved Settings")
-        // Lead paragraph first, then the disclosure lists in document order.
+        #expect(newest.date == "September 30, 2026")
+        #expect(newest.title
+            == "Message subagents directly, export Markdown as PDF, and conversation-only undo")
+        // Lead paragraph first, then both disclosure lists in document order; the
+        // "Improvements" / "Fixes" labels are not items.
         #expect(newest.items.count == 5)
-        #expect(newest.items.first?.hasPrefix("Antigravity 2.12.0 includes") == true)
-        // `<code>/boost</code>` — the tag goes, the text stays.
-        #expect(newest.items.contains {
-            $0 == "Introduced the /boost slash command to enhance thinking effort by using "
-                + "a multi-agent reasoning pipeline."
-        })
+        #expect(newest.items.first?.hasPrefix("You can now send messages straight to a subagent") == true)
+        #expect(newest.items.last
+            == "Fixed an issue where custom agents ignored your global and project rules.")
+        #expect(!newest.items.contains { $0.hasPrefix("Improvements") || $0.hasPrefix("Fixes") })
     }
 
     @Test func theIDEReadsOnlyTheIDEPanel() throws {
@@ -44,9 +46,10 @@ import Foundation
         // IDE, not only the hub.
         #expect(changelog.entries.map(\.version) == ["2.5.5"])
         #expect(changelog.entries.first?.date == "August 13, 2026")
+        #expect(changelog.entries.first?.items.count == 3)
     }
 
-    /// The two products' version lines are unrelated (2.12.0 against 2.5.5), so a
+    /// The two products' version lines are unrelated (2.19.1 against 2.5.5), so a
     /// leak in either direction is a wrong version on a row, not just extra notes.
     @Test func neitherRecipeSeesTheOtherProduct() throws {
         let hub = try #require(
@@ -59,31 +62,44 @@ import Foundation
             ChangelogExtractor.extract(from: antigravityChangelogFixture, using: ide))
 
         #expect(!hubLog.entries.contains { $0.version == "2.5.5" })
-        #expect(Set(ideLog.entries.map(\.version)).isDisjoint(with: ["2.12.0", "2.11.0"]))
+        #expect(Set(ideLog.entries.map(\.version)).isDisjoint(with: ["2.19.1", "2.18.1"]))
     }
 
-    /// The run from a row's date to its heading is the one part of the match that
-    /// is not fenced by the row/panel markers, and an unfenced one is how a row
-    /// without a heading pairs its version with the NEXT row's notes — or, for the
-    /// last hub row, with the IDE panel's. Every row on the live page has a
-    /// heading, so nothing here would ever have noticed; this removes one.
+    /// The runs from a row's id to its date and headline are fenced by the row's
+    /// own `</article>`, and an unfenced one is how a row without a headline pairs
+    /// its version with the NEXT row's notes — or, for the last hub row, with the
+    /// IDE panel's. Every row on the live page has a headline, so nothing there
+    /// would ever have noticed; this removes one.
     @Test func aRowWithoutAHeadingIsDroppedRatherThanBorrowingTheNextRows() throws {
         let recipe = try #require(
             ChangelogRecipeRegistry.recipe(forBundleID: "com.google.antigravity"))
         let headless = antigravityChangelogFixture.replacingOccurrences(
-            of: #"<h3 class="heading-7 col-lg-4 astro-l7qxtvnw" data-h3-pin>"#
-                + "Quoting, /boost, and improved Settings</h3>",
+            of: #"<h3 class="rn-headline astro-oabwef3t">"#
+                + "Message subagents directly, export Markdown as PDF, and conversation-only undo</h3>",
             with: "")
         #expect(headless != antigravityChangelogFixture, "the heading markup moved")
 
         let changelog = try #require(ChangelogExtractor.extract(from: headless, using: recipe))
-        // 2.12.0 is gone, and 2.11.0 still has its OWN title and notes.
-        #expect(changelog.entries.map(\.version) == ["2.11.0"])
-        #expect(changelog.entries.first?.title == "Generative UI and UI improvements")
+        // 2.19.1 is gone, and 2.18.1 still has its OWN title and notes.
+        #expect(changelog.entries.map(\.version) == ["2.18.1"])
+        #expect(changelog.entries.first?.title == "Manage & Install plugins in AGY")
+    }
+
+    /// The old `/changelog` URL, as it answers now: a meta-refresh stub that
+    /// URLSession does not follow. Neither recipe can read anything out of it, so
+    /// both must name the page it points at.
+    @Test func bothRecipesReadTheDocsPageNotTheRedirectStub() throws {
+        let stub = #"<!doctype html><title>Redirecting to: /docs/changelog</title>"#
+            + #"<meta http-equiv="refresh" content="0;url=/docs/changelog">"#
+        for id in ["com.google.antigravity", "com.google.antigravity-ide"] {
+            let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: id))
+            #expect(recipe.source.absoluteString == "https://antigravity.google/docs/changelog")
+            #expect(ChangelogExtractor.extract(from: stub, using: recipe)?.entries.isEmpty ?? true)
+        }
     }
 
 }
 
 private let antigravityChangelogFixture = #"""
-<div class="grid-body active astro-l7qxtvnw" data-list-panel="hub"><div class="section-row-wrapper astro-l7qxtvnw" data-section-row><div class="version astro-l7qxtvnw" data-date-pin><p class="body astro-l7qxtvnw"><a class="version-link astro-l7qxtvnw" href="/releases?tab=hub&amp;version=2.12.0" title="View release 2.12.0">2.12.0</a><br class="astro-l7qxtvnw">September 2, 2026</p></div><div class="description main-left-container astro-l7qxtvnw" data-content-ref><h3 class="heading-7 col-lg-4 astro-l7qxtvnw" data-h3-pin>Quoting, /boost, and improved Settings</h3><div class="accordion body astro-l7qxtvnw"><div class="changes astro-l7qxtvnw"><p>Antigravity 2.12.0 includes several UX improvements across settings, the chat panel, and sidebar navigation. This release also includes a new slash command for paid users.</p></div><div class="expandable-items astro-l7qxtvnw"><details data-details class="astro-l7qxtvnw"><summary class="astro-l7qxtvnw">Improvements (7)</summary><ul class="astro-l7qxtvnw"><li class="caption astro-l7qxtvnw">You can now highlight portions of Antigravity responses to quote as context for follow-up prompts.</li><li class="caption astro-l7qxtvnw">Introduced the <code>/boost</code> slash command to enhance thinking effort by using a multi-agent reasoning pipeline.</li></ul></details><details data-details class="astro-l7qxtvnw"><summary class="astro-l7qxtvnw">Fixes (9)</summary><ul class="astro-l7qxtvnw"><li class="caption astro-l7qxtvnw">Added drag-and-drop and improved support for attaching audio files to conversations, and fixed an issue where WebM files were treated as audio.</li><li class="caption astro-l7qxtvnw">Fixed an issue that could cause authentication errors part way through a turn on slower network connections.</li></ul></details><details data-details class="astro-l7qxtvnw"><summary class="astro-l7qxtvnw">Patches (0)</summary><ul class="astro-l7qxtvnw"></ul></details></div></div></div></div><div class="section-row-wrapper astro-l7qxtvnw" data-section-row><div class="version astro-l7qxtvnw" data-date-pin><p class="body astro-l7qxtvnw"><a class="version-link astro-l7qxtvnw" href="/releases?tab=hub&amp;version=2.11.0" title="View release 2.11.0">2.11.0</a><br class="astro-l7qxtvnw">August 26, 2026</p></div><div class="description main-left-container astro-l7qxtvnw" data-content-ref><h3 class="heading-7 col-lg-4 astro-l7qxtvnw" data-h3-pin>Generative UI and UI improvements</h3><div class="accordion body astro-l7qxtvnw"><div class="changes astro-l7qxtvnw"><p>Antigravity 2.11.0 adds generative UI to render HTML artifacts inline in chat, alongside several UX improvements and bug fixes.</p></div><div class="expandable-items astro-l7qxtvnw"><details data-details class="astro-l7qxtvnw"><summary class="astro-l7qxtvnw">Improvements (10)</summary><ul class="astro-l7qxtvnw"><li class="caption astro-l7qxtvnw">Added support for referencing and inlining external files directly using <code>@path/to/file</code> syntax within <code>AGENTS.md</code> and custom rule files.</li></ul></details><details data-details class="astro-l7qxtvnw"><summary class="astro-l7qxtvnw">Fixes (30)</summary><ul class="astro-l7qxtvnw"><li class="caption astro-l7qxtvnw">Fixed an issue where slash commands unavailable to a selected custom agent were incorrectly shown in the command menu.</li></ul></details><details data-details class="astro-l7qxtvnw"><summary class="astro-l7qxtvnw">Patches (0)</summary><ul class="astro-l7qxtvnw"></ul></details></div></div></div></div></div><div class="grid-body astro-l7qxtvnw" data-list-panel="ide"><div class="section-row-wrapper astro-l7qxtvnw" data-section-row><div class="version astro-l7qxtvnw" data-date-pin><p class="body astro-l7qxtvnw"><a class="version-link astro-l7qxtvnw" href="/releases?tab=ide&amp;version=2.5.5" title="View release 2.5.5">2.5.5</a><br class="astro-l7qxtvnw">August 13, 2026</p></div><div class="description main-left-container astro-l7qxtvnw" data-content-ref><h3 class="heading-7 col-lg-4 astro-l7qxtvnw" data-h3-pin>Windows Media Attachments and Chat Responsiveness Improvements</h3><div class="accordion body astro-l7qxtvnw"><div class="changes astro-l7qxtvnw"><p>Bug fixes addressing media attachment failures on Windows and improving message responsiveness when interacting with the agent.</p></div><div class="expandable-items astro-l7qxtvnw"><details data-details class="astro-l7qxtvnw"><summary class="astro-l7qxtvnw">Improvements (0)</summary><ul class="astro-l7qxtvnw"></ul></details><details data-details class="astro-l7qxtvnw"><summary class="astro-l7qxtvnw">Fixes (2)</summary><ul class="astro-l7qxtvnw"><li class="caption astro-l7qxtvnw">Fixed an issue where the agent failed when attaching images or media files on Windows machines.</li></ul></details><details data-details class="astro-l7qxtvnw"><summary class="astro-l7qxtvnw">Patches (0)</summary><ul class="astro-l7qxtvnw"></ul></details></div></div></div></div></div></section>
+<div class="rn-panel active astro-oabwef3t" id="panel-hub" role="tabpanel" aria-labelledby="tab-hub" data-panel-id="hub" style="display: block;"><h2 class="rn-panel-heading astro-oabwef3t">Antigravity 2.0</h2><div class="rn-timeline astro-oabwef3t"><article class="rn-row astro-oabwef3t" id="rel-hub-2.19.1"><div class="rn-version-col astro-oabwef3t"><div class="rn-version-row astro-oabwef3t"><h3 class="rn-version-heading astro-oabwef3t"><a href="/releases?tab=hub&amp;version=2.19.1" class="rn-version-tag astro-oabwef3t" title="View release 2.19.1">v2.19.1</a></h3><span class="rn-latest-tag astro-oabwef3t">Latest</span></div><time class="rn-date-text astro-oabwef3t">September 30, 2026</time></div><div class="rn-card astro-oabwef3t"><h3 class="rn-headline astro-oabwef3t">Message subagents directly, export Markdown as PDF, and conversation-only undo</h3><div class="rn-summary astro-oabwef3t"><p>You can now send messages straight to a subagent from the message box, export rendered Markdown as a PDF, and revert only the conversation when you undo. You can also reopen the window from the tray icon on Windows and Linux. This release includes 5 improvements and 5 fixes.</p></div><div class="rn-categories astro-oabwef3t"><details class="rn-accordion astro-oabwef3t" data-release-detail data-product="hub" data-version="2.19.1" data-item-title="Improvements"><summary class="rn-accordion-summary astro-oabwef3t"><span class="rn-cat-title astro-oabwef3t">Improvements<span class="rn-count astro-oabwef3t">(5)</span></span></summary><ul class="rn-list astro-oabwef3t"><li class="rn-item astro-oabwef3t">You can now send a message directly to a subagent from the message box, without going through the main agent.</li><li class="rn-item astro-oabwef3t">Rendered Markdown in artifacts and in files opened in the side pane can now be exported as a PDF from the overflow menu, including tables, code blocks, and diagrams.</li></ul></details><details class="rn-accordion astro-oabwef3t" data-release-detail data-product="hub" data-version="2.19.1" data-item-title="Fixes"><summary class="rn-accordion-summary astro-oabwef3t"><span class="rn-cat-title astro-oabwef3t">Fixes<span class="rn-count astro-oabwef3t">(5)</span></span></summary><ul class="rn-list astro-oabwef3t"><li class="rn-item astro-oabwef3t">Fixed an issue where a terminal command step you had expanded collapsed again when the command finished.</li><li class="rn-item astro-oabwef3t">Fixed an issue where custom agents ignored your global and project rules.</li></ul></details></div></div></article><article class="rn-row astro-oabwef3t" id="rel-hub-2.18.1"><div class="rn-version-col astro-oabwef3t"><div class="rn-version-row astro-oabwef3t"><h3 class="rn-version-heading astro-oabwef3t"><a href="/releases?tab=hub&amp;version=2.18.1" class="rn-version-tag astro-oabwef3t" title="View release 2.18.1">v2.18.1</a></h3></div><time class="rn-date-text astro-oabwef3t">September 28, 2026</time></div><div class="rn-card astro-oabwef3t"><h3 class="rn-headline astro-oabwef3t">Manage & Install plugins in AGY</h3><div class="rn-summary astro-oabwef3t"><p>This release introduces a Customizations tab and marketplace for discovering and installing plugins and includes overall improvements to the sidebar and chat experience.</p></div><div class="rn-categories astro-oabwef3t"><details class="rn-accordion astro-oabwef3t" data-release-detail data-product="hub" data-version="2.18.1" data-item-title="Improvements"><summary class="rn-accordion-summary astro-oabwef3t"><span class="rn-cat-title astro-oabwef3t">Improvements<span class="rn-count astro-oabwef3t">(14)</span></span></summary><ul class="rn-list astro-oabwef3t"><li class="rn-item astro-oabwef3t">You can now discover, install and manage plugins within the Customizations tab, with curated shelves for development tools and workspace integrations.</li><li class="rn-item astro-oabwef3t">You can now switch the sidebar to show only archived conversations from the Display Options menu and filter by archived conversations on the Conversation History page, with archive folder icons marking archived projects.</li></ul></details><details class="rn-accordion astro-oabwef3t" data-release-detail data-product="hub" data-version="2.18.1" data-item-title="Fixes"><summary class="rn-accordion-summary astro-oabwef3t"><span class="rn-cat-title astro-oabwef3t">Fixes<span class="rn-count astro-oabwef3t">(15)</span></span></summary><ul class="rn-list astro-oabwef3t"><li class="rn-item astro-oabwef3t">Fixed an issue where Google Sign-In could fail with a browser security error when signing in from the app or the built-in browser.</li><li class="rn-item astro-oabwef3t">Fixed an issue where scrolling up in long conversations could stall after collapsed tool steps, unloading earlier turns could jump the scroll position, and page bounds could collapse to zero.</li></ul></details></div></div></article></div></div><div class="rn-panel astro-oabwef3t" id="panel-ide" role="tabpanel" aria-labelledby="tab-ide" data-panel-id="ide" style="display: none;"><h2 class="rn-panel-heading astro-oabwef3t">Antigravity IDE</h2><div class="rn-timeline astro-oabwef3t"><article class="rn-row astro-oabwef3t" id="rel-ide-2.5.5"><div class="rn-version-col astro-oabwef3t"><div class="rn-version-row astro-oabwef3t"><h3 class="rn-version-heading astro-oabwef3t"><a href="/releases?tab=ide&amp;version=2.5.5" class="rn-version-tag astro-oabwef3t" title="View release 2.5.5">v2.5.5</a></h3><span class="rn-latest-tag astro-oabwef3t">Latest</span></div><time class="rn-date-text astro-oabwef3t">August 13, 2026</time></div><div class="rn-card astro-oabwef3t"><h3 class="rn-headline astro-oabwef3t">Windows Media Attachments and Chat Responsiveness Improvements</h3><div class="rn-summary astro-oabwef3t"><p>Bug fixes addressing media attachment failures on Windows and improving message responsiveness when interacting with the agent.</p></div><div class="rn-categories astro-oabwef3t"><details class="rn-accordion astro-oabwef3t" data-release-detail data-product="ide" data-version="2.5.5" data-item-title="Fixes"><summary class="rn-accordion-summary astro-oabwef3t"><span class="rn-cat-title astro-oabwef3t">Fixes<span class="rn-count astro-oabwef3t">(2)</span></span></summary><ul class="rn-list astro-oabwef3t"><li class="rn-item astro-oabwef3t">Fixed an issue where the agent failed when attaching images or media files on Windows machines.</li><li class="rn-item astro-oabwef3t">Improved responsiveness and reduced hanging issues when sending messages to the agent.</li></ul></details></div></div></article></div></div>
 """#

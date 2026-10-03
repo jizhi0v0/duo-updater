@@ -72,3 +72,14 @@ strip has an "Antigravity IDE" panel, and its newest entry is 2.5.5 —
 the exact version that recipe detects.
 
 复测 2026-09-14（03:14 UTC，只读 GET，`Accept-Encoding: identity`）：服务器仍回 `content-encoding: gzip`，压缩流 109,007 字节，解压 437,159 字节；`data-list-panel` 有 `cli` / `hub` / `ide` / `sdk` 四个；带版本链接的行 hub 20 条（最新 2.13.0）、IDE 30 条（最新 2.5.5）；113 个 `section-row-wrapper` 行里没有一行缺 `data-h3-pin` 标题。
+
+### 2026-10-03 — changelog 迁到 `/docs/changelog`（#922、#822）；hub probe 的灰度方向更正
+
+复测 2026-10-03（只读 GET，浏览器 UA）：
+
+- `https://antigravity.google/changelog` 回 HTTP 200、346 字节的 meta-refresh 壳（`<meta http-equiv="refresh" content="0;url=/docs/changelog">`），不是 3xx，URLSession 不跟，两条 `ChangelogRecipe` 因此 `noEntriesExtracted`（首次在 2026-09-29 的 sweep 里出现）。
+- `https://antigravity.google/docs/changelog` 解压后 644,774 字节，仍是服务端渲染的 Astro。结构整个换了：每行是 `<article class="rn-row" id="rel-<产品>-<版本>">`，版本链接文字带 `v` 前缀（`v2.19.1`），日期在 `<time class="rn-date-text">`，标题在 `<h3 class="rn-headline">`，导语在 `div.rn-summary > p`，条目是 `li.rn-item`。旧标记（`section-row-wrapper`、`data-h3-pin`）出现 0 次。
+- 行数：hub 27、IDE 30、CLI 61、SDK 18；136 个 `<article>` 与 136 个 `</article>`、136 个 `rn-headline` 一一对应；新 pattern 的 body 里没有一行含下一个 `rel-` id（不越界）。hub 最新 2.19.1（September 30, 2026），IDE 最新 2.5.5（August 13, 2026）。
+- 同时 hub probe（不带 `x-user-staging-id`）连续 6 次答 `version: 2.19.1`，IDE probe 答 2.5.5，两边与 changelog 最新条目一致。
+
+#822 的 "reads AHEAD" 不是 probe 卡住。转引 #822 的 2026-09-23 triage：manifest 带 `vary: x-user-staging-id, x-app-version` 和 `cache-control: no-store`；不带 staging header 42/42 次答 2.15.1，而 changelog 已列 2.16.0；带随机 staging id 10/60（另一轮 2/30）拿到 2.16.0，同一个 id 拿到后会一直拿到，即按 id 分桶；2.16.0 的 zip 真实存在（181,548,704 字节）。这和上面 2026-09-14 的复测方向相反：那次不带 header 读到的是 `stagingPercentage: 10` 的 2.13.0，即 probe **领先**于灰度（原注释 "would be offered here before the app itself takes it" 描述的情形）。两种行为都实测过，哪个都不是规律。recipe 注释已改为同时记下两种：落后时 changelog 从第一天就列出新版本，`duo verify` 报 changelog 领先，feed 追上后自愈；领先时已装的 app 可能被提示一个它自己的 feed 还没给它的版本。遇到任何一种，先看实时 feed，再判断是不是灰度。

@@ -107,6 +107,17 @@ import Testing
         return app
     }
 
+    /// Copy `src` to `dst` the way `BackupStore.save` does — `ditto`, as this
+    /// user — so a test archives the tree production archives, not the one in
+    /// `/Applications`.
+    private func dittoCopy(_ src: URL, to dst: URL) async throws {
+        let outcome = try await ChildProcess.run(
+            "/usr/bin/ditto", [src.path, dst.path],
+            standardOutput: .discard, onCancel: .runToCompletion)
+        try #require(outcome.terminationStatus == 0,
+                     "ditto failed: \(String(decoding: outcome.standardError, as: UTF8.self))")
+    }
+
     /// A small, really-signed app to prove the signature survives. Scanned rather
     /// than hard-coded: no single app is guaranteed present on a dev machine.
     private static let signedApp: URL? = {
@@ -205,12 +216,28 @@ import Testing
 
     /// Manifest equality does not imply a valid seal, so this asks the question
     /// the manifest cannot.
+    ///
+    /// Archives a `ditto` copy, not the app in place, because that is what the
+    /// backup path archives: `save` copies into the outbox and the transfer packs
+    /// the copy. The difference is ownership. A Mac App Store app (and anything a
+    /// `.pkg` laid down) is `root:wheel` in `/Applications`; packed in place, the
+    /// archive records uid 0 and a non-root `extract -no-ignore-eperm` fails to
+    /// chown — exit 1, no message. Picking whichever small app sorts first made
+    /// that machine-dependent (`APTV.app` on one dev Mac), and it was never the
+    /// production shape: `ditto` run as the user writes a user-owned copy, the
+    /// App Store xattrs (`com.apple.macl` included) ride along, and the seal
+    /// survives.
     @Test(.enabled(if: BundleArchiveTests.signedApp != nil))
     func roundTripPreservesTheCodeSignature() async throws {
-        let app = try #require(Self.signedApp)
+        let installed = try #require(Self.signedApp)
         let root = scratch()
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let outbox = root.appendingPathComponent("outbox", isDirectory: true)
+        try FileManager.default.createDirectory(at: outbox, withIntermediateDirectories: true)
+        let app = outbox.appendingPathComponent(installed.lastPathComponent)
+        try await dittoCopy(installed, to: app)
 
         let archive = root.appendingPathComponent("signed.aar")
         try await BundleArchive.archive(bundle: app, to: archive)
@@ -219,6 +246,42 @@ import Testing
 
         // Throws on failure; reaching the next line is the assertion.
         try SignatureVerifier.verifyCodeSignature(appAt: restored)
+    }
+
+    /// Pins why the test above archives a copy, and that `extract` stays strict.
+    ///
+    /// A root-owned tree packed in place does not unpack for a non-root user:
+    /// `-no-ignore-eperm` turns the failed chown into a failed extract rather than
+    /// a quietly re-owned bundle. That strictness is deliberate (see `extract`)
+    /// and must not be loosened to make a root-owned archive "work". The same
+    /// tree after a user `ditto` — the copy the backup path actually packs —
+    /// round-trips cleanly. `/private/etc/pam.d` is root-owned, world-readable
+    /// and small on every macOS, which is all this needs.
+    @Test(.enabled(if: getuid() != 0))
+    func aRootOwnedTreeRefusesToUnpackButItsUserCopyRoundTrips() async throws {
+        let source = URL(fileURLWithPath: "/private/etc/pam.d", isDirectory: true)
+        let owner = try FileManager.default.attributesOfItem(atPath: source.path)[.ownerAccountID]
+        try #require(owner as? Int == 0, "fixture is no longer root-owned")
+
+        let root = scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let inPlace = root.appendingPathComponent("in-place.aar")
+        try await BundleArchive.archive(bundle: source, to: inPlace)
+        await #expect(throws: BundleArchive.ArchiveError.self) {
+            try await BundleArchive.extract(
+                archive: inPlace, into: root.appendingPathComponent("in-place"))
+        }
+
+        let copy = root.appendingPathComponent("copy", isDirectory: true)
+        try await dittoCopy(source, to: copy)
+        let copied = root.appendingPathComponent("copy.aar")
+        try await BundleArchive.archive(bundle: copy, to: copied)
+        let restored = root.appendingPathComponent("restored", isDirectory: true)
+        try await BundleArchive.extract(archive: copied, into: restored)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: restored.path).sorted()
+            == FileManager.default.contentsOfDirectory(atPath: source.path).sorted())
     }
 
     // MARK: - Failure modes

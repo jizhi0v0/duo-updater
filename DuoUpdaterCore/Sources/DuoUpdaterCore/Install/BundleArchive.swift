@@ -173,6 +173,12 @@ public enum BundleArchive {
     /// the stricter reading: the cost is that a bundle carrying files this user
     /// cannot chown (a `.pkg` install that left root-owned payload) now refuses to
     /// unpack rather than unpacking wrong.
+    ///
+    /// The backup path does not hit that cost: it never packs `/Applications`
+    /// in place, it packs the outbox copy `BackupStore.save` made with `ditto` as
+    /// this user, which is user-owned. That holds for Mac App Store apps too —
+    /// they are `root:wheel` when installed, and their `com.apple.macl` /
+    /// App Store xattrs come back through the copy and the archive alike.
     public static func extract(archive: URL, into directory: URL) async throws {
         guard isAvailable else { throw ArchiveError.toolMissing }
         guard FileManager.default.fileExists(atPath: archive.path) else {

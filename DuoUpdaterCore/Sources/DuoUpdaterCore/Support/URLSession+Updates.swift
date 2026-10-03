@@ -113,8 +113,10 @@ public extension URLSession {
     /// a full 64 MB cache was a 150 MB footprint on gzip bodies, 82 MB on
     /// identity ones. The installed app agreed: after 4.9 days `leaks
     /// --referenceTree` put 138 MB under this cache. So every MB here costs about
-    /// two, and the capacity is the smallest that still passes the guard above
-    /// (40 MB: the Spotify body is 4.5% of it), not a round number with room.
+    /// two, and the capacity is the smallest MEASURED to store the Spotify body —
+    /// the 2026-09-04 measurement above: not at 32 MB, yes at 40 MB (4.5% of it).
+    /// The test guard alone would accept down to ~36 MB, but nothing between 32
+    /// and 40 was tried, so this does not go below what was seen to work.
     static let updatesCacheCapacity = 40 * 1024 * 1024
 
     static let updates: URLSession = {

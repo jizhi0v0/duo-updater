@@ -63,17 +63,16 @@ Sparkle feed 才是。
 
 ## Changelog
 - 来源: **`ChangelogRecipe`**，解官网 https://www.typewhisper.com/en/changelog/
-- 跟随 channel: **否**——官网把三轨排在同一张列表里，装 stable 也会看到 daily 条目在上面。
-  每条都带自己的版本号标签，接受这个折中。
-- Recipe 状态: 2026-08-31 新增
+- 跟随 channel: **否**——静态 HTML 只有 stable 卡片；daily / RC / 插件版藏在「Show pre-releases」
+  开关后面，由前端拉 `prereleases.json` 渲染。装 rc / daily 看到的是 stable 说明，每条带自己的版本号。
+- Recipe 状态: 2026-08-31 新增；2026-10-03 官网改版后重写（#956）
 - ⚠️ 2026-08-31 更正：原先写「Sparkle inline（feed `<description>`）」，是错的。
   feed 3 条**一条都没有** `<description>`，真包跑生产链拿到 0 字符 —— 此前没有任何说明。
-- 这张页面**同时列 macOS 和 Windows 两个产品**（实测 203 个 mac 卡片 / 167 个 Windows
-  卡片），所以 `entryPattern` 锚在版本标题前面那枚平台徽章上；锚错了就会把 Windows 的
-  说明挂到 Mac 版本下面。
-- 卡片之间用了 tempered 惰性扫描而不是 `.*?`：有少数老卡片没有正文块，裸 `.*?` 会越过它
-  跑进下一张卡片，把后者的说明记到前者的版本上（0.6.1、0.5.1 实测就是这样）。
-- daily 的说明是**累积**的（连着几天的 daily 重复同一批条目），所以 `maxEntries` 收到 20。
+- 这张页面**同时列 macOS 和 Windows 两个产品**，所以 `entryPattern` 锚在卡片的
+  `id="mac-v<tag>"` 上（平台和版本都在里面）；锚错了就会把 Windows 的说明挂到 Mac 版本下面。
+  版本取自 `id` 而不是可见标题：少数标题是自由文本（「TypeWhisper 1.0」「0.7.0 - Notch Indicator」）。
+- 卡片内部用 tempered 惰性扫描（止于 `</details>`）而不是 `.*?`：有少数老卡片没有正文块，
+  裸 `.*?` 会越过它跑进下一张卡片，把后者的说明记到前者的版本上。
 
 ## 一键安装
 - 状态: **支持**（Sparkle 原生路径，各轨 feed enclosure）
@@ -92,6 +91,7 @@ Sparkle feed 才是。
   该检查假设「最新条目的版本单调不降」，这对按日期混排两条轨的页面不成立。
   已在 `Baseline.pageStillCarries` 修正：只有当基线那个版本**还在页面上**时才放行
   （厂商在其上发了新条目 → 还在，往下挪一行；pattern 滑到更旧的段落 → 掉出顶部）。
+  2026-10-03 改版（#956）后服务端 HTML 只剩 stable，这种倒退不再出现；`pageStillCarries` 的修正仍然有效。
 
 ## 如何复验
 ```
@@ -128,3 +128,13 @@ a handful of old cards carry no prose block, and a plain lazy scan ran
 past them into the NEXT card and filed its notes under the wrong
 version — two entries did exactly that (0.6.1, 0.5.1) before this was
 tempered. With it: 194 entries, none spanning a card boundary.
+
+### 2026-10-03 官网改版（#956）
+
+`duo verify` 连续两轮报 `noEntriesExtracted`。官网换成 Astro 新版式：卡片变成
+`<details class="utility-entry" id="mac-v1.7.0" data-platform="mac" …>`，旧 pattern 锚的
+`>macOS</span><h3` 和 `text-muted-foreground` 日期行都没了。服务端 HTML 只剩 stable：
+87 张卡片（48 mac / 39 Windows，`data-kind` 全是 `stable`），其中 9 张 mac 卡片写着
+「No detailed release notes.」没有正文块。新 pattern 在实拉页面上出 39 条 mac 条目，
+最新 1.7.0（October 2, 2026），没有条目跨 `</details>`，每条版本都等于它所在卡片 id 的版本。
+pre-release 走 `/en/changelog/prereleases.json`（JSON 里装着同样版式的 HTML 片段），recipe 不读它。

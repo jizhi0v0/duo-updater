@@ -7,34 +7,34 @@ enum com_typewhisper_mac {
         // History: docs/app-audits/com-typewhisper-mac.md#历史与实测
         // TypeWhisper — no notes in the appcast either. The official changelog
         // page is the vendor's own, and it interleaves **macOS and Windows**
-        // releases in one list (History has the card counts), so the entry
-        // pattern is anchored on the platform badge that precedes the version
-        // heading. Getting that wrong shows Windows notes under a Mac version.
+        // releases in one list, so the entry pattern is anchored on the card's
+        // `id`, which carries both the platform and the version tag. Getting the
+        // platform wrong shows Windows notes under a Mac version.
         //
-        //   …</svg>macOS</span><h3 class="font-display …">v1.7.0-daily.20260826</h3>
-        //   …<p class="mt-1 text-xs text-muted-foreground">August 26, 2026</p>
-        //   <div class="prose …"><h2>Bug Fixes</h2><ul><li>…</li></ul></div>
+        //   <details class="utility-entry" id="mac-v1.7.0" … data-platform="mac" …>
+        //   <summary …><h3 …>…<span class="utility-entry__name">v1.7.0</span>…
+        //   <time class="utility-entry__date" dateTime="…">October 2, 2026</time></h3></summary>
+        //   <div class="utility-entry__body"><div class="site-prose utility-notes">
+        //   <p>…</p><h4>Highlights</h4><ul><li>…</li></ul></div>…</div></details>
         //
-        // The gap between the heading and the date is a TEMPERED lazy scan
-        // (`(?:(?!>macOS</span><h3|>Windows</span><h3).)*?`), not a plain `.*?`:
-        // a handful of old cards carry no prose block, and a plain lazy scan runs
-        // past them into the NEXT card and files its notes under the wrong
-        // version. With it, no entry spans a card boundary (History has the
-        // entries that did, and the counts).
+        // The version comes from the `id`, not the visible title: a few titles
+        // are free text ("TypeWhisper 1.0", "0.7.0 - Notch Indicator") while the
+        // id is always `mac-v<tag>`. The gaps are TEMPERED lazy scans that stop at
+        // `</details>`, not plain `.*?`: some old cards carry no notes block (just
+        // "No detailed release notes."), and a plain lazy scan would run past
+        // them into the NEXT card and file its notes under the wrong version.
         //
-        // Every train lands in one list, so a stable install sees the daily
-        // entries above its own release. That is the vendor's page as published;
-        // each entry is labelled with its version, and the daily notes are
-        // cumulative (successive dailies repeat the same bullets), which is why
-        // `maxEntries` is cut to 20 — 40 would be four weeks of near-duplicates.
+        // Only stable releases are in the served HTML. Dailies, release
+        // candidates and plugin releases sit behind a "Show pre-releases" toggle
+        // that loads `prereleases.json` client-side, so an rc or daily install
+        // sees the stable notes, each entry labelled with its own version.
         ChangelogRecipe(
             bundleID: "com.typewhisper.mac",
             source: URL(string: "https://www.typewhisper.com/en/changelog/")!,
             entryPattern:
-                #">macOS</span><h3[^>]*>v?(?<version>[^<]+)</h3>"#
-                + #"(?:(?!>macOS</span><h3|>Windows</span><h3).)*?"#
-                + #"<p class="mt-1 text-xs text-muted-foreground">(?<date>[^<]*)</p>"#
-                + #"<div class="prose[^"]*"[^>]*>(?<body>.*?)</div>"#,
+                #"<details[^>]*\bid="mac-v?(?<version>[^"]+)"[^>]*>"#
+                + #"(?:(?!</details>).)*?<time[^>]*>(?<date>[^<]*)</time>"#
+                + #"(?:(?!</details>).)*?<div class="site-prose[^"]*">(?<body>.*?)</div>"#,
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#, #"<p[^>]*>(?<item>.*?)</p>"#],
             maxEntries: 20),
         ])

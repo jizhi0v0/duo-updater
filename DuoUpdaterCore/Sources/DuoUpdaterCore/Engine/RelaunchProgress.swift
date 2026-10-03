@@ -227,8 +227,9 @@ public enum StagedRelaunchOutcome: Sendable, Equatable {
 /// see `StagedUpdater.shipIt` for the ones seen without it.
 ///
 /// **Sparkle 2 does not refuse, so it is not judged here.** Read from the
-/// sources this repo builds against (2.9.6), not measured on a running app: the
-/// progress agent (`InstallerProgress/InstallerProgressAppController.m`,
+/// sources this repo builds against (2.9.6, unchanged in 2.10.0), not measured
+/// on a running app: the progress agent
+/// (`InstallerProgress/InstallerProgressAppController.m`,
 /// `registerApplicationBundlePath:`) registers the FIRST running instance and
 /// `listenForTerminationWithCompletion:` observes that one alone; nothing in
 /// `Autoupdate/` re-lists running instances before `performFinalInstallationProgressBlock`,

@@ -12,7 +12,7 @@ changelogs[0].source = URL("https://www.typewhisper.com/en/changelog/")
 changelogs[0].sourceTemplate = nil
 changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
-changelogs[0].entryPattern = ">macOS</span><h3[^>]*>v?(?<version>[^<]+)</h3>(?:(?!>macOS</span><h3|>Windows</span><h3).)*?<p class=\"mt-1 text-xs text-muted-foreground\">(?<date>[^<]*)</p><div class=\"prose[^\"]*\"[^>]*>(?<body>.*?)</div>"
+changelogs[0].entryPattern = "<details[^>]*\\bid=\"mac-v?(?<version>[^\"]+)\"[^>]*>(?:(?!</details>).)*?<time[^>]*>(?<date>[^<]*)</time>(?:(?!</details>).)*?<div class=\"site-prose[^\"]*\">(?<body>.*?)</div>"
 changelogs[0].itemPatterns = Array(count: 2)
 changelogs[0].itemPatterns[0] = "<li[^>]*>(?<item>.*?)</li>"
 changelogs[0].itemPatterns[1] = "<p[^>]*>(?<item>.*?)</p>"

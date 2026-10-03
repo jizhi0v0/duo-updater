@@ -2833,42 +2833,42 @@ All notable changes to this project will be documented in this file.
 
 // MARK: - TypeWhisper (one list, two platforms)
 
-/// Four cards in the vendor's own order: a macOS release, a Windows release, a
-/// macOS card that carries NO prose block (old cards on the live page look like
-/// this), and another macOS release. Trimmed of svg/class noise except where the
-/// pattern anchors on it.
+/// Four cards: a macOS release, a Windows release, a
+/// macOS card with NO notes block (old cards on the live page look like this),
+/// and a macOS card whose visible title is free text rather than its version.
+/// Trimmed from the live page (the long `<ul>`s cut down), markup otherwise as
+/// served.
 private let typeWhisperFixture = #"""
-<div><span class="badge">macOS</span><h3 class="font-display text-base font-semibold">v1.7.0-daily.20260826</h3></div><a href="https://github.com/TypeWhisper/typewhisper-mac/releases/tag/v1.7.0-daily.20260826">gh</a><p class="mt-1 text-xs text-muted-foreground">August 26, 2026</p><div class="prose prose-neutral prose-sm mt-3 max-w-none"><h2>Bug Fixes</h2>
+<details class="utility-entry" id="mac-v1.7.0" open="" data-entry="" data-testid="changelog-entry" data-kind="stable" data-platform="mac" data-date="2026-10-02T11:58:42Z"><summary class="utility-entry__summary"><h3 class="utility-entry__head"><span class="utility-entry__title"><span class="utility-entry__name">v1.7.0</span><span class="utility-entry__meta"><span>macOS</span></span></span><time class="utility-entry__date" dateTime="2026-10-02T11:58:42Z">October 2, 2026</time></h3></summary><div class="utility-entry__body"><div class="site-prose utility-notes"><p>TypeWhisper <code>1.7.0</code> is the stable <code>1.7</code> macOS release.</p>
+<h4 data-look="4">Highlights</h4>
 <ul>
-<li>expand iCloud container entitlements for release signing (<a href="https://github.com/TypeWhisper/typewhisper-mac/issues/1141">#1141</a>)</li>
-<li>propagate provider cancellations</li>
-</ul></div>
-<div><span class="badge">Windows</span><h3 class="font-display text-base font-semibold">v1.0.9-daily.20260826</h3></div><a href="https://github.com/TypeWhisper/typewhisper-win/releases/tag/v1.0.9-daily.20260826">gh</a><p class="mt-1 text-xs text-muted-foreground">August 26, 2026</p><div class="prose prose-neutral prose-sm mt-3 max-w-none"><p>Maintenance release v1.0.9-daily.20260826</p></div>
-<div><span class="badge">macOS</span><h3 class="font-display text-base font-semibold">v0.6.1</h3></div><a href="https://github.com/TypeWhisper/typewhisper-mac/releases/tag/v0.6.1">gh</a>
-<div><span class="badge">macOS</span><h3 class="font-display text-base font-semibold">v1.6.0</h3></div><a href="https://github.com/TypeWhisper/typewhisper-mac/releases/tag/v1.6.0">gh</a><p class="mt-1 text-xs text-muted-foreground">August 20, 2026</p><div class="prose prose-neutral prose-sm mt-3 max-w-none"><ul>
-<li>Add Web Link transcription plugin</li>
-</ul></div>
+<li>History and Inbox sync through iCloud.</li>
+<li>Shortcuts are configured on a visual Mac keyboard.</li>
+</ul></div><p class="utility-entry__links"><a href="https://github.com/TypeWhisper/typewhisper-mac/releases/tag/v1.7.0" target="_blank" rel="noopener noreferrer" class="utility-entry__link utility-entry__link--out">View on GitHub</a></p></div></details></div></section><section class="utility-month" data-month="2026-08"><div class="utility-month__entries" data-entries=""><details class="utility-entry" id="windows-v1.0.9" open="" data-entry="" data-testid="changelog-entry" data-kind="stable" data-platform="windows" data-date="2026-08-27T13:42:13Z"><summary class="utility-entry__summary"><h3 class="utility-entry__head"><span class="utility-entry__title"><span class="utility-entry__name">v1.0.9</span><span class="utility-entry__meta"><span>Windows</span></span></span><time class="utility-entry__date" dateTime="2026-08-27T13:42:13Z">August 27, 2026</time></h3></summary><div class="utility-entry__body"><div class="site-prose utility-notes"><ul>
+<li>Added a configurable Filler Words plugin.</li>
+</ul></div><p class="utility-entry__links"><a href="https://github.com/TypeWhisper/typewhisper-win/releases/tag/v1.0.9" class="utility-entry__link utility-entry__link--out">View on GitHub</a></p></div></details><details class="utility-entry" id="mac-v0.6.1" data-entry="" data-testid="changelog-entry" data-kind="stable" data-platform="mac" data-date="2026-02-16T21:39:28Z"><summary class="utility-entry__summary"><h3 class="utility-entry__head"><span class="utility-entry__title"><span class="utility-entry__name">v0.6.1</span><span class="utility-entry__meta"><span>macOS</span></span></span><time class="utility-entry__date" dateTime="2026-02-16T21:39:28Z">February 16, 2026</time></h3></summary><div class="utility-entry__body"><p class="utility-entry__none">No detailed release notes.</p><p class="utility-entry__links"><a href="https://github.com/TypeWhisper/typewhisper-mac/releases/tag/v0.6.1" class="utility-entry__link utility-entry__link--out">View on GitHub</a></p></div></details><details class="utility-entry" id="mac-v1.0.0" data-entry="" data-testid="changelog-entry" data-kind="stable" data-platform="mac" data-date="2026-03-28T10:11:00Z"><summary class="utility-entry__summary"><h3 class="utility-entry__head"><span class="utility-entry__title"><span class="utility-entry__name">TypeWhisper 1.0</span><span class="utility-entry__meta"><span>macOS</span><span>v1.0.0</span></span></span><time class="utility-entry__date" dateTime="2026-03-28T10:11:00Z">March 28, 2026</time></h3></summary><div class="utility-entry__body"><div class="site-prose utility-notes"><p>TypeWhisper 1.0 is the first stable release.</p></div><p class="utility-entry__links"><a href="https://github.com/TypeWhisper/typewhisper-mac/releases/tag/v1.0.0" class="utility-entry__link utility-entry__link--out">View on GitHub</a></p></div></details>
 """#
 
 @Test func typeWhisperReadsOnlyTheMacCardsAndNeverCrossesOne() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.typewhisper.mac"))
     let log = try #require(ChangelogExtractor.extract(from: typeWhisperFixture, using: recipe))
 
-    // The Windows release is not a version of this app.
-    #expect(log.entries.map(\.version) == ["1.7.0-daily.20260826", "1.6.0"])
+    // The Windows release is not a version of this app. The last card's title
+    // is "TypeWhisper 1.0"; the version comes from its id.
+    #expect(log.entries.map(\.version) == ["1.7.0", "1.0.0"])
     #expect(!log.entries.contains { $0.version.hasPrefix("1.0.9") })
 
-    // v0.6.1 has no prose block. The tempered scan must abandon it, NOT run on
-    // into v1.6.0's card — doing that both mislabels 1.6.0's notes as 0.6.1's
-    // and consumes 1.6.0's own heading, so the real entry disappears. Two live
-    // entries did exactly this before the pattern was tempered.
+    // v0.6.1 has no notes block. The tempered scan must abandon it at its own
+    // `</details>`, NOT run on into the next card — doing that both mislabels
+    // 1.0.0's notes as 0.6.1's and consumes 1.0.0's own card, so the real entry
+    // disappears.
     #expect(!log.entries.contains { $0.version == "0.6.1" })
-    #expect(log.entries[1].items == ["Add Web Link transcription plugin"])
+    #expect(log.entries[1].items == ["TypeWhisper 1.0 is the first stable release."])
 
-    #expect(log.entries[0].date == "August 26, 2026")
+    #expect(log.entries[0].date == "October 2, 2026")
     #expect(log.entries[0].items == [
-        "expand iCloud container entitlements for release signing (#1141)",
-        "propagate provider cancellations",
+        "History and Inbox sync through iCloud.",
+        "Shortcuts are configured on a visual Mac keyboard.",
     ])
 }
 

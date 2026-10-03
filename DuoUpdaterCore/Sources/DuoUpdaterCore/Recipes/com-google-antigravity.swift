@@ -20,13 +20,16 @@ enum com_google_antigravity {
         // no SUFeedURL (so nothing else covers it). The app sends an
         // `x-user-staging-id` header for its staged rollout; we deliberately do
         // not — that header is a per-machine identifier. The feed `vary`s on it,
-        // and a request without one is served the PREVIOUS release until the
-        // staged rollout is (nearly) done, while a staging id is assigned the new
-        // one by bucket. So this probe trails the rollout rather than leading it:
-        // the changelog page lists a release from its first day, and for those
-        // days `duo verify` reports the notes "AHEAD of every probe row". That is
-        // the vendor's rollout, not a stale pattern — it clears once the feed
-        // catches up (History has the measurements).
+        // and what a header-less request gets during a rollout has gone BOTH
+        // ways (History has both measurements): on 2026-09-14 it was served
+        // 2.13.0 at `stagingPercentage: 10`, i.e. offered here before most
+        // installs take it; on 2026-09-23 it got the previous 2.15.1 every time
+        // while random staging ids drew 2.16.0 by bucket, i.e. trailing. So
+        // neither direction is a rule. When it trails, the changelog page lists
+        // the release from its first day and `duo verify` reports the notes
+        // "AHEAD of every probe row" until the feed catches up; when it leads,
+        // an installed copy can be offered a build its own feed hasn't given it
+        // yet. Check the live feed before dismissing either as the rollout.
         //
         // The feed's `sha512` is verifiable: on both checks (History) the served zip's
         // Content-Length was exactly the `size` it states, so the hash was

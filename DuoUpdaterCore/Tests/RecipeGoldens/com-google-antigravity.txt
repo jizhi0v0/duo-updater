@@ -20,7 +20,7 @@ probes[0].versionPattern = "(?m)^version:\\s*([0-9][0-9.]*)\\s*$"
 probes[0].transientBodyPattern = nil
 probes[0].trackClosedPattern = nil
 probes[0].downloadURL = nil
-probes[0].changelogURL? = URL("https://antigravity.google/changelog")
+probes[0].changelogURL? = URL("https://antigravity.google/docs/changelog")
 probes[0].selectHighest = false
 probes[0].versionIsBuild = false
 probes[0].buildNamespace = .bundle
@@ -73,13 +73,13 @@ probes[1].requestHeaders = Dictionary(count: 0)
 changelogs = Array(count: 2)
 changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.google.antigravity"
-changelogs[0].source = URL("https://antigravity.google/changelog")
+changelogs[0].source = URL("https://antigravity.google/docs/changelog")
 changelogs[0].sourceTemplate = nil
 changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
-changelogs[0].entryPattern = "href=\"/releases\\?tab=hub&amp;version=[^\"]*\"[^>]*>(?<version>[^<]+)</a><br[^>]*>(?<date>[^<]*)</p>(?:(?!section-row-wrapper|grid-body).)*?<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>(?<body>.*?)(?=<div class=\"section-row-wrapper|<div class=\"grid-body|</section>)"
+changelogs[0].entryPattern = "<article[^>]*\\bid=\"rel-hub-(?<version>[^\"]+)\"[^>]*>(?:(?!</article>).)*?<time[^>]*>(?<date>[^<]*)</time>(?:(?!</article>).)*?<h3[^>]*class=\"rn-headline[^\"]*\"[^>]*>(?<title>.*?)</h3>(?<body>.*?)</article>"
 changelogs[0].itemPatterns = Array(count: 1)
-changelogs[0].itemPatterns[0] = "(?:<div class=\"changes[^\"]*\"[^>]*><p>|<li[^>]*class=\"caption[^\"]*\"[^>]*>)(?<item>.*?)(?:</p>|</li>)"
+changelogs[0].itemPatterns[0] = "(?:<div class=\"rn-summary[^\"]*\"[^>]*><p>|<li[^>]*class=\"rn-item[^\"]*\"[^>]*>)(?<item>.*?)(?:</p>|</li>)"
 changelogs[0].stripTags = true
 changelogs[0].decodeEntities = true
 changelogs[0].escapedMarkup = false
@@ -104,13 +104,13 @@ changelogs[0].skipSections = Array(count: 0)
 changelogs[0].tagPattern = nil
 changelogs[1] = struct ChangelogRecipe
 changelogs[1].bundleID = "com.google.antigravity-ide"
-changelogs[1].source = URL("https://antigravity.google/changelog")
+changelogs[1].source = URL("https://antigravity.google/docs/changelog")
 changelogs[1].sourceTemplate = nil
 changelogs[1].versionFromTemplate = false
 changelogs[1].mode = .html
-changelogs[1].entryPattern = "href=\"/releases\\?tab=ide&amp;version=[^\"]*\"[^>]*>(?<version>[^<]+)</a><br[^>]*>(?<date>[^<]*)</p>(?:(?!section-row-wrapper|grid-body).)*?<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>(?<body>.*?)(?=<div class=\"section-row-wrapper|<div class=\"grid-body|</section>)"
+changelogs[1].entryPattern = "<article[^>]*\\bid=\"rel-ide-(?<version>[^\"]+)\"[^>]*>(?:(?!</article>).)*?<time[^>]*>(?<date>[^<]*)</time>(?:(?!</article>).)*?<h3[^>]*class=\"rn-headline[^\"]*\"[^>]*>(?<title>.*?)</h3>(?<body>.*?)</article>"
 changelogs[1].itemPatterns = Array(count: 1)
-changelogs[1].itemPatterns[0] = "(?:<div class=\"changes[^\"]*\"[^>]*><p>|<li[^>]*class=\"caption[^\"]*\"[^>]*>)(?<item>.*?)(?:</p>|</li>)"
+changelogs[1].itemPatterns[0] = "(?:<div class=\"rn-summary[^\"]*\"[^>]*><p>|<li[^>]*class=\"rn-item[^\"]*\"[^>]*>)(?<item>.*?)(?:</p>|</li>)"
 changelogs[1].stripTags = true
 changelogs[1].decodeEntities = true
 changelogs[1].escapedMarkup = false

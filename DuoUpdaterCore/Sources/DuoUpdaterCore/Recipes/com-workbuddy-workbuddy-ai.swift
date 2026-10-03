@@ -103,9 +103,8 @@ enum com_workbuddy_workbuddy_ai {
         // (History has the dated check of both vendor DMGs).
         //
         // Changelog: each site's page is the one the app itself links (the build
-        // branches on `isOverseas()`); the intl page has run behind its own train
-        // (History has the versions), which is what the intl ChangelogRecipe's
-        // `acknowledgedStaleEntry` is for — see `Recipes/com-workbuddy-workbuddy.swift`.
+        // branches on `isOverseas()`). The two pages share one entry pattern — see
+        // `Recipes/com-workbuddy-workbuddy.swift`.
         VendorProbeRegistry.workBuddyRecipe(
             bundleID: "com.workbuddy.workbuddy-ai", host: "www.workbuddy.ai",
             assetHost: "codebuddy-1328495429.cos.accelerate.myqcloud.com", arch: .arm64,
@@ -123,6 +122,6 @@ enum com_workbuddy_workbuddy_ai {
             source: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!,
             entryPattern: ChangelogRecipeRegistry.workBuddyEntryPattern,
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
-            acknowledgedStaleEntry: "5.2.7"),
+            headingPattern: ChangelogRecipeRegistry.workBuddyHeadingPattern),
         ])
 }

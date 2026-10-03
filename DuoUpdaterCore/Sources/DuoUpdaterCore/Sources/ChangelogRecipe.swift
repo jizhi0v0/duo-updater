@@ -294,11 +294,12 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// `duo verify` flags a changelog whose newest entry trails the detected
     /// version by a whole release, on the theory that the entry pattern is reading
     /// a stale section. Usually right. Sometimes the pattern is perfect and the
-    /// VENDOR is the stale one — WorkBuddy's international docs site carries two
-    /// entries and stops at 5.2.7 (2026-07-17) while its own endpoint ships 5.4.2,
-    /// and the identical pattern returns 58 entries from the Chinese site. There
-    /// is nothing to fix, so the warning can never clear: it re-files an issue
-    /// every sweep against a recipe that works (issue #88).
+    /// VENDOR is the stale one — WorkBuddy's international docs site carried two
+    /// entries and stopped at 5.2.7 (2026-07-17) while its own endpoint shipped
+    /// 5.4.2, and the identical pattern returned 58 entries from the Chinese site.
+    /// There is nothing to fix, so the warning can never clear: it re-files an
+    /// issue every sweep against a recipe that works (issue #88; the vendor later
+    /// caught up and the acknowledgement went, #913).
     ///
     /// **A version, not a boolean, and that is the whole design.** A `true` here
     /// would switch the check off for this recipe forever, silencing the one
@@ -1081,7 +1082,24 @@ public enum ChangelogRecipeRegistry {
         // AND consume its heading, so the real entry disappears from the pane
         // while its notes show under the wrong version. Refusing to cross a
         // `</h2>` makes the adjacency requirement below actually hold.
-        + #"(?:(?!</h2>).)*</h2>\s*<ul[^>]*>(?<body>.*?)</ul>"#
+        + #"(?:(?!</h2>).)*</h2>\s*"#
+        // The body is one list, or a run of lists each optionally led by a
+        // bracketed category label (`<p>[New]</p><ul>…</ul><p>[Fixed]</p><ul>…`,
+        // the intl page's shape; the CN page is one bare `<ul>` per release).
+        // Only labels and lists may sit between `</h2>` and the end of the run,
+        // so the adjacency rule still holds: a heading followed by anything else
+        // (prose, an unbracketed `<p>`, the next `<h2>`) is not an entry, and the
+        // run stops at the first thing that is neither.
+        + #"(?<body>"# + workBuddyListRun + #"(?:\s*"# + workBuddyListRun + #")*)"#
+
+    /// One optional `<p>[Label]</p>` followed by the `<ul>` it labels.
+    private static let workBuddyListRun =
+        #"(?:<p>\[[^\]<]+\]</p>\s*)?<ul[^>]*>.*?</ul>"#
+
+    /// The bracketed category labels inside a `workBuddyEntryPattern` body
+    /// (`[New]` / `[Improved]` / `[Fixed]`), shown as headings rather than
+    /// dropped. Matches nothing on a body that is a single bare list.
+    static let workBuddyHeadingPattern = #"<p>\[(?<heading>[^\]<]+)\]</p>"#
 
     /// Every recipe registered for a bundle id (across channels). Used to clear all
     /// channel variants' caches on update — see `AppListModel.invalidateChangelog`.

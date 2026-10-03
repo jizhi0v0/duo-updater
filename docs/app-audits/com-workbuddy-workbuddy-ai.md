@@ -49,11 +49,15 @@ changelog 页面标记、一键安装的闸与 host 钉死、验证方法——�
 
 | | URL | 状态 |
 |---|---|---|
-| 国际站 | https://www.workbuddy.ai/docs/workbuddy/Changelog | 200，但**落后于自己的轨道**（写作时最新条目 5.2.7，而发布版是 5.4.2） |
+| 国际站 | https://www.workbuddy.ai/docs/workbuddy/Changelog | 200，2026-10-03 与自己的轨道同步（最新条目 5.6.2 = 端点 5.6.2） |
 
-解析结果（2026-08-27 实测）：国际站 2 条（最新 5.2.7）。这个 2 是**厂商页面本身**如此，
-不是 recipe 坏了 —— 同一条正则在 CN 页跑出 58 条。`duo verify` 会为此报一条 ⚠（最新条目
-5.2.7 落后于探测到的 5.4.2），这条警告是真的，且厂商补上笔记后会自动消失。
+页面改版后（#913）每条 release 拆成 `<p>[New]</p><ul>…</ul><p>[Fixed]</p><ul>…</ul>` 几段，
+最新几条标题不带日期，日期括号也从全角改成了半角。共用的 `workBuddyEntryPattern` 两种形状都接，
+`[New]`/`[Improved]`/`[Fixed]` 渲染成小标题（`workBuddyHeadingPattern`）。
+
+解析结果（2026-10-03 实测）：国际站 4 条（5.6.2、5.5.0、5.2.7、5.2.3）。条数少是**厂商页面本身**如此，
+不是 recipe 坏了 —— 同一条正则在 CN 页跑出 74 条。页面曾长期停在 5.2.7、落后于自己的轨道，
+那时 recipe 带 `acknowledgedStaleEntry: "5.2.7"`（#88）；页面追上后已去掉，经过见「历史与实测」。
 
 ## 一键安装
 
@@ -159,3 +163,20 @@ the CN page was current.
 **改法**：URL 里不带 `version` 参数。四个 host×arch 组合当天实测都回 200（不是 204）：国际站两架构 `5.5.2.37849279`，国内站两架构 `5.5.6.38337834`，与 Homebrew cask `workbuddy-ai`（`5.5.2.37849279-910352f0`）一致；cask 的 livecheck 打的也正是这个不带 `version` 的 URL。产物存在性也核了：`…-5.3.14.36279234-825709d4.zip` 为 404，`…-5.5.2.37849279-910352f0.{zip,dmg}` 均为 200。
 
 顺带核过的同形写法：`app-chatwise.swift` 的 `releases?version=0.0.0&platform=osx` 不受影响——带不带 `version`、传 `0.8.0`，都回同一个 `26.9.0`，与 brew 一致，没有链式行为。`com-lemon-lvoverseas.swift` 钉的是 `9.99`（比所有发布都**高**），方向相反，钉不到跳上。
+
+### Changelog：国际站页面改版，`noEntriesExtracted`（#913）
+
+2026-10-03 实测（只读 GET）：`www.workbuddy.ai/docs/workbuddy/Changelog` 200，34,708 B。条目从
+`</h2><ul>…</ul>` 变成 `</h2><p>[New]</p><ul>…</ul><p>[Improved]</p><ul>…</ul><p>[Fixed]</p><ul>…</ul>`，
+旧正则要求 `</h2>\s*<ul` 紧邻，于是一条都匹配不上（`duo verify` 两轮 `noEntriesExtracted`，last good 5.2.7）。
+同时：5.6.2、5.5.0 两条标题没有日期；5.2.7、5.2.3 的日期括号是半角 `(2026-07-17)`（8 月时是全角）；
+"Lanched 🚀" 字样也没了。
+
+改法：body 改成「可选 `<p>[标签]</p>` + `<ul>`」的连续若干段，其他东西一律不许出现在 `</h2>` 与列表之间，
+原来的相邻约束因此仍成立。新正则在国际站解析出 4 条：5.6.2（22 项，New/Improved/Fixed）、5.5.0（8 项）、
+5.2.7（2026-07-17，2 项）、5.2.3（2026-07-15，16 项）；在国内站 `www.workbuddy.cn` 页（172,168 B）
+解析出 74 条，最新 5.6.2（2026-09-21），与旧正则逐条（版本、日期、条目）完全相同，标签段 0 个。
+
+同日 `/v2/update?platform=workbuddy-darwin-arm64` 回 `5.6.2.39458645`，国际站页面最新条目 5.6.2，
+页面已追上自己的轨道，所以 `acknowledgedStaleEntry: "5.2.7"` 去掉了（按该字段的约定：厂商追上后它就该删）。
+

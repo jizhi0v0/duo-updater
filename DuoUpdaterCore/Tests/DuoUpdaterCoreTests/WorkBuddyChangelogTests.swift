@@ -9,7 +9,9 @@ import Foundation
 /// English one, which is exactly the failure the shared constant exists to
 /// prevent.
 ///
-/// Fixtures are verbatim slices of the live pages, fetched 2026-08-27.
+/// Fixtures are verbatim slices of the live pages: the CN ones fetched
+/// 2026-08-27, the intl one 2026-10-03 (after that page's rebuild into
+/// labelled lists, #913).
 struct WorkBuddyChangelogTests {
 
     private static func recipe(_ bundleID: String) throws -> ChangelogRecipe {
@@ -36,6 +38,8 @@ struct WorkBuddyChangelogTests {
     @Test func bothSitesShareOneEntryPattern() throws {
         #expect(try Self.recipe(Self.cnID).entryPattern
                 == Self.recipe(Self.intlID).entryPattern)
+        #expect(try Self.recipe(Self.cnID).headingPattern
+                == Self.recipe(Self.intlID).headingPattern)
     }
 
     // MARK: - parsing the real pages
@@ -51,31 +55,42 @@ struct WorkBuddyChangelogTests {
         #expect(first.items.first?.hasPrefix("新增 Markdown AI 编辑快捷键提示") == true)
         // The anchor link that sits inside the heading must not leak into the text.
         #expect(!log.entries.contains { $0.version.contains("header-anchor") })
+        // One bare list per release: the shared heading pattern finds nothing here.
+        #expect(log.entries.allSatisfy { $0.content.isEmpty })
     }
 
+    /// The intl page's shape since #913: no date on the newest headings, and each
+    /// release split into `<p>[Label]</p><ul>…</ul>` runs. Every list in the run
+    /// belongs to the release, in order, with its label as a heading.
     @Test func readsTheEnglishEntries() throws {
         let log = try #require(
             ChangelogExtractor.extract(from: aiFixture, using: try Self.recipe(Self.intlID)))
-        #expect(log.entries.count == 2)
+        #expect(log.entries.map(\.version) == ["5.5.0", "5.2.7"])
         let first = try #require(log.entries.first)
-        // "Lanched" is the vendor's own typo; the pattern must not depend on the
-        // word at all, which is what lets it also read "版本发布" and the bare form.
-        #expect(first.version == "5.2.7")
-        #expect(first.date == "2026-07-17")
-        #expect(first.items == ["Bug fixes and user experience improvements."])
-        #expect(log.entries.last?.version == "5.2.3")
-        #expect(log.entries.last?.items.count == 10)
+        #expect(first.date == nil)
+        #expect(first.items.count == 8)
+        #expect(first.items.first == "Invite-a-friend credit rewards")
+        #expect(first.items.last == "Profile and persona name settings")
+        let older = try #require(log.entries.last)
+        #expect(older.date == "2026-07-17")
+        #expect(older.content == [
+            .heading("Improved"),
+            .note("General user experience improvements"),
+            .heading("Fixed"),
+            .note("General bug fixes"),
+        ])
+        // The label is a heading, never a change line.
+        #expect(!log.entries.contains { $0.items.contains { $0.contains("[") } })
     }
 
-    /// The trap that reading the page in a browser cannot reveal: the parentheses
-    /// around every date are FULLWIDTH（）on both sites. A pattern written with
-    /// `\(` matches neither page, and the failure looks like "the vendor changed
-    /// their layout" rather than "we typed the wrong bracket".
-    @Test func theDateParenthesesAreFullwidthOnBothSites() throws {
+    /// The trap that reading the page in a browser cannot reveal: the CN page's
+    /// date parentheses are FULLWIDTH（）, the intl page's are ASCII. A pattern
+    /// written for one form silently drops every date on the other site.
+    @Test func theDateParenthesesDifferBetweenTheSites() throws {
         #expect(cnFixture.contains("（2026-08-17）"))
-        #expect(aiFixture.contains("（2026-07-17）"))
         #expect(!cnFixture.contains("(2026-08-17)"))
-        #expect(!aiFixture.contains("(2026-07-17)"))
+        #expect(aiFixture.contains("(2026-07-17)"))
+        #expect(!aiFixture.contains("（2026-07-17）"))
     }
 
     /// 19 of the Chinese page's older entries print no date at all. The date group
@@ -100,6 +115,16 @@ struct WorkBuddyChangelogTests {
         #expect(!log.entries.contains { $0.version == "9.9.9" })
         #expect(log.entries.first?.version == "5.3.14")
     }
+
+    /// The same guard for the labelled shape: a category label with no list
+    /// after it is not the start of a run, so 9.9.9 must not reach across into
+    /// 5.5.0's lists either.
+    @Test func aLabelWithNoListDoesNotAdoptTheNextReleasesItems() throws {
+        let doc = #"<h2 id="_9-9-9">9.9.9</h2><p>[New]</p>"# + aiFixture
+        let log = try #require(
+            ChangelogExtractor.extract(from: doc, using: try Self.recipe(Self.intlID)))
+        #expect(log.entries.map(\.version) == ["5.5.0", "5.2.7"])
+    }
 }
 
 private let cnFixture = #"""
@@ -107,7 +132,7 @@ private let cnFixture = #"""
 """#
 
 private let aiFixture = #"""
-<h2 id="_5-2-7-lanched-🚀-2026-07-17" tabindex="-1">5.2.7 Lanched 🚀（2026-07-17） <a class="header-anchor" href="#_5-2-7-lanched-🚀-2026-07-17" aria-label="Permalink to &quot;5.2.7 Lanched 🚀（2026-07-17）&quot;">​</a></h2><ul><li>Bug fixes and user experience improvements.</li></ul><h2 id="_5-2-3-lanched-🚀-2026-07-15" tabindex="-1">5.2.3 Lanched 🚀（2026-07-15） <a class="header-anchor" href="#_5-2-3-lanched-🚀-2026-07-15" aria-label="Permalink to &quot;5.2.3 Lanched 🚀（2026-07-15）&quot;">​</a></h2><ul><li>Added sharing support for tasks and outputs, allowing users to generate a link with one click and share it with friends.</li><li>Improved the chat input toolbar in compact mode and restored input height after sending messages for a steadier small-window experience.</li><li>Fixed conversation recovery after weak-network disconnections so the next prompt can continue correctly.</li><li>Fixed Claw multi-device messaging issues and MCP session recovery after session loss.</li><li>Fixed false connector failure prompts and duplicate connected notifications during quick switching or reconnection.</li><li>Fixed missing tool-call displays after switching project tasks and flickering in-progress task filters.</li><li>Fixed custom expert and expert-team member mapping issues, default prompt errors, and invalid configurations that could cause exceptions.</li><li>Fixed duplicated streaming content, message grouping issues, and incorrect cancellation-state display.</li><li>Fixed Windows issues where opening files from results could fail and Add Expert/Skill popovers could become unresponsive.</li><li>Fixed upgrade and renewal buttons in international builds by opening them in the external browser to avoid blocked pop-ups.</li></ul>
+<h2 id="_5-5-0" tabindex="-1">5.5.0 <a class="header-anchor" href="#_5-5-0" aria-label="Permalink to “5.5.0”">​</a></h2><p>[New]</p><ul><li>Invite-a-friend credit rewards</li><li>New language support (Brazilian Portuguese, Indonesian, Traditional Chinese)</li><li>IM integrations (Discord, Telegram, Slack)</li><li>Discord community entry in feedback</li></ul><p>[Fixed]</p><ul><li>Expert package downloads in overseas regions</li><li>Conversation status occasionally reverting to an earlier state</li><li>Session and task state refresh after account switching</li><li>Profile and persona name settings</li></ul><h2 id="_5-2-7-2026-07-17" tabindex="-1">5.2.7 (2026-07-17) <a class="header-anchor" href="#_5-2-7-2026-07-17" aria-label="Permalink to “5.2.7 (2026-07-17)”">​</a></h2><p>[Improved]</p><ul><li>General user experience improvements</li></ul><p>[Fixed]</p><ul><li>General bug fixes</li></ul>
 """#
 
 private let noDateFixture = #"""

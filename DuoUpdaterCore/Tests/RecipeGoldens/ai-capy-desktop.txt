@@ -1,0 +1,58 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "ai-capy-desktop"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 1)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "ai.capy.desktop"
+changelogs[0].source = URL("https://capy.ai/changelog")
+changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
+changelogs[0].mode = .html
+changelogs[0].entryPattern = "<article\\b[^>]*\\bid=\"v[0-9][0-9-]*\"[^>]*>\\s*(?:<time\\b[^>]*>(?<date>[^<]*)</time>\\s*)?<h2\\b[^>]*>\\s*<a\\b[^>]*>\\s*Capy\\s+(?<version>[0-9]+(?:\\.[0-9]+){1,3})\\s*</a>\\s*</h2>\\s*(?:<p\\b[^>]*>(?<title>[^<]*)</p>)?(?<body>.*?)</article>"
+changelogs[0].itemPatterns = Array(count: 2)
+changelogs[0].itemPatterns[0] = "<p\\b[^>]*\\bclass=\"font-inter[^\"]*\"[^>]*>(?<item>.*?)</p>"
+changelogs[0].itemPatterns[1] = "<li\\b[^>]*>(?<item>.*?)</li>"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 20
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel = nil
+changelogs[0].includesPromotedStable = false
+changelogs[0].imagePattern? = "<img\\b[^>]*\\bsrc=\"(https://[^\"]+)\""
+changelogs[0].headingPattern? = "<h3\\b[^>]*>(?<heading>.*?)</h3>"
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].carriesOtherTrainEntries = false
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

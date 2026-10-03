@@ -110,15 +110,15 @@ nightly keeps following nightly",安装脚本的错误信息也写着
      最后一条 `cua-driver-v0.2.0`）。`^` 把它们挡在外面。
 - tag 语法直接抄厂商的 `_install-rust.sh`：stable 是 `^[0-9]+\.[0-9]+\.[0-9]+$`，
   nightly 是 `^[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}\.[1-9][0-9]*$`。
-- `listPageSize: 25`。2026-09-16 用 Python 独立复算（不是从 Swift 规则里重读）：最新 100 条
-  release 里 21 条命中，相邻两条命中之间最大间距 18（`v0.20.0` → `v0.19.3`，中间五天全是
-  nightly / lume / fleet / sandbox），所以下限 19，登记在
-  `GitHubListPageSizeTests.measuredMinimumDepth`（全历史 683 条重算一遍，最大间距同样是 18，
-  所以下限不随窗口变）。25 是在下限之上留余量，和 Bitwarden 的
-  10 相对其下限 8 同一个做法。**代价是实打实的**：`curl --compressed` 实测同一端点
-  per_page=20 → 76.4 KB、25 → 101.8 KB、40 → 144.0 KB（gzip 线上字节，和请求账本同一单位）。
-  这是本 registry 里最贵的一条 GitHub 规则。
-  stable 轨若安静得比一页还久，最新那条命中会被挤出页面 —— 那条路径的出口是
+- `listPageSize`：stable 50、nightly 48（故意不相等：同一个 list URL 会让 stable 那一页冒充 nightly 的首次整页 seeding，见 nightly rule 注释）。下限登记在
+  `GitHubListPageSizeTests.measuredMinimumDepth`：stable 27、nightly 31，都是 Python 独立复算
+  （不是从 Swift 规则里重读）。⚠️ **决定下限的不是两条命中之间的间距，而是最新一条命中
+  上面压着的那一段**：这个 monorepo 不断长出新产品线，一条新线两天里就能在列表顶上堆十几条
+  release，把两条规则同时挤出页面（#947，见「历史与实测」2026-10-03）。相邻命中的最大间距
+  反而小得多（stable 17–18、nightly 7）。50 / 48 大约再留出一次同等规模的突发。
+  **代价是实打实的**：gzip 线上字节 per_page=25 → 75.9 KB、40 → 140.0 KB、50 → 181.4 KB
+  （2026-10-03，和请求账本同一单位）。这是本 registry 里最贵的一条 GitHub 规则。
+  突发若比一页还长，最新那条命中仍会被挤出页面 —— 那条路径的出口是
   `recordMiss` + 行变 `.unknown`，不是自信地报"已最新"。
 - `probesNewestFirst: false`：全仓 683 条 release 里 stable 驱动 tag 占 88 条（12.9%），
   nightly job 几乎每天早上发一版，所以第 0 行基本不会是这条规则要的那条。探一页一行
@@ -218,7 +218,7 @@ nightly keeps following nightly",安装脚本的错误信息也写着
   `0.28.2 < 0.28.3` → 显示"已最新"，不提示。方向是安全的，但和厂商的答案会不一致。
 - **列表顺序偶发逆序**（见「更新检测」）。历史上两次，各约两天，表现为暂时给出偏低的版本。
 - **文档与包对 macOS 下限说法不一致**：文档 14.0，`Info.plist` 13.0。两边都没实测。
-- **这条规则在流量上是本 registry 里最贵的 GitHub 规则**（101.8 KB/轮）。
+- **这条规则在流量上是本 registry 里最贵的 GitHub 规则**（per_page=50，约 181 KB/轮）。
   monorepo + 每日 nightly 是根因，换不掉；能换的只有页大小，而页大小的下限是测出来的。
 
 ## 如何复验
@@ -330,3 +330,26 @@ cua-driver channel status                  # Selected / Current 应当一致
   6. 厂商 `channel status` 变成 `Selected: nightly / Current: nightly` ——
      **分叉被 DuoUpdater 治好了，方向与厂商自己的 `update --apply` 一致**；
      `check-update` 答 "You're on the latest release."
+
+### 2026-10-03 —— 两条规则同时掉出页面（#947）
+
+- `duo verify` 报 nightly 规则 `versionPatternNoMatch`；本地复现时 **stable 规则也一样红**
+  （两条 ✗）。pattern 没错，tag 语法没变：`nightly-cua-driver-rs-v…` 与 `cua-driver-rs-v…`
+  两条线都还在发。
+- Python 在最新 **300** 条 release 上复算：第一条 stable 命中（`cua-driver-rs-v0.32.0`）在
+  **索引 26**，第一条 nightly 命中（`…-v0.30.5-nightly.20260929.36522098176`）在 **索引 30**，
+  分别超出当时的 25 和 12。压在上面的前 30 行里 17 行是 10-01 才出现的新产品线
+  `cua-spaces` / `cua-spacesd`（三天 17 条），其余是 sandbox / lume / npm-* / core / bench /
+  agent 等几乎每条线各发一版。相邻命中最大间距：stable 17（`v0.20.0` → `v0.19.3`，
+  与 09-16 全历史的 18 是同一处）、nightly 7。所以下限改为「顶上那段 + 1」：27 / 31。
+- nightly 四天没出的原因（`Nightly: Cua Driver` workflow）：09-30、10-01、10-02 三次定时运行
+  `failure`（macOS hosted E2E 与 Windows installer smoke 的 release gate 红），10-03 那次
+  `plan` 成功、`build` / `publish` 均 `skipped`。即 nightly 线没停，只是断了几天。
+- 厂商自己的安装脚本（`_install-rust.sh` 的 `resolve_latest_version_from_api`）用
+  `per_page=100` 最多翻 10 页，注释原话 "a busy repository cannot hide cua-driver-rs behind
+  the first page"——同一个问题他们是靠翻页解决的；我们的规则只读一页，只能靠页大小。
+- 页大小线上字节（gzip，带 token）：12 → 51.5 KB、25 → 75.9 KB、30 → 94.0 KB、40 → 140.0 KB、
+  50 → 181.4 KB、60 → 218.1 KB、100 → 335.8 KB。stable 取 50、nightly 取 48（各比下限多出
+  23 / 17 行，约等于这次突发的规模；两者错开是为了不共用同一个 list URL）。
+- 修后 `duo verify --github --only com.trycua.driver --samples`：两条都 ✓
+  （stable `0.32.0`、nightly `0.30.5`）。

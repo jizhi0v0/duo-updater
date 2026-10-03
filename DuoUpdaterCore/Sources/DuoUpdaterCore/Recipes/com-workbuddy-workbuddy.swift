@@ -25,46 +25,48 @@ enum com_workbuddy_workbuddy {
         // notes (or the reverse) would be quietly wrong in a way nothing else here
         // could catch.
         //
-        // Markup (server-rendered, so no JS is needed):
+        // Markup (server-rendered, so no JS is needed). The CN page:
         //   <h2 id="_5-3-14-…">5.3.14 版本发布 🚀（2026-08-17） <a class="header-anchor"…></a></h2>
         //   <ul><li>新增 …</li><li>优化 …</li></ul>
+        // The intl page splits each release into labelled lists, and its newest
+        // headings carry no date at all:
+        //   <h2 id="_5-6-2">5.6.2 <a class="header-anchor"…></a></h2>
+        //   <p>[New]</p><ul><li>…</li></ul><p>[Fixed]</p><ul><li>…</li></ul>
+        // `workBuddyEntryPattern` takes either as the body, and
+        // `workBuddyHeadingPattern` turns the bracketed labels into headings
+        // (it finds none on the CN page, so sharing it costs that page nothing).
         //
-        // TRAP: those parentheses are FULLWIDTH（）in the bytes, on both the
-        // Chinese and the English page — they render close enough to ASCII that
-        // reading the page in a browser tells you nothing. A pattern written with
-        // `\(` matches neither site. Both forms are accepted here so the recipe
-        // survives the vendor normalising them either way.
+        // TRAP: the CN page's date parentheses are FULLWIDTH（）in the bytes —
+        // they render close enough to ASCII that reading the page in a browser
+        // tells you nothing — while the intl page's are ASCII `()` (it used
+        // fullwidth too until its rebuild; History). A pattern written for only
+        // one form misses the other site, so both are accepted.
         //
         // The heading text between version and date varies by era — "版本发布 🚀",
-        // "Lanched 🚀" (the vendor's own typo), or nothing at all on the oldest
-        // entries — so the pattern skips anything that is not a tag or a paren
-        // rather than trying to enumerate the variants. The date group is optional
-        // for the same reason: some of the CN page's older entries have no date.
+        // "Lanched 🚀" (the vendor's own typo), or nothing at all — so the pattern
+        // skips anything that is not a tag or a paren rather than trying to
+        // enumerate the variants. The date group is optional for the same reason:
+        // some of the CN page's older entries, and the intl page's newest, have
+        // no date.
         //
-        // `</h2>\s*<ul>` adjacency is deliberate: it is what keeps a heading whose
-        // notes are laid out some other way from swallowing the NEXT release's
-        // list. It costs the oldest CN entries (4.5.0–4.7.5, which use a different
-        // markup), and that is free — `maxEntries` stops at 40 and far more than 40
-        // of the newest parse (History has the dated counts from both live pages).
+        // Adjacency is deliberate: only lists and their `<p>[Label]</p>` may
+        // follow `</h2>`. That is what keeps a heading whose notes are laid out
+        // some other way from swallowing the NEXT release's list. It costs the
+        // oldest CN entries (4.5.0–4.7.5, which use a different markup), and that
+        // is free — `maxEntries` stops at 40 and far more than 40 of the newest
+        // parse (History has the dated counts from both live pages).
         //
-        // The intl page is short: it stops at 5.2.7 (2026-07-17), while its
-        // own endpoint has shipped newer releases (when checked, 2026-08-27,
-        // 2026-08-28 and 2026-09-14; History has the entry counts and versions). A
-        // future reader finding only a couple of entries has found the vendor's
-        // page, not a broken recipe — the CN page, parsed by the identical pattern,
-        // returns dozens.
-        //
-        // That is also why the intl recipe carries `acknowledgedStaleEntry`
-        // (issue #88). `duo verify` reads 5.2.7 against the newer detected version,
-        // calls it a whole release behind, and files "recipe degraded" — a
-        // complaint that can never clear, because there is nothing on our side to
-        // fix. The acknowledgement names 5.2.7 rather than switching the check off,
-        // so the day the pattern slips to an older section — or the vendor finally
-        // publishes — the sweep speaks up again.
+        // The intl page carries only a handful of releases, and has at times
+        // stopped well behind its own train (History has the versions; the intl
+        // recipe once carried an `acknowledgedStaleEntry` for it, issue #88, and
+        // dropped it once the page caught up, issue #913). A future reader finding
+        // only a few entries there has found the vendor's page, not a broken
+        // recipe — the CN page, parsed by the identical pattern, returns dozens.
         ChangelogRecipe(
             bundleID: "com.workbuddy.workbuddy",
             source: URL(string: "https://www.workbuddy.cn/docs/workbuddy/Changelog")!,
             entryPattern: ChangelogRecipeRegistry.workBuddyEntryPattern,
-            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
+            headingPattern: ChangelogRecipeRegistry.workBuddyHeadingPattern),
         ])
 }

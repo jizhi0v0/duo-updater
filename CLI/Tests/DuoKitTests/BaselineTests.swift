@@ -480,9 +480,11 @@ import DuoUpdaterCore
             #expect(entry.first?.isNumber == true,
                     "\(recipeID) acknowledges '\(entry)', which is not version-shaped — changelogLagComplaint only ever compares version-shaped entries, so this can only be a typo that silences nothing or a wildcard that silences everything")
         }
-        // The one this shipped for. Pinned by bundle id rather than by count, so
-        // adding a second acknowledgement elsewhere does not have to touch this.
-        #expect(acknowledged.contains { $0.0.contains("com.workbuddy.workbuddy-ai") })
+        // Keeps the loop above from passing vacuously. Pinned by bundle id rather
+        // than by count, so adding a second acknowledgement elsewhere does not have
+        // to touch this. (It shipped for WorkBuddy's intl page, which has since
+        // caught up and dropped it, #913.)
+        #expect(acknowledged.contains { $0.0.contains("notion.id") })
     }
 
     /// Codex numbers builds and notes alike as `YY.MDD`, so the date lands in the

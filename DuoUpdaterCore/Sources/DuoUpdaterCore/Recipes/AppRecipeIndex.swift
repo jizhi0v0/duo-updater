@@ -53,6 +53,7 @@ public enum AppRecipeIndex {
         com_crystalidea_macsfancontrol.set,
         com_culturedcode_ThingsMac.set,
         com_DanPristupov_Fork.set,
+        com_dirijor_diri.set,
         com_docker_docker.set,
         com_dwarvesv_minimalbar.set,
         com_electron_goose.set,

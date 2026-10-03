@@ -338,12 +338,13 @@ cua-driver channel status                  # Selected / Current 应当一致
   两条线都还在发。
 - Python 在最新 **300** 条 release 上复算：第一条 stable 命中（`cua-driver-rs-v0.32.0`）在
   **索引 26**，第一条 nightly 命中（`…-v0.30.5-nightly.20260929.36522098176`）在 **索引 30**，
-  分别超出当时的 25 和 12。压在上面的前 30 行里 17 行是 10-01 才出现的新产品线
-  `cua-spaces` / `cua-spacesd`（三天 17 条），其余是 sandbox / lume / npm-* / core / bench /
-  agent 等几乎每条线各发一版。相邻命中最大间距：stable 17（`v0.20.0` → `v0.19.3`，
+  分别超出当时的 25 和 12。压在上面的前 30 行里 18 行属于 10-01 才出现的新产品线
+  `cua-spaces` / `cua-spacesd`（三天 17 条版本 release，外加滚动 tag `cua-spaces-latest`
+  一行），其余是 sandbox / lume / npm-* / core / bench / agent 等几乎每条线各发一版。相邻命中最大间距：stable 17（`v0.20.0` → `v0.19.3`，
   与 09-16 全历史的 18 是同一处）、nightly 7。所以下限改为「顶上那段 + 1」：27 / 31。
 - nightly 四天没出的原因（`Nightly: Cua Driver` workflow）：09-30、10-01、10-02 三次定时运行
-  `failure`（macOS hosted E2E 与 Windows installer smoke 的 release gate 红），10-03 那次
+  `failure`（三次都红在 release gate 的 macOS hosted E2E；Windows E2E 只在后两次另有红：
+  10-01 是 shared Electron + Tauri，10-02 是 installer and update smoke），10-03 那次
   `plan` 成功、`build` / `publish` 均 `skipped`。即 nightly 线没停，只是断了几天。
 - 厂商自己的安装脚本（`_install-rust.sh` 的 `resolve_latest_version_from_api`）用
   `per_page=100` 最多翻 10 页，注释原话 "a busy repository cannot hide cua-driver-rs behind

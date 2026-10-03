@@ -23,11 +23,14 @@ enum com_BlueBubbles_BlueBubbles_Server {
         // `/releases/latest` is what a stable rule reads, so the older single-dmg
         // releases never come into it.
         //
-        // UNVERIFIED: that the swapped-in build opens without a Gatekeeper prompt.
-        // `InPlaceSwap.replace` strips `com.apple.quarantine` before the swap, and the
-        // notarization check is tied to quarantine — Apple documents it only for
-        // downloaded software; the no-quarantine case is a third-party claim (History
-        // has the sources).
+        // The swapped-in build opens without a Gatekeeper prompt — checked end to
+        // end once (History has the log): a one-click 1.9.8 → 1.9.9 through the real
+        // `InstallCoordinator`, then a first launch. `InPlaceSwap.replace` strips
+        // `com.apple.quarantine` before the swap; on that launch `syspolicyd` still
+        // ran its notarization lookup (which fails for this build) and an XProtect
+        // scan behind a sub-second progress window, then let it run with nothing to
+        // click. The Full Disk Access request that follows is BlueBubbles' own — it
+        // reads the Messages database — not Gatekeeper's.
         GitHubReleaseRule(
             bundleID: "com.BlueBubbles.BlueBubbles-Server",
             owner: "BlueBubblesApp", repo: "bluebubbles-server",

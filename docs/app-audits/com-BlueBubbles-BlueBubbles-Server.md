@@ -38,7 +38,7 @@
   `/releases/latest`，更早只有一个 dmg 的 release 不会被读到。该正则在全部非预发布 release
   里每个最多匹配一个资产（v1.9.3 没有资产）。
 
-**未验证：换装后首次启动会不会弹 Gatekeeper。** 没有启动任何东西。依据只有：
+**（写于 2026-10-02，当时未验证；2026-10-04 已实测，见下一节）换装后首次启动会不会弹 Gatekeeper。** 当时没有启动任何东西。依据只有：
 `InPlaceSwap.replace` 在闸通过后、换装前跑 `stripQuarantine`（`xattr -drs com.apple.quarantine`）；
 Apple 的 Platform Security Guide 把 Gatekeeper 的「identified developer + notarized」检查描述为针对
 用户**下载**并打开的软件
@@ -48,3 +48,32 @@ Apple 的 Platform Security Guide 把 Gatekeeper 的「identified developer + no
 标记的 app 公证照查，但无需用户操作即可运行）。XProtect 仍会在首次启动 / 文件变化后扫描
 （<https://support.apple.com/guide/security/protecting-against-malware-sec469d47bd8/web>），那是恶意软件
 特征扫描，不是公证门槛。
+
+### 2026-10-04：一键换装后首次启动实测——没有 Gatekeeper 弹窗
+
+在扫描机上（macOS 26.7，Apple Silicon）走了一遍真实的一键路径：
+
+1. 从 GitHub release 下载 `BlueBubbles-1.9.8-arm64.dmg`（291875419 字节，curl，无 quarantine），
+   `ditto` 进 `/Applications/BlueBubbles.app`。1.9.8，Team `WPV275H8W7`，`codesign --verify --deep --strict` 通过。
+2. 用 main（`f45fd3a7`，含 #954）构建的 `duo` CLI：`duo check BlueBubbles` 报
+   `1.9.8 → 1.9.9 [GitHub, in-place]`；`duo install BlueBubbles --yes` 走的是和菜单栏 app 同一个
+   `InstallCoordinator`，依次 downloading → extracting → verifyingCodeSignature → installing → done，
+   约 19 秒。换装后：`1.9.9`，Team 不变，strict 校验通过，`xattr` 只剩 `com.apple.provenance`（没有
+   `com.apple.quarantine`）；`spctl -a -t exec` 仍是 `rejected` / `Unnotarized Developer ID`——那是
+   静态评估，不是启动时的门槛。
+3. `open /Applications/BlueBubbles.app`，统一日志（`/usr/bin/log show`，`syspolicyd` 与
+   `CoreServicesUIAgent`）：
+   - 00:15:46.6 LaunchServices：`bundle … is launch-disabled and needs to be set trusted`
+   - 00:15:46.7–47.9 `syspolicyd` `GK performScan`，多次 `Error checking with notarization daemon: 3`
+     与 `GatekeeperPolicyScanError Code=-67018 "Code did not match any currently allowed policy"`，
+     随后连 `XprotectFramework.AnalysisService`
+   - 00:15:48.8–49.7 `CoreServicesUIAgent` `CSUICodeEvaluationController` 显示并关闭进度窗（不到 1 秒）
+   - 00:15:49.7 `GK evaluateScanResult: 2 … (team: WPV275H8W7) (bundle_id: com.BlueBubbles.BlueBubbles-Server)`，
+     进程继续启动
+4. 屏幕上出现的唯一对话框是 BlueBubbles 自己的「完全磁盘访问权限」申请（它要读信息 app 的数据库），
+   与公证无关；没有「无法验证开发者」/「Apple 无法检查」类的 Gatekeeper 弹窗，不需要用户点任何东西 app 就
+   打开到「Welcome to BlueBubbles!」设置页，之后持续运行。
+
+结论：无 quarantine 的未公证 Developer ID 构建，换装后首次启动会被 Gatekeeper **检查**（公证查询失败 +
+XProtect 扫描），但**不拦截、不弹窗**——与上面引用的 Eclectic Light 说法一致。只测了这一台机器、这一个
+macOS 版本。

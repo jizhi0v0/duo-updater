@@ -49,3 +49,22 @@ private let capyChangelogFixture = #"""
     #expect(plain.items.count == 1)
     #expect(plain.content.isEmpty)
 }
+
+/// Not a captured page: the two shapes the live page doesn't have yet, built
+/// from its own markup. An article with no subtitle must keep its first note
+/// as a note, and a list mixed into the paragraphs must not be dropped (the
+/// extractor keeps only the first item pattern that yields anything).
+@Test func capyChangelogKeepsNotesWithoutASubtitleAndAlongsideAList() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "ai.capy.desktop"))
+    let page = #"""
+        <article class="outline-none" id="v0-5-0" tabindex="-1"><time class="font-dm-mono text-sm" dateTime="2026-10-09">Oct 9, 2026</time><h2 class="mt-3"><a href="/changelog/0.5.0">Capy 0.5.0</a></h2><div class="prose-sm mt-6"><p class="font-inter text-secondary-foreground">Intro paragraph.</p>
+        <ul><li>First list item</li><li><p class="font-inter text-secondary-foreground">Loose list item</p></li></ul>
+        <p class="font-inter text-secondary-foreground">Closing paragraph.</p></div></article>
+        """#
+    let entry = try #require(ChangelogExtractor.extract(from: page, using: recipe)?.entries.first)
+    #expect(entry.version == "0.5.0")
+    #expect(entry.title == nil)
+    #expect(entry.items == [
+        "Intro paragraph.", "First list item", "Loose list item", "Closing paragraph.",
+    ])
+}

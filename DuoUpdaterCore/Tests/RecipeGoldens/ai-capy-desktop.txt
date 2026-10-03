@@ -12,10 +12,9 @@ changelogs[0].source = URL("https://capy.ai/changelog")
 changelogs[0].sourceTemplate = nil
 changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
-changelogs[0].entryPattern = "<article\\b[^>]*\\bid=\"v[0-9][0-9-]*\"[^>]*>\\s*(?:<time\\b[^>]*>(?<date>[^<]*)</time>\\s*)?<h2\\b[^>]*>\\s*<a\\b[^>]*>\\s*Capy\\s+(?<version>[0-9]+(?:\\.[0-9]+){1,3})\\s*</a>\\s*</h2>\\s*(?:<p\\b[^>]*>(?<title>[^<]*)</p>)?(?<body>.*?)</article>"
-changelogs[0].itemPatterns = Array(count: 2)
-changelogs[0].itemPatterns[0] = "<p\\b[^>]*\\bclass=\"font-inter[^\"]*\"[^>]*>(?<item>.*?)</p>"
-changelogs[0].itemPatterns[1] = "<li\\b[^>]*>(?<item>.*?)</li>"
+changelogs[0].entryPattern = "<article\\b[^>]*\\bid=\"v[0-9][0-9-]*\"[^>]*>\\s*(?:<time\\b[^>]*>(?<date>[^<]*)</time>\\s*)?<h2\\b[^>]*>\\s*<a\\b[^>]*>\\s*Capy\\s+(?<version>[0-9]+(?:\\.[0-9]+){1,3})\\s*</a>\\s*</h2>\\s*(?:<p\\b(?![^>]*\\bfont-inter\\b)[^>]*>(?<title>[^<]*)</p>)?(?<body>.*?)</article>"
+changelogs[0].itemPatterns = Array(count: 1)
+changelogs[0].itemPatterns[0] = "<(?:p\\b[^>]*\\bclass=\"font-inter[^\"]*\"|li\\b)[^>]*>(?<item>.*?)</(?:p|li)>"
 changelogs[0].stripTags = true
 changelogs[0].decodeEntities = true
 changelogs[0].escapedMarkup = false

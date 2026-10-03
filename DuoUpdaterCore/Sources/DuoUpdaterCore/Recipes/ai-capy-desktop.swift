@@ -13,9 +13,17 @@ enum ai_capy_desktop {
         // `<article id="v0-4-3">` per release: a `<time>` with the display date,
         // an `<h2><a>Capy 0.4.3</a></h2>`, a one-line `<p>` subtitle (kept as the
         // title), then prose. The notes are `<p class="font-inter …">` paragraphs
-        // under `<h3>` section headings, with screenshots between them; the
-        // subtitle `<p>` has a different class, so the item pattern cannot take it
-        // a second time.
+        // under `<h3>` section headings, with screenshots between them. The
+        // subtitle `<p>` has a different class: the title group refuses a
+        // `font-inter` paragraph, so an article without a subtitle does not lose
+        // its first note to the title, and the item pattern cannot take the
+        // subtitle a second time.
+        //
+        // One item pattern for both paragraphs and `<li>`, not two in order: the
+        // extractor keeps only the first pattern that yields anything, so a
+        // release mixing paragraphs and a list would drop the list. A loose list
+        // item wrapping its own `font-inter` paragraph ends at that `</p>` and is
+        // still one item.
         //
         // The version group requires digits. The page also carries a `Capy Beta`
         // article (`id="vbeta"`, the pre-desktop launch post) with no version,
@@ -31,11 +39,10 @@ enum ai_capy_desktop {
                 #"<article\b[^>]*\bid="v[0-9][0-9-]*"[^>]*>\s*"#
                 + #"(?:<time\b[^>]*>(?<date>[^<]*)</time>\s*)?"#
                 + #"<h2\b[^>]*>\s*<a\b[^>]*>\s*Capy\s+(?<version>[0-9]+(?:\.[0-9]+){1,3})\s*</a>\s*</h2>\s*"#
-                + #"(?:<p\b[^>]*>(?<title>[^<]*)</p>)?"#
+                + #"(?:<p\b(?![^>]*\bfont-inter\b)[^>]*>(?<title>[^<]*)</p>)?"#
                 + #"(?<body>.*?)</article>"#,
             itemPatterns: [
-                #"<p\b[^>]*\bclass="font-inter[^"]*"[^>]*>(?<item>.*?)</p>"#,
-                #"<li\b[^>]*>(?<item>.*?)</li>"#,
+                #"<(?:p\b[^>]*\bclass="font-inter[^"]*"|li\b)[^>]*>(?<item>.*?)</(?:p|li)>"#
             ],
             maxEntries: 20,
             imagePattern: #"<img\b[^>]*\bsrc="(https://[^"]+)""#,

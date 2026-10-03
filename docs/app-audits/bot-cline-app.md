@@ -318,3 +318,7 @@ the version the row
 shows.
 
 复测 2026-09-15（UTC 2026-09-14 16:14，只读 GET `…/releases?per_page=40`）：stable pattern 收 14 条、beta pattern 收 6 条、非 `desktop-` 开头的 19 条（最新几条是 `v4.1.17`、`sdk/sdk/v0.0.82`、`cli-v3.0.61`、`v4.1.16`）。
+
+### Recipes/bot-cline-app.swift — beta ChangelogRecipe 改读 `per_page=100`（#943）
+
+实测 2026-10-03（只读 GET `api.github.com/repos/cline/cline/releases`）：最新的 beta tag `desktop-v0.0.23-beta.1`（2026-09-03 发布）排在第 41 行，`per_page=40` 那一页上 beta pattern 收 0 条，verify 报 `noEntriesExtracted`；之前一路从 3 条掉到 1 条，是 `0.0.22-beta.1`、`0.0.21-beta.2` 先后滚出 40 行。`desktop-beta/latest.json` 当天仍答 `0.0.23-beta.1`，beta 轨没有停用，只是 9-03 之后没再发 beta，而 stable 从 `0.0.24` 发到 `0.0.43`，加上扩展、CLI、SDK，一个月约 40 条 release。`per_page=100` 那一页 beta pattern 收 6 条（`0.0.23-beta.1`、`0.0.22-beta.1`、`0.0.21-beta.2`、`0.0.16-beta.1`、`0.0.15-beta.1`、`0.0.14-beta.1`），未压缩 923,864 字节，40 行那一页 522,879 字节。

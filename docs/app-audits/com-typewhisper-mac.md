@@ -70,7 +70,7 @@ Sparkle feed 才是。
   feed 3 条**一条都没有** `<description>`，真包跑生产链拿到 0 字符 —— 此前没有任何说明。
 - 这张页面**同时列 macOS 和 Windows 两个产品**，所以 `entryPattern` 锚在卡片的
   `id="mac-v<tag>"` 上（平台和版本都在里面）；锚错了就会把 Windows 的说明挂到 Mac 版本下面。
-  版本取自 `id` 而不是可见标题：少数标题是自由文本（「TypeWhisper 1.0」「0.7.0 - Notch Indicator」）。
+  版本取自 `id` 而不是可见标题：少数标题是自由文本（「TypeWhisper 1.0」「v0.7.0 - Notch Indicator」）。
 - 卡片内部用 tempered 惰性扫描（止于 `</details>`）而不是 `.*?`：有少数老卡片没有正文块，
   裸 `.*?` 会越过它跑进下一张卡片，把后者的说明记到前者的版本上。
 

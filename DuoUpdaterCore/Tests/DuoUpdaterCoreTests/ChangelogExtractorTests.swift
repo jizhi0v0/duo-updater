@@ -2836,8 +2836,10 @@ All notable changes to this project will be documented in this file.
 /// Four cards: a macOS release, a Windows release, a
 /// macOS card with NO notes block (old cards on the live page look like this),
 /// and a macOS card whose visible title is free text rather than its version.
-/// Trimmed from the live page (the long `<ul>`s cut down), markup otherwise as
-/// served.
+/// Trimmed from the live page: the long `<ul>`s cut down, the month section's
+/// `aria-labelledby` dropped, and `target`/`rel` dropped from three of the four
+/// outbound links (the `mac-v1.7.0` card's link keeps them, as served).
+/// The `<details>`, `<time>` and notes `<div>` tags are as served.
 private let typeWhisperFixture = #"""
 <details class="utility-entry" id="mac-v1.7.0" open="" data-entry="" data-testid="changelog-entry" data-kind="stable" data-platform="mac" data-date="2026-10-02T11:58:42Z"><summary class="utility-entry__summary"><h3 class="utility-entry__head"><span class="utility-entry__title"><span class="utility-entry__name">v1.7.0</span><span class="utility-entry__meta"><span>macOS</span></span></span><time class="utility-entry__date" dateTime="2026-10-02T11:58:42Z">October 2, 2026</time></h3></summary><div class="utility-entry__body"><div class="site-prose utility-notes"><p>TypeWhisper <code>1.7.0</code> is the stable <code>1.7</code> macOS release.</p>
 <h4 data-look="4">Highlights</h4>

@@ -18,7 +18,7 @@ enum com_typewhisper_mac {
         //   <p>…</p><h4>Highlights</h4><ul><li>…</li></ul></div>…</div></details>
         //
         // The version comes from the `id`, not the visible title: a few titles
-        // are free text ("TypeWhisper 1.0", "0.7.0 - Notch Indicator") while the
+        // are free text ("TypeWhisper 1.0", "v0.7.0 - Notch Indicator") while the
         // id is always `mac-v<tag>`. The gaps are TEMPERED lazy scans that stop at
         // `</details>`, not plain `.*?`: some old cards carry no notes block (just
         // "No detailed release notes."), and a plain lazy scan would run past

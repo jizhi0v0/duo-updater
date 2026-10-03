@@ -87,6 +87,9 @@ curl -sS "https://cdn.douchat.ai/latest-mac.yml?noCache=$RANDOM"
 # 2. 通用源对真包的判定（dmg 只读挂载，不安装）
 swift run --package-path application-test feed-discover Douchat-<version>-mac-arm64.dmg
 
+# 2b. 整条生产源链对真包的结论：应是 winning source Electron
+swift run --package-path application-test channel-verify Douchat-<version>-mac-arm64.dmg
+
 # 3. 一键装的那个 zip：sha512 与 manifest 一致、Team 与已装的一致
 openssl dgst -sha512 -binary Douchat-<version>-mac-arm64.zip | base64
 ditto -x -k Douchat-<version>-mac-arm64.zip out && codesign -dv out/Douchat.app 2>&1 | grep TeamIdentifier
@@ -108,7 +111,8 @@ MinHua Tang (JU9K7W6T6W)），`lipo -archs` = `arm64`。
 **feed-discover。** `ADOPT https://cdn.douchat.ai/latest-mac.yml`（electron-builder manifest）。
 
 **生产源。** 用一次性测试对这个 bundle 调 `AppScanner().scan(bundlesAt:)` +
-`ElectronManifestSource().latestVersion(for:)`：
+`ElectronManifestSource().latestVersion(for:)`（当时 `channel-verify` 的源链是手抄的、漏了 Electron 源，
+答不了这类 app；2026-10-04 起它直接用 `SourceStack.make`，对 0.1.22 真包给出 `winning source Electron`）：
 
 ```
 electronUpdate: provider "generic", url "https://cdn.douchat.ai", channel "latest"

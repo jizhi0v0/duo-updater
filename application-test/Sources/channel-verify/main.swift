@@ -124,8 +124,8 @@ if argv[1] == "--scan" {
     exit(code)
 }
 
-// --check mode: run the FULL production source chain (the same source list the
-// menu-bar app wires in `AppListModel.makeSources()` + ToolboxSource) via
+// --check mode: run the FULL production source chain (`SourceStack.make`, the
+// list the menu-bar app and `duo check` both build, + ToolboxSource) via
 // `UpdateChecker.check(app)` against an installed app found by the real
 // `AppScanner.scan()`. Unlike `--scan` (which only consults VendorProbe), this
 // reports which source actually WON in priority order — the authoritative
@@ -143,13 +143,7 @@ if argv[1] == "--check" {
     }
 
     let checker = UpdateChecker(
-        sources: [
-            MacAppStoreSource(),
-            SparkleAppcastSource(),
-            HomebrewCaskSource(),
-            GitHubReleasesSource(token: await GitHubToken.resolve()),
-            VendorProbeSource()
-        ],
+        sources: SourceStack.make(githubToken: await GitHubToken.resolve()),
         toolbox: ToolboxSource())
     let result = await checker.check(app)
 
@@ -477,6 +471,10 @@ let chainApp = InstalledApp(
     path: appPath,
     isMASApp: false,
     sparkleFeedURL: chainFeedURL,
+    // Read the way `AppScanner` reads it. Without it `ElectronManifestSource` —
+    // the last source in the stack — has no manifest to fetch, and an app it
+    // alone covers (Ducoro) printed "no source answered".
+    electronUpdate: ElectronUpdateConfig.read(fromBundleAt: appPath),
     sparkleFeedHeaders: bound?.feedHTTPHeaders ?? [:],
     sparkleChannelNames: bound?.sparkleChannelNames ?? [],
     sparkleEdPublicKey: (info["SUPublicEDKey"] as? String)?
@@ -486,14 +484,13 @@ let chainApp = InstalledApp(
     releaseChannel: detected,
     channelIsAuthoritative: bound != nil || weChatDevTools != nil)
 
+// `SourceStack.make`, not a hand-copied list: a copy here once dropped
+// `ElectronManifestSource` and ran Homebrew/Sparkle in the wrong order, so an
+// Electron-only app (Ducoro) printed "no source answered" while production
+// resolved it. No Alcove licence and no `ResolvedChannelStore`, i.e. a user
+// without either.
 let checker = UpdateChecker(
-    sources: [
-        MacAppStoreSource(),
-        SparkleAppcastSource(),
-        HomebrewCaskSource(),
-        GitHubReleasesSource(token: await GitHubToken.resolve()),
-        VendorProbeSource()
-    ],
+    sources: SourceStack.make(githubToken: await GitHubToken.resolve()),
     toolbox: ToolboxSource())
 let chained = await checker.check(chainApp)
 

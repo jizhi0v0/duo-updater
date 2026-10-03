@@ -12,8 +12,8 @@
 # Every column comes from a tool that ships with macOS — no Instruments, no
 # debug build, no entitlement. `heap` and `vmmap` read a Developer ID build from
 # the same user without get-task-allow; they suspend the target for the length
-# of the read (~2 s for `heap` at ~370k allocations), which is why `heap` runs
-# only every Nth sample.
+# of the read (`heap` took 2.4 s at ~364k allocations and 4.2 s at ~146k, both
+# 2026-10-03 — it varies), which is why `heap` runs only every Nth sample.
 #
 #   ts             ISO-8601 local time of the sample
 #   uptime_s       seconds since the process started

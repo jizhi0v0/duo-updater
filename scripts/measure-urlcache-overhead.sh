@@ -2,12 +2,12 @@
 #
 # Measure what an in-memory URLCache really costs, against what it says it holds.
 #
-# `URLSession.updates` gives its cache a 64 MB memory capacity, and URLCache keeps
-# `currentMemoryUsage` under that number. But the number counts body BYTES, while
-# what sits in memory is the body as CFNetwork assembled it: a dispatch_data_t made
-# of the decoder's growing output buffers. For a gzip-encoded body those buffers
-# come to about twice the decoded size, so a cache that reports 64 MB holds well
-# over 100 MB. The installed app showed this first (2026-10-03: `leaks
+# `URLSession.updates` gives its cache a memory capacity (`updatesCacheCapacity`;
+# 64 MB when this was written), and URLCache keeps `currentMemoryUsage` under that
+# number. But the number counts body BYTES, while what sits in memory is the body
+# as CFNetwork assembled it: a dispatch_data_t made of the decoder's growing output
+# buffers. Measured 2026-10-03 with this script: a cache reporting 63.8 MB was a
+# 150 MB footprint on gzip bodies (about 2.3x) and 82 MB on identity ones. The installed app showed this first (2026-10-03: `leaks
 # --referenceTree` put 138 MB of dispatch_data under `NSURLSession.updates`'
 # NSURLCache after 4.9 days); this reproduces it with nothing but a local server.
 #

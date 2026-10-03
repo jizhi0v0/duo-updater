@@ -120,10 +120,13 @@ enum bot_cline_app {
         // `##` headings, which `GitHubMarkdownParser`'s bullet pass handles before
         // it ever reaches the prose fallback). Version detection does NOT come from
         // here: it reads Cline's own Tauri manifest, for the reasons in the
-        // `VendorProbeRecipe` comment above in this file. This endpoint is fetched
-        // only when the workbench
-        // opens a Cline row — `ChangelogService` is on-demand and never runs during
-        // a check round — so the monorepo's page size is not on the scan path.
+        // `VendorProbeRecipe` comment above in this file. This endpoint is not on
+        // the version-check path, but it is NOT on-demand only either: after a
+        // check round `AppListModel.prewarmChangelogs` loads every recipe-backed
+        // app's notes in the background whenever the disk cache has nothing for
+        // the target version (or holds a `needsReread` entry), gated only by Low
+        // Data Mode / an expensive path — no row has to be opened. So the
+        // monorepo's page size is paid on new versions and on an empty rail.
         //
         // `tagPattern` IS THE WHOLE POINT HERE, and both halves of it earn their
         // keep. `cline/cline` publishes four products from one Releases list, so
@@ -152,9 +155,13 @@ enum bot_cline_app {
         // the newest `-beta.N` scrolls off a 40-row page within weeks and the
         // rail goes empty while the beta track still points at that build
         // (#943; History has the positions). 100 rows nearly doubles the bytes
-        // of the 40-row page, paid only when a Cline Beta row is opened. If betas
-        // stay paused long enough to scroll off 100 rows too, the rail empties
-        // again and the pane falls back to the releases page.
+        // of the 40-row page, and that page is fetched by the post-check prewarm
+        // above, not only when a Cline Beta row is opened: once per new beta
+        // version, and again whenever the disk cache holds nothing for it — which
+        // is exactly the state when the rail is empty. If betas stay paused long
+        // enough to scroll off 100 rows too, the rail empties again, the pane
+        // falls back to the releases page, and the prewarm keeps paying for a
+        // 100-row page that yields nothing; revisit the size then.
         //
         // `includesPromotedStable` is absent (false) on the beta recipe, taking
         // Yaak's side of that split rather than CotEditor's, and here the reason is

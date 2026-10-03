@@ -24,7 +24,9 @@ enum at_obdev_littlesnitch {
         // (`Casks/l/little-snitch.rb`), so this is a vendor endpoint a third
         // party (Homebrew) already depends on for the same purpose, not a guess.
         // It's an XML plist ARRAY with one entry per release lifecycle
-        // (`nightly`, `final`); `final` is what this recipe reads.
+        // (`nightly`, `final`); `final` is what this recipe reads. Between
+        // nightly cycles the array holds the `final` entry alone (see the
+        // nightly recipe below).
         //
         // VERSION SCHEME: the feed's `final` entry's `BundleVersion` is
         // byte-identical to the installed `CFBundleVersion`, and its
@@ -34,9 +36,10 @@ enum at_obdev_littlesnitch {
         // nightly recipe below, where the feed's short-version field does NOT
         // match the installed bundle.
         //
-        // `entryStartPattern` slices the two-entry array so `final`'s fields can
-        // never be read out of the `nightly` entry (or vice versa) regardless of
-        // which the feed happens to list first.
+        // `entryStartPattern` slices the array so `final`'s fields can never be
+        // read out of the `nightly` entry (or vice versa) regardless of which
+        // the feed happens to list first. A one-entry array is one slice, not a
+        // fallback, so the between-cycles feed warns about nothing (#862).
         //
         // No `install`: the feed states `InstallationMechanism: ReplaceBundle`
         // (a full `.app` swap, which is what `VendorInstaller` does too), but
@@ -114,6 +117,18 @@ enum at_obdev_littlesnitch {
             mode: .responseBody,
             versionPattern:
                 #"<key>ReleaseLifecycle</key>\s*<string>nightly</string>[\s\S]*?<key>BundleVersion</key>\s*<string>(\d+)</string>"#,
+            // BETWEEN CYCLES the feed lists no `nightly` entry at all, only
+            // `final` — obdev's statement that no nightly is on offer, and the
+            // same moment `download-nightly.html` 302s to the stable download
+            // page (issue #861). That is the vendor resting, not this recipe
+            // breaking, so it reads as closed: a `final` entry in the usual
+            // shape and NO entry with any other lifecycle. Requiring every
+            // lifecycle to be `final` (rather than just "no `nightly`") is what
+            // keeps a renamed track (`beta`, `preview`) failing loudly instead
+            // of looking closed forever; a feed without a `final` entry is one
+            // this recipe no longer understands and fails loudly too.
+            trackClosedPattern:
+                #"(?s)\A(?=.*<key>ReleaseLifecycle</key>\s*<string>final</string>)(?!.*<key>ReleaseLifecycle</key>\s*<string>(?!final</string>))"#,
             downloadURL: URL(string: "https://obdev.at/littlesnitch/download-nightly.html"),
             versionIsBuild: true,
             displayVersionPattern:

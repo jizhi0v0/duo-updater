@@ -714,9 +714,10 @@ public struct VendorProbeRecipe: Sendable {
     ///
     /// Nil (the default) leaves every pattern reading the whole body,
     /// first-match, exactly as before this field existed. Also the fallback
-    /// when the pattern matches fewer than two entries, or when no entry's
-    /// `versionPattern` matches — better a possibly-stale first-match answer
-    /// than no answer at all.
+    /// when the pattern matches nothing, or when no entry's `versionPattern`
+    /// matches — better a possibly-stale first-match answer than no answer at
+    /// all. A single match is a one-entry feed and is scoped like any other
+    /// (`highestVersionEntry`).
     ///
     /// Narrowing to one entry also narrows `checksumPattern` (fine — a miss
     /// there degrades loudly to `.checksumPatternNoMatch`) and the install
@@ -1028,10 +1029,19 @@ public struct VendorProbeRecipe: Sendable {
     /// where `versionPattern` matches, and return the substring of whichever
     /// entry's extracted version compares highest.
     ///
-    /// Nil when `entryStartPattern` matches fewer than two entries (nothing to
-    /// disambiguate) or when no entry's `versionPattern` matches — the caller
-    /// falls back to running its own extractor against the whole body, exactly
-    /// as it did before `entryStartPattern` existed.
+    /// Nil when `entryStartPattern` matches nothing or when no entry's
+    /// `versionPattern` matches — the caller falls back to running its own
+    /// extractor against the whole body, exactly as it did before
+    /// `entryStartPattern` existed.
+    ///
+    /// ONE match is a one-entry feed, not a fallback: the slice from that match
+    /// to the end of `text` is the only entry there is, and it goes through the
+    /// same `versionPattern` match and straddle guard as any winner. Treating it
+    /// as "nothing to disambiguate" (as this once did) read the same text minus
+    /// the preamble, but reported `entryPatternNoMatch` for a feed that had
+    /// simply shrunk to one release — obdev's `littlesnitch6.plist` between
+    /// nightly cycles (issue #862), and the single-item WeChat feed its recipe
+    /// comment used to call a false alarm.
     /// `selectHighest` mirrors the recipe's own flag: when true, EACH entry is
     /// scored by its highest internal match (`highestVersion`) rather than its
     /// first (`extractVersion`) — the same choice `VendorProbeSource` makes for
@@ -1059,7 +1069,7 @@ public struct VendorProbeRecipe: Sendable {
         let full = NSRange(location: 0, length: ns.length)
         let starts = startRegex.matches(in: text, options: [], range: full)
             .map { $0.range.location }
-        guard starts.count > 1 else { return nil }
+        guard !starts.isEmpty else { return nil }
 
         let extractor = selectHighest ? Self.highestVersion : Self.extractVersion
         var best: (entry: String, version: String)?

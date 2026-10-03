@@ -11,8 +11,9 @@ import Foundation
 ///
 /// Reading OLDER patches still works, which is what matters here: we apply what
 /// the vendor's feed happens to carry, and that was cut by whatever Sparkle the
-/// vendor builds with. Measured on 2.9.6 (2026-09-13): patches created at
-/// `--version=2`, `3` and `4` each reconstructed the target bundle byte for byte.
+/// vendor builds with. Measured on 2.9.6 (2026-09-13) and again on 2.10.0
+/// (2026-10-04): patches created at `--version=2`, `3` and `4` each
+/// reconstructed the target bundle byte for byte.
 ///
 /// A patch saves download, not disk. Applying one reads the installed bundle and
 /// writes a complete replacement into the scratch directory, so the I/O is

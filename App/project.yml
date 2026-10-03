@@ -32,7 +32,7 @@ packages:
     path: ../CLI
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
-    exactVersion: 2.9.6
+    exactVersion: 2.10.0
 
 targets:
   # The first test target over `App/Sources`. Before it, those ~20k lines were

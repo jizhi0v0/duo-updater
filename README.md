@@ -452,7 +452,7 @@ Useful overrides:
 
 | Component | Where | Licence |
 | --- | --- | --- |
-| [Sparkle](https://github.com/sparkle-project/Sparkle) 2.9.6 | SPM dependency, used to install other apps' Sparkle updates and to update this app | MIT |
+| [Sparkle](https://github.com/sparkle-project/Sparkle) 2.10.0 | SPM dependency, used to install other apps' Sparkle updates and to update this app | MIT |
 | [swift-subprocess](https://github.com/swiftlang/swift-subprocess) 1.0.0 | SPM dependency of `DuoUpdaterCore`, runs every child process (`ChildProcess`) | Apache 2.0 |
 | [swift-system](https://github.com/apple/swift-system) 1.8.1 | SPM dependency of swift-subprocess, pinned in `DuoUpdaterCore/Package.swift` | Apache 2.0 |
 | [`mas`](https://github.com/mas-cli/mas) | `App/Resources/mas`, a prebuilt universal binary invoked for Mac App Store installs | MIT |

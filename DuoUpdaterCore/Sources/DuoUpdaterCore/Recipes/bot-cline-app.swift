@@ -146,6 +146,16 @@ enum bot_cline_app {
         // 20 or fewer among the newest 40 releases; desktop ships often, so the
         // stable rail can reach that cap.
         //
+        // THE BETA RAIL READS `per_page=100`, GitHub's maximum, because its
+        // tags are SPARSE on a busy list: betas ship in bursts and then pause
+        // while stable, the extension, the CLI and the SDK keep publishing, so
+        // the newest `-beta.N` scrolls off a 40-row page within weeks and the
+        // rail goes empty while the beta track still points at that build
+        // (#943; History has the positions). 100 rows nearly doubles the bytes
+        // of the 40-row page, paid only when a Cline Beta row is opened. If betas
+        // stay paused long enough to scroll off 100 rows too, the rail empties
+        // again and the pane falls back to the releases page.
+        //
         // `includesPromotedStable` is absent (false) on the beta recipe, taking
         // Yaak's side of that split rather than CotEditor's, and here the reason is
         // stronger than either: Cline's tracks are two DIFFERENT BUNDLE IDS
@@ -164,7 +174,7 @@ enum bot_cline_app {
 
         ChangelogRecipe(
             bundleID: "bot.cline.app.beta",
-            source: URL(string: "https://api.github.com/repos/cline/cline/releases?per_page=40")!,
+            source: URL(string: "https://api.github.com/repos/cline/cline/releases?per_page=100")!,
             mode: .json,
             maxEntries: 20,
             channel: .beta,

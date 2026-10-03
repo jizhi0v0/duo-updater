@@ -142,3 +142,14 @@ private func decoded(_ recipe: ChangelogRecipe) -> Changelog? {
     #expect(first.items[0].hasPrefix("The composer now shows"))
     #expect(first.date == "2026-09-11")
 }
+
+/// The beta rail reads GitHub's maximum page, not the house `per_page=40`. Its
+/// tags are sparse on a list four products share: on 2026-10-03 the newest beta
+/// (`desktop-v0.0.23-beta.1`, still what the beta manifest serves) sat at row 41,
+/// so a 40-row page held none and the rail went empty (#943). Pinned because
+/// "align it with the stable recipe" is the obvious tidy-up and reintroduces that.
+@Test func clineBetaChangelogReadsTheDeepestPage() throws {
+    let source = try clineChangelogRecipe(.beta).source
+    let items = try #require(URLComponents(url: source, resolvingAgainstBaseURL: false)?.queryItems)
+    #expect(items.first { $0.name == "per_page" }?.value == "100")
+}

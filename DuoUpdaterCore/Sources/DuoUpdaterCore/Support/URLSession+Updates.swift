@@ -43,14 +43,15 @@ public extension URLSession {
     ///   particular. Raising the limit avoids connection queuing on hosts that
     ///   *don't* support HTTP/2 multiplexing.
     ///
-    /// - **Private, memory-only URL cache** (64 MB). Update sources rely on
+    /// - **Private, memory-only URL cache** (`updatesCacheCapacity`, 40 MB —
+    ///   about twice that in real memory once full; see it). Update sources rely on
     ///   standard HTTP caching (`ETag`/`If-None-Match`, `Cache-Control:
     ///   max-age`) — Sparkle appcast feeds and GitHub's `/releases/latest`
     ///   endpoint all send reuse-friendly headers. Caveat: cache *freshness* is
     ///   never trusted for a version feed — every source sets
     ///   ``URLRequest/versionFeedCachePolicy`` (see it for why). `ChangelogService`
-    ///   also uses this session, and 64 MB keeps several pages resident without
-    ///   evicting update-check responses. A private cache prevents eviction by
+    ///   also uses this session, and the capacity keeps several pages resident
+    ///   without evicting update-check responses. A private cache prevents eviction by
     ///   unrelated `.shared` activity.
     ///
     ///   **`diskCapacity` is 0, and that is a security boundary, not a tuning
@@ -105,8 +106,18 @@ public extension URLSession {
     /// response cached, the same check is a 304 — **238 wire bytes**, measured.
     ///
     /// A capacity is a ceiling, not an allocation: the session holds only what
-    /// it has actually fetched.
-    static let updatesCacheCapacity = 64 * 1024 * 1024
+    /// it has actually fetched. But it is a ceiling on what `URLCache` COUNTS,
+    /// which is body bytes, and that is not what it holds. A body sits in memory
+    /// as CFNetwork assembled it — for a gzip response, the decoder's growing
+    /// output buffers — and measured 2026-10-03 (`scripts/measure-urlcache-overhead.sh`)
+    /// a full 64 MB cache was a 150 MB footprint on gzip bodies, 82 MB on
+    /// identity ones. The installed app agreed: after 4.9 days `leaks
+    /// --referenceTree` put 138 MB under this cache. So every MB here costs about
+    /// two, and the capacity is the smallest MEASURED to store the Spotify body —
+    /// the 2026-09-04 measurement above: not at 32 MB, yes at 40 MB (4.5% of it).
+    /// The test guard alone would accept down to ~36 MB, but nothing between 32
+    /// and 40 was tried, so this does not go below what was seen to work.
+    static let updatesCacheCapacity = 40 * 1024 * 1024
 
     static let updates: URLSession = {
         let config = URLSessionConfiguration.default

@@ -135,6 +135,7 @@ enum CLIToolPresentation {
         case .junie(let junie): return facts(of: junie, withheld: status.withheld)
         case .rust(let item): return facts(of: item, withheld: status.withheld)
         case .npm(let package): return facts(of: package, withheld: status.withheld, home: home)
+        case .codex(let codex): return facts(of: codex)
         case .claudeCode, .bub, .fx, .boat: return []
         }
     }
@@ -208,6 +209,14 @@ enum CLIToolPresentation {
         return facts
     }
 
+    /// The signature the click rests on: the installer runs the installed binary.
+    private static func facts(of codex: CodexInstall) -> [Fact] {
+        guard codex.problem == nil || codex.problem == .launcherElsewhere else { return [] }
+        let signer = "OpenAI OpCo, LLC"
+        return [Fact(label: String(localized: "Signature"),
+                     value: signature(codex.signature, signer: signer, team: CodexScanner.teamIdentifier))]
+    }
+
     /// rustup has no signature to go by: what lets it run is its sha256 being one
     /// rust-lang publishes (`RustCheck.rustupStatus`). A toolchain's channel is
     /// already the pane's.
@@ -278,7 +287,7 @@ enum CLIToolPresentation {
         return seen.isEmpty ? nil : seen.joined(separator: ", ")
     }
 
-    /// The group header of uv, Junie, Rust, npm and Boat: what decides their installs'
+    /// The group header of uv, Junie, Rust, npm, Boat and Codex: what decides their installs'
     /// verdicts tool-wide, kept short — several languages are twice the English
     /// width, and the header shrinks a little, then cuts.
     /// - uv: nothing. It has no channels and no setting of its own.
@@ -288,6 +297,8 @@ enum CLIToolPresentation {
     /// - npm: which nodes the prefixes run, the one thing every row's verdict
     ///   is held against (`engines`).
     /// - Boat: the channel its config names (`prod` until the user picks one).
+    /// - Codex: `latest`, its installer's only channel, and that its update check
+    ///   is off when it is.
     static func headerSummary(
         _ kind: CLIToolKind, statuses: [CLIToolStatus], context: CLIToolReport.Context?
     ) -> String? {
@@ -312,6 +323,12 @@ enum CLIToolPresentation {
             return parts.isEmpty ? nil : parts.joined(separator: " · ")
         case (.boat, _):
             return channels(of: mine)
+        case (.codex, let context):
+            guard let channels = channels(of: mine) else { return nil }
+            if case .codex(let settings)? = context, !settings.checkForUpdates {
+                return String(localized: "\(channels) · update check off")
+            }
+            return channels
         case (.npm, _):
             var nodes: [String] = []
             for case .npm(let package) in mine.map(\.detail) {

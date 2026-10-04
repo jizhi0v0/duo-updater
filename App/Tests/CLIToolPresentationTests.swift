@@ -139,6 +139,17 @@ enum CLIToolFixtures {
                       channel: channel, withheld: withheld)
     }
 
+    static func codex(
+        signature: CLIToolTrust.Signature? = .vendor, quarantined: Bool = false,
+        problem: CodexInstall.Problem? = nil, withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.local/bin/codex"
+        let install = CodexInstall(path: path, version: "0.143.0", signature: signature, quarantined: quarantined,
+                                   problem: problem)
+        return status(.codex, path: path, detail: .codex(install), version: "0.143.0", latest: "0.160.0",
+                      channel: "latest", withheld: withheld)
+    }
+
     static func uv(
         _ path: String = "/Users/ann/.local/bin/uv", layout: UvInstall.Layout = .standalone,
         signature: CLIToolTrust.Signature? = .adHoc, quarantined: Bool = false,
@@ -399,6 +410,29 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolPresentation.headerSummary(.boat, statuses: [F.boat()], context: .boat) == "prod")
         #expect(CLIToolPresentation.headerSummary(.boat, statuses: [F.boat(channel: "staging")], context: .boat)
             == "staging")
+        #expect(CLIToolPresentation.headerSummary(.codex, statuses: [F.codex()], context: .codex(CodexSettings()))
+            == "latest")
+        #expect(CLIToolPresentation.headerSummary(
+            .codex, statuses: [F.codex()], context: .codex(CodexSettings(checkForUpdates: false)))
+            == "latest · update check off")
+    }
+
+    /// Codex's reasons and facts: OpenAI by name, a launcher that is not the
+    /// install's, the update check turned off, a quarantined binary.
+    ///
+    /// Mutations: drop the `(.unsupportedInstaller, .codex)` case; drop the
+    /// `(.autoUpdateOff, .codex)` case; return no vendor for `.codex`; drop the
+    /// signature fact.
+    @Test func codexsReasonsAndFacts() {
+        #expect(CLIToolsModel.vendor(of: .codex) == "OpenAI")
+        #expect(CLIToolsModel.reason(.wrongSigner, of: F.codex(signature: .adHoc)) == "Not signed by OpenAI")
+        #expect(CLIToolsModel.reason(.unverified, of: F.codex(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.codex()) == "Codex’s update check is off in its config")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.codex(problem: .launcherElsewhere))
+            == "~/.local/bin/codex isn’t this install’s launcher")
+        #expect(CLIToolPresentation.facts(of: F.codex(), home: "/Users/ann")
+            == [.init(label: "Signature", value: "Signed by OpenAI OpCo, LLC (Team 2DC432GLL2)")])
+        #expect(CLIToolPresentation.facts(of: F.codex(problem: .binaryMissing), home: "/Users/ann").isEmpty)
     }
 
     /// Boat's reasons: a quarantined file, a config pointing at another server,

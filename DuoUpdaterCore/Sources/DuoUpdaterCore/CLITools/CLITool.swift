@@ -5,7 +5,7 @@ import Foundation
 /// Each one has its own rules — where its installers put it, how its version is
 /// read, which command updates it and when that may run — so each keeps its own
 /// detection and update code (`ClaudeCode*`, `Bub*`, `Fx*`, `Uv*`, `Junie*`,
-/// `Rust*`, `Npm*`, `Boat*`). What they share is
+/// `Rust*`, `Npm*`, `Boat*`, `Codex*`). What they share is
 /// how the app lists them, sums them up and runs their updates: `CLIToolStatus`,
 /// `CLIToolReport` and `CLIToolProvider` below. A later tool is a new provider and
 /// a new `Kind`; the popover row and the workbench's CLI tab read it the same way.
@@ -21,6 +21,8 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case npm
     /// boat.dev's sandbox CLI, `~/.ascii/bin/boat`.
     case boat
+    /// OpenAI's Codex CLI as its standalone installer leaves it, `~/.local/bin/codex`.
+    case codex
 
     /// The tool's own name, as its vendor writes it. Untranslated, like a formula
     /// name on the brew row.
@@ -34,6 +36,7 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .rust: return "Rust"
         case .npm: return "npm"
         case .boat: return "Boat"
+        case .codex: return "Codex"
         }
     }
 }
@@ -156,6 +159,7 @@ public struct CLIToolStatus: Sendable, Equatable {
         case rust(RustItem)
         case npm(NpmPackage)
         case boat(BoatInstall)
+        case codex(CodexInstall)
     }
 
     public init(
@@ -200,6 +204,7 @@ public struct CLIToolReport: Sendable, Equatable {
         case rust(RustupSettings)
         case npm
         case boat
+        case codex(CodexSettings)
     }
 
     public init(

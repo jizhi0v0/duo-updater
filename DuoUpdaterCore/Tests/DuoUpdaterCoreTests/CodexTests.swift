@@ -380,7 +380,10 @@ final class CodexSandbox {
         let ready = box.root.appendingPathComponent("ready")
         let holder = Process()
         holder.executableURL = URL(fileURLWithPath: "/bin/sh")
-        holder.arguments = ["-c", "exec 9<>\"$1\"; lockf 9; echo $? > \"$2\"; exec sleep 60", "sh", lock, ready.path]
+        // Held until terminated: under CI load the wait below took longer than a
+        // minute (#993's first run), and a holder that slept a fixed 60 s had
+        // already let the lock go when the busy check ran.
+        holder.arguments = ["-c", "exec 9<>\"$1\"; lockf 9; echo $? > \"$2\"; exec sleep 3600", "sh", lock, ready.path]
         try holder.run()
         defer { if holder.isRunning { holder.terminate() } }
         let deadline = Date().addingTimeInterval(30)

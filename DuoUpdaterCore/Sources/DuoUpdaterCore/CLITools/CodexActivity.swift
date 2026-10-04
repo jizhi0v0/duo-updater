@@ -13,15 +13,19 @@ import Darwin
 /// the lock is asked, not the process table, and a lock whose holder died is
 /// released by the kernel.
 ///
-/// `/usr/bin/lockf <fd>` takes an `flock(2)` lock on the shell's descriptor (its
-/// man page: "the -k option is implied when a file descriptor is in use"), held
-/// while any process has that descriptor open. So the question is asked the way
-/// `lockf` would meet it: a non-blocking `flock(LOCK_EX)` on a descriptor of our
-/// own, released at once when it succeeds. `F_GETLK` is asked too, for a record
-/// lock: on macOS 26.7 it also reported the `lockf` lock (`F_WRLCK`, `l_pid` -1,
+/// `/usr/bin/lockf` "acquires an exclusive lock" and by default "waits
+/// indefinitely to acquire" it (its man page); given a descriptor, it locks that
+/// descriptor and exits, so the lock lasts while any process has it open. The
+/// probe asks the way that lock is met, without excluding anyone itself: a
+/// non-blocking **shared** `flock` on a descriptor of our own, released at once.
+/// Shared locks do not conflict, so two probes at once — a refresh and a click's
+/// re-check, the app and `duo` — never see each other; only an exclusive lock
+/// makes it fail. An installer reaching `lockf` in that instant waits the two
+/// syscalls out. `F_GETLK` is asked too, as a reader, so it reports only a write
+/// lock: on macOS 26.7 it reported the `lockf` lock (`F_WRLCK`, `l_pid` -1,
 /// measured 2026-10-04), but the same day a test holding the lock that way saw
-/// no lock on the macOS 27.0 CI runner (#988's first run; why was not pinned
-/// down), so it is not what the answer rests on.
+/// no lock through it on the macOS 27.0 CI runner (#988's first run; why was not
+/// pinned down), so it is not what the answer rests on.
 ///
 /// A running Codex session is **not** a reason to wait: the installer writes a new
 /// `releases/<version>-<target>` and swaps the `current` link by rename, and the
@@ -63,8 +67,7 @@ public enum CodexActivity {
     /// Whether the file is locked: `.some(pid)` when it is — the pid nil when the
     /// kernel names none, as for an `flock(2)` lock — and nil when it is free or
     /// missing. Nothing is written, and the file is never created; the probe's
-    /// own `flock` is released before this returns (an installer reaching
-    /// `lockf` in that instant waits for it, as `lockf` without `-t` does).
+    /// own shared `flock` is released before this returns.
     static func lockHolder(_ url: URL) -> pid_t?? {
         let fd = open(url.path, O_RDONLY | O_CLOEXEC)
         guard fd >= 0 else { return nil }
@@ -73,11 +76,12 @@ public enum CodexActivity {
         return isFlocked(fd) ? .some(nil) : nil
     }
 
-    /// A record (`fcntl`) lock's holder — its pid, nil inside when the kernel
-    /// names none — or nil when there is no such lock.
+    /// A write lock's holder — its pid, nil inside when the kernel names none —
+    /// or nil when there is none. Asked as a reader, so a read or shared lock (a
+    /// probe of our own) is not reported.
     static func recordLockHolder(_ fd: Int32) -> pid_t?? {
         var query = flock()
-        query.l_type = Int16(F_WRLCK)
+        query.l_type = Int16(F_RDLCK)
         query.l_whence = Int16(SEEK_SET)
         query.l_start = 0
         query.l_len = 0
@@ -85,17 +89,13 @@ public enum CodexActivity {
         return .some(query.l_pid > 0 ? query.l_pid : nil)
     }
 
-    /// Whether another open file holds an `flock(2)` lock: ours would block.
+    /// Whether another open file holds an exclusive `flock(2)` lock: a shared
+    /// one of ours would block.
     static func isFlocked(_ fd: Int32) -> Bool {
-        if lockFile(fd, LOCK_EX | LOCK_NB) == 0 {
-            _ = lockFile(fd, LOCK_UN)
+        if flock(fd, LOCK_SH | LOCK_NB) == 0 {
+            _ = flock(fd, LOCK_UN)
             return false
         }
         return errno == EWOULDBLOCK
     }
 }
-
-/// `flock(2)`. Swift imports the C function under the same name as `struct
-/// flock`, and the struct's initializer wins the lookup.
-@_silgen_name("flock")
-func lockFile(_ fd: Int32, _ operation: Int32) -> Int32

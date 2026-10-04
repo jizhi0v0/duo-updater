@@ -336,9 +336,11 @@ final class CodexSandbox {
 
     // MARK: - Activity
 
-    /// An `flock(2)` lock — what `lockf <fd>` takes — on another descriptor of the
-    /// file, so the probe meets it as it would meet the installer's. Mutations:
-    /// drop the `flock` probe; report a lock on a missing file; leave the probe's
+    /// An exclusive `flock(2)` lock — what `lockf <fd>` takes — on another
+    /// descriptor of the file, so the probe meets it as it would meet the
+    /// installer's; a shared one, as another probe holds for a moment, is not
+    /// busy. Mutations: drop the `flock` probe; probe with `LOCK_EX`; ask
+    /// `F_GETLK` as a writer; report a lock on a missing file; leave the probe's
     /// own lock held.
     @Test func anFlockOnTheInstallLockIsBusy() throws {
         let box = try CodexSandbox()
@@ -350,15 +352,19 @@ final class CodexSandbox {
         let fd = open(lock.path, O_RDWR)
         #expect(fd >= 0)
         defer { close(fd) }
-        #expect(lockFile(fd, LOCK_EX | LOCK_NB) == 0)
+        #expect(flock(fd, LOCK_EX | LOCK_NB) == 0)
         #expect(CodexActivity.busy(root: box.standalone) == .installer(nil))
         // The probe itself, apart from `F_GETLK` (which on some systems sees it too).
         let probe = open(lock.path, O_RDONLY)
         defer { close(probe) }
         #expect(CodexActivity.isFlocked(probe))
-        #expect(lockFile(fd, LOCK_UN) == 0)
+        #expect(flock(fd, LOCK_UN) == 0)
         #expect(!CodexActivity.isFlocked(probe))
         #expect(CodexActivity.busy(root: box.standalone) == nil)
+        // Another probe mid-flight holds a shared lock: not an installer.
+        #expect(flock(fd, LOCK_SH | LOCK_NB) == 0)
+        #expect(CodexActivity.busy(root: box.standalone) == nil)
+        #expect(flock(fd, LOCK_UN) == 0)
         try FileManager.default.removeItem(at: lock)
         #expect(CodexActivity.busy(root: box.standalone) == nil)
         #expect(!FileManager.default.fileExists(atPath: lock.path))

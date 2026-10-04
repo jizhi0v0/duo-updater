@@ -60,7 +60,7 @@ public enum JunieChangelog {
         // children then completed into the finished group and aborted the app
         // in `AsyncTask::completeFuture` (`__cxa_pure_virtual`) on opening
         // Junie's pane (2026-10-02, Swift 6.4, macOS 27.2 beta; the debug build
-        // was right). Measured with `swift test -c release`; why that shape is
+        // was right). Measured with `swift test -c release` (now `make test-release`); why that shape is
         // miscompiled was not pinned down.
         let (entries, answered, failure) = await withTaskGroup(
             of: Answer.self, returning: ([String: Changelog.Entry], Int, Error?).self

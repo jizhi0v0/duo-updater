@@ -32,7 +32,36 @@ let package = Package(
         ),
         .testTarget(
             name: "DuoUpdaterCoreTests",
-            dependencies: ["DuoUpdaterCore"]
+            dependencies: ["DuoUpdaterCore"],
+            // `make test-release` (ci.yml's `release` job) exists to run
+            // DuoUpdaterCore optimized, the way the app ships it. The tests
+            // themselves gain nothing from -O, and compiling all of them as one
+            // whole-module -O task was most of that job: 10.7 of its 14 minutes
+            // on CI (run 37190107638), and single-threaded, so more cores do not
+            // help. Here they build like a debug target instead: -Onone, batch
+            // mode, while the library keeps -O + WMO (checked in the generated
+            // manifest). Clean build on a 10-core Mac, deps + library + tests:
+            // 148 s, against 420 s for this target alone before. The 2026-10-02
+            // Junie abort the Release job was added for still reproduces this
+            // way (see JunieChangelog.swift).
+            //
+            // ONLY under `--build-system native`, which `make test-release`
+            // passes. The default (swiftbuild) backend plans a release target's
+            // outputs as whole-module whatever these flags say, then fails on a
+            // clean tree with "unable to open dependencies file
+            // (…/DuoUpdaterCoreTests-primary.d)" — on CI, run 37193749278.
+            // Native lets swift-driver plan from the final flags. A tree that
+            // had built the old way passes by accident on the stale file.
+            //
+            // unsafeFlags are allowed here because nothing depends on this
+            // target: CLI, application-test and the app consume the library
+            // product only.
+            swiftSettings: [
+                .unsafeFlags(
+                    ["-Onone", "-no-whole-module-optimization", "-enable-batch-mode"],
+                    .when(configuration: .release)
+                )
+            ]
         )
     ]
 )

@@ -371,7 +371,7 @@ final class BunSandbox {
 
     /// argv as `openclaw update` ran bun on 2026-10-04: `["bun", "add", "-g",
     /// "--trust", "openclaw@2026.9.8"]`, executable the bun binary. Mutations:
-    /// match on argv[0]'s name; ignore `-g`.
+    /// match on argv[0]'s name; ignore `-g`; fall through to `NpmActivity.busy`.
     @Test func bunChangingTheGlobalInstallIsBusy() throws {
         let box = try BunSandbox()
         let install = try Self.cowsay(box)
@@ -384,6 +384,22 @@ final class BunSandbox {
             Self.process(7, ["bun", "add", "-g", "x"], executable: "/opt/homebrew/bin/bun"),
             Self.process(8, ["bun", "run", "-g"], executable: bun),
         ]) == nil)
+        // npm on the node the packages are held against is not bun's global
+        // install changing (review, #989); openclaw's own update still is.
+        let node = try #require(install.runtime.node)
+        #expect(BunActivity.busy(install, processes: [
+            Self.process(10, ["npm install left-pad", "", ""], executable: node),
+            Self.process(11, [node, "/opt/homebrew/bin/npm", "install", "-g", "x"], executable: node),
+        ]) == nil)
+        let openclaw = NpmInstall(
+            path: install.path.replacingOccurrences(of: "cowsay", with: "openclaw"), name: "openclaw", version: "2026.9.7",
+            manifestName: "openclaw", prefix: install.prefix, runtime: install.runtime,
+            ownUpdate: .openclaw(OpenClawSettings(channel: nil, autoUpdate: nil, supportsTag: true)), bun: install.bun)
+        #expect(BunActivity.busy(openclaw, processes: [Self.process(12, ["openclaw-update", "", ""], executable: node)])
+            == .ownUpdater("openclaw update", pid: 12))
+        #expect(BunActivity.busy(openclaw, processes: [
+            Self.process(13, [node, openclaw.path + "/openclaw.mjs", "update", "--tag", "2026.9.8"], executable: node),
+        ]) == .ownUpdater("openclaw update", pid: 13))
         #expect(BunActivity.upgrading(bun: bun, processes: [Self.process(9, ["bun", "upgrade"], executable: bun)])
             == .bun("bun upgrade", pid: 9))
         #expect(BunActivity.upgrading(bun: bun, processes: [Self.process(9, ["bun", "add", "-g", "upgrade"], executable: bun)])

@@ -38,8 +38,14 @@ public enum BunActivity {
         return nil
     }
 
-    /// A `bun <add|remove|…> -g` from this bun, or — through `NpmActivity` — the
-    /// package's own updater (`openclaw update`, which runs `bun add -g`).
+    /// A `bun <add|remove|…> -g` from this bun, or the package's own updater
+    /// (`openclaw update`, which runs `bun add -g`) as `NpmActivity` recognises it.
+    ///
+    /// Not `NpmActivity.busy` whole: it also counts any npm changing packages on
+    /// the package's node, and for a package of bun's global install that node is
+    /// only the stand-in its `engines` are held against (`BunPackages`) — an `npm
+    /// install` in some project on Homebrew's node says nothing about
+    /// `~/.bun/install/global` (review, #989).
     public static func busy(_ install: NpmInstall, processes: [NpmActivity.Process]) -> NpmActivity.Busy? {
         if let bun = install.bun?.path {
             for process in processes where isBun(process, bun: bun) {
@@ -49,7 +55,18 @@ public enum BunActivity {
                 return .ownUpdater("bun \(command) -g", pid: process.pid)
             }
         }
-        return NpmActivity.busy(install, processes: processes)
+        let node = install.runtime.node.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }
+        for process in processes {
+            if let node, let executable = process.executable,
+               URL(fileURLWithPath: executable).resolvingSymlinksInPath().path == node,
+               let title = NpmActivity.ownUpdaterTitle(process.arguments, install: install) {
+                return .ownUpdater(title, pid: process.pid)
+            }
+            if let command = NpmActivity.ownUpdater(process.arguments, install: install) {
+                return .ownUpdater(command, pid: process.pid)
+            }
+        }
+        return nil
     }
 
     static func isBun(_ process: NpmActivity.Process, bun: String) -> Bool {

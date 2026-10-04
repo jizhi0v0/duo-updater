@@ -5,7 +5,7 @@ import Foundation
 /// Each one has its own rules — where its installers put it, how its version is
 /// read, which command updates it and when that may run — so each keeps its own
 /// detection and update code (`ClaudeCode*`, `Bub*`, `Fx*`, `Uv*`, `Junie*`,
-/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`). What they share is
+/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`). What they share is
 /// how the app lists them, sums them up and runs their updates: `CLIToolStatus`,
 /// `CLIToolReport` and `CLIToolProvider` below. A later tool is a new provider and
 /// a new `Kind`; the popover row and the workbench's CLI tab read it the same way.
@@ -28,6 +28,8 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case bun
     /// OpenCode as its installer leaves it, `~/.opencode/bin/opencode`.
     case opencode
+    /// Cursor's command-line agent, `~/.local/bin/agent`.
+    case cursorAgent = "cursor-agent"
 
     /// The tool's own name, as its vendor writes it. Untranslated, like a formula
     /// name on the brew row.
@@ -44,6 +46,7 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .codex: return "Codex"
         case .bun: return "Bun"
         case .opencode: return "OpenCode"
+        case .cursorAgent: return "Cursor CLI"
         }
     }
 }
@@ -170,6 +173,7 @@ public struct CLIToolStatus: Sendable, Equatable {
         /// bun's own row; its packages' rows carry `.npm`.
         case bun(BunInstall)
         case opencode(OpencodeInstall)
+        case cursorAgent(CursorAgentInstall)
     }
 
     public init(
@@ -217,6 +221,7 @@ public struct CLIToolReport: Sendable, Equatable {
         case codex(CodexSettings)
         case bun
         case opencode(OpencodeSettings)
+        case cursorAgent(CursorAgentSettings)
     }
 
     public init(

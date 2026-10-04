@@ -54,6 +54,7 @@ struct CLIToolsModelTests {
         case .boat: detail = .boat(BoatInstall(path: path, version: version))
         case .codex: detail = .codex(CodexInstall(path: path, version: version))
         case .bun: detail = .bun(BunInstall(path: path, version: version))
+        case .opencode: detail = .opencode(OpencodeInstall(path: path, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -79,6 +80,7 @@ struct CLIToolsModelTests {
         case .boat: context = .boat
         case .codex: context = .codex(CodexSettings())
         case .bun: context = .bun
+        case .opencode: context = .opencode(OpencodeSettings())
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }

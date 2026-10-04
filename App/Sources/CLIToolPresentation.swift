@@ -137,6 +137,7 @@ enum CLIToolPresentation {
         case .npm(let package): return facts(of: package, withheld: status.withheld, home: home)
         case .codex(let codex): return facts(of: codex)
         case .bun(let bun): return facts(of: bun)
+        case .opencode(let opencode): return facts(of: opencode)
         case .claudeCode, .bub, .fx, .boat: return []
         }
     }
@@ -226,6 +227,14 @@ enum CLIToolPresentation {
                      value: signature(bun.signature, signer: signer, team: BunScanner.teamIdentifier))]
     }
 
+    /// Informational: OpenCode is never run, and builds before 1.18.34 are ad hoc.
+    private static func facts(of opencode: OpencodeInstall) -> [Fact] {
+        guard opencode.problem == nil else { return [] }
+        let signer = "Anomaly Innovations, Inc."
+        return [Fact(label: String(localized: "Signature"),
+                     value: signature(opencode.signature, signer: signer, team: OpencodeScanner.teamIdentifier))]
+    }
+
     /// rustup has no signature to go by: what lets it run is its sha256 being one
     /// rust-lang publishes (`RustCheck.rustupStatus`). A toolchain's channel is
     /// already the pane's.
@@ -296,7 +305,7 @@ enum CLIToolPresentation {
         return seen.isEmpty ? nil : seen.joined(separator: ", ")
     }
 
-    /// The group header of uv, Junie, Rust, npm, Boat, Codex and Bun: what decides their installs'
+    /// The group header of uv, Junie, Rust, npm, Boat, Codex, Bun and OpenCode: what decides their installs'
     /// verdicts tool-wide, kept short — several languages are twice the English
     /// width, and the header shrinks a little, then cuts.
     /// - uv: nothing. It has no channels and no setting of its own.
@@ -309,6 +318,7 @@ enum CLIToolPresentation {
     /// - Codex: `latest`, its installer's only channel, and that its update check
     ///   is off when it is.
     /// - Bun: like npm, the node its packages are held against.
+    /// - OpenCode: `latest`, and that its `autoupdate` is off when it is.
     static func headerSummary(
         _ kind: CLIToolKind, statuses: [CLIToolStatus], context: CLIToolReport.Context?
     ) -> String? {
@@ -333,6 +343,12 @@ enum CLIToolPresentation {
             return parts.isEmpty ? nil : parts.joined(separator: " · ")
         case (.boat, _):
             return channels(of: mine)
+        case (.opencode, let context):
+            guard let channels = channels(of: mine) else { return nil }
+            if case .opencode(let settings)? = context, !settings.autoUpdate {
+                return String(localized: "\(channels) · auto-update off")
+            }
+            return channels
         case (.codex, let context):
             guard let channels = channels(of: mine) else { return nil }
             if case .codex(let settings)? = context, !settings.checkForUpdates {

@@ -110,9 +110,13 @@ struct RustScanner: Sendable {
     /// The version in rustup's user-agent string, `rustup/<version> (<target>)`,
     /// which every build carries (three times in 1.29.1, measured 2026-10-01 with
     /// `grep -aoE 'rustup/[0-9.]+ \('`). The first occurrence that is a version.
+    /// Read, never mapped (`ExecutableBytes`): rustup is ad hoc signed, and a
+    /// copy whose signature no longer validates must not end a hardened process.
     static func claimedVersion(in executable: URL) -> String? {
-        guard let data = try? Data(contentsOf: executable, options: .mappedIfSafe) else { return nil }
-        return claimedVersion(in: data)
+        guard let literals = ExecutableBytes.joinedWindows(
+            in: executable, marker: Data("rustup/".utf8), before: 0, after: 64)
+        else { return nil }
+        return claimedVersion(in: literals)
     }
 
     static func claimedVersion(in data: Data) -> String? {

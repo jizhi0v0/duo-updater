@@ -164,17 +164,19 @@ public struct BoatScanner: Sendable {
         guard (try? FileManager.default.attributesOfItem(atPath: url.path)) != nil else { return nil }
         let settings = BoatSettings.read(home: home)
         let resolved = url.resolvingSymlinksInPath()
+        // Read, never mapped (`ExecutableBytes`).
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: resolved.path),
               attributes[.type] as? FileAttributeType == .typeRegular,
               (attributes[.size] as? Int ?? 0) > 0,
-              let data = try? Data(contentsOf: resolved, options: .alwaysMapped)
+              let head = ExecutableBytes.head(of: resolved),
+              let literals = ExecutableBytes.joinedWindows(in: resolved, marker: Self.marker, before: 0, after: 64)
         else {
             return BoatInstall(path: url.path, version: nil, architecture: nil, signature: nil,
                                settings: settings, problem: .executableMissing)
         }
-        let version = Self.compiledVersion(in: data)
+        let version = Self.compiledVersion(in: literals)
         return BoatInstall(
-            path: url.path, version: version, architecture: readArchitecture(data),
+            path: url.path, version: version, architecture: readArchitecture(head),
             signature: checkSignature(resolved), quarantined: isQuarantined(resolved),
             settings: settings, problem: version == nil ? .versionUnreadable : nil)
     }

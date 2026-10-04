@@ -1,4 +1,4 @@
-.PHONY: install cli build test gallery notarize release
+.PHONY: install cli build test test-scripts test-swift test-app gallery notarize release
 
 # Build with a stable Developer ID signature and deploy the canonical copy to
 # /Applications. See scripts/install.sh for why the identity matters (TCC grants).
@@ -22,7 +22,15 @@ build:
 # (`swift build --build-tests`) rebuilt nothing (1.3 s), so switching the root
 # package does not throw the cache away. That holds while all three packages
 # resolve the same dependency pins.
-test:
+#
+# Split in three so CI can run each part as its own job (.github/workflows/ci.yml).
+# The parts share nothing: test-scripts only reads the source tree, and
+# test-swift and test-app build into different directories (SwiftPM's .build
+# versus app-tests' derived data). `make test` runs all three, cheapest first.
+test: test-scripts test-swift test-app
+
+# The Python gates and their own tests. Seconds, and no build.
+test-scripts:
 	python3 scripts/test_appcast_edit.py
 	python3 scripts/test_publish_release.py
 	python3 scripts/test_site_floor.py
@@ -33,11 +41,6 @@ test:
 	python3 scripts/test_claude_lag_probe.py
 	python3 scripts/test_app_test_coverage.py
 	python3 scripts/test_check_localizable_specifiers.py
-	cd DuoUpdaterCore && swift test
-	swift test --package-path CLI --scratch-path DuoUpdaterCore/.build
-	swift build --package-path application-test --scratch-path DuoUpdaterCore/.build
-	@scripts/app-tests.sh
-	python3 scripts/check_localizable_keys.py
 	python3 scripts/check_localizable_specifiers.py
 	python3 scripts/check_staged_version_use.py
 	python3 scripts/test_check_staged_version_use.py
@@ -47,6 +50,18 @@ test:
 	python3 scripts/check_skill_docs.py
 	python3 scripts/check_prose_claims.py
 	python3 scripts/check_offpool.py
+
+# The two SwiftPM packages, plus the application-test harness built against them.
+test-swift:
+	cd DuoUpdaterCore && swift test
+	swift test --package-path CLI --scratch-path DuoUpdaterCore/.build
+	swift build --package-path application-test --scratch-path DuoUpdaterCore/.build
+
+# App/Sources through xcodebuild. check_localizable_keys.py builds the app again
+# with loc-string emission on, and reads the .xcodeproj app-tests.sh generates.
+test-app:
+	@scripts/app-tests.sh
+	python3 scripts/check_localizable_keys.py
 
 # Render every row state to verify/row-states/<surface>/*.png. The images are
 # committed:

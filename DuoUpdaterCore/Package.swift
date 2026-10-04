@@ -32,7 +32,28 @@ let package = Package(
         ),
         .testTarget(
             name: "DuoUpdaterCoreTests",
-            dependencies: ["DuoUpdaterCore"]
+            dependencies: ["DuoUpdaterCore"],
+            // `swift test -c release` (ci.yml's `release` job) exists to run
+            // DuoUpdaterCore optimized, the way the app ships it. The tests
+            // themselves gain nothing from -O, and compiling all of them as one
+            // whole-module -O task was most of that job: 10.7 of its 14 minutes
+            // on CI (run 37190107638), and single-threaded, so more cores do not
+            // help. Here they build like a debug target instead: -Onone, batch
+            // mode. Measured on a 10-core Mac: 420 s -> 43 s for this target,
+            // and the library still builds -O + WMO. The 2026-10-02 Junie abort
+            // that the Release job was added for still reproduces this way (see
+            // JunieChangelog.swift). Batch mode cannot multithread, so SwiftPM's
+            // -num-threads now draws a warning; harmless.
+            //
+            // unsafeFlags are allowed here because nothing depends on this
+            // target: CLI, application-test and the app consume the library
+            // product only.
+            swiftSettings: [
+                .unsafeFlags(
+                    ["-Onone", "-no-whole-module-optimization", "-enable-batch-mode"],
+                    .when(configuration: .release)
+                )
+            ]
         )
     ]
 )

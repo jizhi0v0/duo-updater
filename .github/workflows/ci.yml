@@ -39,20 +39,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  # `make test` in its three parts plus Core's Release pass, each on its own
+  # runner. One after another they took 22–28 minutes, more than half of it one
+  # compile: run 37190107638 spent 8 minutes in `make test` and 14 in the Release
+  # step, 10.7 of those building the test target. Side by side the wall clock is
+  # the longest job instead of the sum. Standard runners on a public repository
+  # cost nothing either way; the price is up to three macOS runners per push.
+  swift:
     runs-on: xcode-27
-    # `make test` reaches vendor endpoints (the install gates download real
+    # Core's suite reaches vendor endpoints (the install gates download real
     # packages and verify sha512 + Team ID), so it is slower and less predictable
     # than a pure unit run. Generous, but far under the 6h job ceiling.
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # App/DuoUpdater.xcodeproj is gitignored — the spec in App/project.yml is the
-      # source of truth and scripts/app-tests.sh regenerates it when missing.
-      - name: Install XcodeGen
-        run: brew install xcodegen
 
       - name: Toolchain
         run: |
@@ -60,7 +61,7 @@ jobs:
           swift --version
           echo "arch: $(uname -m)"
 
-      - name: make test
+      - name: make test-swift
         # DUO_DOWNLOAD_GATE moves the one test that fetches real vendor builds off
         # a metered connection onto this runner, where egress is free. Measured on
         # the author's Mac: `make test` goes from ~185 MB to ~25 MB.
@@ -83,18 +84,31 @@ jobs:
         # here and not a watchdog inside the test process.
         env:
           DUO_DOWNLOAD_GATE: "1"
-        run: scripts/run-with-hang-report.sh 1800 make test
+        run: scripts/run-with-hang-report.sh 1800 make test-swift
 
-      # Core's tests once more, optimized — the configuration the app ships in.
-      # `make test` builds them in debug only, and on 2026-10-02 that let a
-      # crash through: Junie's release-notes task group returned nothing and
-      # aborted the app in Release (`__cxa_pure_virtual` in
-      # `AsyncTask::completeFuture`) while every debug test passed. The same
-      # JunieChangelogTests, built `-c release` against the broken code, die on
-      # signal 6. ~30 s on the author's Mac once built; through the wrapper for
-      # the same reason as `make test`.
-      - name: Core tests (Release)
-        run: scripts/run-with-hang-report.sh 1200 swift test --package-path DuoUpdaterCore -c release
+  app:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          echo "arch: $(uname -m)"
+
+      # App/DuoUpdater.xcodeproj is gitignored — the spec in App/project.yml is the
+      # source of truth and scripts/app-tests.sh regenerates it when missing.
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: make test-scripts
+        run: make test-scripts
+
+      - name: make test-app
+        run: scripts/run-with-hang-report.sh 1200 make test-app
 
       # scripts/app-tests.sh prints only an excerpt and leaves the full xcodebuild
       # output in the derived-data dir, which dies with the runner. Two first
@@ -149,3 +163,48 @@ jobs:
             /tmp/duo-app-tests-*/ci-xcresult/
             /tmp/duo-app-tests-*/Logs/Package/*.xcactivitylog
 
+  release:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          echo "arch: $(uname -m)"
+
+      # Core's tests once more, optimized — the configuration the app ships in.
+      # `make test` builds them in debug only, and on 2026-10-02 that let a
+      # crash through: Junie's release-notes task group returned nothing and
+      # aborted the app in Release (`__cxa_pure_virtual` in
+      # `AsyncTask::completeFuture`) while every debug test passed. The same
+      # JunieChangelogTests, built `-c release` against the broken code, die on
+      # signal 6. ~30 s on the author's Mac once built; through the wrapper for
+      # the same reason as `make test`.
+      #
+      # Only the library is optimized: the test target builds -Onone in batch
+      # mode even under `-c release` (DuoUpdaterCore/Package.swift says why).
+      # Checked on 2026-10-04 that the Junie abort still reproduces that way.
+      - name: Core tests (Release)
+        run: scripts/run-with-hang-report.sh 1200 swift test --package-path DuoUpdaterCore -c release
+
+  # The one check the `main` ruleset requires is named `test`, which was this
+  # workflow's only job. Rather than editing the ruleset, `test` is now the gate
+  # over the jobs above. `always()`, not `!cancelled()`: a required check that is
+  # SKIPPED counts as passing, so this must run — and fail — whenever any of
+  # them failed, was cancelled or did not run.
+  test:
+    needs: [swift, app, release]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: All jobs passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "swift / app / release: $RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || exit 1; done

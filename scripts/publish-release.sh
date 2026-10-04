@@ -660,8 +660,9 @@ if [ "${SKIP_TESTS:-0}" = "1" ]; then
     say "SKIP_TESTS=1 — NOT running the test suite before publishing."
 else
     say "Running tests before publishing (SKIP_TESTS=1 to override)"
-    # Not the only gate any more — .github/workflows/ci.yml runs this same
-    # `make test` on every pull request — but still the only one that runs against
+    # Not the only gate any more — .github/workflows/ci.yml runs the same
+    # `make test`, split into parallel jobs, on every pull request — but still
+    # the only one that runs against
     # the exact tree being published.
     # `make test`, not one package: this ran only DuoUpdaterCore, so a red CLI
     # suite published. Output is NOT swallowed — some of these tests hit the

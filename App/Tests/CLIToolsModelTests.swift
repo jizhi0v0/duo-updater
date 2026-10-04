@@ -52,6 +52,7 @@ struct CLIToolsModelTests {
         case .rust: detail = .rust(RustItem(path: path, version: version))
         case .npm: detail = .npm(NpmPackage(path: path, version: version))
         case .boat: detail = .boat(BoatInstall(path: path, version: version))
+        case .codex: detail = .codex(CodexInstall(path: path, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -75,6 +76,7 @@ struct CLIToolsModelTests {
         case .rust: context = .rust(RustupSettings())
         case .npm: context = .npm
         case .boat: context = .boat
+        case .codex: context = .codex(CodexSettings())
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }

@@ -918,7 +918,7 @@ struct WorkbenchWindowView: View {
             return CLIToolPresentation.channels(of: model.cliTools.statuses.filter { $0.kind == .fx })
         case .bub:
             return nil
-        case .uv, .junie, .rust, .npm, .boat:
+        case .uv, .junie, .rust, .npm, .boat, .codex:
             return CLIToolPresentation.headerSummary(
                 kind, statuses: model.cliTools.statuses, context: model.cliTools.contexts[kind])
         }

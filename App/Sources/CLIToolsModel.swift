@@ -144,7 +144,7 @@ final class CLIToolsModel {
     init(
         providers: [any CLIToolProvider] = [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
-            BoatProvider(),
+            BoatProvider(), CodexProvider(),
         ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
@@ -413,13 +413,15 @@ final class CLIToolsModel {
     /// the detail pane's signature fact says who signed it. rustup is only ever
     /// ad hoc or unsigned — trusted by its published sha256 — and an npm
     /// package by the registry's integrity hash. Boat is only ever ad hoc, and
-    /// trusted by its release's `SHA256SUMS`.
+    /// trusted by its release's `SHA256SUMS`. Codex is signed by OpenAI OpCo, LLC —
+    /// the certificate uv's builds carry too, here under its own vendor's name.
     nonisolated static func vendor(of kind: CLIToolKind) -> String? {
         switch kind {
         case .claudeCode: return "Anthropic"
         case .fx: return "Vercel"
         case .uv: return "Astral"
         case .junie: return "JetBrains"
+        case .codex: return "OpenAI"
         case .bub, .rust, .npm, .boat: return nil
         }
     }
@@ -518,6 +520,12 @@ final class CLIToolsModel {
             return quarantined
         case (.unverified, .boat(let boat)) where boat.quarantined:
             return quarantined
+        case (.unverified, .codex(let codex)) where codex.quarantined:
+            return quarantined
+        case (.autoUpdateOff, .codex):
+            // Codex has no auto-update to turn off: its `check_for_update_on_startup`
+            // is the prompt, set false "only if your Codex updates are centrally managed".
+            return String(localized: "Codex’s update check is off in its config")
         case (.updaterMissing, .rust):
             return String(localized: "No rustup in ~/.cargo/bin")
         case (.autoUpdateOff, .rust):
@@ -548,6 +556,10 @@ final class CLIToolsModel {
         case (.unsupportedInstaller, .boat):
             // Its config's `api_url` names another server than boat.dev.
             return String(localized: "Boat’s config points at another server")
+        case (.unsupportedInstaller, .codex):
+            // `~/.local/bin/codex` is not the standalone install's launcher.
+            let launcher = "~/.local/bin/codex"
+            return String(localized: "\(launcher) isn’t this install’s launcher")
         default:
             break
         }

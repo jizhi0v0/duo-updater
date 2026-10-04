@@ -144,7 +144,7 @@ final class CLIToolsModel {
     init(
         providers: [any CLIToolProvider] = [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
-            BoatProvider(), CodexProvider(), BunProvider(),
+            BoatProvider(), CodexProvider(), BunProvider(), OpencodeProvider(),
         ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
@@ -423,6 +423,7 @@ final class CLIToolsModel {
         case .junie: return "JetBrains"
         case .codex: return "OpenAI"
         case .bun: return "Oven"
+        case .opencode: return "Anomaly"
         case .bub, .rust, .npm, .boat: return nil
         }
     }

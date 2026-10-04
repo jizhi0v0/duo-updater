@@ -106,19 +106,20 @@ public struct BunScanner: Sendable {
     var root: URL { home.appendingPathComponent(".bun") }
     var location: URL { root.appendingPathComponent("bin/bun") }
 
-    /// bun, or nothing. Blocking: the file is read (mapped, ~61 MB searched).
+    /// bun, or nothing. Blocking: the file is read (~61 MB searched).
     public func scan() -> BunInstall? {
         let url = location
         guard (try? FileManager.default.attributesOfItem(atPath: url.path)) != nil else { return nil }
         let resolved = url.resolvingSymlinksInPath()
+        // Read, never mapped (`ExecutableBytes`).
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: resolved.path),
               attributes[.type] as? FileAttributeType == .typeRegular,
               (attributes[.size] as? Int ?? 0) > 0,
-              let data = try? Data(contentsOf: resolved, options: .alwaysMapped)
+              let literals = ExecutableBytes.joinedWindows(in: resolved, marker: Self.marker, before: 80, after: 0)
         else {
             return BunInstall(path: url.path, version: nil, signature: nil, problem: .executableMissing)
         }
-        let compiled = Self.compiledVersion(in: data)
+        let compiled = Self.compiledVersion(in: literals)
         return BunInstall(
             path: url.path, version: compiled?.version, revision: compiled?.revision,
             signature: nil, quarantined: isQuarantined(resolved),

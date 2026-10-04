@@ -228,6 +228,12 @@ enum CLIToolFixtures {
                       name: "openclaw", version: "2026.3.24", latest: "2026.9.8", withheld: withheld)
     }
 
+    static func opencode(signature: CLIToolTrust.Signature? = .adHoc) -> CLIToolStatus {
+        let path = "/Users/ann/.opencode/bin/opencode"
+        return status(.opencode, path: path, detail: .opencode(OpencodeInstall(path: path, version: "1.18.15", signature: signature)),
+                      version: "1.18.15", latest: "1.18.34", channel: "latest")
+    }
+
     static func nvm(_ node: String) -> NodePrefix {
         NodePrefix(path: "/Users/ann/.nvm/versions/node/v\(node)", source: .nvm, layoutNodeVersion: node)
     }
@@ -442,6 +448,23 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolPresentation.headerSummary(
             .codex, statuses: [F.codex()], context: .codex(CodexSettings(checkForUpdates: false)))
             == "latest · update check off")
+    }
+
+    /// OpenCode: Anomaly by name, its signature as a fact, its `autoupdate` in
+    /// the header. Mutations: return no vendor; drop the fact; leave `.opencode`
+    /// out of the header.
+    @Test func opencodesReasonsFactsAndHeader() {
+        #expect(CLIToolsModel.vendor(of: .opencode) == "Anomaly")
+        #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.opencode()) == "Auto-update is off in OpenCode’s settings")
+        #expect(CLIToolPresentation.facts(of: F.opencode(), home: "/Users/ann")
+            == [.init(label: "Signature", value: "Ad hoc signed (no developer identity)")])
+        #expect(CLIToolPresentation.facts(of: F.opencode(signature: .vendor), home: "/Users/ann")
+            == [.init(label: "Signature", value: "Signed by Anomaly Innovations, Inc. (Team 5NZ4Q7NXJ4)")])
+        #expect(CLIToolPresentation.headerSummary(.opencode, statuses: [F.opencode()], context: .opencode(OpencodeSettings()))
+            == "latest")
+        #expect(CLIToolPresentation.headerSummary(
+            .opencode, statuses: [F.opencode()], context: .opencode(OpencodeSettings(autoUpdate: false)))
+            == "latest · auto-update off")
     }
 
     /// Bun's reasons, facts and header: Oven by name; a package's reasons are

@@ -51,6 +51,7 @@ struct CLIToolsModelTests {
         case .junie: detail = .junie(JunieInstall(path: path, version: version))
         case .rust: detail = .rust(RustItem(path: path, version: version))
         case .npm: detail = .npm(NpmPackage(path: path, version: version))
+        case .boat: detail = .boat(BoatInstall(path: path, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -73,6 +74,7 @@ struct CLIToolsModelTests {
         case .junie: context = .junie(JunieSettings())
         case .rust: context = .rust(RustupSettings())
         case .npm: context = .npm
+        case .boat: context = .boat
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }

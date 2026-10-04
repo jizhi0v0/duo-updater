@@ -531,7 +531,12 @@ private struct CLIToolReleaseNotesView: View {
             ContentUnavailableView {
                 Label("No release notes", systemImage: "doc.text.magnifyingglass")
             } description: {
-                Text("\(kind.displayName)’s release notes have no section for these versions yet.")
+                if kind == .boat {
+                    // Boat's releases carry no notes at all (`BoatProvider`).
+                    Text("\(kind.displayName) publishes no release notes.")
+                } else {
+                    Text("\(kind.displayName)’s release notes have no section for these versions yet.")
+                }
             }
         case .failed(let message):
             VStack(spacing: 10) {

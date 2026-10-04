@@ -135,7 +135,7 @@ enum CLIToolPresentation {
         case .junie(let junie): return facts(of: junie, withheld: status.withheld)
         case .rust(let item): return facts(of: item, withheld: status.withheld)
         case .npm(let package): return facts(of: package, withheld: status.withheld, home: home)
-        case .claudeCode, .bub, .fx: return []
+        case .claudeCode, .bub, .fx, .boat: return []
         }
     }
 
@@ -278,7 +278,7 @@ enum CLIToolPresentation {
         return seen.isEmpty ? nil : seen.joined(separator: ", ")
     }
 
-    /// The group header of uv, Junie, Rust and npm: what decides their installs'
+    /// The group header of uv, Junie, Rust, npm and Boat: what decides their installs'
     /// verdicts tool-wide, kept short — several languages are twice the English
     /// width, and the header shrinks a little, then cuts.
     /// - uv: nothing. It has no channels and no setting of its own.
@@ -287,6 +287,7 @@ enum CLIToolPresentation {
     ///   is not `enable` — which turns the rustup row's click into a command to copy.
     /// - npm: which nodes the prefixes run, the one thing every row's verdict
     ///   is held against (`engines`).
+    /// - Boat: the channel its config names (`prod` until the user picks one).
     static func headerSummary(
         _ kind: CLIToolKind, statuses: [CLIToolStatus], context: CLIToolReport.Context?
     ) -> String? {
@@ -309,6 +310,8 @@ enum CLIToolPresentation {
                 }
             }
             return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        case (.boat, _):
+            return channels(of: mine)
         case (.npm, _):
             var nodes: [String] = []
             for case .npm(let package) in mine.map(\.detail) {

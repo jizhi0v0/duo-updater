@@ -128,6 +128,17 @@ enum CLIToolFixtures {
             withheld: withheld, note: nil, name: name, detail: detail)
     }
 
+    static func boat(
+        channel: String = "prod", customAPI: String? = nil, quarantined: Bool = false,
+        withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.ascii/bin/boat"
+        let install = BoatInstall(path: path, version: "1.0.37", quarantined: quarantined,
+                                  settings: BoatSettings(channel: channel, customAPI: customAPI))
+        return status(.boat, path: path, detail: .boat(install), version: "1.0.37", latest: "1.0.38",
+                      channel: channel, withheld: withheld)
+    }
+
     static func uv(
         _ path: String = "/Users/ann/.local/bin/uv", layout: UvInstall.Layout = .standalone,
         signature: CLIToolTrust.Signature? = .adHoc, quarantined: Bool = false,
@@ -385,6 +396,24 @@ struct CLIToolPayloadPresentationTests {
         let npm = [F.npm(), F.npm(F.npmInstall("agent-browser")), F.npm(F.npmInstall(prefix: F.nvm("22.21.1")))]
         #expect(CLIToolPresentation.headerSummary(.npm, statuses: npm, context: .npm) == "node 24.13.0, 22.21.1")
         #expect(CLIToolPresentation.headerSummary(.uv, statuses: [F.uv()], context: .uv) == nil)
+        #expect(CLIToolPresentation.headerSummary(.boat, statuses: [F.boat()], context: .boat) == "prod")
+        #expect(CLIToolPresentation.headerSummary(.boat, statuses: [F.boat(channel: "staging")], context: .boat)
+            == "staging")
+    }
+
+    /// Boat's reasons: a quarantined file, a config pointing at another server,
+    /// and a file that is not the published build — Boat has no Team ID, so no
+    /// vendor is named.
+    ///
+    /// Mutations: drop the `(.unverified, .boat) where quarantined` case; drop the
+    /// `(.unsupportedInstaller, .boat)` case; return a vendor for `.boat`.
+    @Test func boatsReasons() {
+        #expect(CLIToolsModel.reason(.unverified, of: F.boat(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.unverified, of: F.boat()) == "Not the build its developer published")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.boat(customAPI: "https://staging.ascii.dev"))
+            == "Boat’s config points at another server")
+        #expect(CLIToolsModel.vendor(of: .boat) == nil)
+        #expect(CLIToolPresentation.facts(of: F.boat(), home: "/Users/ann").isEmpty)
     }
 
     /// The pane's reason and the row's warning are the status's own: a newer

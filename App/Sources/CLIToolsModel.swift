@@ -144,6 +144,7 @@ final class CLIToolsModel {
     init(
         providers: [any CLIToolProvider] = [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
+            BoatProvider(),
         ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
@@ -411,14 +412,15 @@ final class CLIToolsModel {
     /// (`UvInstall`); the short reason still names Astral, whose tool it is, and
     /// the detail pane's signature fact says who signed it. rustup is only ever
     /// ad hoc or unsigned — trusted by its published sha256 — and an npm
-    /// package by the registry's integrity hash.
+    /// package by the registry's integrity hash. Boat is only ever ad hoc, and
+    /// trusted by its release's `SHA256SUMS`.
     nonisolated static func vendor(of kind: CLIToolKind) -> String? {
         switch kind {
         case .claudeCode: return "Anthropic"
         case .fx: return "Vercel"
         case .uv: return "Astral"
         case .junie: return "JetBrains"
-        case .bub, .rust, .npm: return nil
+        case .bub, .rust, .npm, .boat: return nil
         }
     }
 
@@ -514,6 +516,8 @@ final class CLIToolsModel {
             return String(localized: "Its node isn’t signed by the Node.js Foundation")
         case (.versionUnreadable, .uv(let uv)) where uv.quarantined:
             return quarantined
+        case (.unverified, .boat(let boat)) where boat.quarantined:
+            return quarantined
         case (.updaterMissing, .rust):
             return String(localized: "No rustup in ~/.cargo/bin")
         case (.autoUpdateOff, .rust):
@@ -541,6 +545,9 @@ final class CLIToolsModel {
             if let channel = junie.channel { return String(localized: "The \(channel) channel has no installer") }
         case (.unsupportedInstaller, .npm(let package)):
             return origin(of: package)
+        case (.unsupportedInstaller, .boat):
+            // Its config's `api_url` names another server than boat.dev.
+            return String(localized: "Boat’s config points at another server")
         default:
             break
         }

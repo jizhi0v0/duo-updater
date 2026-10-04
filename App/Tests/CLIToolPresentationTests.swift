@@ -201,6 +201,33 @@ enum CLIToolFixtures {
                       name: name, version: "1.98.0", latest: "1.99.0", channel: parsed.channel, withheld: withheld)
     }
 
+    static func bun(
+        version: String = "1.3.10", signature: CLIToolTrust.Signature? = .vendor, quarantined: Bool = false,
+        withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.bun/bin/bun"
+        return status(.bun, path: path,
+                      detail: .bun(BunInstall(path: path, version: version, signature: signature, quarantined: quarantined)),
+                      name: "bun", version: version, latest: "1.4.2", withheld: withheld)
+    }
+
+    /// openclaw from `bun add -g`, held against Homebrew's node 26.8.2.
+    static func bunPackage(
+        bunSignature: CLIToolTrust.Signature? = .vendor, bunQuarantined: Bool = false, node: Bool = true,
+        withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        let prefix = NodePrefix(path: "/Users/ann/.bun/install/global", source: .bun, layoutNodeVersion: node ? "26.8.2" : nil)
+        let install = NpmInstall(
+            path: prefix.path + "/node_modules/openclaw", name: "openclaw", version: "2026.3.24", manifestName: "openclaw",
+            prefix: prefix,
+            runtime: NpmRuntime(
+                node: node ? "/opt/homebrew/bin/node" : nil, npm: nil, npmVersion: nil, nodeSignature: node ? .adHoc : nil,
+                nodeQuarantined: false, nodeVersion: node ? "26.8.2" : nil, homebrewKeg: node ? "/opt/homebrew/Cellar/node/26.8.2" : nil),
+            bun: BunManager(path: "/Users/ann/.bun/bin/bun", signature: bunSignature, quarantined: bunQuarantined))
+        return status(.bun, path: install.path, detail: .npm(NpmPackage(install: install, offered: "2026.9.8")),
+                      name: "openclaw", version: "2026.3.24", latest: "2026.9.8", withheld: withheld)
+    }
+
     static func nvm(_ node: String) -> NodePrefix {
         NodePrefix(path: "/Users/ann/.nvm/versions/node/v\(node)", source: .nvm, layoutNodeVersion: node)
     }
@@ -415,6 +442,34 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolPresentation.headerSummary(
             .codex, statuses: [F.codex()], context: .codex(CodexSettings(checkForUpdates: false)))
             == "latest · update check off")
+    }
+
+    /// Bun's reasons, facts and header: Oven by name; a package's reasons are
+    /// about its bun and the node found, never "npm" or "this prefix".
+    ///
+    /// Mutations: drop any of the `.npm` cases keyed on `install.bun`; drop the
+    /// `(.unsupportedInstaller, .bun)` case; return no vendor for `.bun`; leave
+    /// `.bun` out of the node header.
+    @Test func bunsReasonsFactsAndHeader() {
+        #expect(CLIToolsModel.vendor(of: .bun) == "Oven")
+        #expect(CLIToolsModel.reason(.wrongSigner, of: F.bun(signature: .adHoc)) == "Not signed by Oven")
+        #expect(CLIToolsModel.reason(.unverified, of: F.bun(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.bun(version: "1.4.3-canary.20"))
+            == "A canary build, which has no version to compare")
+        #expect(CLIToolPresentation.facts(of: F.bun(), home: "/Users/ann")
+            == [.init(label: "Signature", value: "Signed by Oven (Team 7FRXF46ZSN)")])
+
+        #expect(CLIToolsModel.reason(.wrongSigner, of: F.bunPackage(bunSignature: .adHoc)) == "Its bun isn’t signed by Oven")
+        #expect(CLIToolsModel.reason(.unverified, of: F.bunPackage(bunQuarantined: true)) == "Its bun is quarantined, so not run")
+        #expect(CLIToolsModel.reason(.versionUnreadable, of: F.bunPackage(node: false))
+            == "No node found to check its engines against")
+        #expect(CLIToolsModel.reason(.busy, of: F.bunPackage()) == "bun is already changing its global packages")
+        #expect(CLIToolPresentation.facts(of: F.bunPackage(), home: "/Users/ann").first
+            == .init(label: "Prefix", value: "~/.bun/install/global"))
+
+        #expect(CLIToolPresentation.headerSummary(.bun, statuses: [F.bun(), F.bunPackage()], context: .bun)
+            == "node 26.8.2")
+        #expect(CLIToolPresentation.headerSummary(.bun, statuses: [F.bun()], context: .bun) == nil)
     }
 
     /// Codex's reasons and facts: OpenAI by name, a launcher that is not the

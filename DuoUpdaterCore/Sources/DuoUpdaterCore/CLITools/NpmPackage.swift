@@ -49,6 +49,8 @@ public struct NpmPackage: Sendable, Equatable {
         case npm
         /// `openclaw update --tag <version>`, by this prefix's node.
         case openclaw
+        /// `<bun> add -g <name>@<version>`, for a package of bun's global install.
+        case bun
     }
 
     public let install: NpmInstall

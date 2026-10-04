@@ -144,7 +144,7 @@ final class CLIToolsModel {
     init(
         providers: [any CLIToolProvider] = [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
-            BoatProvider(), CodexProvider(),
+            BoatProvider(), CodexProvider(), BunProvider(),
         ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
@@ -422,6 +422,7 @@ final class CLIToolsModel {
         case .uv: return "Astral"
         case .junie: return "JetBrains"
         case .codex: return "OpenAI"
+        case .bun: return "Oven"
         case .bub, .rust, .npm, .boat: return nil
         }
     }
@@ -512,6 +513,17 @@ final class CLIToolsModel {
             // the rustup row says which.
             case .toolchain: return String(localized: "Its rustup isn’t verified")
             }
+        // A package of bun's global install: bun installs it, and its node is the
+        // one found on disk (`NpmCheck.bunGate`).
+        case (.unverified, .npm(let package)) where package.install.bun?.quarantined == true:
+            return String(localized: "Its bun is quarantined, so not run")
+        case (.wrongSigner, .npm(let package)) where package.install.bun != nil:
+            let vendor = "Oven"
+            return String(localized: "Its bun isn’t signed by \(vendor)")
+        case (.versionUnreadable, .npm(let package)) where package.install.bun != nil && package.install.runtime.node == nil:
+            return String(localized: "No node found to check its engines against")
+        case (.busy, .npm(let package)) where package.install.bun != nil:
+            return String(localized: "bun is already changing its global packages")
         case (.unverified, .npm(let package)) where package.install.runtime.nodeQuarantined:
             return String(localized: "Its node is quarantined, so not run")
         case (.wrongSigner, .npm):
@@ -522,6 +534,11 @@ final class CLIToolsModel {
             return quarantined
         case (.unverified, .codex(let codex)) where codex.quarantined:
             return quarantined
+        case (.unverified, .bun(let bun)) where bun.quarantined:
+            return quarantined
+        case (.unsupportedInstaller, .bun):
+            // A canary: `bun upgrade` installs the newest canary, with no version.
+            return String(localized: "A canary build, which has no version to compare")
         case (.autoUpdateOff, .codex):
             // Codex has no auto-update to turn off: its `check_for_update_on_startup`
             // is the prompt, set false "only if your Codex updates are centrally managed".

@@ -186,10 +186,12 @@ jobs:
       # the same reason as `make test`.
       #
       # Only the library is optimized: the test target builds -Onone in batch
-      # mode even under `-c release` (DuoUpdaterCore/Package.swift says why).
-      # Checked on 2026-10-04 that the Junie abort still reproduces that way.
+      # mode even under `-c release`, which needs the native build system —
+      # hence `make test-release` rather than a bare `swift test -c release`
+      # (DuoUpdaterCore/Package.swift says why). Checked on 2026-10-04 that the
+      # Junie abort still reproduces that way.
       - name: Core tests (Release)
-        run: scripts/run-with-hang-report.sh 1200 swift test --package-path DuoUpdaterCore -c release
+        run: scripts/run-with-hang-report.sh 1200 make test-release
 
   # The one check the `main` ruleset requires is named `test`, which was this
   # workflow's only job. Rather than editing the ruleset, `test` is now the gate

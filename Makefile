@@ -1,4 +1,4 @@
-.PHONY: install cli build test test-scripts test-swift test-app gallery notarize release
+.PHONY: install cli build test test-scripts test-swift test-app test-release gallery notarize release
 
 # Build with a stable Developer ID signature and deploy the canonical copy to
 # /Applications. See scripts/install.sh for why the identity matters (TCC grants).
@@ -62,6 +62,12 @@ test-swift:
 test-app:
 	@scripts/app-tests.sh
 	python3 scripts/check_localizable_keys.py
+
+# Core's suite against an optimized DuoUpdaterCore — ci.yml's `release` job. Not
+# part of `make test`. The native build system is required, not a preference:
+# see the test target in DuoUpdaterCore/Package.swift.
+test-release:
+	swift test --package-path DuoUpdaterCore -c release --build-system native
 
 # Render every row state to verify/row-states/<surface>/*.png. The images are
 # committed:

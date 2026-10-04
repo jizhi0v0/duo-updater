@@ -136,6 +136,7 @@ enum CLIToolPresentation {
         case .rust(let item): return facts(of: item, withheld: status.withheld)
         case .npm(let package): return facts(of: package, withheld: status.withheld, home: home)
         case .codex(let codex): return facts(of: codex)
+        case .bun(let bun): return facts(of: bun)
         case .claudeCode, .bub, .fx, .boat: return []
         }
     }
@@ -217,6 +218,14 @@ enum CLIToolPresentation {
                      value: signature(codex.signature, signer: signer, team: CodexScanner.teamIdentifier))]
     }
 
+    /// bun is run by every update in its group, its own and its packages'.
+    private static func facts(of bun: BunInstall) -> [Fact] {
+        guard bun.problem == nil else { return [] }
+        let signer = "Oven"
+        return [Fact(label: String(localized: "Signature"),
+                     value: signature(bun.signature, signer: signer, team: BunScanner.teamIdentifier))]
+    }
+
     /// rustup has no signature to go by: what lets it run is its sha256 being one
     /// rust-lang publishes (`RustCheck.rustupStatus`). A toolchain's channel is
     /// already the pane's.
@@ -287,7 +296,7 @@ enum CLIToolPresentation {
         return seen.isEmpty ? nil : seen.joined(separator: ", ")
     }
 
-    /// The group header of uv, Junie, Rust, npm, Boat and Codex: what decides their installs'
+    /// The group header of uv, Junie, Rust, npm, Boat, Codex and Bun: what decides their installs'
     /// verdicts tool-wide, kept short — several languages are twice the English
     /// width, and the header shrinks a little, then cuts.
     /// - uv: nothing. It has no channels and no setting of its own.
@@ -299,6 +308,7 @@ enum CLIToolPresentation {
     /// - Boat: the channel its config names (`prod` until the user picks one).
     /// - Codex: `latest`, its installer's only channel, and that its update check
     ///   is off when it is.
+    /// - Bun: like npm, the node its packages are held against.
     static func headerSummary(
         _ kind: CLIToolKind, statuses: [CLIToolStatus], context: CLIToolReport.Context?
     ) -> String? {
@@ -329,7 +339,7 @@ enum CLIToolPresentation {
                 return String(localized: "\(channels) · update check off")
             }
             return channels
-        case (.npm, _):
+        case (.npm, _), (.bun, _):
             var nodes: [String] = []
             for case .npm(let package) in mine.map(\.detail) {
                 if let node = nodeVersion(of: package), !nodes.contains(node) { nodes.append(node) }

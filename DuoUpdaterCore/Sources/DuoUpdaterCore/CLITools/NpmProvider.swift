@@ -89,12 +89,7 @@ public struct NpmProvider: CLIToolProvider {
                 continue
             }
             if versions[node] == nil { versions[node] = .some(await read(node)) }
-            out.append(NpmInstall(
-                path: install.path, name: install.name, version: install.version, manifestName: install.manifestName,
-                prefix: install.prefix, runtime: runtime.with(nodeVersion: versions[node] ?? nil),
-                linkTarget: install.linkTarget, repository: install.repository,
-                customRegistry: install.customRegistry, ownUpdate: install.ownUpdate,
-                npmrcPrefixElsewhere: install.npmrcPrefixElsewhere))
+            out.append(install.with(runtime: runtime.with(nodeVersion: versions[node] ?? nil)))
         }
         return out
     }

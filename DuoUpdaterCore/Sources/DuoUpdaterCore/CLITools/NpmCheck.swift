@@ -27,6 +27,13 @@ import Foundation
 /// anchor is the registry: npm verifies each tarball against the packument's
 /// `dist.integrity`, and rule 3 keeps everything else out — which is also why a
 /// package's own updater runs only for an install that passed it.
+///
+/// A package of bun's global install (`NpmInstall.bun`) is held to the same
+/// rules, with bun where npm was (agreed 2026-10-04): its row is in bun's group;
+/// it is installed by that bun, which must carry Oven's Team ID; and its
+/// `engines.node` is held against the node found on disk (`BunPackages`),
+/// without which it is reported only — its commands run on whatever node the
+/// user's `PATH` names, which an app cannot see.
 public struct NpmCheck: Sendable {
 
     typealias Packument = @Sendable (String) async throws -> NpmPackument
@@ -73,7 +80,7 @@ public struct NpmCheck: Sendable {
         ) -> CLIToolStatus {
             let pending = pick.map { $0.pending.isEmpty ? [install.version].compactMap { $0 } : $0.pending } ?? []
             return CLIToolStatus(
-                kind: .npm, path: install.path, installedVersion: install.version,
+                kind: install.bun == nil ? .npm : .bun, path: install.path, installedVersion: install.version,
                 latestVersion: pick.map { $0.offered ?? $0.tagVersion }, channel: pick?.tag, state: state,
                 oneClick: oneClick, withheld: withheld, note: note, manualCommand: manual,
                 name: install.name, releaseNotesKey: NpmChangelog.releaseNotesKey(name: install.name, installed: install.version),
@@ -155,6 +162,13 @@ public struct NpmCheck: Sendable {
         }
         let alongside = pick.gap.map { "; \($0.version) \($0.requirement)" } ?? ""
 
+        if let bun = install.bun {
+            if let withheld = Self.bunGate(install, bun: bun, node: node, alongside: alongside) {
+                return verdict(.updateAvailable, pick: pick, note: withheld.note, withheld: withheld.withheld)
+            }
+            return await finish(install, pick: pick, offered: offered, busy: busy, openclaw: openclaw, verdict: verdict)
+        }
+
         // The command, then the gates in the order a user can act on them.
         guard install.runtime.npm != nil, install.runtime.node != nil else {
             return verdict(.updateAvailable, pick: pick,
@@ -182,18 +196,48 @@ public struct NpmCheck: Sendable {
                            note: "this prefix's node version could not be read, so engines cannot be checked\(alongside)",
                            withheld: .versionUnreadable)
         }
+        return await finish(install, pick: pick, offered: offered, busy: busy, openclaw: openclaw, verdict: verdict)
+    }
+
+    /// Why a package of bun's global install gets no click, or nil: no node to
+    /// hold its `engines` against, or a bun that may not be run.
+    static func bunGate(
+        _ install: NpmInstall, bun: BunManager, node: NpmVersion?, alongside: String
+    ) -> (withheld: CLIToolWithheld, note: String)? {
+        guard install.runtime.node != nil, node != nil else {
+            return (.versionUnreadable,
+                    "no node in /opt/homebrew or /usr/local to hold its engines against: reported only\(alongside)")
+        }
+        if bun.quarantined {
+            return (.unverified, "\(bun.path) is quarantined, so it is not run\(alongside)")
+        }
+        guard bun.signature == .vendor else {
+            return (.wrongSigner,
+                    "\(bun.path) is not signed by Oven (Team \(BunScanner.teamIdentifier))\(alongside)")
+        }
+        return nil
+    }
+
+    /// The command and the last two gates — the package's own auto-update
+    /// setting, then a change already running — once the runtime has passed.
+    private func finish(
+        _ install: NpmInstall, pick: NpmPick, offered: String, busy: NpmActivity.Busy?, openclaw: OpenClawSettings?,
+        verdict: (CLIToolState, NpmPick?, CLIToolCommand?, NpmPackage.Updater?, String?, CLIToolWithheld?, CLIToolCommand?)
+            -> CLIToolStatus
+    ) async -> CLIToolStatus {
+        let alongside = pick.gap.map { "; \($0.version) \($0.requirement)" } ?? ""
         let (command, updater, why) = Self.updateCommand(for: install, version: offered)
         if let openclaw, openclaw.autoUpdate == false {
-            return verdict(.updateAvailable, pick: pick, updater: updater,
-                           note: "openclaw's own auto-update is off (update.auto.enabled: false): reported only\(alongside)",
-                           withheld: .autoUpdateOff, manual: command)
+            return verdict(.updateAvailable, pick, nil, updater,
+                           "openclaw's own auto-update is off (update.auto.enabled: false): reported only\(alongside)",
+                           .autoUpdateOff, command)
         }
         if let busy {
-            return verdict(.updateAvailable, pick: pick, note: busy.description + alongside, withheld: .busy)
+            return verdict(.updateAvailable, pick, nil, nil, busy.description + alongside, .busy, nil)
         }
         let notes = [why, pick.gap.map { "\($0.version) \($0.requirement)" }].compactMap { $0 }
-        return verdict(.updateAvailable, pick: pick, oneClick: command, updater: updater,
-                       note: notes.isEmpty ? nil : notes.joined(separator: "; "))
+        return verdict(.updateAvailable, pick, command, updater, notes.isEmpty ? nil : notes.joined(separator: "; "),
+                       nil, nil)
     }
 
     /// The command that installs exactly `version`, and why it is that one when
@@ -217,9 +261,18 @@ public struct NpmCheck: Sendable {
     ///   prefix would be "upgraded" with `brew upgrade agent-browser`. npm's own
     ///   command does what its npm branch does, pinned.
     /// - everything else: npm.
+    ///
+    /// A package of bun's global install: `<bun> add -g <name>@<version>`, which
+    /// writes that exact version into bun's global `package.json` as `openclaw
+    /// update` does. openclaw keeps its own update, run by the node found on disk
+    /// when that node may be run: with bun's `bin` and the system's on `PATH` and
+    /// no npm or pnpm there, its `detectGlobalInstallManagerForRoot` finds the
+    /// package under `~/.bun/install/global` and installs with `bun add -g
+    /// openclaw@<version>` (2026.3.24's `dist`, read 2026-10-04).
     static func updateCommand(
         for install: NpmInstall, version: String
     ) -> (CLIToolCommand?, NpmPackage.Updater?, String?) {
+        if let bun = install.bun { return bunUpdateCommand(for: install, bun: bun, version: version) }
         guard let node = install.runtime.node, let npm = install.runtime.npm else { return (nil, nil, nil) }
         let bin = URL(fileURLWithPath: install.prefix.path).appendingPathComponent("bin").path
         var why: String?
@@ -243,5 +296,24 @@ public struct NpmCheck: Sendable {
             executable: node,
             arguments: [npm, "install", "-g", "--prefix", install.prefix.path, "--engine-strict", "\(install.name)@\(version)"],
             pathPrefix: bin), .npm, why)
+    }
+
+    static func bunUpdateCommand(
+        for install: NpmInstall, bun: BunManager, version: String
+    ) -> (CLIToolCommand?, NpmPackage.Updater?, String?) {
+        let bin = URL(fileURLWithPath: bun.path).deletingLastPathComponent().path
+        var why: String?
+        if case .openclaw(let settings) = install.ownUpdate {
+            if settings.supportsTag, install.runtime.nodeIsTrusted, let node = install.runtime.node {
+                let script = URL(fileURLWithPath: install.path).appendingPathComponent("openclaw.mjs").path
+                return (CLIToolCommand(executable: node, arguments: [script, "update", "--tag", version], pathPrefix: bin),
+                        .openclaw, nil)
+            }
+            why = settings.supportsTag
+                ? "bun, not `openclaw update`: the node it would run on is neither Node.js's nor Homebrew's"
+                : "bun, not `openclaw update`: this openclaw does not document --tag, which pins the version"
+        }
+        return (CLIToolCommand(executable: bun.path, arguments: ["add", "-g", "\(install.name)@\(version)"],
+                               pathPrefix: bin), .bun, why)
     }
 }

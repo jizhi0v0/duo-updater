@@ -21,6 +21,12 @@ public struct NodePrefix: Sendable, Equatable, Codable {
         case npmGlobal
         /// The `prefix=` in `~/.npmrc`.
         case npmrc
+        /// bun's global install, `~/.bun/install/global`: its `node_modules` is the
+        /// global root and `~/.bun/bin` its links. Not a node prefix at all — bun
+        /// installs there, not npm — so discovery never lists it; `BunScanner`
+        /// builds it, and its `layoutNodeVersion` is the node its packages are
+        /// held against (`BunPackages`).
+        case bun
     }
 
     public let path: String
@@ -101,6 +107,8 @@ public struct NodePrefixes: Sendable {
             guard let prefix = Self.npmrcPrefix(in: home.appendingPathComponent(".npmrc"), home: home)
             else { return [] }
             return [NodePrefix(path: prefix, source: .npmrc, layoutNodeVersion: nil)]
+        case .bun:
+            return []
         }
     }
 

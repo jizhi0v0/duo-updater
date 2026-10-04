@@ -5,7 +5,7 @@ import Foundation
 /// Each one has its own rules — where its installers put it, how its version is
 /// read, which command updates it and when that may run — so each keeps its own
 /// detection and update code (`ClaudeCode*`, `Bub*`, `Fx*`, `Uv*`, `Junie*`,
-/// `Rust*`, `Npm*`, `Boat*`, `Codex*`). What they share is
+/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`). What they share is
 /// how the app lists them, sums them up and runs their updates: `CLIToolStatus`,
 /// `CLIToolReport` and `CLIToolProvider` below. A later tool is a new provider and
 /// a new `Kind`; the popover row and the workbench's CLI tab read it the same way.
@@ -23,6 +23,9 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case boat
     /// OpenAI's Codex CLI as its standalone installer leaves it, `~/.local/bin/codex`.
     case codex
+    /// bun at `~/.bun/bin/bun`, and the packages `bun add -g` installed: one
+    /// group, a row each.
+    case bun
 
     /// The tool's own name, as its vendor writes it. Untranslated, like a formula
     /// name on the brew row.
@@ -37,6 +40,7 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .npm: return "npm"
         case .boat: return "Boat"
         case .codex: return "Codex"
+        case .bun: return "Bun"
         }
     }
 }
@@ -160,6 +164,8 @@ public struct CLIToolStatus: Sendable, Equatable {
         case npm(NpmPackage)
         case boat(BoatInstall)
         case codex(CodexInstall)
+        /// bun's own row; its packages' rows carry `.npm`.
+        case bun(BunInstall)
     }
 
     public init(
@@ -205,6 +211,7 @@ public struct CLIToolReport: Sendable, Equatable {
         case npm
         case boat
         case codex(CodexSettings)
+        case bun
     }
 
     public init(

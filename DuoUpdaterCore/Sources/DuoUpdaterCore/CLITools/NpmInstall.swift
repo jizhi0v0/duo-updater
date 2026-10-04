@@ -8,6 +8,10 @@ import Foundation
 /// — are listed: a global library (`docx`, 2026-10-01 on this Mac) is nothing a
 /// user runs, and npm's own `npm` and `corepack` ship with node itself.
 /// `@anthropic-ai/claude-code` has its own group (`ClaudeCode*`).
+///
+/// A package `bun add -g` installed is read into the same shape (`BunPackages`):
+/// it comes from the same registry and is checked by the same rules, and `bun`
+/// says which bun installs it instead of the prefix's npm.
 public struct NpmInstall: Sendable, Equatable, Codable {
 
     /// The package directory.
@@ -35,6 +39,9 @@ public struct NpmInstall: Sendable, Equatable, Codable {
     /// The npmrc whose `prefix=` names another prefix than this one: where a
     /// bare `npm i -g` from this prefix's npm would install (`NpmScanner.npmrcPrefixElsewhere`).
     public let npmrcPrefixElsewhere: String?
+    /// The bun that installed it, for a package of bun's global install; nil for
+    /// npm's.
+    public let bun: BunManager?
 
     /// The `registry` (or `@scope:registry`) an npmrc sets, and in which file.
     /// Only that key is read — never an auth token.
@@ -46,7 +53,8 @@ public struct NpmInstall: Sendable, Equatable, Codable {
     public init(
         path: String, name: String, version: String?, manifestName: String?, prefix: NodePrefix,
         runtime: NpmRuntime, linkTarget: String? = nil, repository: String? = nil,
-        customRegistry: CustomRegistry? = nil, ownUpdate: NpmOwnUpdate? = nil, npmrcPrefixElsewhere: String? = nil
+        customRegistry: CustomRegistry? = nil, ownUpdate: NpmOwnUpdate? = nil, npmrcPrefixElsewhere: String? = nil,
+        bun: BunManager? = nil
     ) {
         self.path = path
         self.name = name
@@ -59,7 +67,32 @@ public struct NpmInstall: Sendable, Equatable, Codable {
         self.customRegistry = customRegistry
         self.ownUpdate = ownUpdate
         self.npmrcPrefixElsewhere = npmrcPrefixElsewhere
+        self.bun = bun
     }
+
+    func with(runtime: NpmRuntime) -> NpmInstall {
+        NpmInstall(
+            path: path, name: name, version: version, manifestName: manifestName, prefix: prefix, runtime: runtime,
+            linkTarget: linkTarget, repository: repository, customRegistry: customRegistry, ownUpdate: ownUpdate,
+            npmrcPrefixElsewhere: npmrcPrefixElsewhere, bun: bun)
+    }
+}
+
+/// The bun binary that manages a package of bun's global install, and whether it
+/// may be run (the trust rule: Oven's Team ID, no quarantine).
+public struct BunManager: Sendable, Equatable, Codable {
+    /// `~/.bun/bin/bun`.
+    public let path: String
+    public let signature: CLIToolTrust.Signature?
+    public let quarantined: Bool
+
+    public init(path: String, signature: CLIToolTrust.Signature?, quarantined: Bool = false) {
+        self.path = path
+        self.signature = signature
+        self.quarantined = quarantined
+    }
+
+    public var isTrusted: Bool { signature == .vendor && !quarantined }
 }
 
 /// The node and npm a prefix runs on — what its packages' `engines` are held
@@ -158,10 +191,18 @@ public struct OpenClawSettings: Sendable, Equatable, Codable {
 
     /// The config, read as openclaw reads it (JSON5). Unreadable or missing reads
     /// as defaults, as it does for openclaw (an invalid config has no stored channel).
+    ///
+    /// `--tag` is looked for in both spellings its docs have used: a list item in
+    /// 2026.3.x (`` `--tag <dist-tag|version|spec>` ``), a Markdown table row in
+    /// 2026.9.x, whose pipes are escaped (`` `--tag <dist-tag\|version\|spec>` ``,
+    /// 2026.9.8's `docs/cli/update.md`, read 2026-10-04). Before that second
+    /// spelling was known, every 2026.9 openclaw read as not documenting `--tag`
+    /// and was updated by its package manager instead of `openclaw update`.
     static func read(home: URL, package: URL) -> OpenClawSettings {
         let docs = package.appendingPathComponent("docs/cli/update.md")
-        let supportsTag = (try? String(contentsOf: docs, encoding: .utf8))?
-            .contains("--tag <dist-tag|version|spec>") ?? false
+        let text = (try? String(contentsOf: docs, encoding: .utf8)) ?? ""
+        let supportsTag = text.contains("--tag <dist-tag|version|spec>")
+            || text.contains("--tag <dist-tag\\|version\\|spec>")
         let config = home.appendingPathComponent(".openclaw/openclaw.json")
         guard let data = try? Data(contentsOf: config),
               let json = try? JSONSerialization.jsonObject(with: data, options: [.json5Allowed]) as? [String: Any],
@@ -245,7 +286,8 @@ public struct NpmScanner: Sendable {
 
     func package(
         _ name: String, in modules: URL, prefix: NodePrefix, runtime: NpmRuntime,
-        registries: [(key: String, value: String, file: String)], npmrcPrefixElsewhere: String?
+        registries: [(key: String, value: String, file: String)], npmrcPrefixElsewhere: String?,
+        bun: BunManager? = nil
     ) -> NpmInstall? {
         guard !Self.excluded.contains(name) else { return nil }
         let directory = modules.appendingPathComponent(name)
@@ -270,7 +312,7 @@ public struct NpmScanner: Sendable {
             linkTarget: link.map { URL(fileURLWithPath: $0, relativeTo: directory.deletingLastPathComponent()).standardizedFileURL.path },
             repository: repository,
             customRegistry: Self.customRegistry(for: manifestName ?? name, in: registries),
-            ownUpdate: ownUpdate, npmrcPrefixElsewhere: npmrcPrefixElsewhere)
+            ownUpdate: ownUpdate, npmrcPrefixElsewhere: npmrcPrefixElsewhere, bun: bun)
     }
 
     /// A command on `PATH`: `bin` as a path or a non-empty map, or the older

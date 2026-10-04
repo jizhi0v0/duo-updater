@@ -336,22 +336,54 @@ final class CodexSandbox {
 
     // MARK: - Activity
 
-    /// The installer's own lock, taken the installer's way (`exec 9<>…; lockf 9`).
-    /// Mutations: report a lock on a missing file; ignore an `flock(2)` lock (pid -1).
-    @Test func theInstallLockIsBusy() async throws {
+    /// An `flock(2)` lock — what `lockf <fd>` takes — on another descriptor of the
+    /// file, so the probe meets it as it would meet the installer's. Mutations:
+    /// drop the `flock` probe; report a lock on a missing file; leave the probe's
+    /// own lock held.
+    @Test func anFlockOnTheInstallLockIsBusy() throws {
         let box = try CodexSandbox()
         try box.install("0.143.0")
+        let lock = box.standalone.appendingPathComponent("install.lock")
         #expect(CodexActivity.busy(root: box.standalone) == nil)
+        // Free again: the probe released what it took.
+        #expect(CodexActivity.busy(root: box.standalone) == nil)
+        let fd = open(lock.path, O_RDWR)
+        #expect(fd >= 0)
+        defer { close(fd) }
+        #expect(lockFile(fd, LOCK_EX | LOCK_NB) == 0)
+        #expect(CodexActivity.busy(root: box.standalone) == .installer(nil))
+        // The probe itself, apart from `F_GETLK` (which on some systems sees it too).
+        let probe = open(lock.path, O_RDONLY)
+        defer { close(probe) }
+        #expect(CodexActivity.isFlocked(probe))
+        #expect(lockFile(fd, LOCK_UN) == 0)
+        #expect(!CodexActivity.isFlocked(probe))
+        #expect(CodexActivity.busy(root: box.standalone) == nil)
+        try FileManager.default.removeItem(at: lock)
+        #expect(CodexActivity.busy(root: box.standalone) == nil)
+        #expect(!FileManager.default.fileExists(atPath: lock.path))
+    }
+
+    /// The installer's own lock, taken the installer's way (`exec 9<>…; lockf 9`).
+    /// The holder `exec`s into `sleep`, so one process has the descriptor and the
+    /// lock goes with it; `ready` carries `lockf`'s exit status.
+    @Test func theInstallersLockfIsBusy() async throws {
+        let box = try CodexSandbox()
+        try box.install("0.143.0")
         let lock = box.standalone.appendingPathComponent("install.lock").path
-        let ready = box.root.appendingPathComponent("ready").path
+        let ready = box.root.appendingPathComponent("ready")
         let holder = Process()
         holder.executableURL = URL(fileURLWithPath: "/bin/sh")
-        holder.arguments = ["-c", "exec 9<>\"$1\"; lockf 9; : > \"$2\"; sleep 30", "sh", lock, ready]
+        holder.arguments = ["-c", "exec 9<>\"$1\"; lockf 9; echo $? > \"$2\"; exec sleep 60", "sh", lock, ready.path]
         try holder.run()
-        defer { holder.terminate() }
-        for _ in 0..<100 where !FileManager.default.fileExists(atPath: ready) {
+        defer { if holder.isRunning { holder.terminate() } }
+        let deadline = Date().addingTimeInterval(30)
+        while !FileManager.default.fileExists(atPath: ready.path), Date() < deadline {
             try await Task.sleep(for: .milliseconds(50))
         }
+        try await Task.sleep(for: .milliseconds(50))
+        let status = (try? String(contentsOf: ready, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
+        try #require(status == "0", "lockf 9 exited \(status ?? "never")")
         #expect(CodexActivity.busy(root: box.standalone) == .installer(nil))
         holder.terminate()
         holder.waitUntilExit()

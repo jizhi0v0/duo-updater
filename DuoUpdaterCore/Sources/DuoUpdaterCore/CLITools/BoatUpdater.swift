@@ -5,9 +5,13 @@ import Foundation
 ///
 /// It runs exactly `status.oneClick`; whether one is offered is `BoatCheck`'s
 /// decision. Asked again here, because each can change between the check and
-/// the click: a `self-update` already running (`BoatActivity`), and the file —
+/// the click: a `self-update` already running (`BoatActivity`); the file —
 /// still at its path, not quarantined, the version that was checked, and byte
-/// for byte the build Boat published for it.
+/// for byte the build Boat published for it; Boat's config — the same channel
+/// and server; and the channel itself, which must still name a version newer
+/// than the file. `self-update` takes whatever the channel names, so a channel
+/// switched in Boat's config after the check (`prod` → `staging`), or one that
+/// has since moved back, would otherwise downgrade the file (review, #986).
 ///
 /// After it ran, the same rule is asked of what it left: a version newer than
 /// the one it replaced, and that version's published sha256. Anything else is a
@@ -72,9 +76,23 @@ public struct BoatUpdater: Sendable {
         }
         guard let current = await scanner.reread(), current.path == command.executable, current.problem == nil,
               !current.quarantined, let before = current.version, before == install.version,
-              current.settings.customAPI == nil
+              current.settings == install.settings, current.settings.customAPI == nil,
+              let platform = current.platform
         else {
             return .failed(message: "not run: \(install.path) is no longer the boat that was checked", output: "")
+        }
+        // Never downgrade: what `self-update` will install is what the channel
+        // names now, not what it named at the check.
+        let channel = current.settings.channel
+        do {
+            let newest = try await check.latest(channel, platform)
+            guard VersionComparator.compare(before, newest) == .orderedAscending else {
+                return .failed(
+                    message: "not run: Boat's \(channel) channel now names \(newest), not a version newer than \(before)",
+                    output: "")
+            }
+        } catch {
+            return .failed(message: "not run: could not read Boat's \(channel) channel: \(error)", output: "")
         }
         // The trust rule, at the click: the file may have changed since the check.
         switch await check.trust(of: current) {
@@ -89,10 +107,12 @@ public struct BoatUpdater: Sendable {
 
         var environment = self.environment()
         // The config `BoatCheck` read is under `$HOME`; the child must read the
-        // same one. `BOAT_API_URL` (a terminal-run `duo` may carry it) would
+        // same one. The API-URL variables the binary names (`strings` of 1.0.38:
+        // `BOAT_API_URL` and the per-mode `BOAT_STAGING_`, `BOAT_DEV_`,
+        // `BOAT_AMSTERDAM_API_URL`) — a terminal-run `duo` may carry one — would
         // send the update to another server than the one asked.
         environment["HOME"] = scanner.home.path
-        environment.removeValue(forKey: "BOAT_API_URL")
+        for key in Self.serverOverrides { environment.removeValue(forKey: key) }
         environment["PATH"] = CLIToolCommandRunner.path(prefix: command.pathPrefix)
         let run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
         let outcome: ChildProcess.Outcome
@@ -112,8 +132,8 @@ public struct BoatUpdater: Sendable {
                            output: run.text)
         }
         guard VersionComparator.compare(version, before) == .orderedDescending else {
-            return .failed(message: "boat self-update finished, but \(install.path) is still boat \(version)",
-                           output: run.text)
+            let what = version == before ? "is still boat \(version)" : "went from boat \(before) to \(version)"
+            return .failed(message: "boat self-update finished, but \(install.path) \(what)", output: run.text)
         }
         switch await check.trust(of: after) {
         case .published:
@@ -126,6 +146,8 @@ public struct BoatUpdater: Sendable {
             return .failed(message: "boat self-update finished, but \(reason)", output: run.text)
         }
     }
+
+    static let serverOverrides = ["BOAT_API_URL", "BOAT_STAGING_API_URL", "BOAT_DEV_API_URL", "BOAT_AMSTERDAM_API_URL"]
 
     /// The line the row shows when the command failed: the `error` of Boat's
     /// JSON event line when there is one, else the shared rule.

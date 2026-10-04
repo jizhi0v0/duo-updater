@@ -73,6 +73,12 @@ import CryptoKit
                 """
         }
 
+        func config(_ json: String) throws {
+            let url = BoatSettings.location(home: home)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(json.utf8).write(to: url)
+        }
+
         var ran: Bool { FileManager.default.fileExists(atPath: root.appendingPathComponent("ARGS").path) }
 
         func read(_ name: String) -> String? {
@@ -126,7 +132,7 @@ import CryptoKit
         let lines = Lines()
         let outcome = await updater(box, environment: [
             "HOME": "/ZZFixture-elsewhere", "PATH": "/somewhere/else", "BOAT_API_URL": "https://ZZFixture.example",
-            "HTTPS_PROXY": "http://127.0.0.1:6152",
+            "BOAT_STAGING_API_URL": "https://ZZFixture-staging.example", "HTTPS_PROXY": "http://127.0.0.1:6152",
         ]).update(status) { lines.add($0) }
         #expect(outcome == .updated(version: "1.0.38"))
         #expect(box.read("ARGS") == "self-update\n")
@@ -135,6 +141,7 @@ import CryptoKit
         #expect(env.contains("PATH=\(CLIToolCommandRunner.systemPath)\n"))
         #expect(env.contains("HTTPS_PROXY=http://127.0.0.1:6152"))
         #expect(!env.contains("BOAT_API_URL"))
+        #expect(!env.contains("BOAT_STAGING_API_URL"))
         #expect(lines.all == [#"{"event":"updated","version":"1.0.38"}"#])
     }
 
@@ -167,6 +174,53 @@ import CryptoKit
             return
         }
         #expect(!box.ran)
+    }
+
+    /// Boat's channel switched in its config after the check: `self-update`
+    /// would take the new channel's build, which may be older (review, #986).
+    /// Kills: dropping the settings comparison at the click.
+    @Test func channelSwitchedSinceTheCheckIsNotRun() async throws {
+        let box = try Sandbox()
+        try box.install(version: "1.0.37", selfUpdate: box.selfUpdateBody(to: "1.0.34-staging1"))
+        let status = try await box.status()
+        #expect(status.oneClick != nil)
+        try box.config(#"{"channel":"staging"}"#)
+        let outcome = await updater(box, check: box.check(latest: "1.0.34-staging1")).update(status)
+        guard case .failed(let message, _) = outcome else {
+            Issue.record("expected a failure, got \(outcome)")
+            return
+        }
+        #expect(message.contains("no longer the boat that was checked"))
+        #expect(!box.ran)
+    }
+
+    /// The channel itself moved back since the check (a pulled release): the
+    /// click would install an older build. Kills: trusting the check's latest.
+    @Test func channelNoLongerNewerIsNotRun() async throws {
+        let box = try Sandbox()
+        try box.install(version: "1.0.37", selfUpdate: box.selfUpdateBody(to: "1.0.36"))
+        let status = try await box.status()
+        #expect(status.oneClick != nil)
+        let outcome = await updater(box, check: box.check(latest: "1.0.36")).update(status)
+        guard case .failed(let message, _) = outcome else {
+            Issue.record("expected a failure, got \(outcome)")
+            return
+        }
+        #expect(message == "not run: Boat's prod channel now names 1.0.36, not a version newer than 1.0.37")
+        #expect(!box.ran)
+    }
+
+    /// Should a downgrade happen anyway, it is named as one, not "still".
+    @Test func olderResultIsNamedAsSuch() async throws {
+        let box = try Sandbox()
+        try box.install(version: "1.0.37", selfUpdate: box.selfUpdateBody(to: "1.0.36"))
+        let status = try await box.status()
+        let outcome = await updater(box).update(status)
+        guard case .failed(let message, _) = outcome else {
+            Issue.record("expected a failure, got \(outcome)")
+            return
+        }
+        #expect(message.hasSuffix("went from boat 1.0.37 to 1.0.36"))
     }
 
     @Test func busyAtTheClickRunsNothing() async throws {

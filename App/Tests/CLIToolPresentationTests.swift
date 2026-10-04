@@ -228,6 +228,12 @@ enum CLIToolFixtures {
                       name: "openclaw", version: "2026.3.24", latest: "2026.9.8", withheld: withheld)
     }
 
+    static func cursorAgent(channel: String = "prod", withheld: CLIToolWithheld? = nil) -> CLIToolStatus {
+        let path = "/Users/ann/.local/bin/agent"
+        return status(.cursorAgent, path: path, detail: .cursorAgent(CursorAgentInstall(path: path, version: "2026.05.16-0338208")),
+                      version: "2026.05.16-0338208", latest: "2026.10.01-e373342", channel: channel, withheld: withheld)
+    }
+
     static func opencode(signature: CLIToolTrust.Signature? = .adHoc) -> CLIToolStatus {
         let path = "/Users/ann/.opencode/bin/opencode"
         return status(.opencode, path: path, detail: .opencode(OpencodeInstall(path: path, version: "1.18.15", signature: signature)),
@@ -448,6 +454,18 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolPresentation.headerSummary(
             .codex, statuses: [F.codex()], context: .codex(CodexSettings(checkForUpdates: false)))
             == "latest · update check off")
+    }
+
+    /// Cursor CLI: Anysphere by name, its channel in the header, the `static`
+    /// channel as its own setting. Mutations: return no vendor; leave
+    /// `.cursorAgent` out of the header.
+    @Test func cursorAgentsReasonsAndHeader() {
+        #expect(CLIToolsModel.vendor(of: .cursorAgent) == "Anysphere")
+        #expect(CLIToolsModel.reason(.updatesDisabled, of: F.cursorAgent(channel: "static"))
+            == "Updates are turned off in Cursor CLI’s settings")
+        #expect(CLIToolPresentation.headerSummary(.cursorAgent, statuses: [F.cursorAgent()], context: .cursorAgent(CursorAgentSettings()))
+            == "prod")
+        #expect(CLIToolPresentation.facts(of: F.cursorAgent(), home: "/Users/ann").isEmpty)
     }
 
     /// OpenCode: Anomaly by name, its signature as a fact, its `autoupdate` in

@@ -61740,6 +61740,71 @@
           }
         }
       }
+    },
+    "Cursor publishes the CLI’s release notes on its website, not with its releases.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor veröffentlicht die Versionshinweise der CLI auf seiner Website, nicht bei den Releases."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor publica las notas de la versión de la CLI en su sitio web, no junto a sus versiones."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor publie les notes de version de la CLI sur son site, pas avec ses versions."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor pubblica le note di rilascio della CLI sul suo sito, non insieme alle release."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor は CLI のリリースノートをリリースではなくウェブサイトで公開しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Cursor publica as notas de versão da CLI no site, não junto com as versões."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor публикует примечания к выпуску CLI на своём сайте, а не вместе с релизами."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor, CLI sürüm notlarını sürümleriyle değil, web sitesinde yayımlıyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor 的 CLI 发布说明发在官网上，不随版本一起发布。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor 的 CLI 發行說明發在官網上，不隨版本一起發布。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

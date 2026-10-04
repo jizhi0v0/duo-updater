@@ -534,6 +534,9 @@ private struct CLIToolReleaseNotesView: View {
                 if kind == .boat {
                     // Boat's releases carry no notes at all (`BoatProvider`).
                     Text("\(kind.displayName) publishes no release notes.")
+                } else if kind == .cursorAgent {
+                    // Its notes are a web page mixed with the editor's (`CursorAgentProvider`).
+                    Text("Cursor publishes the CLI’s release notes on its website, not with its releases.")
                 } else if case .bun = status.detail {
                     // bun's releases carry install commands; its notes are blog posts.
                     Text("Bun publishes its release notes on its blog, not with its releases.")

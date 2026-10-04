@@ -12,6 +12,9 @@ import Foundation
 /// than the file. `self-update` takes whatever the channel names, so a channel
 /// switched in Boat's config after the check (`prod` → `staging`), or one that
 /// has since moved back, would otherwise downgrade the file (review, #986).
+/// Measured 2026-10-04: the published 1.0.38 with `"channel":"staging"` in its
+/// config printed `{"event":"updated","version":"1.0.34-staging1"}`, exit 0,
+/// and read as 1.0.34-staging1 afterwards.
 ///
 /// After it ran, the same rule is asked of what it left: a version newer than
 /// the one it replaced, and that version's published sha256. Anything else is a

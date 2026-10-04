@@ -138,6 +138,7 @@ enum CLIToolPresentation {
         case .codex(let codex): return facts(of: codex)
         case .bun(let bun): return facts(of: bun)
         case .opencode(let opencode): return facts(of: opencode)
+        case .amp(let amp): return facts(of: amp)
         case .claudeCode, .bub, .fx, .boat, .cursorAgent: return []
         }
     }
@@ -233,6 +234,14 @@ enum CLIToolPresentation {
         let signer = "Anomaly Innovations, Inc."
         return [Fact(label: String(localized: "Signature"),
                      value: signature(opencode.signature, signer: signer, team: OpencodeScanner.teamIdentifier))]
+    }
+
+    /// The release Amp's installer left: its Developer ID, checked after every update.
+    private static func facts(of amp: AmpInstall) -> [Fact] {
+        guard amp.problem == nil else { return [] }
+        let signer = "Amp Frontier Corporation"
+        return [Fact(label: String(localized: "Signature"),
+                     value: signature(amp.signature, signer: signer, team: AmpScanner.teamIdentifier))]
     }
 
     /// rustup has no signature to go by: what lets it run is its sha256 being one

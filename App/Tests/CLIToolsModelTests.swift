@@ -56,6 +56,7 @@ struct CLIToolsModelTests {
         case .bun: detail = .bun(BunInstall(path: path, version: version))
         case .opencode: detail = .opencode(OpencodeInstall(path: path, version: version))
         case .cursorAgent: detail = .cursorAgent(CursorAgentInstall(path: path, version: version))
+        case .amp: detail = .amp(AmpInstall(path: path, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -83,6 +84,7 @@ struct CLIToolsModelTests {
         case .bun: context = .bun
         case .opencode: context = .opencode(OpencodeSettings())
         case .cursorAgent: context = .cursorAgent(CursorAgentSettings())
+        case .amp: context = .amp(AmpSettings())
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }

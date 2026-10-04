@@ -531,8 +531,9 @@ private struct CLIToolReleaseNotesView: View {
             ContentUnavailableView {
                 Label("No release notes", systemImage: "doc.text.magnifyingglass")
             } description: {
-                if kind == .boat {
-                    // Boat's releases carry no notes at all (`BoatProvider`).
+                if kind == .boat || kind == .amp {
+                    // Boat's releases carry no notes at all (`BoatProvider`), nor
+                    // do Amp's several builds a day (`AmpProvider`).
                     Text("\(kind.displayName) publishes no release notes.")
                 } else if kind == .cursorAgent {
                     // Its notes are a web page mixed with the editor's (`CursorAgentProvider`).

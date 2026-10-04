@@ -234,6 +234,12 @@ enum CLIToolFixtures {
                       version: "2026.05.16-0338208", latest: "2026.10.01-e373342", channel: channel, withheld: withheld)
     }
 
+    static func amp(signature: CLIToolTrust.Signature? = .vendor) -> CLIToolStatus {
+        let path = "/Users/ann/.amp/bin/amp"
+        return status(.amp, path: path, detail: .amp(AmpInstall(path: path, version: "0.0.1791091069-gb9917f", signature: signature)),
+                      version: "0.0.1791091069-gb9917f", latest: "0.0.1791121193-ge297b9")
+    }
+
     static func opencode(signature: CLIToolTrust.Signature? = .adHoc) -> CLIToolStatus {
         let path = "/Users/ann/.opencode/bin/opencode"
         return status(.opencode, path: path, detail: .opencode(OpencodeInstall(path: path, version: "1.18.15", signature: signature)),
@@ -466,6 +472,17 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolPresentation.headerSummary(.cursorAgent, statuses: [F.cursorAgent()], context: .cursorAgent(CursorAgentSettings()))
             == "prod")
         #expect(CLIToolPresentation.facts(of: F.cursorAgent(), home: "/Users/ann").isEmpty)
+    }
+
+    /// Amp: Amp Frontier by name, its signature as a fact, no header. Mutations:
+    /// return no vendor; drop the fact.
+    @Test func ampsReasonsAndFacts() {
+        #expect(CLIToolsModel.vendor(of: .amp) == "Amp Frontier")
+        #expect(CLIToolsModel.reason(.wrongSigner, of: F.amp(signature: .adHoc)) == "Not signed by Amp Frontier")
+        #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.amp()) == "Auto-update is off in Amp’s settings")
+        #expect(CLIToolPresentation.facts(of: F.amp(), home: "/Users/ann")
+            == [.init(label: "Signature", value: "Signed by Amp Frontier Corporation (Team PZT9BJUAA5)")])
+        #expect(CLIToolPresentation.headerSummary(.amp, statuses: [F.amp()], context: .amp(AmpSettings())) == nil)
     }
 
     /// OpenCode: Anomaly by name, its signature as a fact, its `autoupdate` in

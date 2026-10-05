@@ -53,5 +53,35 @@ enum ai_memoh_desktop {
                     base: URL(string: "https://desktopresource.memoh.ai/")!),
                 kind: .zip,
                 checksumPattern: #"url:\s*["']?Memoh-[0-9][^\s"'/]*-mac-arm64\.zip["']?\s*\n\s*sha512:\s*["']?([A-Za-z0-9+/=]+)"#)),
+        ],
+        changelogs: [
+        // Memoh Desktop — the open-source repo's GitHub releases. The desktop
+        // build is the OSS tree with its version overridden at package time
+        // (`MEMOH_DESKTOP_VERSION` → `-c.extraMetadata.version`, see
+        // `apps/desktop/scripts/build-env.mjs`): only the top-level `package.json`
+        // in `app.asar` is rewritten, and the bundled
+        // `node_modules/@memohai/runtime/package.json` still says which OSS
+        // version the build was cut from (`0.20.0` inside `2026.9.27-1`). So these
+        // notes are this app's, numbered in the upstream namespace.
+        //
+        // WHY THE ENTRY KEEPS ITS `v`: `v0.20.0` and `2026.9.27-1` share no
+        // numbering, and nothing in the feed says which OSS release a desktop
+        // build carries, so no entry can be filed under the app's version. Kept as
+        // the tag spells it, the entry is not version-shaped to `duo verify`'s
+        // lag / lead checks (they require a leading digit), which would otherwise
+        // read `0.20` vs `2026.9` as "a whole release behind" on every sweep.
+        // `Changelog.carries` does strip the `v`, so the disk cache keeps this
+        // page provisional and re-reads it — the same permissive direction it
+        // takes for Raycast's and Toolbox's coarser numbering.
+        //
+        // Prereleases (`v0.9.0-beta.N` …) are dropped by the decoder's stable
+        // filter, and the `$`-anchored pattern refuses them as well.
+        ChangelogRecipe(
+            bundleID: "ai.memoh.desktop",
+            source: URL(string: "https://api.github.com/repos/felinics/Memoh/releases?per_page=20")!,
+            mode: .json,
+            maxEntries: 10,
+            structuredFormat: .gitHubReleases,
+            tagPattern: #"^(v[0-9]+(?:\.[0-9]+){2})$"#),
         ])
 }

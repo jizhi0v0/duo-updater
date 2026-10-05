@@ -330,6 +330,18 @@ import DuoUpdaterCore
             entry: "Share context with Custom Agents", detected: "7.29.0") == nil)
     }
 
+    /// Memoh Desktop's notes are its OSS repo's releases (`v0.20.0`) while the app
+    /// is numbered by date (`2026.9.27-1`): two namespaces with no mapping between
+    /// them. The recipe keeps the tag's `v` so this check leaves it alone; read as
+    /// `0.20` vs `2026.9` it would file "a whole release behind" on every sweep.
+    @Test func upstreamTaggedChangelogIsNotComparedToADateNumberedApp() {
+        #expect(Verify.changelogLagComplaint(entry: "v0.20.0", detected: "2026.9.27-1") == nil)
+        #expect(Verify.changelogLeadsProbeComplaint(
+            entry: "v0.20.0", probeVersionsByChannel: ["stable": ["2026.9.27-1"]]) == nil)
+        // The counterfactual: the same entry with its `v` stripped is flagged.
+        #expect(Verify.changelogLagComplaint(entry: "0.20.0", detected: "2026.9.27-1") != nil)
+    }
+
     // MARK: - phantom updates
 
     /// LocalSend's regression, in the shape the check sees it. v1.18.1 was

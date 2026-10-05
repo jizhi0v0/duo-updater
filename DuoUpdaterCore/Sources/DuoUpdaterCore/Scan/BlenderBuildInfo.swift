@@ -75,6 +75,10 @@ public struct BlenderBuildInfo: Sendable, Equatable {
     /// Read the executable of the Blender bundle at `bundleURL`. Nil when there
     /// is no readable executable. Remembered per executable identity (size and
     /// mtime), since the read walks a ~300 MB file.
+    ///
+    /// Read, never mapped: a hardened process that maps an executable whose
+    /// signature no longer validates is killed when it touches a bad page
+    /// (`ExecutableBytes`).
     public static func read(bundleAt bundleURL: URL) -> BlenderBuildInfo? {
         let plist = NSDictionary(
             contentsOf: bundleURL.appendingPathComponent("Contents/Info.plist")) as? [String: Any]
@@ -83,8 +87,7 @@ public struct BlenderBuildInfo: Sendable, Equatable {
         else { return nil }
         let key = RuntimeVersion.executableIdentity(of: executable).map { "\(executable.path)|\($0)" }
         if let key, let remembered = cached(key) { return remembered }
-        guard let data = try? Data(contentsOf: executable, options: .alwaysMapped) else { return nil }
-        let info = parse(data)
+        guard let info = parse(contentsOf: executable) else { return nil }
         if let key { remember(info, for: key) }
         return info
     }
@@ -112,15 +115,58 @@ public struct BlenderBuildInfo: Sendable, Equatable {
             builtAt: build?.builtAt)
     }
 
+    /// What ``parse(_:)`` reads, from a file read a chunk at a time: each anchor
+    /// is read with the `lookBehind` bytes before it, and reading stops once both
+    /// readings have their answer. Nil when the file cannot be read.
+    static func parse(contentsOf url: URL, chunkSize: Int = 4 << 20) -> BlenderBuildInfo? {
+        var anchors = ExecutableBytes.MarkerSearch(marker: versionFormats, before: lookBehind)
+        var platforms = ExecutableBytes.MarkerSearch(marker: platformMarker, before: lookBehind)
+        var cycle: Cycle?
+        var build: (commit: String, branch: String, builtAt: Date)?
+        let readable = ExecutableBytes.forEachChunk(
+            of: url, overlap: max(anchors.overlap, platforms.overlap), chunkSize: chunkSize
+        ) { bytes, carried, _ in
+            let data = Data(
+                bytesNoCopy: UnsafeMutableRawPointer(mutating: bytes.baseAddress!), count: bytes.count,
+                deallocator: .none)
+            if cycle == nil {
+                anchors.feed(bytes, carried: carried) { at in
+                    cycle = Self.cycle(anchoredAt: at, in: data)
+                    return false
+                }
+            }
+            if build == nil {
+                platforms.feed(bytes, carried: carried) { at in
+                    build = buildInfo(platformAt: at, in: data)
+                    return build == nil
+                }
+            }
+            return cycle == nil || build == nil
+        }
+        guard readable else { return nil }
+        return BlenderBuildInfo(cycle: cycle, commit: build?.commit, branch: build?.branch, builtAt: build?.builtAt)
+    }
+
+    /// Everything either reading looks at ahead of its anchor, with room to spare:
+    /// the cycle reads three strings of at most 256 bytes and the byte before
+    /// each (771 bytes), the build info a branch of at most 256 and the 96-byte
+    /// window before it (352). A string that would run past the buffer's start is
+    /// then over 256 bytes either way, so it is refused just as it is in the file.
+    private static let lookBehind = 1024
+
     /// The two format strings `blender_version_init()` formats with, in the order
     /// the compiler lays them out.
     private static let versionFormats = Data("\0%d.%01d.%d%s%s\0%d.%01d.%d%s\0".utf8)
 
     static func cycle(in data: Data) -> Cycle? {
         guard let anchor = data.range(of: versionFormats) else { return nil }
+        return cycle(anchoredAt: anchor.lowerBound, in: data)
+    }
+
+    private static func cycle(anchoredAt anchor: Data.Index, in data: Data) -> Cycle {
         // The strings ending at the anchor, nearest first. An LTS build stores
         // its " LTS" suffix between the cycle pair and the formats.
-        var preceding = strings(endingAt: anchor.lowerBound, in: data, count: 3)
+        var preceding = strings(endingAt: anchor, in: data, count: 3)
         if preceding.first == " LTS" { preceding.removeFirst() }
         guard preceding.count >= 2 else { return .release }
         switch (preceding[1], preceding[0]) {
@@ -141,27 +187,33 @@ public struct BlenderBuildInfo: Sendable, Equatable {
         var searchFrom = data.startIndex
         while let marker = data.range(of: platformMarker, in: searchFrom..<data.endIndex) {
             searchFrom = marker.upperBound - 1
-            // `buildinfo.c` is globals, not adjacent literals: between the commit
-            // and the branch sit alignment padding and the 8-byte
-            // `build_commit_timestamp` (measured on all four builds). So the
-            // branch is read as the string before the platform, and the stamped
-            // commit is looked for in a short window before the branch.
-            guard let branch = strings(endingAt: marker.lowerBound, in: data, count: 1).first,
-                  !branch.isEmpty
-            else { continue }
-            let branchStart = marker.lowerBound - branch.utf8.count
-            let windowStart = max(data.startIndex, branchStart - 96)
-            guard let window = String(data: data[windowStart..<branchStart], encoding: .isoLatin1)
-            else { continue }
-            let ns = window as NSString
-            guard let match = stampedCommit.matches(
-                    in: window, range: NSRange(location: 0, length: ns.length)).last,
-                  let builtAt = utcStamp.date(
-                    from: ns.substring(with: match.range(at: 1)) + " " + ns.substring(with: match.range(at: 2)))
-            else { continue }
-            return (ns.substring(with: match.range(at: 3)), branch, builtAt)
+            if let found = buildInfo(platformAt: marker.lowerBound, in: data) { return found }
         }
         return nil
+    }
+
+    private static func buildInfo(
+        platformAt platform: Data.Index, in data: Data
+    ) -> (commit: String, branch: String, builtAt: Date)? {
+        // `buildinfo.c` is globals, not adjacent literals: between the commit
+        // and the branch sit alignment padding and the 8-byte
+        // `build_commit_timestamp` (measured on all four builds). So the
+        // branch is read as the string before the platform, and the stamped
+        // commit is looked for in a short window before the branch.
+        guard let branch = strings(endingAt: platform, in: data, count: 1).first,
+              !branch.isEmpty
+        else { return nil }
+        let branchStart = platform - branch.utf8.count
+        let windowStart = max(data.startIndex, branchStart - 96)
+        guard let window = String(data: data[windowStart..<branchStart], encoding: .isoLatin1)
+        else { return nil }
+        let ns = window as NSString
+        guard let match = stampedCommit.matches(
+                in: window, range: NSRange(location: 0, length: ns.length)).last,
+              let builtAt = utcStamp.date(
+                from: ns.substring(with: match.range(at: 1)) + " " + ns.substring(with: match.range(at: 2)))
+        else { return nil }
+        return (ns.substring(with: match.range(at: 3)), branch, builtAt)
     }
 
     private static let utcStamp: DateFormatter = {

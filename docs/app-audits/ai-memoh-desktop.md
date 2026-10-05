@@ -143,7 +143,7 @@ swift run --package-path application-test feed-discover <Memoh.app>
 - 下载 `Memoh-2026.9.27-1-mac-arm64.zip`（133,941,650 B）解包，`app.asar` 顶层 `package.json` 为 `2026.9.27-1`，
   `node_modules/@memohai/runtime/package.json` 为 `0.20.0`。源码里没有别的地方注入 OSS 版本或 commit：
   `commitHash` 来自运行时向服务端取的 capabilities，不是构建时烘进去的。
-- `felinics/Memoh` 最新 20 个 release 中 12 个稳定、8 个预发布（最新的预发布是 `v0.10.0-alpha.1`），
+- `felinics/Memoh` 最新 20 个 release 中 14 个稳定、6 个预发布（2026-10-05 v0.21.0 发布前数；最新的预发布是 `v0.10.0-alpha.1`），
   tag 全部是 `v` 加三段数字，没有别的产品线混在里面。
 - 最初考虑过只靠 tag 保留 `v` 来同时避开缓存和 verify 两处比较，实测 `VersionComparator.comparableMarketingVersion`
   会去掉开头的 `v`，所以只避开了 verify；缓存那边接受 provisional。

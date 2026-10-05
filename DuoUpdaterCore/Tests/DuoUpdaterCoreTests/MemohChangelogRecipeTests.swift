@@ -19,21 +19,21 @@ private let memohReleasesFixture = #"""
     "prerelease": false,
     "draft": false,
     "published_at": "2026-09-15T11:49:55Z",
-    "body": "### &nbsp;&nbsp;&nbsp;🚀 Features\n\n- Session 模型/推理强度对持久化 &nbsp;-&nbsp; by @qqqqqf-q in https://github.com/felinics/Memoh/issues/879 [<samp>(25c64)</samp>](https://github.com/felinics/Memoh/commit/25c6447ce)\n- **desktop**:\n  - 后台自动更新与侧栏更新入口 &nbsp;-&nbsp; by @qqqqqf-q in https://github.com/felinics/Memoh/issues/1227 [<samp>(43154)</samp>](https://github.com/felinics/Memoh/commit/43154a570)\n\n### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes\n\n- 去掉 exec 工具行悬停时的整段命令 tooltip &nbsp;-&nbsp; by @qqqqqf-q in https://github.com/felinics/Memoh/issues/1133 [<samp>(a580d)</samp>](https://github.com/felinics/Memoh/commit/a580d33d6)\n\n##### &nbsp;&nbsp;&nbsp;&nbsp;[View changes on GitHub](https://github.com/felinics/Memoh/compare/v0.19.0...v0.20.0)"
+    "body": "### &nbsp;&nbsp;&nbsp;🚀 Features\n\n- Session 模型/推理强度对持久化 &nbsp;-&nbsp; by @qqqqqf-q in https://github.com/felinics/Memoh/issues/879 and https://github.com/felinics/Memoh/issues/1139 [<samp>(25c64)</samp>](https://github.com/felinics/Memoh/commit/25c6447ce)\n- **desktop**:\n  - 后台自动更新与侧栏更新入口 &nbsp;-&nbsp; by @qqqqqf-q in https://github.com/felinics/Memoh/issues/1227 [<samp>(43154)</samp>](https://github.com/felinics/Memoh/commit/43154a570)\n\n### &nbsp;&nbsp;&nbsp;🐞 Bug Fixes\n\n- 去掉 exec 工具行悬停时的整段命令 tooltip &nbsp;-&nbsp; by @qqqqqf-q in https://github.com/felinics/Memoh/issues/1133 [<samp>(a580d)</samp>](https://github.com/felinics/Memoh/commit/a580d33d6)\n\n##### &nbsp;&nbsp;&nbsp;&nbsp;[View changes on GitHub](https://github.com/felinics/Memoh/compare/v0.19.0...v0.20.0)"
   },
   {
     "tag_name": "v0.10.0-alpha.1",
     "prerelease": true,
     "draft": false,
-    "published_at": "2026-04-10T08:00:00Z",
-    "body": "### &nbsp;&nbsp;&nbsp;🚀 Features\n\n- Alpha-only change"
+    "published_at": "2026-05-29T21:13:42Z",
+    "body": "### &nbsp;&nbsp;&nbsp;🚀 Features\n\n- Add workspace people management &nbsp;-&nbsp; by @akazwz in https://github.com/memohai/Memoh/issues/519 [<samp>(665de)</samp>](https://github.com/memohai/Memoh/commit/665ded3b)"
   },
   {
     "tag_name": "v0.19.0",
     "prerelease": false,
     "draft": false,
     "published_at": "2026-08-30T07:47:53Z",
-    "body": "### &nbsp;&nbsp;&nbsp;🚀 Features\n\n- Supermarket 应用安装 &nbsp;-&nbsp; by @sheepbox8646 in https://github.com/felinics/Memoh/issues/1001 [<samp>(abcde)</samp>](https://github.com/felinics/Memoh/commit/abcdef123)"
+    "body": "### &nbsp;&nbsp;&nbsp;🚀 Features\n\n- Provider 连接测试增加「无法确认」中间态,不再对无 models 端点误判失败 &nbsp;-&nbsp; by @qqqqqf-q in https://github.com/felinics/Memoh/issues/1088 [<samp>(4add8)</samp>](https://github.com/felinics/Memoh/commit/4add859a)"
   }
 ]
 """#

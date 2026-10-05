@@ -254,6 +254,55 @@ import Testing
             landed: true, everQuit: true, reappearedWithoutLanding: true) == .applied)
     }
 
+    // MARK: - InstallerExitWatch
+
+    /// Feed one tick per element of `alive` starting at `from`; returns the tick
+    /// at which the watch gave up, if any.
+    private func firstExitGiveUp(
+        _ alive: [Bool], from: Int = 10, watched: Int = 1, everQuit: Bool = true
+    ) -> Int? {
+        var watch = InstallerExitWatch(watchedInstallers: watched)
+        for (offset, isAlive) in alive.enumerated() {
+            if watch.observe(tick: from + offset, installersAlive: isAlive, everQuit: everQuit) {
+                return from + offset
+            }
+        }
+        return nil
+    }
+
+    /// ChatGPT 2026-10-06: `Autoupdate` gone two seconds after the quit, bundle
+    /// unchanged. Seen gone at tick 11, verdict at tick 16 — not 180 s later.
+    /// Literal ticks so a changed grace shows here. Mutations: give up on the
+    /// first gone tick → red; `>` for `>=` → red.
+    @Test func anExitedInstallerGivesUpAfterTheGrace() {
+        let gone = [true] + Array(repeating: false, count: 50)
+        #expect(firstExitGiveUp(gone) == 16)
+        #expect(InstallerExitWatch.graceTicks == ReappearanceWatch.graceTicks)
+    }
+
+    /// No installer found before the quit (one running as root, a job list that
+    /// failed) must keep the full wait: absence never seen present proves
+    /// nothing. Mutation: drop the `judgesExit` guard → red.
+    @Test func nothingWatchedNeverGivesUp() {
+        #expect(firstExitGiveUp(Array(repeating: false, count: 50), watched: 0) == nil)
+        #expect(!InstallerExitWatch(watchedInstallers: 0).judgesExit)
+    }
+
+    /// Before the app has quit, an installer's exit is not this watch's call —
+    /// the wait's `wontQuit` branch owns that. Mutation: drop `everQuit` from the
+    /// guard → red.
+    @Test func anExitBeforeTheQuitIsNotJudged() {
+        #expect(firstExitGiveUp(Array(repeating: false, count: 50), everQuit: false) == nil)
+    }
+
+    /// A tick that sees an installer alive again restarts the count — the guard
+    /// against reading one flaky liveness answer as the verdict. Mutation: keep
+    /// `firstGoneTick` across an alive tick → gives up at 16 instead of 19.
+    @Test func anAliveTickRestartsTheGrace() {
+        let flicker = [false, false, false, true] + Array(repeating: false, count: 20)
+        #expect(firstExitGiveUp(flicker, from: 10) == 19)
+    }
+
     // MARK: - ReappearanceWatch
 
     /// Feed `watch` one tick per element of `running` starting at `from`, with

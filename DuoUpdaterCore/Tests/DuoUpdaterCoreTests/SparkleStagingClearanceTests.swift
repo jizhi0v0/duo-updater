@@ -258,6 +258,33 @@ struct SparkleStagingClearanceTests {
     }
 
     /// Real `launchctl list` output, TinyWeb armed, 2026-09-22 10:58.
+    /// The relaunch wait watches `Autoupdate` alone: its exit is the swap being
+    /// over, the agent's is not (TablePlus 2026-10-06: the agent left 60 ms
+    /// before `Autoupdate`). The app itself and its own framework helper are not
+    /// installers. Mutations: drop the agent filter → 804 appears; widen the
+    /// framework home → 900 appears.
+    @Test func parkedInstallerPIDsAreAutoupdateOnly() async throws {
+        try await withFixture { f in
+            let pids = await SparkleStagingClearance.parkedInstallerPIDs(
+                for: f.app, cachesDirectory: f.caches, system: system(f, calls: Calls()))
+            #expect(pids == [802])
+        }
+    }
+
+    /// No job list means unknown, which the caller reads as "do not judge" —
+    /// so it must come back empty, not invent anything.
+    @Test func parkedInstallerPIDsAreEmptyWithoutAJobList() async throws {
+        try await withFixture { f in
+            let base = system(f, calls: Calls())
+            let noList = SparkleStagingClearance.System(
+                listJobs: { nil }, executablePath: base.executablePath,
+                removeJob: base.removeJob, isAlive: base.isAlive,
+                bundleIdentifier: base.bundleIdentifier, sleep: base.sleep)
+            #expect(await SparkleStagingClearance.parkedInstallerPIDs(
+                for: f.app, cachesDirectory: f.caches, system: noList).isEmpty)
+        }
+    }
+
     @Test func parsesLaunchctlList() {
         let output = """
             PID\tStatus\tLabel

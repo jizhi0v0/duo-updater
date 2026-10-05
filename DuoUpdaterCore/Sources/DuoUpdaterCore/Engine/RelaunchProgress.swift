@@ -298,6 +298,68 @@ public struct ReappearanceWatch: Sendable, Equatable {
     }
 }
 
+/// Fail fast when the installer parked on a Sparkle app's quit has exited and
+/// the bundle never moved, instead of waiting out the whole ~180 s.
+///
+/// `ReappearanceWatch` cannot cover this: it needs the app to come back up, and
+/// when the installer gives up nobody reopens it. Measured on ChatGPT
+/// (Sparkle 2.9.1) 2026-10-06: quit at 03:13:06.8, `Autoupdate` failed ("Source
+/// file to move (ChatGPT.app) does not exist" — its staging had been deleted)
+/// and exited at 03:13:08.6, and the wait ran on until 03:16:26 with the app
+/// closed the whole time.
+///
+/// **What is watched.** The `Autoupdate` processes found parked before the quit
+/// (`SparkleStagingClearance.parkedInstallerPIDs`) — the process that does the
+/// swap, so with all of them gone nothing is left to move the bundle. None found
+/// (an installer running as root, a job list that could not be read) leaves the
+/// watch off: absence we never saw present says nothing.
+///
+/// **The grace.** Same ordering as `ReappearanceWatch`: the tick that first sees
+/// the installers gone read disk *before* that sighting, and a successful swap
+/// lands before `Autoupdate` exits. So the verdict waits for `graceTicks` disk
+/// reads taken after it, each still not landed.
+///
+/// ShipIt is not judged here. Its job is not shown to stay down once it exits —
+/// Squirrel counts installation attempts (`SQRLShipItMaximumInstallationAttempts`),
+/// so an exited ShipIt may yet be run again. Unverified either way; it keeps the
+/// full wait.
+public struct InstallerExitWatch: Sendable, Equatable {
+    public static let graceTicks = ReappearanceWatch.graceTicks
+
+    /// The tick whose process read first found every watched installer gone,
+    /// while they still are.
+    public private(set) var firstGoneTick: Int?
+
+    /// Whether an installer's exit can end the wait at all. Fixed at creation.
+    public let judgesExit: Bool
+
+    /// - Parameter watchedInstallers: how many installer processes were found
+    ///   parked before the quit. Zero turns the watch off.
+    public init(watchedInstallers: Int) {
+        judgesExit = watchedInstallers > 0
+    }
+
+    /// Feed one tick of the wait, AFTER that tick's disk read came back not
+    /// landed. Returns true when the wait should give up.
+    ///
+    /// - Parameters:
+    ///   - installersAlive: whether any watched installer process is still alive.
+    ///   - everQuit: whether every instance of the app has been seen gone at some
+    ///     tick, including this one. Before the quit there is nothing to judge:
+    ///     the `wontQuit` path owns that case.
+    public mutating func observe(tick: Int, installersAlive: Bool, everQuit: Bool) -> Bool {
+        guard judgesExit, everQuit, !installersAlive else {
+            firstGoneTick = nil
+            return false
+        }
+        guard let first = firstGoneTick else {
+            firstGoneTick = tick
+            return false
+        }
+        return tick - first >= Self.graceTicks
+    }
+}
+
 /// The red "didn't apply" line a failed staged relaunch left under a row, and
 /// the version it was measured against.
 ///

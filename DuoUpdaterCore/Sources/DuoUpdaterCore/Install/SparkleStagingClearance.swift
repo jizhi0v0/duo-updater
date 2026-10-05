@@ -138,18 +138,8 @@ public enum SparkleStagingClearance {
 
         guard let jobs = await system.listJobs()
         else { return .notCleared(reason: "could not list launchd jobs", touchedInstaller: false) }
-        // Where Sparkle runs its installer pieces from: the progress agent is
-        // copied into the cache's `Launcher/` up to 2.9.6 and runs from the host's
-        // framework after it; `Autoupdate` runs from the framework (observed:
-        // `TinyWeb.app/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate`).
-        // The framework, not all of `Frameworks/`: an app's own helpers live there
-        // too, and removing one of those is not ours to do.
-        let homes = [sparkleRoot, app.path.appendingPathComponent("Contents/Frameworks/Sparkle.framework", isDirectory: true)]
-            .map { $0.resolvingSymlinksInPath().path }
-        let installerJobs = jobs.filter { job in
-            guard let path = system.executablePath(job.pid) else { return false }
-            return homes.contains { AppRestarter.isExecutable(path, insideBundlePath: $0) }
-        }
+        let installerJobs = installerJobs(
+            in: jobs, for: app, sparkleRoot: sparkleRoot, system: system)
         guard !installerJobs.isEmpty
         else { return .notCleared(reason: "no installer job found for \(bundleID)", touchedInstaller: false) }
 
@@ -194,6 +184,60 @@ public enum SparkleStagingClearance {
         else { return .notCleared(reason: "staged bundle still on disk", touchedInstaller: true) }
         Log.install.notice("sparkle staging cleared: \(app.name, privacy: .public) — jobs gone, deleted \(stagingDirectory.path, privacy: .public)")
         return .cleared
+    }
+
+    /// The pids of the installer `Autoupdate` processes parked on `app`'s quit —
+    /// not the progress agent. Empty when none can be found, including when the
+    /// jobs cannot be listed.
+    ///
+    /// For `relaunchStagedUpdate`'s wait: `Autoupdate` is the process that does
+    /// the swap, so once every one of these has exited, nothing is left to move
+    /// the bundle. The agent is left out because its exit is not that signal:
+    /// on TablePlus's own successful install (2026-10-06 03:13:08) its
+    /// `-sparkle-progress` job went inactive 60 ms BEFORE `-sparkle-updater`.
+    ///
+    /// Same-user installers only. One that needs administrator rights runs in
+    /// the system domain (`SUInstallerLauncher.m`), which this user's
+    /// `launchctl list` does not show — so that case finds nothing here, and the
+    /// caller must read "empty" as "unknown", never as "already gone".
+    public static func parkedInstallerPIDs(
+        for app: InstalledApp,
+        cachesDirectory: URL? = nil,
+        system: System = .live,
+        fileManager: FileManager = .default
+    ) async -> [pid_t] {
+        guard let bundleID = app.bundleID,
+              let caches = cachesDirectory
+                ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first,
+              let jobs = await system.listJobs()
+        else { return [] }
+        let sparkleRoot = caches
+            .appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
+        return installerJobs(in: jobs, for: app, sparkleRoot: sparkleRoot, system: system)
+            .filter { job in
+                !(system.bundleIdentifier(job.pid).map(SelfUpdaterStaging.sparkleInstallerBundleIDs.contains) ?? false)
+            }
+            .map(\.pid)
+    }
+
+    /// The jobs in `jobs` running one of `app`'s Sparkle installer pieces.
+    ///
+    /// Where Sparkle runs them from: the progress agent is copied into the
+    /// cache's `Launcher/` up to 2.9.6 and runs from the host's framework after
+    /// it; `Autoupdate` runs from the framework (observed:
+    /// `TinyWeb.app/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate`).
+    /// The framework, not all of `Frameworks/`: an app's own helpers live there
+    /// too, and removing one of those is not ours to do.
+    private static func installerJobs(
+        in jobs: [Job], for app: InstalledApp, sparkleRoot: URL, system: System
+    ) -> [Job] {
+        let homes = [sparkleRoot, app.path.appendingPathComponent("Contents/Frameworks/Sparkle.framework", isDirectory: true)]
+            .map { $0.resolvingSymlinksInPath().path }
+        return jobs.filter { job in
+            guard let path = system.executablePath(job.pid) else { return false }
+            return homes.contains { AppRestarter.isExecutable(path, insideBundlePath: $0) }
+        }
     }
 
     /// Remove `jobs` and wait for their processes to go. Every job is attempted,

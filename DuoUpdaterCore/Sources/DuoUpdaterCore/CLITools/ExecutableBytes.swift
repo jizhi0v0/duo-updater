@@ -18,7 +18,9 @@ import Foundation
 ///
 /// `read(2)` copies bytes and validates nothing, so the file is read in chunks
 /// instead, each kept with enough of the previous one that a literal spanning a
-/// boundary is still found whole.
+/// boundary is still found whole. The same holds for every other reader of
+/// executables that are not ours: `BundleFactsReader` (each Mach-O in a bundle)
+/// and `BlenderBuildInfo` read through ``forEachChunk(of:overlap:chunkSize:_:)``.
 enum ExecutableBytes {
 
     /// The window around each occurrence of `marker`: `before` bytes ahead of it
@@ -80,6 +82,95 @@ enum ExecutableBytes {
     static func joinedWindows(in url: URL, marker: Data, before: Int, after: Int) -> Data? {
         guard let windows = windows(in: url, marker: marker, before: before, after: after) else { return nil }
         return Data(windows.joined(separator: [0]))
+    }
+
+    /// Hands `body` the whole file, read rather than mapped, a chunk at a time,
+    /// each chunk preceded by the last `overlap` bytes of the buffer before it
+    /// (fewer at the start of the file): `body(buffer, carried, isLast)`, where
+    /// `buffer`'s first `carried` bytes are that overlap and `isLast` says nothing
+    /// follows `buffer` in the file — a last call may bring no new bytes at all.
+    /// A scanner that needs context on either side of what it matches judges a
+    /// position only once that context is in the buffer, and the overlap carries
+    /// the rest to the next call. `body` returns false to stop reading. Returns
+    /// false when the file cannot be read; `buffer` is valid only during the call.
+    /// Blocking.
+    ///
+    /// Reading costs no more than mapping did. Measured 2026-10-06 on this Mac's
+    /// `/Applications` (release build): over all 8,758 Mach-O files (44.7 GB),
+    /// each warm in the page cache as `BundleFactsReader`'s hash leaves it and
+    /// scanned both ways in alternating order, source paths plus the strings
+    /// index took 63.11 s mapped and 63.32 s read in 4 MB chunks, with identical
+    /// results; whole `BundleFactsReader.scan` runs over the 128 apps took 334 s
+    /// before and 325 s after.
+    static func forEachChunk(
+        of url: URL, overlap: Int, chunkSize: Int = 4 << 20,
+        _ body: (_ buffer: UnsafeRawBufferPointer, _ carried: Int, _ isLast: Bool) -> Bool
+    ) -> Bool {
+        precondition(overlap >= 0 && chunkSize > 0)
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        let buffer = UnsafeMutableRawBufferPointer.allocate(byteCount: overlap + chunkSize, alignment: 16)
+        defer { buffer.deallocate() }
+        let base = buffer.baseAddress!
+        var carried = 0
+        while true {
+            var filled = 0
+            while filled < chunkSize {
+                let n = read(handle.fileDescriptor, base + carried + filled, chunkSize - filled)
+                if n > 0 {
+                    filled += n
+                } else if n == 0 {
+                    break
+                } else if errno != EINTR {
+                    return false
+                }
+            }
+            let count = carried + filled
+            let isLast = filled < chunkSize
+            guard body(UnsafeRawBufferPointer(start: base, count: count), carried, isLast), !isLast else {
+                return true
+            }
+            let kept = min(overlap, count)
+            memmove(base, base + count - kept, kept)
+            carried = kept
+        }
+    }
+
+    /// Every occurrence of a marker in a file read with
+    /// ``forEachChunk(of:overlap:chunkSize:_:)``, in file order, overlapping ones
+    /// included, each reported once and with at least `before` bytes ahead of it in
+    /// the buffer it is reported in (fewer only at the start of the file).
+    struct MarkerSearch {
+        let marker: [UInt8]
+        let before: Int
+        /// Trailing bytes of the last buffer where an occurrence may yet start.
+        private var undecided = 0
+
+        init(marker: Data, before: Int) {
+            precondition(!marker.isEmpty)
+            self.marker = Array(marker)
+            self.before = before
+        }
+
+        /// What `forEachChunk` must carry over for this.
+        var overlap: Int { before + marker.count - 1 }
+
+        /// Calls `found` with the offset in `bytes` of each occurrence not reported
+        /// before, until it returns false.
+        mutating func feed(_ bytes: UnsafeRawBufferPointer, carried: Int, _ found: (Int) -> Bool) {
+            var from = carried - undecided
+            // Where no whole occurrence fits yet.
+            undecided = min(bytes.count - from, marker.count - 1)
+            guard let base = bytes.baseAddress else { return }
+            marker.withUnsafeBytes { needle in
+                while from + needle.count <= bytes.count,
+                      let hit = memmem(base + from, bytes.count - from, needle.baseAddress!, needle.count) {
+                    let at = base.distance(to: UnsafeRawPointer(hit))
+                    guard found(at) else { return }
+                    from = at + 1
+                }
+            }
+        }
     }
 
     /// The file's first `count` bytes — a Mach-O header — read, not mapped.

@@ -70,7 +70,7 @@ otherwise be a prose release's last item.
 
 ### Recipes/com-electron-ollama.swift — ChangelogRecipe 跳过 Pre-release（#872）
 
-实测 2026-10-06（不是转引）。
+实测 2026-10-06（不是转引；日期是 UTC+8 本地时间，UTC 为 2026-10-05 19:07 首次抓取、19:27 复抓，结果相同）。
 
 `duo verify` 自 2026-09-25 起把这条 changelog 标成 degraded：最新条目读得比 GitHub 探针新。
 #872 里每次扫描附带的抓取样本（issue 正文与评论，按时间）：

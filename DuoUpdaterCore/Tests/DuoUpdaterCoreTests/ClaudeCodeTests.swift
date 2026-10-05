@@ -144,15 +144,16 @@ import Foundation
     /// `global/v11/<hash>` links to the group's directory, whose package links
     /// into `store/v11/links`.
     func pnpmGroup(
-        _ box: Sandbox, hash: String, directory: String, version: String, linked: Bool
+        _ box: Sandbox, hash: String, directory: String, version: String, linked: Bool,
+        pnpmHome: String = "home/Library/pnpm"
     ) throws {
         let store = "store/v11/links/@anthropic-ai/claude-code/\(version)/c1c9/node_modules/@anthropic-ai/claude-code"
-        try box.package("home/Library/pnpm/" + store, version: version, linked: linked)
-        try box.write("home/Library/pnpm/global/v11/\(directory)/package.json",
+        try box.package("\(pnpmHome)/" + store, version: version, linked: linked)
+        try box.write("\(pnpmHome)/global/v11/\(directory)/package.json",
                       #"{"dependencies":{"@anthropic-ai/claude-code":"^\#(version)"}}"#)
-        try box.symlink("home/Library/pnpm/global/v11/\(directory)/node_modules/@anthropic-ai/claude-code",
+        try box.symlink("\(pnpmHome)/global/v11/\(directory)/node_modules/@anthropic-ai/claude-code",
                         to: "../../../../../" + store)
-        try box.symlink("home/Library/pnpm/global/v11/\(hash)", to: directory)
+        try box.symlink("\(pnpmHome)/global/v11/\(hash)", to: directory)
     }
 
     /// pnpm 11 and later: the install is the package under the group's hash
@@ -322,6 +323,62 @@ import Foundation
         #expect(ClaudeCodeScanner.owningApp(of: "/Users/x/.local/share/claude/versions/2.1.274") == nil)
         #expect(ClaudeCodeScanner.owningApp(of: "/Users/x/.nvm/versions/node/v24/lib/node_modules/@anthropic-ai/claude-code") == nil)
         #expect(ClaudeCodeScanner.owningApp(of: nil) == nil)
+    }
+
+    /// pnpm 11's store copy, added by hand, is the group that uses it — at its
+    /// hash link, so beside the conventional install it is listed once.
+    @Test func userAddedPnpmStoreCopyIsTheConventionalGroup() throws {
+        let box = try Sandbox()
+        try pnpmGroup(box, hash: "b4c5bcd1", directory: "b434-1a10d6b4b08", version: "2.1.289", linked: true)
+        let store = box.home.path + "/Library/pnpm/store/v11/links/@anthropic-ai/claude-code/2.1.289/c1c9/node_modules/@anthropic-ai/claude-code"
+
+        let found = box.scanner().scan(userPaths: [store])
+        let install = try #require(found.first)
+        #expect(found.count == 1)
+        #expect(install.origin == .conventional)
+        #expect(install.path == box.home.path + "/Library/pnpm/global/v11/b4c5bcd1/node_modules/@anthropic-ai/claude-code")
+    }
+
+    /// `~/Library/pnpm` itself a link (moved to another disk): the store copy
+    /// resolves outside it, and is still the conventional install, listed once.
+    @Test func userAddedPnpmStoreCopyThroughALinkedPnpmHomeIsListedOnce() throws {
+        let box = try Sandbox()
+        try pnpmGroup(box, hash: "b4c5bcd1", directory: "b434-1a10d6b4b08", version: "2.1.289", linked: true, pnpmHome: "disk/pnpm")
+        try box.symlink("home/Library/pnpm", to: box.root.path + "/disk/pnpm")
+        let store = box.root.path + "/disk/pnpm/store/v11/links/@anthropic-ai/claude-code/2.1.289/c1c9/node_modules/@anthropic-ai/claude-code"
+
+        let found = box.scanner().scan(userPaths: [store])
+        #expect(found.count == 1)
+        #expect(found.first?.path == box.home.path + "/Library/pnpm/global/v11/b4c5bcd1/node_modules/@anthropic-ai/claude-code")
+    }
+
+    /// Under a `PNPM_HOME` the scan does not look in, the store copy — or the
+    /// binary in it — leads to that home's group, which pnpm updates.
+    @Test func userAddedPnpmStoreCopyUnderACustomHomeIsItsGroup() throws {
+        let box = try Sandbox()
+        try pnpmGroup(box, hash: "a629ed56", directory: "bb47-18dbb709", version: "2.1.289", linked: true, pnpmHome: "tools/pnpm")
+        let store = box.root.path + "/tools/pnpm/store/v11/links/@anthropic-ai/claude-code/2.1.289/c1c9/node_modules/@anthropic-ai/claude-code"
+
+        for added in [store, store + "/bin/claude.exe"] {
+            let found = box.scanner().scan(userPaths: [added])
+            let install = try #require(found.first)
+            #expect(found.count == 1)
+            #expect(install.method == .pnpm)
+            #expect(install.origin == .userAdded)
+            #expect(install.version == "2.1.289")
+            #expect(install.path.hasSuffix("/tools/pnpm/global/v11/a629ed56/node_modules/@anthropic-ai/claude-code"))
+        }
+    }
+
+    /// After an update the group links to the new version's copy; the old one
+    /// stays in the store until it is pruned, and is not an install.
+    @Test func userAddedPnpmStoreCopyNoGroupUsesIsNotAnInstall() throws {
+        let box = try Sandbox()
+        try pnpmGroup(box, hash: "a629ed56", directory: "bb47-18dbb709", version: "2.1.289", linked: true, pnpmHome: "tools/pnpm")
+        let old = "tools/pnpm/store/v11/links/@anthropic-ai/claude-code/2.1.280/c1c9/node_modules/@anthropic-ai/claude-code"
+        try box.package(old, version: "2.1.280", linked: true)
+
+        #expect(box.scanner().scan(userPaths: [box.root.path + "/" + old]).isEmpty)
     }
 
     @Test func userAddedDuplicateOfAConventionalInstallIsListedOnce() throws {

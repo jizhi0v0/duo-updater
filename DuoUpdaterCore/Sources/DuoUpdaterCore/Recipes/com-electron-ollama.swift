@@ -18,12 +18,20 @@ enum com_electron_ollama {
         // anything wins, so the paragraph fallback only ever speaks for a release
         // with no bullets. It skips the "Full Changelog: vA...vB" compare-link line,
         // which would otherwise be a prose release's last item.
+        //
+        // Pre-releases are skipped: the h2 is the release NAME, not the tag, and
+        // Ollama names its release candidates after the version they lead up to —
+        // tag `v0.40.0-rc3` carries the h2 `v0.40.0` — so `[\d.]+` reads an rc as
+        // a final release. The detection source is `/releases/latest`, which
+        // excludes prereleases, so the pane ran ahead of it (#872). The section's
+        // "Pre-release" label sits between the h2 and `<relative-time>`; the
+        // tempered dot refuses to step over it.
         ChangelogRecipe(
             bundleID: "com.electron.ollama",
             source: URL(string: "https://github.com/ollama/ollama/releases")!,
             entryPattern:
                 #"<section[^>]*aria-labelledby="hd-[^"]*"[^>]*>\s*"#
-                + #"<h2 class="sr-only"[^>]*>v(?<version>[\d.]+)</h2>.*?"#
+                + #"<h2 class="sr-only"[^>]*>v(?<version>[\d.]+)</h2>(?:(?!>Pre-release<).)*?"#
                 + #"<relative-time[^>]*datetime="(?<date>[^T]+)T[^"]*"[^>]*>.*?"#
                 + #"<div[^>]*class="markdown-body[^"]*"[^>]*>(?<body>.*?)</div>\s*</div>"#,
             itemPatterns: [

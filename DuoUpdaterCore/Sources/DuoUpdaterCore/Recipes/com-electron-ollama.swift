@@ -20,12 +20,13 @@ enum com_electron_ollama {
         // which would otherwise be a prose release's last item.
         //
         // Pre-releases are skipped: the h2 is the release NAME, not the tag, and
-        // Ollama names its release candidates after the version they lead up to —
-        // tag `v0.40.0-rc3` carries the h2 `v0.40.0` — so `[\d.]+` reads an rc as
-        // a final release. The detection source is `/releases/latest`, which
+        // Ollama names its release candidates after the version they lead up to
+        // (e.g. tag `v0.40.0-rc3` carries the h2 `v0.40.0`), so `[\d.]+` reads an
+        // rc as a final release. The detection source is `/releases/latest`, which
         // excludes prereleases, so the pane ran ahead of it (#872). The section's
         // "Pre-release" label sits between the h2 and `<relative-time>`; the
-        // tempered dot refuses to step over it.
+        // tempered dot refuses to step over it. The label, not the tag's shape, is
+        // the discriminator: a prerelease can carry a plain `v<x.y.z>` tag (History).
         ChangelogRecipe(
             bundleID: "com.electron.ollama",
             source: URL(string: "https://github.com/ollama/ollama/releases")!,

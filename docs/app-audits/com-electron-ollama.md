@@ -36,6 +36,10 @@
 - 条目取 `<li>`；有的发布整篇是散文、一个 `<li>` 都没有（2026-09-11 实测 v0.34.0、v0.32.12），
   这时走第二条 `<p>` pattern，跳过 "Full Changelog: vA...vB" 对比链接行（当天第一页 10 条发布都以它收尾）。
   没有这条兜底时，没条目的发布会被丢掉，最新一条恰好是散文时整个面板就落后一个版本（#507）。
+- 跳过 Pre-release：版本取自 sr-only `<h2>`，那是发布**名称**不是 tag，而 Ollama 的候选版按目标版本命名
+  （tag `v0.40.0-rc3` 的 h2 是 `v0.40.0`）。检测源 `/releases/latest` 不含 prerelease，不跳过的话面板会跑在
+  探针前面（#872）。判据是 section 里的 "Pre-release" 标签（位于 h2 与 `<relative-time>` 之间），不是 tag 形状，
+  因为出现过纯 `v<x.y.z>` tag 的 prerelease（见「历史与实测」2026-10-06 一节）。
 
 ## 一键安装
 - 状态: 已启用（best-effort），`GitHubReleaseRule` 的 `installAssetPattern` 取 `Ollama-darwin.zip`，原地替换；装完 `ollama serve` 仍是旧进程，行落到 `needsRestart`。
@@ -63,6 +67,30 @@ pane and `duo verify` read the changelog as a whole release behind
 It skips the "Full Changelog: vA...vB" compare-link line
 (all ten releases on the page that day end with it), which would
 otherwise be a prose release's last item.
+
+### Recipes/com-electron-ollama.swift — ChangelogRecipe 跳过 Pre-release（#872）
+
+实测 2026-10-06（不是转引）。
+
+`duo verify` 自 2026-09-25 起把这条 changelog 标成 degraded：最新条目读得比 GitHub 探针新。
+#872 里每次扫描附带的抓取样本（issue 正文与评论，按时间）：
+
+| 扫描 | section id（tag） | sr-only h2（名称） | 样本里有 Pre-release 标签 |
+|---|---|---|---|
+| 2026-09-25（正文） | `release-v0.40.0-rc0` | `v0.40.0` | 是 |
+| 2026-09-29 02:22 | `release-v0.35.0` | `v0.35.0` | 是 |
+| 2026-09-29 20:24 | `release-v0.35.1-rc0` | `v0.35.1` | 是 |
+| 2026-09-30 | —（自愈，样本无 section） | — | 否 |
+| 2026-10-05 | `release-v0.40.0-rc3` | `v0.40.0` | 是 |
+
+2026-09-29 02:22 那一行是纯 tag `v0.35.0` 却挂 Pre-release 标签——只认 `-rc` 后缀的判据会漏掉它，
+所以 recipe 以标签为判据。
+
+2026-10-06 抓 `https://github.com/ollama/ollama/releases` 第一页（10 个 section）：只有
+`release-v0.40.0-rc3`（h2 `v0.40.0`）带标签，它的 section 里 `>Pre-release<` 出现两次（宽屏、窄屏各一个），
+都在 h2 之后、第一个 `<relative-time>` 之前（section 内第一个标签在偏移 913，第一个 `<relative-time>` 在 12444）；`release-v0.35.1` 带 "Latest"。
+同日 `api.github.com/repos/ollama/ollama/releases/latest` 回 `v0.35.1`。修复后对实时页面跑
+`duo verify --changelog --only com.electron.ollama`：`✓ 1  ⚠ 0  ✗ 0`。
 
 ### Recipes/com-electron-ollama.swift — stable GitHubReleaseRule（一键 `Ollama-darwin.zip`）
 

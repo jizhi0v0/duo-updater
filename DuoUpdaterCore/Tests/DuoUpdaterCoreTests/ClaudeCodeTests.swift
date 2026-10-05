@@ -140,6 +140,64 @@ import Foundation
         #expect(install.signature == nil)
     }
 
+    /// A pnpm 11+ install group, as `pnpm add -g` left it (11.28.4, 12.9.1):
+    /// `global/v11/<hash>` links to the group's directory, whose package links
+    /// into `store/v11/links`.
+    func pnpmGroup(
+        _ box: Sandbox, hash: String, directory: String, version: String, linked: Bool
+    ) throws {
+        let store = "store/v11/links/@anthropic-ai/claude-code/\(version)/c1c9/node_modules/@anthropic-ai/claude-code"
+        try box.package("home/Library/pnpm/" + store, version: version, linked: linked)
+        try box.write("home/Library/pnpm/global/v11/\(directory)/package.json",
+                      #"{"dependencies":{"@anthropic-ai/claude-code":"^\#(version)"}}"#)
+        try box.symlink("home/Library/pnpm/global/v11/\(directory)/node_modules/@anthropic-ai/claude-code",
+                        to: "../../../../../" + store)
+        try box.symlink("home/Library/pnpm/global/v11/\(hash)", to: directory)
+    }
+
+    /// pnpm 11 and later: the install is the package under the group's hash
+    /// link, and the binary is the one in the store it links to.
+    @Test func pnpm11GroupIsFoundThroughItsHashLink() throws {
+        let box = try Sandbox()
+        try pnpmGroup(box, hash: "b4c5bcd1", directory: "b434-1a10d6b4b08", version: "2.1.289", linked: true)
+
+        let found = box.scanner().scan()
+        let install = try #require(found.first)
+        #expect(found.count == 1)
+        #expect(install.method == .pnpm)
+        #expect(install.origin == .conventional)
+        #expect(install.path == box.home.path + "/Library/pnpm/global/v11/b4c5bcd1/node_modules/@anthropic-ai/claude-code")
+        #expect(install.version == "2.1.289")
+        #expect(install.problem == nil)
+        #expect(install.signature == .anthropic)
+        #expect(install.executable?.contains("/Library/pnpm/store/v11/links/@anthropic-ai/claude-code/2.1.289/") == true)
+    }
+
+    /// pnpm 11 skips postinstall by default too (11.28.4 and 12.9.1, measured).
+    @Test func pnpm11PlaceholderIsNotLinked() throws {
+        let box = try Sandbox()
+        try pnpmGroup(box, hash: "a629ed56", directory: "b966-18dbb708", version: "2.1.289", linked: false)
+
+        let install = try #require(box.scanner().scan().first)
+        #expect(install.method == .pnpm)
+        #expect(install.problem == .nativeBinaryNotLinked)
+        #expect(install.signature == nil)
+    }
+
+    /// After an upgrade both layouts can be there; each is found. A group
+    /// directory no hash link points at is stale (left for `pnpm store prune`)
+    /// and is not an install.
+    @Test func pnpm10ProjectAndPnpm11GroupAreBothFoundButStaleGroupsAreNot() throws {
+        let box = try Sandbox()
+        try box.package("home/Library/pnpm/global/5/node_modules/@anthropic-ai/claude-code", version: "2.1.280", linked: true)
+        try pnpmGroup(box, hash: "b4c5bcd1", directory: "bbc2-1a10d6bd", version: "2.1.289", linked: true)
+        try box.package("home/Library/pnpm/global/v11/b434-stale/node_modules/@anthropic-ai/claude-code", version: "2.1.270", linked: true)
+
+        let found = box.scanner().scan()
+        #expect(found.map(\.version) == ["2.1.280", "2.1.289"])
+        #expect(found.allSatisfy { $0.method == .pnpm })
+    }
+
     /// bun skips postinstall, so `bin/claude.exe` stays the placeholder — but its
     /// shim links straight to the platform package's binary, which runs (bun 1.4.2).
     @Test func bunShimToThePlatformBinaryIsTheExecutable() throws {

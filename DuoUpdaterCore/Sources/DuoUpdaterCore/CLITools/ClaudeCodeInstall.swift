@@ -57,10 +57,13 @@ public struct ClaudeCodeInstall: Sendable, Equatable, Codable {
         /// native install leaves behind in `versions/`.
         case executableMissing
         /// The npm-family package is present but its native binary is not. pnpm
-        /// 10.33 skips postinstall by default (measured), and then `bin/claude.exe`
-        /// is a 500-byte script that prints "claude native binary not installed".
-        /// bun 1.4.2 skips it too, but links its shim past that script to the
-        /// platform package's binary, so a bun install runs (measured).
+        /// 10.33, 11.28.4 and 12.9.1 skip postinstall by default (measured;
+        /// `--allow-build=@anthropic-ai/claude-code` runs it), and then
+        /// `bin/claude.exe` is a 500-byte script that prints "claude native
+        /// binary not installed". bun 1.4.2 skips it too — not for trust (the
+        /// package is on its default trusted list) but by its postinstall
+        /// optimizer, which links the shim past that script to the platform
+        /// package's binary instead — so a bun install runs (measured).
         case nativeBinaryNotLinked
     }
 
@@ -235,14 +238,15 @@ public struct ClaudeCodeScanner: Sendable {
         NodePrefixes(home: home, systemPrefixes: systemPrefixes).discover(NodePrefixes.claudeCodeSources).map(\.url)
     }
 
-    /// pnpm's global directory on macOS is `~/Library/pnpm/global/<layout version>`,
-    /// whose `node_modules/@anthropic-ai/claude-code` links into `.pnpm/…`.
+    /// Every pnpm project under pnpm's home (`GlobalPackageHomes.pnpmProjects`):
+    /// pnpm 10's `global/<layout version>`, whose `node_modules/@anthropic-ai/claude-code`
+    /// links into `.pnpm/…`, and pnpm 11's and later's `global/v11/<hash>` group
+    /// links, whose package links into `store/v11/links/…`. The path keeps the
+    /// hash link, which is the group's identity across updates.
     func pnpmInstalls() -> [ClaudeCodeInstall] {
-        let root = home.appendingPathComponent("Library/pnpm/global")
-        let layouts = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
-        return layouts.sorted().compactMap {
+        GlobalPackageHomes.pnpmProjects(in: GlobalPackageHomes.pnpm(home: home)).compactMap {
             packageInstall(
-                at: root.appendingPathComponent($0).appendingPathComponent(Self.packagePath),
+                at: $0.project.appendingPathComponent(Self.packagePath),
                 method: .pnpm, origin: .conventional)
         }
     }

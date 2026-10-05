@@ -102,3 +102,48 @@ struct BlenderBuildInfoTests {
         #expect(info.trackCommit == nil)
     }
 }
+
+/// Reading the executable a chunk at a time gives what reading the whole of it
+/// gave, wherever the boundaries fall: every chunk size from 1 to past the file,
+/// with more than the look-behind of other bytes ahead of each layout, the build
+/// info ahead of the cycle as well as after it, and a platform marker that
+/// overlaps another. Mutation: read an anchor with less than its look-behind, or
+/// resume the platform search past the whole marker.
+@Suite struct BlenderBuildInfoChunkedTests {
+
+    static let padding = String(repeating: "pad\0", count: 300)
+
+    static let variants: [Data] = [
+        Data(padding.utf8) + Layout.binary(
+            Layout.beta, date: "2026-07-08", time: "01:34:43", commit: "4481d59ccf4e", branch: "blender-v5.2-release"),
+        Data(padding.utf8) + Layout.buildInfo(
+            date: "2026-09-25", time: "01:35:56", commit: "425ab43ad645", branch: "main")
+            + Data((padding + "blender.crash.txt\0 Alpha\0 a\0" + Layout.formats).utf8),
+        Data((padding + "x\0Darwin\0Darwin\0" + padding + Layout.release + padding).utf8),
+        Data((String(repeating: "x", count: 900) + "\0 Release Candidate\0 RC\0 LTS\0" + Layout.formats).utf8),
+        // A branch name long enough that a read with too little look-behind
+        // starts inside it, and finds no commit before what it took for the branch.
+        Data(padding.utf8) + Layout.binary(
+            Layout.alpha, date: "2026-09-25", time: "01:35:56", commit: "425ab43ad645",
+            branch: "experimental/" + String(repeating: "long-name-", count: 20)),
+    ]
+
+    @Test func everyChunkSizeReadsWhatTheWholeFileSays() throws {
+        let expected: [(BlenderBuildInfo.Cycle?, String?)] = [
+            (.beta, "4481d59ccf4e"), (.alpha, "425ab43ad645"), (.release, nil), (.rc, nil),
+            (.alpha, "425ab43ad645"),
+        ]
+        for (bytes, (cycle, commit)) in zip(Self.variants, expected) {
+            let whole = BlenderBuildInfo.parse(bytes)
+            #expect(whole.cycle == cycle)
+            #expect(whole.commit == commit)
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("blender-\(UUID().uuidString)")
+            try bytes.write(to: url)
+            defer { try? FileManager.default.removeItem(at: url) }
+            for size in 1...(bytes.count + 3) {
+                #expect(BlenderBuildInfo.parse(contentsOf: url, chunkSize: size) == whole, "chunk size \(size)")
+            }
+        }
+        #expect(BlenderBuildInfo.parse(contentsOf: URL(fileURLWithPath: "/nowhere/blender")) == nil)
+    }
+}

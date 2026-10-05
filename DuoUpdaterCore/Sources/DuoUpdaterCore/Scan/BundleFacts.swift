@@ -211,23 +211,41 @@ enum BundleFactsReader {
             if let head = hashed?.head, looksLikeMachO(head) {
                 let architectures = timings.time("Mach-O headers") { MachOImports.architectures(at: url) }
                 let commands = timings.time("Mach-O headers") { MachOImports.loadCommands(at: url) }
-                // Mapped, not read: the kernel pages in what the scan touches.
-                if let data = try? Data(contentsOf: url, options: .alwaysMapped) {
-                    let paths = timings.time("source paths") {
-                        data.withUnsafeBytes { SourcePathScanner.paths(in: $0) }
+                // Read, never mapped: a hardened process that maps an executable
+                // whose signature no longer validates is killed when it touches a
+                // bad page (`ExecutableBytes`), and any app on disk can be one.
+                // What the copy costs is measured on `forEachChunk`: nothing that shows.
+                let indexed = size <= stringsIndexLimit
+                var paths = SourcePathScanner.Stream()
+                var runs = PrintableRuns.Stream()
+                let blobCount = blob.count
+                var indexing = Duration.zero
+                let readStart = ContinuousClock.now
+                let read = ExecutableBytes.forEachChunk(
+                    of: url, overlap: max(SourcePathScanner.Stream.overlap, PrintableRuns.Stream.overlap)
+                ) { buffer, carried, isLast in
+                    paths.feed(buffer, carried: carried, isLast: isLast)
+                    if indexed {
+                        let start = ContinuousClock.now
+                        runs.feed(buffer, carried: carried, isLast: isLast, to: &blob)
+                        indexing += ContinuousClock.now - start
                     }
-                    if size <= stringsIndexLimit {
-                        timings.time("strings index") {
-                            data.withUnsafeBytes { PrintableRuns.append(from: $0, to: &blob) }
-                        }
-                    } else {
-                        facts.unindexedMachO.append(rel)
-                    }
+                    return true
+                }
+                // The read itself counts as source paths, where the page-ins of
+                // the mapped file it replaces were counted.
+                timings.add("source paths", ContinuousClock.now - readStart - indexing)
+                if indexed { timings.add("strings index", indexing) }
+                if read {
+                    if !indexed { facts.unindexedMachO.append(rel) }
                     facts.machO[rel] = MachOFact(
                         size: size, architectures: architectures ?? [],
                         dylibs: commands?.dylibs ?? [:],
                         buildSDK: commands?.buildSDK.map { "\($0.platform.displayName) \($0.version)" },
-                        sourcePaths: paths.sorted())
+                        sourcePaths: paths.found.sorted())
+                } else {
+                    // Failed partway: nothing of this file, as when it could not be mapped.
+                    blob.removeSubrange(blobCount..<blob.count)
                 }
             }
             walkStart = ContinuousClock.now
@@ -482,16 +500,46 @@ enum SourcePathScanner {
         return table
     }()
 
+    /// How far back from an extension's dot the path is followed.
+    private static let longestPath = 400
+
+    /// What follows a dot that decides whether it starts an extension: the
+    /// longest extension, and the byte after it.
+    private static let lookAhead = extensions.map(\.count).max()! + 1
+
     static func paths(in bytes: UnsafeRawBufferPointer) -> Set<String> {
         var found = Set<String>()
-        let count = bytes.count
+        collect(in: bytes, dotsIn: 0..<bytes.count, into: &found)
+        return found
+    }
+
+    /// ``paths(in:)`` over a file read with ``ExecutableBytes/forEachChunk(of:overlap:chunkSize:_:)``,
+    /// with the same answer: a dot is judged only once everything the judgement
+    /// reads is in the buffer — `longestPath` bytes before it, `lookAhead` after —
+    /// or the file ends, and the dots too near a chunk's end wait for the next.
+    struct Stream {
+        /// What `forEachChunk` must carry over for this.
+        static let overlap = longestPath + lookAhead
+        private(set) var found = Set<String>()
+        /// Trailing bytes of the last buffer whose dots have not been judged.
+        private var undecided = 0
+
+        mutating func feed(_ bytes: UnsafeRawBufferPointer, carried: Int, isLast: Bool) {
+            let from = carried - undecided
+            let to = isLast ? bytes.count : max(from, bytes.count - lookAhead)
+            collect(in: bytes, dotsIn: from..<to, into: &found)
+            undecided = bytes.count - to
+        }
+    }
+
+    private static func collect(in bytes: UnsafeRawBufferPointer, dotsIn dots: Range<Int>, into found: inout Set<String>) {
         let dot = UInt8(ascii: ".")
-        var i = 0
-        while i < count {
+        var i = dots.lowerBound
+        while i < dots.upperBound {
             if bytes[i] != dot { i += 1; continue }
             if let length = matchedExtensionLength(bytes, dotAt: i) {
                 var start = i
-                while start > 0, i - start < 400, pathCharacter[Int(bytes[start - 1])] { start -= 1 }
+                while start > 0, i - start < longestPath, pathCharacter[Int(bytes[start - 1])] { start -= 1 }
                 if i - start >= 3 {
                     let candidate = String(
                         decoding: UnsafeRawBufferPointer(rebasing: bytes[start..<(i + 1 + length)]), as: UTF8.self)
@@ -500,7 +548,6 @@ enum SourcePathScanner {
             }
             i += 1
         }
-        return found
     }
 
     private static func matchedExtensionLength(_ bytes: UnsafeRawBufferPointer, dotAt dot: Int) -> Int? {
@@ -535,30 +582,63 @@ enum SourcePathScanner {
 enum PrintableRuns {
 
     static func append(from bytes: UnsafeRawBufferPointer, to blob: inout Data) {
-        let count = bytes.count
-        var i = 0
-        var runStart = -1
-        while i < count {
-            let byte = bytes[i]
-            if byte >= 0x20 && byte <= 0x7E {
-                if runStart < 0 { runStart = i }
-                i += 1
-            } else if byte >= 0xE0 && byte <= 0xEF, i + 2 < count,
-                      bytes[i + 1] & 0xC0 == 0x80, bytes[i + 2] & 0xC0 == 0x80 {
-                if runStart < 0 { runStart = i }
-                i += 3
-            } else {
-                if runStart >= 0, i - runStart >= 4 {
-                    blob.append(contentsOf: UnsafeRawBufferPointer(rebasing: bytes[runStart..<i]))
+        var stream = Stream()
+        stream.feed(bytes, carried: 0, isLast: true, to: &blob)
+    }
+
+    /// ``append(from:to:)`` over a file read with ``ExecutableBytes/forEachChunk(of:overlap:chunkSize:_:)``,
+    /// with the same bytes appended. A run is written as soon as it is known to be
+    /// one — four bytes long — and terminated when it ends; what a chunk's end
+    /// leaves undecided (a run of under four bytes, a lead byte whose continuation
+    /// bytes are in the next chunk) is looked at again with the next chunk.
+    struct Stream {
+        /// What `forEachChunk` must carry over for this: a run of three bytes and
+        /// two of a three-byte sequence.
+        static let overlap = 5
+        /// Trailing bytes of the last buffer not yet classified.
+        private var undecided = 0
+        /// `blob` ends in a run that has not ended yet.
+        private var open = false
+
+        mutating func feed(_ bytes: UnsafeRawBufferPointer, carried: Int, isLast: Bool, to blob: inout Data) {
+            let count = bytes.count
+            var i = carried - undecided
+            var runStart = open ? i : -1
+            while i < count {
+                let byte = bytes[i]
+                if byte >= 0x20 && byte <= 0x7E {
+                    if runStart < 0 { runStart = i }
+                    i += 1
+                } else if byte >= 0xE0 && byte <= 0xEF, i + 2 >= count, !isLast {
+                    break
+                } else if byte >= 0xE0 && byte <= 0xEF, i + 2 < count,
+                          bytes[i + 1] & 0xC0 == 0x80, bytes[i + 2] & 0xC0 == 0x80 {
+                    if runStart < 0 { runStart = i }
+                    i += 3
+                } else {
+                    if runStart >= 0, open || i - runStart >= 4 {
+                        blob.append(contentsOf: UnsafeRawBufferPointer(rebasing: bytes[runStart..<i]))
+                        blob.append(0x0A)
+                    }
+                    open = false
+                    runStart = -1
+                    i += 1
+                }
+            }
+            if isLast {
+                if runStart >= 0, open || count - runStart >= 4 {
+                    blob.append(contentsOf: UnsafeRawBufferPointer(rebasing: bytes[runStart..<count]))
                     blob.append(0x0A)
                 }
-                runStart = -1
-                i += 1
+                open = false
+                undecided = 0
+            } else if runStart >= 0, open || i - runStart >= 4 {
+                blob.append(contentsOf: UnsafeRawBufferPointer(rebasing: bytes[runStart..<i]))
+                open = true
+                undecided = count - i
+            } else {
+                undecided = count - (runStart >= 0 ? runStart : i)
             }
-        }
-        if runStart >= 0, count - runStart >= 4 {
-            blob.append(contentsOf: UnsafeRawBufferPointer(rebasing: bytes[runStart..<count]))
-            blob.append(0x0A)
         }
     }
 

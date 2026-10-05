@@ -1163,6 +1163,56 @@ private let orbStackFixture = """
     ])
 }
 
+// Trimmed real markup from github.com/ollama/ollama/releases, read 2026-10-06.
+// The release candidate tagged `v0.40.0-rc3` is NAMED `v0.40.0`, so its h2 reads
+// like a final release; only the "Pre-release" labels (verbatim, both of them)
+// mark it. `/releases/latest` answered `v0.35.1` the same day. Section ids, h2s,
+// labels and timestamps are the live ones; bodies keep their opening paragraphs.
+private let ollamaPrereleaseFixture = """
+<section id="release-v0.40.0-rc3" aria-labelledby="hd-358e1fde" data-release-anchor="release-v0.40.0-rc3" style="scroll-margin-top: 24px;">
+    <h2 class="sr-only" id="hd-358e1fde">v0.40.0</h2>
+    <div class="tmp-my-5">
+        <span data-view-component="true" class="tmp-mr-3 f1 text-bold d-inline"><a href="/ollama/ollama/releases/tag/v0.40.0-rc3" data-view-component="true" class="Link--primary Link">v0.40.0</a></span>
+      <span>
+        <span data-view-component="true" class="Label Label--warning Label--large v-align-text-bottom d-none d-md-inline-block">Pre-release</span>
+      </span>
+    <div class="tmp-mt-3 ml-2 d-md-none">
+      <span data-view-component="true" class="Label Label--warning Label--large v-align-text-bottom">Pre-release</span>
+    </div>
+      <relative-time class="no-wrap" prefix="" datetime="2026-09-25T03:31:52Z">
+        25 Sep 03:31
+      </relative-time>
+        <div data-pjax="true" data-test-selector="body-content" data-view-component="true" class="markdown-body tmp-my-3"><h2>What's Changed</h2>
+<p><strong>Models run on MLX on Apple Silicon by default</strong></p>
+<p>In this release, on Apple Silicon devices, model architectures supported by the MLX runtime will automatically run on MLX.</p></div>
+</div>
+</section>
+<section id="release-v0.35.1" aria-labelledby="hd-fd0b7d40" data-release-anchor="release-v0.35.1" style="scroll-margin-top: 24px;">
+    <h2 class="sr-only" id="hd-fd0b7d40">v0.35.1</h2>
+    <div class="tmp-my-5">
+        <span data-view-component="true" class="tmp-mr-3 f1 text-bold d-inline"><a href="/ollama/ollama/releases/tag/v0.35.1" data-view-component="true" class="Link--primary Link">v0.35.1</a></span>
+      <relative-time class="no-wrap" prefix="" datetime="2026-09-29T20:14:22Z">
+        29 Sep 20:14
+      </relative-time>
+        <div data-pjax="true" data-test-selector="body-content" data-view-component="true" class="markdown-body tmp-my-3"><h2>Clef decision models</h2>
+<p>Clef (27B) and Clef Flash (9B) are multimodal: requests can now include images alongside the text state, shared by all questions and scored jointly with it.</p></div>
+</div>
+</section>
+"""
+
+// A release candidate named after its target version read as that release, so
+// the pane ran ahead of `/releases/latest` and `duo verify` flagged it (#872).
+@Test func skipsOllamaPrereleases() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.electron.ollama"))
+    let changelog = try #require(ChangelogExtractor.extract(from: ollamaPrereleaseFixture, using: recipe))
+
+    #expect(changelog.entries.map(\.version) == ["0.35.1"])
+    #expect(changelog.entries[0].date == "2026-09-29")
+    #expect(changelog.entries[0].items == [
+        "Clef (27B) and Clef Flash (9B) are multimodal: requests can now include images alongside the text state, shared by all questions and scored jointly with it.",
+    ])
+}
+
 @Test func extractsOrbStackEntriesInOrder() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "dev.kdrag0n.MacVirt"))
     let changelog = try #require(ChangelogExtractor.extract(from: orbStackFixture, using: recipe))

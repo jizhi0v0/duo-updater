@@ -547,8 +547,15 @@ public enum FeedDiscovery {
         var found: [String] = []
         var seen: Set<String> = []
         for file in files {
-            guard let data = try? Data(contentsOf: file, options: .mappedIfSafe) else { continue }
-            for text in httpsLiterals(in: data) where looksLikeAppcast(text) {
+            // Read, never mapped: a hardened process that maps an executable whose
+            // signature no longer validates is killed when it touches a bad page
+            // (`ExecutableBytes`), and any app on disk can be one.
+            var literals = HTTPSLiteralStream()
+            guard ExecutableBytes.forEachChunk(of: file, overlap: HTTPSLiteralStream.overlap, { buffer, carried, isLast in
+                literals.feed(buffer, carried: carried, isLast: isLast)
+                return true
+            }) else { continue }
+            for text in literals.found where looksLikeAppcast(text) {
                 guard seen.insert(text).inserted else { continue }
                 found.append(text)
             }
@@ -604,12 +611,42 @@ public enum FeedDiscovery {
     /// byte that cannot appear unescaped in a URL, which is what separates a
     /// literal from the string table entry that follows it.
     static func httpsLiterals(in data: Data) -> [String] {
-        let needle = Array("https://".utf8)
-        var out: [String] = []
-        data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+        var stream = HTTPSLiteralStream()
+        data.withUnsafeBytes { stream.feed($0, carried: 0, isLast: true) }
+        return stream.found
+    }
+
+    /// ``httpsLiterals(in:)`` over a file read with ``ExecutableBytes/forEachChunk(of:overlap:chunkSize:_:)``,
+    /// with the same literals in the same order. Nothing before a literal decides
+    /// it, so only a scheme cut by a chunk's end is looked at again with the next
+    /// chunk; what follows is unbounded — a literal runs to the first byte a URL
+    /// cannot hold — so one still running at a chunk's end is kept here, not
+    /// carried over.
+    struct HTTPSLiteralStream {
+        /// What `forEachChunk` must carry over for this: all of the scheme but
+        /// its last byte.
+        static let overlap = needle.count - 1
+        private static let needle = Array("https://".utf8)
+        private(set) var found: [String] = []
+        /// Trailing bytes of the last buffer not yet looked at.
+        private var undecided = 0
+        /// The literal that ran to the last buffer's end, scheme included.
+        private var open: [UInt8]?
+
+        mutating func feed(_ raw: UnsafeRawBufferPointer, carried: Int, isLast: Bool) {
             let bytes = raw.bindMemory(to: UInt8.self)
-            guard bytes.count > needle.count else { return }
-            var i = 0
+            let needle = Self.needle
+            var i = carried - undecided
+            undecided = 0
+            if var literal = open {
+                var j = i
+                while j < bytes.count, isURLByte(bytes[j]) { j += 1 }
+                literal.append(contentsOf: bytes[i..<j])
+                guard j < bytes.count || isLast else { open = literal; return }
+                close(literal)
+                open = nil
+                i = j
+            }
             while i <= bytes.count - needle.count {
                 guard bytes[i] == needle[0] else { i += 1; continue }
                 var k = 1
@@ -617,14 +654,19 @@ public enum FeedDiscovery {
                 guard k == needle.count else { i += 1; continue }
                 var j = i + needle.count
                 while j < bytes.count, isURLByte(bytes[j]) { j += 1 }
-                if j - i > needle.count,
-                   let s = String(bytes: bytes[i..<j], encoding: .utf8) {
-                    out.append(s)
-                }
+                guard j < bytes.count || isLast else { open = Array(bytes[i..<j]); return }
+                close(bytes[i..<j])
                 i = j
             }
+            if !isLast { undecided = bytes.count - i }
         }
-        return out
+
+        private mutating func close<Bytes: Collection<UInt8>>(_ literal: Bytes) {
+            if literal.count > Self.needle.count,
+               let s = String(bytes: literal, encoding: .utf8) {
+                found.append(s)
+            }
+        }
     }
 
     private static func isURLByte(_ b: UInt8) -> Bool {

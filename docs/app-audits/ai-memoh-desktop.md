@@ -3,7 +3,7 @@
 ## 基本信息
 - Bundle ID: `ai.memoh.desktop`
 - Team ID: `P9R669C27U`（`Developer ID Application: Shenzhen Moerin Technology Co., Ltd.`）
-- 观测版本: `2026.9.16-1`（short == build，后缀一并带着）
+- 观测版本: `2026.9.27-1`（short == build，后缀一并带着；2026-09-16 接入时为 `2026.9.16-1`）
 - 自更新机制: electron-updater，generic provider（`desktopresource.memoh.ai`）
 - 开源: `felinics/Memoh`（AGPL-3.0），桌面端在 `apps/desktop/`
 
@@ -55,9 +55,25 @@
 | 证据 | electron-updater 依赖 | `latest-mac.yml` 只有两个 zip 条目，未列 blockmap（2026-09-16） | 不是 Sparkle delta，没有现成机制 |
 
 ## Changelog
-- 来源: 无。`latest-mac.yml` 是清单，没有正文；GitHub release notes 讲的是 OSS 服务端版本（`v0.20.0`），
-  编号对不上桌面版。
-- Recipe 状态: 不需要（目前没有可对号的来源）。
+- 来源: recipe —— `felinics/Memoh` 的 GitHub releases（`.gitHubReleases`，`per_page=20`，`maxEntries: 10`）。
+- **为什么 OSS 的 release notes 就是桌面版的**（settled from source: `apps/desktop/scripts/build-env.mjs` on `main`）:
+  桌面包是 OSS 源码树原样构建，下游只用 `MEMOH_DESKTOP_VERSION` → `-c.extraMetadata.version` 改了
+  `app.asar` 顶层 `package.json` 的版本。包内的 `node_modules/@memohai/runtime/package.json` 没被改写，
+  `2026.9.27-1` 的包里它写的是 **`0.20.0`**（2026-10-05 解包核对），即构建所用的 OSS 版本。
+- **编号对不上，按 tag 原样显示**: 条目版本是 `v0.20.0`、`v0.19.0`……（`tagPattern`
+  `^(v[0-9]+(?:\.[0-9]+){2})$` 把 `v` 留在捕获组里）。feed 不说某个桌面构建对应哪个 OSS 版本，
+  所以没有条目能挂到 `2026.x` 版本号下。留着 `v`，`duo verify` 的落后/领先检查（要求首字符是数字）就不会把
+  `0.20` 和 `2026.9` 当同一套编号比，否则每次扫描都会报「落后一整个版本」。`Changelog.carries` 会去掉 `v`，
+  所以磁盘缓存一直把这页当 provisional、6 小时重读一次，和 Raycast / Toolbox 编号更粗的情况同一方向。
+  两处都有测试钉住（`MemohChangelogRecipeTests`、`BaselineTests.upstreamTaggedChangelogIsNotComparedToADateNumberedApp`）。
+- 语义上的出入: 桌面构建可能比它所基于的 OSS 版本多出 tag 之后 main 上的提交（`v0.20.0` tag 于 2026-09-15，
+  `2026.9.27-1` 构建于 2026-09-27，main 上的版本号仍是 `0.20.0`），这部分改动在下一个 OSS release 之前没有 notes。
+- 结构化: `recipe changelog:ai.memoh.desktop:-: 10 entries; newest v0.20.0: 108 items, headings ["🚀 Features", "🐞 Bug Fixes"]`
+  （2026-10-05，`channel-verify` 对真包）。`&nbsp;` 填充的 `###` 标题保留为分节；`- **desktop**:` 这类作用域分组
+  并进子条目（`**desktop**: 后台自动更新与侧栏更新入口`）；`by @… in …` 署名和 commit 链接被裁掉；
+  `#####` 的 compare 链接页脚不成条目。预发布（`v0.9.0-beta.N` 等）被稳定渠道过滤掉。
+- 跟随 channel: 单渠道，不涉及。
+- Recipe 状态: 已有。
 
 ## 一键安装
 - 状态: **支持**
@@ -95,6 +111,10 @@ swift run --package-path application-test channel-verify <解出的 Memoh.app> -
 #   verdict UPDATE 2026.9.16-0 → 2026.9.16-1
 swift run --package-path application-test feed-discover <Memoh.app>
 #   review electronManifestUnreachable（通用源解不出，这是加 recipe 的理由）
+# changelog（2026-10-05，2026.9.27-1 真包）:
+#   changelog pane → recipe changelog:ai.memoh.desktop:-: 10 entries; newest v0.20.0, headings 🚀 Features / 🐞 Bug Fixes
+# 包内 OSS 版本: npx @electron/asar extract Contents/Resources/app.asar x
+#   x/package.json → 2026.9.27-1；x/node_modules/@memohai/runtime/package.json → 0.20.0
 ```
 
 ## 建议下一步
@@ -113,3 +133,18 @@ swift run --package-path application-test feed-discover <Memoh.app>
 - 变异验证：去掉版本后缀、把校验和改成取首个 `sha512:`、把 URL 的架构锚放宽成任意架构，三处分别让
   对应用例变红；还原后四条用例全绿。第一轮只有一份原序 fixture，取首个 `sha512:` 那处变异**没变红**，
   因为 arm64 恰好排第一，于是补了对调顺序的用例。
+
+### Recipes/ai-memoh-desktop.swift — changelog（GitHub releases）
+
+2026-10-05 加入时的实测：
+
+- `latest-mac.yml` 已到 `2026.9.27-1`（`Last-Modified: Sun, 27 Sep 2026 07:05:08 GMT`），结构与接入时相同，
+  探针的四个 pattern 在新响应上仍各命中一次；`1-mac.yml` / `beta-mac.yml` / `alpha-mac.yml` / `nightly-mac.yml` 仍 404。
+- 下载 `Memoh-2026.9.27-1-mac-arm64.zip`（133,941,650 B）解包，`app.asar` 顶层 `package.json` 为 `2026.9.27-1`，
+  `node_modules/@memohai/runtime/package.json` 为 `0.20.0`。源码里没有别的地方注入 OSS 版本或 commit：
+  `commitHash` 来自运行时向服务端取的 capabilities，不是构建时烘进去的。
+- `felinics/Memoh` 最新 20 个 release 中 14 个稳定、6 个预发布（2026-10-05 v0.21.0 发布前数；最新的预发布是 `v0.10.0-alpha.1`），
+  tag 全部是 `v` 加三段数字，没有别的产品线混在里面。
+- 最初考虑过只靠 tag 保留 `v` 来同时避开缓存和 verify 两处比较，实测 `VersionComparator.comparableMarketingVersion`
+  会去掉开头的 `v`，所以只避开了 verify；缓存那边接受 provisional。
+

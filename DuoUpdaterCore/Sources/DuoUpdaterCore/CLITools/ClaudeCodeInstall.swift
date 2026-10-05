@@ -348,7 +348,8 @@ public struct ClaudeCodeScanner: Sendable {
 
     /// A package in pnpm 11's shared store, `<pnpm home>/store/v11/links/…/<version>/…`,
     /// is one version's copy: the next `pnpm add -g` moves the group's link to a
-    /// new copy and leaves this one until `pnpm store prune`. So the install is
+    /// new copy and leaves this one until `pnpm store prune` (both measured with
+    /// 11.28.4, 2026-10-06). So the install is
     /// the group whose package resolves to it, read at its `global/v11/<hash>`
     /// link like a conventional one (and so listed once beside it); a copy no
     /// group uses is a leftover, not an install.

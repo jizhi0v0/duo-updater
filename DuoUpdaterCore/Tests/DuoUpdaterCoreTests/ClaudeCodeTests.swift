@@ -186,13 +186,12 @@ import Foundation
     }
 
     /// After an upgrade both layouts can be there; each is found. A group
-    /// directory no hash link points at is stale (left for `pnpm store prune`)
-    /// and is not an install.
-    @Test func pnpm10ProjectAndPnpm11GroupAreBothFoundButStaleGroupsAreNot() throws {
+    /// directory no hash link points at is not an install.
+    @Test func pnpm10ProjectAndPnpm11GroupAreBothFoundButUnlinkedGroupsAreNot() throws {
         let box = try Sandbox()
         try box.package("home/Library/pnpm/global/5/node_modules/@anthropic-ai/claude-code", version: "2.1.280", linked: true)
         try pnpmGroup(box, hash: "b4c5bcd1", directory: "bbc2-1a10d6bd", version: "2.1.289", linked: true)
-        try box.package("home/Library/pnpm/global/v11/b434-stale/node_modules/@anthropic-ai/claude-code", version: "2.1.270", linked: true)
+        try box.package("home/Library/pnpm/global/v11/b434-unlinked/node_modules/@anthropic-ai/claude-code", version: "2.1.270", linked: true)
 
         let found = box.scanner().scan()
         #expect(found.map(\.version) == ["2.1.280", "2.1.289"])

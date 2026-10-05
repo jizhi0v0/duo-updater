@@ -213,3 +213,50 @@ public struct NodePrefixes: Sendable {
         }
     }
 }
+
+/// Where pnpm keeps what it installs globally, by its own defaults — read from
+/// the layout, like the node prefixes above, never from `PNPM_HOME`, which a
+/// GUI process does not have.
+public enum GlobalPackageHomes {
+    /// pnpm's home on macOS, `~/Library/pnpm`: `globalDir` defaults to
+    /// `~/Library/pnpm/global` and `globalBinDir` to `~/Library/pnpm/bin`, or
+    /// both under `$XDG_DATA_HOME/pnpm` when that is set (pnpm.io
+    /// `settings/other.md`, read 2026-10-06). Measured 2026-10-06: pnpm 10.34.6
+    /// put the command in the home itself, 11.28.4 and 12.9.1 in `bin`.
+    public static func pnpm(home: URL) -> URL { home.appendingPathComponent("Library/pnpm") }
+
+    /// Every pnpm project under pnpm's home, in every layout — measured in
+    /// scratch homes with pnpm 10.34.6, 11.28.4 and 12.9.1 on 2026-10-06:
+    /// - pnpm 10 and older: `global/<layout version>` (`global/5`); each
+    ///   `node_modules/<name>` links into `.pnpm`.
+    /// - pnpm 11 and later: `global/v11/<hash>`, a link to the install group's
+    ///   real directory; each `node_modules/<name>` links into the shared
+    ///   `store/v11/links`. Updating the package with the same pnpm kept the
+    ///   hash and moved the link (`isolated`); pnpm 12 replaced pnpm 11's group
+    ///   with one of its own.
+    ///
+    /// Both can be there after an upgrade: pnpm 11.28.4's `ls -g` in a home with
+    /// only a pnpm 10 project says "No global packages found".
+    public static func pnpmProjects(in pnpmHome: URL) -> [(project: URL, isolated: Bool)] {
+        let global = pnpmHome.appendingPathComponent("global")
+        let fm = FileManager.default
+        var projects: [(project: URL, isolated: Bool)] = []
+        for entry in ((try? fm.contentsOfDirectory(atPath: global.path)) ?? []).sorted() {
+            let directory = global.appendingPathComponent(entry)
+            if !entry.isEmpty, entry.allSatisfy(\.isNumber) {
+                projects.append((directory, false))
+            } else if entry.hasPrefix("v"), let layout = Int(entry.dropFirst()), layout >= 11 {
+                // Only the hash links are installs, not the group directories
+                // they point at (nor `pnpm-workspace.yaml` beside them). Each
+                // update measured removed the old group's directory; one no link
+                // points at would not be an install anyway.
+                for group in ((try? fm.contentsOfDirectory(atPath: directory.path)) ?? []).sorted() {
+                    let link = directory.appendingPathComponent(group)
+                    guard (try? fm.destinationOfSymbolicLink(atPath: link.path)) != nil else { continue }
+                    projects.append((link, true))
+                }
+            }
+        }
+        return projects
+    }
+}

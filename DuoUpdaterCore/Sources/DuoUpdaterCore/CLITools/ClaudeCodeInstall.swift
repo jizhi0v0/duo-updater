@@ -57,10 +57,13 @@ public struct ClaudeCodeInstall: Sendable, Equatable, Codable {
         /// native install leaves behind in `versions/`.
         case executableMissing
         /// The npm-family package is present but its native binary is not. pnpm
-        /// 10.33 skips postinstall by default (measured), and then `bin/claude.exe`
-        /// is a 500-byte script that prints "claude native binary not installed".
-        /// bun 1.4.2 skips it too, but links its shim past that script to the
-        /// platform package's binary, so a bun install runs (measured).
+        /// 10.33, 11.28.4 and 12.9.1 skip postinstall by default (measured;
+        /// `--allow-build=@anthropic-ai/claude-code` runs it), and then
+        /// `bin/claude.exe` is a 500-byte script that prints "claude native
+        /// binary not installed". bun 1.4.2 skips it too — not for trust (the
+        /// package is on its default trusted list) but by its postinstall
+        /// optimizer, which links the shim past that script to the platform
+        /// package's binary instead — so a bun install runs (measured).
         case nativeBinaryNotLinked
     }
 
@@ -235,14 +238,15 @@ public struct ClaudeCodeScanner: Sendable {
         NodePrefixes(home: home, systemPrefixes: systemPrefixes).discover(NodePrefixes.claudeCodeSources).map(\.url)
     }
 
-    /// pnpm's global directory on macOS is `~/Library/pnpm/global/<layout version>`,
-    /// whose `node_modules/@anthropic-ai/claude-code` links into `.pnpm/…`.
+    /// Every pnpm project under pnpm's home (`GlobalPackageHomes.pnpmProjects`):
+    /// pnpm 10's `global/<layout version>`, whose `node_modules/@anthropic-ai/claude-code`
+    /// links into `.pnpm/…`, and pnpm 11's and later's `global/v11/<hash>` group
+    /// links, whose package links into `store/v11/links/…`. The path keeps the
+    /// hash link, which is the group's identity across updates.
     func pnpmInstalls() -> [ClaudeCodeInstall] {
-        let root = home.appendingPathComponent("Library/pnpm/global")
-        let layouts = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
-        return layouts.sorted().compactMap {
+        GlobalPackageHomes.pnpmProjects(in: GlobalPackageHomes.pnpm(home: home)).compactMap {
             packageInstall(
-                at: root.appendingPathComponent($0).appendingPathComponent(Self.packagePath),
+                at: $0.project.appendingPathComponent(Self.packagePath),
                 method: .pnpm, origin: .conventional)
         }
     }
@@ -310,12 +314,21 @@ public struct ClaudeCodeScanner: Sendable {
     }
 
     /// A package directory outside the conventional roots, classified by the same
-    /// layout rules: inside a `.pnpm` store it is pnpm's; under `<root>/install/global`
+    /// layout rules: a copy in pnpm's `store/v11/links` or a `.pnpm` store is the
+    /// pnpm project that uses it (`pnpmProjectPackage`), else, inside `.pnpm`,
+    /// still pnpm's; under `<root>/install/global`
     /// it is bun's; directly under a node
     /// prefix (`<prefix>/lib/node_modules/…`) with that prefix's own `bin/npm`, it
     /// is npm's and is updated by that npm.
     func userPackage(_ package: URL) -> ClaudeCodeInstall? {
         let path = package.resolvingSymlinksInPath().path
+        let store = path.range(of: #"/store/v[0-9]+/links/"#, options: .regularExpression)
+        if store != nil || path.contains("/.pnpm/"),
+           let project = pnpmProjectPackage(
+               resolving: path, alsoIn: store.map { URL(fileURLWithPath: String(path[..<$0.lowerBound])) })
+        {
+            return packageInstall(at: project, method: .pnpm, origin: .userAdded)
+        }
         if path.contains("/.pnpm/") {
             return packageInstall(at: package, method: .pnpm, origin: .userAdded)
         }
@@ -336,6 +349,30 @@ public struct ClaudeCodeScanner: Sendable {
             }
         }
         return packageInstall(at: package, method: .unknown, origin: .userAdded)
+    }
+
+    /// The pnpm project package a hand-added copy is, read at the project's
+    /// path like a conventional one (and so listed once beside it).
+    ///
+    /// A copy in pnpm 11's shared store, `<store>/v11/links/…/<version>/…`, is
+    /// one version's: the next `pnpm add -g` moves the group's link to a new copy
+    /// and leaves this one until `pnpm store prune` (both measured with 11.28.4,
+    /// 2026-10-06), so only the group whose package resolves to it makes it an
+    /// install. The store is `<pnpm home>/store` unless `store-dir` moves it —
+    /// 11.28.4 then links into `<store-dir>/v11/links`, 12.9.1 into the group's
+    /// own `node_modules/.pnpm`, as pnpm 10's project does — so the projects
+    /// looked in are pnpm's default home's and `home`'s, the one a store path
+    /// names. nil when none uses the copy: a leftover, or a project in neither.
+    func pnpmProjectPackage(resolving path: String, alsoIn home: URL?) -> URL? {
+        // pnpm's default home spelled as the scan spells it, so the project's
+        // path matches the conventional install's.
+        let defaultHome = GlobalPackageHomes.pnpm(home: self.home)
+        let homes = [defaultHome] + [home].compactMap { $0 }
+            .filter { $0.path != defaultHome.resolvingSymlinksInPath().path }
+        return homes.lazy
+            .flatMap { GlobalPackageHomes.pnpmProjects(in: $0) }
+            .map { $0.project.appendingPathComponent(Self.packagePath) }
+            .first { $0.resolvingSymlinksInPath().path == path }
     }
 
     // MARK: - Files

@@ -19,8 +19,9 @@ import Foundation
 /// `read(2)` copies bytes and validates nothing, so the file is read in chunks
 /// instead, each kept with enough of the previous one that a literal spanning a
 /// boundary is still found whole. The same holds for every other reader of
-/// executables that are not ours: `BundleFactsReader` (each Mach-O in a bundle)
-/// and `BlenderBuildInfo` read through ``forEachChunk(of:overlap:chunkSize:_:)``.
+/// executables that are not ours: `BundleFactsReader` (each Mach-O in a bundle),
+/// `BlenderBuildInfo` and `FeedDiscovery` (each Mach-O and `app.asar` in a
+/// bundle) read through ``forEachChunk(of:overlap:chunkSize:_:)``.
 enum ExecutableBytes {
 
     /// The window around each occurrence of `marker`: `before` bytes ahead of it

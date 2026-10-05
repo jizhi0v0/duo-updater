@@ -370,14 +370,68 @@ import Foundation
     }
 
     /// After an update the group links to the new version's copy; the old one
-    /// stays in the store until it is pruned, and is not an install.
-    @Test func userAddedPnpmStoreCopyNoGroupUsesIsNotAnInstall() throws {
+    /// stays in the store until it is pruned. No group uses it, so it is not
+    /// read as pnpm's: it keeps the detection-only reading any loose package gets.
+    @Test func userAddedPnpmStoreCopyNoGroupUsesIsUnknown() throws {
         let box = try Sandbox()
         try pnpmGroup(box, hash: "a629ed56", directory: "bb47-18dbb709", version: "2.1.289", linked: true, pnpmHome: "tools/pnpm")
         let old = "tools/pnpm/store/v11/links/@anthropic-ai/claude-code/2.1.280/c1c9/node_modules/@anthropic-ai/claude-code"
         try box.package(old, version: "2.1.280", linked: true)
 
-        #expect(box.scanner().scan(userPaths: [box.root.path + "/" + old]).isEmpty)
+        let found = box.scanner().scan(userPaths: [box.root.path + "/" + old])
+        #expect(found.map(\.method) == [.unknown])
+        #expect(found.first?.path.hasSuffix("/" + old) == true)
+    }
+
+    /// `store-dir` moved off pnpm's home: pnpm 11.28.4 links the default home's
+    /// group into `<store-dir>/v11/links`. The copy is still that group.
+    @Test func userAddedPnpmStoreCopyInAMovedStoreIsTheDefaultHomesGroup() throws {
+        let box = try Sandbox()
+        let store = "elsewhere/store/v11/links/@anthropic-ai/claude-code/2.1.289/d32b/node_modules/@anthropic-ai/claude-code"
+        try box.package(store, version: "2.1.289", linked: true)
+        try box.write("home/Library/pnpm/global/v11/b434-1a10d6b4b08/package.json",
+                      #"{"dependencies":{"@anthropic-ai/claude-code":"^2.1.289"}}"#)
+        try box.symlink("home/Library/pnpm/global/v11/b434-1a10d6b4b08/node_modules/@anthropic-ai/claude-code",
+                        to: box.root.path + "/" + store)
+        try box.symlink("home/Library/pnpm/global/v11/b4c5bcd1", to: "b434-1a10d6b4b08")
+
+        let found = box.scanner().scan(userPaths: [box.root.path + "/" + store])
+        #expect(found.count == 1)
+        #expect(found.first?.origin == .conventional)
+        #expect(found.first?.path == box.home.path + "/Library/pnpm/global/v11/b4c5bcd1/node_modules/@anthropic-ai/claude-code")
+    }
+
+    /// pnpm 12.9.1 with `store-dir` moved links the group's package into the
+    /// group's own `node_modules/.pnpm`, as pnpm 10 does in its project. That
+    /// copy, added by hand, is the project, listed once.
+    @Test func userAddedDotPnpmCopyOfAConventionalProjectIsListedOnce() throws {
+        for project in ["global/v11/bd6e-18dbb909", "global/5"] {
+            let box = try Sandbox()
+            let root = "home/Library/pnpm/" + project + "/node_modules"
+            let copy = root + "/.pnpm/@anthropic-ai+claude-code@2.1.289/node_modules/@anthropic-ai/claude-code"
+            try box.package(copy, version: "2.1.289", linked: true)
+            try box.symlink(root + "/@anthropic-ai/claude-code", to: "../.pnpm/@anthropic-ai+claude-code@2.1.289/node_modules/@anthropic-ai/claude-code")
+            if project.hasPrefix("global/v11/") {
+                try box.symlink("home/Library/pnpm/global/v11/a629ed56", to: "bd6e-18dbb909")
+            }
+            let link = project.hasPrefix("global/v11/") ? "global/v11/a629ed56" : project
+
+            let found = box.scanner().scan(userPaths: [box.root.path + "/" + copy])
+            #expect(found.count == 1, "\(project)")
+            #expect(found.first?.origin == .conventional, "\(project)")
+            #expect(found.first?.path == box.home.path + "/Library/pnpm/\(link)/node_modules/@anthropic-ai/claude-code", "\(project)")
+        }
+    }
+
+    /// A `.pnpm` copy no project of pnpm's default home uses stays pnpm's.
+    @Test func userAddedDotPnpmCopyElsewhereIsStillPnpm() throws {
+        let box = try Sandbox()
+        let copy = "tools/pnpm/global/5/node_modules/.pnpm/@anthropic-ai+claude-code@2.1.289/node_modules/@anthropic-ai/claude-code"
+        try box.package(copy, version: "2.1.289", linked: true)
+
+        let found = box.scanner().scan(userPaths: [box.root.path + "/" + copy])
+        #expect(found.map(\.method) == [.pnpm])
+        #expect(found.first?.origin == .userAdded)
     }
 
     @Test func userAddedDuplicateOfAConventionalInstallIsListedOnce() throws {

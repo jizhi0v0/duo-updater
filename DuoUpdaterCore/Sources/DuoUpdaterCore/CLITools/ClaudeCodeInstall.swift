@@ -314,15 +314,20 @@ public struct ClaudeCodeScanner: Sendable {
     }
 
     /// A package directory outside the conventional roots, classified by the same
-    /// layout rules: in pnpm 11's `store/v11/links` it is the pnpm group that
-    /// uses it (`pnpmStoreInstall`); inside a `.pnpm` store it is pnpm's; under `<root>/install/global`
+    /// layout rules: a copy in pnpm's `store/v11/links` or a `.pnpm` store is the
+    /// pnpm project that uses it (`pnpmProjectPackage`), else, inside `.pnpm`,
+    /// still pnpm's; under `<root>/install/global`
     /// it is bun's; directly under a node
     /// prefix (`<prefix>/lib/node_modules/…`) with that prefix's own `bin/npm`, it
     /// is npm's and is updated by that npm.
     func userPackage(_ package: URL) -> ClaudeCodeInstall? {
         let path = package.resolvingSymlinksInPath().path
-        if let store = path.range(of: #"/store/v[0-9]+/links/"#, options: .regularExpression) {
-            return pnpmStoreInstall(resolved: path, pnpmHome: URL(fileURLWithPath: String(path[..<store.lowerBound])))
+        let store = path.range(of: #"/store/v[0-9]+/links/"#, options: .regularExpression)
+        if store != nil || path.contains("/.pnpm/"),
+           let project = pnpmProjectPackage(
+               resolving: path, alsoIn: store.map { URL(fileURLWithPath: String(path[..<$0.lowerBound])) })
+        {
+            return packageInstall(at: project, method: .pnpm, origin: .userAdded)
         }
         if path.contains("/.pnpm/") {
             return packageInstall(at: package, method: .pnpm, origin: .userAdded)
@@ -346,23 +351,28 @@ public struct ClaudeCodeScanner: Sendable {
         return packageInstall(at: package, method: .unknown, origin: .userAdded)
     }
 
-    /// A package in pnpm 11's shared store, `<pnpm home>/store/v11/links/…/<version>/…`,
-    /// is one version's copy: the next `pnpm add -g` moves the group's link to a
-    /// new copy and leaves this one until `pnpm store prune` (both measured with
-    /// 11.28.4, 2026-10-06). So the install is
-    /// the group whose package resolves to it, read at its `global/v11/<hash>`
-    /// link like a conventional one (and so listed once beside it); a copy no
-    /// group uses is a leftover, not an install.
-    func pnpmStoreInstall(resolved path: String, pnpmHome: URL) -> ClaudeCodeInstall? {
-        // pnpm's default home spelled as the scan spells it, so the group's path
-        // matches the conventional install's.
-        let defaultHome = GlobalPackageHomes.pnpm(home: home)
-        let pnpmHome = defaultHome.resolvingSymlinksInPath().path == pnpmHome.path ? defaultHome : pnpmHome
-        let group = GlobalPackageHomes.pnpmProjects(in: pnpmHome)
-            .filter(\.isolated)
+    /// The pnpm project package a hand-added copy is, read at the project's
+    /// path like a conventional one (and so listed once beside it).
+    ///
+    /// A copy in pnpm 11's shared store, `<store>/v11/links/…/<version>/…`, is
+    /// one version's: the next `pnpm add -g` moves the group's link to a new copy
+    /// and leaves this one until `pnpm store prune` (both measured with 11.28.4,
+    /// 2026-10-06), so only the group whose package resolves to it makes it an
+    /// install. The store is `<pnpm home>/store` unless `store-dir` moves it —
+    /// 11.28.4 then links into `<store-dir>/v11/links`, 12.9.1 into the group's
+    /// own `node_modules/.pnpm`, as pnpm 10's project does — so the projects
+    /// looked in are pnpm's default home's and `home`'s, the one a store path
+    /// names. nil when none uses the copy: a leftover, or a project in neither.
+    func pnpmProjectPackage(resolving path: String, alsoIn home: URL?) -> URL? {
+        // pnpm's default home spelled as the scan spells it, so the project's
+        // path matches the conventional install's.
+        let defaultHome = GlobalPackageHomes.pnpm(home: self.home)
+        let homes = [defaultHome] + [home].compactMap { $0 }
+            .filter { $0.path != defaultHome.resolvingSymlinksInPath().path }
+        return homes.lazy
+            .flatMap { GlobalPackageHomes.pnpmProjects(in: $0) }
             .map { $0.project.appendingPathComponent(Self.packagePath) }
             .first { $0.resolvingSymlinksInPath().path == path }
-        return group.flatMap { packageInstall(at: $0, method: .pnpm, origin: .userAdded) }
     }
 
     // MARK: - Files

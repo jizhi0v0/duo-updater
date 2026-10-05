@@ -298,31 +298,28 @@ public struct ReappearanceWatch: Sendable, Equatable {
     }
 }
 
-/// Fail fast when the installer parked on a Sparkle app's quit has exited and
-/// the bundle never moved, instead of waiting out the whole ~180 s.
+/// Fail fast when the installer parked on an app's quit has given up and the
+/// bundle never moved, instead of waiting out the whole ~180 s.
 ///
 /// `ReappearanceWatch` cannot cover this: it needs the app to come back up, and
 /// when the installer gives up nobody reopens it. Measured on ChatGPT
 /// (Sparkle 2.9.1) 2026-10-06: quit at 03:13:06.8, `Autoupdate` failed ("Source
 /// file to move (ChatGPT.app) does not exist" — its staging had been deleted)
 /// and exited at 03:13:08.6, and the wait ran on until 03:16:26 with the app
-/// closed the whole time.
+/// closed the whole time. Claude's ShipIt killed by macOS 27 on 2026-09-19 is
+/// the same shape.
 ///
-/// **What is watched.** The `Autoupdate` processes found parked before the quit
-/// (`SparkleStagingClearance.parkedInstallerPIDs`) — the process that does the
-/// swap, so with all of them gone nothing is left to move the bundle. None found
-/// (an installer running as root, a job list that could not be read) leaves the
-/// watch off: absence we never saw present says nothing.
+/// **What "alive" means** is `ParkedInstallerProbe`'s call — Sparkle's pids,
+/// ShipIt's pid or still-loaded job — found before the quit. No probe (an
+/// installer in the system domain, a job list that could not be read) leaves
+/// the watch off: absence we never saw present says nothing.
 ///
 /// **The grace.** Same ordering as `ReappearanceWatch`: the tick that first sees
-/// the installers gone read disk *before* that sighting, and a successful swap
-/// lands before `Autoupdate` exits. So the verdict waits for `graceTicks` disk
-/// reads taken after it, each still not landed.
-///
-/// ShipIt is not judged here. Its job is not shown to stay down once it exits —
-/// Squirrel counts installation attempts (`SQRLShipItMaximumInstallationAttempts`),
-/// so an exited ShipIt may yet be run again. Unverified either way; it keeps the
-/// full wait.
+/// the installer gone read disk *before* that sighting, and a successful swap
+/// lands before the installer exits (Sparkle's `Autoupdate` does the move;
+/// ShipIt logs "Installation completed successfully" before it quits). So the
+/// verdict waits for `graceTicks` disk reads taken after it, each still not
+/// landed.
 public struct InstallerExitWatch: Sendable, Equatable {
     public static let graceTicks = ReappearanceWatch.graceTicks
 
@@ -333,17 +330,17 @@ public struct InstallerExitWatch: Sendable, Equatable {
     /// Whether an installer's exit can end the wait at all. Fixed at creation.
     public let judgesExit: Bool
 
-    /// - Parameter watchedInstallers: how many installer processes were found
-    ///   parked before the quit. Zero turns the watch off.
-    public init(watchedInstallers: Int) {
-        judgesExit = watchedInstallers > 0
+    /// - Parameter watching: whether an installer was found parked before the
+    ///   quit (`ParkedInstallerProbe.find` answered). False turns the watch off.
+    public init(watching: Bool) {
+        judgesExit = watching
     }
 
     /// Feed one tick of the wait, AFTER that tick's disk read came back not
     /// landed. Returns true when the wait should give up.
     ///
     /// - Parameters:
-    ///   - installersAlive: whether any watched installer process is still alive.
+    ///   - installersAlive: `ParkedInstallerProbe.isAlive` for this tick.
     ///   - everQuit: whether every instance of the app has been seen gone at some
     ///     tick, including this one. Before the quit there is nothing to judge:
     ///     the `wontQuit` path owns that case.

@@ -259,9 +259,9 @@ import Testing
     /// Feed one tick per element of `alive` starting at `from`; returns the tick
     /// at which the watch gave up, if any.
     private func firstExitGiveUp(
-        _ alive: [Bool], from: Int = 10, watched: Int = 1, everQuit: Bool = true
+        _ alive: [Bool], from: Int = 10, watching: Bool = true, everQuit: Bool = true
     ) -> Int? {
-        var watch = InstallerExitWatch(watchedInstallers: watched)
+        var watch = InstallerExitWatch(watching: watching)
         for (offset, isAlive) in alive.enumerated() {
             if watch.observe(tick: from + offset, installersAlive: isAlive, everQuit: everQuit) {
                 return from + offset
@@ -280,12 +280,12 @@ import Testing
         #expect(InstallerExitWatch.graceTicks == ReappearanceWatch.graceTicks)
     }
 
-    /// No installer found before the quit (one running as root, a job list that
-    /// failed) must keep the full wait: absence never seen present proves
+    /// No installer found before the quit (one in the system domain, a job list
+    /// that failed) must keep the full wait: absence never seen present proves
     /// nothing. Mutation: drop the `judgesExit` guard → red.
     @Test func nothingWatchedNeverGivesUp() {
-        #expect(firstExitGiveUp(Array(repeating: false, count: 50), watched: 0) == nil)
-        #expect(!InstallerExitWatch(watchedInstallers: 0).judgesExit)
+        #expect(firstExitGiveUp(Array(repeating: false, count: 50), watching: false) == nil)
+        #expect(!InstallerExitWatch(watching: false).judgesExit)
     }
 
     /// Before the app has quit, an installer's exit is not this watch's call —

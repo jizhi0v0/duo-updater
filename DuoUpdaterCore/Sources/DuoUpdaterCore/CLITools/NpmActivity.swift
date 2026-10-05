@@ -146,7 +146,8 @@ public enum NpmActivity {
     /// openclaw's update by its own record of it. From 2026.9 the title says
     /// nothing: `setProcessTitleForCommand` sets plain `openclaw` for every
     /// command (2026.9.8's `dist/program-*.mjs`, read 2026-10-06; only the gateway
-    /// renames itself, `openclaw-gateway`), so the update is argv
+    /// and the macOS node worker rename themselves, `openclaw-gateway` and
+    /// `openclaw-node-worker`), so the update is argv
     /// `["openclaw", "", …]` like any other openclaw — and on macOS the title
     /// overwrites the environment block too (`ps -E` shows nothing), so neither
     /// can tell it apart. What still can is the ledger openclaw keeps of its own

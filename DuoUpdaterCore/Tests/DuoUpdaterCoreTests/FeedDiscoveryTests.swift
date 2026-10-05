@@ -353,6 +353,47 @@ private let declaredFeed = "https://zzfixture.example.test/appcast.xml"
     #expect(FeedDiscovery.httpsLiterals(in: blob) == ["https://example.com/appcast.xml"])
 }
 
+/// Read a chunk at a time (`ExecutableBytes`), a binary gives the literals it
+/// gives whole, wherever the boundaries fall: a scheme cut anywhere, a literal
+/// longer than many chunks, a scheme inside a literal (part of it, not a second
+/// one), a bare scheme (no literal), near misses, and a literal the file's end
+/// terminates. Every chunk size from 1 to past the file. Mutation: carry less
+/// than `overlap`, close a literal at a chunk's end, or look for a scheme
+/// inside a literal.
+@Test func literalsAreTheSameInEveryChunking() throws {
+    let long = "https://example.com/" + String(repeating: "a/", count: 40) + "appcast.xml"
+    var bytes = Data()
+    for text in [
+        "https://first.example/appcast.xml\0", "\u{1}\u{2}https://bare.example/x.xml\0\0",
+        "hhttps://near.example/a\0", "https:https://cut.example/b\0", "http://plain.example/c\0",
+        "https://\0", "https://one.example/xhttps://two.example/y\0", "\0" + long + "\0",
+    ] {
+        bytes += Data(text.utf8) + Data([0xE2, 0x80, 0x00, 0x7F, 0x13])
+    }
+    bytes += Data("\0https://end.example/appcast.xml".utf8)
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("literals-\(UUID().uuidString)")
+    try bytes.write(to: url)
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let whole = FeedDiscovery.httpsLiterals(in: bytes)
+    #expect(whole == [
+        "https://first.example/appcast.xml", "https://bare.example/x.xml", "https://near.example/a",
+        "https://cut.example/b", "https://one.example/xhttps://two.example/y", long,
+        "https://end.example/appcast.xml",
+    ])
+    for size in 1...(bytes.count + 3) {
+        var stream = FeedDiscovery.HTTPSLiteralStream()
+        let read = ExecutableBytes.forEachChunk(
+            of: url, overlap: FeedDiscovery.HTTPSLiteralStream.overlap, chunkSize: size
+        ) { buffer, carried, isLast in
+            stream.feed(buffer, carried: carried, isLast: isLast)
+            return true
+        }
+        #expect(read)
+        #expect(stream.found == whole, "chunk size \(size)")
+    }
+}
+
 // MARK: - electron-builder
 
 // `app-update.yml` bodies below are the real files out of the installed bundles

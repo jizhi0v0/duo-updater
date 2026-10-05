@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import SQLite3
 
 /// Is something already changing a global npm package right now?
 ///
@@ -24,19 +25,23 @@ import Darwin
 /// prefix until it ends — a false "busy" for a while, never a race.
 ///
 /// A package with its own updater is also busy while that runs (`openclaw
-/// update`, `agent-browser upgrade`), whatever node runs it.
+/// update`, `agent-browser upgrade`), whatever node runs it — for openclaw
+/// from 2026.9 by its own record of the run (`openclawUpdateRun`).
 public enum NpmActivity {
 
-    /// A process as the kernel reports it: argv, and the file it executes.
+    /// A process as the kernel reports it: argv, the file it executes, and when
+    /// it started (`pbi_start_tvsec`, seconds since 1970).
     public struct Process: Sendable, Equatable {
         public let pid: pid_t
         public let arguments: [String]
         public let executable: String?
+        public let started: UInt64?
 
-        public init(pid: pid_t, arguments: [String], executable: String?) {
+        public init(pid: pid_t, arguments: [String], executable: String?, started: UInt64? = nil) {
             self.pid = pid
             self.arguments = arguments
             self.executable = executable
+            self.started = started
         }
     }
 
@@ -77,7 +82,7 @@ public enum NpmActivity {
                 return .ownUpdater(command, pid: process.pid)
             }
         }
-        return nil
+        return openclawUpdateRun(install, processes: processes)
     }
 
     /// `npm <command>` when argv is an npm changing packages, in either shape: the
@@ -138,6 +143,79 @@ public enum NpmActivity {
         return "openclaw " + first.dropFirst("openclaw-".count)
     }
 
+    /// openclaw's update by its own record of it. From 2026.9 the title says
+    /// nothing: `setProcessTitleForCommand` sets plain `openclaw` for every
+    /// command (2026.9.8's `dist/program-*.mjs`, read 2026-10-06; only the gateway
+    /// renames itself, `openclaw-gateway`), so the update is argv
+    /// `["openclaw", "", …]` like any other openclaw — and on macOS the title
+    /// overwrites the environment block too (`ps -E` shows nothing), so neither
+    /// can tell it apart. What still can is the ledger openclaw keeps of its own
+    /// runs, the `update_runs` table of `<state>/state/openclaw.sqlite`: a row
+    /// whose `status` is `running`, with the driver in `origin_json` —
+    /// `{"driver":{"host":…,"pid":…,"startIdentity":"<start, seconds>"}}`.
+    /// openclaw counts a run as live while any recorded driver (`driver`,
+    /// `previousDrivers`) is alive and started when recorded (`update-run-activity`,
+    /// `update-run-driver`), the start read with `proc_pidinfo` as here; a row a
+    /// crashed update left `running` is not live, and neither is it here.
+    ///
+    /// Measured 2026-10-06: a real `openclaw update --tag 2026.9.8` of 2026.9.7
+    /// (`bun add -g` in a scratch HOME, Homebrew's node 26.10.0), the process table
+    /// and the ledger read every 100 ms. The row appeared 6 s after the command
+    /// started and stayed `running` through `requested`, `validating` and
+    /// `activating` (127 s) with the driver's pid and start matching the process
+    /// table, until `finished` 7 s before the command exited (it went on to
+    /// triage). The first 6 s — before the row, nothing yet staged — only the
+    /// launcher's argv shows, and only when openclaw re-spawns itself, which it
+    /// skips under `OPENCLAW_NODE_OPTIONS_READY=1` (`entry.respawn`), as an update
+    /// started by a gateway inherits it.
+    ///
+    /// The ledger is per state directory, not per install: an update from another
+    /// prefix's openclaw on the same `~/.openclaw` holds this one back too — busy
+    /// for a while, never a race. Read-only, it cannot be opened while no openclaw
+    /// has it open and its `-wal`/`-shm` are gone (prepare fails, `SQLITE_CANTOPEN`,
+    /// measured on a copy of a closed one) — and then no update is running.
+    static func openclawUpdateRun(_ install: NpmInstall, processes: [Process]) -> Busy? {
+        guard case .openclaw(let settings) = install.ownUpdate, let state = settings.stateDirectory else { return nil }
+        let drivers = runningUpdateDrivers(database: state + "/state/openclaw.sqlite")
+        for process in processes where drivers.contains(where: {
+            $0.pid == process.pid && process.started.map(String.init) == $0.startIdentity
+        }) {
+            return .ownUpdater("openclaw update", pid: process.pid)
+        }
+        return nil
+    }
+
+    struct UpdateDriver: Decodable, Equatable {
+        let pid: pid_t
+        let startIdentity: String
+    }
+
+    /// The drivers of every run openclaw's ledger has as `running`; none when it
+    /// cannot be read (no file, no table — openclaw before 2026.9 —, or closed).
+    static func runningUpdateDrivers(database: String) -> [UpdateDriver] {
+        struct Origin: Decodable {
+            let driver: UpdateDriver?
+            let previousDrivers: [UpdateDriver]?
+        }
+        guard FileManager.default.fileExists(atPath: database) else { return [] }
+        var db: OpaquePointer?
+        defer { sqlite3_close(db) }
+        guard sqlite3_open_v2(database, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return [] }
+        sqlite3_busy_timeout(db, 200)
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(db, "SELECT origin_json FROM update_runs WHERE status = 'running'",
+                                 -1, &statement, nil) == SQLITE_OK else { return [] }
+        var drivers: [UpdateDriver] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let text = sqlite3_column_text(statement, 0),
+                  let origin = try? JSONDecoder().decode(Origin.self, from: Data(String(cString: text).utf8))
+            else { continue }
+            drivers += (origin.driver.map { [$0] } ?? []) + (origin.previousDrivers ?? [])
+        }
+        return drivers
+    }
+
     // MARK: - Reading the process table
 
     /// Every process of this user, with argv (`ClaudeCodeActivity.arguments`)
@@ -153,8 +231,15 @@ public enum NpmActivity {
         guard count > 0 else { return [] }
         return pids.prefix(min(count, capacity)).compactMap { pid in
             guard pid > 0, let arguments = ClaudeCodeActivity.arguments(of: pid) else { return nil }
-            return Process(pid: pid, arguments: arguments, executable: executable(of: pid))
+            return Process(pid: pid, arguments: arguments, executable: executable(of: pid), started: started(pid))
         }
+    }
+
+    static func started(_ pid: pid_t) -> UInt64? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return info.pbi_start_tvsec
     }
 
     static func executable(of pid: pid_t) -> String? {

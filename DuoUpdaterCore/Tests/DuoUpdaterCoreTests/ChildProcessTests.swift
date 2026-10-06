@@ -81,8 +81,15 @@ import Testing
     /// creates, so it can only finish if the chunk was delivered while it ran.
     ///
     /// Mutation: drop the per-buffer `onOutputChunk` call in `Sink.drainNow` →
-    /// the child never sees the file and exits 9 when its own 30 s budget runs
-    /// out.
+    /// the child never sees the file and exits 9 when its own budget runs out.
+    ///
+    /// That budget only serves the mutation, so it is ~600 s rather than the 30 s
+    /// it was. The callback runs on the cooperative pool, and with the whole suite
+    /// in flight on the 3-core runner the pool stalled for longer than 30 s:
+    /// 3 red in 344 CI attempts (2026-09-26 → 10-06, e.g. run 37363592650), each
+    /// with stdout "ready" and status 9. Occupying every pool thread for 40 s
+    /// reproduces exactly that at 30 s and passes at 600 s — the chunk is
+    /// delivered late, not lost.
     @Test func outputChunksArriveWhileTheChildRuns() async throws {
         let dir = try scratch()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -91,7 +98,7 @@ import Testing
             echo ready
             i=0
             while [ ! -f '\(go.path)' ]; do
-              i=$((i+1)); [ $i -gt 300 ] && exit 9
+              i=$((i+1)); [ $i -gt 6000 ] && exit 9
               sleep 0.1
             done
             echo done

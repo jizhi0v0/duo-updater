@@ -206,30 +206,48 @@ import Testing
         // concurrent runs from colliding on `/Volumes/Name 1`.
         let volname = "duo\(id.prefix(5))"
 
-        func run(_ arguments: [String]) -> Int32 {
+        /// hdiutil's exit status and everything it printed. `create` fails on CI
+        /// now and then with status 1 (4 in 344 attempts, 2026-09-26 → 10-06, on
+        /// HFS+, MS-DOS and APFS), and the status alone does not say why. A file,
+        /// not a pipe: `attach` hands off to a helper that may hold the pipe open
+        /// after hdiutil exits.
+        func run(_ arguments: [String]) -> (status: Int32, output: String) {
+            let log = fm.temporaryDirectory.appendingPathComponent("duo-hdiutil-\(UUID().uuidString).log")
+            defer { try? fm.removeItem(at: log) }
+            guard fm.createFile(atPath: log.path, contents: nil),
+                  let handle = try? FileHandle(forWritingTo: log) else { return (-1, "no log file") }
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
             process.arguments = arguments
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            guard (try? process.run()) != nil else { return -1 }
+            process.standardOutput = handle
+            process.standardError = handle
+            guard (try? process.run()) != nil else {
+                try? handle.close()
+                return (-1, "could not launch hdiutil")
+            }
             process.waitUntilExit()
-            return process.terminationStatus
+            try? handle.close()
+            let output = (try? String(contentsOf: log, encoding: .utf8)) ?? ""
+            return (process.terminationStatus, output)
         }
 
-        try #require(run([
+        let created = run([
             "create", "-size", "\(sizeMB)m", "-type", "SPARSE",
             "-fs", format, "-volname", volname, image.path,
-        ]) == 0, "could not create a \(format) image")
+        ])
+        try #require(created.status == 0,
+                     "could not create a \(format) image (\(created.status)): \(created.output)")
         defer { try? fm.removeItem(at: image) }
 
         try fm.createDirectory(at: mount, withIntermediateDirectories: true)
-        try #require(run([
+        let attached = run([
             "attach", "-nobrowse", "-mountpoint", mount.path, image.path,
-        ]) == 0, "could not attach the \(format) image")
+        ])
+        try #require(attached.status == 0,
+                     "could not attach the \(format) image (\(attached.status)): \(attached.output)")
         defer {
             // A leaked mount poisons the next run, so a stuck one is forced.
-            if run(["detach", mount.path]) != 0 { _ = run(["detach", "-force", mount.path]) }
+            if run(["detach", mount.path]).status != 0 { _ = run(["detach", "-force", mount.path]) }
             try? fm.removeItem(at: mount)
         }
 

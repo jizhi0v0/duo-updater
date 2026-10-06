@@ -1109,9 +1109,13 @@ final class AppListModel {
     /// expanding the Brew tree and scrolling to and highlighting those rows.
     var requestedWorkbenchBrewUnchecked = false
     /// The same kind of request for the CLI tab — set by clicking the popover's
-    /// command-line tools row. The workbench consumes and clears it, switching to
-    /// that tab.
+    /// "Other tools" row. The workbench consumes and clears it, switching to that
+    /// tab with the "Other tools" level open.
     var requestedWorkbenchCLITools = false
+    /// The same for the popover's Homebrew row: the CLI tab with the Homebrew
+    /// group open. With one request for both rows, a click on Homebrew's landed on
+    /// another tool's row with Homebrew's packages hidden (review, #1008).
+    var requestedWorkbenchHomebrew = false
 
     /// Whether a GitHub token resolved (explicit, env, or `gh` login) the last
     /// time the source stack was built. Drives the aggregate rate-limit banner:

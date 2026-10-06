@@ -167,6 +167,11 @@ import Foundation
     }
 
     /// The real child-process path, on a script standing in for fx.
+    ///
+    /// Under a generous deadline, not the production 5 s: on CI (2026-10-06, run
+    /// 37457315378) the good script missed 5 s with the suite saturating the pool,
+    /// and wall-clock bounds are not sound in a parallel suite. The deadline only
+    /// keeps a hung child from hanging the run.
     @Test func runVersionReadsStandardOutputAndRejectsAFailure() async throws {
         let box = try Sandbox()
         let good = try box.write("bin/good", "#!/bin/sh\necho 0.0.12\necho noise >&2\n")
@@ -174,8 +179,9 @@ import Foundation
         for url in [good, bad] {
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         }
-        #expect(await FxScanner.runVersion(good) == "0.0.12")
-        #expect(await FxScanner.runVersion(bad) == nil)
+        let generous = ChildProcess.Deadline(terminateAfter: .seconds(120), killAfter: .seconds(125))
+        #expect(await FxScanner.runVersion(good, deadline: generous) == "0.0.12")
+        #expect(await FxScanner.runVersion(bad, deadline: generous) == nil)
     }
 
     @Test func quarantineIsReadFromTheExtendedAttribute() throws {

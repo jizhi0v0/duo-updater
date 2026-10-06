@@ -110,18 +110,26 @@ struct MenuContentView: View {
                     .padding(.vertical, 8)
             }
             content
-            if showBrewRow {
+            if showCommandLineRow {
                 Divider()
-                brewFormulaRow
-            }
-            if showCLIToolsRow {
-                Divider()
-                CLIToolsRow(tools: model.cliTools, showInWindow: {
-                    // Target first, then open — the Changelog deep link's order.
-                    model.requestedWorkbenchCLITools = true
-                    openWindow(id: WorkbenchWindowView.windowID)
-                    model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
-                })
+                // Target first, then open — the Changelog deep link's order.
+                CommandLineRow(
+                    model: model,
+                    showInWindow: {
+                        model.requestedWorkbenchCLITools = true
+                        openWindow(id: WorkbenchWindowView.windowID)
+                        model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
+                    },
+                    showHomebrew: {
+                        model.requestedWorkbenchHomebrew = true
+                        openWindow(id: WorkbenchWindowView.windowID)
+                        model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
+                    },
+                    showBrewUnchecked: {
+                        model.requestedWorkbenchBrewUnchecked = true
+                        openWindow(id: WorkbenchWindowView.windowID)
+                        model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
+                    })
             }
             Divider()
             footer
@@ -700,318 +708,226 @@ struct MenuContentView: View {
         return "\(title) · \(figure)"
     }
 
-    /// Reserve the brew row for any machine with Homebrew installed — always, even
-    /// when nothing's outdated: it then shows an "up to date" placeholder so the brew
-    /// surface stays present and discoverable (and the row never inserts/removes under
-    /// the cursor as the outdated count changes). Brew-less machines never see it.
-    private var showBrewRow: Bool {
-        model.brewInstalled
-    }
-
-    /// Reserve the command-line tools row as soon as an install is known. The launch
-    /// scan (`CLIToolsModel.scanInstalls`, local and fast) answers that long before
-    /// the networked check, so the check lands in a row that is already there and
-    /// the popover does not grow under the cursor. No install, no row.
-    private var showCLIToolsRow: Bool {
-        !model.cliTools.sightings.isEmpty
-    }
-
-    /// A single footer row mirroring a bare terminal `brew upgrade`, scoped to CLI
-    /// formulae. Casks are managed per-app in the list above, so this never
-    /// double-counts them.
-    @ViewBuilder
-    private var brewFormulaRow: some View {
-        if model.brewUpgrading {
-            // Keep the same `terminal` identity icon the idle/checking states show, so
-            // the row stays recognizably "the brew CLI surface" mid-upgrade — only the
-            // trailing control swaps to a spinner. Mirror the real row's icon + two-line
-            // VStack structure EXACTLY (like the checking state does) so clicking
-            // Upgrade doesn't collapse the row from two lines to one and jolt the
-            // popover's height — the live `brew upgrade` line goes on the subtitle row.
-            HStack(spacing: 8) {
-                Image(systemName: "terminal").foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Upgrading Homebrew formulae")
-                        .font(.caption).fontWeight(.medium)
-                    Text(model.brewBulkProgressText ?? String(localized: "Running brew upgrade…"))
-                        .font(.caption2).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.middle)
-                        .monospacedDigit()
-                }
-                Spacer()
-                ProgressView().controlSize(.small)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-        } else if !model.brewChecked && model.brewOutdatedFormulae.isEmpty {
-            // First check still in flight — mirror the real row's structure (icon +
-            // two-line VStack) EXACTLY so it's the same height and the result swaps in
-            // without moving anything below it. The row height is driven by the
-            // two-line VStack, so the trailing spinner-vs-button difference is moot.
-            HStack(spacing: 8) {
-                Image(systemName: "terminal").foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Checking Homebrew…")
-                        .font(.caption).fontWeight(.medium)
-                    Text("Reading outdated formulae")
-                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                }
-                Spacer()
-                ProgressView().controlSize(.small)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-        } else if model.brewOutdatedFormulae.isEmpty && !model.brewUnchecked.isEmpty {
-            // Nothing outdated among what brew read — but some installed packages it
-            // wouldn't read at all (`BrewUncheckedPackage`). "Up to date" plus a green
-            // seal would be a claim about those too, so this replaces it. Same icon +
-            // two-line structure, so the row height doesn't change.
-            HStack(spacing: 8) {
-                Image(systemName: "terminal").foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("\(model.brewUnchecked.count) brew packages not checked")
-                        .font(.caption).fontWeight(.medium)
-                    Text(brewUncheckedSummary)
-                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                }
-                Spacer()
-                BrewUncheckedMark(
-                    anyTapNotTrusted: model.brewUnchecked.contains { $0.reason == .tapNotTrusted },
-                    showInWindow: {
-                        // Target first, then open — the Changelog deep link's order.
-                        model.requestedWorkbenchBrewUnchecked = true
-                        openWindow(id: WorkbenchWindowView.windowID)
-                        model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
-                    })
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-        } else if model.brewOutdatedFormulae.isEmpty {
-            // Checked, nothing outdated — the placeholder. Keeps the same icon +
-            // two-line structure as the outdated row, with a green seal instead of an
-            // Upgrade button, so the brew surface stays present and recognizably idle.
-            HStack(spacing: 8) {
-                Image(systemName: "terminal").foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Homebrew packages up to date")
-                        .font(.caption).fontWeight(.medium)
-                    Text(brewUpToDateSummary)
-                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                }
-                Spacer()
-                Image(systemName: "checkmark.seal.fill")
-                    .foregroundStyle(.green)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-        } else {
-            let count = model.brewOutdatedFormulae.count
-            HStack(spacing: 8) {
-                Image(systemName: "terminal").foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 1) {
-                    // "package", not "formula": this surface also carries casks that
-                    // install no app (CLIs, fonts), which have no per-app row.
-                    Text("\(count) brew packages outdated")
-                        .font(.caption).fontWeight(.medium)
-                    // Only the outdated names, even when some packages went unchecked:
-                    // "4 not checked · wget, fd" read as if wget and fd were the
-                    // unchecked ones. The unchecked list lives in the workbench.
-                    if let error = model.brewUpgradeError {
-                        Text(error).font(.caption2).foregroundStyle(.red).lineLimit(1)
-                    } else {
-                        Text(brewFormulaSummary)
-                            .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                }
-                Spacer()
-                Button("Upgrade") { Task { await model.upgradeBrewFormulae() } }
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .controlSize(.small)
-                    .buttonStyle(.borderedProminent)
-                    .help("Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-        }
-    }
-
-    /// "wget, fd, ripgrep…" — the first few outdated formula names as a one-line hint.
-    private var brewFormulaSummary: String {
-        let names = model.brewOutdatedFormulae.prefix(4).map(\.name)
-        let more = model.brewOutdatedFormulae.count > names.count ? "…" : ""
-        return names.joined(separator: ", ") + more
-    }
-
-    /// "bun, sshpass…" — the first few packages brew wouldn't read from their tap.
-    private var brewUncheckedSummary: String {
-        let names = model.brewUnchecked.prefix(4).map(\.name)
-        let more = model.brewUnchecked.count > names.count ? "…" : ""
-        return names.joined(separator: ", ") + more
-    }
-
-    /// Subtitle for the up-to-date placeholder — the count of top-level formulae we
-    /// track, so the idle row still says something concrete. Falls back to a plain
-    /// line when the leaf count isn't available yet.
-    private var brewUpToDateSummary: String {
-        let n = model.brewFormulae.count
-        guard n > 0 else { return String(localized: "All command-line formulae are current.") }
-        return String(localized: "\(n) top-level formulae · all current")
+    /// Reserve the command-line row as soon as either half has something to show:
+    /// Homebrew installed — always, even when nothing's outdated, so the row never
+    /// inserts or removes under the cursor as counts change — or an install of
+    /// another tool. The launch scan (`CLIToolsModel.scanInstalls`, local and fast)
+    /// answers that long before the networked check, so the check lands in a row
+    /// that is already there. Neither, no row.
+    private var showCommandLineRow: Bool {
+        model.brewInstalled || !model.cliTools.sightings.isEmpty
     }
 }
 
-/// The popover's one row for command-line tools that are not Homebrew's — Claude
-/// Code, bub, fx; a later tool joins this row rather than getting its own. Built
-/// like the brew row above it (icon, two caption lines, trailing control, same
-/// padding) and every state keeps that two-line shape, so a state change never
-/// moves anything below it.
-private struct CLIToolsRow: View {
-    let tools: CLIToolsModel
-    /// Opens the workbench on the CLI tab.
+/// The popover's rows for command-line tools, as the workbench's CLI tab holds
+/// them: one for Homebrew's packages and one for every other tool (Claude Code,
+/// bub, fx, …), each with its own state and its own Update. A later tool joins
+/// the second row rather than getting its own. A row is there while its half
+/// has anything installed, whatever state it is in.
+///
+/// Plain rows, built like the app rows above them: on 2026-10-06 one merged
+/// row, a card stack that fanned out on hover and two tiles side by side were
+/// each tried and each read as something pasted onto the popover's list.
+///
+/// The merged row had one trailing control for both halves, so it could show
+/// the Update button or brew's "not checked" mark, never both. Here Homebrew's
+/// row says how many packages brew didn't read beside its updates.
+private struct CommandLineRow: View {
+    let model: AppListModel
+    /// Opens the workbench on the CLI tab with "Other tools" open.
     let showInWindow: () -> Void
+    /// Opens the workbench on the CLI tab with the Homebrew group open.
+    let showHomebrew: () -> Void
+    /// Opens the workbench on the brew packages Homebrew didn't read.
+    let showBrewUnchecked: () -> Void
 
-    /// Which state the row is in, most urgent first.
-    private enum Phase {
-        /// `tool` is the one running now; nil between two copies of `updateAll`.
-        case updating(tool: CLIToolKind?)
-        case checking, outdated, unchecked
-        case justUpdated(tool: CLIToolKind, version: String)
-        case upToDate
-    }
+    private var tools: CLIToolsModel { model.cliTools }
 
-    private var phase: Phase {
-        if tools.updatingAll || !tools.updating.isEmpty {
-            return .updating(tool: tools.statuses.first { tools.updating.contains($0.toolID) }?.kind)
-        }
-        // Before the first verdict only. A re-check keeps showing the last answer
-        // until it is replaced, like the brew row, instead of blinking to "Checking".
-        if !tools.checked { return .checking }
-        if !tools.outdated.isEmpty { return .outdated }
-        // Not "up to date" while any copy went unanswered — that seal would be a
-        // claim about it too.
-        if !tools.unchecked.isEmpty { return .unchecked }
-        if let status = tools.statuses.first(where: { tools.justUpdated[$0.toolID] != nil }),
-           let version = tools.justUpdated[status.toolID] {
-            return .justUpdated(tool: status.kind, version: version)
-        }
-        return .upToDate
+    /// One half's state.
+    private struct Half {
+        /// Homebrew's half, whose text opens the Homebrew group rather than
+        /// "Other tools".
+        var isHomebrew = false
+        let icon: String
+        let title: String
+        /// What the row says, run together on its second line.
+        let lines: [Text]
+        /// The mark before the button: a spinner, a seal, why not checked.
+        var mark: AnyView? = nil
+        /// The Update button, when one is offered.
+        var button: AnyView? = nil
     }
 
     var body: some View {
-        let phase = phase
-        HStack(spacing: 8) {
-            // Laid out in the brew row's `terminal` glyph's width, so the two rows'
-            // text starts on one column; this glyph is a few points wider and
-            // overhangs that slot by a point or two on each side.
-            Image(systemName: "terminal").hidden()
-                .overlay {
-                    Image(systemName: "chevron.left.forwardslash.chevron.right").foregroundStyle(.secondary)
-                }
-            // The text opens the workbench, where each copy has its own row; the
-            // trailing control stays the row's one action.
-            Button(action: showInWindow) {
+        let halves = [brewHalf, toolsHalf].compactMap { $0 }
+        VStack(spacing: 0) {
+            ForEach(halves.indices, id: \.self) { i in
+                if i > 0 { Divider() }
+                row(halves[i])
+            }
+        }
+    }
+
+    private func row(_ half: Half) -> some View {
+        let status = half.lines.dropFirst().reduce(half.lines.first ?? Text(verbatim: "")) {
+            $0 + Text(verbatim: " · ") + $1
+        }
+        return HStack(spacing: 8) {
+            Image(systemName: half.icon).foregroundStyle(.secondary).frame(width: 18)
+            // The text opens the workbench, where each package and copy has its
+            // own row; the controls stay the row's actions.
+            Button(action: half.isHomebrew ? showHomebrew : showInWindow) {
                 VStack(alignment: .leading, spacing: 1) {
-                    // One line, always: a title that wrapped in a longer language
-                    // would change the row's height with its state.
-                    Text(title(phase))
-                        .font(.caption).fontWeight(.medium).lineLimit(1)
-                    subtitle(phase)
+                    Text(verbatim: half.title).font(.caption).fontWeight(.medium)
+                    status.font(.caption2).foregroundStyle(.secondary)
                 }
+                .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help(String(localized: "Show in Window"))
-            trailing(phase)
+            half.mark
+            half.button
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }
 
-    private func title(_ phase: Phase) -> String {
-        switch phase {
-        case .updating(let tool?): return String(localized: "Updating \(tool.displayName)")
-        case .updating(nil): return String(localized: "Updating command-line tools")
-        case .checking: return String(localized: "Checking command-line tools…")
-        case .outdated: return String(localized: "\(tools.outdated.count) command-line tool updates")
-        case .unchecked: return String(localized: "\(tools.unchecked.count) command-line tools not checked")
-        case .justUpdated(let tool, let version):
-            return String(localized: "\(tool.displayName) updated to \(version)")
-        case .upToDate: return String(localized: "Command-line tools up to date")
+    // MARK: Homebrew
+
+    private var brewHalf: Half? {
+        guard model.brewInstalled else { return nil }
+        let outdated = model.brewOutdatedFormulae.count
+        let unchecked = model.brewUnchecked.count
+        func half(_ lines: [Text], mark: (any View)? = nil, button: (any View)? = nil) -> Half {
+            Half(isHomebrew: true, icon: "mug", title: "Homebrew", lines: lines,
+                 mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) })
         }
+        if model.brewUpgrading {
+            return half([Text(model.brewBulkProgressText ?? String(localized: "Running brew upgrade…"))
+                .monospacedDigit()], mark: spinner)
+        }
+        if outdated == 0 && !model.brewChecked {
+            // Before the first verdict only; a re-check keeps the last answer up.
+            return half([Text(String(localized: "Checking…"))], mark: spinner)
+        }
+        // Packages brew wouldn't read stay said beside the updates: they are the
+        // ones no count here can include.
+        let uncheckedLine = unchecked > 0 ? Text(String(localized: "\(unchecked) not checked")) : nil
+        if outdated > 0 {
+            let first = model.brewUpgradeError.map { Text($0).foregroundStyle(.red) }
+                ?? Text(String(localized: "\(outdated) updates"))
+            return half([first, uncheckedLine].compactMap { $0 },
+                        mark: unchecked > 0 ? uncheckedMark : nil,
+                        button: updateButton(
+                            disabled: tools.updatingAll || !tools.updating.isEmpty || model.homebrewUpdating
+                                || !model.upgradingFormulae.isEmpty,
+                            help: String(localized: "Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
+                        ) { await model.upgradeBrewFormulae() })
+        }
+        if let uncheckedLine { return half([uncheckedLine], mark: uncheckedMark) }
+        return half([Text(String(localized: "Up to date"))], mark: seal)
     }
 
-    @ViewBuilder
-    private func subtitle(_ phase: Phase) -> some View {
-        switch phase {
-        case .updating:
-            // The first running copy's live line; `updateAll` runs one at a time.
-            let line = tools.statuses.lazy.compactMap { tools.progress[$0.toolID] }.first
-            Text(line ?? String(localized: "Starting…"))
-                .font(.caption2).foregroundStyle(.secondary)
-                .lineLimit(1).truncationMode(.middle)
-                .monospacedDigit()
-        case .outdated:
+    private var uncheckedMark: some View {
+        BrewUncheckedMark(
+            anyTapNotTrusted: model.brewUnchecked.contains { $0.reason == .tapNotTrusted },
+            showInWindow: showBrewUnchecked)
+    }
+
+    // MARK: Other tools
+
+    private var toolsHalf: Half? {
+        guard !tools.sightings.isEmpty else { return nil }
+        func half(_ lines: [Text], mark: (any View)? = nil, button: (any View)? = nil) -> Half {
+            Half(icon: "terminal", title: String(localized: "Other tools"), lines: lines,
+                 mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) })
+        }
+        if tools.updatingAll || !tools.updating.isEmpty {
+            // The tool running, and one live line. `updateAll` runs several tools
+            // at once: then the row names none of them, and the line is the first
+            // running copy's — one still running its command before one done and
+            // waiting on its check, whose "Waiting to check" would read as if
+            // nothing were downloading. A queued copy is not running.
+            let claimed = tools.statuses.filter {
+                tools.updating.contains($0.toolID) && !tools.queued.contains($0.toolID)
+            }
+            let running = claimed.filter { !tools.awaitingCheck.contains($0.toolID) }
+            let named = running.isEmpty ? claimed : running
+            let head = Set(named.map(\.kind)).count == 1
+                ? String(localized: "Updating \(named[0].kind.displayName)")
+                : String(localized: "Updating command-line tools")
+            let progress = named.lazy.compactMap { tools.progress[$0.toolID] }.first
+            return half([Text(head), progress.map { Text($0).monospacedDigit() }].compactMap { $0 }, mark: spinner)
+        }
+        if !tools.checked { return half([Text(String(localized: "Checking…"))], mark: spinner) }
+        if !tools.outdated.isEmpty {
+            let button: (any View)? = tools.oneClickable.isEmpty ? nil : updateButton(
+                // Not while brew upgrades: npm packages can run on Homebrew's node.
+                disabled: model.brewUpgrading || !model.upgradingFormulae.isEmpty,
+                help: String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update are left alone.")
+            ) { await tools.updateAll() }
             if let error = tools.outdated.lazy.compactMap({ tools.errors[$0.toolID] }).first {
-                Text(error).font(.caption2).foregroundStyle(.red).lineLimit(1)
-            } else if !tools.oneClickable.isEmpty {
-                secondary(CLIToolsModel.summary(tools.outdated))
-            } else if let status = tools.outdated.first(where: { $0.withheld != nil }),
-                      let withheld = status.withheld {
-                // Nothing to click, so the line says why — in the user's terms.
-                secondary(CLIToolsModel.reason(withheld, of: status))
-            } else {
-                secondary(CLIToolsModel.summary(tools.outdated))
+                return half([Text(error).foregroundStyle(.red)], button: button)
             }
-        case .unchecked:
-            if let status = tools.unchecked.first(where: { $0.withheld != nil }),
-               let withheld = status.withheld {
-                secondary(CLIToolsModel.reason(withheld, of: status))
-            } else {
-                secondary(CLIToolsModel.summary(tools.unchecked))
+            // "Updates" are what the button updates; a held-back one is counted
+            // apart, so "2 updates" no longer sits beside one copy to update.
+            let held = tools.heldBack.count
+            let heldLine = held > 0 ? Text(String(localized: "\(held) held back")) : nil
+            if tools.offered.isEmpty {
+                // Nothing to click, so the row says why, in the user's terms.
+                guard let status = tools.heldBack.first(where: { $0.withheld != nil }),
+                      let withheld = status.withheld
+                else { return half([heldLine].compactMap { $0 }) }
+                return half([Text(CLIToolsModel.reason(withheld, of: status))] + (held > 1 ? [heldLine].compactMap { $0 } : []))
             }
-        case .justUpdated(let tool, _):
-            // A running process keeps the binary it started with, so the new
-            // version reaches only what starts from now on — for Claude Code,
-            // sessions, which stay open for hours.
-            secondary(tool == .claudeCode
+            return half([Text(String(localized: "\(tools.offered.count) updates")), heldLine].compactMap { $0 },
+                        button: button)
+        }
+        if !tools.unchecked.isEmpty {
+            // Not "up to date" while a copy went unanswered.
+            if let status = tools.unchecked.first(where: { $0.withheld != nil }), let withheld = status.withheld {
+                return half([Text(CLIToolsModel.reason(withheld, of: status))], mark: question)
+            }
+            return half([Text(String(localized: "\(tools.unchecked.count) not checked"))], mark: question)
+        }
+        if let status = tools.statuses.first(where: { tools.justUpdated[$0.toolID] != nil }),
+           let version = tools.justUpdated[status.toolID] {
+            // A running process keeps the binary it started with; for Claude Code
+            // that is every open session.
+            let hint = status.kind == .claudeCode
                 ? String(localized: "New sessions use it; restart open ones")
-                : String(localized: "Takes effect the next time it runs"))
-        case .checking:
-            // Before any check, only the scan's counts are known.
-            secondary(CLIToolsModel.summary(tools.sightings))
-        case .upToDate:
-            secondary(CLIToolsModel.summary(tools.statuses))
+                : String(localized: "Takes effect the next time it runs")
+            return half([Text(String(localized: "\(status.kind.displayName) updated to \(version)")), Text(hint)],
+                        mark: seal)
         }
+        return half([Text(String(localized: "Up to date"))], mark: seal)
     }
 
-    private func secondary(_ text: String) -> some View {
-        Text(text).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+    // MARK: Parts
+
+    private func updateButton(disabled: Bool, help: String, action: @escaping () async -> Void) -> some View {
+        // The app rows' button: small, its label at least
+        // `PopoverRowAction.buttonLabelMinWidth` wide, so the column of buttons
+        // ends on one edge down the whole popover. Its own size, never scaled.
+        Button { Task { await action() } } label: {
+            Text("Update").frame(minWidth: PopoverRowAction.buttonLabelMinWidth)
+        }
+        .lineLimit(1)
+        .fixedSize()
+        .controlSize(.small)
+        .buttonStyle(.borderedProminent)
+        .disabled(disabled)
+        .help(help)
     }
 
-    @ViewBuilder
-    private func trailing(_ phase: Phase) -> some View {
-        switch phase {
-        case .updating, .checking:
-            ProgressView().controlSize(.small)
-        case .outdated:
-            if !tools.oneClickable.isEmpty {
-                Button("Update") { Task { await tools.updateAll() } }
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .controlSize(.small)
-                    .buttonStyle(.borderedProminent)
-                    .help(String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update are left alone."))
-            }
-        case .unchecked:
-            Image(systemName: "questionmark.circle").foregroundStyle(.secondary)
-        case .justUpdated, .upToDate:
-            Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
-        }
-    }
+    private var spinner: some View { ProgressView().controlSize(.small) }
+    private var seal: some View { Image(systemName: "checkmark.seal.fill").foregroundStyle(.green) }
+    private var question: some View { Image(systemName: "questionmark.circle").foregroundStyle(.secondary) }
 }
 
-/// The trailing mark on the Brew row when nothing is outdated but some packages
+/// The trailing mark on the command-line row when nothing is outdated but some packages
 /// went unchecked (`BrewUncheckedPackage`). An info mark rather than a warning:
 /// nothing failed, brew just declined to read them. Clicking explains why, like
 /// `StagedVersionUnknownMark`, and offers the workbench rows that name them.

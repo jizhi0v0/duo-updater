@@ -49,6 +49,49 @@ enum CLIToolPresentation {
         return "\(name) · \(ClaudeCodePresentation.abbreviate(package.install.prefix.path, home: home))"
     }
 
+    /// One section of the CLI tab: a tool's installs — or, for npm, the packages of
+    /// one node prefix. Each prefix is its own `npm install -g`: its own npm, its
+    /// own `lib/node_modules`, its own node. One npm group over two of them read
+    /// "node 24.13.0, 24.12.0" and could not say which package was where.
+    struct Group: Identifiable {
+        let kind: CLIToolKind
+        /// The node prefix of an npm group; nil for every other tool.
+        let prefix: NodePrefix?
+        let statuses: [CLIToolStatus]
+        var id: String { kind.rawValue + ":" + (prefix?.path ?? "") }
+    }
+
+    /// `statuses` as the CLI tab draws them, in their own order (`CLIToolKind`'s,
+    /// then each tool's): one group per tool, npm's split by prefix, each prefix
+    /// where its first package stood. Flattened, the order of every row.
+    static func groups(_ statuses: [CLIToolStatus]) -> [Group] {
+        var keys: [String] = []
+        var members: [String: (kind: CLIToolKind, prefix: NodePrefix?, statuses: [CLIToolStatus])] = [:]
+        for status in statuses {
+            var prefix: NodePrefix?
+            if status.kind == .npm, case .npm(let package) = status.detail { prefix = package.install.prefix }
+            let key = status.kind.rawValue + ":" + (prefix?.path ?? "")
+            if members[key] == nil {
+                keys.append(key)
+                members[key] = (status.kind, prefix, [])
+            }
+            members[key]?.statuses.append(status)
+        }
+        return keys.compactMap { key in
+            members[key].map { Group(kind: $0.kind, prefix: $0.prefix, statuses: $0.statuses) }
+        }
+    }
+
+    /// Which prefix an npm group is, for its header: the version manager that
+    /// keeps it ("nvm", "fnm"), else its path with the home directory as `~`
+    /// ("/opt/homebrew", "~/.npm-global").
+    static func prefixLabel(_ prefix: NodePrefix, home: String) -> String {
+        switch prefix.source {
+        case .nvm, .fnm, .mise, .asdf: return prefix.source.rawValue
+        default: return ClaudeCodePresentation.abbreviate(prefix.path, home: home)
+        }
+    }
+
     /// The node an npm prefix runs: as checked, else as its layout names it.
     private static func nodeVersion(of package: NpmPackage) -> String? {
         package.install.runtime.nodeVersion ?? package.install.prefix.layoutNodeVersion

@@ -76,6 +76,13 @@ struct WorkbenchWindowView: View {
     @AppStorage("workbenchHomebrewExpanded") private var homebrewExpandedPreference = false
     /// A deep link opened the Homebrew group (`HomebrewGroupState.revealing`).
     @State private var homebrewRevealing = false
+    /// Whether the user keeps the CLI tab's "Other tools" level open. Open by
+    /// default: until 2026-10 its groups had no level above them and were always
+    /// shown.
+    @AppStorage("workbenchOtherToolsExpanded") private var otherToolsExpandedPreference = true
+    /// The popover's command-line rows opened the level for this visit, without
+    /// rewriting what the user keeps — `homebrewRevealing`'s rule.
+    @State private var otherToolsRevealing = false
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var isWindowOpen = false
@@ -182,7 +189,8 @@ struct WorkbenchWindowView: View {
     struct SidebarLists {
         let filteredApps: [UpdateResult]
         /// The CLI tab's tool groups after Homebrew's, every tool's installs in
-        /// `CLIToolKind.allCases` order — the order the groups are drawn in.
+        /// `CLIToolKind.allCases` order and npm's by prefix — the order the groups
+        /// are drawn in (`CLIToolPresentation.groups`).
         let cliTools: [CLIToolStatus]
         let brewCasks: [UpdateResult]
         let brewFormulae: [BrewInstalledFormula]
@@ -209,7 +217,7 @@ struct WorkbenchWindowView: View {
         let cliTools = model.cliTools.statuses
         return SidebarLists(
             filteredApps: allApps.filter(matchesSearch),
-            cliTools: cliTools.filter(matchesSearch),
+            cliTools: CLIToolPresentation.groups(cliTools.filter(matchesSearch)).flatMap(\.statuses),
             brewCasks: allCasks.filter(matchesSearch),
             brewFormulae: model.brewFormulae.filter { matchesSearch($0.name) },
             brewUnchecked: model.brewUnchecked.filter { matchesSearch($0.fullName) },
@@ -306,6 +314,7 @@ struct WorkbenchWindowView: View {
             if hadRequest { applyRequestedApp() }
             applyRequestedBrewUnchecked()
             applyRequestedCLITools()
+            applyRequestedHomebrew()
             // First open with no data: full (networked) check. Otherwise, if no
             // round has read TestFlight yet this launch and one may
             // (`owesTestFlightRead`), run one full refresh; past that a cheap,
@@ -426,6 +435,7 @@ struct WorkbenchWindowView: View {
         .onChange(of: model.requestedWorkbenchAppID) { applyRequestedApp() }
         .onChange(of: model.requestedWorkbenchBrewUnchecked) { applyRequestedBrewUnchecked() }
         .onChange(of: model.requestedWorkbenchCLITools) { applyRequestedCLITools() }
+        .onChange(of: model.requestedWorkbenchHomebrew) { applyRequestedHomebrew() }
     }
 
     /// Whether a `didBecomeKey` notification's object is this workbench's own
@@ -483,6 +493,19 @@ struct WorkbenchWindowView: View {
         model.requestedWorkbenchCLITools = false
         // A search could hide the rows the click was about.
         searchText = ""
+        sidebarTab = .cli
+        otherToolsRevealing = true
+    }
+
+    /// Honor a pending "Show in Window" from the popover's Homebrew row: the CLI
+    /// tab with the Homebrew group open for this visit, without rewriting what
+    /// the user keeps (`HomebrewGroupState.revealing`).
+    private func applyRequestedHomebrew() {
+        guard model.requestedWorkbenchHomebrew else { return }
+        model.requestedWorkbenchHomebrew = false
+        // A search could hide the rows the click was about.
+        searchText = ""
+        homebrewRevealing = true
         sidebarTab = .cli
     }
 
@@ -717,7 +740,7 @@ struct WorkbenchWindowView: View {
     private func tabChanged(to tab: SidebarTab) {
         detailMode = tab == .rollback ? .bundleDiff : .releaseNotes
         // A reveal is for the visit it was made for.
-        if tab != .cli { homebrewRevealing = false }
+        if tab != .cli { homebrewRevealing = false; otherToolsRevealing = false }
         let lists = sidebarLists
         let ids: [String]
         switch tab {
@@ -731,7 +754,7 @@ struct WorkbenchWindowView: View {
                     + lists.brewFormulae.map { "brew:formula:\($0.name)" }
                     + lists.brewUnchecked.map { "brew:unchecked:\($0.id)" }
                 : []
-            ids = brewIDs + lists.cliTools.map(\.toolID.tag)
+            ids = brewIDs + (otherToolsExpanded(lists) ? lists.cliTools.map(\.toolID.tag) : [])
         case .rollback:
             ids = lists.rollbackable.map(\.id)
         }
@@ -815,9 +838,125 @@ struct WorkbenchWindowView: View {
                     .buttonStyle(.bordered)
                     // A per-row upgrade or `brew update` is already holding brew's
                     // lock — a bulk run would just fail, so disable it until that finishes.
-                    .disabled(!model.upgradingFormulae.isEmpty || model.homebrewUpdating)
+                    // Nor while the other tools update: npm packages can run on
+                    // Homebrew's node, the popover's rule.
+                    .disabled(!model.upgradingFormulae.isEmpty || model.homebrewUpdating
+                        || model.cliTools.updatingAll || !model.cliTools.updating.isEmpty)
                     .help("Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above.")
             }
+        }
+    }
+
+    // MARK: - Other tools
+
+    /// Open while the user keeps it open, a deep link revealed it, a search
+    /// matches inside it, or one of its rows is selected.
+    private func otherToolsExpanded(_ lists: SidebarLists) -> Bool {
+        otherToolsExpandedPreference || otherToolsRevealing || otherToolsSearchHits(lists)
+            || isOtherToolsRow(selection)
+    }
+
+    /// A search is typed and matches a row of the tool groups.
+    private func otherToolsSearchHits(_ lists: SidebarLists) -> Bool {
+        !searchQuery.isEmpty && !lists.cliTools.isEmpty
+    }
+
+    private func isOtherToolsRow(_ id: String?) -> Bool {
+        guard let id else { return false }
+        return model.cliTools.statuses.contains { $0.toolID.tag == id }
+    }
+
+    /// Opens or closes a group in one frame, not animated. The sidebar list drew
+    /// these changes in one frame anyway, except when the click also moved the
+    /// selection — after a tab switch, which selects the first row — and then
+    /// the closing rows slid up underneath the header and summary rows that
+    /// stay, fading as they went (recorded at 60 fps on 2026-10-06).
+    private func inOneFrame(_ change: () -> Void) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction, change)
+    }
+
+    /// A click on the "Other tools" header or its summary. Closing it moves a
+    /// selection that was one of its rows off it, since that row is going.
+    private func toggleOtherTools(_ lists: SidebarLists) {
+        let closing = otherToolsExpanded(lists)
+        otherToolsExpandedPreference = !closing
+        otherToolsRevealing = false
+        if closing, isOtherToolsRow(selection) {
+            selection = nil
+            detailSelection = nil
+        }
+    }
+
+    /// The row under the "Other tools" header: how many updates the tool groups
+    /// below have, and how many copies went unchecked — the whole set's, not the
+    /// search's, like the Homebrew summary. A click on it opens or closes the
+    /// level, like the Homebrew summary's.
+    private func otherToolsSummary(_ lists: SidebarLists) -> some View {
+        let tools = model.cliTools
+        // What Update All updates; a held-back update is counted apart — counted
+        // with them, "2 updates" sat above one Update button.
+        let updates = tools.offered.count
+        let held = tools.heldBack
+        let unchecked = tools.unchecked.count
+        return Button { inOneFrame { toggleOtherTools(lists) } } label: {
+            HStack(spacing: 8) {
+                if updates > 0 {
+                    Text(String(localized: "\(updates) updates")).foregroundStyle(.tint).lineLimit(1)
+                } else if held.isEmpty && unchecked == 0 {
+                    // Not while a copy went unanswered: that would be a claim
+                    // about it too (`CLIToolsModel.unchecked`).
+                    Text(String(localized: "Up to date")).foregroundStyle(.secondary).lineLimit(1)
+                }
+                if !held.isEmpty {
+                    // Why each was held back, on hover: "openclaw 2026.9.8 needs …".
+                    Text(String(localized: "\(held.count) held back"))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .help(held.compactMap { status in
+                            status.withheld.map { CLIToolsModel.reason($0, of: status) }
+                        }.joined(separator: "\n"))
+                }
+                if unchecked > 0 {
+                    let help = String(localized: "\(unchecked) not checked")
+                    Label {
+                        Text(verbatim: "\(unchecked)")
+                    } icon: {
+                        Image(systemName: "questionmark.circle")
+                    }
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.orange)
+                    .help(help)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(help)
+                    .fixedSize()
+                }
+                Spacer(minLength: 0)
+            }
+            .font(.caption)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(otherToolsSearchHits(lists))
+    }
+
+    /// Update All for the tool groups: what the popover's "Other tools" Update
+    /// runs — every copy with a one-click update, each with its own tool's
+    /// command, the independent ones at once (`CLIToolsModel.lane(of:)`). Copies
+    /// without one are left alone.
+    @ViewBuilder
+    private var otherToolsBulkUpdate: some View {
+        let tools = model.cliTools
+        if tools.updatingAll {
+            ProgressView().controlSize(.small)
+        } else if !tools.oneClickable.isEmpty {
+            Button("Update All") { Task { await tools.updateAll() } }
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                // Not while brew upgrades: npm packages can run on Homebrew's node.
+                .disabled(model.brewUpgrading || !model.upgradingFormulae.isEmpty)
+                .help(String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update are left alone."))
         }
     }
 
@@ -853,7 +992,11 @@ struct WorkbenchWindowView: View {
         homebrewExpandedPreference = group.preferenceExpanded
         homebrewRevealing = group.revealing
         if !group.preferenceExpanded, holdsSelection {
-            selection = sidebarLists.cliTools.first?.toolID.tag
+            // To the first tool row only while "Other tools" is open: moved into a
+            // closed level, the selection opened it (a selected row holds its
+            // level open), and the one click closed Homebrew and opened that.
+            let lists = sidebarLists
+            selection = otherToolsExpanded(lists) ? lists.cliTools.first?.toolID.tag : nil
             detailSelection = selection
         }
     }
@@ -865,11 +1008,20 @@ struct WorkbenchWindowView: View {
             // A search holds the group open while it matches rows inside; closing
             // it then would hide exactly what was searched for.
             toggleDisabled: homebrewSearchHits(lists),
-            toggle: { withAnimation(.snappy(duration: 0.2)) { toggleHomebrewGroup() } }
+            toggle: { inOneFrame { toggleHomebrewGroup() } }
         ) {
             brewBulkUpgrade
         }
+        .padding(.trailing, Self.sectionHeaderTrailingInset)
     }
+
+    /// What a sidebar section header needs at its trailing edge to end where its
+    /// rows' content does. Without it a header runs 14 pt further, to 2 pt from
+    /// the list's edge: measured 2026-10-06 in a 300 pt `.sidebar` List, header
+    /// content to 298 against a row's 284 with overlay scroll bars, 281 against
+    /// 267 with them always shown. There the overlay scroller covered the end of
+    /// each header's summary ("auto-update o", "node 24.13.") and Upgrade All.
+    private static let sectionHeaderTrailingInset: CGFloat = 14
 
     /// The counts-and-marks row under that header (`HomebrewGroupSummary`). The
     /// whole group's, not the search's: a search that matches inside opens the
@@ -882,21 +1034,18 @@ struct WorkbenchWindowView: View {
             unchecked: model.brewUnchecked.count,
             homebrewUpdate: model.homebrewSelfUpdate?.latest,
             toggleDisabled: homebrewSearchHits(lists),
-            toggle: { withAnimation(.snappy(duration: 0.2)) { toggleHomebrewGroup() } })
+            toggle: { inOneFrame { toggleHomebrewGroup() } })
     }
 
     /// A tool group's header: the tool's name, and what decides its installs'
     /// verdicts tool-wide. Claude Code's channel and whether auto-update is on —
     /// which decides whether any of them can offer one-click at all; fx's channel;
     /// nothing for bub, which has neither.
-    private func cliToolHeader(_ kind: CLIToolKind) -> some View {
+    private func cliToolHeader(_ group: CLIToolPresentation.Group) -> some View {
         HStack(spacing: 6) {
-            Text(verbatim: kind.displayName)
+            Text(verbatim: group.kind.displayName)
             Spacer()
-            if model.cliTools.checking {
-                ProgressView().controlSize(.mini)
-            }
-            if let summary = cliToolHeaderSummary(kind) {
+            if let summary = cliToolHeaderSummary(group) {
                 // Several languages say "auto-update off" in twice the English width;
                 // shrunk a little, then cut, with the whole line on hover.
                 Text(verbatim: summary)
@@ -906,9 +1055,22 @@ struct WorkbenchWindowView: View {
                     .help(summary)
             }
         }
+        .padding(.trailing, Self.sectionHeaderTrailingInset)
     }
 
-    private func cliToolHeaderSummary(_ kind: CLIToolKind) -> String? {
+    private func cliToolHeaderSummary(_ group: CLIToolPresentation.Group) -> String? {
+        let kind = group.kind
+        if let prefix = group.prefix {
+            // One npm prefix: which one, and its node. The whole prefix's packages,
+            // not the search's, like the other summaries.
+            let label = CLIToolPresentation.prefixLabel(prefix, home: FileManager.default.homeDirectoryForCurrentUser.path)
+            let mine = model.cliTools.statuses.filter {
+                guard case .npm(let package) = $0.detail else { return false }
+                return $0.kind == .npm && package.install.prefix.path == prefix.path
+            }
+            let node = CLIToolPresentation.headerSummary(.npm, statuses: mine, context: model.cliTools.contexts[.npm])
+            return [label, node].compactMap { $0 }.joined(separator: " · ")
+        }
         switch kind {
         case .claudeCode:
             return ClaudeCodePresentation.settingsSummary(model.cliTools.claudeCodeSettings ?? ClaudeCodeSettings())
@@ -1000,7 +1162,9 @@ struct WorkbenchWindowView: View {
                                     .tag(result.id)
                             }
                             ForEach(lists.brewFormulae) { formula in
-                                BrewFormulaSidebarRow(formula: formula, model: model)
+                                BrewFormulaSidebarRow(
+                                    formula: formula, model: model,
+                                    isSelected: selection == "brew:formula:\(formula.name)")
                                     .tag("brew:formula:\(formula.name)")
                             }
                             ForEach(lists.brewUnchecked) { package in
@@ -1012,19 +1176,43 @@ struct WorkbenchWindowView: View {
                         homebrewHeader(lists, expanded: brewExpanded)
                     }
                 }
-                ForEach(CLIToolKind.allCases, id: \.self) { kind in
-                    let statuses = lists.cliTools.filter { $0.kind == kind }
-                    if !statuses.isEmpty {
-                        Section {
-                            ForEach(statuses, id: \.toolID) { status in
-                                CLIToolSidebarRow(
-                                    status: status, cli: model.cliTools,
-                                    isSelected: selection == status.toolID.tag)
-                                    .tag(status.toolID.tag)
+                // The popover's second row, "Other tools", as a level of its own:
+                // what the groups below come to, and Update All for them.
+                let othersExpanded = otherToolsExpanded(lists)
+                if searchQuery.isEmpty ? !model.cliTools.statuses.isEmpty : !lists.cliTools.isEmpty {
+                    Section {
+                        otherToolsSummary(lists).selectionDisabled()
+                    } header: {
+                        // Homebrew's header, so the two levels open, close and line
+                        // up alike.
+                        HomebrewGroupHeader(
+                            title: String(localized: "Other tools"),
+                            expanded: othersExpanded,
+                            toggleDisabled: otherToolsSearchHits(lists),
+                            toggle: { inOneFrame { toggleOtherTools(lists) } }
+                        ) {
+                            // One spinner for a check, which reads every tool at
+                            // once: drawn on each group's header, twelve of them
+                            // turned while one update re-checked. Update All shows
+                            // its own while it runs.
+                            if model.cliTools.checking && !model.cliTools.updatingAll {
+                                ProgressView().controlSize(.mini)
                             }
-                        } header: {
-                            cliToolHeader(kind)
+                            otherToolsBulkUpdate
                         }
+                        .padding(.trailing, Self.sectionHeaderTrailingInset)
+                    }
+                }
+                ForEach(othersExpanded ? CLIToolPresentation.groups(lists.cliTools) : []) { group in
+                    Section {
+                        ForEach(group.statuses, id: \.toolID) { status in
+                            CLIToolSidebarRow(
+                                status: status, cli: model.cliTools,
+                                isSelected: selection == status.toolID.tag)
+                                .tag(status.toolID.tag)
+                        }
+                    } header: {
+                        cliToolHeader(group)
                     }
                 }
             }
@@ -1370,6 +1558,11 @@ private struct WorkbenchRollbackRow: View {
 private struct BrewFormulaSidebarRow: View {
     let formula: BrewInstalledFormula
     @Bindable var model: AppListModel
+    /// On the selection's accent fill the tinted version line and the prominent
+    /// Update button are the fill's own colour: the line vanished and the button
+    /// merged into the highlight. White line and a plain bordered button there,
+    /// as `CLIToolSidebarRow` does.
+    var isSelected = false
 
     // A bulk "Upgrade All" run upgrades every *outdated* formula at once, so each
     // outdated row is part of it — show the same in-flight state and (crucially) hide
@@ -1398,7 +1591,9 @@ private struct BrewFormulaSidebarRow: View {
                         .lineLimit(1).truncationMode(.middle)
                 } else if let available = formula.availableVersion {
                     Text("\(formula.installedVersion) → \(available)")
-                        .font(.caption).foregroundStyle(.tint).lineLimit(1)
+                        .font(.caption)
+                        .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
+                        .lineLimit(1)
                 } else {
                     // Up-to-date leaf: just its version, like an up-to-date app row.
                     Text(formula.installedVersion)
@@ -1411,7 +1606,7 @@ private struct BrewFormulaSidebarRow: View {
             } else if formula.hasUpdate {
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
                     .controlSize(.small)
-                    .buttonStyle(.borderedProminent)
+                    .rowUpdateButtonStyle(selected: isSelected)
                     .disabled(model.homebrewUpdating)
             }
         }

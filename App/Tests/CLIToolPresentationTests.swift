@@ -330,6 +330,58 @@ struct CLIToolPayloadPresentationTests {
             == "openclaw · /opt/homebrew")
     }
 
+    /// npm is one group per node prefix — its own npm, `node_modules` and node —
+    /// in the order its first package came; every other tool is one group. The
+    /// header names the prefix by its version manager, else by its path.
+    ///
+    /// Mutations: key npm's groups by kind alone (both prefixes in one group);
+    /// drop the `status.kind == .npm` test (a package bun installed splits from
+    /// bun's own row); label every prefix by its path.
+    @Test func npmIsOneGroupPerPrefix() throws {
+        let fnm = NodePrefix(path: "/Users/ann/.local/share/fnm/node-versions/v24.12.0/installation",
+                             source: .fnm, layoutNodeVersion: "24.12.0")
+        let agently = F.npm(F.npmInstall("agently-cli", prefix: F.nvm("24.13.0")))
+        let pnpm = F.npm(F.npmInstall("pnpm", prefix: fnm))
+        let browser = F.npm(F.npmInstall("agent-browser", prefix: F.nvm("24.13.0")))
+        let bunRow = CLIToolStatus(
+            kind: .bun, path: "/Users/ann/.bun/bin/bun", installedVersion: "1.3.14", latestVersion: "1.3.14",
+            channel: nil, state: .upToDate, oneClick: nil, withheld: nil, note: nil,
+            detail: .bun(BunInstall(path: "/Users/ann/.bun/bin/bun", version: "1.3.14")))
+        let bunPackage = CLIToolStatus(
+            kind: .bun, path: "/Users/ann/.bun/install/global/node_modules/x", installedVersion: "1.0",
+            latestVersion: "1.0", channel: nil, state: .upToDate, oneClick: nil, withheld: nil, note: nil,
+            name: "x", detail: .npm(NpmPackage(install: F.npmInstall("x", prefix: F.nvm("26.8.2")))))
+
+        let groups = CLIToolPresentation.groups([F.uv(), agently, pnpm, browser, bunRow, bunPackage])
+        try #require(groups.count == 4)
+        #expect(groups.map(\.kind) == [.uv, .npm, .npm, .bun])
+        #expect(groups.map { $0.prefix?.path } == [nil, F.nvm("24.13.0").path, fnm.path, nil])
+        #expect(groups[1].statuses.map(\.name) == ["agently-cli", "agent-browser"])
+        #expect(groups[2].statuses.map(\.name) == ["pnpm"])
+        #expect(groups[3].statuses.count == 2)
+
+        #expect(CLIToolPresentation.prefixLabel(F.nvm("24.13.0"), home: Self.home) == "nvm")
+        #expect(CLIToolPresentation.prefixLabel(fnm, home: Self.home) == "fnm")
+        #expect(CLIToolPresentation.prefixLabel(
+            NodePrefix(path: "/opt/homebrew", source: .system, layoutNodeVersion: "26.10.0"), home: Self.home)
+            == "/opt/homebrew")
+        #expect(CLIToolPresentation.prefixLabel(
+            NodePrefix(path: "/Users/ann/.npm-global", source: .npmGlobal, layoutNodeVersion: nil), home: Self.home)
+            == "~/.npm-global")
+    }
+
+    /// A broken Codex says what is missing; another tool keeps the shared line.
+    ///
+    /// Mutations: drop either Codex case (it reads "An install is broken").
+    @Test func brokenCodexSaysWhatIsMissing() {
+        func reason(_ status: CLIToolStatus) -> String { CLIToolsModel.reason(.broken, of: status) }
+        #expect(reason(F.codex(problem: .noCurrent, withheld: .broken))
+            == "Its standalone install has no current release")
+        #expect(reason(F.codex(problem: .binaryMissing, withheld: .broken))
+            == "Codex 0.143.0 is missing its program file")
+        #expect(reason(F.uv(withheld: .broken)) == "An install is broken")
+    }
+
     /// uv's signature says who signed it — "OpenAI OpCo, LLC" for Astral — and,
     /// for an unsigned copy, what the hash check found or when it will run.
     ///

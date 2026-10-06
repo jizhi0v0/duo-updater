@@ -2,7 +2,7 @@
 
 审计 2026-08-27。WorkBuddy 是**两个 app**，不是一个 app 的两个 channel：本文档是国际站
 `com.workbuddy.workbuddy-ai`；国内站 `com.workbuddy.workbuddy` 见
-[com-workbuddy-workbuddy.md](com-workbuddy-workbuddy.md)。两站共用的部分——更新端点、三个陷阱、
+[com-tencent-workbuddy-mac.md](com-tencent-workbuddy-mac.md)。两站共用的部分——更新端点、三个陷阱、
 changelog 页面标记、一键安装的闸与 host 钉死、验证方法——只写在国内站那份里，这里不重复。
 
 ## 基本信息
@@ -35,7 +35,7 @@ changelog 页面标记、一键安装的闸与 host 钉死、验证方法——�
 开头就是 `Homebrew's cask \`workbuddy-ai\` is at 5.5`。cask `workbuddy-ai` 存在，
 `uninstall quit:` 是 `com.workbuddy.workbuddy-ai`，与本 recipe 的 bundle id 一致，
 所以 brew 交叉检查对国际站是**生效的**（#737／#738 的三个信号之一就是它）。
-国内站那条因为键对不上而失效，见 [com-workbuddy-workbuddy.md](com-workbuddy-workbuddy.md)。
+国内站那条因为键对不上而失效，见 [com-tencent-workbuddy-mac.md](com-tencent-workbuddy-mac.md)。
 
 ## Channel 详情
 
@@ -111,7 +111,7 @@ given Mac, and the install pattern is additionally pinned to its own
 `darwin-<arch>` path so a recipe cannot resolve the other arch's
 artifact even if the endpoint were to start ignoring the query.
 
-更正 2026-09-14：DuoUpdater 只跑在 arm64 上（`App/project.yml:23` `ARCHS: arm64`），没有 Intel 宿主。`VendorProbeSource` 在合并多端点之前按 `HostArch.current` 丢掉宿主跑不了的 recipe（`Sources/VendorProbeSource.swift:266-268` 调 `VendorProbeRecipe.runs(onOS:arch:)`，`Sources/VendorProbeRecipe.swift:1038-1040`；`VendorHostRequirement.isSatisfied` 是不带 Rosetta 例外的成员判断，:187-188），所以 x86_64 那条 recipe 在任何 DuoUpdater 宿主上都不会被用到。代码里去掉了 Intel Mac 的说法，改成说明这件事；同一说法在 [com-workbuddy-workbuddy.md](com-workbuddy-workbuddy.md) 的「陷阱三」里的副本一并改了。
+更正 2026-09-14：DuoUpdater 只跑在 arm64 上（`App/project.yml:23` `ARCHS: arm64`），没有 Intel 宿主。`VendorProbeSource` 在合并多端点之前按 `HostArch.current` 丢掉宿主跑不了的 recipe（`Sources/VendorProbeSource.swift:266-268` 调 `VendorProbeRecipe.runs(onOS:arch:)`，`Sources/VendorProbeRecipe.swift:1038-1040`；`VendorHostRequirement.isSatisfied` 是不带 Rosetta 例外的成员判断，:187-188），所以 x86_64 那条 recipe 在任何 DuoUpdater 宿主上都不会被用到。代码里去掉了 Intel Mac 的说法，改成说明这件事；同一说法在 [com-tencent-workbuddy-mac.md](com-tencent-workbuddy-mac.md) 的「陷阱三」里的副本一并改了。
 
 复测 2026-09-14（11:03 UTC，只读 GET）：`www.workbuddy.ai/v2/update?platform=workbuddy-darwin-arm64&version=0.0.0` 与 `…-x64…` 都回 `productVersion` `5.5.2.37849279`，`url` 分别在 `/darwin-arm64/` 与 `/darwin-x64/` 下；国内站两个架构都回 `5.3.14.36279234`。
 
@@ -130,7 +130,7 @@ count, and both bundles are Developer ID signed under FN2V63AD2J.
 
 ### Recipes/com-workbuddy-workbuddy-ai.swift — VendorProbe（Changelog：国际站页面落后）
 
-转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（国际站页面落后于自己的轨道，这正是国际站 ChangelogRecipe 带 `acknowledgedStaleEntry` 的原因），写作当时的 5.2.7 / 5.4.2 搬到这里。复测见 [com-workbuddy-workbuddy.md](com-workbuddy-workbuddy.md) 的「历史与实测」。
+转引自 recipe 注释，未复测。整段原文；代码里留下的是结论（国际站页面落后于自己的轨道，这正是国际站 ChangelogRecipe 带 `acknowledgedStaleEntry` 的原因），写作当时的 5.2.7 / 5.4.2 搬到这里。复测见 [com-tencent-workbuddy-mac.md](com-tencent-workbuddy-mac.md) 的「历史与实测」。
 
 Changelog: each site's page is the one the app itself links (the build
 branches on `isOverseas()`); the intl page ran behind its own train at

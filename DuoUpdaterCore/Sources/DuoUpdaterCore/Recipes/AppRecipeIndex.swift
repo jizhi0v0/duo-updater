@@ -169,7 +169,7 @@ public enum AppRecipeIndex {
         com_vorssaint_utils.set,
         com_vscodium.set,
         com_windscribe_client.set,
-        com_workbuddy_workbuddy.set,
+        com_tencent_workbuddy_mac.set,
         com_workbuddy_workbuddy_ai.set,
         com_xingyuzhong_deepseekgui.set,
         com_yetone_magpie.set,

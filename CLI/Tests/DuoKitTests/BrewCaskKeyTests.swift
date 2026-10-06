@@ -101,7 +101,7 @@ import DuoUpdaterCore
     /// that keeps a guessed key from reading as a declared one.
     @Test func aFilenameMatchedCaskComplainsAndSaysSo() async throws {
         let recipe = try #require(VendorProbeRegistry.recipes.first {
-            $0.bundleID == "com.workbuddy.workbuddy"
+            $0.bundleID == "com.tencent.workbuddy.mac"
         })
         let complaint = try #require(await Verify.brewComplaint(
             for: recipe, version: "5.3.14",

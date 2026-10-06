@@ -261,6 +261,14 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// (a kept Koala alongside the current release), and Toolbox's
     /// `isNewestOfProduct` logic is what stops those from nagging a cross-major
     /// jump — a guarantee the preview recipe doesn't make.
+    /// The id this copy's vendor probes and changelog recipes are filed under:
+    /// `bundleID`, unless the vendor has since renamed the app and this copy is
+    /// still on the old id (`BundleIDMigration`). Only recipe lookups use it;
+    /// everything that finds the process or the bundle keeps `bundleID`.
+    public var recipeBundleID: String? {
+        bundleID.map { BundleIDMigration.recipeBundleID(for: $0, installedVersion: shortVersion) }
+    }
+
     public var prefersVendorProbeOverToolbox: Bool {
         isToolboxManaged
             && bundleID == "com.google.android.studio"

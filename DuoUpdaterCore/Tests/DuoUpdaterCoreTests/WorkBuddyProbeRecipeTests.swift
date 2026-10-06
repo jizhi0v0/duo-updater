@@ -33,7 +33,7 @@ struct WorkBuddyProbeRecipeTests {
                 "x64": #"{"version":"5.4.2.36857725","url":"https://codebuddy-1328495429.cos.accelerate.myqcloud.com/workbuddy/saas/darwin-x64/WorkBuddy-darwin-x64-5.4.2.36857725-d74591c4.zip","productVersion":"5.4.2.36857725","sha256hash":"0f1dce554df89f5e50db04823144e01faee7ea88483875cdc7066406d15b362b","timestamp":1787580925,"hash":"","name":"","supportsFastUpdate":false}"#,
             ]),
         Site(
-            bundleID: "com.workbuddy.workbuddy",
+            bundleID: "com.tencent.workbuddy.mac",
             host: "www.workbuddy.cn",
             installedShortVersion: "5.3.14",
             bodies: [
@@ -42,8 +42,10 @@ struct WorkBuddyProbeRecipeTests {
             ]),
     ]
 
+    /// The China site's app has been `com.tencent.workbuddy.mac` since the
+    /// vendor renamed it (`BundleIDMigration`); the international one kept its id.
     private static let recipes = VendorProbeRegistry.recipes.filter {
-        $0.bundleID.hasPrefix("com.workbuddy.")
+        $0.bundleID.hasPrefix("com.workbuddy.") || $0.bundleID == "com.tencent.workbuddy.mac"
     }
 
     private static func installPattern(_ recipe: VendorProbeRecipe) throws -> String {

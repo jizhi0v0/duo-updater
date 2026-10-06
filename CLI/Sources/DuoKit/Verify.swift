@@ -1184,7 +1184,11 @@ public enum Verify {
     /// 5.3.14 our frozen probe kept reporting — and this cross-check simply could
     /// not see it. Worse, the miss is indistinguishable from "no cask exists",
     /// including to a human writing an app audit: both audits for that family
-    /// recorded `无 cask` for a source that was merely mis-keyed.
+    /// recorded `无 cask` for a source that was merely mis-keyed. (The cask was
+    /// right for a second reason: the vendor had renamed the app after 5.3.14.
+    /// Since 2026-10-07 the CN recipes are keyed `com.tencent.workbuddy.mac` and
+    /// reach the cask by id; see `BundleIDMigration`. The counts below are from
+    /// 2026-09-18.)
     ///
     /// Measured over all 228 cross-checked bundle ids against the live catalog on
     /// 2026-09-18 — both registries, not just the vendor probes, since

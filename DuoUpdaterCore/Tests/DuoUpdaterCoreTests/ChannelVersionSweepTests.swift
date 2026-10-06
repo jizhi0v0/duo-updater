@@ -51,7 +51,7 @@ import Foundation
         //   github:VSCodium/vscodium-insiders:preview   subject = OWNER/REPO
         // and 9 rows carry a fourth, variant component:
         //   vendor:com.anthropic.claudefordesktop:stable:rollout
-        //   vendor:com.workbuddy.workbuddy:stable:arm64
+        //   vendor:com.tencent.workbuddy.mac:stable:arm64
         // so the channel is `parts[2]`, NOT the last component — reading the last
         // one turns `…:beta:arm64` into channel "arm64", which coerces to
         // `.stable` and would report a legitimate `1.2.3-beta1` as a contradiction.

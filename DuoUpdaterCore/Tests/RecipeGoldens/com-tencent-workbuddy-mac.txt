@@ -1,11 +1,11 @@
 // Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
 // Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
 
-family = "com-workbuddy-workbuddy"
+family = "com-tencent-workbuddy-mac"
 
 probes = Array(count: 2)
 probes[0] = struct VendorProbeRecipe
-probes[0].bundleID = "com.workbuddy.workbuddy"
+probes[0].bundleID = "com.tencent.workbuddy.mac"
 probes[0].channel = .stable
 probes[0].variant? = "arm64"
 probes[0].hostRequirement? = struct VendorHostRequirement
@@ -45,7 +45,7 @@ probes[0].requestBody = nil
 probes[0].followRedirects = true
 probes[0].requestHeaders = Dictionary(count: 0)
 probes[1] = struct VendorProbeRecipe
-probes[1].bundleID = "com.workbuddy.workbuddy"
+probes[1].bundleID = "com.tencent.workbuddy.mac"
 probes[1].channel = .stable
 probes[1].variant? = "x64"
 probes[1].hostRequirement? = struct VendorHostRequirement
@@ -87,7 +87,7 @@ probes[1].requestHeaders = Dictionary(count: 0)
 
 changelogs = Array(count: 1)
 changelogs[0] = struct ChangelogRecipe
-changelogs[0].bundleID = "com.workbuddy.workbuddy"
+changelogs[0].bundleID = "com.tencent.workbuddy.mac"
 changelogs[0].source = URL("https://www.workbuddy.cn/docs/workbuddy/Changelog")
 changelogs[0].sourceTemplate = nil
 changelogs[0].versionFromTemplate = false

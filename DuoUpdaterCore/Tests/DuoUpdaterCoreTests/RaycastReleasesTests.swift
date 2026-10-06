@@ -120,8 +120,8 @@ private let raycastChangelogFixture = #"""
             // can never be the other architecture's zip.
             "vendor:com.workbuddy.workbuddy-ai:stable:arm64",
             "vendor:com.workbuddy.workbuddy-ai:stable:x64",
-            "vendor:com.workbuddy.workbuddy:stable:arm64",
-            "vendor:com.workbuddy.workbuddy:stable:x64",
+            "vendor:com.tencent.workbuddy.mac:stable:arm64",
+            "vendor:com.tencent.workbuddy.mac:stable:x64",
             // CapCut: the vendor publishes ONE dmg per track and it is arm64-only
             // (`lipo -archs` on the shipped build reports `arm64` for the launcher,
             // `libVECreator.dylib` and the helper app). Unlike Raycast there is no

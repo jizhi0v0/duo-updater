@@ -122,6 +122,28 @@ public actor InstallCoordinator {
         self.runningProcesses = runningProcesses
     }
 
+    /// The refusal a host must check BEFORE it touches anything for this
+    /// install. Clearing a staged self-update changes state, and so does taking a
+    /// rollback point: retention is one per app, so a refused install that had
+    /// already backed up would lose the previous rollback point.
+    ///
+    /// Only the routes whose swap this coordinator performs or starts: `.sparkle`
+    /// and `.vendor` (`fetchThenSwap`) and `.homebrew`. `perform` asks again
+    /// before the download and before the apply, for a nested app started in the
+    /// meantime.
+    public static func nestedAppRefusal(
+        for result: UpdateResult, route: Route,
+        processes: () -> [NestedAppGuard.RunningProcess] = NestedAppGuard.liveProcesses
+    ) -> NestedAppRunningError? {
+        switch route {
+        case .sparkle, .vendor, .homebrew:
+            return NestedAppGuard.refusal(
+                result.app.path, appName: result.app.name, processes: processes)
+        case .installer, .appStore, .xcode:
+            return nil
+        }
+    }
+
     /// Throws `NestedAppRunningError` when an app nested in `result`'s bundle is
     /// running on its own (see `NestedAppGuard`).
     private func refuseWhileNestedAppRuns(_ result: UpdateResult) throws {

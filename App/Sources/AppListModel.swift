@@ -4283,6 +4283,20 @@ final class AppListModel {
             return .notInstalled
         }
 
+        // An app nested in this bundle is running on its own and would keep running
+        // the old code (VMPal's VM processes; see `NestedAppGuard`). Refused here,
+        // before the staging clearance and the rollback point below, because both
+        // change something: retention is one backup per app, so backing up first
+        // and refusing after would lose the previous rollback point.
+        if let refused = InstallCoordinator.nestedAppRefusal(
+            for: result,
+            route: InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))) {
+            Log.install.notice("install refused: \(result.app.name, privacy: .public) — \(refused.blockers.map { "\($0.name) pid \($0.pid)" }.joined(separator: ", "), privacy: .public) running from inside it")
+            installErrors[id] = refused.errorDescription
+            installing[id] = nil
+            return .notInstalled
+        }
+
         // The app's own updater may already have this release in flight. Ours would
         // be a second copy of the same bytes, and for a Sparkle app it is worse than
         // wasteful: whichever finishes second overwrites the first, so the app can

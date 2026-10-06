@@ -164,21 +164,32 @@ public enum NestedAppGuard {
         return processes
     }
 
+    /// Why `bundle` cannot be replaced right now, or nil when it can.
+    public static func refusal(
+        _ bundle: URL, appName: String, processes: () -> [RunningProcess]
+    ) -> NestedAppRunningError? {
+        let found = blockers(
+            bundlePath: bundle.resolvingSymlinksInPath().path, processes: processes())
+        return found.isEmpty ? nil : NestedAppRunningError(appName: appName, blockers: found)
+    }
+
     /// Throws when a nested app blocks replacing `bundle`.
     public static func check(
         _ bundle: URL, appName: String, processes: () -> [RunningProcess]
     ) throws {
-        let found = blockers(
-            bundlePath: bundle.resolvingSymlinksInPath().path, processes: processes())
-        guard !found.isEmpty else { return }
-        throw NestedAppRunningError(appName: appName, blockers: found)
+        if let refusal = refusal(bundle, appName: appName, processes: processes) { throw refusal }
     }
 }
 
 /// The swap was refused because an app nested inside the bundle is running on
-/// its own. See `NestedAppGuard`. Nothing was downloaded or changed when it is
-/// thrown before the download; nothing was changed when it is thrown before the
-/// swap.
+/// its own. See `NestedAppGuard`.
+///
+/// The message says the app was not updated, not that nothing changed. Both
+/// hosts ask `InstallCoordinator.nestedAppRefusal` before they clear a staged
+/// self-update or take a rollback point, so normally nothing has changed. But
+/// when the nested app starts after that check, the coordinator refuses after
+/// the rollback point was already replaced. "Nothing was changed" would be
+/// false then.
 public struct NestedAppRunningError: LocalizedError, Equatable, Sendable {
     public let appName: String
     public let blockers: [NestedAppGuard.Blocker]
@@ -187,6 +198,6 @@ public struct NestedAppRunningError: LocalizedError, Equatable, Sendable {
         let names = Array(Set(blockers.map(\.name))).sorted()
         let list = names.joined(separator: ", ")
         let verb = names.count == 1 ? "is" : "are"
-        return "\(list) \(verb) running from inside \(appName) and would keep running the old version. Quit \(names.count == 1 ? "it" : "them"), then update again. Nothing was changed."
+        return "\(list) \(verb) running from inside \(appName) and would keep running the old version. Quit \(names.count == 1 ? "it" : "them"), then update again. \(appName) was not updated."
     }
 }

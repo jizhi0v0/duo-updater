@@ -123,11 +123,31 @@ import Testing
     @Test func theMessageNamesTheNestedAppsOnce() {
         let one = NestedAppRunningError(
             appName: "ZZFixtureVM", blockers: [.init(name: "ZZFixtureMachine", pid: 1)])
-        #expect(one.errorDescription == "ZZFixtureMachine is running from inside ZZFixtureVM and would keep running the old version. Quit it, then update again. Nothing was changed.")
+        #expect(one.errorDescription == "ZZFixtureMachine is running from inside ZZFixtureVM and would keep running the old version. Quit it, then update again. ZZFixtureVM was not updated.")
         let two = NestedAppRunningError(
             appName: "ZZFixtureVM",
             blockers: [.init(name: "B", pid: 1), .init(name: "A", pid: 2), .init(name: "B", pid: 3)])
-        #expect(two.errorDescription == "A, B are running from inside ZZFixtureVM and would keep running the old version. Quit them, then update again. Nothing was changed.")
+        #expect(two.errorDescription == "A, B are running from inside ZZFixtureVM and would keep running the old version. Quit them, then update again. ZZFixtureVM was not updated.")
+    }
+
+    // MARK: - The hosts' preflight
+
+    /// What both hosts ask before clearing a staged update or taking a rollback
+    /// point. Only the routes whose swap the coordinator performs or starts are
+    /// refused. Mutation: return nil for every route → red; refuse every route →
+    /// red.
+    @Test func thePreflightRefusesOnlyTheRoutesThatSwapTheBundle() {
+        let blocking: () -> [NestedAppGuard.RunningProcess] = { [Self.blockingMachine()] }
+        for route in [InstallCoordinator.Route.sparkle, .vendor, .homebrew] {
+            #expect(InstallCoordinator.nestedAppRefusal(for: Self.result(), route: route, processes: blocking)
+                == NestedAppRunningError(appName: "ZZFixtureVM", blockers: [.init(name: "ZZFixtureMachine", pid: 700)]),
+                "\(route) should be refused")
+        }
+        for route in [InstallCoordinator.Route.installer, .appStore, .xcode] {
+            #expect(InstallCoordinator.nestedAppRefusal(for: Self.result(), route: route, processes: blocking) == nil,
+                    "\(route) should not be refused")
+        }
+        #expect(InstallCoordinator.nestedAppRefusal(for: Self.result(), route: .sparkle, processes: { [] }) == nil)
     }
 
     // MARK: - InstallCoordinator asks twice

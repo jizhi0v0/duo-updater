@@ -190,6 +190,8 @@ struct RuntimeTag: View {
     /// Brand fidelity is followed where it survives that (Electron's teal, Qt's
     /// green, Flutter's light blue, Java's coffee) and dropped where it does not:
     /// Tauri's yellow is illegible on white, so it takes the orange next to it.
+    /// MyGo's is Go's cyan, which Flutter and Electron already hold between them,
+    /// so it takes pink — the hue no other runtime is near.
     ///
     /// Native is the one neutral, and it can afford to be: its mark is a solid
     /// Apple glyph, which carries at grey where a thin outline did not. That
@@ -198,6 +200,7 @@ struct RuntimeTag: View {
         switch runtime {
         case .electron:  return .teal
         case .tauri:     return .orange
+        case .mygo:      return .pink
         case .flutter:   return .cyan
         case .qt:        return .green
         case .java:      return .brown
@@ -216,6 +219,7 @@ struct RuntimeTag: View {
         switch runtime {
         case .electron:  return "Electron"
         case .tauri:     return "Tauri"
+        case .mygo:      return "MyGo"
         case .flutter:   return "Flutter"
         case .qt:        return "Qt"
         case .java:      return "Java"
@@ -240,7 +244,7 @@ struct RuntimeTag: View {
         case .catalyst:  return "ipad.and.iphone"
         case .iOSApp:    return "iphone"
         case .native:    return "applelogo"  // Apple's own frameworks, Apple's own glyph
-        case .electron, .tauri, .flutter, .qt, .chromium: return nil
+        case .electron, .tauri, .mygo, .flutter, .qt, .chromium: return nil
         }
     }
 
@@ -281,6 +285,7 @@ struct RuntimeTag: View {
         switch runtime {
         case .electron:  return String(localized: "Built with Electron — it bundles its own copy of Chromium.")
         case .tauri:     return String(localized: "Built with Tauri — a Rust app drawing into the system WebView.")
+        case .mygo:      return String(localized: "Built with MyGo — a Go app showing its interface in the system WebView or drawing it itself.")
         case .flutter:   return String(localized: "Built with Flutter.")
         case .qt:        return String(localized: "Built with Qt.")
         case .java:      return String(localized: "A Java app, shipping the runtime it needs.")
@@ -325,6 +330,8 @@ private struct RuntimeMark: View {
     var body: some View {
         if runtime == .chromium {
             ChromiumDisc(size: size)
+        } else if runtime == .mygo {
+            MyGoMark(size: size)
         } else if let path = Self.cache[runtime] {
             // Authored in a 24-unit box, and SVG's y-axis points down exactly as
             // SwiftUI's does, so this is a scale and nothing more. Filled with the
@@ -342,6 +349,32 @@ private struct RuntimeMark: View {
     }
 }
 
+
+/// MyGo's mark: a ring knocked out of a rounded square, as the favicon of
+/// mygo.egoist.dev draws it in a 32-unit box — the square inset by 1 with corners
+/// of 7.5, the ring of radius 8.2 stroked at 3.6. Proportional, like the disc
+/// below, and drawn rather than imported for the same reason.
+private struct MyGoMark: View {
+    let size: CGFloat
+
+    var body: some View {
+        let unit = size / 32
+        RoundedRectangle(cornerRadius: 7.5 * unit, style: .continuous)
+            .fill(.foreground)
+            .frame(width: 30 * unit, height: 30 * unit)
+            .overlay(
+                // An opaque eraser of its own: stroked in the inherited style, the
+                // ring would erase only as much as the caller's opacity — 68% in a
+                // row — and show as a faint ring instead of a hole.
+                Circle()
+                    .stroke(Color.black, lineWidth: 3.6 * unit)
+                    .frame(width: 16.4 * unit, height: 16.4 * unit)
+                    .blendMode(.destinationOut)
+            )
+            .compositingGroup()
+            .frame(width: size, height: size)
+    }
+}
 
 /// Chromium's disc: three segments around a hub, separated from it by a ring of
 /// nothing.

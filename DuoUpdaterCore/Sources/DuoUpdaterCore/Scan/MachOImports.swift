@@ -51,6 +51,10 @@ public enum MachOImports {
         /// main executable, checked 2026-09-15, is one.
         static let versionMinMacOSX: UInt32 = 0x0000_0024
         static let versionMinIPhoneOS: UInt32 = 0x0000_0025
+
+        /// `segment_command_64`, followed by its `section_64` headers. Only walked
+        /// for the one section `GoBuildInfo` needs; see `goBuildInfo`.
+        static let segment64: UInt32 = 0x0000_0019
     }
 
     /// `CPU_TYPE_ARM64` — the slice we prefer inside a universal binary. DuoUpdater
@@ -97,6 +101,19 @@ public enum MachOImports {
         /// Install name → packed `current_version`, as `loadedDylibs(at:)`.
         public let dylibs: [String: String]
         public let buildSDK: BuildSDK?
+        /// Where the Go toolchain's `__go_buildinfo` section sits in the file —
+        /// absolute, so a fat binary's slice offset is already added. Nil for
+        /// every binary Go did not link, which is nearly all of them; recorded
+        /// here because the section headers are in the region this pass already
+        /// holds, so finding it costs a comparison per section and no extra read.
+        /// `GoBuildInfo` reads what is in it.
+        public let goBuildInfo: FileRange?
+    }
+
+    /// A byte range of the file on disk.
+    public struct FileRange: Sendable, Equatable {
+        public let offset: UInt64
+        public let size: UInt64
     }
 
     public static func loadCommands(at url: URL) -> LoadCommands? {
@@ -223,6 +240,7 @@ public enum MachOImports {
 
         var names: [String: String] = [:]
         var sdks: [BuildSDK] = []
+        var goBuildInfo: FileRange?
         var cursor = 0
         for _ in 0..<commandCount {
             guard cursor + 8 <= region.count,
@@ -254,10 +272,46 @@ public enum MachOImports {
                 let platform = cmd == LoadCommand.versionMinMacOSX
                     ? BuildSDK.Platform.macOS : BuildSDK.Platform.iOS
                 if let found = BuildSDK(platform: platform, packed: sdk) { sdks.append(found) }
+            } else if cmd == LoadCommand.segment64, goBuildInfo == nil,
+                      let found = goBuildInfoSection(in: region, segmentAt: cursor, size: Int(size)) {
+                // A section's `offset` counts from the start of its own slice,
+                // not of the file.
+                goBuildInfo = FileRange(offset: sliceOffset + found.offset, size: found.size)
             }
             cursor += Int(size)
         }
-        return LoadCommands(dylibs: names, buildSDK: BuildSDK.preferred(among: sdks))
+        return LoadCommands(dylibs: names, buildSDK: BuildSDK.preferred(among: sdks),
+                            goBuildInfo: goBuildInfo)
+    }
+
+    /// The `__go_buildinfo` section among one segment's section headers, by name
+    /// alone and in whichever segment holds it — `__DATA` in every Go binary
+    /// looked at, which is also the only place Go's own `debug/buildinfo` looks
+    /// for it by name. Offsets are relative to the slice.
+    ///
+    /// `segment_command_64` is 72 bytes, `nsects` at 64; each `section_64` after
+    /// it is 80 — `sectname[16]`, `segname[16]`, `addr`, `size` (u64 at 40),
+    /// `offset` (u32 at 48), then alignment, relocation and flag words. A count
+    /// that does not fit in the command is a header this file does not trust.
+    private static func goBuildInfoSection(
+        in region: Data, segmentAt start: Int, size: Int
+    ) -> (offset: UInt64, size: UInt64)? {
+        let segmentHeader = 72, sectionHeader = 80
+        guard size >= segmentHeader, let count = region.u32(at: start + 64),
+              segmentHeader + Int(count) * sectionHeader <= size
+        else { return nil }
+        let name = Data("__go_buildinfo".utf8)
+        for index in 0..<Int(count) {
+            let section = start + segmentHeader + index * sectionHeader
+            let rawName = region[region.index(region.startIndex, offsetBy: section)
+                                 ..< region.index(region.startIndex, offsetBy: section + 16)]
+            guard rawName.prefix(while: { $0 != 0 }) == name,
+                  let low = region.u32(at: section + 40), let high = region.u32(at: section + 44),
+                  let offset = region.u32(at: section + 48), offset > 0
+            else { continue }
+            return (UInt64(offset), UInt64(high) << 32 | UInt64(low))
+        }
+        return nil
     }
 
     // MARK: - Bounded reads

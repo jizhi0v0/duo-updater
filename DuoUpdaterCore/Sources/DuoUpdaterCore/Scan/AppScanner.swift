@@ -746,7 +746,8 @@ public struct AppScanner: Sendable {
         let loadCommands = LoadCommandMemo()
         let runtimeReading = AppRuntimeDetector.read(
             bundleAt: bundleURL, isiOSAppOnMac: isiOSAppOnMac, infoPlist: plist,
-            linkedLibraries: loadCommands.linkedLibraries)
+            linkedLibraries: loadCommands.linkedLibraries,
+            goBuildInfo: loadCommands.goBuildInfo)
         let buildSDK = runtimeReading.binary.flatMap(loadCommands.buildSDK)
 
         return InstalledApp(
@@ -807,6 +808,10 @@ public struct AppScanner: Sendable {
 
         func buildSDK(at url: URL) -> BuildSDK? {
             commands(at: url)?.buildSDK
+        }
+
+        func goBuildInfo(at url: URL) -> GoBuildInfo? {
+            commands(at: url)?.goBuildInfo.flatMap { GoBuildInfo.read(at: url, section: $0) }
         }
     }
 

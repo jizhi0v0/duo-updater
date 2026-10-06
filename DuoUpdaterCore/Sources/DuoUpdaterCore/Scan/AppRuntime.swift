@@ -25,6 +25,10 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     /// Requires the `tauri` crate itself: wry — the WebView layer Tauri sits on —
     /// is embedded by apps that are not Tauri at all.
     case tauri
+    /// A Go app built with MyGo (github.com/egoist/mygo), showing a page in the
+    /// system WebView or an interface MyGo draws itself on the GPU — one binary,
+    /// either way. Decided by the module list the Go toolchain records in it.
+    case mygo
     /// Flutter's macOS embedder.
     case flutter
     /// Qt (5 or 6), deployed with its frameworks inside the bundle.
@@ -52,10 +56,12 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     /// `RuntimeVersion` refuses to follow the redirect for it — see the note there.
     /// A nested bundle that may not lend its version must not lend its name either,
     /// or the row would be labelled from a binary the popover is forbidden to read.
+    /// `.mygo` is compiled in the same way and stays out for the first half of that
+    /// reason: a Go module list describes the one binary it is in.
     var isBundled: Bool {
         switch self {
         case .electron, .flutter, .qt, .java, .chromium: true
-        case .tauri, .native, .catalyst, .iOSApp: false
+        case .tauri, .mygo, .native, .catalyst, .iOSApp: false
         }
     }
 }
@@ -118,6 +124,8 @@ public struct LinkedFrameworks: OptionSet, Sendable, Hashable, Codable {
 ///    Cargo path inside the executable. Reading a whole binary is far too
 ///    expensive to do for every app, so it runs only for the bundles the first
 ///    two sources have already narrowed to a handful. See the `tauri` rule below.
+///    MyGo is read from a binary too, but from one section the load commands
+///    locate — Go's module list — rather than by a search. See `GoBuildInfo`.
 ///
 /// Source 2 is asked at most twice. Where a bundle's declared executable is a
 /// launcher rather than the app — Audacity's `Wrapper` sets a dylib path and execs
@@ -142,6 +150,14 @@ public enum AppRuntimeDetector {
     /// header. Injected for the same reason as `LibraryReader`; production passes
     /// `RuntimeVersion.carriesTauriCrate(bundleAt:)`.
     public typealias TauriProof = (URL) -> Bool
+
+    /// The Go module list of an executable, nil for one Go did not link. Injected
+    /// like the other two; production passes `GoBuildInfo.read(at:)`, or the
+    /// scan's memo of the load commands it has already parsed.
+    public typealias GoBuildInfoReader = (URL) -> GoBuildInfo?
+
+    /// MyGo's module path — what a MyGo app's module list names it by.
+    public static let myGoModule = "github.com/egoist/mygo"
 
     /// Everything one read of a bundle can say about how it was built.
     public struct Reading: Sendable, Equatable {
@@ -171,11 +187,12 @@ public enum AppRuntimeDetector {
         isiOSAppOnMac: Bool,
         infoPlist: [String: Any],
         linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) },
-        carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:)
+        carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:),
+        goBuildInfo: GoBuildInfoReader = { GoBuildInfo.read(at: $0) }
     ) -> AppRuntime? {
         read(bundleAt: bundleURL, isiOSAppOnMac: isiOSAppOnMac,
              infoPlist: infoPlist, linkedLibraries: linkedLibraries,
-             carriesTauriCrate: carriesTauriCrate).runtime
+             carriesTauriCrate: carriesTauriCrate, goBuildInfo: goBuildInfo).runtime
     }
 
     /// Both facts from a single pass. The executable's load commands are read at
@@ -194,6 +211,7 @@ public enum AppRuntimeDetector {
         infoPlist: [String: Any],
         linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) },
         carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:),
+        goBuildInfo: GoBuildInfoReader = { GoBuildInfo.read(at: $0) },
         followingNestedBundle: Bool = true
     ) -> Reading {
         // A wrapped iOS app has no `Contents/` at all, so every rule below would
@@ -315,7 +333,7 @@ public enum AppRuntimeDetector {
         if followingNestedBundle,
            let nested = nestedInterface(
             in: contents, linkedLibraries: linkedLibraries,
-            carriesTauriCrate: carriesTauriCrate, fm: fm) {
+            carriesTauriCrate: carriesTauriCrate, goBuildInfo: goBuildInfo, fm: fm) {
             return nested.reading
         }
 
@@ -326,6 +344,29 @@ public enum AppRuntimeDetector {
         // file has always failed closed on, and reading a different file instead
         // would be the guess it refuses to make.
         guard let libraries else { return reading(nil) }
+
+        // MyGo. Nothing above can see it and nothing below would name it: the
+        // bundle holds one Go binary, an icon and a plist, and the binary links
+        // CoreFoundation, Security and libSystem — AppKit and WebKit are opened
+        // with `dlopen` at run time, which is how MyGo builds without cgo. So the
+        // link rules below leave it unlabelled, which is where it sat before this
+        // rule existed.
+        //
+        // The evidence is the module list Go records in every binary it links,
+        // `dep github.com/egoist/mygo v0.2.14`: the toolchain's statement of what
+        // went into the build, in a section `MachOImports` locates while parsing
+        // the load commands. A binary Go did not link has no such section, so for
+        // every other app the scan pays a `nil` check on a parse already made
+        // (it passes its memo of the load commands as the reader).
+        //
+        // Placed above the link rules rather than among the unlabelled leftovers
+        // so it does not depend on MyGo's no-cgo build staying true of every app:
+        // `mygo build` forces `CGO_ENABLED=0`, but an app built with a plain
+        // `go build` and cgo on may pull in a dependency that links AppKit,
+        // without being any less MyGo — and the native rule would claim it first.
+        if let executable, goBuildInfo(executable)?.module(myGoModule) != nil {
+            return reading(.mygo)
+        }
 
         // Tauri — the one case decided by reading a binary's *contents*, and the
         // reason is worth stating because the cheaper rule was tried first and
@@ -554,6 +595,7 @@ public enum AppRuntimeDetector {
             in: bundleURL.appendingPathComponent("Contents"),
             linkedLibraries: { MachOImports.linkedLibraries(at: $0) },
             carriesTauriCrate: RuntimeVersion.carriesTauriCrate(bundleAt:),
+            goBuildInfo: { GoBuildInfo.read(at: $0) },
             fm: FileManager.default)
         else { return bundleURL }
         return nested.bundle
@@ -570,6 +612,7 @@ public enum AppRuntimeDetector {
         in contents: URL,
         linkedLibraries: LibraryReader,
         carriesTauriCrate: TauriProof,
+        goBuildInfo: GoBuildInfoReader,
         fm: FileManager
     ) -> (bundle: URL, reading: Reading)? {
         // Condition 1, and the one place in this file where "no frameworks" has to
@@ -604,7 +647,7 @@ public enum AppRuntimeDetector {
         let reading = read(
             bundleAt: nested, isiOSAppOnMac: false, infoPlist: plist ?? [:],
             linkedLibraries: linkedLibraries, carriesTauriCrate: carriesTauriCrate,
-            followingNestedBundle: false)
+            goBuildInfo: goBuildInfo, followingNestedBundle: false)
         guard let runtime = reading.runtime, runtime.isBundled else { return nil }
         return (nested, reading)
     }

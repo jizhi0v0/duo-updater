@@ -144,6 +144,11 @@ public enum RuntimeVersion {
         case .chromium:
             guard scanningBinaries else { return nil }
             version = chromiumVersion(bundleAt: bundleURL)
+        case .mygo:
+            // The module version the detector's evidence carries anyway — a
+            // section read, not a walk, so `scanningBinaries` does not apply.
+            version = executable.flatMap(GoBuildInfo.read(at:))?
+                .module(AppRuntimeDetector.myGoModule)?.builtVersion
         case .flutter, .native, .catalyst, .iOSApp:
             version = nil
         }

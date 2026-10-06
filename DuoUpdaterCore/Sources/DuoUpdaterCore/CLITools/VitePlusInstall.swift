@@ -106,8 +106,9 @@ public struct VitePlusScanner: Sendable {
     /// Each root that holds an install (a `current` link), single root first.
     /// Blocking: files are stat'd and read.
     public func scan() -> [VitePlusInstall] {
-        // As `vp` asks it: the link followed.
-        let singleRootActive = FileManager.default.fileExists(atPath: singleRoot.appendingPathComponent("current").path)
+        // As `vp` asks it (`dirs/resolution.rs` at v1.0.0): `symlink_metadata`, the
+        // link not followed — a dangling `current` still makes `~/.vite-plus` the install.
+        let singleRootActive = Self.exists(singleRoot.appendingPathComponent("current"))
         return [(singleRoot, VitePlusInstall.Layout.singleRoot), (splitRoot, .split)].compactMap { root, layout in
             guard Self.exists(root.appendingPathComponent("current")) else { return nil }
             return read(root: root, layout: layout, shadowed: layout == .split && singleRootActive)

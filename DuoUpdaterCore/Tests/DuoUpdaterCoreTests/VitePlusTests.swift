@@ -190,6 +190,17 @@ import CryptoKit
         #expect(installs.map(\.problem) == [nil, .shadowed])
     }
 
+    /// `vp` asks for `~/.vite-plus/current` without following it, so a dangling
+    /// link still shadows the split install. Mutation: follow the link.
+    @Test func aDanglingSingleRootLinkStillShadows() throws {
+        let box = try Sandbox()
+        try box.install(at: box.split, version: "0.3.3")
+        try FileManager.default.createDirectory(at: box.single, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(
+            atPath: box.single.appendingPathComponent("current").path, withDestinationPath: "0.0.0-missing")
+        #expect(box.scanner.scan().last?.problem == .shadowed)
+    }
+
     @Test func brokenInstallsSayHow() throws {
         let box = try Sandbox()
         try box.install(at: box.split, version: "0.3.3")

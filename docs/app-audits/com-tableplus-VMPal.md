@@ -55,7 +55,7 @@
 - 跟随 channel: 不适用（单轨）
 - Recipe 状态: 已有。页面每个构建一个 `<li class="vp-release">`：`<h2>VMPal 0.36</h2>`、`<time datetime="2026-10-06">`、`<div class="vp-release-body"><ul><li>…`。
 - 为什么不用 appcast 内联说明：`<description>` 是 TablePlus feed 同款模板（`<h2>Build 36 - Virtual Machines for Apple Silicon</h2>`、`<h4>Release date…</h4>`、`<ol>`）。生产的 `AppcastHTMLChangelogParser` 把 `<h2>` 当成一条变更，结果每个版本第一条都是「Build 36 - Virtual Machines for Apple Silicon」，日期也是 RFC 822 原文。recipe 在面板里排在内联说明前面，所以不会出现这个问题。
-- recipe 抓取失败时：面板退到 `changelogURL` 的网页；这个 feed 没有 `releaseNotesLink`，也没登记 `ChangelogCatalog`，所以会显示「没有发布说明」。
+- recipe 抓取失败时（页面取不到或正则不再匹配）：面板先找 `changelogURL`——这个 feed 没有 `releaseNotesLink`，也没登记 `ChangelogCatalog`，所以是 nil——然后退到 feed 的内联 `<description>`（`releaseNotesHTML`），经 `ReleaseNotesText` 按 HTML 渲染，也就是上面那份 TablePlus 模板正文，而不是空态（`WorkbenchWindowView.fallback`）。看到这份模板正文，说明 recipe 失效了。
 
 ## 一键安装
 - 状态: 走通用 Sparkle 安装路径（dmg + EdDSA 校验 + Team 闸）。真包已挂载核对：bundle id、版本、Team、`spctl` 都对得上；**完整的「旧版 → 新版」安装没有跑过**

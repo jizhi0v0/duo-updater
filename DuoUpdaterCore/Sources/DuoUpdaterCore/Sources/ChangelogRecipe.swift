@@ -504,6 +504,13 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// surface — and regrouping is not something a pattern can do. See
         /// `StructuredChangelogDecoder.decodeClaudeDesktop`.
         case claudeDesktopChangelog
+        /// HyperFrames' per-build What's New,
+        /// `static.heygen.ai/hyperframes-oss/desktop[/canary]/whats-new-<build>.json`
+        /// (the recipe templates `{version}` into the URL) — the file the app's own
+        /// What's New dialog reads: `{schema: 1, build, date, title, summary,
+        /// new[], improved[], fixed[], scenes[]}`. One document, one entry. See
+        /// `StructuredChangelogDecoder.decodeHyperFramesWhatsNew`.
+        case hyperFramesWhatsNew
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex

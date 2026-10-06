@@ -176,6 +176,7 @@ public enum AppRecipeIndex {
         com_youqu_todesk_mac.set,
         com_zarifpour_superconductor.set,
         dev_commandline_waveterm.set,
+        dev_hyperframes_desktop.set,
         dev_kdrag0n_MacVirt.set,
         dev_kiro_desktop.set,
         dev_openchamber_desktop.set,

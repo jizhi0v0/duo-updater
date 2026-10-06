@@ -279,6 +279,11 @@ let mozillaINI: (remotingName: String?, buildID: String?) =
     (bundleID?.hasPrefix("org.mozilla") == true)
     ? AppScanner.mozillaApplicationINI(in: appPath) : (nil, nil)
 let remotingName = mozillaINI.remotingName
+// HyperFrames' build label (`HFBuildLabel`, `b271` → `271`): its recipes compare
+// in the vendor namespace, and every build says `0.1.0` in both version keys.
+// Same production helper and bundle ids as `AppScanner`.
+let hyperFramesBuild = bundleID.map(AppScanner.hyperFramesBundleIDs.contains) == true
+    ? AppScanner.hyperFramesBuildNumber(info) : nil
 
 // WeChat DevTools keeps its real version and channel in its own `package.json`;
 // since 2.02 the Info.plist read above is Electron's stock one (`com.github.Electron`
@@ -326,6 +331,7 @@ print("""
   RemotingName    \(remotingName ?? "<none>")
   BuildID         \(mozillaINI.buildID ?? "<none>")
   package.json    \(weChatDevTools.map { "\($0.version) · versionType → \($0.channel.rawValue)" } ?? "<none>")
+  HFBuildLabel    \(hyperFramesBuild.map { "b\($0)" } ?? "<none>")
   Blender build   \(blender.map { "cycle \($0.cycle?.rawValue ?? "?") · \($0.branch ?? "?") · \($0.commit ?? "?") · built \($0.builtAt.map { "\($0)" } ?? "?") · track commit \($0.trackCommit ?? "<none>")" } ?? "<none>")
   inferred        \(inferred.rawValue)\(bound == nil ? "" : "  (overridden below)")
   ChannelBinding  \(bound.map { "\($0.channel.rawValue) — read from this app's own preference" } ?? "<none for this app>")
@@ -348,7 +354,7 @@ let app = InstalledApp(
     bundleID: bundleID,
     shortVersion: shortVersion,
     buildVersion: buildVersion,
-    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit,
+    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild,
     vendorBuildDate: blender?.builtAt,
     path: appPath,
     isMASApp: false,
@@ -466,7 +472,7 @@ let chainApp = InstalledApp(
     bundleID: bundleID,
     shortVersion: shortVersion,
     buildVersion: buildVersion,
-    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit,
+    vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild,
     vendorBuildDate: blender?.builtAt,
     path: appPath,
     isMASApp: false,

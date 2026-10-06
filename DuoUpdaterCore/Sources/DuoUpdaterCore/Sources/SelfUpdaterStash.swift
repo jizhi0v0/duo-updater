@@ -219,6 +219,9 @@ extension SelfUpdaterStash {
     ///   for a file that is neither. Its replacement is the digest gate below (gate
     ///   8), which is the stronger statement anyway: it checks the bytes on disk
     ///   against the digest the app's own updater recorded for them.
+    /// - `RemoteVersion.expectedSHA256` (a vendor's SHA-256, or the `digest` GitHub
+    ///   publishes for the asset a GitHub rule chose) likewise, and for the same
+    ///   reason.
     /// - `RemoteVersion.nestedArchivePath` describes where a payload sits inside a
     ///   particular stub installer. A zip of the app is not that stub.
     ///

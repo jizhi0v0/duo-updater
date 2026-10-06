@@ -41,7 +41,7 @@ import Darwin
 ///
 /// | Gate | pkg route |
 /// | --- | --- |
-/// | 1 EdDSA over the download | caller's `verifyDownload` (Sparkle only) |
+/// | 1 EdDSA over the download | caller's `verifyDownload` (Sparkle; any other source: its published SHA-256 when it has one, e.g. a GitHub asset `digest`) |
 /// | 2 code signature | **no** — `pkgutil --check-signature` on the package instead |
 /// | 3 Team ID match | yes, against the package's Developer ID Installer cert |
 /// | 4 bundle identifier match | **no** — replaced by the destination check below |
@@ -225,10 +225,11 @@ public actor PackageInstaller {
         let bytesDownloaded = downloader.bytesDownloaded
 
         // Source-specific proof over the original downloaded bytes belongs before
-        // any parsing or mounting. Sparkle uses this seam for its enclosure EdDSA;
-        // Vendor/Homebrew packages use the no-op default and retain the common pkg
-        // gate in `handOver` below — signature, Team ID, destination and gate 6;
-        // the header table is the one list of what that is.
+        // any parsing or mounting. Sparkle uses this seam for its enclosure EdDSA,
+        // and a package whose source published a SHA-256 (a GitHub asset's
+        // `digest`) for that digest; the rest pass through, and every package
+        // retains the common pkg gate in `handOver` below — signature, Team ID,
+        // destination and gate 6; the header table is the one list of what that is.
         let sourceFingerprint = try verifyDownload(file)
         // A signed DMG is about to be parsed into a different inner file, so prove
         // the pathname still holds the exact enclosure whose EdDSA check passed.

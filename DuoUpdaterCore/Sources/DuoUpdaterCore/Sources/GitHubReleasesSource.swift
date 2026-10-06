@@ -160,7 +160,10 @@ public struct GitHubReleaseRule: Sendable {
     public let installerKind: VendorInstallerKind?
 
     /// What the matched asset's trust rests on. `.developerID` (the default) is
-    /// the Team-ID gate described on `installAssetPattern`. `.publishedDigestOnly`
+    /// the Team-ID gate described on `installAssetPattern`; when GitHub publishes
+    /// a `digest` for the asset, the download is also checked against it before
+    /// that gate runs, and an asset without one installs on the Team-ID gate
+    /// alone. `.publishedDigestOnly`
     /// is for a project whose macOS build is ad-hoc signed — no Team ID to match —
     /// and is set only after checking the real artifact: its seal passes
     /// `codesign --verify --deep --strict`, its signed identifier is its bundle id,
@@ -1401,9 +1404,12 @@ public struct GitHubReleasesSource: UpdateSource {
                         from: release.assets, matching: $0,
                         preferring: hostArch, allowingIntelTranslation: canRunIntel)
                 }
-                // A digest-only rule rests entirely on the digest GitHub publishes
-                // for THIS asset, read from the same release object as its URL —
-                // never from the URL or a sidecar file. No digest, no one-click.
+                // The digest GitHub publishes for THIS asset, read from the same
+                // release object as its URL — never from the URL or a sidecar file.
+                // A digest-only rule rests entirely on it: no digest, no one-click.
+                // A Team-ID rule carries it too, so the download is checked before
+                // the Team-ID gate; without one (assets uploaded before June 2025)
+                // it installs exactly as it always did, on the Team-ID gate alone.
                 let digest = asset.flatMap { chosen in
                     release.assets.first { $0.url == chosen.url }
                         .flatMap { release.assetDigests[$0.name] }
@@ -1430,7 +1436,7 @@ public struct GitHubReleasesSource: UpdateSource {
                     sourceName: name,
                     requiresManualInstaller: !installable,
                     vendorInstallerKind: installable ? rule.installerKind : nil,
-                    expectedSHA256: rule.installTrust == .publishedDigestOnly ? digest : nil,
+                    expectedSHA256: digest,
                     installTrust: rule.installTrust,
                     releaseNotesHTML: structured == nil ? body : nil,
                     structuredChangelog: structured,

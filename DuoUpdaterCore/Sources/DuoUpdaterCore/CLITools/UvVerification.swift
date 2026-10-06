@@ -191,14 +191,16 @@ public final class UvVerifiedFiles: @unchecked Sendable {
     private let lock = NSLock()
     let fileURL: URL
 
-    init(fileURL: URL? = nil) {
+    /// `name` is the file's: another tool trusted the same way keeps its own
+    /// (`UvVerifiedFiles.vitePlus`).
+    init(fileURL: URL? = nil, name: String = "uv-verified-files.json") {
         self.fileURL = fileURL ?? (DuoStateDirectory.isTestProcess
             ? FileManager.default.temporaryDirectory
                 .appendingPathComponent("duo-uv-verified-tests-\(UUID().uuidString)")
-                .appendingPathComponent("uv-verified-files.json")
+                .appendingPathComponent(name)
             : DuoStateDirectory.base
                 .appendingPathComponent("com.duoupdater.app", isDirectory: true)
-                .appendingPathComponent("uv-verified-files.json"))
+                .appendingPathComponent(name))
     }
 
     /// The verdict for the files at `path` (and `uvx`) as they are now. Blocking.

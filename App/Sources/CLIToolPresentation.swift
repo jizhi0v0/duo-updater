@@ -182,7 +182,7 @@ enum CLIToolPresentation {
         case .bun(let bun): return facts(of: bun)
         case .opencode(let opencode): return facts(of: opencode)
         case .amp(let amp): return facts(of: amp)
-        case .claudeCode, .bub, .fx, .boat, .cursorAgent: return []
+        case .claudeCode, .bub, .fx, .boat, .cursorAgent, .vitePlus: return []
         }
     }
 

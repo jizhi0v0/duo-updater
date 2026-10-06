@@ -4325,7 +4325,7 @@ final class AppListModel {
             staged: SelfUpdaterStaging.staged(
                 for: result.app, requireNewerThanInstalled: false))
         if let staged = blockingStaged, UpdatePolicy.clearsStagedBuild(result, staged: staged) {
-            let outcome = await SparkleStagingClearance.clear(for: result.app, staged: staged)
+            let outcome = await StagedBuildClearance.clear(for: result.app, staged: staged)
             switch outcome {
             case .cleared:
                 Log.install.notice("cleared stale staged self-update: \(result.app.name, privacy: .public) had \(staged.version, privacy: .public) staged, installing \(result.remote?.displayVersion ?? "?", privacy: .public)")

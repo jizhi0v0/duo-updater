@@ -225,7 +225,7 @@ public enum Install {
         case failed(String, String, touchedInstaller: Bool)
     }
 
-    /// Clear a stale Sparkle staging in the way of `result`'s install — the
+    /// Clear a stale staged build (Sparkle, magpie) in the way of `result`'s install — the
     /// case `classify` let through (`UpdatePolicy.clearsStagedBuild`).
     static func clearStaleStaging(_ result: UpdateResult) async -> StagingClearance {
         guard let staged = UpdatePolicy.stagedBlocksInstall(
@@ -235,7 +235,7 @@ public enum Install {
               UpdatePolicy.clearsStagedBuild(result, staged: staged)
         else { return .none }
         let version = result.stagedRelaunchLine(staged).to
-        switch await SparkleStagingClearance.clear(for: result.app, staged: staged) {
+        switch await StagedBuildClearance.clear(for: result.app, staged: staged) {
         case .cleared: return .cleared(version)
         case .notCleared(let reason, let touched): return .failed(version, reason, touchedInstaller: touched)
         }

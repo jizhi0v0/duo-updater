@@ -708,6 +708,36 @@ release, then `duo install --yes`. Run it serially, never from a parallel
 agent, following `coverage-discovery` Phase 5 (it needs a permission rule the
 user adds).
 
+**This run is pre-authorized. Don't ask before doing it.** Installing an older
+release of the audited app into `/Applications`, launching it, running
+`duo install` / `duo restart` against it, and quitting it are all part of the
+audit. The user said so on 2026-10-06 after being asked once too often. Still
+ask before anything outside that: a password or license prompt, signing in,
+sending data to the vendor beyond the app's own update check, or removing
+data the app didn't just create. Two rounds, in order:
+
+1. **Not running.** `ditto` the previous release into `/Applications`, don't
+   launch it, then run `duo check <app>` and `duo install <app> --yes --json`.
+   Record `outcome` and time, then short/build version, inode change,
+   `codesign --verify --deep --strict`, `spctl -a -vv`, and Team ID. Also run
+   `diff -r` against the vendor's bundle and check `duo backups`.
+2. **Running, with the app's own updater armed.** Reinstall the previous
+   release and launch it. Let its updater stage something (a `.zip` sitting
+   under its staging directory means the download is still in progress). Then
+   run `duo install`, then `duo restart <app>` (it takes no flags). Poll the
+   on-disk version for ~10 s afterwards. A swap that went in and then got
+   reverted, or "restarted" with the disk going back to an older version, is
+   the self-updater collision. Note it in the audit's 已知问题. Make the staged
+   build *older* than the one duo installs, or the collision is invisible
+   (same version back in). The vendor's own test hook usually lets you do that
+   (magpie: `MAGPIE_UPDATE_FEED` pointed at a local feed that names an older
+   real release).
+
+Before either round, run `make cli`. `duo` at `~/.local/bin` is whatever was
+last built and won't have the recipe you just wrote. Leave the machine on the
+newest release with the app not running, stop anything you served, and say in
+the report that the app is still installed.
+
 **Changelog quality.** `channel-verify` prints a `changelog pane` line: what the
 workbench pane shows, in its order (recipe → source's structured log → raw
 inline notes → web page → none), with the newest entry's item count, kept

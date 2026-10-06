@@ -103,6 +103,11 @@ public enum StagedUpdater: Sendable, Hashable {
     case sparkle
     /// Spotify's own updater, which applies on the next launch.
     case spotify
+    /// magpie's own updater (Go, `internal/update`). It stages beside the bundle
+    /// and swaps in its own process on the way out — `OnShutdown`, before the
+    /// process exits — with no version check, so like Sparkle it applies on quit
+    /// and like Sparkle a staged build older than ours undoes our install.
+    case magpie
 }
 
 /// Detects updates that an app's *own* Squirrel updater (Electron's
@@ -125,9 +130,11 @@ public enum SelfUpdaterStaging {
     /// stat-ing every installed app.
     public static func mayHaveStaging(_ app: InstalledApp) -> Bool {
         app.hasSelfUpdater || app.hasSparkleUpdater || app.bundleID == spotifyBundleID
+            || app.bundleID == magpieBundleID
     }
 
     private static let spotifyBundleID = "com.spotify.client"
+    static let magpieBundleID = "com.yetone.magpie"
 
     /// The staged self-update for `app`, or nil when there isn't one. Returns nil
     /// unless: the app ships a self-updater, a ShipIt state file names *this exact
@@ -156,9 +163,16 @@ public enum SelfUpdaterStaging {
         cachesDirectory: URL? = nil,
         applicationSupportDirectory: URL? = nil,
         parkedInstallerBundleURLs: [URL]? = nil,
+        isRunning: (URL) -> Bool = AppRestarter.hasProcesses(insideBundle:),
         fileManager: FileManager = .default
     ) -> StagedSelfUpdate? {
         guard let bundleID = app.bundleID else { return nil }
+
+        if bundleID == magpieBundleID {
+            return magpieStaged(
+                for: app, requireNewerThanInstalled: requireNewerThanInstalled,
+                isRunning: isRunning, fileManager: fileManager)
+        }
 
         if bundleID == spotifyBundleID {
             return spotifyStaged(
@@ -308,6 +322,58 @@ public enum SelfUpdaterStaging {
             version: versionTo, buildVersion: nil,
             stagedBundlePath: URL(fileURLWithPath: updatePath),
             appliesOn: .launch, updater: .spotify)
+    }
+
+    /// The staging directory magpie's updater unpacks into: `.magpie-update` beside
+    /// the bundle (`stageDir` in magpie's `internal/update/update.go`). When that
+    /// folder is not writable magpie stages in its system cache instead, to swap in
+    /// with an administrator's password; that layout is not read here.
+    static func magpieStagingDirectory(for app: InstalledApp) -> URL {
+        app.path.deletingLastPathComponent()
+            .appendingPathComponent(".magpie-update", isDirectory: true)
+    }
+
+    /// The build magpie's own updater has unpacked and will swap in when the app
+    /// quits. Read from magpie's source (`internal/update`, `internal/gui`; main,
+    /// 2026-10-06) and measured on 0.1.1080 the same day:
+    ///
+    /// - `Stage` empties `.magpie-update`, downloads the zip into it, `ditto`s it to
+    ///   `app/magpie.app`, deletes the zip, and keeps the result only if it is
+    ///   signed by the installed bundle's team. A zip still present means the
+    ///   download or unpack is in progress, which is not yet a staged build.
+    /// - Whether a staged build will be applied lives only in the running
+    ///   process's memory (`updater.staged`). A directory left behind by a magpie
+    ///   that is no longer running is applied by nobody — the next `Stage` deletes
+    ///   it — so without a running instance there is nothing staged.
+    /// - The swap on quit (`OnShutdown` → `updates.install(false)` → `Install`)
+    ///   renames the current bundle to `.magpie-update/app/old.app`, moves the
+    ///   staged one in and deletes `.magpie-update`, without comparing versions.
+    ///   Measured: 0.1.1080 running with 0.1.1082 staged, we installed 0.1.1084,
+    ///   `duo restart` → 0.1.1082 on disk.
+    static func magpieStaged(
+        for app: InstalledApp,
+        requireNewerThanInstalled: Bool,
+        isRunning: (URL) -> Bool,
+        fileManager: FileManager
+    ) -> StagedSelfUpdate? {
+        let dir = magpieStagingDirectory(for: app)
+        let staged = dir.appendingPathComponent("app/magpie.app", isDirectory: true)
+        let info = staged.appendingPathComponent("Contents/Info.plist", isDirectory: false)
+        guard let entries = try? fileManager.contentsOfDirectory(atPath: dir.path),
+              !entries.contains(where: { $0.hasSuffix(".zip") }),
+              let data = try? Data(contentsOf: info),
+              let dict = dictionary(from: data),
+              dict["CFBundleIdentifier"] as? String == magpieBundleID,
+              let stagedShort = dict["CFBundleShortVersionString"] as? String
+        else { return nil }
+        guard isRunning(app.path) else { return nil }
+        let side = VersionSide(marketing: stagedShort, build: dict["CFBundleVersion"] as? String)
+        if requireNewerThanInstalled {
+            guard VersionComparator.isNewer(side, than: app.versionSide) else { return nil }
+        }
+        return StagedSelfUpdate(
+            version: stagedShort, buildVersion: side.build, stagedBundlePath: staged,
+            appliesOn: .quit, updater: .magpie)
     }
 
     /// Parse a string-keyed dictionary from either a property list or JSON.

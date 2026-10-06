@@ -102,7 +102,11 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   release bodies (the last 30 of each GitHub source, 2026-10-01) it also
     ///   changed AirCard v1.2.5 and cc-switch v3.10.1–v3.10.3, each label-only item
     ///   replaced by its nested changes.
-    public static let parserGeneration = 8
+    /// - 9: `GitHubMarkdownParser` stops at a line that is only a
+    ///   `<!-- lang:xx -->` comment. magpie appends a full Chinese translation
+    ///   below `<!-- lang:zh -->`, under the same English headings, so notes
+    ///   already cached from its releases list every change twice.
+    public static let parserGeneration = 9
 
     public let entries: [Entry]
 

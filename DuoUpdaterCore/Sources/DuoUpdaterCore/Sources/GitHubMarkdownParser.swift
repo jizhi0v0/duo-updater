@@ -65,6 +65,7 @@ public enum GitHubMarkdownParser {
     public static func parse(
         body: String, version: String, date: String?, skipSections: [String] = []
     ) -> Changelog? {
+        let body = firstLanguage(of: body)
         var (items, content) = extractItems(from: body, lenient: false, skipSections: skipSections)
         if items.isEmpty {
             (items, content) = extractItems(from: body, lenient: true, skipSections: skipSections)
@@ -80,6 +81,24 @@ public enum GitHubMarkdownParser {
     }
 
     // MARK: - Internals
+
+    /// The body up to the first line that is only a `<!-- lang:xx -->` comment.
+    ///
+    /// magpie's release workflow appends a translation of the whole body below
+    /// `<!-- lang:zh -->` — same `## Features` / `## Bug Fixes` headings, so no
+    /// `skipSections` entry can tell the copy from the original — and its own
+    /// updater shows only the part above the marker unless asked for Chinese
+    /// (`InLang` in magpie's `internal/update/notes.go`). Without the cut every
+    /// change appeared twice, once in each language (v0.1.1084: 21 items for 8
+    /// changes). Whole line only, so prose that merely mentions such a comment
+    /// is untouched; a body without the marker comes back as it was.
+    static func firstLanguage(of body: String) -> String {
+        guard let marker = body.range(
+            of: #"(?m)^[ \t]*<!--[ \t]*lang:[A-Za-z-]+[ \t]*-->[ \t]*\r?$"#,
+            options: .regularExpression)
+        else { return body }
+        return String(body[..<marker.lowerBound])
+    }
 
     static let skippedSectionKeywords = [
         "new contributors", "contributors", "full changelog",

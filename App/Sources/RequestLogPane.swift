@@ -442,7 +442,9 @@ struct RequestLogPane: View {
     // MARK: - The question
 
     private var queryBar: some View {
-        HStack(spacing: 9) {
+        // Top, not centre: the field grows when its capsules wrap, and the
+        // range menu belongs beside its first line, not halfway down it.
+        HStack(alignment: .top, spacing: 9) {
             QueryTokenField(
                 text: $filter.text,
                 draft: $filter.draft,
@@ -462,6 +464,9 @@ struct RequestLogPane: View {
             }
             .labelsHidden()
             .fixedSize()
+            // The field's one-line height, so a single line still lines up
+            // centre to centre.
+            .frame(minHeight: 28)
         }
         .padding(.horizontal, NetworkPaneMetrics.gutter)
         .padding(.top, 10)

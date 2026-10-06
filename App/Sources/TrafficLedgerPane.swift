@@ -571,6 +571,14 @@ private struct TrafficRow: View {
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 
+    /// Marks a subview that rides at the end of the line it lands on: it takes
+    /// no gap and no room, and never starts a line of its own. The query
+    /// field's input while nobody is typing — a line for it alone would be an
+    /// empty one under capsules that already fill theirs.
+    struct RidesAlong: LayoutValueKey {
+        static let defaultValue = false
+    }
+
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? .infinity
         let rows = layout(subviews: subviews, width: width)
@@ -585,6 +593,12 @@ struct FlowLayout: Layout {
             var x = bounds.minX
             for index in row.indices {
                 let size = subviews[index].sizeThatFits(.unspecified)
+                if subviews[index][RidesAlong.self] {
+                    // Its x can be past the last gap; keep it inside.
+                    subviews[index].place(at: CGPoint(x: min(x, bounds.maxX - size.width), y: y),
+                                          proposal: ProposedViewSize(size))
+                    continue
+                }
                 subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
                 x += size.width + spacing
             }
@@ -599,6 +613,11 @@ struct FlowLayout: Layout {
         var row = Row()
         for index in subviews.indices {
             let size = subviews[index].sizeThatFits(.unspecified)
+            if subviews[index][RidesAlong.self], !row.indices.isEmpty {
+                row.indices.append(index)
+                row.height = max(row.height, size.height)
+                continue
+            }
             let needed = row.indices.isEmpty ? size.width : row.width + spacing + size.width
             if !row.indices.isEmpty, needed > width {
                 rows.append(row)

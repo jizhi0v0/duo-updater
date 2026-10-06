@@ -206,11 +206,10 @@ import Testing
         // concurrent runs from colliding on `/Volumes/Name 1`.
         let volname = "duo\(id.prefix(5))"
 
-        /// hdiutil's exit status and everything it printed. `create` fails on CI
-        /// now and then with status 1 (4 in 344 attempts, 2026-09-26 → 10-06, on
-        /// HFS+, MS-DOS and APFS), and the status alone does not say why. A file,
-        /// not a pipe: `attach` hands off to a helper that may hold the pipe open
-        /// after hdiutil exits.
+        /// hdiutil's exit status and everything it printed — the status alone did
+        /// not say why `create` failed on CI (4 in 344 attempts, 2026-09-26 →
+        /// 10-06). A file, not a pipe: `attach` hands off to a helper that may
+        /// hold the pipe open after hdiutil exits.
         func run(_ arguments: [String]) -> (status: Int32, output: String) {
             let log = fm.temporaryDirectory.appendingPathComponent("duo-hdiutil-\(UUID().uuidString).log")
             defer { try? fm.removeItem(at: log) }
@@ -231,10 +230,21 @@ import Testing
             return (process.terminationStatus, output)
         }
 
-        let created = run([
-            "create", "-size", "\(sizeMB)m", "-type", "SPARSE",
-            "-fs", format, "-volname", volname, image.path,
-        ])
+        // On the hosted runner `create` sometimes answers "create failed - Resource
+        // busy" when several run at once, and the next try a second later works:
+        // 11 of 1,920 creates, eight at a time, all recovered on the second
+        // attempt; none of 1,920 run one at a time hit it (diag runs 37427083362,
+        // 37428672097, 2026-10-06). Any other failure is reported as it is.
+        var created = (status: Int32(-1), output: "")
+        for attempt in 1...4 {
+            if attempt > 1 { try await Task.sleep(for: .seconds(1)) }
+            created = run([
+                "create", "-size", "\(sizeMB)m", "-type", "SPARSE",
+                "-fs", format, "-volname", volname, image.path,
+            ])
+            guard created.status != 0, created.output.contains("Resource busy") else { break }
+            try? fm.removeItem(at: image)
+        }
         try #require(created.status == 0,
                      "could not create a \(format) image (\(created.status)): \(created.output)")
         defer { try? fm.removeItem(at: image) }

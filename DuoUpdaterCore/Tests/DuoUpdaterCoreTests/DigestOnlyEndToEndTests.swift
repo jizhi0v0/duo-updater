@@ -63,7 +63,7 @@ struct DigestOnlyEndToEndTests {
         let installedPath = installedDir.appendingPathComponent("Alacritty.app")
         try fm.moveItem(at: unpacked, to: installedPath)
         #expect(Self.shortVersion(installedPath) == "0.16.1")
-        #expect(try SignatureVerifier.teamIdentifier(at: installedPath) == nil)
+        #expect(try await offCooperativePool { try SignatureVerifier.teamIdentifier(at: installedPath) } == nil)
         #expect(!Self.quarantined(installedPath))
 
         let app = InstalledApp(
@@ -114,9 +114,13 @@ struct DigestOnlyEndToEndTests {
             progress: { _ in })
         #expect(outcome.applied)
         #expect(Self.shortVersion(installedPath) == latest)
-        try SignatureVerifier.verifyCodeSignature(appAt: installedPath)
-        #expect(try SignatureVerifier.signingIdentifier(at: installedPath) == "org.alacritty")
-        #expect(try SignatureVerifier.teamIdentifier(at: installedPath) == nil)
+        let (identifier, team) = try await offCooperativePool {
+            try SignatureVerifier.verifyCodeSignature(appAt: installedPath)
+            return (try SignatureVerifier.signingIdentifier(at: installedPath),
+                    try SignatureVerifier.teamIdentifier(at: installedPath))
+        }
+        #expect(identifier == "org.alacritty")
+        #expect(team == nil)
         #expect(!Self.quarantined(installedPath))
 
         // And the real install, if there is one, was never touched.

@@ -149,12 +149,17 @@ private func verifyGates(
         log("⚠︎ EdDSA key rotated by vendor — falling back to the Team ID gate")
     }
 
-    // 4. Code signature + Team ID + bundle id
-    try SignatureVerifier.verifyCodeSignature(appAt: newApp)
-    let newTeam = try SignatureVerifier.teamIdentifier(at: newApp)
-    let oldTeam = try SignatureVerifier.teamIdentifier(at: target.app.path)
-    try SignatureVerifier.verifyTeamIdentifierMatch(installedApp: target.app.path, downloadedApp: newApp)
-    try SignatureVerifier.verifyBundleIdentifierMatch(installedApp: target.app.path, downloadedApp: newApp)
+    // 4. Code signature + Team ID + bundle id, in one hop off the cooperative
+    // pool as the installers make it (#351).
+    let installedPath = target.app.path
+    let (newTeam, oldTeam) = try await offCooperativePool {
+        try SignatureVerifier.verifyCodeSignature(appAt: newApp)
+        let newTeam = try SignatureVerifier.teamIdentifier(at: newApp)
+        let oldTeam = try SignatureVerifier.teamIdentifier(at: installedPath)
+        try SignatureVerifier.verifyTeamIdentifierMatch(installedApp: installedPath, downloadedApp: newApp)
+        try SignatureVerifier.verifyBundleIdentifierMatch(installedApp: installedPath, downloadedApp: newApp)
+        return (newTeam, oldTeam)
+    }
     log("✓ code signature valid; Team ID match: \(oldTeam ?? "?") == \(newTeam ?? "?")")
     log("=== ALL GATES PASSED (no install performed) ===")
 

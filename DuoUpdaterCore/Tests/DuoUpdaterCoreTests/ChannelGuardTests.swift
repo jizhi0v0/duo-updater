@@ -860,7 +860,7 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
 
 // MARK: - Signed bundle-identifier gate (gate A)
 
-@Test func bundleIdentifierGateRejectsDifferentApp() throws {
+@Test func bundleIdentifierGateRejectsDifferentApp() async throws {
     // Two real, code-signed system apps with different bundle ids. The gate must
     // throw when asked to "replace" one with the other — even though both are
     // Apple-signed (same Team), they are different products.
@@ -869,14 +869,18 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
     try #require(FileManager.default.fileExists(atPath: calculator.path))
     try #require(FileManager.default.fileExists(atPath: notes.path))
 
-    #expect(throws: SignatureVerifier.VerifyError.self) {
-        try SignatureVerifier.verifyBundleIdentifierMatch(
-            installedApp: calculator, downloadedApp: notes)
+    await #expect(throws: SignatureVerifier.VerifyError.self) {
+        try await offCooperativePool {
+            try SignatureVerifier.verifyBundleIdentifierMatch(
+                installedApp: calculator, downloadedApp: notes)
+        }
     }
     // Same app on both sides passes.
-    #expect(throws: Never.self) {
-        try SignatureVerifier.verifyBundleIdentifierMatch(
-            installedApp: calculator, downloadedApp: calculator)
+    await #expect(throws: Never.self) {
+        try await offCooperativePool {
+            try SignatureVerifier.verifyBundleIdentifierMatch(
+                installedApp: calculator, downloadedApp: calculator)
+        }
     }
 }
 

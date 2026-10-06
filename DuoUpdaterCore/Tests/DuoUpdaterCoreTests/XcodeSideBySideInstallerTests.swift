@@ -88,13 +88,17 @@ import Foundation
     }
 
     /// Apple's own system app has a valid signature but no Team ID.
-    @Test func anAppWithoutApplesTeamIsNotXcode() throws {
+    @Test func anAppWithoutApplesTeamIsNotXcode() async throws {
         let calculator = URL(fileURLWithPath: "/System/Applications/Calculator.app")
-        #expect(throws: XcodeSideBySideInstaller.InstallError.self) {
-            try XcodeSideBySideInstaller.verifyIsXcode(calculator, host: .current, osVersion: HostOS.numericVersion())
+        await #expect(throws: XcodeSideBySideInstaller.InstallError.self) {
+            try await offCooperativePool {
+                try XcodeSideBySideInstaller.verifyIsXcode(calculator, host: .current, osVersion: HostOS.numericVersion())
+            }
         }
         do {
-            try XcodeSideBySideInstaller.verifyIsXcode(calculator, host: .current, osVersion: HostOS.numericVersion())
+            try await offCooperativePool {
+                try XcodeSideBySideInstaller.verifyIsXcode(calculator, host: .current, osVersion: HostOS.numericVersion())
+            }
         } catch let XcodeSideBySideInstaller.InstallError.notXcode(why) {
             #expect(why.contains("team"))
         } catch {
@@ -113,9 +117,12 @@ import Foundation
             .appendingPathComponent("Applications/FileMerge.app")
         try #require(FileManager.default.fileExists(atPath: fileMerge.path),
                      "needs the active developer directory to be an Xcode, not the Command Line Tools")
-        #expect(try SignatureVerifier.teamIdentifier(at: fileMerge) == XcodeSideBySideInstaller.appleTeamID)
+        #expect(try await offCooperativePool { try SignatureVerifier.teamIdentifier(at: fileMerge) }
+                == XcodeSideBySideInstaller.appleTeamID)
         do {
-            try XcodeSideBySideInstaller.verifyIsXcode(fileMerge, host: .current, osVersion: HostOS.numericVersion())
+            try await offCooperativePool {
+                try XcodeSideBySideInstaller.verifyIsXcode(fileMerge, host: .current, osVersion: HostOS.numericVersion())
+            }
             Issue.record("expected a refusal")
         } catch let XcodeSideBySideInstaller.InstallError.notXcode(why) {
             #expect(why.contains("com.apple.FileMerge"))

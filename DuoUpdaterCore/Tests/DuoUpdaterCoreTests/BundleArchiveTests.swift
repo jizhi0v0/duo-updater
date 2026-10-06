@@ -120,7 +120,12 @@ import Testing
 
     /// A small, really-signed app to prove the signature survives. Scanned rather
     /// than hard-coded: no single app is guaranteed present on a dev machine.
-    private static let signedApp: URL? = {
+    ///
+    /// A `Task` around one `offCooperativePool` hop rather than a plain lazy
+    /// initializer: the scan runs `SecStaticCodeCheckValidity` per candidate, and
+    /// a static initializer runs on whichever thread first reads it — the
+    /// `.enabled` trait's, on the cooperative pool.
+    private static let signedApp = Task<URL?, Never> { await offCooperativePool { () -> URL? in
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(
             at: URL(fileURLWithPath: "/Applications"),
@@ -138,7 +143,7 @@ import Testing
             return app
         }
         return nil
-    }()
+    } }
 
     // MARK: - The two load-bearing assertions
 
@@ -227,9 +232,9 @@ import Testing
     /// production shape: `ditto` run as the user writes a user-owned copy, the
     /// App Store xattrs (`com.apple.macl` included) ride along, and the seal
     /// survives.
-    @Test(.enabled(if: BundleArchiveTests.signedApp != nil))
+    @Test(.enabled { await BundleArchiveTests.signedApp.value != nil })
     func roundTripPreservesTheCodeSignature() async throws {
-        let installed = try #require(Self.signedApp)
+        let installed = try #require(await Self.signedApp.value)
         let root = scratch()
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -245,7 +250,7 @@ import Testing
         try await BundleArchive.extract(archive: archive, into: restored)
 
         // Throws on failure; reaching the next line is the assertion.
-        try SignatureVerifier.verifyCodeSignature(appAt: restored)
+        try await offCooperativePool { try SignatureVerifier.verifyCodeSignature(appAt: restored) }
     }
 
     /// Pins why the test above archives a copy, and that `extract` stays strict.

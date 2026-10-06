@@ -37,6 +37,8 @@ first scope that decides who the caller's thread belongs to:
 
   * an `offCooperativePool { … }` closure — fine, that is the hop;
   * an `async func`, a `Task { }` or a `Task.detached { }` — a violation;
+  * a `@Test` function, `async` or not — a violation too: Swift Testing runs
+    every test body on the cooperative pool;
   * a plain synchronous `func` — NOT reported.
 
 That last one is the honest limit: `InPlaceSwap.replace` was synchronous and was
@@ -71,7 +73,13 @@ import pathlib
 import re
 import sys
 
-ROOTS = ["DuoUpdaterCore/Sources", "App/Sources", "CLI/Sources"]
+# The tests are a root like any other: Swift Testing runs every `@Test` on the
+# same cooperative pool, and the suite is where the pool is narrowest. CI's
+# `release` job (run 37475566844, 2026-10-06) hung for its whole 1,200 s budget
+# with all three of the runner's cooperative threads parked in test bodies — two
+# in `SecStaticCodeCheckValidity`, one in `waitUntilExit` — while this check
+# scanned only the three source roots and passed.
+ROOTS = ["DuoUpdaterCore/Sources", "App/Sources", "CLI/Sources", "DuoUpdaterCore/Tests"]
 
 # Calls that park the calling thread until something outside this process moves.
 # Deliberately a short list of exact spellings rather than a guess at intent:
@@ -81,13 +89,33 @@ ROOTS = ["DuoUpdaterCore/Sources", "App/Sources", "CLI/Sources"]
 # not block forever — it gives up after its timeout. It is still a
 # `DispatchSemaphore.wait` on the calling thread for up to five seconds, and five
 # seconds of a pool as wide as the core count is the thing this file is about.
+#
+# The rest are the synchronous code-signing readers, by name, because a check
+# with no call graph cannot see `SecStaticCodeCheckValidity` through them (see
+# "What it checks" above) and the tests call them directly. Every one of them
+# reaches `SecStaticCodeCreateWithPath` and then `SecStaticCodeCheckValidity` or
+# `SecCodeCopySigningInformation`. Only the first was caught in a hang (CI run
+# 37475566844: `Dispatch::Group::wait()` under it); the signing-information read
+# is listed on its family, not on a sample.
 BLOCKING = [
     "waitUntilExit()",
     "readDataToEndOfFile()",
     "SecStaticCodeCheckValidity",
+    "SecCodeCopySigningInformation",
     ".wait()",
     ".wait(timeout:",
     ".run(key:",
+    "verifyCodeSignature(",
+    "teamIdentifier(at:",
+    "signingIdentifier(at:",
+    "signingSummary(at:",
+    "verifyTeamIdentifierMatch(",
+    "verifyBundleIdentifierMatch(",
+    "verifyDigestOnlyIdentity(",
+    "verifyIsXcode(",
+    "CLIToolTrust.signature(",
+    "verifyAnthropicSignature(",
+    "verifyVercelSignature(",
 ]
 
 # BLOCKING spellings with no call left in these roots, each with why. They stay in
@@ -98,8 +126,6 @@ BLOCKING = [
 RETIRED = {
     "waitUntilExit()": "every child process is launched through `ChildProcess`, "
                        "which awaits its exit on kqueue",
-    ".wait()": "the last unbounded `DispatchGroup`/`DispatchSemaphore` waits were "
-               "child-process pipe drains, gone with `ChildProcess`",
 }
 
 # A child process launched without `ChildProcess`. Refused in every scope — see
@@ -126,6 +152,13 @@ ASYNC_FUNC = re.compile(r"\bfunc\b.*\basync\b")
 # `Task {`, `Task.detached {`, `Task(priority:) {` — all of them run on the
 # cooperative pool, which is the whole point of naming them here.
 TASK = re.compile(r"\bTask\b(?:\.detached)?\s*(?:\([^)]*\))?\s*\{")
+# A Swift Testing test function. Its body runs on the cooperative pool whether or
+# not it is declared `async`: a probe printing `__dispatch_queue_get_label(nil)`
+# from a plain `@Test func` and an `async` one answered
+# `com.apple.root.default-qos.cooperative` for both (2026-10-07). So a `@Test`
+# body is judged like an `async` one. The attribute is often on its own line,
+# or several (`@Test(arguments: [ … ])`), above the `func`.
+TEST_ATTRIBUTE = re.compile(r"(?<![\w.])@Test\b")
 OFFPOOL_CALL = re.compile(r"\boffCooperativePool\b")
 # A closure that names its own signature, e.g. `{ () -> Info? in` or
 # `{ [self] () async -> Int32 in` — the `async` there belongs to the closure.
@@ -241,6 +274,8 @@ def scan(path):
     # which is most of the interesting ones. `VendorProbeSource`'s
     # `zipEntryPlistValue` is the case that caught it.
     declaration = ""
+    # A `@Test` seen and the `func` it belongs to not yet opened.
+    test_attribute = False
     in_block = in_multiline = False
     out = []
     for number, raw in enumerate(path.read_text(errors="replace").splitlines(), 1):
@@ -252,6 +287,8 @@ def scan(path):
         if stripped.startswith("//") and not was_in_block:
             pending.append((number, re.sub(r"^/{2,3}\s?", "", stripped)))
             continue
+        if TEST_ATTRIBUTE.search(text):
+            test_attribute = True
         braces = "{" in text or "}" in text
         judged = (declaration + " " + text).strip() if declaration else text
         if not braces and declaration:
@@ -289,6 +326,10 @@ def scan(path):
                 out.append((number, call, deciding_frame(stack), comments))
             if character == "{":
                 kind = PLAIN if opened_on_line else frame_kind(judged, stack)
+                if test_attribute and kind == SYNC and FUNC.search(judged):
+                    kind = ASYNC
+                if kind in (SYNC, ASYNC) and FUNC.search(judged):
+                    test_attribute = False
                 opened_on_line = True
                 stack.append((kind, list(pending)))
             elif character == "}" and stack:

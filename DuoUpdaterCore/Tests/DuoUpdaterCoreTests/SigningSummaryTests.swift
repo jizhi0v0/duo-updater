@@ -31,11 +31,11 @@ import Foundation
 
     /// `SecCodeCopySigningInformation` succeeds on unsigned code, so without the
     /// identifier check this reads as a signature with every field empty.
-    @Test func anUnsignedBundleHasNoSummary() throws {
+    @Test func anUnsignedBundleHasNoSummary() async throws {
         let directory = try scratch()
         defer { try? FileManager.default.removeItem(at: directory) }
         let app = try fixtureBundle(in: directory)
-        #expect(SignatureVerifier.signingSummary(at: app) == nil)
+        #expect(await offCooperativePool { SignatureVerifier.signingSummary(at: app) } == nil)
     }
 
     /// Ad hoc with the hardened runtime: flag bits 0x2 and 0x10000, which codesign
@@ -49,7 +49,7 @@ import Foundation
             onCancel: .runToCompletion)
         try #require(signed.succeeded, "\(String(decoding: signed.standardError, as: UTF8.self))")
 
-        let summary = try #require(SignatureVerifier.signingSummary(at: app))
+        let summary = try #require(await offCooperativePool { SignatureVerifier.signingSummary(at: app) })
         #expect(summary.identifier == "test.zzfixture.signing")
         #expect(summary.teamIdentifier == nil)
         #expect(summary.authorities.isEmpty)

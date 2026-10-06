@@ -343,20 +343,14 @@ struct ArchitectureDowngradeWiringTests {
     private static let intel = NSBundleExecutableArchitectureX86_64
 
     /// Runs `argv[0]` with the rest as arguments; throws on a non-zero exit.
-    private static func run(_ argv: [String], in directory: URL? = nil) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: argv[0])
-        process.arguments = Array(argv.dropFirst())
-        if let directory { process.currentDirectoryURL = directory }
-        let errPipe = Pipe()
-        process.standardError = errPipe
-        try process.run()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
+    private static func run(_ argv: [String], in directory: URL? = nil) async throws {
+        let outcome = try await ChildProcess.run(
+            argv[0], Array(argv.dropFirst()), workingDirectory: directory,
+            standardOutput: .discard, onCancel: .runToCompletion)
+        guard outcome.terminationStatus == 0 else {
             throw NSError(
-                domain: "ArchitectureDowngradeWiringTests", code: Int(process.terminationStatus),
-                userInfo: [NSLocalizedDescriptionKey: String(decoding: errData, as: UTF8.self)])
+                domain: "ArchitectureDowngradeWiringTests", code: Int(outcome.terminationStatus),
+                userInfo: [NSLocalizedDescriptionKey: String(decoding: outcome.standardError, as: UTF8.self)])
         }
     }
 
@@ -378,7 +372,7 @@ struct ArchitectureDowngradeWiringTests {
     /// team `EQHXZ8M8AV`, and drives both tests to Gate 5b's refusal in 0.657 s.
     /// So pass 1 takes a small top-level app when one exists (the author's Mac),
     /// and pass 2 descends into exactly the apps the cap rejected (the runner).
-    private static func findUniversalFixture() -> URL? {
+    private static func findUniversalFixture() async -> URL? {
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: URL(fileURLWithPath: "/Applications"), includingPropertiesForKeys: nil
         ) else {
@@ -405,7 +399,7 @@ struct ArchitectureDowngradeWiringTests {
         // Pass 1 — a top-level app already under the copy budget.
         var rejected: [URL] = []
         for app in candidates {
-            guard bundleIsUnder(sizeCap, at: app), isUsableFixture(app) else {
+            guard bundleIsUnder(sizeCap, at: app), await isUsableFixture(app) else {
                 rejected.append(app)
                 continue
             }
@@ -425,7 +419,7 @@ struct ArchitectureDowngradeWiringTests {
         // so walking them costs almost nothing, and the budget bounds the rest.
         var budget = nestedSearchBudget
         for host in rejected {
-            guard let nested = firstUsableNestedFixture(in: host, budget: &budget)
+            guard let nested = await firstUsableNestedFixture(in: host, budget: &budget)
             else { continue }
             print("""
                 ARCH DOWNGRADE FIXTURE: \(nested.lastPathComponent) \
@@ -471,9 +465,9 @@ struct ArchitectureDowngradeWiringTests {
     /// into `/System/Volumes/Preboot/Cryptexes/App/…`, and the real bundle behind
     /// it reads as `[x86_64, arm64]` and sits under the cap — it clears every other
     /// filter here and is excluded solely by answering nil for a team.
-    private static func isUsableFixture(_ app: URL) -> Bool {
-        SignatureVerifier.executableArchitectures(ofAppAt: app) == [arm, intel]
-            && (try? SignatureVerifier.teamIdentifier(at: app)) != nil
+    private static func isUsableFixture(_ app: URL) async -> Bool {
+        guard SignatureVerifier.executableArchitectures(ofAppAt: app) == [arm, intel] else { return false }
+        return await offCooperativePool { (try? SignatureVerifier.teamIdentifier(at: app)) != nil }
     }
 
     /// The first nested `.app` inside `host` that would serve as a fixture,
@@ -483,11 +477,13 @@ struct ArchitectureDowngradeWiringTests {
     /// which is a full walk of an app the cap already called too big — most of what
     /// the cap exists to avoid. The cap is re-applied to each nested bundle, so
     /// "first" is still bounded by the same copy budget.
-    private static func firstUsableNestedFixture(in host: URL, budget: inout Int) -> URL? {
+    private static func firstUsableNestedFixture(in host: URL, budget: inout Int) async -> URL? {
         guard let walk = FileManager.default.enumerator(
             at: host, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
         else { return nil }
-        for case let entry as URL in walk {
+        // `nextObject()`, not `for … in`: the enumerator's iterator is unavailable
+        // in an `async` function, and this one awaits the Team ID hop.
+        while let entry = walk.nextObject() as? URL {
             guard budget > 0 else { return nil }
             budget -= 1
             guard entry.pathExtension == "app" else { continue }
@@ -496,7 +492,7 @@ struct ArchitectureDowngradeWiringTests {
             // instead of its whole tree.
             walk.skipDescendants()
             let nested = entry.resolvingSymlinksInPath()
-            guard bundleIsUnder(sizeCap, at: nested), isUsableFixture(nested) else { continue }
+            guard bundleIsUnder(sizeCap, at: nested), await isUsableFixture(nested) else { continue }
             return nested
         }
         return nil
@@ -553,20 +549,20 @@ struct ArchitectureDowngradeWiringTests {
     ///
     /// nil means the fixture could not be built, and an issue has already been
     /// recorded by then — callers return rather than reporting it a second time.
-    private static func makeDowngradeFixture(in scratch: URL) throws -> (
+    private static func makeDowngradeFixture(in scratch: URL) async throws -> (
         installed: InstalledApp, download: DownloadedUpdate
     )? {
-        guard let fixture = findUniversalFixture() else { return nil }
+        guard let fixture = await findUniversalFixture() else { return nil }
 
         let installedDir = scratch.appendingPathComponent("installed")
         try FileManager.default.createDirectory(at: installedDir, withIntermediateDirectories: true)
         let installedApp = installedDir.appendingPathComponent(fixture.lastPathComponent)
-        try run(["/bin/cp", "-R", fixture.path, installedApp.path])
+        try await run(["/bin/cp", "-R", fixture.path, installedApp.path])
 
         let thinDir = scratch.appendingPathComponent("thin-src")
         try FileManager.default.createDirectory(at: thinDir, withIntermediateDirectories: true)
         let thinApp = thinDir.appendingPathComponent(fixture.lastPathComponent)
-        try run(["/bin/cp", "-R", fixture.path, thinApp.path])
+        try await run(["/bin/cp", "-R", fixture.path, thinApp.path])
         // Read off the COPY's own Info.plist and joined onto the COPY's URL, so the
         // path is structurally incapable of naming anything outside `thinDir`.
         //
@@ -602,13 +598,13 @@ struct ArchitectureDowngradeWiringTests {
                 """)
             return nil
         }
-        try run(["/usr/bin/lipo", "-thin", "x86_64", exe.path, "-output", exe.path + ".thin"])
+        try await run(["/usr/bin/lipo", "-thin", "x86_64", exe.path, "-output", exe.path + ".thin"])
         try FileManager.default.removeItem(at: exe)
         try FileManager.default.moveItem(at: URL(fileURLWithPath: exe.path + ".thin"), to: exe)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: exe.path)
 
         let zip = scratch.appendingPathComponent("download.zip")
-        try run(
+        try await run(
             ["/usr/bin/ditto", "-c", "-k", "--sequesterRsrc", "--keepParent",
              fixture.lastPathComponent, zip.path],
             in: thinDir)
@@ -652,7 +648,7 @@ struct ArchitectureDowngradeWiringTests {
             .appendingPathComponent("arch-downgrade-wiring-vendor-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: scratch) }
-        guard let fixture = try Self.makeDowngradeFixture(in: scratch) else { return }
+        guard let fixture = try await Self.makeDowngradeFixture(in: scratch) else { return }
 
         let remote = RemoteVersion(
             shortVersion: "0.0.1", version: "0.0.1", downloadURL: fixture.download.archiveURL,
@@ -680,7 +676,7 @@ struct ArchitectureDowngradeWiringTests {
             .appendingPathComponent("arch-downgrade-wiring-sparkle-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: scratch) }
-        guard let fixture = try Self.makeDowngradeFixture(in: scratch) else { return }
+        guard let fixture = try await Self.makeDowngradeFixture(in: scratch) else { return }
 
         // No `SUPublicEDKey` on the installed app (default nil), so
         // `SparkleInstaller` takes the unsigned-feed path (code signature +
@@ -737,7 +733,7 @@ struct ArchitectureDowngradeWiringTests {
             .appendingPathComponent("arch-gate-order-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: scratch) }
-        guard let fixture = try Self.makeDowngradeFixture(in: scratch) else { return }
+        guard let fixture = try await Self.makeDowngradeFixture(in: scratch) else { return }
 
         let newApp = try await ArchiveExtractor.extractApp(
             from: fixture.download.archiveURL, workDir: scratch)

@@ -83,6 +83,9 @@ struct WorkbenchWindowView: View {
     /// The popover's command-line rows opened the level for this visit, without
     /// rewriting what the user keeps — `homebrewRevealing`'s rule.
     @State private var otherToolsRevealing = false
+    /// The CLI tab's order — formula and tool rows' tags — as it stood when updates
+    /// started running; nil while none runs. `CLIToolPresentation.holding`.
+    @State private var heldCLIOrder: [String]?
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var isWindowOpen = false
@@ -214,12 +217,15 @@ struct WorkbenchWindowView: View {
         let allRollbackable = rollbackableApps
         let brewTotal = allCasks.count + model.brewFormulae.count + model.brewUnchecked.count
             + (model.homebrewSelfUpdate == nil ? 0 : 1)
-        let cliTools = model.cliTools.statuses
+        let cliTools = CLIToolPresentation.holding(
+            CLIToolPresentation.updatesFirst(model.cliTools.statuses), to: heldCLIOrder, id: \.toolID.tag)
+        let formulae = CLIToolPresentation.holding(
+            CLIToolPresentation.outdatedFirst(model.brewFormulae, \.hasUpdate), to: heldCLIOrder, id: Self.formulaTag)
         return SidebarLists(
             filteredApps: allApps.filter(matchesSearch),
             cliTools: CLIToolPresentation.groups(cliTools.filter(matchesSearch)).flatMap(\.statuses),
             brewCasks: allCasks.filter(matchesSearch),
-            brewFormulae: model.brewFormulae.filter { matchesSearch($0.name) },
+            brewFormulae: formulae.filter { matchesSearch($0.name) },
             brewUnchecked: model.brewUnchecked.filter { matchesSearch($0.fullName) },
             homebrewSelfUpdate: matchesSearch("Homebrew") ? model.homebrewSelfUpdate : nil,
             rollbackable: allRollbackable.filter(matchesSearch),
@@ -227,6 +233,20 @@ struct WorkbenchWindowView: View {
             appsTotal: allApps.count,
             cliTotal: brewTotal + cliTools.count,
             rollbackTotal: allRollbackable.count)
+    }
+
+    /// A formula row's tag, as `heldCLIOrder` names it.
+    private static func formulaTag(_ formula: BrewInstalledFormula) -> String { "brew:formula:\(formula.name)" }
+
+    /// Anything in the CLI tab is updating — Homebrew's Upgrade All or a formula's
+    /// own, Update All or a tool's own — or still saying "Updated to X". The tab's
+    /// order holds meanwhile and re-sorts once after: the Apps list's frozen row
+    /// order (`AppListModel.pinRowOrder`), whose release also waits for the
+    /// confirmations.
+    private var cliUpdatesRunning: Bool {
+        model.brewUpgrading || !model.upgradingFormulae.isEmpty
+            || model.cliTools.updatingAll || !model.cliTools.updating.isEmpty
+            || !model.cliTools.justUpdated.isEmpty
     }
 
     /// The app the detail pane shows — keyed off the debounced `detailSelection`,
@@ -436,6 +456,16 @@ struct WorkbenchWindowView: View {
         .onChange(of: model.requestedWorkbenchBrewUnchecked) { applyRequestedBrewUnchecked() }
         .onChange(of: model.requestedWorkbenchCLITools) { applyRequestedCLITools() }
         .onChange(of: model.requestedWorkbenchHomebrew) { applyRequestedHomebrew() }
+        // `initial`: the window can open on a run already going — Update All from
+        // the popover, then the workbench — and the order it first shows must hold
+        // too (review, #1013). Otherwise the snapshot is taken as the run starts:
+        // a status moves only when a re-check lands, after its update has run.
+        .onChange(of: cliUpdatesRunning, initial: true) { _, running in
+            heldCLIOrder = running
+                ? CLIToolPresentation.outdatedFirst(model.brewFormulae, \.hasUpdate).map(Self.formulaTag)
+                    + CLIToolPresentation.updatesFirst(model.cliTools.statuses).map(\.toolID.tag)
+                : nil
+        }
     }
 
     /// Whether a `didBecomeKey` notification's object is this workbench's own

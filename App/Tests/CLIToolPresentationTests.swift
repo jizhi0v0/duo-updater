@@ -330,6 +330,43 @@ struct CLIToolPayloadPresentationTests {
             == "openclaw · /opt/homebrew")
     }
 
+    /// The CLI tab's order: a group with an update before one without, the
+    /// outdated copies first within a group, and tool order otherwise — npm's
+    /// prefixes being groups of their own.
+    ///
+    /// Mutations: return `all.flatMap(\.statuses)` (no group order); drop
+    /// `outdatedFirst` within a group.
+    @Test func updatesComeFirst() {
+        let fnm = NodePrefix(path: "/Users/ann/.local/share/fnm/node-versions/v24.12.0/installation",
+                             source: .fnm, layoutNodeVersion: "24.12.0")
+        let fxRow = CLIToolStatus(
+            kind: .fx, path: "/Users/ann/.fx/bin/fx", installedVersion: "0.5.0", latestVersion: "0.5.0",
+            channel: "stable", state: .upToDate, oneClick: nil, withheld: nil, note: nil,
+            detail: .fx(FxInstall(path: "/Users/ann/.fx/bin/fx", version: "0.5.0")))
+        let uv = F.uv(state: .updateAvailable)
+        let agently = F.npm(F.npmInstall("agently-cli", prefix: F.nvm("24.13.0")), state: .upToDate)
+        let browser = F.npm(F.npmInstall("agent-browser", prefix: F.nvm("24.13.0")), state: .updateAvailable)
+        let pnpm = F.npm(F.npmInstall("pnpm", prefix: fnm), state: .upToDate)
+
+        let ordered = CLIToolPresentation.updatesFirst([fxRow, uv, agently, browser, pnpm])
+
+        #expect(ordered.map(\.path) == [uv, browser, agently, fxRow, pnpm].map(\.path))
+        // Drawn as groups, the order holds: an npm prefix stays one group.
+        #expect(CLIToolPresentation.groups(ordered).map(\.statuses.count) == [1, 2, 1, 1])
+    }
+
+    /// While updates run the tab keeps the order they started with, whatever the
+    /// statuses say since; anything new goes after, in its own order.
+    ///
+    /// Mutation: `guard let held else { return items }` → `return items`.
+    @Test func aHeldOrderOutlivesTheVerdicts() {
+        let now = ["b", "d", "a", "c"]
+        #expect(CLIToolPresentation.holding(now, to: ["a", "b", "c"], id: { $0 }) == ["a", "b", "c", "d"])
+        #expect(CLIToolPresentation.holding(now, to: nil, id: { $0 }) == now)
+        #expect(CLIToolPresentation.outdatedFirst([(1, false), (2, true), (3, false), (4, true)], \.1).map(\.0)
+                == [2, 4, 1, 3])
+    }
+
     /// npm is one group per node prefix — its own npm, `node_modules` and node —
     /// in the order its first package came; every other tool is one group. The
     /// header names the prefix by its version manager, else by its path.

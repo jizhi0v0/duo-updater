@@ -103,7 +103,9 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
 - 状态: 支持
 - 格式: dmg。镜像里 `Superconductor.app` 是指向 `super.engineering.app` 的符号链接；扫描器先解析符号链接、
   按真实路径去重，只出一行。
-- 校验: `sha256` 是 hex SHA-256，`checksumPattern` 只吃 base64 SHA-512，未武装；Team `MR38E36N26` 闸兜底。
+- 校验: 2026-10-07 起接上 `bundles` 里本 bundle id 那一项的 `sha256`（hex，`checksumFormat: .sha256Hex`，#1016），在 Team `MR38E36N26` 闸之上先核下载字节。
+  pattern 走到 install URL 读的同一个成员，与键序无关；该成员没有 `sha256` 时什么都不读（只剩 Team 闸），不会读到顶层 `sha256` 或 `engineering.super.app` 的。
+  （更正：原先写「`checksumPattern` 只吃 base64 SHA-512，未武装」。）
 - **读哪个 dmg**: `bundles` 里**本 bundle id** 那一项（`-legacy-id.dmg`），不读顶层 `url`（它指哪个 id 是厂商的
   选择，清单里不写），也绝不取 `engineering.super.app` 那项（装上会换掉 app 的身份）。pattern 用
   `(?:[^{}]|\{[^{}]*\})*?` 整块跨过一层嵌套对象，出不了 `"nightly"`，也不依赖键的顺序；没有本 id 那项就不给
@@ -208,3 +210,15 @@ which carries no nightly marker`：channel proof 只认 `Superconductor-nightly-
 
 proof 改成 `(?:super\.engineering|Superconductor)-nightly-`：两种前缀都带 `-nightly-`，仍是渠道专属标记；旧前缀保留，
 因为旧构建还以旧名字在线。
+
+### 2026-10-07 — 一键接上 `sha256`；清单多了 `artifacts`
+
+实测（只读 GET + 下载）：`latest.json` 的 `nightly` 是 `a38f0d68`（`date` 2026-10-06），`bundles` 后面新增了 `artifacts`（按 target triple 分，
+`aarch64-apple-darwin` / `x86_64-apple-darwin`，各带 `sha`/`date`/`url`/`sha256`，url 在 `releases.super.engineering`）和 `"updater_manifest": "latest-v2.json"`。
+`artifacts` 是两层嵌套，排在 `bundles` 之后，所以现有 version / url pattern 不受影响（测试 fixture `artifactsLatestBody` 用的就是这份）。
+仍然只有 `nightly` 一条轨道，没有 stable 条目可接。
+
+`bundles["com.zarifpour.superconductor"]` 指 `…/nightly/super.engineering-nightly-a38f0d68-arm64-legacy-id.dmg`，下载后（89,930,263 B）SHA-256 是
+`ecae982f…1909`，与该成员的 `sha256` 一致（顶层 `sha256` 这次也是同值，`engineering.super.app` 是 `580c1387…`）。生产路径（`VendorProbeSource.probeDiagnostic`）对线上端点：
+`expectedSHA256` 是这个值、`expectedSHA512` 为 nil、无 warning；`VendorInstaller.verifySHA256` 对下载文件通过，翻转一个字节的副本抛 `checksumMismatch`（临时测试，跑完已删）。
+没有跑 `duo install`。

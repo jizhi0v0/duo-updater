@@ -80,7 +80,10 @@
   artifact URL 指向 `download.qoder.com.cn`。两个都是阿里云 OSS，HEAD 回同一个对象、
   字节数一致（2026-09-06），而且厂商自己的安装器下的就是 `.cn` 那个。所以 install
   pattern **两个主机都接**，而不是钉死我们碰巧取 manifest 的那个。
-- 校验和: manifest 给 sha256 hex；`checksumPattern` 要 base64 SHA-512，**没接**。
+- 校验和: manifest 给 sha256 hex；2026-10-07 起接上（`checksumFormat: .sha256Hex`，#1016），在 Team ID 闸之上先核下载字节。
+  pattern 取「第一个 `Qoder-mac-arm64.zip` 所在的那个 artifact 对象」里的 `sha256`，即 install URL 读的那一项，与键序、数组顺序无关；
+  该对象没有 `sha256` 时什么都不读（只剩 Team ID 闸），不会借 `mac-x64` / Windows 的摘要。URL 与摘要出自同一次请求的同一个 body。
+  （更正：原先写「`checksumPattern` 要 base64 SHA-512，**没接**」。）
 - 包验（2026-09-06，真实下载解包）: `Qoder.app` / `com.qoder.app` /
   short == build == `0.1.8` == manifest 的 `version` / arm64 /
   `Developer ID Application: BRIGHT ZENITH PRIVATE LIMITED (B6U242QL73)` /
@@ -131,3 +134,12 @@ Verified 2026-09-06 on the artifact the manifest resolved to:
 `Qoder.app`, `com.qoder.app`, short == build == 0.1.8 == the manifest's
 `version`, arm64-only, "Developer ID Application: BRIGHT ZENITH PRIVATE
 LIMITED (B6U242QL73)", notarized, matching the installed copy's Team.
+
+### Recipes/com-qoder-app.swift — 一键接上 sha256（2026-10-07）
+
+实测（2026-10-07，只读 GET + 下载）：`manifest.json` 是 `0.4.3`，6 个 artifact 都带 `sha256`；连取 5 次 body 的 sha1 完全相同（这个 OSS 静态文件不像 IDE 的 `center.qoder.sh` 那样按 machineId 分桶）。
+`download.qoder.com.cn/qoder-app/releases/0.4.3/Qoder-mac-arm64.zip`（251,268,412 B）的 SHA-256 是 `605e6826…1b1e`，与 manifest 的 `mac-arm64` 值一致；
+`.com` 与 `.com.cn` 两个主机对这个对象 HEAD 回同一个 `ETag` / `x-oss-hash-crc64ecma` / 字节数。生产路径（`VendorProbeSource.probeDiagnostic`）对线上端点：`expectedSHA256` 是这个值、
+`expectedSHA512` 为 nil、无 warning；`VendorInstaller.verifySHA256` 对下载文件通过，翻转一个字节的副本抛 `checksumMismatch`（临时测试，跑完已删）。没有跑 `duo install`。
+
+Qoder CN（`com.qodercn.app`）没有 VendorProbe，走 `ElectronManifestSource` 读 `latest-mac.yml` 的 sha512，不在这次改动范围内。

@@ -362,6 +362,58 @@ private let qoderCNIDENotesFixture = #"""
             == "https://download.qoder.com/qoder-app/releases/0.1.8/Qoder-mac-arm64.zip")
     }
 
+    private func appChecksumPattern() throws -> String {
+        let spec = try #require(try probe("com.qoder.app").install)
+        #expect(spec.checksumFormat == .sha256Hex)
+        return try #require(spec.checksumPattern)
+    }
+
+    /// The download is checked against the arm64 entry's `sha256` — in either
+    /// array order, the same entry the install URL reads, never the x64 or
+    /// Windows digest — and on either download host.
+    @Test func appChecksTheArm64EntrysSHA256() throws {
+        let pattern = try appChecksumPattern()
+        let arm64 = "8f71bf3899b74d028253497fe47fe2dff7a54c9ed06369595b9b46d93a33a7e7"
+        #expect(VendorProbeRecipe.extractVersion(from: qoderAppManifestFixture, pattern: pattern) == arm64)
+        #expect(VendorProbeRecipe.extractVersion(
+            from: qoderAppManifestIntelFirstFixture, pattern: pattern) == arm64)
+        let comHost = qoderAppManifestFixture.replacingOccurrences(
+            of: "download.qoder.com.cn", with: "download.qoder.com")
+        #expect(VendorProbeRecipe.extractVersion(from: comHost, pattern: pattern) == arm64)
+    }
+
+    /// `sha256` ahead of `url` inside the entry still pairs with it.
+    @Test func appChecksumDoesNotDependOnKeyOrder() throws {
+        let entry = #"""
+                  "url": "https://download.qoder.com.cn/qoder-app/releases/0.1.8/Qoder-mac-arm64.zip",
+                  "sha256": "8f71bf3899b74d028253497fe47fe2dff7a54c9ed06369595b9b46d93a33a7e7"
+            """#
+        let reordered = #"""
+                  "sha256": "8f71bf3899b74d028253497fe47fe2dff7a54c9ed06369595b9b46d93a33a7e7",
+                  "url": "https://download.qoder.com.cn/qoder-app/releases/0.1.8/Qoder-mac-arm64.zip"
+            """#
+        let body = qoderAppManifestFixture.replacingOccurrences(of: entry, with: reordered)
+        #expect(body != qoderAppManifestFixture)
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: try appChecksumPattern())
+            == "8f71bf3899b74d028253497fe47fe2dff7a54c9ed06369595b9b46d93a33a7e7")
+    }
+
+    /// An arm64 entry without `sha256` reads nothing — not the x64 digest that
+    /// follows it.
+    @Test func appDigestlessArm64EntryReadsNothingRatherThanTheX64Digest() throws {
+        let body = qoderAppManifestFixture.replacingOccurrences(
+            of: #"""
+                Qoder-mac-arm64.zip",
+                      "sha256": "8f71bf3899b74d028253497fe47fe2dff7a54c9ed06369595b9b46d93a33a7e7"
+                """#,
+            with: #"Qoder-mac-arm64.zip""#)
+        #expect(body != qoderAppManifestFixture)
+        #expect(body.contains("25e349dedb5940fec1d8c802255f351af6e93f8911ae2d8c5583f7aeae062361"))
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: try installPattern(try probe("com.qoder.app")))
+            != nil)
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: try appChecksumPattern()) == nil)
+    }
+
     /// Two products, two bundle ids, two Team IDs — and so two recipes that must
     /// never be collapsed into one. The Teams are the vendor's own statement, from
     /// the installer stub's `installer-manifest.json`.

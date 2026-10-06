@@ -51,6 +51,15 @@ enum com_qoder_app {
         // object (HEAD, identical byte count, 2026-09-06), and the vendor's own
         // installer downloads the `.com.cn` one — so the pattern accepts either
         // rather than pinning the host we happened to fetch from.
+        //
+        // The download is checked against the hex `sha256` of the artifact the URL
+        // is read from, on top of the Team-ID gate. The checksum pattern takes the
+        // object holding the first `Qoder-mac-arm64.zip` in the manifest — the
+        // entry the URL pattern reads — whatever the key order or array order; if
+        // that object carries no `sha256` it matches nothing (Team-ID only) rather
+        // than the x64 or Windows entry's digest. Both are read from the one body
+        // this check fetched, so a release that changes between requests cannot
+        // pair one release's URL with another's digest.
         VendorProbeRecipe(
             bundleID: "com.qoder.app",
             url: URL(string: "https://download.qoder.com"
@@ -63,7 +72,11 @@ enum com_qoder_app {
                 urlSource: .bodyPattern(
                     #""url"\s*:\s*"(https://download\.qoder\.com(?:\.cn)?"#
                     + #"/qoder-app/releases/[0-9.]+/Qoder-mac-arm64\.zip)""#),
-                kind: .zip)),
+                kind: .zip,
+                checksumPattern:
+                    #"\A(?:(?!Qoder-mac-arm64\.zip)[\s\S])*?\{(?=[^{}]*"url"\s*:\s*"https://download\.qoder\.com(?:\.cn)?"#
+                    + #"/qoder-app/releases/[0-9.]+/Qoder-mac-arm64\.zip")[^{}]*?"sha256"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex)),
         ],
         changelogs: [
         // The app's page spells its version "Qoder 0.1.8" where the IDE's is a

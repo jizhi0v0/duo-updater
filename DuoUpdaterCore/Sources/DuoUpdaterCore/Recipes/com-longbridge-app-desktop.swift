@@ -18,6 +18,14 @@ enum com_longbridge_app_desktop {
         // the first arbitrary dmg asset. Verified against the mounted 0.19.1
         // artifact: com.longbridge.app.desktop, Team 45NG8MW7WK, accepted by
         // Gatekeeper as Notarized Developer ID. The DMG is self-contained.
+        //
+        // The download is checked against the hex `sha256` the manifest gives
+        // that same asset, on top of the Team-ID gate. The checksum pattern takes
+        // the object holding the first stable aarch64 dmg filename — the asset the
+        // URL pattern reads — whatever the key order inside it; if that object
+        // carries no `sha256` it matches nothing (Team-ID only,
+        // `checksumPatternNoMatch` in `duo verify`) rather than the x86_64 or
+        // linux asset's digest.
         VendorProbeRecipe(
             bundleID: "com.longbridge.app.desktop",
             url: URL(string: "https://assets.lbkrs.com/github/release/longbridge-desktop/stable/latest.json")!,
@@ -29,7 +37,10 @@ enum com_longbridge_app_desktop {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #""url"\s*:\s*"(https://assets\.lbkrs\.com/github/release/longbridge-desktop/stable/longbridge-v[0-9.]+-macos-aarch64\.dmg)""#),
-                kind: .dmg)),
+                kind: .dmg,
+                checksumPattern:
+                    #"\A(?:(?!longbridge-v[0-9.]+-macos-aarch64\.dmg)[\s\S])*?\{(?=[^{}]*"url"\s*:\s*"https://assets\.lbkrs\.com/github/release/longbridge-desktop/stable/longbridge-v[0-9.]+-macos-aarch64\.dmg")[^{}]*?"sha256"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex)),
 
         // Longbridge Desktop Preview — a SEPARATE bundle id
         // (`com.longbridge.app.desktop.preview`, "Longbridge Preview.app"), so
@@ -50,9 +61,11 @@ enum com_longbridge_app_desktop {
         // it — the stable pattern's trailing quote cannot match this shape, and
         // this one cannot match stable's, verified both directions against the
         // live bodies), and preview assets have shipped WITHOUT the `sha256` field
-        // stable includes (History). No checksum is asserted either way
-        // (`checksumPattern` wants a base64 SHA-512), so that difference costs
-        // nothing.
+        // stable includes (History). The checksum pattern is stable's, re-anchored
+        // on the preview aarch64 asset: when that asset carries a `sha256` the
+        // download is checked against it, and when it doesn't (as on 0.19.0-preview.1)
+        // the pattern matches nothing and the install is Team-ID gated only — it
+        // never borrows another asset's digest.
         //
         // The preview artifact is com.longbridge.app.desktop.preview, arm64,
         // Team 45NG8MW7WK — the SAME team as stable, which is what
@@ -67,7 +80,10 @@ enum com_longbridge_app_desktop {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #""url"\s*:\s*"(https://assets\.lbkrs\.com/github/release/longbridge-desktop/preview/longbridge-v[0-9.]+-preview\.[0-9]+-macos-aarch64\.dmg)""#),
-                kind: .dmg),
+                kind: .dmg,
+                checksumPattern:
+                    #"\A(?:(?!longbridge-v[0-9.]+-preview\.[0-9]+-macos-aarch64\.dmg)[\s\S])*?\{(?=[^{}]*"url"\s*:\s*"https://assets\.lbkrs\.com/github/release/longbridge-desktop/preview/longbridge-v[0-9.]+-preview\.[0-9]+-macos-aarch64\.dmg")[^{}]*?"sha256"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex),
             channel: .preview),
         ],
         changelogs: [

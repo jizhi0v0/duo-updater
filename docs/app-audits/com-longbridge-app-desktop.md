@@ -55,6 +55,8 @@ Store 搜索没有 Longbridge Desktop。公开 stable 分发由厂商自己的 r
 - 格式: 自包含 DMG；manifest 精确选择 `macos-aarch64.dmg`。
 - 安全: 官方 JSON 的 SHA-256 与下载字节一致；应用代码签名有效，Team
   `45NG8MW7WK`，Gatekeeper 判定 `Notarized Developer ID`。
+- 校验: 2026-10-07 起 stable 与 preview 都接上 manifest 里同一资产的 `sha256`（`checksumFormat: .sha256Hex`，#1016），
+  在 Team ID 闸之上先核下载字节；该资产没有 `sha256` 时什么都不读（只剩 Team ID 闸），不会借用 x86_64 / linux 资产的摘要。
 - 架构: manifest 也提供 `macos-x86_64.dmg`，但 DuoUpdater 只跑在 Apple silicon 上（`App/project.yml`
   `ARCHS: arm64`），所以 pattern 锚 `macos-aarch64.dmg` 就是完整覆盖，没有 Intel 一键要补。
   （更正 2026-09-14：原先写「本次不宣称 Intel 一键安装覆盖」，暗示将来会补。）
@@ -86,8 +88,8 @@ Longbridge 归到 `native`。见 `AppRuntimeDetector`。
 
 ## 已知问题
 - （已更正）原先这里写 preview「已经停止更新、不添加 recipe」；preview 实际在更新且已接入，见「Channel 详情」的更正。
-- 官方 manifest 发布十六进制 SHA-256，而 VendorInstallSpec 的内联 checksum 闸当前只支持
-  base64 SHA-512；运行时仍由强制签名 / Team ID 闸保护。
+- （已解决 2026-10-07）原先这里写「官方 manifest 发布十六进制 SHA-256，而 VendorInstallSpec 的内联 checksum 闸只支持
+  base64 SHA-512」；#1016 加了 `.sha256Hex`，两个渠道都已接上，见「一键安装」。
 
 ## 建议下一步
 1. 监控 stable manifest 的 `version`、`published_at`、`assets[].url` 字段形状。
@@ -140,3 +142,12 @@ fallback for the same reason stable's index is: it yields nothing and
 the UI embeds the page instead of inventing an entry.
 
 复测 2026-09-14：preview 与 stable 两个索引页里 `Release Date` 都出现 0 次。
+
+### Recipes/com-longbridge-app-desktop.swift — 一键接上 sha256（2026-10-07）
+
+stable 与 preview 的 `checksumPattern` 都取「第一个本渠道 aarch64 dmg 文件名所在的那个资产对象」里的 `sha256`，即 URL pattern 读的那一项，与键序无关。
+
+实测（2026-10-07，只读 GET + 下载）：stable `latest.json` 是 0.20.1，preview 是 1.0.0-preview.1，两份的 6 个资产都带 `sha256`。
+`longbridge-v0.20.1-macos-aarch64.dmg`（80,201,274 B）的 SHA-256 是 `4e47fba4…b915`，`longbridge-v1.0.0-preview.1-macos-aarch64.dmg`（80,106,741 B）是 `4c9aa999…bd02`，
+都与 manifest 值一致。用生产路径（`VendorProbeSource.probeDiagnostic`）对线上端点跑：两个渠道的 `RemoteVersion.expectedSHA256` 分别是这两个值、`expectedSHA512` 为 nil、无 warning；
+`VendorInstaller.verifySHA256` 对下载文件通过，翻转一个字节的副本抛 `checksumMismatch`（临时测试，跑完已删）。没有跑 `duo install`。

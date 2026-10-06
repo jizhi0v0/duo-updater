@@ -36,6 +36,9 @@ enum com_anthropic_claudefordesktop {
         // format Claude's own Squirrel updater uses) over the heavier dmg. The
         // `Location` URL is reused as the install body, so the same response yields
         // both the version and the download. Team Q6L2SF6YDW gates the swap.
+        // No checksum: a 307 carries no digest. When this endpoint wins (`best`
+        // takes whole outcomes), its install is Team-gated only — the rollout
+        // endpoint's `sha256` describes the zip IT names and is never applied here.
         VendorProbeRecipe(
             bundleID: "com.anthropic.claudefordesktop",
             url: URL(string: "https://api.anthropic.com/api/desktop/darwin/universal/zip/latest/redirect")!,
@@ -71,6 +74,14 @@ enum com_anthropic_claudefordesktop {
         // precisely the build allocated to this machine. Team Q6L2SF6YDW gates
         // the swap. `pub_date` is UTC, and it's what finally gets Claude into the
         // Release Log timeline.
+        //
+        // `updateTo` also carries a hex `sha256` of its zip (absent from the
+        // 2026-08-15 body, present by 2026-10-07), and the download is checked
+        // against it on top of the Team gate. The checksum pattern takes the
+        // object holding the first Claude zip URL in the body — the one the install
+        // pattern reads — whatever the key order inside it; if that object has no
+        // `sha256` it matches nothing (Team-gated only) rather than another
+        // release's digest.
         VendorProbeRecipe(
             bundleID: "com.anthropic.claudefordesktop",
             url: URL(string: "https://api.anthropic.com/api/desktop/darwin/universal/squirrel/update?device_id=__IDENTITY__")!,
@@ -80,7 +91,10 @@ enum com_anthropic_claudefordesktop {
             publishedAtPattern: #""pub_date"\s*:\s*"([0-9T:.\-]+)""#,
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#"(https://downloads\.claude\.ai/releases/darwin/universal/[0-9.]+/Claude-[0-9a-f]+\.zip)"#),
-                kind: .zip),
+                kind: .zip,
+                checksumPattern:
+                    #"\A(?:(?!https://downloads\.claude\.ai/releases/darwin/universal/[0-9.]+/Claude-[0-9a-f]+\.zip)[\s\S])*?\{(?=[^{}]*"url"\s*:\s*"https://downloads\.claude\.ai/releases/darwin/universal/[0-9.]+/Claude-[0-9a-f]+\.zip")[^{}]*?"sha256"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex),
             identities: [ProbeIdentity(
                 applicationSupportPath: "Claude/ant-did",
                 encoding: .base64,

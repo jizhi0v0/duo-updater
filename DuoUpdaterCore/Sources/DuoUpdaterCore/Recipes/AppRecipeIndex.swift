@@ -146,6 +146,7 @@ public enum AppRecipeIndex {
         com_supercmd_app.set,
         com_surteesstudios_Bartender.set,
         com_t3tools_t3code.set,
+        com_tableplus_VMPal.set,
         com_tclementdev_timemachineeditor_application.set,
         com_tdesktop_Telegram.set,
         com_tencent_inputmethod_wetype.set,

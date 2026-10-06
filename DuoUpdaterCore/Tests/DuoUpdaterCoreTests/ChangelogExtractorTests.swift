@@ -56,6 +56,43 @@ private let tablePlusFixture = """
 </ul>
 """
 
+// vmpal.com/changelog. The second block is verbatim from the page on 2026-10-06
+// (its only release then). The first is the same template with `<time>` and the
+// download link removed: it proves a release without a date does not borrow the
+// next release's `datetime`.
+private let vmPalFixture = """
+<ol class="vp-changelog">
+  <li class="vp-release" id="build-37">
+    <div class="vp-release-meta">
+      <h2>VMPal 0.37</h2>
+      <p>Build 37</p>
+    </div>
+    <div class="vp-release-body">
+      <ul>
+        <li>Faster snapshots.</li>
+        <li>Fixed a crash when &quot;Pause&quot; was pressed twice.</li>
+      </ul>
+    </div>
+  </li>
+  <li class="vp-release" id="build-36">
+    <div class="vp-release-meta">
+      <h2>VMPal 0.36</h2>
+      <p>Build 36</p>
+      <time datetime="2026-10-06">6 October 2026</time>
+      <a class="vp-release-download" href="https://files.vmpal.com/macos/0.36/VMPal.dmg">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4" /></svg>
+        Download build 36
+      </a>
+    </div>
+    <div class="vp-release-body">
+      <ul>
+        <li>Bug fixes and improvements.</li>
+      </ul>
+    </div>
+  </li>
+</ol>
+"""
+
 // A trimmed fixture mirroring LM Studio's real Next.js /changelog/lmstudio index
 // markup: the version lives in a `sr-only` span on the entry's anchor, the notes
 // are in a `markdown-body` div closed by three nested </div>, there is no per-entry
@@ -632,6 +669,21 @@ private let ghosttyFixture = """
     #expect(changelog.entries[1].date == "21 May 2026")
     #expect(changelog.entries[1].items.count == 2)
     #expect(changelog.entries[1].items[0] == "Optimize Liquid Glass")
+}
+
+@Test func extractsVMPalEntriesInOrder() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.tableplus.VMPal"))
+    let changelog = try #require(ChangelogExtractor.extract(from: vmPalFixture, using: recipe))
+
+    #expect(changelog.entries.count == 2)
+    #expect(changelog.entries[0].version == "0.37")
+    #expect(changelog.entries[0].date == nil)
+    #expect(changelog.entries[0].items == [
+        "Faster snapshots.", "Fixed a crash when \"Pause\" was pressed twice.",
+    ])
+    #expect(changelog.entries[1].version == "0.36")
+    #expect(changelog.entries[1].date == "2026-10-06")
+    #expect(changelog.entries[1].items == ["Bug fixes and improvements."])
 }
 
 @Test func extractsConductorEntriesInOrder() throws {

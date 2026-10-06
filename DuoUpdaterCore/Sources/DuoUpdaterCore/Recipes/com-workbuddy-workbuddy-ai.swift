@@ -105,7 +105,7 @@ enum com_workbuddy_workbuddy_ai {
         //
         // Changelog: each site's page is the one the app itself links (the build
         // branches on `isOverseas()`). The two pages share one entry pattern — see
-        // `Recipes/com-workbuddy-workbuddy.swift`.
+        // `Recipes/com-tencent-workbuddy-mac.swift`.
         VendorProbeRegistry.workBuddyRecipe(
             bundleID: "com.workbuddy.workbuddy-ai", host: "www.workbuddy.ai",
             assetHost: "codebuddy-1328495429.cos.accelerate.myqcloud.com", arch: .arm64,

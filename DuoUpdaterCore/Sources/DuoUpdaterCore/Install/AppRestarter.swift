@@ -232,10 +232,19 @@ public enum AppRestarter {
     /// also kill the sibling this call was never meant to touch — and the
     /// quit-wait in `restart(_:)` would never see the set empty (the sibling
     /// stays up), stranding the caller.
+    ///
+    /// The identifier query includes ids a `BundleIDMigration` pairs with this
+    /// one: after a rename swap the bundle at this path is the new id while the
+    /// process launched from it before the swap is still the old one (WorkBuddy
+    /// CN, measured 2026-10-07: without it `duo restart` said "not running" with
+    /// five processes up). The path filter below keeps that from reaching any
+    /// other copy.
     public static func runningInstances(of app: InstalledApp) -> [NSRunningApplication] {
         let target = UpdatePolicy.runtimeBundlePath(app.path)
         let candidates = app.bundleID.map {
-            NSRunningApplication.runningApplications(withBundleIdentifier: $0)
+            BundleIDMigration.relatedBundleIDs(of: $0).flatMap {
+                NSRunningApplication.runningApplications(withBundleIdentifier: $0)
+            }
         } ?? NSWorkspace.shared.runningApplications
         // A wrapped iPhone/iPad app runs out of a per-launch shadow container, so
         // its `bundleURL` never resolves to the installed bundle and this filter

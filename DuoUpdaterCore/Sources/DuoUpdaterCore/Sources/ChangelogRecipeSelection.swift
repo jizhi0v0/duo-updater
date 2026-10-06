@@ -6,7 +6,7 @@ public enum ChangelogRecipeSelection {
     public static func recipe(for result: UpdateResult) -> ChangelogRecipe? {
         guard !result.app.isMASApp, result.remote?.appStore == nil,
               let recipe = ChangelogRecipeRegistry.recipe(
-                forBundleID: result.app.bundleID, channel: result.effectiveReleaseChannel,
+                forBundleID: result.app.recipeBundleID, channel: result.effectiveReleaseChannel,
                 version: targetVersion(for: result))
         else { return nil }
         // A recipe that starts from the feed-resolved page has nothing to parse

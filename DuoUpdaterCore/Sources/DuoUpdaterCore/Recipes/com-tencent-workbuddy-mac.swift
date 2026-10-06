@@ -1,24 +1,24 @@
 import Foundation
 
-enum com_workbuddy_workbuddy {
+enum com_tencent_workbuddy_mac {
     static let set = AppRecipeSet(
-        family: "com-workbuddy-workbuddy",
+        family: "com-tencent-workbuddy-mac",
         probes: [
         VendorProbeRegistry.workBuddyRecipe(
-            bundleID: "com.workbuddy.workbuddy", host: "www.workbuddy.cn",
+            bundleID: "com.tencent.workbuddy.mac", host: "www.workbuddy.cn",
             assetHost: "download.codebuddy.cn", arch: .arm64,
             downloadURL: URL(string: "https://www.workbuddy.cn/")!,
             changelogURL: URL(string: "https://www.codebuddy.cn/docs/workbuddy/Changelog")!),
         VendorProbeRegistry.workBuddyRecipe(
-            bundleID: "com.workbuddy.workbuddy", host: "www.workbuddy.cn",
+            bundleID: "com.tencent.workbuddy.mac", host: "www.workbuddy.cn",
             assetHost: "download.codebuddy.cn", arch: .x86_64,
             downloadURL: URL(string: "https://www.workbuddy.cn/")!,
             changelogURL: URL(string: "https://www.codebuddy.cn/docs/workbuddy/Changelog")!),
         ],
         changelogs: [
-        // History: docs/app-audits/com-workbuddy-workbuddy.md#历史与实测
+        // History: docs/app-audits/com-tencent-workbuddy-mac.md#历史与实测
         // WorkBuddy — Tencent's two sites, two apps (see the VendorProbe registry
-        // and docs/app-audits/com-workbuddy-workbuddy.md). Both docs sites are the
+        // and docs/app-audits/com-tencent-workbuddy-mac.md). Both docs sites are the
         // same VitePress build, so ONE set of patterns serves both and only
         // `bundleID` and `source` differ. Each recipe is pinned to its OWN site:
         // the trains are independent, and showing an international install the CN
@@ -64,7 +64,7 @@ enum com_workbuddy_workbuddy {
         // only a few entries there has found the vendor's page, not a broken
         // recipe — the CN page, parsed by the identical pattern, returns dozens.
         ChangelogRecipe(
-            bundleID: "com.workbuddy.workbuddy",
+            bundleID: "com.tencent.workbuddy.mac",
             source: URL(string: "https://www.workbuddy.cn/docs/workbuddy/Changelog")!,
             entryPattern: ChangelogRecipeRegistry.workBuddyEntryPattern,
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],

@@ -733,6 +733,17 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         let app = LiveProbe.app(
             "Edge-\(channel.rawValue)", bundleID, channel: channel,
             installedVersion: "1.0.0.0")
+        // Beta is the one track that goes dormant, and its recipe says so
+        // (`trackClosedPattern`, pinned by `EdgeChannelBoundaryTests`): a new Beta
+        // can list only Windows builds for a while (156.0.4314.8, 2026-10-07).
+        // That answer is the vendor's, not a broken pattern, so it is skipped out
+        // loud here. Stable and Dev declare no such pattern and still fail.
+        if channel == .beta,
+           case .notApplicable(let why)? = await source.probeDiagnostic(for: app)?.failure,
+           why == "no current build on the beta track" {
+            print("   ~ Edge beta: skipped, the vendor lists no macOS Beta build right now")
+            continue
+        }
         await LiveProbe.check(app, source: source, "Edge \(channel.rawValue)") {
             #expect($0.split(separator: ".").count == 4, "Edge \(channel.rawValue): \($0)")
         }

@@ -382,9 +382,17 @@ public enum SignatureVerifier {
     /// *signed* identifier (`kSecCodeInfoIdentifier`), not the raw Info.plist, so
     /// it's covered by the code seal already verified in Gate 2 and can't be
     /// spoofed.
+    ///
+    /// The one exception is a rename the vendor made and `BundleIDMigration`
+    /// records: a download signed as the entry's `to` may replace a copy signed
+    /// as its `from`, when both are signed by the entry's Team and the installed
+    /// version is below the entry's bound. Nothing else differs from the strict
+    /// comparison — not the reverse direction, not another Team, not a copy
+    /// newer than the rename.
     public static func verifyBundleIdentifierMatch(
         installedApp: URL,
-        downloadedApp: URL
+        downloadedApp: URL,
+        migrations: [BundleIDMigration] = BundleIDMigration.all
     ) throws {
         guard let installedID = try signingIdentifier(at: installedApp) else {
             throw VerifyError.noBundleIdentifier(which: "installed")
@@ -393,6 +401,16 @@ public enum SignatureVerifier {
             throw VerifyError.noBundleIdentifier(which: "downloaded")
         }
         guard installedID == downloadedID else {
+            let installedVersion = (infoPlist(of: installedApp)["CFBundleShortVersionString"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if BundleIDMigration.migration(
+                installed: installedID, downloaded: downloadedID,
+                installedVersion: installedVersion,
+                installedTeam: try teamIdentifier(at: installedApp),
+                downloadedTeam: try teamIdentifier(at: downloadedApp),
+                in: migrations) != nil {
+                return
+            }
             throw VerifyError.bundleIdentifierMismatch(
                 installed: installedID, downloaded: downloadedID
             )

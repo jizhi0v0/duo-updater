@@ -674,6 +674,18 @@
       "lastGoodVersion" : "2.02.2608080",
       "sweepsSinceComment" : 0
     },
+    "changelog:com.tencent.workbuddy.mac:-" : {
+      "closedAt" : "2026-09-23T08:33:40Z",
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "issueNumber" : 777,
+      "lastGoodAt" : "2026-10-05T02:20:48Z",
+      "lastGoodEntryCount" : 40,
+      "lastGoodVersion" : "5.6.2",
+      "sweepsSinceComment" : 0,
+      "triagedSignature" : "newest changelog entry (5.6.0) reads AHE"
+    },
     "changelog:com.tencent.xinWeChat:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -784,18 +796,6 @@
       "lastGoodVersion" : "5.6.2",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "noEntriesExtracted"
-    },
-    "changelog:com.workbuddy.workbuddy:-" : {
-      "closedAt" : "2026-09-23T08:33:40Z",
-      "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
-      "consecutiveInstallTransient" : 0,
-      "issueNumber" : 777,
-      "lastGoodAt" : "2026-10-05T02:20:48Z",
-      "lastGoodEntryCount" : 40,
-      "lastGoodVersion" : "5.6.2",
-      "sweepsSinceComment" : 0,
-      "triagedSignature" : "newest changelog entry (5.6.0) reads AHE"
     },
     "changelog:com.zarifpour.superconductor:-" : {
       "closedAt" : "2026-09-13T08:23:47Z",
@@ -2990,6 +2990,22 @@
       "lastGoodVersion" : "2.02.2608080",
       "sweepsSinceComment" : 0
     },
+    "vendor:com.tencent.workbuddy.mac:stable:arm64" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-05T02:20:48Z",
+      "lastGoodVersion" : "5.6.2",
+      "sweepsSinceComment" : 0
+    },
+    "vendor:com.tencent.workbuddy.mac:stable:x64" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-05T02:20:48Z",
+      "lastGoodVersion" : "5.6.2",
+      "sweepsSinceComment" : 0
+    },
     "vendor:com.tencent.xinWeChat:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -3099,22 +3115,6 @@
       "lastGoodVersion" : "5.6.2",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "Homebrew's cask `workbuddy-ai` is at 5.5|installURLNotFound: HTTP 404 from codebu|version went BACKWARDS since the last sw"
-    },
-    "vendor:com.workbuddy.workbuddy:stable:arm64" : {
-      "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
-      "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-05T02:20:48Z",
-      "lastGoodVersion" : "5.6.2",
-      "sweepsSinceComment" : 0
-    },
-    "vendor:com.workbuddy.workbuddy:stable:x64" : {
-      "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
-      "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-05T02:20:48Z",
-      "lastGoodVersion" : "5.6.2",
-      "sweepsSinceComment" : 0
     },
     "vendor:com.youqu.todesk.mac:stable" : {
       "consecutiveActionable" : 81,

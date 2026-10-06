@@ -220,7 +220,7 @@ public struct VendorProbeSource: UpdateSource {
             // exists), so without this every store app on the machine logged a line
             // per round for a source that was never going to touch it, reading as if
             // a recipe had been declined.
-            if let bundleID = app.bundleID, recipes[bundleID] != nil {
+            if let bundleID = app.recipeBundleID, recipes[bundleID] != nil {
                 Log.source.info(
                     "vendor probe skip \(bundleID, privacy: .public): App Store copy, the store owns its updates")
             }
@@ -342,7 +342,7 @@ public struct VendorProbeSource: UpdateSource {
         guard !app.isToolboxManaged || app.prefersVendorProbeOverToolbox else {
             return nil
         }
-        guard let bundleID = app.bundleID, let candidates = recipes[bundleID] else {
+        guard let bundleID = app.recipeBundleID, let candidates = recipes[bundleID] else {
             return nil  // no recipe for this app — not applicable
         }
         // Channel gate: pick the recipe whose channel matches the installed app's,

@@ -19,7 +19,7 @@ struct WorkBuddyChangelogTests {
                      "no changelog recipe registered for \(bundleID)")
     }
 
-    private static let cnID = "com.workbuddy.workbuddy"
+    private static let cnID = "com.tencent.workbuddy.mac"
     private static let intlID = "com.workbuddy.workbuddy-ai"
 
     // MARK: - registration

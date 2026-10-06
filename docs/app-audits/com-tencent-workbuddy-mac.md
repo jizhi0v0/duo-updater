@@ -1,7 +1,7 @@
 # WorkBuddy（国内站）
 
 审计 2026-08-27。WorkBuddy 是**两个 app**，不是一个 app 的两个 channel：本文档是国内站
-`com.workbuddy.workbuddy`，国际站 `com.workbuddy.workbuddy-ai` 见
+`com.tencent.workbuddy.mac`（5.3.14 及以前是 `com.workbuddy.workbuddy`，见「历史与实测」的 Bundle ID 迁移一节），国际站 `com.workbuddy.workbuddy-ai` 见
 [com-workbuddy-workbuddy-ai.md](com-workbuddy-workbuddy-ai.md)。两站共用的部分（updater 代码、
 更新端点与三个陷阱、changelog 页面标记、一键安装的闸、验证方法）只写在这一份里。
 
@@ -9,7 +9,7 @@
 
 | | 国内站 |
 |---|---|
-| Bundle ID | `com.workbuddy.workbuddy` |
+| Bundle ID | `com.tencent.workbuddy.mac`（5.5.4 起；5.3.14 及以前 `com.workbuddy.workbuddy`，由 `BundleIDMigration` 接住） |
 | App 名 | WorkBuddy.app |
 | URL scheme | `workbuddy` |
 | 官网 | https://www.workbuddy.cn |
@@ -36,7 +36,7 @@ cask `workbuddy-cn` 存在，当天版本 `5.5.6.38337834-5f969292`，正是我�
 它没有进 brew 交叉检查，是因为**键对不上**：`HomebrewCaskCatalog` 按 cask 的
 `uninstall quit:` 建 bundle id 索引，`workbuddy-cn` 写的是 `com.tencent.workbuddy.mac`，
 而本 app 的 bundle id 是 `com.workbuddy.workbuddy`（对真实 bundle 跑 `channel-verify` 核过，
-2026-08-27，以我们的为准）。`auto_updates` 未设（`formulae.brew.sh` 的 JSON 里为 null），
+2026-08-27，以我们的为准）〔更正 2026-10-07：「以我们的为准」错了。08-27 核的是 5.3.14，当时确实是旧 id；厂商随后把 id 改成了 cask 写的那个，见「历史与实测」的 Bundle ID 迁移一节〕。`auto_updates` 未设（`formulae.brew.sh` 的 JSON 里为 null），
 所以 `Verify.brewComplaint` 的 `!cask.autoUpdates` 那一关不拦它——键修好这道闸就能用。见 #743。
 
 **键已修（2026-09-18，#743）**：`Verify.liveCasks` 在 bundle id 查不到 cask 时，改用
@@ -58,7 +58,7 @@ filename」——这是**猜**出来的键，不是 cask 自己声明的。
 
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---|---|---|---|---|---|
-| stable | `com.workbuddy.workbuddy` | 独立 | — | — | ✓ |
+| stable | `com.tencent.workbuddy.mac`（旧 `com.workbuddy.workbuddy`） | 独立 | — | — | ✓ |
 
 **没有非 stable channel。** 两个 bundle 里都不存在 `KSChannelID`、`RemotingName`、
 可读的 `package.json` channel 字段或任何偏好键；`ReleaseChannel.detect()` 对两者都
@@ -179,7 +179,7 @@ app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行写�
 - 只动 build 计数器的重新出包检测不到（见陷阱二）——已知代价，不是缺陷。
 - x64 那两条 recipe 的产物：2026-10-07 下载挂载过 dmg（x86_64、Team 一致、摘要相等），但没在 Intel 机器上跑过一键；
   跨架构不误取由单测守着（复验方法见下文「如何复验」）。
-- 国内站 5.7.6 的 bundle id 是 `com.tencent.workbuddy.mac`，与 recipe 的 `com.workbuddy.workbuddy` 不一致（2026-10-07，见「历史与实测」），未处理。
+- 国内站从 5.5.4 起 bundle id 是 `com.tencent.workbuddy.mac`：recipe 已改键，旧 id 的拷贝由 `BundleIDMigration` 接住（2026-10-07，见「历史与实测」）。厂商自己的迁移在 app 里怎么触发、是否搬偏好设置，没核实。
 
 ## 验证
 
@@ -285,7 +285,7 @@ again.
 `5.5.6.38337834`，就是我们该读到的那个数。它没报是因为**键对不上**：brew 那张表的 bundle id
 取自 cask 的 `uninstall quit:`，`workbuddy-cn` 写的是 `com.tencent.workbuddy.mac`，
 而本 recipe 的 bundle id 是 `com.workbuddy.workbuddy`（2026-08-27 对真实 bundle 跑
-`channel-verify` 核过，以我们的为准）。键不匹配 → 这条 app 在 brew 交叉检查里根本不存在。
+`channel-verify` 核过，以我们的为准）。键不匹配 → 这条 app 在 brew 交叉检查里根本不存在。〔更正 2026-10-07：cask 是对的，厂商在 5.3.14 之后改了 id；recipe 现在键在 `com.tencent.workbuddy.mac` 上，按 id 就能对上 cask。〕
 
 于是两边的差别是：国际站那一对**三个信号都响了**（404、版本倒退、brew 领先），
 国内站这一对**一个都没响**——方向不对的交叉检查 + 键对不上的 brew 检查。
@@ -369,7 +369,44 @@ dmg 的摘要配在 zip 的 `url` 旁边。要用它，得把一键改成装那�
 - 真机（国际站，`make cli` 构建的 duo）：`/Applications/WorkBuddy AI.app` 5.5.2，未运行，`duo install "WorkBuddy AI" --yes --json`
   → `installed`，`bytesDownloaded` 533,453,859（即 dmg），29 s；之后 5.6.2、inode 变了、`spctl` accepted（Notarized Developer ID）、
   Team `FN2V63AD2J`，再 `duo check` 为最新。只跑了「不运行」这一轮。
-- **国内站 bundle id 对不上（未处理）**：当天下载的国内站 5.7.6，zip 和 dmg 里的 app 的 `CFBundleIdentifier` 都是
+- **国内站 bundle id 对不上**（已处理，见下一节）：当天下载的国内站 5.7.6，zip 和 dmg 里的 app 的 `CFBundleIdentifier` 都是
   `com.tencent.workbuddy.mac`（与 cask `workbuddy-cn` 的 `uninstall quit:` 一致），不是本 recipe 的 `com.workbuddy.workbuddy`
   （2026-08-27 对当时的真实 bundle 核过）。新装的国内站拷贝因此匹配不到这两条 recipe；旧 id 的拷贝一键到新包会被
   `SignatureVerifier` 的 bundle id 闸拒绝（未实测）。何时改的 id、旧拷贝自更新后是哪个 id，都没查。
+
+### Bundle ID 迁移：`com.workbuddy.workbuddy` → `com.tencent.workbuddy.mac`（2026-10-07）
+
+**事实**（HTTP Range 只读 CDN 上各版本 zip 里的 `WorkBuddy.app/Contents/Info.plist`，不下整包）：
+
+| 国内站版本 | CDN `last-modified` | `CFBundleIdentifier` |
+|---|---|---|
+| 5.3.14.36279234 | 2026-08-17 | `com.workbuddy.workbuddy` |
+| 5.5.4.38151288 | 2026-09-16 | `com.tencent.workbuddy.mac` |
+| 5.5.6.38337834 | 2026-09-21 | `com.tencent.workbuddy.mac` |
+| 5.6.2.39298511 | 2026-09-21 | `com.tencent.workbuddy.mac` |
+| 5.7.6.40409493 | 2026-10-04 | `com.tencent.workbuddy.mac` |
+
+两者之间的版本地址带拼不出的后缀（拿国际站同版本的后缀去拼是 404），所以切换发生在哪一版没定位到，只知道 5.3.14 < 切换 ≤ 5.5.4。
+国际站没改：5.4.2、5.6.2 都是 `com.workbuddy.workbuddy-ai`。cask `workbuddy-cn` 从收录的第一版（5.5.4，2026-09-11）起就写新 id。
+
+**是厂商有意迁移**：
+- 国内站 changelog 5.1.0（2026-06-13）：「新增 macOS Bundle ID 迁移更新器，老版本可平滑升级」。
+- 5.5.4 起包里多了 `Contents/Frameworks/WorkBuddy Legacy Auto Launch Cleaner.app`，它自己签的是**旧** id `com.workbuddy.workbuddy`，二进制里有
+  `legacyBundleId`、`currentBundleId`、`writeMigrationMarker` 和 `SMAppService`——登录项挂在注册它的 id 下，新 id 的 app 动不了，所以用一个旧 id 的小程序去注销。
+- 新包的 `sandbox-config.json` 里 app group、FileProvider、NetworkExtension 都在 `com.tencent.workbuddy.mac.*` 下。为什么改名厂商没写；统一到 `com.tencent.*` 是**猜测**。
+- 厂商端点对 `version=5.3.14` 及以上直接给 5.7.6，更旧的先给 5.3.14 当跳板。
+
+**我们的处理**：recipe 改键 `com.tencent.workbuddy.mac`（家族文件、golden、本文档随之改名），`BundleIDMigration` 登记这条改名
+（Team `FN2V63AD2J`，`lastFromVersion` 5.3.14，`firstToVersion` 5.5.4）。旧 id、版本低于 5.5.4 的拷贝按新 id 找 recipe；一键时 bundle id 闸只放行
+登记的这一个方向、这个 Team；找运行中的进程时两个 id 都查（仍按路径过滤）。
+
+**真机**（`make cli` 构建的 duo；5.3.14 来自 CDN，签名 `com.workbuddy.workbuddy` / `FN2V63AD2J`，`codesign --verify --deep --strict` 通过）：
+- 不运行：`duo check` → `5.3.14 → 5.7.6 [Vendor, in-place]`；`duo install --yes --json` → `installed`，17 s（这几轮跑在合入上一节的 dmg 改动之前，装的是 zip）；之后 `com.tencent.workbuddy.mac` 5.7.6、inode 变了、`spctl` accepted、再 check 为最新。
+- 运行中：启动 5.3.14，它自己的迁移更新器把 5.7.6 下到 `~/Library/Caches/com.workbuddy.workbuddy.BundleMigration/{downloads,extracted}`。`duo install` 成功换包；
+  **此时 `duo restart` 报 "not running"，而旧进程有 5 个**——进程是旧 id，盘上已是新 id，`AppRestarter.runningInstances` 只按新 id 查。修成连同配对 id 一起查后，
+  同一状态下 `duo restart` → `restarted`，新进程以 `com.tencent.workbuddy.mac` 运行（`lsappinfo`），之后 15 s 盘上版本与 inode 不变。
+- 换包后新 app 首次启动：生成 `com.tencent.workbuddy.mac.plist`，旧的 `com.workbuddy.workbuddy.plist`（只有几个统计键）原样留下；
+  `BundleMigration` 缓存目录被新 app 清掉。用户数据在 `Application Support/WorkBuddy`（按 app 名，不按 id），两个 id 共用。
+- 厂商自己的迁移路径没对照成：5.3.14 下好 5.7.6 后，退出 app 60 s 内不换包，应该要在 app 里点触发（未验证）。所以「厂商迁移是否还搬了偏好设置」没核实；
+  从上面看旧 plist 里没有用户设置。
+- 两个 id 共用 `Application Support/WorkBuddy`，新 id 的实例还在跑时再开 5.3.14 会立刻退出（Electron 单实例锁，推断）。

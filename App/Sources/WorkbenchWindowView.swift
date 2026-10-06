@@ -819,20 +819,15 @@ struct WorkbenchWindowView: View {
 
     /// Bulk "Upgrade All" for the Homebrew group — runs `brew upgrade --formula` (all
     /// outdated CLI formulae at once). Only shown when there are formulae to upgrade;
-    /// casks stay per-row (their own distribution channel). A spinner replaces it
-    /// while the bulk run is in flight.
+    /// casks stay per-row (their own distribution channel). While the bulk run is in
+    /// flight its progress and a spinner take the button's place — drawn over the
+    /// button, which keeps its room unseen: the header's height is the button's,
+    /// and the shorter spinner in its stead moved every row below 1 pt up and back
+    /// (2026-10-06).
     @ViewBuilder
     private var brewBulkUpgrade: some View {
         if !model.brewOutdatedFormulae.isEmpty {
-            if model.brewUpgrading {
-                HStack(spacing: 6) {
-                    if let progress = model.brewBulkProgressText {
-                        Text(progress)
-                            .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                    }
-                    ProgressView().controlSize(.small)
-                }
-            } else {
+            ZStack(alignment: .trailing) {
                 Button("Upgrade All") { Task { await model.upgradeBrewFormulae() } }
                     .controlSize(.small)
                     .buttonStyle(.bordered)
@@ -840,9 +835,20 @@ struct WorkbenchWindowView: View {
                     // lock — a bulk run would just fail, so disable it until that finishes.
                     // Nor while the other tools update: npm packages can run on
                     // Homebrew's node, the popover's rule.
-                    .disabled(!model.upgradingFormulae.isEmpty || model.homebrewUpdating
+                    .disabled(model.brewUpgrading || !model.upgradingFormulae.isEmpty || model.homebrewUpdating
                         || model.cliTools.updatingAll || !model.cliTools.updating.isEmpty)
                     .help("Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above.")
+                    .opacity(model.brewUpgrading ? 0 : 1)
+                    .accessibilityHidden(model.brewUpgrading)
+                if model.brewUpgrading {
+                    HStack(spacing: 6) {
+                        if let progress = model.brewBulkProgressText {
+                            Text(progress)
+                                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        ProgressView().controlSize(.small)
+                    }
+                }
             }
         }
     }
@@ -1560,6 +1566,20 @@ private struct WorkbenchRollbackRow: View {
 
 // MARK: - Brew formula row
 
+extension AppListModel {
+    /// Whether `formula` is being upgraded: by its own row, or by a bulk "Upgrade
+    /// All", which upgrades every *outdated* formula at once — so each outdated
+    /// one is part of it. Up-to-date leaves aren't touched by the bulk run.
+    ///
+    /// One answer for the row and the detail pane. The pane once read only the
+    /// per-row set, so during Upgrade All the selected row spun while its pane
+    /// offered Update — a conflicting `brew upgrade` on top of the bulk run
+    /// (2026-10-06).
+    func isUpgrading(_ formula: BrewInstalledFormula) -> Bool {
+        upgradingFormulae.contains(formula.name) || (brewUpgrading && formula.hasUpdate)
+    }
+}
+
 /// A CLI-formula row under the Brew tree. Unlike a cask (which reuses
 /// `WorkbenchSidebarRow` + the app install path), a formula isn't an app — no
 /// icon, channel, or changelog — so it gets this compact row with its own inline
@@ -1573,13 +1593,7 @@ private struct BrewFormulaSidebarRow: View {
     /// as `CLIToolSidebarRow` does.
     var isSelected = false
 
-    // A bulk "Upgrade All" run upgrades every *outdated* formula at once, so each
-    // outdated row is part of it — show the same in-flight state and (crucially) hide
-    // its Update button so it can't fire a conflicting `brew upgrade` on top of the
-    // bulk run. Up-to-date leaves aren't touched by the bulk run, so they stay quiet.
-    private var upgrading: Bool {
-        model.upgradingFormulae.contains(formula.name) || (model.brewUpgrading && formula.hasUpdate)
-    }
+    private var upgrading: Bool { model.isUpgrading(formula) }
     private var error: String? { model.formulaUpgradeErrors[formula.name] }
     private var progressNote: String? { model.formulaUpgradeNotes[formula.name] }
 
@@ -1832,7 +1846,7 @@ private struct FormulaDetailPane: View {
     let formula: BrewInstalledFormula
     @Bindable var model: AppListModel
 
-    private var upgrading: Bool { model.upgradingFormulae.contains(formula.name) }
+    private var upgrading: Bool { model.isUpgrading(formula) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

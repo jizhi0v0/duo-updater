@@ -882,6 +882,14 @@ public enum Install {
                 }
                 tally.record(category)
                 emit(name: name, route: route, outcome: installOutcome, json: json)
+            } catch let refused as NestedAppRunningError {
+                // A refusal made before anything changed, waiting on the user to
+                // quit a process — the same kind of ending as the policy skips
+                // above, so it is counted and emitted as one, not as a failure.
+                let message = refused.errorDescription ?? "a nested app is running"
+                tally.record(.skipped)
+                emitSkipped(name: name, route: route, reason: message, outcome: .skipped, json: json)
+                FileHandle.standardError.write(Data("   skipped: \(message)\n".utf8))
             } catch is AuthorizationDeclinedError {
                 // Dismissing the password panel is a decision, not a failure — it
                 // does not count toward `failed`, and it is remembered so neither

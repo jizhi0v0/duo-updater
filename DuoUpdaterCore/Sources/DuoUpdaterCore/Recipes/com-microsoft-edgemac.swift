@@ -23,6 +23,18 @@ enum com_microsoft_edgemac {
         // isn't carried by this enterprise API, so it stays "unknown" rather than
         // mis-served.)
         //
+        // All three downloads are checked against the pkg artifact's `Hash` (SHA-256,
+        // UPPERCASE hex — `HashAlgorithm` says so, and the pattern requires it), on
+        // top of the Team-ID gate. The checksum pattern goes to the channel's FIRST
+        // MacOS release and takes the artifact object holding the first `.pkg`
+        // `Location` after it — the one Beta/Dev's URL pattern reads — whatever the
+        // key order; if that object has no `Hash` it matches nothing rather than the
+        // sibling `.plist`/`.p7s` or an older release's digest. Stable downloads
+        // through the fwlink instead, and the digest pairs because that link
+        // redirects to the very `Location` listed under Stable's first MacOS release
+        // (History has the measurement). If the fwlink and the feed ever disagree,
+        // the install fails as `checksumMismatch` rather than installing unchecked.
+        //
         // Release notes: Microsoft renamed the PER-CHANNEL enterprise docs pages
         // from `microsoft-edge-relnotes-<channel>` to
         // `microsoft-edge-relnote-<channel>` (singular) and the old spellings now
@@ -46,7 +58,10 @@ enum com_microsoft_edgemac {
                 string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnote-stable-channel"),
             install: VendorInstallSpec(
                 urlSource: .redirect(URL(string: "https://go.microsoft.com/fwlink/?linkid=2093504")!),
-                kind: .pkg)),
+                kind: .pkg,
+                checksumPattern:
+                    #"(?s)"Product"\s*:\s*"Stable"(?:(?!"Product"\s*:)(?!"Platform"\s*:\s*"MacOS")[\s\S])*?"Platform"\s*:\s*"MacOS"(?:(?!"Product"\s*:)(?!"Location"\s*:\s*"https://[^"]+\.pkg")[\s\S])*?\{(?=[^{}]*"Location"\s*:\s*"https://[^"]+\.pkg")(?=[^{}]*"HashAlgorithm"\s*:\s*"SHA256")[^{}]*?"Hash"\s*:\s*"([0-9A-Fa-f]{64})""#,
+                checksumFormat: .sha256Hex)),
         VendorProbeRecipe(
             bundleID: "com.microsoft.edgemac.Beta",
             url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
@@ -79,7 +94,10 @@ enum com_microsoft_edgemac {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"(?s)"Product"\s*:\s*"Beta"(?:(?!"Product"\s*:)[\s\S])*?"Platform"\s*:\s*"MacOS"(?:(?!"Product"\s*:)[\s\S])*?"Location"\s*:\s*"(https://[^"]+\.pkg)""#),
-                kind: .pkg),
+                kind: .pkg,
+                checksumPattern:
+                    #"(?s)"Product"\s*:\s*"Beta"(?:(?!"Product"\s*:)(?!"Platform"\s*:\s*"MacOS")[\s\S])*?"Platform"\s*:\s*"MacOS"(?:(?!"Product"\s*:)(?!"Location"\s*:\s*"https://[^"]+\.pkg")[\s\S])*?\{(?=[^{}]*"Location"\s*:\s*"https://[^"]+\.pkg")(?=[^{}]*"HashAlgorithm"\s*:\s*"SHA256")[^{}]*?"Hash"\s*:\s*"([0-9A-Fa-f]{64})""#,
+                checksumFormat: .sha256Hex),
             channel: .beta),
         VendorProbeRecipe(
             bundleID: "com.microsoft.edgemac.Dev",
@@ -90,7 +108,10 @@ enum com_microsoft_edgemac {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"(?s)"Product"\s*:\s*"Dev"(?:(?!"Product"\s*:)[\s\S])*?"Platform"\s*:\s*"MacOS"(?:(?!"Product"\s*:)[\s\S])*?"Location"\s*:\s*"(https://[^"]+\.pkg)""#),
-                kind: .pkg),
+                kind: .pkg,
+                checksumPattern:
+                    #"(?s)"Product"\s*:\s*"Dev"(?:(?!"Product"\s*:)(?!"Platform"\s*:\s*"MacOS")[\s\S])*?"Platform"\s*:\s*"MacOS"(?:(?!"Product"\s*:)(?!"Location"\s*:\s*"https://[^"]+\.pkg")[\s\S])*?\{(?=[^{}]*"Location"\s*:\s*"https://[^"]+\.pkg")(?=[^{}]*"HashAlgorithm"\s*:\s*"SHA256")[^{}]*?"Hash"\s*:\s*"([0-9A-Fa-f]{64})""#,
+                checksumFormat: .sha256Hex),
             channel: .dev),
         ],
         channelProofs: [

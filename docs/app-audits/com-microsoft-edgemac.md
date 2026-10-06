@@ -66,6 +66,7 @@ Dev 因此留空：把按钮指到 Beta 或 Stable 的页面，等于给 Dev 用
 ## 一键安装
 - stable: ✓ `fwlink/?linkid=2093504` → `MicrosoftEdge-<ver>.pkg`，走系统 pkg 安装
 - beta/dev: **一键 ✓**（2026-07-03 加）。同一个企业 API JSON 里 `Artifacts[].Location` 就带各 channel 的 `MicrosoftEdge{Beta,Dev}-<ver>.pkg`；install `.bodyPattern` 用与 versionPattern 平行的锚定 `"Product":"Beta|Dev" … "Platform":"MacOS" … "Location":"(…\.pkg)"` 定到该 channel 首个(最新)MacOS release，`\.pkg` 锚跳过同级 `.plist`。pkg 与 stable 同为 `Developer ID Installer: Microsoft Corporation (UBF8T346G9)`、已公证（`spctl` accepted），过签名门。channel gate 仍按各自 bundle id 分发。正则已在实时响应验证：Beta→150.0.4078.50、Dev→151.0.4119.1，pkg 文件名版本与检测版本对齐。
+- 校验（2026-10-07 加）：三个 channel 的下载都先对企业 API 里 pkg artifact 的 `Hash`（`HashAlgorithm: SHA256`，大写 hex）核对，再走签名门。checksum pattern 定到该 channel 首个 MacOS release、取第一个 `.pkg` `Location` 所在的那个 artifact 对象，与键顺序无关；没有 `Hash` 就匹配不到，不会拿同级 `.plist`/`.p7s` 或更旧 release 的。stable 走 fwlink，能配上是因为 fwlink 跳到的正是 Stable 首个 MacOS release 的 `Location`（见下方历史）；两者若错开，安装会以 `checksumMismatch` 失败。
 
 ## 建议下一步
 1. Edge Canary (`com.microsoft.edgemac.Canary`) 无可靠公开端点 → 暂不支持，保留在本 audit 记录里
@@ -110,3 +111,9 @@ MacOS list empty this matches and Dev/Stable do not; two hours later,
 with 154.0.4258.9 back under Beta, it stops matching.
 
 复测 2026-09-14（03:15 UTC，只读 GET `edgeupdates.microsoft.com/api/products?view=enterprise`）：product 顺序仍是 Dev、Beta、Stable、EdgeUpdate、Policy；三个频道都有 MacOS release（Dev 155.0.4268.0、Beta 154.0.4258.12、Stable 153.0.4234.32），列表里没有 Canary。没有复跑 `trackClosedPattern` 本身。
+
+### Recipes/com-microsoft-edgemac.swift — 一键接上 sha256（2026-10-07）
+
+实测（2026-10-07，只读 GET `edgeupdates.microsoft.com/api/products?view=enterprise`，326,171 B）：三个 channel 的首个 MacOS release 都是 `universal`，各列三个 artifact——`pkg`、`plist`、`p7s`——键依次是 `ArtifactName, Location, Hash, HashAlgorithm, SizeInBytes`，`Hash` 是大写 hex、`HashAlgorithm` 都是 `SHA256`（`CLIToolTrust.matches` 不分大小写）。Dev `156.0.4301.0`、Beta `155.0.4283.39`、Stable `154.0.4258.62`。`go.microsoft.com/fwlink/?linkid=2093504` 302 到 `…/a51ab0b3-605c-4237-9ea5-eedd05bb664a/MicrosoftEdge-154.0.4258.62.pkg`，与 API 里 Stable 首个 MacOS pkg 的 `Location` 逐字相同。
+
+三个 pkg（Dev 434,828,393 B、Beta 432,748,275 B、Stable 经 fwlink 447,901,536 B，都等于 `SizeInBytes`）下载后 `shasum -a 256` 分别是 `60481a8a…44bc`、`aaaa74fd…4d3b`、`78caa04b…5af1`，与各自 pkg 的 `Hash` 相同。临时 Swift 测试经生产 `VendorProbeSource` 跑三个 recipe，`expectedSHA256` 即上述 `Hash`，`VendorInstaller.verifySHA256` 对真文件通过、翻转一个字节后抛 `checksumMismatch`。没有跑 `duo install`。fwlink 与 API 在新版发布时是否会短暂错开没有观测过（未验证）；错开时 Stable 的安装会因摘要不符被拒，而不是装上未核对的包。

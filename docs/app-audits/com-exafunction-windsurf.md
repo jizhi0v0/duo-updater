@@ -32,8 +32,8 @@
 - 状态: **已启用**（2026-08-29），`.bodyPattern` 取同一份响应里的
   `"url": "…/Devin-darwin-arm64-<version>.dmg"`。url 与 version 出自同一份文档，
   既不用拼模板也不用赌顺序；正则要求 `.dmg` 结尾，vendor 加字段也不会漂到别的绝对 URL 上。
-- 无 checksum: 响应里的 `sha256hash` 是 SHA-256 十六进制，而 `checksumPattern` 验的是
-  base64 SHA-512，接错摘要会让每次安装都失败。完整性由签名 + Team 闸承担。
+- 校验和: **已接**（2026-10-07）。`checksumFormat: .sha256Hex`（#1016）之后，dmg 挂载前先对同一份响应的
+  `sha256hash` 核对，签名 + Team 闸照常生效。实测见「历史与实测」。
 - 包实测 2026-08-29（3.8.20）: 挂载后 `com.exafunction.windsurf`,
   `Developer ID Application: EXAFUNCTION, INC. (83Z2LHX6XW)`, spctl accepted / Notarized,
   已 staple, `lipo -archs` = arm64。
@@ -65,3 +65,13 @@ Verified 2026-08-29 on the real artifact this pattern selects (3.8.20):
 mounted, `com.exafunction.windsurf`, `Developer ID Application:
 EXAFUNCTION, INC. (83Z2LHX6XW)`, spctl "accepted / Notarized Developer
 ID", stapled, `lipo -archs` = arm64.
+
+### Recipes/com-exafunction-windsurf.swift — 一键接上 sha256（2026-10-07）
+
+原注释里「`sha256hash` 接不上 `checksumPattern`」不再成立：`VendorInstallSpec.checksumFormat: .sha256Hex`（#1016）之后，
+下载会先对同一份响应的 `sha256hash` 核对。响应是一个扁平对象，`url` 与 `sha256hash` 同属一份文档；旁边的 `hash` 是
+40 位 SHA-1，不读。
+
+实测（2026-10-07，生产 `VendorProbeSource.probeDiagnostic`）：`windsurfVersion` 3.10.48，`url`
+`…/darwin-arm64-dmg/stable/fcf7ba39…/Devin-darwin-arm64-3.10.48.dmg`；下载 353,160,198 B，`shasum -a 256` =
+`4b3c81ff…8791b`，等于 `sha256hash`；`VendorInstaller.verifySHA256` 通过，翻转一个字节的副本抛 `checksumMismatch`。

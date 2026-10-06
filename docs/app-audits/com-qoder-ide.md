@@ -119,8 +119,8 @@
 - 格式: zip —— `Qoder-darwin-arm64.zip`（270,350,184 bytes）
 - **读的是**: 更新端点自己给出的 `url`，不是下载页给人的
   `Qoder-IDE-darwin-arm64.dmg`。同一个 release，zip 不用挂载。
-- 校验和: 响应带 `sha256hash`，但 `VendorInstallSpec.checksumPattern` 要的是
-  **base64 的 SHA-512**，格式对不上，**没接**。签名闸照常生效。
+- 校验和: **已接**（2026-10-07）。`checksumFormat: .sha256Hex`（#1016）之后，zip 解包前先对同一份响应的
+  `sha256hash` 核对；签名闸照常生效。实测见「历史与实测」。
 - 包验（2026-09-06，真实下载解包）: `Qoder IDE.app` / `com.qoder.ide` /
   short == build == `1.28.0` == 端点的 `productVersion` / arm64 /
   `Developer ID Application: Alibaba.com Singapore E-Commerce Private Limited
@@ -241,3 +241,13 @@ pattern's reach over the page, not history a reader gets.
 不再是 1.27.0 时的 commit。日志里的 `machineId` 与 `storage.json` 的 `telemetry.machineId` 相同，
 也等于用 app 自带的 Electron（`ELECTRON_RUN_AS_NODE=1`）按 en0 MAC 算出的 sha256。
 用这个真实 id 问 `latest` 和 `1.31.1` 各 5 次，全是 1.31.2；app 自己同时进入 `downloading`。
+
+### Recipes/com-qoder-ide.swift — 一键接上 sha256（2026-10-07）
+
+原注释里「`sha256hash` 格式对不上 `checksumPattern`」不再成立：`VendorInstallSpec.checksumFormat: .sha256Hex`（#1016）之后，
+下载会先对同一份响应的 `sha256hash` 核对。响应是一个扁平对象，`url`、`productVersion`、`sha256hash` 同属一个 build，
+灰度分桶也是整份文档换，所以三者出自同一个 body 就不会把一个桶的摘要配给另一个桶的 zip。
+
+实测（2026-10-07，生产 `VendorProbeSource.probeDiagnostic`，按 recipe 带 `machineId`）：`productVersion` 1.32.2，
+`url` `…/release/1.32.2/Qoder-darwin-arm64.zip`；下载 275,201,845 B，`shasum -a 256` = `c1fc5888…e114f`，等于
+`sha256hash`；`VendorInstaller.verifySHA256` 通过，翻转一个字节的副本抛 `checksumMismatch`。

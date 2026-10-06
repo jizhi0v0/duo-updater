@@ -95,6 +95,11 @@ enum com_qoder_ide {
         // own declared URL survives a CDN or path change that a template would
         // 404 on. The exposure is one response's worth of inconsistency, which
         // this endpoint has never shown.
+        //
+        // The zip is checked against `sha256hash` (hex) from the same response.
+        // A rollout answer is one whole document — url, version and digest of one
+        // build — so reading all three out of one body cannot pair one bucket's
+        // digest with another bucket's zip.
         VendorProbeRecipe(
             bundleID: "com.qoder.ide",
             url: URL(string: "https://center.qoder.sh/algo"
@@ -108,7 +113,9 @@ enum com_qoder_ide {
                 urlSource: .bodyPattern(
                     #""url"\s*:\s*"(https://qoder-ide\.oss-accelerate\.aliyuncs\.com"#
                     + #"/release/[0-9.]+/Qoder-darwin-arm64\.zip)""#),
-                kind: .zip),
+                kind: .zip,
+                checksumPattern: #""sha256hash"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex),
             identities: [ProbeIdentity.vsCodeMachineID(applicationSupportDirectory: "Qoder")]),
         ],
         changelogs: [

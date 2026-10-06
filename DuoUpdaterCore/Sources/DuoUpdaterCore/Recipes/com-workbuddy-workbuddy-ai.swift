@@ -97,10 +97,12 @@ enum com_workbuddy_workbuddy_ai {
         //
         // One-click: the JSON's `url` is a plain, unsigned object on Tencent COS
         // (intl: `codebuddy-1328495429.cos.accelerate.myqcloud.com`; CN:
-        // `download.codebuddy.cn`). The `sha256hash` field alongside it is a
-        // SHA-256 hex digest, which `checksumPattern` (SHA-512, base64) cannot
-        // consume, so it is left unused and Team FN2V63AD2J gates the swap
-        // (History has the dated check of both vendor DMGs).
+        // `download.codebuddy.cn`). The `sha256hash` field alongside it is NOT
+        // that zip's digest: it is the SHA-256 of the `.dmg` sibling at the same
+        // path (measured 2026-10-07 on all four host×arch zips; History). Wiring
+        // it would refuse every good download, so it is left unused and Team
+        // FN2V63AD2J gates the swap (History has the dated check of both vendor
+        // DMGs).
         //
         // Changelog: each site's page is the one the app itself links (the build
         // branches on `isOverseas()`). The two pages share one entry pattern — see

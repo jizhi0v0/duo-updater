@@ -30,3 +30,20 @@ webview fallback.
 复测 2026-09-17（只读 GET，跟随 `/updates` 的重定向，#697）：落到 `/updates/v1_138`。`</ul>` 与 "Happy Coding!" 之间出现了 `<p><em>These release notes were generated using GitHub Copilot and might contain inaccuracies.</em></p>`，没有 `<blockquote>`；旧 close anchor 只允许一个可选 `<blockquote>`，于是整页 0 条（sweep 报 `noEntriesExtracted`，连续两轮）。改成「`<blockquote>` 或不含 `<ul>` 的 `<p>` 的任意串」之后，同一组正则（Python `re.S|re.I` 移植）在 v1_138 上抽出 1.138 / September 16, 2026 / 3 条；在 v1_137、v1_136、v1_130、v1_123 上与旧 pattern 的版本、日期、条数、body 长度逐一相同（其中 v1_137 与 v1_123 带 `<blockquote>`，v1_136 与 v1_130 没有）。v1_110、v1_100 是更老的页面布局，新旧 pattern 都是 0 条——recipe 只读最新一页，不受影响。
 
 复测 2026-09-26（只读 GET，跟随 `/updates` 的重定向）：落到 `/updates/v1_139`，页面换了布局——日期改成 `<p class="release-metadata"><span>Released September 23, 2026</span>`，下载链接收进 `<details class="release-downloads">` 里的 `<dl>`，要点列表包在 `<section class="release-highlights">` 里、后面紧跟 `</section>`，整页没有 "Release date:"，也没有 "Happy Coding!"。旧 pattern 0 条，设置页 Detection recipes 报 `fetched code.visualstudio.com but extracted no entries`。同日取的 v1_138、v1_130 仍是旧布局。改成「两种日期前缀二选一，close anchor 为 `</section>` 或旧的 aside 串 + "Happy Coding!"」之后，Python `re.S|re.I` 移植在 v1_139 上抽出 1.139 / September 23, 2026 / 3 条，v1_138 上 1.138 / September 16, 2026 / 3 条，v1_130 上 1.130 / July 22, 2026 / 4 条。
+
+### Recipes/com-microsoft-VSCode.swift — stable / Insiders 一键接上 sha256（2026-10-07）
+
+两条 VendorProbe 的一键改为：`.bodyPattern` 读更新 API 响应里的 `url`（按 commit 钉死的 zip，各自钉 `/stable/` 或
+`/insider/` 段），并对同一份响应的 `sha256hash`（hex，`checksumFormat: .sha256Hex`，#1016）核对。之前是 `.redirect`
+跟 `update.code.visualstudio.com/latest/darwin-arm64/<quality>`：当天它 302 到的正是响应里的同一个 zip，但 app 的周期
+检查不跟这个重定向（`resolvesInstallRedirects`，#671），要等按下 Update 才跟——新 build 一发（Insiders 每天都发），
+重定向就落到另一个文件上，和检查时读到的摘要对不上，只会以 `checksumMismatch` 拒装。地址和摘要出自同一个 body 就没有这个窗口。
+响应里的 `hash` 是 40 位 SHA-1，不读。
+
+实测（2026-10-07，生产 `VendorProbeSource.probeDiagnostic`）：
+
+- stable 1.140.0：`url` `…/dbazure/download/stable/07f806f9…/VSCode-darwin-arm64.zip`，`/latest/darwin-arm64/stable`
+  同时 302 到同一地址；下载 317,901,801 B，`shasum -a 256` = `86a64f1c…593b0`，等于 `sha256hash`。
+- Insiders 1.141.0-insider：`url` `…/dbazure/download/insider/2a59476c…/VSCode-darwin-arm64.zip`（重定向同址）；下载
+  328,370,582 B，`shasum -a 256` = `b92a9e0c…8c5c6`，等于 `sha256hash`。
+- 两者 `VendorInstaller.verifySHA256` 通过，翻转一个字节的副本抛 `checksumMismatch`。

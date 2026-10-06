@@ -180,3 +180,9 @@ the CN page was current.
 同日 `/v2/update?platform=workbuddy-darwin-arm64` 回 `5.6.2.39458645`，国际站页面最新条目 5.6.2，
 页面已追上自己的轨道，所以 `acknowledgedStaleEntry: "5.2.7"` 去掉了（按该字段的约定：厂商追上后它就该删）。
 
+### `sha256hash` 是 dmg 的摘要（2026-10-07）
+
+上面 2026-08-27 那段「SHA-256 hex 接不上 `checksumPattern`」的理由已过时（#1016 之后格式能接），但结论不变、仍不接：
+实测 `sha256hash` 等于同路径 `.dmg` 兄弟的 SHA-256，不等于 `url` 那个 `.zip`（intl arm64：`93bcdc42…` = dmg，zip 实算
+`57d136cd…`；x64：`6f8a06cd…` = dmg，zip 实算 `463f5d42…`）。四个组合的完整数据记在国内站文档同日一节。
+

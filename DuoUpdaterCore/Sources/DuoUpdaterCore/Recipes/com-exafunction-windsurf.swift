@@ -22,9 +22,8 @@ enum com_exafunction_windsurf {
         // architecture; there is no second choice for an install spec to make, and
         // this app is arm64-only anyway (`App/project.yml`).
         //
-        // No checksum: the response's `sha256hash` is SHA-256 hex, and
-        // `checksumPattern` verifies base64 SHA-512. Wiring the wrong digest would
-        // fail every install; the signature and Team gates carry the integrity.
+        // The download is checked against the response's `sha256hash` (hex), the
+        // digest of the dmg the same response names, on top of the Team gate.
         VendorProbeRecipe(
             bundleID: "com.exafunction.windsurf",
             url: URL(string: "https://windsurf-stable.codeium.com/api/update/darwin-arm64-dmg/stable/latest")!,
@@ -34,6 +33,8 @@ enum com_exafunction_windsurf {
             changelogURL: URL(string: "https://windsurf.com/editor/releases/"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#"\"url\"\s*:\s*\"(https://[^\"]+\.dmg)\""#),
-                kind: .dmg)),
+                kind: .dmg,
+                checksumPattern: #""sha256hash"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex)),
         ])
 }

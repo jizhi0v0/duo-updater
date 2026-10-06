@@ -288,6 +288,23 @@ private let qoderCNIDENotesFixture = #"""
             from: qoderIDEIntelUpdateFixture, pattern: pattern) == nil)
     }
 
+    /// The zip is checked against `sha256hash` (hex) from the same body — the
+    /// 64-hex SHA-256, not the 40-hex `hash` (SHA-1) nor the commit.
+    @Test func ideChecksTheZipAgainstTheResponsesSHA256() throws {
+        let recipe = try probe("com.qoder.ide")
+        let spec = try #require(recipe.install)
+        #expect(spec.checksumFormat == .sha256Hex)
+        let pattern = try #require(spec.checksumPattern)
+        #expect(VendorProbeRecipe.extractVersion(from: qoderIDEUpdateFixture, pattern: pattern)
+            == "52c46d6d5fed3a36b56ede60b9354ced9077c77809149a293c18b76e621b6f0e")
+
+        let noDigest = qoderIDEUpdateFixture.replacingOccurrences(
+            of: #","sha256hash":"52c46d6d5fed3a36b56ede60b9354ced9077c77809149a293c18b76e621b6f0e""#,
+            with: "")
+        #expect(noDigest != qoderIDEUpdateFixture)
+        #expect(VendorProbeRecipe.extractVersion(from: noDigest, pattern: pattern) == nil)
+    }
+
     /// `timestamp` is epoch MILLISECONDS; `ReleaseDate` reads that window as ms,
     /// so the row gets an exact publish time rather than a date in 58 700 AD.
     @Test func ideReadsTheEpochMillisecondTimestamp() throws {
@@ -580,6 +597,24 @@ private let qoderCNIDENotesFixture = #"""
             from: qoderCNIDEUpdateFixture, pattern: recipe.versionPattern))
         #expect(template.replacingOccurrences(of: "{version}", with: version)
             == "https://ide.qoder.com.cn/qoder/release/1.31.2/QoderCN-darwin-arm64.zip")
+    }
+
+    /// The versioned zip is checked against `sha256hash` (hex) from the body that
+    /// gave the version. Measured 2026-10-07: that digest is the versioned zip's,
+    /// though the body lists it beside the `lastest` alias.
+    @Test func qoderCNIDEChecksTheZipAgainstTheResponsesSHA256() throws {
+        let recipe = try probe("com.aliyun.lingma.ide")
+        let spec = try #require(recipe.install)
+        #expect(spec.checksumFormat == .sha256Hex)
+        let pattern = try #require(spec.checksumPattern)
+        #expect(VendorProbeRecipe.extractVersion(from: qoderCNIDEUpdateFixture, pattern: pattern)
+            == "e32e221825aabdd8b0f0abfea47a6c9a9dce212cfcfecbb715d35a1dd19ae971")
+
+        let noDigest = qoderCNIDEUpdateFixture.replacingOccurrences(
+            of: #","sha256hash":"e32e221825aabdd8b0f0abfea47a6c9a9dce212cfcfecbb715d35a1dd19ae971""#,
+            with: "")
+        #expect(noDigest != qoderCNIDEUpdateFixture)
+        #expect(VendorProbeRecipe.extractVersion(from: noDigest, pattern: pattern) == nil)
     }
 
     @Test func qoderCNIDENotesParseOnTheSharedPattern() throws {

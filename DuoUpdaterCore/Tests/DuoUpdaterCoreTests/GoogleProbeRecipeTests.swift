@@ -80,6 +80,45 @@ struct GoogleProbeRecipeTests {
             + "ca3wnj3nkm3xllpgbrzxdw4xjy_1.94.11.734/Gemini-1.94.11.734.dmg")
     }
 
+    /// The download is checked against the package's `hash_sha256` (hex), which
+    /// Google lists BEFORE the package's `name`.
+    @Test func geminiChecksTheDownloadAgainstThePackagesSHA256() throws {
+        let recipe = try #require(googleRecipe("com.google.GeminiMacOS"))
+        let spec = try #require(recipe.install)
+        #expect(spec.checksumFormat == .sha256Hex)
+        let pattern = try #require(spec.checksumPattern)
+        #expect(VendorProbeRecipe.extractVersion(from: omahaGeminiFixture, pattern: pattern)
+            == "e7d26399d63bee35aeafa0bb0edae3dbbf8cc1ba4451248aa517ae68edb1399e")
+
+        // The 2026-10-07 reply's shape: an `actions` block naming the same dmg
+        // (as `run`, not `name`) ahead of the packages, and a base64 SHA-1 `hash`.
+        let current = omahaGeminiFixture
+            .replacingOccurrences(
+                of: #""manifest":{"version":"1.94.11.734","#,
+                with: #""manifest":{"version":"1.94.11.734","actions":{"action":[{"run":"Gemini-1.94.11.734.dmg","event":"install"},{"event":"postinstall"}]},"#)
+            .replacingOccurrences(
+                of: #""required":true}"#, with: #""required":true,"hash":"XFUQOg+le3g42ptq+6mg9w6Z4is\u003d"}"#)
+        #expect(current.contains(#""run":"Gemini-1.94.11.734.dmg""#))
+        #expect(VendorProbeRecipe.extractVersion(from: current, pattern: pattern)
+            == "e7d26399d63bee35aeafa0bb0edae3dbbf8cc1ba4451248aa517ae68edb1399e")
+    }
+
+    /// The package the URL names carries no digest: nothing is read, not a later
+    /// package's digest, which would refuse the good download.
+    @Test func geminiReadsNoDigestFromAnotherPackage() throws {
+        let recipe = try #require(googleRecipe("com.google.GeminiMacOS"))
+        let pattern = try #require(recipe.install?.checksumPattern)
+        let body = omahaGeminiFixture
+            .replacingOccurrences(
+                of: #""hash_sha256":"e7d26399d63bee35aeafa0bb0edae3dbbf8cc1ba4451248aa517ae68edb1399e","#, with: "")
+            .replacingOccurrences(
+                of: #""required":true}]"#,
+                with: #""required":true},{"hash_sha256":"\#(String(repeating: "a", count: 64))","name":"Gemini-1.94.10.700.dmg"}]"#)
+        #expect(!body.contains("e7d26399"))
+        #expect(body.contains("Gemini-1.94.10.700.dmg"))
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: pattern) == nil)
+    }
+
     /// "Open page" opens `downloadURL`, so it must be the desktop landing page.
     /// Two wrong answers, neither of which `PageURLTests` can see: the old
     /// `gemini.google.com/download` answered 404 or a /sorry bot challenge

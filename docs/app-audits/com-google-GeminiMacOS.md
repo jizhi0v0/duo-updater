@@ -31,3 +31,14 @@ reports 1.96.4.775, so nothing on that page can ever line up with
 the version on this row.
 
 (Checked 2026-08-22.)
+
+### Recipes/com-google-GeminiMacOS.swift — 一键接上 sha256（2026-10-07）
+
+原注释里「manifest 有 sha256 但用不上」不再成立：`VendorInstallSpec.checksumFormat: .sha256Hex`（#1016）之后，下载会先对包条目的
+`hash_sha256` 核对。
+
+实测（2026-10-07，按 recipe 的请求体 POST `update.googleapis.com/service/update2/json`）：manifest `1.128.2.1001`，`packages.package`
+只有一个条目，键依次是 `hash_sha256, size, name, fp, required, hash`；`actions` 块里也出现同一个 dmg 名（键是 `run`）。下载
+`dl.google.com/…_1.128.2.1001/Gemini-1.128.2.1001.dmg`（176,602,023 B，等于 `size`）后实算：SHA-256 等于 `hash_sha256`
+（`37f5a9bd…9bb1`），base64 SHA-1 等于 `hash`（`XFUQOg+le3g42ptq+6mg9w6Z4is=`）。`duo install Gemini` 1.113.6.866 → 1.128.2.1001：
+`extracting` 前出现 `verifyingSignature`（摘要闸），安装成功，`spctl` accepted，Notarized Developer ID，Google LLC (EQHXZ8M8AV)。

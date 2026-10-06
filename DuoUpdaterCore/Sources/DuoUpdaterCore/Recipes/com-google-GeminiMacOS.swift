@@ -17,8 +17,12 @@ enum com_google_GeminiMacOS {
         // so no build-vs-marketing trap here. The reply is prefixed with Google's
         // `)]}'` anti-hijacking line, which the regex simply skips.
         //
-        // The manifest publishes a sha256, but `checksumPattern` verifies a
-        // base64 SHA-512, so it goes unused; the signature gate still applies.
+        // The download is checked against the package's `hash_sha256` (hex), on
+        // top of the Team-ID gate. The checksum pattern takes the package object
+        // holding the same `Gemini-<version>.dmg` `name` the URL reads, whatever
+        // the key order (Google lists `hash_sha256` before `name`); if that object
+        // has none, it matches nothing rather than another entry's digest. The
+        // `hash` beside it is base64 SHA-1 and is not used.
         // No `changelogURL`: `gemini.google/release-notes` is the Gemini *Apps*
         // product feed — model and feature announcements keyed by DATE
         // (e.g. 2023.04.10), with no desktop build number anywhere. The app's own
@@ -38,7 +42,10 @@ enum com_google_GeminiMacOS {
                     #""codebase":"(https://dl\.google\.com/[^"]+)""#,
                     #""name":"(Gemini-[0-9.]+\.dmg)""#,
                 ]),
-                kind: .dmg),
+                kind: .dmg,
+                checksumPattern:
+                    #"\A(?:(?!"name"\s*:\s*"Gemini-[0-9.]+\.dmg")[\s\S])*?\{(?=[^{}]*"name"\s*:\s*"Gemini-[0-9.]+\.dmg")[^{}]*?"hash_sha256"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex),
             requestBody: .init(json: """
                 {"request":{"protocol":"3.0","os":{"platform":"mac","arch":"arm64"},\
                 "app":[{"appid":"com.google.GeminiMacOS","tag":"m1-prod",\

@@ -942,8 +942,9 @@ struct WorkbenchWindowView: View {
     }
 
     /// Update All for the tool groups: what the popover's "Other tools" Update
-    /// runs — every copy with a one-click update, one after another, each with its
-    /// own tool's command. Copies without one are left alone.
+    /// runs — every copy with a one-click update, each with its own tool's
+    /// command, the independent ones at once (`CLIToolsModel.lane(of:)`). Copies
+    /// without one are left alone.
     @ViewBuilder
     private var otherToolsBulkUpdate: some View {
         let tools = model.cliTools

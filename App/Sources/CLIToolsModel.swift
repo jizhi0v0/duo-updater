@@ -56,11 +56,22 @@ final class CLIToolsModel {
     /// for the brew row.
     private(set) var sightings: [CLIToolSighting] = []
 
-    /// Installs DuoUpdater is updating right now.
+    /// Installs DuoUpdater is updating right now, from the click until the re-check
+    /// after it has landed — and, under `updateAll`, every copy it will update,
+    /// from the start: a copy waiting its turn is claimed, as `installAll` claims
+    /// an app row, so it shows "Queued" rather than a live Update.
     private(set) var updating: Set<CLIToolID> = []
-    /// True for the whole of `updateAll`, including the re-checks between
-    /// installs, so the popover row stays in its updating state instead of
-    /// flashing back to "Update" between two copies.
+    /// The copies `updateAll` has claimed whose turn has not come: the rest of
+    /// their lane is still running.
+    private(set) var queued: Set<CLIToolID> = []
+    /// The copies whose update has run and whose tool's re-check has not landed:
+    /// still claimed, so the old verdict's Update does not come back, but no
+    /// longer running anything. Under `updateAll` the re-check waits for the
+    /// tool's other lanes, so this can last as long as the slowest of them.
+    private(set) var awaitingCheck: Set<CLIToolID> = []
+    /// True for the whole of `updateAll`, including the re-checks at the end of
+    /// each tool's lanes, so the popover row stays in its updating state instead
+    /// of flashing back to "Update" between two copies.
     private(set) var updatingAll = false
     /// The latest output line of each running update.
     private(set) var progress: [CLIToolID: String] = [:]
@@ -136,12 +147,20 @@ final class CLIToolsModel {
     /// How old a report may get before an open of the popover checks again.
     static let recheckInterval: TimeInterval = 15 * 60
 
-    /// Bumped by every `refresh`; a check applies its reports only if it is still
-    /// the latest one started. Reads overlap — a popover open can start one, and
-    /// each update ends with one — and a check started before an update finished
-    /// must not land after the re-check that follows it and put the stale
-    /// "outdated" verdict back. `refreshBrewFormulae`'s rule.
+    /// Bumped by every check; a check applies a tool's report only if it is still
+    /// the latest one started for that tool (`latestCheck`). Reads overlap — a
+    /// popover open can start one, and each update ends with one — and a check
+    /// started before an update finished must not land after the re-check that
+    /// follows it and put the stale "outdated" verdict back.
+    /// `refreshBrewFormulae`'s rule, per tool: an update re-checks only its own.
     @ObservationIgnored private var refreshGeneration = 0
+    /// Per provider (by index in `providers`), the generation of the latest check
+    /// started that asks it.
+    @ObservationIgnored private var latestCheck: [Int: Int] = [:]
+    /// Per provider, the report on screen.
+    @ObservationIgnored private var reports: [Int: CLIToolReport] = [:]
+    /// Checks started and not yet returned; `checking` while any is out.
+    @ObservationIgnored private var checksInFlight = 0
 
     /// Each document's whole release notes, fetched once and kept for the session:
     /// every install's pane reads the same document (Claude Code's is ~860 KB, 407
@@ -236,44 +255,60 @@ final class CLIToolsModel {
     /// requests give up after 15 s without data (`ClaudeCodeRelease`); a provider
     /// must keep its own waits that short.
     func refresh() async {
-        refreshGeneration += 1
-        let generation = refreshGeneration
-        checking = true
-        let reports = await checkAll()
-        guard generation == refreshGeneration else { return }
-        checking = false
-        apply(reports)
+        await check(Array(providers.indices))
     }
 
-    private func checkAll() async -> [CLIToolReport] {
-        await inProviderOrder { await $0.check() }
+    /// Re-check the providers at `indices` only, and apply their reports together;
+    /// every other tool keeps the verdict it has. What an update ends with: it
+    /// changed one tool's copies, and re-asking every other tool's channel made
+    /// all of them wait on the slowest (and spun every group's spinner).
+    private func check(_ indices: [Int]) async {
+        refreshGeneration += 1
+        let generation = refreshGeneration
+        for index in indices { latestCheck[index] = generation }
+        checksInFlight += 1
+        checking = true
+        let answers = await inProviderOrder(indices) { await $0.check() }
+        checksInFlight -= 1
+        checking = checksInFlight > 0
+        let current = answers.filter { latestCheck[$0.0] == generation }
+        guard !current.isEmpty else { return }
+        apply(current, whole: indices.count == providers.count)
     }
 
     private func scanAll() async -> [CLIToolSighting] {
-        await inProviderOrder { await $0.scan() }.flatMap { $0 }
+        await inProviderOrder(Array(providers.indices)) { await $0.scan() }.flatMap { $0.1 }
     }
 
-    /// `work` run on every provider at once, the answers in `providers` order.
+    /// `work` run on the providers at `indices` at once, each answer with its
+    /// provider's index, in `providers` order.
     private func inProviderOrder<T: Sendable>(
-        _ work: @escaping @Sendable (any CLIToolProvider) async -> T
-    ) async -> [T] {
+        _ indices: [Int], _ work: @escaping @Sendable (any CLIToolProvider) async -> T
+    ) async -> [(Int, T)] {
         await withTaskGroup(of: (Int, T).self) { group in
-            for (index, provider) in providers.enumerated() {
+            for index in indices {
+                let provider = providers[index]
                 group.addTask { (index, await work(provider)) }
             }
             var answers: [(Int, T)] = []
             for await answer in group { answers.append(answer) }
-            return answers.sorted { $0.0 < $1.0 }.map(\.1)
+            return answers.sorted { $0.0 < $1.0 }
         }
     }
 
-    private func apply(_ reports: [CLIToolReport]) {
-        contexts = Dictionary(reports.map { ($0.kind, $0.context) }, uniquingKeysWith: { a, _ in a })
-        statuses = reports.flatMap(\.statuses)
-        checkedSightings = reports.flatMap(\.sightings)
+    /// Put `answers` on screen in place of their providers' last reports. `whole`:
+    /// the check asked every provider, so the report as a whole is that recent.
+    private func apply(_ answers: [(Int, CLIToolReport)], whole: Bool) {
+        for (index, report) in answers { reports[index] = report }
+        let ordered = reports.keys.sorted().compactMap { reports[$0] }
+        contexts = Dictionary(ordered.map { ($0.kind, $0.context) }, uniquingKeysWith: { a, _ in a })
+        statuses = ordered.flatMap(\.statuses)
+        checkedSightings = ordered.flatMap(\.sightings)
         sightings = checkedSightings
         checked = true
-        lastChecked = now()
+        // A one-tool re-check leaves the others' verdicts as old as they were:
+        // only a check of all of them restarts the clock `refreshOnOpen` reads.
+        if whole { lastChecked = now() }
         let byID = Dictionary(statuses.map { ($0.toolID, $0) }, uniquingKeysWith: { a, _ in a })
         // An error describes an attempt at an update that is still on offer. Once
         // the copy is no longer behind — updated from a terminal, or gone — it
@@ -294,28 +329,49 @@ final class CLIToolsModel {
     }
 
     /// Run the one-click update of the install `id` names, with its own tool's
-    /// provider and no other.
+    /// provider and no other, then re-check that tool.
     func update(_ id: CLIToolID) async {
         // Re-read here, not trusted from the click: the list may have been
         // re-checked since the row was drawn, and `oneClickable` is what carries
         // every gate — auto-update on, nothing else updating, not already ours.
         guard let status = oneClickable.first(where: { $0.toolID == id }),
-              // The status's own tool, never another's: each provider's command is
-              // the one its vendor documents for its own installs.
-              let provider = providers.first(where: { $0.kind == status.kind })
+              let provider = provider(of: status)
         else { return }
         updating.insert(id)
-        errors[id] = nil
-        errorLogs[id] = nil
-        progress[id] = String(localized: "Starting…")
         // Held until the re-check below has landed, not just until the command
         // exits: that check waits on the network, and releasing the row earlier
         // shows the old "outdated" verdict with a live Update button for its length.
-        defer {
-            updating.remove(id)
-            progress[id] = nil
+        defer { release(id) }
+        let outcome = await run(status, with: provider)
+        if Self.needsRecheck(outcome) {
+            progress[id] = String(localized: "Checking…")
+            await check([provider])
         }
-        let outcome = await provider.update(status) { [weak self] line in
+        settle(status, outcome)
+    }
+
+    /// The index in `providers` of `status`'s own tool, never another's: each
+    /// provider's command is the one its vendor documents for its own installs.
+    private func provider(of status: CLIToolStatus) -> Int? {
+        providers.firstIndex { $0.kind == status.kind }
+    }
+
+    private func release(_ id: CLIToolID) {
+        updating.remove(id)
+        queued.remove(id)
+        awaitingCheck.remove(id)
+        progress[id] = nil
+    }
+
+    /// The command alone, for a copy already in `updating`: its output goes to the
+    /// row, a failure to the row and the log. What it means once the tool is
+    /// re-checked is `settle`'s.
+    private func run(_ status: CLIToolStatus, with provider: Int) async -> CLIToolUpdateOutcome {
+        let id = status.toolID
+        errors[id] = nil
+        errorLogs[id] = nil
+        progress[id] = String(localized: "Starting…")
+        let outcome = await providers[provider].update(status) { [weak self] line in
             Task { @MainActor in
                 // A line can arrive after the update has finished and its progress
                 // been cleared; writing it then would pin a stale line on the row.
@@ -323,36 +379,54 @@ final class CLIToolsModel {
                 self.progress[id] = line
             }
         }
-        let tool = status.kind.rawValue
         switch outcome {
-        case .updated(let version):
-            progress[id] = String(localized: "Checking…")
-            await refresh()
-            // Exit 0 is not proof of an update: measured, `claude update` exits 0
-            // having stayed put ("… predates release-signature enforcement; staying
-            // on X"), and the updater then reports the version it left. Only a
-            // version other than the one clicked on counts — the updater's own
-            // re-read first, the fresh check's when it had none.
-            let before = status.installedVersion
-            let after = version ?? self.status(id)?.installedVersion
-            if let after, after != before {
-                confirmUpdate(id, version: after)
-            } else {
-                Log.app.info("\(tool, privacy: .public) update at \(id.path, privacy: .public) exited 0 but left \(after ?? "an unreadable version", privacy: .public)")
-                // Brew's "brew update finished, but Homebrew is still X" rule: a
-                // run that changed nothing reads as a failure, not as silence.
-                errors[id] = after.map { String(localized: "Still \($0) after the update") }
-                    ?? String(localized: "Couldn’t read the version after the update")
-            }
+        case .updated:
+            break
         case .failed(let message, let output):
-            Log.app.info("\(tool, privacy: .public) update failed at \(id.path, privacy: .public): \(message, privacy: .public)")
+            Log.app.info("\(status.kind.rawValue, privacy: .public) update failed at \(id.path, privacy: .public): \(message, privacy: .public)")
             errors[id] = message
             errorLogs[id] = output
         case .busy, .notOffered:
             // Nothing ran. Something changed between the check and the click — an
-            // update started elsewhere, or the offer went away — so re-check and let
-            // the row say what is true now.
-            await refresh()
+            // update started elsewhere, or the offer went away — so the re-check
+            // lets the row say what is true now.
+            break
+        }
+        if Self.needsRecheck(outcome) {
+            awaitingCheck.insert(id)
+            // Said apart from "Checking…": under `updateAll` the check can wait a
+            // while on the tool's other lanes, and nothing is checking meanwhile.
+            progress[id] = String(localized: "Waiting to check")
+        }
+        return outcome
+    }
+
+    /// A failure is on the row already; anything else changed, or may have, what
+    /// the tool's check says.
+    nonisolated private static func needsRecheck(_ outcome: CLIToolUpdateOutcome) -> Bool {
+        if case .failed = outcome { return false }
+        return true
+    }
+
+    /// What a finished update says, once its tool's re-check has landed.
+    private func settle(_ status: CLIToolStatus, _ outcome: CLIToolUpdateOutcome) {
+        guard case .updated(let version) = outcome else { return }
+        let id = status.toolID
+        // Exit 0 is not proof of an update: measured, `claude update` exits 0
+        // having stayed put ("… predates release-signature enforcement; staying
+        // on X"), and the updater then reports the version it left. Only a
+        // version other than the one clicked on counts — the updater's own
+        // re-read first, the fresh check's when it had none.
+        let before = status.installedVersion
+        let after = version ?? self.status(id)?.installedVersion
+        if let after, after != before {
+            confirmUpdate(id, version: after)
+        } else {
+            Log.app.info("\(status.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public) exited 0 but left \(after ?? "an unreadable version", privacy: .public)")
+            // Brew's "brew update finished, but Homebrew is still X" rule: a
+            // run that changed nothing reads as a failure, not as silence.
+            errors[id] = after.map { String(localized: "Still \($0) after the update") }
+                ?? String(localized: "Couldn’t read the version after the update")
         }
     }
 
@@ -371,20 +445,112 @@ final class CLIToolsModel {
         }
     }
 
-    /// Update every install in `oneClickable`, whatever its tool, one after another.
+    /// Update every install in `oneClickable`, whatever its tool: the lanes
+    /// (`lane(of:)`) at once, the copies of one lane one after another, and each
+    /// tool re-checked once, as soon as the last lane holding any of its copies
+    /// is done.
     ///
-    /// One at a time, not in parallel: two npm prefixes could run side by side,
-    /// but every update ends in a re-check of every tool's copies, and the row
-    /// reads one live line.
+    /// One copy at a time across every tool, as it was, took the sum of every
+    /// installer — Junie's alone downloads ~330 MB — plus a re-check of every
+    /// tool after each copy.
     func updateAll() async {
         guard !updatingAll else { return }
+        let batch = oneClickable.compactMap { status in provider(of: status).map { (status, $0) } }
+        guard !batch.isEmpty else { return }
         updatingAll = true
         defer { updatingAll = false }
-        for id in oneClickable.map(\.toolID) {
-            // Each update ends in a re-check, which can withdraw the offer for the
-            // rest (auto-update switched off meanwhile); `update` re-reads it.
-            await update(id)
+        // Every copy is claimed now, not when its turn comes: until then its row
+        // says "Queued" instead of offering an Update that would race its lane.
+        for (status, _) in batch {
+            updating.insert(status.toolID)
+            queued.insert(status.toolID)
+            progress[status.toolID] = String(localized: "Queued")
         }
+        var lanes: [[(CLIToolStatus, Int)]] = []
+        var laneOf: [String: Int] = [:]
+        for copy in batch {
+            let key = Self.lane(of: copy.0)
+            if let index = laneOf[key] { lanes[index].append(copy) } else {
+                laneOf[key] = lanes.count
+                lanes.append([copy])
+            }
+        }
+        let run = BatchRun()
+        for lane in lanes {
+            for provider in Set(lane.map(\.1)) { run.lanesLeft[provider, default: 0] += 1 }
+        }
+        // A task per lane, not a task group: Swift 6.4's Release build has
+        // miscompiled a group's `for await` before (swift64-release-taskgroup-
+        // miscompile), and these need nothing a group adds.
+        let tasks = lanes.map { lane in Task { @MainActor in await self.runLane(lane, run) } }
+        for task in tasks { await task.value }
+    }
+
+    /// What the lanes of one `updateAll` share.
+    @MainActor private final class BatchRun {
+        /// Per provider, the lanes not yet done that hold one of its copies.
+        var lanesLeft: [Int: Int] = [:]
+        /// Per provider, its copies whose update ran and wait on its re-check.
+        var ran: [Int: [(CLIToolStatus, CLIToolUpdateOutcome)]] = [:]
+    }
+
+    private func runLane(_ lane: [(CLIToolStatus, Int)], _ run: BatchRun) async {
+        for (status, provider) in lane {
+            queued.remove(status.toolID)
+            let outcome = await self.run(status, with: provider)
+            if Self.needsRecheck(outcome) {
+                run.ran[provider, default: []].append((status, outcome))
+            } else {
+                // A failure is said on the row; nothing to wait for.
+                release(status.toolID)
+            }
+        }
+        // A tool is re-checked once no lane is left that holds one of its copies:
+        // earlier, its check could read a copy in the middle of its install.
+        var ready: [Int] = []
+        for provider in Set(lane.map(\.1)) {
+            run.lanesLeft[provider, default: 1] -= 1
+            if run.lanesLeft[provider] == 0, run.ran[provider] != nil { ready.append(provider) }
+        }
+        guard !ready.isEmpty else { return }
+        for provider in ready {
+            for (status, _) in run.ran[provider] ?? [] { progress[status.toolID] = String(localized: "Checking…") }
+        }
+        await check(ready.sorted())
+        for provider in ready {
+            for (status, outcome) in run.ran[provider] ?? [] {
+                settle(status, outcome)
+                release(status.toolID)
+            }
+        }
+    }
+
+    /// Copies with the same lane must not update at once; copies in different
+    /// lanes may.
+    ///
+    /// - An npm prefix is one lane, whatever put the package there: npm documents
+    ///   no lock for a global install (`NpmActivity`), and its update refuses to
+    ///   start while another npm runs in the prefix — Claude Code installed with
+    ///   npm included.
+    /// - bub is uv's lane: `bub update` runs uv, which `uv self update` replaces.
+    /// - Every other tool is a lane of its own: its copies share its updater's
+    ///   files (rustup and its toolchains, bun and the packages `bun add -g`
+    ///   installed, `claude update` and the versions it keeps).
+    nonisolated static func lane(of status: CLIToolStatus) -> String {
+        switch status.detail {
+        case .npm(let package) where package.install.bun == nil:
+            return "node:" + Self.canonical(package.install.prefix.path)
+        case .claudeCode(let claude) where claude.install.method == .npm:
+            if let prefix = claude.install.nodePrefix { return "node:" + Self.canonical(prefix) }
+        default:
+            break
+        }
+        return status.kind == .bub ? CLIToolKind.uv.rawValue : status.kind.rawValue
+    }
+
+    /// One spelling per directory, so two finders' paths to one prefix meet.
+    nonisolated private static func canonical(_ path: String) -> String {
+        URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path
     }
 
     // MARK: - Release notes

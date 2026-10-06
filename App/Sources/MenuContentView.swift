@@ -845,11 +845,20 @@ private struct CommandLineRow: View {
                  mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) })
         }
         if tools.updatingAll || !tools.updating.isEmpty {
-            // The running copy and its live line; `updateAll` runs one at a time.
-            let head = tools.statuses.first { tools.updating.contains($0.toolID) }
-                .map { String(localized: "Updating \($0.kind.displayName)") }
-                ?? String(localized: "Updating command-line tools")
-            let progress = tools.statuses.lazy.compactMap { tools.progress[$0.toolID] }.first
+            // The tool running, and one live line. `updateAll` runs several tools
+            // at once: then the row names none of them, and the line is the first
+            // running copy's — one still running its command before one done and
+            // waiting on its check, whose "Waiting to check" would read as if
+            // nothing were downloading. A queued copy is not running.
+            let claimed = tools.statuses.filter {
+                tools.updating.contains($0.toolID) && !tools.queued.contains($0.toolID)
+            }
+            let running = claimed.filter { !tools.awaitingCheck.contains($0.toolID) }
+            let named = running.isEmpty ? claimed : running
+            let head = Set(named.map(\.kind)).count == 1
+                ? String(localized: "Updating \(named[0].kind.displayName)")
+                : String(localized: "Updating command-line tools")
+            let progress = named.lazy.compactMap { tools.progress[$0.toolID] }.first
             return half([Text(head), progress.map { Text($0).monospacedDigit() }].compactMap { $0 }, mark: spinner)
         }
         if !tools.checked { return half([Text(String(localized: "Checking…"))], mark: spinner) }

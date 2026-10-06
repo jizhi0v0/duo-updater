@@ -20,6 +20,15 @@ enum dev_commandline_waveterm {
         // holds `Wave.app`, dev.commandline.waveterm, 0.14.5, Team M4LA8V687Y,
         // notarized — the same string the feed's `version:` carries.
         // snapshot-lint:allow — this dated verification stays in code: the batch block above says every named file states what was read off the artifact.
+        //
+        // The download is checked against the `sha512` (base64) of the `files:`
+        // item whose `url:` is the arm64 zip the URL pattern reads — not the dmg
+        // or x64 items (the feed repeats some of them). The checksum pattern stays
+        // inside that one item whatever its key order; if the item has no
+        // `sha512` it matches nothing rather than a neighbouring item's or the
+        // top-level one. Unlike Signal's, this feed's digest describes the bytes
+        // the CDN serves.
+        // History: docs/app-audits/dev-commandline-waveterm.md#历史与实测
         VendorProbeRecipe(
             bundleID: "dev.commandline.waveterm",
             url: URL(string: "https://dl.waveterm.dev/releases-w2/latest-mac.yml")!,
@@ -31,6 +40,8 @@ enum dev_commandline_waveterm {
                 urlSource: .bodyPatternRelative(
                     #"(Wave-darwin-arm64-[^\s]+\.zip)"#,
                     base: URL(string: "https://dl.waveterm.dev/releases-w2/")!),
-                kind: .zip)),
+                kind: .zip,
+                checksumPattern:
+                    #"\A(?:(?!Wave-darwin-arm64-[^\s]+\.zip)[\s\S])*?\n[ \t]*-[ \t](?=[^\n]*(?:\n[ \t]+(?![\s-])[^\n]*)*?Wave-darwin-arm64-[^\s]+\.zip)(?:[^\n]*\n[ \t]+(?![\s-]))*?sha512:[ \t]*([A-Za-z0-9+/=]+)"#)),
         ])
 }

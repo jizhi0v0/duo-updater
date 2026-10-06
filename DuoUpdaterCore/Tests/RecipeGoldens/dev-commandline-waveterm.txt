@@ -34,7 +34,7 @@ probes[0].install?.urlSource = .bodyPatternRelative(_:base:)
 probes[0].install?.urlSource.0 = "(Wave-darwin-arm64-[^\\s]+\\.zip)"
 probes[0].install?.urlSource.base = URL("https://dl.waveterm.dev/releases-w2/")
 probes[0].install?.kind = .zip
-probes[0].install?.checksumPattern = nil
+probes[0].install?.checksumPattern? = "\\A(?:(?!Wave-darwin-arm64-[^\\s]+\\.zip)[\\s\\S])*?\\n[ \\t]*-[ \\t](?=[^\\n]*(?:\\n[ \\t]+(?![\\s-])[^\\n]*)*?Wave-darwin-arm64-[^\\s]+\\.zip)(?:[^\\n]*\\n[ \\t]+(?![\\s-]))*?sha512:[ \\t]*([A-Za-z0-9+/=]+)"
 probes[0].install?.checksumFormat = .sha512Base64
 probes[0].install?.requestHeaders = Dictionary(count: 0)
 probes[0].install?.nestedArchivePath = nil

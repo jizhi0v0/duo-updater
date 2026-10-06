@@ -448,6 +448,135 @@ private func batchVersion(_ bundleID: String, in body: String) -> String? {
     }
 }
 
+// MARK: - Unity Hub / Wave: the arm64 zip item's sha512
+
+/// Verbatim `latest-mac.yml` bodies, fetched 2026-10-07. Each lists the arm64
+/// zip the URL pattern reads first, then the x64 zip and both dmgs (Wave lists
+/// each of those three times), then a top-level `path:`/`sha512:` pair.
+private let unityHubFeedFixture = """
+    version: 3.22.2
+    files:
+      - url: 3.22.2/UnityHubSetup-3.22.2-arm64.zip
+        sha512: /O1VW7I/GSStQqz67vxzaxt3QdTlJNe7s9ClY0huuIkIb2T7ni/lU5mns6akW7AfS/xRO0ubeiGUEeaUuhITtA==
+        size: 222152452
+      - url: 3.22.2/UnityHubSetup-3.22.2-x64.zip
+        sha512: dgCZBDSGMuabckW6tDbRrXEjdW1qtjNJwyizsfIRg1Y7FajNDvZFyEYBpklHhntX5mdRkXHYXz88vOuc0FAJjw==
+        size: 232873779
+      - url: 3.22.2/UnityHubSetup-3.22.2-arm64.dmg
+        sha512: bqjGocldUIOLBhwyyckJnn1MWfTeOKflA3vlxYaNRKFIhzm0hSql4g3EqHySjR2NqJmxojmf1xQ0WzeEUgo8gA==
+        size: 166530334
+      - url: 3.22.2/UnityHubSetup-3.22.2-x64.dmg
+        sha512: /ZaovarR0zuYmSbNjNpqNtNwGzzT7RyRm9XfNjWg748FLoSeXdZnS68YiFyyREPN0AvKpwaVQP9zbVlOlDQ4dg==
+        size: 183357860
+    path: 3.22.2/UnityHubSetup-3.22.2-arm64.zip
+    sha512: /O1VW7I/GSStQqz67vxzaxt3QdTlJNe7s9ClY0huuIkIb2T7ni/lU5mns6akW7AfS/xRO0ubeiGUEeaUuhITtA==
+    releaseDate: 2026-10-02T20:03:36.105Z
+    minimumSystemVersion: 22.0.0
+    signature: 2/HUZab39LWeFrBlJUwQUOTywSnCXNq+FJxCQoonsOWgZTIrt3VUQXoTN7Do7T/0UtTiGi0VAbqho3/HTichDQ==
+    signatures:
+      - keyId: ac7dcb6adc4d43df7b03d64c97e1356fec31412318bd5374531ffc24a2a98ff3
+        signature: 2/HUZab39LWeFrBlJUwQUOTywSnCXNq+FJxCQoonsOWgZTIrt3VUQXoTN7Do7T/0UtTiGi0VAbqho3/HTichDQ==
+    """
+
+private let waveFeedFixture = """
+    version: 0.14.5
+    files:
+      - url: Wave-darwin-arm64-0.14.5.zip
+        sha512: mFzBsQz8dWk5ZqeM0X8ilgDg688HMgvPpNFUVshfuv605oZAVUeN+fhl6ecUxm6GYgS7zX5pDK7HuCA+aTgprg==
+        size: 192631777
+      - url: Wave-darwin-x64-0.14.5.zip
+        sha512: zrwftx9kSbYQjVqVUv9uL3pspTYANrz8y1gjUs4ZQT7wDrT/GEz9pt2rGcRnIpOO78xfrILFIuEFDs4WJyK5QQ==
+        size: 200713028
+      - url: Wave-darwin-x64-0.14.5.zip
+        sha512: zrwftx9kSbYQjVqVUv9uL3pspTYANrz8y1gjUs4ZQT7wDrT/GEz9pt2rGcRnIpOO78xfrILFIuEFDs4WJyK5QQ==
+        size: 200713028
+      - url: Wave-darwin-x64-0.14.5.zip
+        sha512: zrwftx9kSbYQjVqVUv9uL3pspTYANrz8y1gjUs4ZQT7wDrT/GEz9pt2rGcRnIpOO78xfrILFIuEFDs4WJyK5QQ==
+        size: 200713028
+      - url: Wave-darwin-arm64-0.14.5.dmg
+        sha512: OvnTd4Z7vk5s4RubnQLal0m+maloBlNySwF5l48JjZvme4UlxayyBLJrZWDvtv4639RgJ8XhgOjMcMKLK7HOQQ==
+        size: 200257009
+      - url: Wave-darwin-arm64-0.14.5.dmg
+        sha512: OvnTd4Z7vk5s4RubnQLal0m+maloBlNySwF5l48JjZvme4UlxayyBLJrZWDvtv4639RgJ8XhgOjMcMKLK7HOQQ==
+        size: 200257009
+      - url: Wave-darwin-arm64-0.14.5.dmg
+        sha512: OvnTd4Z7vk5s4RubnQLal0m+maloBlNySwF5l48JjZvme4UlxayyBLJrZWDvtv4639RgJ8XhgOjMcMKLK7HOQQ==
+        size: 200257009
+      - url: Wave-darwin-x64-0.14.5.dmg
+        sha512: mlmEu5c8855ydIJ4OHgIMCWs/2gG4nru8qyPsT9KXU2C+1kdgwrm2PSrS9D0VTHebVnZm6t1XW9MjE399eWu2Q==
+        size: 208388868
+      - url: Wave-darwin-x64-0.14.5.dmg
+        sha512: mlmEu5c8855ydIJ4OHgIMCWs/2gG4nru8qyPsT9KXU2C+1kdgwrm2PSrS9D0VTHebVnZm6t1XW9MjE399eWu2Q==
+        size: 208388868
+      - url: Wave-darwin-x64-0.14.5.dmg
+        sha512: mlmEu5c8855ydIJ4OHgIMCWs/2gG4nru8qyPsT9KXU2C+1kdgwrm2PSrS9D0VTHebVnZm6t1XW9MjE399eWu2Q==
+        size: 208388868
+    path: Wave-darwin-arm64-0.14.5.zip
+    sha512: mFzBsQz8dWk5ZqeM0X8ilgDg688HMgvPpNFUVshfuv605oZAVUeN+fhl6ecUxm6GYgS7zX5pDK7HuCA+aTgprg==
+    releaseDate: '2026-04-16T15:53:06.246Z'
+    """
+
+private let unityArm64ZipSHA512 =
+    "/O1VW7I/GSStQqz67vxzaxt3QdTlJNe7s9ClY0huuIkIb2T7ni/lU5mns6akW7AfS/xRO0ubeiGUEeaUuhITtA=="
+private let waveArm64ZipSHA512 =
+    "mFzBsQz8dWk5ZqeM0X8ilgDg688HMgvPpNFUVshfuv605oZAVUeN+fhl6ecUxm6GYgS7zX5pDK7HuCA+aTgprg=="
+
+@Suite struct ElectronFeedArm64ZipChecksumTests {
+
+    /// (bundle id, live body, the arm64 zip item's `url:` line, its digest).
+    private static let cases: [(String, String, String, String)] = [
+        ("com.unity3d.unityhub", unityHubFeedFixture,
+         "url: 3.22.2/UnityHubSetup-3.22.2-arm64.zip", unityArm64ZipSHA512),
+        ("dev.commandline.waveterm", waveFeedFixture,
+         "url: Wave-darwin-arm64-0.14.5.zip", waveArm64ZipSHA512),
+    ]
+
+    private static func checksum(_ bundleID: String, in body: String) throws -> String? {
+        let spec = try #require(batchRecipe(bundleID)?.install)
+        let pattern = try #require(spec.checksumPattern, "\(bundleID) has no checksumPattern")
+        return VendorProbeRecipe.extractVersion(from: body, pattern: pattern)
+    }
+
+    /// The digest is the arm64 zip item's — the file the URL pattern reads — in
+    /// the base64 SHA-512 format the feed publishes, not the x64 zip's or a dmg's.
+    @Test func theChecksumIsTheArm64ZipItemsSHA512() throws {
+        for (bundleID, body, _, digest) in Self.cases {
+            #expect(batchRecipe(bundleID)?.install?.checksumFormat == .sha512Base64)
+            #expect(try Self.checksum(bundleID, in: body) == digest, "\(bundleID)")
+        }
+    }
+
+    /// Key order inside the item does not matter: `sha512` ahead of `url`, with
+    /// another key between, still pairs with that item.
+    @Test func theChecksumDoesNotDependOnKeyOrder() throws {
+        for (bundleID, body, urlLine, digest) in Self.cases {
+            let reordered = body.replacingOccurrences(
+                of: "  - \(urlLine)\n    sha512: \(digest)\n",
+                with: "  - sha512: \(digest)\n    blockMapSize: 1\n    \(urlLine)\n")
+            #expect(reordered != body, "\(bundleID) fixture did not change")
+            #expect(try Self.checksum(bundleID, in: reordered) == digest, "\(bundleID)")
+        }
+    }
+
+    /// The first arm64 zip item is the one the URL reads. If it carries no
+    /// `sha512`, nothing is read — not the next item's (x64 zip), not a later
+    /// repeat of the same name (Wave's feed repeats items), nor the top-level one.
+    @Test func aDigestlessArm64ZipItemReadsNothing() throws {
+        let other = String(repeating: "A", count: 86) + "=="
+        for (bundleID, body, urlLine, digest) in Self.cases {
+            let digestless = body
+                .replacingOccurrences(
+                    of: "  - \(urlLine)\n    sha512: \(digest)\n", with: "  - \(urlLine)\n")
+                .replacingOccurrences(
+                    of: "\npath: ", with: "\n  - \(urlLine)\n    sha512: \(other)\n    size: 1\npath: ")
+            #expect(digestless.contains("  - \(urlLine)\n    size:"), "\(bundleID) fixture did not change")
+            #expect(digestless.contains("sha512: \(other)"), "\(bundleID) repeat not added")
+            #expect(digestless.contains("\nsha512: \(digest)"), "the top-level digest stays")
+            #expect(try Self.checksum(bundleID, in: digestless) == nil, "\(bundleID)")
+        }
+    }
+}
+
 // MARK: - 2026-08-29 TimeMachineEditor
 
 /// Verbatim excerpt of `https://tclementdev.com/timemachineeditor/`, fetched

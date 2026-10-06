@@ -34,7 +34,7 @@ probes[0].install?.urlSource = .bodyPatternRelative(_:base:)
 probes[0].install?.urlSource.0 = "([0-9][^\\s/]*/UnityHubSetup-[^\\s]+-arm64\\.zip)"
 probes[0].install?.urlSource.base = URL("https://public-cdn.cloud.unity3d.com/hub/prod/")
 probes[0].install?.kind = .zip
-probes[0].install?.checksumPattern = nil
+probes[0].install?.checksumPattern? = "\\A(?:(?!UnityHubSetup-[^\\s]+-arm64\\.zip)[\\s\\S])*?\\n[ \\t]*-[ \\t](?=[^\\n]*(?:\\n[ \\t]+(?![\\s-])[^\\n]*)*?UnityHubSetup-[^\\s]+-arm64\\.zip)(?:[^\\n]*\\n[ \\t]+(?![\\s-]))*?sha512:[ \\t]*([A-Za-z0-9+/=]+)"
 probes[0].install?.checksumFormat = .sha512Base64
 probes[0].install?.requestHeaders = Dictionary(count: 0)
 probes[0].install?.nestedArchivePath = nil

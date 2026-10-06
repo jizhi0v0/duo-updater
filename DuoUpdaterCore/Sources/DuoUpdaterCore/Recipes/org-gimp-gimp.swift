@@ -19,10 +19,15 @@ enum org_gimp_gimp {
         // (`download.gimp.org/gimp/v{major.minor}/macos/{filename}`) was confirmed
         // by HEAD (200, resolves through their mirror network via `Location`), so
         // the install URL is rebuilt from two captures off the same `macos` block:
-        // the filename's major.minor and the filename itself. The published
-        // `sha512`/`sha256` fields are HEX, not the base64 SHA-512 `checksumPattern`
-        // verifies, so no checksum is wired — the Team-ID signature gate is the
-        // only defense, same tradeoff as Gemini (`Recipes/com-google-GeminiMacOS.swift`).
+        // the filename's major.minor and the filename itself.
+        //
+        // The download is checked against the `sha256` (hex) of that same entry,
+        // on top of the Team-ID gate. The checksum pattern takes the object holding
+        // the FIRST arm64 dmg filename in the document — the one the URL fields
+        // read — whatever the key order inside it. If that object carries no
+        // `sha256` the pattern matches nothing (the install is then Team-ID gated
+        // only and `duo verify` reports `checksumPatternNoMatch`); it cannot fall
+        // through to an older release's digest, which would refuse a good download.
         // Bundle identity: `org.gimp.gimp`, notarized Developer ID, Team T25BQ8HSJF
         // (GNOME Foundation) — `spctl` accepted it as "Notarized Developer ID"
         // (checked 2026-08-16).
@@ -40,6 +45,9 @@ enum org_gimp_gimp {
                         #""filename"\s*:\s*"gimp-([0-9]+\.[0-9]+)\.[0-9]+-arm64\.dmg""#,
                         #""filename"\s*:\s*"(gimp-[0-9.]+-arm64\.dmg)""#,
                     ]),
-                kind: .dmg)),
+                kind: .dmg,
+                checksumPattern:
+                    #"\A(?:(?!gimp-[0-9.]+-arm64\.dmg)[\s\S])*?\{(?=[^{}]*"filename"\s*:\s*"gimp-[0-9.]+-arm64\.dmg")[^{}]*?"sha256"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex)),
         ])
 }

@@ -77,8 +77,8 @@ enum CLIToolPresentation {
     }
 
     /// `items` with the outdated ones first, otherwise in their own order: a
-    /// group's copies, and Homebrew's formulae in the order brew lists them
-    /// (alphabetical).
+    /// group's copies, and Homebrew's formulae by name (`installedLeaves` sorts
+    /// them, and `merge` keeps the order).
     static func outdatedFirst<T>(_ items: [T], _ outdated: (T) -> Bool) -> [T] {
         items.filter(outdated) + items.filter { !outdated($0) }
     }

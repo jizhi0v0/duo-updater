@@ -456,8 +456,11 @@ struct WorkbenchWindowView: View {
         .onChange(of: model.requestedWorkbenchBrewUnchecked) { applyRequestedBrewUnchecked() }
         .onChange(of: model.requestedWorkbenchCLITools) { applyRequestedCLITools() }
         .onChange(of: model.requestedWorkbenchHomebrew) { applyRequestedHomebrew() }
-        .onChange(of: cliUpdatesRunning) { _, running in
-            // Taken before any update lands: the statuses have not moved yet.
+        // `initial`: the window can open on a run already going — Update All from
+        // the popover, then the workbench — and the order it first shows must hold
+        // too (review, #1013). Otherwise the snapshot is taken as the run starts:
+        // a status moves only when a re-check lands, after its update has run.
+        .onChange(of: cliUpdatesRunning, initial: true) { _, running in
             heldCLIOrder = running
                 ? CLIToolPresentation.outdatedFirst(model.brewFormulae, \.hasUpdate).map(Self.formulaTag)
                     + CLIToolPresentation.updatesFirst(model.cliTools.statuses).map(\.toolID.tag)

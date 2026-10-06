@@ -782,23 +782,27 @@ public enum UpdatePolicy {
     }
 
     /// Whether a staged build that `stagedBlocksInstall` returned should be cleared
-    /// (`SparkleStagingClearance`) so our install can go ahead, rather than yielded
+    /// (`StagedBuildClearance`) so our install can go ahead, rather than yielded
     /// to.
     ///
-    /// Only a Sparkle staging, and only one that is not the latest. A staged build
+    /// Only a Sparkle or magpie staging, and only one that is not the latest. A staged build
     /// that IS the latest is a Relaunch away (`actionableStaged`) — nothing to
     /// download, so it is yielded to. One that trails the latest is a hop the app
     /// will never get past on its own while it runs: Sparkle does not re-check with
     /// an installer armed (see `SparkleStagingClearance`), so relaunching lands the
     /// stale build and the rest takes another download and another quit anyway.
     /// That includes a staged build older than what is installed, which is only
-    /// ever a downgrade waiting for the quit. Squirrel's ShipIt and Spotify stage
-    /// differently and keep yielding.
+    /// ever a downgrade waiting for the quit. magpie is the same shape: it swaps
+    /// whatever it staged in on quit without a version check, and stages only on
+    /// its own clock (every six hours by default) while it publishes several builds
+    /// a day — measured 2026-10-06, a staged 0.1.1082 replaced our 0.1.1084 on
+    /// `duo restart`. Squirrel's ShipIt and Spotify stage differently and keep
+    /// yielding.
     public static func clearsStagedBuild(
         _ result: UpdateResult,
         staged: StagedSelfUpdate
     ) -> Bool {
-        guard staged.updater == .sparkle,
+        guard staged.updater == .sparkle || staged.updater == .magpie,
               let latest = result.remote?.versionSide, !latest.isEmpty
         else { return false }
         return VersionComparator.isNewer(latest, than: staged.versionSide)

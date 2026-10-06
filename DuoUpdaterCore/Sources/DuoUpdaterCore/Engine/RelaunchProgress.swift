@@ -272,7 +272,7 @@ public struct ReappearanceWatch: Sendable, Equatable {
     public init(for staged: StagedSelfUpdate?) {
         switch staged?.updater {
         case .shipIt: judgesReappearance = true
-        case .sparkle, .spotify, nil: judgesReappearance = false
+        case .sparkle, .spotify, .magpie, nil: judgesReappearance = false
         }
     }
 

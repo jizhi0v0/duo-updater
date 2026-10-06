@@ -73,7 +73,9 @@ GitHub releases 只发 agent 插件 zip。
 - 格式: zip，`latest.json` 顶层的 universal 包（`HyperFrames-b271-<sha9>.zip`），里面只有本 channel 的 app。
   `arm64`/`x64` 块是同一构建的瘦包，没用。
 - **读的是**: 轨道上人人拿到的同一个构建（无按设备分配），等于下载页提供的构建
-- 校验: Team ID 闸。`latest.json` 给了 zip 的 sha256，但是 hex；`checksumPattern` 只接 base64 SHA-512，没接
+- 校验: zip 先对 `latest.json` 顶层给的 sha256（hex）核对，再过 Team ID 闸。`VendorInstallSpec.checksumFormat: .sha256Hex`
+  把它交给 `RemoteVersion.expectedSHA256`，`VendorInstaller` 在解包前校验（和 SHA-512 闸同一位置、同样跳过 local stash）。
+  checksum pattern 沿 `build`→`sha`→`url`→`bytes`→`sha256` 这条顶层链走，取不到后面 `delta`/`dmg`/各架构/Linux 的摘要
 - Canary 的 channel proof: 下载 URL 必须匹配 `/hyperframes-oss/desktop/canary/HyperFrames-b`
 - 与自更新器的关系: app 的更新器在运行时把新 app 放进 `dest` 旁边的新文件夹，两次 rename 换进来，然后自己重启；
   不在退出时留暂存包，没有 Sparkle/Squirrel 那种「我们一退出它就装旧包」的碰撞面。
@@ -100,14 +102,15 @@ swift run --package-path application-test channel-verify "<mnt>/Install HyperFra
 - stable b270 → b271，app 运行中：换包成功，CLI 提示 `duo restart HyperFrames`，restart 后新进程起在 b271 上。
   运行期间 app 没有改 Claude Code / Codex / Claude Desktop 的 MCP 配置（三个文件里都没有 hyperframes 条目，后两个 mtime 不变）。
 - Canary b271 → b272：成功，Team 与公证同上，再 check 为 up to date。
+- 2026-10-07 加上 sha256 后再跑 stable b270 → b272（stable 当天已到 b272）：`duo install` 在 `extracting` 前多出
+  `verifyingSignature` 一步（摘要闸），通过后安装成功，`spctl` accepted。摘要不符时报 `checksumMismatch` 由
+  `VendorSHA256GateTests` 覆盖。
 
 ## 已知问题
-- sha256 校验没接（见一键安装）。
+- 无。
 
 ## 建议下一步
-1. 如果要给 zip 加摘要校验：`VendorInstallSpec` 增加 hex sha256（`RemoteVersion.expectedSHA256` 和
-   `VendorInstaller` 里已经有 GitHub 那条路用的 SHA-256 校验）。
-2. 增量包是厂商自有格式，暂不接。
+1. 增量包是厂商自有格式，暂不接。
 
 ## CLI（npm `hyperframes`）
 

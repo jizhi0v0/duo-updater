@@ -124,6 +124,29 @@ struct HyperFramesRecipeTests {
         #expect(VendorProbeRecipe.extractVersion(from: Self.stableBody, pattern: pattern) == nil)
     }
 
+    /// The zip's own sha256 from the top level, in hex — never the `delta` or
+    /// `dmg` digests that follow it — and the install checks it as SHA-256.
+    @Test func theChecksumIsTheUniversalZipsSHA256() throws {
+        for (bundleID, body, digest) in [
+            ("dev.hyperframes.desktop", Self.stableBody,
+             "cc8191876d777e7387b01d0515fe95a44f2c3d46ca7df4d75acef9da77d3d07a"),
+            ("dev.hyperframes.desktop.canary", Self.canaryBody,
+             "5feedb82e9498dd026ea75171e1937f34d7e7224a50fb670ab33f1e46225cf2c"),
+        ] {
+            let install = try #require(try Self.recipe(bundleID).install)
+            #expect(install.checksumFormat == .sha256Hex)
+            let pattern = try #require(install.checksumPattern)
+            #expect(VendorProbeRecipe.extractVersion(from: body, pattern: pattern) == digest)
+        }
+        // Top-level digest gone: nothing, not the `delta`/`dmg`/`arm64` one after it.
+        let pattern = try #require(try Self.recipe("dev.hyperframes.desktop").install?.checksumPattern)
+        let noTopLevel = Self.stableBody.replacingOccurrences(
+            of: #""bytes":430413126,"sha256":"cc8191876d777e7387b01d0515fe95a44f2c3d46ca7df4d75acef9da77d3d07a","#,
+            with: #""bytes":430413126,"#)
+        #expect(noTopLevel != Self.stableBody)
+        #expect(VendorProbeRecipe.extractVersion(from: noTopLevel, pattern: pattern) == nil)
+    }
+
     /// The `linux` and `deb` blocks carry a `build` of their own, which can be an
     /// EARLIER build than the release (the app's own comment on a recovery
     /// release). Moved ahead of the top level and given an older build, neither

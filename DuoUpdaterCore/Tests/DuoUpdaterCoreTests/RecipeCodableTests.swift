@@ -197,6 +197,7 @@ struct RecipeCodableTests {
             .caseName(MacAppStoreProbeCase.Route.self, all: MacAppStoreProbeCase.Route.allCases, name: \.rawValue),
             .caseName(GitHubCandidateScope.self, all: [.newest, .installedMajorLineOrNewestStable], name: \.rawValue),
             .caseName(InstalledApp.BuildNamespace.self, all: [.bundle, .vendor], name: \.rawValue),
+            .caseName(VendorInstallSpec.ChecksumFormat.self, all: [.sha512Base64, .sha256Hex], name: \.rawValue),
             .caseName(ChangelogRecipe.Mode.self, all: [.html, .json], name: \.rawValue),
             .caseName(ChangelogRecipe.HTTPMethod.self, all: [.get, .post], name: \.rawValue),
             .caseName(ChangelogRecipe.StructuredFormat.self, all: [.gitHubReleases, .warpChannelVersions], name: \.rawValue),

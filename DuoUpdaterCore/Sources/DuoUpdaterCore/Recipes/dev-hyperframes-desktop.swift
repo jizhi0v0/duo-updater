@@ -40,10 +40,13 @@ enum dev_hyperframes_desktop {
     // download page serves.
     //
     // One-click: the zip holds only this channel's `HyperFrames.app` (the app's
-    // installer refuses anything else). `latest.json` names its sha256, but in
-    // hex; `checksumPattern` takes a base64 SHA-512, so the gate here is the
-    // mandatory Team-ID one. The vendor's own delta (`delta/manifest-<build>.json`
-    // and `blobs/`) is its own format, not Sparkle's, and is not read.
+    // installer refuses anything else). The zip is checked against the sha256
+    // `latest.json` names for it (hex, the same check the app's own installer
+    // makes), on top of the mandatory Team-ID gate. The checksum pattern walks the
+    // same top-level chain as the URL (`build`, `sha`, `url`, `bytes`, `sha256`),
+    // so it cannot pick up the `delta`, `dmg`, per-architecture or Linux digests
+    // that follow. The vendor's own delta (`delta/manifest-<build>.json` and
+    // `blobs/`) is its own format, not Sparkle's, and is not read.
     static func probe(_ channel: ReleaseChannel) -> VendorProbeRecipe {
         let folder = folder(channel)
         let escaped = NSRegularExpression.escapedPattern(for: folder)
@@ -62,7 +65,11 @@ enum dev_hyperframes_desktop {
                 urlSource: .bodyPattern(
                     #""build"\s*:\s*"b[0-9]+"\s*,\s*"sha"\s*:\s*"[0-9a-f]{40}"\s*,\s*"url"\s*:\s*"("#
                         + escaped + #"/HyperFrames-b[0-9]+-[0-9a-f]+\.zip)""#),
-                kind: .zip),
+                kind: .zip,
+                checksumPattern:
+                    #""build"\s*:\s*"b[0-9]+"\s*,\s*"sha"\s*:\s*"[0-9a-f]{40}"\s*,\s*"url"\s*:\s*""#
+                        + escaped + #"/HyperFrames-b[0-9]+-[0-9a-f]+\.zip"\s*,\s*"bytes"\s*:\s*[0-9]+\s*,\s*"sha256"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex),
             channel: channel)
     }
 

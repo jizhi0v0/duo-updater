@@ -34,6 +34,7 @@ probes[0].install?.urlSource = .bodyPattern(_:)
 probes[0].install?.urlSource.0 = "(https://pkg-ant\\.baidu\\.com/issue/netdisk/MACguanjia/[0-9][^\"]*/BaiduNetdisk_mac_[0-9][^\"]*_arm64\\.dmg)"
 probes[0].install?.kind = .dmg
 probes[0].install?.checksumPattern = nil
+probes[0].install?.checksumFormat = .sha512Base64
 probes[0].install?.requestHeaders = Dictionary(count: 0)
 probes[0].install?.nestedArchivePath = nil
 probes[0].install?.contentsArchivePattern = nil

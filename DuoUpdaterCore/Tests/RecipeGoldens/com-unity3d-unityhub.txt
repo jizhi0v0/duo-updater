@@ -35,6 +35,7 @@ probes[0].install?.urlSource.0 = "([0-9][^\\s/]*/UnityHubSetup-[^\\s]+-arm64\\.z
 probes[0].install?.urlSource.base = URL("https://public-cdn.cloud.unity3d.com/hub/prod/")
 probes[0].install?.kind = .zip
 probes[0].install?.checksumPattern = nil
+probes[0].install?.checksumFormat = .sha512Base64
 probes[0].install?.requestHeaders = Dictionary(count: 0)
 probes[0].install?.nestedArchivePath = nil
 probes[0].install?.contentsArchivePattern = nil

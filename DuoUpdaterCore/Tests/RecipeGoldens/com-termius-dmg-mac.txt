@@ -34,6 +34,7 @@ probes[0].install?.urlSource = .fixed(_:)
 probes[0].install?.urlSource.0 = URL("https://autoupdate.termius.com/mac-arm64/Termius.dmg")
 probes[0].install?.kind = .dmg
 probes[0].install?.checksumPattern = nil
+probes[0].install?.checksumFormat = .sha512Base64
 probes[0].install?.requestHeaders = Dictionary(count: 0)
 probes[0].install?.nestedArchivePath = nil
 probes[0].install?.contentsArchivePattern = nil
@@ -70,6 +71,7 @@ probes[1].install?.urlSource = .fixed(_:)
 probes[1].install?.urlSource.0 = URL("https://autoupdate.termius.com/mac-beta-universal/Termius%20Beta.dmg")
 probes[1].install?.kind = .dmg
 probes[1].install?.checksumPattern? = "Termius Beta\\.dmg\\s*\\n\\s*sha512:\\s*([A-Za-z0-9+/=]+)"
+probes[1].install?.checksumFormat = .sha512Base64
 probes[1].install?.requestHeaders = Dictionary(count: 0)
 probes[1].install?.nestedArchivePath = nil
 probes[1].install?.contentsArchivePattern = nil

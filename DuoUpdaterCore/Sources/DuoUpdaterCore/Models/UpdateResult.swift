@@ -281,10 +281,14 @@ public struct RemoteVersion: Sendable, Hashable {
     /// unpacking. Nil when the feed doesn't publish one.
     public let expectedSHA512: String?
 
-    /// SHA-256 (lowercase hex) GitHub's API reports for the release asset in
-    /// `downloadURL` — its `digest` field, read from the same release object as
-    /// the URL. Set only for a `.publishedDigestOnly` rule; nil when the asset
-    /// has none (GitHub did not backfill assets uploaded before June 2025).
+    /// SHA-256 (hex) of the download. Two sources set it:
+    ///  - a `.publishedDigestOnly` GitHub rule: the `digest` GitHub's API reports
+    ///    for the release asset, read from the same release object as the URL — the
+    ///    whole proof of origin there; nil when the asset has none (GitHub did not
+    ///    backfill assets uploaded before June 2025);
+    ///  - a vendor recipe whose `checksumFormat` is `.sha256Hex`: checked before
+    ///    unpacking, ON TOP of the Team-ID gate, like `expectedSHA512`.
+    /// Which of the two it is follows `installTrust`, never the field's presence.
     public let expectedSHA256: String?
 
     /// What this download's trust rests on. See `InstallTrust`.

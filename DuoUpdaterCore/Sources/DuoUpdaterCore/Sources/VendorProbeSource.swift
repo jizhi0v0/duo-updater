@@ -1442,7 +1442,8 @@ public struct VendorProbeSource: UpdateSource {
                 // pkg → hand to the system installer; archives → in-place swap.
                 requiresManualInstaller: spec.kind == .pkg,
                 vendorInstallerKind: spec.kind,
-                expectedSHA512: plan.checksum,
+                expectedSHA512: spec.checksumFormat == .sha512Base64 ? plan.checksum : nil,
+                expectedSHA256: spec.checksumFormat == .sha256Hex ? plan.checksum : nil,
                 nestedArchivePath: spec.nestedArchivePath,
                 contentsArchivePattern: spec.contentsArchivePattern,
                 downloadHeaders: spec.requestHeaders,

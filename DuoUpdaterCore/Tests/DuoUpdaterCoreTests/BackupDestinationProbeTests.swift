@@ -208,8 +208,7 @@ import Testing
 
         /// hdiutil's exit status and everything it printed — the status alone did
         /// not say why `create` failed on CI (4 in 344 attempts, 2026-09-26 →
-        /// 10-06). A file, not a pipe: `attach` hands off to a helper that may
-        /// hold the pipe open after hdiutil exits.
+        /// 10-06).
         func run(_ arguments: [String]) -> (status: Int32, output: String) {
             let log = fm.temporaryDirectory.appendingPathComponent("duo-hdiutil-\(UUID().uuidString).log")
             defer { try? fm.removeItem(at: log) }

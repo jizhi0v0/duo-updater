@@ -58,7 +58,7 @@
 - recipe 抓取失败时（页面取不到或正则不再匹配）：面板先找 `changelogURL`——这个 feed 没有 `releaseNotesLink`，也没登记 `ChangelogCatalog`，所以是 nil——然后退到 feed 的内联 `<description>`（`releaseNotesHTML`），经 `ReleaseNotesText` 按 HTML 渲染，也就是上面那份 TablePlus 模板正文，而不是空态（`WorkbenchWindowView.fallback`）。看到这份模板正文，说明 recipe 失效了。
 
 ## 一键安装
-- 状态: 支持，走通用 Sparkle 安装路径（dmg + EdDSA 校验 + Team 闸）。**0.35 → 0.36 已在真机上跑通**（app 未运行时；运行中的路径没跑），证据见「如何复验」
+- 状态: 支持，走通用 Sparkle 安装路径（dmg + EdDSA 校验 + Team 闸）。**0.35 → 0.36 在真机上跑过两种状态**：app 未运行、以及 app 和一个 VM 都在运行，证据见「如何复验」。后一种有一个已知缺口（VM 进程继续跑旧代码），见「已知问题」
 - 格式: dmg（`files.vmpal.com/macos/<version>/VMPal.dmg`，0.36 为 42262248 字节，与 feed 的 `length` 一致）
 - **读的是**: 人人可手动下载的 GA。官网下载按钮 `/release/osx/vmpal_latest` 302 到同一个 dmg，feed 只有一条 item，没有设备分桶或灰度参数
 - 阻塞: 无
@@ -66,10 +66,12 @@
 ## 已知问题
 - **许可证的更新期**：二进制里有 "Your license's updates have ended" / "A newer VMPal is out. Renew your license to get it."，app 自己会拦住超出许可证更新期的版本。duo 一键不知道许可证状态，会照装 feed 上的最新版。装上之后 app 的反应（拒绝启动、降级成试用，还是只提示续费）**未验证**。TablePlus 用的是同一种许可证模式。
 - feed 的 `<minimumSystemVersion>` 读不到（见「更新检测」）。
+- **VM 进程在升级后继续跑旧版引擎。** 每个运行中的 VM 是一个独立进程，可执行文件在包内 `Contents/Helpers/VMPalMachine.app`。VMPal 主程序退出时它不退出；重启主程序后，0.36 会接管这个仍在运行的进程，在 UI 里停掉再启动 VM 时**复用的也是它**。所以 duo 换包 + `duo restart` 之后，VM 一直跑在 0.35 的引擎上（可执行文件指向已被删掉的旧包），要等这个进程自己退出，再启动 VM 才会换成 0.36。duo 判断「app 是否在运行」，是拿每个进程的 `bundleURL`（经 `UpdatePolicy.runtimeBundlePath` 归一化）去和 app 路径精确比对（CLI 的 `Check.runningBundlePaths`，菜单栏 app 的 `RunningBundlePathCache`）。helper 的 `bundleURL` 是 `…/Contents/Helpers/VMPalMachine.app`，对不上，所以主程序一退，duo 就当它已经不在运行。实测这种混合版本状态下暂停、恢复、停止都正常；旧包已删除时，helper 按需再加载包内资源会怎样，**未验证**。厂商自己的更新流程会先暂停、保存并关闭所有 VM 再装（"Pause VMs and Update"），正是为了避开这种状态。
 
 ## 建议下一步
-1. VMPal 运行中（尤其有 VM 在跑）时的一键：VMPal 自己的更新流程是先暂停并保存所有 VM 再更新（"Pause VMs and Update"），duo 的退出 → 换包 → 重启路径在这种状态下的表现没验证。
-2. 许可证更新期到期后的行为，有过期许可证时再验。
+1. 决定 duo 是否要识别「从包内 helper bundle 启动、比主程序活得久的进程」（这里是 VMPalMachine）：换包前提示，或在 restart 时一并报告，而不是只看主 bundle 的进程。这是通用问题，不只 VMPal。
+2. 菜单栏 app 的一键 + Relaunch 路径没在 VM 运行时单独跑过；按代码它和 CLI 用的是同一套运行检测，结论应该相同（未验证）。
+3. 许可证更新期到期后的行为，有过期许可证时再验。
 
 ## 如何复验
 
@@ -97,10 +99,21 @@ duo install VMPal --yes --json
 
 2026-10-06 的一键结果：`{"applied":true,"bytesDownloaded":42262248,"outcome":"installed","route":"sparkle"}`，退出码 0，耗时约 12 秒。换装后 short 0.36 / build 36、inode 变了、`codesign --verify --deep --strict` 退 0、Team 仍为 `3X57WP8E8V`、`spctl` accepted / Notarized Developer ID；包内 173 项（文件 SHA-256 + 符号链接目标）与厂商 0.36 dmg 里的 `.app` 逐项一致；`duo backups` 里留有 0.35 的回滚点；之后 `duo check` 判为最新；启动 0.36 能正常运行、无 fault 日志，`quit` 后干净退出。
 
+运行中的一键（VMPal 主程序 + 一个 VM 都在运行，VM 停在 Fedora 安装器菜单）：
+
+```bash
+duo install VMPal --yes --json     # 换包，不退出 app
+duo restart VMPal                  # 优雅退出 + 重启主程序
+lsof -p <VMPalMachine pid> | awk '$4=="txt"'   # VM 进程的可执行文件
+```
+
+2026-10-06 的结果：`duo install` 约 8 秒完成（`installed` / `applied`），期间主程序和 VM 进程都没被动；`duo restart` 约 2 秒，主程序换成 0.36 的新进程。VM 进程没有变，`lsof` 显示它的可执行文件是 `/Applications/.duoupdater-staged-VMPal.app/…/VMPalMachine`，那份旧包随后从磁盘上消失。0.36 的界面对这个 VM 执行暂停、恢复、停止都正常；停掉后再启动，仍是同一个旧进程。用 AppleEvent 让该进程退出后再启动 VM，新进程的可执行文件 inode 与 0.36 包内的 `VMPalMachine` 一致。整个过程中 VMPal 自己的 Sparkle 没有暂存任何更新。
+
 2026-10-06 的身份与解析结果：`com.tableplus.VMPal`、short 0.36 / build 36、`LSMinimumSystemVersion` 26.0、无 `SUFeedURL`、Team `3X57WP8E8V`、`spctl` "accepted / Notarized Developer ID"、arm64；生产 `SparkleAppcastParser` 解析出 1 条 item（0.36/36，enclosure 为上面的 dmg，`edSignature` 非空，`channel` nil，`minimumSystemVersion` nil）；recipe 在真实页面上取到 1 条（0.36 · 2026-10-06 · "Bug fixes and improvements."）。
 
 ## 历史与实测
 
 - 2026-10-06：首次接入。0.36 是当天发布的（feed `pubDate` 03:52:59 UTC），changelog 页和 feed 都只有这一个版本。
 - 2026-10-06：一键 0.35 → 0.36 真机跑通（app 未运行），结果见「如何复验」。
+- 2026-10-06：一键 0.35 → 0.36 在 app 与 VM 都在运行时跑通，发现 VM 进程升级后继续跑旧引擎，结果见「如何复验」与「已知问题」。旁注：VMPal 用 Fedora 44 netinst 自动安装时，VM 里的安装器报 "Error setting up repositories" 并停在交互菜单；同一时刻宿主经系统代理能取到 Fedora 的 metalink（200），VM 走 NAT 不经该代理，原因未查。
 - 2026-10-06：对 recipe 做变异：去掉日期组的 `(?!</li>)` 后，没有 `<time>` 的条目会一直吞到下一个 release，拿走对方的日期和条目，`extractsVMPalEntriesInOrder` 变红；恢复后变绿。

@@ -8,7 +8,7 @@ import Foundation
 /// framework, no payload directory, nothing in `Info.plist` that Xcode would not
 /// also write, and — the part that rules out the load commands — it reaches AppKit
 /// and WebKit through `dlopen` at run time rather than by linking them, so the
-/// binary links CoreFoundation, Security and libSystem and nothing that says
+/// binary links libSystem, libresolv, CoreFoundation and Security and nothing that says
 /// "interface". What the toolchain does record, in every build, is which module
 /// versions went into it, and MyGo is one of them.
 ///

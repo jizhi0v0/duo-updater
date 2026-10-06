@@ -285,9 +285,9 @@ public enum MachOImports {
     }
 
     /// The `__go_buildinfo` section among one segment's section headers, by name
-    /// alone and in whichever segment holds it — `__DATA` in every Go binary
-    /// looked at, which is also the only place Go's own `debug/buildinfo` looks
-    /// for it by name. Offsets are relative to the slice.
+    /// alone and in whichever segment holds it, as Go's own `debug/buildinfo`
+    /// looks it up (`machoExe.DataStart`, Go 1.27.1). It sat in `__DATA` in every
+    /// Go binary looked at. Offsets are relative to the slice.
     ///
     /// `segment_command_64` is 72 bytes, `nsects` at 64; each `section_64` after
     /// it is 80 — `sectname[16]`, `segname[16]`, `addr`, `size` (u64 at 40),

@@ -347,7 +347,7 @@ public enum AppRuntimeDetector {
 
         // MyGo. Nothing above can see it and nothing below would name it: the
         // bundle holds one Go binary, an icon and a plist, and the binary links
-        // CoreFoundation, Security and libSystem — AppKit and WebKit are opened
+        // libSystem, libresolv, CoreFoundation and Security — AppKit and WebKit are opened
         // with `dlopen` at run time, which is how MyGo builds without cgo. So the
         // link rules below leave it unlabelled, which is where it sat before this
         // rule existed.

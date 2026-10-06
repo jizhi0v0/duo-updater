@@ -58,7 +58,7 @@
 - recipe 抓取失败时（页面取不到或正则不再匹配）：面板先找 `changelogURL`——这个 feed 没有 `releaseNotesLink`，也没登记 `ChangelogCatalog`，所以是 nil——然后退到 feed 的内联 `<description>`（`releaseNotesHTML`），经 `ReleaseNotesText` 按 HTML 渲染，也就是上面那份 TablePlus 模板正文，而不是空态（`WorkbenchWindowView.fallback`）。看到这份模板正文，说明 recipe 失效了。
 
 ## 一键安装
-- 状态: 走通用 Sparkle 安装路径（dmg + EdDSA 校验 + Team 闸）。真包已挂载核对：bundle id、版本、Team、`spctl` 都对得上；**完整的「旧版 → 新版」安装没有跑过**
+- 状态: 支持，走通用 Sparkle 安装路径（dmg + EdDSA 校验 + Team 闸）。**0.35 → 0.36 已在真机上跑通**（app 未运行时；运行中的路径没跑），证据见「如何复验」
 - 格式: dmg（`files.vmpal.com/macos/<version>/VMPal.dmg`，0.36 为 42262248 字节，与 feed 的 `length` 一致）
 - **读的是**: 人人可手动下载的 GA。官网下载按钮 `/release/osx/vmpal_latest` 302 到同一个 dmg，feed 只有一条 item，没有设备分桶或灰度参数
 - 阻塞: 无
@@ -68,7 +68,7 @@
 - feed 的 `<minimumSystemVersion>` 读不到（见「更新检测」）。
 
 ## 建议下一步
-1. 在真机上跑一次旧版 → 新版的一键安装（旧 dmg 仍在：`files.vmpal.com/macos/0.35/VMPal.dmg` 2026-10-06 `HEAD` 200），确认 VM 运行中时的退出/重启表现：VMPal 自己的更新流程是先暂停并保存所有 VM 再更新（"Pause VMs and Update"）。
+1. VMPal 运行中（尤其有 VM 在跑）时的一键：VMPal 自己的更新流程是先暂停并保存所有 VM 再更新（"Pause VMs and Update"），duo 的退出 → 换包 → 重启路径在这种状态下的表现没验证。
 2. 许可证更新期到期后的行为，有过期许可证时再验。
 
 ## 如何复验
@@ -86,9 +86,21 @@ spctl -a -vv -t exec /Volumes/VMPal/VMPal.app
 swift test --package-path DuoUpdaterCore --filter VMPal
 ```
 
-2026-10-06 的结果：`com.tableplus.VMPal`、short 0.36 / build 36、`LSMinimumSystemVersion` 26.0、无 `SUFeedURL`、Team `3X57WP8E8V`、`spctl` "accepted / Notarized Developer ID"、arm64；生产 `SparkleAppcastParser` 解析出 1 条 item（0.36/36，enclosure 为上面的 dmg，`edSignature` 非空，`channel` nil，`minimumSystemVersion` nil）；recipe 在真实页面上取到 1 条（0.36 · 2026-10-06 · "Bug fixes and improvements."）。
+一键（旧版 → 新版）：
+
+```bash
+curl -sSLO https://files.vmpal.com/macos/0.35/VMPal.dmg   # 旧 dmg 仍可下载
+# 挂载后 ditto VMPal.app 到 /Applications，不启动（避免它自己的 Sparkle 抢先更新）
+duo check VMPal                    # VMPal  0.35  →  0.36  [Sparkle, in-place]
+duo install VMPal --yes --json
+```
+
+2026-10-06 的一键结果：`{"applied":true,"bytesDownloaded":42262248,"outcome":"installed","route":"sparkle"}`，退出码 0，耗时约 12 秒。换装后 short 0.36 / build 36、inode 变了、`codesign --verify --deep --strict` 退 0、Team 仍为 `3X57WP8E8V`、`spctl` accepted / Notarized Developer ID；包内 173 项（文件 SHA-256 + 符号链接目标）与厂商 0.36 dmg 里的 `.app` 逐项一致；`duo backups` 里留有 0.35 的回滚点；之后 `duo check` 判为最新；启动 0.36 能正常运行、无 fault 日志，`quit` 后干净退出。
+
+2026-10-06 的身份与解析结果：`com.tableplus.VMPal`、short 0.36 / build 36、`LSMinimumSystemVersion` 26.0、无 `SUFeedURL`、Team `3X57WP8E8V`、`spctl` "accepted / Notarized Developer ID"、arm64；生产 `SparkleAppcastParser` 解析出 1 条 item（0.36/36，enclosure 为上面的 dmg，`edSignature` 非空，`channel` nil，`minimumSystemVersion` nil）；recipe 在真实页面上取到 1 条（0.36 · 2026-10-06 · "Bug fixes and improvements."）。
 
 ## 历史与实测
 
 - 2026-10-06：首次接入。0.36 是当天发布的（feed `pubDate` 03:52:59 UTC），changelog 页和 feed 都只有这一个版本。
+- 2026-10-06：一键 0.35 → 0.36 真机跑通（app 未运行），结果见「如何复验」。
 - 2026-10-06：对 recipe 做变异：去掉日期组的 `(?!</li>)` 后，没有 `<time>` 的条目会一直吞到下一个 release，拿走对方的日期和条目，`extractsVMPalEntriesInOrder` 变红；恢复后变绿。

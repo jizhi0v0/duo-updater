@@ -75,7 +75,7 @@ import sys
 
 # The tests are a root like any other: Swift Testing runs every `@Test` on the
 # same cooperative pool, and the suite is where the pool is narrowest. CI's
-# `release` job (run 37475566844, 2026-10-07) hung for its whole 1,200 s budget
+# `release` job (run 37475566844, 2026-10-06) hung for its whole 1,200 s budget
 # with all three of the runner's cooperative threads parked in test bodies — two
 # in `SecStaticCodeCheckValidity`, one in `waitUntilExit` — while this check
 # scanned only the three source roots and passed.

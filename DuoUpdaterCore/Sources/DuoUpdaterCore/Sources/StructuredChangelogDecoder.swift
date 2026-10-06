@@ -65,6 +65,8 @@ public enum StructuredChangelogDecoder {
             return decodeSuperconductor(body, maxEntries: maxEntries)
         case .claudeDesktopChangelog:
             return decodeClaudeDesktop(body, maxEntries: maxEntries)
+        case .hyperFramesWhatsNew:
+            return decodeHyperFramesWhatsNew(body)
         }
     }
 
@@ -482,6 +484,53 @@ public enum StructuredChangelogDecoder {
             if let cap = maxEntries, entries.count >= cap { break }
         }
         return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    // MARK: - HyperFrames (static.heygen.ai/hyperframes-oss/desktop/whats-new-<build>.json)
+
+    /// The app's own What's New dialog shows `summary`, then the `new`, `improved`
+    /// and `fixed` lists under "New" / "Improved" / "Fixed" (`parseWhatsNew` in its
+    /// `main/whatsNew.mjs`); this keeps that order. `title` and `scenes` are the
+    /// dialog's illustrated header and are left out. Like the app, a file that is
+    /// not schema 1 or names no `b<digits>` build is not read. b272 (Canary,
+    /// 2026-10-06) has empty `new` and `improved`: only the headings with lines
+    /// render.
+    private struct HyperFramesWhatsNew: Decodable {
+        let schema: Int?
+        let build: String?
+        let date: String?
+        let summary: String?
+        let new: [String]?
+        let improved: [String]?
+        let fixed: [String]?
+    }
+
+    static func decodeHyperFramesWhatsNew(_ body: String) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let file = try? JSONDecoder().decode(HyperFramesWhatsNew.self, from: data),
+              file.schema == 1,
+              let build = file.build, build.range(of: #"^b[0-9]+$"#, options: .regularExpression) != nil
+        else { return nil }
+
+        func lines(_ raw: [String]?) -> [String] {
+            (raw ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        }
+        var items: [String] = []
+        var content: [Changelog.Entry.Block] = []
+        if let summary = file.summary?.trimmingCharacters(in: .whitespacesAndNewlines), !summary.isEmpty {
+            items.append(summary)
+            content.append(.note(summary))
+        }
+        for (heading, raw) in [("New", file.new), ("Improved", file.improved), ("Fixed", file.fixed)] {
+            let notes = lines(raw)
+            guard !notes.isEmpty else { continue }
+            items.append(contentsOf: notes)
+            content.append(.heading(heading))
+            content.append(contentsOf: notes.map(Changelog.Entry.Block.note))
+        }
+        guard !items.isEmpty else { return nil }
+        return Changelog(entries: [.init(
+            version: build, date: isoDay(file.date), items: items, content: content)])
     }
 
     // MARK: - GitHub Desktop (central.github.com/deployments/desktop/desktop/changelog.json)

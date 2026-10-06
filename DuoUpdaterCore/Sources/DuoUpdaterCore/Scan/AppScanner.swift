@@ -241,6 +241,11 @@ public struct AppScanner: Sendable {
 
     public static let xcodeBundleID = "com.apple.dt.Xcode"
     public static let doubaoImeBundleID = "com.bytedance.inputmethod.doubaoime"
+    /// HyperFrames and HyperFrames Canary (two apps, one per channel). See
+    /// `hyperFramesBuildNumber`.
+    public static let hyperFramesBundleIDs: Set<String> = [
+        "dev.hyperframes.desktop", "dev.hyperframes.desktop.canary",
+    ]
 
     /// Fold a completed TestFlight inventory into apps that were already scanned.
     ///
@@ -656,6 +661,9 @@ public struct AppScanner: Sendable {
             return xcodeBuild ?? buildVersion
         }()
 
+        let hyperFramesBuild = bundleID.map(Self.hyperFramesBundleIDs.contains) == true
+            ? Self.hyperFramesBuildNumber(plist) : nil
+
         let toolboxTool = toolbox.tool(forApp: bundleURL)
         let displayShortVersion: String = {
             // Two Xcodes side by side are indistinguishable by marketing version —
@@ -664,6 +672,10 @@ public struct AppScanner: Sendable {
             // only thing that separates them without asking the network, so it rides
             // along in the row: "27.0 (27A5194q)".
             if let xcodeBuild { return "\(shortVersion) (\(xcodeBuild))" }
+            // HyperFrames' marketing string is `0.1.0` on every build; the row shows
+            // the label its About panel shows instead ("b271"), so "from → to"
+            // reads "b271 → b272".
+            if let hyperFramesBuild { return "b\(hyperFramesBuild)" }
             guard let tool = toolboxTool else {
                 return Self.cleanedJetBrainsVersion(shortVersion, bundleID: bundleID)
             }
@@ -755,7 +767,7 @@ public struct AppScanner: Sendable {
             bundleID: bundleID,
             shortVersion: displayShortVersion,
             buildVersion: effectiveBuildVersion,
-            vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit,
+            vendorBuildVersion: mozillaINI.buildID ?? blender?.trackCommit ?? hyperFramesBuild,
             vendorBuildDate: blender?.builtAt,
             path: bundleURL,
             isMASApp: isMAS,
@@ -862,6 +874,23 @@ public struct AppScanner: Sendable {
               !build.isEmpty, build.allSatisfy(\.isNumber)
         else { return nil }
         return build
+    }
+
+    /// HyperFrames' build number, from the custom `HFBuildLabel` key in its
+    /// Info.plist (`"b271"` → `"271"`). Every build says `0.1.0` in both
+    /// `CFBundleShortVersionString` and `CFBundleVersion`; the label is what the
+    /// app's About panel shows, what its own `latest.json` names (`"build":"b271"`)
+    /// and what its updater orders by (the number, `buildNumber` in its
+    /// `verifiedInstall.mjs`). Nil when the key is absent or not `b<digits>`: a
+    /// recipe in the vendor namespace then says it cannot tell, rather than
+    /// comparing against `0.1.0`.
+    public static func hyperFramesBuildNumber(_ plist: [String: Any]) -> String? {
+        guard let label = (plist["HFBuildLabel"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              label.hasPrefix("b"), label.count > 1,
+              label.dropFirst().allSatisfy({ $0.isASCII && $0.isNumber })
+        else { return nil }
+        return String(label.dropFirst())
     }
 
     /// `ProductBuildVersion` from an app's `Contents/version.plist`, if it has one.

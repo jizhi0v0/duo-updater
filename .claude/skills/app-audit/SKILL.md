@@ -674,6 +674,7 @@ An audit that does not know a field exists will report the situation it covers a
 | `requestHeaders` | a WAF needs a Referer, or rejects the default browser-ish UA |
 | `followRedirects: false` | the endpoint 302s to a huge binary and the version is in `Location` |
 | `install` + `ChannelProofRegistry` | one-click; a NON-STABLE channel install **requires** a proof entry |
+| `install.checksumPattern` + `checksumFormat` | the body publishes a digest of the download (hex SHA-256 or base64 SHA-512) and a real download matched it (Phase 4, "Published digest") |
 
 Adjacent machinery an audit should also weigh: `DeltaApplier` (applies Sparkle
 binary patches), `VendorAppcastDeltas` (pulls them out of an appcast),
@@ -702,6 +703,58 @@ Only after detection is confirmed. For each supported channel:
   reason. OpenInTerminal's `LSBackgroundOnly` launcher exits right after it
   starts the app, so it is fine.
 - Authentication or special headers needed?
+- Does the body publish a digest of the download? Wire it, but only after a
+  real byte check. See "Published digest" below.
+
+**Published digest.** Scan the whole probe body for `sha256`, `sha256hash`,
+`sha512`, `hash_sha256`, `checksum`, `Hash`. A body that names a SHA-256 (hex)
+or SHA-512 (base64) of the download gets `checksumPattern` plus
+`checksumFormat` (`.sha256Hex` or the default `.sha512Base64`).
+`VendorInstaller` checks it before unpacking, on top of the Team-ID gate. In
+the 2026-10-07 sweep, 142 install-capable probes had no checksum. Most were
+written before anyone asked whether the body carried one.
+
+- **Download the exact file the install URL pattern resolves and hash it
+  before wiring.** The field name doesn't tell you which file it describes.
+  All of these were measured on real downloads:
+  - Signal: the CDN staples the dmg after electron-builder hashed it (+2563
+    bytes), so the feed's `sha512` never matches.
+  - Granola: the manifest's `sha512` is the zip's, but one-click installs the
+    dmg.
+  - WorkBuddy: `sha256hash` sits next to a `.zip` URL but is the `.dmg`'s
+    digest.
+
+  A mismatch means don't wire it. Write the finding, with both digests and
+  sizes, into the audit's 一键安装 section so the next audit doesn't redo it.
+- **Pair the digest with the file the URL pattern reads**, not the first
+  digest in the body. Multi-entry bodies (several arches, dmg next to zip,
+  delta packages, Linux blocks, older releases) need the tempered pattern
+  from `org-gimp-gimp.swift` / `com-google-GeminiMacOS.swift`:
+  `\A(?:(?!<file>)[\s\S])*?\{(?=[^{}]*<file>)[^{}]*?"<key>"\s*:\s*"([0-9a-f]{64})"`.
+  It binds to the object holding the first matching file, whatever the key
+  order. When that object has no digest it reads nil rather than a
+  neighbour's or an older release's. A flat single-object body (the VS Code
+  update API) needs only a plain pattern.
+- **Use one capture group.** `extractVersion` joins several groups with `.`,
+  so a back-reference group turns the digest into `<hex>.<filename>`.
+- **The URL must come from the same body.** A `.redirect` install source
+  resolves at install time and can point at a newer build than the digest
+  the check read. VS Code Insiders ships daily, so its install source moved
+  to `.bodyPattern` on the body's commit-pinned `url` for this reason.
+- **When the pattern matches nothing**, the install goes ahead on the Team-ID
+  gate alone. `duo verify` reports `checksumPatternNoMatch`. A local stash
+  skips the check.
+- **Formats.** Only hex SHA-256 and base64 SHA-512 are supported; hex SHA-512
+  (Mozilla), MD5 and SHA-1 are not. Hex comparison ignores case (Edge's `Hash`
+  is uppercase).
+- **GitHub releases need nothing per rule.** Since #1019, every installable
+  rule passes the asset's `digest` on. Assets without one (uploaded before
+  GitHub added digests in June 2025) install as before.
+- **Evidence for the audit:** the download's `shasum` equals the captured
+  digest. Then run a temporary test: real recipe through
+  `VendorProbeSource.probeDiagnostic`, then `VendorInstaller.verifySHA256` on
+  the downloaded file, then a copy with one flipped byte throws
+  `checksumMismatch`. Delete the test afterwards.
 
 A one-click route is proven by an end-to-end run: install the previous
 release, then `duo install --yes`. Run it serially, never from a parallel
@@ -819,6 +872,7 @@ same check.
 - 状态: 支持 / 仅检测 / 需要验证
 - 端到端: `duo install` 从上一版装到最新版的结果；没跑就写「未跑」及原因
 - 格式: dmg/zip/pkg
+- 校验: 摘要字段与格式、真实下载的哈希是否相等；不接就写原因（没发 / 描述的是别的文件 / 格式不支持）
 - **读的是**: 轨道最新 / 本机被分配 / 人人可手动下载的 GA  ← 必填,见 Phase 3⅞
   - 若是「轨道最新」: 为什么这个 app 可以接受? (一键会装厂商还没分配给这台机器的构建)
 - 阻塞: ...

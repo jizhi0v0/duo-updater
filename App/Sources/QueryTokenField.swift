@@ -36,6 +36,14 @@ struct QueryTokenField: View {
     /// down into the gap between the two.
     private static let lineHeight: CGFloat = 18
 
+    /// Nothing typed and nothing to type into: the input takes no room, so
+    /// capsules that fill a line do not leave an empty one under them for a
+    /// caret nobody is using. Focusing the field — the whole field takes the
+    /// click — gives the input its width back, wrapping it if it has to.
+    private var inputCollapsed: Bool {
+        !tokens.isEmpty && draft.isEmpty && !focused
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
             Image(systemName: "magnifyingglass")
@@ -62,7 +70,8 @@ struct QueryTokenField: View {
                     // past the placeholder the width only decides whether the
                     // caret wraps onto a line of its own — and 160 sent it
                     // there while a third of the line was still free.
-                    .frame(minWidth: tokens.isEmpty ? 160 : 80,
+                    .frame(width: inputCollapsed ? 0 : nil)
+                    .frame(minWidth: inputCollapsed ? 0 : tokens.isEmpty ? 160 : 80,
                            minHeight: Self.lineHeight)
                     .focused($focused)
                     .onSubmit(commit)

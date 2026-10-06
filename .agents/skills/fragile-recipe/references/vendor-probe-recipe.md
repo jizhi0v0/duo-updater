@@ -107,7 +107,7 @@ the **same Team ID** as the installed copy; `VendorInstaller` enforces this gate
 but author defensively. If you can't verify that, ship **detection-only** (no
 `install`) — the user downloads by hand.
 
-`VendorInstallSpec(urlSource:, kind:, checksumPattern:, requestHeaders:, nestedArchivePath:)`
+`VendorInstallSpec(urlSource:, kind:, checksumPattern:, checksumFormat:, requestHeaders:, nestedArchivePath:)`
 — `requestHeaders` for a download behind a WAF, `nestedArchivePath` when the app is
 inside an inner archive:
 - `kind`: `.zip` / `.dmg` / `.tarGz` / `.pkg` (drives unpacking; `.pkg` → opened in
@@ -117,8 +117,14 @@ inside an inner archive:
   `.bodyPatternRelative(_, base:)` (filename → resolve against base),
   `.bodyTemplate(_, fields:)` (build from several captures),
   `.redirect(URL)` (HEAD-follow a stable latest link), `.fixed(URL)`
-- `checksumPattern`: optional regex (group 1) for a base64 SHA-512 in the same
-  body, verified before unpacking — defense in depth on top of the signature gate
+- `checksumPattern`: optional regex (exactly one capture group) for a digest of
+  the download in the same body, verified before unpacking — defense in depth on
+  top of the signature gate. Byte-check a real download before wiring it: Signal's
+  CDN staples after hashing, and Granola's and WorkBuddy's digests describe a
+  different file than the one installed. Pair it with the entry the URL pattern
+  reads; the full procedure is in the `app-audit` skill, Phase 4 "Published digest"
+- `checksumFormat`: `.sha512Base64` (default, electron-builder's `sha512:`) or
+  `.sha256Hex` (64 hex chars, either case); nothing else is supported
 
 ### `kind` is a safety decision, not just an unpacking hint
 

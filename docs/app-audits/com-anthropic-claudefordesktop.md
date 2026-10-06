@@ -27,3 +27,18 @@ and never a fabricated one.
 
 `pub_date` is UTC (39s after the artifact's Last-Modified),
 and it's what finally gets Claude into the Release Log timeline.
+
+### Recipes/com-anthropic-claudefordesktop.swift — rollout 一键接上 sha256（2026-10-07）
+
+rollout 端点的 `updateTo` 现在带 hex `sha256`（和 `size`）；2026-08-15 抓的 body 里还没有。rollout recipe 接上它（`checksumFormat: .sha256Hex`，#1016），
+在 Team `Q6L2SF6YDW` 闸之上先核下载字节。pattern 取「body 里第一个 Claude zip URL 所在的那个对象」里的 `sha256`，即 install pattern 读的那一项，与键序无关；
+该对象没有 `sha256` 时什么都不读，不会借后面另一个 release 的摘要。GA 端点是一个 307，`Location` 里没有摘要，所以不设 `checksumPattern`；
+`VendorProbeSource.best` 交出的是整个 outcome，GA 胜出时它的 `RemoteVersion` 不带 SHA-256，rollout 的摘要不会套到 GA 的 zip 上。
+
+实测（2026-10-07，只读 GET + 下载；没有碰本机装着的 Claude.app 和它的进程，只读了 `ant-did` 拿 device id）：
+- rollout（本机 device id）：`currentRelease` 1.46388.4，`url` `…/1.46388.4/Claude-50e62f90….zip`，`sha256` `494c3c6e…8617`，`size` 355,648,442。
+  下载这个 zip：355,648,442 B，SHA-256 `494c3c6e…8617`，一致。
+- GA：307 → `…/2.19675.1/Claude-8613680e….zip`，无摘要。
+- 生产路径（`VendorProbeSource.probeDiagnostic` 两个 recipe 各跑一次，再 `best(of:)`）：rollout 的 `expectedSHA256` 是 `494c3c6e…`，GA 为 nil；
+  `best` 选 GA（2.19675.1 更高），结果 `expectedSHA256` 为 nil。`VendorInstaller.verifySHA256` 对下载的 rollout zip 通过，翻转一个字节的副本抛 `checksumMismatch`（临时测试，跑完已删）。没有跑 `duo install`。
+- 观测（**未查原因**）：这台机器的 rollout 端点答 1.46388.4，比 GA 的 2.19675.1 低一个大版本，所以眼下 rollout 不会胜出，这次接上的摘要在本机暂时用不到。

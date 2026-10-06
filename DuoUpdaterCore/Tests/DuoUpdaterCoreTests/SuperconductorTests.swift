@@ -584,6 +584,124 @@ struct SuperconductorTests {
             from: twoTracks, pattern: try #require(recipe.publishedAtPattern)) == "2026-09-23")
         #expect(VendorProbeRecipe.extractVersion(from: twoTracks, pattern: try Self.installPattern())
             == Self.legacyIDInstaller)
+        #expect(VendorProbeRecipe.extractVersion(from: twoTracks, pattern: try Self.checksumPattern())
+            == "208b5f57eeccf513945acfaf40b1c833ded636acc691a6e09fcb8fad92005378")
+    }
+
+    // MARK: - Download digest
+
+    static func checksumPattern() throws -> String {
+        let spec = try #require(try recipe().install)
+        #expect(spec.checksumFormat == .sha256Hex)
+        return try #require(spec.checksumPattern)
+    }
+
+    /// `latest.json` as served 2026-10-07: `bundles` now has an `artifacts`
+    /// sibling (per target triple, two levels deep) and `updater_manifest`. The
+    /// legacy-id dmg here was downloaded that day and hashed to its `sha256`.
+    static let artifactsLatestBody = #"""
+        {
+          "nightly": {
+            "sha": "a38f0d68ddbe98f3e5fbc76a1e780b55fd685a0f",
+            "date": "2026-10-06",
+            "url": "https://releases.superconductor.so/nightly/super.engineering-nightly-a38f0d68-arm64-legacy-id.dmg",
+            "sha256": "ecae982f2605c4b2117d1ab983f6edfdd29eef7b1d1ff1ce4127093a59291909",
+            "bundles": {
+              "engineering.super.app": {
+                "url": "https://releases.superconductor.so/nightly/super.engineering-nightly-a38f0d68-arm64.dmg",
+                "sha256": "580c1387352267fece57099cf44d268011e7b442a308b45c87b59a1e64a5ec7e"
+              },
+              "com.zarifpour.superconductor": {
+                "url": "https://releases.superconductor.so/nightly/super.engineering-nightly-a38f0d68-arm64-legacy-id.dmg",
+                "sha256": "ecae982f2605c4b2117d1ab983f6edfdd29eef7b1d1ff1ce4127093a59291909"
+              }
+            },
+            "artifacts": {
+              "aarch64-apple-darwin": {
+                "sha": "a38f0d68ddbe98f3e5fbc76a1e780b55fd685a0f",
+                "date": "2026-10-06",
+                "url": "https://releases.super.engineering/nightly/super.engineering-nightly-a38f0d68-arm64.dmg",
+                "sha256": "580c1387352267fece57099cf44d268011e7b442a308b45c87b59a1e64a5ec7e"
+              },
+              "x86_64-apple-darwin": {
+                "sha": "a38f0d68ddbe98f3e5fbc76a1e780b55fd685a0f",
+                "date": "2026-10-06",
+                "url": "https://releases.super.engineering/nightly/super.engineering-nightly-a38f0d68-x86_64.dmg",
+                "sha256": "c8ffd8112a4449fef2ceef85ceaf15e414be50b7fea1ae55b900d3b528bd76e8"
+              }
+            },
+            "updater_manifest": "latest-v2.json"
+          }
+        }
+        """#
+
+    /// The digest is the one beside the URL the install reads: this bundle id's
+    /// `bundles` member, not `engineering.super.app`'s listed before it.
+    @Test func theDigestIsThisBundleIDsOwnEntrys() throws {
+        let checksum = try Self.checksumPattern()
+        #expect(VendorProbeRecipe.extractVersion(from: Self.artifactsLatestBody, pattern: try Self.installPattern())
+            == "https://releases.superconductor.so/nightly/super.engineering-nightly-a38f0d68-arm64-legacy-id.dmg")
+        #expect(VendorProbeRecipe.extractVersion(from: Self.artifactsLatestBody, pattern: checksum)
+            == "ecae982f2605c4b2117d1ab983f6edfdd29eef7b1d1ff1ce4127093a59291909")
+        #expect(VendorProbeRecipe.extractVersion(from: Self.bundlesLatestBody, pattern: checksum)
+            == "208b5f57eeccf513945acfaf40b1c833ded636acc691a6e09fcb8fad92005378")
+        // The pre-`bundles` manifest resolves no installer, so no digest either.
+        #expect(VendorProbeRecipe.extractVersion(from: Self.latestBody, pattern: checksum) == nil)
+    }
+
+    /// The top-level `sha256` equals the legacy-id one only because the vendor's
+    /// top-level pick is the legacy-id dmg. Pointed at the other build, the
+    /// digest still comes from this id's member; and `sha256` ahead of `url`
+    /// inside that member reads the same.
+    @Test func theDigestDoesNotFollowTheTopLevelPickOrKeyOrder() throws {
+        let checksum = try Self.checksumPattern()
+        let otherTopLevel = Self.artifactsLatestBody.replacingOccurrences(
+            of: #"""
+                "url": "https://releases.superconductor.so/nightly/super.engineering-nightly-a38f0d68-arm64-legacy-id.dmg",
+                "sha256": "ecae982f2605c4b2117d1ab983f6edfdd29eef7b1d1ff1ce4127093a59291909",
+                "bundles"
+            """#,
+            with: #"""
+                "url": "https://releases.superconductor.so/nightly/super.engineering-nightly-a38f0d68-arm64.dmg",
+                "sha256": "580c1387352267fece57099cf44d268011e7b442a308b45c87b59a1e64a5ec7e",
+                "bundles"
+            """#)
+        #expect(otherTopLevel != Self.artifactsLatestBody)
+        #expect(VendorProbeRecipe.extractVersion(from: otherTopLevel, pattern: checksum)
+            == "ecae982f2605c4b2117d1ab983f6edfdd29eef7b1d1ff1ce4127093a59291909")
+
+        let digestFirst = Self.artifactsLatestBody.replacingOccurrences(
+            of: #"""
+                  "com.zarifpour.superconductor": {
+                    "url": "https://releases.superconductor.so/nightly/super.engineering-nightly-a38f0d68-arm64-legacy-id.dmg",
+                    "sha256": "ecae982f2605c4b2117d1ab983f6edfdd29eef7b1d1ff1ce4127093a59291909"
+                  }
+            """#,
+            with: #"""
+                  "com.zarifpour.superconductor": {
+                    "sha256": "ecae982f2605c4b2117d1ab983f6edfdd29eef7b1d1ff1ce4127093a59291909",
+                    "url": "https://releases.superconductor.so/nightly/super.engineering-nightly-a38f0d68-arm64-legacy-id.dmg"
+                  }
+            """#)
+        #expect(digestFirst != Self.artifactsLatestBody)
+        #expect(VendorProbeRecipe.extractVersion(from: digestFirst, pattern: checksum)
+            == "ecae982f2605c4b2117d1ab983f6edfdd29eef7b1d1ff1ce4127093a59291909")
+    }
+
+    /// This id's member without a `sha256` reads nothing — not the top-level one
+    /// or `engineering.super.app`'s, which describe other dmgs.
+    @Test func aDigestlessEntryReadsNothingRatherThanANeighboursDigest() throws {
+        let body = Self.artifactsLatestBody.replacingOccurrences(
+            of: #"""
+                "url": "https://releases.superconductor.so/nightly/super.engineering-nightly-a38f0d68-arm64-legacy-id.dmg",
+                    "sha256": "ecae982f2605c4b2117d1ab983f6edfdd29eef7b1d1ff1ce4127093a59291909"
+            """#,
+            with: #"""
+                "url": "https://releases.superconductor.so/nightly/super.engineering-nightly-a38f0d68-arm64-legacy-id.dmg"
+            """#)
+        #expect(body != Self.artifactsLatestBody)
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: try Self.installPattern()) != nil)
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: try Self.checksumPattern()) == nil)
     }
 
     @Test func theLineageIsTheHistoryNewestFirstInTheBundlesForm() throws {

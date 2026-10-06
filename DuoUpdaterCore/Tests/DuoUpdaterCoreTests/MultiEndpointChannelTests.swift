@@ -181,6 +181,97 @@ import Testing
                 .hasSuffix("Claude-6e13464cbd9c3dc0501fe5ecb0568e3d3e9ea77a.zip") == true)
     }
 
+    /// The rollout body as served 2026-10-07: `updateTo` now carries a hex
+    /// `sha256` (and `size`) of its zip. That zip, downloaded the same day, hashed
+    /// to this `sha256` and was exactly `size` bytes.
+    private static let digestBody = """
+        {"currentRelease":"1.46388.4","releases":[{"version":"1.46388.4","updateTo":\
+        {"name":"Claude 1.46388.4","version":"1.46388.4","pub_date":"2026-09-05T02:38:08.781303",\
+        "url":"https://downloads.claude.ai/releases/darwin/universal/1.46388.4/\
+        Claude-50e62f90a2c85243eef42913398f7c8f1534abef.zip",\
+        "notes":"Production Release - No Notes",\
+        "sha256":"494c3c6e791c5c0a5041371f8234a6dffa9c9426165d5ef4c7dbcf85ade58617","size":355648442}}]}
+        """
+
+    private func rolloutChecksumPattern() throws -> String {
+        let rollout = try #require(recipes.first { $0.variant == "rollout" })
+        let spec = try #require(rollout.install)
+        #expect(spec.checksumFormat == .sha256Hex)
+        return try #require(spec.checksumPattern)
+    }
+
+    /// The rollout zip is checked against the `sha256` beside its URL; the
+    /// 2026-08-15 body, which had none, reads nothing.
+    @Test func theRolloutEndpointChecksItsOwnZipsSHA256() throws {
+        let pattern = try rolloutChecksumPattern()
+        #expect(VendorProbeRecipe.extractVersion(from: Self.digestBody, pattern: pattern)
+            == "494c3c6e791c5c0a5041371f8234a6dffa9c9426165d5ef4c7dbcf85ade58617")
+        #expect(VendorProbeRecipe.extractVersion(from: Self.capturedBody, pattern: pattern) == nil)
+
+        let reordered = Self.digestBody.replacingOccurrences(
+            of: #"{"name":"Claude 1.46388.4""#,
+            with: #"{"sha256":"494c3c6e791c5c0a5041371f8234a6dffa9c9426165d5ef4c7dbcf85ade58617","name":"Claude 1.46388.4""#)
+            .replacingOccurrences(
+                of: #","sha256":"494c3c6e791c5c0a5041371f8234a6dffa9c9426165d5ef4c7dbcf85ade58617","size""#,
+                with: #","size""#)
+        #expect(reordered != Self.digestBody)
+        #expect(VendorProbeRecipe.extractVersion(from: reordered, pattern: pattern)
+            == "494c3c6e791c5c0a5041371f8234a6dffa9c9426165d5ef4c7dbcf85ade58617")
+    }
+
+    /// The install reads the FIRST zip URL in the body. If that entry has no
+    /// `sha256`, nothing is read — not a later release's digest, which would
+    /// refuse the good download the URL names.
+    @Test func aDigestlessFirstReleaseReadsNothingRatherThanALaterOne() throws {
+        let later = #",{"version":"1.29000.1","updateTo":{"url":"https://downloads.claude.ai/releases/darwin/universal/1.29000.1/Claude-0000000000000000000000000000000000000000.zip","sha256":"\#(String(repeating: "a", count: 64))"}}"#
+        let body = Self.capturedBody.replacingOccurrences(of: "}}]}", with: "}}" + later + "]}")
+        #expect(body.contains(String(repeating: "a", count: 64)))
+        let rollout = try #require(recipes.first { $0.variant == "rollout" })
+        guard case .bodyPattern(let url) = try #require(rollout.install).urlSource else { return }
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: url)?
+            .hasSuffix("Claude-6e13464cbd9c3dc0501fe5ecb0568e3d3e9ea77a.zip") == true)
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: try rolloutChecksumPattern()) == nil)
+    }
+
+    /// The GA endpoint is a bare 307: no digest to read, so it declares no
+    /// checksum, and `best` hands over whole outcomes — when GA wins, its install
+    /// carries no SHA-256 rather than the rollout endpoint's, which names a
+    /// different zip whenever the two disagree.
+    @Test func theGAEndpointNeverCarriesTheRolloutDigest() throws {
+        let ga = try #require(recipes.first { $0.variant == "ga" })
+        let rollout = try #require(recipes.first { $0.variant == "rollout" })
+        #expect(try #require(ga.install).checksumPattern == nil)
+
+        // Each outcome built the way the probe builds it, from ITS OWN body: the
+        // GA `Location` (2026-10-07) and the rollout JSON above.
+        func outcome(_ recipe: VendorProbeRecipe, body: String) throws -> ProbeOutcome {
+            let spec = try #require(recipe.install)
+            guard case .bodyPattern(let urlPattern) = spec.urlSource else {
+                throw CocoaError(.featureUnsupported)
+            }
+            let version = try #require(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern))
+            let url = try #require(VendorProbeRecipe.extractVersion(from: body, pattern: urlPattern).flatMap(URL.init))
+            let checksum = spec.checksumPattern.flatMap { VendorProbeRecipe.extractVersion(from: body, pattern: $0) }
+            return ProbeOutcome(
+                recipeID: recipe.recipeID, bundleID: recipe.bundleID, channel: recipe.channel,
+                remote: VendorProbeSource.makeRemoteVersion(
+                    recipe: recipe, version: version, install: spec, plan: (url, checksum),
+                    resolvedDownload: nil),
+                failure: nil)
+        }
+        let gaLocation = "https://downloads.claude.ai/releases/darwin/universal/2.19675.1/Claude-8613680e2e16d90700c039e084a7883f321ed4e3.zip"
+        let gaOutcome = try outcome(ga, body: gaLocation)
+        let rolloutOutcome = try outcome(rollout, body: Self.digestBody)
+        #expect(gaOutcome.remote?.expectedSHA256 == nil)
+        #expect(rolloutOutcome.remote?.expectedSHA256
+            == "494c3c6e791c5c0a5041371f8234a6dffa9c9426165d5ef4c7dbcf85ade58617")
+
+        let best = try #require(VendorProbeSource.best(of: [gaOutcome, rolloutOutcome]))
+        #expect(best.remote?.downloadURL?.absoluteString == gaLocation)
+        #expect(best.remote?.expectedSHA256 == nil)
+        #expect(best.remote?.expectedSHA512 == nil)
+    }
+
     /// The endpoint's `pub_date` carries no timezone, which `ISO8601DateFormatter`
     /// rejects outright — before this it read as "no release time" and Claude
     /// stayed out of the Release Log. Read as UTC: the stamp is 39s after the

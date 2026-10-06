@@ -18,6 +18,13 @@ private let longbridgePreviewManifest = #"""
 {"version":"0.19.0-preview.1","created_at":"2026-08-19T06:25:22Z","published_at":"2026-08-19T09:45:23Z","release_notes":{"en":"### Improvements\r\n\r\n- **Quant**: Added an abbreviation input."},"assets":[{"name":"longbridge-v0.19.0-preview.1-linux-x86_64.AppImage","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v0.19.0-preview.1-linux-x86_64.AppImage"},{"name":"longbridge-v0.19.0-preview.1-macos-aarch64.dmg","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v0.19.0-preview.1-macos-aarch64.dmg"},{"name":"longbridge-v0.19.0-preview.1-macos-x86_64.dmg","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v0.19.0-preview.1-macos-x86_64.dmg"},{"name":"longbridge-v0.19.0-preview.1-windows-x86_64.exe","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v0.19.0-preview.1-windows-x86_64.exe"}]}
 """#
 
+/// `preview/latest.json` as served 2026-10-07 (1.0.0-preview.1), trimmed to the
+/// linux deb and the two macOS dmgs: by then preview assets carried `sha256` too.
+/// The aarch64 dmg downloaded that day hashed to its `sha256`.
+private let longbridgePreviewManifestWithDigests = #"""
+{"version":"1.0.0-preview.1","created_at":"2026-09-07T11:39:49Z","published_at":"2026-09-08T02:05:26Z","release_notes":{"en":"### New Features\r\n- Added a HoverCard on the attached-order switch."},"assets":[{"name":"longbridge-v1.0.0-preview.1-linux-x86_64.deb","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.0.0-preview.1-linux-x86_64.deb","sha256":"90727a40b9c7a0b21ea422460fdf67a40eff37711f14cd7aaa2584c16815ac5a"},{"name":"longbridge-v1.0.0-preview.1-macos-aarch64.dmg","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.0.0-preview.1-macos-aarch64.dmg","sha256":"4c9aa9992675af7787756c83dda048beb0adb2bb0abefcaec53944572331bd02"},{"name":"longbridge-v1.0.0-preview.1-macos-x86_64.dmg","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.0.0-preview.1-macos-x86_64.dmg","sha256":"5ceca5c26a8ca522516975a8133911ad454dfa1a0f51578db84086d6caa78798"}]}
+"""#
+
 private let longbridgeStableNotes = #"""
 <main><div style="position:relative;" class="vp-doc _desktop_release-notes_v0_19_1" data-v-x><div>
 <h1 id="v0-19-1" tabindex="-1">v0.19.1 <a class="header-anchor" href="#v0-19-1">​</a></h1>
@@ -152,6 +159,61 @@ private let longbridgeIndexPage = #"""
         #expect(!url.contains("x86_64"))
         #expect(!url.contains("linux"))
         #expect(spec.kind == .dmg)
+    }
+
+    // MARK: - Download digest
+
+    private static func checksumPattern(_ channel: ReleaseChannel) throws -> String {
+        let spec = try #require(probes[channel]?.install)
+        #expect(spec.checksumFormat == .sha256Hex)
+        return try #require(spec.checksumPattern)
+    }
+
+    /// The digest is the aarch64 dmg's — the asset the URL reads — not the linux
+    /// asset listed first or the x86_64 dmg right after it.
+    @Test func eachChannelChecksTheAppleSiliconDMGsOwnSHA256() throws {
+        #expect(VendorProbeRecipe.extractVersion(
+            from: longbridgeStableManifest, pattern: try Self.checksumPattern(.stable))
+            == "a666daf0da71e524a378178f45cbd216d377a9cbe2cd8353ff6a77b1f6a74daa")
+        #expect(VendorProbeRecipe.extractVersion(
+            from: longbridgePreviewManifestWithDigests, pattern: try Self.checksumPattern(.preview))
+            == "4c9aa9992675af7787756c83dda048beb0adb2bb0abefcaec53944572331bd02")
+        // The preview URL pattern reads the same asset on that body.
+        guard case .bodyPattern(let url) = try #require(Self.probes[.preview]?.install).urlSource
+        else { return }
+        #expect(VendorProbeRecipe.extractVersion(from: longbridgePreviewManifestWithDigests, pattern: url)
+            == "https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.0.0-preview.1-macos-aarch64.dmg")
+    }
+
+    /// `sha256` ahead of `name` and `url` inside the asset still pairs with it.
+    @Test func theDigestDoesNotDependOnKeyOrder() throws {
+        let entry = #"{"name":"longbridge-v0.19.1-macos-aarch64.dmg","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v0.19.1-macos-aarch64.dmg","sha256":"a666daf0da71e524a378178f45cbd216d377a9cbe2cd8353ff6a77b1f6a74daa"}"#
+        let reordered = #"{"sha256":"a666daf0da71e524a378178f45cbd216d377a9cbe2cd8353ff6a77b1f6a74daa","name":"longbridge-v0.19.1-macos-aarch64.dmg","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v0.19.1-macos-aarch64.dmg"}"#
+        #expect(longbridgeStableManifest.contains(entry))
+        let body = longbridgeStableManifest.replacingOccurrences(of: entry, with: reordered)
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: try Self.checksumPattern(.stable))
+            == "a666daf0da71e524a378178f45cbd216d377a9cbe2cd8353ff6a77b1f6a74daa")
+    }
+
+    /// An aarch64 asset without `sha256` reads nothing, not the x86_64 dmg's
+    /// digest after it: on preview's 0.19.0-preview.1 manifest (no digests at
+    /// all), and on stable's with only the aarch64 digest removed.
+    @Test func aDigestlessAssetReadsNothingRatherThanTheNextAssetsDigest() throws {
+        #expect(VendorProbeRecipe.extractVersion(
+            from: longbridgePreviewManifest, pattern: try Self.checksumPattern(.preview)) == nil)
+        let body = longbridgeStableManifest.replacingOccurrences(
+            of: #","sha256":"a666daf0da71e524a378178f45cbd216d377a9cbe2cd8353ff6a77b1f6a74daa""#, with: "")
+        #expect(body != longbridgeStableManifest)
+        #expect(body.contains("5d3325bd671735b4720e2ac7d232cedf9b4a8abf3953ff2247e17e54d9d134b5"))
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: try Self.checksumPattern(.stable)) == nil)
+    }
+
+    /// Neither channel's digest pattern reads the other train's manifest.
+    @Test func theTwoChannelsDigestPatternsCannotReadEachOthersManifest() throws {
+        #expect(VendorProbeRecipe.extractVersion(
+            from: longbridgePreviewManifestWithDigests, pattern: try Self.checksumPattern(.stable)) == nil)
+        #expect(VendorProbeRecipe.extractVersion(
+            from: longbridgeStableManifest, pattern: try Self.checksumPattern(.preview)) == nil)
     }
 
     /// The failure a copied-from-stable recipe makes: patterns that still match,

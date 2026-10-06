@@ -37,9 +37,9 @@ enum com_zarifpour_superconductor {
         // take whichever the vendor happened to list first.
         //
         // One-click: the dmg this bundle id's `bundles` entry names, Developer ID
-        // Team MR38E36N26, notarized (mounted and checked, 2026-09-23). `sha256` is a hex SHA-256,
-        // which `checksumPattern` (base64 SHA-512) cannot consume, so the Team gate
-        // stands in. arm64-only (the filename says so and `lipo` agrees);
+        // Team MR38E36N26, notarized (mounted and checked, 2026-09-23). The download
+        // is checked against the hex `sha256` of that same `bundles` entry, on top
+        // of the Team gate. arm64-only (the filename says so and `lipo` agrees);
         // `LSMinimumSystemVersion` 14.0.
         //
         // Reads the newest build on the only track — the dmg the site's own
@@ -63,10 +63,19 @@ enum com_zarifpour_superconductor {
             // steps over whole one-level objects, so the match cannot leave the
             // `"nightly"` object and does not depend on key order. No entry for this
             // id resolves no installer.
+            //
+            // The checksum pattern walks to the same `bundles` member and reads its
+            // `sha256`, whichever side of `url` it sits on. If that member has none it
+            // matches nothing (Team-only, `checksumPatternNoMatch` in `duo verify`):
+            // it cannot reach the top-level `sha256` or `engineering.super.app`'s,
+            // which describe other dmgs whenever the vendor's top-level pick differs.
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #""nightly"\s*:\s*\{(?:[^{}]|\{[^{}]*\})*?"bundles"\s*:\s*\{(?:[^{}]|\{[^{}]*\})*?"com\.zarifpour\.superconductor"\s*:\s*\{[^{}]*?"url"\s*:\s*"(https://releases\.superconductor\.so/[^"]+-arm64[^"/]*\.dmg)""#),
-                kind: .dmg),
+                kind: .dmg,
+                checksumPattern:
+                    #""nightly"\s*:\s*\{(?:[^{}]|\{[^{}]*\})*?"bundles"\s*:\s*\{(?:[^{}]|\{[^{}]*\})*?"com\.zarifpour\.superconductor"\s*:\s*\{(?=[^{}]*"url"\s*:\s*"https://releases\.superconductor\.so/[^"]+-arm64[^"/]*\.dmg")[^{}]*?"sha256"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex),
             channel: .nightly,
             hostRequirement: VendorHostRequirement(
                 minimumSystemVersion: "14.0", architectures: [.arm64]),

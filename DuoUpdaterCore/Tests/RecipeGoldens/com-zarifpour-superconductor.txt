@@ -38,8 +38,8 @@ probes[0].install? = struct VendorInstallSpec
 probes[0].install?.urlSource = .bodyPattern(_:)
 probes[0].install?.urlSource.0 = "\"nightly\"\\s*:\\s*\\{(?:[^{}]|\\{[^{}]*\\})*?\"bundles\"\\s*:\\s*\\{(?:[^{}]|\\{[^{}]*\\})*?\"com\\.zarifpour\\.superconductor\"\\s*:\\s*\\{[^{}]*?\"url\"\\s*:\\s*\"(https://releases\\.superconductor\\.so/[^\"]+-arm64[^\"/]*\\.dmg)\""
 probes[0].install?.kind = .dmg
-probes[0].install?.checksumPattern = nil
-probes[0].install?.checksumFormat = .sha512Base64
+probes[0].install?.checksumPattern? = "\"nightly\"\\s*:\\s*\\{(?:[^{}]|\\{[^{}]*\\})*?\"bundles\"\\s*:\\s*\\{(?:[^{}]|\\{[^{}]*\\})*?\"com\\.zarifpour\\.superconductor\"\\s*:\\s*\\{(?=[^{}]*\"url\"\\s*:\\s*\"https://releases\\.superconductor\\.so/[^\"]+-arm64[^\"/]*\\.dmg\")[^{}]*?\"sha256\"\\s*:\\s*\"([0-9a-f]{64})\""
+probes[0].install?.checksumFormat = .sha256Hex
 probes[0].install?.requestHeaders = Dictionary(count: 0)
 probes[0].install?.nestedArchivePath = nil
 probes[0].install?.contentsArchivePattern = nil

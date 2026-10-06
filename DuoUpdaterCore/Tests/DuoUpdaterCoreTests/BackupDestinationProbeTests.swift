@@ -208,25 +208,14 @@ import Testing
 
         /// hdiutil's exit status and everything it printed — the status alone did
         /// not say why `create` failed on CI (4 in 344 attempts, 2026-09-26 →
-        /// 10-06).
-        func run(_ arguments: [String]) -> (status: Int32, output: String) {
-            let log = fm.temporaryDirectory.appendingPathComponent("duo-hdiutil-\(UUID().uuidString).log")
-            defer { try? fm.removeItem(at: log) }
-            guard fm.createFile(atPath: log.path, contents: nil),
-                  let handle = try? FileHandle(forWritingTo: log) else { return (-1, "no log file") }
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-            process.arguments = arguments
-            process.standardOutput = handle
-            process.standardError = handle
-            guard (try? process.run()) != nil else {
-                try? handle.close()
-                return (-1, "could not launch hdiutil")
-            }
-            process.waitUntilExit()
-            try? handle.close()
-            let output = (try? String(contentsOf: log, encoding: .utf8)) ?? ""
-            return (process.terminationStatus, output)
+        /// 10-06). Run to completion even if the test is cancelled: a half-done
+        /// `attach` or `detach` is the leaked mount the cleanup below exists for.
+        func run(_ arguments: [String]) async -> (status: Int32, output: String) {
+            guard let outcome = try? await ChildProcess.run(
+                "/usr/bin/hdiutil", arguments, standardError: .mergeIntoOutput,
+                onCancel: .runToCompletion)
+            else { return (-1, "could not launch hdiutil") }
+            return (outcome.terminationStatus, String(decoding: outcome.standardOutput, as: UTF8.self))
         }
 
         // On the hosted runner `create` sometimes answers "create failed - Resource
@@ -237,7 +226,7 @@ import Testing
         var created = (status: Int32(-1), output: "")
         for attempt in 1...4 {
             if attempt > 1 { try await Task.sleep(for: .seconds(1)) }
-            created = run([
+            created = await run([
                 "create", "-size", "\(sizeMB)m", "-type", "SPARSE",
                 "-fs", format, "-volname", volname, image.path,
             ])
@@ -249,18 +238,19 @@ import Testing
         defer { try? fm.removeItem(at: image) }
 
         try fm.createDirectory(at: mount, withIntermediateDirectories: true)
-        let attached = run([
+        let attached = await run([
             "attach", "-nobrowse", "-mountpoint", mount.path, image.path,
         ])
         try #require(attached.status == 0,
                      "could not attach the \(format) image (\(attached.status)): \(attached.output)")
-        defer {
-            // A leaked mount poisons the next run, so a stuck one is forced.
-            if run(["detach", mount.path]).status != 0 { _ = run(["detach", "-force", mount.path]) }
-            try? fm.removeItem(at: mount)
-        }
-
-        try await body(mount)
+        // Not a `defer`, which cannot await the detach: the body's outcome is held
+        // until the volume is gone, then handed back.
+        let outcome: Result<Void, Error>
+        do { outcome = .success(try await body(mount)) } catch { outcome = .failure(error) }
+        // A leaked mount poisons the next run, so a stuck one is forced.
+        if await run(["detach", mount.path]).status != 0 { _ = await run(["detach", "-force", mount.path]) }
+        try? fm.removeItem(at: mount)
+        try outcome.get()
     }
 
     @discardableResult

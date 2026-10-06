@@ -212,6 +212,44 @@ EXTENDED_STRING = """\
     }
 """
 
+# `XcodeSideBySideInstallerTests.anAppWithoutApplesTeamIsNotXcode` as it stood at
+# 0d9fd608: a plain `@Test func`, not `async`, calling a Security wrapper. Swift
+# Testing runs that body on the cooperative pool all the same.
+SYNC_TEST = """\
+    @Test func anAppWithoutApplesTeamIsNotXcode() throws {
+        let calculator = URL(fileURLWithPath: "/System/Applications/Calculator.app")
+        try XcodeSideBySideInstaller.verifyIsXcode(calculator, host: .current, osVersion: "27.0")
+    }
+"""
+
+# The attribute on lines of its own above the `func` — the shape of 60-odd tests
+# here (`ArchitectureGateTests`' `.enabled(…)` is this one). The helper after it is
+# an ordinary synchronous function and must stay unjudged: the `@Test` belongs to
+# the first `func` only.
+TEST_ATTRIBUTE_ABOVE = """\
+    @Test(.enabled(
+        if: HostArch.current == .arm64,
+        "needs an arm64 host"
+    ))
+    func vendorInstallerApplyRefusesTheDowngrade() throws {
+        _ = try SignatureVerifier.teamIdentifier(at: app)
+    }
+
+    private static func isUsableFixture(_ app: URL) -> Bool {
+        (try? SignatureVerifier.teamIdentifier(at: app)) != nil
+    }
+"""
+
+# `XcodeSideBySideInstallerTests.applesTeamWithAnotherIdentifierIsNotXcode` as it
+# stood at 0d9fd608 — one of the three tests CI run 37475566844 found parked. No
+# Security symbol is written in it: the calls are the wrappers.
+SECURITY_WRAPPERS = """\
+    @Test func applesTeamWithAnotherIdentifierIsNotXcode() async throws {
+        #expect(try SignatureVerifier.teamIdentifier(at: fileMerge) == XcodeSideBySideInstaller.appleTeamID)
+        try XcodeSideBySideInstaller.verifyIsXcode(fileMerge, host: .current, osVersion: v)
+    }
+"""
+
 
 class OffPool(unittest.TestCase):
     def setUp(self):
@@ -299,6 +337,30 @@ class OffPool(unittest.TestCase):
     def test_an_extended_string_literal_is_not_code(self):
         self.write(EXTENDED_STRING)
         self.assertEqual(len(self.review()["offences"]), 1, self.review())
+
+    # Mutation: drop the `@Test` rule → a synchronous test body reads as an
+    # ordinary synchronous function and is not judged.
+    def test_a_synchronous_test_body_is_the_cooperative_pool(self):
+        self.write(SYNC_TEST)
+        self.assertEqual(len(self.waits()), 1, self.review())
+
+    # Mutation: look for `@Test` on the `func` line only → the test is missed;
+    # never clear it once seen → the helper after it is reported.
+    def test_a_test_attribute_above_belongs_to_the_next_func_only(self):
+        self.write(TEST_ATTRIBUTE_ABOVE)
+        self.assertEqual([line for _, line, _, _ in self.waits()], [6], self.review())
+
+    # Mutation: take the wrapper spellings out of BLOCKING → the hang CI sampled
+    # passes, since `SecStaticCodeCheckValidity` is never written in a test.
+    def test_the_signing_wrappers_are_blocking(self):
+        self.write(SECURITY_WRAPPERS)
+        self.assertEqual(len(self.waits()), 2, self.review())
+
+    # Mutation: drop the tests from ROOTS → every case above passes and the gate
+    # still never reads a test. (The real run's file count does not catch it:
+    # the three source roots alone clear the floor.)
+    def test_the_tests_are_scanned(self):
+        self.assertIn("DuoUpdaterCore/Tests", co.ROOTS)
 
     def test_a_hopped_call_passes(self):
         self.write(HOPPED)

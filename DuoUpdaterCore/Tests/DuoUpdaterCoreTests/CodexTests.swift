@@ -373,19 +373,26 @@ final class CodexSandbox {
     /// The installer's own lock, taken the installer's way (`exec 9<>…; lockf 9`).
     /// The holder `exec`s into `sleep`, so one process has the descriptor and the
     /// lock goes with it; `ready` carries `lockf`'s exit status.
+    ///
+    /// The holder runs under `.terminateChild` in a task of its own, so cancelling
+    /// that task is what kills it — and awaiting it is the reap, which parks no
+    /// thread (a `waitUntilExit` here was one of the three cooperative threads CI
+    /// run 37475566844 found parked).
     @Test func theInstallersLockfIsBusy() async throws {
         let box = try CodexSandbox()
         try box.install("0.143.0")
         let lock = box.standalone.appendingPathComponent("install.lock").path
         let ready = box.root.appendingPathComponent("ready")
-        let holder = Process()
-        holder.executableURL = URL(fileURLWithPath: "/bin/sh")
         // Held until terminated: under CI load the wait below took longer than a
         // minute (#993's first run), and a holder that slept a fixed 60 s had
         // already let the lock go when the busy check ran.
-        holder.arguments = ["-c", "exec 9<>\"$1\"; lockf 9; echo $? > \"$2\"; exec sleep 3600", "sh", lock, ready.path]
-        try holder.run()
-        defer { if holder.isRunning { holder.terminate() } }
+        let holder = Task {
+            try await ChildProcess.run(
+                "/bin/sh",
+                ["-c", "exec 9<>\"$1\"; lockf 9; echo $? > \"$2\"; exec sleep 3600", "sh", lock, ready.path],
+                onCancel: .terminateChild)
+        }
+        defer { holder.cancel() }
         let deadline = Date().addingTimeInterval(30)
         while !FileManager.default.fileExists(atPath: ready.path), Date() < deadline {
             try await Task.sleep(for: .milliseconds(50))
@@ -394,8 +401,8 @@ final class CodexSandbox {
         let status = (try? String(contentsOf: ready, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
         try #require(status == "0", "lockf 9 exited \(status ?? "never")")
         #expect(CodexActivity.busy(root: box.standalone) == .installer(nil))
-        holder.terminate()
-        holder.waitUntilExit()
+        holder.cancel()
+        _ = await holder.result
         #expect(CodexActivity.busy(root: box.standalone) == nil)
     }
 

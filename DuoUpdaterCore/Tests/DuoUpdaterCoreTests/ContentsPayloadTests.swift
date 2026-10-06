@@ -284,13 +284,10 @@ import Testing
     /// Zip a directory's CONTENTS (not the directory itself), which is how both
     /// of the vendor's archives are built.
     private func zip(directory: URL, into archive: URL) async throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
-        process.currentDirectoryURL = directory
-        process.arguments = ["-q", "-r", "-X", "--symlinks", archive.path, "."]
-        try process.run()
-        process.waitUntilExit()
-        #expect(process.terminationStatus == 0)
+        let zipped = try await ChildProcess.run(
+            "/usr/bin/zip", ["-q", "-r", "-X", "--symlinks", archive.path, "."],
+            workingDirectory: directory, onCancel: .runToCompletion)
+        #expect(zipped.terminationStatus == 0)
     }
 
     private func withScratch(_ body: (URL) async throws -> Void) async throws {

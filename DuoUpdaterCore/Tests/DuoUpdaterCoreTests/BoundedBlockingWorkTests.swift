@@ -20,6 +20,12 @@ import Foundation
 ///
 /// Timeouts here are deliberately far below the production ones: what is being
 /// measured is that a deadline is enforced at all, not what it is set to.
+///
+/// offpool-lint:allow — the caller's bounded park IS the behaviour under test, so
+/// each `run` here holds this test's cooperative thread for at most its `timeout`
+/// (0.5 s at most, or work that answers at once). Nothing it waits on needs a
+/// pool or Dispatch thread to finish: the worker is a `Thread`, so this cannot
+/// become the #351 deadlock.
 struct BoundedBlockingWorkTests {
 
     /// The blocking read itself: `open(2)` on a FIFO with no writer parks the

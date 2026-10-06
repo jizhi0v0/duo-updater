@@ -205,24 +205,13 @@ import Testing
 
     enum Signing { case sealed(identifier: String?), linkerOnly, unsigned }
 
-    private static func run(_ argv: [String], stdin: String? = nil) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: argv[0])
-        process.arguments = Array(argv.dropFirst())
-        let input = Pipe()
-        if stdin != nil { process.standardInput = input }
-        let err = Pipe()
-        process.standardError = err
-        try process.run()
-        if let stdin {
-            input.fileHandleForWriting.write(Data(stdin.utf8))
-            try input.fileHandleForWriting.close()
-        }
-        let errData = err.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw NSError(domain: "DigestOnlyInstallTests", code: Int(process.terminationStatus),
-                          userInfo: [NSLocalizedDescriptionKey: "\(argv[0]): " + String(decoding: errData, as: UTF8.self)])
+    private static func run(_ argv: [String], stdin: String? = nil) async throws {
+        let outcome = try await ChildProcess.run(
+            argv[0], Array(argv.dropFirst()), standardInput: stdin.map { Data($0.utf8) },
+            standardOutput: .discard, onCancel: .runToCompletion)
+        guard outcome.terminationStatus == 0 else {
+            throw NSError(domain: "DigestOnlyInstallTests", code: Int(outcome.terminationStatus),
+                          userInfo: [NSLocalizedDescriptionKey: "\(argv[0]): " + String(decoding: outcome.standardError, as: UTF8.self)])
         }
     }
 
@@ -230,7 +219,7 @@ import Testing
     @discardableResult
     static func makeApp(
         at url: URL, bundleID: String = bundleID, version: String = "2.0.0", signing: Signing
-    ) throws -> URL {
+    ) async throws -> URL {
         let fm = FileManager.default
         try fm.createDirectory(at: url.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
         try fm.createDirectory(at: url.appendingPathComponent("Contents/Resources"), withIntermediateDirectories: true)
@@ -245,16 +234,16 @@ import Testing
         let exe = url.appendingPathComponent("Contents/MacOS/zz").path
         var clang = ["/usr/bin/xcrun", "clang", "-x", "c", "-", "-o", exe]
         if case .unsigned = signing { clang.append("-Wl,-no_adhoc_codesign") }
-        try run(clang, stdin: "int main(void) { return 0; }\n")
+        try await run(clang, stdin: "int main(void) { return 0; }\n")
         if case .sealed(let identifier) = signing {
-            try run(["/usr/bin/codesign", "--force", "--sign", "-"]
+            try await run(["/usr/bin/codesign", "--force", "--sign", "-"]
                 + (identifier.map { ["--identifier", $0] } ?? []) + [url.path])
         }
         return url
     }
 
-    static func zip(_ app: URL, to archive: URL) throws {
-        try run(["/usr/bin/ditto", "-c", "-k", "--keepParent", app.path, archive.path])
+    static func zip(_ app: URL, to archive: URL) async throws {
+        try await run(["/usr/bin/ditto", "-c", "-k", "--keepParent", app.path, archive.path])
     }
 
     static func scratch(_ label: String) throws -> URL {
@@ -267,30 +256,28 @@ import Testing
     /// The smallest Developer-ID app shipped inside the active Xcode — read in
     /// place, never written. Nil is a failure, not a skip: a host that builds
     /// this has Xcode.
-    static func teamSignedApp() -> URL? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcode-select")
-        process.arguments = ["-p"]
-        let out = Pipe()
-        process.standardOutput = out
-        guard (try? process.run()) != nil else { return nil }
-        let path = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    static func teamSignedApp() async -> URL? {
+        guard let select = try? await ChildProcess.run(
+            "/usr/bin/xcode-select", ["-p"], onCancel: .terminateChild) else { return nil }
+        let path = String(decoding: select.standardOutput, as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        process.waitUntilExit()
         let dir = URL(fileURLWithPath: path).deletingLastPathComponent().appendingPathComponent("Applications")
         let apps = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
-        func size(_ url: URL) -> Int {
-            let files = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey])
-            var total = 0
-            while let file = files?.nextObject() as? URL {
-                total += (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        // One hop for the lot: a Team ID read per app is a Security call each.
+        let found = await offCooperativePool { () -> URL? in
+            func size(_ url: URL) -> Int {
+                let files = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey])
+                var total = 0
+                while let file = files?.nextObject() as? URL {
+                    total += (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                }
+                return total
             }
-            return total
+            return apps
+                .filter { $0.pathExtension == "app" && (try? SignatureVerifier.teamIdentifier(at: $0)) != nil }
+                .map { ($0, size($0)) }
+                .min { $0.1 < $1.1 }?.0
         }
-        let found = apps
-            .filter { $0.pathExtension == "app" && (try? SignatureVerifier.teamIdentifier(at: $0)) != nil }
-            .map { ($0, size($0)) }
-            .min { $0.1 < $1.1 }?.0
         if found == nil { Issue.record("no Team-signed app under \(dir.path) to stand in for a Developer ID build") }
         return found
     }
@@ -367,8 +354,8 @@ import Testing
     @Test func aSealedAdHocBuildOfTheSameAppAndReleasePasses() async throws {
         let dir = try Self.scratch("pass")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let installed = try Self.makeApp(at: dir.appendingPathComponent("i/App.app"), version: "1.0.0", signing: .sealed(identifier: nil))
-        let downloaded = try Self.makeApp(at: dir.appendingPathComponent("d/App.app"), signing: .sealed(identifier: nil))
+        let installed = try await Self.makeApp(at: dir.appendingPathComponent("i/App.app"), version: "1.0.0", signing: .sealed(identifier: nil))
+        let downloaded = try await Self.makeApp(at: dir.appendingPathComponent("d/App.app"), signing: .sealed(identifier: nil))
         try await gate(installed: installed, downloaded: downloaded, proofDir: dir)
     }
 
@@ -377,9 +364,9 @@ import Testing
     @Test func gateTwoStillRunsOnTheDigestRoute() async throws {
         let dir = try Self.scratch("gate2")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let installed = try Self.makeApp(at: dir.appendingPathComponent("i/App.app"), version: "1.0.0", signing: .sealed(identifier: nil))
+        let installed = try await Self.makeApp(at: dir.appendingPathComponent("i/App.app"), version: "1.0.0", signing: .sealed(identifier: nil))
         for (name, signing) in [("linker", Signing.linkerOnly), ("unsigned", .unsigned)] {
-            let downloaded = try Self.makeApp(at: dir.appendingPathComponent("\(name)/App.app"), signing: signing)
+            let downloaded = try await Self.makeApp(at: dir.appendingPathComponent("\(name)/App.app"), signing: signing)
             await expectGate(name, { try await gate(installed: installed, downloaded: downloaded, proofDir: dir) }) {
                 if case .codeSignatureInvalid = $0 { return true }
                 return false
@@ -392,8 +379,8 @@ import Testing
     @Test func aTeamSignedInstallIsNeverReplacedOnAHash() async throws {
         let dir = try Self.scratch("team-installed")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let installed = try #require(Self.teamSignedApp())
-        let downloaded = try Self.makeApp(at: dir.appendingPathComponent("d/App.app"), signing: .sealed(identifier: nil))
+        let installed = try #require(await Self.teamSignedApp())
+        let downloaded = try await Self.makeApp(at: dir.appendingPathComponent("d/App.app"), signing: .sealed(identifier: nil))
         await expectGate("team installed", { try await gate(installed: installed, downloaded: downloaded, proofDir: dir) }) {
             if case .noTeamIdentifier(which: "downloaded") = $0 { return true }
             return false
@@ -405,8 +392,8 @@ import Testing
     @Test func aTeamSignedDownloadOverAnAdHocInstallIsRefusedInWords() async throws {
         let dir = try Self.scratch("team-download")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let installed = try Self.makeApp(at: dir.appendingPathComponent("i/App.app"), version: "1.0.0", signing: .sealed(identifier: nil))
-        let downloaded = try #require(Self.teamSignedApp())
+        let installed = try await Self.makeApp(at: dir.appendingPathComponent("i/App.app"), version: "1.0.0", signing: .sealed(identifier: nil))
+        let downloaded = try #require(await Self.teamSignedApp())
         await expectGate("team download", { try await gate(installed: installed, downloaded: downloaded, proofDir: dir) }) {
             guard case .teamIdentifierAppeared(let team) = $0 else { return false }
             return !team.isEmpty && $0.errorDescription?.contains(team) == true
@@ -418,8 +405,8 @@ import Testing
     @Test func theSignedIdentifierMustBeTheBundleID() async throws {
         let dir = try Self.scratch("signed-id")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let installed = try Self.makeApp(at: dir.appendingPathComponent("i/App.app"), version: "1.0.0", signing: .sealed(identifier: nil))
-        let downloaded = try Self.makeApp(at: dir.appendingPathComponent("d/App.app"), signing: .sealed(identifier: "Electron"))
+        let installed = try await Self.makeApp(at: dir.appendingPathComponent("i/App.app"), version: "1.0.0", signing: .sealed(identifier: nil))
+        let downloaded = try await Self.makeApp(at: dir.appendingPathComponent("d/App.app"), signing: .sealed(identifier: "Electron"))
         await expectGate("signed id", { try await gate(installed: installed, downloaded: downloaded, proofDir: dir) }) {
             if case .infoPlistIdentifierMismatch = $0 { return true }
             return false
@@ -431,10 +418,10 @@ import Testing
     @Test func theInstalledCopyMustBeTheSameApp() async throws {
         let dir = try Self.scratch("installed-id")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let installed = try Self.makeApp(
+        let installed = try await Self.makeApp(
             at: dir.appendingPathComponent("i/App.app"), bundleID: "zz.someone.else", version: "1.0.0",
             signing: .sealed(identifier: nil))
-        let downloaded = try Self.makeApp(at: dir.appendingPathComponent("d/App.app"), signing: .sealed(identifier: nil))
+        let downloaded = try await Self.makeApp(at: dir.appendingPathComponent("d/App.app"), signing: .sealed(identifier: nil))
         await expectGate("installed id", { try await gate(installed: installed, downloaded: downloaded, proofDir: dir) }) {
             if case .infoPlistIdentifierMismatch = $0 { return true }
             return false
@@ -446,8 +433,8 @@ import Testing
     @Test func theDownloadMustBeTheReleaseItWasPublishedAs() async throws {
         let dir = try Self.scratch("version")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let installed = try Self.makeApp(at: dir.appendingPathComponent("i/App.app"), version: "1.0.0", signing: .sealed(identifier: nil))
-        let downloaded = try Self.makeApp(at: dir.appendingPathComponent("d/App.app"), signing: .sealed(identifier: nil))
+        let installed = try await Self.makeApp(at: dir.appendingPathComponent("i/App.app"), version: "1.0.0", signing: .sealed(identifier: nil))
+        let downloaded = try await Self.makeApp(at: dir.appendingPathComponent("d/App.app"), signing: .sealed(identifier: nil))
         await expectGate("version", {
             try await gate(installed: installed, downloaded: downloaded, version: "2.0.1", proofDir: dir)
         }) {
@@ -463,13 +450,18 @@ import Testing
     /// version, so every case below that gets past its own gate stops there.
     private func installerFixture(
         _ dir: URL, downloaded: URL? = nil, digest: String? = "", offered: String = "2.0.1"
-    ) throws -> (UpdateResult, DownloadedUpdate) {
-        let installed = try Self.makeApp(at: dir.appendingPathComponent("installed/App.app"), version: "1.0.0", signing: .sealed(identifier: nil))
-        let source = try downloaded ?? Self.makeApp(at: dir.appendingPathComponent("src/App.app"), signing: .sealed(identifier: nil))
+    ) async throws -> (UpdateResult, DownloadedUpdate) {
+        let installed = try await Self.makeApp(at: dir.appendingPathComponent("installed/App.app"), version: "1.0.0", signing: .sealed(identifier: nil))
+        let source: URL
+        if let downloaded {
+            source = downloaded
+        } else {
+            source = try await Self.makeApp(at: dir.appendingPathComponent("src/App.app"), signing: .sealed(identifier: nil))
+        }
         let work = dir.appendingPathComponent("work", isDirectory: true)
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
         let archive = work.appendingPathComponent("download.zip")
-        try Self.zip(source, to: archive)
+        try await Self.zip(source, to: archive)
         let sha = try BundleArchive.sha256(of: archive)
         let result = UpdateResult(
             app: InstalledApp(
@@ -501,7 +493,7 @@ import Testing
     @Test func theInstallerRunsTheDigestRouteGates() async throws {
         let dir = try Self.scratch("apply-route")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let (result, download) = try installerFixture(dir)
+        let (result, download) = try await installerFixture(dir)
         let error = await applyError(result, download)
         guard case SignatureVerifier.VerifyError.infoPlistVersionMismatch? = error else {
             Issue.record("expected the version refusal, got \(String(describing: error))")
@@ -514,7 +506,7 @@ import Testing
     @Test func aSettingTurnedOffSinceTheOfferRefusesTheInstall() async throws {
         let dir = try Self.scratch("apply-off")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let (result, download) = try installerFixture(dir)
+        let (result, download) = try await installerFixture(dir)
         let error = await applyError(result, download, allowed: false)
         guard case VendorInstaller.InstallError.digestOnlyNotAllowed? = error else {
             Issue.record("expected digestOnlyNotAllowed, got \(String(describing: error))")
@@ -527,7 +519,7 @@ import Testing
     @Test func aDownloadThatIsNotThePublishedAssetIsRefusedBeforeUnpacking() async throws {
         let dir = try Self.scratch("apply-mismatch")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let (wrong, download) = try installerFixture(dir, digest: String(repeating: "0", count: 64))
+        let (wrong, download) = try await installerFixture(dir, digest: String(repeating: "0", count: 64))
         let error = await applyError(wrong, download)
         guard case SignatureVerifier.VerifyError.publishedDigestMismatch? = error else {
             Issue.record("expected publishedDigestMismatch, got \(String(describing: error))")
@@ -543,7 +535,7 @@ import Testing
     @Test func aStashIsNeverTakenOnTheDigestRoute() async throws {
         let dir = try Self.scratch("apply-stash")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let (result, plain) = try installerFixture(dir)
+        let (result, plain) = try await installerFixture(dir)
         let stashed = DownloadedUpdate(
             archiveURL: plain.archiveURL, bytesDownloaded: 0, workDir: plain.workDir,
             localStash: LocalStagedInstaller(
@@ -562,8 +554,8 @@ import Testing
     @Test func theInstallerRefusesATeamSignedDownloadOverAnAdHocInstallInWords() async throws {
         let dir = try Self.scratch("apply-team")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let team = try #require(Self.teamSignedApp())
-        let (result, download) = try installerFixture(dir, downloaded: team)
+        let team = try #require(await Self.teamSignedApp())
+        let (result, download) = try await installerFixture(dir, downloaded: team)
         let error = await applyError(result, download)
         guard case SignatureVerifier.VerifyError.teamIdentifierAppeared? = error else {
             Issue.record("expected teamIdentifierAppeared, got \(String(describing: error))")
@@ -577,7 +569,7 @@ import Testing
     @Test func theCoordinatorForwardsTheSettingAsItStandsNow() async throws {
         let dir = try Self.scratch("coordinator")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let (result, _) = try installerFixture(dir)
+        let (result, _) = try await installerFixture(dir)
         let coordinator = InstallCoordinator(permits: InstallPermits(downloads: 1, applies: 1))
         do {
             _ = try await coordinator.perform(

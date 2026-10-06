@@ -115,11 +115,11 @@ import Testing
     /// `rm -rf` fail with EPERM. The assertion is on the pair — non-zero status AND
     /// a changed identity — which is precisely the input `privilegedReplace` now
     /// classifies on.
-    @Test func anElevatedSwapWhoseCleanupFailsHasAlreadyPutTheNewBundleLive() throws {
+    @Test func anElevatedSwapWhoseCleanupFailsHasAlreadyPutTheNewBundleLive() async throws {
         let fm = FileManager.default
         let scratch = try scratch()
         defer {
-            _ = try? shell("/usr/bin/chflags -R nouchg '\(scratch.path)'")
+            clearUserImmutable(under: scratch)
             try? fm.removeItem(at: scratch)
         }
         let target = scratch.appendingPathComponent("ZZFixture-Elevated.app")
@@ -135,10 +135,10 @@ import Testing
         // outcome, not this one.
         let stubborn = target.appendingPathComponent("Contents/pinned")
         try Data("pinned".utf8).write(to: stubborn)
-        #expect(try shell("/usr/bin/chflags uchg '\(stubborn.path)'") == 0)
+        #expect(try await shell("/usr/bin/chflags uchg '\(stubborn.path)'") == 0)
 
         let before = try inode(of: target)
-        let status = try shell(InPlaceSwap.privilegedReplacementShell(
+        let status = try await shell(InPlaceSwap.privilegedReplacementShell(
             newApp: incoming, target: target))
         let after = try inode(of: target)
 
@@ -163,7 +163,7 @@ import Testing
         let fm = FileManager.default
         let scratch = try scratch()
         defer {
-            _ = try? shell("/usr/bin/chflags -R nouchg '\(scratch.path)'")
+            clearUserImmutable(under: scratch)
             try? fm.removeItem(at: scratch)
         }
         let target = scratch.appendingPathComponent("ZZFixture-Rotation.app")
@@ -175,7 +175,7 @@ import Testing
         }
         let stubborn = target.appendingPathComponent("Contents/pinned")
         try Data("pinned".utf8).write(to: stubborn)
-        #expect(try shell("/usr/bin/chflags uchg '\(stubborn.path)'") == 0)
+        #expect(try await shell("/usr/bin/chflags uchg '\(stubborn.path)'") == 0)
 
         let outcome = try await InPlaceSwap.rotateContents(newApp: incoming, over: target)
 
@@ -195,7 +195,7 @@ import Testing
         let fm = FileManager.default
         let scratch = try scratch()
         defer {
-            _ = try? shell("/usr/bin/chflags -R nouchg '\(scratch.path)'")
+            clearUserImmutable(under: scratch)
             try? fm.removeItem(at: scratch)
         }
         let target = scratch.appendingPathComponent("ZZFixture-Unprivileged.app")
@@ -207,7 +207,7 @@ import Testing
         }
         let stubborn = target.appendingPathComponent("Contents/pinned")
         try Data("pinned".utf8).write(to: stubborn)
-        #expect(try shell("/usr/bin/chflags uchg '\(stubborn.path)'") == 0)
+        #expect(try await shell("/usr/bin/chflags uchg '\(stubborn.path)'") == 0)
 
         let outcome = try await InPlaceSwap.replace(newApp: incoming, over: target)
 
@@ -227,15 +227,14 @@ import Testing
     /// The bundle name is unique per run because the other cleanup-failure tests
     /// in this suite write the same shape of line from the same process.
     ///
-    /// The blocking halves run in `offCooperativePool` hops: the fixture's
-    /// `chflags` (the test's own `shell` helper), and the `OSLogStore` reads, each
-    /// measured at 2–8 s locally (opening the store is the cost). This is an `async`
-    /// test, so done inline those would park a cooperative thread — one of three on
-    /// the CI runner — which is the #351 shape. The retry pause is a
+    /// The blocking half runs in an `offCooperativePool` hop: the `OSLogStore`
+    /// reads, measured at 2–8 s locally (opening the store is the cost). This is an
+    /// `async` test, so done inline those would park a cooperative thread — one of
+    /// three on the CI runner — which is the #351 shape. The retry pause is a
     /// `Thread.sleep` for the same reason: it is on a Dispatch thread by then.
-    /// `replace` itself is awaited between the two: its child processes go through
-    /// `ChildProcess` and need no hop. Assertions stay outside, on the values the
-    /// hops hand back.
+    /// The fixture's `chflags` and `replace` itself are awaited: their child
+    /// processes go through `ChildProcess` and need no hop. Assertions stay
+    /// outside, on the values the hops hand back.
     @Test func aCleanupFailureReasonReachesTheInstallLog() async throws {
         let name = "ZZFixture-CleanupLog-\(UUID().uuidString).app"
         let fixture = try await offCooperativePool { [self] () throws -> CleanupLogFixture in
@@ -250,14 +249,14 @@ import Testing
             }
             let stubborn = target.appendingPathComponent("Contents/pinned")
             try Data("pinned".utf8).write(to: stubborn)
-            let chflags = try shell("/usr/bin/chflags uchg '\(stubborn.path)'")
             return CleanupLogFixture(
-                scratch: scratch, target: target, incoming: incoming, chflagsStatus: chflags)
+                scratch: scratch, target: target, incoming: incoming, stubborn: stubborn)
         }
         defer {
-            _ = try? shell("/usr/bin/chflags -R nouchg '\(fixture.scratch.path)'")
+            clearUserImmutable(under: fixture.scratch)
             try? FileManager.default.removeItem(at: fixture.scratch)
         }
+        let chflagsStatus = try await shell("/usr/bin/chflags uchg '\(fixture.stubborn.path)'")
 
         let start = Date().addingTimeInterval(-1)
         let outcome = try await InPlaceSwap.replace(newApp: fixture.incoming, over: fixture.target)
@@ -286,7 +285,7 @@ import Testing
             return lines
         }
 
-        #expect(fixture.chflagsStatus == 0)
+        #expect(chflagsStatus == 0)
         guard case .replacedButCleanupFailed(let reason) = outcome else {
             Issue.record("fixture broken: expected a cleanup-failure outcome, got \(outcome)")
             return
@@ -304,7 +303,7 @@ import Testing
         let scratch: URL
         let target: URL
         let incoming: URL
-        let chflagsStatus: Int32
+        let stubborn: URL
     }
 
     // MARK: - Helpers
@@ -321,13 +320,19 @@ import Testing
         return try #require(attrs[.systemFileNumber] as? NSNumber).uint64Value
     }
 
-    private func shell(_ command: String) throws -> Int32 {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", command]
-        process.standardError = FileHandle.nullDevice
-        try process.run()
-        process.waitUntilExit()
-        return process.terminationStatus
+    private func shell(_ command: String) async throws -> Int32 {
+        try await ChildProcess.run(
+            "/bin/sh", ["-c", command], standardError: .discard, onCancel: .runToCompletion)
+            .terminationStatus
+    }
+
+    /// `chflags -R nouchg`, in this process: a `defer` cannot await a child.
+    private func clearUserImmutable(under root: URL) {
+        let below = FileManager.default.subpaths(atPath: root.path) ?? []
+        for path in [root.path] + below.map({ root.appendingPathComponent($0).path }) {
+            var info = stat()
+            guard lstat(path, &info) == 0, info.st_flags & UInt32(UF_IMMUTABLE) != 0 else { continue }
+            _ = lchflags(path, info.st_flags & ~UInt32(UF_IMMUTABLE))
+        }
     }
 }

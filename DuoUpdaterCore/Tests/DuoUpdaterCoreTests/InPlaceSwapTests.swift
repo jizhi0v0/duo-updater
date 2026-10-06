@@ -20,7 +20,7 @@ import Testing
     /// it with a group-writable root — Microsoft Word and Excel, `root:wheel` 775 —
     /// and widening their interiors on a rule derived from an input method would
     /// be a change nobody asked for.
-    @Test func aPrivilegedSwapPreservesTheInstalledDirectoryModes() throws {
+    @Test func aPrivilegedSwapPreservesTheInstalledDirectoryModes() async throws {
         let fm = FileManager.default
         let parent = try scratch()
         defer { try? fm.removeItem(at: parent) }
@@ -30,7 +30,7 @@ import Testing
             at: parent.appendingPathComponent("Incoming.app"), mode: 0o755, marker: "new")
 
         let shell = InPlaceSwap.privilegedReplacementShell(newApp: incoming, target: target)
-        #expect(try run(shell) == 0)
+        #expect(try await run(shell) == 0)
 
         #expect(try mode(of: target) == 0o775)
         #expect(try mode(of: target.appendingPathComponent("Contents")) == 0o775)
@@ -44,7 +44,7 @@ import Testing
     /// The same rule in the direction nobody would notice going wrong: a 755
     /// install must not come back group-writable because the archive it was
     /// replaced from happened to be.
-    @Test func aPrivilegedSwapDoesNotWidenA755Install() throws {
+    @Test func aPrivilegedSwapDoesNotWidenA755Install() async throws {
         let fm = FileManager.default
         let parent = try scratch()
         defer { try? fm.removeItem(at: parent) }
@@ -53,7 +53,7 @@ import Testing
         let incoming = try bundle(
             at: parent.appendingPathComponent("Incoming.app"), mode: 0o775, marker: "new")
 
-        #expect(try run(InPlaceSwap.privilegedReplacementShell(
+        #expect(try await run(InPlaceSwap.privilegedReplacementShell(
             newApp: incoming, target: target)) == 0)
 
         #expect(try mode(of: target) == 0o755)
@@ -88,13 +88,9 @@ import Testing
         return url
     }
 
-    private func run(_ shell: String) throws -> Int32 {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", shell]
-        try process.run()
-        process.waitUntilExit()
-        return process.terminationStatus
+    private func run(_ shell: String) async throws -> Int32 {
+        try await ChildProcess.run("/bin/sh", ["-c", shell], onCancel: .runToCompletion)
+            .terminationStatus
     }
 
     private func mode(of url: URL) throws -> Int {

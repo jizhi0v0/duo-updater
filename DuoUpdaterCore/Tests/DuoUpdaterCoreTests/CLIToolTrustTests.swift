@@ -55,7 +55,7 @@ struct CLIToolTrustTests {
     }
 
     /// A file that is not code at all has no signature to trust.
-    @Test func aFileThatIsNotCodeIsNotTrusted() throws {
+    @Test func aFileThatIsNotCodeIsNotTrusted() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("ZZFixture-trust-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -63,7 +63,7 @@ struct CLIToolTrustTests {
         let file = directory.appendingPathComponent("tool")
         try Data("#!/bin/sh\necho hi\n".utf8).write(to: file)
 
-        let signature = CLIToolTrust.signature(of: file, teamIdentifier: "2DC432GLL2")
+        let signature = await offCooperativePool { CLIToolTrust.signature(of: file, teamIdentifier: "2DC432GLL2") }
         #expect(signature != .vendor)
         #expect(CLIToolTrust.matches(CLIToolTrust.sha256(of: file), published: CLIToolTrust.sha256(of: file)))
     }

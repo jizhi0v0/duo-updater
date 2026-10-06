@@ -15067,6 +15067,71 @@
         }
       }
     },
+    "Built with MyGo — a Go app showing its interface in the system WebView or drawing it itself.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit MyGo gebaut – eine Go-App, die ihre Oberfläche in der System-WebView zeigt oder selbst zeichnet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecha con MyGo: una app en Go que muestra su interfaz en el WebView del sistema o la dibuja ella misma."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçue avec MyGo — une app Go qui affiche son interface dans la WebView du système ou la dessine elle-même."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creata con MyGo: un’app Go che mostra la sua interfaccia nella WebView di sistema o la disegna da sé."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MyGo 製 — システムの WebView で画面を表示するか、自前で描画する Go アプリです。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feito com MyGo — um app em Go que mostra sua interface na WebView do sistema ou a desenha por conta própria."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделано на MyGo — приложение на Go, которое показывает интерфейс в системном WebView или рисует его само."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MyGo ile geliştirildi — arayüzünü sistem WebView’unda gösteren ya da kendisi çizen bir Go uygulaması."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 MyGo 构建 —— 界面用系统 WebView 显示或由自己绘制的 Go 程序。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以 MyGo 建構——以系統 WebView 顯示介面或自行繪製介面的 Go App。"
+          }
+        }
+      }
+    },
     "Built with Tauri — a Rust app drawing into the system WebView.": {
       "extractionState": "manual",
       "localizations": {

@@ -34,6 +34,9 @@ import Darwin
 ///   above it is a `.framework`, `.xpc` or `.appex`. That excludes Chromium and
 ///   Electron helpers (`… Helper (Renderer).app`), Sparkle's `Updater.app` and
 ///   Python's `Python.app` inside a framework.
+/// - It is not under `Contents/Library/LoginItems/`. A login item runs for as
+///   long as the user is logged in, so refusing on one would block its app's
+///   updates for good. A stale login item is replaced at the next login.
 /// - Its parent is not a process running from the same bundle. A helper the app
 ///   spawned goes away with the app.
 /// - It is not a `.regular` app. That one already has a path: `AppRestarter`
@@ -44,17 +47,17 @@ import Darwin
 /// spawned. Most were crashpad handlers, `.appex` extensions, `.xpc` services
 /// and a Sparkle `Autoupdate`. Refusing on all of those would block one-click
 /// for most apps. The same day, with these rules over the live process list
-/// (1059 processes, 40 bundles with something running inside), three bundles
-/// were blocked:
+/// (1059 processes, 40 bundles with something running inside), the rules
+/// without the login-item exclusion blocked three bundles:
 ///
-/// - AppCleaner, by its `AppCleaner SmartDelete.app` login item;
+/// - AppCleaner, by its `AppCleaner SmartDelete.app` login item, which is why
+///   login items are now excluded;
 /// - AweSun, by `AweSun_Desktop.app`;
 /// - Gemini, by `GeminiAppLauncher.app`.
 ///
 /// VMPal was not in that list only because no VM was running at the time.
-/// A login item like SmartDelete keeps its app refused for as long as it runs.
-/// That is the agreed cost: after a swap it too would run the old code until the
-/// next login.
+/// The two `Contents/Helpers` apps stay refused for as long as they run. That is
+/// the agreed cost.
 public enum NestedAppGuard {
 
     /// One process, as much as this guard needs to know about it.
@@ -111,6 +114,10 @@ public enum NestedAppGuard {
         guard executablePath.hasPrefix(bundlePrefix) else { return nil }
         let relative = executablePath.dropFirst(bundlePrefix.count)
         if relative.hasPrefix("Contents/Frameworks/") { return nil }
+        // Login items (SMAppService agents, AppCleaner's SmartDelete) run for as
+        // long as the user is logged in, so refusing on them would block the app
+        // for good. A stale one is replaced at the next login.
+        if relative.hasPrefix("Contents/Library/LoginItems/") { return nil }
         // Everything above the executable's file name, outermost first.
         let components = relative.split(separator: "/").dropLast()
         for component in components {

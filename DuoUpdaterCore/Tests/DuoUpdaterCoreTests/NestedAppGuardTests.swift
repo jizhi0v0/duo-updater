@@ -64,6 +64,15 @@ import Testing
         #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [python, xpc, appex]).isEmpty)
     }
 
+    /// The AppCleaner SmartDelete shape: a login item runs for the whole login
+    /// session, so it must not block its app for good. Mutation: drop the
+    /// `Contents/Library/LoginItems/` check → red.
+    @Test func aLoginItemNeverBlocks() {
+        let agent = Self.process(
+            713, "Contents/Library/LoginItems/ZZFixture SmartDelete.app/Contents/MacOS/ZZFixture SmartDelete")
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [agent]).isEmpty)
+    }
+
     /// A bare executable that is not part of any nested `.app` (an XPC service,
     /// a command-line helper) is out of scope.
     @Test func codeOutsideANestedAppNeverBlocks() {

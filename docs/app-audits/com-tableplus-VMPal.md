@@ -67,9 +67,11 @@
 - **许可证的更新期**：二进制里有 "Your license's updates have ended" / "A newer VMPal is out. Renew your license to get it."，app 自己会拦住超出许可证更新期的版本。duo 一键不知道许可证状态，会照装 feed 上的最新版。装上之后 app 的反应（拒绝启动、降级成试用，还是只提示续费）**未验证**。TablePlus 用的是同一种许可证模式。
 - feed 的 `<minimumSystemVersion>` 读不到（见「更新检测」）。
 - **VM 进程在升级后继续跑旧版引擎。** 每个运行中的 VM 是一个独立进程，可执行文件在包内 `Contents/Helpers/VMPalMachine.app`。VMPal 主程序退出时它不退出；重启主程序后，0.36 会接管这个仍在运行的进程，在 UI 里停掉再启动 VM 时**复用的也是它**。所以 duo 换包 + `duo restart` 之后，VM 一直跑在 0.35 的引擎上（可执行文件指向已被删掉的旧包），要等这个进程自己退出，再启动 VM 才会换成 0.36。duo 判断「app 是否在运行」，是拿每个进程的 `bundleURL`（经 `UpdatePolicy.runtimeBundlePath` 归一化）去和 app 路径精确比对（CLI 的 `Check.runningBundlePaths`，菜单栏 app 的 `RunningBundlePathCache`）。helper 的 `bundleURL` 是 `…/Contents/Helpers/VMPalMachine.app`，对不上，所以主程序一退，duo 就当它已经不在运行。实测这种混合版本状态下暂停、恢复、停止都正常；旧包已删除时，helper 按需再加载包内资源会怎样，**未验证**。厂商自己的更新流程会先暂停、保存并关闭所有 VM 再装（"Pause VMs and Update"），正是为了避开这种状态。
+  - 补充实测（2026-10-06）：在 VMPal 里 Stop 掉 VM 后，VMPalMachine 进程仍然留着；VMPal 主程序退出、没有任何 VM 在跑时也不退。对它调 `NSRunningApplication.terminate()`，它在 0.4 秒内退出，正在跑的 VM 随之停止，也没有保存状态。用户能走的路是从 Dock 退出这台 VM 自己的图标（每台 VM 一个 `VM.app` 代理，`--for <VMPalMachine pid>`），helper 1 秒内跟着退出。
+  - 换包前识别这类进程并拒绝换包，另提为 [jizhi0v0/duo-updater#1004](https://github.com/jizhi0v0/duo-updater/pull/1004)。合并后，VM 在跑时 `duo install VMPal` 会返回 `skipped`，提示「VMPalMachine is running from inside VMPal…」。
 
 ## 建议下一步
-1. 决定 duo 是否要识别「从包内 helper bundle 启动、比主程序活得久的进程」（这里是 VMPalMachine）：换包前提示，或在 restart 时一并报告，而不是只看主 bundle 的进程。这是通用问题，不只 VMPal。
+1. 换包前识别比主程序活得久的嵌套 app 并拒绝换包：见 [jizhi0v0/duo-updater#1004](https://github.com/jizhi0v0/duo-updater/pull/1004)（已在真机上验证：VM 在跑时 `skipped`、包不动；从 Dock 退出 VM 后安装成功）。
 2. 菜单栏 app 的一键 + Relaunch 路径没在 VM 运行时单独跑过；按代码它和 CLI 用的是同一套运行检测，结论应该相同（未验证）。
 3. 许可证更新期到期后的行为，有过期许可证时再验。
 

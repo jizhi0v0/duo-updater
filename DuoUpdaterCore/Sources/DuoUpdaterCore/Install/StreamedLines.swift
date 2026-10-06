@@ -38,6 +38,10 @@ final class StreamedLines: @unchecked Sendable {
     private var pending = Data()
     private var ended = false
     private var waiter: CheckedContinuation<Void, Never>?
+    private var capReleases = 0
+
+    /// Where `waitForEnd`'s cap fires. See there for why it is not `global()`.
+    private static let capQueue = DispatchQueue(label: "StreamedLines.cap")
 
     /// Record one chunk and return the lines it completed, in order.
     func append(_ chunk: Data) -> [String] {
@@ -73,6 +77,15 @@ final class StreamedLines: @unchecked Sendable {
     /// the upgrade has finished, so its output must not be waited on forever.
     /// (brew's own background `curl` for analytics redirects to `/dev/null`, so it
     /// does not do this; the cap is for what we have not seen.)
+    ///
+    /// The cap is armed on `capQueue`, a serial queue — serial queues default to
+    /// overcommit, so libdispatch brings up a thread for it however busy the
+    /// process is. `DispatchQueue.global()` is not overcommit, and it gets no
+    /// thread while every cooperative-pool thread is blocked: measured 2026-10-07,
+    /// release build, 14-core Mac, a 0.05 s `global().asyncAfter` ran 19.5 s late,
+    /// when the blocking tasks let go; on `capQueue` it ran on time. That is how
+    /// the cap failed to release a wait on CI (run 37498589321) while signature
+    /// checks held the 3-core runner's pool.
     func waitForEnd(atMost seconds: Double) async {
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
             lock.lock()
@@ -83,10 +96,11 @@ final class StreamedLines: @unchecked Sendable {
             }
             waiter = cont
             lock.unlock()
-            DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { [self] in
+            Self.capQueue.asyncAfter(deadline: .now() + seconds) { [self] in
                 lock.lock()
                 let w = waiter
                 waiter = nil
+                if w != nil { capReleases += 1 }
                 lock.unlock()
                 w?.resume()
             }
@@ -114,6 +128,14 @@ final class StreamedLines: @unchecked Sendable {
     var hasWaiter: Bool {
         lock.lock(); defer { lock.unlock() }
         return waiter != nil
+    }
+
+    /// Test seam: how many waits the cap has released. It only goes up, so a
+    /// thread polling it cannot miss a release the way it can miss `hasWaiter`'s
+    /// brief `true`.
+    var waitsReleasedByCap: Int {
+        lock.lock(); defer { lock.unlock() }
+        return capReleases
     }
 
     /// Run `executablePath` with stdout and stderr on one pipe, handing each line to

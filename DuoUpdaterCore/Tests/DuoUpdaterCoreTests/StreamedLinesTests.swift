@@ -79,11 +79,12 @@ import Foundation
     //
     // Raised from 10 and 30 on 2026-09-19: `theCapReleasesAWaitThatNeverEnds`
     // failed twice on CI (#763) while the suite was running two ~60 s cases
-    // beside it. Both the cap under test and this watchdog arm on
-    // `DispatchQueue.global()`, so for the 30 s timer to beat a 0.05 s one that
-    // queue has to be starved for thirty seconds — which says nothing about
-    // `StreamedLines` and everything about the machine. The bound was not
-    // generous enough to be the watchdog it says it is.
+    // beside it. Both the cap under test and this watchdog armed on
+    // `DispatchQueue.global()`, and the reading then was that for the 30 s timer
+    // to beat a 0.05 s one the machine had to be starved for thirty seconds.
+    // It was the process, not the machine: that queue gets no thread while every
+    // cooperative thread is blocked, which is what the cap needs to survive. The
+    // cap now has its own queue; see `theCapFiresWhileEveryCooperativeThreadIsBlocked`.
 
     /// How long a hung wait takes to be reported. Long, deliberately: the only
     /// thing it may not do is fire on a machine that is merely busy.
@@ -141,6 +142,111 @@ import Foundation
         let done = try await Self.finishing(within: Self.watchdogSeconds) { await s.waitForEnd(atMost: 0.05) }
         #expect(done != nil)
         #expect(!s.hasWaiter)
+    }
+
+    /// Every cooperative thread is blocked in the same process (here on purpose;
+    /// on CI, by tests calling Security synchronously): the cap still fires.
+    ///
+    /// It used to be armed on `DispatchQueue.global()`, which is not an overcommit
+    /// queue, and such a queue gets no thread while the cooperative pool is all
+    /// blocked. Measured 2026-10-07, release build, 14-core Mac: a 0.05 s
+    /// `global().asyncAfter` ran 19.5 s late, when the blocking tasks let go.
+    /// That is how `theCapReleasesAWaitThatNeverEnds` failed on CI (run
+    /// 37498589321): it returned at 130 s, together with the two signature checks
+    /// that had held the 3-core runner's pool.
+    ///
+    /// The test registers the wait itself, with no helper task and no spinning:
+    /// `waitForEnd` arms the cap before it suspends, and the blocking tasks take
+    /// this thread once it has. (The first version had a helper task register it
+    /// and spun on `Task.yield()` until it had. On CI's 3-core runner, with the
+    /// other two threads in Security calls, the helper never ran and the yield
+    /// never let it: Swift's `Task.yield()` "immediately resumes" a task that is
+    /// the highest-priority one, and "isn't necessarily a way to avoid resource
+    /// starvation". The job hung until its 1200 s limit, run 37508268328.)
+    ///
+    /// A plain `Thread`, which needs neither a cooperative nor a Dispatch thread
+    /// to run, releases the pool once the cap has released the wait, or after
+    /// 30 s. The 30 s is only how long a broken build takes to fail.
+    /// Mutation: arm the cap on `DispatchQueue.global()` again → red at 30 s.
+    @Test func theCapFiresWhileEveryCooperativeThreadIsBlocked() async throws {
+        let s = StreamedLines()
+        let pool = BlockedPool(tasks: 2 * ProcessInfo.processInfo.activeProcessorCount)
+        let released = pool.release(within: 30) { s.waitsReleasedByCap > 0 }
+        await s.waitForEnd(atMost: 0.5)
+        let outcome = await released.value
+        #expect(outcome.conditionMet, "the cap had not fired after 30 s with the pool blocked")
+        // More blocking tasks than threads, so some were still queued: the pool
+        // was full when the cap fired, or this test showed nothing.
+        #expect(outcome.saturated, "the pool was not full when the cap fired")
+    }
+
+    /// `tasks` tasks that each block a cooperative thread until `release`.
+    private final class BlockedPool: @unchecked Sendable {
+        let tasks: Int
+        private let gate = DispatchSemaphore(value: 0)
+        private let lock = NSLock()
+        private var started = 0
+
+        init(tasks: Int) {
+            self.tasks = tasks
+            for _ in 0..<tasks {
+                Task.detached(priority: .high) { [self] in block() }
+            }
+        }
+
+        private func block() {
+            lock.withLock { started += 1 }
+            gate.wait()
+        }
+
+        /// On a plain `Thread`: wait for `condition()` to turn true, or for
+        /// `seconds`, then let every blocked task go. `saturated` is whether some
+        /// tasks were still queued at that moment.
+        func release(
+            within seconds: Double, until condition: @escaping @Sendable () -> Bool
+        ) -> Promise<(conditionMet: Bool, saturated: Bool)> {
+            let promise = Promise<(conditionMet: Bool, saturated: Bool)>()
+            Thread.detachNewThread { [self] in
+                let deadline = Date().addingTimeInterval(seconds)
+                while !condition(), Date() < deadline { usleep(1_000) }
+                let met = condition()
+                let saturated = lock.withLock { started } < tasks
+                for _ in 0..<tasks { gate.signal() }
+                promise.fulfill((met, saturated))
+            }
+            return promise
+        }
+    }
+
+    /// A value set once from any thread and awaited from a task.
+    private final class Promise<T: Sendable>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var result: T?
+        private var waiter: CheckedContinuation<T, Never>?
+
+        func fulfill(_ value: T) {
+            lock.lock()
+            result = value
+            let w = waiter
+            waiter = nil
+            lock.unlock()
+            w?.resume(returning: value)
+        }
+
+        var value: T {
+            get async {
+                await withCheckedContinuation { cont in
+                    lock.lock()
+                    if let result {
+                        lock.unlock()
+                        cont.resume(returning: result)
+                    } else {
+                        waiter = cont
+                        lock.unlock()
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - run(_:) against a real pipe

@@ -79,12 +79,47 @@ struct GimpProbeRecipeTests {
         #expect(spec.kind == .dmg)
     }
 
-    /// GIMP publishes hex sha512/sha256, not the base64 SHA-512 `checksumPattern`
-    /// verifies — wiring the hex field would just never match, so it stays unset.
-    @Test func carriesNoChecksumBecauseThePublishedHashIsHexNotBase64() throws {
+    /// The download is checked against the hex `sha256` of the entry the URL is
+    /// built from: the arm64 dmg's, not the x86_64 one listed before it.
+    @Test func theChecksumIsTheArm64EntrysSHA256() throws {
         let recipe = try #require(recipe)
         let spec = try #require(recipe.install)
-        #expect(spec.checksumPattern == nil)
+        #expect(spec.checksumFormat == .sha256Hex)
+        let pattern = try #require(spec.checksumPattern)
+        #expect(VendorProbeRecipe.extractVersion(from: gimpVersionsFixture, pattern: pattern)
+            == "294c016dca7795999129a38b462f80fac3c13cb963e6de9d04eeb5d6e519392b")
+    }
+
+    /// Key order inside the entry does not matter: `sha256` ahead of `filename`
+    /// still pairs with that entry.
+    @Test func theChecksumDoesNotDependOnKeyOrder() throws {
+        let recipe = try #require(recipe)
+        let pattern = try #require(recipe.install?.checksumPattern)
+        let reordered = gimpVersionsFixture.replacingOccurrences(
+            of: #""filename": "gimp-3.2.4-arm64.dmg","#, with: "").replacingOccurrences(
+            of: #""build-id": "org.gimp.GIMP_official.arm64","#,
+            with: #""build-id": "org.gimp.GIMP_official.arm64", "filename": "gimp-3.2.4-arm64.dmg","#)
+        #expect(reordered != gimpVersionsFixture)
+        #expect(VendorProbeRecipe.extractVersion(from: reordered, pattern: pattern)
+            == "294c016dca7795999129a38b462f80fac3c13cb963e6de9d04eeb5d6e519392b")
+    }
+
+    /// The first arm64 entry is the one the URL reads. If it carries no `sha256`,
+    /// nothing is read — not a later (older) entry's digest, which would refuse
+    /// the good download the URL names.
+    @Test func aDigestlessFirstEntryReadsNothingRatherThanAnOlderOne() throws {
+        let recipe = try #require(recipe)
+        let pattern = try #require(recipe.install?.checksumPattern)
+        let older = """
+            ,{"version": "3.2.2", "macos": [{"filename": "gimp-3.2.2-arm64.dmg", "sha256": "\(String(repeating: "a", count: 64))"}]}
+            """
+        let body = gimpVersionsFixture
+            .replacingOccurrences(
+                of: #""sha256": "294c016dca7795999129a38b462f80fac3c13cb963e6de9d04eeb5d6e519392b","#, with: "")
+            .replacingOccurrences(of: "\n    ],\n    \"DEVELOPMENT\"", with: older + "\n    ],\n    \"DEVELOPMENT\"")
+        #expect(body.contains("gimp-3.2.2-arm64.dmg"))
+        #expect(!body.contains("294c016d"))
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: pattern) == nil)
     }
 }
 

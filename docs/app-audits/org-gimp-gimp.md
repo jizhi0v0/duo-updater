@@ -37,3 +37,14 @@ only defense, same tradeoff as Gemini (`Recipes/com-google-GeminiMacOS.swift`).
 Installed-bundle identity confirmed 2026-08-16: `org.gimp.gimp`,
 notarized Developer ID, Team T25BQ8HSJF (GNOME Foundation) — `spctl`
 accepted as "Notarized Developer ID".
+
+### Recipes/org-gimp-gimp.swift — 一键接上 sha256（2026-10-07）
+
+原注释里「hex 摘要接不上、只靠 Team ID 闸」不再成立：`VendorInstallSpec.checksumFormat: .sha256Hex`（#1016）之后，
+下载会先对同一条目的 `sha256` 核对。
+
+实测（2026-10-07，`www.gimp.org/gimp_versions.json`，142,588 B）：`STABLE[0]` 是 3.2.6，`macos` 里 x86_64 在前、arm64 在后，
+每个条目的键依次是 `date, filename, sha512, sha256, build-id, min-support`。checksum pattern 在这份文件上取到 arm64 的
+`854573aec2be6a185aa021109c3c0ca94f210379204b704231bdd191b4060294`，与 JSON 值一致。经镜像（`mirrors.ocf.berkeley.edu`）
+下载的 `gimp-3.2.4-arm64.dmg` 的 SHA-256 等于该版本公布的 `294c016d…392b`。`duo install GIMP` 3.2.4 → 3.2.6：
+`extracting` 前出现 `verifyingSignature`（摘要闸），安装成功，`spctl` accepted，Notarized Developer ID，GNOME Foundation (T25BQ8HSJF)。

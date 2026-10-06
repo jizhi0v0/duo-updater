@@ -35,7 +35,9 @@ struct VendorSHA256GateTests {
         return archive
     }
 
-    private static func result(sha256: String?) -> UpdateResult {
+    private static func result(
+        sha256: String?, source: String = "Vendor", kind: VendorInstallerKind = .zip
+    ) -> UpdateResult {
         // Invented, and asserted absent below: a real path would put the
         // signature gate on whatever the host has installed.
         let installed = InstalledApp(
@@ -45,7 +47,7 @@ struct VendorSHA256GateTests {
         let remote = RemoteVersion(
             shortVersion: "2.0.0", version: nil,
             downloadURL: URL(string: "https://zzfixture.invalid/app.zip")!,
-            sourceName: "Vendor", vendorInstallerKind: .zip, expectedSHA256: sha256)
+            sourceName: source, vendorInstallerKind: kind, expectedSHA256: sha256)
         return UpdateResult(app: installed, remote: remote, status: .updateAvailable(latest: "2.0.0"))
     }
 
@@ -75,15 +77,19 @@ struct VendorSHA256GateTests {
         let actual = SHA256.hash(data: try Data(contentsOf: archive)).map { String(format: "%02x", $0) }.joined()
         let download = DownloadedUpdate(archiveURL: archive, bytesDownloaded: 1, workDir: scratch)
 
-        // Another file's digest: refused before anything is unpacked.
+        // Another file's digest: refused before anything is unpacked. The same for
+        // a GitHub asset's `digest` on a Team-ID rule as for a vendor's SHA-256.
         let wrong = SHA256.hash(data: Data("not this archive".utf8)).map { String(format: "%02x", $0) }.joined()
-        #expect(Self.isChecksumMismatch(await Self.failure(Self.result(sha256: wrong), download)))
+        for source in ["Vendor", "GitHub"] {
+            #expect(Self.isChecksumMismatch(
+                await Self.failure(Self.result(sha256: wrong, source: source), download)), "\(source)")
 
-        // Its own digest, in either case: past the gate, refused later (unsigned).
-        for digest in [actual, actual.uppercased()] {
-            let error = await Self.failure(Self.result(sha256: digest), download)
-            #expect(error != nil)
-            #expect(!Self.isChecksumMismatch(error), "the right digest was refused")
+            // Its own digest, in either case: past the gate, refused later (unsigned).
+            for digest in [actual, actual.uppercased()] {
+                let error = await Self.failure(Self.result(sha256: digest, source: source), download)
+                #expect(error != nil)
+                #expect(!Self.isChecksumMismatch(error), "the right digest was refused (\(source))")
+            }
         }
 
         // A local stash is another updater's container, which this digest does not
@@ -96,6 +102,33 @@ struct VendorSHA256GateTests {
         let stashError = await Self.failure(Self.result(sha256: wrong), stashed)
         #expect(stashError != nil)
         #expect(!Self.isChecksumMismatch(stashError))
+    }
+
+    /// The package route (XQuartz, the registry's GitHub `.pkg`) checks a published
+    /// SHA-256 too, before anything parses or mounts the download — and without
+    /// one, passes it through to `PackageInstaller`'s own gate as before.
+    /// Mutation: drop the SHA-256 check in `verifyInstallerDownload` → the wrong
+    /// digest passes.
+    @Test func aPackageIsCheckedAgainstThePublishedSHA256BeforeTheInstaller() throws {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZSHA256Gate-\(UUID().uuidString).pkg")
+        try Data("package bytes".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let actual = SHA256.hash(data: try Data(contentsOf: file)).map { String(format: "%02x", $0) }.joined()
+        let wrong = SHA256.hash(data: Data("not this package".utf8)).map { String(format: "%02x", $0) }.joined()
+
+        for source in ["GitHub", "Vendor"] {
+            var refusal: Error?
+            do {
+                _ = try InstallCoordinator.verifyInstallerDownload(
+                    file, for: Self.result(sha256: wrong, source: source, kind: .pkg)) { _ in }
+            } catch { refusal = error }
+            #expect(Self.isChecksumMismatch(refusal), "\(source)")
+            for digest in [actual, nil] {
+                #expect(try InstallCoordinator.verifyInstallerDownload(
+                    file, for: Self.result(sha256: digest, source: source, kind: .pkg)) { _ in } == nil)
+            }
+        }
     }
 
     /// The probe puts the captured digest in the field its format names, and only

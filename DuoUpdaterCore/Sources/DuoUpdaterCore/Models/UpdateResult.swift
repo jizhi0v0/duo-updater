@@ -160,7 +160,8 @@ public struct DeltaPatch: Sendable, Hashable {
 /// downloaded, and the installer knows which gate 3 to run.
 public enum InstallTrust: Sendable, Hashable, CaseIterable {
     /// A Developer ID signature with the installed app's Team ID. Every route
-    /// but the one below.
+    /// but the one below. A published SHA-256 (`RemoteVersion.expectedSHA256`),
+    /// when the source has one, is checked on top of it, never instead of it.
     case developerID
     /// No Team ID on either side (ad-hoc signed): the download's only proof is
     /// that its SHA-256 equals the `digest` GitHub's API publishes for that
@@ -282,10 +283,12 @@ public struct RemoteVersion: Sendable, Hashable {
     public let expectedSHA512: String?
 
     /// SHA-256 (hex) of the download. Two sources set it:
-    ///  - a `.publishedDigestOnly` GitHub rule: the `digest` GitHub's API reports
-    ///    for the release asset, read from the same release object as the URL — the
-    ///    whole proof of origin there; nil when the asset has none (GitHub did not
-    ///    backfill assets uploaded before June 2025);
+    ///  - a GitHub rule: the `digest` GitHub's API reports for the release asset,
+    ///    read from the same release object as the URL; nil when the asset has none
+    ///    (GitHub did not backfill assets uploaded before June 2025). For a
+    ///    `.publishedDigestOnly` rule it is the whole proof of origin; for a
+    ///    `.developerID` rule it is checked before the Team-ID gate, ON TOP of it,
+    ///    and its absence changes nothing;
     ///  - a vendor recipe whose `checksumFormat` is `.sha256Hex`: checked before
     ///    unpacking, ON TOP of the Team-ID gate, like `expectedSHA512`.
     /// Which of the two it is follows `installTrust`, never the field's presence.

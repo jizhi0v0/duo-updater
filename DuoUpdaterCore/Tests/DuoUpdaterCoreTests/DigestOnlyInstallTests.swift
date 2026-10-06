@@ -98,6 +98,20 @@ import Testing
         #expect(remote?.vendorInstallerKind == .dmg)
     }
 
+    /// A Team-ID rule carries the chosen asset's digest too, so `VendorInstaller`
+    /// checks the download before the Team-ID gate — and it is the arm64 asset's,
+    /// not the Intel one listed first.
+    /// Mutations: restore `installTrust == .publishedDigestOnly ? digest : nil` →
+    /// nil here; take the release's first digest → the Intel digest.
+    @Test func aTeamIDRuleCarriesTheChosenAssetsDigestToo() async {
+        let remote = await resolve("zz-digest/both", trust: .developerID)
+        #expect(remote?.downloadURL?.lastPathComponent == "App-2.0.0-arm64.dmg")
+        #expect(remote?.expectedSHA256 == Self.armDigest)
+        #expect(remote?.installTrust == .developerID)
+        #expect(remote?.vendorInstallerKind == .dmg)
+        #expect(remote?.requiresManualInstaller == false)
+    }
+
     /// Mutation: drop `|| digest != nil` from `installable` → a digest-only rule
     /// offers an asset there is nothing to check against.
     @Test func aDigestOnlyAssetWithoutADigestIsDetectionOnly() async {
@@ -109,6 +123,7 @@ import Testing
         // A Team-ID rule never needed a digest, and still doesn't.
         let team = await resolve("zz-digest/none", trust: .developerID)
         #expect(team?.vendorInstallerKind == .dmg)
+        #expect(team?.requiresManualInstaller == false)
         #expect(team?.expectedSHA256 == nil)
         #expect(team?.installTrust == .developerID)
     }

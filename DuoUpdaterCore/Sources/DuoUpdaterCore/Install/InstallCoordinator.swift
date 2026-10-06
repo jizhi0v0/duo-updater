@@ -518,14 +518,29 @@ public actor InstallCoordinator {
     /// Source-specific proof over a package route's original download. A Sparkle
     /// package bypasses SparkleInstaller's archive path, but must not bypass Gate 1:
     /// EdDSA covers the exact enclosure (the outer DMG when the pkg is wrapped).
-    /// PackageInstaller independently verifies the selected inner package's
-    /// Developer ID Installer signature and Team ID before opening it.
+    /// Any other Developer-ID package is checked against `expectedSHA256` when its
+    /// source published one (GitHub's asset `digest` — XQuartz's rule is the
+    /// registry's GitHub `.pkg`). PackageInstaller independently verifies the
+    /// selected inner package's Developer ID Installer signature and Team ID
+    /// before opening it.
     static func verifyInstallerDownload(
         _ file: URL,
         for result: UpdateResult,
         progress: @Sendable (InstallStage) -> Void
     ) throws -> Data? {
-        guard result.remote?.sourceName == "Sparkle" else { return nil }
+        guard result.remote?.sourceName == "Sparkle" else {
+            // A Developer-ID package whose source published its SHA-256 (a GitHub
+            // asset's `digest`) is checked against it before anything parses or
+            // mounts it — this route's counterpart of `VendorInstaller`'s SHA-256
+            // gate, and like it, on top of the Team-ID gate rather than instead.
+            // No published digest: nothing changes.
+            if result.remote?.installTrust == .developerID,
+               let expected = result.remote?.expectedSHA256 {
+                progress(.verifyingSignature)
+                try VendorInstaller.verifySHA256(file, expectedHex: expected)
+            }
+            return nil
+        }
         guard let key = result.app.sparkleEdPublicKey, !key.isEmpty else {
             throw SignatureVerifier.VerifyError.edSignatureMissing
         }

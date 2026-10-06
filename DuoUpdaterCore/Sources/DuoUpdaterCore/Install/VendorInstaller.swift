@@ -311,8 +311,9 @@ public actor VendorInstaller {
                 try verifyChecksum(download.archiveURL, expectedBase64: expected)
             }
             // The same gate for a vendor that publishes SHA-256 hex
-            // (`VendorInstallSpec.checksumFormat`). A digest-only download already
-            // had its SHA-256 checked above, as its proof of origin.
+            // (`VendorInstallSpec.checksumFormat`) and for a GitHub asset with a
+            // `digest`. A digest-only download already had its SHA-256 checked
+            // above, as its proof of origin.
             if remote.installTrust == .developerID, let expected = remote.expectedSHA256,
                download.localStash == nil {
                 onStage(.verifyingSignature)

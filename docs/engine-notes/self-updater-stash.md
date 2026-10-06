@@ -181,6 +181,8 @@ artifact stops applying, and `applyVerified` drops it:
 - `RemoteVersion.expectedSHA512` digests the dmg. Run against the zip it cannot
   pass, and it would fail as `checksumMismatch` — "may be corrupt or tampered" —
   for a file that is neither.
+- `RemoteVersion.expectedSHA256` likewise — for OpenCode it is the `digest` GitHub
+  publishes for that dmg, not for the zip.
 - `RemoteVersion.nestedArchivePath` describes where a payload sits inside one
   particular stub installer. A zip of the app is not that stub.
 

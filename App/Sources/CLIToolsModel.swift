@@ -86,6 +86,15 @@ final class CLIToolsModel {
     var oneClickable: [CLIToolStatus] {
         outdated.filter { $0.oneClick != nil && !updating.contains($0.toolID) }
     }
+    /// The outdated installs a click updates, whether or not one is running now:
+    /// what an "updates" count says. A held-back one is not among them — counted
+    /// with them, "2 updates" sat beside one Update button (2026-10-06: openclaw
+    /// 2026.9.8 needs Node ≥ 24.16, its prefix runs 24.13).
+    var offered: [CLIToolStatus] { outdated.filter { $0.oneClick != nil } }
+    /// The outdated installs no click will update: a gate held them back
+    /// (`CLIToolStatus.withheld` says which).
+    var heldBack: [CLIToolStatus] { outdated.filter { $0.oneClick == nil } }
+
     /// Whether this Mac has anything for the CLI surface to show at all.
     var hasAnything: Bool { !statuses.isEmpty }
 
@@ -542,6 +551,14 @@ final class CLIToolsModel {
         case (.unsupportedInstaller, .bun):
             // A canary: `bun upgrade` installs the newest canary, with no version.
             return String(localized: "A canary build, which has no version to compare")
+        // Which part of Codex's standalone install is missing, rather than "An
+        // install is broken": seen on 2026-10-06, `current` was a directory left
+        // by a removed Codex.app, and the codex on PATH was Homebrew's, unharmed.
+        case (.broken, .codex(let codex)) where codex.problem == .noCurrent:
+            return String(localized: "Its standalone install has no current release")
+        case (.broken, .codex(let codex)) where codex.problem == .binaryMissing:
+            let version = codex.version ?? "?"
+            return String(localized: "Codex \(version) is missing its program file")
         case (.autoUpdateOff, .codex):
             // Codex has no auto-update to turn off: its `check_for_update_on_startup`
             // is the prompt, set false "only if your Codex updates are centrally managed".

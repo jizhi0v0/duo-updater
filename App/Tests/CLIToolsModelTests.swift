@@ -278,6 +278,23 @@ struct CLIToolsModelTests {
         #expect(await updater.calls.isEmpty)
     }
 
+    /// An update a gate held back is not an offered one: "updates" counts what
+    /// a click updates, and the held-back copy is counted apart.
+    ///
+    /// Mutations: drop the `oneClick` test from `offered` (2 offered) or from
+    /// `heldBack` (2 held back).
+    @Test func aHeldBackUpdateIsNotCountedAsOffered() async {
+        let offered = Self.status(Self.native)
+        let held = Self.status("/Users/ann/.npm-global/bin/claude", oneClick: false, withheld: .runtimeTooOld)
+        let check = FakeCheck([(Self.report(offered, held), nil)])
+        let model = Self.model(check: check)
+        await model.refresh()
+
+        #expect(model.outdated.count == 2)
+        #expect(model.offered.map(\.path) == [Self.native])
+        #expect(model.heldBack.map(\.path) == ["/Users/ann/.npm-global/bin/claude"])
+    }
+
     // MARK: outcomes
 
     /// A failed update puts its one line on the row and its whole output in the

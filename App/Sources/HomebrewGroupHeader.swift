@@ -16,8 +16,11 @@ import SwiftUI
 //
 // Plain values in, not the model, so both can be drawn from fixtures.
 
-/// The Homebrew group's section header: open/close, and Upgrade All.
+/// The Homebrew group's section header: open/close, and Upgrade All. The
+/// "Other tools" level above the tool groups wears the same one, with its own
+/// title and Update All.
 struct HomebrewGroupHeader<Trailing: View>: View {
+    var title = "Homebrew"
     let expanded: Bool
     let toggleDisabled: Bool
     let toggle: () -> Void
@@ -31,7 +34,7 @@ struct HomebrewGroupHeader<Trailing: View>: View {
                         .font(.caption2.weight(.bold))
                         .rotationEffect(.degrees(expanded ? 90 : 0))
                         .frame(width: 10)
-                    Text(verbatim: "Homebrew")
+                    Text(verbatim: title)
                 }
                 .contentShape(Rectangle())
             }

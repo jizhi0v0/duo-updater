@@ -11,6 +11,21 @@ private var homeDirectory: String { FileManager.default.homeDirectoryForCurrentU
 
 // MARK: - Sidebar row
 
+extension View {
+    /// A sidebar row's Update: prominent, except on the selected row. The
+    /// selection's accent fill is the prominent button's own colour, and the
+    /// button merged into the highlight (seen on 2026-10-06 on a brew formula);
+    /// a plain bordered button stands out from it.
+    @ViewBuilder
+    func rowUpdateButtonStyle(selected: Bool) -> some View {
+        if selected {
+            buttonStyle(.bordered)
+        } else {
+            buttonStyle(.borderedProminent)
+        }
+    }
+}
+
 /// One install of any tool in the CLI tab. The trailing control follows the rules
 /// the user set: Update only when every gate passed (`oneClick`), the command to
 /// copy when the tool's own auto-update is off, and otherwise nothing — the caption
@@ -85,7 +100,7 @@ struct CLIToolSidebarRow: View {
         } else if status.oneClick != nil {
             Button("Update") { Task { await cli.update(id) } }
                 .controlSize(.small)
-                .buttonStyle(.borderedProminent)
+                .rowUpdateButtonStyle(selected: isSelected)
         } else if let command = CLIToolPresentation.manualCommand(status) {
             // A glyph, like the Brew trust command's row button: a labelled button
             // would leave a 260 pt sidebar too little room for the title beside it.

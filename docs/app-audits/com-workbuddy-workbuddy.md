@@ -170,8 +170,8 @@ app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行写�
   而且下游一个都拦不住：同厂商、同 Team、真正的公证包，签名闸看不出来，
   `ChannelProofRegistry` 又只管非 stable。钉死之后同样的情况变成**响亮失败**
   （`installURLUnresolved`，夜扫 `duo verify` 会报）。守卫见 `noRecipeResolvesTheOtherSitesArtifact`
-- `sha256hash` **故意不用**：那是 SHA-256 hex，而 `checksumPattern` 吃的是 base64
-  SHA-512，接不上；由签名闸兜底
+- `sha256hash` **故意不用**：它不是 `url` 那个 `.zip` 的摘要，而是同路径 `.dmg` 兄弟的 SHA-256
+  （2026-10-07 两站×两架构四个 zip 全部实测，见「历史与实测」）。接上会让每次正常下载都被拒；由签名闸兜底
 
 ## 已知问题
 
@@ -333,3 +333,21 @@ major.minor 比较的前提——后是 50 个），按「该 app 的 changelog 
 HEAD 上 Claude 的 GA 行已经追上 changelog，这个 case 已经不成立了）。
 
 **键**：见上「键已修」。两道闸现在各自都能单独抓住本 app 这一对。
+
+### `sha256hash` 是 dmg 的摘要，不是 zip 的（2026-10-07）
+
+#1016 让 `checksumFormat: .sha256Hex` 可用后，试过把 `sha256hash` 接进一键，下载字节对不上，**没接**。
+
+实测（生产 `VendorProbeSource.probeDiagnostic` 解析出的 zip，下载后 `shasum -a 256`；dmg 为同路径把 `.zip` 换成
+`.dmg` 的兄弟）：
+
+| 站 / 架构 | 版本 | `sha256hash` | zip 实算 | dmg 实算 |
+|---|---|---|---|---|
+| CN arm64 | 5.7.6.40409493 | `97fa56af…` | `82ae0de8…`（426,945,593 B） | `97fa56af…`（357,195,805 B） |
+| CN x64 | 5.7.6.40409493 | `412b9e92…` | `63b90542…`（450,749,182 B） | `412b9e92…`（386,109,508 B） |
+| intl arm64 | 5.6.2.39458645 | `93bcdc42…` | `57d136cd…`（497,194,365 B） | `93bcdc42…`（533,453,859 B） |
+| intl x64 | 5.6.2.39458645 | `6f8a06cd…` | `463f5d42…`（509,928,471 B） | `6f8a06cd…`（548,613,077 B） |
+
+zip 本身完好：大小等于 `content-length`，MD5 等于 COS 的 `x-cos-meta-md5`（CN arm64 `d32cbdf3…`、intl arm64
+`e0aef4a6…`），`unzip -t` 无错。Homebrew cask `workbuddy-ai` 给 dmg 记的 sha256 也正是这两个 intl 值。也就是说厂商把
+dmg 的摘要配在 zip 的 `url` 旁边。要用它，得把一键改成装那个 dmg（端点没声明 dmg 地址，是推断出来的），这次没做。

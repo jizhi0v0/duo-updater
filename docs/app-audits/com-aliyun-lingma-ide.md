@@ -88,7 +88,9 @@
   与 `release/1.31.1/` 相同）；源站 `qoder-ide-cn.oss-cn-hangzhou.aliyuncs.com` 的 `lastest`、以及加随机
   查询串绕过缓存的 CDN 请求，都已是 1.31.2（ETag `C9448E6C…`，282,186,278 字节，与 `release/1.31.2/` 相同）。
   照 `url` 下载会在 1.31.2 的标签下装上 1.31.1。
-- 校验和: 响应给 sha256 hex；`checksumPattern` 要 base64 SHA-512，没接。
+- 校验和: **已接**（2026-10-07）。`checksumFormat: .sha256Hex`（#1016）之后，zip 解包前先对同一份响应的
+  `sha256hash` 核对。响应把它和 `lastest` 的 `url` 写在一起，但摘要是这个 release 的：实测等于版本化 zip
+  的字节（见「历史与实测」）。
 - 包验: 见「历史与实测」。没有跑 `--install` 实装。
 
 ## 已知问题
@@ -156,3 +158,14 @@ en0 当前是私有地址，与硬件地址不同）。本机真实 id 问 `late
 
 同日约一小时后复测：20 个随机 id 全部 1.31.2（一小时前 6/20），64 个 `0` 由 1.31.1 变为 1.31.2，本机真实 id
 也变为 1.31.2——放量在推进，这是灰度而不是节点不一致的又一证据。
+
+### 2026-10-07 一键接上 sha256
+
+`checksumPattern` 读同一份响应的 `sha256hash`，`checksumFormat: .sha256Hex`。安装地址仍按同一份响应的
+`productVersion` 拼版本化路径，所以版本、地址、摘要指向同一个 build。
+
+实测（生产 `VendorProbeSource.probeDiagnostic`，按 recipe 带 `machineId`）：`productVersion` 1.32.0，
+解析出 `https://ide.qoder.com.cn/qoder/release/1.32.0/QoderCN-darwin-arm64.zip`；下载 283,322,190 B，
+`shasum -a 256` = `6bbc0cd4…07c56`，等于 `sha256hash`；`VendorInstaller.verifySHA256` 通过，翻转一个字节的副本抛
+`checksumMismatch`。风险说明：若 CDN 边缘的版本化对象本身陈旧（至今没见过，陈旧的只有 `lastest`），摘要会对不上并
+以 `checksumMismatch` 拒装，而不是装错包。

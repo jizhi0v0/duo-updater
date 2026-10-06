@@ -45,6 +45,11 @@ enum com_aliyun_lingma_ide {
         // versioned path `release/<version>/QoderCN-darwin-arm64.zip` is the same
         // object the origin's `lastest` resolves to once it is current.
         //
+        // The zip is checked against `sha256hash` (hex) from the same response
+        // that gave the version, so digest and versioned path name one build. The
+        // body pairs the digest with its `lastest` url, but the digest is the
+        // release's, and it matched the bytes of the versioned zip (History).
+        //
         // `darwin-arm64` only: `/darwin/stable/latest` answers the x64 zip, and
         // `darwin-x64` and the `insider` quality 404.
         VendorProbeRecipe(
@@ -59,7 +64,9 @@ enum com_aliyun_lingma_ide {
             install: VendorInstallSpec(
                 urlSource: .versionTemplate(
                     "https://ide.qoder.com.cn/qoder/release/{version}/QoderCN-darwin-arm64.zip"),
-                kind: .zip),
+                kind: .zip,
+                checksumPattern: #""sha256hash"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex),
             identities: [ProbeIdentity.vsCodeMachineID(applicationSupportDirectory: "QoderCN")]),
         ],
         changelogs: [

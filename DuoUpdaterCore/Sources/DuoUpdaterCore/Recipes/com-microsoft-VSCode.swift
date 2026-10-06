@@ -12,11 +12,18 @@ enum com_microsoft_VSCode {
             mode: .responseBody,
             versionPattern: #""name"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             changelogURL: URL(string: "https://code.visualstudio.com/updates"),
-            // `/latest/darwin-arm64/stable` 302-redirects to the official zip.
+            // One-click takes the commit-pinned zip the response names in `url` and
+            // checks it against `sha256hash` (hex) from the same response. It used
+            // to follow `/latest/darwin-arm64/stable`, which 302s to the same zip
+            // today but is resolved only when Update is pressed, so after a new
+            // build lands it would name a different file from the digest the check
+            // read. Taking the url out of the same body keeps the two together.
             install: VendorInstallSpec(
-                urlSource: .redirect(
-                    URL(string: "https://update.code.visualstudio.com/latest/darwin-arm64/stable")!),
-                kind: .zip)),
+                urlSource: .bodyPattern(
+                    #""url"\s*:\s*"(https://[^"]+/stable/[0-9a-f]{40}/VSCode-darwin-arm64\.zip)""#),
+                kind: .zip,
+                checksumPattern: #""sha256hash"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex)),
 
         // VS Code Insiders — same update API on the `insider` track, its own
         // bundle id `com.microsoft.VSCodeInsiders` (display name "Code - Insiders",
@@ -29,7 +36,10 @@ enum com_microsoft_VSCode {
         // daily builds differ by commit hash, which the Info.plist doesn't expose),
         // so detection is monthly-granular; Insiders self-updates daily anyway, and
         // comparing on the suffixed name can only ever say "up to date" or a real
-        // minor bump — never a phantom update. One-click mirrors stable (zip swap).
+        // minor bump — never a phantom update. One-click mirrors stable (the zip
+        // the body names, checked against its `sha256hash`). Reading the url from
+        // the body matters most here: a daily build moves the `/latest/…/insider`
+        // redirect within hours of a check.
         VendorProbeRecipe(
             bundleID: "com.microsoft.VSCodeInsiders",
             url: URL(string: "https://update.code.visualstudio.com/api/update/darwin-arm64/insider/latest")!,
@@ -37,9 +47,11 @@ enum com_microsoft_VSCode {
             versionPattern: #""name"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+-insider)""#,
             changelogURL: URL(string: "https://code.visualstudio.com/updates"),
             install: VendorInstallSpec(
-                urlSource: .redirect(
-                    URL(string: "https://update.code.visualstudio.com/latest/darwin-arm64/insider")!),
-                kind: .zip),
+                urlSource: .bodyPattern(
+                    #""url"\s*:\s*"(https://[^"]+/insider/[0-9a-f]{40}/VSCode-darwin-arm64\.zip)""#),
+                kind: .zip,
+                checksumPattern: #""sha256hash"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex),
             channel: .preview),
         ],
         changelogs: [

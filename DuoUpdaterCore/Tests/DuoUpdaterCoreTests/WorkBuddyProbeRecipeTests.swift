@@ -246,9 +246,10 @@ struct WorkBuddyProbeRecipeTests {
         }
     }
 
-    /// `sha256hash` is a SHA-256 hex digest; `checksumPattern` consumes base64
-    /// SHA-512. Asserting it would fail every download, so it is deliberately
-    /// unset and the Team ID signature gate carries the swap.
+    /// `sha256hash` is the SHA-256 of the `.dmg` sibling, not of the `.zip` the
+    /// body's `url` names (measured 2026-10-07 on all four host×arch pairs).
+    /// Asserting it would fail every download, so it is deliberately unset and
+    /// the Team ID signature gate carries the swap.
     @Test func theSHA256FieldIsDeliberatelyUnused() throws {
         for recipe in Self.recipes {
             let spec = try #require(recipe.install)

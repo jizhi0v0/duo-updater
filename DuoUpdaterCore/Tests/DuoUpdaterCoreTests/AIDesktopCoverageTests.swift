@@ -153,6 +153,26 @@ private func aiInstallURL(_ bundleID: String, body: String, version: String) thr
         + "2d9020110aa91587b3c3b0fcf7d1faaf601fc7b8/Devin-darwin-arm64-3.8.20.dmg")
 }
 
+/// Devin's dmg is checked against the response's `sha256hash` (hex). The body is
+/// the 2026-10-07 response verbatim; its `hash` is a 40-hex SHA-1 and must not
+/// be read.
+@Test func devinChecksTheDmgAgainstTheResponsesSHA256() throws {
+    let recipe = try aiVendorRecipe("com.exafunction.windsurf")
+    let spec = try #require(recipe.install)
+    #expect(spec.checksumFormat == .sha256Hex)
+    let pattern = try #require(spec.checksumPattern)
+    let body = #"{"url":"https://windsurf-stable.codeiumdata.com/darwin-arm64-dmg/stable/fcf7ba39e6150055fad817f8716385b4d320d46d/Devin-darwin-arm64-3.10.48.dmg","name":"1.126.0","notes":"fcf7ba39e6150055fad817f8716385b4d320d46d","version":"fcf7ba39e6150055fad817f8716385b4d320d46d","productVersion":"1.126.0","hash":"1ac0f0b1608c0afb7fe71836c85679e3d31f9793","timestamp":1790652872000,"sha256hash":"4b3c81ff47e6a645785c53519ea8228de2c6f49596e342820f111caa3dd8791b","supportsFastUpdate":true,"windsurfVersion":"3.10.48","displayName":"macOS for Apple Silicon (.dmg)"}"#
+    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: pattern)
+        == "4b3c81ff47e6a645785c53519ea8228de2c6f49596e342820f111caa3dd8791b")
+
+    // Without `sha256hash`, nothing is read — not the SHA-1 beside it.
+    let noDigest = body.replacingOccurrences(
+        of: #""sha256hash":"4b3c81ff47e6a645785c53519ea8228de2c6f49596e342820f111caa3dd8791b","#,
+        with: "")
+    #expect(noDigest != body)
+    #expect(VendorProbeRecipe.extractVersion(from: noDigest, pattern: pattern) == nil)
+}
+
 /// AionUi's manifest lists a digest for every artifact it publishes, indented
 /// under `files:`, and one more at column 0 for `path:` — the zip the template
 /// builds. The install spec's pattern must read the top-level one; the indented

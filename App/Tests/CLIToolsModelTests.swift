@@ -57,6 +57,7 @@ struct CLIToolsModelTests {
         case .opencode: detail = .opencode(OpencodeInstall(path: path, version: version))
         case .cursorAgent: detail = .cursorAgent(CursorAgentInstall(path: path, version: version))
         case .amp: detail = .amp(AmpInstall(path: path, version: version))
+        case .vitePlus: detail = .vitePlus(VitePlusInstall(path: path, layout: .split, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -85,6 +86,7 @@ struct CLIToolsModelTests {
         case .opencode: context = .opencode(OpencodeSettings())
         case .cursorAgent: context = .cursorAgent(CursorAgentSettings())
         case .amp: context = .amp(AmpSettings())
+        case .vitePlus: context = .vitePlus
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }

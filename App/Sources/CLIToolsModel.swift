@@ -145,6 +145,7 @@ final class CLIToolsModel {
         providers: [any CLIToolProvider] = [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
             BoatProvider(), CodexProvider(), BunProvider(), OpencodeProvider(), CursorAgentProvider(), AmpProvider(),
+            VitePlusProvider(),
         ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
@@ -426,7 +427,7 @@ final class CLIToolsModel {
         case .opencode: return "Anomaly"
         case .cursorAgent: return "Anysphere"
         case .amp: return "Amp Frontier"
-        case .bub, .rust, .npm, .boat: return nil
+        case .bub, .rust, .npm, .boat, .vitePlus: return nil
         }
     }
 

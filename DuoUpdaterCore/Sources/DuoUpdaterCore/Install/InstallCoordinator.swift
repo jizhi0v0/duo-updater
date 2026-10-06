@@ -108,13 +108,47 @@ public actor InstallCoordinator {
     private let packages = PackageInstaller()
     /// The `.xcode` route's downloader, or nil where there is none (the CLI).
     private let xcodeDownloader: (any XcodeArchiveDownloading)?
+    /// The live process list `NestedAppGuard` reads before a swap. A seam for
+    /// tests.
+    private let runningProcesses: @Sendable () -> [NestedAppGuard.RunningProcess]
 
     public init(
         permits: InstallPermits = InstallPermits(downloads: 4, applies: 2),
-        xcodeDownloader: (any XcodeArchiveDownloading)? = nil
+        xcodeDownloader: (any XcodeArchiveDownloading)? = nil,
+        runningProcesses: @escaping @Sendable () -> [NestedAppGuard.RunningProcess] = NestedAppGuard.liveProcesses
     ) {
         self.permits = permits
         self.xcodeDownloader = xcodeDownloader
+        self.runningProcesses = runningProcesses
+    }
+
+    /// The refusal a host must check BEFORE it touches anything for this
+    /// install. Clearing a staged self-update changes state, and so does taking a
+    /// rollback point: retention is one per app, so a refused install that had
+    /// already backed up would lose the previous rollback point.
+    ///
+    /// Only the routes whose swap this coordinator performs or starts: `.sparkle`
+    /// and `.vendor` (`fetchThenSwap`) and `.homebrew`. `perform` asks again
+    /// before the download and before the apply, for a nested app started in the
+    /// meantime.
+    public static func nestedAppRefusal(
+        for result: UpdateResult, route: Route,
+        processes: () -> [NestedAppGuard.RunningProcess] = NestedAppGuard.liveProcesses
+    ) -> NestedAppRunningError? {
+        switch route {
+        case .sparkle, .vendor, .homebrew:
+            return NestedAppGuard.refusal(
+                result.app.path, appName: result.app.name, processes: processes)
+        case .installer, .appStore, .xcode:
+            return nil
+        }
+    }
+
+    /// Throws `NestedAppRunningError` when an app nested in `result`'s bundle is
+    /// running on its own (see `NestedAppGuard`).
+    private func refuseWhileNestedAppRuns(_ result: UpdateResult) throws {
+        try NestedAppGuard.check(
+            result.app.path, appName: result.app.name, processes: runningProcesses)
     }
 
     /// The route an update takes.
@@ -390,6 +424,9 @@ public actor InstallCoordinator {
             guard let token = result.remote?.sourceIdentifier else {
                 throw CoordinatorError.missingCaskToken
             }
+            // brew moves the bundle aside like our own swap does, so it gets the
+            // same refusal, before brew is started.
+            try refuseWhileNestedAppRuns(result)
             progress(.runningCommand("starting brew…"))
             // brew's fetch and swap are one command we cannot split, so the whole
             // run takes the apply permit — and brew does its own downloading, so
@@ -524,6 +561,9 @@ public actor InstallCoordinator {
         apply: @Sendable (UpdateResult, DownloadedUpdate, @Sendable @escaping (InstallStage) -> Void) async throws -> Void
     ) async throws -> Outcome {
         let label = "\(result.app.name)"
+        // Refused before any byte moves, and again right before the apply below,
+        // since the nested app may have been started during the download.
+        try refuseWhileNestedAppRuns(result)
         progress(.downloading(fraction: 0))
         Log.install.debug("\(label, privacy: .public): waiting for a download permit")
         let downloaded = try await permits.withDownloadPermit {
@@ -548,6 +588,10 @@ public actor InstallCoordinator {
         var applyHeld = true
         defer { if applyHeld { permits.signalApply() } }
         try Task.checkCancellation()
+        // Here rather than inside the installers: an error thrown inside a
+        // patch-route `apply` is wrapped as `DeltaRouteFailure` and retried with
+        // the full archive, and a refusal must not be retried.
+        try refuseWhileNestedAppRuns(result)
         Log.install.debug("\(label, privacy: .public): applying")
         try await apply(result, downloaded, progress)
         permits.signalApply()

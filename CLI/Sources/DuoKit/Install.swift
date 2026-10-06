@@ -810,6 +810,17 @@ public enum Install {
                 continue
             }
 
+            // Before anything below touches state: clearing a staged update and
+            // taking a rollback point both change something, and a rollback point
+            // replaced by an install that was then refused is the previous one lost.
+            if let refused = InstallCoordinator.nestedAppRefusal(for: toInstall, route: route) {
+                let message = refused.errorDescription ?? "a nested app is running"
+                if !json { print("   skipped: \(message)") }
+                emitSkipped(name: name, route: route, reason: message, outcome: .skipped, json: json)
+                tally.record(.skipped)
+                continue
+            }
+
             // Staged by the app's own Sparkle, not the latest: cleared so this
             // install is not undone on the next quit. Same rule as the menu-bar
             // app; a clearance that cannot confirm every step skips the row.
@@ -882,6 +893,17 @@ public enum Install {
                 }
                 tally.record(category)
                 emit(name: name, route: route, outcome: installOutcome, json: json)
+            } catch let refused as NestedAppRunningError {
+                // The nested app started after the check above, during the
+                // download. Still a refusal waiting on the user to quit a process,
+                // so it is counted and emitted as a skip, not as a failure. The
+                // rollback point may already have been replaced by then, which is
+                // why the message says the app was not updated rather than that
+                // nothing changed.
+                let message = refused.errorDescription ?? "a nested app is running"
+                tally.record(.skipped)
+                emitSkipped(name: name, route: route, reason: message, outcome: .skipped, json: json)
+                FileHandle.standardError.write(Data("   skipped: \(message)\n".utf8))
             } catch is AuthorizationDeclinedError {
                 // Dismissing the password panel is a decision, not a failure — it
                 // does not count toward `failed`, and it is remembered so neither

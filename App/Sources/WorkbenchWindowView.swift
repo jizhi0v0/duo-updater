@@ -945,18 +945,27 @@ struct WorkbenchWindowView: View {
     /// runs — every copy with a one-click update, each with its own tool's
     /// command, the independent ones at once (`CLIToolsModel.lane(of:)`). Copies
     /// without one are left alone.
+    ///
+    /// Kept while any update is on offer, disabled while every one of them is
+    /// already updating — Homebrew's Upgrade All rule — and covered by a spinner
+    /// while it runs rather than replaced by one. The header's height is the
+    /// button's: when it went away for a single row's update and came back when
+    /// that failed, every row below moved 1 pt up and back (fx, 2026-10-06).
     @ViewBuilder
     private var otherToolsBulkUpdate: some View {
         let tools = model.cliTools
-        if tools.updatingAll {
-            ProgressView().controlSize(.small)
-        } else if !tools.oneClickable.isEmpty {
+        if !tools.offered.isEmpty {
             Button("Update All") { Task { await tools.updateAll() } }
                 .controlSize(.small)
                 .buttonStyle(.bordered)
                 // Not while brew upgrades: npm packages can run on Homebrew's node.
-                .disabled(model.brewUpgrading || !model.upgradingFormulae.isEmpty)
+                .disabled(tools.updatingAll || tools.oneClickable.isEmpty
+                    || model.brewUpgrading || !model.upgradingFormulae.isEmpty)
                 .help(String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update are left alone."))
+                .opacity(tools.updatingAll ? 0 : 1)
+                .overlay {
+                    if tools.updatingAll { ProgressView().controlSize(.small) }
+                }
         }
     }
 

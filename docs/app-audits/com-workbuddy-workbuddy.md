@@ -172,7 +172,7 @@ app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行写�
   （`installURLUnresolved`，夜扫 `duo verify` 会报）。守卫见 `noRecipeResolvesTheOtherSitesArtifact`
 - 校验：`sha256hash`（hex SHA-256，`checksumFormat: .sha256Hex`），在签名闸之前核对。它不是 `url` 那个 `.zip`
   的摘要，而是同路径 `.dmg` 的（2026-10-07 两站×两架构四个组合全部实测，见「历史与实测」），所以一键改装 dmg。
-  厂商哪天不发 dmg → 解析不出下载地址（夜扫 `duo verify` 会报）；改成给 zip 算摘要 → `checksumMismatch`。都不会不校验就装
+  厂商哪天不发 dmg → 地址照样拼得出来但 404（夜扫 `duo verify` HEAD 它，报 `installURLNotFound`）；改成给 zip 算摘要 → `checksumMismatch`。都不会不校验就装
 
 ## 已知问题
 

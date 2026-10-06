@@ -1305,9 +1305,10 @@ public enum VendorProbeRegistry {
     /// zip's (measured 2026-10-07 on all four host×arch pairs). The endpoint
     /// never names the dmg, so its URL is the body's own `url` with the extension
     /// swapped — still pinned to this host and arch, and still paired with the
-    /// digest from the same response. A vendor that drops the dmg fails as an
-    /// unresolvable download (the nightly `duo verify` checks the install URL);
-    /// one that starts hashing the zip instead fails as `checksumMismatch`.
+    /// digest from the same response. A vendor that drops the dmg still resolves
+    /// a URL, which then 404s (the nightly `duo verify` HEADs it and reports
+    /// `installURLNotFound`); one that starts hashing the zip instead fails as
+    /// `checksumMismatch`.
     /// Neither installs anything unchecked.
     static func workBuddyRecipe(
         bundleID: String,

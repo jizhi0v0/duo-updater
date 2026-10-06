@@ -133,6 +133,9 @@ struct CLIToolsModelTests {
         var outcomes: [CLIToolID: CLIToolUpdateOutcome] = [:]
         var linesBeforeReturn: [String] = []
         var gate: Gate?
+        /// A gate for one copy only, so a lane's later copy can be held while
+        /// its earlier one finishes.
+        var gates: [CLIToolID: Gate] = [:]
         private(set) var calls: [CLIToolID] = []
         private(set) var maxRunning = 0
         private var running = 0
@@ -141,6 +144,7 @@ struct CLIToolsModelTests {
 
         func set(_ id: CLIToolID, _ outcome: CLIToolUpdateOutcome) { outcomes[id] = outcome }
         func setGate(_ gate: Gate?) { self.gate = gate }
+        func setGate(_ id: CLIToolID, _ gate: Gate) { gates[id] = gate }
         func setLines(_ lines: [String]) { linesBeforeReturn = lines }
 
         func run(_ status: CLIToolStatus, _ progress: @escaping @Sendable (String) -> Void) async
@@ -152,6 +156,7 @@ struct CLIToolsModelTests {
             lastProgress = progress
             for line in linesBeforeReturn { progress(line) }
             await gate?.wait()
+            await gates[status.toolID]?.wait()
             // Long enough that a second update started alongside this one would be
             // counted as running at the same time.
             try? await Task.sleep(for: .milliseconds(20))
@@ -514,27 +519,16 @@ struct CLIToolsModelTests {
 
     // MARK: updateAll
 
-    /// One copy at a time, each of them.
+    static let prefix = "/Users/u/.nvm/versions/node/v24.11.0"
+    static let pnpmCLI = prefix + "/lib/node_modules/pnpm"
+    static let tsx = prefix + "/lib/node_modules/tsx"
+
+    /// Copies in different lanes run at the same time: a native Claude Code and an
+    /// npm-installed one in a prefix are two lanes.
     ///
-    /// Mutation: run the loop's `update(_:)` calls in a `withTaskGroup`.
-    @Test func updateAllRunsOneAtATime() async {
-        let npm = Self.status(Self.npm, method: "npm", nodePrefix: "/Users/u/.nvm/versions/node/v24.11.0")
-        let check = FakeCheck([(Self.report(Self.status(Self.native), npm), nil)])
-        let updater = FakeUpdater()
-        let model = Self.model(check: check, updater: updater)
-        await model.refresh()
-
-        await model.updateAll()
-
-        #expect(await updater.calls == [Self.id(Self.native), Self.id(Self.npm)])
-        #expect(await updater.maxRunning == 1)
-    }
-
-    /// A second Update All while one runs starts nothing of its own.
-    ///
-    /// Mutation: drop `guard !updatingAll else { return }`.
-    @Test func aSecondUpdateAllJoinsNothing() async {
-        let npm = Self.status(Self.npm, method: "npm", nodePrefix: "/Users/u/.nvm/versions/node/v24.11.0")
+    /// Mutation: give every copy the same lane (`lane(of:)` returns `""`).
+    @Test func updateAllRunsLanesAtOnce() async {
+        let npm = Self.status(Self.npm, method: "npm", nodePrefix: Self.prefix)
         let check = FakeCheck([(Self.report(Self.status(Self.native), npm), nil)])
         let updater = FakeUpdater()
         let gate = Gate()
@@ -542,66 +536,283 @@ struct CLIToolsModelTests {
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
 
-        let first = Task { await model.updateAll() }
-        await until { await gate.arrived == 1 }
-        #expect(model.updatingAll)
-        let second = Task { await model.updateAll() }
-        try? await Task.sleep(for: .milliseconds(30))
+        let all = Task { await model.updateAll() }
+        await until { await gate.arrived == 2 }
         await gate.open()
-        await first.value
-        await second.value
+        await all.value
 
+        #expect(Set(await updater.calls) == [Self.id(Self.native), Self.id(Self.npm)])
+        #expect(await updater.maxRunning == 2)
+    }
+
+    /// One npm prefix is one lane, whatever put the package there — npm has no
+    /// lock for a global install, and its update refuses to start while another
+    /// npm runs there. Its copies go one after another, in the list's order.
+    ///
+    /// Mutations: drop the `.npm` case from `lane(of:)`; drop the `.claudeCode`
+    /// one.
+    @Test func onePrefixIsOneLane() async {
+        let updater = FakeUpdater()
+        let claudeCode = FakeProvider(
+            kind: .claudeCode,
+            checker: FakeCheck([(Self.report(Self.status(Self.npm, method: "npm", nodePrefix: Self.prefix)), nil)]),
+            updater: updater)
+        let npm = FakeProvider(
+            kind: .npm,
+            checker: FakeCheck([(Self.report(.npm, [Self.status(Self.pnpmCLI, kind: .npm), Self.status(Self.tsx, kind: .npm)]), nil)]),
+            updater: updater)
+        let model = Self.model([claudeCode, npm])
+        await model.refresh()
+
+        await model.updateAll()
+
+        #expect(await updater.calls == [Self.id(Self.npm), Self.id(Self.pnpmCLI, .npm), Self.id(Self.tsx, .npm)])
         #expect(await updater.maxRunning == 1)
-        #expect(await updater.calls.count == 2)
+    }
+
+    /// The lanes, as `lane(of:)` draws them: a prefix whatever the finder's
+    /// spelling of it, bub with uv, and every other tool apart.
+    ///
+    /// Mutations: drop the `.bub` mapping; drop `canonical` on either side.
+    @Test func lanesFollowWhatTheUpdatesShare() {
+        let lane = CLIToolsModel.lane(of:)
+        let claudeNpm = Self.status(Self.npm, method: "npm", nodePrefix: "/Users/u/.nvm/versions/node/./v24.11.0")
+        #expect(lane(claudeNpm) == lane(Self.status(Self.tsx, kind: .npm)))
+        #expect(lane(Self.status(Self.native)) != lane(claudeNpm))
+        #expect(lane(Self.status(Self.bub, kind: .bub)) == lane(Self.status("/Users/u/.local/bin/uv", kind: .uv)))
+        #expect(lane(Self.status(Self.fx, kind: .fx)) != lane(Self.status("/Users/u/.local/bin/uv", kind: .uv)))
+        let other = "/Users/u/.nvm/versions/node/v22.0.0/lib/node_modules/tsx"
+        #expect(lane(Self.status(other, kind: .npm)) != lane(Self.status(Self.tsx, kind: .npm)))
+    }
+
+    /// A copy waiting for its lane is claimed from the start: "Queued", no live
+    /// Update, and a click on it runs nothing — as `installAll` claims an app row.
+    ///
+    /// Mutation: drop the claiming loop at the top of `updateAll`.
+    @Test func aCopyWaitingItsTurnIsQueued() async {
+        let updater = FakeUpdater()
+        let gate = Gate()
+        await updater.setGate(gate)
+        let npm = FakeProvider(
+            kind: .npm,
+            checker: FakeCheck([(Self.report(.npm, [Self.status(Self.pnpmCLI, kind: .npm), Self.status(Self.tsx, kind: .npm)]), nil)]),
+            updater: updater)
+        let model = Self.model([npm])
+        await model.refresh()
+
+        let all = Task { await model.updateAll() }
+        await until { await gate.arrived == 1 }
+        let second = Self.id(Self.tsx, .npm)
+        #expect(model.queued == [second])
+        #expect(model.updating.contains(second))
+        #expect(model.oneClickable.isEmpty)
+        await model.update(second)
+        #expect(await updater.calls == [Self.id(Self.pnpmCLI, .npm)])
+        await gate.open()
+        await all.value
+
+        #expect(await updater.calls == [Self.id(Self.pnpmCLI, .npm), second])
+        #expect(model.queued.isEmpty)
+        #expect(model.updating.isEmpty)
+    }
+
+    /// A second Update All while one runs starts nothing of its own — not even a
+    /// copy a re-check partway through put on offer, which the first did not
+    /// claim. Run, it would end by clearing `updatingAll` under the first.
+    ///
+    /// Mutation: drop `guard !updatingAll else { return }`.
+    @Test func aSecondUpdateAllJoinsNothing() async {
+        let claudeUpdater = FakeUpdater()
+        await claudeUpdater.set(Self.id(Self.native), .updated(version: "2.1.285"))
+        let claudeCheck = FakeCheck([
+            (Self.report(Self.status(Self.native)), nil),
+            // The re-check after its lane finds a copy the first check had not.
+            (Self.report(Self.status(Self.native, version: "2.1.285", state: .upToDate, oneClick: false),
+                         Self.status(Self.npm, method: "npm", nodePrefix: Self.prefix)), nil),
+        ])
+        let fxUpdater = FakeUpdater()
+        let fxGate = Gate()
+        await fxUpdater.setGate(fxGate)
+        let fxCheck = FakeCheck([(Self.report(.fx, [Self.status(Self.fx, kind: .fx, version: "0.4.0", latest: "0.5.0")]), nil)])
+        let model = Self.model([
+            FakeProvider(kind: .claudeCode, checker: claudeCheck, updater: claudeUpdater),
+            FakeProvider(kind: .fx, checker: fxCheck, updater: fxUpdater),
+        ])
+        await model.refresh()
+
+        let first = Task { await model.updateAll() }
+        await until { model.oneClickable.map(\.toolID) == [Self.id(Self.npm)] }
+        await model.updateAll()
+        #expect(model.updatingAll)
+        #expect(await claudeUpdater.calls == [Self.id(Self.native)])
+        await fxGate.open()
+        await first.value
+
         #expect(!model.updatingAll)
     }
 
-    /// Each update ends in a re-check; an offer that re-check withdrew (auto-update
-    /// switched off meanwhile) is not taken for the copies still to go.
+    /// Each tool is re-checked once its own lanes are done — not after every copy,
+    /// and not held for a slower tool's install. Until then its finished copy
+    /// stays claimed: released, it would show the old verdict with a live Update.
     ///
-    /// Mutation: in `update(_:)`, look the status up in `statuses` instead of
-    /// `oneClickable`.
-    @Test func updateAllHonoursAnOfferWithdrawnMidway() async {
-        let npm = Self.status(Self.npm, method: "npm", nodePrefix: "/Users/u/.nvm/versions/node/v24.11.0")
-        let npmOff = Self.status(Self.npm, method: "npm", oneClick: false, withheld: .autoUpdateOff,
-                                 nodePrefix: "/Users/u/.nvm/versions/node/v24.11.0")
+    /// Mutation: re-check every tool only once every lane is done.
+    @Test func eachToolIsRecheckedWhenItsLanesAreDone() async {
+        let claudeUpdater = FakeUpdater()
+        await claudeUpdater.set(Self.id(Self.native), .updated(version: "2.1.285"))
+        let claudeCheck = FakeCheck([
+            (Self.report(Self.status(Self.native)), nil),
+            (Self.report(Self.status(Self.native, version: "2.1.285", state: .upToDate, oneClick: false)), nil),
+        ])
+        let fxUpdater = FakeUpdater()
+        let fxGate = Gate()
+        await fxUpdater.setGate(fxGate)
+        let fxCheck = FakeCheck([(Self.report(.fx, [Self.status(Self.fx, kind: .fx, version: "0.4.0", latest: "0.5.0")]), nil)])
+        let model = Self.model([
+            FakeProvider(kind: .claudeCode, checker: claudeCheck, updater: claudeUpdater),
+            FakeProvider(kind: .fx, checker: fxCheck, updater: fxUpdater),
+        ])
+        await model.refresh()
+
+        let all = Task { await model.updateAll() }
+        await until { model.justUpdated[Self.id(Self.native)] == "2.1.285" }
+        #expect(await claudeCheck.calls == 2)
+        #expect(await fxCheck.calls == 1)
+        #expect(!model.updating.contains(Self.id(Self.native)))
+        #expect(model.updating.contains(Self.id(Self.fx, .fx)))
+        await fxGate.open()
+        await all.value
+
+        #expect(await claudeCheck.calls == 2)
+        #expect(await fxCheck.calls == 2)
+        #expect(model.updating.isEmpty)
+    }
+
+    /// A copy whose update has run waits for its tool's re-check — here the
+    /// rest of its lane — still claimed, and says so: "Waiting to check", not
+    /// "Checking…" while no check runs. "Checking…" once it does.
+    ///
+    /// Mutations: drop `awaitingCheck.insert(id)`; say "Checking…" in `run`.
+    @Test func aCopyDoneBeforeItsLaneWaitsToBeChecked() async {
+        let recheck = Gate()
         let check = FakeCheck([
-            (Self.report(Self.status(Self.native), npm), nil),
-            (Self.report(Self.status(Self.native, version: "2.1.285", state: .upToDate, oneClick: false), npmOff), nil),
+            (Self.report(.npm, [Self.status(Self.pnpmCLI, kind: .npm), Self.status(Self.tsx, kind: .npm)]), nil),
+            (Self.report(.npm, [Self.status(Self.pnpmCLI, kind: .npm), Self.status(Self.tsx, kind: .npm)]), recheck),
         ])
         let updater = FakeUpdater()
-        await updater.set(Self.id(Self.native), .updated(version: "2.1.285"))
+        let tsxGate = Gate()
+        await updater.setGate(Self.id(Self.tsx, .npm), tsxGate)
+        let model = Self.model([FakeProvider(kind: .npm, checker: check, updater: updater)])
+        await model.refresh()
+
+        let all = Task { await model.updateAll() }
+        await until { await tsxGate.arrived == 1 }
+        let first = Self.id(Self.pnpmCLI, .npm)
+        #expect(model.awaitingCheck == [first])
+        #expect(model.updating.contains(first))
+        #expect(model.progress[first] == String(localized: "Waiting to check"))
+        #expect(await check.calls == 1)
+        await tsxGate.open()
+        await until { await recheck.arrived == 1 }
+        #expect(model.progress[first] == String(localized: "Checking…"))
+        await recheck.open()
+        await all.value
+
+        #expect(model.awaitingCheck.isEmpty)
+        #expect(model.updating.isEmpty)
+    }
+
+    /// Two lanes of one tool: one re-check, once both are done.
+    ///
+    /// Mutation: drop `run.lanesLeft[provider] == 0` from the readiness test.
+    @Test func aToolWithTwoLanesIsRecheckedOnce() async {
+        let gate = Gate()
+        let updater = FakeUpdater()
+        let other = "/Users/u/.nvm/versions/node/v22.0.0/lib/node_modules/tsx"
+        let check = FakeCheck([(Self.report(.npm, [Self.status(Self.tsx, kind: .npm), Self.status(other, kind: .npm)]), nil)])
+        let model = Self.model([FakeProvider(kind: .npm, checker: check, updater: updater)])
+        await model.refresh()
+        await updater.setGate(gate)
+
+        let all = Task { await model.updateAll() }
+        await until { await gate.arrived == 2 }
+        await gate.open()
+        await all.value
+
+        #expect(await check.calls == 2)
+        #expect(await updater.maxRunning == 2)
+    }
+
+    /// A tool whose every copy failed is not re-checked: the failure is on the
+    /// row, as for a single update.
+    ///
+    /// Mutation: always add to `run.ran` in `runLane`.
+    @Test func aFailedLaneIsNotRechecked() async {
+        let updater = FakeUpdater()
+        await updater.set(Self.id(Self.native), .failed(message: "EACCES", output: "EACCES"))
+        let check = FakeCheck([(Self.report(Self.status(Self.native)), nil)])
         let model = Self.model(check: check, updater: updater)
         await model.refresh()
 
         await model.updateAll()
 
-        #expect(await updater.calls == [Self.id(Self.native)])
+        #expect(await check.calls == 1)
+        #expect(model.errors[Self.id(Self.native)] == "EACCES")
+        #expect(model.updating.isEmpty)
     }
 
     // MARK: across tools
 
-    /// Update All covers every tool's offers, still one at a time across them: a
-    /// Claude Code copy and an fx copy behind two providers never run together.
-    /// And in `CLIToolKind.allCases` order, whatever order the providers came in.
+    /// One update re-checks its own tool only: the others keep their verdicts,
+    /// and their checks — each a network round — are not run for nothing.
     ///
-    /// Mutations: run the loop's `update(_:)` calls in a `withTaskGroup`; keep
-    /// `providers` in the order passed to `init`.
-    @Test func updateAllCrossesToolsOneAtATime() async {
-        let updater = FakeUpdater()
-        let claudeCode = FakeProvider(
-            kind: .claudeCode, checker: FakeCheck([(Self.report(Self.status(Self.native)), nil)]), updater: updater)
-        let fx = FakeProvider(
-            kind: .fx,
-            checker: FakeCheck([(Self.report(.fx, [Self.status(Self.fx, kind: .fx, version: "0.4.0", latest: "0.5.0")]), nil)]),
-            updater: updater)
-        let model = Self.model([fx, claudeCode])
+    /// Mutation: `check(Array(providers.indices))` in place of `check([provider])`
+    /// in `update(_:)`.
+    @Test func anUpdateRechecksOnlyItsOwnTool() async {
+        let claudeCheck = FakeCheck([(Self.report(Self.status(Self.native)), nil)])
+        let fxCheck = FakeCheck([
+            (Self.report(.fx, [Self.status(Self.fx, kind: .fx, version: "0.4.0", latest: "0.5.0")]), nil),
+            (Self.report(.fx, [Self.status(Self.fx, kind: .fx, version: "0.5.0", state: .upToDate, latest: "0.5.0", oneClick: false)]), nil),
+        ])
+        let model = Self.model([
+            FakeProvider(kind: .claudeCode, checker: claudeCheck),
+            FakeProvider(kind: .fx, checker: fxCheck),
+        ])
         await model.refresh()
 
-        await model.updateAll()
+        await model.update(Self.id(Self.fx, .fx))
 
-        #expect(await updater.calls == [Self.id(Self.native), Self.id(Self.fx, .fx)])
-        #expect(await updater.maxRunning == 1)
+        #expect(await claudeCheck.calls == 1)
+        #expect(await fxCheck.calls == 2)
+        #expect(model.statuses.map(\.toolID) == [Self.id(Self.native), Self.id(Self.fx, .fx)])
+        #expect(model.oneClickable.map(\.toolID) == [Self.id(Self.native)])
+        #expect(model.justUpdated[Self.id(Self.fx, .fx)] == "0.5.0")
+    }
+
+    /// A one-tool re-check leaves every other verdict as old as it was, so it
+    /// does not restart the clock an open of the popover reads.
+    ///
+    /// Mutation: drop `if whole` before `lastChecked = now()`.
+    @Test func aOneToolRecheckDoesNotFreshenTheOthers() async {
+        let clock = Clock()
+        let claude = Self.status(Self.native)
+        let fx = Self.status(Self.fx, kind: .fx, version: "0.4.0", latest: "0.5.0")
+        let claudeCheck = FakeCheck([(Self.report(claude), nil)])
+        let fxCheck = FakeCheck([(Self.report(.fx, [fx]), nil)])
+        // Scans that agree with the checks, so only the report's age can re-check.
+        let claudeScan = [Self.sighting(claude)]
+        let fxScan = [Self.sighting(fx)]
+        let model = Self.model([
+            FakeProvider(kind: .claudeCode, checker: claudeCheck, scanner: { claudeScan }),
+            FakeProvider(kind: .fx, checker: fxCheck, scanner: { fxScan }),
+        ], clock: clock)
+        await model.refresh()
+        clock.now += CLIToolsModel.recheckInterval - 60
+        await model.update(Self.id(Self.fx, .fx))
+        clock.now += 120
+
+        await model.refreshOnOpen()
+
+        #expect(await claudeCheck.calls == 2)
     }
 
     /// An install is updated by its own tool's provider and never another's: the

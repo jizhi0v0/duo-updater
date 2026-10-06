@@ -310,6 +310,15 @@ public actor VendorInstaller {
                 onStage(.verifyingSignature)
                 try verifyChecksum(download.archiveURL, expectedBase64: expected)
             }
+            // The same gate for a vendor that publishes SHA-256 hex
+            // (`VendorInstallSpec.checksumFormat`). A digest-only download already
+            // had its SHA-256 checked above, as its proof of origin.
+            if remote.installTrust == .developerID, let expected = remote.expectedSHA256,
+               download.localStash == nil {
+                onStage(.verifyingSignature)
+                let archive = download.archiveURL
+                try await offCooperativePool { try Self.verifySHA256(archive, expectedHex: expected) }
+            }
 
             // 3. Unpack the .app.
             onStage(.extracting)
@@ -412,6 +421,13 @@ public actor VendorInstaller {
     }
 
     // MARK: - Checksum
+
+    /// `checksumMismatch` unless `file`'s SHA-256 is `expectedHex` (any case).
+    static func verifySHA256(_ file: URL, expectedHex: String) throws {
+        guard CLIToolTrust.matches(try BundleArchive.sha256(of: file), published: expectedHex) else {
+            throw InstallError.checksumMismatch
+        }
+    }
 
     private func verifyChecksum(_ file: URL, expectedBase64: String) throws {
         let data = try Data(contentsOf: file, options: .mappedIfSafe)

@@ -36,6 +36,7 @@ probes[0].install?.urlSource.fields = Array(count: 1)
 probes[0].install?.urlSource.fields[0] = "\"latestVersion\"\\s*:\\s*\"([0-9]+\\.[0-9]+\\.[0-9]+)\""
 probes[0].install?.kind = .dmg
 probes[0].install?.checksumPattern = nil
+probes[0].install?.checksumFormat = .sha512Base64
 probes[0].install?.requestHeaders = Dictionary(count: 0)
 probes[0].install?.nestedArchivePath = nil
 probes[0].install?.contentsArchivePattern = nil

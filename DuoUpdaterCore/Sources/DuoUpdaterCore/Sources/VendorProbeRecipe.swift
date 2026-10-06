@@ -91,10 +91,23 @@ public struct VendorInstallSpec: Sendable {
     /// URL carries no file extension (e.g. a CDN asset id).
     public let kind: VendorInstallerKind
 
-    /// Optional regex (capture group 1) for an expected SHA-512 of the download,
-    /// base64-encoded, pulled from the same response body. When present we verify
-    /// it before unpacking — defense in depth on top of the code-signature gate.
+    /// Optional regex (capture group 1) for an expected digest of the download,
+    /// pulled from the same response body, in the form `checksumFormat` names.
+    /// When present we verify it before unpacking — defense in depth on top of the
+    /// code-signature gate.
     public let checksumPattern: String?
+
+    /// What `checksumPattern` captures.
+    public enum ChecksumFormat: String, Sendable, Codable {
+        /// SHA-512, base64 — electron-builder's `sha512:` and most appcast-style
+        /// feeds.
+        case sha512Base64
+        /// SHA-256, hex — HyperFrames' `latest.json` `sha256`.
+        case sha256Hex
+    }
+
+    /// The form of the digest `checksumPattern` captures. Ignored without one.
+    public let checksumFormat: ChecksumFormat
 
     /// Extra HTTP headers sent when downloading the installer. Needed when the
     /// vendor's download host sits behind a WAF that only serves the binary to
@@ -140,6 +153,7 @@ public struct VendorInstallSpec: Sendable {
         urlSource: URLSource,
         kind: VendorInstallerKind,
         checksumPattern: String? = nil,
+        checksumFormat: ChecksumFormat = .sha512Base64,
         requestHeaders: [String: String] = [:],
         nestedArchivePath: String? = nil,
         contentsArchivePattern: String? = nil
@@ -147,6 +161,7 @@ public struct VendorInstallSpec: Sendable {
         self.urlSource = urlSource
         self.kind = kind
         self.checksumPattern = checksumPattern
+        self.checksumFormat = checksumFormat
         self.requestHeaders = requestHeaders
         self.nestedArchivePath = nestedArchivePath
         self.contentsArchivePattern = contentsArchivePattern

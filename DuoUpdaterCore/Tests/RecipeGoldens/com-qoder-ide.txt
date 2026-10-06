@@ -43,6 +43,7 @@ probes[0].install?.urlSource = .bodyPattern(_:)
 probes[0].install?.urlSource.0 = "\"url\"\\s*:\\s*\"(https://qoder-ide\\.oss-accelerate\\.aliyuncs\\.com/release/[0-9.]+/Qoder-darwin-arm64\\.zip)\""
 probes[0].install?.kind = .zip
 probes[0].install?.checksumPattern = nil
+probes[0].install?.checksumFormat = .sha512Base64
 probes[0].install?.requestHeaders = Dictionary(count: 0)
 probes[0].install?.nestedArchivePath = nil
 probes[0].install?.contentsArchivePattern = nil

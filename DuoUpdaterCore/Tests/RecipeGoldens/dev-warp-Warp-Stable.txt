@@ -34,6 +34,7 @@ probes[0].install?.urlSource = .fixed(_:)
 probes[0].install?.urlSource.0 = URL("https://app.warp.dev/download?package=dmg&channel=preview")
 probes[0].install?.kind = .dmg
 probes[0].install?.checksumPattern = nil
+probes[0].install?.checksumFormat = .sha512Base64
 probes[0].install?.requestHeaders = Dictionary(count: 0)
 probes[0].install?.nestedArchivePath = nil
 probes[0].install?.contentsArchivePattern = nil
@@ -99,6 +100,7 @@ probes[2].install?.urlSource = .bodyPattern(_:)
 probes[2].install?.urlSource.0 = "(https://releases\\.warp\\.dev/stable/[^\"]+\\.dmg)"
 probes[2].install?.kind = .dmg
 probes[2].install?.checksumPattern = nil
+probes[2].install?.checksumFormat = .sha512Base64
 probes[2].install?.requestHeaders = Dictionary(count: 0)
 probes[2].install?.nestedArchivePath = nil
 probes[2].install?.contentsArchivePattern = nil

@@ -89,8 +89,12 @@ import Foundation
     /// indents, `&nbsp;-&nbsp;` attribution tails, nested `**scope**:` changes)
     /// moves neither fixture: neither has an `&nbsp;` or a bare `**scope**:`
     /// bullet. Pinned by `BubChangelogTests`.
+    ///
+    /// 9 (`GitHubMarkdownParser` stops at a whole-line `<!-- lang:xx -->`) moves
+    /// neither fixture: neither body carries such a line. Pinned by
+    /// `MagpieCoverageTests`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 8)
+        #expect(Changelog.parserGeneration == 9)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

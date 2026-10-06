@@ -127,6 +127,9 @@ struct GitHubAssetSelectionTests {
          ["Flameshot-14.0-macos-arm64.dmg", "Flameshot-14.0-macos-intel.dmg"]),
         (#"^darktable-[0-9.]+-(arm64|x86_64)\.dmg$"#,
          ["darktable-5.6.1-arm64.dmg", "darktable-5.6.1-x86_64.dmg"]),
+        // magpie: one zip per architecture under every tag (v0.1.1084).
+        (#"^magpie-darwin-(?:arm64|amd64)\.zip$"#,
+         ["magpie-darwin-amd64.zip", "magpie-darwin-arm64.zip"]),
     ]
 
     /// Registry patterns whose alternation chooses between TAGS rather than

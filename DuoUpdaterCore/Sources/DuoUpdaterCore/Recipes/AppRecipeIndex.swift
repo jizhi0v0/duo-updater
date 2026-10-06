@@ -172,6 +172,7 @@ public enum AppRecipeIndex {
         com_workbuddy_workbuddy.set,
         com_workbuddy_workbuddy_ai.set,
         com_xingyuzhong_deepseekgui.set,
+        com_yetone_magpie.set,
         com_youqu_todesk_mac.set,
         com_zarifpour_superconductor.set,
         dev_commandline_waveterm.set,

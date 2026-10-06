@@ -1299,6 +1299,16 @@ public enum VendorProbeRegistry {
     /// `assetHost` is the other half of that: the two sites' artifact PATHS are
     /// identical, so the host is the only thing in a resolved URL that says which
     /// site it came from, and it is pinned rather than matched with `[^"]+`.
+    ///
+    /// One-click installs the `.dmg` beside the `.zip` the body's `url` names
+    /// (same path, same name), because `sha256hash` is that dmg's digest, not the
+    /// zip's (measured 2026-10-07 on all four host×arch pairs). The endpoint
+    /// never names the dmg, so its URL is the body's own `url` with the extension
+    /// swapped — still pinned to this host and arch, and still paired with the
+    /// digest from the same response. A vendor that drops the dmg fails as an
+    /// unresolvable download (the nightly `duo verify` checks the install URL);
+    /// one that starts hashing the zip instead fails as `checksumMismatch`.
+    /// Neither installs anything unchecked.
     static func workBuddyRecipe(
         bundleID: String,
         host: String,
@@ -1319,9 +1329,12 @@ public enum VendorProbeRegistry {
             changelogURL: changelogURL,
             publishedAtPattern: #""timestamp"\s*:\s*([0-9]{9,})"#,
             install: VendorInstallSpec(
-                urlSource: .bodyPattern(
-                    #""url"\s*:\s*"(https://\#(assetHostPattern)/workbuddy/saas/darwin-\#(slug)/WorkBuddy-darwin-\#(slug)-[^"]+\.zip)""#),
-                kind: .zip),
+                urlSource: .bodyTemplate("{0}.dmg", fields: [
+                    #""url"\s*:\s*"(https://\#(assetHostPattern)/workbuddy/saas/darwin-\#(slug)/WorkBuddy-darwin-\#(slug)-[^"]+)\.zip""#,
+                ]),
+                kind: .dmg,
+                checksumPattern: #""sha256hash"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex),
             variant: slug,
             hostRequirement: VendorHostRequirement(architectures: [arch]))
     }

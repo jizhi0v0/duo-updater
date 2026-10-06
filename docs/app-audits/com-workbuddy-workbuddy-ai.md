@@ -64,6 +64,8 @@ changelog 页面标记、一键安装的闸与 host 钉死、验证方法——�
 - 状态：**支持**（检测 + 一键）
 - install 正则钉死的下载 host：`codebuddy-1328495429.cos.accelerate.myqcloud.com`
   （为什么要钉、钉错会怎样，见国内站文档「一键安装」）
+- 格式与校验：装 `url` 同路径的 `.dmg`，按 `sha256hash`（hex SHA-256）核对（2026-10-07 起，见国内站文档「一键安装」）
+- 端到端：2026-10-07 `duo install` 5.5.2 → 5.6.2（app 未运行），下载 533,453,859 B 的 dmg，29 s，`spctl` accepted
 
 ## 已知问题
 
@@ -186,3 +188,6 @@ the CN page was current.
 实测 `sha256hash` 等于同路径 `.dmg` 兄弟的 SHA-256，不等于 `url` 那个 `.zip`（intl arm64：`93bcdc42…` = dmg，zip 实算
 `57d136cd…`；x64：`6f8a06cd…` = dmg，zip 实算 `463f5d42…`）。四个组合的完整数据记在国内站文档同日一节。
 
+### 一键改装 dmg，接上 `sha256hash`（2026-10-07）
+
+上一节之后，一键改装 dmg 并按 `sha256hash` 核对；四个组合的字节核对、生产路径与本站真机 `duo install` 记在国内站文档同日一节。

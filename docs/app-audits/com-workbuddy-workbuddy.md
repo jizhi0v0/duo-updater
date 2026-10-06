@@ -160,8 +160,8 @@ app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行写�
 ## 一键安装
 
 - 状态：**支持**（检测 + 一键，两站均是）
-- 格式：`.zip`（端点 JSON 的 `url` 字段；同路径下有同名 `.dmg`，但那是推断出来的，
-  端点没声明，所以不用）
+- 格式：`.dmg`，端点 JSON 的 `url`（一个 `.zip`）把扩展名换成 `.dmg`（同路径同名）。端点没声明 dmg，
+  但 `sha256hash` 描述的正是这个 dmg（见下「校验」），所以装它（2026-10-07 起；之前装 zip）
 - 签名闸：Team `FN2V63AD2J`，两站同一个，与已装包一致 → `VendorInstaller` 放行
 - **install 正则钉死各自的下载 host**（intl `codebuddy-1328495429.cos.accelerate.myqcloud.com`，
   CN `download.codebuddy.cn`）：两站的产物**路径完全相同**（`/workbuddy/saas/darwin-<arch>/`），
@@ -170,14 +170,16 @@ app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行写�
   而且下游一个都拦不住：同厂商、同 Team、真正的公证包，签名闸看不出来，
   `ChannelProofRegistry` 又只管非 stable。钉死之后同样的情况变成**响亮失败**
   （`installURLUnresolved`，夜扫 `duo verify` 会报）。守卫见 `noRecipeResolvesTheOtherSitesArtifact`
-- `sha256hash` **故意不用**：它不是 `url` 那个 `.zip` 的摘要，而是同路径 `.dmg` 兄弟的 SHA-256
-  （2026-10-07 两站×两架构四个 zip 全部实测，见「历史与实测」）。接上会让每次正常下载都被拒；由签名闸兜底
+- 校验：`sha256hash`（hex SHA-256，`checksumFormat: .sha256Hex`），在签名闸之前核对。它不是 `url` 那个 `.zip`
+  的摘要，而是同路径 `.dmg` 的（2026-10-07 两站×两架构四个组合全部实测，见「历史与实测」），所以一键改装 dmg。
+  厂商哪天不发 dmg → 解析不出下载地址（夜扫 `duo verify` 会报）；改成给 zip 算摘要 → `checksumMismatch`。都不会不校验就装
 
 ## 已知问题
 
 - 只动 build 计数器的重新出包检测不到（见陷阱二）——已知代价，不是缺陷。
-- x64 那两条 recipe 的产物没有下载挂载验证过，只验证了「存在 + 分架构命名」；
+- x64 那两条 recipe 的产物：2026-10-07 下载挂载过 dmg（x86_64、Team 一致、摘要相等），但没在 Intel 机器上跑过一键；
   跨架构不误取由单测守着（复验方法见下文「如何复验」）。
+- 国内站 5.7.6 的 bundle id 是 `com.tencent.workbuddy.mac`，与 recipe 的 `com.workbuddy.workbuddy` 不一致（2026-10-07，见「历史与实测」），未处理。
 
 ## 验证
 
@@ -351,3 +353,23 @@ HEAD 上 Claude 的 GA 行已经追上 changelog，这个 case 已经不成立�
 zip 本身完好：大小等于 `content-length`，MD5 等于 COS 的 `x-cos-meta-md5`（CN arm64 `d32cbdf3…`、intl arm64
 `e0aef4a6…`），`unzip -t` 无错。Homebrew cask `workbuddy-ai` 给 dmg 记的 sha256 也正是这两个 intl 值。也就是说厂商把
 dmg 的摘要配在 zip 的 `url` 旁边。要用它，得把一键改成装那个 dmg（端点没声明 dmg 地址，是推断出来的），这次没做。
+
+### 一键改装 dmg，接上 `sha256hash`（2026-10-07）
+
+上一节的结论落地：`workBuddyRecipe` 的下载地址改成 `.bodyTemplate("{0}.dmg")`（`url` 去掉 `.zip` 再接 `.dmg`，host 与
+`darwin-<arch>` 仍然钉死），`kind: .dmg`，`checksumPattern` 读同一份响应的 `sha256hash`。
+
+- 四个组合重新下载 dmg：`shasum -a 256` 与当天端点的 `sha256hash` 逐字相等（CN arm64 `97fa56af…` 357,195,805 B、
+  CN x64 `412b9e92…` 386,109,508 B、intl arm64 `93bcdc42…` 533,453,859 B、intl x64 `6f8a06cd…` 548,613,077 B）。
+- dmg 没有许可协议（`hdiutil imageinfo` 的 `Software License Agreement` 为 false）；只读挂载后里面只有一个 app 加
+  `Applications` 链接，`codesign --verify --deep --strict` 通过，Team `FN2V63AD2J`，架构与路径一致（arm64 / x86_64）。
+- 生产路径（临时 Swift test，跑完已删）：四条 recipe 走 `VendorProbeSource.probeDiagnostic(checkingInstallURL: true)`
+  对线上端点，`downloadURL` 是上面的 dmg，`expectedSHA256` 等于 `sha256hash`，`expectedSHA512` 为 nil，无 warning；
+  `VendorInstaller.verifySHA256` 对下载的 dmg 通过，翻转一个字节的副本报 `checksumMismatch`。
+- 真机（国际站，`make cli` 构建的 duo）：`/Applications/WorkBuddy AI.app` 5.5.2，未运行，`duo install "WorkBuddy AI" --yes --json`
+  → `installed`，`bytesDownloaded` 533,453,859（即 dmg），29 s；之后 5.6.2、inode 变了、`spctl` accepted（Notarized Developer ID）、
+  Team `FN2V63AD2J`，再 `duo check` 为最新。只跑了「不运行」这一轮。
+- **国内站 bundle id 对不上（未处理）**：当天下载的国内站 5.7.6，zip 和 dmg 里的 app 的 `CFBundleIdentifier` 都是
+  `com.tencent.workbuddy.mac`（与 cask `workbuddy-cn` 的 `uninstall quit:` 一致），不是本 recipe 的 `com.workbuddy.workbuddy`
+  （2026-08-27 对当时的真实 bundle 核过）。新装的国内站拷贝因此匹配不到这两条 recipe；旧 id 的拷贝一键到新包会被
+  `SignatureVerifier` 的 bundle id 闸拒绝（未实测）。何时改的 id、旧拷贝自更新后是哪个 id，都没查。

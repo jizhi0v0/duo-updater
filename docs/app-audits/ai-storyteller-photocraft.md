@@ -48,6 +48,8 @@
 - settled from source: `packaging/macos/Info.plist.in` + `package.sh`——`CFBundleShortVersionString`
   与 `CFBundleVersion` 都只写数字 `X.Y.Z`（`@SHORT_VERSION@`），完整版本（含 `-rc.N`）另写进
   `PhotoCraftVersion` 这个自定义键。
+- rc 真包实测（2026-10-07，挂载 `photocraft-0.1.1-rc.5-macos-universal.dmg`）: `CFBundleShortVersionString`
+  `0.1.1`、`CFBundleVersion` `0.1.1`、`PhotoCraftVersion` `0.1.1-rc.5`，Team `DJ6XS33FX8`——与源码一致。
 - **观测与源码意图不一致**: PhotoCraft 的 `v0.1.1-rc.4` / `v0.1.1-rc.5` 在 GitHub 上是
   `prerelease: false`（2026-10-07 API 实测）。所以不能靠 GitHub 的 prerelease 位挡 rc。其余六个仓库
   至今没有 rc tag。
@@ -124,5 +126,5 @@ swift run --package-path application-test channel-verify photocraft-0.1.1-macos-
 ```
 
 ## 建议下一步
-1. rc 轨：真要接的话，先下一个 rc 包确认 `<App>Version` 带 `-rc.N`，再评估扫描端读自定义键。
+1. rc 轨：`<App>Version` 带 `-rc.N` 已在 PhotoCraft rc 真包上确认；要接的话需扫描端支持读这个自定义键。
 2. 帖子说一个月内要追平 Adobe，发版会很密；`duo verify` 夜扫会盯住 pattern 是否还匹配。

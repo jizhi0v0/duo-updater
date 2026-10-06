@@ -95,14 +95,13 @@ enum com_workbuddy_workbuddy_ai {
         // situation degrades loudly instead (`installURLUnresolved`, which the
         // nightly `duo verify` sweep reports).
         //
-        // One-click: the JSON's `url` is a plain, unsigned object on Tencent COS
+        // One-click: the JSON's `url` is a plain, unsigned zip on Tencent COS
         // (intl: `codebuddy-1328495429.cos.accelerate.myqcloud.com`; CN:
         // `download.codebuddy.cn`). The `sha256hash` field alongside it is NOT
         // that zip's digest: it is the SHA-256 of the `.dmg` sibling at the same
-        // path (measured 2026-10-07 on all four host×arch zips; History). Wiring
-        // it would refuse every good download, so it is left unused and Team
-        // FN2V63AD2J gates the swap (History has the dated check of both vendor
-        // DMGs).
+        // path (measured 2026-10-07 on all four host×arch pairs; History). So
+        // one-click installs that dmg, checked against `sha256hash`, then Team
+        // FN2V63AD2J (see `workBuddyRecipe`).
         //
         // Changelog: each site's page is the one the app itself links (the build
         // branches on `isOverseas()`). The two pages share one entry pattern — see

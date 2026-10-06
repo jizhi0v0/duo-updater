@@ -451,8 +451,8 @@ private func batchVersion(_ bundleID: String, in body: String) -> String? {
 // MARK: - Unity Hub / Wave: the arm64 zip item's sha512
 
 /// Verbatim `latest-mac.yml` bodies, fetched 2026-10-07. Each lists the arm64
-/// zip the URL pattern reads first, then the x64 zip and both dmgs (Wave repeats
-/// some items), then a top-level `path:`/`sha512:` pair.
+/// zip the URL pattern reads first, then the x64 zip and both dmgs (Wave lists
+/// each of those three times), then a top-level `path:`/`sha512:` pair.
 private let unityHubFeedFixture = """
     version: 3.22.2
     files:
@@ -472,6 +472,10 @@ private let unityHubFeedFixture = """
     sha512: /O1VW7I/GSStQqz67vxzaxt3QdTlJNe7s9ClY0huuIkIb2T7ni/lU5mns6akW7AfS/xRO0ubeiGUEeaUuhITtA==
     releaseDate: 2026-10-02T20:03:36.105Z
     minimumSystemVersion: 22.0.0
+    signature: 2/HUZab39LWeFrBlJUwQUOTywSnCXNq+FJxCQoonsOWgZTIrt3VUQXoTN7Do7T/0UtTiGi0VAbqho3/HTichDQ==
+    signatures:
+      - keyId: ac7dcb6adc4d43df7b03d64c97e1356fec31412318bd5374531ffc24a2a98ff3
+        signature: 2/HUZab39LWeFrBlJUwQUOTywSnCXNq+FJxCQoonsOWgZTIrt3VUQXoTN7Do7T/0UtTiGi0VAbqho3/HTichDQ==
     """
 
 private let waveFeedFixture = """
@@ -486,9 +490,24 @@ private let waveFeedFixture = """
       - url: Wave-darwin-x64-0.14.5.zip
         sha512: zrwftx9kSbYQjVqVUv9uL3pspTYANrz8y1gjUs4ZQT7wDrT/GEz9pt2rGcRnIpOO78xfrILFIuEFDs4WJyK5QQ==
         size: 200713028
+      - url: Wave-darwin-x64-0.14.5.zip
+        sha512: zrwftx9kSbYQjVqVUv9uL3pspTYANrz8y1gjUs4ZQT7wDrT/GEz9pt2rGcRnIpOO78xfrILFIuEFDs4WJyK5QQ==
+        size: 200713028
       - url: Wave-darwin-arm64-0.14.5.dmg
         sha512: OvnTd4Z7vk5s4RubnQLal0m+maloBlNySwF5l48JjZvme4UlxayyBLJrZWDvtv4639RgJ8XhgOjMcMKLK7HOQQ==
         size: 200257009
+      - url: Wave-darwin-arm64-0.14.5.dmg
+        sha512: OvnTd4Z7vk5s4RubnQLal0m+maloBlNySwF5l48JjZvme4UlxayyBLJrZWDvtv4639RgJ8XhgOjMcMKLK7HOQQ==
+        size: 200257009
+      - url: Wave-darwin-arm64-0.14.5.dmg
+        sha512: OvnTd4Z7vk5s4RubnQLal0m+maloBlNySwF5l48JjZvme4UlxayyBLJrZWDvtv4639RgJ8XhgOjMcMKLK7HOQQ==
+        size: 200257009
+      - url: Wave-darwin-x64-0.14.5.dmg
+        sha512: mlmEu5c8855ydIJ4OHgIMCWs/2gG4nru8qyPsT9KXU2C+1kdgwrm2PSrS9D0VTHebVnZm6t1XW9MjE399eWu2Q==
+        size: 208388868
+      - url: Wave-darwin-x64-0.14.5.dmg
+        sha512: mlmEu5c8855ydIJ4OHgIMCWs/2gG4nru8qyPsT9KXU2C+1kdgwrm2PSrS9D0VTHebVnZm6t1XW9MjE399eWu2Q==
+        size: 208388868
       - url: Wave-darwin-x64-0.14.5.dmg
         sha512: mlmEu5c8855ydIJ4OHgIMCWs/2gG4nru8qyPsT9KXU2C+1kdgwrm2PSrS9D0VTHebVnZm6t1XW9MjE399eWu2Q==
         size: 208388868

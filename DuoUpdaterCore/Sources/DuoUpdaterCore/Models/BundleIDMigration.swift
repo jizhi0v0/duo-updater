@@ -3,12 +3,15 @@ import Foundation
 /// A vendor that renamed its app's bundle id between two releases, recorded
 /// so a copy still on the old id is checked and updated as the app it is.
 ///
-/// Recipes are keyed by the NEW id, the one the vendor ships today. Two places
-/// read this table, and nothing else does:
+/// Recipes are keyed by the NEW id, the one the vendor ships today. Three
+/// places read this table, and nothing else does — an entry changes all three:
 ///  - `InstalledApp.recipeBundleID` files an old-id copy under the new id, so
 ///    vendor probes and changelog recipes find it. `bundleID` itself stays the
-///    id on disk: restart, running-copy and self-updater checks look the
-///    process up by it, and an old-id copy runs as the old id.
+///    id on disk.
+///  - `AppRestarter.runningInstances` queries running processes under both ids
+///    of a pair (`relatedBundleIDs`) and then filters by path, so restart and
+///    quit reach an old-id process still running from a bundle just swapped
+///    to the new id.
 ///  - `SignatureVerifier.verifyBundleIdentifierMatch` lets a download signed as
 ///    `to` replace a copy signed as `from` — that one direction, only for the
 ///    registered Team, only for an installed version below `firstToVersion`.
@@ -34,7 +37,7 @@ public struct BundleIDMigration: Sendable, Equatable {
         // the releases between could not be fetched. The vendor's own updater
         // migrates old copies (its 5.1.0 notes: "macOS Bundle ID 迁移更新器") and
         // the new app carries a helper signed as the old id to unregister the old
-        // login item. See docs/app-audits/com-workbuddy-workbuddy.md.
+        // login item. See docs/app-audits/com-tencent-workbuddy-mac.md, 历史与实测.
         BundleIDMigration(
             from: "com.workbuddy.workbuddy", to: "com.tencent.workbuddy.mac",
             teamID: "FN2V63AD2J", lastFromVersion: "5.3.14", firstToVersion: "5.5.4"),

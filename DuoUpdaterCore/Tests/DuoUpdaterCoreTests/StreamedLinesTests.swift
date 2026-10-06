@@ -122,16 +122,28 @@ import Foundation
         #expect(done != nil)
     }
 
-    /// `end()` while a wait is suspended resumes it. `hasWaiter` makes sure this
-    /// exercises the resume, not the early return above.
+    /// `end()` while a wait is suspended resumes it. `end()` is called only once
+    /// `hasWaiter` is true, so this exercises the resume, not the early return
+    /// above.
+    ///
+    /// The wait is registered by this test's own task, and `end()` is called from
+    /// a plain `Thread` that polls `hasWaiter`, as the pipe's EOF callback would
+    /// call it from outside the pool. It used to start a helper task and spin on
+    /// `Task.yield()` until that task had registered, which can starve the helper:
+    /// `Task.yield()` "immediately resumes" a task that is the highest-priority
+    /// one. The same spin in `theCapFiresWhileEveryCooperativeThreadIsBlocked`
+    /// hung CI's release job (run 37508268328).
     @Test func anEndDuringTheWaitResumesIt() async throws {
         let s = StreamedLines()
         let done = try await Self.finishing(within: Self.watchdogSeconds) {
-            let waiting = Task { await s.waitForEnd(atMost: 3600) }
-            while !s.hasWaiter { await Task.yield() }
-            s.end()
-            s.end()  // a second EOF callback must not resume twice
-            await waiting.value
+            Thread.detachNewThread {
+                let deadline = Date().addingTimeInterval(Self.watchdogSeconds)
+                while !s.hasWaiter, Date() < deadline { usleep(1_000) }
+                guard s.hasWaiter else { return }
+                s.end()
+                s.end()  // a second EOF callback must not resume twice
+            }
+            await s.waitForEnd(atMost: 3600)
         }
         #expect(done != nil)
     }
@@ -170,7 +182,7 @@ import Foundation
     /// Mutation: arm the cap on `DispatchQueue.global()` again → red at 30 s.
     @Test func theCapFiresWhileEveryCooperativeThreadIsBlocked() async throws {
         let s = StreamedLines()
-        let pool = BlockedPool(tasks: 2 * ProcessInfo.processInfo.activeProcessorCount)
+        let pool = BlockedCooperativePool(tasks: 2 * ProcessInfo.processInfo.activeProcessorCount)
         let released = pool.release(within: 30) { s.waitsReleasedByCap > 0 }
         await s.waitForEnd(atMost: 0.5)
         let outcome = await released.value
@@ -178,75 +190,6 @@ import Foundation
         // More blocking tasks than threads, so some were still queued: the pool
         // was full when the cap fired, or this test showed nothing.
         #expect(outcome.saturated, "the pool was not full when the cap fired")
-    }
-
-    /// `tasks` tasks that each block a cooperative thread until `release`.
-    private final class BlockedPool: @unchecked Sendable {
-        let tasks: Int
-        private let gate = DispatchSemaphore(value: 0)
-        private let lock = NSLock()
-        private var started = 0
-
-        init(tasks: Int) {
-            self.tasks = tasks
-            for _ in 0..<tasks {
-                Task.detached(priority: .high) { [self] in block() }
-            }
-        }
-
-        private func block() {
-            lock.withLock { started += 1 }
-            gate.wait()
-        }
-
-        /// On a plain `Thread`: wait for `condition()` to turn true, or for
-        /// `seconds`, then let every blocked task go. `saturated` is whether some
-        /// tasks were still queued at that moment.
-        func release(
-            within seconds: Double, until condition: @escaping @Sendable () -> Bool
-        ) -> Promise<(conditionMet: Bool, saturated: Bool)> {
-            let promise = Promise<(conditionMet: Bool, saturated: Bool)>()
-            Thread.detachNewThread { [self] in
-                let deadline = Date().addingTimeInterval(seconds)
-                while !condition(), Date() < deadline { usleep(1_000) }
-                let met = condition()
-                let saturated = lock.withLock { started } < tasks
-                for _ in 0..<tasks { gate.signal() }
-                promise.fulfill((met, saturated))
-            }
-            return promise
-        }
-    }
-
-    /// A value set once from any thread and awaited from a task.
-    private final class Promise<T: Sendable>: @unchecked Sendable {
-        private let lock = NSLock()
-        private var result: T?
-        private var waiter: CheckedContinuation<T, Never>?
-
-        func fulfill(_ value: T) {
-            lock.lock()
-            result = value
-            let w = waiter
-            waiter = nil
-            lock.unlock()
-            w?.resume(returning: value)
-        }
-
-        var value: T {
-            get async {
-                await withCheckedContinuation { cont in
-                    lock.lock()
-                    if let result {
-                        lock.unlock()
-                        cont.resume(returning: result)
-                    } else {
-                        waiter = cont
-                        lock.unlock()
-                    }
-                }
-            }
-        }
     }
 
     // MARK: - run(_:) against a real pipe

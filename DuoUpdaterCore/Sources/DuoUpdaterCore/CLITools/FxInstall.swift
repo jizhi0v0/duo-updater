@@ -322,10 +322,17 @@ public struct FxScanner: Sendable {
     /// printed the same. So the child gets only a
     /// `PATH`, and a deadline far above that.
     public static func runVersion(_ executable: URL) async -> String? {
+        await runVersion(executable, deadline: versionDeadline)
+    }
+
+    /// The deadline is a test seam: a stand-in script on a saturated parallel
+    /// suite took over 5 s to answer (CI, 2026-10-06), which says nothing about
+    /// how the output is read.
+    static func runVersion(_ executable: URL, deadline: ChildProcess.Deadline) async -> String? {
         guard let outcome = try? await ChildProcess.run(
             executable.path, ["--version"], environment: ["PATH": CLIToolCommandRunner.systemPath],
             standardOutput: .capture, standardError: .discard,
-            deadline: versionDeadline, onCancel: .terminateChild),
+            deadline: deadline, onCancel: .terminateChild),
               outcome.succeeded, !outcome.timedOut
         else { return nil }
         return parseVersion(String(decoding: outcome.standardOutput, as: UTF8.self))

@@ -19,20 +19,45 @@ import Foundation
 /// direction — see `BrewFormulaReleaseService.brewInfoOffActor`, whose comment
 /// measures the collateral stall that blocking the pool inflicts on unrelated
 /// work and settles on Dispatch for the same reason: **Dispatch grows its pool
-/// when a thread blocks, and the cooperative pool does not.** `Task.detached` is
-/// not an alternative; a detached task still runs on the cooperative pool.
+/// when a thread blocks, and the cooperative pool does not.** (Not every Dispatch
+/// queue, though; see "Why the hop gets its own serial queue" below.)
+/// `Task.detached` is not an alternative; a detached task still runs on the
+/// cooperative pool.
 ///
 /// ## What this does and does not fix
 ///
 /// It frees the pool. Everything else in the process keeps running, and a call
 /// that never returns becomes one stuck operation rather than a dead runtime.
 ///
-/// It does **not** make a stuck call return. What the Security group above is
-/// waiting for is still unknown — no thread in either process was doing
-/// validation work — so if that wait is blocked on something other than a thread,
-/// this moves the symptom rather than removing it. That case is not invisible:
+/// It does **not** make a stuck call return. That case is not invisible:
 /// `scripts/run-with-hang-report.sh` bounds the suite from outside the process
 /// and prints stacks either way.
+///
+/// ## Why the hop gets its own serial queue
+///
+/// What the Security group above was waiting for was a thread. Its validation
+/// work goes to a Dispatch queue that is not overcommit, and such a queue gets
+/// no thread while every cooperative thread is parked at its QoS or above.
+/// Measured 2026-10-07, release build, 14-core Mac, the pool parked by `.high`
+/// tasks: one `SecStaticCodeCheckValidity` of FileMerge.app took 6.003 s instead
+/// of 0.017 s, exactly as long as the pool was held; 14 at once, one per pool
+/// thread, deadlocked (0.13 s of CPU in two minutes, every thread in
+/// `Dispatch::Group::wait()`). That is #351.
+///
+/// `DispatchQueue.global(qos:)` is such a queue too, and this hop used to go
+/// there. With the pool parked by `.high` tasks, a block on
+/// `global(qos: .userInitiated)`, `.default` or `.utility` waited the whole 6 s
+/// the pool was held; parked by `.medium` tasks, only `.utility` did. So the hop
+/// meant to get blocking work off a parked pool could itself wait for that pool.
+///
+/// A serial queue defaults to overcommit (libdispatch `src/queue.c`: "Serial
+/// queues default to overcommit!"), and an overcommit queue gets a thread
+/// whatever else is running. In the same experiments, serial queues ran at once
+/// every time. Each hop creates its own, so hops still run side by side: one
+/// shared serial queue would put every blocking call in the process in a single
+/// line. The price is that hops are not capped at the core count; the callers that
+/// fan out bound themselves (`installInParallel(limit:)`), and the rest await
+/// one hop at a time.
 ///
 /// ## Not for child processes
 ///
@@ -66,7 +91,7 @@ public func offCooperativePool<T: Sendable>(
     _ work: @escaping @Sendable () throws -> T
 ) async throws -> T {
     try await withCheckedThrowingContinuation { continuation in
-        DispatchQueue.global(qos: qos).async {
+        hopQueue(qos).async {
             continuation.resume(with: Result { try work() })
         }
     }
@@ -79,10 +104,16 @@ public func offCooperativePool<T: Sendable>(
     _ work: @escaping @Sendable () -> T
 ) async -> T {
     await withCheckedContinuation { continuation in
-        DispatchQueue.global(qos: qos).async {
+        hopQueue(qos).async {
             continuation.resume(returning: work())
         }
     }
+}
+
+/// A queue of its own for one hop: serial, so overcommit. See "Why the hop gets
+/// its own serial queue" above.
+private func hopQueue(_ qos: DispatchQoS.QoSClass) -> DispatchQueue {
+    DispatchQueue(label: "offCooperativePool", qos: DispatchQoS(qosClass: qos, relativePriority: 0))
 }
 
 /// `FileManager.removeItem(at:)` through `offCooperativePool`, best-effort like

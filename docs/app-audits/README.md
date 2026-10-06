@@ -385,8 +385,10 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Telegram Desktop**](com-tdesktop-Telegram.md) · `com.tdesktop.Telegram` — 仅迁出历史：两次挂载 dmg 的核对、文件名改名的时间线
 - [ ] [**TigerVNC**](com-tigervnc-tigervnc.md) · `com.tigervnc.tigervnc` — 仅迁出历史：一键 dmg 的核对
 - [ ] [**Cursor**](com-todesktop-230313mzl4w4u92.md) · `com.todesktop.230313mzl4w4u92` — 仅迁出历史：changelog 页尾吞进页面框架的大小
+- [ ] [**Unity Hub**](com-unity3d-unityhub.md) · `com.unity3d.unityhub` — 仅迁出历史：一键 zip 对 `latest-mac.yml` 里 sha512 的字节核对
 - [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — 仅迁出历史：Insiders 一键 zip 的核对、channel proof 的 tag 计数、`detect` 那段指向的更正；stable 未审计，同 family 的 Insiders 已审计（见上「未编入分类」）
 - [ ] [**ToDesk**](com-youqu-todesk-mac.md) · `com.youqu.todesk.mac` — 仅迁出历史：下载页锚点的变化经过、灰度链接排到 GA 前面的复测、改读配置 API 只取 GA 的经过、macOS 更新日志页停更的版本
+- [ ] [**Wave Terminal**](dev-commandline-waveterm.md) · `dev.commandline.waveterm` — 仅迁出历史：一键 zip 对 `latest-mac.yml` 里 sha512 的字节核对
 - [ ] [**Kiro**](dev-kiro-desktop.md) · `dev.kiro.desktop` — 仅迁出历史：从下载页换到更新元数据的经过、一键 zip 的核对、RSS 里不带版本号的条目数
 - [ ] [**Beekeeper Studio**](io-beekeeperstudio-desktop.md) · `io.beekeeperstudio.desktop` — 仅迁出历史：一键 arm64 dmg 的核对
 - [ ] [**Podman Desktop**](io-podmandesktop-PodmanDesktop.md) · `io.podmandesktop.PodmanDesktop` — 仅迁出历史：airgap 包的大小、repo 改名导致匿名限流的测量

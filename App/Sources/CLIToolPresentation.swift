@@ -61,6 +61,42 @@ enum CLIToolPresentation {
         var id: String { kind.rawValue + ":" + (prefix?.path ?? "") }
     }
 
+    /// `statuses` with the tools that have an update first — the Apps tab's and the
+    /// casks' rule, which the CLI tab did not keep: its groups stood in
+    /// `CLIToolKind`'s order and its formulae alphabetically, updates scattered
+    /// among them (2026-10-06). A group with an outdated copy comes before one
+    /// without, and within a group the outdated copies come first. Stable
+    /// otherwise, so tool order and each tool's own order still decide ties.
+    /// Flattened, in the order `groups` then draws.
+    static func updatesFirst(_ statuses: [CLIToolStatus]) -> [CLIToolStatus] {
+        let outdated: (CLIToolStatus) -> Bool = { $0.state == .updateAvailable }
+        let all = groups(statuses)
+        let ordered = all.filter { $0.statuses.contains(where: outdated) }
+            + all.filter { !$0.statuses.contains(where: outdated) }
+        return ordered.flatMap { outdatedFirst($0.statuses, outdated) }
+    }
+
+    /// `items` with the outdated ones first, otherwise in their own order: a
+    /// group's copies, and Homebrew's formulae in the order brew lists them
+    /// (alphabetical).
+    static func outdatedFirst<T>(_ items: [T], _ outdated: (T) -> Bool) -> [T] {
+        items.filter(outdated) + items.filter { !outdated($0) }
+    }
+
+    /// `items` in the order `held` names them, while there is one: the order a run
+    /// of updates started with. Updates first would otherwise move each row to its
+    /// place among the current ones as its update lands — under a parallel Update
+    /// All, one row after another while the user watches. An item `held` does not
+    /// name goes after the rest, in its own order.
+    static func holding<T>(_ items: [T], to held: [String]?, id: (T) -> String) -> [T] {
+        guard let held else { return items }
+        let rank = Dictionary(held.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+        return items.enumerated().sorted { a, b in
+            let (ra, rb) = (rank[id(a.element)] ?? Int.max, rank[id(b.element)] ?? Int.max)
+            return ra != rb ? ra < rb : a.offset < b.offset
+        }.map(\.element)
+    }
+
     /// `statuses` as the CLI tab draws them, in their own order (`CLIToolKind`'s,
     /// then each tool's): one group per tool, npm's split by prefix, each prefix
     /// where its first package stood. Flattened, the order of every row.

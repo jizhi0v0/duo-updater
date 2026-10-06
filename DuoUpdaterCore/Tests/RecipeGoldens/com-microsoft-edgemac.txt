@@ -33,8 +33,8 @@ probes[0].install? = struct VendorInstallSpec
 probes[0].install?.urlSource = .redirect(_:)
 probes[0].install?.urlSource.0 = URL("https://go.microsoft.com/fwlink/?linkid=2093504")
 probes[0].install?.kind = .pkg
-probes[0].install?.checksumPattern = nil
-probes[0].install?.checksumFormat = .sha512Base64
+probes[0].install?.checksumPattern? = "(?s)\"Product\"\\s*:\\s*\"Stable\"(?:(?!\"Product\"\\s*:)(?!\"Platform\"\\s*:\\s*\"MacOS\")[\\s\\S])*?\"Platform\"\\s*:\\s*\"MacOS\"(?:(?!\"Product\"\\s*:)(?!\"Location\"\\s*:\\s*\"https://[^\"]+\\.pkg\")[\\s\\S])*?\\{(?=[^{}]*\"Location\"\\s*:\\s*\"https://[^\"]+\\.pkg\")(?=[^{}]*\"HashAlgorithm\"\\s*:\\s*\"SHA256\")[^{}]*?\"Hash\"\\s*:\\s*\"([0-9A-Fa-f]{64})\""
+probes[0].install?.checksumFormat = .sha256Hex
 probes[0].install?.requestHeaders = Dictionary(count: 0)
 probes[0].install?.nestedArchivePath = nil
 probes[0].install?.contentsArchivePattern = nil
@@ -70,8 +70,8 @@ probes[1].install? = struct VendorInstallSpec
 probes[1].install?.urlSource = .bodyPattern(_:)
 probes[1].install?.urlSource.0 = "(?s)\"Product\"\\s*:\\s*\"Beta\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"Platform\"\\s*:\\s*\"MacOS\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"Location\"\\s*:\\s*\"(https://[^\"]+\\.pkg)\""
 probes[1].install?.kind = .pkg
-probes[1].install?.checksumPattern = nil
-probes[1].install?.checksumFormat = .sha512Base64
+probes[1].install?.checksumPattern? = "(?s)\"Product\"\\s*:\\s*\"Beta\"(?:(?!\"Product\"\\s*:)(?!\"Platform\"\\s*:\\s*\"MacOS\")[\\s\\S])*?\"Platform\"\\s*:\\s*\"MacOS\"(?:(?!\"Product\"\\s*:)(?!\"Location\"\\s*:\\s*\"https://[^\"]+\\.pkg\")[\\s\\S])*?\\{(?=[^{}]*\"Location\"\\s*:\\s*\"https://[^\"]+\\.pkg\")(?=[^{}]*\"HashAlgorithm\"\\s*:\\s*\"SHA256\")[^{}]*?\"Hash\"\\s*:\\s*\"([0-9A-Fa-f]{64})\""
+probes[1].install?.checksumFormat = .sha256Hex
 probes[1].install?.requestHeaders = Dictionary(count: 0)
 probes[1].install?.nestedArchivePath = nil
 probes[1].install?.contentsArchivePattern = nil
@@ -107,8 +107,8 @@ probes[2].install? = struct VendorInstallSpec
 probes[2].install?.urlSource = .bodyPattern(_:)
 probes[2].install?.urlSource.0 = "(?s)\"Product\"\\s*:\\s*\"Dev\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"Platform\"\\s*:\\s*\"MacOS\"(?:(?!\"Product\"\\s*:)[\\s\\S])*?\"Location\"\\s*:\\s*\"(https://[^\"]+\\.pkg)\""
 probes[2].install?.kind = .pkg
-probes[2].install?.checksumPattern = nil
-probes[2].install?.checksumFormat = .sha512Base64
+probes[2].install?.checksumPattern? = "(?s)\"Product\"\\s*:\\s*\"Dev\"(?:(?!\"Product\"\\s*:)(?!\"Platform\"\\s*:\\s*\"MacOS\")[\\s\\S])*?\"Platform\"\\s*:\\s*\"MacOS\"(?:(?!\"Product\"\\s*:)(?!\"Location\"\\s*:\\s*\"https://[^\"]+\\.pkg\")[\\s\\S])*?\\{(?=[^{}]*\"Location\"\\s*:\\s*\"https://[^\"]+\\.pkg\")(?=[^{}]*\"HashAlgorithm\"\\s*:\\s*\"SHA256\")[^{}]*?\"Hash\"\\s*:\\s*\"([0-9A-Fa-f]{64})\""
+probes[2].install?.checksumFormat = .sha256Hex
 probes[2].install?.requestHeaders = Dictionary(count: 0)
 probes[2].install?.nestedArchivePath = nil
 probes[2].install?.contentsArchivePattern = nil

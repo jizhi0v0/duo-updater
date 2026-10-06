@@ -10,6 +10,16 @@ enum com_google_android_studio {
         // (open Toolbox); this recipe fires for a hand-downloaded Android Studio.
         // developer.android.com/studio is static HTML carrying both the version
         // and the arm64 dmg href on the same page. Team EQHXZ8M8AV.
+        //
+        // The download is checked against the page's "SHA-256 checksum" table, on
+        // top of the Team-ID gate: the `mac_arm.dmg` row of the table headed
+        // package / size / checksum (not the Intel `mac.dmg` row above it, nor the
+        // SDK-tools table further down, which has the same checksum column). The
+        // table names files, not URLs, so the row pairs with the download link by
+        // being the same page's only arm64 dmg; a back-reference can't tie the two
+        // names together because every capture group would be joined into the
+        // digest. If Google's table and link ever disagree, the install fails as
+        // `checksumMismatch` rather than installing unchecked.
         VendorProbeRecipe(
             bundleID: "com.google.android.studio",
             url: URL(string: "https://developer.android.com/studio")!,
@@ -19,7 +29,10 @@ enum com_google_android_studio {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*mac_arm\.dmg)"#),
-                kind: .dmg)),
+                kind: .dmg,
+                checksumPattern:
+                    #"<th>Android Studio package</th>\s*<th>Size</th>\s*<th>SHA-256 checksum</th>(?:(?!</table>)[\s\S])*?>android-studio-[^<"]*mac_arm\.dmg</button>\s*</td>\s*<td>[^<]*</td>\s*<td>([0-9a-f]{64})</td>"#,
+                checksumFormat: .sha256Hex)),
 
         // Android Studio — Canary & Beta preview installs. Both share Stable's
         // `com.google.android.studio`; the install's channel is read from the
@@ -64,6 +77,13 @@ enum com_google_android_studio {
         // false`) gets `allowInstall = true` and IS offered this one-click, which is
         // why the dmg patterns below must stay correct and in lockstep with the
         // version set, not merely decorative. Team EQHXZ8M8AV.
+        //
+        // The download is checked against that `download` object's `checksum`
+        // (SHA-256, hex), on top of the Team-ID gate. Each item lists six platforms'
+        // files; within the winning item the pattern takes the object whose `link`
+        // is the first arm64 dmg URL — the one the install pattern reads — whatever
+        // the key order, and matches nothing if that object has no `checksum`
+        // rather than another platform's (e.g. the Intel `-mac.dmg`) digest.
         VendorProbeRecipe(
             bundleID: "com.google.android.studio",
             url: URL(string: "https://jb.gg/android-studio-releases-list.json")!,
@@ -81,7 +101,10 @@ enum com_google_android_studio {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*(?:canary|beta|rc)[0-9]*-mac_arm\.dmg)"#),
-                kind: .dmg),
+                kind: .dmg,
+                checksumPattern:
+                    #"\A(?:(?!https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*(?:canary|beta|rc)[0-9]*-mac_arm\.dmg)[\s\S])*?\{(?=[^{}]*"link"\s*:\s*"https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*(?:canary|beta|rc)[0-9]*-mac_arm\.dmg")[^{}]*?"checksum"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex),
             channel: .canary),
         VendorProbeRecipe(
             bundleID: "com.google.android.studio",
@@ -101,7 +124,10 @@ enum com_google_android_studio {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*(?:beta|rc)[0-9]*-mac_arm\.dmg)"#),
-                kind: .dmg),
+                kind: .dmg,
+                checksumPattern:
+                    #"\A(?:(?!https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*(?:beta|rc)[0-9]*-mac_arm\.dmg)[\s\S])*?\{(?=[^{}]*"link"\s*:\s*"https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*(?:beta|rc)[0-9]*-mac_arm\.dmg")[^{}]*?"checksum"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex),
             channel: .beta),
         ],
         channelProofs: [

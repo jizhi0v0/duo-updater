@@ -42,8 +42,8 @@ struct QueryTokenField: View {
     /// click — gives the input its width back, wrapping it if it has to.
     ///
     /// One point wide, not zero, and kept out of the line's arithmetic by
-    /// ``FlowLayout/RidesAlong`` instead: at zero wide AppKit leaves it out of
-    /// the key-view loop, and Tab stops reaching the field.
+    /// ``FlowLayout/RidesAlong`` instead: at zero wide, Tab skipped the field
+    /// (tried; one point is enough for Tab to reach it again).
     private var inputCollapsed: Bool {
         !tokens.isEmpty && draft.isEmpty && !focused
     }

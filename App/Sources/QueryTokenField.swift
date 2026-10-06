@@ -30,11 +30,18 @@ struct QueryTokenField: View {
 
     private var tokens: [String] { RequestQuery.tokenize(text) }
 
+    /// One line of the field: one capsule's height. The icon and the clear
+    /// button are held to this rather than centred on the whole field, so when
+    /// the capsules wrap they stay beside the first line instead of floating
+    /// down into the gap between the two.
+    private static let lineHeight: CGFloat = 18
+
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(alignment: .top, spacing: 6) {
             Image(systemName: "magnifyingglass")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .frame(height: Self.lineHeight)
 
             // Capsules and the input are one flow, not two columns. Split
             // across the HStack they each claimed half the width, so the
@@ -50,8 +57,13 @@ struct QueryTokenField: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 12, design: .monospaced))
                     // Wide enough to be worth clicking into, and to keep the
-                    // caret off the capsule beside it.
-                    .frame(minWidth: 160)
+                    // caret off the capsule beside it. Narrower once capsules
+                    // are in front of it: the whole field takes the click, so
+                    // past the placeholder the width only decides whether the
+                    // caret wraps onto a line of its own — and 160 sent it
+                    // there while a third of the line was still free.
+                    .frame(minWidth: tokens.isEmpty ? 160 : 80,
+                           minHeight: Self.lineHeight)
                     .focused($focused)
                     .onSubmit(commit)
                     // A space ends a token, the way it does in every filter bar
@@ -84,6 +96,7 @@ struct QueryTokenField: View {
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
+                .frame(height: Self.lineHeight)
                 .help("Clear the filter")
             }
         }

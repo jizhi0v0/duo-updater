@@ -48,16 +48,34 @@ struct WorkBuddyProbeRecipeTests {
         $0.bundleID.hasPrefix("com.workbuddy.") || $0.bundleID == "com.tencent.workbuddy.mac"
     }
 
-    private static func installPattern(_ recipe: VendorProbeRecipe) throws -> String {
+    /// The install URL exactly as `VendorProbeSource` builds it for a
+    /// `.bodyTemplate` spec: each field's `extractVersion` fills its `{i}`, and a
+    /// field that matches nothing resolves nothing.
+    private static func resolvedInstallURL(
+        _ recipe: VendorProbeRecipe, body: String
+    ) throws -> String? {
         let spec = try #require(recipe.install)
-        guard case .bodyPattern(let pattern) = spec.urlSource else {
-            throw RecipeShapeError.notABodyPattern(recipe.recipeID)
+        guard case .bodyTemplate(let template, let fields) = spec.urlSource else {
+            throw RecipeShapeError.notABodyTemplate(recipe.recipeID)
         }
-        #expect(spec.kind == .zip)
-        return pattern
+        #expect(spec.kind == .dmg)
+        var filled = template
+        for (index, field) in fields.enumerated() {
+            guard let value = VendorProbeRecipe.extractVersion(from: body, pattern: field)
+            else { return nil }
+            filled = filled.replacingOccurrences(of: "{\(index)}", with: value)
+        }
+        return filled
     }
 
-    private enum RecipeShapeError: Error { case notABodyPattern(String) }
+    private enum RecipeShapeError: Error { case notABodyTemplate(String) }
+
+    /// The `url` field of a captured body, as the vendor wrote it.
+    private static func bodyURL(_ body: String) throws -> String {
+        let object = try #require(
+            JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any])
+        return try #require(object["url"] as? String)
+    }
 
     // MARK: - registry shape
 
@@ -188,17 +206,20 @@ struct WorkBuddyProbeRecipeTests {
 
     // MARK: - the install artifact
 
-    /// Every recipe resolves the zip its own captured body names.
-    @Test func eachRecipeInstallsTheArtifactItsOwnBodyNames() throws {
+    /// Every recipe installs the dmg beside the zip its own captured body names:
+    /// the same path and name, only the extension swapped. That dmg is the file
+    /// `sha256hash` describes.
+    @Test func eachRecipeInstallsTheDMGBesideTheZipItsOwnBodyNames() throws {
         for site in Self.sites {
             for recipe in Self.recipes where recipe.bundleID == site.bundleID {
                 let slug = try #require(recipe.variant)
                 let body = try #require(site.bodies[slug])
-                let pattern = try Self.installPattern(recipe)
                 let resolved = try #require(
-                    VendorProbeRecipe.extractVersion(from: body, pattern: pattern),
+                    try Self.resolvedInstallURL(recipe, body: body),
                     "\(recipe.recipeID) resolved no install URL")
-                #expect(resolved.hasSuffix(".zip"))
+                let zip = try Self.bodyURL(body)
+                #expect(zip.hasSuffix(".zip"))
+                #expect(resolved == String(zip.dropLast(".zip".count)) + ".dmg")
                 #expect(resolved.contains("/darwin-\(slug)/"))
                 #expect(resolved.contains("WorkBuddy-darwin-\(slug)-"))
             }
@@ -216,9 +237,7 @@ struct WorkBuddyProbeRecipeTests {
                 let slug = try #require(recipe.variant)
                 let otherSlug = slug == "arm64" ? "x64" : "arm64"
                 let otherBody = try #require(site.bodies[otherSlug])
-                let pattern = try Self.installPattern(recipe)
-                #expect(VendorProbeRecipe.extractVersion(
-                    from: otherBody, pattern: pattern) == nil,
+                #expect(try Self.resolvedInstallURL(recipe, body: otherBody) == nil,
                     "\(recipe.recipeID) accepted the \(otherSlug) artifact")
             }
         }
@@ -236,12 +255,10 @@ struct WorkBuddyProbeRecipeTests {
             #expect(!others.isEmpty)
             for recipe in Self.recipes where recipe.bundleID == site.bundleID {
                 let slug = try #require(recipe.variant)
-                let pattern = try Self.installPattern(recipe)
                 for other in others {
                     // Same architecture, other site: the ONLY difference is the host.
                     let otherBody = try #require(other.bodies[slug])
-                    #expect(VendorProbeRecipe.extractVersion(
-                        from: otherBody, pattern: pattern) == nil,
+                    #expect(try Self.resolvedInstallURL(recipe, body: otherBody) == nil,
                         "\(recipe.recipeID) accepted \(other.bundleID)'s artifact")
                 }
             }
@@ -249,14 +266,34 @@ struct WorkBuddyProbeRecipeTests {
     }
 
     /// `sha256hash` is the SHA-256 of the `.dmg` sibling, not of the `.zip` the
-    /// body's `url` names (measured 2026-10-07 on all four host×arch pairs).
-    /// Asserting it would fail every download, so it is deliberately unset and
-    /// the Team ID signature gate carries the swap.
-    @Test func theSHA256FieldIsDeliberatelyUnused() throws {
-        for recipe in Self.recipes {
-            let spec = try #require(recipe.install)
-            #expect(spec.checksumPattern == nil)
+    /// body's `url` names (measured 2026-10-07 on all four host×arch pairs), and
+    /// the dmg is what one-click downloads. The digest is read as hex SHA-256
+    /// from the same body the URL comes from.
+    @Test func theDMGIsCheckedAgainstTheBodysSHA256() throws {
+        for site in Self.sites {
+            for recipe in Self.recipes where recipe.bundleID == site.bundleID {
+                let slug = try #require(recipe.variant)
+                let body = try #require(site.bodies[slug])
+                let spec = try #require(recipe.install)
+                let pattern = try #require(spec.checksumPattern)
+                #expect(spec.checksumFormat == .sha256Hex)
+                let object = try #require(
+                    JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any])
+                let published = try #require(object["sha256hash"] as? String)
+                #expect(VendorProbeRecipe.extractVersion(from: body, pattern: pattern)
+                    == published, "\(recipe.recipeID)")
+            }
         }
+    }
+
+    /// A body without `sha256hash` reads no digest (the install then rests on
+    /// the Team ID gate and `duo verify` reports `checksumPatternNoMatch`), and
+    /// the 40-hex SHA-1 `hash` field is never taken for it.
+    @Test func noSHA256HashReadsNoDigest() throws {
+        let recipe = try #require(Self.recipes.first)
+        let pattern = try #require(recipe.install?.checksumPattern)
+        let body = #"{"url":"https://download.codebuddy.cn/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-5.7.6.40409493-306add2a.zip","productVersion":"5.7.6.40409493","hash":"da39a3ee5e6b4b0d3255bfef95601890afd80709"}"#
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: pattern) == nil)
     }
 
     // MARK: - the publish date

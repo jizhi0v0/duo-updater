@@ -162,16 +162,24 @@ private struct UpdateProgressCapsule: View {
     }
 }
 
-/// A failed update's whole output, under its label in a facts grid.
+/// A failed update's whole output in a facts grid, its heading above it in the
+/// value column. Not in the label column: the column is as wide as its widest
+/// label, and "Last update failed" is wider than "Version" — every value moved
+/// right when an update failed and back when the next one started (fx,
+/// 2026-10-06). The label cells are empty and zero-sized. Not
+/// `gridCellUnsizedAxes`, and not one VStack for heading and log: either way
+/// the grid stopped filling the pane, and the command above wrapped to the log's
+/// width (measured in the harness).
 private struct FailedUpdateLogRow: View {
     let log: String
 
     var body: some View {
         GridRow {
-            // The panes' `label` chain, kept as it was when it lived in them.
-            Text("Last update failed")
-                .foregroundStyle(.secondary).gridColumnAlignment(.trailing)
-                .foregroundStyle(.red)
+            Color.clear.frame(width: 0, height: 0)
+            Text("Last update failed").foregroundStyle(.red)
+        }
+        GridRow {
+            Color.clear.frame(width: 0, height: 0)
             ScrollView {
                 Text(verbatim: log)
                     .font(.system(.caption, design: .monospaced))

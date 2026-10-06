@@ -6034,7 +6034,11 @@ final class AppListModel {
         // Spotify only swaps when its old build is opened again; ShipIt/Sparkle
         // swap on quit and must not be reopened early. See `StagedApplyTrigger`.
         let appliesOnLaunch = pendingSelfUpdate[result.id]?.appliesOn == .launch
-        Log.app.notice("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old.text(withBuild: true), privacy: .public)) — \(appliesOnLaunch ? "reopening it so its updater applies on launch" : "letting its own updater swap & relaunch (no reopen)", privacy: .public)")
+        // The installer parked on the quit, found while the app still runs so
+        // its exit later means something. See `InstallerExitWatch`.
+        var installerProbe = await ParkedInstallerProbe.find(
+            for: result.app, staged: pendingSelfUpdate[result.id])
+        Log.app.notice("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old.text(withBuild: true), privacy: .public)) — \(appliesOnLaunch ? "reopening it so its updater applies on launch" : "letting its own updater swap & relaunch (no reopen)", privacy: .public)\(installerProbe.map { ", watching installer \(String(describing: $0.target))" } ?? "", privacy: .public)")
         for app in running { app.terminate() }
 
         // Wait for the updater. Success = on-disk version advances past `old`.
@@ -6068,6 +6072,7 @@ final class AppListModel {
         // See `ReappearanceWatch`.
         var reappearance = ReappearanceWatch(for: pendingSelfUpdate[result.id])
         var reappearedWithoutLanding = false
+        var installerExit = InstallerExitWatch(watching: installerProbe != nil)
         for tick in 0..<maxTicks {
             try? await Task.sleep(for: .milliseconds(200))
             if RelaunchProgress.hasLanded(
@@ -6127,6 +6132,17 @@ final class AppListModel {
             if reappearance.observe(tick: tick, running: runningNow, everQuit: everQuit) {
                 Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) is running again on \(old.text(withBuild: true), privacy: .public) — its updater didn't swap; not waiting further")
                 reappearedWithoutLanding = true
+                break
+            }
+            // Asked only once the app is down: before that the watch does not
+            // judge, and a ShipIt check can cost a `launchctl` run.
+            var installerAlive = true
+            if everQuit, var probe = installerProbe {
+                installerAlive = await probe.isAlive()
+                installerProbe = probe
+            }
+            if installerExit.observe(tick: tick, installersAlive: installerAlive, everQuit: everQuit) {
+                Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public)'s installer exited and \(old.text(withBuild: true), privacy: .public) is still on disk — its updater didn't swap; not waiting further")
                 break
             }
         }

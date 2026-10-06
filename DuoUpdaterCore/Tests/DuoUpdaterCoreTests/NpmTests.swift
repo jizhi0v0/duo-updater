@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SQLite3
 @testable import DuoUpdaterCore
 
 /// A fake home with node prefixes and global packages, in a temporary directory.
@@ -252,7 +253,8 @@ final class NpmRecorder: @unchecked Sendable {
         try box.write("p/lib/node_modules/openclaw/docs/cli/update.md", "- `--tag <dist-tag|version|spec>`: override\n")
         try box.write("home/.openclaw/openclaw.json", "{\n  // json5\n  update: { channel: 'beta', auto: { enabled: false, }, },\n}\n")
         let install = try #require(box.scanner([box.prefix("p")]).scan().first)
-        #expect(install.ownUpdate == .openclaw(OpenClawSettings(channel: "beta", autoUpdate: false, supportsTag: true)))
+        #expect(install.ownUpdate == .openclaw(OpenClawSettings(channel: "beta", autoUpdate: false, supportsTag: true,
+                                                                stateDirectory: box.path("home/.openclaw"))))
     }
 
     // MARK: - Pick
@@ -723,6 +725,61 @@ final class NpmRecorder: @unchecked Sendable {
         #expect(NpmActivity.busy(install, processes: [gateway]) == nil)
         let elsewhere = NpmActivity.Process(pid: 7, arguments: ["openclaw-update", ""], executable: "/ZZFixture-other/bin/node")
         #expect(NpmActivity.busy(install, processes: [elsewhere]) == nil)
+    }
+
+    /// openclaw's ledger, `home/.openclaw/state/openclaw.sqlite`, with one row per
+    /// `(status, origin_json)` — the columns `openclawUpdateRun` reads.
+    func ledger(_ box: NpmSandbox, _ rows: [(String, String)]) throws {
+        let file = box.url("home/.openclaw/state/openclaw.sqlite")
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(at: file)
+        var db: OpaquePointer?
+        defer { sqlite3_close(db) }
+        try #require(sqlite3_open(file.path, &db) == SQLITE_OK)
+        let quote = { (text: String) in "'" + text.replacingOccurrences(of: "'", with: "''") + "'" }
+        let sql = "CREATE TABLE update_runs (run_id TEXT PRIMARY KEY NOT NULL, status TEXT NOT NULL, origin_json TEXT NOT NULL);"
+            + rows.enumerated().map { "INSERT INTO update_runs VALUES ('run-\($0)', \(quote($1.0)), \(quote($1.1)));" }.joined()
+        try #require(sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK)
+    }
+
+    /// From 2026.9 openclaw's update is titled plain `openclaw`, like any of its
+    /// commands, and counts by openclaw's own ledger: a `running` row whose driver
+    /// is alive and started when recorded — for both groups' checks. The pid,
+    /// start and title are the ones measured 2026-10-06 (`openclawUpdateRun`).
+    ///
+    /// Mutations: drop `openclawUpdateRun` from `NpmActivity.busy` or from
+    /// `BunActivity.busy`; drop the start comparison; drop `status = 'running'`;
+    /// ignore `previousDrivers`.
+    @Test func openclawsOwnUpdateIsBusyByItsLedger() throws {
+        let box = try NpmSandbox()
+        let install = try activityInstall(box, "openclaw")
+        let node = "/ZZFixture-homebrew/bin/node"
+        let update = NpmActivity.Process(pid: 57307, arguments: ["openclaw", "", "", "", ""], executable: node,
+                                         started: 1791226782)
+        let origin = #"{"driver":{"host":"fixture","pid":57307,"startIdentity":"1791226782"},"admission":{"owner":"candidate"}}"#
+        let busy = NpmActivity.Busy.ownUpdater("openclaw update", pid: 57307)
+
+        // No ledger — openclaw 2026.3 — and a bare title: any openclaw command.
+        #expect(NpmActivity.busy(install, processes: [update]) == nil)
+        try ledger(box, [("failed", origin)])
+        #expect(NpmActivity.busy(install, processes: [update]) == nil)
+
+        try ledger(box, [("succeeded", #"{"driver":{"host":"fixture","pid":9,"startIdentity":"1"}}"#), ("running", origin)])
+        #expect(NpmActivity.busy(install, processes: [update]) == busy)
+        #expect(BunActivity.busy(install, processes: [update]) == busy)
+        // The driver gone, or its pid reused since: a crashed update's row.
+        #expect(NpmActivity.busy(install, processes: []) == nil)
+        let reused = NpmActivity.Process(pid: 57307, arguments: ["openclaw", ""], executable: node, started: 1791229999)
+        #expect(NpmActivity.busy(install, processes: [reused]) == nil)
+        #expect(BunActivity.busy(install, processes: [reused]) == nil)
+
+        // A run another process took over is live while either driver is.
+        try ledger(box, [("running", #"{"driver":{"host":"fixture","pid":61000,"startIdentity":"1791227000"},"previousDrivers":[{"host":"fixture","pid":57307,"startIdentity":"1791226782"}]}"#)])
+        #expect(NpmActivity.busy(install, processes: [update]) == busy)
+
+        // Only openclaw reads it.
+        try ledger(box, [("running", origin)])
+        #expect(NpmActivity.busy(try activityInstall(box), processes: [update]) == nil)
     }
 
     // MARK: - Provider

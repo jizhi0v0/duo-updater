@@ -39,7 +39,8 @@ public enum BunActivity {
     }
 
     /// A `bun <add|remove|…> -g` from this bun, or the package's own updater
-    /// (`openclaw update`, which runs `bun add -g`) as `NpmActivity` recognises it.
+    /// (`openclaw update`, which runs `bun add -g`) as `NpmActivity` recognises it:
+    /// by argv, by title, or by openclaw's ledger (`NpmActivity.openclawUpdateRun`).
     ///
     /// Not `NpmActivity.busy` whole: it also counts any npm changing packages on
     /// the package's node, and for a package of bun's global install that node is
@@ -66,7 +67,7 @@ public enum BunActivity {
                 return .ownUpdater(command, pid: process.pid)
             }
         }
-        return nil
+        return NpmActivity.openclawUpdateRun(install, processes: processes)
     }
 
     static func isBun(_ process: NpmActivity.Process, bun: String) -> Bool {

@@ -175,11 +175,15 @@ public struct OpenClawSettings: Sendable, Equatable, Codable {
     /// The installed package's `docs/cli/update.md` documents `--tag <dist-tag|version|spec>`,
     /// which pins the exact version this check chose.
     public let supportsTag: Bool
+    /// The directory the config was read from (`~/.openclaw`), whose
+    /// `state/openclaw.sqlite` records the updates in flight (`NpmActivity.openclawUpdateRun`).
+    public let stateDirectory: String?
 
-    public init(channel: String?, autoUpdate: Bool?, supportsTag: Bool) {
+    public init(channel: String?, autoUpdate: Bool?, supportsTag: Bool, stateDirectory: String? = nil) {
         self.channel = channel
         self.autoUpdate = autoUpdate
         self.supportsTag = supportsTag
+        self.stateDirectory = stateDirectory
     }
 
     /// The channel openclaw itself would use: an unknown value reads as unset
@@ -203,13 +207,15 @@ public struct OpenClawSettings: Sendable, Equatable, Codable {
         let text = (try? String(contentsOf: docs, encoding: .utf8)) ?? ""
         let supportsTag = text.contains("--tag <dist-tag|version|spec>")
             || text.contains("--tag <dist-tag\\|version\\|spec>")
-        let config = home.appendingPathComponent(".openclaw/openclaw.json")
+        let state = home.appendingPathComponent(".openclaw")
+        let config = state.appendingPathComponent("openclaw.json")
         guard let data = try? Data(contentsOf: config),
               let json = try? JSONSerialization.jsonObject(with: data, options: [.json5Allowed]) as? [String: Any],
               let update = json["update"] as? [String: Any]
-        else { return OpenClawSettings(channel: nil, autoUpdate: nil, supportsTag: supportsTag) }
+        else { return OpenClawSettings(channel: nil, autoUpdate: nil, supportsTag: supportsTag, stateDirectory: state.path) }
         let auto = (update["auto"] as? [String: Any])?["enabled"] as? Bool
-        return OpenClawSettings(channel: update["channel"] as? String, autoUpdate: auto, supportsTag: supportsTag)
+        return OpenClawSettings(channel: update["channel"] as? String, autoUpdate: auto, supportsTag: supportsTag,
+                                stateDirectory: state.path)
     }
 }
 

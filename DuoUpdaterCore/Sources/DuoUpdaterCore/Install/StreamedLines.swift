@@ -38,6 +38,7 @@ final class StreamedLines: @unchecked Sendable {
     private var pending = Data()
     private var ended = false
     private var waiter: CheckedContinuation<Void, Never>?
+    private var capReleases = 0
 
     /// Where `waitForEnd`'s cap fires. See there for why it is not `global()`.
     private static let capQueue = DispatchQueue(label: "StreamedLines.cap")
@@ -99,6 +100,7 @@ final class StreamedLines: @unchecked Sendable {
                 lock.lock()
                 let w = waiter
                 waiter = nil
+                if w != nil { capReleases += 1 }
                 lock.unlock()
                 w?.resume()
             }
@@ -126,6 +128,14 @@ final class StreamedLines: @unchecked Sendable {
     var hasWaiter: Bool {
         lock.lock(); defer { lock.unlock() }
         return waiter != nil
+    }
+
+    /// Test seam: how many waits the cap has released. It only goes up, so a
+    /// thread polling it cannot miss a release the way it can miss `hasWaiter`'s
+    /// brief `true`.
+    var waitsReleasedByCap: Int {
+        lock.lock(); defer { lock.unlock() }
+        return capReleases
     }
 
     /// Run `executablePath` with stdout and stderr on one pipe, handing each line to

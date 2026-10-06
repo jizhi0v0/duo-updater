@@ -155,20 +155,26 @@ import Foundation
     /// 37498589321): it returned at 130 s, together with the two signature checks
     /// that had held the 3-core runner's pool.
     ///
-    /// The wait is registered before the pool is blocked, so the cap firing is
-    /// one change to watch for: `hasWaiter` going false. The pool is released from
-    /// a plain `Thread`, which needs neither a cooperative nor a Dispatch thread to
-    /// run, once that happens or 30 s have passed. The 30 s is only how long a
-    /// broken build takes to fail.
+    /// The test registers the wait itself, with no helper task and no spinning:
+    /// `waitForEnd` arms the cap before it suspends, and the blocking tasks take
+    /// this thread once it has. (The first version had a helper task register it
+    /// and spun on `Task.yield()` until it had. On CI's 3-core runner, with the
+    /// other two threads in Security calls, the helper never ran and the yield
+    /// never let it: Swift's `Task.yield()` "immediately resumes" a task that is
+    /// the highest-priority one, and "isn't necessarily a way to avoid resource
+    /// starvation". The job hung until its 1200 s limit, run 37508268328.)
+    ///
+    /// A plain `Thread`, which needs neither a cooperative nor a Dispatch thread
+    /// to run, releases the pool once the cap has released the wait, or after
+    /// 30 s. The 30 s is only how long a broken build takes to fail.
     /// Mutation: arm the cap on `DispatchQueue.global()` again → red at 30 s.
     @Test func theCapFiresWhileEveryCooperativeThreadIsBlocked() async throws {
         let s = StreamedLines()
-        let waiting = Task { await s.waitForEnd(atMost: 0.5) }
-        while !s.hasWaiter { await Task.yield() }
         let pool = BlockedPool(tasks: 2 * ProcessInfo.processInfo.activeProcessorCount)
-        let outcome = await pool.release(within: 30) { s.hasWaiter }.value
-        await waiting.value
-        #expect(outcome.capFired, "the cap had not fired after 30 s with the pool blocked")
+        let released = pool.release(within: 30) { s.waitsReleasedByCap > 0 }
+        await s.waitForEnd(atMost: 0.5)
+        let outcome = await released.value
+        #expect(outcome.conditionMet, "the cap had not fired after 30 s with the pool blocked")
         // More blocking tasks than threads, so some were still queued: the pool
         // was full when the cap fired, or this test showed nothing.
         #expect(outcome.saturated, "the pool was not full when the cap fired")
@@ -193,19 +199,20 @@ import Foundation
             gate.wait()
         }
 
-        /// On a plain `Thread`: wait for `waiting()` to turn false, or for
-        /// `seconds`, then let every blocked task go.
+        /// On a plain `Thread`: wait for `condition()` to turn true, or for
+        /// `seconds`, then let every blocked task go. `saturated` is whether some
+        /// tasks were still queued at that moment.
         func release(
-            within seconds: Double, whileWaiting waiting: @escaping @Sendable () -> Bool
-        ) -> Promise<(capFired: Bool, saturated: Bool)> {
-            let promise = Promise<(capFired: Bool, saturated: Bool)>()
+            within seconds: Double, until condition: @escaping @Sendable () -> Bool
+        ) -> Promise<(conditionMet: Bool, saturated: Bool)> {
+            let promise = Promise<(conditionMet: Bool, saturated: Bool)>()
             Thread.detachNewThread { [self] in
                 let deadline = Date().addingTimeInterval(seconds)
-                while waiting(), Date() < deadline { usleep(1_000) }
-                let capFired = !waiting()
+                while !condition(), Date() < deadline { usleep(1_000) }
+                let met = condition()
                 let saturated = lock.withLock { started } < tasks
                 for _ in 0..<tasks { gate.signal() }
-                promise.fulfill((capFired, saturated))
+                promise.fulfill((met, saturated))
             }
             return promise
         }

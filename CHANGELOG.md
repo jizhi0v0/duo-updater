@@ -19,6 +19,28 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.0
+
+**DuoUpdater now keeps your command-line tools up to date, not just your apps.** Claude Code, Codex, Cursor CLI, OpenCode, Amp, Junie, fx, bub, Boat, Vite+, uv, Bun, Rust (through rustup) and packages installed with `npm install -g` are found where their own installers put them, and each updates with one click through the tool's own updater. They appear as "Other tools" next to Homebrew, both in the menu bar popover and in the Workbench's CLI tab.
+
+**Downloads are checked against the checksum the developer publishes, wherever there is one.** This covers apps updated from GitHub releases, as well as Edge, Android Studio, the VS Code family, Gemini, GIMP, Unity Hub, Wave, Claude, Qoder, WorkBuddy and others. A download that doesn't match is refused before anything is installed.
+
+**More apps are supported.** Update checks and one-click updates now cover CrystalFetch, Neovide, MacDown 3000, MeetingBar, Finicky, Cryptomator, OpenInTerminal, Reviu, diri, magpie, HyperFrames and storytold's seven Craft apps. Secretive, Obelisk and VMPal now get update checks too, and BlueBubbles Server now updates with one click.
+
+**New, off by default: one-click updates for open-source apps that have no developer signature, such as Alacritty, Flameshot and darktable.** To use it, turn on "Allow one-click updates for apps without a developer signature" in Settings › General. In that mode the only check is the file hash GitHub publishes, which protects you less than a developer signature does.
+
+**Release notes written in Markdown keep their headings, nested lists and code as the developer wrote them.** Before, they were flattened into one bullet list, and section titles like "Bug Fixes" showed up as if they were changes.
+
+**If an app's own updater gives up after the app quits, DuoUpdater reopens the app within seconds.** Before, the row kept spinning for about three minutes while the app stayed closed.
+
+**DuoUpdater no longer replaces an app while a helper app inside it is still running, such as a VMPal virtual machine.** The row names the helper to quit, and then you can update again. Before, the helper kept running the old version.
+
+**Scanning an app with a broken code signature can no longer make DuoUpdater quit unexpectedly.**
+
+**Release notes now show up for Capy, Shift and Memoh Desktop, and again for Antigravity, TypeWhisper, WorkBuddy and Cline Beta.** Older copies of the China edition of WorkBuddy are offered its latest version again.
+
+**Under the hood.** DuoUpdater uses less memory when it has been running for days. The CLI tab lists what has an update first and no longer shifts while updates run. The Requests filter field stays on one line when several filters are set. Apps built with MyGo now get a runtime label.
+
 ## 0.4.8
 
 **The new app icon now looks right on macOS 26.** In dark mode the arrow and the ring no longer run together into solid blobs, and the cat's head and ears have clean edges instead of jagged ones.

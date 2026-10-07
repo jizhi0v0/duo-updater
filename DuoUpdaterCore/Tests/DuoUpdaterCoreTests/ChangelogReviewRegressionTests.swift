@@ -73,11 +73,17 @@ private let hbuilderXCodeSpanFixture = #"""
 ///
 /// A templated recipe's body comes from `sourceTemplate`, so that is the address
 /// checked for it (Kimi Code's `binaries/{version}/changelog.en.md`).
+///
+/// A third named shape: Moshi's release manifests
+/// (`cdn.getmoshi.app/<track>/latest/manifest.json`), whose `notes` field is the
+/// same Markdown the app's own What's New renders — each opens with a
+/// `## What's Changed` heading and spells options as inline code (`` `-L` ``).
 @Test func onlyMarkdownSourceRecipesUnwrapCodeSpans() {
     func bodyIsMarkdown(_ recipe: ChangelogRecipe) -> Bool {
         if let template = recipe.sourceTemplate { return template.hasSuffix(".md") }
         let source = recipe.source
         if source.path.hasSuffix(".md") { return true }
+        if source.host == "cdn.getmoshi.app" && source.path.hasSuffix("/latest/manifest.json") { return true }
         return source.host == "api.github.com" && source.path.hasSuffix("/releases")
     }
     let flagged = ChangelogRecipeRegistry.recipes.filter(\.markdownSource)

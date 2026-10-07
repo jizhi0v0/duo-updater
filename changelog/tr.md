@@ -2,6 +2,14 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.1
+
+**Daha fazla uygulama destekleniyor.** Güncelleme denetimi ve tek tıkla güncelleme artık Spotifast, Cindy (hem küresel hem Çin sürümü), Moshi Go, Moshi ve Herdr’ı kapsıyor. Lokii de artık güncellemeler için denetleniyor ve “Geliştirici imzası olmayan uygulamalarda tek tıkla güncellemeye izin ver” açıkken tek tıkla güncelleniyor.
+
+**Cindy’nin kendi ayarlarında beta güncellemeleri açıksa Cindy’nin beta sürümleri sunuluyor.** Ayarı kapatırsanız yalnızca kararlı sürümler sunuluyor.
+
+**Moshi Go güncellemeleri yalnızca değişen kısmı indiriyor; böylece sıradan bir güncelleme 15 MB yerine yaklaşık 1 MB tutuyor.** Her yama önce Moshi Go’nun imzalama anahtarıyla denetleniyor; bir şey eşleşmezse DuoUpdater uygulamanın tamamını indiriyor.
+
 ## 0.5.0
 
 **DuoUpdater artık yalnızca uygulamalarınızı değil, komut satırı araçlarınızı da güncel tutuyor.** Claude Code, Codex, Cursor CLI, OpenCode, Amp, Junie, fx, bub, Boat, Vite+, uv, Bun, Rust (rustup üzerinden) ve `npm install -g` ile kurulan paketler, kendi yükleyicilerinin koyduğu yerde bulunuyor ve her biri aracın kendi güncelleyicisiyle tek tıkla güncelleniyor. Hem menü çubuğu açılır penceresinde hem de çalışma alanının CLI sekmesinde Homebrew’un yanında “Diğer araçlar” olarak görünüyorlar.

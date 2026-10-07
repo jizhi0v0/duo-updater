@@ -2,6 +2,14 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.5.1
+
+**支持的 App 更多了。** Spotifast、Cindy（国际版和国内版）、Moshi Go、Moshi 和 Herdr 现在都能检查更新并一键更新。Lokii 现在也能检查更新，打开“允许一键更新没有开发者签名的 App”后还可以一键更新。
+
+**在 Cindy 自己的设置里打开 Beta 更新后，会为你提供 Cindy 的 Beta 版。** 关掉这个设置，就只提供正式版。
+
+**Moshi Go 的更新只下载变化的部分，日常更新约 1 MB，而不是 15 MB。** 每个补丁都会先用 Moshi Go 的签名密钥核对，如有不符，DuoUpdater 会改为下载完整的 App。
+
 ## 0.5.0
 
 **DuoUpdater 现在不只更新 App，也帮你把命令行工具保持在最新。** Claude Code、Codex、Cursor CLI、OpenCode、Amp、Junie、fx、bub、Boat、Vite+、uv、Bun、Rust（通过 rustup）以及用 `npm install -g` 安装的包，都会在它们自己的安装程序放置的位置被找到，并通过工具自带的更新程序一键更新。它们以“其他工具”的名义显示在 Homebrew 旁边，菜单栏弹窗和工作台的 命令行 标签页里都有。

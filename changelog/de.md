@@ -2,6 +2,14 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.1
+
+**Mehr Apps werden unterstützt.** Update-Prüfung und Ein-Klick-Updates gibt es jetzt für Spotifast, Cindy (die globale und die China-Edition), Moshi Go, Moshi und Herdr. Lokii wird jetzt ebenfalls auf Updates geprüft und lässt sich mit einem Klick aktualisieren, wenn „Ein-Klick-Updates für Apps ohne Entwicklersignatur erlauben“ eingeschaltet ist.
+
+**Cindys Beta-Versionen werden angeboten, wenn Beta-Updates in Cindys eigenen Einstellungen eingeschaltet sind.** Schaltest du die Einstellung aus, werden dir nur stabile Versionen angeboten.
+
+**Moshi-Go-Updates laden nur herunter, was sich geändert hat, sodass ein gewöhnliches Update etwa 1 MB statt 15 MB groß ist.** Jeder Patch wird zuerst mit dem Signaturschlüssel von Moshi Go geprüft, und wenn etwas nicht übereinstimmt, lädt DuoUpdater stattdessen die vollständige App herunter.
+
 ## 0.5.0
 
 **DuoUpdater hält jetzt auch deine Kommandozeilen-Tools aktuell, nicht nur deine Apps.** Claude Code, Codex, Cursor CLI, OpenCode, Amp, Junie, fx, bub, Boat, Vite+, uv, Bun, Rust (über rustup) und mit `npm install -g` installierte Pakete werden dort gefunden, wo ihre eigenen Installer sie ablegen, und jedes lässt sich mit einem Klick über den eigenen Updater des Tools aktualisieren. Sie erscheinen als „Andere Tools“ neben Homebrew, sowohl im Popover der Menüleiste als auch im Tab CLI der Werkbank.

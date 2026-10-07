@@ -23,6 +23,8 @@ public enum AppRecipeIndex {
         app_chatwise.set,
         app_cyan_markedit.set,
         app_freelens_Freelens.set,
+        app_getmoshi_desktop.set,
+        app_getmoshi_desktop_tauri.set,
         app_macdown_macdown3000.set,
         app_shift.set,
         app_yaak_desktop.set,

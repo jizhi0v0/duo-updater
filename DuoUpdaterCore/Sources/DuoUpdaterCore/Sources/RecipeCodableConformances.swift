@@ -540,7 +540,7 @@ extension GitHubReleaseRule: Codable {
     enum CodingKeys: String, CodingKey, CaseIterable {
         case bundleID, owner, repo, usePrereleases, listPageSize, versionPattern
         case candidateScope, probesNewestFirst, installedTagPrefix, channel
-        case installAssetPattern, installerKind, installTrust
+        case installAssetPattern, installerKind, installTrust, variant
     }
 
     private static var codingDefaults: GitHubReleaseRule {
@@ -572,7 +572,8 @@ extension GitHubReleaseRule: Codable {
                 InstallTrust.self, forKey: .installTrust, default: d.installTrust),
             channel: try c.decode(ReleaseChannel.self, forKey: .channel, default: d.channel),
             probesNewestFirst: try c.decode(
-                Bool.self, forKey: .probesNewestFirst, default: d.probesNewestFirst))
+                Bool.self, forKey: .probesNewestFirst, default: d.probesNewestFirst),
+            variant: try c.decodeOptional(String.self, forKey: .variant, default: d.variant))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -594,6 +595,7 @@ extension GitHubReleaseRule: Codable {
             defaultIsNil: d.installAssetPattern == nil)
         try c.encodeOptional(installerKind, forKey: .installerKind, defaultIsNil: d.installerKind == nil)
         try c.encode(installTrust, forKey: .installTrust)
+        try c.encodeOptional(variant, forKey: .variant, defaultIsNil: d.variant == nil)
     }
 }
 

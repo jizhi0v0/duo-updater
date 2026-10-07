@@ -22,6 +22,7 @@ githubRules[0].channel = .alpha
 githubRules[0].installAssetPattern? = "^T3-Code-[0-9.]+-arm64\\.dmg$"
 githubRules[0].installerKind? = .dmg
 githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
 githubRules[1] = struct GitHubReleaseRule
 githubRules[1].bundleID = "com.t3tools.t3code"
 githubRules[1].owner = "pingdotgg"
@@ -36,6 +37,7 @@ githubRules[1].channel = .nightly
 githubRules[1].installAssetPattern? = "^T3-Code-[0-9.]+-nightly\\.[0-9.]+-arm64\\.dmg$"
 githubRules[1].installerKind? = .dmg
 githubRules[1].installTrust = .developerID
+githubRules[1].variant = nil
 
 appStoreCases = Array(count: 0)
 

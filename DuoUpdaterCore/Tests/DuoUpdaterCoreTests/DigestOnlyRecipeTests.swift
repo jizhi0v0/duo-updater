@@ -4,7 +4,8 @@ import Testing
 
 /// The three rules this route was opened for, against the asset names their
 /// repositories actually published (every stable release with a digest, read
-/// from the GitHub API 2026-10-02 — see `docs/app-audits/org-alacritty.md`).
+/// from the GitHub API 2026-10-02 — see `docs/app-audits/org-alacritty.md`),
+/// and Lokii, added since (both releases, 2026-10-07 — `docs/app-audits/com-lokii-app.md`).
 @Suite struct DigestOnlyRecipeTests {
 
     private static let expected: [String: [[String]]] = [
@@ -22,6 +23,10 @@ import Testing
             ["darktable-5.6.1-arm64.dmg", "darktable-5.6.1-x86_64.dmg", "darktable-5.6.1.tar.xz"],
             ["darktable-5.2.1-arm64-13.5.dmg", "darktable-5.2.1-arm64.dmg", "darktable-5.2.1-x86_64.dmg"],
             ["darktable-5.4.0-arm64.dmg"],
+        ],
+        "com.lokii.app": [
+            ["Lokii-arm64.dmg", "Lokii-x86_64.dmg"],
+            ["Lokii-arm64.dmg", "Lokii-x86_64.dmg"],
         ],
     ]
 
@@ -48,6 +53,7 @@ import Testing
             "org.alacritty": ["Alacritty-v0.17.0.dmg", "Alacritty-v0.16.1.dmg"],
             "org.flameshot.Flameshot": ["Flameshot-14.0-macos-arm64.dmg", "Flameshot-13.3.0-artifact-macos-arm64.dmg"],
             "org.darktable": ["darktable-5.6.1-arm64.dmg", "darktable-5.2.1-arm64.dmg", "darktable-5.4.0-arm64.dmg"],
+            "com.lokii.app": ["Lokii-arm64.dmg", "Lokii-arm64.dmg"],
         ]
         for (bundleID, releases) in Self.expected {
             let pattern = try #require(rule(bundleID)?.installAssetPattern, "\(bundleID)")

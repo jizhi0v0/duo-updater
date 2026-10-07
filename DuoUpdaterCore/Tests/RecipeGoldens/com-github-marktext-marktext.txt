@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
 githubRules[0].installAssetPattern = nil
 githubRules[0].installerKind = nil
 githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
 
 appStoreCases = Array(count: 0)
 

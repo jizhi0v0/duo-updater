@@ -172,6 +172,15 @@ public struct GitHubReleaseRule: Sendable {
     /// GitHub `digest` (see `InstallTrust`). Never with `.pkg`.
     public let installTrust: InstallTrust
 
+    /// Distinguishes several rules that read the same repository on the same
+    /// channel — one repo shipping more than one app, each its own bundle id
+    /// (Cindy's global and Mainland China editions), or one app under its
+    /// current and its pre-rename id (Spotifast). Without it those rules share
+    /// one `recipeID`, and so one health row and one verify baseline. Nil for
+    /// the common one-rule-per-repo-and-channel case, which keeps its
+    /// `recipeID` unchanged. Same role as `VendorProbeRecipe.variant`.
+    public let variant: String?
+
     public init(
         bundleID: String,
         owner: String,
@@ -185,9 +194,11 @@ public struct GitHubReleaseRule: Sendable {
         installerKind: VendorInstallerKind? = nil,
         installTrust: InstallTrust = .developerID,
         channel: ReleaseChannel = .stable,
-        probesNewestFirst: Bool = true
+        probesNewestFirst: Bool = true,
+        variant: String? = nil
     ) {
         self.bundleID = bundleID
+        self.variant = variant
         self.channel = channel
         self.probesNewestFirst = probesNewestFirst
         self.owner = owner
@@ -217,9 +228,10 @@ public struct GitHubReleaseRule: Sendable {
     /// `probesNewestFirst` is the same kind of knob: it changes how many rows
     /// the first request asks for, never which release or asset is accepted.
     /// `installTrust` says which gate the chosen asset must pass, never which
-    /// asset is chosen.
+    /// asset is chosen. `variant` names a rule apart from its siblings, like
+    /// `bundleID`.
     static let nonAnchorFields: Set<String> = [
-        "bundleID", "channel", "listPageSize", "probesNewestFirst", "installTrust"]
+        "bundleID", "channel", "listPageSize", "probesNewestFirst", "installTrust", "variant"]
 
     /// Everything this rule says about WHICH repository it reads and WHICH
     /// releases and assets it will accept — the text a
@@ -423,7 +435,10 @@ public extension GitHubReleaseRule {
     /// decides a row is orphaned when no rule produces its key. A second,
     /// separately-maintained spelling of this string would make the prune delete
     /// live rows the first time the two drifted.
-    var recipeID: String { "github:\(slug):\(channel.rawValue)" }
+    var recipeID: String {
+        let base = "github:\(slug):\(channel.rawValue)"
+        return variant.map { "\(base):\($0)" } ?? base
+    }
 }
 
 /// Resolves updates for apps distributed through GitHub Releases. Kept separate

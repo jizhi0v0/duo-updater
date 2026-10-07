@@ -16,7 +16,7 @@ Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A vers
 
 **Se o próprio atualizador de um app desistir depois que o app fecha, o DuoUpdater reabre o app em poucos segundos.** Antes, a linha continuava girando por cerca de três minutos enquanto o app ficava fechado.
 
-**O DuoUpdater não substitui mais um app enquanto um app auxiliar dentro dele ainda está rodando, como uma máquina virtual do VMPal.** A linha mostra o motivo da espera. Antes, o app auxiliar continuava rodando a versão antiga.
+**O DuoUpdater não substitui mais um app enquanto um app auxiliar dentro dele ainda está rodando, como uma máquina virtual do VMPal.** A linha indica qual app auxiliar fechar; depois é só atualizar de novo. Antes, o app auxiliar continuava rodando a versão antiga.
 
 **Analisar um app com a assinatura de código danificada não pode mais fazer o DuoUpdater fechar inesperadamente.**
 

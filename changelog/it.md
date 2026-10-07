@@ -16,7 +16,7 @@ Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la vers
 
 **Se il sistema di aggiornamento di un’app rinuncia dopo che l’app si è chiusa, DuoUpdater riapre l’app in pochi secondi.** Prima la riga continuava a girare per circa tre minuti mentre l’app restava chiusa.
 
-**DuoUpdater non sostituisce più un’app mentre un’app di supporto al suo interno è ancora in esecuzione, come una macchina virtuale di VMPal.** La riga ti dice perché sta aspettando. Prima l’app di supporto continuava a usare la versione vecchia.
+**DuoUpdater non sostituisce più un’app mentre un’app di supporto al suo interno è ancora in esecuzione, come una macchina virtuale di VMPal.** La riga indica quale app di supporto chiudere; dopo puoi aggiornare di nuovo. Prima l’app di supporto continuava a usare la versione vecchia.
 
 **Analizzare un’app con una firma del codice danneggiata non può più far chiudere DuoUpdater in modo imprevisto.**
 

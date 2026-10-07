@@ -16,7 +16,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Si le système de mise à jour d’une app abandonne après que l’app a quitté, DuoUpdater rouvre l’app en quelques secondes.** Avant, la ligne continuait de tourner pendant environ trois minutes, l’app restant fermée.
 
-**DuoUpdater ne remplace plus une app tant qu’une app auxiliaire qu’elle contient est encore en cours d’exécution, comme une machine virtuelle VMPal.** La ligne vous indique pourquoi elle attend. Avant, l’app auxiliaire continuait de tourner sur l’ancienne version.
+**DuoUpdater ne remplace plus une app tant qu’une app auxiliaire qu’elle contient est encore en cours d’exécution, comme une machine virtuelle VMPal.** La ligne indique quelle app auxiliaire quitter ; vous pouvez ensuite relancer la mise à jour. Avant, l’app auxiliaire continuait de tourner sur l’ancienne version.
 
 **Analyser une app dont la signature de code est endommagée ne peut plus faire quitter DuoUpdater de manière inattendue.**
 

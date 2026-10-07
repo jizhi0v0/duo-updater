@@ -16,7 +16,7 @@ Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce 
 
 **Bir uygulamanın kendi güncelleyicisi uygulama kapandıktan sonra pes ederse, DuoUpdater uygulamayı saniyeler içinde yeniden açıyor.** Önceden uygulama kapalı kalırken satır yaklaşık üç dakika dönmeye devam ediyordu.
 
-**DuoUpdater, içindeki bir yardımcı uygulama (örneğin bir VMPal sanal makinesi) hâlâ çalışırken artık o uygulamayı değiştirmiyor.** Satır, neyi beklediğini size söylüyor. Önceden yardımcı uygulama eski sürümle çalışmaya devam ediyordu.
+**DuoUpdater, içindeki bir yardımcı uygulama (örneğin bir VMPal sanal makinesi) hâlâ çalışırken artık o uygulamayı değiştirmiyor.** Satır hangi yardımcı uygulamayı kapatmanız gerektiğini söylüyor; ardından yeniden güncelleyebilirsiniz. Önceden yardımcı uygulama eski sürümle çalışmaya devam ediyordu.
 
 **Kod imzası bozuk bir uygulamayı taramak artık DuoUpdater’ın beklenmedik şekilde kapanmasına yol açamıyor.**
 

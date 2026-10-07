@@ -33,7 +33,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **If an app's own updater gives up after the app quits, DuoUpdater reopens the app within seconds.** Before, the row kept spinning for about three minutes while the app stayed closed.
 
-**DuoUpdater no longer replaces an app while a helper app inside it is still running, such as a VMPal virtual machine.** The row tells you why it is waiting. Before, the helper kept running the old version.
+**DuoUpdater no longer replaces an app while a helper app inside it is still running, such as a VMPal virtual machine.** The row names the helper to quit, and then you can update again. Before, the helper kept running the old version.
 
 **Scanning an app with a broken code signature can no longer make DuoUpdater quit unexpectedly.**
 

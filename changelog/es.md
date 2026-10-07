@@ -16,7 +16,7 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **Si el actualizador propio de una app se rinde después de que la app se cierre, DuoUpdater vuelve a abrirla en segundos.** Antes, la fila seguía girando unos tres minutos mientras la app permanecía cerrada.
 
-**DuoUpdater ya no reemplaza una app mientras una app auxiliar dentro de ella sigue ejecutándose, como una máquina virtual de VMPal.** La fila te dice por qué está esperando. Antes, la app auxiliar seguía ejecutando la versión antigua.
+**DuoUpdater ya no reemplaza una app mientras una app auxiliar dentro de ella sigue ejecutándose, como una máquina virtual de VMPal.** La fila indica qué app auxiliar debes cerrar; después puedes volver a actualizar. Antes, la app auxiliar seguía ejecutando la versión antigua.
 
 **Analizar una app con una firma de código dañada ya no puede hacer que DuoUpdater se cierre inesperadamente.**
 

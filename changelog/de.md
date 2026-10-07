@@ -16,7 +16,7 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 **Wenn der eigene Updater einer App aufgibt, nachdem die App beendet wurde, öffnet DuoUpdater die App innerhalb von Sekunden wieder.** Bisher drehte sich die Zeile etwa drei Minuten lang weiter, während die App geschlossen blieb.
 
-**DuoUpdater ersetzt eine App nicht mehr, solange eine darin enthaltene Hilfs-App noch läuft, etwa eine virtuelle Maschine von VMPal.** Die Zeile sagt dir, worauf sie wartet. Bisher lief die Hilfs-App mit der alten Version weiter.
+**DuoUpdater ersetzt eine App nicht mehr, solange eine darin enthaltene Hilfs-App noch läuft, etwa eine virtuelle Maschine von VMPal.** Die Zeile nennt die Hilfs-App, die du beenden musst; danach kannst du erneut aktualisieren. Bisher lief die Hilfs-App mit der alten Version weiter.
 
 **Das Durchsuchen einer App mit beschädigter Codesignatur kann DuoUpdater nicht mehr unerwartet beenden.**
 

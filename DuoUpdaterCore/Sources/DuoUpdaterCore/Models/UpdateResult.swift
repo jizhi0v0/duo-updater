@@ -144,15 +144,38 @@ public struct DeltaPatch: Sendable, Hashable {
     public let size: Int64?
     /// `sparkle:edSignature` over the patch file itself. A signed feed signs each
     /// delta separately from the archive, so this is the one to verify when the
-    /// patch is what we downloaded.
+    /// patch is what we downloaded. Sparkle patches only: a MyGo manifest's
+    /// `signature` is made with the vendor's own MyGo key, not `SUPublicEDKey`,
+    /// and is not carried here.
     public let edSignature: String?
+    /// Which tool can read the patch. Decides how `DeltaApplier` applies it and
+    /// whether this build can at all (Sparkle's needs the bundled `BinaryDelta`).
+    public let format: DeltaFormat
+    /// The version the patch builds, for formats that state it inside the patch
+    /// (MyGo's index does): applying refuses a patch that builds anything else.
+    /// Nil for Sparkle, whose `BinaryDelta` checks the result's hash itself.
+    public let toVersion: String?
 
-    public init(fromBuild: String, url: URL, size: Int64? = nil, edSignature: String? = nil) {
+    public init(
+        fromBuild: String, url: URL, size: Int64? = nil, edSignature: String? = nil,
+        format: DeltaFormat = .sparkle, toVersion: String? = nil
+    ) {
         self.fromBuild = fromBuild
         self.url = url
         self.size = size
         self.edSignature = edSignature
+        self.format = format
+        self.toVersion = toVersion
     }
+}
+
+/// The patch formats `DeltaApplier` can apply.
+public enum DeltaFormat: String, Sendable, Hashable {
+    /// Sparkle's binary delta, applied by the bundled `BinaryDelta`.
+    case sparkle
+    /// MyGo's `mygo delta 1` (`github.com/egoist/mygo`, `internal/update/delta.go`),
+    /// applied natively by `MyGoDelta`.
+    case myGo
 }
 
 /// What a downloaded build's trust rests on, as declared by the rule that

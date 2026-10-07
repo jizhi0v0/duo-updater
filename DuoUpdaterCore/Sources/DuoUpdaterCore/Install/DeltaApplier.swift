@@ -74,9 +74,18 @@ public enum DeltaApplier {
         return nil
     }
 
-    /// Whether this build can apply patches at all — the gate a caller checks
-    /// before choosing the delta route over the full archive.
+    /// Whether this build can apply Sparkle patches at all — the gate a caller
+    /// checks before choosing the delta route over the full archive.
     public static var isAvailable: Bool { toolURL() != nil }
+
+    /// Whether this build can apply a patch of `format`. MyGo patches are applied
+    /// in-process (`MyGoDelta`), so they need no tool.
+    public static func canApply(_ format: DeltaFormat) -> Bool {
+        switch format {
+        case .sparkle: return isAvailable
+        case .myGo: return true
+        }
+    }
 
     /// `BinaryDelta apply <old> <new> <patch>`.
     ///
@@ -167,7 +176,9 @@ public enum DeltaApplier {
             throw DeltaError.baselineMoved(expected: patch.fromBuild, found: onDisk)
         }
 
-        if let key = edPublicKey, !key.isEmpty {
+        // `SUPublicEDKey` is Sparkle's key and signs Sparkle patches only; a MyGo
+        // patch is signed with the vendor's MyGo key and would always fail here.
+        if patch.format == .sparkle, let key = edPublicKey, !key.isEmpty {
             onStage(.verifyingSignature)
             // Reads and hashes the whole patch, and until this function became
             // async all of it ran inside the callers' `offCooperativePool` hop —
@@ -187,7 +198,19 @@ public enum DeltaApplier {
             .appendingPathComponent("patched-\(installedApp.lastPathComponent)")
         // A leftover here is a whole reconstructed bundle.
         await removeItemOffCooperativePool(at: destination)
-        try await apply(installedApp: installedApp, patch: patchFile, destination: destination)
+        switch patch.format {
+        case .sparkle:
+            try await apply(installedApp: installedApp, patch: patchFile, destination: destination)
+        case .myGo:
+            // Reads the installed bundle and writes a whole new one, like
+            // `BinaryDelta` does, so it stays off the cooperative pool.
+            let from = patch.fromBuild, to = patch.toVersion
+            try await offCooperativePool {
+                try MyGoDelta.apply(
+                    patchFile: patchFile, from: from, to: to,
+                    installedApp: installedApp, destination: destination)
+            }
+        }
         return destination
     }
 
@@ -203,9 +226,13 @@ public enum DeltaApplier {
     /// A miss is ordinary, not an error: vendors publish a handful of patches per
     /// release (5, 8, 13 on the feeds measured here), so anyone who skipped a few
     /// versions simply takes the full archive.
+    ///
+    /// MyGo cuts patches against the app's version, which `mygo build` writes
+    /// into both `CFBundleShortVersionString` and `CFBundleVersion`, so the build
+    /// number is the right key for it too.
     public static func patch(for app: InstalledApp, in remote: RemoteVersion) -> DeltaPatch? {
         guard !remote.deltas.isEmpty, let installedBuild = app.buildVersion else { return nil }
-        return remote.deltas.first { $0.fromBuild == installedBuild }
+        return remote.deltas.first { $0.fromBuild == installedBuild && canApply($0.format) }
     }
 }
 

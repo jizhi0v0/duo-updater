@@ -59,10 +59,31 @@ Moshi Go 从 0.5.0 起是 `app.getmoshi.desktop`。两个 id 从没共用过。
 
 | | 客户端能力 | 服务端实际下发 | 我们能否消费 |
 |---|---|---|---|
-| 结论 | 有 | 有 | 不能 |
-| 证据 | feed 的 `deltas[]` 就是给 app 自己的更新器用的 | 2026-10-07 的 feed 列了 `0.5.0/0.5.1/0.5.2 → 0.5.3` 三个 `.delta`（0.89–1.19 MB，全量 15.2 MB） | 文件头是 `mygo delta 1`，厂商自有格式；`DeltaApplier` 只会 Sparkle BinaryDelta |
+| 结论 | 有 | 有 | **能（已接入）** |
+| 证据 | feed 的 `deltas[]` 就是给 app 自己的更新器用的 | 2026-10-07 的 feed 列了 `0.5.0/0.5.1/0.5.2 → 0.5.3` 三个 `.delta`（0.89–1.19 MB，全量 15.2 MB） | `MyGoManifestDeltas` 从同一个 body 读出 `deltas[]`，`MyGoDelta` 在进程内应用 |
 
-- 阻塞项: 需要实现 `mygo delta 1` 的应用器，且要验厂商的 ed25519 `signature`。目前不做。
+- 格式（settled from source: `internal/update/delta.go`、`bsdiff.go` on `egoist/mygo` `main`，MIT）:
+  `mygo delta 1\n` + 索引长度（uvarint）+ 索引（JSON，raw DEFLATE）+ 各文件数据。索引列出新 bundle 的整棵树：
+  目录、链接、文件（mode / size / SHA-256）；文件要么从已装 bundle 原样复制、要么对已装文件打 bsdiff 式补丁、
+  要么整份（DEFLATE）。`MyGoDelta` 是 `ApplyDelta` / `Patch` 的移植，校验照搬：路径必须是 `fs.ValidPath`、
+  链接不得指出 app、数据长度必须正好铺满文件、每个文件的 size 和 SHA-256 必须对上。
+- 测试夹具用 MyGo 自己的 Go 代码（`WriteDelta` / `Diff`，commit 49b7a7f）生成，并先用参考实现 `ApplyDelta`
+  回放过（`MyGoDeltaTests`）。
+- 真包: 三个真实 delta 分别应用到厂商 0.5.0 / 0.5.1 / 0.5.2 的 `.tar.gz` 解出的 bundle 上，产物与厂商 0.5.3
+  bundle `diff -r` 一致、权限一致，`codesign --verify --deep --strict` 通过，`spctl` `accepted` /
+  `Notarized Developer ID`，Team `FL442366Y7`（2026-10-07）。
+- **只有从 `.tar.gz` 装的副本能吃 delta。** 厂商的 `.tar.gz` 里多一个 `Contents/CodeResources`（1674 B，
+  与 `_CodeSignature/CodeResources` 内容不同），`.dmg` 里的同版本 bundle 没有它；而每个 delta 都从已装 bundle 的
+  `Contents/CodeResources` 打补丁重建这个文件。所以从官网 dmg 装的副本应用 delta 会在这个文件上失败
+  （`made Contents/CodeResources wrong`），安装随即退回全量包。一键装过一次（装的是 `.tar.gz`）或 app 自己更新过的副本，
+  下次就能走 delta。
+- 端到端（2026-10-07，`make cli` 后的 `duo install --yes --json`）:
+  - `.tar.gz` 的 0.5.2 → `bytesDownloaded: 891233`，4.5 s；产物与厂商 0.5.3 `diff -r` 一致，签名 / 公证通过。
+  - dmg 的 0.5.2 → `bytesDownloaded: 16118320`（= 891233 + 15227087，失败的 delta 也计入流量），9.2 s；
+    产物同样与厂商 0.5.3 一致。
+- 签名: feed 里每个 delta 的 `signature` 是 MyGo 的 Ed25519，签的是文件的 SHA-256；公钥编译在 app 二进制里
+  （不在 Info.plist），0.5.2→0.5.3 的签名用二进制里的那把 key 验证通过。**没有接这道校验**：和未签名的 Sparkle
+  delta 一样，信任落在重建出来的 bundle 要过的 code signature + Team ID 闸上。
 
 ## Changelog
 - 来源: recipe —— `https://cdn.getmoshi.app/desktop-go/latest/manifest.json`，
@@ -99,6 +120,7 @@ Moshi Go 从 0.5.0 起是 `app.getmoshi.desktop`。两个 id 从没共用过。
 - 阻塞: 无。
 
 ## 已知问题
+- 从官网 dmg 装的副本第一次更新吃不到 delta（见上），会多下载一个 delta 的量（约 1 MB）再走全量。
 - 只有 arm64。厂商以后若发 amd64，地址会是 `update-darwin-amd64.json`；DuoUpdater 本身只支持 arm64，不影响。
 
 ## 如何复验
@@ -113,6 +135,10 @@ swift run --package-path application-test feed-discover "Moshi Go 0.5.2.dmg"
 #   no Sparkle and no electron-builder update config
 # tar.gz 解包: Moshi Go.app → app.getmoshi.desktop / 0.5.3 / Team FL442366Y7 / Notarized Developer ID / arm64
 # delta 头: head -c 12 moshi-go-0.5.2-to-0.5.3-darwin-arm64.delta → "mygo delta 1"
+#   channel-verify 同一次运行: deltas 3
+# delta 端到端: ditto <moshi-go-0.5.2-darwin-arm64.tar.gz 解出的 Moshi Go.app> /Applications/
+#   duo install "/Applications/Moshi Go.app" --yes --json → bytesDownloaded 891233
+#   diff -r /Applications/Moshi\ Go.app <0.5.3 tar.gz 解出的 bundle> → 无差异
 ```
 
 ## 建议下一步

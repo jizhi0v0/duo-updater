@@ -143,8 +143,10 @@ public actor VendorInstaller {
         // a probe can still serve a Sparkle appcast — ChatGPT does, and every one
         // of its installs comes through here rather than SparkleInstaller, so the
         // delta route has to exist on this side too or it misses the app it was
-        // built for. `preferDelta` is false on the coordinator's retry.
-        let patch = stash == nil && !digestOnly && preferDelta && DeltaApplier.isAvailable
+        // built for. `preferDelta` is false on the coordinator's retry. Whether
+        // this build can apply the patch's format is `patch(for:in:)`'s call: a
+        // MyGo patch needs no `BinaryDelta`.
+        let patch = stash == nil && !digestOnly && preferDelta
             ? DeltaApplier.patch(for: result.app, in: remote)
             : nil
         if let patch {

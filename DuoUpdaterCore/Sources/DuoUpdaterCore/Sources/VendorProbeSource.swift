@@ -980,7 +980,11 @@ public struct VendorProbeSource: UpdateSource {
                     // (measured 2026-08-30) — but it holds for the reason stated
                     // above, not because nothing here could parse.
                     deltas: VendorAppcastDeltas.patches(
-                        inBody: body.text, forVersion: version, feedURL: recipe.url),
+                        inBody: body.text, forVersion: version, feedURL: recipe.url)
+                        // A MyGo manifest is JSON, an appcast XML: at most one of
+                        // the two finds anything in a body.
+                        + MyGoManifestDeltas.patches(
+                            inBody: body.text, forVersion: version, feedURL: recipe.url),
                     bundle: bundleVersion, lineage: lineage)
                 // A recipe that names a checksum pattern but no longer matches one
                 // still installs — unverified. Silent today; flag it.

@@ -30,8 +30,15 @@ enum app_getmoshi_desktop {
         // helpers, no login items), signed by Team FL442366Y7 and notarized. The
         // body's `signature` is the vendor's own ed25519 over the archive, not a
         // digest, so there is no `checksumPattern`; the Team-ID gate is the check.
-        // `deltas[]` are the vendor's own `mygo delta 1` format, which
-        // `DeltaApplier` (Sparkle BinaryDelta) cannot apply.
+        //
+        // DELTAS: `deltas[]` are MyGo's `mygo delta 1` patches, read out of this
+        // same body by `MyGoManifestDeltas` and applied by `MyGoDelta`. They are
+        // cut against the `.tar.gz` build, which carries a stray
+        // `Contents/CodeResources` the vendor's `.dmg` build lacks, and every patch
+        // rebuilds that file from the installed one. So a copy installed from the
+        // dmg cannot take a patch: it fails on that file and the install retries
+        // with the full archive. A copy that came from the `.tar.gz` (this
+        // recipe's one-click, or the app's own updater) takes the patch.
         VendorProbeRecipe(
             bundleID: "app.getmoshi.desktop",
             url: URL(string: "https://cdn.getmoshi.app/desktop-go/update-darwin-arm64.json")!,

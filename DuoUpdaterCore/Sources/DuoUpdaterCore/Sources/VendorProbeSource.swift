@@ -959,6 +959,16 @@ public struct VendorProbeSource: UpdateSource {
                 resolved = nil
             }
             if let plan = resolved {
+                // The archive's MyGo signature, paired with exactly `plan.url`.
+                // A stated key without one found still installs nothing unsigned:
+                // the installer refuses it. Flag it so the sweep sees it first.
+                let myGoSignature = spec.myGoPublicKey.map { key in
+                    MyGoSignature(publicKey: key, signature: MyGoManifest.archiveSignature(
+                        inBody: body.text, forVersion: version, url: plan.url, feedURL: recipe.url))
+                }
+                if let myGoSignature, myGoSignature.signature == nil {
+                    warnings.append(.myGoSignatureNoMatch)
+                }
                 remote = Self.makeRemoteVersion(
                     recipe: recipe, version: version, install: spec, plan: plan,
                     resolvedDownload: body.resolvedDownload, display: display,
@@ -980,7 +990,13 @@ public struct VendorProbeSource: UpdateSource {
                     // (measured 2026-08-30) — but it holds for the reason stated
                     // above, not because nothing here could parse.
                     deltas: VendorAppcastDeltas.patches(
-                        inBody: body.text, forVersion: version, feedURL: recipe.url),
+                        inBody: body.text, forVersion: version, feedURL: recipe.url)
+                        // A MyGo manifest is JSON, an appcast XML: at most one of
+                        // the two finds anything in a body.
+                        + MyGoManifest.patches(
+                            inBody: body.text, forVersion: version, feedURL: recipe.url,
+                            publicKey: spec.myGoPublicKey),
+                    myGoSignature: myGoSignature,
                     bundle: bundleVersion, lineage: lineage)
                 // A recipe that names a checksum pattern but no longer matches one
                 // still installs — unverified. Silent today; flag it.
@@ -1397,6 +1413,7 @@ public struct VendorProbeSource: UpdateSource {
         publishedAt: Date? = nil,
         vendorDay: Date? = nil,
         deltas: [DeltaPatch] = [],
+        myGoSignature: MyGoSignature? = nil,
         bundle: VersionSide? = nil,
         lineage: BuildLineage? = nil
     ) -> RemoteVersion {
@@ -1444,6 +1461,7 @@ public struct VendorProbeSource: UpdateSource {
                 vendorInstallerKind: spec.kind,
                 expectedSHA512: spec.checksumFormat == .sha512Base64 ? plan.checksum : nil,
                 expectedSHA256: spec.checksumFormat == .sha256Hex ? plan.checksum : nil,
+                myGoSignature: myGoSignature,
                 nestedArchivePath: spec.nestedArchivePath,
                 contentsArchivePattern: spec.contentsArchivePattern,
                 downloadHeaders: spec.requestHeaders,

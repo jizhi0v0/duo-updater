@@ -143,9 +143,14 @@ public actor VendorInstaller {
         // a probe can still serve a Sparkle appcast — ChatGPT does, and every one
         // of its installs comes through here rather than SparkleInstaller, so the
         // delta route has to exist on this side too or it misses the app it was
-        // built for. `preferDelta` is false on the coordinator's retry.
-        let patch = stash == nil && !digestOnly && preferDelta && DeltaApplier.isAvailable
-            ? DeltaApplier.patch(for: result.app, in: remote)
+        // built for. `preferDelta` is false on the coordinator's retry. Whether
+        // this build can apply the patch is asked of the patch's format, not up
+        // front: a MyGo patch needs no `BinaryDelta`. (Kept out of
+        // `patch(for:in:)`, which stays a pure function of the app and the feed.)
+        let patch = stash == nil && !digestOnly && preferDelta
+            ? DeltaApplier.patch(for: result.app, in: remote).flatMap {
+                DeltaApplier.canApply($0.format) ? $0 : nil
+            }
             : nil
         if let patch {
             // The comparison is what makes this line useful, so omit it rather
@@ -282,10 +287,11 @@ public actor VendorInstaller {
             // `expectedSHA512` describes the ARCHIVE, so it cannot speak for these
             // bytes and is deliberately not applied here. `reconstruct` checks what
             // can be checked — the baseline, then the patch's own EdDSA signature
-            // when the vendor publishes one and the app carries the key. ChatGPT
-            // does both (45 of 45 patches signed), so its patch route ends up better
-            // proven than this installer's full-archive path, which has no signature
-            // to check at all.
+            // when the vendor publishes one and the key is known (the app's
+            // `SUPublicEDKey` for Sparkle, the recipe's `myGoPublicKey` for MyGo).
+            // ChatGPT does both (45 of 45 patches signed), so its patch route ends
+            // up better proven than its full-archive path, which has no signature
+            // to check; a MyGo archive does (`remote.myGoSignature`, below).
             // Awaited in place: `BinaryDelta` runs through `ChildProcess`, which
             // waits without parking a thread and is not killed if this task is
             // cancelled — the guarantee the `offCooperativePool` hop used to give.
@@ -319,6 +325,21 @@ public actor VendorInstaller {
                 onStage(.verifyingSignature)
                 let archive = download.archiveURL
                 try await offCooperativePool { try Self.verifySHA256(archive, expectedHex: expected) }
+            }
+            // A MyGo vendor's own signature of the archive, over its SHA-256, with
+            // the key the recipe states. Required once a key is stated: a missing
+            // signature fails here as `myGoSignatureMissing`.
+            // Skipped for a local stash for the reason the digests above are.
+            if let myGo = remote.myGoSignature, download.localStash == nil {
+                onStage(.verifyingSignature)
+                let archive = download.archiveURL
+                try await offCooperativePool {
+                    let bytes = try Data(contentsOf: archive, options: .mappedIfSafe)
+                    try SignatureVerifier.verifyMyGoSignature(
+                        fileData: bytes,
+                        signatureBase64: myGo.signature,
+                        publicKeyBase64: myGo.publicKey)
+                }
             }
 
             // 3. Unpack the .app.

@@ -28,10 +28,25 @@ enum app_getmoshi_desktop {
         //
         // ONE-CLICK: the top-level `.tar.gz` holds `Moshi Go.app` alone (no
         // helpers, no login items), signed by Team FL442366Y7 and notarized. The
-        // body's `signature` is the vendor's own ed25519 over the archive, not a
-        // digest, so there is no `checksumPattern`; the Team-ID gate is the check.
-        // `deltas[]` are the vendor's own `mygo delta 1` format, which
-        // `DeltaApplier` (Sparkle BinaryDelta) cannot apply.
+        // body publishes no digest, so there is no `checksumPattern`; its
+        // `signature` (below) is checked on top of the Team-ID gate.
+        //
+        // DELTAS: `deltas[]` are MyGo's `mygo delta 1` patches, read out of this
+        // same body by `MyGoManifest` and applied by `MyGoDelta`. They are
+        // cut against the `.tar.gz` build, which carries a stray
+        // `Contents/CodeResources` the vendor's `.dmg` build lacks, and every patch
+        // rebuilds that file from the installed one. So a copy installed from the
+        // dmg cannot take a patch: it fails on that file and the install retries
+        // with the full archive. A copy that came from the `.tar.gz` (this
+        // recipe's one-click, or the app's own updater) takes the patch.
+        //
+        // `myGoPublicKey` is Moshi's MyGo update key, the string MyGo links into
+        // the binary (`-X github.com/egoist/mygo.packageUpdateKey`). Every
+        // `signature` in the feed, deltas and archives alike, verifies against it
+        // over the file's SHA-256. A patch whose signature does not is refused and
+        // the install takes the full archive; an archive whose signature does not
+        // ends the install. If the vendor rotates the key, one-click stops until
+        // this value is updated (see `VendorInstallSpec.myGoPublicKey`).
         VendorProbeRecipe(
             bundleID: "app.getmoshi.desktop",
             url: URL(string: "https://cdn.getmoshi.app/desktop-go/update-darwin-arm64.json")!,
@@ -44,7 +59,8 @@ enum app_getmoshi_desktop {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"\A(?:(?!"deltas"|"previous")[\s\S])*?"url"\s*:\s*"(https://[^"]+\.tar\.gz)""#),
-                kind: .tarGz)),
+                kind: .tarGz,
+                myGoPublicKey: "iXWMulHl+4m/dByqrJ8a1YOzcDIBeUOPiZ/AFj6k4VI=")),
         ],
         changelogs: [
         // Moshi Go — the vendor's release manifest, `desktop-go/latest/manifest.json`:

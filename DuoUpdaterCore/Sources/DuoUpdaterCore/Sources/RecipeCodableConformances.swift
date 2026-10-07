@@ -218,7 +218,7 @@ extension VendorProbeRecipe.RequestBody: Codable {
 extension VendorInstallSpec: Codable {
     enum CodingKeys: String, CodingKey, CaseIterable {
         case urlSource, kind, checksumPattern, checksumFormat, requestHeaders, nestedArchivePath
-        case contentsArchivePattern
+        case contentsArchivePattern, myGoPublicKey
     }
 
     private static var codingDefaults: VendorInstallSpec {
@@ -241,7 +241,9 @@ extension VendorInstallSpec: Codable {
             nestedArchivePath: try c.decodeOptional(
                 String.self, forKey: .nestedArchivePath, default: d.nestedArchivePath),
             contentsArchivePattern: try c.decodeOptional(
-                String.self, forKey: .contentsArchivePattern, default: d.contentsArchivePattern))
+                String.self, forKey: .contentsArchivePattern, default: d.contentsArchivePattern),
+            myGoPublicKey: try c.decodeOptional(
+                String.self, forKey: .myGoPublicKey, default: d.myGoPublicKey))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -258,6 +260,8 @@ extension VendorInstallSpec: Codable {
         try c.encodeOptional(
             contentsArchivePattern, forKey: .contentsArchivePattern,
             defaultIsNil: d.contentsArchivePattern == nil)
+        try c.encodeOptional(
+            myGoPublicKey, forKey: .myGoPublicKey, defaultIsNil: d.myGoPublicKey == nil)
     }
 }
 

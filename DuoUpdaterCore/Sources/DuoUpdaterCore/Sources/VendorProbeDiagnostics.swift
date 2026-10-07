@@ -270,6 +270,11 @@ public enum ProbeWarning: Sendable, Equatable {
     /// `checksumPattern` is set but matched nothing, so the download would be
     /// installed without SHA-512 verification.
     case checksumPatternNoMatch
+    /// `myGoPublicKey` is set but the body published no signature for the file
+    /// the install URL names. Unlike `checksumPatternNoMatch` this does not
+    /// install unverified: the installer refuses an unsigned archive when a key
+    /// is stated, so one-click is dead until the recipe or the vendor is fixed.
+    case myGoSignatureNoMatch
     /// `entryStartPattern` is set but slicing produced no winning entry, so every
     /// pattern on this recipe ran against the WHOLE body, first-match — exactly
     /// the pre-#76 behaviour the field exists to replace.
@@ -396,6 +401,7 @@ public enum ProbeWarning: Sendable, Equatable {
         case .installURLTransient: return "installURLTransient"
         case .installURLNotFound: return "installURLNotFound"
         case .checksumPatternNoMatch: return "checksumPatternNoMatch"
+        case .myGoSignatureNoMatch: return "myGoSignatureNoMatch"
         case .entryPatternNoMatch: return "entryPatternNoMatch"
         case .displayPatternNoMatch: return "displayPatternNoMatch"
         case .publishedAtPatternNoMatch: return "publishedAtPatternNoMatch"

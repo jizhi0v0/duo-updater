@@ -111,8 +111,19 @@ enum GzipDecode {
         return inflate(Array(bytes[2..<end]), hint: max(hint, 64 * 1024))
     }
 
+    /// Decompress bare raw DEFLATE (RFC 1951) — what Go's `compress/flate`
+    /// writes, with no wrapper at all. MyGo's delta updates (`MyGoDelta`) are
+    /// made of such streams.
+    ///
+    /// `limit` caps the output: nil once the stream would inflate past it. The
+    /// input is a downloaded file, and DEFLATE turns a few kilobytes into
+    /// gigabytes, so the caller states how much it can expect.
+    static func inflateRaw(_ data: Data, limit: Int) -> Data? {
+        inflate([UInt8](data), hint: min(limit, 4 * 1024 * 1024), limit: limit)
+    }
+
     /// Stream raw DEFLATE bytes through `compression_stream` until done.
-    private static func inflate(_ deflate: [UInt8], hint: Int) -> Data? {
+    private static func inflate(_ deflate: [UInt8], hint: Int, limit: Int? = nil) -> Data? {
         // Both pointers are placeholders that `compression_stream_init` requires
         // to be non-null and never reads: the real `src_ptr`/`dst_ptr` are set
         // inside the loop below, before the first `_process`. `dst_ptr` used to
@@ -153,8 +164,20 @@ enum GzipDecode {
                     &stream, Int32(COMPRESSION_STREAM_FINALIZE.rawValue))
                 switch status {
                 case COMPRESSION_STATUS_OK, COMPRESSION_STATUS_END:
-                    output.append(dstBuffer, count: chunk - stream.dst_size)
+                    let produced = chunk - stream.dst_size
+                    output.append(dstBuffer, count: produced)
+                    if let limit, output.count > limit {
+                        ok = false
+                        return
+                    }
                     if status == COMPRESSION_STATUS_END { return }
+                    // A truncated stream: input used up, nothing more coming out,
+                    // and no end. Checked on the capped path only, which reads
+                    // downloaded files; the gzip callers are left as they were.
+                    if limit != nil, produced == 0, stream.src_size == 0 {
+                        ok = false
+                        return
+                    }
                 default:
                     ok = false
                     return

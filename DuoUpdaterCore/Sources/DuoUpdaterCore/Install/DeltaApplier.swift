@@ -74,9 +74,18 @@ public enum DeltaApplier {
         return nil
     }
 
-    /// Whether this build can apply patches at all — the gate a caller checks
-    /// before choosing the delta route over the full archive.
+    /// Whether this build can apply Sparkle patches at all — the gate a caller
+    /// checks before choosing the delta route over the full archive.
     public static var isAvailable: Bool { toolURL() != nil }
+
+    /// Whether this build can apply a patch of `format`. MyGo patches are applied
+    /// in-process (`MyGoDelta`), so they need no tool.
+    public static func canApply(_ format: DeltaFormat) -> Bool {
+        switch format {
+        case .sparkle: return isAvailable
+        case .myGo: return true
+        }
+    }
 
     /// `BinaryDelta apply <old> <new> <patch>`.
     ///
@@ -146,7 +155,8 @@ public enum DeltaApplier {
     /// Then the signature, and only then the patch tool. A file that failed
     /// verification must never reach `apply`.
     ///
-    /// - Parameter edPublicKey: the app's `SUPublicEDKey`. When present, a patch
+    /// - Parameter edPublicKey: the app's `SUPublicEDKey`, for Sparkle patches (a
+    ///   MyGo patch carries its own key, `DeltaPatch.publicKey`). When present, a patch
     ///   MUST carry its own signature — never the archive's, which signs different
     ///   bytes and can only fail. When absent the patch is unverified until it
     ///   becomes a bundle, and the caller's code-signature and Team-ID gates carry
@@ -167,18 +177,28 @@ public enum DeltaApplier {
             throw DeltaError.baselineMoved(expected: patch.fromBuild, found: onDisk)
         }
 
-        if let key = edPublicKey, !key.isEmpty {
+        // Each format has its own key. `SUPublicEDKey` signs Sparkle patches; a
+        // MyGo patch is signed with the vendor's MyGo key, which the recipe states
+        // and the patch carries. Either way, a key present means a valid
+        // signature is required.
+        let key = patch.format == .sparkle ? edPublicKey : patch.publicKey
+        if let key, !key.isEmpty {
             onStage(.verifyingSignature)
             // Reads and hashes the whole patch, and until this function became
             // async all of it ran inside the callers' `offCooperativePool` hop —
             // so the read and the check stay on Dispatch.
-            let signature = patch.edSignature
+            let signature = patch.edSignature, format = patch.format
             try await offCooperativePool {
                 let bytes = try Data(contentsOf: patchFile, options: .mappedIfSafe)
-                try SignatureVerifier.verifyEdSignature(
-                    fileData: bytes,
-                    signatureBase64: signature,
-                    publicKeyBase64: key)
+                // Sparkle signs the file; MyGo signs its SHA-256 (`update.Verify`).
+                switch format {
+                case .sparkle:
+                    try SignatureVerifier.verifyEdSignature(
+                        fileData: bytes, signatureBase64: signature, publicKeyBase64: key)
+                case .myGo:
+                    try SignatureVerifier.verifyMyGoSignature(
+                        fileData: bytes, signatureBase64: signature, publicKeyBase64: key)
+                }
             }
         }
 
@@ -187,7 +207,19 @@ public enum DeltaApplier {
             .appendingPathComponent("patched-\(installedApp.lastPathComponent)")
         // A leftover here is a whole reconstructed bundle.
         await removeItemOffCooperativePool(at: destination)
-        try await apply(installedApp: installedApp, patch: patchFile, destination: destination)
+        switch patch.format {
+        case .sparkle:
+            try await apply(installedApp: installedApp, patch: patchFile, destination: destination)
+        case .myGo:
+            // Reads the installed bundle and writes a whole new one, like
+            // `BinaryDelta` does, so it stays off the cooperative pool.
+            let from = patch.fromBuild, to = patch.toVersion
+            try await offCooperativePool {
+                try MyGoDelta.apply(
+                    patchFile: patchFile, from: from, to: to,
+                    installedApp: installedApp, destination: destination)
+            }
+        }
         return destination
     }
 
@@ -203,6 +235,10 @@ public enum DeltaApplier {
     /// A miss is ordinary, not an error: vendors publish a handful of patches per
     /// release (5, 8, 13 on the feeds measured here), so anyone who skipped a few
     /// versions simply takes the full archive.
+    ///
+    /// MyGo cuts patches against the app's version, which `mygo build` writes
+    /// into both `CFBundleShortVersionString` and `CFBundleVersion`, so the build
+    /// number is the right key for it too.
     public static func patch(for app: InstalledApp, in remote: RemoteVersion) -> DeltaPatch? {
         guard !remote.deltas.isEmpty, let installedBuild = app.buildVersion else { return nil }
         return remote.deltas.first { $0.fromBuild == installedBuild }
@@ -236,7 +272,8 @@ public func deltaRouteFailureIsWorthRetrying(_ error: Error) -> Bool {
         // property of the VERSION, so the full archive carries the identical
         // set and would be refused for the identical reason (issue #196).
         return false
-    case .edSignatureMissing, .edSignatureInvalid, .codeSignatureInvalid,
+    case .edSignatureMissing, .edSignatureInvalid, .myGoSignatureMissing, .myGoSignatureInvalid,
+         .codeSignatureInvalid,
          .noTeamIdentifier, .teamIdentifierMismatch,
          .noBundleIdentifier, .bundleIdentifierMismatch:
         return true

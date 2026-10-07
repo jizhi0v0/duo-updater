@@ -149,6 +149,16 @@ public struct VendorInstallSpec: Sendable {
     /// sweep `aRecipeDeclaresOneKindOfNestedPayload` refuses it.
     public let contentsArchivePattern: String?
 
+    /// The vendor's MyGo update key (`github.com/egoist/mygo`): the base64
+    /// Ed25519 public key in its `mygo-update.pub`, which MyGo links into the app
+    /// as a bare string. Set, a MyGo delta the body publishes must carry a
+    /// `signature` this key verifies over the patch's SHA-256 before it is
+    /// applied (`DeltaApplier.reconstruct`); one that does not is dropped for the
+    /// full archive. Stated here rather than read from the installed app because
+    /// the shipped binary is stripped and the key has nothing around it to find
+    /// it by. A vendor that rotates it costs the patch route, never the update.
+    public let myGoPublicKey: String?
+
     public init(
         urlSource: URLSource,
         kind: VendorInstallerKind,
@@ -156,7 +166,8 @@ public struct VendorInstallSpec: Sendable {
         checksumFormat: ChecksumFormat = .sha512Base64,
         requestHeaders: [String: String] = [:],
         nestedArchivePath: String? = nil,
-        contentsArchivePattern: String? = nil
+        contentsArchivePattern: String? = nil,
+        myGoPublicKey: String? = nil
     ) {
         self.urlSource = urlSource
         self.kind = kind
@@ -165,6 +176,7 @@ public struct VendorInstallSpec: Sendable {
         self.requestHeaders = requestHeaders
         self.nestedArchivePath = nestedArchivePath
         self.contentsArchivePattern = contentsArchivePattern
+        self.myGoPublicKey = myGoPublicKey
     }
 }
 

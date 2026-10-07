@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 @testable import DuoUpdaterCore
@@ -302,7 +303,12 @@ struct MyGoManifestDeltasTests {
             "https://cdn.example.com/app/app-0.5.1-to-0.5.3-darwin-arm64.delta",
         ])
         #expect(patches.map(\.size) == [891233, 1188675])
-        #expect(patches.allSatisfy { $0.format == .myGo && $0.toVersion == "0.5.3" && $0.edSignature == nil })
+        #expect(patches.allSatisfy { $0.format == .myGo && $0.toVersion == "0.5.3" && $0.publicKey == nil })
+        #expect(patches.map(\.edSignature) == ["PN59", "GocN"])
+        // The recipe's key rides along with each patch's own signature.
+        let keyed = MyGoManifestDeltas.patches(
+            inBody: Self.body, forVersion: "0.5.3", feedURL: Self.feed, publicKey: "KEY")
+        #expect(keyed.allSatisfy { $0.publicKey == "KEY" })
         #expect(DeltaApplier.canApply(.myGo))
     }
 
@@ -318,5 +324,113 @@ struct MyGoManifestDeltasTests {
             inBody: #"{"version":"1.0","platforms":{}}"#, forVersion: "1.0").isEmpty)
         #expect(MyGoManifestDeltas.patches(
             inBody: #"{"version":"1.0","deltas":"none"}"#, forVersion: "1.0").isEmpty)
+    }
+}
+
+/// The MyGo signature check in `DeltaApplier.reconstruct`: with a key, a patch
+/// is applied only when its Ed25519 signature over the file's SHA-256 verifies.
+struct MyGoDeltaSignatureTests {
+
+    /// A scratch directory holding the fixture's old bundle — with a real
+    /// `Info.plist` naming build 1.0, which `reconstruct` checks first (the delta
+    /// writes a new `Info.plist` whole, so the old one's bytes do not matter) —
+    /// and the reference delta.
+    private func scratch() throws -> (dir: URL, old: URL, patch: URL) {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MyGoDeltaSignatureTests-\(UUID().uuidString)")
+        let old = dir.appendingPathComponent("Old.app")
+        try MyGoDeltaTests.Fixture.writeOldApp(at: old)
+        let plist = try PropertyListSerialization.data(
+            fromPropertyList: ["CFBundleVersion": "1.0"], format: .xml, options: 0)
+        try MyGoDeltaTests.Fixture.write(old, "Contents/Info.plist", plist, 0o644)
+        let patch = dir.appendingPathComponent("update.delta")
+        try MyGoDeltaTests.referenceDelta.write(to: patch)
+        return (dir, old, patch)
+    }
+
+    private func reconstruct(_ s: (dir: URL, old: URL, patch: URL), signature: String?, key: String?) async throws -> URL {
+        let patch = DeltaPatch(
+            fromBuild: "1.0", url: URL(string: "https://example.com/1.0-to-2.0.delta")!,
+            edSignature: signature, format: .myGo, toVersion: "2.0", publicKey: key)
+        return try await DeltaApplier.reconstruct(
+            installedApp: s.old, patch: patch, patchFile: s.patch, workDir: s.dir,
+            edPublicKey: nil, onStage: { _ in })
+    }
+
+    private static let digest = Data(SHA256.hash(data: MyGoDeltaTests.referenceDelta))
+
+    @Test func appliesAPatchItsKeySigned() async throws {
+        let s = try scratch()
+        defer { try? FileManager.default.removeItem(at: s.dir) }
+        let signer = Curve25519.Signing.PrivateKey()
+        let signature = try signer.signature(for: Self.digest).base64EncodedString()
+        let app = try await reconstruct(
+            s, signature: signature, key: signer.publicKey.rawRepresentation.base64EncodedString())
+        #expect(try Data(contentsOf: app.appendingPathComponent("Contents/MacOS/app"))
+            == MyGoDeltaTests.Fixture.binary2)
+    }
+
+    @Test func refusesASignatureItsKeyDidNotMake() async throws {
+        let s = try scratch()
+        defer { try? FileManager.default.removeItem(at: s.dir) }
+        let key = Curve25519.Signing.PrivateKey().publicKey.rawRepresentation.base64EncodedString()
+        let stranger = Curve25519.Signing.PrivateKey()
+        // Another key's signature, and this key's scheme applied to the raw file
+        // instead of its SHA-256: both are refused, and nothing is built.
+        let raw = Curve25519.Signing.PrivateKey()
+        let cases: [(signature: String, key: String)] = [
+            (try stranger.signature(for: Self.digest).base64EncodedString(), key),
+            (try raw.signature(for: MyGoDeltaTests.referenceDelta).base64EncodedString(),
+             raw.publicKey.rawRepresentation.base64EncodedString()),
+        ]
+        for c in cases {
+            let error = await #expect(throws: SignatureVerifier.VerifyError.self) {
+                _ = try await reconstruct(s, signature: c.signature, key: c.key)
+            }
+            guard case .edSignatureInvalid? = error else {
+                Issue.record("expected edSignatureInvalid, got \(String(describing: error))")
+                continue
+            }
+        }
+        #expect(!FileManager.default.fileExists(atPath: s.dir.appendingPathComponent("patched-Old.app").path))
+    }
+
+    @Test func aKeyRequiresASignature() async throws {
+        let s = try scratch()
+        defer { try? FileManager.default.removeItem(at: s.dir) }
+        let key = Curve25519.Signing.PrivateKey().publicKey.rawRepresentation.base64EncodedString()
+        let error = await #expect(throws: SignatureVerifier.VerifyError.self) {
+            _ = try await reconstruct(s, signature: nil, key: key)
+        }
+        guard case .edSignatureMissing? = error else {
+            Issue.record("expected edSignatureMissing, got \(String(describing: error))")
+            return
+        }
+    }
+
+    /// No key stated: the patch applies unverified, and the installer's
+    /// code-signature and Team-ID gates carry the trust.
+    @Test func withoutAKeyThePatchAppliesUnverified() async throws {
+        let s = try scratch()
+        defer { try? FileManager.default.removeItem(at: s.dir) }
+        let app = try await reconstruct(s, signature: "not checked", key: nil)
+        #expect(FileManager.default.fileExists(atPath: app.appendingPathComponent("Contents/MacOS/app").path))
+    }
+
+    /// The scheme against the vendor's own data: Moshi Go's published signature of
+    /// its 0.5.2 → 0.5.3 patch, over that file's SHA-256 (measured 2026-10-07),
+    /// verifies with the key its recipe states.
+    @Test func moshiGoSignsTheSHA256OfThePatch() throws {
+        let recipe = try #require(VendorProbeRegistry.recipes.first { $0.bundleID == "app.getmoshi.desktop" })
+        let key = try #require(recipe.install?.myGoPublicKey)
+        let sha = "1ddcdddbdd7564375c92c5b22eaba683c2f7a89156205d8f6d5238e1c484cc5c"
+        let digest = Data(stride(from: 0, to: sha.count, by: 2).map {
+            let i = sha.index(sha.startIndex, offsetBy: $0)
+            return UInt8(sha[i...sha.index(after: i)], radix: 16)!
+        })
+        try SignatureVerifier.verifyEdSignature(
+            fileData: digest,
+            signatureBase64: "PN59ERjrYEpi4Riy5dKAX5wfXqnBQTImctD4do6jJICYtV9v8XNccQXsCJoDPf+TcIxgacIisGdx4Cylbuc+CA==",
+            publicKeyBase64: key)
     }
 }

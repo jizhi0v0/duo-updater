@@ -17,13 +17,12 @@ import Foundation
 /// of the installed bundle (`from`, no data), a bsdiff-style patch of one (`from`
 /// and data), or new (data, the file compressed with DEFLATE).
 ///
-/// Trust is the same as for an unsigned Sparkle patch (`DeltaApplier.reconstruct`).
-/// The index is not signed by anything we check, so its hashes only prove the
-/// patch applied to the bundle it was cut from; the bundle that comes out goes
-/// through the installer's code-signature and Team-ID gates like any download.
-/// The manifest's `signature` is MyGo's Ed25519 over the file's SHA-256, made with
-/// a key that lives in the app's own binary, not in its Info.plist; it is not
-/// checked here.
+/// Applying is not where the patch is trusted. When the recipe states the
+/// vendor's MyGo key, `DeltaApplier.reconstruct` checks the manifest's Ed25519
+/// signature over the file's SHA-256 before this runs; either way the index's
+/// hashes only prove the patch applied to the bundle it was cut from, and the
+/// bundle that comes out goes through the installer's code-signature and Team-ID
+/// gates like any download.
 enum MyGoDelta {
 
     enum Failure: LocalizedError, Equatable {

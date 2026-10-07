@@ -26,12 +26,17 @@ enum MyGoManifestDeltas {
         let from: String
         let url: String
         let size: Int64?
+        let signature: String?
     }
 
     /// Patches published for exactly `version`, or empty. Relative URLs resolve
     /// against `feedURL`, as MyGo's own updater resolves them against the manifest.
+    ///
+    /// `publicKey` is the recipe's `myGoPublicKey`; each patch carries it with its
+    /// own `signature`, and `DeltaApplier.reconstruct` checks the pair.
     static func patches(
-        inBody body: String, forVersion version: String, feedURL: URL? = nil
+        inBody body: String, forVersion version: String, feedURL: URL? = nil,
+        publicKey: String? = nil
     ) -> [DeltaPatch] {
         guard body.contains("\"deltas\""),
               let manifest = try? JSONDecoder().decode(Manifest.self, from: Data(body.utf8)),
@@ -43,8 +48,8 @@ enum MyGoManifestDeltas {
                   url.scheme == "https"
             else { return nil }
             return DeltaPatch(
-                fromBuild: delta.from, url: url, size: delta.size,
-                format: .myGo, toVersion: manifest.version)
+                fromBuild: delta.from, url: url, size: delta.size, edSignature: delta.signature,
+                format: .myGo, toVersion: manifest.version, publicKey: publicKey)
         }
     }
 }

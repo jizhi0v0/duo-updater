@@ -984,7 +984,8 @@ public struct VendorProbeSource: UpdateSource {
                         // A MyGo manifest is JSON, an appcast XML: at most one of
                         // the two finds anything in a body.
                         + MyGoManifestDeltas.patches(
-                            inBody: body.text, forVersion: version, feedURL: recipe.url),
+                            inBody: body.text, forVersion: version, feedURL: recipe.url,
+                            publicKey: spec.myGoPublicKey),
                     bundle: bundleVersion, lineage: lineage)
                 // A recipe that names a checksum pattern but no longer matches one
                 // still installs — unverified. Silent today; flag it.

@@ -39,6 +39,12 @@ enum app_getmoshi_desktop {
         // dmg cannot take a patch: it fails on that file and the install retries
         // with the full archive. A copy that came from the `.tar.gz` (this
         // recipe's one-click, or the app's own updater) takes the patch.
+        //
+        // `myGoPublicKey` is Moshi's MyGo update key, the string MyGo links into
+        // the binary (`-X github.com/egoist/mygo.packageUpdateKey`). Every
+        // `signature` in the feed, deltas and archives alike, verifies against it
+        // over the file's SHA-256, so a patch whose signature does not is refused
+        // and the install takes the full archive.
         VendorProbeRecipe(
             bundleID: "app.getmoshi.desktop",
             url: URL(string: "https://cdn.getmoshi.app/desktop-go/update-darwin-arm64.json")!,
@@ -51,7 +57,8 @@ enum app_getmoshi_desktop {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"\A(?:(?!"deltas"|"previous")[\s\S])*?"url"\s*:\s*"(https://[^"]+\.tar\.gz)""#),
-                kind: .tarGz)),
+                kind: .tarGz,
+                myGoPublicKey: "iXWMulHl+4m/dByqrJ8a1YOzcDIBeUOPiZ/AFj6k4VI=")),
         ],
         changelogs: [
         // Moshi Go — the vendor's release manifest, `desktop-go/latest/manifest.json`:

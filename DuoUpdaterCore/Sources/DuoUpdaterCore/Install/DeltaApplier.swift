@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Applies a Sparkle binary patch: installed bundle + `.delta` → the new bundle.
@@ -155,7 +156,8 @@ public enum DeltaApplier {
     /// Then the signature, and only then the patch tool. A file that failed
     /// verification must never reach `apply`.
     ///
-    /// - Parameter edPublicKey: the app's `SUPublicEDKey`. When present, a patch
+    /// - Parameter edPublicKey: the app's `SUPublicEDKey`, for Sparkle patches (a
+    ///   MyGo patch carries its own key, `DeltaPatch.publicKey`). When present, a patch
     ///   MUST carry its own signature — never the archive's, which signs different
     ///   bytes and can only fail. When absent the patch is unverified until it
     ///   becomes a bundle, and the caller's code-signature and Team-ID gates carry
@@ -176,18 +178,22 @@ public enum DeltaApplier {
             throw DeltaError.baselineMoved(expected: patch.fromBuild, found: onDisk)
         }
 
-        // `SUPublicEDKey` is Sparkle's key and signs Sparkle patches only; a MyGo
-        // patch is signed with the vendor's MyGo key and would always fail here.
-        if patch.format == .sparkle, let key = edPublicKey, !key.isEmpty {
+        // Each format has its own key. `SUPublicEDKey` signs Sparkle patches; a
+        // MyGo patch is signed with the vendor's MyGo key, which the recipe states
+        // and the patch carries. Either way, a key present means a valid
+        // signature is required.
+        let key = patch.format == .sparkle ? edPublicKey : patch.publicKey
+        if let key, !key.isEmpty {
             onStage(.verifyingSignature)
             // Reads and hashes the whole patch, and until this function became
             // async all of it ran inside the callers' `offCooperativePool` hop —
             // so the read and the check stay on Dispatch.
-            let signature = patch.edSignature
+            let signature = patch.edSignature, format = patch.format
             try await offCooperativePool {
                 let bytes = try Data(contentsOf: patchFile, options: .mappedIfSafe)
+                // Sparkle signs the file; MyGo signs its SHA-256 (`update.Verify`).
                 try SignatureVerifier.verifyEdSignature(
-                    fileData: bytes,
+                    fileData: format == .myGo ? Data(SHA256.hash(data: bytes)) : bytes,
                     signatureBase64: signature,
                     publicKeyBase64: key)
             }

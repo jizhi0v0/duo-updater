@@ -81,9 +81,16 @@ Moshi Go 从 0.5.0 起是 `app.getmoshi.desktop`。两个 id 从没共用过。
   - `.tar.gz` 的 0.5.2 → `bytesDownloaded: 891233`，4.5 s；产物与厂商 0.5.3 `diff -r` 一致，签名 / 公证通过。
   - dmg 的 0.5.2 → `bytesDownloaded: 16118320`（= 891233 + 15227087，失败的 delta 也计入流量），9.2 s；
     产物同样与厂商 0.5.3 一致。
-- 签名: feed 里每个 delta 的 `signature` 是 MyGo 的 Ed25519，签的是文件的 SHA-256；公钥编译在 app 二进制里
-  （不在 Info.plist），0.5.2→0.5.3 的签名用二进制里的那把 key 验证通过。**没有接这道校验**：和未签名的 Sparkle
-  delta 一样，信任落在重建出来的 bundle 要过的 code signature + Team ID 闸上。
+- 签名（settled from source: `internal/update/update.go` 的 `Verify`、`cmd/mygo/updates.go` 的 ldflags on `egoist/mygo` `main`）:
+  feed 里每个 `signature` 都是 MyGo 的 Ed25519，签的是**文件的 SHA-256**，不是文件本身。公钥由
+  `-X github.com/egoist/mygo.packageUpdateKey=…` 链进二进制，是一段裸字符串；发布的二进制是 stripped 的（符号表只剩 156 个，
+  没有这个变量），周围也没有可定位的标记，所以从已装 app 读公钥只能靠扫描像 key 的字符串。因此**公钥写在 recipe 里**
+  （`VendorInstallSpec.myGoPublicKey` = `iXWMulHl+4m/dByqrJ8a1YOzcDIBeUOPiZ/AFj6k4VI=`），由 `DeltaApplier.reconstruct`
+  在应用前校验：有 key 就必须有能验过的签名，否则这次 delta 作废、退回全量包。
+  - 取证（2026-10-07）: 二进制里所有 44 字符 base64 候选（8 个）里只有这一把能验过 0.5.2→0.5.3 delta 的签名；
+    随后 feed 里全部 6 个签名（3 个 delta + 0.5.3/0.5.2/0.5.1 三个归档）都用它验过，且都只在「签 SHA-256」时成立，签原文时全部不成立。
+  - 端到端红→绿见下面「如何复验」。
+  - 厂商换 key 的后果: 只是 delta 路线失效（每次多下一个 delta 的量再走全量），更新本身不受影响；届时按上面的方法重新取 key。
 
 ## Changelog
 - 来源: recipe —— `https://cdn.getmoshi.app/desktop-go/latest/manifest.json`，
@@ -139,6 +146,9 @@ swift run --package-path application-test feed-discover "Moshi Go 0.5.2.dmg"
 # delta 端到端: ditto <moshi-go-0.5.2-darwin-arm64.tar.gz 解出的 Moshi Go.app> /Applications/
 #   duo install "/Applications/Moshi Go.app" --yes --json → bytesDownloaded 891233
 #   diff -r /Applications/Moshi\ Go.app <0.5.3 tar.gz 解出的 bundle> → 无差异
+# 签名红→绿（2026-10-07，同一个 tar.gz 的 0.5.2）:
+#   recipe 的 myGoPublicKey 换成随机 key → make cli → duo install → bytesDownloaded 16118320（delta 被拒，退回全量）
+#   换回厂商 key → make cli → duo install → bytesDownloaded 891233（delta 验签通过后应用）
 ```
 
 ## 建议下一步

@@ -142,12 +142,15 @@ public struct DeltaPatch: Sendable, Hashable {
     public let url: URL
     /// `length` — patch size in bytes, when declared.
     public let size: Int64?
-    /// `sparkle:edSignature` over the patch file itself. A signed feed signs each
-    /// delta separately from the archive, so this is the one to verify when the
-    /// patch is what we downloaded. Sparkle patches only: a MyGo manifest's
-    /// `signature` is made with the vendor's own MyGo key, not `SUPublicEDKey`,
-    /// and is not carried here.
+    /// The patch's own Ed25519 signature. A signed feed signs each delta
+    /// separately from the archive, so this is the one to verify when the patch
+    /// is what we downloaded. Sparkle: `sparkle:edSignature`, over the file.
+    /// MyGo: the manifest's `signature`, over the file's SHA-256.
     public let edSignature: String?
+    /// The key a MyGo patch's signature is checked against: the vendor's MyGo
+    /// update key, which the recipe states (`VendorInstallSpec.myGoPublicKey`).
+    /// Nil for Sparkle, whose key is the installed app's `SUPublicEDKey`.
+    public let publicKey: String?
     /// Which tool can read the patch. Decides how `DeltaApplier` applies it and
     /// whether this build can at all (Sparkle's needs the bundled `BinaryDelta`).
     public let format: DeltaFormat
@@ -158,7 +161,7 @@ public struct DeltaPatch: Sendable, Hashable {
 
     public init(
         fromBuild: String, url: URL, size: Int64? = nil, edSignature: String? = nil,
-        format: DeltaFormat = .sparkle, toVersion: String? = nil
+        format: DeltaFormat = .sparkle, toVersion: String? = nil, publicKey: String? = nil
     ) {
         self.fromBuild = fromBuild
         self.url = url
@@ -166,6 +169,7 @@ public struct DeltaPatch: Sendable, Hashable {
         self.edSignature = edSignature
         self.format = format
         self.toVersion = toVersion
+        self.publicKey = publicKey
     }
 }
 

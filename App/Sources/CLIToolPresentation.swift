@@ -218,7 +218,7 @@ enum CLIToolPresentation {
         case .bun(let bun): return facts(of: bun)
         case .opencode(let opencode): return facts(of: opencode)
         case .amp(let amp): return facts(of: amp)
-        case .claudeCode, .bub, .fx, .boat, .cursorAgent, .vitePlus: return []
+        case .claudeCode, .bub, .fx, .boat, .cursorAgent, .vitePlus, .herdr: return []
         }
     }
 
@@ -408,6 +408,7 @@ enum CLIToolPresentation {
     /// - Bun: like npm, the node its packages are held against.
     /// - OpenCode: `latest`, and that its `autoupdate` is off when it is.
     /// - Cursor CLI: its channel (`prod` unless set; `static` turns updates off).
+    /// - Herdr: the channel its config names, `stable` or `preview`.
     static func headerSummary(
         _ kind: CLIToolKind, statuses: [CLIToolStatus], context: CLIToolReport.Context?
     ) -> String? {
@@ -430,7 +431,7 @@ enum CLIToolPresentation {
                 }
             }
             return parts.isEmpty ? nil : parts.joined(separator: " · ")
-        case (.boat, _), (.cursorAgent, _):
+        case (.boat, _), (.cursorAgent, _), (.herdr, _):
             return channels(of: mine)
         case (.opencode, let context):
             guard let channels = channels(of: mine) else { return nil }

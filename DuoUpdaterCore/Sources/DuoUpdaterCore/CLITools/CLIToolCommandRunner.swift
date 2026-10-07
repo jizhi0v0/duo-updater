@@ -21,15 +21,19 @@ enum CLIToolCommandRunner {
     /// Runs to completion if the caller is cancelled, as brew's upgrade does: this
     /// replaces what is installed, and a kill halfway is worse than letting it
     /// finish. `deadline` still stops a child that hangs.
+    ///
+    /// `standardInput` replaces the inherited stdin — a terminal, under a `duo`
+    /// run from one — for a tool that asks questions when it has a terminal
+    /// (`HerdrUpdater`).
     static func run(
         _ command: CLIToolCommand, environment: [String: String], deadline: ChildProcess.Deadline,
-        progress: @escaping @Sendable (String) -> Void
+        standardInput: Data? = nil, progress: @escaping @Sendable (String) -> Void
     ) async -> Run {
         let log = OutputLog(onLine: progress)
         let result: Run.Result
         do {
             result = .finished(try await ChildProcess.run(
-                command.executable, command.arguments, environment: environment,
+                command.executable, command.arguments, environment: environment, standardInput: standardInput,
                 standardOutput: .discard, standardError: .mergeIntoOutput,
                 deadline: deadline, onCancel: .runToCompletion,
                 onOutputChunk: { log.append($0) }))

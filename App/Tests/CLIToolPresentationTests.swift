@@ -139,6 +139,15 @@ enum CLIToolFixtures {
                       channel: channel, withheld: withheld)
     }
 
+    static func herdr(
+        channel: String = "stable", quarantined: Bool = false, withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.local/bin/herdr"
+        let install = HerdrInstall(path: path, quarantined: quarantined, settings: HerdrSettings(channel: channel))
+        return status(.herdr, path: path, detail: .herdr(install), version: "0.9.2", latest: "0.9.3",
+                      channel: channel, withheld: withheld)
+    }
+
     static func codex(
         signature: CLIToolTrust.Signature? = .vendor, quarantined: Bool = false,
         problem: CodexInstall.Problem? = nil, withheld: CLIToolWithheld? = nil
@@ -650,6 +659,23 @@ struct CLIToolPayloadPresentationTests {
             == "Boat’s config points at another server")
         #expect(CLIToolsModel.vendor(of: .boat) == nil)
         #expect(CLIToolPresentation.facts(of: F.boat(), home: "/Users/ann").isEmpty)
+    }
+
+    /// Herdr's reasons: a quarantined file, a file that is not a published build
+    /// (herdr has no Team ID, so no vendor is named), and its config's
+    /// `version_check = false` worded as the update check it is. The header
+    /// names the channel.
+    ///
+    /// Mutations: drop the `(.unverified, .herdr) where quarantined` case; drop
+    /// the `(.autoUpdateOff, .herdr)` case; return a vendor for `.herdr`.
+    @Test func herdrsReasons() {
+        #expect(CLIToolsModel.reason(.unverified, of: F.herdr(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.unverified, of: F.herdr()) == "Not the build its developer published")
+        #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.herdr()) == "Herdr’s update check is off in its config")
+        #expect(CLIToolsModel.vendor(of: .herdr) == nil)
+        #expect(CLIToolPresentation.facts(of: F.herdr(), home: "/Users/ann").isEmpty)
+        #expect(CLIToolPresentation.headerSummary(.herdr, statuses: [F.herdr(channel: "preview")], context: .herdr)
+            == "preview")
     }
 
     /// The pane's reason and the row's warning are the status's own: a newer

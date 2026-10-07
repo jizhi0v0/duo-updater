@@ -148,6 +148,17 @@ enum CLIToolFixtures {
                       channel: channel, withheld: withheld)
     }
 
+    static func luvus(
+        version: String = "0.14.2", quarantined: Bool = false, writable: Bool = true,
+        problem: LuvusInstall.Problem? = nil, withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.local/bin/luvus"
+        let install = LuvusInstall(path: path, binary: path, version: version, quarantined: quarantined,
+                                   writable: writable, problem: problem)
+        return status(.luvus, path: path, detail: .luvus(install), version: version, latest: "0.14.3",
+                      withheld: withheld)
+    }
+
     static func codex(
         signature: CLIToolTrust.Signature? = .vendor, quarantined: Bool = false,
         problem: CodexInstall.Problem? = nil, withheld: CLIToolWithheld? = nil
@@ -676,6 +687,26 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolPresentation.facts(of: F.herdr(), home: "/Users/ann").isEmpty)
         #expect(CLIToolPresentation.headerSummary(.herdr, statuses: [F.herdr(channel: "preview")], context: .herdr)
             == "preview")
+    }
+
+    /// Luvus's reasons, in its check's order: a link `luvus update` won't
+    /// replace, a release from before the command, a folder only `sudo` could
+    /// write to; a quarantined file; and, with no Team ID, no vendor named.
+    ///
+    /// Mutations: drop any branch of the `(.unsupportedInstaller, .luvus)` case;
+    /// drop the `(.unverified, .luvus) where quarantined` case; return a vendor
+    /// for `.luvus`.
+    @Test func luvusReasons() {
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.luvus(problem: .unknownLocation))
+            == "A link luvus update won’t replace")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.luvus(version: "0.11.0"))
+            == "This version has no luvus update")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.luvus(writable: false))
+            == "Updating it needs administrator rights")
+        #expect(CLIToolsModel.reason(.unverified, of: F.luvus(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.unverified, of: F.luvus()) == "Not the build its developer published")
+        #expect(CLIToolsModel.vendor(of: .luvus) == nil)
+        #expect(CLIToolPresentation.facts(of: F.luvus(), home: "/Users/ann").isEmpty)
     }
 
     /// The pane's reason and the row's warning are the status's own: a newer

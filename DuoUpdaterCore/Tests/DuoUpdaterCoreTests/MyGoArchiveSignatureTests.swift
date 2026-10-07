@@ -146,7 +146,7 @@ struct MyGoArchiveSignatureTests {
     private static func signatureRefusal(_ error: Error?) -> SignatureVerifier.VerifyError? {
         guard let error = error as? SignatureVerifier.VerifyError else { return nil }
         switch error {
-        case .edSignatureMissing, .edSignatureInvalid: return error
+        case .myGoSignatureMissing, .myGoSignatureInvalid: return error
         default: return nil
         }
     }
@@ -178,16 +178,16 @@ struct MyGoArchiveSignatureTests {
         let raw = try vendor.signature(for: bytes).base64EncodedString()
         for signature in [stranger, raw] {
             let error = await Self.failure(Self.result(MyGoSignature(publicKey: key, signature: signature)), download)
-            guard case .edSignatureInvalid? = Self.signatureRefusal(error) else {
-                Issue.record("expected edSignatureInvalid, got \(String(describing: error))")
+            guard case .myGoSignatureInvalid? = Self.signatureRefusal(error) else {
+                Issue.record("expected myGoSignatureInvalid, got \(String(describing: error))")
                 continue
             }
         }
 
         // A stated key and no signature: refused, never installed unverified.
         let missing = await Self.failure(Self.result(MyGoSignature(publicKey: key, signature: nil)), download)
-        guard case .edSignatureMissing? = Self.signatureRefusal(missing) else {
-            Issue.record("expected edSignatureMissing, got \(String(describing: missing))")
+        guard case .myGoSignatureMissing? = Self.signatureRefusal(missing) else {
+            Issue.record("expected myGoSignatureMissing, got \(String(describing: missing))")
             return
         }
 
@@ -205,5 +205,22 @@ struct MyGoArchiveSignatureTests {
         let stashError = await Self.failure(
             Self.result(MyGoSignature(publicKey: key, signature: stranger)), stashed)
         #expect(Self.signatureRefusal(stashError) == nil)
+    }
+
+    /// The MyGo refusals say whose key it is. The Sparkle text ("the app's public
+    /// key") would be wrong here: the key is the vendor's MyGo update key, kept in
+    /// DuoUpdater's recipe, and the likely benign cause is the vendor changing it.
+    /// Both are trust failures, so the delta route retries with the full archive.
+    @Test func theRefusalsNameTheVendorsKey() {
+        for error in [SignatureVerifier.VerifyError.myGoSignatureMissing, .myGoSignatureInvalid] {
+            let text = error.errorDescription ?? ""
+            #expect(!text.contains("app's public key"), "\(text)")
+            #expect(!text.contains("EdDSA"), "\(text)")
+            #expect(deltaRouteFailureIsWorthRetrying(error))
+        }
+        #expect(SignatureVerifier.VerifyError.myGoSignatureInvalid.errorDescription?
+            .contains("vendor's update key that DuoUpdater keeps for this app") == true)
+        #expect(SignatureVerifier.VerifyError.myGoSignatureMissing.errorDescription?
+            .contains("gave no signature for this download") == true)
     }
 }

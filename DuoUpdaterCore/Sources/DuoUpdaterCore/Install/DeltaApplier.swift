@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// Applies a Sparkle binary patch: installed bundle + `.delta` → the new bundle.
@@ -192,10 +191,14 @@ public enum DeltaApplier {
             try await offCooperativePool {
                 let bytes = try Data(contentsOf: patchFile, options: .mappedIfSafe)
                 // Sparkle signs the file; MyGo signs its SHA-256 (`update.Verify`).
-                try SignatureVerifier.verifyEdSignature(
-                    fileData: format == .myGo ? Data(SHA256.hash(data: bytes)) : bytes,
-                    signatureBase64: signature,
-                    publicKeyBase64: key)
+                switch format {
+                case .sparkle:
+                    try SignatureVerifier.verifyEdSignature(
+                        fileData: bytes, signatureBase64: signature, publicKeyBase64: key)
+                case .myGo:
+                    try SignatureVerifier.verifyMyGoSignature(
+                        fileData: bytes, signatureBase64: signature, publicKeyBase64: key)
+                }
             }
         }
 
@@ -269,7 +272,8 @@ public func deltaRouteFailureIsWorthRetrying(_ error: Error) -> Bool {
         // property of the VERSION, so the full archive carries the identical
         // set and would be refused for the identical reason (issue #196).
         return false
-    case .edSignatureMissing, .edSignatureInvalid, .codeSignatureInvalid,
+    case .edSignatureMissing, .edSignatureInvalid, .myGoSignatureMissing, .myGoSignatureInvalid,
+         .codeSignatureInvalid,
          .noTeamIdentifier, .teamIdentifierMismatch,
          .noBundleIdentifier, .bundleIdentifierMismatch:
         return true

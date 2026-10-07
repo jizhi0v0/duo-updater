@@ -31,6 +31,11 @@ public enum SignatureVerifier {
     public enum VerifyError: LocalizedError {
         case edSignatureMissing
         case edSignatureInvalid
+        /// A MyGo signature (`verifyMyGoSignature`) is absent or does not verify.
+        /// Apart from the two above because the key is not the app's: it is the
+        /// vendor's MyGo update key, stated in DuoUpdater's recipe for the app.
+        case myGoSignatureMissing
+        case myGoSignatureInvalid
         case codeSignatureInvalid(OSStatus)
         case noTeamIdentifier(which: String)
         case teamIdentifierMismatch(installed: String, downloaded: String)
@@ -63,6 +68,10 @@ public enum SignatureVerifier {
                 return "The update feed provided no EdDSA signature."
             case .edSignatureInvalid:
                 return "The download's EdDSA signature did not match the app's public key."
+            case .myGoSignatureMissing:
+                return "The vendor signs this app's updates, but the update feed gave no signature for this download. Refusing to install it unverified."
+            case .myGoSignatureInvalid:
+                return "The download's signature doesn't match the vendor's update key that DuoUpdater keeps for this app. The file may be damaged or replaced, or the vendor may have changed its key. Refusing to install."
             case .codeSignatureInvalid(let status):
                 return "The downloaded app's code signature is invalid (OSStatus \(status))."
             case .noTeamIdentifier(let which):
@@ -266,6 +275,28 @@ public enum SignatureVerifier {
         }
         guard publicKey.isValidSignature(signature, for: fileData) else {
             throw VerifyError.edSignatureInvalid
+        }
+    }
+
+    /// Verify a MyGo signature (`update.Verify` in `github.com/egoist/mygo`):
+    /// Ed25519 over the SHA-256 of `fileData`, with the vendor's MyGo update key
+    /// (`VendorInstallSpec.myGoPublicKey`). Same primitive as
+    /// `verifyEdSignature`; its own errors, because that one's text names the
+    /// app's public key and this key comes from the recipe.
+    public static func verifyMyGoSignature(
+        fileData: Data,
+        signatureBase64: String?,
+        publicKeyBase64: String
+    ) throws {
+        do {
+            try verifyEdSignature(
+                fileData: Data(SHA256.hash(data: fileData)),
+                signatureBase64: signatureBase64,
+                publicKeyBase64: publicKeyBase64)
+        } catch VerifyError.edSignatureMissing {
+            throw VerifyError.myGoSignatureMissing
+        } catch VerifyError.edSignatureInvalid {
+            throw VerifyError.myGoSignatureInvalid
         }
     }
 

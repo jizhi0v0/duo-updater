@@ -408,8 +408,8 @@ struct MyGoDeltaSignatureTests {
             let error = await #expect(throws: SignatureVerifier.VerifyError.self) {
                 _ = try await reconstruct(s, signature: c.signature, key: c.key)
             }
-            guard case .edSignatureInvalid? = error else {
-                Issue.record("expected edSignatureInvalid, got \(String(describing: error))")
+            guard case .myGoSignatureInvalid? = error else {
+                Issue.record("expected myGoSignatureInvalid, got \(String(describing: error))")
                 continue
             }
         }
@@ -423,8 +423,8 @@ struct MyGoDeltaSignatureTests {
         let error = await #expect(throws: SignatureVerifier.VerifyError.self) {
             _ = try await reconstruct(s, signature: nil, key: key)
         }
-        guard case .edSignatureMissing? = error else {
-            Issue.record("expected edSignatureMissing, got \(String(describing: error))")
+        guard case .myGoSignatureMissing? = error else {
+            Issue.record("expected myGoSignatureMissing, got \(String(describing: error))")
             return
         }
     }

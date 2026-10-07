@@ -156,7 +156,8 @@ swift run --package-path application-test feed-discover "Moshi Go 0.5.2.dmg"
 #   recipe 的 myGoPublicKey 换成随机 key → make cli → duo install → bytesDownloaded 16118320（delta 被拒，退回全量）
 #   换回厂商 key → make cli → duo install → bytesDownloaded 891233（delta 验签通过后应用）
 # 全量归档签名红→绿（2026-10-07，dmg 的 0.5.2，delta 必然失败、只剩全量）:
-#   随机 key → duo install → outcome failed，"The download's EdDSA signature did not match the app's public key"，盘上仍是 0.5.2
+#   随机 key → duo install → outcome failed，"The download's signature doesn't match the vendor's update key that
+#     DuoUpdater keeps for this app. …"（`myGoSignatureInvalid`），盘上仍是 0.5.2
 #   厂商 key → duo install → installed，bytesDownloaded 16118320，与厂商 0.5.3 diff -r 一致
 ```
 

@@ -72,7 +72,9 @@
   正文全丢（改前实测：0.1.97 只有 7 条，全是 `commit:`、`source tag:`…）；它的散文兜底有 12 行上限，
   这些正文常常超
 - 结构化（2026-10-07，channel-verify `changelog pane`）: ✓ `recipe`，20 条版本；0.1.97 12 个小标题 +
-  12 段。0.1.17–0.1.20 是列表式，按列表收
+  12 段。0.1.17–0.1.20 是列表式，按列表收。段落和列表由**同一个** item pattern 按文档顺序收：
+  分成两个 pattern 的话每个版本只取先命中的那个，正文里哪怕只混进一条列表，整版的段落都会丢
+  （`CindyChangelogRecipeTests.aBulletInAParagraphBodyDoesNotDropTheParagraphs`，已做变异测试）
 - Recipe 状态: 已加（`com_xd_cindy.changelog(for:)`）
 
 ## 一键安装

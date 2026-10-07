@@ -151,12 +151,20 @@ public struct VendorInstallSpec: Sendable {
 
     /// The vendor's MyGo update key (`github.com/egoist/mygo`): the base64
     /// Ed25519 public key in its `mygo-update.pub`, which MyGo links into the app
-    /// as a bare string. Set, a MyGo delta the body publishes must carry a
-    /// `signature` this key verifies over the patch's SHA-256 before it is
-    /// applied (`DeltaApplier.reconstruct`); one that does not is dropped for the
-    /// full archive. Stated here rather than read from the installed app because
-    /// the shipped binary is stripped and the key has nothing around it to find
-    /// it by. A vendor that rotates it costs the patch route, never the update.
+    /// as a bare string. Set, every download must carry a `signature` this key
+    /// verifies over the file's SHA-256: a MyGo delta before it is applied
+    /// (`DeltaApplier.reconstruct`; one that fails is dropped for the full
+    /// archive), and the full archive before it is unpacked (`VendorInstaller`;
+    /// one that fails ends the install). Stated here rather than read from the
+    /// installed app because the shipped binary is stripped and the key has
+    /// nothing around it to find it by.
+    ///
+    /// So a vendor that rotates its key, or stops signing, ends one-click until
+    /// this value is updated. That is deliberate and costs no more than the
+    /// vendor's own updater: MyGo's `download` runs `update.Verify` with the key
+    /// compiled into the installed app on every file, and fails "the update is
+    /// not signed with the app's key" in both cases (MyGo's docs: losing the key
+    /// "strands" installed apps). The update itself is still shown.
     public let myGoPublicKey: String?
 
     public init(

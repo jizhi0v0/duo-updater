@@ -287,10 +287,11 @@ public actor VendorInstaller {
             // `expectedSHA512` describes the ARCHIVE, so it cannot speak for these
             // bytes and is deliberately not applied here. `reconstruct` checks what
             // can be checked — the baseline, then the patch's own EdDSA signature
-            // when the vendor publishes one and the app carries the key. ChatGPT
-            // does both (45 of 45 patches signed), so its patch route ends up better
-            // proven than this installer's full-archive path, which has no signature
-            // to check at all.
+            // when the vendor publishes one and the key is known (the app's
+            // `SUPublicEDKey` for Sparkle, the recipe's `myGoPublicKey` for MyGo).
+            // ChatGPT does both (45 of 45 patches signed), so its patch route ends
+            // up better proven than its full-archive path, which has no signature
+            // to check; a MyGo archive does (`remote.myGoSignature`, below).
             // Awaited in place: `BinaryDelta` runs through `ChildProcess`, which
             // waits without parking a thread and is not killed if this task is
             // cancelled — the guarantee the `offCooperativePool` hop used to give.

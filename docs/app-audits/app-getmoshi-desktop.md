@@ -93,7 +93,10 @@ Moshi Go 从 0.5.0 起是 `app.getmoshi.desktop`。两个 id 从没共用过。
   - 取证（2026-10-07）: 二进制里所有 44 字符 base64 候选（8 个）里只有这一把能验过 0.5.2→0.5.3 delta 的签名；
     随后 feed 里全部 6 个签名（3 个 delta + 0.5.3/0.5.2/0.5.1 三个归档）都用它验过，且都只在「签 SHA-256」时成立，签原文时全部不成立。
   - 端到端红→绿见下面「如何复验」。
-  - 厂商换 key 的后果: 只是 delta 路线失效（每次多下一个 delta 的量再走全量），更新本身不受影响；届时按上面的方法重新取 key。
+  - 厂商换 key（或不再发签名）的后果: delta 和全量包都验不过，**一键安装整体失效**，直到 recipe 的 key 更新；
+    更新本身仍会显示。这是有意的：MyGo 自己的更新器（`updater.go` 的 `download` → `update.Verify`）用编译进已装 app 的 key
+    校验每个文件，同样的情况下也会失败（报 "the update is not signed with the app's key"），MyGo 文档说丢 key 会让已装 app
+    "strand"。所以 duo 的拒绝不比厂商自己的更新器更严。届时按上面的方法从新二进制里重新取 key。
 
 ## Changelog
 - 来源: recipe —— `https://cdn.getmoshi.app/desktop-go/latest/manifest.json`，

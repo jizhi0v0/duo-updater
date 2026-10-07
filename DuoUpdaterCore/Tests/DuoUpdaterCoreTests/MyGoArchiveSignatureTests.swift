@@ -214,13 +214,13 @@ struct MyGoArchiveSignatureTests {
     @Test func theRefusalsNameTheVendorsKey() {
         for error in [SignatureVerifier.VerifyError.myGoSignatureMissing, .myGoSignatureInvalid] {
             let text = error.errorDescription ?? ""
-            #expect(!text.contains("app's public key"), "\(text)")
+            #expect(!text.contains("app's public key") && !text.contains("app’s public key"), "\(text)")
             #expect(!text.contains("EdDSA"), "\(text)")
             #expect(deltaRouteFailureIsWorthRetrying(error))
         }
         #expect(SignatureVerifier.VerifyError.myGoSignatureInvalid.errorDescription?
-            .contains("vendor's update key that DuoUpdater keeps for this app") == true)
+            .contains("vendor’s update key that DuoUpdater keeps for this app") == true)
         #expect(SignatureVerifier.VerifyError.myGoSignatureMissing.errorDescription?
-            .contains("gave no signature for this download") == true)
+            .hasPrefix("The update feed gave no signature for this download") == true)
     }
 }

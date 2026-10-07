@@ -144,10 +144,13 @@ public actor VendorInstaller {
         // of its installs comes through here rather than SparkleInstaller, so the
         // delta route has to exist on this side too or it misses the app it was
         // built for. `preferDelta` is false on the coordinator's retry. Whether
-        // this build can apply the patch's format is `patch(for:in:)`'s call: a
-        // MyGo patch needs no `BinaryDelta`.
+        // this build can apply the patch is asked of the patch's format, not up
+        // front: a MyGo patch needs no `BinaryDelta`. (Kept out of
+        // `patch(for:in:)`, which stays a pure function of the app and the feed.)
         let patch = stash == nil && !digestOnly && preferDelta
-            ? DeltaApplier.patch(for: result.app, in: remote)
+            ? DeltaApplier.patch(for: result.app, in: remote).flatMap {
+                DeltaApplier.canApply($0.format) ? $0 : nil
+            }
             : nil
         if let patch {
             // The comparison is what makes this line useful, so omit it rather

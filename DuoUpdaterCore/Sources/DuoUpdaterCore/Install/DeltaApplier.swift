@@ -238,7 +238,7 @@ public enum DeltaApplier {
     /// number is the right key for it too.
     public static func patch(for app: InstalledApp, in remote: RemoteVersion) -> DeltaPatch? {
         guard !remote.deltas.isEmpty, let installedBuild = app.buildVersion else { return nil }
-        return remote.deltas.first { $0.fromBuild == installedBuild && canApply($0.format) }
+        return remote.deltas.first { $0.fromBuild == installedBuild }
     }
 }
 

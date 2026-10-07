@@ -88,7 +88,7 @@ jobs:
         # A release at or after 9ca9355 (main, 2026-09-22), the first commit that
         # installs Claude Code 2.1.280, the minimum for claude-opus-5-5
         # (v1.0.231 still installs 2.1.278). Don't go below it.
-        uses: anthropics/claude-code-action@ed670b4cf9de2a5a570d130d2f6197b9e543cd64 # v1.0.240
+        uses: anthropics/claude-code-action@cab360f6565aa35a51d6ce9e43f1f4287c0a32ea # v1.0.241
         # Subagents in the foreground. On #949 the reviewer split the work across
         # three Agent calls, which ran in the background, and ended its turn: no
         # review.md, three runs in a row (the run Summary's report showed it; the

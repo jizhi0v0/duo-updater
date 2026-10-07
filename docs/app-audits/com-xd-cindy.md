@@ -92,10 +92,11 @@
 - 机器现状: 国内版 Cindy 0.1.97 仍装在 `/Applications`，未运行
 
 ## 已知问题
-- **0.1.95 启动会往用户的 agent skill 目录写东西**: 在 `~/.claude/skills` 建了 5 个软链（其中 2 个指向它在
-  `~/.agents/skills` 新建的、最终落到 `~/Library/Application Support/Cindy/shared-system-skills`）。
-  0.1.97 启动后清掉了它自己的 2 个（与其更新说明「不再往你自己的技能目录里写文件」一致），
-  另 3 个指向 `~/.agents/skills` 里原有目录的软链没清。厂商行为，不是安装过程带进来的。
+- **每次启动都会往用户的 agent skill 目录写软链**（0.1.95、0.1.97 都会）:
+  - 把 `~/.agents/skills` 里已有的 skill 逐个软链进 `~/.claude/skills`。本机是 agently-mail、find-skills、skill-doctor 三个。
+  - 0.1.95 另外把它自带的 learn、cindy-skill-creator 装进 `~/.agents/skills`，并同样链过去；0.1.97 启动后这两个被移走，与其更新说明「不再往你自己的技能目录里写文件」一致。
+  - 前三个软链 0.1.97 **每次启动都会重建**：2026-10-07 删掉后再启动 0.1.97，20:19 又出现。
+  - 这是厂商行为，不是安装过程带进来的。
 - beta 轨未接入（见上）。
 
 ## 如何复验

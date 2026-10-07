@@ -2,6 +2,28 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.0
+
+**DuoUpdater ahora mantiene al día también tus herramientas de línea de comandos, no solo tus apps.** Claude Code, Codex, Cursor CLI, OpenCode, Amp, Junie, fx, bub, Boat, Vite+, uv, Bun, Rust (a través de rustup) y los paquetes instalados con `npm install -g` se detectan donde los dejan sus propios instaladores, y cada uno se actualiza con un clic mediante el actualizador de la propia herramienta. Aparecen como «Otras herramientas» junto a Homebrew, tanto en el popover de la barra de menús como en la pestaña CLI del workbench.
+
+**Las descargas se comprueban con la suma de verificación que publica el desarrollador, siempre que la haya.** Esto incluye las apps que se actualizan desde las versiones de GitHub, además de Edge, Android Studio, la familia de VS Code, Gemini, GIMP, Unity Hub, Wave, Claude, Qoder, WorkBuddy y otras. Una descarga que no coincide se rechaza antes de instalar nada.
+
+**Más apps compatibles.** La comprobación de actualizaciones y las actualizaciones con un clic llegan ahora a CrystalFetch, Neovide, MacDown 3000, MeetingBar, Finicky, Cryptomator, OpenInTerminal, Reviu, diri, magpie, HyperFrames y las siete apps Craft de storytold. Secretive, Obelisk y VMPal también se comprueban ahora, y BlueBubbles Server ya se actualiza con un clic.
+
+**Nuevo y desactivado por defecto: actualizaciones con un clic para apps de código abierto sin firma de desarrollador, como Alacritty, Flameshot y darktable.** Para usarlo, activa «Permitir actualizaciones con un clic para apps sin firma de desarrollador» en Ajustes › General. En ese modo solo se comprueba el hash del archivo que publica GitHub, que te protege menos que una firma de desarrollador.
+
+**Las notas de versión escritas en Markdown conservan sus encabezados, listas anidadas y código tal como los escribió el desarrollador.** Antes se aplanaban en una sola lista de viñetas, y títulos de sección como «Bug Fixes» aparecían como si fueran cambios.
+
+**Si el actualizador propio de una app se rinde después de que la app se cierre, DuoUpdater vuelve a abrirla en segundos.** Antes, la fila seguía girando unos tres minutos mientras la app permanecía cerrada.
+
+**DuoUpdater ya no reemplaza una app mientras una app auxiliar dentro de ella sigue ejecutándose, como una máquina virtual de VMPal.** La fila te dice por qué está esperando. Antes, la app auxiliar seguía ejecutando la versión antigua.
+
+**Analizar una app con una firma de código dañada ya no puede hacer que DuoUpdater se cierre inesperadamente.**
+
+**Las notas de versión aparecen ahora para Capy, Shift y Memoh Desktop, y de nuevo para Antigravity, TypeWhisper, WorkBuddy y Cline Beta.** A las copias antiguas de la edición china de WorkBuddy se les vuelve a ofrecer su última versión.
+
+**Por dentro.** DuoUpdater usa menos memoria cuando lleva días abierto. La pestaña CLI muestra primero lo que tiene actualización y ya no se mueve mientras se instalan actualizaciones. El campo de filtro de Solicitudes se mantiene en una línea aunque haya varios filtros. Las apps creadas con MyGo ahora llevan su etiqueta de entorno de ejecución.
+
 ## 0.4.8
 
 **El nuevo icono ya se ve bien en macOS 26.** En el estilo oscuro, la flecha y el aro ya no se funden en manchas sólidas, y la cabeza y las orejas del gato tienen bordes limpios en lugar de dentados.

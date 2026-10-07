@@ -2,6 +2,28 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.0
+
+**DuoUpdater artık yalnızca uygulamalarınızı değil, komut satırı araçlarınızı da güncel tutuyor.** Claude Code, Codex, Cursor CLI, OpenCode, Amp, Junie, fx, bub, Boat, Vite+, uv, Bun, Rust (rustup üzerinden) ve `npm install -g` ile kurulan paketler, kendi yükleyicilerinin koyduğu yerde bulunuyor ve her biri aracın kendi güncelleyicisiyle tek tıkla güncelleniyor. Hem menü çubuğu açılır penceresinde hem de çalışma alanının CLI sekmesinde Homebrew’un yanında “Diğer araçlar” olarak görünüyorlar.
+
+**İndirmeler, geliştiricinin yayımladığı sağlama toplamıyla, varsa, karşılaştırılıyor.** Bu, GitHub sürümlerinden güncellenen uygulamaların yanı sıra Edge, Android Studio, VS Code ailesi, Gemini, GIMP, Unity Hub, Wave, Claude, Qoder, WorkBuddy ve diğerlerini kapsıyor. Eşleşmeyen bir indirme, hiçbir şey kurulmadan reddediliyor.
+
+**Daha fazla uygulama destekleniyor.** Güncelleme denetimi ve tek tıkla güncelleme artık CrystalFetch, Neovide, MacDown 3000, MeetingBar, Finicky, Cryptomator, OpenInTerminal, Reviu, diri, magpie, HyperFrames ve storytold’un yedi Craft uygulamasını kapsıyor. Secretive, Obelisk ve VMPal de artık güncellemeler için denetleniyor; BlueBubbles Server ise artık tek tıkla güncelleniyor.
+
+**Yeni ve varsayılan olarak kapalı: Alacritty, Flameshot ve darktable gibi geliştirici imzası olmayan açık kaynak uygulamalar için tek tıkla güncelleme.** Kullanmak için Ayarlar › Genel’de “Geliştirici imzası olmayan uygulamalarda tek tıkla güncellemeye izin ver” seçeneğini açın. Bu modda yalnızca GitHub’un yayımladığı dosya karması denetleniyor; bu da sizi bir geliştirici imzası kadar korumuyor.
+
+**Markdown ile yazılmış sürüm notları başlıklarını, iç içe listelerini ve kodlarını geliştiricinin yazdığı gibi koruyor.** Önceden tek bir madde listesine düzleştiriliyor, “Bug Fixes” gibi bölüm başlıkları da değişiklikmiş gibi görünüyordu.
+
+**Bir uygulamanın kendi güncelleyicisi uygulama kapandıktan sonra pes ederse, DuoUpdater uygulamayı saniyeler içinde yeniden açıyor.** Önceden uygulama kapalı kalırken satır yaklaşık üç dakika dönmeye devam ediyordu.
+
+**DuoUpdater, içindeki bir yardımcı uygulama (örneğin bir VMPal sanal makinesi) hâlâ çalışırken artık o uygulamayı değiştirmiyor.** Satır, neyi beklediğini size söylüyor. Önceden yardımcı uygulama eski sürümle çalışmaya devam ediyordu.
+
+**Kod imzası bozuk bir uygulamayı taramak artık DuoUpdater’ın beklenmedik şekilde kapanmasına yol açamıyor.**
+
+**Sürüm notları artık Capy, Shift ve Memoh Desktop için görünüyor; Antigravity, TypeWhisper, WorkBuddy ve Cline Beta için de yeniden görünüyor.** WorkBuddy’nin Çin sürümünün eski kopyalarına en son sürüm yeniden öneriliyor.
+
+**Perde arkasında.** DuoUpdater günlerce açık kaldığında daha az bellek kullanıyor. CLI sekmesi güncellemesi olanları önce gösteriyor ve güncellemeler sürerken artık kaymıyor. İstekler bölmesindeki filtre alanı birkaç filtreyle de tek satırda kalıyor. MyGo ile yapılmış uygulamalar artık çalışma zamanı etiketini alıyor.
+
 ## 0.4.8
 
 **Yeni uygulama simgesi artık macOS 26’da doğru görünüyor.** Koyu stilde ok ve halka artık birbirine karışıp dolu lekelere dönüşmüyor; kedinin başı ve kulakları da tırtıklı değil, temiz kenarlı.

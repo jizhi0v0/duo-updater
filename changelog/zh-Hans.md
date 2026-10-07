@@ -2,6 +2,28 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.5.0
+
+**DuoUpdater 现在不只更新 App，也帮你把命令行工具保持在最新。** Claude Code、Codex、Cursor CLI、OpenCode、Amp、Junie、fx、bub、Boat、Vite+、uv、Bun、Rust（通过 rustup）以及用 `npm install -g` 安装的包，都会在它们自己的安装程序放置的位置被找到，并通过工具自带的更新程序一键更新。它们以“其他工具”的名义显示在 Homebrew 旁边，菜单栏弹窗和工作台的 命令行 标签页里都有。
+
+**只要开发者公布了校验和，下载就会拿它来核对。** 范围包括从 GitHub 发布更新的 App，以及 Edge、Android Studio、VS Code 系列、Gemini、GIMP、Unity Hub、Wave、Claude、Qoder、WorkBuddy 等。对不上的下载会在安装任何东西之前被拒绝。
+
+**支持的 App 更多了。** CrystalFetch、Neovide、MacDown 3000、MeetingBar、Finicky、Cryptomator、OpenInTerminal、Reviu、diri、magpie、HyperFrames 以及 storytold 的七款 Craft 应用，现在都能检查更新并一键更新。Secretive、Obelisk 和 VMPal 现在也能检查更新，BlueBubbles Server 现在可以一键更新了。
+
+**新功能，默认关闭：为没有开发者签名的开源 App 提供一键更新，比如 Alacritty、Flameshot 和 darktable。** 要使用它，请在 设置 › 通用 里打开“允许一键更新没有开发者签名的 App”。这种模式下唯一的检查是 GitHub 公布的文件哈希，提供的保护不如开发者签名。
+
+**用 Markdown 写的发布说明会按开发者写的样子保留标题、嵌套列表和代码。** 以前它们会被压成一整个列表，“Bug Fixes”这类分节标题也会被当成一条改动显示出来。
+
+**如果 App 退出后它自己的更新程序放弃了更新，DuoUpdater 会在几秒内把 App 重新打开。** 以前 App 一直关着，那一行要转三分钟左右。
+
+**当 App 里内嵌的辅助 App 还在运行时（比如 VMPal 的虚拟机），DuoUpdater 不会再替换这个 App。** 那一行会告诉你它在等什么。以前辅助 App 会继续跑着旧版本。
+
+**扫描代码签名损坏的 App 不会再让 DuoUpdater 意外退出。**
+
+**Capy、Shift 和 Memoh Desktop 现在能看到发布说明了，Antigravity、TypeWhisper、WorkBuddy 和 Cline Beta 的发布说明也重新出现了。** WorkBuddy 中国版的旧副本重新能收到最新版本。
+
+**内部改进。** DuoUpdater 连续运行好几天后占用的内存更少了。命令行 标签页会把有更新的排在前面，更新进行时也不再跳动。请求 面板的筛选栏在有多个筛选条件时也保持一行。用 MyGo 构建的 App 现在会显示运行时标签。
+
 ## 0.4.8
 
 **新图标在 macOS 26 上终于显示正常了。** 深色风格下，箭头和圆环不再糊成一整块，猫的头和耳朵边缘也不再有锯齿。

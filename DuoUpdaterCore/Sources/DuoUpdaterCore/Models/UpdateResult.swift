@@ -173,6 +173,21 @@ public struct DeltaPatch: Sendable, Hashable {
     }
 }
 
+/// A MyGo Ed25519 signature of a download, over its SHA-256 (`update.Verify` in
+/// `github.com/egoist/mygo`), with the key it must verify against.
+public struct MyGoSignature: Sendable, Hashable {
+    /// The vendor's MyGo update key, base64 (the recipe's `myGoPublicKey`).
+    public let publicKey: String
+    /// The manifest's `signature` for exactly this download; nil when the body
+    /// published none for it, which the installer refuses.
+    public let signature: String?
+
+    public init(publicKey: String, signature: String?) {
+        self.publicKey = publicKey
+        self.signature = signature
+    }
+}
+
 /// The patch formats `DeltaApplier` can apply.
 public enum DeltaFormat: String, Sendable, Hashable {
     /// Sparkle's binary delta, applied by the bundled `BinaryDelta`.
@@ -324,6 +339,12 @@ public struct RemoteVersion: Sendable, Hashable {
     /// What this download's trust rests on. See `InstallTrust`.
     public let installTrust: InstallTrust
 
+    /// MyGo's signature of the download, set when the recipe states the vendor's
+    /// MyGo key (`VendorInstallSpec.myGoPublicKey`). `VendorInstaller` checks it
+    /// before unpacking, ON TOP of the Team-ID gate, and a nil `signature` inside
+    /// is refused: a stated key means every archive is signed.
+    public let myGoSignature: MyGoSignature?
+
     /// Path inside the unpacked download of a second archive holding the real
     /// app, for vendors who ship an installer stub. See
     /// `VendorInstallSpec.nestedArchivePath`. Nil for every ordinary download.
@@ -436,6 +457,7 @@ public struct RemoteVersion: Sendable, Hashable {
         expectedSHA512: String? = nil,
         expectedSHA256: String? = nil,
         installTrust: InstallTrust = .developerID,
+        myGoSignature: MyGoSignature? = nil,
         nestedArchivePath: String? = nil,
         contentsArchivePattern: String? = nil,
         downloadHeaders: [String: String] = [:],
@@ -468,6 +490,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.expectedSHA512 = expectedSHA512
         self.expectedSHA256 = expectedSHA256
         self.installTrust = installTrust
+        self.myGoSignature = myGoSignature
         self.nestedArchivePath = nestedArchivePath
         self.contentsArchivePattern = contentsArchivePattern
         self.downloadHeaders = downloadHeaders

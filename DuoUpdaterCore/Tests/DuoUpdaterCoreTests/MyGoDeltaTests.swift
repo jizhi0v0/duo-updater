@@ -290,9 +290,9 @@ struct MyGoDeltaTests {
     }
 }
 
-/// `MyGoManifestDeltas` on the shape of a real `update-darwin-arm64.json`
+/// `MyGoManifest` on the shape of a real `update-darwin-arm64.json`
 /// (Moshi Go's, trimmed: one release, its deltas, and a `previous` entry).
-struct MyGoManifestDeltasTests {
+struct MyGoManifestTests {
 
     static let feed = URL(string: "https://cdn.example.com/app/update-darwin-arm64.json")!
 
@@ -316,7 +316,7 @@ struct MyGoManifestDeltasTests {
     """#
 
     @Test func readsThePatchesOfTheResolvedVersion() {
-        let patches = MyGoManifestDeltas.patches(inBody: Self.body, forVersion: "0.5.3", feedURL: Self.feed)
+        let patches = MyGoManifest.patches(inBody: Self.body, forVersion: "0.5.3", feedURL: Self.feed)
         // The plain-http one is dropped; the relative one resolves against the feed.
         #expect(patches.map(\.fromBuild) == ["0.5.2", "0.5.1"])
         #expect(patches.map(\.url.absoluteString) == [
@@ -327,7 +327,7 @@ struct MyGoManifestDeltasTests {
         #expect(patches.allSatisfy { $0.format == .myGo && $0.toVersion == "0.5.3" && $0.publicKey == nil })
         #expect(patches.map(\.edSignature) == ["PN59", "GocN"])
         // The recipe's key rides along with each patch's own signature.
-        let keyed = MyGoManifestDeltas.patches(
+        let keyed = MyGoManifest.patches(
             inBody: Self.body, forVersion: "0.5.3", feedURL: Self.feed, publicKey: "KEY")
         #expect(keyed.allSatisfy { $0.publicKey == "KEY" })
         #expect(DeltaApplier.canApply(.myGo))
@@ -335,15 +335,15 @@ struct MyGoManifestDeltasTests {
 
     /// A probe that resolved another version must not be handed these patches.
     @Test func refusesAManifestForAnotherVersion() {
-        #expect(MyGoManifestDeltas.patches(inBody: Self.body, forVersion: "0.5.2", feedURL: Self.feed).isEmpty)
+        #expect(MyGoManifest.patches(inBody: Self.body, forVersion: "0.5.2", feedURL: Self.feed).isEmpty)
     }
 
     @Test func ignoresBodiesOfOtherShapes() {
-        #expect(MyGoManifestDeltas.patches(
+        #expect(MyGoManifest.patches(
             inBody: #"<rss><channel><item><sparkle:deltas/></item></channel></rss>"#, forVersion: "1.0").isEmpty)
-        #expect(MyGoManifestDeltas.patches(
+        #expect(MyGoManifest.patches(
             inBody: #"{"version":"1.0","platforms":{}}"#, forVersion: "1.0").isEmpty)
-        #expect(MyGoManifestDeltas.patches(
+        #expect(MyGoManifest.patches(
             inBody: #"{"version":"1.0","deltas":"none"}"#, forVersion: "1.0").isEmpty)
     }
 }

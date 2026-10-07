@@ -32,7 +32,7 @@ enum app_getmoshi_desktop {
         // digest, so there is no `checksumPattern`; the Team-ID gate is the check.
         //
         // DELTAS: `deltas[]` are MyGo's `mygo delta 1` patches, read out of this
-        // same body by `MyGoManifestDeltas` and applied by `MyGoDelta`. They are
+        // same body by `MyGoManifest` and applied by `MyGoDelta`. They are
         // cut against the `.tar.gz` build, which carries a stray
         // `Contents/CodeResources` the vendor's `.dmg` build lacks, and every patch
         // rebuilds that file from the installed one. So a copy installed from the

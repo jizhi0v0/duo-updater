@@ -60,7 +60,7 @@ Moshi Go 从 0.5.0 起是 `app.getmoshi.desktop`。两个 id 从没共用过。
 | | 客户端能力 | 服务端实际下发 | 我们能否消费 |
 |---|---|---|---|
 | 结论 | 有 | 有 | **能（已接入）** |
-| 证据 | feed 的 `deltas[]` 就是给 app 自己的更新器用的 | 2026-10-07 的 feed 列了 `0.5.0/0.5.1/0.5.2 → 0.5.3` 三个 `.delta`（0.89–1.19 MB，全量 15.2 MB） | `MyGoManifestDeltas` 从同一个 body 读出 `deltas[]`，`MyGoDelta` 在进程内应用 |
+| 证据 | feed 的 `deltas[]` 就是给 app 自己的更新器用的 | 2026-10-07 的 feed 列了 `0.5.0/0.5.1/0.5.2 → 0.5.3` 三个 `.delta`（0.89–1.19 MB，全量 15.2 MB） | `MyGoManifest` 从同一个 body 读出 `deltas[]`，`MyGoDelta` 在进程内应用 |
 
 - 格式（settled from source: `internal/update/delta.go`、`bsdiff.go` on `egoist/mygo` `main`，MIT）:
   `mygo delta 1\n` + 索引长度（uvarint）+ 索引（JSON，raw DEFLATE）+ 各文件数据。索引列出新 bundle 的整棵树：
@@ -87,6 +87,9 @@ Moshi Go 从 0.5.0 起是 `app.getmoshi.desktop`。两个 id 从没共用过。
   没有这个变量），周围也没有可定位的标记，所以从已装 app 读公钥只能靠扫描像 key 的字符串。因此**公钥写在 recipe 里**
   （`VendorInstallSpec.myGoPublicKey` = `iXWMulHl+4m/dByqrJ8a1YOzcDIBeUOPiZ/AFj6k4VI=`），由 `DeltaApplier.reconstruct`
   在应用前校验：有 key 就必须有能验过的签名，否则这次 delta 作废、退回全量包。
+  **全量 `.tar.gz` 同样校验**：`MyGoManifest.archiveSignature` 只在 feed 顶层 `version` 等于解析出的版本、且顶层 `url`
+  正好是要下载的那个文件时取它的 `signature`（`previous[]` 里旧归档的签名永不读取），`VendorInstaller` 在解包前、
+  Team ID 闸之前验证。声明了 key 却找不到签名：安装直接拒绝（不退化成不校验），探测时报 `myGoSignatureNoMatch` 让夜扫先看到。
   - 取证（2026-10-07）: 二进制里所有 44 字符 base64 候选（8 个）里只有这一把能验过 0.5.2→0.5.3 delta 的签名；
     随后 feed 里全部 6 个签名（3 个 delta + 0.5.3/0.5.2/0.5.1 三个归档）都用它验过，且都只在「签 SHA-256」时成立，签原文时全部不成立。
   - 端到端红→绿见下面「如何复验」。
@@ -121,8 +124,8 @@ Moshi Go 从 0.5.0 起是 `app.getmoshi.desktop`。两个 id 从没共用过。
     inode 不变。厂商更新器没有改 feed 地址的开关，造不出"暂存一个更旧版本"的对照，所以碰撞测试只覆盖了"它不暂存"这一种情况。
 - 格式: `.tar.gz`（`moshi-go-<ver>-darwin-arm64.tar.gz`），里面只有 `Moshi Go.app`，没有 helper、
   没有 login item、没有 AppleDouble。
-- 校验: feed 的 `signature` 是厂商对归档的 ed25519 签名（64 字节 base64），不是摘要；body 里没有 sha256/sha512，
-  不接 `checksumPattern`，靠 Team ID 闸。
+- 校验: body 里没有 sha256/sha512，不接 `checksumPattern`；feed 的 `signature` 是 MyGo 的 Ed25519（签文件的 SHA-256），
+  用 recipe 写死的厂商 key 校验，叠在 Team ID 闸之上（见「增量更新」的签名一节）。
 - **读的是**: 人人可手动下载的 GA —— 所有安装读同一份 feed，无灰度；同版本的 dmg 在 CDN 上也能直接下到。
 - 阻塞: 无。
 
@@ -149,6 +152,9 @@ swift run --package-path application-test feed-discover "Moshi Go 0.5.2.dmg"
 # 签名红→绿（2026-10-07，同一个 tar.gz 的 0.5.2）:
 #   recipe 的 myGoPublicKey 换成随机 key → make cli → duo install → bytesDownloaded 16118320（delta 被拒，退回全量）
 #   换回厂商 key → make cli → duo install → bytesDownloaded 891233（delta 验签通过后应用）
+# 全量归档签名红→绿（2026-10-07，dmg 的 0.5.2，delta 必然失败、只剩全量）:
+#   随机 key → duo install → outcome failed，"The download's EdDSA signature did not match the app's public key"，盘上仍是 0.5.2
+#   厂商 key → duo install → installed，bytesDownloaded 16118320，与厂商 0.5.3 diff -r 一致
 ```
 
 ## 建议下一步

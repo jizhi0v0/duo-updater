@@ -322,6 +322,21 @@ public actor VendorInstaller {
                 let archive = download.archiveURL
                 try await offCooperativePool { try Self.verifySHA256(archive, expectedHex: expected) }
             }
+            // A MyGo vendor's own signature of the archive, over its SHA-256, with
+            // the key the recipe states. Required once a key is stated: a missing
+            // signature fails here as `edSignatureMissing`, as Sparkle's does.
+            // Skipped for a local stash for the reason the digests above are.
+            if let myGo = remote.myGoSignature, download.localStash == nil {
+                onStage(.verifyingSignature)
+                let archive = download.archiveURL
+                try await offCooperativePool {
+                    let bytes = try Data(contentsOf: archive, options: .mappedIfSafe)
+                    try SignatureVerifier.verifyEdSignature(
+                        fileData: Data(SHA256.hash(data: bytes)),
+                        signatureBase64: myGo.signature,
+                        publicKeyBase64: myGo.publicKey)
+                }
+            }
 
             // 3. Unpack the .app.
             onStage(.extracting)

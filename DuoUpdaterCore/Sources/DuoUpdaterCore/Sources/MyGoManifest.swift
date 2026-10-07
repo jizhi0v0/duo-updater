@@ -1,6 +1,7 @@
 import Foundation
 
-/// Pulls MyGo delta updates out of a vendor probe's response body.
+/// Reads what a MyGo update manifest says about the release a vendor probe
+/// resolved: its delta updates, and the signature of its archive.
 ///
 /// A MyGo app (`github.com/egoist/mygo`) reads an `update-<os>-<arch>.json`
 /// manifest: one release (`version`, `url`, `size`, `signature`, …), a
@@ -15,10 +16,12 @@ import Foundation
 /// always correct. A body that only looks like it (a `deltas` array of some other
 /// vendor's format) costs at most one failed patch: `MyGoDelta` refuses a file
 /// without its magic, and the install retries with the full archive.
-enum MyGoManifestDeltas {
+enum MyGoManifest {
 
     private struct Manifest: Decodable {
         let version: String
+        let url: String?
+        let signature: String?
         let deltas: [Delta]?
     }
 
@@ -51,5 +54,27 @@ enum MyGoManifestDeltas {
                 fromBuild: delta.from, url: url, size: delta.size, edSignature: delta.signature,
                 format: .myGo, toVersion: manifest.version, publicKey: publicKey)
         }
+    }
+
+    /// The manifest's signature of the archive at `url`, or nil.
+    ///
+    /// MyGo signs the archive's SHA-256 with Ed25519 (`update.Verify`), and the
+    /// installer checks it against the recipe's `myGoPublicKey`. Returned only
+    /// when the manifest's own `version` is the one the probe resolved AND its
+    /// `url` (resolved against `feedURL`) is exactly the file about to be
+    /// downloaded: a signature is evidence about one file, and pairing it with
+    /// any other would fail the install of a good download or, worse, describe
+    /// bytes we never fetch. `previous[]` repeats `url`/`signature` for older
+    /// archives and is never read.
+    static func archiveSignature(
+        inBody body: String, forVersion version: String, url: URL, feedURL: URL? = nil
+    ) -> String? {
+        guard let manifest = try? JSONDecoder().decode(Manifest.self, from: Data(body.utf8)),
+              manifest.version == version,
+              let published = manifest.url,
+              URL(string: published, relativeTo: feedURL)?.absoluteURL == url.absoluteURL,
+              let signature = manifest.signature, !signature.isEmpty
+        else { return nil }
+        return signature
     }
 }

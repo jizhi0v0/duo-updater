@@ -19,6 +19,14 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.1
+
+**More apps are supported.** Update checks and one-click updates now cover Spotifast, Cindy (both the global and the China edition), Moshi Go, Moshi and Herdr. Lokii gets update checks too, and updates in one click when "Allow one-click updates for apps without a developer signature" is on.
+
+**Cindy's beta builds are offered when beta updates are turned on in Cindy's own settings.** Turn the setting off and you are offered stable releases only.
+
+**Moshi Go updates download only what changed, so a routine update is about 1 MB instead of 15 MB.** Each patch is checked against Moshi Go's signing key first, and if anything doesn't match, DuoUpdater downloads the full app instead.
+
 ## 0.5.0
 
 **DuoUpdater now keeps your command-line tools up to date, not just your apps.** Claude Code, Codex, Cursor CLI, OpenCode, Amp, Junie, fx, bub, Boat, Vite+, uv, Bun, Rust (through rustup) and packages installed with `npm install -g` are found where their own installers put them, and each updates with one click through the tool's own updater. They appear as "Other tools" next to Homebrew, both in the menu bar popover and in the Workbench's CLI tab.

@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
 githubRules[0].installAssetPattern? = "^cua-driver-rs-[0-9]+\\.[0-9]+\\.[0-9]+-darwin-universal\\.tar\\.gz$"
 githubRules[0].installerKind? = .tarGz
 githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
 githubRules[1] = struct GitHubReleaseRule
 githubRules[1].bundleID = "com.trycua.driver"
 githubRules[1].owner = "trycua"
@@ -36,6 +37,7 @@ githubRules[1].channel = .nightly
 githubRules[1].installAssetPattern? = "^cua-driver-rs-[0-9]+\\.[0-9]+\\.[0-9]+-nightly\\.[0-9]{8}\\.[1-9][0-9]*-darwin-universal\\.tar\\.gz$"
 githubRules[1].installerKind? = .tarGz
 githubRules[1].installTrust = .developerID
+githubRules[1].variant = nil
 
 appStoreCases = Array(count: 0)
 

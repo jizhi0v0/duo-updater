@@ -130,6 +130,18 @@ struct GitHubAssetSelectionTests {
         // magpie: one zip per architecture under every tag (v0.1.1084).
         (#"^magpie-darwin-(?:arm64|amd64)\.zip$"#,
          ["magpie-darwin-amd64.zip", "magpie-darwin-arm64.zip"]),
+        // Lokii: one dmg per architecture, no version in the name (v0.1.1).
+        (#"^Lokii-(?:arm64|x86_64)\.dmg$"#,
+         ["Lokii-arm64.dmg", "Lokii-x86_64.dmg"]),
+        // Cindy: four macOS dmgs per release, two editions × two arches
+        // (v0.1.97, in the order GitHub listed them); each rule admits its own
+        // edition's two.
+        (#"^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-global\.dmg$"#,
+         ["cindy-0.1.97-darwin-arm64-cn.dmg", "cindy-0.1.97-darwin-arm64-global.dmg",
+          "cindy-0.1.97-darwin-x64-cn.dmg", "cindy-0.1.97-darwin-x64-global.dmg"]),
+        (#"^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-cn\.dmg$"#,
+         ["cindy-0.1.97-darwin-arm64-cn.dmg", "cindy-0.1.97-darwin-arm64-global.dmg",
+          "cindy-0.1.97-darwin-x64-cn.dmg", "cindy-0.1.97-darwin-x64-global.dmg"]),
     ]
 
     /// Registry patterns whose alternation chooses between TAGS rather than

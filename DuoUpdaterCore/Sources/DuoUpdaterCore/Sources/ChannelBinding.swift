@@ -177,6 +177,8 @@ public enum ChannelBinding {
         SuperconductorChannel.bundleID.lowercased(),
         MacMouseFixChannel.bundleID.lowercased(),
         CuaDriverChannel.bundleID.lowercased(),
+        CindyChannel.globalBundleID.lowercased(),
+        CindyChannel.chinaBundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -272,6 +274,11 @@ public enum ChannelBinding {
         // (measured — it flipped `nightly`→`stable`→`nightly` here). So a flip is
         // picked up on the next scan, or on the app's own launch or quit, rather
         // than immediately. See `CuaDriverChannel`.
+        //
+        // Cindy deliberately adds nothing, for the same reason as Cua Driver: its
+        // `update-channel-settings.json` sits in the app's Electron `userData`
+        // directory beside its databases, logs and staged updates. See
+        // `CindyChannel`.
         //
         // super.engineering deliberately adds nothing either, for the opposite
         // reason: its choice IS outside every root above
@@ -411,6 +418,10 @@ public enum ChannelBinding {
         case MacMouseFixChannel.bundleID.lowercased():
             return MacMouseFixChannel.resolveCurrent
         case CuaDriverChannel.bundleID.lowercased(): return CuaDriverChannel.resolveCurrent
+        case CindyChannel.globalBundleID.lowercased():
+            return { CindyChannel.resolveCurrent(bundleID: CindyChannel.globalBundleID) }
+        case CindyChannel.chinaBundleID.lowercased():
+            return { CindyChannel.resolveCurrent(bundleID: CindyChannel.chinaBundleID) }
         default:                       return nil
         }
     }
@@ -511,15 +522,16 @@ public enum ChannelBinding {
 
     /// The bindings `allResolutions` deliberately does NOT cover, lower-cased.
     ///
-    /// OrbStack, Alfred, Tailscale, CapCut, Windscribe, super.engineering and Cua
-    /// Driver have bindings, but the binding only picks which RECIPE runs; the
+    /// OrbStack, Alfred, Tailscale, CapCut, Windscribe, super.engineering, Cua
+    /// Driver and both Cindy editions have bindings, but the binding only picks
+    /// which RECIPE runs; the
     /// install comes from that recipe, so their cross-channel question is already
     /// answered by a proof map keyed to that recipe, and enumerating them here
     /// would double-count them into a second registry.
     ///
     /// ⚠️ The name predates the last of them. Six are backed by a
     /// `VendorProbeRecipe` and answer to `ChannelProofRegistry.proofs`; Cua Driver
-    /// is backed by a `GitHubReleaseRule` and answers to
+    /// and Cindy are backed by a `GitHubReleaseRule` and answer to
     /// `ChannelProofRegistry.githubProofs` instead. The membership test is "the
     /// binding chooses a recipe and carries no request-side channel signal of its
     /// own", not which registry that recipe lives in — renaming the set was
@@ -542,5 +554,7 @@ public enum ChannelBinding {
         WindscribeChannel.bundleID.lowercased(),
         SuperconductorChannel.bundleID.lowercased(),
         CuaDriverChannel.bundleID.lowercased(),
+        CindyChannel.globalBundleID.lowercased(),
+        CindyChannel.chinaBundleID.lowercased(),
     ]
 }

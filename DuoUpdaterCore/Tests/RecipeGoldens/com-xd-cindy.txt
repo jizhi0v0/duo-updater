@@ -38,7 +38,7 @@ changelogs[0].requestBody = nil
 changelogs[0].skipSections = Array(count: 0)
 changelogs[0].tagPattern = nil
 
-githubRules = Array(count: 1)
+githubRules = Array(count: 2)
 githubRules[0] = struct GitHubReleaseRule
 githubRules[0].bundleID = "com.xd.cindy"
 githubRules[0].owner = "makecindy"
@@ -54,12 +54,32 @@ githubRules[0].installAssetPattern? = "^cindy-[0-9]+\\.[0-9]+\\.[0-9]+-darwin-(?
 githubRules[0].installerKind? = .dmg
 githubRules[0].installTrust = .developerID
 githubRules[0].variant? = "global"
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "com.xd.cindy"
+githubRules[1].owner = "makecindy"
+githubRules[1].repo = "cindy"
+githubRules[1].usePrereleases = true
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^v([0-9]+\\.[0-9]+\\.[0-9]+)(?:-beta)?$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .beta
+githubRules[1].installAssetPattern? = "^cindy-[0-9]+\\.[0-9]+\\.[0-9]+-darwin-(?:arm64|x64)-global\\.dmg$"
+githubRules[1].installerKind? = .dmg
+githubRules[1].installTrust = .developerID
+githubRules[1].variant? = "global"
 
 appStoreCases = Array(count: 0)
 
 channelProofs = Dictionary(count: 0)
 
-githubChannelProofs = Dictionary(count: 0)
+githubChannelProofs = Dictionary(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "com.xd.cindy", channel: .beta)] = .recipeAnchor(_:in:)
+githubChannelProofs[ChannelProofKey(bundleID: "com.xd.cindy", channel: .beta)].0 = "^true$|\\(\\?:-beta\\)\\?\\$$"
+githubChannelProofs[ChannelProofKey(bundleID: "com.xd.cindy", channel: .beta)].in = Set(count: 2)
+githubChannelProofs[ChannelProofKey(bundleID: "com.xd.cindy", channel: .beta)].in{0} = "usePrereleases"
+githubChannelProofs[ChannelProofKey(bundleID: "com.xd.cindy", channel: .beta)].in{1} = "versionPattern"
 
 bindingProofs = Dictionary(count: 0)
 

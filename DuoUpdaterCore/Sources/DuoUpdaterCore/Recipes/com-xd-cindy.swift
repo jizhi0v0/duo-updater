@@ -61,11 +61,13 @@ enum com_xd_cindy {
     ///    `\n---`, whichever comes first (the oldest bodies have no PRs
     ///    section), so the metadata never reaches the item patterns. Requiring
     ///    the prefix also leaves out `v1.0.0`, the assetless source snapshot.
-    ///  - Bullets first: only 0.1.17–0.1.20 list their changes, under
-    ///    `### New Features` / `### Bug Fixes`; every later body has no bullet
-    ///    before the cut, so the paragraph pattern answers. The paragraph is the
-    ///    line right after its `###` line, and the heading match starts one
-    ///    newline earlier, so each heading sorts before its paragraph.
+    ///  - ONE item pattern for both shapes: the line right after a `###` line
+    ///    (unless it is a bullet), or any bullet line. 0.1.17–0.1.20 list their
+    ///    changes under `### New Features` / `### Bug Fixes`; every later body
+    ///    is paragraphs. Two patterns would be first-wins per entry, so a single
+    ///    bullet in a paragraph body would drop every paragraph of that release.
+    ///    The heading match starts one newline before its `###`, so each
+    ///    heading sorts ahead of the change under it.
     ///  - Bare `vX.Y.Z` tags and `"prerelease":false`: the `-beta` releases
     ///    carry notes for builds a stable install is never offered.
     ///  - Captures run before the JSON unescape, hence `(?:\\[^rn]|[^"\\])`
@@ -84,8 +86,8 @@ enum com_xd_cindy {
                 + #"(?:(?!"tag_name"\s*:).)*?"body"\s*:\s*"Desktop release "#
                 + #"(?<body>(?:(?!"# + newline + #"(?:## PRs|---))(?:\\.|[^"\\]))*)"#,
             itemPatterns: [
-                newline + #"[-*][ \t]+(?<item>"# + line + ")",
-                #"###[ \t]+"# + line + newline + "(?<item>" + line + ")",
+                #"(?:###[ \t]+"# + line + newline + #"(?![-*][ \t])|"# + newline + #"[-*][ \t]+)"#
+                    + "(?<item>" + line + ")",
             ],
             mode: .json,
             maxEntries: 20,

@@ -36,6 +36,26 @@ import Testing
         #expect(bullets.items.first?.hasPrefix("出站代理新增 SOCKS5 支持") == true)
         #expect(!bullets.items.contains { $0.contains("source tag") })
     }
+
+    /// A release that mixes the two shapes keeps both, in order. Not a shape
+    /// the vendor has published (every real body is one or the other); it is
+    /// the case a first-wins pair of item patterns would get wrong — the one
+    /// bullet would win and every paragraph would vanish. Mutation (run): the
+    /// two-pattern form keeps only the bullets here.
+    @Test func aBulletInAParagraphBodyDoesNotDropTheParagraphs() throws {
+        let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.xd.cindy"))
+        let json = #"""
+        [{"tag_name":"v0.1.98","name":"v0.1.98","draft":false,"prerelease":false,"created_at":"2026-10-08T01:00:00Z","published_at":"2026-10-08T02:00:00Z","body":"Desktop release 0.1.98\n\n## 更新说明\n### 🧠 本机模型\n第一段。 @a\n\n### 🛠️ 修复\n- 第一条修复\n- 第二条修复\n\n### 🖼️ 桌面壁纸\n第三段。 @b\n\n## PRs\n[#1](https://github.com/makecindy/cindy/pull/1)\n\n---\n- commit: `abc`\n"}]
+        """#
+        let changelog = try #require(ChangelogExtractor.extract(from: json, using: recipe))
+        let entry = try #require(changelog.entries.first)
+        #expect(entry.items == ["第一段。 @a", "第一条修复", "第二条修复", "第三段。 @b"])
+        #expect(entry.content == [
+            .heading("🧠 本机模型"), .note("第一段。 @a"),
+            .heading("🛠️ 修复"), .note("第一条修复"), .note("第二条修复"),
+            .heading("🖼️ 桌面壁纸"), .note("第三段。 @b"),
+        ])
+    }
 }
 
 private let cindyReleasesFixture = #"""

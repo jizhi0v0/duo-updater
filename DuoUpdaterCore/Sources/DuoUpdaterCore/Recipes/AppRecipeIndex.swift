@@ -264,6 +264,7 @@ public enum AppRecipeIndex {
         sh_brew_app.set,
         sh_paseo_desktop.set,
         sh_waku.set,
+        so_pen_herdr_gpui.set,
         tv_plex_desktop.set,
         uk_co_bzwrd_macperfmonitor.set,
         uk_whatcable_whatcable.set,

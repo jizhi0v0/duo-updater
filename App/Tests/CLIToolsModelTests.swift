@@ -58,6 +58,8 @@ struct CLIToolsModelTests {
         case .cursorAgent: detail = .cursorAgent(CursorAgentInstall(path: path, version: version))
         case .amp: detail = .amp(AmpInstall(path: path, version: version))
         case .vitePlus: detail = .vitePlus(VitePlusInstall(path: path, layout: .split, version: version))
+        case .herdr: detail = .herdr(HerdrInstall(path: path))
+        case .luvus: detail = .luvus(LuvusInstall(path: path, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -87,6 +89,8 @@ struct CLIToolsModelTests {
         case .cursorAgent: context = .cursorAgent(CursorAgentSettings())
         case .amp: context = .amp(AmpSettings())
         case .vitePlus: context = .vitePlus
+        case .herdr: context = .herdr
+        case .luvus: context = .luvus
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }

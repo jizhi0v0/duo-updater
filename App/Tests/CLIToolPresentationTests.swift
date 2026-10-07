@@ -139,6 +139,26 @@ enum CLIToolFixtures {
                       channel: channel, withheld: withheld)
     }
 
+    static func herdr(
+        channel: String = "stable", quarantined: Bool = false, withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.local/bin/herdr"
+        let install = HerdrInstall(path: path, quarantined: quarantined, settings: HerdrSettings(channel: channel))
+        return status(.herdr, path: path, detail: .herdr(install), version: "0.9.2", latest: "0.9.3",
+                      channel: channel, withheld: withheld)
+    }
+
+    static func luvus(
+        version: String = "0.14.2", quarantined: Bool = false, writable: Bool = true,
+        problem: LuvusInstall.Problem? = nil, withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.local/bin/luvus"
+        let install = LuvusInstall(path: path, binary: path, version: version, quarantined: quarantined,
+                                   writable: writable, problem: problem)
+        return status(.luvus, path: path, detail: .luvus(install), version: version, latest: "0.14.3",
+                      withheld: withheld)
+    }
+
     static func codex(
         signature: CLIToolTrust.Signature? = .vendor, quarantined: Bool = false,
         problem: CodexInstall.Problem? = nil, withheld: CLIToolWithheld? = nil
@@ -650,6 +670,43 @@ struct CLIToolPayloadPresentationTests {
             == "Boat’s config points at another server")
         #expect(CLIToolsModel.vendor(of: .boat) == nil)
         #expect(CLIToolPresentation.facts(of: F.boat(), home: "/Users/ann").isEmpty)
+    }
+
+    /// Herdr's reasons: a quarantined file, a file that is not a published build
+    /// (herdr has no Team ID, so no vendor is named), and its config's
+    /// `version_check = false` worded as the update check it is. The header
+    /// names the channel.
+    ///
+    /// Mutations: drop the `(.unverified, .herdr) where quarantined` case; drop
+    /// the `(.autoUpdateOff, .herdr)` case; return a vendor for `.herdr`.
+    @Test func herdrsReasons() {
+        #expect(CLIToolsModel.reason(.unverified, of: F.herdr(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.unverified, of: F.herdr()) == "Not the build its developer published")
+        #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.herdr()) == "Herdr’s update check is off in its config")
+        #expect(CLIToolsModel.vendor(of: .herdr) == nil)
+        #expect(CLIToolPresentation.facts(of: F.herdr(), home: "/Users/ann").isEmpty)
+        #expect(CLIToolPresentation.headerSummary(.herdr, statuses: [F.herdr(channel: "preview")], context: .herdr)
+            == "preview")
+    }
+
+    /// Luvus's reasons, in its check's order: a link `luvus update` won't
+    /// replace, a release from before the command, a folder only `sudo` could
+    /// write to; a quarantined file; and, with no Team ID, no vendor named.
+    ///
+    /// Mutations: drop any branch of the `(.unsupportedInstaller, .luvus)` case;
+    /// drop the `(.unverified, .luvus) where quarantined` case; return a vendor
+    /// for `.luvus`.
+    @Test func luvusReasons() {
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.luvus(problem: .unknownLocation))
+            == "A link luvus update won’t replace")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.luvus(version: "0.11.0"))
+            == "This version has no luvus update")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.luvus(writable: false))
+            == "Updating it needs administrator rights")
+        #expect(CLIToolsModel.reason(.unverified, of: F.luvus(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.unverified, of: F.luvus()) == "Not the build its developer published")
+        #expect(CLIToolsModel.vendor(of: .luvus) == nil)
+        #expect(CLIToolPresentation.facts(of: F.luvus(), home: "/Users/ann").isEmpty)
     }
 
     /// The pane's reason and the row's warning are the status's own: a newer

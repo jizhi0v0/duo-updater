@@ -5,7 +5,7 @@ import Foundation
 /// Each one has its own rules — where its installers put it, how its version is
 /// read, which command updates it and when that may run — so each keeps its own
 /// detection and update code (`ClaudeCode*`, `Bub*`, `Fx*`, `Uv*`, `Junie*`,
-/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`). What they share is
+/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`, `Herdr*`, `Luvus*`). What they share is
 /// how the app lists them, sums them up and runs their updates: `CLIToolStatus`,
 /// `CLIToolReport` and `CLIToolProvider` below. A later tool is a new provider and
 /// a new `Kind`; the popover row and the workbench's CLI tab read it the same way.
@@ -34,6 +34,10 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case amp
     /// VoidZero's Vite+ (`vp`), `~/.vite-plus` or `~/.local/share/vite-plus`.
     case vitePlus = "vite-plus"
+    /// herdr.dev's terminal workspace, `~/.local/bin/herdr`.
+    case herdr
+    /// RizRiyz's Luvus, `/usr/local/bin/luvus` or `~/.local/bin/luvus`.
+    case luvus
 
     /// The tool's own name, as its vendor writes it. Untranslated, like a formula
     /// name on the brew row.
@@ -53,6 +57,8 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .cursorAgent: return "Cursor CLI"
         case .amp: return "Amp"
         case .vitePlus: return "Vite+"
+        case .herdr: return "Herdr"
+        case .luvus: return "Luvus"
         }
     }
 }
@@ -182,6 +188,8 @@ public struct CLIToolStatus: Sendable, Equatable {
         case cursorAgent(CursorAgentInstall)
         case amp(AmpInstall)
         case vitePlus(VitePlusInstall)
+        case herdr(HerdrInstall)
+        case luvus(LuvusInstall)
     }
 
     public init(
@@ -232,6 +240,8 @@ public struct CLIToolReport: Sendable, Equatable {
         case cursorAgent(CursorAgentSettings)
         case amp(AmpSettings)
         case vitePlus
+        case herdr
+        case luvus
     }
 
     public init(

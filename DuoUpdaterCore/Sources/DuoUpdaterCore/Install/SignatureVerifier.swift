@@ -68,10 +68,14 @@ public enum SignatureVerifier {
                 return "The update feed provided no EdDSA signature."
             case .edSignatureInvalid:
                 return "The download's EdDSA signature did not match the app's public key."
+            // Localized, unlike the Sparkle pair above: these two are new copy,
+            // and the reason a user reads them is that one-click stopped. The
+            // first clause carries the meaning, because the popover shows one
+            // line of it (`MenuContentView`), the rest on hover.
             case .myGoSignatureMissing:
-                return "The vendor signs this app's updates, but the update feed gave no signature for this download. Refusing to install it unverified."
+                return String(localized: "The update feed gave no signature for this download, but the vendor signs this app’s updates. Refusing to install it unverified.")
             case .myGoSignatureInvalid:
-                return "The download's signature doesn't match the vendor's update key that DuoUpdater keeps for this app. The file may be damaged or replaced, or the vendor may have changed its key. Refusing to install."
+                return String(localized: "The download’s signature doesn’t match the vendor’s update key that DuoUpdater keeps for this app. The file may be damaged or replaced, or the vendor may have changed its key. Refusing to install.")
             case .codeSignatureInvalid(let status):
                 return "The downloaded app's code signature is invalid (OSStatus \(status))."
             case .noTeamIdentifier(let which):

@@ -13828,6 +13828,136 @@
         }
       }
     },
+    "The download’s signature doesn’t match the vendor’s update key that DuoUpdater keeps for this app. The file may be damaged or replaced, or the vendor may have changed its key. Refusing to install.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Signatur des Downloads passt nicht zum Update-Schlüssel des Entwicklers, den DuoUpdater für diese App gespeichert hat. Die Datei ist womöglich beschädigt oder ausgetauscht, oder der Entwickler hat seinen Schlüssel geändert. Es wird nicht installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La firma de la descarga no coincide con la clave de actualización del desarrollador que DuoUpdater guarda para esta app. El archivo puede estar dañado o haber sido sustituido, o el desarrollador puede haber cambiado su clave. No se instalará."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La signature du téléchargement ne correspond pas à la clé de mise à jour du développeur que DuoUpdater conserve pour cette app. Le fichier est peut-être corrompu ou remplacé, ou le développeur a peut-être changé de clé. Installation refusée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La firma del download non corrisponde alla chiave di aggiornamento dello sviluppatore che DuoUpdater conserva per questa app. Il file potrebbe essere danneggiato o sostituito, oppure lo sviluppatore potrebbe aver cambiato chiave. Non verrà installato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードの署名が開発元のアップデート鍵と一致しません。この鍵は DuoUpdater がこの App 用に保持しているものです。ファイルが破損している、または差し替えられている可能性があります。開発元が鍵を変更した可能性もあります。インストールしません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A assinatura do download não corresponde à chave de atualização do desenvolvedor que o DuoUpdater guarda para este app. O arquivo pode estar corrompido ou ter sido substituído, ou o desenvolvedor pode ter mudado a chave. Não será instalado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подпись загрузки не совпадает с ключом обновлений разработчика, который DuoUpdater хранит для этого приложения. Файл мог быть повреждён или подменён, либо разработчик сменил ключ. Установка не выполняется."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndirmenin imzası geliştiricinin güncelleme anahtarıyla eşleşmiyor (DuoUpdater’ın bu uygulama için tuttuğu anahtar). Dosya bozulmuş ya da değiştirilmiş olabilir veya geliştirici anahtarını değiştirmiş olabilir. Yüklenmeyecek."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载文件的签名与开发者的更新密钥不一致，该密钥是 DuoUpdater 为这个 App 保存的。文件可能已损坏或被替换，也可能是开发者更换了密钥。不会安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載檔案的簽署與開發者的更新金鑰不一致，該金鑰是 DuoUpdater 為這個 App 保存的。檔案可能已損壞或被替換，也可能是開發者更換了金鑰。不會安裝。"
+          }
+        }
+      }
+    },
+    "The update feed gave no signature for this download, but the vendor signs this app’s updates. Refusing to install it unverified.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Update-Feed enthält keine Signatur für diesen Download, obwohl der Entwickler die Updates dieser App signiert. Ohne Prüfung wird er nicht installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El feed de actualizaciones no incluye ninguna firma para esta descarga, pero el desarrollador firma las actualizaciones de esta app. No se instalará sin verificarla."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le flux de mises à jour ne fournit aucune signature pour ce téléchargement, alors que le développeur signe les mises à jour de cette app. Il ne sera pas installé sans vérification."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il feed degli aggiornamenti non include alcuna firma per questo download, ma lo sviluppatore firma gli aggiornamenti di questa app. Non verrà installato senza verifica."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートのフィードにこのダウンロードの署名がありませんが、この App のアップデートは開発元が署名しています。未検証のままではインストールしません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O feed de atualizações não trouxe assinatura para este download, mas o desenvolvedor assina as atualizações deste app. Não será instalado sem verificação."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В ленте обновлений нет подписи для этой загрузки, хотя разработчик подписывает обновления этого приложения. Без проверки установка не выполняется."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncelleme akışında bu indirme için imza yok, oysa geliştirici bu uygulamanın güncellemelerini imzalıyor. Doğrulanmadan yüklenmeyecek."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新源没有为这次下载提供签名，但这个 App 的更新是开发者签名的。未经验证，不会安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新來源沒有為這次下載提供簽署，但這個 App 的更新是開發者簽署的。未經驗證，不會安裝。"
+          }
+        }
+      }
+    },
     "The installed copy has no developer signature, but this version is signed by a developer (Team %@). DuoUpdater can’t confirm they’re the same app, so it won’t replace it — install this version by hand once.": {
       "extractionState": "manual",
       "localizations": {

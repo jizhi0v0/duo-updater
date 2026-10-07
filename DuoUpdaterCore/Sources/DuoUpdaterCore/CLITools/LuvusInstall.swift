@@ -15,8 +15,10 @@ import Foundation
 /// - `luvus update` classifies its own canonical path (`classify_install`): a
 ///   path inside a Homebrew Cellar, `/nix/store`, `~/.cargo/bin` or a cargo
 ///   `target/` directory belongs to that tool, and only `~/.local/bin/luvus`
-///   (compared with `$HOME` as written) and `/usr/local/bin/luvus` are "direct"
-///   installs it replaces itself. The first are not looked at here (Homebrew's
+///   (compared with `$HOME` as written), `/usr/local/bin/luvus` and
+///   `/opt/local/bin/luvus` (both compared lowercased) are "direct" installs it
+///   replaces itself; the installer never writes the last, so it is not looked
+///   at, but a link to it is one `luvus update` replaces. The first are not looked at here (Homebrew's
 ///   copy is the brew group's); a link to anywhere else is reported, since
 ///   `luvus update` refuses it ("could not safely identify the installation
 ///   channel").
@@ -186,7 +188,10 @@ public struct LuvusScanner: Sendable {
             || binary == home.path + "/.cargo/bin/luvus" {
             return .other
         }
-        if binary == userLocation || binary == systemLocation { return .direct }
+        if binary == userLocation || binary == systemLocation
+            || lowered == "/usr/local/bin/luvus" || lowered == "/opt/local/bin/luvus" {
+            return .direct
+        }
         return .unknown
     }
 

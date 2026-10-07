@@ -211,6 +211,17 @@ import CryptoKit
         #expect(box.scanner.scan().first?.problem == .executableMissing)
     }
 
+    /// The two system paths luvus names are direct installs whatever their case,
+    /// `/opt/local/bin/luvus` included though the installer never writes it, so a
+    /// link to it is not reported as one `luvus update` refuses. Mutation: drop
+    /// the `/opt/local/bin` path.
+    @Test func systemPathsAreDirectAsLuvusSays() throws {
+        let box = try Sandbox()
+        #expect(box.scanner.classify("/opt/local/bin/luvus") == .direct)
+        #expect(box.scanner.classify("/USR/LOCAL/BIN/luvus") == .direct)
+        #expect(box.scanner.classify("/opt/local/bin/luvus-old") == .unknown)
+    }
+
     /// luvus compares its canonical path with `$HOME/.local/bin/luvus` as
     /// `$HOME` is written, so a home reached through a link is not a direct
     /// install to it. Mutation: canonicalize the home too.

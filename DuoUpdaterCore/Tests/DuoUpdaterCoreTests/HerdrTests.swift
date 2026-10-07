@@ -258,6 +258,20 @@ import CryptoKit
         })
     }
 
+    /// A preview's base: the older previews' `Base stable:` line, else the
+    /// compare link the five newest carry alone (bodies as published, 2026-10-08),
+    /// never the commit after the `...`. Mutations: drop the compare form; let it
+    /// run past the `...`.
+    @Test func previewBodiesNameTheirBase() {
+        #expect(HerdrRelease.previewBase("Preview build 2026-06-05-1ce4213d9ebb\n\nBase stable: v0.6.8\nCompare: …")
+            == "0.6.8")
+        #expect(HerdrRelease.previewBase(
+            "Preview build 2026-09-29-8e78f929d8f0\n\n[View changes](https://github.com/herdrdev/herdr/compare/v0.9.2...8e78f929d8f0306a5c68518969e90274c44cb1f0)")
+            == "0.9.2")
+        #expect(HerdrRelease.previewBase("Preview build") == nil)
+        #expect(HerdrRelease.previewBase("https://github.com/herdrdev/herdr/compare/v0.9...8e78") == nil)
+    }
+
     @Test func manifestsNameEveryBuildTheyHash() throws {
         let stable = try #require(HerdrRelease.parseStable(Data(Self.stableJSON.utf8)))
         #expect(stable.offers["macos-aarch64"] == .init(build: HerdrBuild(base: "0.9.3"), sha256: Self.hexStable093))

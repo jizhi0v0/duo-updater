@@ -89,7 +89,9 @@ public struct HerdrBuild: Sendable, Equatable, Codable {
 /// `-x86_64`. Measured 2026-10-07: v0.9.3's `herdr-macos-aarch64` is
 /// `5173a3e0…2884157` in latest.json, in its GitHub digest and on disk alike. A
 /// preview's base is read from its release body's `Base stable: v<x.y.z>` line,
-/// which the older previews carry.
+/// which the older previews carry, else from the body's `compare/v<x.y.z>...`
+/// link: the five newest previews (2026-09-16 to 09-29) have only the link
+/// (checked 2026-10-08), so they are named once `builds` drops them too.
 public struct HerdrRelease: Sendable {
 
     public static let stableManifest = URL(string: "https://herdr.dev/latest.json")!
@@ -108,7 +110,7 @@ public struct HerdrRelease: Sendable {
         /// The channel has no build for this Mac.
         case noBuild(String)
         /// A release matched, but names no version this code can order: a
-        /// preview whose body has no `Base stable:` line.
+        /// preview whose body has neither a `Base stable:` line nor a compare link.
         case unnamed(String)
 
         public var description: String {
@@ -336,10 +338,17 @@ public struct HerdrRelease: Sendable {
         return nil
     }
 
-    /// `Base stable: v0.6.8` in a preview release's body.
+    /// `Base stable: v0.6.8` in a preview release's body, else the base its
+    /// "View changes" link compares against: `…/compare/v0.9.2...8e78f929d8f0…`.
     static func previewBase(_ body: String?) -> String? {
-        guard let body, let range = body.range(of: "Base stable: v") else { return nil }
-        let version = body[range.upperBound...].prefix { $0.isNumber || $0 == "." }
-        return HerdrBuild.isBase(String(version)) ? String(version) : nil
+        guard let body else { return nil }
+        let forms = [("Base stable: v", #"Base stable: v\d+\.\d+\.\d+\b"#),
+                     ("/compare/v", #"/compare/v\d+\.\d+\.\d+(?=\.\.\.)"#)]
+        for (marker, pattern) in forms {
+            guard let range = body.range(of: pattern, options: .regularExpression) else { continue }
+            let version = String(body[range].dropFirst(marker.count))
+            if HerdrBuild.isBase(version) { return version }
+        }
+        return nil
     }
 }

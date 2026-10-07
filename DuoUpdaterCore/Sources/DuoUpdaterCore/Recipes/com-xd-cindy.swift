@@ -33,9 +33,6 @@ enum com_xd_cindy {
         //    rules on one repo and channel, so each carries a `variant` to keep
         //    its own `recipeID`.
         //
-        // The beta track (in-app "enableBeta", the -beta tags) is not wired: the
-        // bundle carries no channel marker, so a beta copy reads as stable and
-        // is only ever offered a newer stable.
         // One-click: com.xd.cindy, Team SX9RG894L5, notarized.
         GitHubReleaseRule(
             bundleID: "com.xd.cindy",
@@ -44,6 +41,37 @@ enum com_xd_cindy {
             installAssetPattern: #"^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-global\.dmg$"#,
             installerKind: .dmg,
             variant: "global"),
+
+        // Beta — Settings ▸ General ▸ Experimental ▸ "Beta channel". The bundle
+        // reads the bare version, so `CindyChannel` (the app's own
+        // `update-channel-settings.json`) is what puts a copy on this rule. The
+        // beta track is not a parallel train: the app's beta manifest serves
+        // whichever is newer, a `-beta` prerelease or a stable release (it named
+        // 0.1.97 stable while 0.1.96-beta was the newest prerelease). A number
+        // can carry both (`v0.1.58-beta`, then `v0.1.58`); both read 0.1.58,
+        // so that is not an update. So the list is read
+        // whole and the tag pattern takes both shapes; the dmg names carry no
+        // channel token, and the same anchor keeps the other edition and
+        // `v1.0.0` out. `variant` again, for the same reason as above.
+        GitHubReleaseRule(
+            bundleID: "com.xd.cindy",
+            owner: "makecindy", repo: "cindy",
+            usePrereleases: true,
+            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)(?:-beta)?$"#,
+            installAssetPattern: #"^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-global\.dmg$"#,
+            installerKind: .dmg,
+            channel: .beta,
+            variant: "global"),
+        ],
+        githubChannelProofs: [
+        // Neither the tag of a stable answer nor any dmg name carries a channel
+        // token, and a beta copy is legitimately offered a stable release, so an
+        // `.artifact` proof would accuse the right answer. What must not drift is
+        // the request: the beta rule keeps reading the whole list and keeps
+        // accepting `-beta` tags. Either half lost turns it into a second stable
+        // rule with no error at all.
+        ChannelProofKey("com.xd.cindy", .beta):
+            .recipeAnchor(#"^true$|\(\?:-beta\)\?\$$"#, in: ["usePrereleases", "versionPattern"]),
         ])
 
     /// Both editions' notes: one repo, one body per release, so the cn family

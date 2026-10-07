@@ -351,9 +351,64 @@ For each non-stable channel found:
   4. Version string suffix (`b6`, `a1`, `esr`) — least reliable; an installed app
      may strip the suffix (Mozilla does), so never rely on it for same-bundle-id
      channels without confirming on a real bundle.
-- If none match → **ASK**: "这个 app 有没有在偏好设置里存 channel 选择？能帮我看一下
-  `defaults read <bundleID>` 的输出吗？"
+- If none match, the channel is not gone — it lives in the app's own preference,
+  and a `ChannelBinding` reads it (Phase 2c½). Look for it before asking; the
+  table there says where every binding so far found its key.
+- If you cannot find it → **ASK**: "这个 app 有没有在设置里切 beta 的开关？能帮我在 app 里拨一下吗？"
+  `defaults read <bundleID>` only covers the CFPreferences case.
 - If truly undetectable → Pattern D, document as blocked
+
+**Never decide "this track is not wired" on your own.** Seeing `-beta` / `-rc` /
+`nightly` prereleases in the release list and then reporting the track as
+"未接入" because the bundle looks like stable is the failure this rule exists
+for (Cindy, 2026-10-07: the `enableBeta` file path was already in hand). Either
+wire it or ask — and when you ask, the open track goes in the report as a gap,
+not as a footnote.
+
+**2c½. Where bindings have found the channel choice so far**
+
+Search these shapes first. The storage is rarely where you expect: about half
+are NOT CFPreferences.
+
+- **Electron apps** keep it in their `userData` directory,
+  `~/Library/Application Support/<name>/`.
+- **That name can differ per edition of one app.** Cindy global uses
+  `CindyGlobal/`, the CN edition uses `Cindy/`. Find the directory the RUNNING
+  edition actually wrote to; never derive it from the app name.
+
+| App (bundle id) | Where | Key → non-stable | Effect |
+|---|---|---|---|
+| DuoPaste `io.duopaste.daemon` | CFPrefs | `sparkleIncludePrereleases` true → beta | Sparkle channel tag |
+| Fork `com.DanPristupov.Fork` | CFPrefs | `applicationUpdateChannel` Int, 1 = stable, else Develop | feed swap |
+| Surge `com.nssurge.surge-mac` | `~/Library/Application Support/com.nssurge.surge-mac/KDDefaults.plist` | `IncludeBetaBuilds` true | feed swap |
+| OrbStack `dev.kdrag0n.MacVirt` | CFPrefs | `updates_optinChannel` String (beta / canary) | selects VendorProbe recipe |
+| TablePlus `com.tinyapp.TablePlus` | CFPrefs (lower-cased domain) | `ViewSetting.IsReceiveBetaBuild` true | header `X-Tiny-Beta-Update: true` |
+| CleanShot `pl.maketheweb.cleanshotx` | CFPrefs | `activationKey` (entitlement, not a train) | licence-keyed feed |
+| Tailscale `io.tailscale.ipn.macsys` | CFPrefs | `UnstableUpdatesEnabled` → unstable, `RCUpdatesEnabled` → rc | selects VendorProbe recipe |
+| IINA `com.colliderli.iina` | CFPrefs | `receiveBetaUpdate` true | feed swap |
+| Alfred `com.runningwithcrayons.Alfred` | `~/Library/Application Support/Alfred/Alfred.alfredpreferences/preferences/local/<hash>/update/prefs.plist` | `prereleases` true | selects VendorProbe recipe |
+| BetterDisplay `pro.betterdisplay.BetterDisplay` | CFPrefs | `preReleaseChannel` → beta, `internalReleaseChannel` → unstable | custom Sparkle channel tags |
+| CapCut `com.lemon.lvoverseas` | INI `~/Movies/CapCut/User Data/Config/{updateInfo,channel}` `[General]` (sandboxed app, file outside its container) | `joinBeta` true/1; else `tea_channel` = `capcutpc_beta` | selects VendorProbe recipe |
+| CotEditor `com.coteditor.CotEditor` | container plist `~/Library/Containers/com.coteditor.CotEditor/Data/Library/Preferences/com.coteditor.CotEditor.plist` (needs FDA) | `checksUpdatesForBeta` true | selects GitHubReleaseRule |
+| Windscribe `com.windscribe.client` | `~/Library/Preferences/com.windscribe.Windscribe2.plist` (file name ≠ bundle id) | `engineSettings`: base64 + SimpleCrypt + QDataStream Int, 1 beta / 2 guinea pig | selects VendorProbe recipe |
+| super.engineering `com.zarifpour.superconductor` | JSON `~/.superconductor/settings.json` | `update_channel` ("nightly" or absent = nightly) | selects VendorProbe recipe |
+| Mac Mouse Fix `com.nuebling.mac-mouse-fix` | `~/Library/Application Support/com.nuebling.mac-mouse-fix/config.plist` | `General.checkForPrereleases` true | feed swap |
+| Cua Driver `com.trycua.driver` | plain text `~/.cua-driver/release-channel` | file contents "nightly" | selects GitHubReleaseRule |
+| Cindy `com.xd.cindy` / `com.xd.cindycn` | JSON `~/Library/Application Support/{CindyGlobal,Cindy}/update-channel-settings.json` (Electron `userData`, per edition) | `enableBeta` true; absent → `orgDefaultEnableBeta` | selects GitHubReleaseRule |
+| Ghostty, CodeEdit, Osaurus | — (constant, no user preference) | — | fixed feed / fixed Sparkle tag |
+
+**Confirm the write on the real app.** Have the toggle flipped in the real app (or flip it yourself if no
+sign-in or terms prompt stands in the way), and read the file both ways:
+
+- Cindy wrote `{"enableBeta": true}` when turned on.
+- Turned off, it wrote `{"enableBeta": false}`. The file stayed.
+
+The off state matters as much as the on state: "absent", "false" and "key
+removed" resolve differently. Then run `channel-verify --check <id>` in both
+states and see `detected channel` follow the toggle.
+
+`ChannelBinding.swift` (`resolver(for:)`) is the source of truth for this list. When you add a
+binding, add its row here.
 
 > **⚠️ The vendor's version feed is NOT the installed app.** A channel's bundle id,
 > app name, and version string as they appear in a vendor feed / product-details

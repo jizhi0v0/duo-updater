@@ -93,6 +93,13 @@ struct GitHubListPageSizeTests {
         // rather than unreviewed: widening an accept-set can only move the first
         // hit earlier, and 1 is already the bottom.
         "com.coteditor.CotEditor/beta": 1,
+        // Cindy, both editions: the beta rule takes plain tags as well as
+        // `-beta` ones (the app's beta manifest serves whichever is newer), and
+        // all 59 releases on 2026-10-07 match — `v1.0.0` included, which the dmg
+        // anchor then walks past. First hit at index 0, gap 0, so 1, the same
+        // shape as CotEditor and WhatCable.
+        "com.xd.cindy/beta": 1,
+        "com.xd.cindycn/beta": 1,
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {

@@ -29,7 +29,7 @@
 |            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |------------|---------|----------|-----|--------|-------------|
 | **stable** | —       | —        | —   | ✓      | ○（CDN manifest） |
-| **beta**   | —       | —        | —   | ✗      | ○           |
+| **beta**   | —       | —        | —   | ✓      | ○           |
 
 当前生效源: **GitHub**（两版都由 channel-verify 实测）。
 
@@ -38,11 +38,20 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | 见上表 | — | — | `/releases/latest` + tag 锚 `^vX.Y.Z$` + dmg 名锚（含版本后缀） | ✓ |
-| beta（`vX.Y.Z-beta`，prerelease）| 同 stable | 共享 | app 设置里的 enableBeta（不在 bundle 里） | — | ✗ 未接入 |
+| beta（`vX.Y.Z-beta`，prerelease）| 同 stable | 共享 | `CindyChannel`：Electron `userData` 下的 `update-channel-settings.json`（国际版 `CindyGlobal/`，国内版 `Cindy/`） | 读整个列表 + tag 锚 `^vX.Y.Z(-beta)?$` + 同一 dmg 锚，取 beta 与 stable 里更新的那个 | ✓ |
 
 - beta 包的 `Info.plist` 是裸 `X.Y.Z`（0.1.96-beta 真包 = 0.1.96），磁盘上与 stable 分不开。
-  beta 号此后不会作为 stable 发（0.1.91-beta → 0.1.92、0.1.96-beta → 0.1.97），所以 beta 副本只会被提示更高的 stable，不会被降级。
-- 另有 canary 渠道（manifest 后缀 `-canary`），未调查。
+  一个号可以既有 `-beta` 又有 stable（`v0.1.58-beta` 与 `v0.1.58`），两者都读成 0.1.58。
+- 渠道开关：设置 → General → Experimental → 「Beta channel」（中文「Beta 测试渠道」）。
+  在真 app 里拨开关取证（国际版 0.1.97，2026-10-07）：
+  - 打开时写 `{"enableBeta": true}`；
+  - 关闭时写 `{"enableBeta": false}`，文件不删；
+  - 两次都写在 `~/Library/Application Support/CindyGlobal/`。国内版的 `userData` 是 `Cindy/`（它自己暂存的更新落在那里）。
+- 判定规则照抄 app 自己的：有 `enableBeta` 就按它；没有就按 `orgDefaultEnableBeta`（XD 组织成员会被写成 true）；两者都没有就是 stable。只认 JSON 的 `true`。
+- beta 不是平行的另一条线：app 的 beta manifest 给的是 beta 与 stable 里更新的那个（当时 beta manifest 也是 0.1.97 stable），所以 beta 规则读整个列表、tag 同时接受两种形状。
+- 渠道证明是 `.recipeAnchor`，锚 `usePrereleases` 与 `versionPattern` 两个字段。不用 `.artifact`，因为 dmg 名不带渠道，beta 副本拿到 stable 是合法答案。
+- `channel-verify --check com.xd.cindy`（2026-10-07，本机国际版 0.1.97）：开关关时判 `stable`，打开后判 `beta`，来源都是 GitHub、最新 0.1.97。
+- 另有 canary 渠道（`canary-flag.json`、manifest 后缀 `-canary`），GitHub 不发布 canary 包，所以不读。canary 副本只会被提示更新的 beta/stable，不会降级。
 
 ## 更新检测
 - 源: `makecindy/cindy` GitHub Releases，`/releases/latest`
@@ -97,16 +106,18 @@
   - 0.1.95 另外把它自带的 learn、cindy-skill-creator 装进 `~/.agents/skills`，并同样链过去；0.1.97 启动后这两个被移走，与其更新说明「不再往你自己的技能目录里写文件」一致。
   - 前三个软链 0.1.97 **每次启动都会重建**：2026-10-07 删掉后再启动 0.1.97，20:19 又出现。
   - 这是厂商行为，不是安装过程带进来的。
-- beta 轨未接入（见上）。
 
 ## 如何复验
 ```
 swift run --package-path application-test channel-verify cindy-0.1.97-darwin-arm64-global.dmg   # → up to date
 swift run --package-path application-test channel-verify cindy-0.1.95-darwin-arm64-global.dmg   # → UPDATE → 0.1.97
 swift run --package-path application-test channel-verify cindy-0.1.97-darwin-arm64-cn.dmg       # → com.xd.cindycn, up to date
+# 装着 Cindy 时，在 app 里拨 Beta channel，再分别跑：
+swift run --package-path application-test channel-verify --check com.xd.cindy   # 关 → detected channel stable；开 → beta
+cat ~/Library/Application\ Support/CindyGlobal/update-channel-settings.json      # {"enableBeta": true|false}
 #   changelog pane 行: recipe changelog:com.xd.cindy(cn):-: 20 entries; newest 0.1.97: 12 items, headings [...]
 curl -s https://hotfix.cindy.app/cindy/manifest-darwin-arm64.json   # app.installer.sha256 == GitHub 资产 digest
 ```
 
 ## 建议下一步
-1. beta 轨: 渠道只在 app 设置里，要接需读 Cindy 的设置存储（位置未查）。
+1. 国内版的 beta 开关还没在真 app 上拨过：路径来自它的 `userData` 目录，写盘格式与国际版同一份代码。

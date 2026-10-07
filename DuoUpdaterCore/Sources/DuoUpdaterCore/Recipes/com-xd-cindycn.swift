@@ -17,5 +17,20 @@ enum com_xd_cindycn {
             installAssetPattern: #"^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-cn\.dmg$"#,
             installerKind: .dmg,
             variant: "cn"),
+
+        // Beta — same track and same shape as the global edition's beta rule.
+        GitHubReleaseRule(
+            bundleID: "com.xd.cindycn",
+            owner: "makecindy", repo: "cindy",
+            usePrereleases: true,
+            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)(?:-beta)?$"#,
+            installAssetPattern: #"^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-cn\.dmg$"#,
+            installerKind: .dmg,
+            channel: .beta,
+            variant: "cn"),
+        ],
+        githubChannelProofs: [
+        ChannelProofKey("com.xd.cindycn", .beta):
+            .recipeAnchor(#"^true$|\(\?:-beta\)\?\$$"#, in: ["usePrereleases", "versionPattern"]),
         ])
 }

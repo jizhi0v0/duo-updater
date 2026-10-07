@@ -174,6 +174,7 @@ final class CLIToolsModel {
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
             BoatProvider(), CodexProvider(), BunProvider(), OpencodeProvider(), CursorAgentProvider(), AmpProvider(),
             VitePlusProvider(),
+            LuvusProvider(),
         ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
@@ -602,7 +603,7 @@ final class CLIToolsModel {
         case .opencode: return "Anomaly"
         case .cursorAgent: return "Anysphere"
         case .amp: return "Amp Frontier"
-        case .bub, .rust, .npm, .boat, .vitePlus: return nil
+        case .bub, .rust, .npm, .boat, .vitePlus, .luvus: return nil
         }
     }
 
@@ -715,6 +716,8 @@ final class CLIToolsModel {
             return quarantined
         case (.unverified, .bun(let bun)) where bun.quarantined:
             return quarantined
+        case (.unverified, .luvus(let luvus)) where luvus.quarantined:
+            return quarantined
         case (.unsupportedInstaller, .bun):
             // A canary: `bun upgrade` installs the newest canary, with no version.
             return String(localized: "A canary build, which has no version to compare")
@@ -764,6 +767,13 @@ final class CLIToolsModel {
             // `~/.local/bin/codex` is not the standalone install's launcher.
             let launcher = "~/.local/bin/codex"
             return String(localized: "\(launcher) isn’t this install’s launcher")
+        // In `LuvusCheck`'s order: a link elsewhere, a release before the
+        // command, a folder only `sudo` could write to.
+        case (.unsupportedInstaller, .luvus(let luvus)):
+            let command = "luvus update"
+            if luvus.problem == .unknownLocation { return String(localized: "A link \(command) won’t replace") }
+            if !luvus.hasUpdateCommand { return String(localized: "This version has no \(command)") }
+            if !luvus.writable { return String(localized: "Updating it needs administrator rights") }
         default:
             break
         }

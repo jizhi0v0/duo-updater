@@ -95,7 +95,9 @@ enum MyGoDelta {
     /// Build in `destination`, which must not exist, the bundle that the patch
     /// makes of `installedApp`. The patch must update version `from` to `to`
     /// (`to` nil: whatever it says), and every file it makes must have the size
-    /// and SHA-256 its index gives. Never writes to `installedApp`.
+    /// and SHA-256 its index gives. Never writes to `installedApp`, nor anywhere
+    /// outside `destination`: nothing is made through a link the patch makes, and
+    /// each entry's parent is checked to resolve inside `destination` first.
     static func apply(
         patchFile: URL, from: String, to: String?,
         installedApp: URL, destination: URL
@@ -139,14 +141,31 @@ enum MyGoDelta {
             offset += e.data
         }
         guard offset == size else { throw Failure.damaged }
+        // Nothing may be made through a link the patch makes. The target check
+        // above is lexical, and a chain of links defeats it: `d` → `.` passes, and
+        // then `d/a` → `../x` reads as `x` while it really points out of the app,
+        // so `a/…` would be written outside it. MyGo itself is safe because Go's
+        // `os.Root` refuses to resolve out of the root; we have no such call, so
+        // refuse the shape instead. MyGo's `WriteDelta` never emits it: it walks
+        // the new app with `WalkDir`, which does not descend into links.
+        let links = Set(index.entries.filter { !$0.link.isEmpty }.map(\.path))
+        for e in index.entries where ancestors(of: e.path).contains(where: links.contains) {
+            throw Failure.damaged
+        }
 
         let fm = FileManager.default
         try fm.createDirectory(at: destination, withIntermediateDirectories: false)
+        guard let newRoot = realPath(destination.path) else { throw Failure.damaged }
         let oldRoot = installedApp.resolvingSymlinksInPath()
         offset = dataStart
         for e in index.entries {
             let url = destination.appendingPathComponent(e.path)
             let dir = parent(of: e.path)
+            // A second, physical check under the one above: where this entry
+            // really lands, links resolved, before anything is made for it.
+            guard isPhysicallyInside(destination.appendingPathComponent(dir), root: newRoot) else {
+                throw Failure.linkOutsideApp(e.path)
+            }
             if dir != "." {
                 try fm.createDirectory(
                     at: destination.appendingPathComponent(dir), withIntermediateDirectories: true)
@@ -304,6 +323,36 @@ enum MyGoDelta {
         if name == "." { return true }
         return name.split(separator: "/", omittingEmptySubsequences: false)
             .allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
+    }
+
+    /// The proper ancestors of a relative path: `a/b/c` → `a`, `a/b`.
+    static func ancestors(of path: String) -> [String] {
+        let parts = path.split(separator: "/")
+        return parts.indices.dropLast().map { parts[...$0].joined(separator: "/") }
+    }
+
+    /// `realpath(3)`: the path with every link resolved, or nil when any part of
+    /// it does not exist.
+    static func realPath(_ path: String) -> String? {
+        guard let resolved = realpath(path, nil) else { return nil }
+        defer { free(resolved) }
+        return String(cString: resolved)
+    }
+
+    /// Whether `url`, which may not exist yet, is at or under `root` (a real
+    /// path) once links are resolved. The deepest part that exists is resolved
+    /// with `realpath`; the rest is plain names (index paths hold no `.` or `..`)
+    /// that will be made as directories. A part that exists but does not resolve
+    /// (a link to nowhere, which a later `mkdir` would follow) fails closed.
+    static func isPhysicallyInside(_ url: URL, root: String) -> Bool {
+        var existing = url.standardizedFileURL
+        var info = stat()
+        while lstat(existing.path, &info) != 0 {
+            guard errno == ENOENT, existing.pathComponents.count > 1 else { return false }
+            existing = existing.deletingLastPathComponent()
+        }
+        guard let real = realPath(existing.path) else { return false }
+        return real == root || real.hasPrefix(root + "/")
     }
 
     /// `path.Dir` for the relative paths of an index.

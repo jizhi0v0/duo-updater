@@ -255,6 +255,25 @@ struct MyGoDeltaTests {
         #expect(!FileManager.default.fileExists(atPath: s.new.path))
     }
 
+    /// A chain of links that each pass the lexical target check: `d` → `.`, then
+    /// `d/a` → `../x`, which reads as `x` but really lands next to the app, so
+    /// `a/evil` would be made outside it (review of #1039). Run with the outside
+    /// directory absent (a dangling link) and present (one that resolves).
+    @Test(arguments: [false, true]) func makesNothingThroughALinkItMade(outsideExists: Bool) throws {
+        let s = try scratch()
+        defer { try? FileManager.default.removeItem(at: s.dir) }
+        let outside = s.dir.appendingPathComponent("x")
+        if outsideExists { try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true) }
+        #expect(throws: MyGoDelta.Failure.self) {
+            try MyGoDelta.apply(
+                patchFile: try writeDelta(craftedDelta(
+                    #"[{"path":"d","link":"."},{"path":"d/a","link":"../x"},{"path":"a/evil","dir":true}]"#),
+                    in: s.dir),
+                from: "1.0", to: "2.0", installedApp: s.old, destination: s.new)
+        }
+        #expect(!FileManager.default.fileExists(atPath: outside.appendingPathComponent("evil").path))
+    }
+
     @Test func goPathRules() {
         #expect(MyGoDelta.isValidPath("Contents/MacOS/app"))
         #expect(MyGoDelta.isValidPath("."))
@@ -266,6 +285,8 @@ struct MyGoDeltaTests {
         #expect(MyGoDelta.cleanJoin(".", "..") == "..")
         #expect(MyGoDelta.parent(of: "Contents/Link") == "Contents")
         #expect(MyGoDelta.parent(of: "Contents") == ".")
+        #expect(MyGoDelta.ancestors(of: "a/b/c") == ["a", "a/b"])
+        #expect(MyGoDelta.ancestors(of: "a").isEmpty)
     }
 }
 

@@ -99,7 +99,7 @@ prerelease。所以「4.x 预览轨」现在没有比 stable 新的构建，`lat
   8 月 28 日 13:56，与 GitHub 发布时间同一天，**推断**），比较走 short 版本没问题
 - prerelease 的 short 版本是 `4.0.0`，与 4.0.0 正式版相同，没有后缀；只靠版本串分不出 beta 4 与 4.0.0
 - 直装拷贝要接检测（未实现）：3.x 和 4.x 都可以用 GitHub rule（`audacity/audacity`，tag `Audacity-<v>`，资产
-  `audacity-macOS-<v>-{arm64,x86_64,universal}.dmg`，有 digest；3.x 要用 `installedVersionPattern` / 主版本限定，否则 3.x 会被推
+  `audacity-macOS-<v>-{arm64,x86_64,universal}.dmg`，有 digest；3.x 的 rule 要在 `versionPattern` 里限定主版本 3（`Audacity-3\.…`），否则 3.x 会被推
   4.x）；或 VendorProbe 读厂商 feed（3.x 的 `latest.xml` 要带 `Audacity/` UA）
 
 ## 增量更新（delta / binary patch）
@@ -184,7 +184,7 @@ prerelease。所以「4.x 预览轨」现在没有比 stable 新的构建，`lat
 1. 4.x changelog：`/fragile-recipe Audacity 4`（ChangelogRecipe，bundle `org.audacityteam.audacity4`）。来源二选一：GitHub releases
    （标题是 `Audacity-<v>` 或空名回落到 tag，正文有 `## Features` 等分节，要 `headingPattern`），或厂商 `latest.json` 的
    `bodyMarkdown`（只有最新一版，且要 `Audacity/` UA）
-2. 3.x recipe 加版本窗口（`installedVersionPattern` / 版本 scope 到 `3.`），让 `org.audacityteam.Audacity` 的 4.0.0 prerelease
+2. 3.x 的 changelog recipe 加版本窗口（`belowAppVersion: "4"`），让 `org.audacityteam.Audacity` 的 4.0.0 prerelease
    不再命中；同时考虑 3.x 的条目被挤出 GitHub 第一页的问题（`latest.xml` 的 `<Changelog>` 按版本标注，可作替代来源）
 3. 老 `audacity` cask 装的 3.x：在 `HomebrewCaskSource` 里怎么处理是产品决定（跟 brew 一起跨到 4.x 是换产品、换 bundle id），
    先在 `CHANNEL_COVERAGE_TODO.md` 记下，不要顺手改

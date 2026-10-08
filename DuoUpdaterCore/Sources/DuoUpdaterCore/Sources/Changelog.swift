@@ -131,7 +131,11 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   CLI does (`.opencodeReleases`) instead of scraping the releases page's
     ///   `<li>`s. Notes already cached carry each release's
     ///   `@handle: <pull-request title>` contributor credits as changes.
-    public static let parserGeneration = 14
+    /// - 15: `GitHubMarkdownParser` keeps the prose of a short prose-only block
+    ///   under a notice heading (Migration, Upgrade notes, Breaking change, …)
+    ///   in a body that has bullets. Notes already cached for Jan 0.8.5 lack its
+    ///   Migration notes, among them that Intel Macs should stay on 0.8.4.
+    public static let parserGeneration = 15
 
     public let entries: [Entry]
 

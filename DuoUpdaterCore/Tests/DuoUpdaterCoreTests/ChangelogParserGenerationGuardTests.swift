@@ -112,8 +112,12 @@ import Foundation
     /// 14 (OpenCode desktop reads its notes through `.opencodeReleases`) moves
     /// neither fixture: it is one app's recipe. Pinned by
     /// `openCodeDesktopNotesStopAtTheContributorCredits`.
+    ///
+    /// 15 (`GitHubMarkdownParser` keeps prose-only notice blocks) moves neither
+    /// fixture: neither has prose under a notice heading. Pinned by
+    /// `GitHubSectionProseTests`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 14)
+        #expect(Changelog.parserGeneration == 15)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

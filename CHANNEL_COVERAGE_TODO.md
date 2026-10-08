@@ -527,8 +527,10 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
   无 app 内 channel toggle
 - ✗ **Lark** · 无 beta 渠道，官网仅 stable
 - ✗ **MonitorControl** · 开源 GitHub releases，无 beta 渠道
-- ✗ **OBS Studio** · 开源 GitHub releases，有 RC/Beta tag（pre-release），但无独立 bundle id，
-  无 app 内 toggle；RC 构建是发布流程的一部分，非独立 channel
+- ✓ **OBS Studio** · 共享 bundle id，Sparkle feed 用 `<sparkle:channel>stable|beta` 分轨。app 内开关：
+  设置 → 更新通道写 `~/Library/Application Support/obs-studio/global.ini` `[General] UpdateBranch`
+  （预发布版首次运行也会自动写 `beta`）。已接入 `OBSChannel`（2026-10-08，更正旧的「无 toggle」）。
+  详见 [审计](docs/app-audits/com-obsproject-obs-studio.md)
 - ✗ **Orion** · 无 beta 渠道，官网仅 stable + 各平台 release notes
 - ✗ **Proxyman** · 无 beta 渠道，官网仅 stable，changelog 随 stable 走
 - ✗ **Rectangle** · 开源 GitHub releases，无 beta 渠道（Pro 是付费 tier，非 channel）
@@ -579,7 +581,7 @@ CleanShot(单轨部分) / Shottr / AppCleaner / Unarchiver / ImageOptim / Pearcl
 Stats / MacsFanControl / Calibre / Notion / JetBrains Air / LibreWolf / Plex / Dropbox /
 Orion / VS Code(stable) / Cursor / Slack / 1Password / Sublime（Text/Merge）/
 RustDesk / DBeaver / Beekeeper / Macs Fan Control / Alcove /
-Arc / HandBrake / Keka / Lark / MonitorControl / OBS Studio / Proxyman / Rectangle /
+Arc / HandBrake / Keka / Lark / MonitorControl / Proxyman / Rectangle /
 The Unarchiver 等。
 
 > Alfred 已移出（见 §2  Pattern B/C 接入）。

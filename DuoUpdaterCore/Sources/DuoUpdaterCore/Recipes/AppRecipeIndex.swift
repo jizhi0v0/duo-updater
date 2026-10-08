@@ -129,6 +129,7 @@ public enum AppRecipeIndex {
         com_nuebling_mac_mouse_fix.set,
         com_obelisk_app.set,
         com_objective_see_lulu_app.set,
+        com_obsproject_obs_studio.set,
         com_openai_chat.set,
         com_openai_codex.set,
         com_operasoftware_Opera.set,

@@ -520,20 +520,20 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
   preferences/local/<hash>/update/prefs.plist`，值 `1`（Bool）→ `.beta`（Pre-release）。
   已接入 `AlfredChannel`（feed-swap：`general.xml` ↔ `prerelease.xml`），注册到 `ChannelBinding`，
   测试通过。官网“无 beta”是**旧判断**，已更新。
-- ✗ **Arc** · 无 beta/preview 渠道，Dia 是另一独立产品，非 Arc 的 channel
-- ✗ **HandBrake** · 开源 GitHub 仅有 snapshots（`HandBrake-snapshots`），无独立 bundle id，
-  无 app 内 toggle，snapshot 与 stable 同构建
+- ○ **Arc** · **有** Early Birds（RC）轨，同 bundle id：RC 包 Info.plist 自带 RC feed，装上后 duo 已跟随。加入要在 `arc.net/earlybirds` 申请，获批后 app 内才出现切换（远端开关 `switch-to-beta-enabled`，推断），偏好观察不到，不做 binding。Dia 是另一独立产品。详见 [审计](docs/app-audits/company-thebrowser-Browser.md)（2026-10-08 更正旧的「无 beta」）
+- ✓ **HandBrake** · snapshots（`HandBrake-snapshots`）同 bundle id、无 app 内 toggle，但**不是**同构建：snapshot 是 master 构建、ad-hoc 签名，Info.plist 自带 `appcast_unstable` feed，通用 Sparkle 已跟随，无需 binding（2026-10-08 更正）
 - ✗ **Keka** · 开源 GitHub 有 dev pre-release（`v1.5.2-dev.r5614`），但无独立 bundle id，
-  无 app 内 channel toggle
+  无 app 内 channel toggle；dev 拷贝会被移到下一个 stable，和 Keka 自己的更新器一样（2026-10-08 实测）
 - ✗ **Lark** · 无 beta 渠道，官网仅 stable
-- ✗ **MonitorControl** · 开源 GitHub releases，无 beta 渠道
+- ✓ **MonitorControl** · 有隐藏的 `isBetaChannel`（无 UI）→ `allowedChannels ["beta"]`；feed 尚无 beta item。已接 `MonitorControlChannel`（2026-10-08 更正旧的「无 beta 渠道」）
 - ✓ **OBS Studio** · 共享 bundle id，Sparkle feed 用 `<sparkle:channel>stable|beta` 分轨。app 内开关：
   设置 → 更新通道写 `~/Library/Application Support/obs-studio/global.ini` `[General] UpdateBranch`
   （预发布版首次运行也会自动写 `beta`）。已接入 `OBSChannel`（2026-10-08，更正旧的「无 toggle」）。
   详见 [审计](docs/app-audits/com-obsproject-obs-studio.md)
 - ✗ **Orion** · 无 beta 渠道，官网仅 stable + 各平台 release notes
-- ✗ **Proxyman** · 无 beta 渠道，官网仅 stable，changelog 随 stable 走
+- ✗ **Proxyman** · 无 beta 轨。设置里有一次性的 HTTP/2 Beta 下载（`proxyman.com/v1/apps/osx/http2-beta`），和同版本 stable 包从外部分不出来，HTTP/2 已在 26.0.0 进 stable，不是一条轨（2026-10-08）
 - ✗ **Rectangle** · 开源 GitHub releases，无 beta 渠道（Pro 是付费 tier，非 channel）
+- ✓ **iTerm2** · test release：`CheckTestRelease` → bundle 自己的 `SUFeedURLForTesting`；已接 `ITerm2Channel`（nightly 包三个 feed 键都是 nightly，不受影响）。nightly 包自带 nightly feed，通用 Sparkle 已跟随（2026-10-08）
 - ✗ **Shottr** · 无 beta 渠道，官网仅 stable
 - ✗ **The Unarchiver** · 无 beta 渠道，官网仅 stable
 - ✗ **Mirage Client** · 网站不可达（`mirageclient.com` transport error），无法确认
@@ -581,7 +581,7 @@ CleanShot(单轨部分) / Shottr / AppCleaner / Unarchiver / ImageOptim / Pearcl
 Stats / MacsFanControl / Calibre / Notion / JetBrains Air / LibreWolf / Plex / Dropbox /
 Orion / VS Code(stable) / Cursor / Slack / 1Password / Sublime（Text/Merge）/
 RustDesk / DBeaver / Beekeeper / Macs Fan Control / Alcove /
-Arc / HandBrake / Keka / Lark / MonitorControl / Proxyman / Rectangle /
+HandBrake / Keka / Lark / Proxyman / Rectangle /
 The Unarchiver 等。
 
 > Alfred 已移出（见 §2  Pattern B/C 接入）。
@@ -602,7 +602,7 @@ The Unarchiver 等。
 
 | App | 原因 |
 |---|---|
-| **Arc** | `resources.arc.net` 403；blog 无结构化版本内容 |
+| **Arc** | 网页走 Cloudflare 挑战，但 Zendesk API（`resources.arc.net/api/v2/help_center/…/articles/<id>.json`）直接回 JSON；每版只有一段话、补丁版不列，收益低，未做（2026-10-08 更正旧的「403」） |
 | **Lark** | `larksuite.com/hc/…` 纯客户端 JS 渲染，无静态 HTML |
 | **Mirage** | 仓库 `github.com/EthanLipnik/MirageKit` 0 releases；网站不可达 |
 | **Dropbox** | `dropbox.com/release-notes` 按月份/功能组织，无按版本号结构 |
@@ -613,6 +613,8 @@ The Unarchiver 等。
 > 加上此前已接的 6 个 GitHub releases 型（HandBrake / IINA / Keka / MonitorControl / OBS / Rectangle）
 > 及 4 个新增 recipe（Sublime Merge / Brave / Proxyman / Alfred），本次批次 22 个已扫描 app
 > 全部完成接入判定。
+>
+> **2026-10-08 更正：** 上面这句不成立。当时代码里没有 HandBrake / IINA / Keka / MonitorControl / OBS / Proxyman 的 changelog 条目（Rectangle 走 Sparkle inline）。这几个 app 的 recipe 在 2026-10-08 补上，见各自的审计文档。
 
 ### 2026-06-07 续 — Changelog 数据结构 section 结构化
 

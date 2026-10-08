@@ -1,6 +1,6 @@
 # IINA
 
-> 审计日期 2026-10-08 · 模式 REPORT（复审）· 结论：**stable/beta 两 channel，共享 bundle id，`IINAChannel` 读 `receiveBetaUpdate` 做 Sparkle feed-swap；对源码和真实包都核对过。检测 ✓（两轨）· 一键走通用 Sparkle 安装路径，第一轮端到端 ✓（delta） · changelog 只有 web page，未结构化（○，可用 `feedPagePattern` 补）**
+> 审计日期 2026-10-08 · 模式 REPORT（复审）· 结论：**stable/beta 两 channel，共享 bundle id，`IINAChannel` 读 `receiveBetaUpdate` 做 Sparkle feed-swap；对源码和真实包都核对过。检测 ✓（两轨）· 一键走通用 Sparkle 安装路径，第一轮端到端 ✓（delta） · changelog 结构化 ✓（`feedPagePattern` recipe，两轨都读 feed 给的那一页）**
 >
 > 本文替换 2026-06-04 那版。旧版只核对了 bundle 身份，结论「仅 Sparkle stable、无需改代码」，但 2026-06-07 代码已加了 beta `ChannelBinding`，旧文没跟上；旧文里的各项错误见文末「旧版结论勘误」。
 
@@ -52,7 +52,7 @@ beta 包的 `CFBundleShortVersionString` 是字面的 `1.5.0-beta2`，`ReleaseCh
   - `minimumSystemVersion`：1.5.0 = `11`，1.5.0-beta2 = `12`，1.5.0-beta1 = `11`，1.4.x = `10.15`，更早的 10.13/10.11/10.10；**没有** `maximumSystemVersion`、`hardwareRequirements`、`phasedRolloutInterval`、`criticalUpdate`。包本身是 universal（`x86_64 arm64`），`LSMinimumSystemVersion` 与 feed 一致（1.4.4 = 10.15，1.5.0 = 11，beta2 = 12）。
   - 说明：每个条目一条 `<sparkle:releaseNotesLink xml:lang="en">https://www.iina.io/release-note/<版本>.html`，**没有** `<description>` 内联。
 - 注意事项:
-  - `1.4.2` 出过两个 build（163、164），marketing 版本相同，下载名一个是 `IINA.v1.4.2.dmg`、一个是 `IINA.v1.4.2-build164.dmg`。`UpdateChecker.evaluate` 两侧都有 build 号时按 build 比，所以 163 → 164 能被报出来；说明页地址也按 build 分开（`1.4.2-build164.html`），这一点影响下面 changelog recipe 的写法。
+  - `1.4.2` 出过两个 build（163、164），marketing 版本相同，下载名一个是 `IINA.v1.4.2.dmg`、一个是 `IINA.v1.4.2-build164.dmg`。`UpdateChecker.evaluate` 两侧都有 build 号时按 build 比，所以 163 → 164 能被报出来；feed 给 build 164 的说明链接也按 build 命名（`1.4.2-build164.html`），但这一页站点上不存在（2026-10-08 HTTP 404，见「历史与实测」）。
   - beta 的 marketing 串带 `-beta2` 后缀，同样靠 build 号（172 < 180）比较，不依赖解析后缀。
   - Homebrew cask `iina` 声明 `depends_on macos >= 12`，比 app 自己的 `LSMinimumSystemVersion` 11 高；cask 是 `auto_updates`，不参与检测，只是元数据差异。
   - 没有 `iina@beta` 之类的 cask（`brew search --cask iina` 只有 `iina` 和无关的 `iina+`）。
@@ -76,11 +76,12 @@ beta 包的 `CFBundleShortVersionString` 是字面的 `1.5.0-beta2`，`ReleaseCh
 | 自更新器会不会和我们抢 | 会：IINA 自带 Sparkle，用户可开自动检查/自动下载 | 没测 | 端到端第二轮（运行中 + 自更新器已暂存）未跑 |
 
 ## Changelog
-- 来源: web page（feed 只给 `releaseNotesLink`，无内联说明）
-- 结构化: `changelog pane  web page https://www.iina.io/release-note/1.5.0.html, no structure`（`channel-verify` 原文，1.4.4 / 1.5.0 / 1.5.0-beta2 三个包相同）
-- 页面形状（2026-10-08 抓取 1.5.0 / 1.5.0-beta2 / 1.4.4 三页）：一页一个版本，`<h2>IINA <版本></h2>`，可选一段 `<p>` 引言，然后若干 `<h3>` 分节（1.5.0：New / Bug Fixes / Improvements / Updates / Plugin API；1.4.4 只有 Bug Fixes），每节一个 `<ul class="fl">`，条目是 `<li class="n|f|e|p|u">`，子项是嵌套的普通 `<ul><li>`。分节清楚，适合结构化。
-- 跟随 channel: 是（每个条目自己的 `releaseNotesLink` 指向自己版本的页，beta 条目指向 `1.5.0-beta2.html`）
-- Recipe 状态: **需要**（○）。形状与 Mac Mouse Fix 相同：一页一版、地址由 feed 给出，应走 `feedPagePattern` 而不是 `sourceTemplate`——`{version}` 模板会把 1.4.2 build 164 拼成 `1.4.2.html`，读到 build 163 的说明。
+- 来源: 每个 feed 条目自己的 `releaseNotesLink`（feed 无内联说明），经 `ChangelogRecipe`（`feedPagePattern`）结构化
+- 结构化 ✓: `changelog pane  recipe changelog:com.colliderli.iina:-: 1 entries; newest 1.5.0: 76 items, headings ["New", "Bug Fixes", "Improvements", "Updates", "Plugin API", "Deprecation Notice"]; first items ["IINA 1.5.0 introduces the biggest interf", "Added a new Settings window #6016.", "Added a confirmation prompt when deletin"]`（`channel-verify` 原文，真实 1.4.4 dmg，binding 为 stable；加 recipe 之前同一命令是 `web page https://www.iina.io/release-note/1.5.0.html, no structure`）
+- 页面形状：一页一个版本，`<h2>IINA <版本></h2>`，可选一段 `<p>` 引言，然后若干 `<h3>` 分节（1.5.0：New / Bug Fixes / Improvements / Updates / Plugin API；1.4.4 只有 Bug Fixes），每节一个 `<ul class="fl">`，条目是 `<li class="n|f|e|p|u">`，子项是嵌套的普通 `<ul><li>`；末尾常有 `<p><strong>Deprecation Notice</strong><br>…</p>`（旧页是 `<b>`），recipe 把粗体引语当分节标题。较旧的页在后面接着放前几版（更多 `<h2>`），recipe 只取第一个 `<h2>` 到下一个 `<h2>`。
+- 跟随 channel: 是（每个条目自己的 `releaseNotesLink` 指向自己版本的页，beta 条目指向 `1.5.0-beta2.html`；recipe 读的就是 feed 为这份拷贝选中的那一页）
+- Recipe 状态: ✓（`Recipes/com-colliderli-iina.swift`，测试 `IINAChangelogRecipeTests`）。形状与 Mac Mouse Fix 相同，走 `feedPagePattern`（`^https://www\.iina\.io/release-note/[^/?#]+\.html$`），`source` 是 `appcast.xml`，只给 `duo verify` 用。
+- 已知缺口: feed 里按 build 命名的说明链接（`1.4.2-build164.html` 等 6 个）站点上是 404，这类条目当头条时 recipe 解析不出东西，面板退回嵌入那一页（与加 recipe 之前相同）。今天两份 feed 在任何 macOS 上解析出的头条都不是这类条目。
 
 ## 一键安装
 - 状态: 支持（通用 Sparkle 路径，第一轮端到端 ✓）
@@ -97,13 +98,7 @@ beta 包的 `CFBundleShortVersionString` 是字面的 `1.5.0-beta2`，`ReleaseCh
 - 2026-06-07 加 binding 时没有同步更新本审计文档（本次补上）。
 
 ## 建议下一步
-1. 加结构化 changelog：`/fragile-recipe IINA`（ChangelogRecipe，`feedPagePattern` 路线，照 `Recipes/com-nuebling-mac-mouse-fix.swift`）。
-   - `feedPagePattern`: `^https://www\.iina\.io/release-note/[^/?#]+\.html$`
-   - `source`: `https://www.iina.io/appcast.xml`（只给 `duo verify` 用）
-   - `entryPattern`: `<h2>IINA (?<version>[^<]+)</h2>(?<body>.*)</body>`，`maxEntries: 1`
-   - `headingPattern`: `<h3[^>]*>(?<heading>.*?)</h3>`
-   - `itemPatterns`: 顶层 `<li class="…">` 与嵌套 `<li>` 都要成为条目，且父项与第一个子项不能合并（同 MMF 的 `(?=<li|</li>|<ul>)` 终止写法）；全无列表时落到 `<p>`。
-   - 验收：`channel-verify` 的 `changelog pane` 变成 recipe/structured，`headings` 列出 New / Bug Fixes / …，且标题文字不出现在条目里。
+1. 结构化 changelog：已完成（见「Changelog」与「历史与实测」）。
 2. 一键：第一轮已跑通（见「一键安装」）。还没跑的是第二轮：让 IINA 的 Sparkle 先暂存一个更旧的包，再 `duo install` + `duo restart`。
 3. 可选：`IINAChannel.readReceiveBeta()` 改为与 `UserDefaults.bool(forKey:)` 同语义（也接受 `"YES"`/`"true"`/`"1"` 字符串），并加单测。不急。
 4. README 索引：IINA 现有两个 channel，应从「Sparkle-covered」移到「Multi-channel families」。
@@ -171,7 +166,7 @@ swift run --package-path application-test channel-verify "$D/IINA.v1.4.4.dmg"
 | 1.5.0 | stable | stable | stable | Sparkle | 1.5.0 | `up to date` |
 | 1.5.0-beta2 | **beta**（版本后缀） | stable | stable | Sparkle | 1.5.0 | `UPDATE → 1.5.0` |
 
-三次共有的行：`SUFeedURL https://www.iina.io/appcast.xml`、`download https://dl-portal.iina.io/IINA.v1.5.0.dmg`、`release notes 0 chars inline, changelogURL https://www.iina.io/release-note/1.5.0.html`、`changelog pane  web page https://www.iina.io/release-note/1.5.0.html, no structure`、`release history 42 entries`、`deltas 5`；退出码均为 0。
+三次共有的行：`SUFeedURL https://www.iina.io/appcast.xml`、`download https://dl-portal.iina.io/IINA.v1.5.0.dmg`、`release notes 0 chars inline, changelogURL https://www.iina.io/release-note/1.5.0.html`、`changelog pane  web page https://www.iina.io/release-note/1.5.0.html, no structure`（加 changelog recipe 之前；之后的输出见「历史与实测」）、`release history 42 entries`、`deltas 5`；退出码均为 0。
 
 ### 5. beta 轨（binding 为 `receiveBetaUpdate = true`）
 
@@ -218,3 +213,27 @@ grep -ciE "maximumSystemVersion|hardwareRequirements|phasedRolloutInterval" "$D"
 - 「Changelog: Sparkle/appcast-provided notes only」：feed 没有内联说明，面板显示的是 web page，没有结构。
 - 「建议下一步：No code change」：缺一条 changelog recipe。
 - 自更新机制写成「Sparkle / Homebrew cask `auto_updates`」：cask 的 `auto_updates` 不是更新机制，只是让 `HomebrewCaskSource` 不应答。
+
+## 历史与实测
+
+### Recipes/com-colliderli-iina.swift — ChangelogRecipe（`feedPagePattern`，每版一页），2026-10-08
+
+- 抓取：两份 feed（`appcast.xml` 42 条、`appcast-beta.xml` 44 条），每条一个 `<sparkle:releaseNotesLink xml:lang="en">`，没有 `<description>`；去重后 40 个不同链接，逐个用浏览器 UA GET。
+- 链接与 pattern：38 个在 `/release-note/` 下，匹配 `feedPagePattern`。2 个不匹配：1.3.0 build 131 和 130 的链接是 `https://www.iina.io/IINA.v1.3.0.html` 和 `https://www.iina.io/IINA.v1.3.0-build130.html`，不在 `/release-note/` 下，且都是 404。这两个条目已被同为 1.3.0 的 build 132（链接 `release-note/1.3.0.html`）取代，不会成为任何宿主的头条。
+- 页面是否存在：38 个匹配的链接里 32 个 200、6 个 404。404 的全是按 build 命名的页：`1.4.2-build164`、`1.3.2-build134`、`0.0.14-build47`、`0.0.15-build63/64/65`；按 build 命名且存在的只有 `0.0.15-build68.html`。404 是 nginx 默认页，没有 `<h2>`，recipe 解析为空，面板退回嵌入。
+  - 所以「有按 build 的说明页，`{version}` 模板会读错」这个前提不成立：`1.4.2-build164.html` 不存在，`{version}` 拼出的 `1.4.2.html` 反倒是 200。选 `feedPagePattern` 的理由是 feed 本来就给出页面地址、随 channel 变化（参考文档对 link-only feed 的约定），不是 build 页。
+- 版本一致：32 个存在的页面用生产 `ChangelogExtractor` 跑（临时 Swift 测试，跑完已删），每页条目的版本都等于该条目的 `sparkle:shortVersionString`（含 `1.5.0-beta1`、`1.5.0-beta2`）。用 Python 按同一正则再跑一遍，只有 `0.0.15-build68.html` 不同：该页第一个 `<h2>0.0.15 Build 68</h2>` 下只有裸文本和 `<br>`，没有 `<li>`/`<p>`。生产提取器跳过没有条目的块，取到下一个 `<h2>0.0.15</h2>`（build 62 的说明，34 条），版本串碰巧相同。该条目（min 10.10）已被 0.0.15.1 取代，不会成为头条。
+- 头条：生产 `SparkleAppcastSource.probeReleaseNotesLink`（`duo verify` 的路径）对两份 feed 都解析到 `https://www.iina.io/release-note/1.5.0.html`，recipe 接受。按 `minimumSystemVersion` 手算各宿主的头条页：≥ 11 → `1.5.0`，10.15 → `1.4.4`，10.13 → `1.3.5`，10.11 → `1.3.1`，10.10 → `0.0.15.1`；这五页都是 200，生产解析出 76 / 2 / 24 / 23 / 2 条。
+- 生产解析结果：1.5.0 共 76 条，分节 New / Bug Fixes / Improvements / Updates / Plugin API / Deprecation Notice；1.5.0-beta2 共 24 条，分节 New / Bug Fixes / Improvements / Plugin API / Deprecation Notice；1.4.4 共 2 条（引言 + 1 条），分节 Bug Fixes。
+- 写的时候踩到一个坑：Deprecation Notice 的分节标题和它的条目最初都从同一个 `<p>` 开始匹配。位置相同时排序没有定义，第一次跑测试时条目排到了标题前面。现在条目的匹配从 `<p>` 之后开始。`IINAChangelogRecipeTests.theDeprecationNoticeIsASectionNotARepeatedLine` 对两种变异各红过一次（标题与条目同位置；普通 `<p>` 分支也吃下这段说明）。
+- `channel-verify`（真实 1.4.4 dmg，SHA-256 `dd0fc0bd…37beb1`，binding 为 stable）：
+  - 加 recipe 前：`changelog pane  web page https://www.iina.io/release-note/1.5.0.html, no structure`
+  - 加 recipe 后：`changelog pane  recipe changelog:com.colliderli.iina:-: 1 entries; newest 1.5.0: 76 items, headings ["New", "Bug Fixes", "Improvements", "Updates", "Plugin API", "Deprecation Notice"]; first items ["IINA 1.5.0 introduces the biggest interf", "Added a new Settings window #6016.", "Added a confirmation prompt when deletin"]`
+- beta 轨没用 `channel-verify` 复验：它读当前用户的偏好，不改偏好就只能走 stable 一轨。beta 页由 fixture 测试（1.5.0-beta2 整页原文）和上面对全部页面的生产提取覆盖。
+
+```sh
+curl -sS -o /dev/null -w "%{http_code} %{url_effective}\n" -A "Mozilla/5.0 (Macintosh)" "https://www.iina.io/release-note/1.4.2-build164.html"   # 404
+curl -sS -o /dev/null -w "%{http_code} %{url_effective}\n" -A "Mozilla/5.0 (Macintosh)" "https://www.iina.io/release-note/1.4.2.html"            # 200
+curl -sSfL -o "$D/IINA.v1.4.4.dmg" "https://dl-portal.iina.io/IINA.v1.4.4.dmg"
+swift run --package-path application-test channel-verify "$D/IINA.v1.4.4.dmg"
+```

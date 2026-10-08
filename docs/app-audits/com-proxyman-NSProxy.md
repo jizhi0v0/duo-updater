@@ -74,11 +74,12 @@
 按设备灰度：feed 里没有 `phasedRolloutInterval`，三种 UA 拉到的内容逐字节相同。按架构/OS 分轨：包是 universal（`x86_64 arm64`），feed 不分架构，OS 下限的问题见上。自更新器会不会和我们抢：见「一键安装」。
 
 ## Changelog
-- 来源: Sparkle inline（item 的 `<description>`，HTML）
-- 结构化: `changelog pane  raw inline notes, 203022 chars, no structure`（26.0.0、26.0.1、HTTP/2 Beta 三个包结果一样）
-  - 原因（实测）：唯一 item 的 `<description>` 是**累积**的发布说明，从 26.0.1 一路写到 1.8.0，共 132 个 `<h2>… Proxyman X.Y.Z` 版本标题、203097 字符。`<li>` 开标签 1798 个、`</li>` 1793 个，不配对，`AppcastHTMLChangelogParser.isStructured` 因此返回 false，pane 退回原始 HTML。就算配对了，这条路径也会把 132 个版本压成一个 26.0.1 条目，同样不能用。
-- 跟随 channel: 不适用（只有一条轨道）
-- Recipe 状态: **需要**。`ProxymanApp/Proxyman` 的 GitHub release 正文是干净的 Markdown，每版一个 release，标题稳定：26.0.1 是 `## Improvements` / `## Bug Fixes`；26.0.0 到 6.6.0 是 `## Features` / `## Improvements` / `## Bug Fixes` / `## Screenshots`。tag 就是版本号本身（`26.0.1`）。
+- 来源: ChangelogRecipe → `https://api.github.com/repos/ProxymanApp/Proxyman/releases?per_page=20`（`.gitHubReleases`，`channel: .stable`，`maxEntries: 15`，`skipSections: ["Screenshots"]`）。recipe 在 pane 的顺序里排在 Sparkle inline 之前（`ReleaseNotesPane.body`：recipe → 源的结构化日志 → inline HTML → 网页），所以 feed 里那份 203 KB 的累积 HTML 不再显示
+- 结构化: ✓ `changelog pane  recipe changelog:com.proxyman.NSProxy:stable: 15 entries; newest 26.0.1: 7 items, headings ["Improvements", "Bug Fixes"]; first items ["Large JSON bodies no longer freeze the a", "Connection logs now show more details ab", "HOTFIX: Crashed when using HTTP/2 for so"]`（26.0.1 与 26.0.0 两个包都是这一行，2026-10-08）
+  - 加 recipe 前是 `raw inline notes, 203022 chars, no structure`。原因见「历史与实测」：feed 唯一 item 的 `<description>` 是不配对的累积 HTML
+- 跟随 channel: 不适用（只有一条轨道）。recipe 标 `.stable`，decoder 按 GitHub 的 `prerelease` 标记把预发布挡在外面
+- 版本对应: tag 就是 `CFBundleShortVersionString`（`26.0.1`，无 `v` 前缀），不需要 `tagPattern`
+- Recipe 状态: ✓ `Recipes/com-proxyman-NSProxy.swift`，测试 `ProxymanChangelogRecipeTests`
 
 ## 一键安装
 - 状态: 支持（通用 Sparkle 路径，第一轮端到端 ✓）
@@ -94,18 +95,13 @@
 - 阻塞: 无已知阻塞（第一轮端到端已跑通；helper 与第二轮未测）
 
 ## 已知问题
-- Changelog 只能显示 203 KB 原始 HTML（132 个版本混在一个条目里），见上。
+- ~~Changelog 只能显示 203 KB 原始 HTML（132 个版本混在一个条目里）~~ 已由 GitHub releases recipe 解决，见上。
 - Release Log 没有日期：`pubDate` 是 `GMT+0200` 写法，现有 RFC822 formatter 不认。
 - feed 的 OS 下限（不带前缀、值为 12.0）不会被读，也和包里的 14.0 对不上。macOS 13 上的旧版会被提示 26.x，到安装闸才会被拦。
 - 旧版本审计（2026-06-04）只核了身份，结论是「No code change」。本次重审推翻的部分：changelog 实际是未结构化的原始 HTML，Release Log 没有日期，一键的 helper 情况此前没写。
 
 ## 建议下一步
-1. 加 changelog: `/fragile-recipe Proxyman`（ChangelogRecipe），照 `pro-betterdisplay-BetterDisplay.swift` 写：
-   `source: https://api.github.com/repos/ProxymanApp/Proxyman/releases?per_page=40`、`mode: .json`、
-   `structuredFormat: .gitHubReleases`、`channel: .stable`、`maxEntries: 15`。
-   `## Screenshots` 一节里只有图片，要不要用 `skipSections: ["Screenshots"]`，先看 `GitHubMarkdownParser`
-   在真实正文上渲染出什么再定。做完后 `channel-verify` 的 `changelog pane` 应该显示为 `recipe …`，并保留
-   `Features`/`Improvements`/`Bug Fixes` 这几个标题。
+1. ~~加 changelog recipe~~ 已完成（2026-10-08），见「Changelog」。
 2. Release Log 日期: 在 `ReleaseDate.rfc822Formatters` 加一个能解析 `EEE, dd MMM yyyy HH:mm:ss 'GMT'Z`
    （或等价写法）的 formatter，并用 `Sun, 27 Sep 2026 16:09:46 GMT+0200` 写单测。这会影响所有 feed，属通用修复，
    不放在 Proxyman 的 recipe 里做。
@@ -132,6 +128,10 @@ swift run --package-path application-test feed-discover Proxyman_26.0.1.dmg
 swift run --package-path application-test channel-verify Proxyman_26.0.0.dmg
 swift run --package-path application-test channel-verify Proxyman_26.0.1.dmg
 swift run --package-path application-test channel-verify Proxyman_6.17.0_HTTP_2_Beta.dmg
+
+# changelog recipe source (what Recipes/com-proxyman-NSProxy.swift fetches)
+curl -sS -A "<browser UA>" "https://api.github.com/repos/ProxymanApp/Proxyman/releases?per_page=20" -o rel20.json
+#   → 20 releases, tags are bare versions, 0 prerelease; recipe renders the newest 15
 .claude/skills/coverage-discovery/scripts/check-bundle.sh Proxyman_26.0.0.dmg Proxyman_26.0.1.dmg
 
 # helper (dmg mounted with hdiutil attach -nobrowse -readonly -noautoopen)
@@ -146,6 +146,56 @@ dyld_info -arch arm64 -objc <mnt>/Proxyman.app/Contents/MacOS/Proxyman | grep -A
 | 26.0.1（最新） | `com.proxyman.NSProxy` | 26.0.1 / 260001 | `3X57WP8E8V` | stable | Sparkle | `up to date` | 同上 |
 | 6.17.0 HTTP/2 Beta | `com.proxyman.NSProxy` | 6.17.0 / 61700 | `3X57WP8E8V` | stable | Sparkle | `UPDATE → 26.0.1` | 同上 |
 
+上表 `changelog pane` 一列是加 recipe 之前的结果。加 recipe 后 26.0.0 与 26.0.1 的这一行见「Changelog」；HTTP/2 Beta 包没有重跑。
+
 三个包的 `channel-verify` 都输出 `ChannelBinding <none for this app>`、`release history 0 entries`、`deltas 0`。
 `check-bundle.sh`：两个包都是 `archs=x86_64 arm64`，`codesign-verify-exit=0`，`spctl source=Notarized Developer ID`，无嵌套 `.app`。
 helper 1.7.0 / 170（两版相同），launchd plist：`MachServices` + `AssociatedBundleIdentifiers`（`com.proxyman.NSProxy`、`com.proxyman.NSProxy-setapp`）。
+
+## 历史与实测
+
+### Recipes/com-proxyman-NSProxy.swift — ChangelogRecipe（为什么不用 feed 的 inline notes）
+
+2026-10-08 实测（重审时）：feed 唯一 item 的 `<description>` 是**累积**的发布说明，从 26.0.1 一路写到 1.8.0，共 132 个 `<h2>… Proxyman X.Y.Z` 版本标题、203097 字符。`<li>` 开标签 1798 个、`</li>` 1793 个，不配对，`AppcastHTMLChangelogParser.isStructured` 因此返回 false，pane 退回原始 HTML。就算配对了，这条路径也会把 132 个版本压成一个 26.0.1 条目。加 recipe 前 `channel-verify`（26.0.1 包，2026-10-08，把 recipe 从 `AppRecipeIndex.all` 临时拿掉跑的）：
+
+```
+release notes   203022 chars inline, changelogURL <nil>
+changelog pane  raw inline notes, 203022 chars, no structure
+```
+
+### Recipes/com-proxyman-NSProxy.swift — ChangelogRecipe（GitHub releases 的形状）
+
+2026-10-08 拉 `api.github.com/repos/ProxymanApp/Proxyman/releases`（浏览器 UA，无 token）：
+
+- 响应大小：`per_page=15` 77250 B，`per_page=20` 100696 B，`per_page=40` 191517 B，`per_page=100` 460983 B。recipe 用 20。
+- 最新 100 个 release：tag 全部是纯版本号（`^\d+(\.\d+)+$`，无 `v`），0 个 prerelease、0 个 draft、0 个空正文。全仓唯一的 prerelease 是 `1.0`（2018-10-25 发布，`/releases/tags/1.0`），正文是 5 条 `+` 列表，能被解析，所以 stable 过滤确实有东西要挡；它在列表很后面，不会进 `per_page=20` 的窗口。
+- 标题写法随年份变：近期是 `## Features` / `## Improvements` / `## Bug Fixes` / `## Screenshots`；也有 `## Feature:`（6.16.0）、`## New features` + `### Improvements`（6.5.0）、带 emoji 的（6.4.0、6.1.0）、更早的 `### Bugs`。6.0.1 / 6.0.2 只有一个 `### Bugs`，低于 `GitHubMarkdownParser` 「至少 2 个标题才加样式」的门槛，所以这两版没有标题块，只有条目。
+- `Screenshots`：最新 100 个里 71 个有这个标题（`##` 或 `###`）。其中 18 个在这节下有列表项，共 41 条，全是图片说明：用脚本逐条看，每条之后的第一行非空内容都是图片（`<img>` 或 `![…](…)`）或视频链接。例如 26.0.0 的 "HTTP/2 and Connection Log"、"Split View"，6.9.0 的 "Compose websocket"、"Better UI"、"Custom network profile"。没有逐条核对它们是否都在同版的功能列表里出现过。
+
+生产解析（临时 Swift 测试，`ChangelogService.parse` + 注册的 recipe，跑在上面那份 `per_page=20` 响应上，测完已删）：
+
+| 版本 | 日期 | 条目 | 标题 |
+|---|---|---|---|
+| 26.0.1 | 2026-09-27 | 7 | Improvements, Bug Fixes |
+| 26.0.0 | 2026-09-21 | 14 | Features, Improvements, Bug Fixes |
+| 6.17.0 | 2026-09-07 | 18 | Features, Improvements, Bug Fixes |
+| 6.16.0 | 2026-08-24 | 16 | Feature:, Improvements, Bug Fixes |
+| 6.15.0 | 2026-08-12 | 11 | Features, Improvements, Bug Fixes |
+| 6.14.0 | 2026-07-23 | 21 | Features, Improvements, Bug Fixes |
+| 6.12.0 | 2026-06-28 | 8 | Features, Improvements, Bug Fixes |
+| 6.11.0 | 2026-06-08 | 24 | Features, Improvements, Bug Fixes |
+| 6.10.0 | 2026-05-06 | 13 | Features, Improvements, Bug Fixes |
+| 6.9.0 | 2026-04-23 | 9 | Features, Improvements, Bug Fixes |
+| 6.8.0 | 2026-04-05 | 13 | Features, Improvements, Bug Fixes |
+| 6.7.0 | 2026-03-17 | 24 | Features, Improvements, Bug Fixes |
+| 6.6.0 | 2026-02-21 | 14 | Features, Improvements, Bug Fixes |
+| 6.5.0 | 2026-01-31 | 14 | New features, Improvements, Bug fixes |
+| 6.4.0 | 2026-01-19 | 14 | 👥 Proxyman Team Workspace (Team Subscription Only), ✨ New Features, 🚀 Improvements, 🐛 Bug Fixes |
+
+同一份响应、不带 `skipSections` 时，最新 15 版里有 6 版多出图片说明条目，共 13 条（26.0.0 +2、6.16.0 +2、6.15.0 +1、6.12.0 +2、6.9.0 +3、6.4.0 +3），并多出一个 `Screenshots` 标题。
+
+加 recipe 后 `channel-verify`（2026-10-08）。26.0.1 包（`status up to date`）和 26.0.0 包（`status UPDATE → 26.0.1`）都是：
+
+```
+changelog pane  recipe changelog:com.proxyman.NSProxy:stable: 15 entries; newest 26.0.1: 7 items, headings ["Improvements", "Bug Fixes"]; first items ["Large JSON bodies no longer freeze the a", "Connection logs now show more details ab", "HOTFIX: Crashed when using HTTP/2 for so"]
+```

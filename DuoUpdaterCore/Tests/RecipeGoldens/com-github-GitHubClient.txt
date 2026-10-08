@@ -85,6 +85,7 @@ githubRules[0].installAssetPattern? = "^GitHub\\.Desktop-arm64\\.zip$"
 githubRules[0].installerKind? = .zip
 githubRules[0].installTrust = .developerID
 githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
 githubRules[1] = struct GitHubReleaseRule
 githubRules[1].bundleID = "com.github.GitHubClient"
 githubRules[1].owner = "desktop"
@@ -100,6 +101,7 @@ githubRules[1].installAssetPattern? = "^GitHub\\.Desktop-arm64\\.zip$"
 githubRules[1].installerKind? = .zip
 githubRules[1].installTrust = .developerID
 githubRules[1].variant = nil
+githubRules[1].architectureRequirement = nil
 
 appStoreCases = Array(count: 0)
 

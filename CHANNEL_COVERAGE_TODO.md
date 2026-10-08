@@ -203,7 +203,7 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
       `edgeupdates.microsoft.com/api/products?view=enterprise` 只列 Stable/Beta/Dev，
       不含 Canary（Canary 走 EdgeUpdate/Omaha，无公开企业 JSON）。暂搁。
 
-- [ ] **Jan — nightly** · `jan-nightly.ai.app`（Pattern A），公开 feed `delta.jan.ai/nightly/latest.json`，版本与包 short 一致（`0.8.4-5203`）；○ VendorProbe，先核 VersionComparator 对 `0.8.4-5203`；beta feed 403（2026-10-08）
+- [x] **Jan — nightly** · `jan-nightly.ai.app`（Pattern A），VendorProbe 读公开 feed `delta.jan.ai/nightly/latest.json`（`.nightly`，每个架构一条），一键 `.app.tar.gz`，ChannelProof `.artifact("/nightly/Jan-nightly_")`。详见 [审计](docs/app-audits/jan-ai-app.md)（2026-10-08 接入）
 
 ### 2026-06-06 渠道扫描新增 — Pattern A
 

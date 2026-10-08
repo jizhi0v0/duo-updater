@@ -40,6 +40,37 @@ public enum GitHubCandidateScope: String, Sendable, Equatable {
     case installedMajorLineOrNewestStable
 }
 
+/// From one release on, an app is only worth offering to some Macs, and nothing
+/// in the release says so: the asset name carries no architecture marker and
+/// the main executable may still be universal, so neither the asset selector
+/// (`GitHubReleaseRule.installableAsset`) nor install-time gate 5 (which reads
+/// the main executable's slices) can see it. The vendor's own statement is the
+/// only source, so it is recorded on the rule.
+///
+/// A release whose version compares at or above `fromVersion` is offered only
+/// to a host in `architectures`; on any other host it is skipped and the walk
+/// continues to the newest release below the threshold. A plain membership
+/// test, with no Rosetta allowance, like `VendorHostRequirement.architectures`.
+public struct GitHubArchitectureRequirement: Sendable, Equatable {
+    /// The first version the requirement applies to.
+    public let fromVersion: String
+    /// The architectures a release at or above `fromVersion` may be offered to.
+    public let architectures: [HostArch]
+
+    public init(fromVersion: String, architectures: [HostArch]) {
+        self.fromVersion = fromVersion
+        self.architectures = architectures
+    }
+
+    /// Whether a release of `version` may be offered to a host of `arch`.
+    /// Takes the host as an argument so the decision is testable off whatever
+    /// machine the tests run on.
+    public func admits(version: String, on arch: HostArch) -> Bool {
+        if VersionComparator.isNewer(fromVersion, than: version) { return true }
+        return architectures.contains(arch)
+    }
+}
+
 /// One app's mapping to a GitHub repository whose Releases drive its version.
 public struct GitHubReleaseRule: Sendable {
     /// `CFBundleIdentifier` of the installed app.
@@ -181,6 +212,11 @@ public struct GitHubReleaseRule: Sendable {
     /// `recipeID` unchanged. Same role as `VendorProbeRecipe.variant`.
     public let variant: String?
 
+    /// Releases from some version on that only some Macs should be offered. See
+    /// `GitHubArchitectureRequirement`. Nil for every rule whose releases suit
+    /// every Mac the asset selector would hand them to.
+    public let architectureRequirement: GitHubArchitectureRequirement?
+
     public init(
         bundleID: String,
         owner: String,
@@ -195,10 +231,12 @@ public struct GitHubReleaseRule: Sendable {
         installTrust: InstallTrust = .developerID,
         channel: ReleaseChannel = .stable,
         probesNewestFirst: Bool = true,
-        variant: String? = nil
+        variant: String? = nil,
+        architectureRequirement: GitHubArchitectureRequirement? = nil
     ) {
         self.bundleID = bundleID
         self.variant = variant
+        self.architectureRequirement = architectureRequirement
         self.channel = channel
         self.probesNewestFirst = probesNewestFirst
         self.owner = owner
@@ -229,9 +267,11 @@ public struct GitHubReleaseRule: Sendable {
     /// the first request asks for, never which release or asset is accepted.
     /// `installTrust` says which gate the chosen asset must pass, never which
     /// asset is chosen. `variant` names a rule apart from its siblings, like
-    /// `bundleID`.
+    /// `bundleID`. `architectureRequirement` is about the machine, not the
+    /// channel — the same reason `VendorProbeRecipe` leaves out `hostRequirement`.
     static let nonAnchorFields: Set<String> = [
-        "bundleID", "channel", "listPageSize", "probesNewestFirst", "installTrust", "variant"]
+        "bundleID", "channel", "listPageSize", "probesNewestFirst", "installTrust", "variant",
+        "architectureRequirement"]
 
     /// Everything this rule says about WHICH repository it reads and WHICH
     /// releases and assets it will accept — the text a
@@ -425,6 +465,19 @@ public struct GitHubReleaseRule: Sendable {
     }
 
     var slug: String { "\(owner)/\(repo)" }
+}
+
+extension GitHubReleaseRule {
+    /// Whether `release` may be offered to a host of `arch` under
+    /// `architectureRequirement`. A tag the version pattern does not read is not
+    /// this rule's release, so the requirement has nothing to say about it.
+    func admits(_ release: GitHubReleasesSource.Release, on arch: HostArch) -> Bool {
+        guard let requirement = architectureRequirement,
+              let version = VendorProbeRecipe.extractVersion(
+                from: release.tag, pattern: versionPattern)
+        else { return true }
+        return requirement.admits(version: version, on: arch)
+    }
 }
 
 public extension GitHubReleaseRule {
@@ -1358,6 +1411,16 @@ public struct GitHubReleasesSource: UpdateSource {
                 releases = Self.stableOnly(list)
             }
         }
+        // The same single-object problem for a release this host may not be
+        // offered (`architectureRequirement`): `/releases/latest` names only the
+        // release to skip, and the one this host may take sits below it.
+        if !rule.usePrereleases, !releases.isEmpty,
+           releases.allSatisfy({ !rule.admits($0, on: hostArch) }) {
+            Log.source.debug("GitHub \(rule.slug, privacy: .public): latest release is not offered to this host's architecture, falling back to the releases list")
+            if let list = try await fetchReleases(rule, list: true) {
+                releases = Self.stableOnly(list)
+            }
+        }
         // Every matching release that carries a publish date — backfills the app's
         // visible release history into the timeline at no extra network cost (these
         // are the same releases we already fetched). A single-`latest` fetch yields
@@ -1377,6 +1440,7 @@ public struct GitHubReleasesSource: UpdateSource {
             return ReleaseHistoryEntry(version: v, publishedAt: fields.publishedAt, vendorDay: fields.vendorDay)
         }
         var skippedForMissingAsset: [String] = []
+        var refusedForHost: [String] = []
         var archIncompatible = false
         for release in releases {
             if let version = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern) {
@@ -1392,6 +1456,14 @@ public struct GitHubReleasesSource: UpdateSource {
                     // them means the pattern stopped matching, which is a recipe
                     // failure and has to surface as one.
                     if skippedForMissingAsset.count > Self.maxReleasesWithoutMacOSAsset { break }
+                    continue
+                }
+                // The vendor says this release is not for this host's
+                // architecture although its asset would install. Unlike the
+                // arch-only miss below, a release under the threshold is, so
+                // keep walking back to it.
+                guard rule.admits(release, on: hostArch) else {
+                    refusedForHost.append(release.tag)
                     continue
                 }
                 // A macOS asset exists here, but only for the other architecture,
@@ -1488,6 +1560,16 @@ public struct GitHubReleasesSource: UpdateSource {
         // the wrong place.
         guard recordingMisses else {
             return Resolution(remote: nil, tags: releases.map(\.tag), archIncompatible: false)
+        }
+        // Every release on the page the rule would otherwise offer is one the
+        // vendor says this host's architecture should not get, and none below
+        // the threshold is left on the page. Like the arch-only miss above, a
+        // fact about this host, not a broken recipe.
+        if !refusedForHost.isEmpty, skippedForMissingAsset.isEmpty {
+            Log.source.debug(
+                "GitHub \(rule.slug, privacy: .public): every matching release on the page is above the rule's architecture threshold for this host (\(refusedForHost.joined(separator: ", "), privacy: .public)) — not offering any")
+            return Resolution(
+                remote: nil, tags: releases.map(\.tag), archIncompatible: true)
         }
         if !skippedForMissingAsset.isEmpty {
             let tags = skippedForMissingAsset.joined(separator: ", ")

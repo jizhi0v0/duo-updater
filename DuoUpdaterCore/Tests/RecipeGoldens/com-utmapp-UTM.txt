@@ -85,6 +85,7 @@ githubRules[0].installAssetPattern? = "^UTM\\.dmg$"
 githubRules[0].installerKind? = .dmg
 githubRules[0].installTrust = .developerID
 githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
 githubRules[1] = struct GitHubReleaseRule
 githubRules[1].bundleID = "com.utmapp.UTM"
 githubRules[1].owner = "utmapp"
@@ -100,6 +101,7 @@ githubRules[1].installAssetPattern? = "^UTM\\.dmg$"
 githubRules[1].installerKind? = .dmg
 githubRules[1].installTrust = .developerID
 githubRules[1].variant = nil
+githubRules[1].architectureRequirement = nil
 
 appStoreCases = Array(count: 0)
 

@@ -85,6 +85,11 @@ struct RecipeCodableTests {
                 required: "{}",
                 expected: VendorHostRequirement()),
             .structure(
+                GitHubArchitectureRequirement.self,
+                keys: GitHubArchitectureRequirement.CodingKeys.allCases.map(\.stringValue),
+                required: #"{"fromVersion":"1.0","architectures":["arm64"]}"#,
+                expected: GitHubArchitectureRequirement(fromVersion: "1.0", architectures: [.arm64])),
+            .structure(
                 VendorProbeRecipe.BuildLineageSpec.self,
                 keys: VendorProbeRecipe.BuildLineageSpec.CodingKeys.allCases.map(\.stringValue),
                 required: #"{"url":"https://example.invalid/list","entryPattern":"id=([0-9a-f]+)"}"#,

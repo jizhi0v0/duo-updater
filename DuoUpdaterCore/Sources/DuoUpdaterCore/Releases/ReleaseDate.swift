@@ -225,11 +225,20 @@ public enum ReleaseDate {
 
     /// RFC822 spellings seen in the wild: with and without leading weekday, and
     /// with a numeric (`+0000`) or named (`GMT`) zone.
+    ///
+    /// The last one is `GMT` glued to a colon-less offset, `GMT+0200` — Proxyman's
+    /// appcast writes every `<pubDate>` that way. ICU's `Z`/`zzz` take
+    /// `GMT+02:00`, `UTC+0200` and `GMT+2` (pinned in `ReleaseDateTests`) but
+    /// reject `GMT+0200`, so the literal `GMT` is matched here and the rest read
+    /// as an ISO8601 basic offset (`xx`). It is last on purpose: a formatter
+    /// only sees a string every earlier one rejected, so no string that already
+    /// parsed can read differently because of it.
     private nonisolated(unsafe) static let rfc822Formatters: [DateFormatter] = {
         let patterns = [
             "EEE, dd MMM yyyy HH:mm:ss Z",
             "EEE, dd MMM yyyy HH:mm:ss zzz",
             "dd MMM yyyy HH:mm:ss Z",
+            "EEE, dd MMM yyyy HH:mm:ss 'GMT'xx",
         ]
         return patterns.map { pattern in
             let f = DateFormatter()

@@ -2057,6 +2057,85 @@ private let calibreFixture = """
     #expect(cl.entries.first?.items.first == "A new option to keep the current search when switching Virtual libraries under Preferences->Searching")
 }
 
+// Calibre's whats-new as served for 9.15 and 9.13 (fetched 2026-10-08), trimmed
+// to two items per category. 9.13 has no "New features" and ends on a news-source
+// list, so its last block must still be a note.
+private let calibreCategoryFixture = """
+<div class="panes">
+
+    <div class="pane" id="release-pane">
+
+        <div class="release">
+            <h2 class="release-title">Release: 9.15 [18 Sep, 2026]</h2>
+<h3 class="category">New features</h3><ul class="entries">
+<li class="major"><span class="title">A "Create your own adventure" writing game -- interactive storytelling with an AI managing the world you create</span>
+<p class="description">This is a little different from the usual run of calibre features. Go to Preferences-&gt;Toolbars &amp; menus and add the "Create your own Adventure" to the main toolbar to use it</p>
+</li>
+<li class="minor"><span class="title">Cover grid: Allow choosing which corner of the cover emblems are placed on in Preferences-&gt;Look &amp; feel-&gt;Cover grid-&gt;Layout</span>
+<p class="tickets">Closes tickets: <a href="https://bugs.launchpad.net/calibre/+bug/2167194" target="_blank">2167194</a></p>
+</li>
+</ul>
+<h3 class="category">Bug fixes</h3><ul class="entries">
+<li class="minor"><span class="title">E-book viewer: Fix Read Aloud stopping at some full screen images</span>
+<p class="tickets">Closes tickets: <a href="https://bugs.launchpad.net/calibre/+bug/2165923" target="_blank">2165923</a></p>
+</li>
+<li class="minor"><span class="title">Content server: Sanitise supplied conversion options</span>
+</li>
+</ul>
+<h3 class="category">New news sources</h3>
+<ul class="entries">
+<li>Briefing Service by Jordan Shelley</li>
+</ul>
+<h3 class="category">Improved news sources</h3>
+<ul class="entries">
+<li>The Week</li>
+<li>Bloomberg</li>
+</ul>
+        </div>
+
+        <div class="release">
+            <h2 class="release-title">Release: 9.13 [07 Aug, 2026]</h2>
+<h3 class="category">Bug fixes</h3><ul class="entries">
+<li class="minor"><span class="title">Content server: Fix an error when uploading a data file to a book with no existing data files</span>
+<p class="tickets">Closes tickets: <a href="https://bugs.launchpad.net/calibre/+bug/2162628" target="_blank">2162628</a></p>
+</li>
+<li class="minor"><span class="title">Edit book: Compress Images: Fix error when converting GIF to JPEG on Windows</span>
+</li>
+</ul>
+<h3 class="category">Improved news sources</h3>
+<ul class="entries">
+<li>Nautilus Magazine</li>
+</ul>
+        </div>
+    </div>
+    </div>
+"""
+
+/// The feature and bug-fix categories head their own notes; the news-source
+/// categories, which contribute no notes, contribute no headings either.
+@Test func extractsCalibreCategoryHeadings() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "net.kovidgoyal.calibre"))
+    let cl = try #require(ChangelogExtractor.extract(from: calibreCategoryFixture, using: recipe))
+    #expect(cl.entries.map(\.version) == ["9.15", "9.13"])
+
+    let latest = cl.entries[0]
+    #expect(latest.content == [
+        .heading("New features"),
+        .note("A \"Create your own adventure\" writing game -- interactive storytelling with an AI managing the world you create"),
+        .note("Cover grid: Allow choosing which corner of the cover emblems are placed on in Preferences->Look & feel->Cover grid->Layout"),
+        .heading("Bug fixes"),
+        .note("E-book viewer: Fix Read Aloud stopping at some full screen images"),
+        .note("Content server: Sanitise supplied conversion options"),
+    ])
+    #expect(latest.items.count == 4)
+
+    let older = cl.entries[1]
+    #expect(older.content == [
+        .heading("Bug fixes"),
+        .note("Content server: Fix an error when uploading a data file to a book with no existing data files"),
+        .note("Edit book: Compress Images: Fix error when converting GIF to JPEG on Windows"),
+    ])
+}
 // Blender — dev-docs per-version page; "was released on" guard. &amp; entity.
 private let blenderFixture = """
 <h1 id="blender-51-release-notes">Blender 5.1 Release Notes<a class="headerlink" href="#blender-51-release-notes">&para;</a></h1>

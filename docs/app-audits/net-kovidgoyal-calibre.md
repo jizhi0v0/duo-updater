@@ -21,11 +21,13 @@
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **stable**   | —       | ✓（仅 brew 装的拷贝） | — | ○ | ○ |
+| **stable**   | —       | ✓（仅 brew 装的拷贝） | — | ○ | ✓ 一键（直装拷贝） |
 | **preview**  | —       | —（没有 preview cask） | — | — | ○（目录列表，见下） |
 
-当前生效源（`UpdateChecker` 优先链中第一个应答的）: **Homebrew**（`HomebrewCaskSource`），**只对 Caskroom 里有
-`calibre` 的拷贝**。从官网 dmg 直接装的拷贝没有任何源应答：`channel-verify` 实测 `status unknown (no source answered)`。
+当前生效源（`UpdateChecker` 优先链中第一个应答的）: brew 装的拷贝（Caskroom 里有 `calibre`）→ **Homebrew**
+（`HomebrewCaskSource`）；从官网 dmg 直接装的拷贝 → **VendorProbe**（`calibre-ebook.com/latest-version`，一键装
+`download.calibre-ebook.com/{v}/calibre-{v}.dmg`）。`SourceStack` 里 Homebrew 排在 VendorProbe 前面，brew 拷贝不会被接管。
+接 VendorProbe 之前（2026-10-08 实测）直装拷贝 `status unknown (no source answered)`。
 
 ## Channel 详情
 
@@ -65,9 +67,14 @@
 - GitHub Releases: `kovidgoyal/calibre` 的 release 只有最新一个带 dmg（`v9.15.0` 带 `calibre-9.15.0.dmg`，
   GitHub `digest` 为 `sha256:1b3a7451…6019`，与 cask 相同；`v9.14.0` 及更早 0 个资产）。官网 `https://calibre-ebook.com/dist/osx`
   302 到这个 GitHub 资产
-- 直装拷贝要接检测，两条路都可行（未实现，见建议）：GitHub rule（`kovidgoyal/calibre`，dmg 带 digest）或 VendorProbe
-  （`latest-version` 纯文本 + `download.calibre-ebook.com/{v}/calibre-{v}.dmg`）。两者都排在 `HomebrewCaskSource` 之后，
-  brew 装的拷贝仍由 brew 应答
+- 直装拷贝：VendorProbe（`Recipes/net-kovidgoyal-calibre.swift`）读 `https://calibre-ebook.com/latest-version`（纯文本，
+  2026-10-08 为 `9.15.0`），`versionPattern` 只收三段式、第三段至多两位，所以 preview 号（`9.15.101`）不会被当成 stable；
+  `installedVersionPattern` 让它不碰 `x.y.1nn` 的 preview 拷贝（preview 拷贝仍 unknown）。一键 `.versionTemplate`
+  `download.calibre-ebook.com/{version}/calibre-{version}.dmg`，`hostRequirement` 下限 14.0（下载页写明 Sonoma 起）。
+  calibre 自己先读 `code.calibre-ebook.com/latest`，那张证书是 calibre 私有 CA 签的（URLSession / curl 都拒），
+  失败才回落 `latest-version`；`/dist/osx` 302 到 GitHub 资产（GitHub 只留最新 release 的资产），所以不用它
+- 已知局限（读代码得出，未观测）：Homebrew 目录首次加载就失败、又没有旧索引时，源循环会落到 VendorProbe，brew 拷贝这一轮
+  会由 VendorProbe 应答。`VendorProbeSource` 没有「brew 拷贝不接」的守卫；加上会挡住故意落到它的 `auto_updates` cask
 
 ## 增量更新（delta / binary patch）
 > 三栏分开写，每栏标证据来源。空着不如写「没查」。
@@ -91,17 +98,19 @@
 ## Changelog
 - 来源: `ChangelogRecipe`（`https://calibre-ebook.com/whats-new`，服务端渲染，全部历史一页）
 - 结构化: `channel-verify` 原文（9.14.0、9.15.0、preview 9.15.101 三个包相同）:
-  `changelog pane  recipe changelog:net.kovidgoyal.calibre:-: 40 entries; newest 9.15: 19 items, headings []; first items ["A "Create your own adventure" writing ga", "E-book viewer: Highlights panel: Allow s", "Cover grid: Allow choosing which corner "]`
+  `changelog pane  recipe changelog:net.kovidgoyal.calibre:-: 40 entries; newest 9.15: 19 items, headings ["New features", "Bug fixes"]`
+  （加 `headingPattern` 之前是 `headings []`）
 - 观测版本的条目都在: 前六条 `9.15, 9.14, 9.13, 9.12, 9.11, 9.10`（实测）；页上共 61 个 release 标题，recipe 取默认上限 40
-- `headings []`: 页面每个版本分 `New features` / `Bug fixes` / `Improved news sources` / `New news sources` 四类（`<h3 class="category">`），
-  recipe 只取 `<span class="title">`，所以两类正文合成一串、没有小标题，news sources 两类（裸 `<li>`）按设计丢掉。
-  标题不在 items 里，不是「压平进正文」，是没取
+- 分类标题: 页面每个版本分 `New features` / `Bug fixes` / `Improved news sources` / `New news sources` 四类（`<h3 class="category">`）。
+  recipe 只取 `<span class="title">` 条目，news sources 两类（裸 `<li>`）按设计丢掉；`headingPattern` 只认后面紧跟
+  `<span class="title">` 条目的 `<h3 class="category">`。前 40 个 release 上：39 个 New features、40 个 Bug fixes 标题，
+  52 个 news sources 标题被排除，0 个空标题，条目总数 423 不变（不加前瞻会留下 52 个空标题）
 - preview 没有条目（whats-new 只列正式版），preview 拷贝看到的是最新正式版的说明
 - 跟随 channel: 否
-- Recipe 状态: 已有，可用；可改进（加 `headingPattern`，见建议，**未验证**是否会留下空标题）
+- Recipe 状态: ✓（带 `headingPattern`）
 
 ## 一键安装
-- 状态: ✓ 仅 brew 装的拷贝（brew 路线，duo 跑 `brew install --cask --force calibre`）；直装拷贝没有检测，也就没有一键
+- 状态: brew 装的拷贝 ✓（brew 路线，duo 跑 `brew install --cask --force calibre`）；直装拷贝走 VendorProbe 一键（dmg，Team 闸），端到端未跑
 - 端到端（2026-10-08，第一轮，不启动）: brew 装的 9.14.0（`/Applications/calibre.app`），`duo check` 报 `update 9.15.0`、
   `source Homebrew`；`duo install /Applications/calibre.app --yes --json` → `outcome installed`、`applied true`、
   `route homebrew`，约 35 s。装后：9.15.0，`codesign --verify --deep --strict` 通过，`spctl` `Notarized Developer ID`，
@@ -122,21 +131,18 @@
   duo 的 brew 路线在启动 brew 前先拒绝「嵌套 app 还在跑」（`refuseWhileNestedAppRuns`），阅读器开着时应被拒（**推断**，没跑）
 - cask 还把 `calibre-server`、`calibredb` 等 20 个命令行工具链进 brew 的 `bin`；`calibre-server` 可能被用户长期跑着，
   替换后它继续跑旧代码（推断）
-- 阻塞: 直装拷贝无检测
+- 阻塞: 无已知；直装拷贝的一键端到端未跑
 
 ## 已知问题
-- 直装（官网 dmg / GitHub 资产）的拷贝 unknown：今天只有 brew 装的拷贝能检测
+- preview 拷贝（`x.y.1nn`）仍 unknown（calibre 自己会把下一个 stable 推给它）
 - preview 拷贝报 stable（无渠道标记，只有版本形状）
 - changelog 没有分类小标题
 
 ## 建议下一步
-1. 直装检测：`/fragile-recipe Calibre`，二选一——GitHub rule（`kovidgoyal/calibre`，资产 `calibre-{v}.dmg`，带 digest，
-   只有最新 release 有资产）或 VendorProbe（`https://calibre-ebook.com/latest-version`，正文 `(\d+\.\d+\.\d+)`，
-   install `https://download.calibre-ebook.com/{v}/calibre-{v}.dmg`）。注意 cask 的 OS 钉版：Sonoma 以下的 Mac 不能装
-   9.7 起的包，rule/recipe 要带 `hostRequirement`（下限 14.0，由 `LSMinimumSystemVersion` 证）
+1. （已做）直装检测：VendorProbe 读 `latest-version`，一键装官网 dmg（见「更新检测」）。端到端未跑
 2. preview 轨：如果要接，信号只有版本第三段 ≥ 100，先找到厂商对这条规则的明文说明再写进 `detect()`；端点是目录列表
    `download.calibre-ebook.com/preview/`。不接的话在 `CHANNEL_COVERAGE_TODO.md` 记为「同 id、版本形状可辨、未接」
-3. changelog：试 `headingPattern: <h3 class="category">(.*?)</h3>`，先确认 news sources 两类不会留下空标题
+3. （已做）changelog 分类标题：`headingPattern` 带前瞻，只认紧跟 `<span class="title">` 条目的分类
 4. 一键第二轮（calibre 运行中）未跑；第一轮已过（见「一键安装」）
 
 ## 如何复验

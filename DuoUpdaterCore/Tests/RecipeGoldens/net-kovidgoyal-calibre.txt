@@ -3,7 +3,47 @@
 
 family = "net-kovidgoyal-calibre"
 
-probes = Array(count: 0)
+probes = Array(count: 1)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "net.kovidgoyal.calibre"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement? = struct VendorHostRequirement
+probes[0].hostRequirement?.minimumSystemVersion? = "14.0"
+probes[0].hostRequirement?.architectures = Array(count: 0)
+probes[0].installedVersionPattern? = "^[0-9]+\\.[0-9]+(?:\\.[0-9]{1,2})?$"
+probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
+probes[0].url = URL("https://calibre-ebook.com/latest-version")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "\\A\\s*([0-9]+\\.[0-9]+\\.[0-9]{1,2})\\s*\\z"
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://calibre-ebook.com/download_osx")
+probes[0].changelogURL? = URL("https://calibre-ebook.com/whats-new")
+probes[0].selectHighest = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern = nil
+probes[0].minimumSystemVersionPattern = nil
+probes[0].maximumSystemVersionPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .versionTemplate(_:)
+probes[0].install?.urlSource.0 = "https://download.calibre-ebook.com/{version}/calibre-{version}.dmg"
+probes[0].install?.kind = .dmg
+probes[0].install?.checksumPattern = nil
+probes[0].install?.checksumFormat = .sha512Base64
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].install?.contentsArchivePattern = nil
+probes[0].install?.myGoPublicKey = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
 
 changelogs = Array(count: 1)
 changelogs[0] = struct ChangelogRecipe
@@ -27,7 +67,7 @@ changelogs[0].feedPagePattern = nil
 changelogs[0].channel = nil
 changelogs[0].includesPromotedStable = false
 changelogs[0].imagePattern = nil
-changelogs[0].headingPattern = nil
+changelogs[0].headingPattern? = "<h3 class=\"category\">(?<heading>[^<]*)</h3>(?=\\s*<ul[^>]*>\\s*<li[^>]*>\\s*<span class=\"title\">)"
 changelogs[0].minimumAppVersion = nil
 changelogs[0].belowAppVersion = nil
 changelogs[0].carriesOtherTrainEntries = false

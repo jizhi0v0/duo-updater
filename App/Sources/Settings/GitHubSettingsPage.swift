@@ -7,6 +7,9 @@ import DuoUpdaterCore
 /// persisted, so a bad paste never silently becomes the saved token.
 struct GitHubSettingsPage: View {
     @Bindable var prefs: Preferences
+    /// Told of every change to the credentials — saving or removing the token,
+    /// flipping the switch — through `gitHubCredentialsChanged`.
+    let model: AppListModel
 
     /// nil while the `gh auth status` probe is in flight.
     @State private var cliStatus: GitHubToken.CLIStatus?
@@ -84,6 +87,7 @@ struct GitHubSettingsPage: View {
             // a token pasted below still is.
             Toggle("Use the GitHub CLI’s sign-in", isOn: $prefs.useGitHubCLIToken)
                 .settingsRow()
+                .onChange(of: prefs.useGitHubCLIToken) { model.gitHubCredentialsChanged() }
         }
     }
 
@@ -323,6 +327,7 @@ struct GitHubSettingsPage: View {
         if case .valid(let username, _) = result {
             prefs.githubToken = trimmedDraft   // commit only when confirmed
             prefs.githubTokenAccount = username
+            model.gitHubCredentialsChanged()
             draft = ""
             editing = false
         }
@@ -340,6 +345,7 @@ struct GitHubSettingsPage: View {
         draft = ""
         prefs.githubToken = ""
         prefs.githubTokenAccount = ""
+        model.gitHubCredentialsChanged()
         verification = nil
         editing = true
     }

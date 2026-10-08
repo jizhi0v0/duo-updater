@@ -150,6 +150,7 @@
 ## 建议下一步
 1. **应用内开关：不做 binding（2026-10-08 定）。** 加入 Early Birds 要先申请：官方页 `https://arc.net/earlybirds` 的 “Join our next cohort” 指向一份 Typeform 申请表（`browserco.typeform.com/to/gVGTIjRO`），help center 没有切换或退出的步骤。二进制里的远端开关 `switch-to-beta-enabled`、“Hey there, Early Bird!”、“Switch to Stable” 等文案说明，应用内的切换项只对获批的账号出现（这一条是推断）。没获批就观察不到偏好怎么存，键名和编码都没法在真 app 上确认。收益也小：已经装上 RC 构建的拷贝，包内 `SUFeedURL` 就是 RC feed，duo 已经跟随（见「如何复验」）。缺口 1 只存在于「刚加入、Arc 还没自己装上 RC」这段时间，Arc 会在退出时自动安装，窗口自己会关上。缺口 2（RC 构建退出 Early Birds）仍是推断，没有可观察的偏好就不处理。
 2. （已撤）原计划的 `ArcChannel` feed-swap 绑定，原因见第 1 条。
+   还有一层理由让这件事更不值得做：Arc 处于维护状态。The Browser Company 2025-05 宣布停止 Arc 的功能开发，此后只发 Chromium 引擎升级和安全补丁，新功能转到 Dia（二手报道，如 The Register 2025-05-27；原文是 CEO 的 Substack，没取到）。一手旁证是 Arc 自己 help center 的 macOS release notes（Zendesk API 读取，2026-10-08）：1.165.0–1.167.0 每条都只写升级 Chromium、修安全漏洞，并说明「这一版就这些」。所以 RC 轨现在只是更早拿到下一次 Chromium 升级。
    服务器侧试探（2026-10-08，HEAD 请求）没有改变这个判断：`releases.arc.net/release/Arc-latest.dmg` → 301 `arc.net/release/Arc-latest.dmg` → 302 `Arc-1.167.1-88217.dmg`（stable）；`/release-candidate/Arc-latest.dmg` 在 arc.net 那一跳是 404，RC 没有公开的 latest 入口；RC 目录下有和 zip 同名的 dmg（`…/release-candidate/<UUID>/Arc-1.168.0-88345.dmg` 200）。RC feed 带 `Arc-from-88217-to-88345.delta`，88217 是当时的 stable，说明厂商就是为「stable 拷贝切到 RC」准备的，缺口 1 确实存在；但加入状态存在本机哪里，服务器那头试探不出来。
 3. 让 `ReleaseChannel.detect()` 读 `Info.plist` 的 `BCNYReleaseType`（`Release Candidate` → beta），
    并给 RC 轨登记 `ChannelProofRegistry`（证据：RC 1.168.0 (88345) 真包，bundle id 与 Team 同 stable，

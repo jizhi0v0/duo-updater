@@ -429,7 +429,7 @@ struct MenuContentView: View {
                     .foregroundStyle(.orange)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Hitting GitHub’s rate limit").font(.caption).fontWeight(.medium)
-                    Text("\(rateLimitedCount) apps couldn’t be checked — add a token")
+                    Text("\(rateLimitedCount) items couldn’t be checked — add a token")
                         .font(.caption2).foregroundStyle(.secondary)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)

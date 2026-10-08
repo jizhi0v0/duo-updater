@@ -184,8 +184,11 @@ prerelease。所以「4.x 预览轨」现在没有比 stable 新的构建，`lat
 1. 4.x changelog：`/fragile-recipe Audacity 4`（ChangelogRecipe，bundle `org.audacityteam.audacity4`）。来源二选一：GitHub releases
    （标题是 `Audacity-<v>` 或空名回落到 tag，正文有 `## Features` 等分节，要 `headingPattern`），或厂商 `latest.json` 的
    `bodyMarkdown`（只有最新一版，且要 `Audacity/` UA）
-2. 3.x 的 changelog recipe 加版本窗口（`belowAppVersion: "4"`），让 `org.audacityteam.Audacity` 的 4.0.0 prerelease
-   不再命中；同时考虑 3.x 的条目被挤出 GitHub 第一页的问题（`latest.xml` 的 `<Changelog>` 按版本标注，可作替代来源）
+2. 让 `org.audacityteam.Audacity` 的 4.0.0 prerelease 不再拿到 3.x 说明。**只给 3.x recipe 加 `belowAppVersion: "4"` 不够**：
+   `ChangelogRecipeRegistry.scoped` 在没有任何窗口覆盖该版本时返回整组（`guard !covering.isEmpty else { return group }`），
+   4.0.0 仍会选中那条 3.x recipe。要么同一 bundle id 下再加一条窗口覆盖 4.x 的 recipe（`minimumAppVersion: "4"`，指向 4.x 的
+   说明来源），要么改 `scoped` 的兜底（共享代码，影响所有分窗口的 recipe）。同时考虑 3.x 的条目被挤出 GitHub 第一页的问题
+   （`latest.xml` 的 `<Changelog>` 按版本标注，可作替代来源）
 3. 老 `audacity` cask 装的 3.x：在 `HomebrewCaskSource` 里怎么处理是产品决定（跟 brew 一起跨到 4.x 是换产品、换 bundle id），
    先在 `CHANNEL_COVERAGE_TODO.md` 记下，不要顺手改
 4. 直装检测：GitHub rule 分别给 3.x（限定主版本 3）与 4.x（`…audacity4`）；3.x 一键要在文档里写明 3.7.8 → 3.7.9 的 Team 变化

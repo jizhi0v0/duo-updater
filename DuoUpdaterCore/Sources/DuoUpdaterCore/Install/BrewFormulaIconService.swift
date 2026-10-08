@@ -88,7 +88,10 @@ public actor BrewFormulaIconService {
         let task = Task<Data?, Never> {
             guard let homepage = await homepage(of: formula) else { return nil }
             await acquireSlot()
-            let outcome = await fetchIcon(homepage: homepage)
+            // Filed against the formula, so the request log's App column names it.
+            let outcome = await RequestAttribution.withApp(Self.attributionID(formula, brewPath: brewPath())) {
+                await fetchIcon(homepage: homepage)
+            }
             releaseSlot()
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             switch outcome {
@@ -176,7 +179,8 @@ public actor BrewFormulaIconService {
         // Read even when unused: `countedBytes` logs a request only once its
         // stream has been read to the end. Cancelled, a refused 301 from
         // docs.microsoft.com never reached the request log (measured on a
-        // loopback server, 2026-10-08).
+        // loopback server, 2026-10-08). A page past `htmlByteLimit` is still cut
+        // off unlogged; that is `countedBytes`' own gap, not fixed here.
         var head = Data()
         do {
             for try await byte in bytes {
@@ -258,6 +262,16 @@ public actor BrewFormulaIconService {
     }
 
     // MARK: - Pure rules
+
+    /// The formula's `opt` path (`/opt/homebrew/opt/automake`), its stand-in for
+    /// an app bundle path in request attribution. A tap's prefix is dropped.
+    static func attributionID(_ formula: String, brewPath: String?) -> String? {
+        guard let brewPath else { return nil }
+        let short = formula.split(separator: "/").last.map(String.init) ?? formula
+        return URL(fileURLWithPath: brewPath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("opt").appendingPathComponent(short).path
+    }
 
     /// The GitHub login a homepage on `github.com/<owner>/…` or
     /// `<owner>.github.io` belongs to, else nil.

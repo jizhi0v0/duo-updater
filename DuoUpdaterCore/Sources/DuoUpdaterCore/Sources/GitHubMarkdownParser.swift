@@ -434,8 +434,8 @@ public enum GitHubMarkdownParser {
         // CRLF as one break, so a blank line in `sectionProse` is a real one. A
         // CRLF split by `.newlines` adds an empty line after every line, and an
         // empty line changes no state in the loop below.
-        let lines = body.replacingOccurrences(of: "\r\n", with: "\n")
-            .components(separatedBy: .newlines)
+        let lines = joiningListContinuations(
+            body.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: .newlines))
         let skipKeywords = lenient ? skippedSectionKeywords + lenientExtraSkipKeywords
                                    : skippedSectionKeywords
         let qualifying = lenient
@@ -775,6 +775,63 @@ public enum GitHubMarkdownParser {
                                   with: "", options: .regularExpression)
         func letters(_ s: String) -> Int { s.unicodeScalars.filter(CharacterSet.letters.contains).count }
         return letters(outside) > 0 && letters(outside) * 2 >= letters(withLinkText)
+    }
+
+    /// `lines` with each list item's wrapped text joined onto the item's line.
+    ///
+    /// CommonMark continues a list item's paragraph on the next line when no
+    /// blank line comes between and that line starts no block of its own —
+    /// indented to the item's text or not at all (a "lazy" continuation).
+    /// Audacity hard-wraps its items that way (3.7.9's `#11696 Fixed a freeze
+    /// …` goes on with `MIDI playback now also starts from the set position
+    /// …`), and reading line by line kept only the first line of each.
+    ///
+    /// The joined lines become empty, so every other line keeps its index; an
+    /// empty line changes no state in the passes that read these. Not joined:
+    /// a line after a blank one (a new paragraph, inside the item or not), and
+    /// a line that opens a block — another item, a heading, a fence, a quote,
+    /// HTML, a table row or a thematic break — and a line that is only an
+    /// image (sqlitebrowser puts a screenshot under an item; as part of the
+    /// item's text it would be markup). Nothing inside a fence is.
+    static func joiningListContinuations(_ lines: [String]) -> [String] {
+        var joined = lines
+        var item: Int?
+        var inFence = false
+        for (index, line) in lines.enumerated() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("```") {
+                inFence.toggle()
+                item = nil
+                continue
+            }
+            if inFence { continue }
+            if trimmed.isEmpty {
+                item = nil
+                continue
+            }
+            if bulletContent(from: trimmed) != nil || numberedContent(from: trimmed) != nil {
+                item = index
+                continue
+            }
+            if let item, !opensBlock(trimmed), !isImageOnly(trimmed) {
+                // A trailing double space is a hard break; read as one space.
+                let head = joined[item].replacingOccurrences(
+                    of: #"\s+$"#, with: "", options: .regularExpression)
+                joined[item] = head + " " + trimmed
+                joined[index] = ""
+                continue
+            }
+            item = nil
+        }
+        return joined
+    }
+
+    /// Whether a line starts a block that interrupts a paragraph rather than
+    /// continuing it.
+    private static func opensBlock(_ trimmed: String) -> Bool {
+        trimmed.range(of: #"^#{1,6}(?:\s|$)"#, options: .regularExpression) != nil
+            || trimmed.hasPrefix(">") || trimmed.hasPrefix("<") || trimmed.hasPrefix("|")
+            || trimmed.range(of: #"^(?:[-*_][ \t]*){3,}$|^=+$"#, options: .regularExpression) != nil
     }
 
     /// A line that is nothing but one emphasised thank-you: `*Thank you [x](…)!*`,

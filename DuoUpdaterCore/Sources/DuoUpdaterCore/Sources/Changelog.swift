@@ -134,7 +134,9 @@ public struct Changelog: Codable, Sendable, Hashable {
     /// - 15: `GitHubMarkdownParser` keeps the prose of a short prose-only block
     ///   under a notice heading (Migration, Upgrade notes, Breaking change, …)
     ///   in a body that has bullets. Notes already cached for Jan 0.8.5 lack its
-    ///   Migration notes, among them that Intel Macs should stay on 0.8.4.
+    ///   Migration notes, among them that Intel Macs should stay on 0.8.4. It
+    ///   also joins a list item's hard-wrapped lines onto it: notes already
+    ///   cached from Audacity, darktable or Diri keep only each item's first line.
     public static let parserGeneration = 15
 
     public let entries: [Entry]

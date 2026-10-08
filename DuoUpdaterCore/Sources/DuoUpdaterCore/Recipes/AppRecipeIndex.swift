@@ -86,6 +86,7 @@ public enum AppRecipeIndex {
         com_google_antigravity.set,
         com_google_Chrome.set,
         com_google_GeminiMacOS.set,
+        com_googlecode_iterm2.set,
         com_granola_app.set,
         com_henrikruscon_Alcove.set,
         com_hnc_Discord.set,

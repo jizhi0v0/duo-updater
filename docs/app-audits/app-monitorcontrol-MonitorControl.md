@@ -15,10 +15,10 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | ✓       | —        | —   | —      | —           |
-| **beta**     | ○（厂商未发过） | — | — | —      | —           |
+| **beta**     | ✓（`MonitorControlChannel`；厂商还没发过 beta） | — | — | —      | —           |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **Sparkle**。bundle 自带 `SUFeedURL`，通用
-`SparkleAppcastSource` 直接读，无 recipe、无 `ChannelBinding`。
+`SparkleAppcastSource` 直接读；`isBetaChannel` 开着时由 `MonitorControlChannel` 判为 beta。
 
 - Homebrew —：cask `monitorcontrol`（2026-10-08 为 4.4.0）`auto_updates: true`，`HomebrewCaskSource` 退让。
 - MAS —：App Store 上的「MonitorControl Lite」是另一个产品（`app.monitorcontrol.MonitorControlLite`），不是本 bundle 的分发渠道。
@@ -29,7 +29,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `app.monitorcontrol.MonitorControl` | 共享 | — | feed 里无 tag 的 item（Sparkle 默认 channel） | ✓ |
-| beta    | `app.monitorcontrol.MonitorControl` | 共享 | CFPrefs `isBetaChannel`（Bool，无 UI） | `<sparkle:channel>beta</sparkle:channel>` | ○ 未接：feed 里从未有过 beta item |
+| beta    | `app.monitorcontrol.MonitorControl` | 共享 | CFPrefs `isBetaChannel`（Bool，无 UI） | `<sparkle:channel>beta</sparkle:channel>` | ✓ `MonitorControlChannel`（feed 里还没有过 beta item） |
 
 **app 有 beta 轨的客户端开关，只是没有 UI。** settled from source（`main` 与 `develop` 内容相同）：
 
@@ -54,8 +54,7 @@
 - GitHub releases 里 `prerelease=true` 的只有 v4.0.0-beta1、v4.0.0-beta2（2021），都早于当前身份。
 
 因此 `isBetaChannel` 开或关，app 今天拿到的是同一组 item，duo 读无 tag item 的结果与 app 一致。
-**duo 今天并不跟随这个开关**（没有 binding）；厂商一旦发第一条 beta item，开了 `isBetaChannel` 的
-副本 app 自己会收到、duo 不会提示——与 OBS 那类缺口同形，只是现在为空。
+2026-10-08 起 duo 跟随这个开关（`MonitorControlChannel`）：`isBetaChannel` 为 true → `.beta`，放行无标签条目 + `beta`，和 app 自己的 `allowedChannels` 一致；false 或读不到 → nil，交回已装 build 推断。厂商发第一条 beta item 时，开了开关的拷贝会和 app 自己一样收到它。
 
 ## 更新检测
 - 源: `SparkleAppcastSource`
@@ -115,8 +114,7 @@
   `com.apple.FinderInfo` xattr（`resource fork, Finder information, or similar detritus not allowed`）。
   `spctl` 仍为 Notarized，4.4.0 包干净（exit 0）。影响的是「装上一版做端到端」时上一版本身的严格校验，
   不影响 duo 装 4.4.0 的校验对象。
-- **beta 缺口 / 重开条件**：feed 出现第一条 `<sparkle:channel>beta</sparkle:channel>` item 时，需要一条
-  读 `isBetaChannel` 的 `ChannelBinding`，见「建议下一步」。
+- **beta**：`MonitorControlChannel` 已接上，但 feed 里还没有 beta item，真实的 beta 包验证要等厂商发第一条。
 
 ## 如何复验
 
@@ -156,7 +154,5 @@ gh api "repos/MonitorControl/MonitorControl/contents/MonitorControl/Support/Upda
    source `https://api.github.com/repos/MonitorControl/MonitorControl/releases?per_page=40`，`mode: .json`，
    照 `Recipes/sh-waku.swift`）。加完跑 channel-verify 看 `changelog pane` 是否为 recipe、`## What's Changed`
    是否作为标题保留。
-2. beta：现在不做。重开条件是 feed 出现第一条 `beta` item；届时加 `MonitorControlChannel`：读 CFPrefs
-   `app.monitorcontrol.MonitorControl` 的 `isBetaChannel`（true → `.beta` + `sparkleChannelNames: ["beta"]`，
-   否则 `.stable`），注册进 `ChannelBinding.resolver(for:)`，并以那个真实 beta 构建登记 binding proof。
+2. beta：`MonitorControlChannel` 已接（2026-10-08）。标签由 `.beta` 推出（`beta`），不是手写的，所以不需要 binding proof。厂商发第一条 beta item 时，拿真实 beta 包跑一遍 `channel-verify`。真实路径（`defaults write … isBetaChannel -bool true`，验完删除）：`ChannelBinding  beta — read from this app's own preference`，`detected channel → beta`，4.4.0 `up to date`（feed 里没有 beta item）；去掉这个键后是 `<none for this app>`、stable。
 3. 一键：第一轮端到端已跑通（4.3.3 → 4.4.0）；第二轮未跑。

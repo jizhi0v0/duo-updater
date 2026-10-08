@@ -315,7 +315,9 @@ let inferred = ReleaseChannel.detect(
 // TablePlus's. Skipping that step made this harness report Alfred as stable while
 // the app had it on beta, so a verification run exercised a recipe the user's
 // machine would never reach, and the actually-broken channel looked fine.
-let bound = bundleID.flatMap { ChannelBinding.resolve(bundleID: $0) }
+let bound = bundleID.flatMap {
+    ChannelBinding.resolve(bundleID: $0, bundleFeeds: ChannelBinding.bundleFeeds(fromInfoPlist: info))
+}
 // Blender's cycle and commit exist only in its executable — the same read
 // AppScanner makes. See `BlenderBuildInfo`.
 let blender = bundleID == BlenderBuildInfo.bundleID ? BlenderBuildInfo.read(bundleAt: appPath) : nil

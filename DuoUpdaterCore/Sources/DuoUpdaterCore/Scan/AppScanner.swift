@@ -743,7 +743,8 @@ public struct AppScanner: Sendable {
             releaseChannel = channel
             channelIsAuthoritative = true
         }
-        if let bound = ChannelBinding.resolve(bundleID: bundleID) {
+        if let bound = ChannelBinding.resolve(
+            bundleID: bundleID, bundleFeeds: ChannelBinding.bundleFeeds(fromInfoPlist: plist)) {
             releaseChannel = bound.channel
             channelIsAuthoritative = true
             if let feed = bound.feedOverride { feedURL = feed }

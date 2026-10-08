@@ -137,6 +137,9 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///                                     → `General.checkForPrereleases` (Bool: true→beta)
 ///   * OBS      → `…/Application Support/obs-studio/global.ini` (`[General] UpdateBranch`;
 ///                                     no key → nil, see the type)
+///   * iTerm2   → `UserDefaults[CheckTestRelease]` (Bool: true → the bundle's own
+///                                     `SUFeedURLForTesting`, see `bundleFeeds`)
+///   * MonitorControl → `UserDefaults[isBetaChannel]` (Bool: true → `<sparkle:channel>beta`)
 ///
 /// So there is no generic reader. `ChannelBinding` is the single authority the
 /// scanner consults; an app with no resolver returns nil and the generic
@@ -182,6 +185,8 @@ public enum ChannelBinding {
         CindyChannel.globalBundleID.lowercased(),
         CindyChannel.chinaBundleID.lowercased(),
         OBSChannel.bundleID.lowercased(),
+        ITerm2Channel.bundleID.lowercased(),
+        MonitorControlChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -330,8 +335,33 @@ public enum ChannelBinding {
     /// (TablePlus ships `com.tinyapp.TablePlus` but its prefs live under the
     /// lower-cased domain), so a case-sensitive `switch` silently failed to bind
     /// — same convention `ChangelogRecipe.recipe(forBundleID:)` already uses.
-    public static func resolve(bundleID: String?) -> ResolvedChannel? {
-        resolve(bundleID: bundleID, bounded: bounded)
+    public static func resolve(
+        bundleID: String?, bundleFeeds: [String: URL] = [:]
+    ) -> ResolvedChannel? {
+        resolve(bundleID: bundleID, bundleFeeds: bundleFeeds, bounded: bounded)
+    }
+
+    /// The feed addresses a bundle declares in its own Info.plist — `SUFeedURL`
+    /// and any `SUFeedURL…` sibling a vendor adds — keyed by the plist key.
+    ///
+    /// For the resolvers that mirror an app choosing between feeds IT ships:
+    /// iTerm2 swaps `SUFeedURL` for its own `SUFeedURLForTesting` when "check for
+    /// test releases" is on, and a nightly build points every one of those keys
+    /// at the nightly feed. Hard-coding the testing address instead would move a
+    /// nightly copy that still carries the toggle from an old stable install onto
+    /// the testing track, where its version is never behind and it would never be
+    /// offered a nightly again.
+    ///
+    /// Empty when the caller has no bundle in hand (the channel-switch
+    /// fingerprint pass): a resolver that needs these must still answer something
+    /// that changes when its preference does, so the flip is noticed and the
+    /// rescan that follows — which does pass them — decides.
+    public static func bundleFeeds(fromInfoPlist plist: [String: Any]) -> [String: URL] {
+        var out: [String: URL] = [:]
+        for (key, value) in plist where key.hasPrefix("SUFeedURL") {
+            if let text = value as? String, let url = URL(string: text) { out[key] = url }
+        }
+        return out
     }
 
     /// The body of the above, with the bound injected.
@@ -349,9 +379,11 @@ public enum ChannelBinding {
     /// discovered: the memo is what keeps a gated file to one stranded thread for
     /// the life of the process, so a throwaway here would strand one per scan
     /// with the whole suite still green.
-    static func resolve(bundleID: String?, bounded: BoundedBlockingWork) -> ResolvedChannel? {
+    static func resolve(
+        bundleID: String?, bundleFeeds: [String: URL] = [:], bounded: BoundedBlockingWork
+    ) -> ResolvedChannel? {
         guard let id = bundleID?.lowercased(), let resolver = resolver(for: id) else { return nil }
-        return bounded.run(key: id, timeout: resolveTimeout, resolver) ?? nil
+        return bounded.run(key: id, timeout: resolveTimeout) { resolver(bundleFeeds) } ?? nil
     }
 
     /// How long a resolver gets before it is abandoned.
@@ -400,36 +432,40 @@ public enum ChannelBinding {
 
     /// The one switch both of the above go through. Returns the resolver itself,
     /// unevaluated, so asking "is there one" costs no preference read.
-    private static func resolver(for id: String) -> (@Sendable () -> ResolvedChannel?)? {
+    private static func resolver(for id: String) -> (@Sendable ([String: URL]) -> ResolvedChannel?)? {
         switch id {
-        case DuoPasteChannel.bundleID.lowercased(): return DuoPasteChannel.resolveCurrent
-        case ForkChannel.bundleID.lowercased():     return ForkChannel.resolveCurrent
-        case SurgeChannel.bundleID.lowercased():    return SurgeChannel.resolveCurrent
-        case OrbStackChannel.bundleID.lowercased(): return OrbStackChannel.resolveCurrent
-        case TablePlusChannel.bundleID.lowercased(): return TablePlusChannel.resolveCurrent
-        case CleanShotChannel.bundleID.lowercased(): return CleanShotChannel.resolveCurrent
-        case TailscaleChannel.bundleID.lowercased(): return TailscaleChannel.resolveCurrent
-        case IINAChannel.bundleID.lowercased():    return IINAChannel.resolveCurrent
-        case AlfredChannel.bundleID.lowercased():  return AlfredChannel.resolveCurrent
-        case GhosttyChannel.bundleID.lowercased(): return GhosttyChannel.resolveCurrent
+        case DuoPasteChannel.bundleID.lowercased(): return { _ in DuoPasteChannel.resolveCurrent() }
+        case ForkChannel.bundleID.lowercased():     return { _ in ForkChannel.resolveCurrent() }
+        case SurgeChannel.bundleID.lowercased():    return { _ in SurgeChannel.resolveCurrent() }
+        case OrbStackChannel.bundleID.lowercased(): return { _ in OrbStackChannel.resolveCurrent() }
+        case TablePlusChannel.bundleID.lowercased(): return { _ in TablePlusChannel.resolveCurrent() }
+        case CleanShotChannel.bundleID.lowercased(): return { _ in CleanShotChannel.resolveCurrent() }
+        case TailscaleChannel.bundleID.lowercased(): return { _ in TailscaleChannel.resolveCurrent() }
+        case IINAChannel.bundleID.lowercased():    return { _ in IINAChannel.resolveCurrent() }
+        case AlfredChannel.bundleID.lowercased():  return { _ in AlfredChannel.resolveCurrent() }
+        case GhosttyChannel.bundleID.lowercased(): return { _ in GhosttyChannel.resolveCurrent() }
         case BetterDisplayChannel.bundleID.lowercased():
-            return BetterDisplayChannel.resolveCurrent
-        case CapCutChannel.bundleID.lowercased():  return CapCutChannel.resolveCurrent
-        case CotEditorChannel.bundleID.lowercased(): return CotEditorChannel.resolveCurrent
+            return { _ in BetterDisplayChannel.resolveCurrent() }
+        case CapCutChannel.bundleID.lowercased():  return { _ in CapCutChannel.resolveCurrent() }
+        case CotEditorChannel.bundleID.lowercased(): return { _ in CotEditorChannel.resolveCurrent() }
         case WindscribeChannel.bundleID.lowercased():
-            return WindscribeChannel.resolveCurrent
+            return { _ in WindscribeChannel.resolveCurrent() }
         case SuperconductorChannel.bundleID.lowercased():
-            return SuperconductorChannel.resolveCurrent
-        case CodeEditChannel.bundleID.lowercased(): return CodeEditChannel.resolveCurrent
-        case OsaurusChannel.bundleID.lowercased(): return OsaurusChannel.resolveCurrent
+            return { _ in SuperconductorChannel.resolveCurrent() }
+        case CodeEditChannel.bundleID.lowercased(): return { _ in CodeEditChannel.resolveCurrent() }
+        case OsaurusChannel.bundleID.lowercased(): return { _ in OsaurusChannel.resolveCurrent() }
         case MacMouseFixChannel.bundleID.lowercased():
-            return MacMouseFixChannel.resolveCurrent
-        case CuaDriverChannel.bundleID.lowercased(): return CuaDriverChannel.resolveCurrent
+            return { _ in MacMouseFixChannel.resolveCurrent() }
+        case CuaDriverChannel.bundleID.lowercased(): return { _ in CuaDriverChannel.resolveCurrent() }
         case CindyChannel.globalBundleID.lowercased():
-            return { CindyChannel.resolveCurrent(bundleID: CindyChannel.globalBundleID) }
+            return { _ in CindyChannel.resolveCurrent(bundleID: CindyChannel.globalBundleID) }
         case CindyChannel.chinaBundleID.lowercased():
-            return { CindyChannel.resolveCurrent(bundleID: CindyChannel.chinaBundleID) }
-        case OBSChannel.bundleID.lowercased():     return OBSChannel.resolveCurrent
+            return { _ in CindyChannel.resolveCurrent(bundleID: CindyChannel.chinaBundleID) }
+        case OBSChannel.bundleID.lowercased():     return { _ in OBSChannel.resolveCurrent() }
+        case ITerm2Channel.bundleID.lowercased():
+            return { ITerm2Channel.resolveCurrent(bundleFeeds: $0) }
+        case MonitorControlChannel.bundleID.lowercased():
+            return { _ in MonitorControlChannel.resolveCurrent() }
         default:                       return nil
         }
     }
@@ -513,6 +549,17 @@ public enum ChannelBinding {
     + ["stable", "beta"].compactMap { branch in
         OBSChannel.resolve(updateBranch: branch)
             .map { (bundleID: OBSChannel.bundleID, resolved: $0) }
+    }
+    // iTerm2's feeds come from the bundle; a stable build's own addresses stand
+    // in for it. MonitorControl answers only for the opted-in value (see the
+    // type), so the same compactMap shape as CotEditor.
+    + [true, false].compactMap { flag in
+        ITerm2Channel.resolve(checkTestRelease: flag, bundleFeeds: ITerm2Channel.stableBundleFeeds)
+            .map { (bundleID: ITerm2Channel.bundleID, resolved: $0) }
+    }
+    + [true, false].compactMap { flag in
+        MonitorControlChannel.resolve(isBetaChannel: flag)
+            .map { (bundleID: MonitorControlChannel.bundleID, resolved: $0) }
     }
 
     // Windscribe is deliberately NOT enumerated here, which is the same choice

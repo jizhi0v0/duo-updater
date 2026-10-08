@@ -11,6 +11,27 @@ private var homeDirectory: String { FileManager.default.homeDirectoryForCurrentU
 
 // MARK: - Icon
 
+/// A mark on a faint tile of `tint`: the look the CLI tools' and Brew
+/// formulae's icons share.
+struct LogoTile<Mark: View>: View {
+    let tint: Color
+    let size: CGFloat
+    @ViewBuilder let mark: Mark
+
+    var body: some View {
+        let tile = RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
+        // Opaque, like an app icon: on the selection's accent fill a see-through
+        // tile vanished and the brand colour lost its contrast (seen on
+        // 2026-10-08: orange Claude Code on the blue highlight). Backed by the
+        // window colour, the icon looks the same selected or not.
+        tile.fill(Color(nsColor: .windowBackgroundColor))
+            .overlay { tile.fill(tint.opacity(0.18)) }
+            .overlay { mark }
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}
+
 /// A tool's mark on a faint tile of its colour, so the CLI tab's rows tell apart
 /// at a glance instead of all wearing the same grey terminal glyph.
 ///
@@ -27,16 +48,7 @@ struct CLIToolIcon: View {
     let size: CGFloat
 
     var body: some View {
-        let tile = RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
-        // Opaque, like an app icon: on the selection's accent fill a see-through
-        // tile vanished and the brand colour lost its contrast (seen on
-        // 2026-10-08: orange Claude Code on the blue highlight). Backed by the
-        // window colour, the icon looks the same selected or not.
-        tile.fill(Color(nsColor: .windowBackgroundColor))
-            .overlay { tile.fill(tint.opacity(0.18)) }
-            .overlay { mark.foregroundStyle(tint) }
-            .frame(width: size, height: size)
-            .accessibilityHidden(true)
+        LogoTile(tint: tint, size: size) { mark.foregroundStyle(tint) }
     }
 
     @ViewBuilder

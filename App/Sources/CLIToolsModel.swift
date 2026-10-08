@@ -271,7 +271,11 @@ final class CLIToolsModel {
         for index in indices { latestCheck[index] = generation }
         checksInFlight += 1
         checking = true
-        let answers = await inProviderOrder(indices) { await $0.check() }
+        // Each provider's requests filed under its tool, so the request log's App
+        // column names it; npm and bun packages are filed per package below that.
+        let answers = await inProviderOrder(indices) { provider in
+            await RequestAttribution.withApp(provider.kind.displayName) { await provider.check() }
+        }
         checksInFlight -= 1
         checking = checksInFlight > 0
         let current = answers.filter { latestCheck[$0.0] == generation }
@@ -374,12 +378,14 @@ final class CLIToolsModel {
         errors[id] = nil
         errorLogs[id] = nil
         progress[id] = String(localized: "Starting…")
-        let outcome = await providers[provider].update(status) { [weak self] line in
-            Task { @MainActor in
-                // A line can arrive after the update has finished and its progress
-                // been cleared; writing it then would pin a stale line on the row.
-                guard let self, self.updating.contains(id) else { return }
-                self.progress[id] = line
+        let outcome = await RequestAttribution.withApp(Self.attributionID(status)) {
+            await providers[provider].update(status) { [weak self] line in
+                Task { @MainActor in
+                    // A line can arrive after the update has finished and its progress
+                    // been cleared; writing it then would pin a stale line on the row.
+                    guard let self, self.updating.contains(id) else { return }
+                    self.progress[id] = line
+                }
             }
         }
         switch outcome {
@@ -568,9 +574,18 @@ final class CLIToolsModel {
             return cached
         }
         guard let provider = providers.first(where: { $0.kind == status.kind }) else { throw NoProvider() }
-        let changelog = try await provider.releaseNotes(for: status, force: force)
+        let changelog = try await RequestAttribution.withApp(Self.attributionID(status)) {
+            try await provider.releaseNotes(for: status, force: force)
+        }
         releaseNotesCache[key] = changelog
         return changelog
+    }
+
+    /// What one install's requests are filed under in the request log: the
+    /// package or toolchain when the row is one (`openclaw`, `rustup`), else the
+    /// tool (`Claude Code`).
+    nonisolated static func attributionID(_ status: CLIToolStatus) -> String {
+        status.name ?? status.kind.displayName
     }
 
     /// No provider answers for the kind asked about. Unreachable while every

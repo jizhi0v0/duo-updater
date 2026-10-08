@@ -161,6 +161,38 @@ struct InstallURLReachabilityTests {
         #expect(result == .transient(status: 503))
     }
 
+    /// The ranged GET is cancelled the moment its response head is in, before a
+    /// byte is read — the shape whose request never reached the ledger when it
+    /// went out through a bare `bytes(for:)`. Read back from `EventStore.shared`,
+    /// which a test process keeps in a scratch directory, by this server's port.
+    @Test func theRangedGETIsRecorded() async throws {
+        let server = try MethodAwareServer(headStatus: 405, rangedGetStatus: 404)
+        defer { server.stop() }
+        let start = Date()
+        let result = await VendorProbeSource().installURLReachability(
+            server.installURL, spec: VendorInstallSpec(urlSource: .fixed(server.installURL), kind: .zip))
+        try #require(result == .gone(status: 404))
+
+        func gets() async -> [RequestEvent] {
+            await EventStore.shared.flush()
+            // The rest of the suite writes here too, in parallel: the default
+            // query's newest 50 rows can be all theirs.
+            let query = EventQuery(since: start, host: "127.0.0.1", limit: 100_000)
+            return await EventStore.shared.events(query).compactMap(\.request).filter {
+                $0.port == Int(server.port) && $0.method == "GET" && $0.path == "/install"
+            }
+        }
+        var rows = await gets()
+        for _ in 0..<200 where rows.isEmpty {
+            try await Task.sleep(for: .milliseconds(10))
+            rows = await gets()
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        rows = await gets()
+        #expect(rows.count == 1)
+        #expect(rows.first?.status == 404)
+    }
+
     // MARK: - what the sweep does with it
 
     /// The mapping that decides whether an issue gets filed, checked without a

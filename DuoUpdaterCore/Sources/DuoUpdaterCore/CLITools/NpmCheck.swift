@@ -59,7 +59,10 @@ public struct NpmCheck: Sendable {
             statuses.append(await status(of: install, busy: busy) { name in
                 if let cached = cache[name] { return try cached.get() }
                 let result: Result<NpmPackument, Error>
-                do { result = .success(try await packument(name)) } catch { result = .failure(error) }
+                // Filed against the package, not the provider: one request per package.
+                do {
+                    result = .success(try await RequestAttribution.withApp(name) { try await packument(name) })
+                } catch { result = .failure(error) }
                 cache[name] = result
                 return try result.get()
             })

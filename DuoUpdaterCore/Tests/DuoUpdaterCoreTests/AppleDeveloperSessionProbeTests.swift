@@ -66,6 +66,19 @@ import Testing
     #expect(!t(.inconclusive, false, true, true))
 }
 
+/// An expiry is told to the user only once nothing silent is left to try: not
+/// while a renewal runs (the 2026-10-08 false alarm), not before one has been
+/// tried, and without waiting for one when renewal is off.
+@Test func sessionExpiryIsFinalOnlyAfterRenewalOrWithRenewalOff() {
+    let g = AppleDeveloperSessionRenewal.hasGivenUp
+    #expect(!g(true, true, true))
+    #expect(!g(true, false, true))
+    #expect(!g(false, false, true))
+    #expect(g(false, true, true))
+    #expect(g(false, false, false))
+    #expect(g(false, true, false))
+}
+
 /// On until the user turns it off: a Mac that never saw the switch renews.
 @Test func sessionRenewalIsOnUntilTurnedOff() throws {
     let suite = "AppleDeveloperSessionRenewalTests"

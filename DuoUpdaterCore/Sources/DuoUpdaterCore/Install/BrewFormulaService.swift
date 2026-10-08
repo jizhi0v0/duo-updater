@@ -49,6 +49,127 @@ public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
     /// The version `brew outdated` says is available, or nil when up to date.
     public let availableVersion: String?
     public var hasUpdate: Bool { availableVersion != nil }
+    /// Set when Homebrew has deprecated or disabled it — see `BrewLifecycle`.
+    public var lifecycle: BrewLifecycle? = nil
+}
+
+/// Homebrew's verdict that a formula or cask is on its way out: `deprecate!` or
+/// `disable!` in its definition, read from `brew info --json=v2 --installed`.
+/// Casks carry the same fields and brew treats them the same way
+/// (`Cask::Installer#check_deprecate_disable`: deprecated warns, disabled raises).
+///
+/// The two stages differ in what brew does (Homebrew 7.0.8
+/// `FormulaInstaller#prelude_fetch`): a deprecated formula installs and upgrades
+/// with a warning; a disabled one refuses both without `--force`, so it gets no more
+/// updates. Which stage applies, the reason, the date and the replacement follow
+/// brew's own message (`DeprecateDisable.type` / `.message`), including its quirks:
+/// a formula flagged both deprecated and disabled — 140 of the 8,645 in the API on
+/// 2026-10-08, the ones whose disable date has passed — is *deprecated* to brew, so
+/// it still only warns; the replacement is read from the `disable_` fields whenever
+/// `disabled` is set; and a missing disable date is the deprecation date plus 12
+/// months.
+public struct BrewLifecycle: Sendable, Equatable {
+    public enum Stage: Sendable, Equatable {
+        case deprecated
+        case disabled
+    }
+
+    public let stage: Stage
+    /// One of brew's reason symbols (`unmaintained`, `repo_archived`…) or the free
+    /// text a formula gives instead; nil when it gives none.
+    public let reason: String?
+    /// `yyyy-MM-dd`, past or future; nil when brew has no date for it.
+    public let disableDate: String?
+    public let replacementFormula: String?
+    public let replacementCask: String?
+
+    public init(
+        stage: Stage, reason: String?, disableDate: String?,
+        replacementFormula: String?, replacementCask: String?
+    ) {
+        self.stage = stage
+        self.reason = reason
+        self.disableDate = disableDate
+        self.replacementFormula = replacementFormula
+        self.replacementCask = replacementCask
+    }
+
+    /// What brew suggests installing instead, as it prints it
+    /// (`DeprecateDisable.replacement_with_type`); nil when it suggests nothing.
+    public var replacementCommand: String? {
+        if let f = replacementFormula, f == replacementCask { return "brew install \(f)" }
+        if let f = replacementFormula { return "brew install --formula \(f)" }
+        if let c = replacementCask { return "brew install --cask \(c)" }
+        return nil
+    }
+
+    /// The replacement's name, for prose.
+    public var replacementName: String? { replacementFormula ?? replacementCask }
+
+    /// From one `formulae` or `casks` entry of `info --json=v2`; nil when brew flags
+    /// neither.
+    static func parse(_ f: [String: Any]) -> BrewLifecycle? {
+        func string(_ key: String) -> String? {
+            (f[key] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        }
+        let deprecated = (f["deprecated"] as? Bool) == true
+        let disabled = (f["disabled"] as? Bool) == true
+        guard deprecated || disabled else { return nil }
+        let prefix = disabled ? "disable" : "deprecation"
+        return BrewLifecycle(
+            stage: deprecated ? .deprecated : .disabled,
+            reason: deprecated ? string("deprecation_reason") : string("disable_reason"),
+            disableDate: string("disable_date")
+                ?? string("deprecation_date").flatMap { addingYear(to: $0) },
+            replacementFormula: string("\(prefix)_replacement_formula"),
+            replacementCask: string("\(prefix)_replacement_cask"))
+    }
+
+    /// `2025-03-17` → `2026-03-17` (`REMOVE_DISABLED_TIME_WINDOW`, 12 months).
+    static func addingYear(to day: String) -> String? {
+        let parts = day.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        guard
+            let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])),
+            let later = calendar.date(byAdding: .month, value: 12, to: date)
+        else { return nil }
+        let c = calendar.dateComponents([.year, .month, .day], from: later)
+        return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
+    }
+}
+
+/// An installed cask Homebrew has deprecated or disabled (`BrewLifecycle`).
+///
+/// A cask's app has its own row, from whichever source checks it — not
+/// necessarily Homebrew: `HomebrewCaskCatalog` drops disabled casks (#881), so a
+/// disabled cask's app is checked by Sparkle or another source, or by none. So the
+/// notice goes on whatever row has the app's path, matched on the `target` brew
+/// records for each `app` artifact. A cask that installs no app (a CLI, a font)
+/// has no row of its own, and gets one for this.
+public struct BrewCaskLifecycle: Sendable, Identifiable, Equatable {
+    public var id: String { token }
+    public let token: String
+    public let installedVersion: String
+    /// Where its `app` artifacts were installed (`/Applications/Foo.app`).
+    public let appPaths: [String]
+    /// False for a CLI or font cask — `BrewFormulaService.installsAnApp(caskToken:)`,
+    /// which also counts a `.pkg` (it generally installs an app, though brew
+    /// records no path for it).
+    public let installsAnApp: Bool
+    public let lifecycle: BrewLifecycle
+
+    public init(
+        token: String, installedVersion: String, appPaths: [String],
+        installsAnApp: Bool, lifecycle: BrewLifecycle
+    ) {
+        self.token = token
+        self.installedVersion = installedVersion
+        self.appPaths = appPaths
+        self.installsAnApp = installsAnApp
+        self.lifecycle = lifecycle
+    }
 }
 
 /// An installed package from a third-party tap that Homebrew did **not** evaluate
@@ -70,6 +191,18 @@ public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
 ///
 /// Without this type both shapes read as "nothing to do": the formula has no row at
 /// all, the cask has no update.
+///
+/// A third shape lands here too: a homebrew/core formula **moved to a cask**. Seen
+/// 2026-10-08 with azure-cli, whose formula homebrew/core deleted on 2026-10-07
+/// (Homebrew/homebrew-core#315699) in favour of a same-named cask. The installed
+/// keg doesn't vanish from brew's listings, it does the opposite: brew loads it
+/// from the copy stored in the keg (`.brew/azure-cli.rb`), so `brew leaves` and
+/// `info --installed` still list it, and `brew outdated` compares the keg with
+/// itself — azure-cli 2.90.0 read as up to date while the cask was at 2.91.0.
+/// `brew update` does migrate it, but only once (the run that first sees the
+/// formula gone) and, with the API in use, only by printing the commands
+/// (Homebrew 7.0.8 `update_report/reporter.rb#migrate_tap_migration`); after
+/// that only `brew doctor`'s "Some installed kegs have no formulae!" mentions it.
 public struct BrewUncheckedPackage: Sendable, Identifiable, Equatable {
     public enum Reason: Sendable, Equatable {
         /// `brew tap-info` reports the tap as not trusted.
@@ -78,6 +211,23 @@ public struct BrewUncheckedPackage: Sendable, Identifiable, Equatable {
         /// trusted or gone, the definition is broken…). Not narrowed further — we
         /// only know brew's verdict, not its exception.
         case unreadable
+        /// A homebrew/core formula no longer in homebrew/core, with a cask of the
+        /// same name — see the type's doc. Only ever a `.formula`.
+        case movedToCask
+        /// A homebrew/core formula homebrew/core renamed, still installed under the
+        /// old name. Unlike the other shapes this one breaks every formula's check:
+        /// until `brew migrate` runs, `brew outdated --formula --json=v2` exits 1
+        /// ("alloy was renamed to alloy-analyzer and needs to be migrated"), while
+        /// the plain `brew outdated` exits 0 — measured 2026-10-08, Homebrew 7.0.8,
+        /// a keg left under the old name. A `brew update` that brings any change
+        /// migrates it (`migrate_formula_rename` walks every installed formula,
+        /// Homebrew 7.0.8 `update-report.rb`), so this lasts until such an update
+        /// runs — or past it, when that migration fails.
+        case renamed(to: String)
+        /// A homebrew/core formula homebrew/core no longer has, with no same-named
+        /// cask and no rename: brew loads it from the keg's copy, as with
+        /// `.movedToCask`, and `brew doctor` is the only command that says so.
+        case removed
     }
 
     public var id: String { "\(kind.rawValue):\(fullName)" }
@@ -110,6 +260,38 @@ public struct BrewUncheckedPackage: Sendable, Identifiable, Equatable {
     /// which is what Homebrew's docs recommend. Shown for the user to run; this app
     /// never runs it, trusting a tap is the user's security decision.
     public var trustCommand: String { "brew trust --\(kind.rawValue) \(fullName)" }
+
+    /// Swaps a `.movedToCask` formula for its cask: the two commands `brew update`
+    /// prints for this migration, in one line. Uninstall first — the cask links the
+    /// same executables, and while the formula's are linked its install doesn't
+    /// fail, it quietly leaves them: `Symlinked#link_action` answers `:skip_formula`
+    /// for a target a formula owns, brew warns "…from formula azure-cli; skipping
+    /// link." and the install succeeds with `az` still the formula's (Homebrew 7.0.8
+    /// `cask/artifact/symlinked.rb`). Shown for the user to run, like `trustCommand`.
+    public var migrateCommand: String {
+        "brew uninstall --formula --force \(name) && brew install --cask \(name)"
+    }
+
+    /// The command that resolves this package's reason, when there is one to give.
+    public var fixCommand: String? {
+        switch reason {
+        case .tapNotTrusted: trustCommand
+        case .movedToCask: migrateCommand
+        case .renamed: "brew migrate \(name)"
+        case .unreadable, .removed: nil
+        }
+    }
+
+    /// The `brew leaves` entry this package stands for, when it has one: brew loads
+    /// these from their keg (or, renamed, under the new name), so they're leaves
+    /// that read as up to date. Their row in the formula tree gives way to this one.
+    public var leafName: String? {
+        switch reason {
+        case .movedToCask, .removed: name
+        case .renamed(let newName): newName
+        case .tapNotTrusted, .unreadable: nil
+        }
+    }
 }
 
 /// Reads outdated Homebrew formulae and runs a formula-only `brew upgrade`.
@@ -274,7 +456,8 @@ public actor BrewFormulaService {
             BrewInstalledFormula(
                 name: f.name,
                 installedVersion: f.installedVersion,
-                availableVersion: available[f.name])
+                availableVersion: available[f.name],
+                lifecycle: f.lifecycle)
         }
         .sorted { lhs, rhs in
             if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
@@ -324,25 +507,163 @@ public actor BrewFormulaService {
     /// doesn't parse, and that yields [] — never "brew loaded none of them, so every
     /// listed package is unchecked". A failed `list` read yields no candidates.
     public func uncheckedPackages() async -> [BrewUncheckedPackage] {
+        await installedReport().unchecked
+    }
+
+    /// What one pass over the installed packages finds: the unchecked ones
+    /// (`uncheckedPackages()`), and Homebrew's deprecations of the formulae it did
+    /// read — both come from the same `brew info --json=v2 --installed` read.
+    public struct InstalledReport: Sendable, Equatable {
+        public var unchecked: [BrewUncheckedPackage] = []
+        /// Keyed by `full_name`, which is the name `brew leaves` prints (bare for
+        /// homebrew/core, tap-qualified otherwise).
+        public var lifecycles: [String: BrewLifecycle] = [:]
+        /// Installed casks Homebrew deprecated or disabled.
+        public var caskLifecycles: [BrewCaskLifecycle] = []
+    }
+
+    public func installedReport() async -> InstalledReport {
         async let formulaNames = runReading(["list", "--formula", "--full-name"])
         async let installedInfo = runReading(["info", "--json=v2", "--installed"])
         // Not `list --cask …` for anything: measured, `--versions` exits 1 outright
         // ("Refusing to load cask … from untrusted tap") when any installed cask is
         // untrusted, and `--full-name` prints such a cask bare.
         async let versionList = runReading(["list", "--formula", "--versions"])
+        // Every formula and cask name brew can load — for the homebrew/core shapes
+        // (`coreFormulaOrphans`). Local reads of the API's name lists (or the
+        // taps), no network.
+        async let availableFormulae = runReading(["formulae"])
+        async let availableCasks = runReading(["casks"])
 
+        let fullNames = Self.parseLines(await formulaNames)
+        let versions = Self.parseVersions(await versionList)
+        let info = Data(await installedInfo.utf8)
         let candidates = Self.uncheckedCandidates(
-            formulaFullNames: Self.parseLines(await formulaNames),
-            installedInfo: Data(await installedInfo.utf8),
-            formulaVersions: Self.parseVersions(await versionList),
+            formulaFullNames: fullNames,
+            installedInfo: info,
+            formulaVersions: versions,
             caskReceiptTap: caskReceiptTap,
             caskInstallsAnApp: caskInstallsAnApp)
-        guard !candidates.isEmpty else { return [] }
+        let orphans = Self.coreFormulaOrphans(
+            formulaFullNames: fullNames,
+            installedInfo: info,
+            availableFormulae: Self.parseLines(await availableFormulae),
+            availableCasks: Self.parseLines(await availableCasks),
+            formulaVersions: versions)
+        let lifecycles = Self.lifecycles(installedInfo: info)
+        let caskLifecycles = Self.caskLifecycles(installedInfo: info, installsAnApp: caskInstallsAnApp)
+        guard !candidates.isEmpty else {
+            return InstalledReport(unchecked: orphans, lifecycles: lifecycles, caskLifecycles: caskLifecycles)
+        }
 
         // `--installed` rather than naming the taps: `tap-info` on a tap that no
         // longer exists would fail the whole read and mislabel the others.
         let tapInfo = await runReading(["tap-info", "--json=v1", "--installed"])
-        return Self.label(candidates, untrustedTaps: Self.parseUntrustedTaps(Data(tapInfo.utf8)))
+        let unchecked = (Self.label(candidates, untrustedTaps: Self.parseUntrustedTaps(Data(tapInfo.utf8))) + orphans)
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        return InstalledReport(unchecked: unchecked, lifecycles: lifecycles, caskLifecycles: caskLifecycles)
+    }
+
+    /// `BrewCaskLifecycle` for every cask `info --json=v2 --installed` flags, by
+    /// token. [] for a read that doesn't parse.
+    static func caskLifecycles(
+        installedInfo: Data, installsAnApp: (String) -> Bool
+    ) -> [BrewCaskLifecycle] {
+        guard
+            let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
+            let casks = root["casks"] as? [[String: Any]]
+        else { return [] }
+        return casks.compactMap { c -> BrewCaskLifecycle? in
+            guard let token = c["token"] as? String, let lifecycle = BrewLifecycle.parse(c) else { return nil }
+            // `{"app": ["Foo.app"], "target": "/Applications/Foo.app"}` — the
+            // target is where it landed, renamed or not: brew adds it to every
+            // relocated artifact as `Relocated#target`, which resolves a
+            // `target:` rename under the appdir (Homebrew 7.0.8 `cask/cask.rb`
+            // `artifacts_list`, `cask/artifact/relocated.rb`). Measured on this
+            // Mac's bartender: `"target": "/Applications/Bartender 7.app"`.
+            let appPaths = ((c["artifacts"] as? [Any]) ?? []).compactMap { artifact -> String? in
+                guard let a = artifact as? [String: Any], a["app"] != nil else { return nil }
+                return a["target"] as? String
+            }
+            return BrewCaskLifecycle(
+                token: token,
+                installedVersion: (c["installed"] as? String) ?? "—",
+                appPaths: appPaths,
+                installsAnApp: !appPaths.isEmpty || installsAnApp(token),
+                lifecycle: lifecycle)
+        }
+        .sorted { $0.token.localizedCaseInsensitiveCompare($1.token) == .orderedAscending }
+    }
+
+    /// `BrewLifecycle` for every formula `info --json=v2 --installed` flags, keyed
+    /// by `full_name`. [] for a read that doesn't parse.
+    static func lifecycles(installedInfo: Data) -> [String: BrewLifecycle] {
+        guard
+            let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
+            let formulae = root["formulae"] as? [[String: Any]]
+        else { return [:] }
+        var out: [String: BrewLifecycle] = [:]
+        for f in formulae {
+            guard let name = f["full_name"] as? String, let lifecycle = BrewLifecycle.parse(f) else { continue }
+            out[name] = lifecycle
+        }
+        return out
+    }
+
+    /// Installed homebrew/core formulae that homebrew/core no longer has under
+    /// that name — `.renamed`, `.movedToCask` or `.removed`, see
+    /// `BrewUncheckedPackage`. A name `brew formulae` doesn't list is one of:
+    ///
+    /// - renamed: an installed formula's `oldnames` holds it (brew loads the new
+    ///   formula for the old keg — `info --installed` lists `alloy-analyzer` with
+    ///   `oldnames: ["alloy"]` for a keg named alloy);
+    /// - an alias now (an installed formula's `aliases` holds it): brew resolves
+    ///   that itself, so it isn't reported;
+    /// - moved to a cask: `brew casks` lists the same name — the verdict brew gives
+    ///   once the keg is gone ("Found a cask named "azure-cli" instead.");
+    /// - otherwise removed.
+    ///
+    /// Only bare names: `list --full-name` prints a homebrew/core formula bare and a
+    /// tap's tap-qualified, and a tap formula brew can't load is `uncheckedCandidates`'
+    /// business.
+    ///
+    /// Fails closed: an empty `availableFormulae` (`runReading` answers "" for a
+    /// failed read) or an `installedInfo` that doesn't parse yields [] — never
+    /// "brew has no formulae, so every installed one is gone", and never a rename
+    /// read as a removal because the read that names renames failed.
+    static func coreFormulaOrphans(
+        formulaFullNames: [String],
+        installedInfo: Data,
+        availableFormulae: [String],
+        availableCasks: [String],
+        formulaVersions: [String: String]
+    ) -> [BrewUncheckedPackage] {
+        guard
+            !availableFormulae.isEmpty,
+            let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
+            let installed = root["formulae"] as? [[String: Any]]
+        else { return [] }
+        var renamedTo: [String: String] = [:]
+        var aliases: Set<String> = []
+        for f in installed {
+            guard let name = f["name"] as? String else { continue }
+            for old in (f["oldnames"] as? [String]) ?? [] { renamedTo[old] = name }
+            aliases.formUnion((f["aliases"] as? [String]) ?? [])
+        }
+        let formulae = Set(availableFormulae)
+        let casks = Set(availableCasks)
+        return formulaFullNames
+            .filter { !$0.contains("/") && !formulae.contains($0) && !aliases.contains($0) }
+            .map { name in
+                let reason: BrewUncheckedPackage.Reason =
+                    renamedTo[name].map { .renamed(to: $0) }
+                    ?? (casks.contains(name) ? .movedToCask : .removed)
+                return BrewUncheckedPackage(
+                    fullName: name, kind: .formula,
+                    installedVersion: formulaVersions[name] ?? "—",
+                    reason: reason)
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     /// Pure core of `uncheckedPackages()`: every candidate carries `.unreadable`

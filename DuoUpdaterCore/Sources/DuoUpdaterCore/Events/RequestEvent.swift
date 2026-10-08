@@ -208,9 +208,14 @@ public struct RequestEvent: Codable, Sendable, Hashable {
     /// what to call a bundle, and so the derivation is executed by something:
     /// the App test target compiles only the files it names, and this is not one
     /// of them.
+    ///
+    /// Only `.app` is dropped: a Homebrew formula is attributed by its `opt`
+    /// path, and `llama.cpp` or `python@3.13` read as `llama` and `python@3`
+    /// when any extension was.
     public var appName: String? {
         guard let appID, !appID.isEmpty else { return nil }
-        return URL(fileURLWithPath: appID).deletingPathExtension().lastPathComponent
+        let url = URL(fileURLWithPath: appID)
+        return url.pathExtension == "app" ? url.deletingPathExtension().lastPathComponent : url.lastPathComponent
     }
 
     /// The row as something you can paste into a browser or `curl`.

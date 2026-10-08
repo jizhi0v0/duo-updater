@@ -273,7 +273,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 ## Changelog-only (detection via Sparkle or Homebrew)
 
 - [x] [**Ghostty**](com-mitchellh-ghostty.md) · `com.mitchellh.ghostty` — C (two-stage), detection still unknown
-- [x] [**AppCleaner**](net-freemacsoft-AppCleaner.md) · `net.freemacsoft.AppCleaner` — C + Sparkle verified
+- [x] [**AppCleaner**](net-freemacsoft-AppCleaner.md) · `net.freemacsoft.AppCleaner` — C + Sparkle · 真包 3.6.8/3.7 验证 ✓ · 3.7 要求 macOS 15.6 · changelog recipe ✓（21 条）· 一键未跑 · 2026-10-08
 - [x] [**Calibre**](net-kovidgoyal-calibre.md) · `net.kovidgoyal.calibre` — C + Homebrew（仅 brew 装的拷贝；直装 unknown）· preview 轨（同 id，版本第三段 ≥100，未接）· changelog 结构化 ✓（无分类标题）· 一键（brew）✓ · 2026-10-08
 - [x] [**Audacity**](org-audacityteam-audacity.md) · `org.audacityteam.audacity` — C + Homebrew `audacity@3`；Audacity 4 是独立 id `…audacity4`（cask `audacity`，无 changelog）· prerelease id `org.audacityteam.Audacity` 串到 3.x 说明 · Team 3.7.9 起换 `6EPAF2X3PR` · 一键（brew，3.x 与 4.x）✓ · 2026-10-08
 - [x] [**Homebrew (BrewUI)**](sh-brew-app.md) · `sh.brew.app` — C (GitHub releases) + Homebrew cask `homebrew-app` · GUI 版本独立于 brew，`brew update` 不升级它 · 运行中一键升级 + Relaunch 实测 ✓ · 2026-09-13
@@ -305,12 +305,12 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**MonitorControl**](app-monitorcontrol-MonitorControl.md) · `app.monitorcontrol.MonitorControl` — S+B · 一键 ✓ · beta 开关（`MonitorControlChannel`，feed 尚无 beta）· changelog recipe ✓ · 2026-10-08
 - [x] [**Maccy**](org-p0deje-Maccy.md) · `org.p0deje.Maccy` — S · 检测 + changelog 结构化 ✓ · 一键未跑 · 2026-10-08
 - [x] [**Keka**](com-aone-keka.md) · `com.aone.keka` — S · 检测 ✓ · changelog recipe（GitHub）✓ · 一键未跑 · 2026-10-08
-- [x] [**Vivaldi**](com-vivaldi-Vivaldi.md) · `com.vivaldi.Vivaldi` — S
+- [x] [**Vivaldi**](com-vivaldi-Vivaldi.md) · `com.vivaldi.Vivaldi` — S · 真包 8.2.4133.83/.84 验证 ✓ · 一键（delta）✓ · Snapshot 为独立 bundle id · changelog 仅网页（建议 recipe）· 2026-10-08
 - [x] [**OBS**](com-obsproject-obs-studio.md) · `com.obsproject.obs-studio` — S · 真包 32.2.1/32.2.2/33.0.0-beta5/beta6 验证 ✓ · stable 一键（delta）端到端 ✓ · beta `UpdateBranch` 绑定 ✓ · changelog recipe（feedPagePattern）✓ · 2026-10-08
 - [x] [**HandBrake**](fr-handbrake-HandBrake.md) · `fr.handbrake.HandBrake` — S · 一键 ✓ · changelog recipe（GitHub）✓ · 2026-10-08
 - [x] [**Typeless**](now-typeless-desktop.md) · `now.typeless.desktop` — P+C · electron-builder feed (VendorProbe) · 一键 dmg + sha512 · 结构化 changelog（gzip __NEXT_DATA__，含图）· channel-verify ✓ · 2026-06-19
-- [x] [**OpenClaw**](ai-openclaw-mac.md) · `ai.openclaw.mac` — S · real DMG/feed verified ✓ · 2026-08-17
-- [x] [**Superwhisper**](com-superduper-superwhisper.md) · `com.superduper.superwhisper` — S · real zip/feed verified ✓ · 2026-08-17
+- [x] [**OpenClaw**](ai-openclaw-mac.md) · `ai.openclaw.mac` — S · 真包 2026.9.7/2026.9.8（universal + arm64）验证 ✓ · 一键 ✓ · beta/extended-stable Sparkle 轨（客户端有，feed 暂无带标签条目，未 binding）· changelog 结构化（分节被压平）· 2026-10-08
+- [x] [**Superwhisper**](com-superduper-superwhisper.md) · `com.superduper.superwhisper` — S · 真包 2.19.1/2.19.2 验证 ✓ · 一键 ✓ · `includeBetaUpdates` 键（机制未证实）· changelog 结构化（粗体分节被压平）· 2026-10-08
 - [x] [**CodexBar**](com-steipete-codexbar.md) · `com.steipete.codexbar` — S · 真包 v0.56.1 验证 ✓（SUFeedURL 指向 repo 内 appcast.xml；ChangelogCatalog 已有 GitHub 兜底条目）· 2026-08-30
 - [x] [**ClaudeBar**](com-tddworks-claudebar.md) · `com.tddworks.claudebar` — S · 真包 v0.4.85 解包验证 ✓ · 2026-08-30
 - [x] [**VoiceInk**](com-prakashjoshipax-VoiceInk.md) · `com.prakashjoshipax.VoiceInk` — S · 真包 v2.13 挂载验证 ✓ · 2026-08-30

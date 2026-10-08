@@ -284,6 +284,8 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
       `Docker Desktop.app` 的 Squirrel 推断渠道：实际更新器是外层
       `com.docker.backend.updater`（见 `docs/app-audits/com-docker-docker.md`）。
 
+- [ ] **OpenClaw** · `ai.openclaw.mac` — 渠道来自 Gateway `update.channel`（运行中 Gateway 优先，兜底 `~/.openclaw/openclaw.json`）：beta/dev → 标签 `beta`；extended-stable → 只认该标签。2026-10-08 appcast 近 100 版 0 条带标签；出现带标签条目即接 ChannelBinding（否则 extended-stable 会被 duo 跨轨推）。详见 [审计](docs/app-audits/ai-openclaw-mac.md)
+- [ ] **Superwhisper** · `com.superduper.superwhisper` — 二进制有 `includeBetaUpdates` 键、无 UI 文案；feed 233 条 0 标签，猜的 4 个 beta feed 都 404。需真 app 确认键与机制（agent 类 app）后再定 binding。详见 [审计](docs/app-audits/com-superduper-superwhisper.md)
 - [ ] **OpenChamber — v2-preview** · 同 `dev.openchamber.desktop`，版本 `2.0.0-preview.N`，duo 读成 stable（`ReleaseChannel.detect()` 的版本尾词没有 `preview`）；app 里 `allowPrerelease=false` 写死、无开关。今天 preview 比 stable 旧，无害。详见 [审计](docs/app-audits/dev-openchamber-desktop.md)（2026-10-08）
 
 ---
@@ -554,6 +556,8 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 > per-build YouTrack 文章里，而 ChangelogRecipe.source 是固定 URL，架构追不了。EAP probe
 > 已设 `changelogURL: jetbrains.com/idea/whatsnew/`，WebView 已兜底，故无需结构化 recipe。
 
+- ✗ **Vivaldi（stable）** · stable 构建只写死 public feed，UI 无渠道开关；预览走独立 bundle id 的 Snapshot（§1 已覆盖）（2026-10-08）
+- ✗ **AppCleaner** · feed 0 标签，三个可执行文件无 beta/channel 串，不开源（没找到≠确定没有）（2026-10-08）
 - ✗ **Granola** · 端点对任意渠道文件名都 302 到当前版本目录；登录 token 是否分流无法验证（2026-10-08）
 - ✗ **TRAE（beta/alpha）** · 客户端有 stable/beta/alpha/dev 质量，公开 API 忽略 `quality`/`channel`，beta 前缀的应用内检查无更新；没找到公开 beta（不等于没有）（2026-10-08）
 

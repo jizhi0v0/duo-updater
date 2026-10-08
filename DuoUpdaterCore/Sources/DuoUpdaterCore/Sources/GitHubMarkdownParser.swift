@@ -102,8 +102,11 @@ public enum GitHubMarkdownParser {
     }
 
     /// The body without any section that repeats an EARLIER release's notes: one
-    /// opened by a `Changes in version X` heading where X is older than
-    /// `version`, running to the next heading of its own level or higher.
+    /// opened by a heading in one of `earlierReleaseHeadings`' wordings whose
+    /// version X is older than `version`. It runs to the next heading of its own
+    /// level or higher — or, for a "from X" wording, to the next STRICTLY higher
+    /// heading or the end: vorssaint-utils puts `### Everything from 3.3.3` at
+    /// the same level as the 3.3.3 sections after it (`### Performance`, …).
     ///
     /// Keka's hot-fix releases (1.6.3, 1.6.7) write their one fix and then
     /// repeat the release before under `# Changes in version 1.6.6`. Read as
@@ -124,25 +127,53 @@ public enum GitHubMarkdownParser {
     static func withoutEarlierReleases(in body: String, version: String) -> String {
         guard let own = VersionComparator.comparableMarketingVersion(version) else { return body }
         var kept: [String] = []
-        var skippingBelowLevel: Int?
+        // The skipped section's heading level, and whether a sibling at that
+        // level closes it (false for a "from X" wording).
+        var skipping: (level: Int, siblingCloses: Bool)?
         var inFence = false
         for line in body.components(separatedBy: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.hasPrefix("```") { inFence.toggle() }
             if !inFence, let heading = headingRawText(of: trimmed) {
                 let level = trimmed.prefix(while: { $0 == "#" }).count
-                if let skipped = skippingBelowLevel, level <= skipped { skippingBelowLevel = nil }
-                if skippingBelowLevel == nil,
-                   let match = heading.range(
-                       of: #"(?i)^changes\s+in\s+version\s+v?\d+(?:\.\d+)*"#, options: .regularExpression),
-                   let other = heading[match].range(of: #"\d+(?:\.\d+)*"#, options: .regularExpression),
-                   VersionComparator.isNewer(own, than: String(heading[match][other])) {
-                    skippingBelowLevel = level
+                if let s = skipping, level < s.level || (level == s.level && s.siblingCloses) {
+                    skipping = nil
+                }
+                if skipping == nil, let shape = earlierReleaseHeadings.first(where: { shape in
+                    guard let other = firstCapture(of: shape.pattern, in: heading) else { return false }
+                    return VersionComparator.isNewer(own, than: other)
+                }) {
+                    skipping = (level, !shape.runsOn)
                 }
             }
-            if skippingBelowLevel == nil { kept.append(line) }
+            if skipping == nil { kept.append(line) }
         }
         return kept.joined(separator: "\n")
+    }
+
+    /// The heading wordings that announce an earlier release's notes, each
+    /// anchored at the start of the heading text with the version in group 1.
+    /// `runsOn`: a "from X" wording takes everything after it, so a same-level
+    /// heading does not end it. Each is one vendor's real heading, nothing
+    /// looser: across the sweep these four matched nothing else (2026-10-08).
+    /// - Keka 1.6.7: `# Changes in version 1.6.6`
+    /// - upscayl v2.9.8: `## v2.9.7 Changes 🙈` (a dotted version, so `3 changes
+    ///   worth knowing` is not one)
+    /// - freelens v1.6.1: `## Notes from v1.6.0:`
+    /// - vorssaint-utils v3.3.5: `### Everything from 3.3.3`
+    private static let earlierReleaseHeadings: [(pattern: String, runsOn: Bool)] = [
+        (#"(?i)^changes\s+in\s+version\s+v?(\d+(?:\.\d+)*)"#, false),
+        (#"(?i)^v?(\d+(?:\.\d+)+)\S*\s+changes\b"#, false),
+        (#"(?i)^notes\s+from\s+v?(\d+(?:\.\d+)+)"#, true),
+        (#"(?i)^everything\s+from\s+v?(\d+(?:\.\d+)+)"#, true),
+    ]
+
+    private static func firstCapture(of pattern: String, in text: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range(at: 1), in: text)
+        else { return nil }
+        return String(text[range])
     }
 
     static let skippedSectionKeywords = [

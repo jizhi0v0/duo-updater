@@ -122,7 +122,12 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   emphasised thank-you (`*Thank you [x](…)!*`). Generation 10 made
     ///   KeepingYouAwake's per-translation credits into items; the same 3,710
     ///   bodies lose 64 such lines, all KeepingYouAwake's, and nothing else.
-    public static let parserGeneration = 12
+    /// - 13: the generation-11 cut also reads `vX Changes` (upscayl v2.9.8),
+    ///   `Notes from vX` (freelens v1.6.1) and `Everything from X`
+    ///   (vorssaint-utils v3.3.4/v3.3.5), still only for an X older than the
+    ///   release. Notes already cached for those carry the earlier release's
+    ///   notes too: 19, 21, 85 and 89 items for 5, 1, 2 and 6 of their own.
+    public static let parserGeneration = 13
 
     public let entries: [Entry]
 

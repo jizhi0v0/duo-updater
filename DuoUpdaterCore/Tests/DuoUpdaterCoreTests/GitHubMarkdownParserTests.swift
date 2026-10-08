@@ -795,3 +795,170 @@ private func releasesJSON(tag: String, publishedAt: String, body: String) throws
     #expect(items("- Added Polish\n  - Thanks to everyone who tested the beta") ==
             ["Added Polish", "Thanks to everyone who tested the beta"])
 }
+
+// MARK: - Other wordings of a repeated earlier release
+
+/// upscayl v2.9.8's release body, verbatim (`upscayl/upscayl`, fetched
+/// 2026-10-08): a hotfix that repeats 2.9.7's notes under `## v2.9.7 Changes 🙈`.
+/// The section ends at the next heading of its own level or higher, here the
+/// closing `# We're getting close to 3.0 😳`.
+///
+/// Mutation: drop the `vX Changes` shape. 2.9.7's fourteen lines come back.
+@Test func upscaylHotfixDropsTheRepeatedVersionChangesSection() throws {
+    let body = """
+    # Upscayl v2.9.8 🫵🏻
+    Hotfix update for v2.9.7
+
+    <img width="664" alt="image" src="https://github.com/upscayl/upscayl/assets/25067102/b72d3120-feb7-4e7a-b287-59d7d203fe36">
+
+    ## What's Changed 🤓
+    * Fixed the issue that caused batch mode to only output PNG files 🫡
+    * Added helpful hint for custom model option 📧
+    * Added turn off notification option in the settings 🙈
+    * Upscayl will now delete desktop.ini, .DS_Store and other hidden files before performing batch upscale 😀
+    * Fixed a bug that caused Fast model to not work when custom models are enabled 🧿
+
+    ## v2.9.7 Changes 🙈
+    * Improved automatic model scale detection (For example, it now detects '2x' and 'x2' both) 😎
+    * Added WEBP as an export option! 🥳
+    * Fixed Batch Upscayl direct output. Now JPG/WEBP will directly output their own format! ✅
+    * Fixed Batch Upscayl transparent PNG processing bug 🐞
+    * Added Upscayl success/failure system notifications! 📢
+    * Fixed overwrite image bug 🐞
+    * Added Upscayl News 📰
+    * Fixed the 'Release Notes' bug that causes the updater dialog to close 📝
+    * Added extra information hint to Batch Upscayl progress 🫡
+    * Fixed encode image failure issue for Mac App Store build 🖥️
+    * Added Email Developer button for Mac App Store users 📧
+    * Added helpful information hint for Mac App Store users ℹ️
+    * Updated Upscayl Progress animation 🦄
+    * Polished the UI some more 💅🏻
+
+    **Full Changelog**: https://github.com/upscayl/upscayl/compare/v2.9.7...v2.9.8
+
+    # We're getting close to 3.0 😳
+    """
+    let json = try releasesJSON(tag: "v2.9.8", publishedAt: "2024-01-16T09:54:25Z", body: body)
+    let entry = try #require(StructuredChangelogDecoder.decode(
+        json, format: .gitHubReleases, channel: nil, maxEntries: nil)?.entries.first)
+    #expect(entry.items == [
+        "Fixed the issue that caused batch mode to only output PNG files 🫡",
+        "Added helpful hint for custom model option 📧",
+        "Added turn off notification option in the settings 🙈",
+        "Upscayl will now delete desktop.ini, .DS_Store and other hidden files before performing batch upscale 😀",
+        "Fixed a bug that caused Fast model to not work when custom models are enabled 🧿",
+    ])
+}
+
+/// freelens v1.6.1's release body, verbatim (`freelensapp/freelens`, fetched
+/// 2026-10-08): one fix, then 1.6.0's notes under `## Notes from v1.6.0:`.
+/// A "from" heading takes everything after it, so it runs to the end here.
+///
+/// Mutation: drop the `Notes from vX` shape. 1.6.0's lines come back.
+@Test func freelensBugfixDropsTheNotesFromThePreviousRelease() throws {
+    let body = """
+    Bugfixing release that address the problem on Windows with opening the terminal.
+
+    * Removed security patch that broke application on Windows (#1228, #1232)
+
+    ## Notes from v1.6.0:
+
+    Ready for Kubernetes v1.34. New improvements and bug fixes.
+
+    * Views for (cluster) role bindings show more details and hyperlinks to (cluster) roles and service accounts. (#1125)
+    * Added HTTPS support and custom prefix in Prometheus settings. (#1131)
+    * Pods and other resources can be force deleted or force finalized. (#1147)
+    * Pods and Deployments lists have some additional columns that are hidden by default. (#1136)
+      * New column with pod IP address (hidden by default).
+      * New (old) column with number of deployment replicas in `N/N` format (hidden by default).
+      * Columns with node and QoS are now hidden by default.
+      * More hyperlinks in the details.
+    * Node list shows Ready/NotReady condition and has a column if the node is schedulable. (#1196, #1207)
+    * CronJob and Job have a field "Resumed" rather than "Suspend". (#1141)
+    * Items to the list of allowed namespaces or groups and roles to the bindings can be added from a single comma-separated string. (#1144)
+    * Only the first load balancer and the rule of the ingress are shown in the list and more in the tooltip. (#1146, #1217)
+    * Better compatibility with VictoriaMetrics. (#1111, #1202)
+    * Paste action works for the search box in the editor, too. (#1216)
+    * More assertions to prevent crashes. (#1145, #1201)
+    * Fixed CVE-2025-7783, CVE-2025-54798, CVE-2025-5889 in dependencies. (#1209, #1210, #1211, #1213)
+    * Updated Electron 35.7.5
+    * Updated Helm 3.19.0
+    * Updated kubectl 1.34.1
+    * 55 other dependencies have been updated in total.
+
+    """
+    let json = try releasesJSON(tag: "v1.6.1", publishedAt: "2025-09-26T12:48:21Z", body: body)
+    let entry = try #require(StructuredChangelogDecoder.decode(
+        json, format: .gitHubReleases, channel: nil, maxEntries: nil)?.entries.first)
+    #expect(entry.items == ["Removed security patch that broke application on Windows (#1228, #1232)"])
+}
+
+/// vorssaint-utils v3.3.5's release body (`vorssaint/vorssaint-utils`, fetched
+/// 2026-10-08), verbatim up to the second heading after
+/// `### Everything from 3.3.3` (the full body runs on with 3.3.3's notes to
+/// line 119). Its sections after that heading sit at the SAME level, `###`,
+/// so a "from" heading is not closed by a sibling — only by a higher one, or
+/// the end of the body.
+///
+/// Mutation: drop the `Everything from X` shape, or close a "from" section at
+/// a same-level heading. Either way `Performance` and its lines come back.
+@Test func vorssaintHotfixDropsEverythingFromThePreviousRelease() throws {
+    let body = """
+
+    ### Summary
+    Hotfix update for Dock actions, window focus, video presets, temperature readings and the menu bar icon. Extra brightness can now be toggled from the Displays panel, and the full feature update is included below.
+
+    ### Changed
+    - Extra brightness can be switched on and off directly from the Displays panel.
+
+    ### Fixed
+    - Dock previews and click actions work while recording the screen or using overlays that let pointer input pass through.
+    - Focus follows mouse keeps working through recording overlays while respecting windows that actually receive input.
+    - Video editor presets restore added images with their position, size and opacity for the whole video, independently of the original recording.
+    - CPU temperature readings are back on Macs where the System panel had stopped showing them.
+    - The menu bar icon stays visible after updating and keeps the spot you arranged.
+
+    ### Everything from 3.3.3
+    Window controls, recording tools and everyday shortcuts gain more options, with less background work and stronger protection for saved content. This stable release brings together the improvements since 3.3.2, including the full beta cycle and the final reliability fixes.
+
+    ### Performance
+    - Dock previews: 50% shorter default opening wait, from 400 to 200 ms; 60% shorter app-switching wait, from 250 to 100 ms.
+    - CPU: less repeated work in window previews, mouse controls, search and cleaning; Quit on close stops causing excess CPU use in watched apps.
+    - Memory and graphics: fewer retained images and icons, more efficient recording effects, and less repeated work when adjusting watermarks or extra brightness.
+    - Background activity: fewer unnecessary checks and history writes; unused keyboard and mouse listeners are released when features turn off.
+
+    The Dock figures describe configured waits, not total loading time. Battery-life gains and overall CPU, memory or GPU savings have not been measured against 3.3.2.
+
+    """
+    let json = try releasesJSON(tag: "v3.3.5", publishedAt: "2026-09-07T00:34:53Z", body: body)
+    let entry = try #require(StructuredChangelogDecoder.decode(
+        json, format: .gitHubReleases, channel: nil, maxEntries: nil)?.entries.first)
+    #expect(entry.items.count == 6)
+    #expect(!entry.items.contains { $0.hasPrefix("Dock previews: 50%") })
+    #expect(!entry.content.contains(.heading("Performance")))
+}
+
+/// The widened shapes keep the same guards: the named version must be older
+/// than this release, and a heading only counts in its anchored wording.
+@Test func widenedRepeatShapesStillNeedAnOlderVersion() {
+    func items(_ body: String, version: String) -> [String] {
+        GitHubMarkdownParser.parse(body: body, version: version, date: nil)?.entries.first?.items ?? []
+    }
+    // This release's own version, and an unjudgeable one, are kept.
+    let own = "## v2.0.1 Changes:\n- Fixed the crash on launch for everyone"
+    #expect(items(own, version: "2.0.1") == ["Fixed the crash on launch for everyone"])
+    #expect(items(own, version: "nightly") == ["Fixed the crash on launch for everyone"])
+    // BetterDisplay's `### v3.5.6b changes (…)` under its own v3.5.6.
+    #expect(items("### v3.5.6b changes (retrofit)\n- Works on Tahoe now as well", version: "3.5.6") ==
+            ["Works on Tahoe now as well"])
+    // Lookalikes that do not announce an older release's notes.
+    let lookalikes = """
+    ## Upgrading from v0.0.5
+    - Remove the old helper before installing this
+    ## Also in this build (from beta.1)
+    - The list of devices was rebuilt from scratch
+    ## 3 changes worth knowing
+    - Settings moved into their own window now
+    """
+    #expect(items(lookalikes, version: "1.0.0").count == 3)
+}

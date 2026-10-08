@@ -2082,7 +2082,7 @@ extension BrewLifecycle {
         case "deprecated_upstream": String(localized: "It’s deprecated upstream.")
         case "versioned_formula": String(localized: "It’s a versioned formula.")
         case "checksum_mismatch": String(localized: "Its source file’s checksum changed after release, so its upstream repository may have been compromised.")
-        default: String(localized: "Homebrew’s reason: “\(reason)”")
+        default: String(localized: "Homebrew’s reason: “\(reason)”.")
         }
     }
 

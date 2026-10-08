@@ -12465,67 +12465,67 @@
         }
       }
     },
-    "Homebrew’s reason: “%@”": {
+    "Homebrew’s reason: “%@”.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Begründung von Homebrew: „%@“"
+            "value": "Begründung von Homebrew: „%@“."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Motivo de Homebrew: «%@»"
+            "value": "Motivo de Homebrew: «%@»."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Motif donné par Homebrew : « %@ »"
+            "value": "Motif donné par Homebrew : « %@ »."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Motivo indicato da Homebrew: “%@”"
+            "value": "Motivo indicato da Homebrew: “%@”."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew による理由:「%@」"
+            "value": "Homebrew による理由:「%@」。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Motivo do Homebrew: “%@”"
+            "value": "Motivo do Homebrew: “%@”."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Причина от Homebrew: «%@»"
+            "value": "Причина от Homebrew: «%@»."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew’un gerekçesi: “%@”"
+            "value": "Homebrew’un gerekçesi: “%@”."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew 给出的原因：“%@”"
+            "value": "Homebrew 给出的原因：“%@”。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew 給出的原因：「%@」"
+            "value": "Homebrew 給出的原因：「%@」。"
           }
         }
       }

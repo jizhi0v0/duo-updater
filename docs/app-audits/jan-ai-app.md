@@ -25,18 +25,18 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | —       | —（`auto_updates`，让位） | — | ✓ 一键 | — |
-| **nightly**（`jan-nightly.ai.app`） | — | — | — | — | ○（`delta.jan.ai/nightly/latest.json`） |
+| **nightly**（`jan-nightly.ai.app`） | — | — | — | — | 已接入：一键 `.app.tar.gz`，每个架构一条（`delta.jan.ai/nightly/latest.json`） |
 | **beta**（`jan-beta.ai.app`） | — | — | — | —（最后一个 beta prerelease 是 2025-06） | ✗ 现无公开 feed |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**（`GitHubReleasesSource`，规则在
-`Recipes/jan-ai-app.swift`）；nightly 无源应答（unknown）
+`Recipes/jan-ai-app.swift`）；nightly → **VendorProbe**（`.nightly` 渠道，每个架构一条 recipe，各带 `hostRequirement`）
 
 ## Channel 详情
 
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable | `jan.ai.app` | 独立 | — | tag `vX.Y.Z` | ✓ |
-| nightly | `jan-nightly.ai.app` | 独立（Pattern A） | bundle id；app 名 `Jan-nightly`；`detected channel → nightly` | 独立 feed `delta.jan.ai/nightly/latest.json` | ○ 未接，duo 报 unknown |
+| nightly | `jan-nightly.ai.app` | 独立（Pattern A） | bundle id；app 名 `Jan-nightly`；`detected channel → nightly` | 独立 feed `delta.jan.ai/nightly/latest.json` | 已接入（VendorProbe，见下） |
 | beta | `jan-beta.ai.app`（构建脚本，未见真包） | 独立 | — | `delta.jan.ai/beta/latest.json` | ✗ feed 403 |
 
 **渠道怎么分（settled from source: `.github/scripts/rename-tauri-app.sh` 与
@@ -57,7 +57,7 @@
   `app.jan.ai/download/nightly/mac-universal` 302 到 `delta.jan.ai/nightly/Jan-nightly_0.8.4-5203_universal.dmg`
 - nightly 真包（`.app.tar.gz`，105,001,696 B，SHA-256 `99cb56cc…decd`）：bundle id `jan-nightly.ai.app`，
   short = build = `0.8.4-5203`，与 feed 的 `version` 逐字相同；`channel-verify`：`inferred nightly`，
-  `winning source <none>`，`status unknown (no source answered)`
+  `winning source <none>`，`status unknown (no source answered)`（接入 VendorProbe 之前；之后 5203 → Vendor up to date）
 - `delta.jan.ai/beta/latest.json` 403（S3 `AccessDenied`），没有可读的 beta feed
 
 ## 更新检测
@@ -83,7 +83,7 @@
 | | 客户端有这个能力? | 服务端现在真在发? | 我们能消费吗? |
 |---|---|---|---|
 | 按设备灰度 | 请求不带设备标识（endpoints 是固定 URL） | 否：`apps.jan.ai/update-check` 与 GitHub `latest.json` 一致 | 不需要 |
-| 按架构 / 按 OS 分轨 | mac 一个 universal 包 | **0.8.5 起本地模型只在 Apple Silicon 上跑**：随包的 `Contents/Resources/resources/bin/jan-llama-worker` `lipo -archs` = `arm64`，主程序仍是 universal；发布说明原话 “If you rely on local models on an Intel Mac, stay on v0.8.4” | **不能**：包里没有可读的「Intel 不该升」信号，duo 会把 0.8.5 推给 Intel Mac（见已知问题） |
+| 按架构 / 按 OS 分轨 | mac 一个 universal 包 | **0.8.5 起本地模型只在 Apple Silicon 上跑**：随包的 `Contents/Resources/resources/bin/jan-llama-worker` `lipo -archs` = `arm64`，主程序仍是 universal；发布说明原话 “If you rely on local models on an Intel Mac, stay on v0.8.4” | **能**：包里没有可读的「Intel 不该升」信号，所以写在规则上——GitHub 规则的 `architectureRequirement`（0.8.5 起仅 arm64），Intel Mac 停在 0.8.4（见已知问题） |
 | 自更新器会不会和我们抢 | Tauri updater；Jan 是否后台自动下载 / 安装没查（未验证） | 同一个版本 | 第二轮未跑 |
 
 ## Changelog
@@ -117,21 +117,24 @@
   与可执行名无关，未验证）；子进程是否残留
 
 ## 已知问题
-- **Intel Mac 会被推 0.8.5**：0.8.5 的引擎只有 arm64，Intel 上本地模型不再能用，厂商建议 Intel 用户留在 0.8.4。
-  duo 只看版本号，会照常显示更新、一键也会装
+- **Intel Mac 停在 0.8.4（已处理）**：GitHub 规则带 `architectureRequirement`（0.8.5 起仅 arm64）。Intel Mac 上
+  `/releases/latest` 指向 ≥0.8.5 时回退到 releases 列表（只取 stable），给 0.8.4 和它自己的 zip；列表上没有低于门槛的
+  release 时是 `notApplicable`。厂商原话是有条件的：「If you rely on local models on an Intel Mac, stay on v0.8.4.」——
+  0.8.5 在 Intel 上能启动、远程 / 自定义 provider 可用，只是 llama.cpp 本地模型不能加载；这个闸对只用远程 provider 的
+  Intel 用户也停在 0.8.4（取保守一侧）。0.8.5 里 `jan-llama-worker`、ggml dylib、`mlx-server`、`bun`、`uv` 只有 arm64；
+  0.8.4 里 `bun` / `uv` / `mlx-server` 已经只有 arm64、没有随包的 `jan-llama-worker`
 - 面板丢了 Migration 的全部段落（包括上面这条 Intel 警告）
-- nightly（`jan-nightly.ai.app`）duo 报 unknown
 - Homebrew cask 比 GitHub 慢（当天仍是 0.8.4）；cask 是 `auto_updates`，不影响检测
 
 ## 建议下一步
 1. 一键第一轮已过（见「一键安装」）；第二轮（app 运行中）未跑
-2. nightly 检测（可选，交给 `/fragile-recipe`）: VendorProbe，bundle id `jan-nightly.ai.app`，端点
-   `https://delta.jan.ai/nightly/latest.json`，版本正则 `"version"\s*:\s*"([^"]+)"`（`0.8.4-5203` 与包内
-   short 逐字相同），channel nightly。写之前要先用 `VersionComparator` 跑一遍 `0.8.4-5203` 对
-   `0.8.4-5210` / `0.8.5-5300` 这类形状的比较；装包可用 `Jan-nightly_<v>_universal.dmg`，非 stable 一键要
-   `ChannelProofRegistry` 登记。feed 不带 SHA 摘要（只有 minisign 签名）
+2. （已做）nightly：VendorProbe 读 `delta.jan.ai/nightly/latest.json`，`.nightly` 渠道、每个架构一条 recipe（各带
+   `hostRequirement`、只读本平台那一项），版本正则要求 `-<build>` 后缀；一键装 feed 给的 `.app.tar.gz`（Jan 自己的更新器装的
+   就是它，feed 只有 minisign 签名、没有摘要，靠 Team 闸）；`ChannelProofRegistry` 登记 `.artifact("/nightly/Jan-nightly_")`。
+   `VersionComparator` 实测：`0.8.4-5210 > 0.8.4-5203`、`0.8.5-5300 > 0.8.4-5203`、`0.8.4-10000 > 0.8.4-9999`、`0.8.4-5203 > 0.8.4`。
+   `channel-verify`：5203 → Vendor up to date，5195 → `UPDATE → 0.8.4-5203`。一键端到端未跑
 3. `GitHubMarkdownParser`：正文里的非列表段落要不要进面板，值得单独一个 issue（Jan 0.8.5 是现成的反例）
-4. Intel 推送：目前没有 recipe 层能表达「这个版本对 Intel 是功能降级」的字段，先记在这里，不建议为此加机制
+4. （已做）Intel 推送：`GitHubReleaseRule.architectureRequirement`（见「已知问题」）
 
 ## 如何复验
 
@@ -152,6 +155,8 @@ swift run --package-path application-test channel-verify <Jan.app>   # 三个包
 lipo -archs <Jan.app>/Contents/Resources/resources/bin/jan-llama-worker
 ```
 
+以下是接入 nightly VendorProbe **之前**的实测（nightly 行之后是 Vendor，见「建议下一步」2）。
+
 | 包 | bundle id | short / build | Team | detected | winning | status | changelog pane |
 |---|---|---|---|---|---|---|---|
 | 0.8.4 zip | `jan.ai.app` | 0.8.4 / 0.8.4 | F8AH6NHVY5 | stable | GitHub | **UPDATE → 0.8.5** | source structured: 1 entries; 38 items, 5 headings |
@@ -167,8 +172,8 @@ stable 两个包的 `download` 都是 `https://github.com/janhq/jan/releases/dow
 
 ## 重审更正（相对 2026-08-17 版）
 - 原文「Homebrew ✗」：cask 是有的（`jan`），只是 `auto_updates: true`，让位
-- 原文只有 stable：nightly 是独立 bundle id 的另一条轨，有公开 feed，duo 现在报 unknown；beta 轨在构建脚本里存在、
+- 原文只有 stable：nightly 是独立 bundle id 的另一条轨，有公开 feed，重审时 duo 报 unknown（同日已接入 VendorProbe）；beta 轨在构建脚本里存在、
   现在没有公开 feed
 - 原文「GitHub release body」：现在有面板实测行，并查明非列表段落（含 Intel 警告）进不了面板
 - 原文「一键 ✓」没有端到端证据；本次第一轮端到端已跑通（见「一键安装」）
-- 新增：0.8.5 起 Intel Mac 失去本地模型，duo 照推
+- 新增：0.8.5 起 Intel Mac 失去本地模型；重审时 duo 照推，同日加了 `architectureRequirement`，Intel 停在 0.8.4

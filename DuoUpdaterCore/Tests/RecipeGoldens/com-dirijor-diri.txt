@@ -53,6 +53,7 @@ githubRules[0].installAssetPattern? = "^diri-[0-9.]+-universal\\.zip$"
 githubRules[0].installerKind? = .zip
 githubRules[0].installTrust = .developerID
 githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
 
 appStoreCases = Array(count: 0)
 

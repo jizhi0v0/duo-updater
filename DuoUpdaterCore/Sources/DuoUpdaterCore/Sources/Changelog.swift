@@ -136,6 +136,9 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   the 4.0 alpha/beta id `org.audacityteam.Audacity` (the 3.x id in another
     ///   case) gets the stable 4.x notes from a recipe windowed to 4+. Notes
     ///   already cached for such a 4.0.0 build are Audacity 3's.
+    /// - 16: Calibre's recipe keeps its "New features" / "Bug fixes" category
+    ///   `<h3>`s as headings. Notes already cached for a release list both
+    ///   categories as one unheaded run.
     /// - 17: `GitHubMarkdownParser` keeps the prose of a short prose-only block
     ///   under a notice heading (Migration, Upgrade notes, Breaking change, …)
     ///   in a body that has bullets. Notes already cached for Jan 0.8.5 lack its

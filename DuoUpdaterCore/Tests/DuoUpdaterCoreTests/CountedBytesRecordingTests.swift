@@ -17,8 +17,8 @@ struct CountedBytesRecordingTests {
 
     /// Loopback HTTP/1.1 server: `/big` is a 200 with a body far larger than any
     /// case here reads; `/stall` promises that body, sends 64 KiB of it and then
-    /// holds the connection open, so the task cannot finish on its own; anything
-    /// else is a 404 with a short body.
+    /// holds the connection open, so the task cannot finish on its own; `/moved`
+    /// is a 302 to another host; anything else is a 404 with a short body.
     private final class Server: @unchecked Sendable {
         private let listener: NWListener
         private let queue = DispatchQueue(label: "CountedBytesRecordingTests.Server")
@@ -53,6 +53,9 @@ struct CountedBytesRecordingTests {
                     } else if path == "/big" {
                         payload = Data(repeating: 0x61, count: Self.bigLength)
                         header = "HTTP/1.1 200 OK\r\n"
+                    } else if path == "/moved" {
+                        payload = Data(repeating: 0x63, count: 20)
+                        header = "HTTP/1.1 302 Found\r\nLocation: https://elsewhere.invalid/\r\n"
                     } else {
                         payload = Data(repeating: 0x62, count: 20)
                         header = "HTTP/1.1 404 Not Found\r\n"
@@ -115,6 +118,18 @@ struct CountedBytesRecordingTests {
 
     private static let session = URLSession(configuration: .ephemeral)
 
+    /// Refuses every redirect, as `URLSession.updates` refuses one off a
+    /// confined request's site: the caller gets the redirect response itself.
+    private final class RefuseRedirects: NSObject, URLSessionTaskDelegate, Sendable {
+        func urlSession(
+            _ session: URLSession, task: URLSessionTask,
+            willPerformHTTPRedirection response: HTTPURLResponse,
+            newRequest request: URLRequest
+        ) async -> URLRequest? { nil }
+    }
+    private static let refusingSession = URLSession(
+        configuration: .ephemeral, delegate: RefuseRedirects(), delegateQueue: nil)
+
     @Test("Cancelled before reading a byte: recorded once, as cancelled")
     func cancelledBeforeReading() async throws {
         let server = try Server()
@@ -147,6 +162,24 @@ struct CountedBytesRecordingTests {
         #expect(rows.map(\.path).sorted() == ["/big", "/missing"])
         let missing = try #require(rows.first { $0.path == "/missing" })
         #expect(missing.status == 404)
+    }
+
+    @Test("A refused redirect left unread: recorded once")
+    func refusedRedirectUnread() async throws {
+        let server = try Server()
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+
+        do {
+            let (_, response) = try await Self.refusingSession.countedBytes(
+                for: server.request("/moved"), purpose: .versionCheck, store: store)
+            try #require((response as? HTTPURLResponse)?.statusCode == 302)
+        }
+
+        let rows = try await Self.rows(in: store, expecting: 1)
+        #expect(rows.count == 1)
+        #expect(rows.first?.status == 302)
+        #expect(rows.first?.path == "/moved")
     }
 
     @Test("Broken out of after a few bytes: recorded once, with what was received")

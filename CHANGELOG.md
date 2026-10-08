@@ -19,6 +19,24 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.2
+
+**Command-line tools and Homebrew packages are now checked in the background, and their updates show up in notifications and in the badge.** Before, they were only checked when you opened the menu bar popover or the Workbench. A new Settings › Notifications page has a switch each for apps, command-line tools and Homebrew packages. Homebrew packages are off by default.
+
+**Homebrew formulae that Homebrew moved to a cask, removed, renamed, deprecated or disabled are now flagged, and so are deprecated or disabled casks.** Before, these showed as up to date. A renamed formula that hadn't been migrated also stopped every other formula's update check from working. The detail pane gives Homebrew's reason and the command to copy.
+
+**A formula installed from HEAD now says that Homebrew doesn't compare it with upstream, and "Check Upstream" asks for you.** Before, it always showed as up to date.
+
+**More apps and release channels are supported.** TRAE, Jan's nightly build, and Audacity 3 and 4 installed from the developer's website now get update checks and one-click updates. DuoUpdater now follows the beta channel you choose in OBS, iTerm2's "Check for test releases" setting and MonitorControl's beta switch. Arc and Dia Early Birds builds, OpenChamber preview, JetBrains Air nightly and calibre preview builds are now recognised as test builds instead of stable releases.
+
+**Two more command-line tools: Herdr and Luvus.** In the CLI tab each tool now shows its own logo, and Homebrew formulae show their own icons instead of a grey terminal symbol.
+
+**Settings › GitHub shows how many GitHub API requests you have left, and has a switch for using the GitHub CLI's sign-in.** A token you save or remove takes effect immediately. A token GitHub rejects now says so. Command-line tools that run into GitHub's rate limit now say so instead of showing a connection error.
+
+**Release notes are easier to read for more apps.** Vivaldi, Keka, HandBrake, Proxyman, MonitorControl, IINA, iTerm2, OBS and Audacity 4 now get structured notes, and calibre's notes keep their section headings. Nested lists and section headings now appear as the developer wrote them, and release dates now show for Arc, Dia, AppCleaner and MacWhisper.
+
+**The Xcode "sign-in expired" notification is no longer sent while DuoUpdater is still renewing your session in the background.**
+
 ## 0.5.1
 
 **More apps are supported.** Update checks and one-click updates now cover Spotifast, Cindy (both the global and the China edition), Moshi Go, Moshi and Herdr. Lokii gets update checks too, and updates in one click when "Allow one-click updates for apps without a developer signature" is on.

@@ -2,6 +2,24 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.2
+
+**Ferramentas de linha de comando e pacotes do Homebrew agora são verificados em segundo plano, e as atualizações deles aparecem nas notificações e no indicador.** Antes, eles só eram verificados quando você abria o popover da barra de menus ou a bancada. Uma nova página Ajustes › Notificações tem um botão para apps, outro para ferramentas de linha de comando e outro para pacotes do Homebrew; os pacotes do Homebrew vêm desligados.
+
+**Fórmulas que o Homebrew moveu para um cask, removeu, renomeou, descontinuou ou desativou agora são sinalizadas, assim como casks descontinuados ou desativados.** Antes, elas apareciam como atualizadas, e uma fórmula renomeada sem migração ainda impedia a verificação de atualizações de todas as outras fórmulas. O painel de detalhes mostra o motivo dado pelo Homebrew e o comando para copiar.
+
+**Uma fórmula instalada a partir do HEAD agora avisa que o Homebrew não a compara com a origem, e “Verificar origem” consulta por você.** Antes, ela sempre aparecia como atualizada.
+
+**Mais apps e canais de versão são suportados.** TRAE, a versão nightly do Jan e o Audacity 3 e 4 instalados pelo site do desenvolvedor agora têm verificação de atualizações e atualização com um clique. O DuoUpdater agora segue o canal beta que você escolhe no OBS, o ajuste “Check for test releases” do iTerm2 e a opção beta do MonitorControl. As versões Early Birds do Arc e do Dia, OpenChamber preview, JetBrains Air nightly e calibre preview agora são reconhecidas como versões de teste, e não como versões estáveis.
+
+**Mais duas ferramentas de linha de comando: Herdr e Luvus.** Na aba CLI, cada ferramenta agora mostra o próprio logotipo, e as fórmulas do Homebrew mostram o próprio ícone em vez de um símbolo de terminal cinza.
+
+**Ajustes › GitHub mostra quantas solicitações à API do GitHub ainda restam e tem uma opção para usar o login da CLI do GitHub.** Um token salvo ou removido vale na hora, e um token que o GitHub recusa agora é indicado como tal. Ferramentas de linha de comando que atingem o limite de solicitações do GitHub agora dizem isso em vez de mostrar um erro de conexão.
+
+**As notas de versão ficaram mais fáceis de ler em mais apps.** Vivaldi, Keka, HandBrake, Proxyman, MonitorControl, IINA, iTerm2, OBS e Audacity 4 agora têm notas estruturadas, e as do calibre mantêm os títulos das seções. Listas aninhadas e títulos de seção aparecem como o desenvolvedor os escreveu, e a data de lançamento agora aparece para Arc, Dia, AppCleaner e MacWhisper.
+
+**A notificação do Xcode “login expirado” não é mais enviada enquanto o DuoUpdater ainda está renovando sua sessão em segundo plano.**
+
 ## 0.5.1
 
 **Mais apps são compatíveis.** A verificação de atualizações e as atualizações com um clique agora cobrem Spotifast, Cindy (tanto a edição global quanto a da China), Moshi Go, Moshi e Herdr. O Lokii agora também é verificado, e é atualizado com um clique quando “Permitir atualizações com um clique para apps sem assinatura de desenvolvedor” está ativado.

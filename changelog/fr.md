@@ -2,6 +2,24 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.2
+
+**Les outils en ligne de commande et les paquets Homebrew sont désormais vérifiés en arrière-plan, et leurs mises à jour apparaissent dans les notifications et dans la pastille.** Auparavant, ils n’étaient vérifiés qu’à l’ouverture du popover de la barre des menus ou de l’établi. Une nouvelle page Réglages › Notifications propose un interrupteur pour les apps, un pour les outils en ligne de commande et un pour les paquets Homebrew ; les paquets Homebrew sont désactivés par défaut.
+
+**Les formules que Homebrew a déplacées vers un cask, supprimées, renommées, rendues obsolètes ou désactivées sont désormais signalées, de même que les casks obsolètes ou désactivés.** Auparavant, elles apparaissaient à jour, et une formule renommée mais non migrée empêchait en plus la vérification de toutes les autres formules. Le panneau de détails donne la raison indiquée par Homebrew et la commande à copier.
+
+**Une formule installée depuis HEAD indique désormais que Homebrew ne la compare pas à l’amont, et « Vérifier l’amont » s’en charge pour vous.** Auparavant, elle apparaissait toujours à jour.
+
+**Davantage d’apps et de canaux de versions sont pris en charge.** TRAE, la version nightly de Jan, ainsi qu’Audacity 3 et 4 installés depuis le site du développeur, sont désormais vérifiés et se mettent à jour en un clic. DuoUpdater suit maintenant le canal bêta choisi dans OBS, le réglage « Check for test releases » d’iTerm2 et l’interrupteur bêta de MonitorControl. Les versions Early Birds d’Arc et de Dia, OpenChamber preview, JetBrains Air nightly et calibre preview sont désormais reconnues comme des versions de test et non comme des versions stables.
+
+**Deux outils en ligne de commande de plus : Herdr et Luvus.** Dans l’onglet CLI, chaque outil affiche désormais son propre logo, et les formules Homebrew leur propre icône au lieu d’un symbole de terminal gris.
+
+**Réglages › GitHub indique combien de requêtes à l’API GitHub il vous reste et propose un interrupteur pour utiliser la connexion de la CLI GitHub.** Un jeton enregistré ou supprimé prend effet immédiatement, et un jeton refusé par GitHub est signalé comme tel. Les outils en ligne de commande qui atteignent la limite de requêtes de GitHub le disent désormais au lieu d’afficher une erreur de connexion.
+
+**Les notes de version sont plus lisibles pour davantage d’apps.** Vivaldi, Keka, HandBrake, Proxyman, MonitorControl, IINA, iTerm2, OBS et Audacity 4 ont désormais des notes structurées, et celles de calibre gardent leurs titres de section. Les listes imbriquées et les titres de section s’affichent tels que le développeur les a écrits, et la date de publication s’affiche désormais pour Arc, Dia, AppCleaner et MacWhisper.
+
+**La notification Xcode « connexion expirée » n’est plus envoyée pendant que DuoUpdater renouvelle encore votre session en arrière-plan.**
+
 ## 0.5.1
 
 **Davantage d’apps sont prises en charge.** La recherche de mises à jour et les mises à jour en un clic couvrent désormais Spotifast, Cindy (l’édition internationale comme l’édition chinoise), Moshi Go, Moshi et Herdr. Lokii est désormais vérifiée aussi, et se met à jour en un clic lorsque « Autoriser les mises à jour en un clic des apps sans signature de développeur » est activé.

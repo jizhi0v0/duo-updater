@@ -23,7 +23,7 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | —       | —（`auto_updates`，让位） | — | ✓ 一键 | — |
-| **preview**（`v2-preview` 滚动构建） | — | — | — | ✗ 不跟（见下） | — |
+| **preview**（`v2-preview` 滚动构建） | — | — | — | ✓ 一键（`.preview` rule 只读 stable，跟 app 自己的更新器） | — |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**（`GitHubReleasesSource`，规则在
 `Recipes/dev-openchamber-desktop.swift`）
@@ -33,7 +33,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable | `dev.openchamber.desktop` | 共享 | — | tag `vX.Y.Z`（规则 `^v([0-9]+(?:\.[0-9]+)+)$`） | ✓ |
-| preview | `dev.openchamber.desktop` | 共享 | 只有版本串 `2.0.0-preview.8`；`ReleaseChannel.detect()` 不认这个形状，判为 stable | 无：tag `v2-preview` 不匹配规则 | 不跟，见下 |
+| preview | `dev.openchamber.desktop` | 共享 | 版本串 `2.0.0-preview.N`，`ReleaseChannel.detect()` 判为 preview | `.preview` GitHub rule，只读 stable tag 与 stable 资产 | ✓（推 stable，见下） |
 
 **GitHub release 列表（2026-10-08，`gh api repos/openchamber/openchamber/releases`，最近 40 条）:**
 只有一条 prerelease：`v2-preview`（2026-09-14 建，8 个资产）。正文原话是 OpenCode v2 上的测试构建，
@@ -47,14 +47,15 @@ stable version"，当前构建 `2.0.0-preview.8`（分支 `opencode-v2-refactori
   Windows arm64 返回 `latest-arm64`，其余平台不设 channel。源码里没有 beta/nightly 开关，
   preview 构建的 asar 里同一段也是 `allowPrerelease = false`。
 - preview 包与 stable 同 bundle id、同 Team、同 `app-update.yml`（github provider）。
-- **duo 对 preview 包的实测**：`channel-verify` → `detected channel → stable`，`winning source GitHub`，
-  `status UPDATE → 2.1.1`。也就是 duo 会把 stable 2.1.1 推给 preview 用户。按 semver 2.1.1 > 2.0.0-preview.8，
-  而且 v2 已在 2.0.0 正式发布，所以这次推送内容上不算错。
-- preview 自己的更新器会不会也推 2.1.1：**推断会**，未验证。asar 里 electron-updater 的 GitHub
-  provider 在 `allowPrerelease = false` 时读 `/releases/latest`（现在是 v2.1.1），版本比较也是 2.1.1 更大。
-  正文那句「不会更新到 stable」写于 stable 还是 1.23.x 的时候，那时 stable 确实更旧。没启动 app 验证。
-- 缺口（不只是这个 app）：`2.0.0-preview.8` 这种 `-<word>.<N>` 形状，`ReleaseChannel.detect()` 的版本尾
-  词表（`nightly` / `snapshot` / `dev`，以及 `-beta.N`）不收 `preview`。见「建议下一步」。
+- **preview 自己的更新器会推 stable**（读 preview 的 `app.asar` 得出，没启动 app）：`setupAutoUpdater` 设
+  `allowPrerelease = false`，`resolveUpdaterFeed` 返回正式 GitHub feed（`testBuild` 常量为 `false`），electron-updater
+  在 `gt(latest, current)` 时提示更新——所以 preview 构建自己会推 2.1.1。正文那句「不会更新到 stable」写于 stable 还是
+  1.23.x 的时候。2026-10-08 用户决定 duo 跟 app 自己的行为。
+- **duo 现在的处理**：`ReleaseChannel.detect()` 把 `<数字>-preview.<N>` 判为 `.preview`（行上显示 preview）；
+  `Recipes/dev-openchamber-desktop.swift` 另有一条 `.preview` rule，与 stable rule 只差 `channel`，`usePrereleases` 关、
+  `versionPattern` / `installAssetPattern` 都拒绝 `v2-preview` 与 `-preview.N`，所以 preview 拷贝拿到的永远是 stable。
+  `githubChannelProofs` 用 `.recipeAnchor` 锁住这三个字段。`channel-verify`：preview.8 → `preview`、`GitHub`、
+  `UPDATE → 2.1.1`、arm64 dmg；改之前是 `stable`、`GitHub`、`UPDATE → 2.1.1`（渠道标错）。
 
 ## 更新检测
 - 源: `GitHubReleasesSource`，`openchamber/openchamber`，tag 与 Info.plist 的 short / build 同构（`v2.1.1` ↔ `2.1.1`）
@@ -113,15 +114,13 @@ stable version"，当前构建 `2.0.0-preview.8`（分支 `opencode-v2-refactori
   如果碰上这种状态，app 不会退
 
 ## 已知问题
-- preview 构建被判为 stable，duo 推 stable 2.1.1（实测）；当前内容上无害，形状上是渠道检测缺口
 - 运行中且有定时任务 / tunnel 时，退出会被确认框拦下（源码，未实测），会影响一键第二轮
 - 面板只有最新一版的说明
 
 ## 建议下一步
 1. 一键第一轮已过（见「一键安装」）；第二轮（app 运行中）未跑。第二轮注意上面的退出确认框
-2. `ReleaseChannel.detect()` 的版本尾词表考虑收 `preview`（带点号计数 `-preview.N`），先按该处注释的要求
-   在 `verify/baseline.json` 全部版本与真包版本上回放，确认零误判再改。OpenChamber 当下改不改都一样（preview
-   比 stable 旧），价值在下一个用同形状发 preview 的 app
+2. （已做）preview 渠道检测 + `.preview` rule 推 stable（见上）。`detect()` 的 `-preview.N` 规则按其注释要求回放了
+   `verify/baseline.json` 389 个版本与本机 221 个 app 的 439 个版本串：只有 Longbridge 的 `1.0.0-preview.1` 变化，它本来就是 preview
 3. 不需要 changelog recipe
 
 ## 如何复验

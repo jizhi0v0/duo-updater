@@ -286,7 +286,7 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
 
 - [ ] **OpenClaw** · `ai.openclaw.mac` — 渠道来自 Gateway `update.channel`（运行中 Gateway 优先，兜底 `~/.openclaw/openclaw.json`）：beta/dev → 标签 `beta`；extended-stable → 只认该标签。2026-10-08 appcast 近 100 版 0 条带标签；出现带标签条目即接 ChannelBinding（否则 extended-stable 会被 duo 跨轨推）。详见 [审计](docs/app-audits/ai-openclaw-mac.md)
 - [ ] **Superwhisper** · `com.superduper.superwhisper` — 二进制有 `includeBetaUpdates` 键、无 UI 文案；feed 233 条 0 标签，猜的 4 个 beta feed 都 404。需真 app 确认键与机制（agent 类 app）后再定 binding。详见 [审计](docs/app-audits/com-superduper-superwhisper.md)
-- [ ] **OpenChamber — v2-preview** · 同 `dev.openchamber.desktop`，版本 `2.0.0-preview.N`，duo 读成 stable（`ReleaseChannel.detect()` 的版本尾词没有 `preview`）；app 里 `allowPrerelease=false` 写死、无开关。今天 preview 比 stable 旧，无害。详见 [审计](docs/app-audits/dev-openchamber-desktop.md)（2026-10-08）
+- [x] **OpenChamber — v2-preview** · 同 `dev.openchamber.desktop`，版本 `2.0.0-preview.N` → `detect()` 判 preview；`.preview` GitHub rule 只读 stable，preview 拷贝被推 stable（与 app 自己的更新器一致，用户 2026-10-08 定）。详见 [审计](docs/app-audits/dev-openchamber-desktop.md)
 
 ---
 
@@ -465,7 +465,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 - ✗ **Plex — Beta** · Plex Pass 应用内，非独立下载
 - ✗ **Audacity 4 prerelease（alpha/beta）** · `org.audacityteam.Audacity`（与 3.x 只差大小写），版本 `4.0.0` 无后缀；4.x stable 另起 `org.audacityteam.audacity4`；`latest.test.json` 停在 beta 4，暂无可接构建（2026-10-08）
 - ✗ **Audacity 3 经旧 `audacity` cask 安装** · Caskroom 里是 `audacity`、`.app` 只对得上 `audacity@3` → unknown（2026-10-08）
-- ○ **Calibre — preview** · 同 `net.kovidgoyal.calibre`，`download.calibre-ebook.com/preview/` 每周构建，信号仅版本第三段 ≥100（推断，未找到厂商明文）（2026-10-08）
+- ◐ **Calibre — preview** · 同 `net.kovidgoyal.calibre`，`download.calibre-ebook.com/preview/` 每周构建；`detect()` 按厂商 `setup/publish.py` 写明的「第三段 ≥100」判 preview（2026-10-08）。preview 自己的更新源没接；brew 装的 preview 拷贝由 Homebrew 推下一个 stable。详见 [审计](docs/app-audits/net-kovidgoyal-calibre.md)
 - ✗ **Edge — Extended Stable** · 只是更慢的 stable，不单独成轨
 - ✗ **MacUpdater** · 2026-01-01 已停更
 - ✗ **Zen Browser — Twilight(nightly)** · 同 `app.zen-browser.zen`，twilight 是 prerelease tag，stable rule 已用 `usePrereleases:false` 排除；无检测信号
@@ -530,7 +530,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
   测试通过。官网“无 beta”是**旧判断**，已更新。
 - ○ **Arc** · **有** Early Birds（RC）轨，同 bundle id：RC 包 Info.plist 自带 RC feed，装上后 duo 已跟随。加入要在 `arc.net/earlybirds` 申请，获批后 app 内才出现切换（远端开关 `switch-to-beta-enabled`，推断），偏好观察不到，不做 binding。Dia 是另一独立产品。详见 [审计](docs/app-audits/company-thebrowser-Browser.md)（2026-10-08 更正旧的「无 beta」）
 - ○ **Dia** · **有** Early Birds（RC）轨，同 bundle id：RC 包 Info.plist 自带 RC feed（`release-candidate/<UUID>/BoostBrowser-updates.xml`），装上后 duo 已跟随。加入要申请，获批后 app 内才出现切换（远端开关 `switch-to-beta-enabled`，推断），偏好观察不到，不做 binding。与 Arc 不同：Dia 仍在积极开发，RC 领先 stable 一个 minor。详见 [审计](docs/app-audits/company-thebrowser-dia.md)（2026-10-08）
-- ○ **JetBrains Air** · 公开 Public Preview 单轨（releases API `AIR` 全是 `preview`，包内 `SUFeedURL` 指向 `fleet-feed/AIR/eap/…`），另有公开 nightly Sparkle feed（`fleet-feed/AIR/nightly/<arch>/feed.xml`，2026-10-08 为 262.1054），站点 / API / Toolbox 都不分发。nightly 包实测与 Public Preview 共用 `com.jetbrains.air`，包内 `SUFeedURL` 指向 nightly feed，已装的 nightly 拷贝 duo 已跟随；行上渠道显示为 stable、changelog 显示 Public Preview 的说明（判据可用 `SUFeedURL` 的 `/nightly/`，未做）。应用内有没有切换未验证（要启动 app）。详见 [审计](docs/app-audits/com-jetbrains-air.md)（2026-10-08，从「单 channel 全覆盖」移出）
+- ✓ **JetBrains Air** · 公开 Public Preview 单轨（releases API `AIR` 全是 `preview`，包内 `SUFeedURL` 指向 `fleet-feed/AIR/eap/…`）；nightly 包共用 `com.jetbrains.air`、`SUFeedURL` 指向 `fleet-feed/AIR/nightly/…`，`detect()` 据此判 nightly，Sparkle 读它自己的 feed，changelog recipe 排除 nightly。应用内有没有切换未验证（要启动 app）。详见 [审计](docs/app-audits/com-jetbrains-air.md)
 - ✓ **HandBrake** · snapshots（`HandBrake-snapshots`）同 bundle id、无 app 内 toggle，但**不是**同构建：snapshot 是 master 构建、ad-hoc 签名，Info.plist 自带 `appcast_unstable` feed，通用 Sparkle 已跟随，无需 binding（2026-10-08 更正）
 - ✗ **Keka** · 开源 GitHub 有 dev pre-release（`v1.5.2-dev.r5614`），但无独立 bundle id，
   无 app 内 channel toggle；dev 拷贝会被移到下一个 stable，和 Keka 自己的更新器一样（2026-10-08 实测）

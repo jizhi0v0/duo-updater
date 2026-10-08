@@ -1142,8 +1142,12 @@ final class AppListModel {
     /// launch reaches the next full check, not the next install; until then a
     /// recheck runs unauthenticated, exactly as a full check would have before the
     /// login. Not read by the UI; the banner reads `hasGitHubToken`.
+    ///
+    /// `usesCLI` is compared the same way: turning the GitHub CLI's sign-in off in
+    /// Settings must not leave a recheck sending the `gh` token resolved before.
     private struct ResolvedGitHubToken {
         let explicit: String?
+        let usesCLI: Bool
         let token: String?
     }
     @ObservationIgnored private var resolvedGitHubToken: ResolvedGitHubToken?
@@ -1816,11 +1820,12 @@ final class AppListModel {
     /// in turn. See `resolvedGitHubToken` for what this can and cannot notice.
     private func githubTokenForRecheck() async -> String? {
         let explicit = explicitGitHubToken()
-        if let cached = resolvedGitHubToken, cached.explicit == explicit {
+        let usesCLI = prefs.useGitHubCLIToken
+        if let cached = resolvedGitHubToken, cached.explicit == explicit, cached.usesCLI == usesCLI {
             return cached.token
         }
         let token = await Self.resolveGitHubToken(explicit: explicit)
-        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, token: token)
+        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, usesCLI: usesCLI, token: token)
         return token
     }
 
@@ -2936,6 +2941,7 @@ final class AppListModel {
         // Start token resolution early and off-main so a slow `gh` CLI overlaps the
         // local scan instead of freezing the UI or delaying the whole refresh later.
         let explicitToken = explicitGitHubToken()
+        let usesCLI = prefs.useGitHubCLIToken
         async let githubToken = Self.resolveGitHubToken(explicit: explicitToken)
         // The rows' filesystem facts are observed in the same hop, for the list
         // the scan just found — see `pathFacts` for why not on the main actor.
@@ -3007,7 +3013,7 @@ final class AppListModel {
         // rechecks that follow this round's rows reuse it instead of asking `gh`
         // again (see `resolvedGitHubToken`).
         let token = await githubToken
-        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicitToken, token: token)
+        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicitToken, usesCLI: usesCLI, token: token)
         // Second witness for TestFlight rows, read off-main and bounded. It lives in
         // Notification Center's container — a different store behind a different
         // permission from TestFlight's own — so it is a separate way to be denied,

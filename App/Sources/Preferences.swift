@@ -147,6 +147,17 @@ final class Preferences {
         didSet { defaults.set(githubTokenAccount, forKey: Key.githubTokenAccount) }
     }
 
+    /// Whether a token may come from the `gh` CLI's sign-in when none was pasted
+    /// here. Default on. Pushed into the core package like the token itself, so
+    /// every resolve in this process — checks, changelogs, the CLI tools — follows
+    /// it from the next request; `duo` reads the same key.
+    var useGitHubCLIToken: Bool {
+        didSet {
+            defaults.set(useGitHubCLIToken, forKey: GitHubToken.usesCLIKey)
+            GitHubToken.setUsesCLI(useGitHubCLIToken)
+        }
+    }
+
     /// The user's Alcove license key. Empty = not configured (Alcove then falls
     /// back to the public, lagging vendor probe). A live credential → Keychain,
     /// never the plist. See `AlcoveUpdateSource` / `AlcoveLicenseService`.
@@ -530,6 +541,7 @@ final class Preferences {
         self.defaults = defaults
         self.githubToken = Self.loadGitHubToken(defaults: defaults)
         self.githubTokenAccount = defaults.string(forKey: Key.githubTokenAccount) ?? ""
+        self.useGitHubCLIToken = defaults.object(forKey: GitHubToken.usesCLIKey) as? Bool ?? true
         self.alcoveLicenseKey = Keychain.string(account: Self.alcoveLicenseKeyKeychainAccount) ?? ""
         self.alcoveInstanceID = Keychain.string(account: Self.alcoveInstanceIDKeychainAccount) ?? ""
         self.checkFrequency = CheckFrequency(
@@ -619,6 +631,7 @@ final class Preferences {
         // package — the launch path is precisely the one that has no environment
         // and no `gh` to fall back on.
         ChangelogService.setExplicitGitHubToken(self.githubToken)
+        GitHubToken.setUsesCLI(self.useGitHubCLIToken)
         // Same reason as the line above: `didSet` does not fire inside `init`,
         // so without this the store would stay pointed at the boot volume for
         // the whole session no matter what the user configured.

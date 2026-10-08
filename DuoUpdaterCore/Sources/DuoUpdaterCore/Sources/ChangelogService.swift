@@ -462,8 +462,12 @@ public enum ChangelogService {
     /// GitHub answer 401, which is *worse* than sending nothing — the pane goes
     /// empty where anonymous would still have rendered. A menubar app runs for
     /// weeks, so "resolved once per process" would strand it there until relaunch.
+    ///
+    /// Keyed by `GitHubToken.usesCLI` too: turning the GitHub CLI's sign-in off in
+    /// Settings must stop the next request sending the `gh` token it resolved.
     private struct ResolvedToken {
         let explicit: String?
+        let usesCLI: Bool
         let token: String?
         let at: Date
     }
@@ -478,22 +482,23 @@ public enum ChangelogService {
     /// suspension point is exactly the bug this whole change is about), so the
     /// critical sections are these two synchronous calls with the `await` between
     /// them, never inside them.
-    private static func rememberedToken(now: Date) -> (explicit: String?, hit: String??) {
+    static func rememberedToken(now: Date) -> (explicit: String?, usesCLI: Bool, hit: String??) {
+        let usesCLI = GitHubToken.usesCLI
         tokenLock.lock()
         defer { tokenLock.unlock() }
         let explicit = explicitToken
         if let cached = cachedToken,
-           cached.explicit == explicit,
+           cached.explicit == explicit, cached.usesCLI == usesCLI,
            now.timeIntervalSince(cached.at) < tokenTTL {
-            return (explicit, .some(cached.token))
+            return (explicit, usesCLI, .some(cached.token))
         }
-        return (explicit, nil)
+        return (explicit, usesCLI, nil)
     }
 
-    private static func rememberToken(_ token: String?, explicit: String?, at now: Date) {
+    private static func rememberToken(_ token: String?, explicit: String?, usesCLI: Bool, at now: Date) {
         tokenLock.lock()
         defer { tokenLock.unlock() }
-        cachedToken = ResolvedToken(explicit: explicit, token: token, at: now)
+        cachedToken = ResolvedToken(explicit: explicit, usesCLI: usesCLI, token: token, at: now)
     }
 
     /// - Parameter timeout: how long the `gh auth token` subprocess gets. A test
@@ -503,7 +508,7 @@ public enum ChangelogService {
     static func gitHubToken(
         now: Date = Date(), timeout: Duration = .seconds(2)
     ) async -> String? {
-        let (explicit, hit) = rememberedToken(now: now)
+        let (explicit, usesCLI, hit) = rememberedToken(now: now)
         if let hit { return hit }
 
         let resolved: String?
@@ -524,7 +529,7 @@ public enum ChangelogService {
             // let a wedged `gh auth token` hold the whole refresh hostage
             // forever" — and the lesson belongs here too.
             let loader = Task.detached(priority: .utility) {
-                await GitHubToken.resolve(explicit: explicit)
+                await GitHubToken.resolve(explicit: explicit, usesCLI: usesCLI)
             }
             guard let answered = await firstResult(of: loader, within: timeout) else {
                 // Timed out: deliberately *not* cached. Caching would extend one
@@ -536,7 +541,7 @@ public enum ChangelogService {
             resolved = answered
         }
 
-        rememberToken(resolved, explicit: explicit, at: now)
+        rememberToken(resolved, explicit: explicit, usesCLI: usesCLI, at: now)
 
         // `.notice`, not `.debug`: a third-party subsystem's debug/info lines are
         // not persisted, and this one answers "am I exposed to the 60/hour

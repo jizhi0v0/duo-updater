@@ -78,13 +78,18 @@ struct GitHubSettingsPage: View {
                 Spacer(minLength: 0)
             }
             .settingsRow()
+            SettingsDivider()
+            // Off: no token is taken from `gh auth token` (`GitHubToken.usesCLI`);
+            // a token pasted below still is.
+            Toggle("Use the GitHub CLI’s sign-in", isOn: $prefs.useGitHubCLIToken)
+                .settingsRow()
         }
     }
 
     private var cliBadge: SettingsStatusBadge.State {
         switch cliStatus {
         case .none:                          return .loading
-        case .authenticated:                 return .ok
+        case .authenticated:                 return prefs.useGitHubCLIToken ? .ok : .warning
         case .notInstalled, .notLoggedIn:    return .warning
         }
     }
@@ -92,6 +97,8 @@ struct GitHubSettingsPage: View {
     private var statusHeadline: String {
         switch cliStatus {
         case .none:          return String(localized: "Checking the gh CLI…")
+        case .authenticated where !prefs.useGitHubCLIToken:
+            return String(localized: "GitHub CLI is signed in, but DuoUpdater isn’t using its sign-in.")
         case .authenticated: return String(localized: "GitHub CLI is authenticated and ready.")
         case .notLoggedIn:   return String(localized: "GitHub CLI is installed but not signed in. Run `gh auth login`, or paste a token below.")
         case .notInstalled:  return String(localized: "GitHub CLI isn’t installed. Paste a personal access token below to raise the rate limit.")

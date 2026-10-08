@@ -8,11 +8,57 @@ import Foundation
 ///   1. an explicit value (e.g. one the user set in settings),
 ///   2. the `GITHUB_TOKEN` / `GH_TOKEN` environment variables,
 ///   3. the `gh` CLI's stored login (`gh auth token`) — zero-config for the
-///      many developers who already have GitHub CLI authenticated.
+///      many developers who already have GitHub CLI authenticated. Skipped when
+///      the user turned off "Use the GitHub CLI’s sign-in" (`usesCLIKey`).
 public enum GitHubToken {
+    /// The app's preference, in its defaults (`com.duoupdater.app`, which `duo`
+    /// reads too): false stops step 3. Absent means true, the behaviour before
+    /// the setting existed.
+    public static let usesCLIKey = "UseGitHubCLIToken"
+
+    /// This process's reading of `usesCLIKey`, which `resolve(explicit:)` follows.
+    /// The app pushes it from `Preferences` at launch and on every change, as it
+    /// does the explicit token (`ChangelogService.setExplicitGitHubToken`).
+    public static var usesCLI: Bool {
+        usesCLILock.lock()
+        defer { usesCLILock.unlock() }
+        return usesCLIValue
+    }
+
+    public static func setUsesCLI(_ allowed: Bool) {
+        usesCLILock.lock()
+        defer { usesCLILock.unlock() }
+        usesCLIValue = allowed
+    }
+
+    private nonisolated(unsafe) static var usesCLIValue = true
+    private static let usesCLILock = NSLock()
+
     public static func resolve(explicit: String? = nil) async -> String? {
-        if let cheap = preresolved(explicit: explicit) { return cheap }
-        return await ghCLIToken()
+        await resolve(explicit: explicit, environment: ProcessInfo.processInfo.environment, cli: ghCLIToken)
+    }
+
+    /// `resolve(explicit:)` under this process's `usesCLI`, read at the call.
+    static func resolve(
+        explicit: String?, environment: [String: String], cli: @Sendable () async -> String?
+    ) async -> String? {
+        await resolve(explicit: explicit, usesCLI: usesCLI, environment: environment, cli: cli)
+    }
+
+    /// For a process that reads the preference itself (`duo`).
+    public static func resolve(explicit: String?, usesCLI: Bool) async -> String? {
+        await resolve(explicit: explicit, usesCLI: usesCLI,
+                      environment: ProcessInfo.processInfo.environment, cli: ghCLIToken)
+    }
+
+    /// The order itself, with the environment and `gh` injected for tests.
+    static func resolve(
+        explicit: String?, usesCLI: Bool, environment: [String: String],
+        cli: @Sendable () async -> String?
+    ) async -> String? {
+        if let cheap = preresolved(explicit: explicit, environment: environment) { return cheap }
+        guard usesCLI else { return nil }
+        return await cli()
     }
 
     /// Steps 1 and 2 alone — the ones that are two memory reads and cannot block.
@@ -32,11 +78,14 @@ public enum GitHubToken {
     /// So callers answer from here when they can, and spend the deadline only on
     /// the call that can actually hang.
     public static func preresolved(explicit: String? = nil) -> String? {
+        preresolved(explicit: explicit, environment: ProcessInfo.processInfo.environment)
+    }
+
+    static func preresolved(explicit: String?, environment env: [String: String]) -> String? {
         if let explicit = explicit?.trimmingCharacters(in: .whitespacesAndNewlines),
            !explicit.isEmpty {
             return explicit
         }
-        let env = ProcessInfo.processInfo.environment
         for key in ["GITHUB_TOKEN", "GH_TOKEN"] {
             if let value = env[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
                !value.isEmpty {

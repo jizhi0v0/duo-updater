@@ -11618,6 +11618,71 @@
         }
       }
     },
+    "GitHub CLI is signed in, but DuoUpdater isn’t using its sign-in.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub CLI ist angemeldet, aber DuoUpdater verwendet diese Anmeldung nicht."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub CLI tiene la sesión iniciada, pero DuoUpdater no la usa."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub CLI est connecté, mais DuoUpdater n’utilise pas cette connexion."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La CLI GitHub ha effettuato l’accesso, ma DuoUpdater non lo usa."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub CLI はサインイン済みですが、DuoUpdater はそのサインインを使用していません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O GitHub CLI está conectado, mas o DuoUpdater não está usando esse login."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub CLI авторизован, но DuoUpdater не использует этот вход."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub CLI’da oturum açık, ancak DuoUpdater bu oturumu kullanmıyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub CLI 已登录，但 DuoUpdater 未使用其登录。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub CLI 已登入，但 DuoUpdater 未使用其登入。"
+          }
+        }
+      }
+    },
     "GitHub publishes no file hash for this release, so an app without a developer signature can’t be updated in one click.": {
       "extractionState": "manual",
       "localizations": {
@@ -14669,6 +14734,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "未簽署"
+          }
+        }
+      }
+    },
+    "Use the GitHub CLI’s sign-in": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmeldung der GitHub CLI verwenden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar la sesión de GitHub CLI"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utiliser la connexion de GitHub CLI"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usa l’accesso della CLI GitHub"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub CLI のサインインを使用"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar o login do GitHub CLI"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Использовать вход GitHub CLI"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub CLI oturumunu kullan"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 GitHub CLI 的登录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 GitHub CLI 的登入"
           }
         }
       }

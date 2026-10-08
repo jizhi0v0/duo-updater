@@ -105,6 +105,39 @@ import Foundation
                 "a rotated token must not be masked by the cache")
     }
 
+    /// Turning the GitHub CLI's sign-in off must reach the next request: a token
+    /// remembered while it was on is not served once it is off. Checked on the
+    /// cache itself, so no `gh` runs. Mutation: drop `cached.usesCLI == usesCLI`.
+    @Test func turningTheCLISignInOffForgetsTheRememberedToken() async {
+        defer {
+            ChangelogService.setExplicitGitHubToken(nil)
+            ChangelogService.resetGitHubTokenCache()
+            GitHubToken.setUsesCLI(true)
+        }
+        GitHubToken.setUsesCLI(true)
+        ChangelogService.setExplicitGitHubToken("pasted-in-settings")
+        ChangelogService.resetGitHubTokenCache()
+        #expect(await ChangelogService.gitHubToken() == "pasted-in-settings")
+        #expect(ChangelogService.rememberedToken(now: Date()).hit != nil)
+
+        GitHubToken.setUsesCLI(false)
+        #expect(ChangelogService.rememberedToken(now: Date()).hit == nil)
+    }
+
+    /// What the app's callers use — `resolve(explicit:)` — follows the setting the
+    /// app pushed, read at each call. Here, not in `GitHubTokenOrderTests`: it is
+    /// the same process-global this suite serializes. Mutation: pass `true` instead
+    /// of `usesCLI` in `resolve(explicit:environment:cli:)`.
+    @Test func theProcessSettingReachesEveryResolve() async {
+        defer { GitHubToken.setUsesCLI(true) }
+        let asked = GitHubTokenOrderTests.CLI()
+        GitHubToken.setUsesCLI(false)
+        #expect(await GitHubToken.resolve(explicit: nil, environment: [:], cli: { asked.token() }) == nil)
+        #expect(asked.count == 0)
+        GitHubToken.setUsesCLI(true)
+        #expect(await GitHubToken.resolve(explicit: nil, environment: [:], cli: { asked.token() }) == "from-gh")
+    }
+
     /// And the cache ages out on its own, so a token rotated *outside* the app
     /// (`gh auth logout`, a PAT revoked on github.com) recovers without a relaunch.
     @Test func theResolvedTokenCacheExpires() async {

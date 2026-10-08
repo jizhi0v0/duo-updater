@@ -119,7 +119,11 @@ public enum NpmChangelog {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         // A repository that is gone or private has no notes to show.
         if status == 404 { return Changelog(entries: []) }
-        guard (200..<300).contains(status) else { throw CLIToolReleaseNotesError.http(status) }
+        guard (200..<300).contains(status) else {
+            throw CLIToolReleaseNotesError.status(
+                status, rateLimitRemaining: (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "X-RateLimit-Remaining"),
+                url: list)
+        }
         guard let (first, missing) = await offCooperativePool({ parse(data, name: name, versions: versions) })
         else { throw CLIToolReleaseNotesError.noSections }
         // A full page may have left older releases out; anything shorter is all.

@@ -304,9 +304,27 @@ public enum CLIToolUpdateOutcome: Sendable, Equatable {
 
 public enum CLIToolReleaseNotesError: Error, Equatable {
     case http(Int)
+    /// The notes are on the GitHub API, and it refused them for its rate limit
+    /// (`GitHubReleasesSource.isRateLimited`): said as such, since a token is the
+    /// fix and "HTTP 403" told nobody that.
+    case rateLimited
     /// The document came back but no longer looks like release notes — kept apart
     /// from a network failure so a format drift is not mistaken for a blip.
     case noSections
+
+    /// What a non-2xx answer from `url` becomes: GitHub's rate limit by the app
+    /// rows' own rule when `url` is the GitHub API, else its status.
+    static func status(_ code: Int, rateLimitRemaining: String?, url: URL) -> CLIToolReleaseNotesError {
+        guard ChangelogService.isGitHubAPI(url),
+              GitHubReleasesSource.isRateLimited(code, rateLimitRemaining: rateLimitRemaining)
+        else { return .http(code) }
+        return .rateLimited
+    }
+
+    static func status(_ response: HTTPURLResponse, url: URL) -> CLIToolReleaseNotesError {
+        status(response.statusCode, rateLimitRemaining: response.value(forHTTPHeaderField: "X-RateLimit-Remaining"),
+               url: url)
+    }
 }
 
 /// One tool: how to find it, check it, update it and read its release notes.

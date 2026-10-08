@@ -94,8 +94,10 @@ public struct OpencodeRelease: Sendable {
 
     /// The newest page of releases, one entry per release with notes, newest first.
     public func notes(force: Bool) async throws -> Changelog {
-        let (data, status, _) = try await fetch(Self.listURL, force)
-        guard status == 200 else { throw CLIToolReleaseNotesError.http(status) }
+        let (data, status, remaining) = try await fetch(Self.listURL, force)
+        guard status == 200 else {
+            throw CLIToolReleaseNotesError.status(status, rateLimitRemaining: remaining, url: Self.listURL)
+        }
         let changelog = await offCooperativePool { Self.parseNotes(data) }
         guard let changelog else { throw CLIToolReleaseNotesError.noSections }
         return changelog

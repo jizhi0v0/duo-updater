@@ -687,6 +687,9 @@ private struct CLIToolReleaseNotesView: View {
             state = .loaded(CLIToolChangelog.relevant(changelog, installed: installed, latest: latest))
         } catch CLIToolReleaseNotesError.http(let status) {
             state = .failed(String(localized: "The server answered HTTP \(status)."))
+        } catch CLIToolReleaseNotesError.rateLimited {
+            // The rows' own words for the same refusal (`CLIToolWithheld.rateLimited`).
+            state = .failed(String(localized: "Hitting GitHub’s rate limit"))
         } catch CLIToolReleaseNotesError.noSections {
             state = .failed(String(localized: "The file loaded but carried no release sections."))
         } catch {

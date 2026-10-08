@@ -65,7 +65,7 @@ public enum VitePlusChangelog {
         }
         let (data, response) = try await session.countedData(for: request, purpose: .changelog)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw CLIToolReleaseNotesError.http(http.statusCode)
+            throw CLIToolReleaseNotesError.status(http, url: source)
         }
         let parsed = await offCooperativePool { parse(String(decoding: data, as: UTF8.self)) }
         guard let parsed else { throw CLIToolReleaseNotesError.noSections }

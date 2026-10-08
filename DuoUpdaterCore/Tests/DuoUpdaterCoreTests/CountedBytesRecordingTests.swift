@@ -177,6 +177,34 @@ struct CountedBytesRecordingTests {
         #expect(rows.first?.errorCode == NSURLErrorCancelled)
     }
 
+    @Test("A read that throws: recorded once, with nothing left to settle")
+    func readThrows() async throws {
+        let server = try Server()
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+
+        var thrown: Error?
+        do {
+            let (stream, _) = try await Self.session.countedBytes(
+                for: server.request("/big"), purpose: .versionCheck, store: store)
+            var read = 0
+            do {
+                for try await _ in stream {
+                    read += 1
+                    if read == 16 { stream.task.cancel() }
+                }
+            } catch { thrown = error }
+            // The iterator saw the failure, so the task has finished on its own —
+            // the case `settle()` skips.
+            #expect(stream.task.state == .completed)
+        }
+
+        #expect((thrown as? URLError)?.code == .cancelled)
+        let rows = try await Self.rows(in: store, expecting: 1)
+        #expect(rows.count == 1)
+        #expect(rows.first?.errorCode == NSURLErrorCancelled)
+    }
+
     @Test("Read to the end: recorded once, not again when the stream is released")
     func drained() async throws {
         let server = try Server()

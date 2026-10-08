@@ -65,8 +65,10 @@ final class XcodeDownloadCenter {
         // Signed in: Apple's own list too, merged by archive path. It is
         // no-store (~190 KB each time), so it is asked only here — on opening the
         // page, pressing refresh or signing in — never on a timer.
-        let signedIn = AppleDeveloperSession.shared.signInNeed == nil
         let appleData = await AppleDeveloperSession.shared.fetchDownloadList()
+        // After the fetch, which waits out a running renewal: read before it,
+        // a renewal that then failed would show as "unreadable", not signed out.
+        let signedIn = AppleDeveloperSession.shared.signInNeed == nil
         let appleUsable = appleData.map { !AppleDeveloperDownloadList.parse($0).isEmpty } ?? false
         do {
             items = if let appleData, appleUsable {
@@ -115,6 +117,9 @@ final class XcodeDownloadCenter {
         let session = AppleDeveloperSession.shared
         await session.restore()
         await session.refreshSignedInState()
+        // A renewal already running (the launch or hourly check met an expiry)
+        // is waited out first: `signInNeed` reads nil while it runs.
+        await session.awaitRenewal()
         // Ended on Apple's side: with background renewal on, `check()` tries to
         // get a new session without the user before the sign-in window is put
         // in front of them.

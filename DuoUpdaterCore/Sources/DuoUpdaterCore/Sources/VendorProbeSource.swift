@@ -1344,14 +1344,15 @@ public struct VendorProbeSource: UpdateSource {
 
             // 4xx. Could be a real 404, could be a host that simply refuses HEAD.
             //
-            // `bytes(for:)`, not `data(for:)`: this returns once the response HEAD
+            // `countedBytes`, not `countedData`: this returns once the response HEAD
             // is in, leaving the body unread, and we cancel before touching the
-            // stream. `data(for:)` buffers the whole response first — so a host
+            // stream. `countedData` buffers the whole response first — so a host
             // that answers 4xx to HEAD and then IGNORES `Range` would have pulled
             // an entire installer into memory, which is both a hundreds-of-MB
             // stall and a straight violation of this sweep's "never downloads an
             // installer" contract (`Verify.swift`'s header).
-            guard let (stream, ranged) = try? await session.bytes(for: request("GET", range: true)),
+            guard let (stream, ranged) = try? await session.countedBytes(
+                    for: request("GET", range: true), purpose: .versionCheck),
                   let rangedHTTP = ranged as? HTTPURLResponse
             else {
                 // No answer at all. NOT `.gone`: the asymmetry matters, because

@@ -3058,6 +3058,71 @@
         }
       }
     },
+    "%lld / %lld · resets at %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld · wird um %@ zurückgesetzt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld · se restablece a las %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld · réinitialisation à %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld · azzeramento alle %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld · %@ にリセット"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld · redefine às %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld · сброс в %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld · sıfırlanma: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld · %@ 重置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld · %@ 重設"
+          }
+        }
+      }
+    },
     "%lld apps": {
       "extractionState": "manual",
       "localizations": {
@@ -5816,71 +5881,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld/%lld 個 App 未檢查"
-          }
-        }
-      }
-    },
-    "%lld of %lld · resets at %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld von %lld · wird um %@ zurückgesetzt"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld de %lld · se restablece a las %@"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld sur %lld · réinitialisation à %@"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld su %lld · azzeramento alle %@"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld / %lld · %@ にリセット"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld de %lld · redefine às %@"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld из %lld · сброс в %@"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld / %lld · sıfırlanma: %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld / %lld · %@ 重置"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld / %lld · %@ 重設"
           }
         }
       }

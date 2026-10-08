@@ -12,8 +12,9 @@ import Network
 @Suite(.serialized)
 struct GitHubRateBudgetTests {
 
-    /// 2026-10-08 10:00:00 UTC, the window's end in every answer.
-    static let reset: TimeInterval = 1_791_453_600
+    /// The window's end in every answer: an hour from now, whole seconds as the
+    /// header has it, so a window the store is handed is still running.
+    static let reset: TimeInterval = (Date().timeIntervalSince1970 + 3600).rounded(.down)
 
     /// Loopback HTTP/1.1 server. Each answer to `/releases` spends one of 60:
     /// - `/releases` — `ETag` + `Cache-Control: no-cache`, 304 to a matching
@@ -173,35 +174,107 @@ struct GitHubRateBudgetTests {
                 try? FileManager.default.removeItem(atPath: file.path + suffix)
             }
         }
-        #expect(budget.latest == nil)
+        #expect(budget.current(at: Date()).isEmpty && budget.lastReset == nil)
         for _ in 0..<2 {
             var request = URLRequest(url: server.url("/releases"))
             request.cachePolicy = URLRequest.versionFeedCachePolicy
             _ = try await session.data(
                 for: request, delegate: RequestMetricsRecorder(.versionCheck, store: events, rateBudget: budget))
         }
-        for _ in 0..<100 where budget.latest?.remaining != 58 {
+        for _ in 0..<100 where budget.current(at: Date()).first?.remaining != 58 {
             try await Task.sleep(for: .milliseconds(10))
         }
-        #expect(budget.latest == GitHubRateBudget(limit: 60, remaining: 58, reset: Date(timeIntervalSince1970: Self.reset)))
+        #expect(budget.current(at: Date())
+            == [GitHubRateBudget(limit: 60, remaining: 58, reset: Date(timeIntervalSince1970: Self.reset))])
     }
 
-    /// Answers finish out of order. Mutations: keep the last one seen whatever
-    /// its count; let a late answer from an ended window replace a newer one.
-    @Test func whichReadingIsKept() {
-        let hour = Date(timeIntervalSince1970: Self.reset)
-        let now = GitHubRateBudget(limit: 60, remaining: 30, reset: hour)
-        // The same window: the lower count is the later answer.
-        #expect(GitHubRateBudget.keeping(now, .init(limit: 60, remaining: 31, reset: hour)) == now)
-        #expect(GitHubRateBudget.keeping(now, .init(limit: 60, remaining: 29, reset: hour)).remaining == 29)
-        // A new window replaces it; the ended one's late answer does not.
-        let next = GitHubRateBudget(limit: 60, remaining: 59, reset: hour.addingTimeInterval(3600))
-        #expect(GitHubRateBudget.keeping(now, next) == next)
-        #expect(GitHubRateBudget.keeping(next, now) == next)
-        // A token: another budget, whatever its count.
-        let token = GitHubRateBudget(limit: 5000, remaining: 4990, reset: hour.addingTimeInterval(-600))
-        #expect(GitHubRateBudget.keeping(now, token) == token)
-        #expect(GitHubRateBudget.keeping(nil, now) == now)
+    /// Within one window answers finish out of order: the lower count is kept.
+    /// Mutation: keep the last one seen whatever its count.
+    @Test func withinAWindowTheLowerCountIsKept() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let hour = now.addingTimeInterval(1800)
+        let kept = [GitHubRateBudget(limit: 60, remaining: 30, reset: hour)]
+        #expect(GitHubRateBudget.keeping(kept, .init(limit: 60, remaining: 31, reset: hour), now: now) == kept)
+        #expect(GitHubRateBudget.keeping(kept, .init(limit: 60, remaining: 29, reset: hour), now: now).map(\.remaining)
+            == [29])
+        #expect(GitHubRateBudget.keeping([], kept[0], now: now) == kept)
+    }
+
+    /// A token's two windows (observed 2026-10-08: one for `releases/latest`,
+    /// one for the rest) are both kept, earliest reset first, whichever answers
+    /// last. Mutation: let a different reset replace the window kept (the old
+    /// single-reading rule).
+    @Test func twoWindowsOfOneLimitAreBothKept() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let early = GitHubRateBudget(limit: 5000, remaining: 4200, reset: now.addingTimeInterval(600))
+        let late = GitHubRateBudget(limit: 5000, remaining: 3945, reset: now.addingTimeInterval(1800))
+        #expect(GitHubRateBudget.keeping([early], late, now: now) == [early, late])
+        #expect(GitHubRateBudget.keeping([late], early, now: now) == [early, late])
+        // Each keeps its own lower count.
+        let lower = GitHubRateBudget(limit: 5000, remaining: 4100, reset: early.reset)
+        #expect(GitHubRateBudget.keeping([early, late], lower, now: now) == [lower, late])
+    }
+
+    /// A token added or removed is another budget: every window kept goes.
+    /// Mutation: drop the `limit` filter.
+    @Test func anotherLimitDropsEveryWindow() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let kept = [GitHubRateBudget(limit: 5000, remaining: 4200, reset: now.addingTimeInterval(600)),
+                    GitHubRateBudget(limit: 5000, remaining: 3945, reset: now.addingTimeInterval(1800))]
+        let anonymous = GitHubRateBudget(limit: 60, remaining: 59, reset: now.addingTimeInterval(3600))
+        #expect(GitHubRateBudget.keeping(kept, anonymous, now: now) == [anonymous])
+    }
+
+    /// A window whose reset has passed is dropped, and a late answer from one is
+    /// not kept. Mutations: drop the `isCurrent` filter on the windows kept; keep
+    /// an ended `seen`.
+    @Test func endedWindowsAreDropped() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let ended = GitHubRateBudget(limit: 5000, remaining: 12, reset: now.addingTimeInterval(-1))
+        let running = GitHubRateBudget(limit: 5000, remaining: 4999, reset: now.addingTimeInterval(3600))
+        #expect(GitHubRateBudget.keeping([ended], running, now: now) == [running])
+        #expect(GitHubRateBudget.keeping([running], ended, now: now) == [running])
+    }
+
+    /// At most `windowCap`, the ones that end soonest dropped first. Mutations:
+    /// drop the cap; keep the earliest instead of the latest.
+    @Test func theWindowsAreCapped() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let windows = (1...4).map { GitHubRateBudget(limit: 5000, remaining: 100 * $0, reset: now.addingTimeInterval(Double(600 * $0))) }
+        let kept = windows.dropLast().reduce(into: [GitHubRateBudget]()) { $0 = GitHubRateBudget.keeping($0, $1, now: now) }
+        #expect(kept == Array(windows.prefix(3)))
+        #expect(GitHubRateBudget.keeping(kept, windows[3], now: now) == Array(windows.suffix(3)))
+    }
+
+    /// The store: running windows only, and, once all have ended, when the
+    /// budget last refilled — not "nothing seen". Mutations: drop the
+    /// `isCurrent` filter in `current(at:)`; overwrite the windows with an empty
+    /// list when an ended answer arrives.
+    @Test func theStoreSaysWhatIsRunningAndWhenItLastRefilled() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let store = GitHubRateBudget.Store(isAPI: { _ in false })
+        #expect(store.current(at: now).isEmpty && store.lastReset == nil)
+        let early = GitHubRateBudget(limit: 5000, remaining: 4200, reset: now.addingTimeInterval(600))
+        let late = GitHubRateBudget(limit: 5000, remaining: 3945, reset: now.addingTimeInterval(1800))
+        store.record(late, now: now)
+        store.record(early, now: now)
+        #expect(store.current(at: now) == [early, late])
+        #expect(store.current(at: now.addingTimeInterval(900)) == [late])
+        let after = now.addingTimeInterval(2000)
+        #expect(store.current(at: after).isEmpty)
+        #expect(store.lastReset == late.reset)
+        // A late answer from an ended window leaves that answer standing.
+        store.record(GitHubRateBudget(limit: 5000, remaining: 1, reset: now.addingTimeInterval(1900)), now: after)
+        #expect(store.lastReset == late.reset)
+    }
+
+    /// Under a fifth left is low, a fifth is not. Mutation: `<` → `<=`.
+    @Test func aFifthLeftIsTheWarning() {
+        let reset = Date(timeIntervalSince1970: Self.reset)
+        #expect(GitHubRateBudget(limit: 5000, remaining: 999, reset: reset).isRunningLow)
+        #expect(!GitHubRateBudget(limit: 5000, remaining: 1000, reset: reset).isRunningLow)
+        #expect(GitHubRateBudget(limit: 60, remaining: 11, reset: reset).isRunningLow)
+        #expect(!GitHubRateBudget(limit: 60, remaining: 12, reset: reset).isRunningLow)
     }
 
     /// Past its reset a count is no longer what is left. Mutation: always true.

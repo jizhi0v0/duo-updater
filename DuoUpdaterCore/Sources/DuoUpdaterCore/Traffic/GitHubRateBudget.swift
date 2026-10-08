@@ -24,6 +24,17 @@ import Foundation
 /// the same address, and a 304 spends one; with a token it is 5000 and a 304
 /// spends none. What DuoUpdater sent says nothing of what is left.
 ///
+/// **One reading per window, not one reading.** Observed 2026-10-08 with a gh
+/// token: GitHub answered from two `core` windows at once for the same token,
+/// both limit 5000, chosen by endpoint — `/repos/{o}/{r}/releases/latest`
+/// (remaining ~3,945, reset 15:30:50 UTC+8) against `/repos/{o}/{r}`,
+/// `releases?per_page=1` and `/rate_limit` (remaining ~4,200, reset 15:10:57),
+/// each stable over repeated samples. Anonymous answers showed one window. GitHub's
+/// documentation does not describe this; it is an observation. A single reading
+/// that let the later reset win showed one of the two budgets and flipped at the
+/// other's rollover, so each window (a reset time, within one limit) is kept on
+/// its own until it ends.
+///
 /// Kept in memory, per process: `duo` records into its own, never the app's,
 /// and the app starts out knowing nothing until its first API answer.
 public struct GitHubRateBudget: Sendable, Equatable {
@@ -41,6 +52,9 @@ public struct GitHubRateBudget: Sendable, Equatable {
     /// Whether the window it describes is still running. After `reset` the count
     /// is history: the budget has refilled, less whatever else spent it since.
     public func isCurrent(at now: Date) -> Bool { reset > now }
+
+    /// Under a fifth of the limit left: Settings draws the window's bar orange.
+    public var isRunningLow: Bool { remaining * 5 < limit }
 
     /// The budget an answer states; nil without all three headers, or for a
     /// budget other than `core` — search and GraphQL count apart.
@@ -68,23 +82,41 @@ public struct GitHubRateBudget: Sendable, Equatable {
         return nil
     }
 
-    /// What to keep when `seen` arrives with `kept` on hand. Concurrent requests
-    /// finish out of order, so within one window — same limit, same reset — the
-    /// lower count is the later one. A later window replaces it, an earlier one
-    /// arriving late does not, and a different limit (a token added or removed)
-    /// is a different budget altogether.
-    static func keeping(_ kept: GitHubRateBudget?, _ seen: GitHubRateBudget) -> GitHubRateBudget {
-        guard let kept, kept.limit == seen.limit else { return seen }
-        if seen.reset != kept.reset { return seen.reset > kept.reset ? seen : kept }
-        return seen.remaining < kept.remaining ? seen : kept
+    /// Windows kept at most. Two have been seen at once (2026-10-08); a reset
+    /// that ever drifted between answers would make each its own window, and
+    /// this keeps that from growing without end.
+    static let windowCap = 3
+
+    /// The windows to keep when `seen` arrives at `now` with `kept` on hand,
+    /// earliest reset first.
+    ///
+    /// - A window is a reset time within one limit. Concurrent requests finish
+    ///   out of order, so within one the lower count is the later answer.
+    /// - A different limit (a token added or removed) is another budget: every
+    ///   window kept is dropped.
+    /// - A window whose reset has passed is over, and an answer from one is not
+    ///   kept.
+    /// - Past `windowCap`, the windows that end soonest go.
+    static func keeping(_ kept: [GitHubRateBudget], _ seen: GitHubRateBudget, now: Date) -> [GitHubRateBudget] {
+        var windows = kept.filter { $0.limit == seen.limit && $0.isCurrent(at: now) }
+        if seen.isCurrent(at: now) {
+            if let index = windows.firstIndex(where: { $0.reset == seen.reset }) {
+                if seen.remaining < windows[index].remaining { windows[index] = seen }
+            } else {
+                windows.append(seen)
+            }
+        }
+        windows.sort { $0.reset < $1.reset }
+        return Array(windows.suffix(windowCap))
     }
 
-    /// The process's reading.
+    /// The process's windows.
     public final class Store: @unchecked Sendable {
         public static let shared = Store()
 
         private let lock = NSLock()
-        private var budget: GitHubRateBudget?
+        /// Earliest reset first. Some may have ended since they were kept.
+        private var windows: [GitHubRateBudget] = []
         private let isAPI: @Sendable (URL) -> Bool
 
         /// `isAPI` is a test seam: a loopback server is not `api.github.com`.
@@ -92,12 +124,28 @@ public struct GitHubRateBudget: Sendable, Equatable {
             self.isAPI = isAPI
         }
 
-        /// nil until an API answer has been seen.
-        public var latest: GitHubRateBudget? { lock.withLock { budget } }
+        /// The windows still running at `now`, earliest reset first; empty
+        /// before any API answer, and once every window seen has ended.
+        public func current(at now: Date) -> [GitHubRateBudget] {
+            lock.withLock { windows.filter { $0.isCurrent(at: now) } }
+        }
+
+        /// The latest reset among the windows kept; nil before any API answer.
+        /// Once `current` is empty, when the budget last refilled.
+        public var lastReset: Date? { lock.withLock { windows.map(\.reset).max() } }
 
         func observe(_ metrics: URLSessionTaskMetrics) {
             guard let seen = GitHubRateBudget.reading(from: metrics, isAPI: isAPI) else { return }
-            lock.withLock { budget = GitHubRateBudget.keeping(budget, seen) }
+            record(seen, now: Date())
+        }
+
+        func record(_ seen: GitHubRateBudget, now: Date) {
+            lock.withLock {
+                let next = GitHubRateBudget.keeping(windows, seen, now: now)
+                // Empty only when `seen` had itself ended: the windows that ended
+                // before it still say when the budget last refilled.
+                if !next.isEmpty { windows = next }
+            }
         }
     }
 }

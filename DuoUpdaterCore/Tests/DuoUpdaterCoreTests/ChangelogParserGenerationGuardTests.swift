@@ -97,8 +97,12 @@ import Foundation
     /// 10 (`GitHubMarkdownParser`'s strict pass keeps bullets nested under a
     /// top-level bullet) moves neither fixture: neither has a nested bullet.
     /// Pinned by `GitHubMarkdownParserTests` and `BubChangelogTests`.
+    ///
+    /// 11 (`GitHubMarkdownParser` drops an older release's `Changes in version X`
+    /// section) moves neither fixture: neither has such a heading. Pinned by
+    /// `GitHubMarkdownParserTests`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 10)
+        #expect(Changelog.parserGeneration == 11)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

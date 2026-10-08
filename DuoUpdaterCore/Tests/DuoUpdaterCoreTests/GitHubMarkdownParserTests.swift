@@ -654,3 +654,94 @@ private func releasesJSON(tag: String, publishedAt: String, body: String) throws
         .heading("Linux"),
     ])
 }
+
+// MARK: - Another release's notes repeated in the body (Keka)
+
+/// Keka 1.6.7's release body, verbatim (`aonez/Keka`, fetched 2026-10-08). A
+/// hot-fix release that repeats the previous release's notes under
+/// `# Changes in version 1.6.6`. Those notes are 1.6.6's own entry in the same
+/// list, and Keka's site lists one change for 1.6.7; read as 1.6.7's they made
+/// it nine items, with a second "Fixes" heading.
+///
+/// Mutation: stop dropping the section (return the body unchanged from the
+/// function that removes it). 1.6.7 is nine items again and this fails.
+@Test func kekaHotFixDropsTheRepeatedPreviousRelease() throws {
+    let body = """
+    👉 Do not miss [Keka for iOS](https://ios.keka.io) 🤩🤩🤩
+    👉 Follow us on [Mastodon](https://techhub.social/@keka) and [X](https://x.com/kekaosx) to get all the Keka news
+
+    This is a hot-fix release.
+
+    ## Fixes
+    - Reverted BSDTAR from 3.8.8 to 3.8.7 due to issues on macOS 26.5.2 (Thanks to @suishouen) #1762
+
+    # Changes in version 1.6.6
+
+    ## Fixes
+    - Enhanced ISO detection and extraction (Thanks to @frvctal) [#1756](https://github.com/aonez/Keka/issues/1756)
+
+    ## Formats
+    - Updated 7ZZ from 26.01 to 26.02 (Thanks to Igor Pavlov)
+    - Updated BSDTAR from 3.8.7 to 3.8.8 (Thanks to Tim Kientzle and authors)
+    - Updated LZIP from 1.25 to 1.26 (Thanks to Antonio Diaz Diaz)
+    - Updated PLZIP from 1.12 to 1.13 (Thanks to Antonio Diaz Diaz)
+    - Updated XZ from 5.8.1 to 5.8.3 (Thanks to Lasse Collin)
+    - Stripped P7ZIP ARM support, only used as fallback on 10.13 or older (Intel)
+
+    ## Translations
+    - Japanese translation updated (Thanks to @SakiPapa) [#1753](https://github.com/aonez/Keka/issues/1753) [#1761](https://github.com/aonez/Keka/issues/1761)
+    """
+    let json = try releasesJSON(tag: "v1.6.7", publishedAt: "2026-06-30T12:42:14Z", body: body)
+    let entry = try #require(StructuredChangelogDecoder.decode(
+        json, format: .gitHubReleases, channel: nil, maxEntries: nil)?.entries.first)
+    #expect(entry.version == "1.6.7")
+    #expect(entry.items == [
+        "Reverted BSDTAR from 3.8.8 to 3.8.7 due to issues on macOS 26.5.2 (Thanks to @suishouen) #1762",
+    ])
+    #expect(entry.content.isEmpty)
+}
+
+/// What the rule must NOT drop. A heading that names this release's own version,
+/// a newer one, or one that cannot be compared is this release's notes; so is
+/// any other heading that mentions a version — only the "changes in version X"
+/// shape announces another release's notes.
+@Test func onlyAnOlderVersionsChangesHeadingIsDropped() throws {
+    func items(_ body: String, version: String) -> [String] {
+        GitHubMarkdownParser.parse(body: body, version: version, date: nil)?.entries.first?.items ?? []
+    }
+    let ownVersion = """
+    # Changes in version 1.6.7
+    - Reverted the archiver to the previous release
+    """
+    #expect(items(ownVersion, version: "1.6.7") == ["Reverted the archiver to the previous release"])
+    // A build that is not a version (Diri's `nightly` tag) is not judged.
+    #expect(items(ownVersion, version: "nightly") == ["Reverted the archiver to the previous release"])
+    // A dev build lists the release it leads up to.
+    #expect(items(ownVersion, version: "1.6.6") == ["Reverted the archiver to the previous release"])
+
+    let otherShapes = """
+    ## What's new in 2.0
+    - Brand new interface for everything
+    ## Changes since 1.5.0
+    - Faster launch on every Mac
+    ## macOS 14 support
+    - Runs on Sonoma now as well
+    """
+    #expect(items(otherShapes, version: "2.1") == [
+        "Brand new interface for everything", "Faster launch on every Mac", "Runs on Sonoma now as well",
+    ])
+
+    // The section ends at the next heading of its own level or higher.
+    let resumes = """
+    ## Fixes
+    - Fixed the one thing in this release
+    # Changes in version 1.6.6
+    ## Fixes
+    - Fixed something back in the last release
+    # Downloads
+    - Universal build for every Mac here
+    """
+    #expect(items(resumes, version: "1.6.7") == [
+        "Fixed the one thing in this release", "Universal build for every Mac here",
+    ])
+}

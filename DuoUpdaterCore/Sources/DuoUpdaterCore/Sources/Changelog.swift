@@ -113,7 +113,12 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   Of 3,710 release bodies (the last 30 of every GitHub rule's and CLI
     ///   tool's repo, every GitHub recipe's own page, HandBrake and Keka;
     ///   2026-10-08) it changed 41 sources, adding 1,511 lines and removing none.
-    public static let parserGeneration = 10
+    /// - 11: `GitHubMarkdownParser` drops a section headed
+    ///   `Changes in version X` when X is older than the release being parsed.
+    ///   Keka's hot-fix bodies repeat the previous release that way, so notes
+    ///   already cached for 1.6.7 and 1.6.3 carry 9 and 14 items for one fix
+    ///   each. The same 3,710 bodies changed nowhere else.
+    public static let parserGeneration = 11
 
     public let entries: [Entry]
 

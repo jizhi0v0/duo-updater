@@ -66,7 +66,7 @@ public enum GitHubMarkdownParser {
     public static func parse(
         body: String, version: String, date: String?, skipSections: [String] = []
     ) -> Changelog? {
-        let body = firstLanguage(of: body)
+        let body = withoutEarlierReleases(in: firstLanguage(of: body), version: version)
         var (items, content) = extractItems(from: body, lenient: false, skipSections: skipSections)
         if items.isEmpty {
             (items, content) = extractItems(from: body, lenient: true, skipSections: skipSections)
@@ -99,6 +99,50 @@ public enum GitHubMarkdownParser {
             options: .regularExpression)
         else { return body }
         return String(body[..<marker.lowerBound])
+    }
+
+    /// The body without any section that repeats an EARLIER release's notes: one
+    /// opened by a `Changes in version X` heading where X is older than
+    /// `version`, running to the next heading of its own level or higher.
+    ///
+    /// Keka's hot-fix releases (1.6.3, 1.6.7) write their one fix and then
+    /// repeat the release before under `# Changes in version 1.6.6`. Read as
+    /// this release's notes, 1.6.7 was nine items where Keka's site lists one,
+    /// with a second "Fixes" heading. The repeated notes are not lost: they are
+    /// that release's own body, and its own entry. Dropped rather than kept
+    /// under their heading, because the entry is what changed in THIS version,
+    /// and the reader updating to 1.6.7 sees 1.6.6's entry beside it already.
+    ///
+    /// Narrow on purpose. A version in a heading is not the signal — vendors
+    /// write `What's new in 2.0`, `Changes since 1.5.0`, `macOS 14`,
+    /// UTM's `Changes (v5.0.6)`, Keka's own dev builds' `All changes in v1.4.0:`
+    /// — and neither is a version other than this one: Diri's `nightly` tag
+    /// carries `### Changes in 0.9.6-nightly.…`, and a pre-release lists the
+    /// release it leads up to. It takes the wording that announces another
+    /// release's changes AND a version this one is newer than; a `version` that
+    /// is not version-shaped is never judged.
+    static func withoutEarlierReleases(in body: String, version: String) -> String {
+        guard let own = VersionComparator.comparableMarketingVersion(version) else { return body }
+        var kept: [String] = []
+        var skippingBelowLevel: Int?
+        var inFence = false
+        for line in body.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("```") { inFence.toggle() }
+            if !inFence, let heading = headingRawText(of: trimmed) {
+                let level = trimmed.prefix(while: { $0 == "#" }).count
+                if let skipped = skippingBelowLevel, level <= skipped { skippingBelowLevel = nil }
+                if skippingBelowLevel == nil,
+                   let match = heading.range(
+                       of: #"(?i)^changes\s+in\s+version\s+v?\d+(?:\.\d+)*"#, options: .regularExpression),
+                   let other = heading[match].range(of: #"\d+(?:\.\d+)*"#, options: .regularExpression),
+                   VersionComparator.isNewer(own, than: String(heading[match][other])) {
+                    skippingBelowLevel = level
+                }
+            }
+            if skippingBelowLevel == nil { kept.append(line) }
+        }
+        return kept.joined(separator: "\n")
     }
 
     static let skippedSectionKeywords = [

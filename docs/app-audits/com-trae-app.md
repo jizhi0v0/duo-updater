@@ -165,7 +165,7 @@ python3 -c 'import json; p=json.load(open("<Trae.app>/Contents/Resources/app/pac
 
 三个包 `codesign --verify --deep --strict` 退出 0，`spctl` `accepted`（`source=Notarized Developer ID`）。
 
-**一键端到端预备:** 不适用（没有检测）。若之后接 A，上一版可用上表第二行的 3.5.87 包。
+**一键端到端预备:** 上一版用上表第二行的 3.5.87 arm64 包（接入 A 后它会被推 3.5.104）；端到端未跑。
 
 ## 重审更正（相对 2026-08-17 版）
 - 「网络响应不发布 `appVersion`」：现在发布了（`versions[].version`，与真包逐字相同）；Trae 自己的检查响应也带

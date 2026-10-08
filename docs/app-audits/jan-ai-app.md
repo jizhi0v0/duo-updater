@@ -176,4 +176,4 @@ stable 两个包的 `download` 都是 `https://github.com/janhq/jan/releases/dow
   现在没有公开 feed
 - 原文「GitHub release body」：现在有面板实测行，并查明非列表段落（含 Intel 警告）进不了面板
 - 原文「一键 ✓」没有端到端证据；本次第一轮端到端已跑通（见「一键安装」）
-- 新增：0.8.5 起 Intel Mac 失去本地模型，duo 照推
+- 新增：0.8.5 起 Intel Mac 失去本地模型；重审时 duo 照推，同日加了 `architectureRequirement`，Intel 停在 0.8.4

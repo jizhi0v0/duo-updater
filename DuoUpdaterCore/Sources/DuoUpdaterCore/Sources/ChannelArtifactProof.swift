@@ -115,12 +115,14 @@ public enum ChannelProofRegistry {
     /// pattern the author happened to write, and nothing re-derives it. Most of
     /// the rules this map covers gate the channel in their `versionPattern` — a stable tag
     /// cannot satisfy `-pre`, `-beta<N>` or `-insider` — which is why the live
-    /// sweep of 2026-08-27 found nothing misresolving. FOUR do not, and they are
-    /// the four carrying `.recipeAnchor` proofs: UTM's beta and T3 Code's alpha
+    /// sweep of 2026-08-27 found nothing misresolving. SEVEN do not, and they are
+    /// the seven carrying `.recipeAnchor` proofs: UTM's beta and T3 Code's alpha
     /// because their patterns hold no channel token at all (each is byte-identical
-    /// to a stable pattern), and WhatCable's beta and CotEditor's beta because
-    /// their token is OPTIONAL — deliberately, so each accepts the stable tag its
-    /// prereleases graduate into.
+    /// to a stable pattern); WhatCable's beta, CotEditor's beta and the two Cindy
+    /// betas because their token is OPTIONAL — deliberately, so each accepts the
+    /// stable tag its prereleases graduate into; and OpenChamber's preview, which
+    /// accepts ONLY stable tags, because the preview build's own updater offers
+    /// nothing else.
     /// (Counted, not eyeballed: an earlier revision said "all three rules below
     /// gate the channel", the next said WhatCable was the only one that did not,
     /// and both were wrong. It then read THREE for as long as CotEditor's entry
@@ -137,11 +139,12 @@ public enum ChannelProofRegistry {
     /// `…/releases/download/<tag>/<name>` — the tag the `versionPattern` matched
     /// is IN the path, so an `.artifact` proof here asserts the same thing the
     /// version pattern does, but against what was actually resolved rather than
-    /// against what someone meant to write. FOUR entries are not provable that
+    /// against what someone meant to write. SEVEN entries are not provable that
     /// way and carry `.recipeAnchor` proofs instead — UTM's beta and T3 Code's
-    /// alpha, because neither tag nor asset names a channel, and WhatCable's beta
-    /// and CotEditor's beta, because each one's artifact is allowed to be
-    /// stable's. See each entry for what its anchor does and does not cover.
+    /// alpha, because neither tag nor asset names a channel; WhatCable's beta,
+    /// CotEditor's beta and the two Cindy betas, because each one's artifact is
+    /// allowed to be stable's; and OpenChamber's preview, whose artifact is
+    /// required to be. See each entry for what its anchor does and does not cover.
     public static let githubProofs: [ChannelProofKey: ChannelArtifactProof] =
         AppRecipeIndex.merged(\.githubChannelProofs, into: "ChannelProofRegistry.githubProofs")
 

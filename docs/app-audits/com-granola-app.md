@@ -83,7 +83,7 @@
 
 ## 一键安装
 - 状态: 支持（`install: .versionTemplate("https://dr2v7l5emb758.cloudfront.net/{version}/Granola-{version}-mac-universal.dmg")`，`.dmg`）
-- 端到端: **未跑**（本次重审按要求只准备、不安装）。预备件见「如何复验」末尾
+- 端到端（2026-10-08，第一轮，不启动）: 7.626.2 → `duo check` `update 7.626.3`、`source Vendor`；`duo install /Applications/Granola.app --yes --json` → `installed`、`route vendor`、`bytesDownloaded 306974683`（dmg，只过 Team 闸），约 51 s。装后 7.626.3，strict 通过，`Notarized Developer ID`，Team `QZ7DHHLN25`；与厂商 7.626.3 dmg 逐文件比 SHA-256，503 个文件、14 个软链接全部相同。没有启动 app，相机系统扩展没有被激活
 - 格式: dmg（universal，7.626.3 为 306,974,683 B）
 - 校验: **不接**。manifest 的 `sha512` 描述的是 zip，不是 recipe 装的 dmg。实测 7.626.3：manifest
   `ebWkPvoSPQryOWIfzD70NjNWSOXvRzx9ISdhWnCVtrjLavJLExfKS1aMh4m7a2AzFNr21VxZGmGY5byqRBwIcQ==`（zip，297,602,155 B），
@@ -105,7 +105,7 @@
 - 系统扩展在一键后由谁、何时替换没验证
 
 ## 建议下一步
-1. 一键端到端两轮（协调会话串行跑，路径见「如何复验」）。第二轮重点看 Granola 退出时自己的安装会不会把 duo 装好的
+1. 一键第一轮已过（见「一键安装」）；第二轮（app 运行中）未跑。第二轮重点看 Granola 退出时自己的安装会不会把 duo 装好的
    版本覆盖回去，以及扩展状态
 2. 若想要摘要校验：recipe 改装 zip（manifest 的 `sha512` 对得上 zip），要先下载 zip 比对 SHA-512 再改；
    现在 dmg + Team 闸可用，不急
@@ -139,7 +139,7 @@ openssl dgst -sha512 -binary Granola-7.626.3-mac-universal.dmg | base64
 `download` 都是 `https://dr2v7l5emb758.cloudfront.net/7.626.3/Granola-7.626.3-mac-universal.dmg`。
 下载 SHA-256：7.626.2 `766c1ba5…a8b4`（306,972,799 B，与 HEAD 的 `content-length` 相等）、7.626.3 `8a15a7e9…f0e4`。
 
-**一键端到端预备（未跑）:** 上一版用 7.626.2 的 dmg（上表第一行），解包出的 `Granola.app` 就是要 `ditto` 进
+**一键端到端预备（第一轮已用它跑通）:** 上一版用 7.626.2 的 dmg（上表第一行），解包出的 `Granola.app` 就是要 `ditto` 进
 `/Applications` 的那个。预期 `duo check` 报 update 7.626.3，`duo install --yes --json` 走 `route vendor`
 （dmg，仅 Team 闸，没有摘要）。Granola 发版很密，跑之前先看一眼 manifest 是否已经前进。
 
@@ -148,4 +148,4 @@ openssl dgst -sha512 -binary Granola-7.626.3-mac-universal.dmg | base64
 - 原文没提包内的相机系统扩展和它的 helper
 - 原文没说 Granola 自己的检查带登录 token 和设备号，也没说端点不按文件名分轨（本次实测）
 - 原文「暂无公开、逐版本的 changelog」成立；补了面板实测行和 `/updates` 页面为什么不能用
-- 原文「一键 ✓」只有挂载验证、没有端到端；本次也没跑，状态改写为「支持，端到端未跑」
+- 原文「一键 ✓」只有挂载验证、没有端到端；本次第一轮端到端已跑通（见「一键安装」）

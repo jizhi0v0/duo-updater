@@ -104,7 +104,7 @@
 
 ## 一键安装
 - 状态: 支持（GitHub 规则带 `installAssetPattern` + `installerKind: .zip`）
-- 端到端: **未跑**（本次重审按要求只准备、不安装）。预备件见「如何复验」末尾
+- 端到端（2026-10-08，第一轮，不启动）: 0.8.4 → `duo check` `update 0.8.5`、`source GitHub`；`duo install /Applications/Jan.app --yes --json` → `installed`、`route vendor`、`bytesDownloaded 102310987`（GitHub zip），约 12 s。装后 0.8.5，strict 通过，`Notarized Developer ID`，Team `F8AH6NHVY5`；与厂商 0.8.5 zip 逐文件比 SHA-256，27 个文件全部相同（包内无软链接）。`duo restart` 与主程序改名的交互没有测（没有启动 app）
 - 格式: zip（universal，0.8.5 为 102,310,987 B）
 - 校验: GitHub 资产 `digest`。下载 SHA-256 与 digest 相等：0.8.5 `dfd7b4f9…c8e1`、0.8.4 `2ae6e410…edf1`
 - **读的是**: 人人可手动下载的 GA（GitHub 正式版，与 Jan 自己的 update-check 同一版本）
@@ -124,7 +124,7 @@
 - Homebrew cask 比 GitHub 慢（当天仍是 0.8.4）；cask 是 `auto_updates`，不影响检测
 
 ## 建议下一步
-1. 一键端到端两轮（协调会话串行跑，路径见「如何复验」）
+1. 一键第一轮已过（见「一键安装」）；第二轮（app 运行中）未跑
 2. nightly 检测（可选，交给 `/fragile-recipe`）: VendorProbe，bundle id `jan-nightly.ai.app`，端点
    `https://delta.jan.ai/nightly/latest.json`，版本正则 `"version"\s*:\s*"([^"]+)"`（`0.8.4-5203` 与包内
    short 逐字相同），channel nightly。写之前要先用 `VersionComparator` 跑一遍 `0.8.4-5203` 对
@@ -161,7 +161,7 @@ lipo -archs <Jan.app>/Contents/Resources/resources/bin/jan-llama-worker
 三个包 `codesign --verify --deep --strict` 退出 0，`spctl` `accepted`（`source=Notarized Developer ID`）。
 stable 两个包的 `download` 都是 `https://github.com/janhq/jan/releases/download/v0.8.5/jan-mac-universal-0.8.5.zip`。
 
-**一键端到端预备（未跑）:** 上一版用 `v0.8.4` 的 `jan-mac-universal-0.8.4.zip`（上表第一行），解包出的
+**一键端到端预备（第一轮已用它跑通）:** 上一版用 `v0.8.4` 的 `jan-mac-universal-0.8.4.zip`（上表第一行），解包出的
 `Jan.app` 就是要 `ditto` 进 `/Applications` 的那个。预期 `duo check` 报 update 0.8.5，
 `duo install --yes --json` 走 `route vendor`（GitHub zip），先比 digest `dfd7b4f9…c8e1` 再过 Team 闸。
 
@@ -170,5 +170,5 @@ stable 两个包的 `download` 都是 `https://github.com/janhq/jan/releases/dow
 - 原文只有 stable：nightly 是独立 bundle id 的另一条轨，有公开 feed，duo 现在报 unknown；beta 轨在构建脚本里存在、
   现在没有公开 feed
 - 原文「GitHub release body」：现在有面板实测行，并查明非列表段落（含 Intel 警告）进不了面板
-- 原文「一键 ✓」没有端到端证据；本次也没跑，状态改写为「支持，端到端未跑」
+- 原文「一键 ✓」没有端到端证据；本次第一轮端到端已跑通（见「一键安装」）
 - 新增：0.8.5 起 Intel Mac 失去本地模型，duo 照推

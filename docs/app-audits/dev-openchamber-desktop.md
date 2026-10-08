@@ -99,7 +99,7 @@ stable version"，当前构建 `2.0.0-preview.8`（分支 `opencode-v2-refactori
 
 ## 一键安装
 - 状态: 支持（GitHub 规则带 `installAssetPattern` + `installerKind: .dmg`）
-- 端到端: **未跑**（本次重审按要求只准备、不安装）。预备件见「如何复验」末尾
+- 端到端（2026-10-08，第一轮，不启动）: 2.1.0 → `duo check` `update 2.1.1`、`source GitHub`；`duo install /Applications/OpenChamber.app --yes --json` → `installed`、`route vendor`、`bytesDownloaded 263945458`（GitHub dmg），约 55 s。装后 2.1.1，strict 通过，`Notarized Developer ID`，Team `5J7WJGPA2Q`；与厂商 2.1.1 dmg 逐文件比 SHA-256，1400 个文件、14 个软链接全部相同
 - 格式: dmg（arm64 263,945,458 B / x64 273,688,915 B，v2.1.1）
 - 校验: GitHub 资产 `digest`。下载的 SHA-256 与 digest 相等：2.1.1 arm64 `b9851a84…c21a`、2.1.0 arm64
   `e16f04d0…cbf8`、preview arm64 `e99618cc…097b`。另有 `latest-mac.yml` 的 `sha512`，GitHub 路径用不到
@@ -118,7 +118,7 @@ stable version"，当前构建 `2.0.0-preview.8`（分支 `opencode-v2-refactori
 - 面板只有最新一版的说明
 
 ## 建议下一步
-1. 一键端到端两轮（协调会话串行跑，路径见「如何复验」）。第二轮注意上面的退出确认框
+1. 一键第一轮已过（见「一键安装」）；第二轮（app 运行中）未跑。第二轮注意上面的退出确认框
 2. `ReleaseChannel.detect()` 的版本尾词表考虑收 `preview`（带点号计数 `-preview.N`），先按该处注释的要求
    在 `verify/baseline.json` 全部版本与真包版本上回放，确认零误判再改。OpenChamber 当下改不改都一样（preview
    比 stable 旧），价值在下一个用同形状发 preview 的 app
@@ -154,7 +154,7 @@ cat <OpenChamber.app>/Contents/Resources/app-update.yml
 下载 SHA-256 与 GitHub 资产 digest 相等。`download` 一栏三个包都是
 `https://github.com/openchamber/openchamber/releases/download/v2.1.1/OpenChamber-2.1.1-mac-arm64.dmg`。
 
-**一键端到端预备（未跑）:** 上一版用 `v2.1.0` 的 arm64 dmg（上表第一行），解包出的 `OpenChamber.app`
+**一键端到端预备（第一轮已用它跑通）:** 上一版用 `v2.1.0` 的 arm64 dmg（上表第一行），解包出的 `OpenChamber.app`
 就是要 `ditto` 进 `/Applications` 的那个。预期 `duo check` 报 update 2.1.1，`duo install --yes --json`
 走 `route vendor`（GitHub dmg），先比 digest `b9851a84…c21a` 再过 Team 闸。
 
@@ -162,5 +162,5 @@ cat <OpenChamber.app>/Contents/Resources/app-update.yml
 - 原文「Homebrew ✗」：cask 是有的（`openchamber`），只是 `auto_updates: true`，`HomebrewCaskSource` 让位
 - 原文只写 stable 一行：GitHub 上有 `v2-preview` prerelease，同 bundle id，duo 判为 stable 并推 stable（上文）
 - 原文「GitHub release body 内联」：现在有面板实测行，结构化、分节保留
-- 原文「一键 ✓」没有端到端证据；本次也没跑，状态改写为「支持，端到端未跑」
+- 原文「一键 ✓」没有端到端证据；本次第一轮端到端已跑通（见「一键安装」）
 - 「已验证版本」改为「观测版本」

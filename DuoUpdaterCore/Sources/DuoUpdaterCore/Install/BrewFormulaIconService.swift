@@ -88,7 +88,10 @@ public actor BrewFormulaIconService {
         let task = Task<Data?, Never> {
             guard let homepage = await homepage(of: formula) else { return nil }
             await acquireSlot()
-            let outcome = await fetchIcon(homepage: homepage)
+            // Filed against the formula, so the request log's App column names it.
+            let outcome = await RequestAttribution.withApp(Self.attributionID(formula, brewPath: brewPath())) {
+                await fetchIcon(homepage: homepage)
+            }
             releaseSlot()
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             switch outcome {
@@ -173,8 +176,8 @@ public actor BrewFormulaIconService {
                 for: SameSite.confine(request), purpose: .packageIcon),
               let http = response as? HTTPURLResponse
         else { return (favicon, false) }
-        // Left unread, a non-2xx body is still recorded: `countedBytes` settles a
-        // stream released before its end.
+        // Left unread, a non-2xx body is still recorded, as is a page cut off at
+        // `htmlByteLimit`: `countedBytes` settles a stream released before its end.
         guard (200..<300).contains(http.statusCode) else {
             return (favicon, !Self.isTransient(status: http.statusCode))
         }
@@ -256,6 +259,22 @@ public actor BrewFormulaIconService {
     }
 
     // MARK: - Pure rules
+
+    /// The formula's `opt` path (`/opt/homebrew/opt/automake`), its stand-in for
+    /// an app bundle path in request attribution: what every request made for a
+    /// formula (its icon, its release notes) is filed under.
+    public static func attributionID(forFormula formula: String) -> String? {
+        attributionID(formula, brewPath: HomebrewInstaller.brewPath())
+    }
+
+    /// `attributionID(forFormula:)` against a given `brew`. A tap's prefix is dropped.
+    static func attributionID(_ formula: String, brewPath: String?) -> String? {
+        guard let brewPath else { return nil }
+        let short = formula.split(separator: "/").last.map(String.init) ?? formula
+        return URL(fileURLWithPath: brewPath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("opt").appendingPathComponent(short).path
+    }
 
     /// The GitHub login a homepage on `github.com/<owner>/…` or
     /// `<owner>.github.io` belongs to, else nil.

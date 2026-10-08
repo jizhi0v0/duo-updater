@@ -105,6 +105,25 @@ struct BrewFormulaIconServiceTests {
         #expect(BrewFormulaIconService.secure(URL(string: "ftp://ftp.gnu.org/")!) == nil)
     }
 
+    @Test func requestsAreFiledAgainstTheFormulasOptPath() {
+        #expect(BrewFormulaIconService.attributionID("automake", brewPath: "/opt/homebrew/bin/brew")
+            == "/opt/homebrew/opt/automake")
+        #expect(BrewFormulaIconService.attributionID("oven-sh/bun/bun", brewPath: "/usr/local/bin/brew")
+            == "/usr/local/opt/bun")
+        #expect(BrewFormulaIconService.attributionID("automake", brewPath: nil) == nil)
+    }
+
+    @Test func theAppColumnNamesAFormulaWholeAndABundleWithoutItsExtension() {
+        func name(_ appID: String) -> String? {
+            RequestEvent(purpose: .packageIcon, method: "GET", scheme: "https", host: "example.org",
+                         port: nil, path: "/", appID: appID, taskID: UUID(), hopIndex: 0,
+                         redirectCount: 0, status: 200, fetchType: .networkLoad).appName
+        }
+        #expect(name("/opt/homebrew/opt/llama.cpp") == "llama.cpp")
+        #expect(name("/opt/homebrew/opt/python@3.13") == "python@3.13")
+        #expect(name("/Users/me/Applications/draw.io.app") == "draw.io")
+    }
+
     // MARK: brew info
 
     @Test func homepagesKeyedByNameAndFullName() {

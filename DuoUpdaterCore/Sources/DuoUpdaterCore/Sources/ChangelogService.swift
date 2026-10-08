@@ -531,6 +531,7 @@ public enum ChangelogService {
             // it. `AppListModel.resolveGitHubToken` learned this already — "don't
             // let a wedged `gh auth token` hold the whole refresh hostage
             // forever" — and the lesson belongs here too.
+            let generation = GitHubCredentials.current.generation
             let loader = Task.detached(priority: .utility) {
                 await GitHubToken.resolve(explicit: explicit, usesCLI: usesCLI)
             }
@@ -540,6 +541,14 @@ public enum ChangelogService {
                 // through unauthenticated for this one request is enough.
                 Log.source.error("changelog GitHub token resolve timed out — continuing anonymous")
                 return nil
+            }
+            // The credentials changed in Settings while `gh` ran: its answer is
+            // the old credentials', and the request about to carry it would be
+            // counted under the new ones (`countedData` reads the generation when
+            // it is made) — a 401 to it would reject the new token. Ask again
+            // under the new settings instead (review, #1064).
+            guard GitHubCredentials.current.generation == generation else {
+                return await gitHubToken(now: now, timeout: timeout)
             }
             resolved = answered
         }

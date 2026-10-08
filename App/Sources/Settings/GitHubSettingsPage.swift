@@ -7,6 +7,9 @@ import DuoUpdaterCore
 /// persisted, so a bad paste never silently becomes the saved token.
 struct GitHubSettingsPage: View {
     @Bindable var prefs: Preferences
+    /// Told of every change to the credentials — saving or removing the token,
+    /// flipping the switch — through `gitHubCredentialsChanged`.
+    let model: AppListModel
 
     /// nil while the `gh auth status` probe is in flight.
     @State private var cliStatus: GitHubToken.CLIStatus?
@@ -84,6 +87,7 @@ struct GitHubSettingsPage: View {
             // a token pasted below still is.
             Toggle("Use the GitHub CLI’s sign-in", isOn: $prefs.useGitHubCLIToken)
                 .settingsRow()
+                .onChange(of: prefs.useGitHubCLIToken) { model.gitHubCredentialsChanged() }
         }
     }
 
@@ -201,11 +205,20 @@ struct GitHubSettingsPage: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(maskSecret(prefs.githubToken))
                     .font(.system(.body, design: .monospaced))
-                Text(prefs.githubTokenAccount.isEmpty
-                     ? String(localized: "Saved")
-                     : String(localized: "Saved · belongs to \(prefs.githubTokenAccount)"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                // A pasted token is the one sent when there is one, so a
+                // rejection this round is this token's.
+                if model.gitHubTokenRejected {
+                    Label("Rejected by GitHub — check it’s correct and not expired.",
+                          systemImage: "xmark.circle.fill")
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                } else {
+                    Text(prefs.githubTokenAccount.isEmpty
+                         ? String(localized: "Saved")
+                         : String(localized: "Saved · belongs to \(prefs.githubTokenAccount)"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 12)
             Button("Change") { startEditing() }
@@ -240,7 +253,17 @@ struct GitHubSettingsPage: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
         case .none:
-            EmptyView()
+            // No token pasted, so the one GitHub rejected came from the GitHub
+            // CLI's sign-in.
+            if model.gitHubTokenRejected && prefs.githubToken.isEmpty {
+                Label("GitHub rejected the GitHub CLI’s sign-in", systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+                    .font(.callout)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            } else {
+                EmptyView()
+            }
         }
     }
 
@@ -273,6 +296,8 @@ struct GitHubSettingsPage: View {
                 }
                 .settingsRow()
             }
+            // Drawn again the moment the credentials change, not at the next tick.
+            .id(model.gitHubCredentialChanges)
         }
     }
 
@@ -323,6 +348,7 @@ struct GitHubSettingsPage: View {
         if case .valid(let username, _) = result {
             prefs.githubToken = trimmedDraft   // commit only when confirmed
             prefs.githubTokenAccount = username
+            model.gitHubCredentialsChanged()
             draft = ""
             editing = false
         }
@@ -340,6 +366,7 @@ struct GitHubSettingsPage: View {
         draft = ""
         prefs.githubToken = ""
         prefs.githubTokenAccount = ""
+        model.gitHubCredentialsChanged()
         verification = nil
         editing = true
     }

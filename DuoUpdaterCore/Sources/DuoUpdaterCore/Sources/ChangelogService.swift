@@ -459,9 +459,11 @@ public enum ChangelogService {
     /// A resolved token, remembered so `gh auth token` isn't re-spawned on every
     /// changelog open. Keyed by the explicit value it was resolved from, and aged
     /// out: a token revoked mid-session (`gh auth logout`, a rotated PAT) makes
-    /// GitHub answer 401, which is *worse* than sending nothing — the pane goes
-    /// empty where anonymous would still have rendered. A menubar app runs for
-    /// weeks, so "resolved once per process" would strand it there until relaunch.
+    /// GitHub answer 401, which is *worse* than sending nothing — the pane went
+    /// empty where anonymous would still have rendered. `countedData` now asks
+    /// again without it (`GitHubCredentials`), but each 401 still costs a round
+    /// trip. A menubar app runs for weeks, so "resolved once per process" would
+    /// strand it there until relaunch.
     ///
     /// Keyed by `GitHubToken.usesCLI` too: turning the GitHub CLI's sign-in off in
     /// Settings must stop the next request sending the `gh` token it resolved.

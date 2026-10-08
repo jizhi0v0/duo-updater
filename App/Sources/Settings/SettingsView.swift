@@ -83,7 +83,7 @@ struct SettingsView: View {
         case .backups:     BackupsSettingsPage(prefs: prefs, model: model)
         case .folders:     FoldersSettingsPage(prefs: prefs, model: model)
         case .updates:     UpdatesSettingsPage()
-        case .github:      GitHubSettingsPage(prefs: prefs)
+        case .github:      GitHubSettingsPage(prefs: prefs, model: model)
         case .alcove:      AlcoveSettingsPage(prefs: prefs)
         case .xcode:       XcodeSettingsPage(prefs: prefs)
         case .ignored:     IgnoredSettingsPage(prefs: prefs, model: model)

@@ -188,6 +188,89 @@ struct GitHubRateBudgetTests {
             == [GitHubRateBudget(limit: 60, remaining: 58, reset: Date(timeIntervalSince1970: Self.reset))])
     }
 
+    /// A change in Settings empties the card until the new credentials answer,
+    /// and an answer to a request made under the old ones is not kept.
+    /// Mutations: drop the generation guard in `record`; drop the generation
+    /// check in `current(at:)` and `lastReset`; keep the windows in `record`
+    /// when the generation has moved on.
+    @Test func aCredentialChangeKeepsOnlyTheNewCredentialsAnswers() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let credentials = GitHubCredentials()
+        let store = GitHubRateBudget.Store(isAPI: { _ in false }, credentials: credentials)
+        let token = GitHubRateBudget(limit: 5000, remaining: 4200, reset: now.addingTimeInterval(600))
+        let before = credentials.generation
+        store.record(token, now: now, generation: before)
+        #expect(store.current(at: now) == [token])
+
+        credentials.changed()
+        #expect(store.current(at: now).isEmpty)
+        #expect(store.lastReset == nil, "the card reads \"No answer from GitHub yet\"")
+        // The old round's request answers after the change.
+        store.record(GitHubRateBudget(limit: 5000, remaining: 4100, reset: token.reset), now: now, generation: before)
+        #expect(store.current(at: now).isEmpty && store.lastReset == nil)
+
+        let anonymous = GitHubRateBudget(limit: 60, remaining: 59, reset: now.addingTimeInterval(3600))
+        store.record(anonymous, now: now, generation: credentials.generation)
+        #expect(store.current(at: now) == [anonymous])
+
+        // Another token on the same limit as the first: the first's window does
+        // not come back beside it.
+        let first = credentials.generation
+        store.record(token, now: now, generation: first)
+        credentials.changed()
+        let other = GitHubRateBudget(limit: 5000, remaining: 4999, reset: now.addingTimeInterval(1800))
+        store.record(other, now: now, generation: credentials.generation)
+        #expect(store.current(at: now) == [other])
+    }
+
+    /// The recorder tags the request with the generation it was made under —
+    /// when it was made, not when its metrics arrive, and the pinned one inside a
+    /// round still checking with an older token. Mutations: read the generation
+    /// in the metrics callback instead of at init; ignore `pinnedGeneration`.
+    @Test func theRecorderTagsTheGenerationTheRequestWasMadeUnder() async throws {
+        let server = try Server()
+        let session = Self.session()
+        let credentials = GitHubCredentials()
+        let budget = GitHubRateBudget.Store(isAPI: Self.loopback, credentials: credentials)
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("events-\(UUID().uuidString).sqlite")
+        let events = EventStore(
+            fileURL: file, retentionDays: 30, retentionBytes: 64 * 1024 * 1024,
+            flushEventCount: 1, flushDelay: .milliseconds(10), pruneInterval: .seconds(3600), now: Date.init)
+        defer {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(atPath: file.path + suffix)
+            }
+        }
+        func fetch(_ recorder: RequestMetricsRecorder) async throws {
+            var request = URLRequest(url: server.url("/fresh"))
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            _ = try await session.data(for: request, delegate: recorder)
+            // The metrics callback can trail the response by a moment.
+            try await Task.sleep(for: .milliseconds(200))
+        }
+
+        // Made before the change, answered after it.
+        let early = RequestMetricsRecorder(.versionCheck, store: events, rateBudget: budget)
+        let old = credentials.generation
+        credentials.changed()
+        try await fetch(early)
+        #expect(budget.current(at: Date()).isEmpty)
+
+        // Made after the change, inside a round pinned to the old generation.
+        let pinned = GitHubCredentials.$pinnedGeneration.withValue(old) {
+            RequestMetricsRecorder(.versionCheck, store: events, rateBudget: budget)
+        }
+        try await fetch(pinned)
+        #expect(budget.current(at: Date()).isEmpty)
+
+        // Made under the credentials in use: kept.
+        try await fetch(RequestMetricsRecorder(.versionCheck, store: events, rateBudget: budget))
+        for _ in 0..<100 where budget.current(at: Date()).isEmpty {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(budget.current(at: Date()).map(\.limit) == [60])
+    }
+
     /// Within one window answers finish out of order: the lower count is kept.
     /// Mutation: keep the last one seen whatever its count.
     @Test func withinAWindowTheLowerCountIsKept() {

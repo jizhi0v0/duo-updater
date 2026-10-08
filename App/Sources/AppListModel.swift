@@ -1190,12 +1190,30 @@ final class AppListModel {
     /// another tool's row with Homebrew's packages hidden (review, #1008).
     var requestedWorkbenchHomebrew = false
 
-    /// Whether a GitHub token resolved (explicit, env, or `gh` login) the last
-    /// time the source stack was built. Drives the aggregate rate-limit banner:
-    /// false + several rate-limited rows ⇒ nudge the user to add a token. Stays
-    /// false until the first check (the banner also requires rate-limit errors,
-    /// which only exist after a check has run `makeSources` and set this).
+    /// Whether a GitHub token resolved (explicit, env, or `gh` login) under the
+    /// credentials in use now — the latest `resolvedGitHubToken`, which a round,
+    /// a recheck's miss, or a change in Settings (`gitHubCredentialsChanged`)
+    /// writes. Drives the aggregate rate-limit banner: false + several
+    /// rate-limited rows ⇒ nudge the user to add a token. False until the first
+    /// resolve (the banner also requires rate-limit errors, which only exist
+    /// after a check).
     private(set) var hasGitHubToken = false
+
+    /// GitHub rejected the token (`401`) this round, or the last one: the
+    /// round carries on without it (`GitHubCredentials`). Drives the popover's
+    /// "GitHub rejected your token" banner and Settings › GitHub's token area.
+    /// Kept through a round's start, which tries the token again, so the banner
+    /// does not blink off and on with every refresh while the token stays
+    /// rejected; a round that ends without a rejection clears it, and so does a
+    /// change in Settings.
+    private(set) var gitHubTokenRejected = false
+
+    /// How many times the GitHub credentials changed in Settings — the observable
+    /// face of `GitHubCredentials.generation`, which views cannot watch. The
+    /// budget card keys on it: the change lands in an `onChange`, after the page
+    /// already drew, and the card would otherwise show the old token's windows
+    /// until its next 5-second tick.
+    private(set) var gitHubCredentialChanges = 0
 
     /// The most recent GitHub token resolution: the token (nil when none was
     /// found) and the explicit Settings value it was resolved under.
@@ -1210,7 +1228,8 @@ final class AppListModel {
     /// Invalidation is by comparison, not by event: a recheck reuses the entry only
     /// while `explicit` still equals what Settings holds, so a token pasted or
     /// cleared there takes effect on the very next recheck, and every full refresh
-    /// re-resolves regardless and overwrites this. The one change this cannot see
+    /// re-resolves regardless and overwrites this (unless the credentials changed
+    /// while it ran — see `gitHubCredentialsChanged`). The one change this cannot see
     /// is the `gh` CLI's own login moving underneath us — `gh auth login` after
     /// launch reaches the next full check, not the next install; until then a
     /// recheck runs unauthenticated, exactly as a full check would have before the
@@ -1223,7 +1242,9 @@ final class AppListModel {
         let usesCLI: Bool
         let token: String?
     }
-    @ObservationIgnored private var resolvedGitHubToken: ResolvedGitHubToken?
+    @ObservationIgnored private var resolvedGitHubToken: ResolvedGitHubToken? {
+        didSet { hasGitHubToken = resolvedGitHubToken?.token != nil }
+    }
 
     /// Background auto-check loop; nil when the frequency is "manual".
     private var scheduler: Task<Void, Never>?
@@ -1851,6 +1872,14 @@ final class AppListModel {
         Task { await cliTools.scanInstalls() }
         // Every landed check, whichever path asked, may have something new to say.
         cliTools.onReport = { [weak self] in self?.notifyNewCLIToolUpdates() }
+        // A rejection is reported from whichever request met it; the banner hears
+        // of it on the main actor, unless the credentials changed in between.
+        GitHubCredentials.shared.onRejected { [weak self] generation in
+            Task { @MainActor in
+                guard GitHubCredentials.shared.generation == generation else { return }
+                self?.gitHubTokenRejected = true
+            }
+        }
     }
 
     /// The explicit GitHub token preference as the resolver should see it: nil when
@@ -1900,16 +1929,45 @@ final class AppListModel {
         if let cached = resolvedGitHubToken, cached.explicit == explicit, cached.usesCLI == usesCLI {
             return cached.token
         }
+        let generation = GitHubCredentials.shared.generation
         let token = await Self.resolveGitHubToken(explicit: explicit)
-        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, usesCLI: usesCLI, token: token)
+        // Not remembered when the credentials changed during the resolve: the
+        // change's own resolve owns `resolvedGitHubToken`, and `hasGitHubToken`
+        // with it.
+        if GitHubCredentials.shared.generation == generation {
+            resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, usesCLI: usesCLI, token: token)
+        }
         return token
+    }
+
+    /// The one place a change to the GitHub credentials reaches the model: the
+    /// Settings token saved or cleared, or the "Use the GitHub CLI’s sign-in"
+    /// switch flipped (`GitHubSettingsPage` calls this for all three).
+    ///
+    /// Resolves again at once, so `hasGitHubToken` — and the banner that reads
+    /// it — follows the new setting now rather than at the next full round. A
+    /// round already in flight is left alone: it keeps the token it started with
+    /// and, finishing after this, does not write its stale resolution over this
+    /// one (it checks the generation first).
+    func gitHubCredentialsChanged() {
+        GitHubCredentials.shared.changed()
+        gitHubCredentialChanges += 1
+        gitHubTokenRejected = false
+        let generation = GitHubCredentials.shared.generation
+        let explicit = explicitGitHubToken()
+        let usesCLI = prefs.useGitHubCLIToken
+        Task { [weak self] in
+            let token = await Self.resolveGitHubToken(explicit: explicit)
+            // A later change started its own resolve, which owns the answer.
+            guard let self, GitHubCredentials.shared.generation == generation else { return }
+            self.resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, usesCLI: usesCLI, token: token)
+        }
     }
 
     /// The ordered source stack, rebuilt per check so it picks up a token change
     /// and the App Store source re-reads the signed-in storefront region.
     private func makeSources(token: String?) -> [any UpdateSource] {
-        hasGitHubToken = (token != nil)
-        return SourceStack.make(
+        SourceStack.make(
             githubToken: token, alcove: alcoveCredentials(),
             channelStore: ResolvedChannelStore.shared)
     }
@@ -3018,6 +3076,7 @@ final class AppListModel {
         // local scan instead of freezing the UI or delaying the whole refresh later.
         let explicitToken = explicitGitHubToken()
         let usesCLI = prefs.useGitHubCLIToken
+        let credentialGeneration = GitHubCredentials.shared.generation
         async let githubToken = Self.resolveGitHubToken(explicit: explicitToken)
         // The rows' filesystem facts are observed in the same hop, for the list
         // the scan just found — see `pathFacts` for why not on the main actor.
@@ -3085,11 +3144,17 @@ final class AppListModel {
         // changed underneath it and must not be reverted to the snapshot (#255).
         let roundBaseline = results
         isChecking = true
+        // A new round sends the token again, even one GitHub rejected last round.
+        GitHubCredentials.shared.beginRound()
         // Remember what resolved, and under which Settings value, so the per-app
         // rechecks that follow this round's rows reuse it instead of asking `gh`
-        // again (see `resolvedGitHubToken`).
+        // again (see `resolvedGitHubToken`). Unless the credentials changed since
+        // this round read them: `gitHubCredentialsChanged` has resolved the new
+        // ones, and this round only goes on checking with the old.
         let token = await githubToken
-        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicitToken, usesCLI: usesCLI, token: token)
+        if GitHubCredentials.shared.generation == credentialGeneration {
+            resolvedGitHubToken = ResolvedGitHubToken(explicit: explicitToken, usesCLI: usesCLI, token: token)
+        }
         // Second witness for TestFlight rows, read off-main and bounded. It lives in
         // Notification Center's container — a different store behind a different
         // permission from TestFlight's own — so it is a separate way to be denied,
@@ -3171,7 +3236,12 @@ final class AppListModel {
                 await self?.recheckTestFlightRows()
             }
         }
-        var checkedRows = await checker.check(plan.check) + plan.carried
+        // Under the generation the token was resolved in, which is what its
+        // requests carry even after a change in Settings: what GitHub says to
+        // them is not about the credentials in use then (`GitHubRateBudget.Store`).
+        var checkedRows = await GitHubCredentials.$pinnedGeneration.withValue(credentialGeneration) {
+            await checker.check(plan.check)
+        } + plan.carried
         // The TestFlight rows above were answered from the store as it stood when
         // this round began. If the sync changed it, answer them again from the new
         // one — and only them, since nothing else reads that store. Tagging is
@@ -3244,7 +3314,9 @@ final class AppListModel {
                     announcements: syncedAnnouncements,
                     appStoreSignedIn: appStoreSignedIn,
                     channelStore: ResolvedChannelStore.shared)
-                let rechecked = await resync.check(targets)
+                let rechecked = await GitHubCredentials.$pinnedGeneration.withValue(credentialGeneration) {
+                    await resync.check(targets)
+                }
                 Log.app.notice("TestFlight sync: re-checked \(rechecked.count, privacy: .public) TestFlight rows against the synced store")
                 checkedRows = TestFlightRefresh.merging(checkedRows, resynced: rechecked)
             }
@@ -3298,6 +3370,9 @@ final class AppListModel {
         }.value
         await refreshBackupIndex()
         isChecking = false
+        // Whether this round's token was rejected; one that was not clears the
+        // banner the last round left up.
+        gitHubTokenRejected = GitHubCredentials.shared.isRejected
         recordCheckOutcomes(checked)
         scheduleAutomaticRetry(afterRound: checked, intent: intent)
         lastCheck = .now

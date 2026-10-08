@@ -38,6 +38,10 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
     private let appID: String?
     private let store: EventStore
     private let rateBudget: GitHubRateBudget.Store
+    /// The GitHub credentials generation the request is made under, read here,
+    /// in the calling task, for the reason the attribution is (see
+    /// `countedData`): the budget keeps only answers to the credentials in use.
+    private let credentialGeneration: Int
 
     public init(
         _ purpose: RequestPurpose, appID: String? = nil, store: EventStore = .shared
@@ -46,6 +50,7 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
         self.appID = appID
         self.store = store
         self.rateBudget = .shared
+        self.credentialGeneration = GitHubRateBudget.Store.shared.requestGeneration()
         super.init()
     }
 
@@ -55,6 +60,7 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
         self.appID = nil
         self.store = store
         self.rateBudget = rateBudget
+        self.credentialGeneration = rateBudget.requestGeneration()
         super.init()
     }
 
@@ -64,7 +70,7 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
     ) {
         // Every GitHub API fetch passes here, so this is where Settings ▸ GitHub
         // learns what is left of the budget, without a request of its own.
-        rateBudget.observe(metrics)
+        rateBudget.observe(metrics, generation: credentialGeneration)
         let events = Self.events(from: metrics, task: task, purpose: purpose, appID: appID)
         guard !events.isEmpty else { return }
         // Synchronous hand-off, not `Task { await store.append(…) }`. This
@@ -218,8 +224,36 @@ public extension URLSession {
     /// A thin wrapper rather than something clever, so the recording is visible
     /// at the call site: a reader can tell which fetches are accounted for by
     /// looking, and a new one that forgets shows up as a plain `data(for:)`.
+    ///
+    /// Also where a GitHub token GitHub rejected is dropped (`GitHubCredentials`):
+    /// a 401 from the API to a request that carried one is retried once without
+    /// it, and while the rejection stands the API requests that follow go without
+    /// it from the start. Every API fetch passes here, which is why it is here.
+    /// `followsTokenRejection: false` is for a token that is not the one in use —
+    /// Settings verifying a pasted token before saving it, whose 401 is the
+    /// answer it asked for.
     func countedData(
-        for request: URLRequest, purpose: RequestPurpose, store: EventStore = .shared
+        for request: URLRequest, purpose: RequestPurpose, store: EventStore = .shared,
+        followsTokenRejection: Bool = true
+    ) async throws -> (Data, URLResponse) {
+        guard followsTokenRejection else {
+            return try await recordedData(for: request, purpose: purpose, store: store)
+        }
+        // Read in the calling task, for the attribution's reason below: a round
+        // pins its generation in a task-local.
+        let credentials = GitHubCredentials.current
+        let generation = credentials.requestGeneration()
+        let outgoing = GitHubCredentials.carriesToken(request) && credentials.isRejected(generation: generation)
+            ? GitHubCredentials.anonymous(request) : request
+        let answer = try await recordedData(for: outgoing, purpose: purpose, store: store)
+        guard GitHubCredentials.isRejection(of: outgoing, answer.1) else { return answer }
+        credentials.recordRejection(generation: generation)
+        Log.source.notice("GitHub rejected the token (HTTP 401) — asking again without it")
+        return try await recordedData(for: GitHubCredentials.anonymous(outgoing), purpose: purpose, store: store)
+    }
+
+    private func recordedData(
+        for request: URLRequest, purpose: RequestPurpose, store: EventStore
     ) async throws -> (Data, URLResponse) {
         // The attribution is read **here**, in the calling task, and handed to
         // the delegate as a stored property — never read inside the metrics

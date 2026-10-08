@@ -47,6 +47,16 @@ public enum AppleDeveloperSessionRenewal {
         enabled && allowed && !alreadyTried && verdict == .expired
     }
 
+    /// Whether an expiry Apple reported is the last word — nothing left will
+    /// bring the session back without the user — so it is worth telling them:
+    /// no renewal is running (`renewing` false), and one has already been tried
+    /// for this expiry or the user turned renewal off. A check's first
+    /// `.expired` is not that: a renewal usually follows and takes seconds
+    /// (10 s on 2026-10-08, when a banner posted during it was a false alarm).
+    public static func hasGivenUp(renewing: Bool, alreadyTried: Bool, enabled: Bool) -> Bool {
+        !renewing && (alreadyTried || !enabled)
+    }
+
     /// Whether a page that finished loading at `host` is back on the developer
     /// site — the only way the round trip through `idmsa` ends signed in. Exact
     /// host: `idmsa.apple.com` (the form) and anything else are not.

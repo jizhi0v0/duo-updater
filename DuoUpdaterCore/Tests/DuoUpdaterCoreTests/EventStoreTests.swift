@@ -709,6 +709,66 @@ struct EventStoreTests {
         }
     }
 
+    /// The Apple Developer session check is recorded with a recorder attached to
+    /// a session whose delegate refuses every redirect — it reads where Apple
+    /// would send it, and following would fetch a multi-gigabyte archive. The
+    /// refuser there uses the `async` form of the redirect method, which the
+    /// spy above does not, so it is pinned separately.
+    @Test("A session delegate that refuses redirects still refuses with a recorder attached")
+    func perTaskRecorderKeepsAnAsyncRedirectRefusal() async throws {
+        final class Refuser: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+            func urlSession(
+                _ session: URLSession, task: URLSessionTask,
+                willPerformHTTPRedirection response: HTTPURLResponse,
+                newRequest request: URLRequest
+            ) async -> URLRequest? {
+                nil
+            }
+        }
+
+        let server = try Server(redirectFirst: true)
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+
+        let session = URLSession(configuration: .ephemeral, delegate: Refuser(), delegateQueue: nil)
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(server.port)/start")!)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (_, response) = try await session.countedData(for: request, purpose: .other, store: store)
+
+        #expect((response as? HTTPURLResponse)?.statusCode == 302)
+        let events = await Self.settle(store).compactMap(\.request)
+        #expect(events.count == 1)
+        #expect(events.first?.status == 302)
+        #expect(events.first?.host == "127.0.0.1")
+    }
+
+    /// The same guarantee as the query string's, for the header the Apple
+    /// Developer session rides in: its requests are recorded, its `Cookie` is not.
+    @Test("A cookie on the request never reaches disk")
+    func cookieHeadersAreNotRecorded() async throws {
+        let server = try Server(redirectFirst: false)
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+
+        let session = URLSession(configuration: .ephemeral)
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(server.port)/download")!)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("myacinfo=COOKIESECRET", forHTTPHeaderField: "Cookie")
+        _ = try await session.countedData(for: request, purpose: .other, store: store)
+
+        let event = try #require(await Self.settle(store).first?.request)
+        #expect(event.path == "/download")
+        #expect(event.requestHeaderBytes > 0)
+
+        let onDisk = try #require(try? Data(contentsOf: url))
+        let wal = (try? Data(contentsOf: url.deletingLastPathComponent()
+            .appendingPathComponent(url.lastPathComponent + "-wal"))) ?? Data()
+        for blob in [onDisk, wal] {
+            #expect(blob.range(of: Data("COOKIESECRET".utf8)) == nil,
+                    "a cookie value reached the database file")
+        }
+    }
+
     /// The fix for events lost at process exit, pinned at the point that made
     /// them recoverable.
     ///

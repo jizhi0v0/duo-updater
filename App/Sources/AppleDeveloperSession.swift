@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import WebKit
 import DuoUpdaterCore
@@ -45,7 +46,9 @@ final class AppleDeveloperSession {
     private(set) var isSignedIn = false
 
     /// What Apple last said about the held session (`check()`). `.unknown` until
-    /// the first conclusive answer this launch.
+    /// the first conclusive answer this launch. A `.expired` answer that a silent
+    /// renewal follows is held back until the renewal's own answer, so this never
+    /// reads `.expired` for the seconds a renewal that then succeeds takes.
     enum Status: Equatable { case unknown, signedIn, expired }
     private(set) var status: Status = .unknown
 
@@ -129,6 +132,17 @@ final class AppleDeveloperSession {
         status = .expired
     }
 
+    /// `status` is `.expired` and that is final: no renewal is running, and one
+    /// was tried for this expiry or renewal is off
+    /// (`AppleDeveloperSessionRenewal.hasGivenUp`). What the expiry banner waits
+    /// for. A download that met the sign-in page (`noteExpired`) is not final
+    /// until a check has had its chance to renew.
+    var hasExpiredForGood: Bool {
+        status == .expired && AppleDeveloperSessionRenewal.hasGivenUp(
+            renewing: renewal != nil, alreadyTried: renewalTried,
+            enabled: AppleDeveloperSessionRenewal.isEnabled(in: .standard))
+    }
+
     /// Apple just honoured the session: a sign-in completed or a download was
     /// authorized.
     func noteConfirmed() {
@@ -164,7 +178,10 @@ final class AppleDeveloperSession {
         guard AppleDeveloperSessionRenewal.shouldTry(
             verdict: verdict, alreadyTried: renewalTried, allowed: renewing,
             enabled: AppleDeveloperSessionRenewal.isEnabled(in: .standard))
-        else { return verdict }
+        else {
+            if verdict == .expired { status = .expired }
+            return verdict
+        }
         renewalTried = true
         let task = Task { @MainActor in await self.renew() }
         renewal = task
@@ -177,15 +194,21 @@ final class AppleDeveloperSession {
         let started = Date()
         let landed = await AppleDeveloperSessionRenewer().run(in: dataStore)
         let verdict = landed ? await ask() : .expired
+        // Set here, inside the task, so a caller waiting on `renewal` reads the
+        // final status when it resumes. An inconclusive second answer does not
+        // overturn the first, which was conclusive.
+        if verdict != .signedIn { status = .expired }
         let seconds = Int(Date().timeIntervalSince(started))
         Log.app.notice("apple session renewal: \(verdict == .signedIn ? "renewed" : "failed", privacy: .public) in \(seconds, privacy: .public)s, page \(landed ? "came back" : "stayed on sign-in", privacy: .public); last confirmed \(since, privacy: .public) min before")
         return verdict
     }
 
     /// One request to the authorized download endpoint, redirect not followed
-    /// (`AppleDeveloperSessionProbe`). Updates `status`; an inconclusive answer
-    /// (offline, a proxy page) leaves it as it was. Cookies the response sets are
-    /// written back to the store and saved, as after a download.
+    /// (`AppleDeveloperSessionProbe`). Sets `status` on `.signedIn` only: an
+    /// `.expired` answer is the caller's to apply, since a renewal may be about
+    /// to overturn it (`check()`), and an inconclusive one (offline, a proxy
+    /// page) leaves it as it was. Cookies the response sets are written back to
+    /// the store and saved, as after a download.
     private func ask() async -> AppleDeveloperSessionProbe.Verdict {
         await restore()
         let cookies = await dataStore.httpCookieStore.allCookies()
@@ -197,7 +220,9 @@ final class AppleDeveloperSession {
 
         let verdict: AppleDeveloperSessionProbe.Verdict
         do {
-            let (_, response) = try await urlSession.data(from: AppleDeveloperSessionProbe.probeURL)
+            var request = URLRequest(url: AppleDeveloperSessionProbe.probeURL)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (_, response) = try await Self.counted(request, on: urlSession, purpose: .other)
             let http = response as? HTTPURLResponse
             verdict = AppleDeveloperSessionProbe.verdict(
                 status: http?.statusCode ?? 0,
@@ -220,9 +245,7 @@ final class AppleDeveloperSession {
             }
             await save()
             noteConfirmed()
-        case .expired:
-            status = .expired
-        case .inconclusive:
+        case .expired, .inconclusive:
             break
         }
         return verdict
@@ -241,14 +264,33 @@ final class AppleDeveloperSession {
         defer { urlSession.finishTasksAndInvalidate() }
         var request = URLRequest(url: AppleDeveloperDownloadList.endpoint)
         request.httpMethod = "POST"
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         do {
-            let (data, response) = try await urlSession.data(for: request)
+            let (data, response) = try await Self.counted(request, on: urlSession, purpose: .catalog)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             Log.app.info("apple download list: \(status, privacy: .public), \(data.count, privacy: .public) bytes")
             return status == 200 ? data : nil
         } catch {
             Log.app.info("apple download list failed: \(error.localizedDescription, privacy: .public)")
             return nil
+        }
+    }
+
+    /// `countedData`, filed under the installed Xcode unless the caller already
+    /// named an app: these requests are made for Xcode's updates and downloads,
+    /// whichever path asked. Only what `RequestMetricsRecorder` keeps is
+    /// recorded — host, path without its query, status, sizes, timings — never a
+    /// header, so the `Cookie` header and every cookie value Apple sets stay out
+    /// of the event store. The session's `RedirectRefuser` still decides
+    /// redirects: a per-task delegate without that method does not displace it
+    /// (`EventStoreTests`).
+    private static func counted(
+        _ request: URLRequest, on session: URLSession, purpose: RequestPurpose
+    ) async throws -> (Data, URLResponse) {
+        let appID = RequestAttribution.appID
+            ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.dt.Xcode")?.path
+        return try await RequestAttribution.withApp(appID) {
+            try await session.countedData(for: request, purpose: purpose)
         }
     }
 

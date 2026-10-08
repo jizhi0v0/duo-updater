@@ -108,29 +108,30 @@ Sparkle 读的同一个地址；snapshot 包实测读 `appcast_unstable.arm64.xm
 - `LSMinimumSystemVersion`: 1.11.1 / 1.11.2 / snapshot 都是 `10.13.4`；1.3.3 是 `10.11`。
 
 ## Changelog
-- 来源: feed 只给 `releaseNotesLink` → `https://handbrake.fr/appcast/stable.html`（`unstable.html` 逐字节相同）
-- 结构化: `changelog pane  web page https://handbrake.fr/appcast/stable.html, no structure`
-  （1.11.1、1.11.2、snapshot、1.3.3 四个包都是这一行）
-- 该页面是陈旧的：2026-10-08 拉到的 `stable.html` 标题是 **HandBrake 1.11.0**，而 feed 发的是 1.11.2；
-  正文只有 Upgrade Notice、一句「View the full release notes on GitHub for 1.11.0」链接和系统要求，
-  没有任何变更条目。所以 pane 里看到的是一个说错版本、没有内容的网页。
-- 真正的变更说明在 GitHub Release body（`HandBrake/HandBrake`），Markdown，分节清晰：
-  `## HandBrake 1.11.2` → `### All platforms` → `#### Video` / `#### Audio` / `#### Subtitles` /
-  `#### Build system` / `#### Third-party libraries`，再 `### Linux` / `### Mac` / `### Windows`；
-  前面还有一个 `## Upgrade Notice`（含 Windows .NET 运行时说明）。
-- 用生产解析器试过（2026-10-08，临时测试，已删）: 把 `api.github.com/repos/HandBrake/HandBrake/releases?per_page=40`
-  的真实响应喂给 `StructuredChangelogDecoder.decode(format: .gitHubReleases)`：
-  - 不加 `skipSections`: 1.11.2 → 16 条，headings `Upgrade Notice, Video, Audio, Subtitles,
-    Build system, Third-party libraries, Linux, Mac, Windows`；前两条是 Windows 的 .NET 下载链接
-    （来自 `Upgrade Notice`）。`All platforms` 这一层（只有子标题、没有直属条目）不出现，
-    其下的 `Video` 等与 `Mac` 平级。
-  - 加 `skipSections: ["Upgrade Notice", "Linux", "Windows"]`: 1.11.2 → 9 条，headings
-    `Video, Audio, Subtitles, Build system, Third-party libraries, Mac`；1.11.1 → 2 条，
-    headings `Audio, Third-party libraries`（该版 Mac 节为空）。
-  - `Updated libraries` 下的嵌套子项（`FFmpeg 8.0.2 …`、`SVT-AV1 4.1.0 …`）不进 items。
-  - 结论: 分节保留为 heading，没有被压平。
-- 跟随 channel: 否（stable.html 与 unstable.html 相同；snapshot 无 release notes）
-- Recipe 状态: **需要**（`.gitHubReleases` ChangelogRecipe，见建议下一步；未实现）
+- 来源: feed 只给 `releaseNotesLink` → `https://handbrake.fr/appcast/stable.html`（`unstable.html` 逐字节相同）；
+  该页不随版本更新、没有变更条目（实测见「历史与实测」），所以不用它。
+- 结构化: ✓ `ChangelogRecipe`（`Recipes/fr-handbrake-HandBrake.swift`）读 GitHub Releases：
+  source `https://api.github.com/repos/HandBrake/HandBrake/releases?per_page=10`，`mode: .json`，
+  `structuredFormat: .gitHubReleases`，`maxEntries: 10`，`channel` 不设，
+  `skipSections: ["Upgrade Notice", "Linux", "Windows"]`。
+  `channel-verify HandBrake-1.11.2.dmg`（2026-10-08）的 pane 行:
+  `changelog pane  recipe changelog:fr.handbrake.HandBrake:-: 10 entries; newest 1.11.2: 9 items, headings ["Video", "Audio", "Subtitles", "Build system", "Third-party libraries", "Mac"]; first items ["Fixed a crash that happened when doing a", "Fixed a memory leak that happened when d", "Updated the list of supported dithers an"]`
+  （加 recipe 之前同一个包是 `changelog pane  web page https://handbrake.fr/appcast/stable.html, no structure`）。
+  feed 的 changelogURL 仍是 `stable.html`，pane 照样先取 recipe——上面这行就是证据。
+- body 形态: `## Upgrade Notice`（Windows .NET 运行时下载链接）→ `## HandBrake <version>` →
+  `### All platforms` → `#### Video` / `#### Audio` / … → `### Linux` / `### Mac` / `### Windows`。
+  版本号标题（含数字）和没有直属条目的 `All platforms` 不渲染成 heading；三个 skip 节整节丢掉。
+- 版本对应: tag 是裸版本号（`1.11.2`），与包的 `CFBundleShortVersionString` 相同（1.11.2 包实测）。
+- 渠道: recipe 不设 channel → 只读 `prerelease: false` 的 release。仓库里唯一的 prerelease 是
+  `1.4.0-beta.1`；snapshot 在另一个仓库（`HandBrake-snapshots`），不在这个列表里。
+  （推断，未实测：snapshot 包同 bundle id，也会拿到这条 recipe；它的版本串是时间戳，rail 上不会有
+  匹配它的条目。）
+- 已知缺口: 解析器的 strict pass 丢掉缩进的子项。HandBrake 几乎每版都有一条 `Updated libraries`，
+  真正的内容（`FFmpeg 8.0.2 (decoding and filters)` 这类库与版本）全在它的子项里，于是 pane 里只剩
+  一条光秃秃的 `Updated libraries`；1.11.0 的预设说明、1.10.0 的「preserving additional metadata
+  including:」也一样。现有 recipe 字段改不了这个（`GitHubMarkdownParser` 只对 `**scope**:` 标签
+  保留子项），要保留得改共享解析器（并 bump `Changelog.parserGeneration`）。计数见「历史与实测」。
+- Recipe 状态: ✓
 
 ## 一键安装
 - 状态: 支持（通用 Sparkle 路径，第一轮端到端 ✓）
@@ -152,7 +153,7 @@ Sparkle 读的同一个地址；snapshot 包实测读 `appcast_unstable.arm64.xm
   （读代码得出，未实测）。
 
 ## 已知问题
-- Changelog 窗格显示的是一个停在 1.11.0、没有变更条目的网页（厂商侧 `stable.html` 未更新）。
+- Changelog 窗格里每版的 `Updated libraries` 不带库名与版本（嵌套子项被解析器丢掉，见 Changelog 节）。
 - 老 Intel-only 包读 x86_64 feed 时，最新版本显示为 `1.11.2 x86_64`（比较正确，仅显示）。
 - snapshot 与正式版同 bundle id；duo 与 app 内 Sparkle 一样只看包自己的 feed，snapshot 用户在
   正式版构建号赶上之前看不到更新——这是厂商的设计，不是缺口。
@@ -179,19 +180,49 @@ swift run --package-path application-test channel-verify <pkg>
 | `HandBrake-1.3.3.dmg`（GitHub `1.3.3`，Intel-only） | `1.3.3` / `2020061300` | `appcast.x86_64.xml` | `5X9DE89KYV` | Sparkle | `1.11.2 x86_64` | UPDATE → 1.11.2 x86_64 |
 | `HandBrake-20261002155018-174246fbe-master.dmg`（`HandBrake-snapshots` `mac`） | `20261002155018-174246fbe-master` / `2026100501` | `appcast_unstable.arm64.xml` | 无（ad-hoc） | Sparkle | `1.11.2` | up to date |
 
-四个包的 `changelog pane` 行相同：`web page https://handbrake.fr/appcast/stable.html, no structure`；
-`release history 0 entries`，`deltas 0`，`ChannelBinding <none for this app>`。
+上表四个包的 `changelog pane` 行（加 recipe 之前）相同：`web page https://handbrake.fr/appcast/stable.html, no structure`；
+`release history 0 entries`，`deltas 0`，`ChannelBinding <none for this app>`。加 recipe 之后 1.11.2 包的那一行见 Changelog 节。
+
+```
+# changelog recipe
+curl -sS "https://api.github.com/repos/HandBrake/HandBrake/releases?per_page=10"   # 10 个 release，无 prerelease
+swift test --package-path DuoUpdaterCore --filter HandBrakeChangelogRecipeTests
+swift run --package-path application-test channel-verify HandBrake-1.11.2.dmg     # 看 changelog pane 行
+```
 
 ## 建议下一步
-1. 加结构化 changelog: `/fragile-recipe HandBrake`（ChangelogRecipe，`structuredFormat: .gitHubReleases`，
-   source `https://api.github.com/repos/HandBrake/HandBrake/releases?per_page=10`，`mode: .json`，
-   `skipSections: ["Upgrade Notice", "Linux", "Windows"]`）。解析结果已在真实响应上试过（见 Changelog 节）。
-   每个 release 带十几个资产，`per_page=40` 的响应约 1.3 MB，所以 `per_page` 取小值。
-   新家族文件 + `AppRecipeIndex.all` 一行 + fixture 测试 + 重录 `RecipeGoldenTests`。
-   Sparkle 源的 changelogURL 仍是 `stable.html`，要确认 recipe 在 pane 的优先序里排在网页之前
-   （skill 写的顺序是 recipe → structured → raw → web page）。
+1. 结构化 changelog 已接（见 Changelog 节）。剩下的是 `Updated libraries` 的子项：要显示库名与版本，
+   得让 `GitHubMarkdownParser` 保留这类子项（共享解析器改动，影响所有 GitHub 源的 app，需要
+   bump `Changelog.parserGeneration` 并在各仓库上量回归），不是 recipe 能做的。未做，待定。
 2. 一键：第一轮端到端已跑通（1.11.1 → 1.11.2）；第二轮未跑。
 3. `CHANNEL_COVERAGE_TODO.md` 的 HandBrake 条目：结论（不需要单独接轨、无独立 bundle id、无 app 内开关）
    成立，但「snapshot 与 stable 同构建」不对——snapshot 是 `master` 的构建，版本串、签名、`SUFeedURL`
    都不同；不需要接轨的真正原因是每个包写死自己的 feed，而通用源读的就是它。同文件里把 HandBrake
-   列为「已接的 GitHub releases 型」changelog 也不对：代码里没有任何 `fr.handbrake.HandBrake` 的 recipe。
+   列为「已接的 GitHub releases 型」changelog，在本次加 recipe 之前不成立，现在成立。
+
+## 历史与实测
+
+### Recipes/fr-handbrake-HandBrake.swift — ChangelogRecipe（2026-10-08）
+
+- `stable.html` 为什么不用: 2026-10-08 拉到的 `https://handbrake.fr/appcast/stable.html` 标题是
+  **HandBrake 1.11.0**，而 feed 发的是 1.11.2；正文只有 Upgrade Notice、一句「View the full release
+  notes on GitHub for 1.11.0」链接和系统要求，没有变更条目。`unstable.html` 与它逐字节相同。
+- 响应大小: `releases?per_page=10` 404,003 字节（每个 release 22–28 个资产）；`per_page=100` 一页就是
+  全部 54 个 release，1,591,386 字节。资产列表占大头，所以 `per_page=10`。
+- 全仓库 54 个 release 里 `prerelease: true` 只有 `1.4.0-beta.1`（2020-11-11），`draft` 0 个；
+  最新 10 个（1.11.2 … 1.8.2）全是正式版。tag 都是裸版本号。
+- 生产解析器（临时 Swift 测试，经 `ChangelogService.parse` 走注册的 recipe，已删）对 `per_page=10`
+  真实响应: 10 条，`1.11.2, 1.11.1, 1.11.0, 1.10.2, 1.10.1, 1.10.0, 1.9.2, 1.9.1, 1.9.0, 1.8.2`；
+  items 依次 9 / 2 / 23 / 3 / 4 / 25 / 2 / 7 / 16 / 4。
+  - 1.11.2: headings `Video, Audio, Subtitles, Build system, Third-party libraries, Mac`。
+  - 1.11.1: headings `Audio, Third-party libraries`（这一版没有 `### Mac` 节，不是空节）。
+  - 不加 `skipSections`（re-audit 时用 `per_page=40` 试的）: 1.11.2 → 16 条，多出 `Upgrade Notice` /
+    `Linux` / `Windows` 三个 heading，前两条是 Windows 的 .NET 下载链接。
+- 被丢掉的嵌套子项（同一份 10 个 release，跳过三个 skip 节后按缩进 bullet 计）: 共 73 行，其中 57 行在
+  `Updated libraries` 下（10 个 release 里 9 个有这一条）；其余是 1.11.0 预设说明 12 行、1.10.0
+  「preserving additional metadata including:」下 3 行、1.9.0「Added new translations」下 1 行。
+  1.11.2 丢的两行是 `FFmpeg 8.0.2 (decoding and filters)`、`SVT-AV1 4.1.0 (AV1 video encoding)`。
+- `channel-verify`（GitHub `1.11.2` 资产 `HandBrake-1.11.2.dmg`，47,978,117 字节，
+  sha256 `4afe27aa…5de9d7`）: 短版本 `1.11.2`，与 tag 相同。`changelog pane` 行，前（index 里临时去掉
+  这个家族）: `web page https://handbrake.fr/appcast/stable.html, no structure`；后: `recipe
+  changelog:fr.handbrake.HandBrake:-: 10 entries; newest 1.11.2: 9 items, headings [...]`（全文见 Changelog 节）。

@@ -199,6 +199,7 @@ public enum AppRecipeIndex {
         dev_zed_Zed.set,
         digital_twisted_noTunes.set,
         eu_exelban_Stats.set,
+        fr_handbrake_HandBrake.set,
         im_riot_app.set,
         info_marcel_dierkes_KeepingYouAwake.set,
         io_agentsview_desktop.set,

@@ -715,7 +715,10 @@ public struct AppScanner: Sendable {
             // Android Studio's only on-disk channel signal is the bundle filename
             // (Stable/Canary/Beta share id, CFBundleName, and a truncated version).
             // See `ReleaseChannel.detect` step 0.5.
-            bundleFileName: bundleURL.deletingPathExtension().lastPathComponent
+            bundleFileName: bundleURL.deletingPathExtension().lastPathComponent,
+            // Arc's and Dia's release-candidate builds name their train here.
+            // See `ReleaseChannel.detect` step 0.95.
+            browserCompanyReleaseType: plist["BCNYReleaseType"] as? String
         )
 
         // Some apps hide the user's channel choice in a private preference (no

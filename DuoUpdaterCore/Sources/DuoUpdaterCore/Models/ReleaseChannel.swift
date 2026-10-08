@@ -96,6 +96,9 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     ///      only the numbered beta shape, so the UNNUMBERED `7.1.0-beta` and
     ///      every `-rc` tag read as `.stable` without this. See the block
     ///      comment on the check.
+    ///   0.95. A seventh bundle-id-scoped rule — Arc and Dia, whose release
+    ///      candidate (Early Birds) build says so in its own `BCNYReleaseType`
+    ///      plist key. See the block comment on the check.
     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
     ///      authoritative).
@@ -115,7 +118,8 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
         keystoneChannel: String?,
         version: String? = nil,
         mozillaRemotingName: String? = nil,
-        bundleFileName: String? = nil
+        bundleFileName: String? = nil,
+        browserCompanyReleaseType: String? = nil
     ) -> ReleaseChannel {
         // 0. Mozilla `RemotingName` — authoritative for Firefox/Thunderbird.
         if let remoting = mozillaRemotingName?
@@ -255,6 +259,36 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
            let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
            fullyMatches(#"[0-9]+(\.[0-9]+)+-(beta|rc)(\.[0-9]+)?"#, version) {
             return .beta
+        }
+
+        // 0.95 Arc and Dia (The Browser Company) — each ships its release
+        //     candidate, the build its Early Birds program runs, under the stable
+        //     bundle id, the stable `CFBundleName` and a plain version
+        //     (`1.52.0` / `88244`), so steps 1–4 all read it as stable. The
+        //     build says what it is in its own Info.plist: `BCNYReleaseType` is
+        //     `Release Candidate` there and `Release` in every stable build.
+        //     Read off six real packages on 2026-10-08 — Arc 1.167.0 (88045),
+        //     1.167.1 (88217) and RC 1.168.0 (88345); Dia 1.51.0 (88065),
+        //     1.51.1 (88214) and RC 1.52.0 (88244) — and each RC's `SUFeedURL`
+        //     is its `release-candidate/` feed, so the key and the train agree.
+        //
+        //     `.rc`, not `.beta`: this is a train the vendor publishes as its
+        //     own channel, with its own feed, and calls a release candidate —
+        //     the case `.rc` exists for (see its doc). It changes what the row
+        //     says, not what is offered: nothing binds these apps, so
+        //     `SparkleAppcastSource` still takes the channel from the feed item
+        //     matching the installed build, and the RC copy reads its own
+        //     package's RC feed either way.
+        //
+        //     Only the one value we have seen maps. Their updater also knows
+        //     internal feeds (`canary`, `prototype`, `pullRequest`, `test` in
+        //     `SoftwareUpdaterFeed`), but what such a build writes here has never
+        //     been observed; guessing it would be a channel signal with no
+        //     evidence, so any other value falls through to the steps below.
+        if bundleID == "company.thebrowser.Browser" || bundleID == "company.thebrowser.dia",
+           browserCompanyReleaseType?.trimmingCharacters(in: .whitespacesAndNewlines)
+               == "Release Candidate" {
+            return .rc
         }
 
         // 1. Keystone's own channel id — authoritative when present.

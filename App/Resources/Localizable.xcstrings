@@ -12140,6 +12140,136 @@
         }
       }
     },
+    "Homebrew has deprecated the %@ cask. It still installs and upgrades, with a warning.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew hat den Cask %@ als veraltet markiert. Installieren und Aktualisieren funktionieren noch, mit einer Warnung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew marcó el cask %@ como obsoleto. Todavía se instala y se actualiza, con una advertencia."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew a rendu le cask %@ obsolète. Il s’installe et se met encore à niveau, avec un avertissement."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew ha deprecato il cask %@. Si installa e si aggiorna ancora, con un avviso."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew は %@ の Cask を非推奨にしました。インストールとアップグレードは引き続き可能ですが、警告が表示されます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Homebrew tornou o cask %@ obsoleto. Ele ainda instala e atualiza, com um aviso."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew пометил cask %@ как устаревший. Он пока устанавливается и обновляется, но с предупреждением."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew %@ cask’ini kullanımdan kaldırdı. Hâlâ bir uyarıyla yüklenip yükseltilebiliyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 已弃用 %@ cask。目前仍可安装和升级，但会有警告。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 已棄用 %@ cask。目前仍可安裝和升級，但會出現警告。"
+          }
+        }
+      }
+    },
+    "Homebrew has deprecated the cask this app was installed with": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew hat den Cask, mit dem diese App installiert wurde, als veraltet markiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew marcó como obsoleto el cask con el que se instaló esta app"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew a rendu obsolète le cask avec lequel cette app a été installée"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew ha deprecato il cask con cui è stata installata questa app"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアプリのインストールに使った Cask を Homebrew が非推奨にしました"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Homebrew tornou obsoleto o cask com que este app foi instalado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew пометил как устаревший cask, которым установлено это приложение"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew bu uygulamanın yüklendiği cask’i kullanımdan kaldırdı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 已弃用安装此应用所用的 cask"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 已棄用安裝此 App 所用的 cask"
+          }
+        }
+      }
+    },
     "Homebrew has disabled %@: it can no longer be installed or upgraded, so it gets no more updates.": {
       "extractionState": "manual",
       "localizations": {
@@ -12201,6 +12331,136 @@
           "stringUnit": {
             "state": "translated",
             "value": "Homebrew 已停用 %@：它無法再安裝或升級，因此不會再收到更新。"
+          }
+        }
+      }
+    },
+    "Homebrew has disabled the %@ cask: Homebrew can no longer install or upgrade it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew hat den Cask %@ deaktiviert: Homebrew kann ihn nicht mehr installieren oder aktualisieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew desactivó el cask %@: Homebrew ya no puede instalarlo ni actualizarlo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew a désactivé le cask %@ : Homebrew ne peut plus l’installer ni le mettre à niveau."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew ha disattivato il cask %@: Homebrew non può più installarlo né aggiornarlo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew は %@ の Cask を無効にしました。Homebrew ではインストールもアップグレードもできません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Homebrew desativou o cask %@: o Homebrew não consegue mais instalá-lo nem atualizá-lo."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew отключил cask %@: Homebrew больше не может его установить или обновить."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew %@ cask’ini devre dışı bıraktı: Homebrew artık onu yükleyemiyor ya da yükseltemiyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 已停用 %@ cask：Homebrew 无法再安装或升级它。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 已停用 %@ cask：Homebrew 無法再安裝或升級它。"
+          }
+        }
+      }
+    },
+    "Homebrew has disabled the cask this app was installed with": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew hat den Cask, mit dem diese App installiert wurde, deaktiviert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew desactivó el cask con el que se instaló esta app"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew a désactivé le cask avec lequel cette app a été installée"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew ha disattivato il cask con cui è stata installata questa app"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアプリのインストールに使った Cask を Homebrew が無効にしました"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Homebrew desativou o cask com que este app foi instalado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew отключил cask, которым установлено это приложение"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew bu uygulamanın yüklendiği cask’i devre dışı bıraktı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 已停用安装此应用所用的 cask"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 已停用安裝此 App 所用的 cask"
           }
         }
       }
@@ -12660,6 +12920,71 @@
         }
       }
     },
+    "It doesn’t pass the macOS Gatekeeper check.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Paket besteht die Gatekeeper-Prüfung von macOS nicht."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No supera la comprobación de Gatekeeper de macOS."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le paquet ne passe pas la vérification Gatekeeper de macOS."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il pacchetto non supera il controllo Gatekeeper di macOS."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS の Gatekeeper チェックを通過しません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O pacote não passa na verificação do Gatekeeper do macOS."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пакет не проходит проверку Gatekeeper в macOS."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS Gatekeeper denetiminden geçmiyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它无法通过 macOS 的 Gatekeeper 检查。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它無法通過 macOS 的 Gatekeeper 檢查。"
+          }
+        }
+      }
+    },
     "It has no license.": {
       "extractionState": "manual",
       "localizations": {
@@ -12731,7 +13056,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sie wird upstream nicht mehr gepflegt."
+            "value": "Das Paket wird upstream nicht mehr gepflegt."
           }
         },
         "es": {
@@ -12743,13 +13068,13 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Elle n’est plus maintenue en amont."
+            "value": "Le paquet n’est plus maintenu en amont."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Non è più mantenuta a monte."
+            "value": "Il pacchetto non è più mantenuto a monte."
           }
         },
         "ja": {
@@ -12761,13 +13086,13 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ela não é mais mantida pelo projeto original."
+            "value": "O pacote não é mais mantido pelo projeto original."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Её больше не поддерживают авторы."
+            "value": "Пакет больше не поддерживается авторами."
           }
         },
         "tr": {
@@ -12851,6 +13176,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "上游不再提供支援。"
+          }
+        }
+      }
+    },
+    "It no longer meets Homebrew’s criteria for casks.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Paket erfüllt die Kriterien von Homebrew für Casks nicht mehr."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ya no cumple los criterios de Homebrew para los casks."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le paquet ne répond plus aux critères de Homebrew pour les casks."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il pacchetto non soddisfa più i criteri di Homebrew per i cask."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew の Cask の基準を満たさなくなりました。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O pacote não atende mais aos critérios do Homebrew para casks."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пакет больше не соответствует требованиям Homebrew к cask."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artık Homebrew’un cask ölçütlerini karşılamıyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它已不再符合 Homebrew 对 cask 的要求。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它已不再符合 Homebrew 對 cask 的要求。"
           }
         }
       }
@@ -13895,13 +14285,143 @@
         }
       }
     },
+    "It’s discontinued upstream.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Paket wird upstream nicht mehr weitergeführt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se ha descontinuado en origen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le paquet n’est plus développé en amont."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il pacchetto è stato dismesso a monte."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上流で提供が終了しました。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O pacote foi descontinuado no projeto original."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Авторы прекратили выпуск пакета."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaynağında sonlandırıldı."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上游已停止提供。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上游已停止提供。"
+          }
+        }
+      }
+    },
+    "It’s no longer available upstream.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Paket ist upstream nicht mehr verfügbar."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ya no está disponible en origen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le paquet n’est plus disponible en amont."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il pacchetto non è più disponibile a monte."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上流で入手できなくなりました。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O pacote não está mais disponível no projeto original."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У авторов пакет больше недоступен."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaynağında artık mevcut değil."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上游已不再提供下载。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上游已不再提供下載。"
+          }
+        }
+      }
+    },
     "It’s no longer reliably reachable upstream.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Upstream ist sie nicht mehr zuverlässig erreichbar."
+            "value": "Das Paket ist upstream nicht mehr zuverlässig erreichbar."
           }
         },
         "es": {
@@ -13913,13 +14433,13 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Elle n’est plus accessible de façon fiable en amont."
+            "value": "Le paquet n’est plus accessible de façon fiable en amont."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Non è più raggiungibile in modo affidabile a monte."
+            "value": "Il pacchetto non è più raggiungibile in modo affidabile a monte."
           }
         },
         "ja": {
@@ -13931,13 +14451,13 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ela não pode mais ser acessada de forma confiável no projeto original."
+            "value": "O pacote não pode mais ser acessado de forma confiável no projeto original."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Источник авторов больше не доступен надёжно."
+            "value": "Источник пакета больше не доступен надёжно."
           }
         },
         "tr": {
@@ -13956,6 +14476,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "上游已無法穩定存取。"
+          }
+        }
+      }
+    },
+    "It’s now distributed only on the Mac App Store.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Paket wird jetzt nur noch über den Mac App Store vertrieben."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ahora solo se distribuye en la Mac App Store."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le paquet n’est désormais distribué que sur le Mac App Store."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il pacchetto ora è distribuito solo sul Mac App Store."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在は Mac App Store でのみ配布されています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agora o pacote é distribuído apenas na Mac App Store."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Теперь пакет распространяется только через Mac App Store."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artık yalnızca Mac App Store’da dağıtılıyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在只在 Mac App Store 上发布。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在只在 Mac App Store 上發佈。"
           }
         }
       }

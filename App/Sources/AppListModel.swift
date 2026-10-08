@@ -993,6 +993,21 @@ final class AppListModel {
     /// (e.g. the tap isn't trusted). No read above can say whether they're outdated,
     /// and brew's own listings drop them silently — see `BrewUncheckedPackage`.
     private(set) var brewUnchecked: [BrewUncheckedPackage] = []
+    /// Installed casks Homebrew deprecated or disabled — see `BrewCaskLifecycle`.
+    private(set) var brewCaskLifecycles: [BrewCaskLifecycle] = []
+
+    /// The deprecated or disabled cask that installed this app, matched on the
+    /// path brew recorded for the cask's `app` artifact. Any row, whichever source
+    /// checks the app.
+    func brewCaskLifecycle(for result: UpdateResult) -> BrewCaskLifecycle? {
+        let path = result.app.path.standardizedFileURL.path
+        return brewCaskLifecycles.first { $0.appPaths.contains(path) }
+    }
+
+    /// Flagged casks that install no app, so no other row would carry the notice.
+    var brewAppLessCaskLifecycles: [BrewCaskLifecycle] {
+        brewCaskLifecycles.filter { !$0.installsAnApp }
+    }
     /// Whether Homebrew is installed at all (cached once — install state doesn't
     /// change mid-session). Lets the menu reserve the brew row's space from the very
     /// first paint for brew users, so the async `brew outdated` result lands in place
@@ -3598,6 +3613,7 @@ final class AppListModel {
             brewOutdatedFormulae = []
             brewFormulae = []
             brewUnchecked = []
+            brewCaskLifecycles = []
             brewChecked = true
             return
         }
@@ -3669,6 +3685,7 @@ final class AppListModel {
             }
         brewOutdatedFormulae = outdated + casks
         brewUnchecked = newUnchecked
+        brewCaskLifecycles = installed.caskLifecycles
         if !brewUnchecked.isEmpty {
             Log.app.info("brew: \(self.brewUnchecked.count, privacy: .public) packages not read from their tap (\(self.brewUnchecked.map { "\($0.fullName)=\($0.reason)" }.joined(separator: ", "), privacy: .public))")
         }

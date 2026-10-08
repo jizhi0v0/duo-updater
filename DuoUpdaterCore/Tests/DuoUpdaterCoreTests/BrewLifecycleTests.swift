@@ -104,6 +104,42 @@ import Foundation
         #expect(merged.first?.availableVersion == "1.1")
     }
 
+    // MARK: - Casks
+
+    /// `info --installed` cask entries trimmed from real ones (2026-10-08): an `app`
+    /// artifact records where it landed in `target` — renamed or not, as with
+    /// thorium's `{"target": "Thorium Browser.app"}` — and a CLI cask has `binary`
+    /// artifacts only. Flags and reasons from cask.json: ace-link (disabled,
+    /// fails_gatekeeper_check), chromedriver (same, binary only), app-fair
+    /// (deprecated, discontinued).
+    private static let caskInfo = Data(#"""
+    {"formulae":[],"casks":[
+      {"token":"zzfixture-gui","installed":"2.1.0","deprecated":false,"disabled":true,"disable_date":"2026-09-01","disable_reason":"fails_gatekeeper_check",
+       "artifacts":[{"app":["Thorium.app",{"target":"ZZFixture Browser.app"}],"target":"/Applications/ZZFixture Browser.app"},{"zap":[{"trash":"~/x"}]}]},
+      {"token":"zzfixture-cli","installed":"152.0","deprecated":false,"disabled":true,"disable_date":"2026-09-01","disable_reason":"fails_gatekeeper_check",
+       "artifacts":[{"binary":["zzfixture"],"target":"/opt/homebrew/bin/zzfixture"}]},
+      {"token":"zzfixture-pkg","installed":"1.0","deprecated":true,"deprecation_date":"2026-01-01","deprecation_reason":"discontinued","disabled":false,
+       "artifacts":[{"pkg":["Install.pkg"]}]},
+      {"token":"zzfixture-fine","installed":"1.0","deprecated":false,"disabled":false,
+       "artifacts":[{"app":["Fine.app"],"target":"/Applications/Fine.app"}]}
+    ]}
+    """#.utf8)
+
+    /// Mutation: read the artifact's first element (`Thorium.app`) instead of its
+    /// `target` → a renamed app's row never matches. Mutation: drop the
+    /// `installsAnApp` seam → a `.pkg` cask's app gets a second, app-less row.
+    @Test func caskLifecyclesCarryAppTargetsAndWhetherAnAppIsInstalled() {
+        let casks = BrewFormulaService.caskLifecycles(
+            installedInfo: Self.caskInfo, installsAnApp: { $0 == "zzfixture-pkg" })
+        #expect(casks.map(\.token) == ["zzfixture-cli", "zzfixture-gui", "zzfixture-pkg"])
+        #expect(casks.map(\.appPaths) == [[], ["/Applications/ZZFixture Browser.app"], []])
+        #expect(casks.map(\.installsAnApp) == [false, true, true])
+        #expect(casks.map(\.installedVersion) == ["152.0", "2.1.0", "1.0"])
+        #expect(casks.map(\.lifecycle.stage) == [.disabled, .disabled, .deprecated])
+        #expect(casks.first?.lifecycle.reason == "fails_gatekeeper_check")
+        #expect(BrewFormulaService.caskLifecycles(installedInfo: Data(), installsAnApp: { _ in false }).isEmpty)
+    }
+
     /// Through the service: the report carries the lifecycles from the same
     /// `info` read the unchecked packages use.
     @Test func serviceReportsLifecycles() async {

@@ -53,8 +53,10 @@ public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
     public var lifecycle: BrewLifecycle? = nil
 }
 
-/// Homebrew's verdict that a formula is on its way out: `deprecate!` or `disable!`
-/// in its definition, read from `brew info --json=v2 --installed`.
+/// Homebrew's verdict that a formula or cask is on its way out: `deprecate!` or
+/// `disable!` in its definition, read from `brew info --json=v2 --installed`.
+/// Casks carry the same fields and brew treats them the same way
+/// (`Cask::Installer#check_deprecate_disable`: deprecated warns, disabled raises).
 ///
 /// The two stages differ in what brew does (Homebrew 7.0.8
 /// `FormulaInstaller#prelude_fetch`): a deprecated formula installs and upgrades
@@ -104,7 +106,8 @@ public struct BrewLifecycle: Sendable, Equatable {
     /// The replacement's name, for prose.
     public var replacementName: String? { replacementFormula ?? replacementCask }
 
-    /// From one `formulae` entry of `info --json=v2`; nil when brew flags neither.
+    /// From one `formulae` or `casks` entry of `info --json=v2`; nil when brew flags
+    /// neither.
     static func parse(_ f: [String: Any]) -> BrewLifecycle? {
         func string(_ key: String) -> String? {
             (f[key] as? String).flatMap { $0.isEmpty ? nil : $0 }
@@ -134,6 +137,38 @@ public struct BrewLifecycle: Sendable, Equatable {
         else { return nil }
         let c = calendar.dateComponents([.year, .month, .day], from: later)
         return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
+    }
+}
+
+/// An installed cask Homebrew has deprecated or disabled (`BrewLifecycle`).
+///
+/// A cask's app has its own row, from whichever source checks it — not
+/// necessarily Homebrew: `HomebrewCaskCatalog` drops disabled casks (#881), so a
+/// disabled cask's app is checked by Sparkle or another source, or by none. So the
+/// notice goes on whatever row has the app's path, matched on the `target` brew
+/// records for each `app` artifact. A cask that installs no app (a CLI, a font)
+/// has no row of its own, and gets one for this.
+public struct BrewCaskLifecycle: Sendable, Identifiable, Equatable {
+    public var id: String { token }
+    public let token: String
+    public let installedVersion: String
+    /// Where its `app` artifacts were installed (`/Applications/Foo.app`).
+    public let appPaths: [String]
+    /// False for a CLI or font cask — `BrewFormulaService.installsAnApp(caskToken:)`,
+    /// which also counts a `.pkg` (it generally installs an app, though brew
+    /// records no path for it).
+    public let installsAnApp: Bool
+    public let lifecycle: BrewLifecycle
+
+    public init(
+        token: String, installedVersion: String, appPaths: [String],
+        installsAnApp: Bool, lifecycle: BrewLifecycle
+    ) {
+        self.token = token
+        self.installedVersion = installedVersion
+        self.appPaths = appPaths
+        self.installsAnApp = installsAnApp
+        self.lifecycle = lifecycle
     }
 }
 
@@ -483,6 +518,8 @@ public actor BrewFormulaService {
         /// Keyed by `full_name`, which is the name `brew leaves` prints (bare for
         /// homebrew/core, tap-qualified otherwise).
         public var lifecycles: [String: BrewLifecycle] = [:]
+        /// Installed casks Homebrew deprecated or disabled.
+        public var caskLifecycles: [BrewCaskLifecycle] = []
     }
 
     public func installedReport() async -> InstalledReport {
@@ -514,14 +551,44 @@ public actor BrewFormulaService {
             availableCasks: Self.parseLines(await availableCasks),
             formulaVersions: versions)
         let lifecycles = Self.lifecycles(installedInfo: info)
-        guard !candidates.isEmpty else { return InstalledReport(unchecked: orphans, lifecycles: lifecycles) }
+        let caskLifecycles = Self.caskLifecycles(installedInfo: info, installsAnApp: caskInstallsAnApp)
+        guard !candidates.isEmpty else {
+            return InstalledReport(unchecked: orphans, lifecycles: lifecycles, caskLifecycles: caskLifecycles)
+        }
 
         // `--installed` rather than naming the taps: `tap-info` on a tap that no
         // longer exists would fail the whole read and mislabel the others.
         let tapInfo = await runReading(["tap-info", "--json=v1", "--installed"])
         let unchecked = (Self.label(candidates, untrustedTaps: Self.parseUntrustedTaps(Data(tapInfo.utf8))) + orphans)
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        return InstalledReport(unchecked: unchecked, lifecycles: lifecycles)
+        return InstalledReport(unchecked: unchecked, lifecycles: lifecycles, caskLifecycles: caskLifecycles)
+    }
+
+    /// `BrewCaskLifecycle` for every cask `info --json=v2 --installed` flags, by
+    /// token. [] for a read that doesn't parse.
+    static func caskLifecycles(
+        installedInfo: Data, installsAnApp: (String) -> Bool
+    ) -> [BrewCaskLifecycle] {
+        guard
+            let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
+            let casks = root["casks"] as? [[String: Any]]
+        else { return [] }
+        return casks.compactMap { c -> BrewCaskLifecycle? in
+            guard let token = c["token"] as? String, let lifecycle = BrewLifecycle.parse(c) else { return nil }
+            // `{"app": ["Foo.app"], "target": "/Applications/Foo.app"}` — the
+            // target is where it landed, renamed or not.
+            let appPaths = ((c["artifacts"] as? [Any]) ?? []).compactMap { artifact -> String? in
+                guard let a = artifact as? [String: Any], a["app"] != nil else { return nil }
+                return a["target"] as? String
+            }
+            return BrewCaskLifecycle(
+                token: token,
+                installedVersion: (c["installed"] as? String) ?? "—",
+                appPaths: appPaths,
+                installsAnApp: !appPaths.isEmpty || installsAnApp(token),
+                lifecycle: lifecycle)
+        }
+        .sorted { $0.token.localizedCaseInsensitiveCompare($1.token) == .orderedAscending }
     }
 
     /// `BrewLifecycle` for every formula `info --json=v2 --installed` flags, keyed

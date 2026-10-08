@@ -307,7 +307,10 @@ public extension URLSession {
                     defer { done = true }
                     return !done
                 }
-                guard pending else { return }
+                // A task that already completed — a body that failed mid-read, say,
+                // which leaves `done` unset — has delivered its metrics; there is
+                // nothing to drive, and no reason to read from a second iterator.
+                guard pending, bytes.task.state != .completed else { return }
                 bytes.task.cancel()
                 let bytes = self.bytes
                 Task {

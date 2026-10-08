@@ -118,7 +118,11 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   Keka's hot-fix bodies repeat the previous release that way, so notes
     ///   already cached for 1.6.7 and 1.6.3 carry 9 and 14 items for one fix
     ///   each. The same 3,710 bodies changed nowhere else.
-    public static let parserGeneration = 11
+    /// - 12: `GitHubMarkdownParser` does not keep a nested bullet that is only an
+    ///   emphasised thank-you (`*Thank you [x](…)!*`). Generation 10 made
+    ///   KeepingYouAwake's per-translation credits into items; the same 3,710
+    ///   bodies lose 64 such lines, all KeepingYouAwake's, and nothing else.
+    public static let parserGeneration = 12
 
     public let entries: [Entry]
 

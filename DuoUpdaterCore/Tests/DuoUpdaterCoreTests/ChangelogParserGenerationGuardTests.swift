@@ -101,8 +101,12 @@ import Foundation
     /// 11 (`GitHubMarkdownParser` drops an older release's `Changes in version X`
     /// section) moves neither fixture: neither has such a heading. Pinned by
     /// `GitHubMarkdownParserTests`.
+    ///
+    /// 12 (`GitHubMarkdownParser` drops a nested emphasised thank-you) moves
+    /// neither fixture: neither has a nested bullet. Pinned by
+    /// `GitHubMarkdownParserTests`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 11)
+        #expect(Changelog.parserGeneration == 12)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

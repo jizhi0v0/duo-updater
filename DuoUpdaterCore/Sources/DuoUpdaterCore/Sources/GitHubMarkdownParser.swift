@@ -543,7 +543,7 @@ public enum GitHubMarkdownParser {
                         cleaned = scope + " " + cleanItem(raw)
                     } else if inTopLevelList, !inFencedBlock {
                         cleaned = cleanItem(raw)
-                        guard cleaned.count >= 6 else { continue }
+                        guard cleaned.count >= 6, !isEmphasisedThanks(cleaned) else { continue }
                     } else {
                         continue
                     }
@@ -584,6 +584,17 @@ public enum GitHubMarkdownParser {
         // Anything still pending here is a heading with no note after it before
         // the body ended — dropped, not appended, same as any other dangling one.
         return (items, hasHeadingBlock(content) ? content : [])
+    }
+
+    /// A line that is nothing but one emphasised thank-you: `*Thank you [x](…)!*`,
+    /// `_Thanks [x](…) for the [suggestion](…)_`. KeepingYouAwake nests one under
+    /// each contributed translation; as a nested item it is a credit standing
+    /// where a change should be (68 lines across its last 30 releases). Read only
+    /// for nested bullets, the ones generation 10 started keeping, so no line that
+    /// was an item before is touched. A change that merely ends with thanks, or
+    /// thanks written as plain text, is not this shape.
+    static func isEmphasisedThanks(_ line: String) -> Bool {
+        line.range(of: #"^([*_])(?i:thanks?(?: you)?)\b.*\1$"#, options: .regularExpression) != nil
     }
 
     /// A numbered-list item's text: "1. text" / "12) text" → "text". nil otherwise.

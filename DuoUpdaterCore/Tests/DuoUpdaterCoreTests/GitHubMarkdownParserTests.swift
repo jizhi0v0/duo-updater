@@ -745,3 +745,53 @@ private func releasesJSON(tag: String, publishedAt: String, body: String) throws
         "Fixed the one thing in this release", "Universal build for every Mac here",
     ])
 }
+
+// MARK: - Nested credit lines (KeepingYouAwake)
+
+/// KeepingYouAwake 1.6.7's release body, verbatim (`newmarcel/KeepingYouAwake`,
+/// fetched 2026-10-08). Each translation change carries a nested
+/// `*Thank you [name](…)!*` credit. Nested bullets became items in generation
+/// 10, and these credits came with them as bullets of their own, one after
+/// each translation line: a credit, not a change.
+///
+/// Mutation: stop skipping a nested line that is only an emphasised thank-you.
+/// The four credits come back as items and this fails.
+@Test func keepingYouAwakeNestedThankYouCreditsAreNotItems() throws {
+    let body = """
+    - fixed two issues with the "Activate when an external display is connected" advanced setting:
+        - fixed an issue where multiple `caffeinate` tasks were spawned when an external display was connected ([#203](https://github.com/newmarcel/KeepingYouAwake/issues/203))
+        - fixed an issue where a mirrored display was not treated internally as external display ([#210](https://github.com/newmarcel/KeepingYouAwake/issues/210))
+    - fixed an issue where the menu bar icon did not update properly when the URL scheme was used to activate or deactivate ([#224](https://github.com/newmarcel/KeepingYouAwake/issues/224))
+    - updated the Spanish translations ([#223](https://github.com/newmarcel/KeepingYouAwake/pull/223))
+        - *Thank you [agusbattista](https://github.com/agusbattista)!*
+    - added Vietnamese translations ([#222](https://github.com/newmarcel/KeepingYouAwake/pull/222))
+        - *Thank you [ksajolaer](https://github.com/ksajolaer)!*
+    - added Hindi translations ([#232](https://github.com/newmarcel/KeepingYouAwake/pull/232))
+        - *Thank you [AnandChowdhary](https://github.com/AnandChowdhary)!*
+    - added Greek and Finnish translations ([#230](https://github.com/newmarcel/KeepingYouAwake/pull/230))
+        - *Thank you [ziz1zaza](https://github.com/ziz1zaza)!*
+    - since macOS 26 Tahoe allows hiding the app's menu bar icon, the settings window was extended to handle this situation better:
+        - the settings window will now be presented when the app is launched again while running
+        - added a Quit button to the General settings
+    - updated the app icon to not be trapped in a grey box on macOS 26 Tahoe
+    """
+    let json = try releasesJSON(tag: "1.6.7", publishedAt: "2025-07-18T18:39:59Z", body: body)
+    let entry = try #require(StructuredChangelogDecoder.decode(
+        json, format: .gitHubReleases, channel: nil, maxEntries: nil)?.entries.first)
+    #expect(!entry.items.contains { $0.contains("Thank you") })
+    #expect(entry.items.count == 12)
+    // The nested changes themselves stay.
+    #expect(entry.items.contains("added a Quit button to the General settings"))
+
+    // Only a nested line that is wholly an emphasised thank-you. A change that
+    // ends with thanks, or plain-text thanks, is not one.
+    func items(_ body: String) -> [String] {
+        GitHubMarkdownParser.parse(body: body, version: "1.0", date: nil)?.entries.first?.items ?? []
+    }
+    #expect(items("- Added Polish\n  - _Thanks [x](https://x.invalid) for the [suggestion](https://x.invalid)_") ==
+            ["Added Polish"])
+    #expect(items("- Added Polish\n  - Polish ([#90](https://x.invalid)) _Thank you [x](https://x.invalid)!_") ==
+            ["Added Polish", "Polish ([#90](https://x.invalid)) _Thank you [x](https://x.invalid)!_"])
+    #expect(items("- Added Polish\n  - Thanks to everyone who tested the beta") ==
+            ["Added Polish", "Thanks to everyone who tested the beta"])
+}

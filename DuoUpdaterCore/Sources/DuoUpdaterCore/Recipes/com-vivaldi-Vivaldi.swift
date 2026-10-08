@@ -34,6 +34,41 @@ enum com_vivaldi_Vivaldi {
                 kind: .tarGz),
             channel: .preview),
         ],
+        changelogs: [
+        // Vivaldi (Stable) — the appcast (`public/mac/appcast.xml`) inlines no
+        // notes; each item links one page of its own,
+        // `update.vivaldi.com/update/1.0/relnotes/<version>.html`, named after the
+        // item's `sparkle:shortVersionString`. So the page is templated on the
+        // offered (else installed) version, and every past build keeps its page.
+        //
+        //   * A page is cumulative: an intro `<h2>` and `<p>`, then one
+        //     `<h2>Changelog since Vivaldi 8.2 (4133.83)</h2>` + `<ul>` per earlier
+        //     build of the series, newest first (the first `<ul>` also carries
+        //     `class="latestchanges"`). Only that first list is this build's
+        //     changes, so one entry, the first "Changelog since" section, with its
+        //     `<h2>` kept as a heading — it names the build the list is measured
+        //     FROM, never this one.
+        //   * The page does not reliably name its own version (most intros say
+        //     only "Vivaldi 8.2 has arrived!"), so the version is the one in the
+        //     URL (`versionFromTemplate`). A missing version is an nginx 404.
+        //   * Each `<li>` ends with a `<span>` (a `VB-…` ticket, or the Chromium
+        //     security note); stripping tags keeps its text after the change.
+        //
+        // Vivaldi Snapshot is `com.vivaldi.Vivaldi.snapshot`, so this recipe never
+        // reaches it; its feed links `relnotes/snapshot/<version>.html`.
+        ChangelogRecipe(
+            bundleID: "com.vivaldi.Vivaldi",
+            // Never parsed: with no version there is nothing to name the entry, so
+            // only the templated page is ever read.
+            source: URL(string: "https://update.vivaldi.com/update/1.0/public/mac/appcast.xml")!,
+            entryPattern:
+                #"(?<body><h2[^>]*>\s*Changelog since\b[^<]*</h2>\s*<ul[^>]*>.*?</ul>)"#,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
+            maxEntries: 1,
+            sourceTemplate: "https://update.vivaldi.com/update/1.0/relnotes/{version}.html",
+            versionFromTemplate: true,
+            headingPattern: #"<h2[^>]*>(?<heading>\s*Changelog since\b[^<]*)</h2>"#),
+        ],
         channelProofs: [
         ChannelProofKey("com.vivaldi.Vivaldi.snapshot", .preview): .artifact(#"/snapshot-auto/"#),
         ])

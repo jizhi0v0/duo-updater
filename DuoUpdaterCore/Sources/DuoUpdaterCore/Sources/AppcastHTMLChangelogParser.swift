@@ -72,6 +72,19 @@ enum AppcastHTMLChangelogParser {
     /// dropped. Readable text between those matches (a bare sentence or `<p>`
     /// outside the lists) is kept too, one item per paragraph, in place.
     ///
+    /// Section labels are the exception, when a body has at least two of them:
+    /// each then becomes a `.heading` block in `content` (before the first line
+    /// under it) and leaves `items`, the way `GitHubMarkdownParser` treats
+    /// `### Added` / `### Fixed`. A section label is a heading with no digit in
+    /// it, or a paragraph that is one bold run (`<b>Fixes</b>`) with no digit,
+    /// directly followed by the `<ul>`/`<ol>` it introduces. The digit rule and
+    /// the two-label floor are `GitHubMarkdownParser.qualifyingHeadings`' and for
+    /// the same reasons: a heading with a digit restates a version
+    /// (`<h2>OpenClaw 2026.9.9</h2>`), and one lone label is not worth styling.
+    /// Below the floor nothing changes: headings fold into `items` as above and a
+    /// bold paragraph stays a line of its own. A heading that is not a section
+    /// label in a body that has enough of them is folded in as a line too.
+    ///
     /// Returns nil (never throws) when `isStructured` is false, `version` is
     /// empty, or no `<li>` survives cleaning — the caller falls back to the raw
     /// HTML path in every one of those cases.
@@ -93,10 +106,11 @@ enum AppcastHTMLChangelogParser {
         let ns = html as NSString
         let matches = regex.matches(in: html, range: NSRange(location: 0, length: ns.length))
 
-        var items: [String] = []
-        var pendingHeading: String?
+        // The body in document order: headings, the text between the matches, and
+        // list items. Read once, so whether a body has enough section labels can
+        // be decided before any of it is laid out.
+        var pieces: [Piece] = []
         var cursor = 0
-        var listItems = 0
 
         // Text the vendor wrote OUTSIDE any heading or `<li>` — a bare sentence or
         // `<p>` before, between or after the lists. Rectangle's 2.0.2 opens with
@@ -106,12 +120,8 @@ enum AppcastHTMLChangelogParser {
         // it). `gapParagraphs` drops what is chrome rather than content.
         func takeGap(upTo end: Int) {
             guard end > cursor else { return }
-            for text in gapParagraphs(ns.substring(with: NSRange(location: cursor, length: end - cursor))) {
-                if let heading = pendingHeading {
-                    items.append(heading)
-                    pendingHeading = nil
-                }
-                items.append(text)
+            for paragraph in gapParagraphs(ns.substring(with: NSRange(location: cursor, length: end - cursor))) {
+                pieces.append(.text(paragraph.text, listLabel: paragraph.isListLabel))
             }
         }
 
@@ -130,28 +140,88 @@ enum AppcastHTMLChangelogParser {
                 // it into `items` would just duplicate the date the header already
                 // shows. Skipped without disturbing any heading already pending.
                 guard !looksLikeDateOnly(cleaned) else { continue }
-                pendingHeading = cleaned
+                pieces.append(.heading(cleaned))
                 continue
             }
 
             guard itemRange.location != NSNotFound,
                   let cleaned = cleanInline(ns.substring(with: itemRange)), !cleaned.isEmpty
             else { continue }
-
-            if let heading = pendingHeading {
-                items.append(heading)
-                pendingHeading = nil
-            }
-            items.append(cleaned)
-            listItems += 1
+            pieces.append(.item(cleaned))
         }
         takeGap(upTo: ns.length)
+
+        let styled = pieces.filter(\.isSectionLabel).count >= 2
+
+        var items: [String] = []
+        var content: [Changelog.Entry.Block] = []
+        var listItems = 0
+        // A heading lands only once a line follows it; one still pending when the
+        // next heading arrives, or at the end, is dropped.
+        var pendingHeading: (text: String, styled: Bool)?
+
+        func appendLine(_ text: String) {
+            if let heading = pendingHeading {
+                if heading.styled {
+                    content.append(.heading(heading.text))
+                } else {
+                    items.append(heading.text)
+                    content.append(.note(heading.text))
+                }
+                pendingHeading = nil
+            }
+            items.append(text)
+            content.append(.note(text))
+        }
+
+        for piece in pieces {
+            switch piece {
+            case .heading(let text):
+                pendingHeading = (text, styled && piece.isSectionLabel)
+            case .text(let text, _):
+                if styled && piece.isSectionLabel {
+                    pendingHeading = (text, true)
+                } else {
+                    appendLine(text)
+                }
+            case .item(let text):
+                appendLine(text)
+                listItems += 1
+            }
+        }
 
         // At least one real `<li>` must have survived: kept prose alone is the
         // "one bullet per paragraph" shape the type doc says the fallback renders
         // better.
         guard listItems > 0 else { return nil }
-        return Changelog.Entry(version: version, date: date, items: items)
+        // `content` is only for an entry with a heading to style; otherwise the
+        // renderer bullets `items`, which then hold every line.
+        let hasHeading = content.contains { if case .heading = $0 { return true }; return false }
+        return Changelog.Entry(
+            version: version, date: date, items: items, content: hasHeading ? content : [])
+    }
+
+    /// One piece of a description, in document order.
+    private enum Piece {
+        case heading(String)
+        /// A paragraph outside the headings and lists. `listLabel`: it is one
+        /// bold run directly followed by a list (see `gapParagraphs`).
+        case text(String, listLabel: Bool)
+        case item(String)
+
+        /// A heading, or a bold paragraph that introduces a list, with no digit
+        /// in it. See `entry(html:version:date:)`.
+        var isSectionLabel: Bool {
+            switch self {
+            case .heading(let text): return !Self.hasDigit(text)
+            case .text(let text, let listLabel): return listLabel && !Self.hasDigit(text)
+            case .item: return false
+            }
+        }
+
+        private static func hasDigit(_ text: String) -> Bool {
+            text.range(of: "[0-9]", options: .regularExpression) != nil
+        }
     }
 
     // MARK: - Internals
@@ -174,12 +244,25 @@ enum AppcastHTMLChangelogParser {
     ///   A link inside a sentence keeps the sentence; a properly closed heading
     ///   that is a link never reaches here at all;
     /// - a "Release date: …" line, for the same reason the heading arm drops it.
-    private static func gapParagraphs(_ gap: String) -> [String] {
+    ///
+    /// `isListLabel` marks a paragraph that is exactly one `<b>`/`<strong>` run
+    /// and is followed, past nothing but whitespace and a closing `</p>` or
+    /// `</div>`, by an opening `<ul>`/`<ol>`: Superwhisper's
+    /// `<b>Fixes</b><ul>…`. Bold inside a sentence, or a bold paragraph that
+    /// does not open a list, is not one.
+    private static func gapParagraphs(_ gap: String) -> [(text: String, isListLabel: Bool)] {
         guard let gapBlockRegex else { return [] }
-        let marked = gapBlockRegex.stringByReplacingMatches(
-            in: gap, range: NSRange(gap.startIndex..., in: gap), withTemplate: "\u{0}")
-        return marked.split(separator: "\u{0}").compactMap { piece in
-            let raw = String(piece)
+        let ns = gap as NSString
+        var bounds: [NSRange] = []
+        var start = 0
+        for tag in gapBlockRegex.matches(in: gap, range: NSRange(location: 0, length: ns.length)) {
+            bounds.append(NSRange(location: start, length: tag.range.location - start))
+            start = tag.range.location + tag.range.length
+        }
+        bounds.append(NSRange(location: start, length: ns.length - start))
+
+        return bounds.compactMap { range in
+            let raw = ns.substring(with: range)
             guard let cleaned = cleanInline(raw), !looksLikeDateOnly(cleaned) else { return nil }
             var outsideLinks = raw
             if let anchorRegex {
@@ -189,9 +272,18 @@ enum AppcastHTMLChangelogParser {
             let rest = ChangelogExtractor.decodeHTMLEntities(
                 ChangelogExtractor.stripHTMLElements(outsideLinks))
             guard rest.rangeOfCharacter(from: .alphanumerics) != nil else { return nil }
-            return cleaned
+            let after = ns.substring(from: range.location + range.length)
+            let isListLabel = raw.range(of: boldRunShape, options: .regularExpression) != nil
+                && after.range(of: listOpensNextShape, options: .regularExpression) != nil
+            return (cleaned, isListLabel)
         }
     }
+
+    /// The whole paragraph is one bold run with no markup inside it.
+    private static let boldRunShape = #"(?i)^\s*<(b|strong)\b[^>]*>[^<]*</\1\s*>\s*$"#
+
+    /// What follows the paragraph opens a list before anything else.
+    private static let listOpensNextShape = #"(?i)^(?:\s|<\s*/\s*(?:p|div)\s*>)*<\s*(?:ul|ol)\b"#
 
     /// Matches the common Sparkle boilerplate "Release date: 12 August 2026" (and
     /// bare "Release date" with no value) so it can be dropped as metadata rather

@@ -13,7 +13,7 @@ struct NotificationsSettingsPage: View {
         SettingsPage(section: .notifications) {
             SettingsCard(
                 header: "Notify me about updates to",
-                footer: "The menu bar icon’s number and the Dock badge always count apps, and count command-line tools and Homebrew packages only while they’re switched on here. A reminder that needs you to act, such as App Store waiting to finish an update, is sent either way."
+                footer: "The menu bar icon’s number and the Dock badge always count apps, and count command-line tools and Homebrew packages only while they’re switched on here. App Store’s request to relaunch an app so it can finish updating is sent either way."
             ) {
                 Toggle("Apps", isOn: $prefs.notifyOnUpdates)
                     .settingsRow()

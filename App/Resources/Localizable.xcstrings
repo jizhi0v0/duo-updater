@@ -17340,67 +17340,67 @@
         }
       }
     },
-    "The menu bar icon’s number and the Dock badge always count apps, and count command-line tools and Homebrew packages only while they’re switched on here. A reminder that needs you to act, such as App Store waiting to finish an update, is sent either way.": {
+    "The menu bar icon’s number and the Dock badge always count apps, and count command-line tools and Homebrew packages only while they’re switched on here. App Store’s request to relaunch an app so it can finish updating is sent either way.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Zahl am Menüleistensymbol und das Dock-Kennzeichen zählen Apps immer, Befehlszeilentools und Homebrew-Pakete nur, solange sie hier eingeschaltet sind. Eine Erinnerung, bei der du etwas tun musst – etwa wenn der App Store darauf wartet, ein Update abzuschließen –, wird in jedem Fall gesendet."
+            "value": "Die Zahl am Menüleistensymbol und das Dock-Kennzeichen zählen Apps immer, Befehlszeilentools und Homebrew-Pakete nur, solange sie hier eingeschaltet sind. Die Bitte des App Store, eine App neu zu starten, damit ihr Update abgeschlossen werden kann, wird in jedem Fall gesendet."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El número del icono de la barra de menús y el globo del Dock siempre cuentan las apps, y cuentan las herramientas de línea de comandos y los paquetes de Homebrew solo mientras estén activados aquí. Un aviso que requiere que hagas algo, como el App Store esperando para terminar una actualización, se envía siempre."
+            "value": "El número del icono de la barra de menús y el globo del Dock siempre cuentan las apps, y cuentan las herramientas de línea de comandos y los paquetes de Homebrew solo mientras estén activados aquí. La solicitud del App Store de reabrir una app para terminar de actualizarla se envía siempre."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le nombre sur l’icône de la barre des menus et la pastille du Dock comptent toujours les applications, et ne comptent les outils en ligne de commande et les paquets Homebrew que lorsqu’ils sont activés ici. Un rappel qui demande une action de votre part, comme l’App Store qui attend pour terminer une mise à jour, est envoyé dans tous les cas."
+            "value": "Le nombre sur l’icône de la barre des menus et la pastille du Dock comptent toujours les applications, et ne comptent les outils en ligne de commande et les paquets Homebrew que lorsqu’ils sont activés ici. La demande de l’App Store de relancer une application pour terminer sa mise à jour est envoyée dans tous les cas."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Il numero sull’icona nella barra dei menu e il badge nel Dock contano sempre le app, e contano gli strumenti da riga di comando e i pacchetti Homebrew solo mentre sono attivati qui. Un promemoria che richiede un tuo intervento, come l’App Store in attesa di completare un aggiornamento, viene inviato comunque."
+            "value": "Il numero sull’icona nella barra dei menu e il badge nel Dock contano sempre le app, e contano gli strumenti da riga di comando e i pacchetti Homebrew solo mentre sono attivati qui. La richiesta dell’App Store di riaprire un’app per completarne l’aggiornamento viene inviata comunque."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "メニューバーのアイコンの数字と Dock のバッジは、アプリを常に数え、コマンドラインツールと Homebrew パッケージはここでオンにしている間だけ数えます。App Store がアップデートの完了を待っているときなど、操作が必要なお知らせは設定にかかわらず送信されます。"
+            "value": "メニューバーのアイコンの数字と Dock のバッジは、アプリを常に数え、コマンドラインツールと Homebrew パッケージはここでオンにしている間だけ数えます。アップデートを完了するためにアプリの再起動を求める App Store からの通知は、設定にかかわらず送信されます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O número no ícone da barra de menus e o indicador no Dock sempre contam os apps, e contam ferramentas de linha de comando e pacotes do Homebrew só enquanto estiverem ativados aqui. Um lembrete que exige uma ação sua, como a App Store esperando para concluir uma atualização, é enviado de qualquer forma."
+            "value": "O número no ícone da barra de menus e o indicador no Dock sempre contam os apps, e contam ferramentas de linha de comando e pacotes do Homebrew só enquanto estiverem ativados aqui. O pedido da App Store para reabrir um app e concluir a atualização é enviado de qualquer forma."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Число на значке в строке меню и наклейка в Dock всегда учитывают приложения, а инструменты командной строки и пакеты Homebrew — только пока они включены здесь. Напоминание, требующее ваших действий, например когда App Store ждёт, чтобы завершить обновление, отправляется в любом случае."
+            "value": "Число на значке в строке меню и наклейка в Dock всегда учитывают приложения, а инструменты командной строки и пакеты Homebrew — только пока они включены здесь. Запрос App Store перезапустить приложение, чтобы завершить его обновление, отправляется в любом случае."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menü çubuğu simgesindeki sayı ve Dock işareti uygulamaları her zaman sayar; komut satırı araçlarını ve Homebrew paketlerini yalnızca burada açık oldukları sürece sayar. App Store’un bir güncellemeyi bitirmek için beklemesi gibi sizin bir şey yapmanızı gerektiren hatırlatmalar her durumda gönderilir."
+            "value": "Menü çubuğu simgesindeki sayı ve Dock işareti uygulamaları her zaman sayar; komut satırı araçlarını ve Homebrew paketlerini yalnızca burada açık oldukları sürece sayar. App Store’un, bir uygulamanın güncellemesini bitirebilmesi için onu yeniden başlatma isteği her durumda gönderilir."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "菜单栏图标上的数字和程序坞标记总会计入应用；命令行工具和 Homebrew 软件包仅在此处开启时才计入。需要你处理的提醒（例如 App Store 正等待完成更新）无论如何都会发送。"
+            "value": "菜单栏图标上的数字和程序坞标记总会计入应用；命令行工具和 Homebrew 软件包仅在此处开启时才计入。App Store 要求重新启动应用以完成更新的提醒无论如何都会发送。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "選單列圖示上的數字和 Dock 標記一律會計入 App；命令列工具和 Homebrew 套件只有在這裡開啟時才會計入。需要你處理的提醒（例如 App Store 正等待完成更新）無論如何都會傳送。"
+            "value": "選單列圖示上的數字和 Dock 標記一律會計入 App；命令列工具和 Homebrew 套件只有在這裡開啟時才會計入。App Store 要求重新開啟 App 以完成更新的提醒無論如何都會傳送。"
           }
         }
       }

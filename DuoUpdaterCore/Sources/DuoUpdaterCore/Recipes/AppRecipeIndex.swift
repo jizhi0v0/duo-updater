@@ -139,6 +139,7 @@ public enum AppRecipeIndex {
         com_pais_handy.set,
         com_philandro_anydesk.set,
         com_postmanlabs_mac.set,
+        com_proxyman_NSProxy.set,
         com_puremac_app.set,
         com_qianwen_inputmethod_desktopime.set,
         com_qoder_app.set,

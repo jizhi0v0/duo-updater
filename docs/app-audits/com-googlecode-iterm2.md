@@ -197,9 +197,7 @@ curl -sS "https://raw.githubusercontent.com/gnachman/iTerm2/master/sources/iTerm
 
 ## 建议下一步
 1. ~~加 `ChannelBinding`~~：已做（`ITerm2Channel`，见「已知问题」1 和「如何复验」）。没做的一步：在真 app 里拨复选框，确认写进 `com.googlecode.iterm2` 的是 Bool `CheckTestRelease`。这个键名和类型来自源码（`iTermPreferences.m` 的 `kPreferenceKeyCheckForTestReleases = @"CheckTestRelease"`）；验证时是用 `defaults write` 写进去的。
-2. **结构化 changelog**：已做（见 Changelog 一节）。test-release binding 落地后，用 `channel-verify` 在
-   `CheckTestRelease = YES` 的拷贝上确认 pane 行变成 `recipe … newest 3.7.4beta…`（今天没有 binding，这条路径只在
-   fixture 与真实文本上验过，没走过 `channel-verify`）。
+2. **结构化 changelog**：已做（见 Changelog 一节）。test-release 路径也在 binding 落地后走通了（2026-10-08，`channel-verify /Applications/iTerm.app`，`CheckTestRelease` 用 `defaults write` 临时写入、验完删除）：`changelog pane  recipe changelog:com.googlecode.iterm2:-: 1 entries; newest 3.7.4beta1: 128 items, headings ["Major New Features", "New Features", "Improvements", "Bug Fixes"]`，status `UPDATE → 3.7.4beta1`；去掉开关后回到 `newest 3.7.3: 15 items, headings ["Bug Fixes"]`、up to date。
 3. 一键：第一轮（未运行）已跑通，3.7.2 → 3.7.3；第二轮（运行中且 iTerm2 自己的 Sparkle 已暂存）未跑。
 
 ## 历史与实测

@@ -82,8 +82,9 @@ final class FormulaIconMemoryCache: @unchecked Sendable {
 /// icon's own source is the formula's project: the same domain or GitHub
 /// organisation as its homepage, or a stated reason where the project moved.
 /// Name-alike icons of other things were refused (boost → Boost Mobile, make →
-/// Make.com, bat → Basic Attention Token), as was CocoaPods' (non-commercial
-/// licence). `gh` takes GitHub's mark (its homepage is cli.github.com). Icons
+/// Make.com; for bat, the Basic Attention Token icon, while sharkdp/bat's own
+/// mark, sourced from github.com/sharkdp, is the one kept), as was CocoaPods'
+/// (non-commercial licence). `gh` takes GitHub's mark (its homepage is cli.github.com). Icons
 /// under a licence other than CC0 say so beside their entry.
 struct FormulaLogo {
     let asset: String

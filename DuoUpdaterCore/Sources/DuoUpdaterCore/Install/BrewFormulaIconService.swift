@@ -12,7 +12,9 @@ import UniformTypeIdentifiers
 ///   photo of them (10 of 28 icons on the author's machine, 2026-10-08), so a
 ///   formula owned by a person keeps the Homebrew logo;
 /// - any other homepage: the page's own `apple-touch-icon` / `icon` links,
-///   largest first, then the site's `/favicon.ico`.
+///   largest first, then the site's `/favicon.ico` — only those on the
+///   homepage's own site (``SameSite``). A link to a CDN or another host is
+///   dropped, and these requests do not follow a redirect off the site.
 ///
 /// So every request goes to the formula's own site or to GitHub (the owner
 /// lookup is `api.github.com/users/<owner>`), as the
@@ -117,14 +119,14 @@ public actor BrewFormulaIconService {
             switch await organizationAvatar(owner) {
             case nil: return .unknown
             case .some(nil): return .none
-            case .some(let avatar?): return await download(avatar)
+            case .some(let avatar?): return await download(avatar, confined: false)
             }
         }
         if Self.isSharedHost(homepage) { return .none }
         guard let (candidates, pageAnswered) = await candidates(for: homepage) else { return .unknown }
         var transient = !pageAnswered
         for candidate in candidates.prefix(4) {
-            switch await download(candidate) {
+            switch await download(candidate, confined: true) {
             case .found(let icon): return .found(icon)
             case .unknown: transient = true
             case .none: continue
@@ -166,7 +168,8 @@ public actor BrewFormulaIconService {
         let favicon = Self.faviconFallback(page).map { [$0] } ?? []
         var request = URLRequest(url: page)
         request.timeoutInterval = 15
-        guard let (bytes, response) = try? await session.countedBytes(for: request, purpose: .packageIcon),
+        guard let (bytes, response) = try? await session.countedBytes(
+                for: SameSite.confine(request), purpose: .packageIcon),
               let http = response as? HTTPURLResponse
         else { return (favicon, false) }
         guard (200..<300).contains(http.statusCode) else {
@@ -184,9 +187,12 @@ public actor BrewFormulaIconService {
         return (Self.iconCandidates(inHTML: String(decoding: head, as: UTF8.self), base: base), true)
     }
 
-    private func download(_ url: URL) async -> Outcome {
+    /// `confined`: a site's own icon, which must not redirect off the site. The
+    /// GitHub avatar is not: `avatar_url` is GitHub's own CDN by definition.
+    private func download(_ url: URL, confined: Bool) async -> Outcome {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
+        if confined { request = SameSite.confine(request) }
         guard let (data, response) = try? await session.countedData(for: request, purpose: .packageIcon),
               let http = response as? HTTPURLResponse
         else { return .unknown }
@@ -312,7 +318,9 @@ public actor BrewFormulaIconService {
         URL(string: "/favicon.ico", relativeTo: page)?.absoluteURL
     }
 
-    /// The page's icon links, best first, then `/favicon.ico`. Best is largest:
+    /// The page's icon links on `base`'s own site, best first, then
+    /// `/favicon.ico`; a link to another host (a CDN, an icon service) is
+    /// dropped, so asking for it can't tell that host what is installed. Best is largest:
     /// an `apple-touch-icon` is 180 px unless it says otherwise, an `icon` with
     /// no `sizes` is taken as 32 px. SVG and `mask-icon` links are skipped: the
     /// one is not decodable here, the other is a single-colour stencil.
@@ -332,6 +340,7 @@ public actor BrewFormulaIconService {
             if attributes["type"]?.lowercased() == "image/svg+xml" { continue }
             guard let url = URL(string: href, relativeTo: base)?.absoluteURL,
                   let secure = secure(url),
+                  SameSite.matches(secure, base),
                   !secure.path.lowercased().hasSuffix(".svg")
             else { continue }
             let declared = attributes["sizes"].flatMap(largestDeclaredSize)

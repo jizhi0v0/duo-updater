@@ -169,6 +169,12 @@ final class CrossHostCredentialStripper: NSObject, URLSessionDataDelegate, @unch
             completionHandler(nil)
             return
         }
+        // A request confined to its site (`SameSite.confine`) does not follow a
+        // redirect off it: the task returns the 3xx instead.
+        if !SameSite.allowsRedirect(of: task.originalRequest, to: request.url) {
+            completionHandler(nil)
+            return
+        }
         var forwarded = request
         if request.url?.host != task.originalRequest?.url?.host {
             for field in ["Authorization", "Cookie", "Proxy-Authorization"] {

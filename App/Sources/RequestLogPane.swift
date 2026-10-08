@@ -415,8 +415,10 @@ struct RequestLogPane: View {
             .clipShape(Capsule())
 
             // Wraps rather than truncating a purpose away: every one has to stay
-            // visible for the split to add up to the headline.
-            FlowLayout(spacing: 16) {
+            // visible for the split to add up to the headline. It did not: a
+            // one-line frame clipped the wrapped line, and adding Package icons
+            // pushed App downloads and DuoUpdater itself out of sight (2026-10-08).
+            FlowLayout(spacing: 16, lineSpacing: 6) {
                 ForEach(summary.byPurpose) { slice in
                     Button { toggle("purpose:\(Self.token(for: slice.purpose))") } label: {
                         HStack(spacing: 5) {
@@ -434,8 +436,6 @@ struct RequestLogPane: View {
                     .buttonStyle(.plain)
                 }
             }
-            .frame(height: 15, alignment: .topLeading)
-            .clipped()
         }
     }
 

@@ -56,9 +56,21 @@ struct BrewFormulaIconServiceTests {
             </head>
             """
         #expect(BrewFormulaIconService.iconCandidates(inHTML: html, base: base).map(\.absoluteString) == [
-            "https://cdn.example.org/i-192.png",
+            "https://cdn.example.org/i-192.png",    // a subdomain: the same site
             "https://example.org/docs/touch.png",   // apple-touch-icon with no sizes: 180
             "https://example.org/favicon-32.png",
+            "https://example.org/favicon.ico",
+        ])
+    }
+
+    @Test func iconLinksOnAnotherSiteAreDropped() {
+        let html = """
+            <link rel="icon" href="https://cdn.jsdelivr.net/gh/owner/proj/logo.png" sizes="512x512">
+            <link rel="apple-touch-icon" href="https://www.google.com/s2/favicons?domain=example.org">
+            <link rel="icon" href="/own.png" sizes="64x64">
+            """
+        #expect(BrewFormulaIconService.iconCandidates(inHTML: html, base: base).map(\.absoluteString) == [
+            "https://example.org/own.png",
             "https://example.org/favicon.ico",
         ])
     }

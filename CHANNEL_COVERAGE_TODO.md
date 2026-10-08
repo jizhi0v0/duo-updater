@@ -460,7 +460,9 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 - ✗ **Dropbox — Beta** · 论坛分发，口径混乱
 - ✗ **Bartender — Test Builds** · 同 feed
 - ✗ **Plex — Beta** · Plex Pass 应用内，非独立下载
-- ✗ **Audacity 4 预览** · 尚未成轨
+- ✗ **Audacity 4 prerelease（alpha/beta）** · `org.audacityteam.Audacity`（与 3.x 只差大小写），版本 `4.0.0` 无后缀；4.x stable 另起 `org.audacityteam.audacity4`；`latest.test.json` 停在 beta 4，暂无可接构建（2026-10-08）
+- ✗ **Audacity 3 经旧 `audacity` cask 安装** · Caskroom 里是 `audacity`、`.app` 只对得上 `audacity@3` → unknown（2026-10-08）
+- ○ **Calibre — preview** · 同 `net.kovidgoyal.calibre`，`download.calibre-ebook.com/preview/` 每周构建，信号仅版本第三段 ≥100（推断，未找到厂商明文）（2026-10-08）
 - ✗ **Edge — Extended Stable** · 只是更慢的 stable，不单独成轨
 - ✗ **MacUpdater** · 2026-01-01 已停更
 - ✗ **Zen Browser — Twilight(nightly)** · 同 `app.zen-browser.zen`，twilight 是 prerelease tag，stable rule 已用 `usePrereleases:false` 排除；无检测信号
@@ -586,7 +588,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 
 只有 stable、无其它轨需接的：Claude / Codex / ChatWise / Ollama / Conductor / opencode /
 CleanShot(单轨部分) / Shottr / AppCleaner / Unarchiver / ImageOptim / Pearcleaner /
-Stats / MacsFanControl / Calibre / Notion / LibreWolf / Plex / Dropbox /
+Stats / MacsFanControl / Notion / LibreWolf / Plex / Dropbox /
 Orion / VS Code(stable) / Cursor / Slack / 1Password / Sublime（Text/Merge）/
 RustDesk / DBeaver / Beekeeper / Macs Fan Control / Alcove /
 HandBrake / Keka / Lark / Proxyman / Rectangle /

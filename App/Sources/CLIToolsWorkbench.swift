@@ -9,6 +9,101 @@ import DuoUpdaterCore
 
 private var homeDirectory: String { FileManager.default.homeDirectoryForCurrentUser.path }
 
+// MARK: - Icon
+
+/// A tool's mark on a faint tile of its colour, so the CLI tab's rows tell apart
+/// at a glance instead of all wearing the same grey terminal glyph.
+///
+/// The logos are template-rendered in `Assets.xcassets/CLILogos` so they take
+/// the tint. Claude Code, npm, Bun, uv, Cursor, OpenCode, Rust and Vite are Simple
+/// Icons 16.34.0 (CC0; Rust's is CC BY-SA 4.0, from the Rust Foundation); the
+/// rest are each vendor's own: fx.sh's header, boat.dev's favicon, ampcode.com's
+/// press kit, herdr's repo `assets/logo.svg` (backdrop removed), luvus.dev's
+/// brand kit (cropped to the glyph), JetBrains' brand resources for Junie, and
+/// OpenAI's blossom from developers.openai.com/codex for Codex. bub publishes
+/// only a PNG, so it stands in with an SF Symbol.
+struct CLIToolIcon: View {
+    let kind: CLIToolKind
+    let size: CGFloat
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
+            .fill(tint.opacity(0.18))
+            .overlay { mark.foregroundStyle(tint) }
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var mark: some View {
+        if let logo {
+            Image(logo)
+                .resizable()
+                .scaledToFit()
+                // Amp's mark is its wordmark, twice as wide as tall: it gets
+                // the tile's width to stay legible.
+                .frame(width: size * (kind == .amp ? 0.8 : 0.6), height: size * 0.6)
+        } else {
+            Image(systemName: symbol)
+                .font(.system(size: size * 0.55, weight: .semibold))
+        }
+    }
+
+    private var logo: String? {
+        switch kind {
+        case .claudeCode: "cli-claudecode"
+        case .npm: "cli-npm"
+        case .bun: "cli-bun"
+        case .uv: "cli-uv"
+        case .cursorAgent: "cli-cursor"
+        case .opencode: "cli-opencode"
+        case .rust: "cli-rust"
+        case .vitePlus: "cli-vite"
+        case .fx: "cli-fx"
+        case .boat: "cli-boat"
+        case .amp: "cli-amp"
+        case .herdr: "cli-herdr"
+        case .luvus: "cli-luvus"
+        case .junie: "cli-junie"
+        case .codex: "cli-codex"
+        case .bub: nil
+        }
+    }
+
+    private var symbol: String {
+        switch kind {
+        case .bub: "bubbles.and.sparkles.fill"
+        default: "terminal"
+        }
+    }
+
+    /// The brand's own colour, as Simple Icons or the vendor's site gives it.
+    /// The black brands follow the label colour instead, so they don't sink into
+    /// a dark sidebar.
+    private var tint: Color {
+        switch kind {
+        case .claudeCode: Color(red: 0xD9 / 255, green: 0x77 / 255, blue: 0x57 / 255)
+        case .npm: Color(red: 0xCB / 255, green: 0x38 / 255, blue: 0x37 / 255)
+        case .uv: Color(red: 0xDE / 255, green: 0x5F / 255, blue: 0xE9 / 255)
+        case .vitePlus: Color(red: 0x91 / 255, green: 0x35 / 255, blue: 0xFF / 255)
+        case .amp: Color(red: 0xF6 / 255, green: 0x83 / 255, blue: 0x3B / 255)
+        // Luvus's gold washes out on a light sidebar: a deeper gold there, its
+        // own #DBC66F in the dark.
+        case .luvus: Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                ? NSColor(srgbRed: 0xDB / 255, green: 0xC6 / 255, blue: 0x6F / 255, alpha: 1)
+                : NSColor(srgbRed: 0x9C / 255, green: 0x82 / 255, blue: 0x26 / 255, alpha: 1)
+        })
+        case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr: Color(nsColor: .labelColor)
+        // JetBrains' and OpenAI's guidelines forbid recolouring their marks:
+        // Junie keeps its own green, Codex's blossom stays black or white.
+        case .junie: Color(red: 0x48 / 255, green: 0xE0 / 255, blue: 0x54 / 255)
+        case .codex: Color(nsColor: .labelColor)
+        case .bub: .teal
+        }
+    }
+}
+
 // MARK: - Sidebar row
 
 extension View {
@@ -47,9 +142,7 @@ struct CLIToolSidebarRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "terminal")
-                .frame(width: 22, height: 22)
-                .foregroundStyle(.secondary)
+            CLIToolIcon(kind: status.kind, size: 22)
             VStack(alignment: .leading, spacing: 1) {
                 Text(verbatim: CLIToolPresentation.title(of: status, home: homeDirectory, among: cli.statuses))
                     .font(.body).lineLimit(1).truncationMode(.middle)
@@ -226,10 +319,7 @@ struct ClaudeCodeDetailPane: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Image(systemName: "terminal")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-                .frame(width: 44, height: 44)
+            CLIToolIcon(kind: .claudeCode, size: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: CLIToolKind.claudeCode.displayName).font(.title2).fontWeight(.semibold)
                 Text(verbatim: location)
@@ -395,10 +485,7 @@ struct CLIToolDetailPane: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Image(systemName: "terminal")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-                .frame(width: 44, height: 44)
+            CLIToolIcon(kind: status.kind, size: 44)
             VStack(alignment: .leading, spacing: 2) {
                 // "rustup", an npm package's name: the install's own name when the
                 // tool's group holds several kinds of thing. The path says which.

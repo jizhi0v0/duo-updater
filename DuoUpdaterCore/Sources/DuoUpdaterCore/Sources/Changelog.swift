@@ -131,7 +131,10 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   CLI does (`.opencodeReleases`) instead of scraping the releases page's
     ///   `<li>`s. Notes already cached carry each release's
     ///   `@handle: <pull-request title>` contributor credits as changes.
-    public static let parserGeneration = 14
+    /// - 15: Calibre's recipe keeps its "New features" / "Bug fixes" category
+    ///   `<h3>`s as headings. Notes already cached for a release list both
+    ///   categories as one unheaded run.
+    public static let parserGeneration = 15
 
     public let entries: [Entry]
 

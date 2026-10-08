@@ -112,8 +112,11 @@ import Foundation
     /// 14 (OpenCode desktop reads its notes through `.opencodeReleases`) moves
     /// neither fixture: it is one app's recipe. Pinned by
     /// `openCodeDesktopNotesStopAtTheContributorCredits`.
+    ///
+    /// 15 (Calibre's category headings) moves neither fixture: it is one app's
+    /// recipe. Pinned by `extractsCalibreCategoryHeadings`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 14)
+        #expect(Changelog.parserGeneration == 15)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

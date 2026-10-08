@@ -162,6 +162,11 @@ private let raycastChangelogFixture = #"""
             "vendor:org.blenderfoundation.blender:alpha",
             "vendor:org.blenderfoundation.blender:beta",
             "vendor:org.blenderfoundation.blender:rc",
+            // Calibre: `latest-version` is a bare version with no OS bound, and the
+            // vendor's download page says calibre works on macOS 14.0 and higher
+            // (the bundle's `LSMinimumSystemVersion` agrees). An older Mac is left
+            // at "unknown" rather than offered a release it cannot run.
+            "vendor:net.kovidgoyal.calibre:stable",
         ])
         let unrestricted = VendorProbeRegistry.recipes.filter { $0.hostRequirement == nil }
         #expect(unrestricted.count == VendorProbeRegistry.recipes.count - restricted.count)

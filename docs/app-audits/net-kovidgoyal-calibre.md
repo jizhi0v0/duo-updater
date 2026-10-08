@@ -42,7 +42,7 @@
 - 另有 `https://download.calibre-ebook.com/betas/`，当时只有一组 `calibre-9.9.105.*`（21-Jun-2026，介于 9.9 与 9.10 之间）。
   这个目录在 9.10 发布后没有清空，像是更早的、没再更新的入口（推断）。
 - preview 真包: bundle id、Team、`LSMinimumSystemVersion` 与 stable 相同，版本 `9.15.101`；Info.plist 键集合与 stable 完全一样，
-  没有任何渠道标记。`channel-verify` 报 `inferred stable`。
+  没有任何渠道标记。`channel-verify` 当时报 `inferred stable`；按版本形状判 preview 之后报 `preview`（见下）。
 - 版本号规则来自源码：`master` 上 `src/calibre/constants.py` 是 `numeric_version = (9, 15, 101)`，即两次正式版之间 master
   的版本就是 `<上个正式版>.1NN`。厂商在发布脚本里写明了这条规则：`setup/publish.py` 的 `Publish.pre_sub_commands`
   拒绝 `version[2] > 99`，报错 "The version number {v} indicates a preview release, did you mean to run ./setup.py publish_preview?"；

@@ -54,7 +54,7 @@
   Team `2ZEFAR8TH3`，`codesign --verify --deep --strict` 通过。**公证**：`stapler validate` 说没有装订票据，
   `spctl` 来源是 `Developer ID`（Public Preview 是 `Notarized Developer ID`，且有装订票据），
   `syspolicy_check distribution` 报 `Notary Ticket Missing`；是否已公证只是没装订，未验证。
-- `channel-verify` 对 nightly 包：`inferred stable`、`detected channel → stable`，`winning source Sparkle`，读它自己的
+- `channel-verify` 对 nightly 包（改之前）：`inferred stable`、`detected channel → stable`，`winning source Sparkle`，读它自己的
   nightly feed，`latest 262.1054`、`status up to date`。所以**已装 nightly 的拷贝跟的是 nightly 轨**，不会被推 Public Preview
   （反过来也一样：Public Preview 拷贝读 eap feed）。当时两处不对，**已修**：`ReleaseChannel.detect()` 对这个 bundle id、
   `SUFeedURL` 路径 `fleet-feed/AIR/` 后一段是 `nightly` 时判 `.nightly`；Air 的 changelog recipe 带

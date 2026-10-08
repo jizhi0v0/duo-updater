@@ -159,7 +159,7 @@ cat <OpenChamber.app>/Contents/Resources/app-update.yml
 
 ## 重审更正（相对 2026-08-17 版）
 - 原文「Homebrew ✗」：cask 是有的（`openchamber`），只是 `auto_updates: true`，`HomebrewCaskSource` 让位
-- 原文只写 stable 一行：GitHub 上有 `v2-preview` prerelease，同 bundle id，duo 判为 stable 并推 stable（上文）
+- 原文只写 stable 一行：GitHub 上有 `v2-preview` prerelease，同 bundle id，重审时 duo 判为 stable 并推 stable；之后改为判 preview、仍推 stable（上文）
 - 原文「GitHub release body 内联」：现在有面板实测行，结构化、分节保留
 - 原文「一键 ✓」没有端到端证据；本次第一轮端到端已跑通（见「一键安装」）
 - 「已验证版本」改为「观测版本」

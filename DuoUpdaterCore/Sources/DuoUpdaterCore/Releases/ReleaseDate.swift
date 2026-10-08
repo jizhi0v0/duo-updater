@@ -76,10 +76,29 @@ public enum ReleaseDate {
         }
 
         // RFC822, the RSS pubDate standard. Try the common spellings vendors use.
-        for formatter in rfc822Formatters {
-            if let date = formatter.date(from: trimmed) { return date }
-        }
+        return rfc822Date(from: trimmed)
+    }
 
+    /// `value` read by the first of `rfc822Formatters` that accepts it — or, when
+    /// none does and the month is written `Sept`, by the first that accepts it
+    /// with `Sep` in its place.
+    ///
+    /// ICU's `MMM` reads `Sep` and `September` but not `Sept`, and AppCleaner's
+    /// and MacWhisper's appcasts write September that way
+    /// (`Tue, 22 Sept 2026 12:00:00 +0200`). The rewrite is tried only after every
+    /// formatter has rejected the string as written, so no string that already
+    /// parsed can read differently because of it; and it replaces `Sept` only as
+    /// a whole space-delimited word, so `Sept.` and `September` are left alone.
+    private static func rfc822Date(from value: String) -> Date? {
+        for formatter in rfc822Formatters {
+            if let date = formatter.date(from: value) { return date }
+        }
+        guard let sept = value.range(of: #"(?<= )Sept(?= )"#, options: .regularExpression)
+        else { return nil }
+        let rewritten = value.replacingCharacters(in: sept, with: "Sep")
+        for formatter in rfc822Formatters {
+            if let date = formatter.date(from: rewritten) { return date }
+        }
         return nil
     }
 
@@ -327,10 +346,8 @@ extension ReleaseDate {
             }
         }
 
-        for formatter in rfc822Formatters {
-            if let value = formatter.date(from: trimmed) {
-                return Parsed(date: value, precision: .minute)
-            }
+        if let value = rfc822Date(from: trimmed) {
+            return Parsed(date: value, precision: .minute)
         }
 
         // Last, so it only ever sees a string every shape above rejected: no

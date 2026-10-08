@@ -296,17 +296,17 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 
-- [x] [**iTerm2**](com-googlecode-iterm2.md) · `com.googlecode.iterm2` — S
-- [x] [**Arc**](company-thebrowser-Browser.md) · `company.thebrowser.Browser` — S
-- [x] [**Rectangle**](com-knollsoft-Rectangle.md) · `com.knollsoft.Rectangle` — S
-- [x] [**IINA**](com-colliderli-iina.md) · `com.colliderli.iina` — S
-- [x] [**Proxyman**](com-proxyman-NSProxy.md) · `com.proxyman.NSProxy` — S
-- [x] [**MonitorControl**](app-monitorcontrol-MonitorControl.md) · `app.monitorcontrol.MonitorControl` — S
-- [x] [**Maccy**](org-p0deje-Maccy.md) · `org.p0deje.Maccy` — S
-- [ ] [**Keka**](com-aone-keka.md) · `com.aone.keka` — S, needs download verification
+- [x] [**iTerm2**](com-googlecode-iterm2.md) · `com.googlecode.iterm2` — S+B · stable/nightly ✓ · test release ✓（`ITerm2Channel`）· 一键 ✓ · changelog recipe ✓（stable/test release）· 2026-10-08
+- [x] [**Arc**](company-thebrowser-Browser.md) · `company.thebrowser.Browser` — S · 一键（delta）✓ · Early Birds 需申请，RC 包自带 feed，不做 binding · changelog 原文 · 2026-10-08
+- [x] [**Rectangle**](com-knollsoft-Rectangle.md) · `com.knollsoft.Rectangle` — S · 一键（delta）✓ · changelog 结构化 · 2026-10-08
+- [x] [**IINA**](com-colliderli-iina.md) · `com.colliderli.iina` — S+B · stable/beta（`IINAChannel`）· 一键（delta）✓ · changelog recipe ✓ · 2026-10-08
+- [x] [**Proxyman**](com-proxyman-NSProxy.md) · `com.proxyman.NSProxy` — S · 一键 ✓ · changelog recipe（GitHub）✓ · 2026-10-08
+- [x] [**MonitorControl**](app-monitorcontrol-MonitorControl.md) · `app.monitorcontrol.MonitorControl` — S+B · 一键 ✓ · beta 开关（`MonitorControlChannel`，feed 尚无 beta）· changelog recipe ✓ · 2026-10-08
+- [x] [**Maccy**](org-p0deje-Maccy.md) · `org.p0deje.Maccy` — S · 检测 + changelog 结构化 ✓ · 一键未跑 · 2026-10-08
+- [x] [**Keka**](com-aone-keka.md) · `com.aone.keka` — S · 检测 ✓ · changelog recipe（GitHub）✓ · 一键未跑 · 2026-10-08
 - [x] [**Vivaldi**](com-vivaldi-Vivaldi.md) · `com.vivaldi.Vivaldi` — S
 - [x] [**OBS**](com-obsproject-obs-studio.md) · `com.obsproject.obs-studio` — S · 真包 32.2.1/32.2.2/33.0.0-beta5/beta6 验证 ✓ · stable 一键（delta）端到端 ✓ · beta `UpdateBranch` 绑定 ✓ · changelog recipe（feedPagePattern）✓ · 2026-10-08
-- [x] [**HandBrake**](fr-handbrake-HandBrake.md) · `fr.handbrake.HandBrake` — S
+- [x] [**HandBrake**](fr-handbrake-HandBrake.md) · `fr.handbrake.HandBrake` — S · 一键 ✓ · changelog recipe（GitHub）✓ · 2026-10-08
 - [x] [**Typeless**](now-typeless-desktop.md) · `now.typeless.desktop` — P+C · electron-builder feed (VendorProbe) · 一键 dmg + sha512 · 结构化 changelog（gzip __NEXT_DATA__，含图）· channel-verify ✓ · 2026-06-19
 - [x] [**OpenClaw**](ai-openclaw-mac.md) · `ai.openclaw.mac` — S · real DMG/feed verified ✓ · 2026-08-17
 - [x] [**Superwhisper**](com-superduper-superwhisper.md) · `com.superduper.superwhisper` — S · real zip/feed verified ✓ · 2026-08-17

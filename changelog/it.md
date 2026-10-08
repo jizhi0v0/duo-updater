@@ -2,6 +2,24 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.2
+
+**Gli strumenti da riga di comando e i pacchetti Homebrew ora vengono controllati in background, e i loro aggiornamenti compaiono nelle notifiche e nel badge.** Prima venivano controllati solo aprendo il popover della barra dei menu o il banco di lavoro. Una nuova pagina Impostazioni › Notifiche ha un interruttore per le app, uno per gli strumenti da riga di comando e uno per i pacchetti Homebrew; i pacchetti Homebrew sono disattivati per impostazione predefinita.
+
+**Le formule che Homebrew ha spostato in un cask, rimosso, rinominato, deprecato o disattivato ora vengono segnalate, e così anche i cask deprecati o disattivati.** Prima risultavano aggiornate, e una formula rinominata ma non migrata bloccava anche il controllo degli aggiornamenti di tutte le altre formule. Il pannello dei dettagli riporta il motivo indicato da Homebrew e il comando da copiare.
+
+**Una formula installata da HEAD ora indica che Homebrew non la confronta con l’origine, e «Controlla a monte» lo chiede al posto tuo.** Prima risultava sempre aggiornata.
+
+**Sono supportate più app e più canali di rilascio.** TRAE, la build nightly di Jan e Audacity 4 installato dal sito dello sviluppatore ora hanno il controllo degli aggiornamenti e l’aggiornamento con un clic, e Audacity 3 installato allo stesso modo ora ha il controllo degli aggiornamenti. DuoUpdater ora segue il canale beta che scegli in OBS e l’impostazione «Update to Beta test releases» di iTerm2. Le build Early Birds di Arc e Dia, OpenChamber preview, JetBrains Air nightly e calibre preview ora vengono riconosciute come versioni di prova anziché come versioni stabili.
+
+**Altri due strumenti da riga di comando: Herdr e Luvus.** Nella scheda CLI ogni strumento ora mostra il proprio logo, e le formule Homebrew la propria icona invece di un simbolo di terminale grigio.
+
+**Impostazioni › GitHub mostra quante richieste all’API di GitHub ti restano e ha un interruttore per usare l’accesso della CLI di GitHub.** Un token salvato o rimosso ha effetto subito, e un token rifiutato da GitHub ora viene segnalato come tale. Gli strumenti da riga di comando che raggiungono il limite di richieste di GitHub ora lo dicono invece di mostrare un errore di connessione.
+
+**Le note di rilascio sono più leggibili per più app.** Vivaldi, Keka, HandBrake, Proxyman, MonitorControl, IINA, iTerm2, OBS e Audacity 4 ora hanno note strutturate, e quelle di calibre mantengono i titoli delle sezioni. Gli elenchi annidati e i titoli delle sezioni appaiono come li ha scritti lo sviluppatore, e ora viene mostrata la data di rilascio per Arc, Dia, AppCleaner e MacWhisper.
+
+**La notifica di Xcode «accesso scaduto» non viene più inviata mentre DuoUpdater sta ancora rinnovando la tua sessione in background.**
+
 ## 0.5.1
 
 **Più app supportate.** Il controllo degli aggiornamenti e gli aggiornamenti con un clic ora coprono Spotifast, Cindy (sia l’edizione internazionale sia quella cinese), Moshi Go, Moshi e Herdr. Ora viene controllata anche Lokii, che si aggiorna con un clic quando «Consenti aggiornamenti con un clic per le app senza firma dello sviluppatore» è attivo.

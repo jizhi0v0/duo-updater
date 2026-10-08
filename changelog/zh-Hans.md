@@ -2,6 +2,24 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.5.2
+
+**命令行工具和 Homebrew 软件包现在也会在后台检查，它们的更新会出现在通知和角标里。** 以前只有打开菜单栏弹窗或工作台时才会检查。新的 设置 › 通知 页面为 App、命令行工具和 Homebrew 软件包各提供一个开关，Homebrew 软件包默认关闭。
+
+**被 Homebrew 迁移为 cask、删除、改名、弃用或停用的 formula 现在会被标出来，弃用或停用的 cask 也一样。** 以前它们都显示为已是最新；改了名却没迁移的 formula 还会让其他所有 formula 的更新检查失效。详情面板会给出 Homebrew 的原因和可以复制的命令。
+
+**从 HEAD 安装的 formula 现在会说明 Homebrew 不会拿它和上游比对，点“检查上游”就能替你去问。** 以前它总是显示为已是最新。
+
+**支持的 App 和更新渠道更多了。** TRAE、Jan 的 nightly 版，以及从开发者网站安装的 Audacity 4 现在都能检查更新并一键更新；这样安装的 Audacity 3 现在也能检查更新。DuoUpdater 现在会跟随你在 OBS 里选的 Beta 渠道和 iTerm2 的“Update to Beta test releases”设置。Arc 和 Dia 的 Early Birds 版、OpenChamber preview、JetBrains Air nightly 和 calibre preview 现在会被识别为测试版，而不是正式版。
+
+**又多了两个命令行工具：Herdr 和 Luvus。** 命令行 标签页里每个工具现在都显示自己的图标，Homebrew formula 也显示各自的图标，不再是一个灰色的终端符号。
+
+**设置 › GitHub 现在会显示你还剩多少 GitHub API 请求，并提供使用 GitHub CLI 登录的开关。** 保存或移除的 token 立即生效；被 GitHub 拒绝的 token 会明确告诉你。命令行工具碰到 GitHub 限流时也会如实说明，而不是显示连接错误。
+
+**更多 App 的更新说明更好读了。** Vivaldi、Keka、HandBrake、Proxyman、MonitorControl、IINA、iTerm2、OBS 和 Audacity 4 现在有结构化的更新说明，calibre 的说明保留了分节标题。嵌套列表和分节标题会按开发者写的样子显示，Arc、Dia、AppCleaner 和 MacWhisper 的发布日期也显示出来了。
+
+**DuoUpdater 还在后台续期你的会话时，不会再发出 Xcode“登录已过期”的通知。**
+
 ## 0.5.1
 
 **支持的 App 更多了。** Spotifast、Cindy（国际版和国内版）、Moshi Go、Moshi 和 Herdr 现在都能检查更新并一键更新。Lokii 现在也能检查更新，打开“允许一键更新没有开发者签名的 App”后还可以一键更新。

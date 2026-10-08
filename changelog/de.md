@@ -2,6 +2,24 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.2
+
+**Kommandozeilen-Tools und Homebrew-Pakete werden jetzt im Hintergrund geprüft, und ihre Updates erscheinen in Mitteilungen und im Kennzeichen.** Bisher wurden sie nur geprüft, wenn du das Popover der Menüleiste oder die Werkbank geöffnet hast. Eine neue Seite Einstellungen › Mitteilungen hat je einen Schalter für Apps, Kommandozeilen-Tools und Homebrew-Pakete; Homebrew-Pakete sind standardmäßig aus.
+
+**Formeln, die Homebrew in ein Cask verschoben, entfernt, umbenannt, als veraltet markiert oder deaktiviert hat, werden jetzt gekennzeichnet, ebenso veraltete oder deaktivierte Casks.** Bisher galten sie als aktuell, und eine umbenannte, aber nicht migrierte Formel legte zudem die Update-Prüfung aller anderen Formeln lahm. Der Detailbereich nennt den Grund von Homebrew und den Befehl zum Kopieren.
+
+**Eine aus HEAD installierte Formel sagt jetzt, dass Homebrew sie nicht mit Upstream vergleicht, und „Upstream prüfen“ fragt für dich nach.** Bisher galt sie immer als aktuell.
+
+**Mehr Apps und Release-Kanäle werden unterstützt.** TRAE, der Nightly-Build von Jan und Audacity 4, von der Website des Entwicklers installiert, werden jetzt auf Updates geprüft und lassen sich mit einem Klick aktualisieren; ein so installiertes Audacity 3 wird jetzt auf Updates geprüft. DuoUpdater folgt jetzt dem Beta-Kanal, den du in OBS wählst, und der iTerm2-Einstellung „Update to Beta test releases“. Early-Birds-Builds von Arc und Dia, OpenChamber Preview, JetBrains Air Nightly und calibre Preview werden jetzt als Testversionen erkannt statt als stabile Releases.
+
+**Zwei weitere Kommandozeilen-Tools: Herdr und Luvus.** Im Tab CLI zeigt jedes Tool jetzt sein eigenes Logo, und Homebrew-Formeln zeigen ihr eigenes Symbol statt eines grauen Terminal-Symbols.
+
+**Einstellungen › GitHub zeigt, wie viele GitHub-API-Anfragen dir noch bleiben, und hat einen Schalter, um die Anmeldung der GitHub CLI zu verwenden.** Ein gespeichertes oder entferntes Token gilt sofort, und ein Token, das GitHub ablehnt, wird als solches gemeldet. Kommandozeilen-Tools, die an das Rate-Limit von GitHub stoßen, sagen das jetzt, statt einen Verbindungsfehler anzuzeigen.
+
+**Release Notes sind für mehr Apps besser lesbar.** Vivaldi, Keka, HandBrake, Proxyman, MonitorControl, IINA, iTerm2, OBS und Audacity 4 bekommen jetzt strukturierte Notes, und die Notes von calibre behalten ihre Abschnittsüberschriften. Verschachtelte Listen und Abschnittsüberschriften erscheinen so, wie der Entwickler sie geschrieben hat, und für Arc, Dia, AppCleaner und MacWhisper wird jetzt das Veröffentlichungsdatum angezeigt.
+
+**Die Xcode-Mitteilung „Anmeldung abgelaufen“ wird nicht mehr gesendet, während DuoUpdater deine Sitzung noch im Hintergrund erneuert.**
+
 ## 0.5.1
 
 **Mehr Apps werden unterstützt.** Update-Prüfung und Ein-Klick-Updates gibt es jetzt für Spotifast, Cindy (die globale und die China-Edition), Moshi Go, Moshi und Herdr. Lokii wird jetzt ebenfalls auf Updates geprüft und lässt sich mit einem Klick aktualisieren, wenn „Ein-Klick-Updates für Apps ohne Entwicklersignatur erlauben“ eingeschaltet ist.

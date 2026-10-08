@@ -2,6 +2,24 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.2
+
+**Komut satırı araçları ve Homebrew paketleri artık arka planda denetleniyor, güncellemeleri de bildirimlerde ve rozette görünüyor.** Önceden yalnızca menü çubuğu açılır penceresini ya da çalışma alanını açtığınızda denetleniyorlardı. Yeni Ayarlar › Bildirimler sayfasında uygulamalar, komut satırı araçları ve Homebrew paketleri için ayrı birer düğme var; Homebrew paketleri varsayılan olarak kapalı.
+
+**Homebrew’un bir cask’e taşıdığı, kaldırdığı, yeniden adlandırdığı, kullanımdan kaldırdığı ya da devre dışı bıraktığı formüller artık işaretleniyor; kullanımdan kaldırılmış ya da devre dışı bırakılmış cask’ler de öyle.** Önceden bunlar güncel görünüyordu, üstelik yeniden adlandırılıp taşınmamış bir formül diğer tüm formüllerin güncelleme denetimini de bozuyordu. Ayrıntı bölmesi Homebrew’un gerekçesini ve kopyalanacak komutu gösteriyor.
+
+**HEAD’den kurulan bir formül artık Homebrew’un onu kaynakla karşılaştırmadığını söylüyor ve “Kaynağı Denetle” sizin yerinize soruyor.** Önceden her zaman güncel görünüyordu.
+
+**Daha fazla uygulama ve sürüm kanalı destekleniyor.** TRAE, Jan’ın nightly derlemesi ve geliştiricinin web sitesinden kurulan Audacity 4 artık güncellemeler için denetleniyor ve tek tıkla güncelleniyor; aynı şekilde kurulan Audacity 3 de artık güncellemeler için denetleniyor. DuoUpdater artık OBS’de seçtiğiniz beta kanalını ve iTerm2’nin “Update to Beta test releases” ayarını izliyor. Arc ile Dia’nın Early Birds derlemeleri, OpenChamber preview, JetBrains Air nightly ve calibre preview artık kararlı sürüm yerine test sürümü olarak tanınıyor.
+
+**İki komut satırı aracı daha: Herdr ve Luvus.** CLI sekmesinde her araç artık kendi logosunu, Homebrew formülleri de gri bir terminal simgesi yerine kendi simgesini gösteriyor.
+
+**Ayarlar › GitHub, kalan GitHub API isteği sayınızı gösteriyor ve GitHub CLI oturumunu kullanmak için bir düğme sunuyor.** Kaydettiğiniz ya da kaldırdığınız token hemen geçerli oluyor, GitHub’un reddettiği bir token da artık bunu belirtiyor. GitHub’un istek sınırına takılan komut satırı araçları artık bağlantı hatası göstermek yerine bunu söylüyor.
+
+**Daha fazla uygulamanın sürüm notları artık daha kolay okunuyor.** Vivaldi, Keka, HandBrake, Proxyman, MonitorControl, IINA, iTerm2, OBS ve Audacity 4 artık yapılandırılmış notlar alıyor, calibre’nin notları da bölüm başlıklarını koruyor. İç içe listeler ve bölüm başlıkları geliştiricinin yazdığı gibi görünüyor; Arc, Dia, AppCleaner ve MacWhisper için yayın tarihi de artık gösteriliyor.
+
+**DuoUpdater oturumunuzu arka planda yenilemeye devam ederken Xcode “oturum süresi doldu” bildirimi artık gönderilmiyor.**
+
 ## 0.5.1
 
 **Daha fazla uygulama destekleniyor.** Güncelleme denetimi ve tek tıkla güncelleme artık Spotifast, Cindy (hem küresel hem Çin sürümü), Moshi Go, Moshi ve Herdr’ı kapsıyor. Lokii de artık güncellemeler için denetleniyor ve “Geliştirici imzası olmayan uygulamalarda tek tıkla güncellemeye izin ver” açıkken tek tıkla güncelleniyor.

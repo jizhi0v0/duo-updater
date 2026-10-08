@@ -25,11 +25,13 @@
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **stable**   | —       | —（`auto_updates`，且版本停在旧打包号） | — | — | ○（官方 API 现有同构版本，未写 recipe） |
+| **stable**   | —       | —（`auto_updates`，且版本停在旧打包号） | — | — | ✓ 一键（官网下载 API，arm64 / x64 各一条，`va` 区） |
 | **beta / alpha** | — | — | — | — | 没找到公开构建 |
 
-当前生效源（`UpdateChecker` 优先链中第一个应答的）: **无**（`channel-verify`：`winning source <none>`，
-`status unknown (no source answered)`）
+当前生效源（`UpdateChecker` 优先链中第一个应答的）: **VendorProbe**（`Recipes/com-trae-app.swift`，读
+`data.manifest.darwin.versions[]` 中 region `va` + 本机架构那一项；`tob` / `solo` 段被锚定排除）。接入前
+（2026-10-08 实测）`winning source <none>`、`status unknown (no source answered)`；接入后 3.5.87 → `UPDATE → 3.5.104`（Vendor），
+3.5.104 → up to date
 
 ## Channel 详情
 
@@ -108,32 +110,26 @@
 - Recipe 状态: 检测接上之前不需要；接上之后也难做（版本区间、日期分条、内容滞后）
 
 ## 一键安装
-- 状态: 不支持（检测未接）
-- 端到端: 未跑（没有检测）
+- 状态: 支持（dmg，按架构分包，每个架构一条 recipe、各带 `hostRequirement`；安装 URL 也钉死本架构的文件名）
+- 端到端: 未跑
 - 格式: dmg，按架构分包（arm64 414,318,607 B）
 - 校验: API body 没有摘要字段；CDN 的 `etag` / `content-md5` 是 MD5（不支持的格式），只能靠 Team 闸
-- **读的是**: 若用 A —— 官网下载按钮给的 GA，人人可手动下载，但**超前于 Trae 应用内检查分配的版本**
-  （3.5.104 对 3.5.87）。要接受，理由只能是「这就是官网当天给新用户的包」；一键会把 Trae 自己不会推的版本装上，
-  需要在 recipe 注释和这里写明
-- Team: 三个包同为 `79M8227NKH`，`codesign --verify --deep --strict` 均退出 0
+- **读的是**: 官网下载按钮给的 GA（A），人人可手动下载，**超前于 Trae 应用内检查分配的版本**（3.5.104 对 3.5.87）。
+  2026-10-08 用户决定跟随官网：一键会把 Trae 自己当下还不推的版本装上，recipe 注释里写明了
+- Team: 3.5.104（arm64、x64）与 3.5.87 arm64 同为 `79M8227NKH`，与已装 app 相同，`codesign --verify --deep --strict` 均退出 0；
+  `spctl` 都是 `Notarized Developer ID`（3.5.104 没有装订票据，3.5.87 有）。x64 dmg 442,635,468 B，3.5.104，只有 x86_64
 - 嵌套: `check-bundle.sh` 只列出 4 个 Electron helper（`LSUIElement`）；没有 `Contents/Library`、`Contents/Helpers`
-- 阻塞: 检测未接
+- 阻塞: 无已知
 
 ## 已知问题
-- 2026-08-17 / 08-30 的「API 没有版本字段」结论已过期（`Sources/VendorProbeRecipe.swift` 里关于 TRAE 的
-  两处注释仍这么写）。旧形状的 `download` 数组还在，新增的是 `versions` 数组；什么时候加的不知道
-- 官网 / 公开 API 与应用内检查不同步（A 与 B）
+- 官网 / 公开 API 与应用内检查不同步（A 与 B）；duo 跟随官网（A）
 - Homebrew cask 停在旧文件名、旧版本
 
 ## 建议下一步
-1. 决定用 A 还是不接：A 可以用现有字段表达，但要**每个架构一条 recipe、各带 `hostRequirement`**（`entryStartPattern`
-   锚 `manifest.darwin.versions`，各自取本架构的 `version` 与 `url`）。`VendorProbeSource` 只按
-   `hostRequirement` 挑 recipe（没有就每台 Mac 都跑），安装 URL 模板也只替换 `{version}` / `{N}`、没有架构占位，
-   所以不带 `hostRequirement` 会把 arm64 的 dmg 报给 Intel。代价是超前于应用内分配（上文），这一点要用户拍板。
-   交给 `/fragile-recipe TRAE`（VendorProbe 路径）
-2. B 更贴近 Trae 自己的行为，但请求要带包内 `package.json` 的 `buildId`。按 Skill 的字段表看，现有 recipe 字段里没有
-   「从已装包读一个值拼进请求」的能力（推断，没逐一核源码）；不建议为它加机制
-3. 更新 `VendorProbeRecipe.swift` 那两段 TRAE 注释（现在说的是过期事实）——代码注释改动，不在本次文档范围
+1. （已做）A：VendorProbe 读官网下载 API，每个架构一条 recipe、各带 `hostRequirement`，一键装官网 dmg（见上）。
+   `VendorProbeRecipe.swift` 里两段过期的 TRAE 注释已改
+2. B 更贴近 Trae 自己的行为，但请求要带包内 `package.json` 的 `buildId`，现有 recipe 字段没有这个能力；不建议为它加机制
+3. 一键端到端（3.5.87 → 3.5.104）未跑
 
 ## 如何复验
 

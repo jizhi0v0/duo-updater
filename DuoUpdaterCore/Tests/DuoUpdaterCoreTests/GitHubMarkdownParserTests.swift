@@ -343,8 +343,11 @@ import Testing
 @Test func strictNestsOnlyInsideATopLevelList() {
     // An indented bullet after a heading, after unindented prose, or inside a
     // fence is not nested under any item, and the strict pass still drops it.
+    // The blank line matters: without it the paragraph line continues item
+    // one (a CommonMark lazy continuation) and the list stays open.
     let body = """
     - Top level change number one
+
     A paragraph that closes the list.
       - indented after prose
     - Top level change number two

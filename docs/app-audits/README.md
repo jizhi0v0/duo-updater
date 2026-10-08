@@ -309,8 +309,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**OBS**](com-obsproject-obs-studio.md) · `com.obsproject.obs-studio` — S · 真包 32.2.1/32.2.2/33.0.0-beta5/beta6 验证 ✓ · stable 一键（delta）端到端 ✓ · beta `UpdateBranch` 绑定 ✓ · changelog recipe（feedPagePattern）✓ · 2026-10-08
 - [x] [**HandBrake**](fr-handbrake-HandBrake.md) · `fr.handbrake.HandBrake` — S · 一键 ✓ · changelog recipe（GitHub）✓ · 2026-10-08
 - [x] [**Typeless**](now-typeless-desktop.md) · `now.typeless.desktop` — P+C · electron-builder feed (VendorProbe) · 一键 dmg + sha512 · 结构化 changelog（gzip __NEXT_DATA__，含图）· channel-verify ✓ · 2026-06-19
-- [x] [**OpenClaw**](ai-openclaw-mac.md) · `ai.openclaw.mac` — S · 真包 2026.9.7/2026.9.8（universal + arm64）验证 ✓ · 一键 ✓ · beta/extended-stable Sparkle 轨（客户端有，feed 暂无带标签条目，未 binding）· changelog 结构化（分节被压平）· 2026-10-08
-- [x] [**Superwhisper**](com-superduper-superwhisper.md) · `com.superduper.superwhisper` — S · 真包 2.19.1/2.19.2 验证 ✓ · 一键 ✓ · `includeBetaUpdates` 键（机制未证实）· changelog 结构化（粗体分节被压平）· 2026-10-08
+- [x] [**OpenClaw**](ai-openclaw-mac.md) · `ai.openclaw.mac` — S · 真包 2026.9.7/2026.9.8（universal + arm64）验证 ✓ · 一键 ✓ · beta/extended-stable Sparkle 轨（客户端有，feed 暂无带标签条目，未 binding）· changelog 结构化（分节标题 ✓）· 2026-10-08
+- [x] [**Superwhisper**](com-superduper-superwhisper.md) · `com.superduper.superwhisper` — S · 真包 2.19.1/2.19.2 验证 ✓ · 一键 ✓ · `includeBetaUpdates` 键（机制未证实）· changelog 结构化（粗体分节标题 ✓）· 2026-10-08
 - [x] [**CodexBar**](com-steipete-codexbar.md) · `com.steipete.codexbar` — S · 真包 v0.56.1 验证 ✓（SUFeedURL 指向 repo 内 appcast.xml；ChangelogCatalog 已有 GitHub 兜底条目）· 2026-08-30
 - [x] [**ClaudeBar**](com-tddworks-claudebar.md) · `com.tddworks.claudebar` — S · 真包 v0.4.85 解包验证 ✓ · 2026-08-30
 - [x] [**VoiceInk**](com-prakashjoshipax-VoiceInk.md) · `com.prakashjoshipax.VoiceInk` — S · 真包 v2.13 挂载验证 ✓ · 2026-08-30

@@ -139,7 +139,13 @@ public struct Changelog: Codable, Sendable, Hashable {
     /// - 16: Calibre's recipe keeps its "New features" / "Bug fixes" category
     ///   `<h3>`s as headings. Notes already cached for a release list both
     ///   categories as one unheaded run.
-    public static let parserGeneration = 16
+    /// - 17: `GitHubMarkdownParser` keeps the prose of a short prose-only block
+    ///   under a notice heading (Migration, Upgrade notes, Breaking change, …)
+    ///   in a body that has bullets. Notes already cached for Jan 0.8.5 lack its
+    ///   Migration notes, among them that Intel Macs should stay on 0.8.4. It
+    ///   also joins a list item's hard-wrapped lines onto it: notes already
+    ///   cached from Audacity, darktable or Diri keep only each item's first line.
+    public static let parserGeneration = 17
 
     public let entries: [Entry]
 

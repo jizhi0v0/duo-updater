@@ -431,12 +431,22 @@ public enum GitHubMarkdownParser {
     private static func extractItems(
         from body: String, lenient: Bool, skipSections: [String] = []
     ) -> (items: [String], content: [Changelog.Entry.Block]) {
-        let lines = body.components(separatedBy: .newlines)
+        // CRLF as one break, so a blank line in `sectionProse` is a real one. A
+        // CRLF split by `.newlines` adds an empty line after every line, and an
+        // empty line changes no state in the loop below.
+        let lines = joiningListContinuations(
+            body.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: .newlines))
         let skipKeywords = lenient ? skippedSectionKeywords + lenientExtraSkipKeywords
                                    : skippedSectionKeywords
         let qualifying = lenient
             ? qualifyingHeadings(in: body, skipSections: skipSections, extraSkipKeywords: lenientExtraSkipKeywords)
             : qualifyingHeadings(in: body, skipSections: skipSections)
+        // Strict pass only: the prose kept from blocks that have no list (see
+        // `sectionProse`), keyed by the line each paragraph starts on.
+        let prose = lenient ? [:] : sectionProse(in: lines, qualifying: qualifying)
+        // Strict pass only: items read from bullets. With none, the prose is not
+        // returned either, so the lenient and prose passes run as they always did.
+        var bulletItems = 0
         var items: [String] = []
         var content: [Changelog.Entry.Block] = []
         // A heading is appended to `content` only once a note actually lands
@@ -466,7 +476,7 @@ public enum GitHubMarkdownParser {
         // still nests.
         var inTopLevelList = false
 
-        for line in lines {
+        for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
             // Fenced code block: `inCodeBlock` stays LENIENT-ONLY — it decides
@@ -545,6 +555,19 @@ public enum GitHubMarkdownParser {
                     }
                 }
             } else {
+                if let paragraph = prose[index] {
+                    scope = nil
+                    inTopLevelList = false
+                    items.append(paragraph)
+                    if !qualifying.isEmpty {
+                        if let heading = pendingHeading {
+                            content.append(heading)
+                            pendingHeading = nil
+                        }
+                        content.append(.note(paragraph))
+                    }
+                    continue
+                }
                 // Bullet: `- text`, `* text`, `+ text`. A leading space or tab
                 // (checked on the raw line; `trimmed` has it stripped) marks a
                 // bullet nested under the top-level one above it.
@@ -578,6 +601,7 @@ public enum GitHubMarkdownParser {
                     } else {
                         continue
                     }
+                    bulletItems += 1
                     items.append(cleaned)
                     if !qualifying.isEmpty {
                         if let heading = pendingHeading {
@@ -599,6 +623,7 @@ public enum GitHubMarkdownParser {
                     }
                     // Drop very short items (emoji-only, single-word, link-only lines).
                     if cleaned.count >= 6 {
+                        bulletItems += 1
                         items.append(cleaned)
                         if !qualifying.isEmpty {
                             if let heading = pendingHeading {
@@ -612,9 +637,201 @@ public enum GitHubMarkdownParser {
             }
         }
 
+        if !lenient && bulletItems == 0 { return ([], []) }
         // Anything still pending here is a heading with no note after it before
         // the body ended — dropped, not appended, same as any other dangling one.
         return (items, hasHeadingBlock(content) ? content : [])
+    }
+
+    /// The prose of a release body's prose-only notice blocks, keyed by the
+    /// index in `lines` of the line each paragraph (or label) starts on. A block
+    /// runs from a heading, or from a line that is only a bold label (`**Local
+    /// models no longer run on Intel Macs.**`), to the next of either. Its prose
+    /// is kept when the block:
+    /// - is under a heading `qualifyingHeadings` styles, so the prose lands under
+    ///   its heading and not as a loose line. That excludes text above the first
+    ///   heading (greetings, badges, download links), every skipped section, and
+    ///   a body with fewer than two category headings;
+    /// - is under a heading that announces something to know before updating
+    ///   (`isNoticeHeading`: migration, upgrade, breaking change, important,
+    ///   notice, warning, known issues, deprecation). Most prose-only sections
+    ///   are not that: a summary (`This release includes 4 fixes.`), why the
+    ///   release is marked pre-release, a thanks section, a whole release
+    ///   written as articles. Those stay out, so a pane does not turn into
+    ///   paragraphs;
+    /// - has no list line at all — no bullet at any depth, no numbered item —
+    ///   and no fenced code block or table. Prose next to a list is that list's
+    ///   preamble, and the list is the notes;
+    /// - has one or two paragraphs, not counting one that is mostly links
+    ///   (`isProseNote`). A longer run of prose is an article, not a note.
+    ///
+    /// Jan 0.8.5 is the shape this is for: its `## Migration` is bold-labelled
+    /// paragraphs ("… stay on v0.8.4") between a few lists, and without this
+    /// only the lists reached the pane. Its `## This release is fixes only` is
+    /// prose too, but under no notice heading, so it stays out.
+    ///
+    /// A kept block's label is an item of its own, before its paragraphs. A
+    /// paragraph is its consecutive non-blank lines joined with a space. Neither
+    /// prose nor structure, so skipped: a thematic break (`---`), a line that is
+    /// only an image or a URL, a checksum, a line that opens with HTML or `>`,
+    /// and an HTML comment's lines.
+    private static func sectionProse(in lines: [String], qualifying: Set<String>) -> [Int: String] {
+        var kept: [Int: String] = [:]
+        var inSection = false
+        var label: (index: Int, text: String)?
+        var paragraphs: [(index: Int, text: String)] = []
+        var hasStructure = false
+        var paragraph: (index: Int, lines: [String])?
+        var inFence = false
+        var inComment = false
+
+        func endParagraph() {
+            if let p = paragraph {
+                let text = p.lines.joined(separator: " ")
+                if isProseNote(text) { paragraphs.append((p.index, text)) }
+            }
+            paragraph = nil
+        }
+        func endBlock() {
+            endParagraph()
+            if inSection, !hasStructure, !paragraphs.isEmpty, paragraphs.count <= sectionProseCap {
+                if let label { kept[label.index] = label.text }
+                for p in paragraphs { kept[p.index] = p.text }
+            }
+            label = nil
+            paragraphs = []
+            hasStructure = false
+        }
+
+        for (index, line) in lines.enumerated() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if inComment {
+                if trimmed.contains("-->") { inComment = false }
+                continue
+            }
+            if trimmed.hasPrefix("```") {
+                inFence.toggle()
+                hasStructure = true
+                endParagraph()
+                continue
+            }
+            if inFence { continue }
+            if let raw = headingRawText(of: trimmed) {
+                endBlock()
+                inSection = qualifying.contains(raw) && isNoticeHeading(raw)
+                continue
+            }
+            if trimmed.isEmpty {
+                endParagraph()
+                continue
+            }
+            if trimmed.range(of: #"^\*\*[^*]+\*\*:?$"#, options: .regularExpression) != nil {
+                endBlock()
+                label = (index, trimmed)
+                continue
+            }
+            if bulletContent(from: trimmed) != nil || numberedContent(from: trimmed) != nil
+                || trimmed.hasPrefix("|") {
+                hasStructure = true
+                endParagraph()
+                continue
+            }
+            if trimmed.hasPrefix("<!--"), !trimmed.contains("-->") { inComment = true }
+            if isImageOnly(trimmed) || isBareURL(trimmed) || isChecksum(trimmed)
+                || trimmed.hasPrefix("<") || trimmed.hasPrefix(">")
+                || trimmed.range(of: #"^(?:[-*_][ \t]*){3,}$"#, options: .regularExpression) != nil {
+                endParagraph()
+                continue
+            }
+            if paragraph == nil { paragraph = (index, []) }
+            paragraph?.lines.append(trimmed)
+        }
+        endBlock()
+        return kept
+    }
+
+    /// A heading announcing what a reader should know before updating. Matched
+    /// anywhere in the heading, case-insensitively.
+    private static func isNoticeHeading(_ heading: String) -> Bool {
+        heading.range(
+            of: #"(?i)migrat|upgrad|breaking|important|notice|warning|caution|heads[- ]?up|known issue|deprecat|迁移|升级|须知|注意|重要|警告|不兼容"#,
+            options: .regularExpression) != nil
+    }
+
+    /// The most paragraphs a block may have for `sectionProse` to keep it.
+    private static let sectionProseCap = 2
+
+    /// Whether a paragraph `sectionProse` found reads as a note rather than a
+    /// row of links: at least half its letters are outside links, URLs and
+    /// @-mentions. dsh-desktop's upgrade notes end with
+    /// `[Full changelog](…) · [Project website](…)`.
+    private static func isProseNote(_ text: String) -> Bool {
+        let withLinkText = text
+            .replacingOccurrences(of: #"!?\[([^\]]*)\]\([^)]*\)"#, with: "$1", options: .regularExpression)
+            .replacingOccurrences(of: #"https?://\S+"#, with: "", options: .regularExpression)
+        let outside = text
+            .replacingOccurrences(of: #"!?\[[^\]]*\]\([^)]*\)"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"https?://\S+|@[A-Za-z0-9_-]+(?:\[bot\])?"#,
+                                  with: "", options: .regularExpression)
+        func letters(_ s: String) -> Int { s.unicodeScalars.filter(CharacterSet.letters.contains).count }
+        return letters(outside) > 0 && letters(outside) * 2 >= letters(withLinkText)
+    }
+
+    /// `lines` with each list item's wrapped text joined onto the item's line.
+    ///
+    /// CommonMark continues a list item's paragraph on the next line when no
+    /// blank line comes between and that line starts no block of its own —
+    /// indented to the item's text or not at all (a "lazy" continuation).
+    /// Audacity hard-wraps its items that way (3.7.9's `#11696 Fixed a freeze
+    /// …` goes on with `MIDI playback now also starts from the set position
+    /// …`), and reading line by line kept only the first line of each.
+    ///
+    /// The joined lines become empty, so every other line keeps its index; an
+    /// empty line changes no state in the passes that read these. Not joined:
+    /// a line after a blank one (a new paragraph, inside the item or not), and
+    /// a line that opens a block — another item, a heading, a fence, a quote,
+    /// HTML, a table row or a thematic break — and a line that is only an
+    /// image (sqlitebrowser puts a screenshot under an item; as part of the
+    /// item's text it would be markup). Nothing inside a fence is.
+    static func joiningListContinuations(_ lines: [String]) -> [String] {
+        var joined = lines
+        var item: Int?
+        var inFence = false
+        for (index, line) in lines.enumerated() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("```") {
+                inFence.toggle()
+                item = nil
+                continue
+            }
+            if inFence { continue }
+            if trimmed.isEmpty {
+                item = nil
+                continue
+            }
+            if bulletContent(from: trimmed) != nil || numberedContent(from: trimmed) != nil {
+                item = index
+                continue
+            }
+            if let item, !opensBlock(trimmed), !isImageOnly(trimmed) {
+                // A trailing double space is a hard break; read as one space.
+                let head = joined[item].replacingOccurrences(
+                    of: #"\s+$"#, with: "", options: .regularExpression)
+                joined[item] = head + " " + trimmed
+                joined[index] = ""
+                continue
+            }
+            item = nil
+        }
+        return joined
+    }
+
+    /// Whether a line starts a block that interrupts a paragraph rather than
+    /// continuing it.
+    private static func opensBlock(_ trimmed: String) -> Bool {
+        trimmed.range(of: #"^#{1,6}(?:\s|$)"#, options: .regularExpression) != nil
+            || trimmed.hasPrefix(">") || trimmed.hasPrefix("<") || trimmed.hasPrefix("|")
+            || trimmed.range(of: #"^(?:[-*_][ \t]*){3,}$|^=+$"#, options: .regularExpression) != nil
     }
 
     /// A line that is nothing but one emphasised thank-you: `*Thank you [x](…)!*`,

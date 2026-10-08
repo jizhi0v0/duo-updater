@@ -201,6 +201,9 @@ public enum RustChangelog {
                 // line between: the same change.
                 out[open] += " " + trimmed
             } else {
+                // The blank line stays: without it the parser reads this line
+                // as the item above it going on.
+                if afterBlank, open != nil { out.append("") }
                 out.append(trimmed)
                 open = nil
             }

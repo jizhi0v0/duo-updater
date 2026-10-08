@@ -48,10 +48,11 @@
   enclosure 托管四处不一：3.4/3.6 在 `freemacsoft.net/downloads/`，3.6.8 在 `rawcdn.githack.com`（GitHub 仓库文件的 CDN），
   3.7 在 GitHub release `freemacsoft/appcleaner` `3.7`
 - 版本方案: `sparkle:version` = `CFBundleVersion`（4485），`shortVersionString` = `3.7.0`，与包一致
-- **发布日期读不出来（实测）**: 3.7 的 `pubDate` 写成 `Tue, 22 Sept 2026 12:00:00 +0200`（四字母 `Sept`）。
+- **发布日期（修复前读不出来，实测）**: 3.7 的 `pubDate` 写成 `Tue, 22 Sept 2026 12:00:00 +0200`（四字母 `Sept`）。
   用临时测试直接问 `ReleaseDate.publishedFields`：`Sept` 的两条（3.4、3.7）`publishedAt=nil vendorDay=nil`，
   写全称月份的 `2 February 2021`、`5 July 2023` 能读。所以 `release history 2 entries`，**最新版 3.7 在 Release Log
-  里没有日期**。属于通用日期解析的缺口，不是 AppCleaner 专属
+  里没有日期**。属于通用日期解析的缺口，不是 AppCleaner 专属。已修：`ReleaseDate` 在所有 RFC822 格式都拒绝时，把整词 `Sept` 换成
+  `Sep` 再试一次（84 个 appcast、1,549 条带日期的条目里只有 AppCleaner 3.7 / 3.4 与 MacWhisper 9.15 / 9.13 这 4 条变化）
 - 系统下限: 3.7 只给 macOS ≥ 15.6。15.6 以下的 3.6.8 拷贝，`SparkleAppcastSource` 按下限过滤掉 3.7，
   行上应显示厂商拒绝了这个 macOS（**推断**，没在旧系统上跑）
 
@@ -102,13 +103,12 @@
 - 阻塞: 无已知
 
 ## 已知问题
-- 3.7 在 Release Log 没有发布日期（`Sept` 读不出来）
 - 3.7 要求 macOS 15.6，旧系统上的拷贝停在 3.6.8
 - 一键端到端两轮都未跑；SmartDelete 换包后是否被重新注册未验证
 
 ## 建议下一步
 1. 一键端到端（协调会话）：3.6.8 → 3.7。第一轮之后看 SmartDelete 进程跑的是哪个版本。
-2. 通用日期解析：`ReleaseDate.publishedFields` 认 `Sept` 这种四字母月份缩写（影响所有这么写的 feed，不只 AppCleaner）。
+2. （已做）通用日期解析认 `Sept`（见「更新检测」）。
    单独开任务。
 3. 渠道：不需要动作；不开源，没找到 beta 开关或轨。
 
@@ -140,8 +140,8 @@ gh api repos/freemacsoft/appcleaner/releases -q '.[] | .assets[] | .name + " " +
 日期解析用的是一个跑完即删的临时 Swift Testing 用例，直接调用 `ReleaseDate.publishedFields(from:)`：
 
 ```
-Wed, 21 Sept 2016 15:00:00 +0200 -> publishedAt=nil vendorDay=nil
+Wed, 21 Sept 2016 15:00:00 +0200 -> publishedAt=nil vendorDay=nil   （修复前）
 Tue, 2 February 2021 13:30:00 +0200 -> publishedAt=Optional(2021-02-02 11:30:00 +0000) vendorDay=nil
 Wed, 5 July 2023 14:00:00 +0200 -> publishedAt=Optional(2023-07-05 12:00:00 +0000) vendorDay=nil
-Tue, 22 Sept 2026 12:00:00 +0200 -> publishedAt=nil vendorDay=nil
+Tue, 22 Sept 2026 12:00:00 +0200 -> publishedAt=nil vendorDay=nil   （修复前）
 ```

@@ -118,8 +118,12 @@ import Foundation
     /// Pinned by `AudacityCoverageTests`.
     /// 16 (Calibre's category headings) moves neither fixture: it is one app's
     /// recipe. Pinned by `extractsCalibreCategoryHeadings`.
+    /// 17 (`GitHubMarkdownParser` keeps prose-only notice blocks and joins
+    /// hard-wrapped list items) moves neither fixture: neither has prose under a
+    /// notice heading or a wrapped item. Pinned by `GitHubSectionProseTests` and
+    /// `GitHubListContinuationTests`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 16)
+        #expect(Changelog.parserGeneration == 17)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

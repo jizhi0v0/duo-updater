@@ -38,20 +38,28 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
         XCTAssertEqual(entry.version, "0.64.0")
 
         // Five sections, each heading immediately followed by its own items — not
-        // reshuffled, not merged into one bucket.
+        // reshuffled, not merged into one bucket. Five labels is past the
+        // two-label floor, so they are `.heading` blocks in `content`, in
+        // document order, and not lines in `items`.
         let expectedHeadings = ["Added", "Changed", "Removed", "Fixed", "Security"]
-        let headingIndexes = expectedHeadings.map { heading in
-            entry.items.firstIndex(of: heading)
+        let headings = entry.content.compactMap { block -> String? in
+            if case .heading(let text) = block { return text }
+            return nil
         }
-        XCTAssertEqual(headingIndexes.compactMap { $0 }.count, expectedHeadings.count,
-                       "every section heading must survive")
-        // Strictly ascending: sections appear in document order.
-        let positions = headingIndexes.compactMap { $0 }
-        XCTAssertEqual(positions, positions.sorted())
+        XCTAssertEqual(headings, expectedHeadings, "every section heading must survive, in order")
+        XCTAssertTrue(expectedHeadings.allSatisfy { !entry.items.contains($0) })
+        let notes = entry.content.compactMap { block -> String? in
+            if case .note(let text) = block { return text }
+            return nil
+        }
+        XCTAssertEqual(notes, entry.items)
 
         // The first item after "Added" belongs to Added, not some other section.
-        let addedIndex = try XCTUnwrap(entry.items.firstIndex(of: "Added"))
-        XCTAssertTrue(entry.items[addedIndex + 1].contains("Match Case in the filter operator menu"))
+        let addedIndex = try XCTUnwrap(entry.content.firstIndex(of: .heading("Added")))
+        guard case .note(let firstAdded) = entry.content[addedIndex + 1] else {
+            return XCTFail("a line must follow the Added heading")
+        }
+        XCTAssertTrue(firstAdded.contains("Match Case in the filter operator menu"))
 
         // TablePro wraps shortcuts/identifiers in literal backticks rather than an
         // actual `<code>` tag — since that's plain text, not markup, the tag
@@ -73,15 +81,13 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
         // AppcastMarkdownParser strips real markdown `**`.
         let entry = try XCTUnwrap(AppcastHTMLChangelogParser.entry(
             html: Self.tableProItem0601Description, version: "0.60.1", date: "2026-07-25"))
-        XCTAssertEqual(entry.items, [
-            "Added",
-            "AWS IAM connections have an **RDS Endpoint** field, for when the connection points at a port forward you run yourself and TablePro cannot tell which database is behind it. The MySQL and PostgreSQL profile fields now list the profiles found on disk, like MariaDB already did. (#1432)",
-            "Fixed",
-            "AWS IAM authentication now works through a tunnel. The token was signed for the local forward instead of the database endpoint, so RDS rejected every connection made over SSH, Cloudflare, Cloud SQL Auth Proxy, or SOCKS. A tunneled connection also no longer needs the region filled in by hand. (#1432)",
-        ])
+        let added = "AWS IAM connections have an **RDS Endpoint** field, for when the connection points at a port forward you run yourself and TablePro cannot tell which database is behind it. The MySQL and PostgreSQL profile fields now list the profiles found on disk, like MariaDB already did. (#1432)"
+        let fixed = "AWS IAM authentication now works through a tunnel. The token was signed for the local forward instead of the database endpoint, so RDS rejected every connection made over SSH, Cloudflare, Cloud SQL Auth Proxy, or SOCKS. A tunneled connection also no longer needs the region filled in by hand. (#1432)"
+        XCTAssertEqual(entry.items, [added, fixed])
+        XCTAssertEqual(entry.content, [.heading("Added"), .note(added), .heading("Fixed"), .note(fixed)])
         // items.last is the final <li> in the document — pinned explicitly since
         // that position is where a mid-document chunk cut used to lose bullets.
-        XCTAssertEqual(entry.items.last, entry.items[3])
+        XCTAssertEqual(entry.items.last, fixed)
     }
 
     // MARK: - Fork (flat <ul><li>, no headings)
@@ -192,7 +198,9 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
         let changelog = try XCTUnwrap(SparkleAppcastSource.structuredChangelog(from: usable))
         XCTAssertEqual(changelog.entries.count, 2)
         XCTAssertEqual(changelog.entries.first?.version, "0.64.0", "highest version first")
-        XCTAssertEqual(changelog.entries.first?.items.first, "Added")
+        XCTAssertEqual(changelog.entries.first?.content.first, .heading("Added"))
+        XCTAssertEqual(changelog.entries.first?.items.first,
+                       "Match Case in the filter operator menu, on every database that can express it. (#2048)")
     }
 
     /// TablePro publishes every release TWICE — once per architecture, same build

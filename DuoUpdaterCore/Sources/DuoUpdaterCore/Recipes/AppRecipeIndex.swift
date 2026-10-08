@@ -44,6 +44,7 @@ public enum AppRecipeIndex {
         com_anthropic_claudefordesktop.set,
         com_anysphere_sand.set,
         com_anythingllm.set,
+        com_aone_keka.set,
         com_apple_dt_Xcode.set,
         com_baidu_BaiduNetdisk_mac.set,
         com_bitwarden_desktop.set,

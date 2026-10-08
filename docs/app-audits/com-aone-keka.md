@@ -105,21 +105,24 @@ duo 只读 `Info.plist` 里的 `SUFeedURL`（`BundleFacts`），不读这个覆�
 - 阻塞: 无。1.6.6（5727）没有对应补丁，走全量
 
 ## Changelog
-- 来源: WebView（feed 的 `releaseNotesLink`）
-- 结构化: **没有结构**。`changelog pane  web page https://u.keka.io/changelog.php, no structure`
-  （1.6.7 与 1.6.8 两次 `channel-verify` 原文相同）
-- `changelog.php` 只放最新一版：`<div class="version"><h4>Changes in version 1.6.8<time
-  datetime="2026-09-24">…</h4><ul><li>…</li></ul></div>`，10 条，平铺无分节
-- `https://changelog.keka.io`（`fullReleaseNotesLink`）是全量历史，同样的标记，128 个
-  `Changes in version`。用下面这个正则对 2026-10-08 的原始字节试跑，匹配到 120 条（1.6.8 10 条、
-  1.6.7 1 条、1.6.6 8 条，日期都在），漏掉的 8 个是 `1.0` / `0.1` 这类最早的条目：
-  `<div class="version"><h4>(?:<a[^>]*>)?Changes in version (?P<version>[0-9][0-9A-Za-z.\-]*)(?:</a>)?<time datetime="(?P<date>[0-9-]+)">.*?</h4>\s*<ul>(?P<body>.*?)</ul>`，
-  条目 `<li>(?P<item>.*?)</li>`（需 `stripTags` + `decodeEntities`）
-- 分节标题只在 **GitHub release 正文**里有：1.6.8 的正文是 `## Fixes` / `## Formats` /
-  `## Translations` 三节，条目与官网相同。正文开头两行是推广（Keka for iOS、Mastodon / X），
-  dev 预发布也在同一个 release 列表里
-- 跟随 channel: 否。dev 副本读的也是 stable feed，面板显示 stable 的页面
-- Recipe 状态: **需要**（见建议下一步 2）
+- 来源: **GitHub releases API**（`api.github.com/repos/aonez/Keka/releases?per_page=40`），
+  `ChangelogRecipe` `structuredFormat: .gitHubReleases`，`maxEntries: 20`，
+  `tagPattern: ^v([0-9]+(?:\.[0-9]+){1,3})$`。feed 自己只有 `releaseNotesLink`，面板不再嵌它
+- 结构化: **有，保留厂商分节**。1.6.8 真包 `channel-verify` 原文：
+  `changelog pane  recipe changelog:com.aone.keka:-: 20 entries; newest 1.6.8: 10 items, headings ["Fixes", "Formats", "Translations"]; first items ["Fixed custom task counter in the Dock no", "Fixed password encoding detection in pla", "Fixed non tarball ZSTD extraction with v"]`
+  （接入前是 `web page https://u.keka.io/changelog.php, no structure`）
+- 为什么不用 `changelog.keka.io`：它是 feed 的 `fullReleaseNotesLink`，同样的条目、带日期，但每版是一个
+  平铺的 `<ul>`，没有分节；GitHub 正文把同样的条目放在 `## Fixes` / `## Formats` / `## Translations` /
+  `## Features` 下面，生产解析器把它们保留成标题。实测对比见「历史与实测」
+- 正文开头两行推广（Keka for iOS、Mastodon / X）和一句话概述不是列表项，解析器不收
+- dev / beta / rc 是同一列表里的 prerelease，`.gitHubReleases` 只取稳定版；`v1.2.0-dev.3742` 是
+  `prerelease: false` 的 dev 包，靠 `tagPattern` 挡掉。stable 副本看不到任何 dev 条目
+- 已知形状：hot-fix 版的正文会在 `# Changes in version X.Y.Z` 下重述上一版（1.6.7 带 1.6.6、1.6.3
+  带 1.6.2）。这个标题带数字，解析器不把它当分节，重述的条目落在 hot-fix 条目里、第二个 `Fixes` 下
+  （1.6.7 显示 9 条，官网只有 1 条）。被重述的那一版自己的条目照常存在
+- 跟随 channel: 否。dev 副本读的也是 stable feed，面板显示稳定版的历史
+- Recipe 状态: ✓（`Recipes/com-aone-keka.swift`，测试 `KekaChangelogRecipeTests`）。匿名请求受 GitHub
+  60 次/小时限流，配了 token 时 `ChangelogService` 会带上
 
 ## 一键安装
 - 状态: 预计支持（通用 Sparkle 路线，无需 recipe；端到端未跑）
@@ -142,7 +145,7 @@ duo 只读 `Info.plist` 里的 `SUFeedURL`（`BundleFacts`），不读这个覆�
     （app 在跑、它自己的更新器已就绪）
 
 ## 已知问题
-- changelog 只有网页、没有结构（上面已述）。
+- changelog 的 hot-fix 条目会带上一版的重述条目（见 Changelog）。
 - `keka-beta.xml` 停在 2025-06-11 的 r5608，晚于它的 r5614 不在里面；没有已发布的包指向它。
 - 改了 user defaults `SUFeedURL` 的副本，Keka 自己读覆盖后的地址，duo 读 `Info.plist` 的地址，
   两边会看到不同的 feed。这是所有 Sparkle app 都有的通用差异，不只是 Keka；Keka 也没文档化这条路。
@@ -151,14 +154,7 @@ duo 只读 `Info.plist` 里的 `SUFeedURL`（`BundleFacts`），不读这个覆�
 1. 不需要检测或一键相关的代码。下一步跑一次端到端：先装 1.6.7（不启动）再
    `duo install`，然后在 app 运行、自动安装已就绪的状态下再跑一轮；看补丁路线（预期用
    `1.6.7r5729-1.6.8r5748.delta`）、FinderSync 扩展、`duo restart`。
-2. 结构化 changelog 二选一，用 `/fragile-recipe Keka`（ChangelogRecipe）：
-   - **官网 `https://changelog.keka.io`**：厂商自己的页面，就是 feed 指向的那份；正则见上，
-     2026-10-08 实测 120/128 条带日期。页面本身没有分节，所以没有标题会被压平。
-   - **GitHub releases API**（`api.github.com/repos/aonez/Keka/releases`，`mode: .json` +
-     `markdownSource` + `headingPattern` 取 `## …`）：能保留 Fixes / Formats / Translations 分节，
-     但要排除 `prerelease: true`、`dev-test-builds` 这类条目和正文开头的推广行，而且匿名请求有
-     GitHub 限流。
-   要求是「保留厂商的分节标题」的话选后者，不在意分节的话前者更稳。请用户定。
+2. 结构化 changelog：已做（GitHub releases，保留分节），见 Changelog。
 3. dev 轨：不接。厂商的更新器不分发 dev 构建，没有偏好可读。`CHANNEL_COVERAGE_TODO.md` 可记一行
    「Keka dev = 手动 GitHub prerelease，dev 副本被推到 stable，与厂商一致」。是否支持 user defaults 的
    `SUFeedURL` 覆盖是通用 Sparkle 的问题，需要的话单独立项，不放在 Keka 下面。
@@ -204,3 +200,29 @@ swift run --package-path application-test channel-verify "$W/x/Keka-1.5.2-dev.r5
 
 `check-bundle.sh`：1.6.8 与 1.6.7 都是 `codesign-verify-exit=0`、`spctl source=Notarized Developer ID`，
 没有列出嵌套 app。四个包的 `SUFeedURL` 都是 `https://u.keka.io`。
+
+上表的 changelog pane 一列是接入 recipe 之前的结果；接入后的那一行见 Changelog 一节。
+
+## 历史与实测
+
+### Recipes/com-aone-keka.swift — changelog（GitHub releases）
+
+2026-10-08 接入时的实测：
+
+- 两个候选源都在临时 Swift 测试里跑了生产路径（`ChangelogService.parse`），输入是当天抓的原始响应：
+  - `api.github.com/repos/aonez/Keka/releases?per_page=40`（40 条，31 稳定、9 prerelease）按本 recipe
+    解出 **20 条**，全部是稳定版（1.6.8 … 1.4.1）。19 条带分节标题，1.4.3 只有一个 `## Changes`，
+    不到解析器「≥2 个标题」的门槛，平铺显示。1.6.8：10 条，`Fixes` / `Formats` / `Translations`。
+  - `changelog.keka.io` 用审计里那条正则（`entryPattern` + `<li>` 条目）解出 40 条（`maxEntries` 上限），
+    条目和日期都对，但 `content` 为空，没有任何标题。1.6.7 是 1 条、1.6.3 是 1 条。
+  - 比了最新 12 个版本（1.6.8 … 1.5.0）：同版本条目数一致（如 1.6.8 10/10、1.6.6 8/8、1.6.2 13/13），只有
+    1.6.7（9 对 1）和 1.6.3（14 对 1）不同，原因是 GitHub 正文的 `# Changes in version …` 重述。更早的没比。
+- 选 GitHub 的理由：要求是保留厂商的分节标题，只有 GitHub 正文有；代价是上面两条 hot-fix 的重述和 GitHub 限流。
+- 列表里的非稳定条目：第 1 页有 9 个 prerelease（`v1.5.2-dev.r5614` … `v1.2.62-beta.1`），全部 `prerelease: true`。
+  第 3 页有 `v1.2.0-dev.3742`（2019-12-20）是 `prerelease: false`，还有 `dev-test-builds`（`prerelease: true`，
+  正文是测试包清单）。`tagPattern` 是为前者加的；不设它时生产解码器会把 `1.2.0-dev.3742` 当稳定版收进来
+  （`KekaChangelogRecipeTests` 里有这条对照）。
+- 变异验证：把 `tagPattern` 改成 `nil`，`KekaChangelogRecipeTests` 的两条用例变红（条目列表多出
+  `1.2.0-dev.3742`），还原后三条全绿。
+- 真包：GitHub asset `Keka-1.6.8.zip`（sha256 `9878b941…0a2f28`，与审计记录一致）解包后跑 `channel-verify`，
+  changelog pane 一行见 Changelog 一节。

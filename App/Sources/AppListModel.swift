@@ -996,6 +996,49 @@ final class AppListModel {
     /// Installed casks Homebrew deprecated or disabled — see `BrewCaskLifecycle`.
     private(set) var brewCaskLifecycles: [BrewCaskLifecycle] = []
 
+    /// A HEAD install's upstream check, as the user last asked for it.
+    enum HeadCheckState: Equatable {
+        case checking
+        /// What upstream answered, for the version this answer was about — a
+        /// rebuilt HEAD (a new `HEAD-<commit>`) is a different question.
+        case answered(BrewHeadCheckResult, version: String, at: Date)
+    }
+
+    /// By formula name. Only ever filled by `checkHeadUpstream`, which the user
+    /// starts: nothing here asks upstream on its own (see `BrewHeadInstall`).
+    private(set) var headChecks: [String: HeadCheckState] = [:]
+
+    /// The answer for this install's current version, if one was asked for.
+    func headCheck(for head: BrewHeadInstall) -> HeadCheckState? {
+        switch headChecks[head.name] {
+        case .checking: .checking
+        case .answered(let result, let version, let at) where version == head.version:
+            .answered(result, version: version, at: at)
+        default: nil
+        }
+    }
+
+    /// Whether the detail pane offers "Check Upstream" for it: a git upstream
+    /// always (no token involved), a GitHub one only with a token — anonymous
+    /// requests share 60 an hour with every other GitHub check — and never for
+    /// a keg that names no commit, or an svn/hg/… upstream.
+    func canCheckHeadUpstream(_ head: BrewHeadInstall) -> Bool {
+        guard head.commit != nil else { return false }
+        switch head.upstream {
+        case .github: return hasGitHubToken
+        case .git: return true
+        case .other: return false
+        }
+    }
+
+    func checkHeadUpstream(_ head: BrewHeadInstall) async {
+        guard canCheckHeadUpstream(head), headChecks[head.name] != .checking else { return }
+        headChecks[head.name] = .checking
+        let result = await BrewHeadCheck.check(head)
+        headChecks[head.name] = .answered(result, version: head.version, at: Date())
+        Log.app.info("brew HEAD check \(head.name, privacy: .public) \(head.version, privacy: .public): \(String(describing: result), privacy: .public)")
+    }
+
     /// The deprecated or disabled cask that installed this app, matched on the
     /// path brew recorded for the cask's `app` artifact. Any row, whichever source
     /// checks the app.
@@ -3687,6 +3730,7 @@ final class AppListModel {
             .map { f in
                 var f = f
                 f.lifecycle = installed.lifecycles[f.name]
+                f.head = installed.headInstalls[f.name]
                 return f
             }
         brewOutdatedFormulae = outdated + casks

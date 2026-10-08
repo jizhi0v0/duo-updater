@@ -126,9 +126,11 @@
 - Homebrew cask 停在旧文件名、旧版本
 
 ## 建议下一步
-1. 决定用 A 还是不接：A 可以用现有字段表达（`entryStartPattern` 锚 `manifest.darwin.versions`，按 `arch` 取 `version`
-   与 `url`；`hostRequirement` 不需要，按架构选 URL）。代价是超前于应用内分配（上文），这一点要用户拍板。交给
-   `/fragile-recipe TRAE`（VendorProbe 路径）
+1. 决定用 A 还是不接：A 可以用现有字段表达，但要**每个架构一条 recipe、各带 `hostRequirement`**（`entryStartPattern`
+   锚 `manifest.darwin.versions`，各自取本架构的 `version` 与 `url`）。`VendorProbeSource` 只按
+   `hostRequirement` 挑 recipe（没有就每台 Mac 都跑），安装 URL 模板也只替换 `{version}` / `{N}`、没有架构占位，
+   所以不带 `hostRequirement` 会把 arm64 的 dmg 报给 Intel。代价是超前于应用内分配（上文），这一点要用户拍板。
+   交给 `/fragile-recipe TRAE`（VendorProbe 路径）
 2. B 更贴近 Trae 自己的行为，但请求要带包内 `package.json` 的 `buildId`。按 Skill 的字段表看，现有 recipe 字段里没有
    「从已装包读一个值拼进请求」的能力（推断，没逐一核源码）；不建议为它加机制
 3. 更新 `VendorProbeRecipe.swift` 那两段 TRAE 注释（现在说的是过期事实）——代码注释改动，不在本次文档范围

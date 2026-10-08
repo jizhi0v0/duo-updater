@@ -142,6 +142,17 @@ import Foundation
             == "https://api.github.com/repos/zzfixture-org/zzfixture-tool/commits/release/2")
         #expect(request.value(forHTTPHeaderField: "Accept") == "application/vnd.github.sha")
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer zzfixture-token")
+        // Mutation: drop the policy → a repeat check can be answered from the
+        // first one's cached tip, with no request.
+        #expect(request.cachePolicy == URLRequest.versionFeedCachePolicy)
+    }
+
+    /// The token goes in this request's header, so the session must be one whose
+    /// cache never reaches disk. Mutation: `.shared` → the whole request, header
+    /// included, archived under ~/Library/Caches.
+    @Test func theProductionSessionIsTheDisklessOne() {
+        #expect(BrewHeadCheck.productionSession === URLSession.updates)
+        #expect(BrewHeadCheck.productionSession.configuration.urlCache?.diskCapacity == 0)
     }
 
     @Test func aMovedTipIsBehind() async {

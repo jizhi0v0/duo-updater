@@ -125,9 +125,17 @@ public enum BrewHeadCheck {
     /// the tip is the tip.
     public static func check(_ install: BrewHeadInstall) async -> BrewHeadCheckResult {
         await check(
-            install, session: .shared, token: { await ChangelogService.gitHubToken() },
+            // `.updates`, not `.shared`: this request carries the user's token, and
+            // `.shared`'s disk cache would archive the whole request — the
+            // `Authorization` header included — under ~/Library/Caches. See
+            // `URLSession.updates`.
+            install, session: productionSession, token: { await ChangelogService.gitHubToken() },
             lsRemote: { await lsRemote(url: $0, branch: $1) })
     }
+
+    /// The session `check(_:)` asks GitHub on — named so a test can hold it to
+    /// `.updates` (see the comment at the call).
+    static var productionSession: URLSession { .updates }
 
     /// `check(_:)` with its network seams, for tests.
     static func check(
@@ -175,6 +183,9 @@ public enum BrewHeadCheck {
             + (ref.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ref))
         else { return .failure(Failure(message: String(localized: "Its upstream address couldn’t be read."))) }
         var request = URLRequest(url: url, timeoutInterval: 20)
+        // A latest-version read: revalidated every time, so a second check after
+        // upstream moved can't be answered from the first one's cached tip.
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("application/vnd.github.sha", forHTTPHeaderField: "Accept")
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         do {

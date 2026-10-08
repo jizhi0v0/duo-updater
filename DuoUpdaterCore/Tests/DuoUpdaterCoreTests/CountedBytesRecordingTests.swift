@@ -16,10 +16,18 @@ import Network
 struct CountedBytesRecordingTests {
 
     /// Loopback HTTP/1.1 server: `/big` is a 200 with a body far larger than any
-    /// case here reads; anything else is a 404 with a short body.
+    /// case here reads; `/stall` promises that body, sends 64 KiB of it and then
+    /// holds the connection open, so the task cannot finish on its own; anything
+    /// else is a 404 with a short body.
     private final class Server: @unchecked Sendable {
         private let listener: NWListener
         private let queue = DispatchQueue(label: "CountedBytesRecordingTests.Server")
+        /// `/stall` connections, held open until the server goes.
+        private final class Held: @unchecked Sendable {
+            let lock = NSLock()
+            var connections: [NWConnection] = []
+        }
+        private let held = Held()
         let port: UInt16
         static let bigLength = 4 * 1024 * 1024
 
@@ -27,6 +35,7 @@ struct CountedBytesRecordingTests {
             let listener = try NWListener(using: .tcp, on: .any)
             self.listener = listener
             let queue = self.queue
+            let held = self.held
             listener.newConnectionHandler = { conn in
                 conn.start(queue: queue)
                 conn.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, _, _ in
@@ -35,7 +44,13 @@ struct CountedBytesRecordingTests {
                         .map(String.init) ?? "/"
                     var header: String
                     let payload: Data
-                    if path == "/big" {
+                    if path == "/stall" {
+                        held.lock.withLock { held.connections.append(conn) }
+                        header = "HTTP/1.1 200 OK\r\nContent-Length: \(Self.bigLength)\r\n\r\n"
+                        conn.send(content: Data(header.utf8) + Data(repeating: 0x61, count: 64 * 1024),
+                                  completion: .contentProcessed { _ in })
+                        return
+                    } else if path == "/big" {
                         payload = Data(repeating: 0x61, count: Self.bigLength)
                         header = "HTTP/1.1 200 OK\r\n"
                     } else {
@@ -56,7 +71,10 @@ struct CountedBytesRecordingTests {
             self.port = bound
         }
 
-        deinit { listener.cancel() }
+        deinit {
+            listener.cancel()
+            held.lock.withLock { held.connections.forEach { $0.cancel() } }
+        }
 
         func request(_ path: String) -> URLRequest {
             URLRequest(url: URL(string: "http://127.0.0.1:\(port)\(path)")!)
@@ -186,7 +204,9 @@ struct CountedBytesRecordingTests {
         var thrown: Error?
         do {
             let (stream, _) = try await Self.session.countedBytes(
-                for: server.request("/big"), purpose: .versionCheck, store: store)
+                // `/stall`, not `/big`: a body that can land in full before the
+                // cancel would end the loop normally and never throw.
+                for: server.request("/stall"), purpose: .versionCheck, store: store)
             var read = 0
             do {
                 for try await _ in stream {

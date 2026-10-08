@@ -570,6 +570,10 @@ private struct TrafficRow: View {
 /// same reason; hence not `private`.
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
+    /// The gap between lines; `spacing` when nil.
+    var lineSpacing: CGFloat?
+
+    private var lineGap: CGFloat { lineSpacing ?? spacing }
 
     /// Marks a subview that rides at the end of the line it lands on: it takes
     /// no gap and no room, and never starts a line of its own. The query
@@ -582,7 +586,7 @@ struct FlowLayout: Layout {
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? .infinity
         let rows = layout(subviews: subviews, width: width)
-        let height = rows.reduce(0) { $0 + $1.height } + spacing * CGFloat(max(0, rows.count - 1))
+        let height = rows.reduce(0) { $0 + $1.height } + lineGap * CGFloat(max(0, rows.count - 1))
         return CGSize(width: proposal.width ?? rows.map(\.width).max() ?? 0, height: height)
     }
 
@@ -602,7 +606,7 @@ struct FlowLayout: Layout {
                 subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
                 x += size.width + spacing
             }
-            y += row.height + spacing
+            y += row.height + lineGap
         }
     }
 

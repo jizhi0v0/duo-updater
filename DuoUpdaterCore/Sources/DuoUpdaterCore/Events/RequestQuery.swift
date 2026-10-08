@@ -251,6 +251,7 @@ public struct RequestQuery: Sendable, Equatable {
         case "check", "checks", "versioncheck": return .versionCheck
         case "notes", "changelog", "releasenotes": return .changelog
         case "image", "images", "changelogimage": return .changelogImage
+        case "icon", "icons", "packageicon": return .packageIcon
         case "catalog", "brew", "homebrew": return .catalog
         case "self", "selfupdate", "duo": return .selfUpdate
         case "other": return .other

@@ -344,9 +344,10 @@ extension ReleaseDate {
 
     /// `"Oct 2, 2026 at 9:47:01 PM"` — what an en_US `DateFormatter` prints at
     /// `.medium` date and time style (`MMM d, y 'at' h:mm:ss a`). Arc's and Dia's
-    /// appcasts write every `<pubdate>` this way. macOS 14+ prints U+202F (narrow
-    /// no-break space) before the AM/PM marker, which both feeds carry; earlier
-    /// releases printed a plain space. Both are accepted, nothing else.
+    /// appcasts write every `<pubdate>` this way, with U+202F (narrow no-break
+    /// space) before the AM/PM marker. That character comes from CLDR 42
+    /// (October 2022), which replaced the plain space there; formatters on
+    /// older CLDR data print a plain space. Both are accepted, nothing else.
     ///
     /// The string names no time zone, so it is read at `.day` precision: the
     /// calendar day as written, at the start of that day in UTC, exactly as a

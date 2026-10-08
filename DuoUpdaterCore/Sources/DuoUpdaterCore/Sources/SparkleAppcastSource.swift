@@ -931,8 +931,8 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
     /// directly, and used at `</item>` only when the item has no `<pubDate>`, so
     /// a feed carrying both reads exactly what it read before, in either order.
     ///
-    /// Sparkle itself matches `pubDate` case-sensitively and never sees this
-    /// spelling, so this reads more than Sparkle does. That is safe here because
+    /// Sparkle itself (`SUAppcast.m`, 2.x) matches `pubDate` case-sensitively
+    /// and never sees this spelling, so this reads more than Sparkle does. That is safe here because
     /// the date decides nothing about which build is offered: it feeds the
     /// release timeline and the changelog rail's date. (Sparkle's one decision
     /// that reads the date, phased rollout, is not something this parser does.)

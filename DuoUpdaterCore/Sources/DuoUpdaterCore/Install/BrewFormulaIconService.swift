@@ -264,7 +264,13 @@ public actor BrewFormulaIconService {
     // MARK: - Pure rules
 
     /// The formula's `opt` path (`/opt/homebrew/opt/automake`), its stand-in for
-    /// an app bundle path in request attribution. A tap's prefix is dropped.
+    /// an app bundle path in request attribution: what every request made for a
+    /// formula (its icon, its release notes) is filed under.
+    public static func attributionID(forFormula formula: String) -> String? {
+        attributionID(formula, brewPath: HomebrewInstaller.brewPath())
+    }
+
+    /// `attributionID(forFormula:)` against a given `brew`. A tap's prefix is dropped.
     static func attributionID(_ formula: String, brewPath: String?) -> String? {
         guard let brewPath else { return nil }
         let short = formula.split(separator: "/").last.map(String.init) ?? formula

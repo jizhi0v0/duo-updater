@@ -43,7 +43,9 @@ import Foundation
 /// in the same directory as OBS's `logs/`, `basic/` scene files and
 /// `profiler_data/`, written continuously while OBS runs, and FSEvents streams
 /// are recursive. A flip is picked up on the next scan or on OBS's own launch or
-/// quit, the trade super.engineering and Cindy already make.
+/// quit, the trade super.engineering and Cindy already make — including the
+/// first flip out of "no key", which `ChannelSwitchDetector.fingerprint(of:)`
+/// fingerprints as a state of its own.
 enum OBSChannel {
     static let bundleID = "com.obsproject.obs-studio"
 

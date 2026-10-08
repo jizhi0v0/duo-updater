@@ -353,3 +353,25 @@ import Foundation
     #expect(ChannelSwitchDetector.fingerprint(.init(channel: .beta))
         == ChannelSwitchDetector.fingerprint(.init(channel: .beta, sparkleChannelNames: [])))
 }
+
+/// A binding that answers nil (OBS with no `UpdateBranch` key, CotEditor with its
+/// box unticked) must still be a state the detector remembers, or the first flip
+/// out of it — the stable user picking beta — reads as a first sighting and
+/// rechecks nothing.
+@Test func aFlipOutOfNoResolutionIsDetected() {
+    let id = "com.obsproject.obs-studio"
+    let before = ChannelSwitchDetector.fingerprint(of: nil)
+    let after = ChannelSwitchDetector.fingerprint(of: OBSChannel.resolve(updateBranch: "beta"))
+    #expect(before != after)
+    let (changed, _) = ChannelSwitchDetector.changes(current: [id: after], lastSeen: [id: before])
+    #expect(changed == [id])
+    let (back, _) = ChannelSwitchDetector.changes(current: [id: before], lastSeen: [id: after])
+    #expect(back == [id])
+}
+
+/// The optional overload is the plain one for a real resolution, so nothing
+/// already cached changes meaning.
+@Test func theOptionalFingerprintMatchesThePlainOne() {
+    let resolved = ResolvedChannel(channel: .beta)
+    #expect(ChannelSwitchDetector.fingerprint(of: resolved) == ChannelSwitchDetector.fingerprint(resolved))
+}

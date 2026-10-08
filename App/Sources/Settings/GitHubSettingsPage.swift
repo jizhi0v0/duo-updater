@@ -296,6 +296,8 @@ struct GitHubSettingsPage: View {
                 }
                 .settingsRow()
             }
+            // Drawn again the moment the credentials change, not at the next tick.
+            .id(model.gitHubCredentialChanges)
         }
     }
 

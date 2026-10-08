@@ -1208,6 +1208,13 @@ final class AppListModel {
     /// change in Settings.
     private(set) var gitHubTokenRejected = false
 
+    /// How many times the GitHub credentials changed in Settings — the observable
+    /// face of `GitHubCredentials.generation`, which views cannot watch. The
+    /// budget card keys on it: the change lands in an `onChange`, after the page
+    /// already drew, and the card would otherwise show the old token's windows
+    /// until its next 5-second tick.
+    private(set) var gitHubCredentialChanges = 0
+
     /// The most recent GitHub token resolution: the token (nil when none was
     /// found) and the explicit Settings value it was resolved under.
     ///
@@ -1944,6 +1951,7 @@ final class AppListModel {
     /// one (it checks the generation first).
     func gitHubCredentialsChanged() {
         GitHubCredentials.shared.changed()
+        gitHubCredentialChanges += 1
         gitHubTokenRejected = false
         let generation = GitHubCredentials.shared.generation
         let explicit = explicitGitHubToken()

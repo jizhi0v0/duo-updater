@@ -57,7 +57,7 @@
   `app.jan.ai/download/nightly/mac-universal` 302 到 `delta.jan.ai/nightly/Jan-nightly_0.8.4-5203_universal.dmg`
 - nightly 真包（`.app.tar.gz`，105,001,696 B，SHA-256 `99cb56cc…decd`）：bundle id `jan-nightly.ai.app`，
   short = build = `0.8.4-5203`，与 feed 的 `version` 逐字相同；`channel-verify`：`inferred nightly`，
-  `winning source <none>`，`status unknown (no source answered)`
+  `winning source <none>`，`status unknown (no source answered)`（接入 VendorProbe 之前；之后 5203 → Vendor up to date）
 - `delta.jan.ai/beta/latest.json` 403（S3 `AccessDenied`），没有可读的 beta feed
 
 ## 更新检测
@@ -83,7 +83,7 @@
 | | 客户端有这个能力? | 服务端现在真在发? | 我们能消费吗? |
 |---|---|---|---|
 | 按设备灰度 | 请求不带设备标识（endpoints 是固定 URL） | 否：`apps.jan.ai/update-check` 与 GitHub `latest.json` 一致 | 不需要 |
-| 按架构 / 按 OS 分轨 | mac 一个 universal 包 | **0.8.5 起本地模型只在 Apple Silicon 上跑**：随包的 `Contents/Resources/resources/bin/jan-llama-worker` `lipo -archs` = `arm64`，主程序仍是 universal；发布说明原话 “If you rely on local models on an Intel Mac, stay on v0.8.4” | **不能**：包里没有可读的「Intel 不该升」信号，duo 会把 0.8.5 推给 Intel Mac（见已知问题） |
+| 按架构 / 按 OS 分轨 | mac 一个 universal 包 | **0.8.5 起本地模型只在 Apple Silicon 上跑**：随包的 `Contents/Resources/resources/bin/jan-llama-worker` `lipo -archs` = `arm64`，主程序仍是 universal；发布说明原话 “If you rely on local models on an Intel Mac, stay on v0.8.4” | **能**：包里没有可读的「Intel 不该升」信号，所以写在规则上——GitHub 规则的 `architectureRequirement`（0.8.5 起仅 arm64），Intel Mac 停在 0.8.4（见已知问题） |
 | 自更新器会不会和我们抢 | Tauri updater；Jan 是否后台自动下载 / 安装没查（未验证） | 同一个版本 | 第二轮未跑 |
 
 ## Changelog
@@ -155,6 +155,8 @@ swift run --package-path application-test channel-verify <Jan.app>   # 三个包
 lipo -archs <Jan.app>/Contents/Resources/resources/bin/jan-llama-worker
 ```
 
+以下是接入 nightly VendorProbe **之前**的实测（nightly 行之后是 Vendor，见「建议下一步」2）。
+
 | 包 | bundle id | short / build | Team | detected | winning | status | changelog pane |
 |---|---|---|---|---|---|---|---|
 | 0.8.4 zip | `jan.ai.app` | 0.8.4 / 0.8.4 | F8AH6NHVY5 | stable | GitHub | **UPDATE → 0.8.5** | source structured: 1 entries; 38 items, 5 headings |
@@ -170,7 +172,7 @@ stable 两个包的 `download` 都是 `https://github.com/janhq/jan/releases/dow
 
 ## 重审更正（相对 2026-08-17 版）
 - 原文「Homebrew ✗」：cask 是有的（`jan`），只是 `auto_updates: true`，让位
-- 原文只有 stable：nightly 是独立 bundle id 的另一条轨，有公开 feed，duo 现在报 unknown；beta 轨在构建脚本里存在、
+- 原文只有 stable：nightly 是独立 bundle id 的另一条轨，有公开 feed，重审时 duo 报 unknown（同日已接入 VendorProbe）；beta 轨在构建脚本里存在、
   现在没有公开 feed
 - 原文「GitHub release body」：现在有面板实测行，并查明非列表段落（含 Intel 警告）进不了面板
 - 原文「一键 ✓」没有端到端证据；本次第一轮端到端已跑通（见「一键安装」）

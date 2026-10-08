@@ -2,7 +2,7 @@
 
 审计 2026-10-08（重测；2026-08-17 那版的结论是「官方 API 只发布 `2.3.x` 打包号、没有可比的远端版本」，
 当时成立，**现在不成立了**：官方 API 已经按平台、架构发布与包内 `CFBundleShortVersionString` 同构的版本号。
-本次只记录证据，不写 recipe。）
+同日按 A 接入 VendorProbe，见「覆盖矩阵」与「更新检测」。）
 
 ## 基本信息
 - Bundle ID: `com.trae.app`（官网 GA 与 API 里 `tob` 段的构建都是这个 id，见下）
@@ -37,7 +37,7 @@
 
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
-| stable | `com.trae.app` | — | `product.json` `quality: stable` | — | 未接入（○） |
+| stable | `com.trae.app` | — | `product.json` `quality: stable` | VendorProbe 读官网下载 API（A） | ✓ |
 | beta / alpha / dev | 未见真包 | — | `quality` 在构建时写进 `product.json` | — | 没找到公开构建 |
 
 - 客户端认得几种质量：`product.json` 的 `iCubeApp.authConfig` 给 TRAE 和 SOLO 各列了 `stable` / `beta` / `alpha` /
@@ -50,7 +50,7 @@
 
 ## 更新检测
 
-两个可比的远端版本源，语义不同，**都没接**：
+两个可比的远端版本源，语义不同；**A 已接入**（VendorProbe，`Recipes/com-trae-app.swift`），B 没接：
 
 **A. 官网下载用的公开 API（2026-10-08 实测）**
 
@@ -98,10 +98,10 @@
 |---|---|---|---|
 | 按设备灰度 / 按人分流 | 有：检查带 `uid=<quality>_<设备号>`；远端 `featureVersion/releaseBranch` 能换分支 | 匿名随机设备号：12/12 相同，没看到按设备分；登录后未验证 | — |
 | 按架构 / 按 OS 分轨 | 按架构：`apple` / `intel` 两个 dmg；按区域：4 个 CDN | 8 项同一版本；OS 下限 12.0 只在包里 | recipe 要按本机架构选 URL |
-| 自更新器会不会和我们抢 | 有自己的下载 / `quitAndInstall` 流程 | — | 未接入，不涉及 |
+| 自更新器会不会和我们抢 | 有自己的下载 / `quitAndInstall` 流程 | — | 会：同一个官网 dmg 来源可能被两边各装一次；一键第二轮未跑 |
 
 ## Changelog
-- 来源: 无（未接入）
+- 来源: 无（`trae.ai/changelog` 是 JS 壳，`docs.trae.ai/ide/changelog` 停在 v3.5.89~3.5.91），没有 changelog recipe
 - 结构化: `changelog pane  none — the pane says there are no release notes`（3.5.104 与 3.5.87 两个包）
 - `https://www.trae.ai/changelog` 返回的是 JS 壳（16 KB HTML，`file` 判定为 UTF-8 文本，不是压缩字节；无版本号）
 - `https://docs.trae.ai/ide/changelog` 有内容，嵌在页面里的 Quill delta JSON：按日期分条（“August 19, 2026 (Hotfix)”），
@@ -154,6 +154,8 @@ python3 -c 'import json; p=json.load(open("<Trae.app>/Contents/Resources/app/pro
 python3 -c 'import json; p=json.load(open("<Trae.app>/Contents/Resources/app/package.json")); print(p["branch"], p["buildId"])'
 # Trae 自己的检查，参数见「更新检测」B；设备号用 uuidgen 现生成
 ```
+
+以下 `status` 是**接入前**的实测；接入后 3.5.87 → `UPDATE → 3.5.104`（Vendor），3.5.104 → up to date。
 
 | 包（`tronBuildVersion`） | 来源 | short / build | `appVersion` | Team | detected | status |
 |---|---|---|---|---|---|---|

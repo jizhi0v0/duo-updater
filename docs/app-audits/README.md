@@ -298,6 +298,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] [**iTerm2**](com-googlecode-iterm2.md) · `com.googlecode.iterm2` — S+B · stable/nightly ✓ · test release ✓（`ITerm2Channel`）· 一键 ✓ · changelog recipe ✓（stable/test release）· 2026-10-08
 - [x] [**Arc**](company-thebrowser-Browser.md) · `company.thebrowser.Browser` — S · 一键（delta）✓ · Early Birds 需申请，RC 包自带 feed，不做 binding · changelog 原文 · 2026-10-08
+- [x] [**Dia Browser**](company-thebrowser-dia.md) · `company.thebrowser.dia` — S · 真包 1.51.0/1.51.1/RC 1.52.0 验证 ✓ · 一键（delta）✓ · Early Birds（RC）需申请，RC 包自带 feed，不做 binding · changelog 结构化（无分节）· 2026-10-08
 - [x] [**Rectangle**](com-knollsoft-Rectangle.md) · `com.knollsoft.Rectangle` — S · 一键（delta）✓ · changelog 结构化 · 2026-10-08
 - [x] [**IINA**](com-colliderli-iina.md) · `com.colliderli.iina` — S+B · stable/beta（`IINAChannel`）· 一键（delta）✓ · changelog recipe ✓ · 2026-10-08
 - [x] [**Proxyman**](com-proxyman-NSProxy.md) · `com.proxyman.NSProxy` — S · 一键 ✓ · changelog recipe（GitHub）✓ · 2026-10-08
@@ -310,7 +311,6 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Typeless**](now-typeless-desktop.md) · `now.typeless.desktop` — P+C · electron-builder feed (VendorProbe) · 一键 dmg + sha512 · 结构化 changelog（gzip __NEXT_DATA__，含图）· channel-verify ✓ · 2026-06-19
 - [x] [**OpenClaw**](ai-openclaw-mac.md) · `ai.openclaw.mac` — S · real DMG/feed verified ✓ · 2026-08-17
 - [x] [**Superwhisper**](com-superduper-superwhisper.md) · `com.superduper.superwhisper` — S · real zip/feed verified ✓ · 2026-08-17
-- [x] [**Dia Browser**](company-thebrowser-dia.md) · `company.thebrowser.dia` — S · real DMG/feed verified ✓ · 2026-08-17
 - [x] [**CodexBar**](com-steipete-codexbar.md) · `com.steipete.codexbar` — S · 真包 v0.56.1 验证 ✓（SUFeedURL 指向 repo 内 appcast.xml；ChangelogCatalog 已有 GitHub 兜底条目）· 2026-08-30
 - [x] [**ClaudeBar**](com-tddworks-claudebar.md) · `com.tddworks.claudebar` — S · 真包 v0.4.85 解包验证 ✓ · 2026-08-30
 - [x] [**VoiceInk**](com-prakashjoshipax-VoiceInk.md) · `com.prakashjoshipax.VoiceInk` — S · 真包 v2.13 挂载验证 ✓ · 2026-08-30

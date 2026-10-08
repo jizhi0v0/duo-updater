@@ -149,8 +149,13 @@ RC 地址不是猜的：主机 + 二进制里的 `release-candidate/<UUID>` + �
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: 需要验证（通用 Sparkle 路径；检测链已读出 zip 与 delta）
-- 端到端: 未跑（由协调会话串行执行）
+- 状态: ✓（通用 Sparkle 路径，走 delta）
+- 端到端（2026-10-08，第一轮）: 上一版 1.51.0 (88065) 放进 `/Applications`（`ditto -x -k` 解包、不启动），
+  `duo check` 报 `update 1.51.1 (88214)`、`route in-place`；`duo install /Applications/Dia.app --yes --json` →
+  `outcome installed`、`applied true`、`route sparkle`、`bytesDownloaded 21850370`（即
+  `Dia-from-88065-to-88214.delta`），耗时约 13 s。装后：版本 1.51.1 / 88214，bundle inode 变了，
+  `codesign --verify --deep --strict` 通过，`spctl` `accepted`（`Notarized Developer ID`），Team `S6N382Y83G`；
+  与厂商 1.51.1 zip 解包逐文件比 SHA-256，2251 个文件全部相同，22 个软链接目标全部相同
 - 格式: zip（stable `Dia-1.51.1-88214.zip` 852,095,538 B，与 feed `length` 相等）
 - 校验: feed 没有 SHA 摘要；有 `sparkle:edSignature`，包里有 `SUPublicEDKey`（三个包相同）。下载哈希
   1.51.1 `88e2e8c5…e093`、1.51.0 `762e669f…298a`、RC 1.52.0 `0c53169f…933a`（SHA-256，仅作记录）
@@ -163,7 +168,7 @@ RC 地址不是猜的：主机 + 二进制里的 `release-candidate/<UUID>` + �
   `company.thebrowser.browser.helper`，Chromium 子进程；其中 4 个叫 “Aperitif”，作用没查）、
   `Sparkle.framework/Updater.app`、`PlugIns/DiaDockTilePlugIn.plugin`。主程序里没有 `SMAppService` /
   `LaunchAgents` 字符串，没看到常驻 agent
-- 阻塞: 无已知；包大（约 850 MB），Dia 的自更新器默认自动装，第二轮（两边会不会冲突）未跑
+- 阻塞: 无已知；包大（约 850 MB，delta 只有约 21 MB），Dia 的自更新器默认自动装，第二轮（两边会不会冲突）未跑
 
 ## 已知问题
 - 已在应用内加入 Early Birds、但还是 stable 构建时：duo 报 up to date，Dia 自己会推 RC（缺口 1）
@@ -180,8 +185,7 @@ RC 地址不是猜的：主机 + 二进制里的 `release-candidate/<UUID>` + �
 2. 让 `ReleaseChannel.detect()` 读 `Info.plist` 的 `BCNYReleaseType`（`Release Candidate` → beta），
    Arc 与 Dia 共用这一条；并给 RC 轨登记 `ChannelProofRegistry`（证据：RC 1.52.0 (88244) 真包，bundle id
    与 Team 同 stable，`BCNYReleaseType` = `Release Candidate`，`SUFeedURL` 指向 RC 目录）。
-3. 协调会话串行跑一键端到端：1.51.0 (88065) → `duo install --yes --json`，预期 `route: sparkle`，
-   下载量应为 `Dia-from-88065-to-88214.delta` 的 21,850,370 B。
+3. 一键端到端第二轮：Dia 运行中、它自己的更新器也拿到同一版时，两边会不会冲突。
 
 ## 如何复验
 

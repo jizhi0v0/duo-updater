@@ -92,8 +92,10 @@
   `1.167.1 (88217)`，包里是 `1.167.1`。比较结果正确（上一版 UPDATE、最新版 up to date），但
   `latest` 显示串带着 ` (88217)`
 - 注意事项: feed 把发布日期写成小写 `<pubdate>`，格式是 `Oct 2, 2026 at 9:45:23 PM`（没有时区）。
-  `SparkleAppcastSource` 只认 `pubDate`（`case "pubDate"`），所以日期读不到，`release history 0 entries`
-  （实测）。这个格式即使读到了能不能解析，没查。影响只在 Release Log / 时间线拿不到发布日期
+  #1066 起 `SparkleAppcastParser` 在条目没有 `<pubDate>` 时读 `<pubdate>`，`ReleaseDate` 把这个格式读到
+  「日」（没有时区，不编造钟点），`channel-verify` 由 `release history 0 entries` 变为 `3 entries`。
+  Sparkle 自己按大小写精确匹配 `pubDate`，读不到这个日期；它只在分阶段推送里用日期，feed 也没有
+  `phasedRolloutInterval`，所以多读日期不改变推送哪个包
 
 ## 增量更新（delta / binary patch）
 > 三栏分开写，每栏标证据来源。空着不如写「没查」。
@@ -144,7 +146,7 @@
 - 已在应用内加入 Early Birds、但还是 stable 构建时：duo 报 up to date，Arc 自己会推 RC（见 Channel 详情缺口 1）
 - RC 构建退出 Early Birds 后，duo 可能推下一个 RC（缺口 2，推断，未验证）
 - RC 构建的 `detected channel` 是 stable（`BCNYReleaseType` 未读）
-- `<pubdate>` 小写，发布日期与 release history 拿不到
+- 发布日期只到「日」（feed 无时区，#1066 的处理）
 - `latest` 显示为 `1.167.1 (88217)`（feed 的 `shortVersionString` 原样）
 
 ## 建议下一步
@@ -156,7 +158,7 @@
    并给 RC 轨登记 `ChannelProofRegistry`（证据：RC 1.168.0 (88345) 真包，bundle id 与 Team 同 stable，
    `BCNYReleaseType` = `Release Candidate`，`SUFeedURL` 指向 RC 目录）。
 4. （可选，收益低）changelog recipe 读 Zendesk API JSON，换来带日期的历史；每版仍只有一段话，补丁版不在页上。
-5. （可选）`SparkleAppcastSource` 容忍小写 `<pubdate>`，并确认 `Oct 2, 2026 at 9:45:23 PM` 能解析。
+5. （已做，#1066）读小写 `<pubdate>`，`Oct 2, 2026 at 9:45:23 PM` 按「日」解析。
 
 ## 如何复验
 
@@ -188,3 +190,4 @@ strings -a new/Arc.app/Contents/MacOS/Arc | grep -E 'Early Birds|updateChannelOv
 三个包 `codesign --verify --deep --strict` 退出 0，`spctl` 来源 `Notarized Developer ID`。
 `feed-discover` 对 1.167.1：`declared  https://releases.arc.net/updates.xml`。
 `channel-verify` 三个包都是 `winning source Sparkle`、`release history 0 entries`，stable `deltas 2`、RC `deltas 3`。
+（#1066 之前的结果；之后 stable 1.167.1 为 `release history 3 entries`。）

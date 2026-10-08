@@ -22,6 +22,20 @@
 # There is no `macos-27` label: GitHub's only macOS 27 image is `xcode-27` (macOS 27
 # + Xcode 27, same 3-core M1 tier as macos-latest). NOT `xcode-27-xlarge` — larger
 # runners are billed even on public repositories.
+#
+# Except: a pull request from a branch of THIS repository runs on the mini
+# (self-hosted, label `duo-mini`). The free tier runs at most five macOS jobs at
+# once and every push here takes three, so two pull requests pushed together
+# queued — up to 12 minutes, 282 minutes in total over 60 runs from 2026-10-01.
+# What makes a self-hosted runner acceptable on a public repository now, when it
+# was not on 2026-08-14, is the repository settings, not this file: pull request
+# creation is limited to collaborators, and a fork's workflow waits for approval
+# whoever sent it (`all_external_contributors`). A fork's pull request runs the
+# fork's copy of this file, so the condition below cannot keep it off the mini by
+# itself; it keeps an approved fork PR on a hosted runner as long as the file is
+# ours. Pushes to main, the public record that main is green, stay hosted — and
+# with them the 3-core runner, the only place #351's pool starvation reproduced.
+# If the mini is down, dispatch this workflow on the branch: dispatch is hosted.
 name: CI
 
 on:
@@ -46,7 +60,7 @@ jobs:
   # the longest job instead of the sum. Standard runners on a public repository
   # cost nothing either way; the price is up to three macOS runners per push.
   swift:
-    runs-on: xcode-27
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted","duo-mini"]') || 'xcode-27' }}
     # Core's suite reaches vendor endpoints (the install gates download real
     # packages and verify sha512 + Team ID), so it is slower and less predictable
     # than a pure unit run. Generous, but far under the 6h job ceiling.
@@ -82,12 +96,17 @@ jobs:
         # branch wedged, one of them for the full job budget with no output at
         # all. See #351 and scripts/run-with-hang-report.sh for why this is out
         # here and not a watchdog inside the test process.
+        #
+        # Hosted only: on the mini that connection is metered again, and the test
+        # itself says SKIPPED when the variable is unset. Same for the Makefile's
+        # CORE_TEST_FLAGS (says why there): set only where it is not hosted.
         env:
-          DUO_DOWNLOAD_GATE: "1"
+          DUO_DOWNLOAD_GATE: ${{ runner.environment == 'github-hosted' && '1' || '' }}
+          CORE_TEST_FLAGS: ${{ runner.environment == 'github-hosted' && '' || '--skip installPipelineDryRun' }}
         run: scripts/run-with-hang-report.sh 1800 make test-swift
 
   app:
-    runs-on: xcode-27
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted","duo-mini"]') || 'xcode-27' }}
     timeout-minutes: 30
     steps:
       - name: Check out
@@ -101,7 +120,9 @@ jobs:
 
       # App/DuoUpdater.xcodeproj is gitignored — the spec in App/project.yml is the
       # source of truth and scripts/app-tests.sh regenerates it when missing.
+      # The mini has it already, and `brew install` there would auto-update brew.
       - name: Install XcodeGen
+        if: runner.environment == 'github-hosted'
         run: brew install xcodegen
 
       - name: make test-scripts
@@ -164,7 +185,7 @@ jobs:
             /tmp/duo-app-tests-*/Logs/Package/*.xcactivitylog
 
   release:
-    runs-on: xcode-27
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted","duo-mini"]') || 'xcode-27' }}
     timeout-minutes: 30
     steps:
       - name: Check out
@@ -191,6 +212,8 @@ jobs:
       # (DuoUpdaterCore/Package.swift says why). Checked on 2026-10-04 that the
       # Junie abort still reproduces that way.
       - name: Core tests (Release)
+        env:
+          CORE_TEST_FLAGS: ${{ runner.environment == 'github-hosted' && '' || '--skip installPipelineDryRun' }}
         run: scripts/run-with-hang-report.sh 1200 make test-release
 
   # The one check the `main` ruleset requires is named `test`, which was this

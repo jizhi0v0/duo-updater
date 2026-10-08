@@ -1237,15 +1237,13 @@ public struct VendorProbeRecipe: Sendable {
 ///
 /// GitHub-released apps are handled by `GitHubReleasesSource`, not here.
 ///
-/// Two more unfeasibles, observed 2026-08-30 and recorded to stop rediscovery:
-/// - **Trae / Trae CN** (`com.trae.app`): the update manifest
-///   (`api.trae.ai/icube/api/v1/native/version/trae/latest`) carries NO version
-///   field — only CDN release-train numbers (`…/releases/stable/2.3.73738/…`)
-///   baked into download URLs, while the installed bundle reports a different
-///   namespace (`CFBundleShortVersionString 3.5.91` for train 2.3.73738).
-///   Homebrew's cask livecheck grabs the train number too, but Homebrew never
-///   compares it to the bundle. No public endpoint yields the app version, so
-///   a probe would compare across namespaces — same class as Brave/Feishu.
+/// TRAE (`com.trae.app`) is covered: its download API's
+/// `data.manifest.darwin.versions[]` entries carry the app's own marketing
+/// version beside the CDN release-train URL (`Recipes/com-trae-app.swift`). The
+/// train number in the URL (`…/releases/stable/2.3.88407/…`) is a different
+/// namespace and is never compared.
+///
+/// One more unfeasible, recorded to stop rediscovery:
 /// - **Hermes (Nous Research desktop)**: the distributed artifact
 ///   (`Hermes-Setup.dmg`) is a 0.0.1 bootstrap stub
 ///   (`com.nousresearch.hermes.setup`) that downloads the real app elsewhere;
@@ -1268,13 +1266,6 @@ public enum VendorProbeRegistry {
     public static func ordersByLineage(bundleID: String) -> Bool {
         recipes.contains { $0.bundleID == bundleID && $0.buildLineage != nil }
     }
-
-    // TRAE is deliberately absent here. Its official manifest exposes only
-    // the packaging line `2.3.61406`, while the exact dmg at that manifest URL
-    // reports CFBundleShortVersionString/CFBundleVersion `3.5.81`. The embedded
-    // product.json ties the two together (`tronBuildVersion` / `appVersion`),
-    // but the network response never publishes `appVersion`; neither string can
-    // safely be compared to the installed Info.plist. See the persisted audit.
 
     // Deliberately NOT covered — Android File Transfer
     // (`com.google.android.mtpviewer`). `…/mtp/current/AndroidFileTransfer.dmg`

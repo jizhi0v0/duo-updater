@@ -8412,13 +8412,17 @@ final class AppListModel {
 
     /// Banner when Apple has ended the session and an Xcode update is waiting on
     /// it. Also run after each full refresh, since the first check at launch
-    /// comes before there are rows to find the update in.
+    /// comes before there are rows to find the update in. Only once the expiry is
+    /// final (`hasExpiredForGood`): on 2026-10-08 the launch refresh ended during
+    /// the 10 s a silent renewal took, and the banner it posted was wrong by the
+    /// time the user opened Settings.
     private func announceAppleSessionExpiryIfNeeded() {
-        guard AppleDeveloperSession.shared.status == .expired else {
+        let session = AppleDeveloperSession.shared
+        guard session.status == .expired else {
             announcedAppleSessionExpiry = false
             return
         }
-        guard !announcedAppleSessionExpiry, prefs.notifyOnUpdates,
+        guard session.hasExpiredForGood, !announcedAppleSessionExpiry, prefs.notifyOnUpdates,
               let pending = results.first(where: { isXcodeRow($0) && isActionableUpdate($0) && canAutoInstall($0) })
         else { return }
         announcedAppleSessionExpiry = true

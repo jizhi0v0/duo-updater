@@ -108,7 +108,7 @@ import Foundation
 /// so a tenth bound app is covered the day it is added — and exercised in BOTH
 /// directions, since the gate now reads two snapshots rather than one identifier.
 @Test func onlyBoundAppsAreWorthRecheckingOnLaunchOrQuit() {
-    let bystanders: Set<String> = ["com.apple.finder", "com.apple.Safari", "com.googlecode.iterm2"]
+    let bystanders: Set<String> = ["com.apple.finder", "com.apple.Safari", "com.apple.Terminal"]
     for id in ChannelBinding.boundBundleIDs {
         // Launched: absent before, present now.
         #expect(ChannelSwitchDetector.isWorthRechecking(

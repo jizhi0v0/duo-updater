@@ -395,6 +395,9 @@ are NOT CFPreferences.
 | Mac Mouse Fix `com.nuebling.mac-mouse-fix` | `~/Library/Application Support/com.nuebling.mac-mouse-fix/config.plist` | `General.checkForPrereleases` true | feed swap |
 | Cua Driver `com.trycua.driver` | plain text `~/.cua-driver/release-channel` | file contents "nightly" | selects GitHubReleaseRule |
 | Cindy `com.xd.cindy` / `com.xd.cindycn` | JSON `~/Library/Application Support/{CindyGlobal,Cindy}/update-channel-settings.json` (Electron `userData`, per edition) | `enableBeta` true; absent → `orgDefaultEnableBeta` | selects GitHubReleaseRule |
+| OBS `com.obsproject.obs-studio` | INI `~/Library/Application Support/obs-studio/global.ini` `[General]` | `UpdateBranch` = `beta`; `stable` → stable with the `stable` tag named; absent → nil (a prerelease build writes `beta` on first run) | Sparkle channel tag |
+| iTerm2 `com.googlecode.iterm2` | CFPrefs | `CheckTestRelease` true → the bundle's own `SUFeedURLForTesting` (nil on a nightly build, whose feed keys are all the nightly feed) | feed swap, address from Info.plist (`ChannelBinding.bundleFeeds`) |
+| MonitorControl `app.monitorcontrol.MonitorControl` | CFPrefs (no UI yet) | `isBetaChannel` true → beta; else nil | Sparkle channel tag |
 | Ghostty, CodeEdit, Osaurus | — (constant, no user preference) | — | fixed feed / fixed Sparkle tag |
 
 **Confirm the write on the real app.** Have the toggle flipped in the real app (or flip it yourself if no

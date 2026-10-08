@@ -15,7 +15,7 @@
 |                  | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |------------------|---------|----------|-----|--------|-------------|
 | **stable**       | ✓       | ✗        | —   | —      | —           |
-| **beta**（test release） | ○ | ✗       | —   | —      | —           |
+| **beta**（test release） | ✓（`ITerm2Channel`） | ✗       | —   | —      | —           |
 | **nightly**      | ✓       | 见注     | —   | —      | —           |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **Sparkle**（三条轨都是；Homebrew 例外见下）。
@@ -34,7 +34,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `com.googlecode.iterm2` | 共享 | 默认（`CheckTestRelease` 缺省 = NO） | Info.plist `SUFeedURL` = `final_modern.xml` | ✓ |
-| beta（test release） | `com.googlecode.iterm2` | 共享 | CFPrefs `com.googlecode.iterm2` / `CheckTestRelease` = YES | feed-swap → `testing_modern.xml` | ○ 未接，见「已知问题」1 |
+| beta（test release） | `com.googlecode.iterm2` | 共享 | CFPrefs `com.googlecode.iterm2` / `CheckTestRelease` = YES | feed-swap → bundle 自己的 `SUFeedURLForTesting` | ✓ `ITerm2Channel` |
 | nightly | `com.googlecode.iterm2` | 共享 | 构建自身：Info.plist 三个 feed 键都写 `nightly_modern.xml`；版本带 `-nightly` | bundle 自己的 `SUFeedURL` | ✓ |
 
 **轨道与切换方式——settled from source**（`gnachman/iTerm2` `master`）：
@@ -124,12 +124,8 @@
 - 阻塞: 无已知阻塞；运行中替换 + app 自己的 Sparkle 是否抢装（第二轮）未跑。
 
 ## 已知问题
-1. **test release 轨没接（与 OBS 同型）。** stable 副本在 iTerm2 里打开 test release（`CheckTestRelease = YES`）后，
-   iTerm2 自己会从 `testing_modern.xml` 拿到 3.7.4beta1，duo 仍读 Info.plist 的 `final_modern.xml` 并显示「最新」。
-   beta 副本同理看不到下一个 beta。需要一个 `ChannelBinding`（见建议下一步 1）。
-2. **test release feed 可能落后 stable。** 只有 `release_beta.sh` 写它。iTerm2 自己在 test release 模式下只读这一份，
-   所以 binding 照搬时，test release 用户会在 beta feed 追上之前看不到更新的 stable——这是厂商行为，照搬即可，
-   但要在 binding 注释里写明。
+1. ~~test release 轨没接~~：2026-10-08 起由 `ITerm2Channel` 接上。它读 `CheckTestRelease`，打开时改读**这份拷贝 Info.plist 里的** `SUFeedURLForTesting`，关闭时读 `SUFeedURLForFinal`，和 iTerm2 自己的 `refreshSoftwareUpdateUserDefaults` 一样。地址取自 bundle、不写死，是为了 nightly：nightly 包三个 feed 键都指向 `nightly_modern.xml`，测试源和正式源相同时绑定返回 nil，所以从旧 stable 安装残留下来的 `CheckTestRelease = YES` 不会把 nightly 拷贝挪到 testing feed。
+2. **test release feed 可能落后 stable。** 只有 `release_beta.sh` 写它。iTerm2 自己在 test release 模式下只读这一份，绑定照搬，所以 test release 用户在 beta feed 追上之前看不到更新的 stable。这是厂商行为，已写在 `ITerm2Channel` 的注释里。
 3. `changelog pane` 只是一页纯文本 WebView，没有结构；`full_changes.txt` 只覆盖最新 stable，跨多版升级看不到中间版本的说明。
 4. 旧版审计（2026-06-04）的几处结论不成立：只列了 stable 一条轨（漏了 test release 与 nightly）；「Changelog: Sparkle
    inline … no custom recipe needed」不对——feed 没有 inline 说明，pane 是无结构的纯文本页；「一键安装: 阻塞 无」
@@ -182,17 +178,17 @@ curl -sS "https://raw.githubusercontent.com/gnachman/iTerm2/master/sources/iTerm
   `(3.7.4, 3.7.4beta1)` true、`(3.7.4beta2, 3.7.4beta1)` true、`(3.7.20261008-nightly, 3.7.20261007-nightly)` true、
   `(3.7.3, 3.7.20261008-nightly)` false、`(3_7_20261007, 3.7.20261008-nightly)` false、`(3_7_20261009, 3.7.20261008-nightly)` true
 
+### 绑定的真实路径（2026-10-08，`channel-verify`，偏好用 `defaults write` 临时写入，验完删除）
+
+| 拷贝 | `CheckTestRelease` | ChannelBinding | SUFeedURL（生效） | status |
+|---|---|---|---|---|
+| 3.7.3 stable | 无 | `stable — read from this app's own preference` | `final_modern.xml` | up to date |
+| 3.7.3 stable | YES | `beta — read from this app's own preference` | `testing_modern.xml` | `UPDATE → 3.7.4beta1` |
+| 3.7.3 stable | NO | stable | `final_modern.xml` | up to date |
+| 3.7.20261007-nightly | YES | `<none for this app>` | `nightly_modern.xml` | `UPDATE → 3.7.20261008-nightly` |
+
 ## 建议下一步
-1. **加 `ChannelBinding`（IINA 型 feed-swap）**：新建 `ITerm2Channel.swift`，读 CFPrefs 域 `com.googlecode.iterm2` 的
-   `CheckTestRelease`（Bool，缺省 / 读不到 → stable）。YES → `ResolvedChannel(channel: .beta, feedOverride:
-   https://iterm2.com/appcasts/testing_modern.xml)`；NO → `.stable` + `final_modern.xml`。加进 `resolver(for:)`、
-   `allResolutions`、`boundBundleIDs`；在新的 `Recipes/com-googlecode-iterm2.swift` 里登记 beta 的
-   `bindingProofs`（照 `com-colliderli-iina.swift`：`.recipeAnchor(#"testing_modern\.xml"#, in: ["feedOverride"])`）；
-   在 app-audit skill 的 2c½ 表里加一行。**nightly 必须排除**：nightly 构建的 Info.plist `SUFeedURL` 含 `nightly`
-   （iTerm2 自己用这个判 `it_isNightlyBuild`，并禁用该复选框），binding 对这种副本应返回 nil 或保留 bundle 自己的 feed，
-   不能因为 `CheckTestRelease` 残留为 YES 就把 nightly 改到 testing feed。
-   验收：先在真 app 里翻复选框确认写入的键与值（开 / 关两种状态都读一遍），再 `channel-verify --check com.googlecode.iterm2`
-   看 detected channel 跟着变；3.7.3 副本在 YES 时应得 `UPDATE → 3.7.4beta1`。
+1. ~~加 `ChannelBinding`~~：已做（`ITerm2Channel`，见「已知问题」1 和「如何复验」）。没做的一步：在真 app 里拨复选框，确认写进 `com.googlecode.iterm2` 的是 Bool `CheckTestRelease`。这个键名和类型来自源码（`iTermPreferences.m` 的 `kPreferenceKeyCheckForTestReleases = @"CheckTestRelease"`）；验证时是用 `defaults write` 写进去的。
 2. **结构化 changelog**：`/fragile-recipe iTerm2`（ChangelogRecipe，纯文本），stable 读
    `https://iterm2.com/downloads/stable/iTerm2-{version}.changelog`（或 `full_changes.txt`），beta 读
    `https://iterm2.com/downloads/beta/iTerm2-{version}.changelog`；小节标题形如 `Bug Fixes:`，条目 `- ` 开头、硬换行。

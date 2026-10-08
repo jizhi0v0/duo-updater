@@ -20,6 +20,9 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
     /// response handler can't drift apart.
     enum ID {
         static let updatesCategory = "UPDATES_AVAILABLE"
+        /// The same banner when something new is not an app: "View" alone, since
+        /// "Update All" updates apps only.
+        static let viewUpdatesCategory = "UPDATES_AVAILABLE_VIEW"
         static let installAll = "INSTALL_ALL"
         static let view = "VIEW"
         /// A "the app downloaded an update on its own" banner, carrying a Relaunch
@@ -63,6 +66,11 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
             actions: [installAll, view],
             intentIdentifiers: [],
             options: [])
+        let viewOnly = UNNotificationCategory(
+            identifier: ID.viewUpdatesCategory,
+            actions: [view],
+            intentIdentifiers: [],
+            options: [])
 
         // "Relaunch" quits and reopens the app to apply the build it staged itself.
         // No `.foreground`: the restart runs headless via NSWorkspace; we don't pull
@@ -85,7 +93,7 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
             actions: [confirmQuit],
             intentIdentifiers: [],
             options: [])
-        center.setNotificationCategories([category, selfUpdate, quitToInstall])
+        center.setNotificationCategories([category, viewOnly, selfUpdate, quitToInstall])
 
         // `.badge` is required even though we never badge via UNUserNotificationCenter:
         // requesting authorization WITHOUT it makes the system deny badge permission for

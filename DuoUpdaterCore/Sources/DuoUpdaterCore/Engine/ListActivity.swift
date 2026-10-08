@@ -125,4 +125,18 @@ public enum BadgeReadout {
     public static func count(live: Int, held: Int, isScanning: Bool, isChecking: Bool) -> Int {
         (isScanning || isChecking) ? held : live
     }
+
+    /// The number on the menu-bar icon and the Dock tile: the apps' count (`count`
+    /// above), plus the command-line tools' and Homebrew's when their switches in
+    /// Settings › Notifications are on. Apps are always counted, as they were
+    /// before those switches existed — the apps' switch is about banners only.
+    ///
+    /// The other two need no holding: neither list is blanked while it is
+    /// re-checked, each is replaced whole when its answer lands.
+    public static func total(
+        apps: Int, commandLineTools: Int, homebrew: Int,
+        countsCommandLineTools: Bool, countsHomebrew: Bool
+    ) -> Int {
+        apps + (countsCommandLineTools ? commandLineTools : 0) + (countsHomebrew ? homebrew : 0)
+    }
 }

@@ -350,6 +350,22 @@ public protocol CLIToolProvider: Sendable {
     /// the document), newest first, one entry per version. The app cuts them to
     /// one install with `CLIToolChangelog.relevant`.
     func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog
+
+    /// Whether `check()` asks api.github.com. Anonymous, that API allows 60
+    /// requests an hour per IP, and a 304 still counts against them; with a token
+    /// a 304 costs nothing. So the app's background check asks such a tool at
+    /// most every 15 minutes when no token resolves (`CLIToolsModel.isDue`).
+    ///
+    /// Measured 2026-10-08: of the version checks, only Bun's and OpenCode's
+    /// (`releases/latest`) ask it on every check, and Herdr's when its manifests
+    /// do not name the build. Every other source answers with an ETag or a
+    /// Last-Modified that revalidates to 304 at no cost. Release notes are not
+    /// part of a check and do not count here.
+    var readsGitHubAPI: Bool { get }
+}
+
+extension CLIToolProvider {
+    public var readsGitHubAPI: Bool { false }
 }
 
 public enum CLIToolChangelog {

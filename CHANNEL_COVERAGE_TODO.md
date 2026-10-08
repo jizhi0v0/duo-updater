@@ -464,7 +464,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 - ✗ **Bartender — Test Builds** · 同 feed
 - ✗ **Plex — Beta** · Plex Pass 应用内，非独立下载
 - ✗ **Audacity 4 prerelease（alpha/beta）** · `org.audacityteam.Audacity`（与 3.x 只差大小写），版本 `4.0.0` 无后缀；4.x stable 另起 `org.audacityteam.audacity4`；`latest.test.json` 停在 beta 4，暂无可接构建（2026-10-08）
-- ✗ **Audacity 3 经旧 `audacity` cask 安装** · Caskroom 里是 `audacity`、`.app` 只对得上 `audacity@3` → unknown（2026-10-08）
+- ✗ **Audacity 3 经旧 `audacity` cask 安装** · Caskroom 里是 `audacity`、`.app` 只对得上 `audacity@3`，Homebrew 不应答；现在落到 3.x GitHub rule，被推 3.7.9（≤3.7.8 一键被 Team 闸拒）（2026-10-08）
 - ◐ **Calibre — preview** · 同 `net.kovidgoyal.calibre`，`download.calibre-ebook.com/preview/` 每周构建；`detect()` 按厂商 `setup/publish.py` 写明的「第三段 ≥100」判 preview（2026-10-08）。preview 自己的更新源没接；brew 装的 preview 拷贝由 Homebrew 推下一个 stable。详见 [审计](docs/app-audits/net-kovidgoyal-calibre.md)
 - ✗ **Edge — Extended Stable** · 只是更慢的 stable，不单独成轨
 - ✗ **MacUpdater** · 2026-01-01 已停更

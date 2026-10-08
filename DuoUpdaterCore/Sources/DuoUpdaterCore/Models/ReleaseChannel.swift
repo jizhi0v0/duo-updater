@@ -102,6 +102,9 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     ///   0.97. An eighth bundle-id-scoped rule — JetBrains Air, whose nightly
     ///      build is told apart only by the train named in its own `SUFeedURL`.
     ///      See the block comment on the check.
+    ///   0.98. A ninth bundle-id-scoped rule — calibre, whose preview builds are
+    ///      numbered `<maj>.<min>.<N>` with N ≥ 100, a bound the vendor's release
+    ///      tooling enforces. See the block comment on the check.
     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
     ///      authoritative).
@@ -314,6 +317,25 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return .nightly
         }
 
+        // 0.98 calibre — its preview builds (`download.calibre-ebook.com/preview/`,
+        //     typically weekly) ship the stable bundle id `net.kovidgoyal.calibre`,
+        //     the name "calibre", the Team and the stable plist keys, so the
+        //     version is the only local signal. The vendor's release tooling
+        //     states the rule: `setup/publish.py`'s `publish` refuses a version
+        //     whose third component is above 99 ("The version number … indicates
+        //     a preview release, did you mean to run ./setup.py publish_preview?")
+        //     and `publish_preview` refuses one below 100. So `<maj>.<min>.<N>`
+        //     with N ≥ 100 (`9.15.101`) is a preview, and a normal release never
+        //     carries one.
+        //
+        //     Scoped to this bundle id: a three-digit patch is an ordinary
+        //     release number elsewhere.
+        if bundleID == "net.kovidgoyal.calibre",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           isCalibrePreviewVersion(version) {
+            return .preview
+        }
+
         // 1. Keystone's own channel id — authoritative when present.
         if let ks = keystoneChannel?.trimmingCharacters(in: .whitespacesAndNewlines),
            !ks.isEmpty {
@@ -451,6 +473,15 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
         guard let i = segments.firstIndex(of: "fleet-feed"), i + 2 < segments.count
         else { return false }
         return segments[i + 1] == "AIR" && segments[i + 2] == "nightly"
+    }
+
+    /// True for calibre's preview numbering: exactly three numeric components,
+    /// the third at least 100 — the bound its `setup/publish.py` enforces.
+    private static func isCalibrePreviewVersion(_ version: String) -> Bool {
+        guard fullyMatches(#"[0-9]+\.[0-9]+\.[0-9]+"#, version),
+              let patch = version.split(separator: ".").last.flatMap({ Int($0) })
+        else { return false }
+        return patch >= 100
     }
 
     /// True if `text` matches `pattern` in its entirety (anchored both ends).

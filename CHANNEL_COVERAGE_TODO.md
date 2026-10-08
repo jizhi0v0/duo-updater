@@ -526,6 +526,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
   测试通过。官网“无 beta”是**旧判断**，已更新。
 - ○ **Arc** · **有** Early Birds（RC）轨，同 bundle id：RC 包 Info.plist 自带 RC feed，装上后 duo 已跟随。加入要在 `arc.net/earlybirds` 申请，获批后 app 内才出现切换（远端开关 `switch-to-beta-enabled`，推断），偏好观察不到，不做 binding。Dia 是另一独立产品。详见 [审计](docs/app-audits/company-thebrowser-Browser.md)（2026-10-08 更正旧的「无 beta」）
 - ○ **Dia** · **有** Early Birds（RC）轨，同 bundle id：RC 包 Info.plist 自带 RC feed（`release-candidate/<UUID>/BoostBrowser-updates.xml`），装上后 duo 已跟随。加入要申请，获批后 app 内才出现切换（远端开关 `switch-to-beta-enabled`，推断），偏好观察不到，不做 binding。与 Arc 不同：Dia 仍在积极开发，RC 领先 stable 一个 minor。详见 [审计](docs/app-audits/company-thebrowser-dia.md)（2026-10-08）
+- ○ **JetBrains Air** · 公开 Public Preview 单轨（releases API `AIR` 全是 `preview`，包内 `SUFeedURL` 指向 `fleet-feed/AIR/eap/…`），另有公开 nightly Sparkle feed（`fleet-feed/AIR/nightly/<arch>/feed.xml`，2026-10-08 为 262.1054），站点 / API / Toolbox 都不分发。nightly 包实测与 Public Preview 共用 `com.jetbrains.air`，包内 `SUFeedURL` 指向 nightly feed，已装的 nightly 拷贝 duo 已跟随；行上渠道显示为 stable、changelog 显示 Public Preview 的说明（判据可用 `SUFeedURL` 的 `/nightly/`，未做）。应用内有没有切换未验证（要启动 app）。详见 [审计](docs/app-audits/com-jetbrains-air.md)（2026-10-08，从「单 channel 全覆盖」移出）
 - ✓ **HandBrake** · snapshots（`HandBrake-snapshots`）同 bundle id、无 app 内 toggle，但**不是**同构建：snapshot 是 master 构建、ad-hoc 签名，Info.plist 自带 `appcast_unstable` feed，通用 Sparkle 已跟随，无需 binding（2026-10-08 更正）
 - ✗ **Keka** · 开源 GitHub 有 dev pre-release（`v1.5.2-dev.r5614`），但无独立 bundle id，
   无 app 内 channel toggle；dev 拷贝会被移到下一个 stable，和 Keka 自己的更新器一样（2026-10-08 实测）
@@ -586,7 +587,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 
 只有 stable、无其它轨需接的：Claude / Codex / ChatWise / Ollama / Conductor / opencode /
 CleanShot(单轨部分) / Shottr / AppCleaner / Unarchiver / ImageOptim / Pearcleaner /
-Stats / MacsFanControl / Calibre / Notion / JetBrains Air / LibreWolf / Plex / Dropbox /
+Stats / MacsFanControl / Calibre / Notion / LibreWolf / Plex / Dropbox /
 Orion / VS Code(stable) / Cursor / Slack / 1Password / Sublime（Text/Merge）/
 RustDesk / DBeaver / Beekeeper / Macs Fan Control / Alcove /
 HandBrake / Keka / Lark / Proxyman / Rectangle /

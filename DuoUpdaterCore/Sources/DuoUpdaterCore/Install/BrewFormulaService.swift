@@ -70,6 +70,18 @@ public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
 ///
 /// Without this type both shapes read as "nothing to do": the formula has no row at
 /// all, the cask has no update.
+///
+/// A third shape lands here too: a homebrew/core formula **moved to a cask**. Seen
+/// 2026-10-08 with azure-cli, whose formula homebrew/core deleted on 2026-10-07
+/// (Homebrew/homebrew-core#315699) in favour of a same-named cask. The installed
+/// keg doesn't vanish from brew's listings, it does the opposite: brew loads it
+/// from the copy stored in the keg (`.brew/azure-cli.rb`), so `brew leaves` and
+/// `info --installed` still list it, and `brew outdated` compares the keg with
+/// itself — azure-cli 2.90.0 read as up to date while the cask was at 2.91.0.
+/// `brew update` does migrate it, but only once (the run that first sees the
+/// formula gone) and, with the API in use, only by printing the commands
+/// (Homebrew 7.0.8 `update_report/reporter.rb#migrate_tap_migration`); after
+/// that only `brew doctor`'s "Some installed kegs have no formulae!" mentions it.
 public struct BrewUncheckedPackage: Sendable, Identifiable, Equatable {
     public enum Reason: Sendable, Equatable {
         /// `brew tap-info` reports the tap as not trusted.
@@ -78,6 +90,9 @@ public struct BrewUncheckedPackage: Sendable, Identifiable, Equatable {
         /// trusted or gone, the definition is broken…). Not narrowed further — we
         /// only know brew's verdict, not its exception.
         case unreadable
+        /// A homebrew/core formula no longer in homebrew/core, with a cask of the
+        /// same name — see the type's doc. Only ever a `.formula`.
+        case movedToCask
     }
 
     public var id: String { "\(kind.rawValue):\(fullName)" }
@@ -110,6 +125,23 @@ public struct BrewUncheckedPackage: Sendable, Identifiable, Equatable {
     /// which is what Homebrew's docs recommend. Shown for the user to run; this app
     /// never runs it, trusting a tap is the user's security decision.
     public var trustCommand: String { "brew trust --\(kind.rawValue) \(fullName)" }
+
+    /// Swaps a `.movedToCask` formula for its cask: the two commands `brew update`
+    /// prints for this migration, in one line. Uninstall first — the cask links the
+    /// same executables, and its install fails while the formula's are linked.
+    /// Shown for the user to run, like `trustCommand`.
+    public var migrateCommand: String {
+        "brew uninstall --formula --force \(name) && brew install --cask \(name)"
+    }
+
+    /// The command that resolves this package's reason, when there is one to give.
+    public var fixCommand: String? {
+        switch reason {
+        case .tapNotTrusted: trustCommand
+        case .movedToCask: migrateCommand
+        case .unreadable: nil
+        }
+    }
 }
 
 /// Reads outdated Homebrew formulae and runs a formula-only `brew upgrade`.
@@ -330,19 +362,64 @@ public actor BrewFormulaService {
         // ("Refusing to load cask … from untrusted tap") when any installed cask is
         // untrusted, and `--full-name` prints such a cask bare.
         async let versionList = runReading(["list", "--formula", "--versions"])
+        // Every formula and cask name brew can load — for `.movedToCask`. Local
+        // reads of the API's name lists (or the taps), no network.
+        async let availableFormulae = runReading(["formulae"])
+        async let availableCasks = runReading(["casks"])
 
+        let fullNames = Self.parseLines(await formulaNames)
+        let versions = Self.parseVersions(await versionList)
         let candidates = Self.uncheckedCandidates(
-            formulaFullNames: Self.parseLines(await formulaNames),
+            formulaFullNames: fullNames,
             installedInfo: Data(await installedInfo.utf8),
-            formulaVersions: Self.parseVersions(await versionList),
+            formulaVersions: versions,
             caskReceiptTap: caskReceiptTap,
             caskInstallsAnApp: caskInstallsAnApp)
-        guard !candidates.isEmpty else { return [] }
+        let moved = Self.movedToCask(
+            formulaFullNames: fullNames,
+            availableFormulae: Self.parseLines(await availableFormulae),
+            availableCasks: Self.parseLines(await availableCasks),
+            formulaVersions: versions)
+        guard !candidates.isEmpty else { return moved }
 
         // `--installed` rather than naming the taps: `tap-info` on a tap that no
         // longer exists would fail the whole read and mislabel the others.
         let tapInfo = await runReading(["tap-info", "--json=v1", "--installed"])
-        return Self.label(candidates, untrustedTaps: Self.parseUntrustedTaps(Data(tapInfo.utf8)))
+        return (Self.label(candidates, untrustedTaps: Self.parseUntrustedTaps(Data(tapInfo.utf8))) + moved)
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// Installed homebrew/core formulae that homebrew/core no longer has, where a
+    /// cask of the same name exists — see `BrewUncheckedPackage`. The same verdict
+    /// brew gives for the name once the keg is gone ("No available formula with
+    /// the name "azure-cli". … Found a cask named "azure-cli" instead.").
+    ///
+    /// Only bare names: `list --full-name` prints a homebrew/core formula bare and a
+    /// tap's tap-qualified, and a tap formula brew can't load is `uncheckedCandidates`'
+    /// business. A renamed formula is not caught: its old name is gone, but no cask
+    /// takes it, and brew resolves the rename itself (`formula_renames`).
+    ///
+    /// Fails closed: an empty `availableFormulae` (`runReading` answers "" for a
+    /// failed read) yields [] — never "brew has no formulae, so every installed one
+    /// has moved".
+    static func movedToCask(
+        formulaFullNames: [String],
+        availableFormulae: [String],
+        availableCasks: [String],
+        formulaVersions: [String: String]
+    ) -> [BrewUncheckedPackage] {
+        guard !availableFormulae.isEmpty else { return [] }
+        let formulae = Set(availableFormulae)
+        let casks = Set(availableCasks)
+        return formulaFullNames
+            .filter { !$0.contains("/") && !formulae.contains($0) && casks.contains($0) }
+            .map { name in
+                BrewUncheckedPackage(
+                    fullName: name, kind: .formula,
+                    installedVersion: formulaVersions[name] ?? "—",
+                    reason: .movedToCask)
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     /// Pure core of `uncheckedPackages()`: every candidate carries `.unreadable`

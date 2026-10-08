@@ -127,8 +127,8 @@
 - Recipe 状态: 不需要（可做但收益低，见建议下一步）
 
 ## 一键安装
-- 状态: 需要验证（通用 Sparkle 路径，检测与下载 URL 已在真包上验证）
-- 端到端: 未跑（由协调会话串行执行）
+- 状态: 支持（通用 Sparkle 路径，第一轮端到端 ✓）
+- 端到端（2026-10-08，第一轮：未运行）: 1.167.0 (88045) → `duo install --yes --json` → `outcome: installed`，`route: sparkle`，`bytesDownloaded: 42151554`，14 s。之后版本 1.167.1 (88217)，inode 变了，`codesign --verify --deep --strict` 通过，`spctl` `accepted / Notarized Developer ID`，Team `S6N382Y83G`；和厂商新版包里的 app 逐文件比对（SHA-256 + 符号链接 + 目录，1947 行）完全一致。42151554 字节就是 `Arc-from-88045-to-88217.delta`。第二轮（运行中、app 自己的更新器已暂存）未跑。
 - 格式: zip（stable `Arc-1.167.1-88217.zip` 452,211,252 B，与 feed `length` 相等）
 - 校验: feed 没有 SHA 摘要；有 `sparkle:edSignature`，包里有 `SUPublicEDKey`（两版相同）。下载哈希
   1.167.1 `2847c892…1a73`、1.167.0 `e00521ef…056d`（SHA-256，仅作记录）

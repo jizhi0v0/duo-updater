@@ -120,7 +120,7 @@ untagged 的默认轨，stable 副本能匹配（`channel-verify` 对 2.7.0 实�
 
 ## 一键安装
 - 状态: 需要验证（路由与闸已就绪，端到端未跑）
-- 端到端: 未跑（由协调会话串行执行）
+- 端到端: 未跑（本轮未执行，原因与 app 本身无关）
 - 预期路由: `SparkleInstaller`（`result.remote.sourceName == "Sparkle"`），zip 归档。
   因为包里没有 `SUPublicEDKey`、feed 里也没有 `sparkle:edSignature`，走的是无密钥分支
   （与 Fork 同）：跳过 EdDSA，由代码签名有效 + Team ID 相同 + bundle id 相同这道闸兜底，

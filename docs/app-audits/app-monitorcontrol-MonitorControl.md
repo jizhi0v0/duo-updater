@@ -95,7 +95,7 @@
 
 ## 一键安装
 - 状态: 走 Sparkle 通用一键路径（enclosure = GitHub release 的 `MonitorControl.<v>.dmg`，带 `sparkle:edSignature`；4.3.3 与 4.4.0 的 `SUPublicEDKey` 相同）
-- 端到端: 未跑（由协调会话串行执行）
+- 端到端（2026-10-08，第一轮：未运行）: 4.3.3 (7123) → `duo install --yes --json` → `outcome: installed`，`route: sparkle`，`bytesDownloaded: 20391423`，13 s。之后版本 4.4.0 (7152)，inode 变了，`codesign --verify --deep --strict` 通过，`spctl` `accepted / Notarized Developer ID`，Team `299YSU96J7`；和厂商新版包里的 app 逐文件比对（SHA-256 + 符号链接 + 目录，527 行）完全一致。上一版 4.3.3 自身过不了严格校验（见下），换装后的 4.4.0 能过。第二轮（运行中、app 自己的更新器已暂存）未跑。
 - 格式: dmg
 - 校验: feed 只发 EdDSA 签名，不发 SHA 摘要；无可接的摘要字段。Team 闸：4.3.3 → 4.4.0 同为 `299YSU96J7`，不会被拒。
 - **读的是**: 人人可手动下载的 GA——enclosure 就是 GitHub Releases 页上公开的 dmg，feed 无 `phasedRolloutInterval`。

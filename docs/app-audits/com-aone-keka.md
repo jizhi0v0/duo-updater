@@ -122,8 +122,8 @@ duo 只读 `Info.plist` 里的 `SUFeedURL`（`BundleFacts`），不读这个覆�
 - Recipe 状态: **需要**（见建议下一步 2）
 
 ## 一键安装
-- 状态: 支持（通用 Sparkle 路线，无需 recipe）
-- 端到端: 未跑（由协调会话串行执行）
+- 状态: 预计支持（通用 Sparkle 路线，无需 recipe；端到端未跑）
+- 端到端: 未跑（本轮未执行，原因与 app 本身无关）
 - 格式: zip（feed enclosure），顶层只有 `Keka.app`；GitHub 同版另有 dmg（cask 用的那个）
 - 校验: feed 带 `sparkle:edSignature`（EdDSA），通用路线按 bundle 的 `SUPublicEDKey` 验签。feed
   里没有 SHA 摘要；GitHub asset 的 `digest` 与真实下载一致：1.6.8 zip

@@ -83,8 +83,8 @@ beta 包的 `CFBundleShortVersionString` 是字面的 `1.5.0-beta2`，`ReleaseCh
 - Recipe 状态: **需要**（○）。形状与 Mac Mouse Fix 相同：一页一版、地址由 feed 给出，应走 `feedPagePattern` 而不是 `sourceTemplate`——`{version}` 模板会把 1.4.2 build 164 拼成 `1.4.2.html`，读到 build 163 的说明。
 
 ## 一键安装
-- 状态: 需要验证（走通用 Sparkle 安装路径，无 per-app recipe；检测侧已具备一键所需的下载地址、EdDSA 公钥、Team ID）
-- 端到端: 未跑（由协调会话串行执行）
+- 状态: 支持（通用 Sparkle 路径，第一轮端到端 ✓）
+- 端到端（2026-10-08，第一轮：未运行）: 1.4.4 (168) → `duo install --yes --json` → `outcome: installed`，`route: sparkle`，`bytesDownloaded: 68369402`，17 s。之后版本 1.5.0 (180)，inode 变了，`codesign --verify --deep --strict` 通过，`spctl` `accepted / Notarized Developer ID`，Team `67CQ77V27R`；和厂商新版包里的 app 逐文件比对（SHA-256 + 符号链接 + 目录，1168 行）完全一致。68369402 字节就是 `IINA180-168.delta`，走的是 delta。第二轮（运行中、app 自己的更新器已暂存）未跑。
 - 格式: dmg（`IINA.v<版本>.dmg`，内含 `IINA.app` 与 `Applications` 软链）
 - 校验: feed 每个 enclosure 带 `sparkle:edSignature`，包内 `SUPublicEDKey` 在 1.4.4 / 1.5.0-beta2 / 1.5.0 三个包里相同；生产 `SignatureVerifier.verifyEdSignature` 对三个真实 dmg 均通过，翻一个字节即拒（「如何复验」第 5 节）。这是 Sparkle 自带的校验，不需要也没有另接 `checksumPattern`。另外三个 dmg 的 SHA-256 与 GitHub release 资产的 `digest` 逐一相等（下载自 `dl-portal.iina.io`，与 GitHub 资产是同一份字节）。
 - Team ID：上一版 1.4.4 与最新 1.5.0、beta2 都是 `67CQ77V27R`，`SignatureVerifier` 的 Team 精确匹配不会挡住老拷贝。三个包 `codesign --verify --deep --strict` 退出 0，`spctl` 为 `Notarized Developer ID`。

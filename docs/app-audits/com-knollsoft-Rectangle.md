@@ -102,7 +102,7 @@ MAS：`itunes.apple.com/lookup?bundleId=com.knollsoft.Rectangle` 返回 `resultC
 
 ## 一键安装
 - 状态: 支持（generic Sparkle 路径；Team、签名、OS 下限都对得上）
-- 端到端: 未跑（由协调会话串行执行）
+- 端到端（2026-10-08，第一轮：未运行）: 2.0.2 (109) → `duo install --yes --json` → `outcome: installed`，`route: sparkle`，`bytesDownloaded: 363770`，按路径 `duo install /Applications/Rectangle.app`。之后版本 2.0.3 (110)，inode 变了，`codesign --verify --deep --strict` 通过，`spctl` `accepted / Notarized Developer ID`，Team `XSYZ3E4B7D`；和厂商新版包里的 app 逐文件比对（SHA-256 + 符号链接 + 目录，266 行）完全一致。363770 字节就是 `Rectangle110-109.delta`。第二轮（运行中、app 自己的更新器已暂存）未跑。
 - 格式: dmg（feed enclosure；GitHub release 另有 `Rectangle.pkg`，feed 不用它）
 - 校验: Sparkle EdDSA（bundle `SUPublicEDKey` = `lpt9M3PhocbZ3MZiLH+crEqRfU11kfoNzGxSqiEIdvM=`，enclosure 带 `sparkle:edSignature`）。
   另外 GitHub 资产带 `digest`，下载的两个 dmg 的 `shasum -a 256` 与之一致

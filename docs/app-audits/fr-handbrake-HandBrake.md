@@ -133,8 +133,8 @@ Sparkle 读的同一个地址；snapshot 包实测读 `appcast_unstable.arm64.xm
 - Recipe 状态: **需要**（`.gitHubReleases` ChangelogRecipe，见建议下一步；未实现）
 
 ## 一键安装
-- 状态: 需要验证（检测 ✓；路由是 Sparkle enclosure，包与 Team 均已核）
-- 端到端: 未跑（由协调会话串行执行）
+- 状态: 支持（通用 Sparkle 路径，第一轮端到端 ✓）
+- 端到端（2026-10-08，第一轮：未运行）: 1.11.1 (2026032200) → `duo install --yes --json` → `outcome: installed`，`route: sparkle`，`bytesDownloaded: 47978117`，34 s。之后版本 1.11.2 (2026060700)，inode 变了，`codesign --verify --deep --strict` 通过，`spctl` `accepted / Notarized Developer ID`，Team `5X9DE89KYV`；和厂商新版包里的 app 逐文件比对（SHA-256 + 符号链接 + 目录，793 行）完全一致。整包下载（feed 没有 delta）。第二轮（运行中、app 自己的更新器已暂存）未跑。
 - 格式: dmg（universal `x86_64 arm64`），feed enclosure
   `https://handbrake.fr/rotation.php?file=HandBrake-1.11.2.dmg&update=true` → 302 →
   `github.com/HandBrake/HandBrake/releases/download//1.11.2/HandBrake-1.11.2.dmg`（GitHub 资产）

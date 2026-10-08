@@ -81,8 +81,8 @@
 - Recipe 状态: **需要**。`ProxymanApp/Proxyman` 的 GitHub release 正文是干净的 Markdown，每版一个 release，标题稳定：26.0.1 是 `## Improvements` / `## Bug Fixes`；26.0.0 到 6.6.0 是 `## Features` / `## Improvements` / `## Bug Fixes` / `## Screenshots`。tag 就是版本号本身（`26.0.1`）。
 
 ## 一键安装
-- 状态: 需要验证（检测 ✓，路径是通用 Sparkle 安装；Team、签名、公证都过了，但还没跑端到端）
-- 端到端: 未跑（由协调会话串行执行）
+- 状态: 支持（通用 Sparkle 路径，第一轮端到端 ✓）
+- 端到端（2026-10-08，第一轮：未运行）: 26.0.0 (260000) → `duo install --yes --json` → `outcome: installed`，`route: sparkle`，`bytesDownloaded: 63757299`，27 s。之后版本 26.0.1 (260001)，inode 变了，`codesign --verify --deep --strict` 通过，`spctl` `accepted / Notarized Developer ID`，Team `3X57WP8E8V`；和厂商新版包里的 app 逐文件比对（SHA-256 + 符号链接 + 目录，2003 行）完全一致。没启动过 app，所以 `/Library/PrivilegedHelperTools` 里没有 helper，helper 与新版的关系没测到。第二轮（运行中、app 自己的更新器已暂存）未跑。
 - 格式: dmg（`Proxyman.app` 加一个 `/Applications` 软链）
 - 校验: Sparkle 路径用 `sparkle:edSignature`（`SUPublicEDKey` = `moo+qhr/…`，两个版本相同）。feed 没有单独的摘要字段。补充一项交叉核对：feed 下载的 dmg sha256 `09bc0385…` 和 GitHub 资产 `digest`、cask `sha256` 三者一致，大小 63757299 也等于 feed 的 `length`
 - **读的是**: 人人可手动下载的 GA。feed 只有一个 item，同一个 dmg 也挂在 GitHub Releases 和 cask 上，不存在按设备分配

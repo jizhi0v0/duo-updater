@@ -106,8 +106,8 @@
   抽取器是否会把续行的换行 + 缩进折叠成空格**未验证**，写 recipe 时要在真实响应上确认。
 
 ## 一键安装
-- 状态: 需要验证（Sparkle 通用一键路径；前提已在真包上核对，端到端未跑）
-- 端到端: 未跑（由协调会话串行执行）
+- 状态: 支持（通用 Sparkle 路径，第一轮端到端 ✓）
+- 端到端（2026-10-08，第一轮：未运行）: 3.7.2 → `duo install --yes --json` → `outcome: installed`，`route: sparkle`，`bytesDownloaded: 57887250`，12 s。之后版本 3.7.3，inode 变了，`codesign --verify --deep --strict` 通过，`spctl` `accepted / Notarized Developer ID`，Team `H7V7XYVQ7D`；和厂商新版包里的 app 逐文件比对（SHA-256 + 符号链接 + 目录，1060 行）完全一致。整包 zip（feed 没有 delta）。第二轮（运行中、app 自己的更新器已暂存）未跑。
 - 格式: zip（顶层 `iTerm.app`）
 - 校验:
   - EdDSA：feed 中 3.7.3 的 `sparkle:edSignature` 用 bundle 的 `SUPublicEDKey`（`xdqAa0KX…Z0w=`）对真实 zip 验签 **VALID**，

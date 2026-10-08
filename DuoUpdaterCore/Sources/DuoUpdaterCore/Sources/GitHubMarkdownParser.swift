@@ -29,9 +29,10 @@ public enum GitHubMarkdownParser {
     /// Parse a single release body into a `Changelog` with one entry, or nil
     /// when the body contains no extractable bullet items.
     ///
-    /// Two passes. The strict pass (original behavior) takes only top-level
-    /// `-`/`*`/`+` bullets. ONLY when that finds nothing do we retry leniently —
-    /// also accepting indented bullets and numbered lists, and skipping fenced code
+    /// Two passes. The strict pass (original behavior) takes top-level
+    /// `-`/`*`/`+` bullets and the bullets nested under them. ONLY when that finds
+    /// nothing do we retry leniently —
+    /// also accepting any indented bullet and numbered lists, and skipping fenced code
     /// blocks. Gating the lenient pass on an empty strict result means every body
     /// that already parsed is byte-for-byte unchanged (no regression for the GitHub
     /// apps that share this parser); the lenient pass purely rescues bodies that
@@ -65,7 +66,7 @@ public enum GitHubMarkdownParser {
     public static func parse(
         body: String, version: String, date: String?, skipSections: [String] = []
     ) -> Changelog? {
-        let body = firstLanguage(of: body)
+        let body = withoutEarlierReleases(in: firstLanguage(of: body), version: version)
         var (items, content) = extractItems(from: body, lenient: false, skipSections: skipSections)
         if items.isEmpty {
             (items, content) = extractItems(from: body, lenient: true, skipSections: skipSections)
@@ -98,6 +99,81 @@ public enum GitHubMarkdownParser {
             options: .regularExpression)
         else { return body }
         return String(body[..<marker.lowerBound])
+    }
+
+    /// The body without any section that repeats an EARLIER release's notes: one
+    /// opened by a heading in one of `earlierReleaseHeadings`' wordings whose
+    /// version X is older than `version`. It runs to the next heading of its own
+    /// level or higher — or, for a "from X" wording, to the next STRICTLY higher
+    /// heading or the end: vorssaint-utils puts `### Everything from 3.3.3` at
+    /// the same level as the 3.3.3 sections after it (`### Performance`, …).
+    ///
+    /// Keka's hot-fix releases (1.6.3, 1.6.7) write their one fix and then
+    /// repeat the release before under `# Changes in version 1.6.6`. Read as
+    /// this release's notes, 1.6.7 was nine items where Keka's site lists one,
+    /// with a second "Fixes" heading. The repeated notes are not lost: they are
+    /// that release's own body, and its own entry. Dropped rather than kept
+    /// under their heading, because the entry is what changed in THIS version,
+    /// and the reader updating to 1.6.7 sees 1.6.6's entry beside it already.
+    ///
+    /// Narrow on purpose. A version in a heading is not the signal — vendors
+    /// write `What's new in 2.0`, `Changes since 1.5.0`, `macOS 14`,
+    /// UTM's `Changes (v5.0.6)`, Keka's own dev builds' `All changes in v1.4.0:`
+    /// — and neither is a version other than this one: Diri's `nightly` tag
+    /// carries `### Changes in 0.9.6-nightly.…`, and a pre-release lists the
+    /// release it leads up to. It takes the wording that announces another
+    /// release's changes AND a version this one is newer than; a `version` that
+    /// is not version-shaped is never judged.
+    static func withoutEarlierReleases(in body: String, version: String) -> String {
+        guard let own = VersionComparator.comparableMarketingVersion(version) else { return body }
+        var kept: [String] = []
+        // The skipped section's heading level, and whether a sibling at that
+        // level closes it (false for a "from X" wording).
+        var skipping: (level: Int, siblingCloses: Bool)?
+        var inFence = false
+        for line in body.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("```") { inFence.toggle() }
+            if !inFence, let heading = headingRawText(of: trimmed) {
+                let level = trimmed.prefix(while: { $0 == "#" }).count
+                if let s = skipping, level < s.level || (level == s.level && s.siblingCloses) {
+                    skipping = nil
+                }
+                if skipping == nil, let shape = earlierReleaseHeadings.first(where: { shape in
+                    guard let other = firstCapture(of: shape.pattern, in: heading) else { return false }
+                    return VersionComparator.isNewer(own, than: other)
+                }) {
+                    skipping = (level, !shape.runsOn)
+                }
+            }
+            if skipping == nil { kept.append(line) }
+        }
+        return kept.joined(separator: "\n")
+    }
+
+    /// The heading wordings that announce an earlier release's notes, each
+    /// anchored at the start of the heading text with the version in group 1.
+    /// `runsOn`: a "from X" wording takes everything after it, so a same-level
+    /// heading does not end it. Each is one vendor's real heading, nothing
+    /// looser: across the sweep these four matched nothing else (2026-10-08).
+    /// - Keka 1.6.7: `# Changes in version 1.6.6`
+    /// - upscayl v2.9.8: `## v2.9.7 Changes 🙈` (a dotted version, so `3 changes
+    ///   worth knowing` is not one)
+    /// - freelens v1.6.1: `## Notes from v1.6.0:`
+    /// - vorssaint-utils v3.3.5: `### Everything from 3.3.3`
+    private static let earlierReleaseHeadings: [(pattern: String, runsOn: Bool)] = [
+        (#"(?i)^changes\s+in\s+version\s+v?(\d+(?:\.\d+)*)"#, false),
+        (#"(?i)^v?(\d+(?:\.\d+)+)\S*\s+changes\b"#, false),
+        (#"(?i)^notes\s+from\s+v?(\d+(?:\.\d+)+)"#, true),
+        (#"(?i)^everything\s+from\s+v?(\d+(?:\.\d+)+)"#, true),
+    ]
+
+    private static func firstCapture(of pattern: String, in text: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range(at: 1), in: text)
+        else { return nil }
+        return String(text[range])
     }
 
     static let skippedSectionKeywords = [
@@ -383,6 +459,12 @@ public enum GitHubMarkdownParser {
         // Strict pass only: a top-level `**scope**:` bullet whose changes are
         // nested under it (see the strict branch below).
         var scope: String?
+        // Strict pass only: the line is inside a top-level bullet list, so an
+        // indented bullet here is nested under one of its items (see the strict
+        // branch below). Opened by a top-level bullet; closed by a heading or by
+        // any other unindented text. A blank line leaves it open — a loose list
+        // still nests.
+        var inTopLevelList = false
 
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -405,6 +487,7 @@ public enum GitHubMarkdownParser {
             if let raw = headingRawText(of: trimmed) {
                 let heading = raw.lowercased()
                 scope = nil
+                inTopLevelList = false
                 // Computed for a fenced heading too, exactly as before this guard
                 // existed: in the strict pass a fenced `## New Contributors` has
                 // always opened a skipped section, and which lines become items is
@@ -462,33 +545,51 @@ public enum GitHubMarkdownParser {
                     }
                 }
             } else {
-                // Bullet: `- text`, `* text`, `+ text`.
-                // Skip any indented sub-bullet — a leading space or tab marks PR-body
-                // detail that usually duplicates the top-level item. (Checked on the
-                // raw line; `trimmed` below has the indentation stripped.)
+                // Bullet: `- text`, `* text`, `+ text`. A leading space or tab
+                // (checked on the raw line; `trimmed` has it stripped) marks a
+                // bullet nested under the top-level one above it.
                 //
-                // Except under a bare scope label. changelogithub writes a scope with
-                // one change as `- **cli**: Title`, and one with several as
-                // `- **agent**:` with the changes nested under it — so there the
-                // nested bullets ARE the changes, and the label alone is not one
+                // Under a bare scope label, the nested bullets ARE the changes.
+                // changelogithub writes a scope with one change as
+                // `- **cli**: Title`, and one with several as `- **agent**:` with
+                // the changes nested under it, so the label alone is not one
                 // (bub 0.4.3's "Bug Fixes": two `**scope**:` items, four changes
                 // dropped). Each nested change becomes `**agent**: Title`, the
                 // shape of the one-change form.
+                //
+                // Under any other top-level bullet, a nested bullet is an item of
+                // its own, right after its parent. This pass used to drop them as
+                // PR-body detail duplicating the parent, and what it actually
+                // dropped was the detail the parent only names: HandBrake writes
+                // `- Updated libraries` with each library and version nested under
+                // it (77 lines across its last ten releases), and the pane said
+                // "Updated libraries" and nothing about which. Items are flat lines
+                // (the Workbench bullets `items`/`content.note` with no nesting),
+                // so a nested item reads as the line after its parent. Not inside a
+                // fence, and not after unindented prose (that is not a nested list).
                 guard let first = line.first, first != " ", first != "\t" else {
-                    if let scope, let raw = bulletContent(from: trimmed) {
-                        let cleaned = scope + " " + cleanItem(raw)
-                        items.append(cleaned)
-                        if !qualifying.isEmpty {
-                            if let heading = pendingHeading {
-                                content.append(heading)
-                                pendingHeading = nil
-                            }
-                            content.append(.note(cleaned))
+                    guard let raw = bulletContent(from: trimmed) else { continue }
+                    let cleaned: String
+                    if let scope {
+                        cleaned = scope + " " + cleanItem(raw)
+                    } else if inTopLevelList, !inFencedBlock {
+                        cleaned = cleanItem(raw)
+                        guard cleaned.count >= 6, !isEmphasisedThanks(cleaned) else { continue }
+                    } else {
+                        continue
+                    }
+                    items.append(cleaned)
+                    if !qualifying.isEmpty {
+                        if let heading = pendingHeading {
+                            content.append(heading)
+                            pendingHeading = nil
                         }
+                        content.append(.note(cleaned))
                     }
                     continue
                 }
                 scope = nil
+                inTopLevelList = bulletContent(from: trimmed) != nil
 
                 if let raw = bulletContent(from: trimmed) {
                     let cleaned = cleanItem(raw)
@@ -514,6 +615,17 @@ public enum GitHubMarkdownParser {
         // Anything still pending here is a heading with no note after it before
         // the body ended — dropped, not appended, same as any other dangling one.
         return (items, hasHeadingBlock(content) ? content : [])
+    }
+
+    /// A line that is nothing but one emphasised thank-you: `*Thank you [x](…)!*`,
+    /// `_Thanks [x](…) for the [suggestion](…)_`. KeepingYouAwake nests one under
+    /// each contributed translation; as a nested item it is a credit standing
+    /// where a change should be (64 lines across its last 30 releases). Read only
+    /// for nested bullets, the ones generation 10 started keeping, so no line that
+    /// was an item before is touched. A change that merely ends with thanks, or
+    /// thanks written as plain text, is not this shape.
+    static func isEmphasisedThanks(_ line: String) -> Bool {
+        line.range(of: #"^([*_])(?i:thanks?(?: you)?)\b.*\1$"#, options: .regularExpression) != nil
     }
 
     /// A numbered-list item's text: "1. text" / "12) text" → "text". nil otherwise.

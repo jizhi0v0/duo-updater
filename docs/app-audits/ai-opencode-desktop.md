@@ -25,7 +25,10 @@
 - tag `v1.18.18` 与真实包 short/build `1.18.18` 同构。
 
 ## Changelog
-- GitHub release body（优先）及既有 `ChangelogRecipe`。
+- `ChangelogRecipe`（`Recipes/ai-opencode-desktop.swift`）读 GitHub releases API（`OpencodeRelease.listURL`，
+  30 条），格式 `.opencodeReleases`：与 OpenCode CLI 用同一个 `OpencodeRelease.parseNotes`，每条正文读到
+  `**Thank you to N community contributors:**` 为止，贡献者名单不进条目。
+- 测试 `openCodeDesktopNotesStopAtTheContributorCredits`（v1.18.35 的真实正文）。
 
 ## 一键安装
 - 状态: ✓，host-native arm64/x64 DMG。
@@ -77,3 +80,9 @@
 ## 建议下一步
 1. 保持 GitHub tag 与资产文件名 fixture 测试。
 
+## 历史与实测
+- 2026-10-08，旧 recipe（抓 github.com/anomalyco/opencode/releases 页面、`<li>` 条目）: 页面上 10 个 release
+  共 27 条 `@handle: <pull-request title>` 贡献者行混在条目里（如 v1.18.35 2 条改动显示 5 条）。
+  改读 API + `.opencodeReleases` 后，这 10 个版本每个只少了贡献者行（5→2、6→3、9→4、4→2、7→3、8→5、
+  4→2、4→3、7→5、10→7），没有丢真改动；条目改为 Markdown，行内代码保留反引号，分类标题会显示。
+  窗口从页面的 10 个 release 变为 API 的 30 个。

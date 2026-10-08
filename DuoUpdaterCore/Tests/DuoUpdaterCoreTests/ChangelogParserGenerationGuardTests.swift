@@ -93,8 +93,27 @@ import Foundation
     /// 9 (`GitHubMarkdownParser` stops at a whole-line `<!-- lang:xx -->`) moves
     /// neither fixture: neither body carries such a line. Pinned by
     /// `MagpieCoverageTests`.
+    ///
+    /// 10 (`GitHubMarkdownParser`'s strict pass keeps bullets nested under a
+    /// top-level bullet) moves neither fixture: neither has a nested bullet.
+    /// Pinned by `GitHubMarkdownParserTests` and `BubChangelogTests`.
+    ///
+    /// 11 (`GitHubMarkdownParser` drops an older release's `Changes in version X`
+    /// section) moves neither fixture: neither has such a heading. Pinned by
+    /// `GitHubMarkdownParserTests`.
+    ///
+    /// 12 (`GitHubMarkdownParser` drops a nested emphasised thank-you) moves
+    /// neither fixture: neither has a nested bullet. Pinned by
+    /// `GitHubMarkdownParserTests`.
+    ///
+    /// 13 (three more wordings of a repeated earlier release) moves neither
+    /// fixture: neither has such a heading. Pinned by `GitHubMarkdownParserTests`.
+    ///
+    /// 14 (OpenCode desktop reads its notes through `.opencodeReleases`) moves
+    /// neither fixture: it is one app's recipe. Pinned by
+    /// `openCodeDesktopNotesStopAtTheContributorCredits`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 9)
+        #expect(Changelog.parserGeneration == 14)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

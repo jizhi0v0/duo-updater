@@ -106,7 +106,32 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   `<!-- lang:xx -->` comment. magpie appends a full Chinese translation
     ///   below `<!-- lang:zh -->`, under the same English headings, so notes
     ///   already cached from its releases list every change twice.
-    public static let parserGeneration = 9
+    /// - 10: `GitHubMarkdownParser`'s strict pass keeps a bullet nested under a
+    ///   top-level bullet, as an item of its own right after its parent, instead
+    ///   of dropping it. HandBrake nests every library bump under
+    ///   `- Updated libraries`, so notes already cached showed that line alone.
+    ///   Of 3,710 release bodies (the last 30 of every GitHub rule's and CLI
+    ///   tool's repo, every GitHub recipe's own page, HandBrake and Keka;
+    ///   2026-10-08) it changed 41 sources, adding 1,511 lines and removing none.
+    /// - 11: `GitHubMarkdownParser` drops a section headed
+    ///   `Changes in version X` when X is older than the release being parsed.
+    ///   Keka's hot-fix bodies repeat the previous release that way, so notes
+    ///   already cached for 1.6.7 and 1.6.3 carry 9 and 14 items for one fix
+    ///   each. The same 3,710 bodies changed nowhere else.
+    /// - 12: `GitHubMarkdownParser` does not keep a nested bullet that is only an
+    ///   emphasised thank-you (`*Thank you [x](…)!*`). Generation 10 made
+    ///   KeepingYouAwake's per-translation credits into items; the same 3,710
+    ///   bodies lose 64 such lines, all KeepingYouAwake's, and nothing else.
+    /// - 13: the generation-11 cut also reads `vX Changes` (upscayl v2.9.8),
+    ///   `Notes from vX` (freelens v1.6.1) and `Everything from X`
+    ///   (vorssaint-utils v3.3.4/v3.3.5), still only for an X older than the
+    ///   release. Notes already cached for those carry the earlier release's
+    ///   notes too: 19, 21, 85 and 89 items for 5, 1, 2 and 6 of their own.
+    /// - 14: OpenCode desktop's recipe reads the releases API the way the OpenCode
+    ///   CLI does (`.opencodeReleases`) instead of scraping the releases page's
+    ///   `<li>`s. Notes already cached carry each release's
+    ///   `@handle: <pull-request title>` contributor credits as changes.
+    public static let parserGeneration = 14
 
     public let entries: [Entry]
 

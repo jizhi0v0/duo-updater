@@ -4,23 +4,22 @@ enum ai_opencode_desktop {
     static let set = AppRecipeSet(
         family: "ai-opencode-desktop",
         changelogs: [
-        // OpenCode (desktop) — github.com/anomalyco/opencode/releases (the repo
+        // OpenCode (desktop) — the anomalyco/opencode GitHub releases (the repo
         // moved from sst/opencode via GitHub's org-rename redirect; we pin the
-        // canonical anomalyco path). Same GitHub-releases shape as Ollama/RustDesk:
-        // each release is a <section aria-labelledby="hd-…"> with an sr-only <h2>
-        // carrying the version (e.g. "v1.15.13"), a <relative-time datetime="…"> (ISO
-        // date), and a <div class="markdown-body …"> body. The leading "v" is
-        // dropped. The desktop app and CLI share one version line, so the releases
-        // versions match the installed app build.
+        // canonical anomalyco path). The desktop app and CLI share one version
+        // line, so the releases' versions match the installed app build, and
+        // the notes are read exactly as the OpenCode CLI's are
+        // (`.opencodeReleases` → `OpencodeRelease.parseNotes`): each body up to
+        // its `**Thank you to N community contributors:**` block.
+        //
+        // This used to scrape github.com/anomalyco/opencode/releases with a
+        // `<li>` item pattern, which also took that block as items.
+        // History: docs/app-audits/ai-opencode-desktop.md#历史与实测
         ChangelogRecipe(
             bundleID: "ai.opencode.desktop",
-            source: URL(string: "https://github.com/anomalyco/opencode/releases")!,
-            entryPattern:
-                #"<section[^>]*aria-labelledby="hd-[^"]*"[^>]*>\s*"#
-                + #"<h2 class="sr-only"[^>]*>v(?<version>[\d.]+)</h2>.*?"#
-                + #"<relative-time[^>]*datetime="(?<date>[^T]+)T[^"]*"[^>]*>.*?"#
-                + #"<div[^>]*class="markdown-body[^"]*"[^>]*>(?<body>.*?)</div>\s*</div>"#,
-            itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
+            source: OpencodeRelease.listURL,
+            mode: .json,
+            structuredFormat: .opencodeReleases),
         ],
         githubRules: [
         // OpenCode Desktop — the stable tag and the app's marketing/build versions

@@ -67,6 +67,12 @@ public enum StructuredChangelogDecoder {
             return decodeClaudeDesktop(body, maxEntries: maxEntries)
         case .hyperFramesWhatsNew:
             return decodeHyperFramesWhatsNew(body)
+        case .opencodeReleases:
+            guard let changelog = OpencodeRelease.parseNotes(Data(body.utf8)),
+                  !changelog.entries.isEmpty
+            else { return nil }
+            guard let cap = maxEntries else { return changelog }
+            return Changelog(entries: Array(changelog.entries.prefix(cap)), itemSyntax: changelog.itemSyntax)
         }
     }
 

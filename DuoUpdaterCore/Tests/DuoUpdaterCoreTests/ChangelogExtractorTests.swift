@@ -2276,44 +2276,34 @@ private let jbToolboxFixture = #"""
     #expect(cl.entries[1].items.last == "Fixed an internal error.")
 }
 
-// Trimmed real markup from github.com/anomalyco/opencode/releases (GitHub
-// releases, Ollama/RustDesk shape): two <section> blocks with an sr-only version
-// h2, a <relative-time>, and a markdown-body list.
-private let opencodeFixture = """
-<section aria-labelledby="hd-1">
-<h2 class="sr-only" id="hd-1">v1.15.13</h2>
-<relative-time datetime="2026-05-30T12:00:00Z">May 30, 2026</relative-time>
-<div class="markdown-body my-3">
-<ul>
-<li>Gateway Anthropic Opus 4.7+ adaptive reasoning now keeps summarized thinking.</li>
-<li>Fixed a crash on startup.</li>
-</ul>
-</div>
-</div>
-</section>
-<section aria-labelledby="hd-2">
-<h2 class="sr-only" id="hd-2">v1.15.12</h2>
-<relative-time datetime="2026-05-28T09:00:00Z">May 28, 2026</relative-time>
-<div class="markdown-body my-3">
-<ul>
-<li>ACP integrations can now send prompts through acp-next.</li>
-</ul>
-</div>
-</div>
-</section>
-"""
-
-@Test func extractsOpenCodeGitHubReleases() throws {
+/// OpenCode desktop's notes are the OpenCode CLI's: the same releases list,
+/// read the same way. v1.18.35's release, verbatim from
+/// `api.github.com/repos/anomalyco/opencode/releases` (fetched 2026-10-08), ends
+/// in a `**Thank you to 3 community contributors:**` block of pull-request
+/// titles. The desktop recipe used to scrape github.com/…/releases with a `<li>`
+/// pattern and showed those as changes (`@dc85: docs(web): add Fledge Alpha
+/// Free to Zen docs (#52895)`); the CLI path already cut them
+/// (`OpencodeRelease.withoutCredits`).
+///
+/// Mutation: point the recipe back at `.gitHubReleases` — the contributor
+/// block's handles and titles come back as items and this fails.
+@Test func openCodeDesktopNotesStopAtTheContributorCredits() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "ai.opencode.desktop"))
-    let cl = try #require(ChangelogExtractor.extract(from: opencodeFixture, using: recipe))
+    let release: [String: Any] = [
+        "tag_name": "v1.18.35", "prerelease": false, "draft": false,
+        "published_at": "2026-10-06T20:18:39Z",
+        "body": "## Core\n\n### Improvements\n- Added canonical redirects and JSON and Markdown data formats for agent-readable stats.\n\n### Bugfixes\n- xAI tool results now include supported images, while unsupported image formats are skipped. (@Jaaneek)\n\n**Thank you to 3 community contributors:**\n- @dc85:\n  - docs(web): add Fledge Alpha Free to Zen docs (#52895)\n- @jm0ney337:\n  - docs(ecosystem): add opencode-supabase to ecosystem plugins (#49848)\n- @Jaaneek:\n  - fix(opencode): bump @ai-sdk/xai to 3.0.139 so tool-result images reach xAI (#53549)\n",
+    ]
+    let json = try #require(String(data: try JSONSerialization.data(withJSONObject: [release]), encoding: .utf8))
+    let cl = try #require(ChangelogService.parse(recipe, body: json))
 
-    #expect(cl.entries.count == 2)
-    #expect(cl.entries[0].version == "1.15.13")
-    #expect(cl.entries[0].date == "2026-05-30")
-    #expect(cl.entries[0].items.count == 2)
-    #expect(cl.entries[0].items[0] == "Gateway Anthropic Opus 4.7+ adaptive reasoning now keeps summarized thinking.")
-    #expect(cl.entries[1].version == "1.15.12")
-    #expect(cl.entries[1].items == ["ACP integrations can now send prompts through acp-next."])
+    #expect(cl.entries.map(\.version) == ["1.18.35"])
+    #expect(cl.entries[0].date == "2026-10-06")
+    #expect(cl.entries[0].items == [
+        "Added canonical redirects and JSON and Markdown data formats for agent-readable stats.",
+        "xAI tool results now include supported images, while unsupported image formats are skipped. (@Jaaneek)",
+    ])
+    #expect(cl.itemSyntax == .markdown)
 }
 
 // Trimmed real bytes from the live JetBrains IIU releases JSON

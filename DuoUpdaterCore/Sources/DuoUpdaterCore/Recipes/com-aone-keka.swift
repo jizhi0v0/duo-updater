@@ -26,12 +26,11 @@ enum com_aone_keka {
         // flag alone is not a guarantee; the `$`-anchored pattern accepts only a
         // plain dotted version.
         //
-        // Known shape the parser does not split: a hot-fix body can restate the
-        // previous release under `# Changes in version X.Y.Z` (1.6.7 carries
-        // 1.6.6's notes, 1.6.3 carries 1.6.2's). That heading contains a digit,
-        // so it is not styled, and the restated lines render inside the hot-fix
-        // entry under a second `Fixes` heading. The restated release keeps its
-        // own entry as well.
+        // A hot-fix body restates the previous release under
+        // `# Changes in version X.Y.Z` (1.6.7 carries 1.6.6's notes, 1.6.3
+        // carries 1.6.2's). `GitHubMarkdownParser` drops a section like that when
+        // X is older than the release, so the hot-fix entry is its own fix alone;
+        // the restated release keeps its own entry.
         ChangelogRecipe(
             bundleID: "com.aone.keka",
             source: URL(string: "https://api.github.com/repos/aonez/Keka/releases?per_page=40")!,

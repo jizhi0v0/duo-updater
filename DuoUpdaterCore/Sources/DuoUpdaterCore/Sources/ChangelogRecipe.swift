@@ -511,6 +511,12 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// new[], improved[], fixed[], scenes[]}`. One document, one entry. See
         /// `StructuredChangelogDecoder.decodeHyperFramesWhatsNew`.
         case hyperFramesWhatsNew
+        /// OpenCode's GitHub releases list (`OpencodeRelease.listURL`), read by
+        /// `OpencodeRelease.parseNotes` — the same reading the OpenCode CLI's
+        /// notes get, which ends each body at its `**Thank you to N community
+        /// contributors:**` paragraph. That block lists every contributor's pull
+        /// requests and is credits, not notes; `gitHubReleases` would keep it.
+        case opencodeReleases
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex

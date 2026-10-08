@@ -151,16 +151,17 @@ import Foundation
         #expect(items("- Fix the thing by @someone in https://github.com/o/r/pull/12") == ["Fix the thing"])
     }
 
-    /// Outside a scope label, an indented bullet is still PR-body detail.
-    @Test func indentedBulletsUnderAnOrdinaryItemAreStillSkipped() {
+    /// Outside a scope label, an indented bullet is an item of its own, unprefixed.
+    @Test func indentedBulletsUnderAnOrdinaryItemAreItemsOfTheirOwn() {
         #expect(items("- A real change here\n  - a detail of it\n- **ui**:\n  - Nested change") ==
-                ["A real change here", "**ui**: Nested change"])
+                ["A real change here", "a detail of it", "**ui**: Nested change"])
     }
 
-    /// A scope is closed by the next top-level line or heading.
+    /// A scope is closed by the next top-level line or heading: what is nested
+    /// after it is no longer prefixed with the label.
     @Test func aScopeEndsAtTheNextTopLevelLine() {
         #expect(items("- **ui**:\n  - First change\n- Unscoped change\n  - detail") ==
-                ["**ui**: First change", "Unscoped change"])
+                ["**ui**: First change", "Unscoped change", "detail"])
         #expect(items("- Top change\n- **ui**:\n## Fixed\n  - Indented after a heading") == ["Top change"])
     }
 }

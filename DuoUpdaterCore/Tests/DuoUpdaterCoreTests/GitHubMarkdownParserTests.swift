@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import DuoUpdaterCore
 
@@ -325,17 +326,39 @@ import Testing
     #expect(cl?.entries.first?.items == ["Fix the broken thing", "Add a useful feature"])
 }
 
-@Test func strictStillSkipsIndentedSubBulletsWhenTopLevelExist() {
-    // A PR-style body with top-level bullets and indented sub-detail: the strict
-    // pass takes only the top-level ones (the lenient pass must NOT run here, or
-    // the sub-details would leak in — the regression we're guarding against).
+@Test func strictKeepsANestedBulletRightAfterItsParent() {
+    // Top-level bullets with an indented one nested under the first: the strict
+    // pass reads the nested bullet as an item of its own, in document order.
     let body = """
     - Top level change number one
-      - indented sub detail that duplicates
+      - indented sub detail of it
     - Top level change number two
     """
     let cl = GitHubMarkdownParser.parse(body: body, version: "1.0.0", date: nil)
-    #expect(cl?.entries.first?.items == ["Top level change number one", "Top level change number two"])
+    #expect(cl?.entries.first?.items == [
+        "Top level change number one", "indented sub detail of it", "Top level change number two",
+    ])
+}
+
+@Test func strictNestsOnlyInsideATopLevelList() {
+    // An indented bullet after a heading, after unindented prose, or inside a
+    // fence is not nested under any item, and the strict pass still drops it.
+    let body = """
+    - Top level change number one
+    A paragraph that closes the list.
+      - indented after prose
+    - Top level change number two
+      ```
+      - inside a fence
+      ```
+    ## Heading
+      - indented after a heading
+    - Top level change number three
+    """
+    let cl = GitHubMarkdownParser.parse(body: body, version: "1.0.0", date: nil)
+    #expect(cl?.entries.first?.items == [
+        "Top level change number one", "Top level change number two", "Top level change number three",
+    ])
 }
 
 // MARK: - Lenient fallback (new — only when strict finds nothing)
@@ -520,4 +543,422 @@ import Testing
     let entry = GitHubMarkdownParser.parse(body: body, version: "1.0", date: nil)?.entries.first
     #expect(entry?.items.count == 3)
     #expect(entry?.items.first == "A fenced bullet the strict pass has always read as an item")
+}
+
+// MARK: - Real release bodies through the production decode path
+
+/// One release as `api.github.com/repos/<owner>/<repo>/releases` returns it, so
+/// a fixture goes through the production decode path
+/// (`StructuredChangelogDecoder.decode(_:format: .gitHubReleases, …)`) rather
+/// than the parser alone. `body` is the verbatim text with `\n`; the real
+/// responses use CRLF, so it is converted back before encoding.
+private func releasesJSON(tag: String, publishedAt: String, body: String) throws -> String {
+    let release: [String: Any] = [
+        "tag_name": tag, "prerelease": false, "draft": false,
+        "published_at": publishedAt,
+        "body": body.replacingOccurrences(of: "\n", with: "\r\n"),
+    ]
+    let data = try JSONSerialization.data(withJSONObject: [release])
+    return try #require(String(data: data, encoding: .utf8))
+}
+
+/// HandBrake 1.11.2's release body, verbatim (`HandBrake/HandBrake`, fetched
+/// 2026-10-08). Its library bumps are nested under one `- Updated libraries`
+/// line, and the strict pass used to drop every indented bullet that did not
+/// sit under a `**scope**:` label — the pane said "Updated libraries" and
+/// nothing about which. Across HandBrake's last ten releases that was 77 lines.
+///
+/// A nested item comes out as an item of its own, right after its parent, in
+/// both `items` and `content`.
+///
+/// Mutation: drop indented bullets again whenever there is no `**scope**:`
+/// label above them. The two library lines vanish and this fails.
+@Test func handBrakeNestedLibraryBumpsAreItemsAfterTheirParent() throws {
+    let body = """
+    ## Upgrade Notice
+
+    Before updating HandBrake, please make sure there are no pending encodes in the queue, and be sure to make a backup of any custom presets and app preferences you have, as they may not be compatible with newer versions.
+
+    Windows users, please make sure to install [Microsoft .NET Desktop Runtime version 10.0](https://dotnet.microsoft.com/en-us/download/dotnet/10.0/runtime)
+    Download available from Microsoft:
+    - [For x64 (AMD or Intel CPUs)](https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe)
+    - [For Arm64 (Qualcomm or other)](https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-arm64.exe)
+
+
+    ## HandBrake 1.11.2
+
+    ### All platforms
+
+    #### Video
+
+    - Fixed a crash that happened when doing a 2-pass lossless x265 encode
+    - Fixed a memory leak that happened when doing a 2-pass MPEG-4/MPEG-2/VP9/FFV1 encode
+
+    #### Audio
+
+    - Updated the list of supported dithers and encoders combinations
+    - Fixed the Core Audio AAC encoder 7.1 channel layout
+
+    #### Subtitles
+
+    - Fixed the VobSub palette creation in the MP4 container
+
+    #### Build system
+
+    - Improved build system compatibility with older build tools
+
+    #### Third-party libraries
+
+    - Updated libraries
+      - FFmpeg 8.0.2 (decoding and filters)
+      - SVT-AV1 4.1.0 (AV1 video encoding)
+
+    ### Linux
+
+    - Added WebM MIME type to the list of the supported formats
+
+    ### Mac
+
+    - Improved handling of unsupported presets
+    - Updated Sparkle automatic update library
+
+    ### Windows
+
+    - Improved handling of unsupported presets
+    - Improved queue low space pause behaviour
+    - Fixed the automatic audio track name generation
+    - Fixed the summary description of HDR video
+    """
+    let json = try releasesJSON(tag: "1.11.2", publishedAt: "2026-06-07T19:08:25Z", body: body)
+    let entry = try #require(StructuredChangelogDecoder.decode(
+        json, format: .gitHubReleases, channel: nil, maxEntries: nil)?.entries.first)
+
+    let parent = try #require(entry.items.firstIndex(of: "Updated libraries"))
+    #expect(Array(entry.items[parent...].prefix(4)) == [
+        "Updated libraries",
+        "FFmpeg 8.0.2 (decoding and filters)",
+        "SVT-AV1 4.1.0 (AV1 video encoding)",
+        "Added WebM MIME type to the list of the supported formats",
+    ])
+    #expect(entry.items.count == 18)
+
+    let notes = entry.content.compactMap { block -> String? in
+        if case let .note(text) = block { return text }; return nil
+    }
+    #expect(notes == entry.items, "content must carry the nested items in the same order")
+    let note = try #require(entry.content.firstIndex(of: .note("Updated libraries")))
+    #expect(Array(entry.content[note...].prefix(4)) == [
+        .note("Updated libraries"),
+        .note("FFmpeg 8.0.2 (decoding and filters)"),
+        .note("SVT-AV1 4.1.0 (AV1 video encoding)"),
+        .heading("Linux"),
+    ])
+}
+
+// MARK: - Another release's notes repeated in the body (Keka)
+
+/// Keka 1.6.7's release body, verbatim (`aonez/Keka`, fetched 2026-10-08). A
+/// hot-fix release that repeats the previous release's notes under
+/// `# Changes in version 1.6.6`. Those notes are 1.6.6's own entry in the same
+/// list, and Keka's site lists one change for 1.6.7; read as 1.6.7's they made
+/// it nine items, with a second "Fixes" heading.
+///
+/// Mutation: stop dropping the section (return the body unchanged from the
+/// function that removes it). 1.6.7 is nine items again and this fails.
+@Test func kekaHotFixDropsTheRepeatedPreviousRelease() throws {
+    let body = """
+    👉 Do not miss [Keka for iOS](https://ios.keka.io) 🤩🤩🤩
+    👉 Follow us on [Mastodon](https://techhub.social/@keka) and [X](https://x.com/kekaosx) to get all the Keka news
+
+    This is a hot-fix release.
+
+    ## Fixes
+    - Reverted BSDTAR from 3.8.8 to 3.8.7 due to issues on macOS 26.5.2 (Thanks to @suishouen) #1762
+
+    # Changes in version 1.6.6
+
+    ## Fixes
+    - Enhanced ISO detection and extraction (Thanks to @frvctal) [#1756](https://github.com/aonez/Keka/issues/1756)
+
+    ## Formats
+    - Updated 7ZZ from 26.01 to 26.02 (Thanks to Igor Pavlov)
+    - Updated BSDTAR from 3.8.7 to 3.8.8 (Thanks to Tim Kientzle and authors)
+    - Updated LZIP from 1.25 to 1.26 (Thanks to Antonio Diaz Diaz)
+    - Updated PLZIP from 1.12 to 1.13 (Thanks to Antonio Diaz Diaz)
+    - Updated XZ from 5.8.1 to 5.8.3 (Thanks to Lasse Collin)
+    - Stripped P7ZIP ARM support, only used as fallback on 10.13 or older (Intel)
+
+    ## Translations
+    - Japanese translation updated (Thanks to @SakiPapa) [#1753](https://github.com/aonez/Keka/issues/1753) [#1761](https://github.com/aonez/Keka/issues/1761)
+    """
+    let json = try releasesJSON(tag: "v1.6.7", publishedAt: "2026-06-30T12:42:14Z", body: body)
+    let entry = try #require(StructuredChangelogDecoder.decode(
+        json, format: .gitHubReleases, channel: nil, maxEntries: nil)?.entries.first)
+    #expect(entry.version == "1.6.7")
+    #expect(entry.items == [
+        "Reverted BSDTAR from 3.8.8 to 3.8.7 due to issues on macOS 26.5.2 (Thanks to @suishouen) #1762",
+    ])
+    #expect(entry.content.isEmpty)
+}
+
+/// What the rule must NOT drop. A heading that names this release's own version,
+/// a newer one, or one that cannot be compared is this release's notes; so is
+/// any other heading that mentions a version — only the "changes in version X"
+/// shape announces another release's notes.
+@Test func onlyAnOlderVersionsChangesHeadingIsDropped() throws {
+    func items(_ body: String, version: String) -> [String] {
+        GitHubMarkdownParser.parse(body: body, version: version, date: nil)?.entries.first?.items ?? []
+    }
+    let ownVersion = """
+    # Changes in version 1.6.7
+    - Reverted the archiver to the previous release
+    """
+    #expect(items(ownVersion, version: "1.6.7") == ["Reverted the archiver to the previous release"])
+    // A build that is not a version (Diri's `nightly` tag) is not judged.
+    #expect(items(ownVersion, version: "nightly") == ["Reverted the archiver to the previous release"])
+    // A dev build lists the release it leads up to.
+    #expect(items(ownVersion, version: "1.6.6") == ["Reverted the archiver to the previous release"])
+
+    let otherShapes = """
+    ## What's new in 2.0
+    - Brand new interface for everything
+    ## Changes since 1.5.0
+    - Faster launch on every Mac
+    ## macOS 14 support
+    - Runs on Sonoma now as well
+    """
+    #expect(items(otherShapes, version: "2.1") == [
+        "Brand new interface for everything", "Faster launch on every Mac", "Runs on Sonoma now as well",
+    ])
+
+    // The section ends at the next heading of its own level or higher.
+    let resumes = """
+    ## Fixes
+    - Fixed the one thing in this release
+    # Changes in version 1.6.6
+    ## Fixes
+    - Fixed something back in the last release
+    # Downloads
+    - Universal build for every Mac here
+    """
+    #expect(items(resumes, version: "1.6.7") == [
+        "Fixed the one thing in this release", "Universal build for every Mac here",
+    ])
+}
+
+// MARK: - Nested credit lines (KeepingYouAwake)
+
+/// KeepingYouAwake 1.6.7's release body, verbatim (`newmarcel/KeepingYouAwake`,
+/// fetched 2026-10-08). Each translation change carries a nested
+/// `*Thank you [name](…)!*` credit. Nested bullets became items in generation
+/// 10, and these credits came with them as bullets of their own, one after
+/// each translation line: a credit, not a change.
+///
+/// Mutation: stop skipping a nested line that is only an emphasised thank-you.
+/// The four credits come back as items and this fails.
+@Test func keepingYouAwakeNestedThankYouCreditsAreNotItems() throws {
+    let body = """
+    - fixed two issues with the "Activate when an external display is connected" advanced setting:
+        - fixed an issue where multiple `caffeinate` tasks were spawned when an external display was connected ([#203](https://github.com/newmarcel/KeepingYouAwake/issues/203))
+        - fixed an issue where a mirrored display was not treated internally as external display ([#210](https://github.com/newmarcel/KeepingYouAwake/issues/210))
+    - fixed an issue where the menu bar icon did not update properly when the URL scheme was used to activate or deactivate ([#224](https://github.com/newmarcel/KeepingYouAwake/issues/224))
+    - updated the Spanish translations ([#223](https://github.com/newmarcel/KeepingYouAwake/pull/223))
+        - *Thank you [agusbattista](https://github.com/agusbattista)!*
+    - added Vietnamese translations ([#222](https://github.com/newmarcel/KeepingYouAwake/pull/222))
+        - *Thank you [ksajolaer](https://github.com/ksajolaer)!*
+    - added Hindi translations ([#232](https://github.com/newmarcel/KeepingYouAwake/pull/232))
+        - *Thank you [AnandChowdhary](https://github.com/AnandChowdhary)!*
+    - added Greek and Finnish translations ([#230](https://github.com/newmarcel/KeepingYouAwake/pull/230))
+        - *Thank you [ziz1zaza](https://github.com/ziz1zaza)!*
+    - since macOS 26 Tahoe allows hiding the app's menu bar icon, the settings window was extended to handle this situation better:
+        - the settings window will now be presented when the app is launched again while running
+        - added a Quit button to the General settings
+    - updated the app icon to not be trapped in a grey box on macOS 26 Tahoe
+    """
+    let json = try releasesJSON(tag: "1.6.7", publishedAt: "2025-07-18T18:39:59Z", body: body)
+    let entry = try #require(StructuredChangelogDecoder.decode(
+        json, format: .gitHubReleases, channel: nil, maxEntries: nil)?.entries.first)
+    #expect(!entry.items.contains { $0.contains("Thank you") })
+    #expect(entry.items.count == 12)
+    // The nested changes themselves stay.
+    #expect(entry.items.contains("added a Quit button to the General settings"))
+
+    // Only a nested line that is wholly an emphasised thank-you. A change that
+    // ends with thanks, or plain-text thanks, is not one.
+    func items(_ body: String) -> [String] {
+        GitHubMarkdownParser.parse(body: body, version: "1.0", date: nil)?.entries.first?.items ?? []
+    }
+    #expect(items("- Added Polish\n  - _Thanks [x](https://x.invalid) for the [suggestion](https://x.invalid)_") ==
+            ["Added Polish"])
+    #expect(items("- Added Polish\n  - Polish ([#90](https://x.invalid)) _Thank you [x](https://x.invalid)!_") ==
+            ["Added Polish", "Polish ([#90](https://x.invalid)) _Thank you [x](https://x.invalid)!_"])
+    #expect(items("- Added Polish\n  - Thanks to everyone who tested the beta") ==
+            ["Added Polish", "Thanks to everyone who tested the beta"])
+}
+
+// MARK: - Other wordings of a repeated earlier release
+
+/// upscayl v2.9.8's release body, verbatim (`upscayl/upscayl`, fetched
+/// 2026-10-08): a hotfix that repeats 2.9.7's notes under `## v2.9.7 Changes 🙈`.
+/// The section ends at the next heading of its own level or higher, here the
+/// closing `# We're getting close to 3.0 😳`.
+///
+/// Mutation: drop the `vX Changes` shape. 2.9.7's fourteen lines come back.
+@Test func upscaylHotfixDropsTheRepeatedVersionChangesSection() throws {
+    let body = """
+    # Upscayl v2.9.8 🫵🏻
+    Hotfix update for v2.9.7
+
+    <img width="664" alt="image" src="https://github.com/upscayl/upscayl/assets/25067102/b72d3120-feb7-4e7a-b287-59d7d203fe36">
+
+    ## What's Changed 🤓
+    * Fixed the issue that caused batch mode to only output PNG files 🫡
+    * Added helpful hint for custom model option 📧
+    * Added turn off notification option in the settings 🙈
+    * Upscayl will now delete desktop.ini, .DS_Store and other hidden files before performing batch upscale 😀
+    * Fixed a bug that caused Fast model to not work when custom models are enabled 🧿
+
+    ## v2.9.7 Changes 🙈
+    * Improved automatic model scale detection (For example, it now detects '2x' and 'x2' both) 😎
+    * Added WEBP as an export option! 🥳
+    * Fixed Batch Upscayl direct output. Now JPG/WEBP will directly output their own format! ✅
+    * Fixed Batch Upscayl transparent PNG processing bug 🐞
+    * Added Upscayl success/failure system notifications! 📢
+    * Fixed overwrite image bug 🐞
+    * Added Upscayl News 📰
+    * Fixed the 'Release Notes' bug that causes the updater dialog to close 📝
+    * Added extra information hint to Batch Upscayl progress 🫡
+    * Fixed encode image failure issue for Mac App Store build 🖥️
+    * Added Email Developer button for Mac App Store users 📧
+    * Added helpful information hint for Mac App Store users ℹ️
+    * Updated Upscayl Progress animation 🦄
+    * Polished the UI some more 💅🏻
+
+    **Full Changelog**: https://github.com/upscayl/upscayl/compare/v2.9.7...v2.9.8
+
+    # We're getting close to 3.0 😳
+    """
+    let json = try releasesJSON(tag: "v2.9.8", publishedAt: "2024-01-16T09:54:25Z", body: body)
+    let entry = try #require(StructuredChangelogDecoder.decode(
+        json, format: .gitHubReleases, channel: nil, maxEntries: nil)?.entries.first)
+    #expect(entry.items == [
+        "Fixed the issue that caused batch mode to only output PNG files 🫡",
+        "Added helpful hint for custom model option 📧",
+        "Added turn off notification option in the settings 🙈",
+        "Upscayl will now delete desktop.ini, .DS_Store and other hidden files before performing batch upscale 😀",
+        "Fixed a bug that caused Fast model to not work when custom models are enabled 🧿",
+    ])
+}
+
+/// freelens v1.6.1's release body, verbatim (`freelensapp/freelens`, fetched
+/// 2026-10-08): one fix, then 1.6.0's notes under `## Notes from v1.6.0:`.
+/// A "from" heading takes everything after it, so it runs to the end here.
+///
+/// Mutation: drop the `Notes from vX` shape. 1.6.0's lines come back.
+@Test func freelensBugfixDropsTheNotesFromThePreviousRelease() throws {
+    let body = """
+    Bugfixing release that address the problem on Windows with opening the terminal.
+
+    * Removed security patch that broke application on Windows (#1228, #1232)
+
+    ## Notes from v1.6.0:
+
+    Ready for Kubernetes v1.34. New improvements and bug fixes.
+
+    * Views for (cluster) role bindings show more details and hyperlinks to (cluster) roles and service accounts. (#1125)
+    * Added HTTPS support and custom prefix in Prometheus settings. (#1131)
+    * Pods and other resources can be force deleted or force finalized. (#1147)
+    * Pods and Deployments lists have some additional columns that are hidden by default. (#1136)
+      * New column with pod IP address (hidden by default).
+      * New (old) column with number of deployment replicas in `N/N` format (hidden by default).
+      * Columns with node and QoS are now hidden by default.
+      * More hyperlinks in the details.
+    * Node list shows Ready/NotReady condition and has a column if the node is schedulable. (#1196, #1207)
+    * CronJob and Job have a field "Resumed" rather than "Suspend". (#1141)
+    * Items to the list of allowed namespaces or groups and roles to the bindings can be added from a single comma-separated string. (#1144)
+    * Only the first load balancer and the rule of the ingress are shown in the list and more in the tooltip. (#1146, #1217)
+    * Better compatibility with VictoriaMetrics. (#1111, #1202)
+    * Paste action works for the search box in the editor, too. (#1216)
+    * More assertions to prevent crashes. (#1145, #1201)
+    * Fixed CVE-2025-7783, CVE-2025-54798, CVE-2025-5889 in dependencies. (#1209, #1210, #1211, #1213)
+    * Updated Electron 35.7.5
+    * Updated Helm 3.19.0
+    * Updated kubectl 1.34.1
+    * 55 other dependencies have been updated in total.
+
+    """
+    let json = try releasesJSON(tag: "v1.6.1", publishedAt: "2025-09-26T12:48:21Z", body: body)
+    let entry = try #require(StructuredChangelogDecoder.decode(
+        json, format: .gitHubReleases, channel: nil, maxEntries: nil)?.entries.first)
+    #expect(entry.items == ["Removed security patch that broke application on Windows (#1228, #1232)"])
+}
+
+/// vorssaint-utils v3.3.5's release body (`vorssaint/vorssaint-utils`, fetched
+/// 2026-10-08), verbatim up to the second heading after
+/// `### Everything from 3.3.3` (the full body runs on with 3.3.3's notes to
+/// line 119). Its sections after that heading sit at the SAME level, `###`,
+/// so a "from" heading is not closed by a sibling — only by a higher one, or
+/// the end of the body.
+///
+/// Mutation: drop the `Everything from X` shape, or close a "from" section at
+/// a same-level heading. Either way `Performance` and its lines come back.
+@Test func vorssaintHotfixDropsEverythingFromThePreviousRelease() throws {
+    let body = """
+
+    ### Summary
+    Hotfix update for Dock actions, window focus, video presets, temperature readings and the menu bar icon. Extra brightness can now be toggled from the Displays panel, and the full feature update is included below.
+
+    ### Changed
+    - Extra brightness can be switched on and off directly from the Displays panel.
+
+    ### Fixed
+    - Dock previews and click actions work while recording the screen or using overlays that let pointer input pass through.
+    - Focus follows mouse keeps working through recording overlays while respecting windows that actually receive input.
+    - Video editor presets restore added images with their position, size and opacity for the whole video, independently of the original recording.
+    - CPU temperature readings are back on Macs where the System panel had stopped showing them.
+    - The menu bar icon stays visible after updating and keeps the spot you arranged.
+
+    ### Everything from 3.3.3
+    Window controls, recording tools and everyday shortcuts gain more options, with less background work and stronger protection for saved content. This stable release brings together the improvements since 3.3.2, including the full beta cycle and the final reliability fixes.
+
+    ### Performance
+    - Dock previews: 50% shorter default opening wait, from 400 to 200 ms; 60% shorter app-switching wait, from 250 to 100 ms.
+    - CPU: less repeated work in window previews, mouse controls, search and cleaning; Quit on close stops causing excess CPU use in watched apps.
+    - Memory and graphics: fewer retained images and icons, more efficient recording effects, and less repeated work when adjusting watermarks or extra brightness.
+    - Background activity: fewer unnecessary checks and history writes; unused keyboard and mouse listeners are released when features turn off.
+
+    The Dock figures describe configured waits, not total loading time. Battery-life gains and overall CPU, memory or GPU savings have not been measured against 3.3.2.
+
+    """
+    let json = try releasesJSON(tag: "v3.3.5", publishedAt: "2026-09-07T00:34:53Z", body: body)
+    let entry = try #require(StructuredChangelogDecoder.decode(
+        json, format: .gitHubReleases, channel: nil, maxEntries: nil)?.entries.first)
+    #expect(entry.items.count == 6)
+    #expect(!entry.items.contains { $0.hasPrefix("Dock previews: 50%") })
+    #expect(!entry.content.contains(.heading("Performance")))
+}
+
+/// The widened shapes keep the same guards: the named version must be older
+/// than this release, and a heading only counts in its anchored wording.
+@Test func widenedRepeatShapesStillNeedAnOlderVersion() {
+    func items(_ body: String, version: String) -> [String] {
+        GitHubMarkdownParser.parse(body: body, version: version, date: nil)?.entries.first?.items ?? []
+    }
+    // This release's own version, and an unjudgeable one, are kept.
+    let own = "## v2.0.1 Changes:\n- Fixed the crash on launch for everyone"
+    #expect(items(own, version: "2.0.1") == ["Fixed the crash on launch for everyone"])
+    #expect(items(own, version: "nightly") == ["Fixed the crash on launch for everyone"])
+    // BetterDisplay's `### v3.5.6b changes (…)` under its own v3.5.6.
+    #expect(items("### v3.5.6b changes (retrofit)\n- Works on Tahoe now as well", version: "3.5.6") ==
+            ["Works on Tahoe now as well"])
+    // Lookalikes that do not announce an older release's notes.
+    let lookalikes = """
+    ## Upgrading from v0.0.5
+    - Remove the old helper before installing this
+    ## Also in this build (from beta.1)
+    - The list of devices was rebuilt from scratch
+    ## 3 changes worth knowing
+    - Settings moved into their own window now
+    """
+    #expect(items(lookalikes, version: "1.0.0").count == 3)
 }

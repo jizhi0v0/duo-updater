@@ -1645,6 +1645,13 @@ private struct BrewFormulaSidebarRow: View {
                         .font(.caption)
                         .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
                         .lineLimit(1)
+                } else if let lifecycle = formula.lifecycle {
+                    // Up to date, but Homebrew is phasing it out: say so in the one
+                    // line the row has. An update line above outranks it.
+                    Text("\(formula.installedVersion) · \(lifecycle.statusText)")
+                        .font(.caption)
+                        .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
+                        .lineLimit(1)
                 } else {
                     // Up-to-date leaf: just its version, like an up-to-date app row.
                     Text(formula.installedVersion)
@@ -1764,6 +1771,8 @@ private extension BrewUncheckedPackage {
         case .tapNotTrusted: String(localized: "Not checked · tap not trusted")
         case .unreadable: String(localized: "Not checked · Homebrew can’t read it")
         case .movedToCask: String(localized: "Not checked · moved to a cask")
+        case .renamed(let newName): String(localized: "Not checked · renamed to \(newName)")
+        case .removed: String(localized: "Not checked · removed from Homebrew")
         }
     }
 
@@ -1775,6 +1784,10 @@ private extension BrewUncheckedPackage {
             String(localized: "Homebrew didn’t read \(fullName) from its tap, so updates can’t be checked.")
         case .movedToCask:
             String(localized: "Homebrew replaced the \(name) formula with a cask of the same name, so the installed formula gets no more updates. To switch to the cask, run: \(migrateCommand)")
+        case .renamed(let newName):
+            String(localized: "Homebrew renamed \(name) to \(newName), and the installed copy hasn’t been migrated. Until it is, Homebrew can’t check any formula for updates. To migrate it, run: \(fixCommand ?? "")")
+        case .removed:
+            String(localized: "Homebrew no longer has a \(name) formula, and no cask of that name replaces it, so the installed copy gets no more updates.")
         }
     }
 }
@@ -1883,6 +1896,11 @@ private struct FormulaDetailPane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+            if let lifecycle = formula.lifecycle {
+                BrewLifecycleNotice(name: formula.name, lifecycle: lifecycle)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+            }
             Divider()
             notes
         }
@@ -1963,6 +1981,115 @@ private struct FormulaDetailPane: View {
             Text("Homebrew doesn’t publish notes for \(formula.name), and it isn’t a GitHub release we can read.")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Deprecation notice
+
+/// What Homebrew says about a formula it has deprecated or disabled
+/// (`BrewLifecycle`), above its release notes: what that means for updates, why,
+/// when, and the replacement brew suggests, to copy — like `brew trust`, shown for
+/// the user to run, never run here.
+private struct BrewLifecycleNotice: View {
+    let name: String
+    let lifecycle: BrewLifecycle
+
+    @State private var copied = false
+    @State private var copiedResetTask: Task<Void, Never>?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label {
+                Text(lifecycle.sentences(for: name).joined(separator: " "))
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            }
+            if let command = lifecycle.replacementCommand, let replacement = lifecycle.replacementName {
+                Text(String(localized: "Homebrew suggests \(replacement) instead:"))
+                HStack(spacing: 8) {
+                    Text(command)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(command, forType: .string)
+                        copied = true
+                        copiedResetTask?.cancel()
+                        // Back to the copy glyph, so a second copy confirms again.
+                        copiedResetTask = Task {
+                            try? await Task.sleep(for: .seconds(1.5))
+                            guard !Task.isCancelled else { return }
+                            copied = false
+                        }
+                    } label: {
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                            .frame(width: 18, height: 18)
+                    }
+                    .buttonStyle(.borderless)
+                    .help(String(localized: "Copy “\(command)”"))
+                }
+                .padding(10)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+            }
+        }
+        .frame(maxWidth: 560, alignment: .topLeading)
+    }
+}
+
+extension BrewLifecycle {
+    /// The row's one-word state.
+    var statusText: String {
+        switch stage {
+        case .deprecated: String(localized: "Deprecated")
+        case .disabled: String(localized: "Disabled")
+        }
+    }
+
+    /// The notice's prose: what the stage means, why, and when — each its own
+    /// sentence, so a translation never has to splice brew's reason into another.
+    func sentences(for name: String, today: String = Self.today()) -> [String] {
+        var out: [String] = []
+        switch stage {
+        case .deprecated:
+            out.append(String(localized: "Homebrew has deprecated \(name). It still installs and upgrades, with a warning."))
+        case .disabled:
+            out.append(String(localized: "Homebrew has disabled \(name): it can no longer be installed or upgraded, so it gets no more updates."))
+        }
+        if let reason { out.append(Self.reasonSentence(reason)) }
+        if let disableDate {
+            // ISO dates compare as strings.
+            out.append(disableDate < today
+                ? String(localized: "It was disabled on \(disableDate).")
+                : String(localized: "It will be disabled on \(disableDate)."))
+        }
+        return out
+    }
+
+    /// brew's reason symbols (`DeprecateDisable::FORMULA_DEPRECATE_DISABLE_REASONS`),
+    /// translated; any other reason is the formula's own English text, quoted.
+    static func reasonSentence(_ reason: String) -> String {
+        switch reason {
+        case "does_not_build": String(localized: "It doesn’t build.")
+        case "no_license": String(localized: "It has no license.")
+        case "repo_archived": String(localized: "Its upstream repository is archived.")
+        case "repo_removed": String(localized: "Its upstream repository was removed.")
+        case "unmaintained": String(localized: "It isn’t maintained upstream.")
+        case "unreachable": String(localized: "It’s no longer reliably reachable upstream.")
+        case "unsupported": String(localized: "It isn’t supported upstream.")
+        case "deprecated_upstream": String(localized: "It’s deprecated upstream.")
+        case "versioned_formula": String(localized: "It’s a versioned formula.")
+        case "checksum_mismatch": String(localized: "Its source file’s checksum changed after release, so its upstream repository may have been compromised.")
+        default: String(localized: "Homebrew’s reason: “\(reason)”.")
+        }
+    }
+
+    /// Today as `yyyy-MM-dd` in the user's calendar day.
+    static func today() -> String {
+        let c = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: Date())
+        return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
     }
 }
 

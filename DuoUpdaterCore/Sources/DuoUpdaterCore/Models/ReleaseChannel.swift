@@ -105,7 +105,7 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     ///   2. A channel suffix on the bundle id (`com.google.Chrome.canary`).
     ///   3. A standalone channel word in the display name ("Google Chrome Dev").
     ///   4. A pre-release shape in the version string: Mozilla's `b<N>`/`a<N>`/
-    ///      `esr`, full-semver `-beta<N>` / `-beta.<N>` suffixes, and a
+    ///      `esr`, full-semver `-beta<N>` / `-beta.<N>` / `-preview.<N>` suffixes, and a
     ///      prerelease WORD in the version's dash-separated tail (Freelens
     ///      `-nightly-…`, VLC `-dev`, KeePassXC `-snapshot`) for apps whose
     ///      bundle id, name, and filename are all silent — see the block comment
@@ -360,6 +360,14 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             // this pattern fail rather than turning a packaging label into a
             // release-channel signal.
             if fullyMatches(#"[0-9]+(\.[0-9]+)+-beta\.[0-9]+"#, version) { return .beta }
+            // The same dotted counter on the word `preview` (`2.0.0-preview.8`):
+            // OpenChamber's `v2-preview` test builds ship the stable bundle id,
+            // name and Team, so this string is their only local channel signal.
+            // Anchored like the `-beta.N` rule above: the whole string must end at
+            // the counter, so `-preview+sha` or `-preview.8.x` stays stable. The
+            // dash-tail table below does not cover it, because its counters are
+            // dash-separated.
+            if fullyMatches(#"[0-9]+(\.[0-9]+)+-preview\.[0-9]+"#, version) { return .preview }
 
             // A prerelease WORD in the version's dash-separated tail — the only
             // local channel signal some nightly/snapshot builds have. Freelens

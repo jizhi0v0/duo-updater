@@ -87,4 +87,190 @@ import Testing
             #expect(cl.entries.first?.version == "3.7.9", "\(bundleID) \(version)")
         }
     }
+
+    // MARK: - GitHub detection (direct installs)
+
+    private static func rule(_ bundleID: String) throws -> GitHubReleaseRule {
+        let found = GitHubReleaseRegistry.rules.filter { $0.bundleID == bundleID }
+        try #require(found.count == 1, "\(bundleID): expected one GitHubReleaseRule, found \(found.count)")
+        return found[0]
+    }
+
+    /// Serves the fixture. `/releases/latest` answers the row named by
+    /// `latestTag`, as GitHub does; a list request gets the first `per_page`.
+    class StubReleases: URLProtocol, @unchecked Sendable {
+        class var latestTag: String { "Audacity-4.0.1" }
+
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+        override func startLoading() {
+            let url = request.url?.absoluteString ?? ""
+            let rows = (try? JSONSerialization.jsonObject(
+                with: Data(AudacityCoverageTests.releasesJSON.utf8))) as? [[String: Any]] ?? []
+            let payload: Any
+            if url.contains("/releases/latest") {
+                payload = rows.first { $0["tag_name"] as? String == Self.latestTag } ?? [:]
+            } else {
+                let perPage = URLComponents(string: url)?.queryItems?
+                    .first { $0.name == "per_page" }?.value.flatMap(Int.init) ?? rows.count
+                payload = Array(rows.prefix(perPage))
+            }
+            let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        }
+
+        override func stopLoading() {}
+    }
+
+    /// The day a 3.x maintenance release is the newest stable release of the repo.
+    final class StubReleasesThreeIsLatest: StubReleases, @unchecked Sendable {
+        override class var latestTag: String { "Audacity-3.7.9" }
+    }
+
+    private static func source(
+        _ stub: StubReleases.Type = StubReleases.self
+    ) throws -> GitHubReleasesSource {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [stub]
+        return GitHubReleasesSource(
+            rules: [try rule(threeID), try rule(fourID)],
+            session: URLSession(configuration: config))
+    }
+
+    /// Each train's rule lands on its own newest stable release and its own
+    /// arch's dmg, with GitHub's digest for that file — whichever train
+    /// `/releases/latest` answers with.
+    ///
+    /// Mutation (run): dropping the 3.x rule's `installAssetPattern` leaves it
+    /// answering nothing while 4.x is `latest`. The `versionPattern` half is
+    /// pinned by the next test.
+    @Test(arguments: [
+        (threeID, HostArch.arm64, false, "3.7.9", "audacity-macOS-3.7.9-arm64.dmg",
+         "fafeb7fa963d3e2ba05ee7aba5290c966362ac5f5feca86eb8b1f61c7819d499"),
+        (threeID, HostArch.x86_64, false, "3.7.9", "audacity-macOS-3.7.9-x86_64.dmg",
+         "142f3900bea5d49a73e66cce06e156b8e5387643e1b718806e85286753d6294f"),
+        (fourID, HostArch.arm64, false, "4.0.1", "audacity-macOS-4.0.1-arm64.dmg",
+         "278c8647b78c77af7f07dbd5e7d9bfc950bc14168047b65738716b61d12055ec"),
+        (threeID, HostArch.arm64, true, "3.7.9", "audacity-macOS-3.7.9-arm64.dmg",
+         "fafeb7fa963d3e2ba05ee7aba5290c966362ac5f5feca86eb8b1f61c7819d499"),
+        (fourID, HostArch.arm64, true, "4.0.1", "audacity-macOS-4.0.1-arm64.dmg",
+         "278c8647b78c77af7f07dbd5e7d9bfc950bc14168047b65738716b61d12055ec"),
+    ])
+    func eachTrainResolvesItsOwnRelease(
+        _ bundleID: String, _ arch: HostArch, _ threeIsLatest: Bool,
+        _ version: String, _ dmg: String, _ sha256: String
+    ) async throws {
+        let rule = try Self.rule(bundleID)
+        let source = try Self.source(threeIsLatest ? StubReleasesThreeIsLatest.self : StubReleases.self)
+        let outcome = await source.resolveDiagnostic(
+            rule, preferring: arch, allowingIntelTranslation: false)
+        #expect(outcome.failure == nil)
+        let remote = try #require(outcome.remote)
+        #expect(remote.shortVersion == version)
+        #expect(remote.downloadURL?.lastPathComponent == dmg)
+        #expect(remote.expectedSHA256 == sha256)
+        #expect(remote.vendorInstallerKind == .dmg)
+        #expect(!remote.requiresManualInstaller)
+    }
+
+    /// Tags and assets of the real list, read the way the source reads them.
+    @Test func patternsAcceptOnlyTheirOwnMajorsStableShape() throws {
+        let three = try Self.rule(Self.threeID), four = try Self.rule(Self.fourID)
+        func version(_ rule: GitHubReleaseRule, _ tag: String) -> String? {
+            VendorProbeRecipe.extractVersion(from: tag, pattern: rule.versionPattern)
+        }
+        func installs(_ rule: GitHubReleaseRule, _ asset: String) -> Bool {
+            asset.range(of: rule.installAssetPattern ?? "^$", options: .regularExpression) != nil
+        }
+        #expect(version(three, "Audacity-3.7.9") == "3.7.9")
+        #expect(version(four, "Audacity-4.0.1") == "4.0.1")
+        for tag in ["Audacity-4.0.1", "Audacity-3.5.0-beta-3", "Audacity-2.4.2"] {
+            #expect(version(three, tag) == nil, "\(tag)")
+        }
+        for tag in ["Audacity-3.7.9", "Audacity-4.0.0-beta-4", "Audacity-4.0.0-alpha-2"] {
+            #expect(version(four, tag) == nil, "\(tag)")
+        }
+        #expect(installs(three, "audacity-macOS-3.7.9-universal.dmg"))
+        #expect(!installs(three, "audacity-macOS-3.7.9-universal.pkg"))
+        #expect(!installs(three, "audacity-macOS-3.5.0-beta-3-arm64.dmg"))
+        #expect(!installs(three, "audacity-macOS-4.0.1-arm64.dmg"))
+        #expect(installs(four, "audacity-macOS-4.0.1-x86_64.dmg"))
+        #expect(!installs(four, "Audacity-4.0.0-beta4-arm64.dmg"))
+        #expect(!installs(four, "audacity-macOS-3.7.9-arm64.dmg"))
+    }
+
+    /// A directly installed 4.0 alpha/beta is answered by no rule and stays
+    /// unknown (see the family file for why it gets none). The source keys
+    /// rules by exact bundle id, so the 3.x rule — whose id differs only in
+    /// case — does not answer for it either.
+    @Test func thePrereleaseIDHasNoRule() async throws {
+        #expect(GitHubReleaseRegistry.rules.allSatisfy { $0.bundleID != Self.prereleaseID })
+        let beta = InstalledApp(
+            name: "Audacity 4", bundleID: Self.prereleaseID, shortVersion: "4.0.0",
+            buildVersion: "262401356",
+            path: URL(fileURLWithPath: "/Applications/ZZFixture-Audacity 4.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+        #expect(try await Self.source().latestVersion(for: beta) == nil)
+    }
+
+    // MARK: - Homebrew first
+
+    private static func audacityCasks() -> HomebrewCaskCatalog {
+        func entry(_ token: String, _ version: String) -> CaskEntry {
+            CaskEntry(token: token, version: version, url: nil, autoUpdates: false, installKind: .brew)
+        }
+        return HomebrewCaskCatalog(testIndex: CaskIndex(
+            allByAppFilename: [
+                "audacity.app": [entry("audacity@3", "3.7.9")],
+                "audacity 4.app": [entry("audacity", "4.0.1")],
+            ],
+            allByBundleID: [:]))
+    }
+
+    /// A brew-installed copy keeps going through Homebrew; only a copy brew
+    /// did not install reaches the GitHub rule. The chain is built in the
+    /// production order, which `homebrewIsAskedBeforeGitHub` reads from
+    /// `SourceStack` itself.
+    @Test(arguments: [
+        ("Audacity.app", threeID, "3.7.8", "audacity@3", "3.7.9"),
+        ("Audacity 4.app", fourID, "4.0.0", "audacity", "4.0.1"),
+    ])
+    func brewCopiesStayWithHomebrew(
+        _ filename: String, _ bundleID: String, _ installed: String,
+        _ cask: String, _ latest: String
+    ) async throws {
+        let app = InstalledApp(
+            name: filename.replacingOccurrences(of: ".app", with: ""), bundleID: bundleID,
+            shortVersion: installed, buildVersion: nil,
+            path: URL(fileURLWithPath: "/Applications/\(filename)"),
+            isMASApp: false, sparkleFeedURL: nil)
+        func check(caskroom: Set<String>) async throws -> UpdateResult {
+            await UpdateChecker(sources: [
+                HomebrewCaskSource(
+                    catalog: Self.audacityCasks(),
+                    inventory: BrewLocalInventory(installedTokens: caskroom)),
+                try Self.source(),
+            ]).check(app)
+        }
+        let brewed = try await check(caskroom: [cask])
+        #expect(brewed.remote?.sourceName == "Homebrew")
+        #expect(brewed.remote?.shortVersion == latest)
+        let direct = try await check(caskroom: [])
+        #expect(direct.remote?.sourceName == "GitHub")
+        #expect(direct.remote?.shortVersion == latest)
+    }
+
+    @Test func homebrewIsAskedBeforeGitHub() {
+        let names = SourceStack.make(githubToken: nil).map(\.name)
+        let homebrew = names.firstIndex(of: "Homebrew")
+        let github = names.firstIndex(of: "GitHub")
+        #expect(homebrew != nil && github != nil, "stack: \(names)")
+        if let homebrew, let github { #expect(homebrew < github, "stack: \(names)") }
+    }
 }

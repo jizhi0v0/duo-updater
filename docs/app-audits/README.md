@@ -177,7 +177,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Android Studio** · `com.google.android.studio` — P · ✓ src=Toolbox(managed)
 - [x] [**WeChat (微信 官网版)**](com-tencent-xinWeChat.md) · `com.tencent.xinWeChat` — P C (one-click dmg) · ✓ src=Vendor · 检测=公开 Sparkle appcast 截 3 段 marketing（4.1.10.53→4.1.10，不比 build）· changelog=官网 per-version 页 sourceTemplate · live smoke=up to date · 2026-06-16
 - [x] [**Wispr Flow**](com-electron-wispr-flow.md) · `com.electron.wispr-flow` — P (one-click zip via `.versionTemplate`) · real DMG + live probe ✓ · 2026-08-17
-- [x] [**Granola**](com-granola-app.md) · `com.granola.app` — P (one-click universal dmg) · real DMG + live probe ✓ · 2026-08-17
+- [x] [**Granola**](com-granola-app.md) · `com.granola.app` — P（one-click universal dmg ✓ 端到端）· 无 changelog · old→new 真包验证 ✓ · 2026-10-08
 - [x] [**Longbridge Desktop（长桥桌面版）**](com-longbridge-app-desktop.md) · `com.longbridge.app.desktop` — P+C (stable + preview, one-click arm64 dmg) · changelog 读英文逐版本页 · stable + preview real DMGs verified ✓（preview 不是退役轨：独立 bundle `…desktop.preview`，recipe 活着，2026-09-14 复测 `1.0.0-preview.1`）· 2026-08-25
 - [x] [**Aside**](at-studio-AsideBrowser.md) · `at.studio.AsideBrowser` — P (detection-only) C · Chromium/Omaha 自更新,无 Sparkle · 版本读 `version_info.json` 的 mac 对象(按平台分轨) · changelog 读 `.md`、跨平台共用 · 真实 DMG 核对 ✓ · 2026-09-14
 - [x] [**Muse**](com-meta-endo.md) · `com.meta.endo` — P (one-click, Sparkle 放行时) · Sparkle feed 被 facebook 登录墙（多数 302→/login），撞墙时由 Homebrew cask API 的版本号接手（只检测；`muse.ai` latest 链接 09-25 起需登录）· 真包 ✓ · 2026-09-25
@@ -218,8 +218,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Alcove** · `com.henrikruscon.Alcove` — P(stable, detection-only) · ✓ src=Vendor `download.tryalcove.com/latest`（GitHub 镜像滞后已删；`update.tryalcove.com` 2026-07-29 起 NXDOMAIN，recipe 已改指 `/latest`）· 公开下载是滞后的 trial 构建（metadata 1.7.9 时 dmg 仍 1.7.7）故**不给一键** · 授权用户走 `AlcoveUpdateSource`（changelog + published_at + 一键）· 2026-07-29
 - [ ] **Zen Browser** · `app.zen-browser.zen` — G C · (not installed; prerelease-tag channel, not a pure single-channel sweep target)
 - [x] [**OpenCode Desktop**](ai-opencode-desktop.md) · `ai.opencode.desktop` — G C (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
-- [x] [**OpenChamber**](dev-openchamber-desktop.md) · `dev.openchamber.desktop` — G (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
-- [x] [**Jan**](jan-ai-app.md) · `jan.ai.app` — G (one-click universal zip) · real app verified ✓ · 2026-08-17
+- [x] [**OpenChamber**](dev-openchamber-desktop.md) · `dev.openchamber.desktop` — G（one-click dmg ✓ 端到端）· v2-preview prerelease 被读成 stable · changelog 结构化 ✓ · old→new 真包验证 ✓ · 2026-10-08
+- [x] [**Jan**](jan-ai-app.md) · `jan.ai.app` — G（one-click universal zip ✓ 端到端）· nightly 为独立 id 未覆盖 · 0.8.5 起 Intel 失去本地模型 · old→new 真包验证 ✓ · 2026-10-08
 - [x] [**ChatGPT Classic**](com-openai-chat.md) · `com.openai.chat` — P (**detection-only**) · 真包 1.2026.184 挂载验证 ✓ · 一键**撤销**：vendor pkg 不声明任何 `.app` 目的地，`PackageInstaller` 的目的地闸 fail-closed 必拒；且其 postinstall 会把 app 搬到 `/Applications/ChatGPT Classic.app` 并自行重启 · **也没有 changelog**：appcast 的 `<description>` 是厂商推广新版 ChatGPT 的文案，不是发布说明 · 2026-09-03
 - [x] [**Microsoft 365 Copilot**](com-microsoft-m365copilot.md) · `com.microsoft.m365copilot` — P (one-click pkg, versionIsBuild) · 真包 pkg 展开验证 ✓（short `1.2608` / build `1.2608.0301`，payload 含 `com.microsoft.autoupdate`）· **无 changelog**：learn.microsoft 的 release-notes 页按日期×产品组织，全页 `1.2608` 出现 0 次 · 2026-09-03
 - [x] [**Qoder IDE**](com-qoder-ide.md) · `com.qoder.ide` — P C (one-click arm64 zip) · VS Code fork，走 VS Code 更新协议（`center.qoder.sh/algo`），**端点是条件式的**（当前 commit → 204 空 body），故用 `latest` 哨兵 · 按 `machineId` 灰度，读 app 自己 `storage.json` 里的 id · 真包 1.28.0 解包验证 ✓（Team T27K5A5ZWD）· changelog 走 docs 站（正则匹到 108 条，面板按 `maxEntries` 默认显示 40 条），**不用** `qoder.com/changelog`（RSC payload 混了所有产品和两种语言）· 2026-09-06
@@ -333,7 +333,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 ## Investigated — blocked safely
 
 - [x] [**CotEditor**](com-coteditor-CotEditor.md) · `com.coteditor.CotEditor` — P(stable/beta) B · **两轨全接（GitHub 两条规则 + ChannelBinding，一键 ✓，Team HT3Z3A72WZ 两轨真包核对）**；appcast **故意不读**——它只留一个预发布名额，旧 beta 副本找不到自己会被推 `7.0.9` 这个 marketing 降级包（守卫见 #368），换 GitHub 后渠道由 tag 和 `checksUpdatesForBeta` 决定，盲区消失 · 2026-09-06
-- [x] [**TRAE**](com-trae-app.md) · `com.trae.app` — official API `2.3.61406` != real app `3.5.81`; no comparable remote version, deliberately left unknown · 2026-08-17
+- [x] [**TRAE**](com-trae-app.md) · `com.trae.app` — 官方 API 现在发布 app 版本 3.5.104（与真包一致）；未接——官网构建领先应用内分配（3.5.87），待定 · 2026-10-08
 - [x] [**macFUSE**](io-macfuse-preferencepanes-macfuse.md) · `io.macfuse.preferencepanes.macfuse` — 装的是 `.prefPane` + `/Library/Filesystems/macfuse.fs`（嵌套的 `macfuse.app` 自报 `1.0`），都不在 `AppScanner` 的扫描目录里；GitHub 侧可行但接不到检查，是扫描模型的缺口不是 recipe 缺口 · 2026-09-14 复核
 
 ## 未编入分类（补录 2026-08-30）

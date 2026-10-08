@@ -101,9 +101,15 @@
 - Recipe 状态: 已有，可用；可改进（加 `headingPattern`，见建议，**未验证**是否会留下空标题）
 
 ## 一键安装
-- 状态: 仅 brew 装的拷贝（brew 路线，duo 跑 `brew install --cask --force calibre`）；直装拷贝没有检测，也就没有一键
-- 端到端: **未跑**（本次审计不安装；由协调会话串行跑）。生产判断已在真包上实测（Caskroom 注入）：9.14.0 → `UPDATE → 9.15.0`，
-  下载地址 `https://download.calibre-ebook.com/9.15.0/calibre-9.15.0.dmg`，`requiresManualInstaller false`
+- 状态: ✓ 仅 brew 装的拷贝（brew 路线，duo 跑 `brew install --cask --force calibre`）；直装拷贝没有检测，也就没有一键
+- 端到端（2026-10-08，第一轮，不启动）: brew 装的 9.14.0（`/Applications/calibre.app`），`duo check` 报 `update 9.15.0`、
+  `source Homebrew`；`duo install /Applications/calibre.app --yes --json` → `outcome installed`、`applied true`、
+  `route homebrew`，约 35 s。装后：9.15.0，`codesign --verify --deep --strict` 通过，`spctl` `Notarized Developer ID`，
+  Team `NTY7FVCEKP`；与厂商 9.15.0 dmg 里的 `calibre.app` 逐文件比 SHA-256，1450 个文件全部相同，163 个软链接目标全部相同。
+  bundle 目录 inode 没变（brew 换内容、留目录）。cask 同时把 20 个命令行工具链进 Homebrew 的 `bin`。
+  造旧版的办法：临时本地 tap（`brew tap-new --no-git`）里放旧版 cask，按全名 `brew install --cask` 装上；
+  新版包事先放进 brew 的下载缓存（与 cask 的 sha256 一致，brew 照常校验），所以 `bytesDownloaded 0`。测完删 `.rb`、
+  `brew untap`、`brew untrust --cask`。装后 Caskroom 回执的 `source.tap` 是 `homebrew/cask`
 - 格式: dmg（universal）
 - 校验: brew 自己校验 cask 的 sha256；duo 的 brew 路线不过 Team 闸（`InstallCoordinator` 的 `.homebrew` 分支直接交给 brew）。
   实测 9.15.0 dmg SHA-256 `1b3a7451…6019` = cask = GitHub `digest`；9.14.0 dmg `a2f82513…e3d4` = homebrew-cask `calibre 9.14.0`
@@ -131,7 +137,7 @@
 2. preview 轨：如果要接，信号只有版本第三段 ≥ 100，先找到厂商对这条规则的明文说明再写进 `detect()`；端点是目录列表
    `download.calibre-ebook.com/preview/`。不接的话在 `CHANNEL_COVERAGE_TODO.md` 记为「同 id、版本形状可辨、未接」
 3. changelog：试 `headingPattern: <h3 class="category">(.*?)</h3>`，先确认 news sources 两类不会留下空标题
-4. 一键端到端（brew 路线）由协调会话跑
+4. 一键第二轮（calibre 运行中）未跑；第一轮已过（见「一键安装」）
 
 ## 如何复验
 

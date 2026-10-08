@@ -139,8 +139,18 @@ prerelease。所以「4.x 预览轨」现在没有比 stable 新的构建，`lat
 - Recipe 状态: 3.x 已有、今天可用；4.x **需要**（`org.audacityteam.audacity4` 没有 recipe）；prerelease 的 id 不该命中 3.x recipe
 
 ## 一键安装
-- 状态: 仅 brew 装的拷贝（brew 路线：3.x 跑 `brew install --cask --force audacity@3`，4.x 跑 `… audacity`）；直装拷贝没有检测
-- 端到端: **未跑**（本次审计不安装；由协调会话串行跑）。生产判断在真包上实测（Caskroom 注入）见上表
+- 状态: ✓ 仅 brew 装的拷贝（brew 路线：3.x 跑 `brew install --cask --force audacity@3`，4.x 跑 `… audacity`）；直装拷贝没有检测
+- 端到端（2026-10-08，第一轮，不启动）:
+  - 4.x：brew 装的 4.0.0（`Audacity 4.app`，`org.audacityteam.audacity4`）→ `duo check` `update 4.0.1`、`source Homebrew`；
+    `duo install --yes --json` → `installed`、`route homebrew`，约 19 s。装后 4.0.1，strict 通过，`Notarized Developer ID`，
+    Team `6EPAF2X3PR`；与厂商 4.0.1 dmg 逐文件比，592 个文件、139 个软链接全部相同。
+  - 3.x：`audacity@3` 从没有 3.7.8 这一版，所以把当前 cask 的 version / sha256 改成 3.7.8 的值装上（Team `AWEYX923UX`）→
+    `duo check` `update 3.7.9`、`source Homebrew`；`duo install` → `installed`、`route homebrew`。装后 3.7.9.0，strict 通过，
+    `Notarized Developer ID`，Team **`6EPAF2X3PR`**；与厂商 3.7.9 dmg 逐文件比，273 个文件、32 个软链接全部相同。
+    **实测确认 Team 变化不挡 brew 路线**（下一条是原因）。
+  造旧版的办法：临时本地 tap（`brew tap-new --no-git`）里放旧版 cask，按全名 `brew install --cask` 装上；
+  新版包事先放进 brew 的下载缓存（与 cask 的 sha256 一致，brew 照常校验），所以 `bytesDownloaded 0`。测完删 `.rb`、
+  `brew untap`、`brew untrust --cask`。装后 Caskroom 回执的 `source.tap` 是 `homebrew/cask`
 - 格式: dmg
 - 校验: brew 校验 cask sha256；duo 的 brew 路线不过 Team 闸（`InstallCoordinator` 的 `.homebrew` 分支直接交给 brew），所以
   3.7.8 → 3.7.9 的 **Team 变化不挡 brew 路线**。下载哈希与 GitHub `digest` 全部一致（见「如何复验」）
@@ -181,7 +191,7 @@ prerelease。所以「4.x 预览轨」现在没有比 stable 新的构建，`lat
 4. 直装检测：GitHub rule 分别给 3.x（限定主版本 3）与 4.x（`…audacity4`）；3.x 一键要在文档里写明 3.7.8 → 3.7.9 的 Team 变化
 5. prerelease：现在没有比 stable 新的 prerelease，`latest.test.json` 也停在 beta 4。等 4.1 之类的 beta 出现时，再看它的 bundle id
    是否仍是 `org.audacityteam.Audacity`；在那之前不接
-6. 一键端到端（brew 路线）由协调会话跑
+6. 一键第二轮（Audacity 运行中）未跑；第一轮已过（见「一键安装」）
 
 ## 如何复验
 

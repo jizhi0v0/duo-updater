@@ -274,8 +274,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] [**Ghostty**](com-mitchellh-ghostty.md) · `com.mitchellh.ghostty` — C (two-stage), detection still unknown
 - [x] [**AppCleaner**](net-freemacsoft-AppCleaner.md) · `net.freemacsoft.AppCleaner` — C + Sparkle verified
-- [x] [**Calibre**](net-kovidgoyal-calibre.md) · `net.kovidgoyal.calibre` — C + Homebrew
-- [x] [**Audacity**](org-audacityteam-audacity.md) · `org.audacityteam.audacity` — C + Homebrew
+- [x] [**Calibre**](net-kovidgoyal-calibre.md) · `net.kovidgoyal.calibre` — C + Homebrew（仅 brew 装的拷贝；直装 unknown）· preview 轨（同 id，版本第三段 ≥100，未接）· changelog 结构化 ✓（无分类标题）· 一键（brew）✓ · 2026-10-08
+- [x] [**Audacity**](org-audacityteam-audacity.md) · `org.audacityteam.audacity` — C + Homebrew `audacity@3`；Audacity 4 是独立 id `…audacity4`（cask `audacity`，无 changelog）· prerelease id `org.audacityteam.Audacity` 串到 3.x 说明 · Team 3.7.9 起换 `6EPAF2X3PR` · 一键（brew，3.x 与 4.x）✓ · 2026-10-08
 - [x] [**Homebrew (BrewUI)**](sh-brew-app.md) · `sh.brew.app` — C (GitHub releases) + Homebrew cask `homebrew-app` · GUI 版本独立于 brew，`brew update` 不升级它 · 运行中一键升级 + Relaunch 实测 ✓ · 2026-09-13
 - [x] [**Blender**](org-blenderfoundation-blender.md) · `org.blenderfoundation.blender` — C (`{majorMinor}` 模板) + Homebrew + VendorProbe：stable / alpha / beta / rc，一键 dmg
 - [x] [**JetBrains Air**](com-jetbrains-air.md) · `com.jetbrains.air` — C + Toolbox/Sparkle

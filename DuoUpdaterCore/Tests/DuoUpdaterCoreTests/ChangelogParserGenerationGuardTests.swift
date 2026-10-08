@@ -113,12 +113,15 @@ import Foundation
     /// neither fixture: it is one app's recipe. Pinned by
     /// `openCodeDesktopNotesStopAtTheContributorCredits`.
     ///
-    /// 15 (`GitHubMarkdownParser` keeps prose-only notice blocks and joins
+    /// 15 (Audacity's recipes read the releases API, and the 4.0 prerelease id
+    /// gets the 4.x notes) moves neither fixture: it is one app's recipes.
+    /// Pinned by `AudacityCoverageTests`.
+    /// 17 (`GitHubMarkdownParser` keeps prose-only notice blocks and joins
     /// hard-wrapped list items) moves neither fixture: neither has prose under a
     /// notice heading or a wrapped item. Pinned by `GitHubSectionProseTests` and
     /// `GitHubListContinuationTests`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 15)
+        #expect(Changelog.parserGeneration == 17)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

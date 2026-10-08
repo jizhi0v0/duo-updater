@@ -131,13 +131,18 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   CLI does (`.opencodeReleases`) instead of scraping the releases page's
     ///   `<li>`s. Notes already cached carry each release's
     ///   `@handle: <pull-request title>` contributor credits as changes.
-    /// - 15: `GitHubMarkdownParser` keeps the prose of a short prose-only block
+    /// - 15: Audacity 3's recipe reads the releases API filtered to
+    ///   `Audacity-3.*` tags instead of the first page of the releases HTML, and
+    ///   the 4.0 alpha/beta id `org.audacityteam.Audacity` (the 3.x id in another
+    ///   case) gets the stable 4.x notes from a recipe windowed to 4+. Notes
+    ///   already cached for such a 4.0.0 build are Audacity 3's.
+    /// - 17: `GitHubMarkdownParser` keeps the prose of a short prose-only block
     ///   under a notice heading (Migration, Upgrade notes, Breaking change, …)
     ///   in a body that has bullets. Notes already cached for Jan 0.8.5 lack its
     ///   Migration notes, among them that Intel Macs should stay on 0.8.4. It
     ///   also joins a list item's hard-wrapped lines onto it: notes already
     ///   cached from Audacity, darktable or Diri keep only each item's first line.
-    public static let parserGeneration = 15
+    public static let parserGeneration = 17
 
     public let entries: [Entry]
 

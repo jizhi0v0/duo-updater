@@ -57,7 +57,7 @@ struct AppScannerStoreCopyTests {
             try Data("not a real receipt".utf8).write(to: receipt)
         }
         defer { try? fm.removeItem(at: root) }
-        return try #require(AppScanner().scan(bundlesAt: [bundle]).first)
+        return try #require(AppScanner(testflight: TestFlightInventory(macRows: [])).scan(bundlesAt: [bundle]).first)
     }
 
     /// Mutation: `if feedURL == nil, !isMAS` → `if feedURL == nil`. The store half

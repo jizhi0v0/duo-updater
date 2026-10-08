@@ -541,7 +541,7 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         "CFBundleShortVersionString": "139.0.7258.5",
     ])
 
-    let apps = AppScanner(locations: [tmp]).scan()
+    let apps = AppScanner(locations: [tmp], testflight: TestFlightInventory(macRows: [])).scan()
     let canary = try #require(apps.first { $0.name == "Google Chrome Canary" })
     let stable = try #require(apps.first { $0.name == "Google Chrome" })
     #expect(canary.releaseChannel == .canary)
@@ -579,7 +579,7 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
     try makeMozillaApp("Stable TB", bundleID: "org.mozilla.thunderbird",
         short: "151.0.1", remoting: "thunderbird")
 
-    let apps = AppScanner(locations: [tmp]).scan()
+    let apps = AppScanner(locations: [tmp], testflight: TestFlightInventory(macRows: [])).scan()
     #expect(try #require(apps.first { $0.name == "Thunderbird" }).releaseChannel == .esr)
     #expect(try #require(apps.first { $0.name == "Firefox" }).releaseChannel == .beta)
     #expect(try #require(apps.first { $0.name == "Stable TB" }).releaseChannel == .stable)

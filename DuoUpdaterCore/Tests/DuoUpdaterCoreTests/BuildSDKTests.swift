@@ -246,7 +246,7 @@ private func nativeBundle(
         scratch, name: "ZZFixtureNative", executable: "ZZFixtureNative",
         image: MachO.image([.loadDylib(appKit),
                             .buildVersion(platform: MachO.macOS, sdk: MachO.packed(27, 0))]))
-    let app = try #require(AppScanner().scan(bundlesAt: [bundle]).first)
+    let app = try #require(AppScanner(testflight: TestFlightInventory(macRows: [])).scan(bundlesAt: [bundle]).first)
     #expect(app.runtime == .native)
     #expect(app.buildSDK == BuildSDK(platform: .macOS, version: "27.0"))
 }
@@ -259,7 +259,7 @@ private func nativeBundle(
         scratch, name: "ZZFixturePlain", executable: "ZZFixturePlain",
         image: MachO.image([.loadDylib("/usr/lib/libSystem.B.dylib"),
                             .buildVersion(platform: MachO.macOS, sdk: MachO.packed(15, 2))]))
-    let app = try #require(AppScanner().scan(bundlesAt: [bundle]).first)
+    let app = try #require(AppScanner(testflight: TestFlightInventory(macRows: [])).scan(bundlesAt: [bundle]).first)
     #expect(app.runtime == nil)
     #expect(app.buildSDK == BuildSDK(platform: .macOS, version: "15.2"))
 }
@@ -276,7 +276,7 @@ private func nativeBundle(
     try scratch.write(MachO.image([.loadDylib(appKit),
                                    .buildVersion(platform: MachO.macOS, sdk: MachO.packed(26, 5))]),
                       to: "ZZFixtureStubbed.app/Contents/MacOS/ZZFixtureStubbed")
-    let app = try #require(AppScanner().scan(bundlesAt: [bundle]).first)
+    let app = try #require(AppScanner(testflight: TestFlightInventory(macRows: [])).scan(bundlesAt: [bundle]).first)
     #expect(app.runtime == .native)
     #expect(app.buildSDK == BuildSDK(platform: .macOS, version: "26.5"))
 }
@@ -297,7 +297,7 @@ private func nativeBundle(
     try scratch.plist(["CFBundleExecutable": "ZZFixture Desktop"], at: "\(nested)/Info.plist")
     try scratch.write(MachO.image([.buildVersion(platform: MachO.macOS, sdk: MachO.packed(26, 2))]),
                       to: "\(nested)/MacOS/ZZFixture Desktop")
-    let app = try #require(AppScanner().scan(bundlesAt: [wrapper]).first)
+    let app = try #require(AppScanner(testflight: TestFlightInventory(macRows: [])).scan(bundlesAt: [wrapper]).first)
     #expect(app.runtime == .electron)
     #expect(app.buildSDK == BuildSDK(platform: .macOS, version: "26.2"))
 }
@@ -319,7 +319,7 @@ private func nativeBundle(
     try FileManager.default.createSymbolicLink(
         atPath: bundle.appendingPathComponent("WrappedBundle").path,
         withDestinationPath: "Wrapper/ZZFixtureInner.app")
-    let app = try #require(AppScanner().scan(bundlesAt: [bundle]).first)
+    let app = try #require(AppScanner(testflight: TestFlightInventory(macRows: [])).scan(bundlesAt: [bundle]).first)
     #expect(app.runtime == .iOSApp)
     #expect(app.buildSDK == BuildSDK(platform: .iOS, version: "26.4"))
 }
@@ -328,7 +328,7 @@ private func nativeBundle(
     let scratch = try Scratch(); defer { scratch.cleanUp() }
     let bundle = try nativeBundle(
         scratch, name: "ZZFixtureJunk", executable: "ZZFixtureJunk", image: Data("not a binary".utf8))
-    let app = try #require(AppScanner().scan(bundlesAt: [bundle]).first)
+    let app = try #require(AppScanner(testflight: TestFlightInventory(macRows: [])).scan(bundlesAt: [bundle]).first)
     #expect(app.buildSDK == nil)
 }
 

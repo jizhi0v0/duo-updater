@@ -3,7 +3,7 @@ import Foundation
 @testable import DuoUpdaterCore
 
 @Test func scanFindsRealApps() {
-    let apps = AppScanner().scan()
+    let apps = AppScanner(testflight: TestFlightInventory(macRows: [])).scan()
     #expect(!apps.isEmpty, "expected to find at least one app in /Applications")
 }
 
@@ -28,7 +28,7 @@ import Foundation
 /// `Hashable`). One scanner instance so both reads share the Toolbox/TestFlight
 /// inventories, as the App's recheck does.
 @Test func scopedScanMatchesTheFullScanRowForRow() throws {
-    let scanner = AppScanner()
+    let scanner = AppScanner(testflight: TestFlightInventory(macRows: []))
     let full = scanner.scan()
     try #require(!full.isEmpty, "expected at least one app in the default locations")
     for app in full {
@@ -56,7 +56,7 @@ import Foundation
 /// crash.
 @Test func scopedScanYieldsNothingForABundleThatIsGone() {
     let gone = URL(fileURLWithPath: "/Applications/DuoUpdaterTests-\(UUID().uuidString).app")
-    #expect(AppScanner().scan(bundlesAt: [gone]).isEmpty)
+    #expect(AppScanner(testflight: TestFlightInventory(macRows: [])).scan(bundlesAt: [gone]).isEmpty)
 }
 
 /// Runtime attribution and update ownership are different questions. Docker's
@@ -128,7 +128,7 @@ import Foundation
             .write(to: info)
     }
 
-    let app = try #require(AppScanner().scan(bundlesAt: [wrapper]).first)
+    let app = try #require(AppScanner(testflight: TestFlightInventory(macRows: [])).scan(bundlesAt: [wrapper]).first)
     #expect(app.runtime == .electron)
     #expect(!app.hasSelfUpdater)
     #expect(!app.hasSparkleUpdater)

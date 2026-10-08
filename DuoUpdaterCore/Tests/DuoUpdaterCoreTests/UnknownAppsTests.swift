@@ -8,7 +8,7 @@ import Foundation
     let err = FileHandle.standardError
     func log(_ s: String) { err.write((s + "\n").data(using: .utf8)!) }
 
-    let apps = AppScanner().scan()
+    let apps = AppScanner(testflight: TestFlightInventory(macRows: [])).scan()
     let checker = UpdateChecker(sources: [
         MacAppStoreSource(), SparkleAppcastSource(), HomebrewCaskSource(),
         GitHubReleasesSource(token: await GitHubToken.resolve()), VendorProbeSource()

@@ -328,6 +328,6 @@ private let otherGoApp = GoBuildInfo.parse(goVersion: "go1.26.0", modinfo: """
     #expect(reading.runtime == .mygo)
     #expect(RuntimeVersion.read(.mygo, bundleAt: bundle, scanningBinaries: false) == "0.2.14")
 
-    let scanned = try #require(AppScanner(locations: []).readApp(at: bundle))
+    let scanned = try #require(AppScanner(locations: [], testflight: TestFlightInventory(macRows: [])).readApp(at: bundle))
     #expect(scanned.runtime == .mygo)
 }

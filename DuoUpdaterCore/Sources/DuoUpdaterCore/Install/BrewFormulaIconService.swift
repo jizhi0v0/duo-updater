@@ -176,11 +176,11 @@ public actor BrewFormulaIconService {
                 for: SameSite.confine(request), purpose: .packageIcon),
               let http = response as? HTTPURLResponse
         else { return (favicon, false) }
-        // Read even when unused: `countedBytes` logs a request only once its
-        // stream has been read to the end. Cancelled, a refused 301 from
-        // docs.microsoft.com never reached the request log (measured on a
-        // loopback server, 2026-10-08). A page past `htmlByteLimit` is still cut
-        // off unlogged; that is `countedBytes`' own gap, not fixed here.
+        // Left unread, a non-2xx body is still recorded, as is a page cut off at
+        // `htmlByteLimit`: `countedBytes` settles a stream released before its end.
+        guard (200..<300).contains(http.statusCode) else {
+            return (favicon, !Self.isTransient(status: http.statusCode))
+        }
         var head = Data()
         do {
             for try await byte in bytes {
@@ -188,9 +188,6 @@ public actor BrewFormulaIconService {
                 if head.count >= Self.htmlByteLimit { break }
             }
         } catch {}
-        guard (200..<300).contains(http.statusCode) else {
-            return (favicon, !Self.isTransient(status: http.statusCode))
-        }
         // Relative links resolve against where the page actually came from.
         let base = http.url ?? page
         return (Self.iconCandidates(inHTML: String(decoding: head, as: UTF8.self), base: base), true)

@@ -230,3 +230,43 @@ import Foundation
     let date = ReleaseDate.parse("  2026-06-24T17:07:24Z  ")
     #expect(date == Date(timeIntervalSince1970: 1_782_320_844))
 }
+
+// MARK: - RFC822 with a "GMT±HHMM" zone
+
+@Test func readsAGMTPlusHHMMZoneAsAnOffsetNotAFailure() {
+    // Proxyman's appcast spells every <pubDate> this way. Every RFC822 formatter
+    // used to reject it, so the whole feed read as "no release time": zero
+    // release-history entries. 16:09:46 at GMT+02:00 is 14:09:46 UTC.
+    let raw = "Sun, 27 Sep 2026 16:09:46 GMT+0200"
+    let fields = ReleaseDate.publishedFields(from: raw)
+    #expect(fields.publishedAt == Date(timeIntervalSince1970: 1_790_518_186))
+    #expect(fields.vendorDay == nil)
+    #expect(ReleaseDate.parse(raw) == Date(timeIntervalSince1970: 1_790_518_186))
+    #expect(ReleaseDate.parseWithPrecision(raw)?.precision == .minute)
+}
+
+@Test func readsANegativeGMTOffset() {
+    // 16:09:46 at GMT-05:00 is 21:09:46 UTC.
+    let fields = ReleaseDate.publishedFields(from: "Sun, 27 Sep 2026 16:09:46 GMT-0500")
+    #expect(fields.publishedAt == Date(timeIntervalSince1970: 1_790_543_386))
+}
+
+@Test func rfc822ShapesThatAlreadyParsedStillReadTheSameInstant() {
+    // Each of these parsed before the GMT±HHMM format was added, to exactly
+    // these instants. The new format sits last in the list, so it only ever
+    // sees a string every earlier formatter rejected — none of these may move.
+    let cases: [(String, TimeInterval)] = [
+        ("Wed, 24 Jun 2026 17:07:24 +0000", 1_782_320_844),
+        ("Wed, 24 Jun 2026 19:07:24 +0200", 1_782_320_844),
+        ("Wed, 24 Jun 2026 17:07:24 GMT", 1_782_320_844),
+        ("Wed, 24 Jun 2026 10:07:24 PDT", 1_782_320_844),
+        ("24 Jun 2026 17:07:24 +0000", 1_782_320_844),
+        ("Sun, 27 Sep 2026 16:09:46 GMT+02:00", 1_790_518_186),
+        ("Sun, 27 Sep 2026 16:09:46 UTC+0200", 1_790_518_186),
+        ("Sun, 27 Sep 2026 16:09:46 GMT+2", 1_790_518_186),
+    ]
+    for (raw, epoch) in cases {
+        #expect(ReleaseDate.publishedFields(from: raw).publishedAt
+            == Date(timeIntervalSince1970: epoch), "\(raw)")
+    }
+}

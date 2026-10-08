@@ -135,6 +135,8 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///                                     (Bool: true→beta; false→nil, see the type)
 ///   * Mac Mouse Fix→ `…/Application Support/com.nuebling.mac-mouse-fix/config.plist`
 ///                                     → `General.checkForPrereleases` (Bool: true→beta)
+///   * OBS      → `…/Application Support/obs-studio/global.ini` (`[General] UpdateBranch`;
+///                                     no key → nil, see the type)
 ///
 /// So there is no generic reader. `ChannelBinding` is the single authority the
 /// scanner consults; an app with no resolver returns nil and the generic
@@ -179,6 +181,7 @@ public enum ChannelBinding {
         CuaDriverChannel.bundleID.lowercased(),
         CindyChannel.globalBundleID.lowercased(),
         CindyChannel.chinaBundleID.lowercased(),
+        OBSChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -287,6 +290,10 @@ public enum ChannelBinding {
         // would fire continuously while the app runs, for a picker that currently
         // has one possible value. Its key is re-read on every scan and on the app's
         // own launch and quit instead. See `SuperconductorChannel`.
+        //
+        // OBS deliberately adds nothing, for the same reason: `global.ini` shares
+        // its directory with the logs and scene files OBS writes while it runs.
+        // See `OBSChannel`.
         return roots
     }
 
@@ -422,6 +429,7 @@ public enum ChannelBinding {
             return { CindyChannel.resolveCurrent(bundleID: CindyChannel.globalBundleID) }
         case CindyChannel.chinaBundleID.lowercased():
             return { CindyChannel.resolveCurrent(bundleID: CindyChannel.chinaBundleID) }
+        case OBSChannel.bundleID.lowercased():     return OBSChannel.resolveCurrent
         default:                       return nil
         }
     }
@@ -499,6 +507,12 @@ public enum ChannelBinding {
     + [true, false].compactMap { flag in
         CotEditorChannel.resolve(checksUpdatesForBeta: flag)
             .map { (bundleID: CotEditorChannel.bundleID, resolved: $0) }
+    }
+    // OBS answers nil for a missing key (see the type), so it is enumerated the
+    // same way: the two values its settings box writes, through the pure function.
+    + ["stable", "beta"].compactMap { branch in
+        OBSChannel.resolve(updateBranch: branch)
+            .map { (bundleID: OBSChannel.bundleID, resolved: $0) }
     }
 
     // Windscribe is deliberately NOT enumerated here, which is the same choice

@@ -9198,8 +9198,7 @@ final class AppListModel {
     private nonisolated static func fingerprints(forBoundIDs ids: [String]) -> [String: String] {
         var out: [String: String] = [:]
         for id in ids {
-            guard let resolved = ChannelBinding.resolve(bundleID: id) else { continue }
-            out[id] = ChannelSwitchDetector.fingerprint(resolved)
+            out[id] = ChannelSwitchDetector.fingerprint(of: ChannelBinding.resolve(bundleID: id))
         }
         return out
     }

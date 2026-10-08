@@ -226,8 +226,11 @@ public struct BrewUncheckedPackage: Sendable, Identifiable, Equatable {
 
     /// Swaps a `.movedToCask` formula for its cask: the two commands `brew update`
     /// prints for this migration, in one line. Uninstall first — the cask links the
-    /// same executables, and its install fails while the formula's are linked.
-    /// Shown for the user to run, like `trustCommand`.
+    /// same executables, and while the formula's are linked its install doesn't
+    /// fail, it quietly leaves them: `Symlinked#link_action` answers `:skip_formula`
+    /// for a target a formula owns, brew warns "…from formula azure-cli; skipping
+    /// link." and the install succeeds with `az` still the formula's (Homebrew 7.0.8
+    /// `cask/artifact/symlinked.rb`). Shown for the user to run, like `trustCommand`.
     public var migrateCommand: String {
         "brew uninstall --formula --force \(name) && brew install --cask \(name)"
     }

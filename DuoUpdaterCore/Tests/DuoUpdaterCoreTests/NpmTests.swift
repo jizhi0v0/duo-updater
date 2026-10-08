@@ -556,6 +556,22 @@ final class NpmRecorder: @unchecked Sendable {
         #expect(status.note == "npm install is running in this node prefix (pid 42)")
     }
 
+    /// The registry request is filed against the package, so the request log's
+    /// App column names `mcp-remote`, not the npm provider.
+    @Test func theRegistryRequestIsFiledAgainstThePackage() async throws {
+        let box = try NpmSandbox()
+        let attributed = NpmRecorder()
+        let document = mcpRemote
+        let check = NpmCheck(packument: { _ in
+            attributed.add(RequestAttribution.appID ?? "nil")
+            return document
+        })
+        _ = await RequestAttribution.withApp("npm") {
+            await check.statuses(of: [try! install(box)]) { _ in nil }
+        }
+        #expect(attributed.all == ["mcp-remote"])
+    }
+
     @Test func eachPackageIsAskedOnce() async throws {
         let box = try NpmSandbox()
         try box.runtime("q")

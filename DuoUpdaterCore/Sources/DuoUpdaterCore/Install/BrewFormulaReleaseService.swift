@@ -94,7 +94,10 @@ public actor BrewFormulaReleaseService {
         // `brew info` Process and the (rate-limited) GitHub API call entirely.
         if let cached = cached(for: name, version: version) { return cached }
 
-        let computed = await compute(name: name, version: version, token: token)
+        // Filed against the formula, so the request log's App column names it.
+        let computed = await RequestAttribution.withApp(BrewFormulaIconService.attributionID(forFormula: name)) {
+            await compute(name: name, version: version, token: token)
+        }
         if computed.isUseful { persist(computed, name: name, version: version) }
         return computed
     }

@@ -68,6 +68,17 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: ${{ runner.environment == 'github-hosted' }}
+
+      # The mini keeps its workspace between runs. Checkout's own clean is
+      # `git clean -ffdx`, which takes SwiftPM's .build with it: test-swift then
+      # compiled from nothing every run, 187 s on the mini against 45–59 s warm.
+      # Everything else untracked still goes — a gitignored App/DuoUpdater.xcodeproj
+      # left by another branch breaks `make test` on missing files.
+      - name: Reset the workspace, keeping SwiftPM's build
+        if: runner.environment == 'self-hosted'
+        run: git reset --hard HEAD && git clean -ffdx -e DuoUpdaterCore/.build
 
       - name: Toolchain
         run: |
@@ -111,6 +122,17 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: ${{ runner.environment == 'github-hosted' }}
+
+      # The mini keeps its workspace between runs. Checkout's own clean is
+      # `git clean -ffdx`, which takes SwiftPM's .build with it: test-swift then
+      # compiled from nothing every run, 187 s on the mini against 45–59 s warm.
+      # Everything else untracked still goes — a gitignored App/DuoUpdater.xcodeproj
+      # left by another branch breaks `make test` on missing files.
+      - name: Reset the workspace, keeping SwiftPM's build
+        if: runner.environment == 'self-hosted'
+        run: git reset --hard HEAD && git clean -ffdx -e DuoUpdaterCore/.build
 
       - name: Toolchain
         run: |
@@ -190,6 +212,17 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: ${{ runner.environment == 'github-hosted' }}
+
+      # The mini keeps its workspace between runs. Checkout's own clean is
+      # `git clean -ffdx`, which takes SwiftPM's .build with it: test-swift then
+      # compiled from nothing every run, 187 s on the mini against 45–59 s warm.
+      # Everything else untracked still goes — a gitignored App/DuoUpdater.xcodeproj
+      # left by another branch breaks `make test` on missing files.
+      - name: Reset the workspace, keeping SwiftPM's build
+        if: runner.environment == 'self-hosted'
+        run: git reset --hard HEAD && git clean -ffdx -e DuoUpdaterCore/.build
 
       - name: Toolchain
         run: |

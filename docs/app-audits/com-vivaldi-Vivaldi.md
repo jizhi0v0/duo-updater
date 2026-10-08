@@ -104,9 +104,8 @@
 - Recipe 状态: 需要（建议，见「建议下一步」）
 
 ## 一键安装
-- 状态: 需要验证（通用 Sparkle 路径，预计走 delta）
-- 端到端: **未跑**。协调会话串行执行；预期 `duo check` 报 8.2.4133.84，`duo install` 走 Sparkle 路由，
-  若用 delta，下载 25,117,814 B
+- 状态: ✓（通用 Sparkle 路径，走 delta）
+- 端到端（2026-10-08，第一轮，不启动）: 8.2.4133.83 → `duo check` `update 8.2.4133.84`、`source Sparkle`；`duo install /Applications/Vivaldi.app --yes --json` → `installed`、`route sparkle`、`bytesDownloaded 25117814`（delta，整包 227,218,412 B），约 11 s。装后 8.2.4133.84，strict 通过，`Notarized Developer ID`，Team `4XF3XNRN6Y`；与厂商 8.2.4133.84 包逐文件比 SHA-256，1417 个文件、5 个软链接全部相同
 - 格式: `.tar.xz`（universal，`Vivaldi.8.2.4133.84.universal.tar.xz` 227,218,412 B，与 feed `length` 相等；
   `tar -tJf` 1957 条，解包无错）。`ArchiveExtractor` 认 `xz`
 - 校验: feed 没有 SHA 摘要；有 `sparkle:edSignature`，包里有 `SUPublicEDKey`（两个包相同）。
@@ -119,11 +118,11 @@
 - 阻塞: 无已知
 
 ## 已知问题
-- 一键端到端两轮都未跑
+- 一键第二轮（app 运行中）未跑
 - changelog 只能嵌网页（见上，建议加 recipe）
 
 ## 建议下一步
-1. 一键端到端（协调会话）：上一版 8.2.4133.83 → 8.2.4133.84，核对是否走 delta（`bytesDownloaded` 25117814）。
+1. 一键第一轮已过（delta，`bytesDownloaded` 25117814，见「一键安装」）；第二轮（Vivaldi 运行中）未跑。
 2. Changelog recipe：`/fragile-recipe Vivaldi`（ChangelogRecipe，`sourceTemplate`
    `https://update.vivaldi.com/update/1.0/relnotes/{version}.html` + `versionFromTemplate`，只取
    `<ul class="latestchanges">` 的 `<li>`）。

@@ -115,8 +115,8 @@ arm64 zip。x86_64 包没下（**推断**同形）。同一个 bundle id、三�
 - Recipe 状态: 不需要（需要的是通用解析器改进）
 
 ## 一键安装
-- 状态: 需要验证（通用 Sparkle 路径，整包 zip）
-- 端到端: **未跑**。协调会话串行执行；预期 `duo check` 报 2026.9.8，`duo install` 走 Sparkle 路由，下载 501,839,226 B
+- 状态: ✓（通用 Sparkle 路径，整包 zip）
+- 端到端（2026-10-08，第一轮，不启动）: universal 2026.9.7 → `duo check` `update 2026.9.8`、`source Sparkle`；`duo install /Applications/OpenClaw.app --yes --json` → `installed`、`route sparkle`、`bytesDownloaded 501839226`，约 3 min。装后 2026.9.8（2609000890），strict 通过，`Notarized Developer ID`，Team `FWJYW4S8P8`；与厂商 2026.9.8 包逐文件比 SHA-256，77,723 个文件、75 个软链接全部相同。没有启动 app，前后都没有从包内 `Resources/` 起的进程（Gateway 运行中换包仍未验证）
 - 格式: zip（universal `OpenClaw-2026.9.8.zip` 501,839,226 B、`OpenClaw-2026.9.7.zip` 501,820,257 B、
   arm64 `OpenClaw-2026.9.8-arm64.zip` 251,254,969 B，均与 feed `length` 相等，`unzip -t` 无错）。GitHub release 里同版本
   还有 `.dmg`（Homebrew 用），Sparkle 不用
@@ -134,10 +134,10 @@ arm64 zip。x86_64 包没下（**推断**同形）。同一个 bundle id、三�
 ## 已知问题
 - `beta` / `extended-stable` 两条 Sparkle 轨客户端已支持、duo 没有 binding（今天 feed 里没有带标签的条目，所以还没有实际影响）
 - changelog 分节标题被压平成条目
-- 一键端到端两轮都未跑；Gateway 进程在换包前后的状态未验证
+- 一键第二轮（app 运行中）未跑；Gateway 进程在换包前后的状态未验证
 
 ## 建议下一步
-1. 一键端到端（协调会话）：2026.9.7 → 2026.9.8。换包前后用 `ps` 看有没有从 `/Applications/OpenClaw.app/Contents/Resources/`
+1. 一键第一轮已过（见「一键安装」）。第二轮（app 与 Gateway 运行中）：换包前后用 `ps` 看有没有从 `/Applications/OpenClaw.app/Contents/Resources/`
    起的进程（node、cloudflared、cua-driver），以及换包后它们是否被 app 重启。⚠️ 这是 agent 类 app，启动前后对比 `~/.claude/skills`。
 2. 渠道：等 feed 里第一次出现带 `beta` 或 `extended-stable` 标签的条目再做 `ChannelBinding`（读 `~/.openclaw/openclaw.json`
    的 `update.channel`；`beta`/`dev` → 标签 `beta`，`extended-stable` → 只认该标签，并排除默认轨）。extended-stable 那半更要紧。

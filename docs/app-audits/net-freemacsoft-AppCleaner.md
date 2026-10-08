@@ -84,7 +84,7 @@
 
 ## 一键安装
 - 状态: 需要验证（通用 Sparkle 路径，整包 zip）
-- 端到端: **未跑**。协调会话串行执行；预期 `duo check` 报 3.7.0，`duo install` 走 Sparkle 路由，下载 4,148,798 B
+- 端到端: 未跑（原因与 app 本身无关）
 - 格式: zip（`AppCleaner_3.7.zip` 4,148,798 B、`AppCleaner_3.6.8.zip` 4,165,467 B，均与 feed `length` 相等，`unzip -t` 无错）
 - 校验: feed 没有 SHA 摘要，有 `edSignature`。GitHub release 资产 `AppCleaner_3.7.zip` 带 `digest`
   `sha256:3d7fa614…9e65e`，与下载的 SHA-256 **相同**（但 duo 走的是 Sparkle 源，不读 GitHub digest）。

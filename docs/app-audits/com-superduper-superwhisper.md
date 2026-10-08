@@ -91,8 +91,8 @@
 - Recipe 状态: 不需要（需要的是通用解析器改进）
 
 ## 一键安装
-- 状态: 需要验证（通用 Sparkle 路径，整包 zip）
-- 端到端: **未跑**。协调会话串行执行；预期 `duo check` 报 2.19.2，`duo install` 走 Sparkle 路由，下载 65,229,770 B
+- 状态: ✓（通用 Sparkle 路径，整包 zip）
+- 端到端（2026-10-08，第一轮，不启动）: 2.19.1 → `duo check` `update 2.19.2`、`source Sparkle`；`duo install /Applications/superwhisper.app --yes --json` → `installed`、`route sparkle`、`bytesDownloaded 65229770`，约 23 s。装后 2.19.2，strict 通过，`Notarized Developer ID`，Team `XDP69BYUP9`；与厂商 2.19.2 包逐文件比 SHA-256，180 个文件、48 个软链接全部相同。没有启动 app
 - 格式: zip（`v2.19.2/superwhisper.zip` 65,229,770 B、`v2.19.1/superwhisper.zip` 65,130,709 B，均与 feed `length` 相等，
   `unzip -t` 无错）
 - 校验: feed 没有 SHA 摘要，有 `edSignature`。下载 SHA-256（仅作记录）：2.19.2 `69270589…4ec6`、2.19.1 `8c686bd1…f6dd`
@@ -107,10 +107,10 @@
 ## 已知问题
 - beta：有 `includeBetaUpdates` 这个键名，机制和服务端都没证实（见上）
 - changelog 的粗体分节被压平成条目
-- 一键端到端两轮都未跑
+- 一键第二轮（app 运行中）未跑
 
 ## 建议下一步
-1. 一键端到端（协调会话）：2.19.1 → 2.19.2。⚠️ agent 类 app，启动前后对比 `~/.claude`（skills、plugins、settings）。
+1. 一键第一轮已过（见「一键安装」）；第二轮要启动 app。⚠️ agent 类 app，启动前后对比 `~/.claude`（skills、plugins、settings）。
    第二轮值得做：2.19.1 自带旧版 Sparkle，而 2.19.2 的说明正是修「更新卡在安装」（两者相关是推断）。
 2. beta：在真 app 上确认 `includeBetaUpdates`（`defaults read com.superduper.superwhisper includeBetaUpdates`，拨开关或
    `defaults write` 后看 Sparkle 是换 feed 还是加标签）。在确认前、且 feed 里出现带标签条目前，不做 binding。

@@ -2057,43 +2057,6 @@ private let calibreFixture = """
     #expect(cl.entries.first?.items.first == "A new option to keep the current search when switching Virtual libraries under Preferences->Searching")
 }
 
-// Audacity — GitHub releases page; the "Audacity " + x.y.z anchor skips the
-// "Audacity-4.0.0.alpha-2" prerelease (hyphen, not space). &amp; + nested <a>.
-private let audacityFixture = """
-<section aria-labelledby="hd-3-7-7" data-hpc>
-  <h2 class="sr-only" id="hd-3-7-7">Audacity 3.7.7</h2>
-  <relative-time datetime="2025-12-11T19:48:17Z" class="no-wrap">Dec 11, 2025</relative-time>
-  <div data-test-selector="body-content" class="markdown-body tmp-my-3">
-    <p>This is a hotfix release.</p>
-    <ul>
-      <li><a class="issue-link" href="#9940">#9940</a> Added checksum to WavPack export &amp; metadata (thanks @ajsand)</li>
-      <li>Fixed Export &amp; Import crash on macOS</li>
-    </ul>
-  </div>
-</div>
-<section aria-labelledby="hd-4-0-0-alpha" data-hpc>
-  <h2 class="sr-only" id="hd-4-0-0-alpha">Audacity-4.0.0.alpha-2</h2>
-  <relative-time datetime="2025-11-03T10:00:00Z" class="no-wrap">Nov 3, 2025</relative-time>
-  <div data-test-selector="body-content" class="markdown-body tmp-my-3"><ul><li>Alpha preview</li></ul></div>
-</div>
-<section aria-labelledby="hd-3-7-6" data-hpc>
-  <h2 class="sr-only" id="hd-3-7-6">Audacity 3.7.6</h2>
-  <relative-time datetime="2025-12-04T12:00:00Z" class="no-wrap">Dec 4, 2025</relative-time>
-  <div data-test-selector="body-content" class="markdown-body tmp-my-3"><ul><li>#9742 Added FFmpeg 8 support</li></ul></div>
-</div>
-"""
-
-@Test func extractsAudacityEntriesSkippingAlpha() throws {
-    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "org.audacityteam.audacity"))
-    let cl = try #require(ChangelogExtractor.extract(from: audacityFixture, using: recipe))
-    #expect(cl.entries.count == 2)   // alpha-2 block skipped
-    #expect(cl.entries.first?.version == "3.7.7")
-    #expect(cl.entries.first?.date == "2025-12-11")
-    #expect(cl.entries.first?.items.count == 2)
-    #expect(cl.entries.first?.items.first == "#9940 Added checksum to WavPack export & metadata (thanks @ajsand)")
-    #expect(cl.entries[1].version == "3.7.6")
-}
-
 // Blender — dev-docs per-version page; "was released on" guard. &amp; entity.
 private let blenderFixture = """
 <h1 id="blender-51-release-notes">Blender 5.1 Release Notes<a class="headerlink" href="#blender-51-release-notes">&para;</a></h1>

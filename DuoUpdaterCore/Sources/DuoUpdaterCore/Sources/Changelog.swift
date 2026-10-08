@@ -131,7 +131,12 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   CLI does (`.opencodeReleases`) instead of scraping the releases page's
     ///   `<li>`s. Notes already cached carry each release's
     ///   `@handle: <pull-request title>` contributor credits as changes.
-    public static let parserGeneration = 14
+    /// - 15: Audacity 3's recipe reads the releases API filtered to
+    ///   `Audacity-3.*` tags instead of the first page of the releases HTML, and
+    ///   the 4.0 alpha/beta id `org.audacityteam.Audacity` (the 3.x id in another
+    ///   case) gets the stable 4.x notes from a recipe windowed to 4+. Notes
+    ///   already cached for such a 4.0.0 build are Audacity 3's.
+    public static let parserGeneration = 15
 
     public let entries: [Entry]
 

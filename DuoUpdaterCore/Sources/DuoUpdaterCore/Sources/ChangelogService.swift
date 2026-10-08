@@ -512,7 +512,8 @@ public enum ChangelogService {
         if let hit { return hit }
 
         let resolved: String?
-        if let cheap = GitHubToken.preresolved(explicit: explicit) {
+        if let cheap = GitHubToken.preresolved(
+            explicit: explicit, usesCLI: usesCLI, environment: ProcessInfo.processInfo.environment) {
             // A settings value or an env var: two memory reads, no subprocess, so
             // no hop and no deadline. Racing it was a real regression — on a
             // loaded 3-core runner the hop's queue admission lost to the 2s

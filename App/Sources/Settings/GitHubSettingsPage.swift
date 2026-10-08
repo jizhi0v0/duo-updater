@@ -79,7 +79,8 @@ struct GitHubSettingsPage: View {
             }
             .settingsRow()
             SettingsDivider()
-            // Off: no token is taken from `gh auth token` (`GitHubToken.usesCLI`);
+            // Off: no token is taken from `gh auth token` or from GH_TOKEN /
+            // GITHUB_TOKEN, which gh counts as a sign-in (`GitHubToken.usesCLI`);
             // a token pasted below still is.
             Toggle("Use the GitHub CLI’s sign-in", isOn: $prefs.useGitHubCLIToken)
                 .settingsRow()

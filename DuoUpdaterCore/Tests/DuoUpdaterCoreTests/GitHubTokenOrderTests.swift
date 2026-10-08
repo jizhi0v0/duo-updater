@@ -32,13 +32,18 @@ struct GitHubTokenOrderTests {
         #expect(cli.count == 1)
     }
 
-    /// Off: `gh` is never asked; a pasted token and the environment still answer.
-    /// Mutation: drop `guard usesCLI`.
-    @Test func offTheCLIIsNeverAsked() async {
+    /// Off: only a pasted token answers. Neither `gh` nor GH_TOKEN / GITHUB_TOKEN,
+    /// which gh counts as its sign-in. Mutations: drop the `guard usesCLI` in
+    /// `resolve`; drop the one in `preresolved`.
+    @Test func offOnlyAPastedTokenAnswers() async {
         let cli = CLI()
         #expect(await Self.resolve(usesCLI: false, cli: cli) == nil)
-        #expect(await Self.resolve(explicit: "pasted", usesCLI: false, cli: cli) == "pasted")
-        #expect(await Self.resolve(env: ["GITHUB_TOKEN": "env"], usesCLI: false, cli: cli) == "env")
+        #expect(await Self.resolve(explicit: "pasted", env: ["GH_TOKEN": "env"], usesCLI: false, cli: cli) == "pasted")
+        #expect(await Self.resolve(env: ["GITHUB_TOKEN": "env"], usesCLI: false, cli: cli) == nil)
+        #expect(await Self.resolve(env: ["GH_TOKEN": "env"], usesCLI: false, cli: cli) == nil)
         #expect(cli.count == 0)
+        // The cheap half that callers answer from before racing `gh`.
+        #expect(GitHubToken.preresolved(explicit: nil, usesCLI: false, environment: ["GH_TOKEN": "env"]) == nil)
+        #expect(GitHubToken.preresolved(explicit: nil, usesCLI: true, environment: ["GH_TOKEN": "env"]) == "env")
     }
 }

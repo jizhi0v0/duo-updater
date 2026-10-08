@@ -147,8 +147,9 @@ final class Preferences {
         didSet { defaults.set(githubTokenAccount, forKey: Key.githubTokenAccount) }
     }
 
-    /// Whether a token may come from the `gh` CLI's sign-in when none was pasted
-    /// here. Default on. Pushed into the core package like the token itself, so
+    /// Whether a token may come from the `gh` CLI's sign-in — its login, or
+    /// GH_TOKEN / GITHUB_TOKEN in the environment — when none was pasted here.
+    /// Default on. Pushed into the core package like the token itself, so
     /// every resolve in this process — checks, changelogs, the CLI tools — follows
     /// it from the next request; `duo` reads the same key.
     var useGitHubCLIToken: Bool {

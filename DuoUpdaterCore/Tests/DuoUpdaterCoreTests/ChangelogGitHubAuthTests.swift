@@ -126,16 +126,19 @@ import Foundation
 
     /// What the app's callers use — `resolve(explicit:)` — follows the setting the
     /// app pushed, read at each call. Here, not in `GitHubTokenOrderTests`: it is
-    /// the same process-global this suite serializes. Mutation: pass `true` instead
-    /// of `usesCLI` in `resolve(explicit:environment:cli:)`.
+    /// the same process-global this suite serializes. Mutations: pass `true`
+    /// instead of `usesCLI` in `resolve(explicit:environment:cli:)`, or in
+    /// `preresolved(explicit:environment:)`.
     @Test func theProcessSettingReachesEveryResolve() async {
         defer { GitHubToken.setUsesCLI(true) }
         let asked = GitHubTokenOrderTests.CLI()
         GitHubToken.setUsesCLI(false)
         #expect(await GitHubToken.resolve(explicit: nil, environment: [:], cli: { asked.token() }) == nil)
         #expect(asked.count == 0)
+        #expect(GitHubToken.preresolved(explicit: nil, environment: ["GH_TOKEN": "env"]) == nil)
         GitHubToken.setUsesCLI(true)
         #expect(await GitHubToken.resolve(explicit: nil, environment: [:], cli: { asked.token() }) == "from-gh")
+        #expect(GitHubToken.preresolved(explicit: nil, environment: ["GH_TOKEN": "env"]) == "env")
     }
 
     /// And the cache ages out on its own, so a token rotated *outside* the app

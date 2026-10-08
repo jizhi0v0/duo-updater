@@ -105,8 +105,9 @@ public struct Settings: Sendable {
             .flatMap(VendorInstallPolicy.init(rawValue:)) ?? UpdateSettings.vendorInstallPolicyDefault
 
         // Same ladder as the app: the token the user entered, else the
-        // environment, else whatever `gh` is logged in as — unless the user turned
-        // the GitHub CLI's sign-in off in Settings (absent reads as on, as there).
+        // environment, else whatever `gh` is logged in as — or the entered token
+        // alone, if the user turned the GitHub CLI's sign-in off in Settings
+        // (absent reads as on, as there).
         let githubToken = await GitHubToken.resolve(
             explicit: Keychain.string(account: "github-token"),
             usesCLI: defaults.object(forKey: GitHubToken.usesCLIKey) as? Bool ?? true)

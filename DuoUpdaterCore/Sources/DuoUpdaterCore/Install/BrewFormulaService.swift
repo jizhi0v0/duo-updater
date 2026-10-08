@@ -576,7 +576,11 @@ public actor BrewFormulaService {
         return casks.compactMap { c -> BrewCaskLifecycle? in
             guard let token = c["token"] as? String, let lifecycle = BrewLifecycle.parse(c) else { return nil }
             // `{"app": ["Foo.app"], "target": "/Applications/Foo.app"}` — the
-            // target is where it landed, renamed or not.
+            // target is where it landed, renamed or not: brew adds it to every
+            // relocated artifact as `Relocated#target`, which resolves a
+            // `target:` rename under the appdir (Homebrew 7.0.8 `cask/cask.rb`
+            // `artifacts_list`, `cask/artifact/relocated.rb`). Measured on this
+            // Mac's bartender: `"target": "/Applications/Bartender 7.app"`.
             let appPaths = ((c["artifacts"] as? [Any]) ?? []).compactMap { artifact -> String? in
                 guard let a = artifact as? [String: Any], a["app"] != nil else { return nil }
                 return a["target"] as? String

@@ -106,10 +106,13 @@ import Foundation
 
     // MARK: - Casks
 
-    /// `info --installed` cask entries trimmed from real ones (2026-10-08): an `app`
-    /// artifact records where it landed in `target` — renamed or not, as with
-    /// thorium's `{"target": "Thorium Browser.app"}` — and a CLI cask has `binary`
-    /// artifacts only. Flags and reasons from cask.json: ace-link (disabled,
+    /// `info --installed` cask entries in the shape measured 2026-10-08 (bartender:
+    /// `{"app": ["Bartender 7.app"], "target": "/Applications/Bartender 7.app"}`; a
+    /// CLI cask has `binary` artifacts only). The renamed entry is constructed:
+    /// cask.json's thorium `app` artifact (`{"target": "Thorium Browser.app"}`) with
+    /// the top-level `target` brew's `Cask#artifacts_list` would add — resolved from
+    /// that rename by `Relocated#target`, per the Homebrew 7.0.8 source, not
+    /// measured. Flags and reasons from cask.json: ace-link (disabled,
     /// fails_gatekeeper_check), chromedriver (same, binary only), app-fair
     /// (deprecated, discontinued).
     private static let caskInfo = Data(#"""

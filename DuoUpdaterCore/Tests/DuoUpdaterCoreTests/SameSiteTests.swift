@@ -9,12 +9,28 @@ import Network
 @Suite(.serialized)
 struct SameSiteTests {
 
-    @Test func subdomainsAreOneSite() {
+    @Test func aHostAndItsSubdomainsAreOneSite() {
         #expect(SameSite.matches(URL(string: "https://www.gnu.org/x")!, URL(string: "https://ftp.gnu.org/y")!))
-        #expect(SameSite.matches(URL(string: "https://example.co.uk/")!, URL(string: "https://cdn.example.co.uk/")!))
+        #expect(SameSite.matches(URL(string: "https://example.org/")!, URL(string: "https://cdn.example.org/")!))
+        #expect(SameSite.matches(URL(string: "https://Example.org/")!, URL(string: "https://www.example.org/")!))
         #expect(!SameSite.matches(URL(string: "https://example.org/")!, URL(string: "https://cdn.jsdelivr.net/")!))
+    }
+
+    @Test func siblingsAreRefused() {
+        // Tenants of one host: different sites, different people.
+        #expect(!SameSite.matches(URL(string: "https://proj.readthedocs.io/")!,
+                                  URL(string: "https://other.readthedocs.io/logo.png")!))
+        #expect(!SameSite.matches(URL(string: "https://proj.netlify.app/")!, URL(string: "https://x.netlify.app/")!))
         #expect(!SameSite.matches(URL(string: "https://a.co.uk/")!, URL(string: "https://b.co.uk/")!))
-        #expect(!SameSite.matches(URL(string: "http://localhost/")!, URL(string: "http://localhost/")!))
+        // The price: one company's sibling subdomains are refused too.
+        #expect(!SameSite.matches(URL(string: "https://docs.microsoft.com/")!,
+                                  URL(string: "https://learn.microsoft.com/")!))
+    }
+
+    @Test func anAddressMatchesOnlyItself() {
+        #expect(!SameSite.matches(URL(string: "http://10.0.0.1/")!, URL(string: "http://192.168.0.1/")!))
+        #expect(SameSite.matches(URL(string: "http://127.0.0.1:8080/a")!, URL(string: "http://127.0.0.1:9090/b")!))
+        #expect(!SameSite.matches(URL(string: "http://127.0.0.1/")!, URL(string: "http://localhost/")!))
     }
 
     @Test func onlyAConfinedRequestIsHeldToItsSite() {
@@ -107,6 +123,26 @@ struct SameSiteTests {
 
         // Control: the same request unconfined follows the redirect.
         let (_, followed) = try await session.countedData(for: hop, purpose: .packageIcon, store: store)
+        #expect((followed as? HTTPURLResponse)?.statusCode == 200)
+        #expect(server.landings == 1)
+    }
+
+    /// Through `countedBytes`, the path the homepage fetch takes.
+    @Test func confinedStreamStopsAtAnOffSiteRedirect() async throws {
+        let server = try Server()
+        defer { server.stop() }
+        let (store, storeURL) = scratchStore()
+        defer { for s in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: storeURL.path + s) } }
+        let session = URLSession(
+            configuration: .ephemeral, delegate: CrossHostCredentialStripper(loginWalls: []), delegateQueue: nil)
+        let hop = URLRequest(url: URL(string: "http://127.0.0.1:\(server.port)/hop")!)
+
+        let (_, confined) = try await session.countedBytes(
+            for: SameSite.confine(hop), purpose: .packageIcon, store: store)
+        #expect((confined as? HTTPURLResponse)?.statusCode == 302)
+        #expect(server.landings == 0)
+
+        let (_, followed) = try await session.countedBytes(for: hop, purpose: .packageIcon, store: store)
         #expect((followed as? HTTPURLResponse)?.statusCode == 200)
         #expect(server.landings == 1)
     }

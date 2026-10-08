@@ -211,8 +211,8 @@ right channel.
 Brew list shows the formula's own icon, fetched when its row first appears. It is
 asked for only where the project itself publishes one: the formula's homepage
 (the page's icon links, then `/favicon.ico`, and only those on the homepage's
-own site: a link to a CDN or another host is skipped, and a redirect off the site
-is not followed), or, for a project on GitHub,
+own host or its subdomains: a link to a CDN or another host is skipped, and a
+redirect elsewhere is not followed), or, for a project on GitHub,
 `api.github.com/users/<owner>` and, when the owner is an organisation, its
 avatar on `avatars.githubusercontent.com`. A person's avatar is never fetched,
 and code-hosting sites (SourceForge, GitLab and the like) are not asked. Each of

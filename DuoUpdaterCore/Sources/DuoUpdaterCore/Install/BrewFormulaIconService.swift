@@ -13,8 +13,9 @@ import UniformTypeIdentifiers
 ///   formula owned by a person keeps the Homebrew logo;
 /// - any other homepage: the page's own `apple-touch-icon` / `icon` links,
 ///   largest first, then the site's `/favicon.ico` — only those on the
-///   homepage's own site (``SameSite``). A link to a CDN or another host is
-///   dropped, and these requests do not follow a redirect off the site.
+///   homepage's own host or its subdomains (``SameSite``). A link to a CDN or
+///   another host is dropped, and these requests do not follow a redirect off
+///   the site.
 ///
 /// So every request goes to the formula's own site or to GitHub (the owner
 /// lookup is `api.github.com/users/<owner>`), as the
@@ -119,14 +120,14 @@ public actor BrewFormulaIconService {
             switch await organizationAvatar(owner) {
             case nil: return .unknown
             case .some(nil): return .none
-            case .some(let avatar?): return await download(avatar, confined: false)
+            case .some(let avatar?): return await download(avatar)
             }
         }
         if Self.isSharedHost(homepage) { return .none }
         guard let (candidates, pageAnswered) = await candidates(for: homepage) else { return .unknown }
         var transient = !pageAnswered
         for candidate in candidates.prefix(4) {
-            switch await download(candidate, confined: true) {
+            switch await download(candidate) {
             case .found(let icon): return .found(icon)
             case .unknown: transient = true
             case .none: continue
@@ -172,9 +173,10 @@ public actor BrewFormulaIconService {
                 for: SameSite.confine(request), purpose: .packageIcon),
               let http = response as? HTTPURLResponse
         else { return (favicon, false) }
-        guard (200..<300).contains(http.statusCode) else {
-            return (favicon, !Self.isTransient(status: http.statusCode))
-        }
+        // Read even when unused: `countedBytes` logs a request only once its
+        // stream has been read to the end. Cancelled, a refused 301 from
+        // docs.microsoft.com never reached the request log (measured on a
+        // loopback server, 2026-10-08).
         var head = Data()
         do {
             for try await byte in bytes {
@@ -182,17 +184,19 @@ public actor BrewFormulaIconService {
                 if head.count >= Self.htmlByteLimit { break }
             }
         } catch {}
+        guard (200..<300).contains(http.statusCode) else {
+            return (favicon, !Self.isTransient(status: http.statusCode))
+        }
         // Relative links resolve against where the page actually came from.
         let base = http.url ?? page
         return (Self.iconCandidates(inHTML: String(decoding: head, as: UTF8.self), base: base), true)
     }
 
-    /// `confined`: a site's own icon, which must not redirect off the site. The
-    /// GitHub avatar is not: `avatar_url` is GitHub's own CDN by definition.
-    private func download(_ url: URL, confined: Bool) async -> Outcome {
+    /// Confined: neither a site's icon nor a GitHub avatar is followed off its host.
+    private func download(_ url: URL) async -> Outcome {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
-        if confined { request = SameSite.confine(request) }
+        request = SameSite.confine(request)
         guard let (data, response) = try? await session.countedData(for: request, purpose: .packageIcon),
               let http = response as? HTTPURLResponse
         else { return .unknown }

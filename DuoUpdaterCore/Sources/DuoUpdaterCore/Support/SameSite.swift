@@ -1,28 +1,32 @@
 import Foundation
 
-/// "The same site" as a person reads a URL: the same registrable domain, so
-/// `www.gnu.org` and `ftp.gnu.org` are one site and `cdn.jsdelivr.net` is not
-/// `example.org`'s.
+/// "The same site", strictly: the same host, or one host a subdomain of the
+/// other, ignoring a leading `www.` — so `www.gnu.org` and `ftp.gnu.org` are
+/// one site with `gnu.org`, and `cdn.jsdelivr.net` is not `example.org`'s.
 ///
-/// Approximate on purpose: the registrable domain is the last two labels, or
-/// three under a two-letter country code whose second level is short
-/// (`example.co.uk`, `example.com.cn`). No public-suffix list ships with the
-/// app, and the cost of the approximation only runs one way: a host it
-/// misjudges is treated as another site and refused.
+/// Siblings are refused: `proj.readthedocs.io` and `other.readthedocs.io` are
+/// different sites run by different people, and so, as this rule cannot tell
+/// them apart without a public-suffix list, are `docs.microsoft.com` and
+/// `learn.microsoft.com`. The rule only errs toward refusing. An IP address
+/// matches only itself.
 public enum SameSite {
-    static func registrableDomain(of host: String) -> String? {
-        let labels = host.lowercased().split(separator: ".").map(String.init)
-        guard labels.count >= 2, !labels.contains(where: \.isEmpty) else { return nil }
-        let last = labels[labels.count - 1], second = labels[labels.count - 2]
-        let keep = (last.count == 2 && second.count <= 3 && labels.count >= 3) ? 3 : 2
-        return labels.suffix(keep).joined(separator: ".")
+    static func normalizedHost(_ url: URL) -> String? {
+        guard var host = url.host?.lowercased(), !host.isEmpty else { return nil }
+        if host.hasPrefix("www.") { host.removeFirst(4) }
+        return host
+    }
+
+    static func isIPAddress(_ host: String) -> Bool {
+        host.contains(":") || host.allSatisfy { $0.isNumber || $0 == "." }
     }
 
     public static func matches(_ a: URL, _ b: URL) -> Bool {
-        guard let ha = a.host, let hb = b.host,
-              let da = registrableDomain(of: ha), let db = registrableDomain(of: hb)
-        else { return false }
-        return da == db
+        guard let ha = normalizedHost(a), let hb = normalizedHost(b) else { return false }
+        if ha == hb { return true }
+        if isIPAddress(ha) || isIPAddress(hb) { return false }
+        // A bare single-label host (`localhost`) is never anyone's parent.
+        guard ha.contains("."), hb.contains(".") else { return false }
+        return ha.hasSuffix("." + hb) || hb.hasSuffix("." + ha)
     }
 
     /// Marks `request` so the update session will not follow a redirect off its

@@ -191,8 +191,11 @@ public enum GitHubToken {
         request.cachePolicy = .reloadIgnoringLocalCacheData
 
         do {
+            // Not the token in use, so its 401 is this answer, not a rejection
+            // of what the checks send — and a rejection of that must not strip
+            // this one (`GitHubCredentials`).
             let (data, response) = try await URLSession.updates.countedData(
-                for: request, purpose: .versionCheck)
+                for: request, purpose: .versionCheck, followsTokenRejection: false)
             guard let http = response as? HTTPURLResponse else {
                 return .failed(message: "Unexpected response from GitHub.")
             }

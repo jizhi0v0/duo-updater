@@ -94,6 +94,10 @@ struct MenuContentView: View {
                 setupBanner
                 Divider()
             }
+            if model.gitHubTokenRejected {
+                tokenRejectedBanner
+                Divider()
+            }
             if showRateLimitBanner {
                 rateLimitBanner
                 Divider()
@@ -339,9 +343,10 @@ struct MenuContentView: View {
     /// Show the aggregate nudge only when several apps are rate-limited at once
     /// and no token is configured. A single transient stays a per-row retry, but
     /// a cluster means the unauthenticated 60/hour cap is biting and a token is
-    /// the real fix.
+    /// the real fix. Not while GitHub is rejecting the token there is: that
+    /// banner is the fix to make first.
     private var showRateLimitBanner: Bool {
-        !model.hasGitHubToken && rateLimitedCount >= 2
+        !model.gitHubTokenRejected && !model.hasGitHubToken && rateLimitedCount >= 2
     }
 
     /// Show the "couldn't be checked" banner whenever any row errored — except when
@@ -412,6 +417,37 @@ struct MenuContentView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.08))
+    }
+
+    /// GitHub answered the token with a 401 and the check carried on without it
+    /// (`AppListModel.gitHubTokenRejected`). Deep-links to the token, as the
+    /// rate-limit banner does.
+    private var tokenRejectedBanner: some View {
+        Button {
+            model.requestedSettingsSection = .github
+            model.requestedSettingsAnchor = .githubToken
+            openWindow(id: SettingsView.windowID)
+            model.surfaceWindow(sceneID: SettingsView.windowID)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("GitHub rejected your token").font(.caption).fontWeight(.medium)
+                    Text("Update or remove it in Settings")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
         .background(Color.orange.opacity(0.08))
     }
 

@@ -1199,6 +1199,15 @@ final class AppListModel {
     /// after a check).
     private(set) var hasGitHubToken = false
 
+    /// GitHub rejected the token (`401`) this round, or the last one: the
+    /// round carries on without it (`GitHubCredentials`). Drives the popover's
+    /// "GitHub rejected your token" banner and Settings › GitHub's token area.
+    /// Kept through a round's start, which tries the token again, so the banner
+    /// does not blink off and on with every refresh while the token stays
+    /// rejected; a round that ends without a rejection clears it, and so does a
+    /// change in Settings.
+    private(set) var gitHubTokenRejected = false
+
     /// The most recent GitHub token resolution: the token (nil when none was
     /// found) and the explicit Settings value it was resolved under.
     ///
@@ -1856,6 +1865,14 @@ final class AppListModel {
         Task { await cliTools.scanInstalls() }
         // Every landed check, whichever path asked, may have something new to say.
         cliTools.onReport = { [weak self] in self?.notifyNewCLIToolUpdates() }
+        // A rejection is reported from whichever request met it; the banner hears
+        // of it on the main actor, unless the credentials changed in between.
+        GitHubCredentials.shared.onRejected { [weak self] generation in
+            Task { @MainActor in
+                guard GitHubCredentials.shared.generation == generation else { return }
+                self?.gitHubTokenRejected = true
+            }
+        }
     }
 
     /// The explicit GitHub token preference as the resolver should see it: nil when
@@ -1927,6 +1944,7 @@ final class AppListModel {
     /// one (it checks the generation first).
     func gitHubCredentialsChanged() {
         GitHubCredentials.shared.changed()
+        gitHubTokenRejected = false
         let generation = GitHubCredentials.shared.generation
         let explicit = explicitGitHubToken()
         let usesCLI = prefs.useGitHubCLIToken
@@ -3118,6 +3136,8 @@ final class AppListModel {
         // changed underneath it and must not be reverted to the snapshot (#255).
         let roundBaseline = results
         isChecking = true
+        // A new round sends the token again, even one GitHub rejected last round.
+        GitHubCredentials.shared.beginRound()
         // Remember what resolved, and under which Settings value, so the per-app
         // rechecks that follow this round's rows reuse it instead of asking `gh`
         // again (see `resolvedGitHubToken`). Unless the credentials changed since
@@ -3342,6 +3362,9 @@ final class AppListModel {
         }.value
         await refreshBackupIndex()
         isChecking = false
+        // Whether this round's token was rejected; one that was not clears the
+        // banner the last round left up.
+        gitHubTokenRejected = GitHubCredentials.shared.isRejected
         recordCheckOutcomes(checked)
         scheduleAutomaticRetry(afterRound: checked, intent: intent)
         lastCheck = .now

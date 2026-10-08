@@ -205,11 +205,20 @@ struct GitHubSettingsPage: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(maskSecret(prefs.githubToken))
                     .font(.system(.body, design: .monospaced))
-                Text(prefs.githubTokenAccount.isEmpty
-                     ? String(localized: "Saved")
-                     : String(localized: "Saved · belongs to \(prefs.githubTokenAccount)"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                // A pasted token is the one sent when there is one, so a
+                // rejection this round is this token's.
+                if model.gitHubTokenRejected {
+                    Label("Rejected by GitHub — check it’s correct and not expired.",
+                          systemImage: "xmark.circle.fill")
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                } else {
+                    Text(prefs.githubTokenAccount.isEmpty
+                         ? String(localized: "Saved")
+                         : String(localized: "Saved · belongs to \(prefs.githubTokenAccount)"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 12)
             Button("Change") { startEditing() }
@@ -244,7 +253,17 @@ struct GitHubSettingsPage: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
         case .none:
-            EmptyView()
+            // No token pasted, so the one GitHub rejected came from the GitHub
+            // CLI's sign-in.
+            if model.gitHubTokenRejected && prefs.githubToken.isEmpty {
+                Label("GitHub rejected the GitHub CLI’s sign-in", systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+                    .font(.callout)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            } else {
+                EmptyView()
+            }
         }
     }
 

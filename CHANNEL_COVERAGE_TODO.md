@@ -203,6 +203,8 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
       `edgeupdates.microsoft.com/api/products?view=enterprise` 只列 Stable/Beta/Dev，
       不含 Canary（Canary 走 EdgeUpdate/Omaha，无公开企业 JSON）。暂搁。
 
+- [ ] **Jan — nightly** · `jan-nightly.ai.app`（Pattern A），公开 feed `delta.jan.ai/nightly/latest.json`，版本与包 short 一致（`0.8.4-5203`）；○ VendorProbe，先核 VersionComparator 对 `0.8.4-5203`；beta feed 403（2026-10-08）
+
 ### 2026-06-06 渠道扫描新增 — Pattern A
 
 - [x] **Brave Browser — Beta** · `com.brave.Browser.beta`（独立 app：`Brave Browser Beta.app`）
@@ -281,6 +283,8 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
       构件，也未验证开关落盘后的本地信号和 endpoint，故暂不登记为 detectable。不要从嵌套
       `Docker Desktop.app` 的 Squirrel 推断渠道：实际更新器是外层
       `com.docker.backend.updater`（见 `docs/app-audits/com-docker-docker.md`）。
+
+- [ ] **OpenChamber — v2-preview** · 同 `dev.openchamber.desktop`，版本 `2.0.0-preview.N`，duo 读成 stable（`ReleaseChannel.detect()` 的版本尾词没有 `preview`）；app 里 `allowPrerelease=false` 写死、无开关。今天 preview 比 stable 旧，无害。详见 [审计](docs/app-audits/dev-openchamber-desktop.md)（2026-10-08）
 
 ---
 
@@ -549,6 +553,9 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 > notes" + 每 build 不同的 YouTrack 文章链接），无结构化 `<li>` 变更条目；真正变更在
 > per-build YouTrack 文章里，而 ChangelogRecipe.source 是固定 URL，架构追不了。EAP probe
 > 已设 `changelogURL: jetbrains.com/idea/whatsnew/`，WebView 已兜底，故无需结构化 recipe。
+
+- ✗ **Granola** · 端点对任意渠道文件名都 302 到当前版本目录；登录 token 是否分流无法验证（2026-10-08）
+- ✗ **TRAE（beta/alpha）** · 客户端有 stable/beta/alpha/dev 质量，公开 API 忽略 `quality`/`channel`，beta 前缀的应用内检查无更新；没找到公开 beta（不等于没有）（2026-10-08）
 
 ### Warp 死轨（JSON 仍列但已停更，recipe 已删）
 

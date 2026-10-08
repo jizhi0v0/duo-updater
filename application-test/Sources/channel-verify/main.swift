@@ -306,7 +306,10 @@ let inferred = ReleaseChannel.detect(
     mozillaRemotingName: remotingName,
     // Android Studio's per-channel signal (Stable/Canary/Beta share id + name +
     // version) — the bundle filename. Same value AppScanner feeds production.
-    bundleFileName: displayName
+    bundleFileName: displayName,
+    // Arc's and Dia's release-candidate builds name their train here, as
+    // AppScanner reads it. See `ReleaseChannel.detect` step 0.95.
+    browserCompanyReleaseType: info["BCNYReleaseType"] as? String
 )
 
 // `detect()` alone is NOT what production concludes. `AppScanner` then consults

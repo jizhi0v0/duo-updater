@@ -32,7 +32,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable | `company.thebrowser.Browser` | 共享 | — | stable 构建的 `SUFeedURL` | ✓ |
-| beta（Early Birds，feed 叫 Release Candidate） | `company.thebrowser.Browser` | 共享 | 包内 `BCNYReleaseType` = `Release Candidate`（duo 不读）；应用内选择存在哪里**没查到** | feed-swap：RC 构建的 `SUFeedURL` 本身就指向 RC feed；stable 构建在运行时覆盖 feed | 半 ✓（见下） |
+| beta（Early Birds，feed 叫 Release Candidate） | `company.thebrowser.Browser` | 共享 | 包内 `BCNYReleaseType` = `Release Candidate`（duo 据此判 rc，#1069）；应用内选择存在哪里**没查到** | feed-swap：RC 构建的 `SUFeedURL` 本身就指向 RC feed；stable 构建在运行时覆盖 feed | 半 ✓（见下） |
 | dev / canary / prototype / PR | 同上 | 共享 | — | 内部 | ✗ |
 
 **轨道怎么来的（从二进制字符串读出，属客户端能力，不是服务端事实）:**
@@ -68,9 +68,9 @@
 - stable 构建 → 读 stable feed（`channel-verify`：1.167.0 → UPDATE 1.167.1；1.167.1 → up to date）。
 - RC 构建 → 读它自己 `SUFeedURL` 里的 RC feed（`channel-verify`：1.168.0 → up to date，下载 URL 在
   RC 目录下）。所以**已经装上 RC 构建**的副本跟的是 RC 轨。
-- 但 `detected channel` 对 RC 构建报 **stable**：包里唯一的轨道标记 `BCNYReleaseType`
-  （stable 包为 `Release`，RC 包为 `Release Candidate`）`ReleaseChannel.detect()` 不读，也没有
-  `ChannelBinding`。
+- `detected channel`：`ReleaseChannel.detect()` 读包里唯一的轨道标记 `BCNYReleaseType`（stable 包为
+  `Release`，RC 包为 `Release Candidate`），RC 构建报 **rc**（#1069；之前报 stable）。只改行上显示的渠道，
+  不改推送：没有 `ChannelBinding`，`SparkleAppcastSource` 仍按已装 build 匹配到的 feed 条目定渠道，两条轨的条目都不带标签。
 
 **缺口（形状同 OBS，但持续时间不同）:**
 
@@ -80,7 +80,9 @@
    装上 RC 构建后包里的 `SUFeedURL` 就变成 RC，duo 自然跟上。所以这个窗口只持续到 Arc 自己装上
    RC 为止，不像 OBS 那样一直卡着。
 2. **RC 构建上退出 Early Birds**（推断，未验证）：Arc 说退回 stable 最长要一周，期间应该是把运行时覆盖改成 release、等 stable 版本号超过已装的 RC。duo 仍读包里的 RC `SUFeedURL`，会把**下一个 RC** 推给已经退出的用户，属跨渠道推送。要先读到退出后偏好里写的是什么，才能确认。
-3. RC 构建被标成 stable，非 stable 一键安装要求的 `ChannelProofRegistry` 闸也就不会触发。
+3. （更正）这里原来写「RC 构建被标成 stable，非 stable 一键安装要求的 `ChannelProofRegistry` 闸也就不会触发」，
+   前提不成立：`ChannelProofRegistry` 只管 duo 自己选渠道的三类（vendor recipe、GitHub rule、`ChannelBinding`），
+   一键安装路径上没有按渠道触发的 proof 闸。RC 拷贝读的是包里自带的 `SUFeedURL`，渠道不是 duo 选的，没有可登记的 proof。
 
 ## 更新检测
 - 源: `SparkleAppcastSource`（`feed-discover`：`declared https://releases.arc.net/updates.xml`）
@@ -145,7 +147,6 @@
 ## 已知问题
 - 已在应用内加入 Early Birds、但还是 stable 构建时：duo 报 up to date，Arc 自己会推 RC（见 Channel 详情缺口 1）
 - RC 构建退出 Early Birds 后，duo 可能推下一个 RC（缺口 2，推断，未验证）
-- RC 构建的 `detected channel` 是 stable（`BCNYReleaseType` 未读）
 - 发布日期只到「日」（feed 无时区，#1066 的处理）
 - `latest` 显示为 `1.167.1 (88217)`（feed 的 `shortVersionString` 原样）
 
@@ -154,9 +155,8 @@
 2. （已撤）原计划的 `ArcChannel` feed-swap 绑定，原因见第 1 条。
    还有一层理由让这件事更不值得做：Arc 处于维护状态。The Browser Company 2025-05 宣布停止 Arc 的功能开发，此后只发 Chromium 引擎升级和安全补丁，新功能转到 Dia（二手报道，如 The Register 2025-05-27；原文是 CEO 的 Substack，没取到）。一手旁证是 Arc 自己 help center 的 macOS release notes（Zendesk API 读取，2026-10-08）：1.165.0–1.167.0 每条都只写升级 Chromium、修安全漏洞，并说明「这一版就这些」。所以 RC 轨现在只是更早拿到下一次 Chromium 升级。
    服务器侧试探（2026-10-08，HEAD 请求）没有改变这个判断：`releases.arc.net/release/Arc-latest.dmg` → 301 `arc.net/release/Arc-latest.dmg` → 302 `Arc-1.167.1-88217.dmg`（stable）；`/release-candidate/Arc-latest.dmg` 在 arc.net 那一跳是 404，RC 没有公开的 latest 入口；RC 目录下有和 zip 同名的 dmg（`…/release-candidate/<UUID>/Arc-1.168.0-88345.dmg` 200）。RC feed 带 `Arc-from-88217-to-88345.delta`，88217 是当时的 stable，说明厂商就是为「stable 拷贝切到 RC」准备的，缺口 1 确实存在；但加入状态存在本机哪里，服务器那头试探不出来。
-3. 让 `ReleaseChannel.detect()` 读 `Info.plist` 的 `BCNYReleaseType`（`Release Candidate` → beta），
-   并给 RC 轨登记 `ChannelProofRegistry`（证据：RC 1.168.0 (88345) 真包，bundle id 与 Team 同 stable，
-   `BCNYReleaseType` = `Release Candidate`，`SUFeedURL` 指向 RC 目录）。
+3. （已做，#1069）`ReleaseChannel.detect()` 读 `BCNYReleaseType`，`Release Candidate` → `.rc`，Arc 与 Dia 共用。
+   不登记 `ChannelProofRegistry`，理由见「缺口」第 3 条。
 4. （可选，收益低）changelog recipe 读 Zendesk API JSON，换来带日期的历史；每版仍只有一段话，补丁版不在页上。
 5. （已做，#1066）读小写 `<pubdate>`，`Oct 2, 2026 at 9:45:23 PM` 按「日」解析。
 
@@ -185,7 +185,7 @@ strings -a new/Arc.app/Contents/MacOS/Arc | grep -E 'Early Birds|updateChannelOv
 |---|---|---|---|---|---|---|---|---|
 | stable 1.167.0 | `company.thebrowser.Browser` | 1.167.0 / 88045 | S6N382Y83G | `/updates.xml` | `Release` | stable | **UPDATE → 1.167.1 (88217)** | raw inline notes, 270 chars, no structure |
 | stable 1.167.1 | 同上 | 1.167.1 / 88217 | S6N382Y83G | `/updates.xml` | `Release` | stable | **up to date** | raw inline notes, 270 chars, no structure |
-| RC 1.168.0 | 同上 | 1.168.0 / 88345 | S6N382Y83G | `/release-candidate/D5B6…/updates.xml` | `Release Candidate` | stable（应为 beta） | up to date（读 RC feed） | raw inline notes, 194 chars, no structure |
+| RC 1.168.0 | 同上 | 1.168.0 / 88345 | S6N382Y83G | `/release-candidate/D5B6…/updates.xml` | `Release Candidate` | stable（#1069 起为 rc） | up to date（读 RC feed） | raw inline notes, 194 chars, no structure |
 
 三个包 `codesign --verify --deep --strict` 退出 0，`spctl` 来源 `Notarized Developer ID`。
 `feed-discover` 对 1.167.1：`declared  https://releases.arc.net/updates.xml`。

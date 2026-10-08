@@ -51,11 +51,6 @@ private func aiGitHubRule(_ bundleID: String) throws -> GitHubReleaseRule {
         pattern: comet.versionPattern) == nil)
 }
 
-@Test func traeRemainsUnmappedUntilItsTwoVersionSchemesCanBeJoined() {
-    #expect(VendorProbeRegistry.recipes.contains { $0.bundleID == "com.trae.app" } == false)
-    #expect(GitHubReleaseRegistry.rules.contains { $0.bundleID == "com.trae.app" } == false)
-}
-
 @Test func aiDesktopGitHubRulesMatchStableTagsAndOnlyMacApps() throws {
     let cases: [(String, String, String, [String])] = [
         ("ai.opencode.desktop", "v1.18.18", "opencode-desktop-mac-arm64.dmg",
@@ -271,17 +266,16 @@ private func aiInstallURL(_ bundleID: String, body: String, version: String) thr
     #expect(manifest.contains("path: MstyStudio_x64.zip"))
 }
 
-/// TRAE is still the one app from this batch with no recipe at all, and the two
-/// registries must keep agreeing about that.
-@Test func everyAppFromTheAIDesktopBatchNowInstallsExceptTheOneThatCannot() throws {
+/// Every vendor-probed app from this batch, TRAE included since its download API
+/// started naming the app's own version, carries a one-click.
+@Test func everyAppFromTheAIDesktopBatchNowInstalls() throws {
     for bundleID in [
         "com.electron.wispr-flow", "com.aionui.app", "com.exafunction.windsurf",
-        "ai.perplexity.comet", "MstyStudio",
+        "ai.perplexity.comet", "MstyStudio", "com.trae.app",
     ] {
         let recipe = try aiVendorRecipe(bundleID)
         #expect(recipe.install != nil, "\(bundleID) lost its one-click")
     }
-    #expect(VendorProbeRegistry.recipes.contains { $0.bundleID == "com.trae.app" } == false)
 }
 
 // MARK: - The check that would have caught this batch

@@ -162,6 +162,14 @@ private let raycastChangelogFixture = #"""
             "vendor:org.blenderfoundation.blender:alpha",
             "vendor:org.blenderfoundation.blender:beta",
             "vendor:org.blenderfoundation.blender:rc",
+            // Jan nightly: one recipe per architecture, each reading its own
+            // `darwin-<arch>` entry of the Tauri feed, so exactly one runs on any
+            // Mac.
+            "vendor:jan-nightly.ai.app:nightly:arm64",
+            "vendor:jan-nightly.ai.app:nightly:x86_64",
+            // TRAE: separate arm64 and x64 dmgs, one recipe per architecture.
+            "vendor:com.trae.app:stable:arm64",
+            "vendor:com.trae.app:stable:x64",
         ])
         let unrestricted = VendorProbeRegistry.recipes.filter { $0.hostRequirement == nil }
         #expect(unrestricted.count == VendorProbeRegistry.recipes.count - restricted.count)

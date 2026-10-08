@@ -1,12 +1,12 @@
 // Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
 // Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
 
-family = "jan-ai-app"
+family = "com-trae-app"
 
 probes = Array(count: 2)
 probes[0] = struct VendorProbeRecipe
-probes[0].bundleID = "jan-nightly.ai.app"
-probes[0].channel = .nightly
+probes[0].bundleID = "com.trae.app"
+probes[0].channel = .stable
 probes[0].variant? = "arm64"
 probes[0].hostRequirement? = struct VendorHostRequirement
 probes[0].hostRequirement?.minimumSystemVersion = nil
@@ -15,27 +15,27 @@ probes[0].hostRequirement?.architectures[0] = .arm64
 probes[0].installedVersionPattern = nil
 probes[0].buildLineage = nil
 probes[0].headBuildPattern = nil
-probes[0].url = URL("https://delta.jan.ai/nightly/latest.json")
+probes[0].url = URL("https://api.trae.ai/icube/api/v1/native/version/trae/latest")
 probes[0].identities = Array(count: 0)
 probes[0].track = nil
 probes[0].mode = .responseBody
-probes[0].versionPattern = "\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+)+-[0-9]+)\""
+probes[0].versionPattern = "(?s)\"data\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"manifest\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"darwin\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile|win32|linux)\"\\s*:).)*?\"versions\"\\s*:\\s*\\[[^\\]]*?\\{(?=[^{}]*\"region\"\\s*:\\s*\"va\")(?=[^{}]*\"arch\"\\s*:\\s*\"apple\")[^{}]*?\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+)+)\""
 probes[0].transientBodyPattern = nil
 probes[0].trackClosedPattern = nil
-probes[0].downloadURL? = URL("https://app.jan.ai/download/nightly/mac-universal")
-probes[0].changelogURL = nil
+probes[0].downloadURL? = URL("https://www.trae.ai/download")
+probes[0].changelogURL? = URL("https://docs.trae.ai/ide/changelog")
 probes[0].selectHighest = false
 probes[0].versionIsBuild = false
 probes[0].buildNamespace = .bundle
 probes[0].displayVersionPattern = nil
-probes[0].publishedAtPattern? = "\"pub_date\"\\s*:\\s*\"([^\"]+)\""
+probes[0].publishedAtPattern = nil
 probes[0].minimumSystemVersionPattern = nil
 probes[0].maximumSystemVersionPattern = nil
 probes[0].entryStartPattern = nil
 probes[0].install? = struct VendorInstallSpec
 probes[0].install?.urlSource = .bodyPattern(_:)
-probes[0].install?.urlSource.0 = "\"darwin-aarch64\"\\s*:\\s*\\{[^{}]*?\"url\"\\s*:\\s*\"(https://delta\\.jan\\.ai/nightly/Jan-nightly_[^\"/]+\\.app\\.tar\\.gz)\""
-probes[0].install?.kind = .tarGz
+probes[0].install?.urlSource.0 = "(?s)\"data\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"manifest\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"darwin\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile|win32|linux)\"\\s*:).)*?\"versions\"\\s*:\\s*\\[[^\\]]*?\\{(?=[^{}]*\"region\"\\s*:\\s*\"va\")(?=[^{}]*\"arch\"\\s*:\\s*\"apple\")[^{}]*?\"url\"\\s*:\\s*\"(https://lf-cdn\\.trae\\.ai/obj/trae-ai-us/pkg/app/releases/stable/[0-9.]+/darwin/TraeCode-darwin-arm64\\.dmg)\""
+probes[0].install?.kind = .dmg
 probes[0].install?.checksumPattern = nil
 probes[0].install?.checksumFormat = .sha512Base64
 probes[0].install?.requestHeaders = Dictionary(count: 0)
@@ -46,9 +46,9 @@ probes[0].requestBody = nil
 probes[0].followRedirects = true
 probes[0].requestHeaders = Dictionary(count: 0)
 probes[1] = struct VendorProbeRecipe
-probes[1].bundleID = "jan-nightly.ai.app"
-probes[1].channel = .nightly
-probes[1].variant? = "x86_64"
+probes[1].bundleID = "com.trae.app"
+probes[1].channel = .stable
+probes[1].variant? = "x64"
 probes[1].hostRequirement? = struct VendorHostRequirement
 probes[1].hostRequirement?.minimumSystemVersion = nil
 probes[1].hostRequirement?.architectures = Array(count: 1)
@@ -56,27 +56,27 @@ probes[1].hostRequirement?.architectures[0] = .x86_64
 probes[1].installedVersionPattern = nil
 probes[1].buildLineage = nil
 probes[1].headBuildPattern = nil
-probes[1].url = URL("https://delta.jan.ai/nightly/latest.json")
+probes[1].url = URL("https://api.trae.ai/icube/api/v1/native/version/trae/latest")
 probes[1].identities = Array(count: 0)
 probes[1].track = nil
 probes[1].mode = .responseBody
-probes[1].versionPattern = "\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+)+-[0-9]+)\""
+probes[1].versionPattern = "(?s)\"data\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"manifest\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"darwin\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile|win32|linux)\"\\s*:).)*?\"versions\"\\s*:\\s*\\[[^\\]]*?\\{(?=[^{}]*\"region\"\\s*:\\s*\"va\")(?=[^{}]*\"arch\"\\s*:\\s*\"intel\")[^{}]*?\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+)+)\""
 probes[1].transientBodyPattern = nil
 probes[1].trackClosedPattern = nil
-probes[1].downloadURL? = URL("https://app.jan.ai/download/nightly/mac-universal")
-probes[1].changelogURL = nil
+probes[1].downloadURL? = URL("https://www.trae.ai/download")
+probes[1].changelogURL? = URL("https://docs.trae.ai/ide/changelog")
 probes[1].selectHighest = false
 probes[1].versionIsBuild = false
 probes[1].buildNamespace = .bundle
 probes[1].displayVersionPattern = nil
-probes[1].publishedAtPattern? = "\"pub_date\"\\s*:\\s*\"([^\"]+)\""
+probes[1].publishedAtPattern = nil
 probes[1].minimumSystemVersionPattern = nil
 probes[1].maximumSystemVersionPattern = nil
 probes[1].entryStartPattern = nil
 probes[1].install? = struct VendorInstallSpec
 probes[1].install?.urlSource = .bodyPattern(_:)
-probes[1].install?.urlSource.0 = "\"darwin-x86_64\"\\s*:\\s*\\{[^{}]*?\"url\"\\s*:\\s*\"(https://delta\\.jan\\.ai/nightly/Jan-nightly_[^\"/]+\\.app\\.tar\\.gz)\""
-probes[1].install?.kind = .tarGz
+probes[1].install?.urlSource.0 = "(?s)\"data\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"manifest\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"darwin\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile|win32|linux)\"\\s*:).)*?\"versions\"\\s*:\\s*\\[[^\\]]*?\\{(?=[^{}]*\"region\"\\s*:\\s*\"va\")(?=[^{}]*\"arch\"\\s*:\\s*\"intel\")[^{}]*?\"url\"\\s*:\\s*\"(https://lf-cdn\\.trae\\.ai/obj/trae-ai-us/pkg/app/releases/stable/[0-9.]+/darwin/TraeCode-darwin-x64\\.dmg)\""
+probes[1].install?.kind = .dmg
 probes[1].install?.checksumPattern = nil
 probes[1].install?.checksumFormat = .sha512Base64
 probes[1].install?.requestHeaders = Dictionary(count: 0)
@@ -89,32 +89,11 @@ probes[1].requestHeaders = Dictionary(count: 0)
 
 changelogs = Array(count: 0)
 
-githubRules = Array(count: 1)
-githubRules[0] = struct GitHubReleaseRule
-githubRules[0].bundleID = "jan.ai.app"
-githubRules[0].owner = "janhq"
-githubRules[0].repo = "jan"
-githubRules[0].usePrereleases = false
-githubRules[0].listPageSize = 20
-githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
-githubRules[0].candidateScope = .newest
-githubRules[0].probesNewestFirst = true
-githubRules[0].installedTagPrefix = nil
-githubRules[0].channel = .stable
-githubRules[0].installAssetPattern? = "^jan-mac-universal-[0-9.]+\\.zip$"
-githubRules[0].installerKind? = .zip
-githubRules[0].installTrust = .developerID
-githubRules[0].variant = nil
-githubRules[0].architectureRequirement? = struct GitHubArchitectureRequirement
-githubRules[0].architectureRequirement?.fromVersion = "0.8.5"
-githubRules[0].architectureRequirement?.architectures = Array(count: 1)
-githubRules[0].architectureRequirement?.architectures[0] = .arm64
+githubRules = Array(count: 0)
 
 appStoreCases = Array(count: 0)
 
-channelProofs = Dictionary(count: 1)
-channelProofs[ChannelProofKey(bundleID: "jan-nightly.ai.app", channel: .nightly)] = .artifact(_:)
-channelProofs[ChannelProofKey(bundleID: "jan-nightly.ai.app", channel: .nightly)].0 = "/nightly/Jan-nightly_"
+channelProofs = Dictionary(count: 0)
 
 githubChannelProofs = Dictionary(count: 0)
 

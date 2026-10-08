@@ -545,6 +545,7 @@ extension GitHubReleaseRule: Codable {
         case bundleID, owner, repo, usePrereleases, listPageSize, versionPattern
         case candidateScope, probesNewestFirst, installedTagPrefix, channel
         case installAssetPattern, installerKind, installTrust, variant
+        case architectureRequirement
     }
 
     private static var codingDefaults: GitHubReleaseRule {
@@ -577,7 +578,10 @@ extension GitHubReleaseRule: Codable {
             channel: try c.decode(ReleaseChannel.self, forKey: .channel, default: d.channel),
             probesNewestFirst: try c.decode(
                 Bool.self, forKey: .probesNewestFirst, default: d.probesNewestFirst),
-            variant: try c.decodeOptional(String.self, forKey: .variant, default: d.variant))
+            variant: try c.decodeOptional(String.self, forKey: .variant, default: d.variant),
+            architectureRequirement: try c.decodeOptional(
+                GitHubArchitectureRequirement.self, forKey: .architectureRequirement,
+                default: d.architectureRequirement))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -600,6 +604,27 @@ extension GitHubReleaseRule: Codable {
         try c.encodeOptional(installerKind, forKey: .installerKind, defaultIsNil: d.installerKind == nil)
         try c.encode(installTrust, forKey: .installTrust)
         try c.encodeOptional(variant, forKey: .variant, defaultIsNil: d.variant == nil)
+        try c.encodeOptional(
+            architectureRequirement, forKey: .architectureRequirement,
+            defaultIsNil: d.architectureRequirement == nil)
+    }
+}
+
+extension GitHubArchitectureRequirement: Codable {
+    enum CodingKeys: String, CodingKey, CaseIterable { case fromVersion, architectures }
+
+    public init(from decoder: Decoder) throws {
+        try RecipeCoding.rejectUnknownKeys(in: decoder, allowed: CodingKeys.self)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            fromVersion: try c.decode(String.self, forKey: .fromVersion),
+            architectures: try c.decode([HostArch].self, forKey: .architectures))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(fromVersion, forKey: .fromVersion)
+        try c.encode(architectures, forKey: .architectures)
     }
 }
 

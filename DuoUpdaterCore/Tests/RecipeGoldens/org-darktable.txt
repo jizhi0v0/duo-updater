@@ -23,6 +23,7 @@ githubRules[0].installAssetPattern? = "^darktable-[0-9.]+-(arm64|x86_64)\\.dmg$"
 githubRules[0].installerKind? = .dmg
 githubRules[0].installTrust = .publishedDigestOnly
 githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
 
 appStoreCases = Array(count: 0)
 

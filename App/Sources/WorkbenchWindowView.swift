@@ -1612,8 +1612,8 @@ extension AppListModel {
 
 /// A CLI-formula row under the Brew tree. Unlike a cask (which reuses
 /// `WorkbenchSidebarRow` + the app install path), a formula isn't an app — no
-/// icon, channel, or changelog — so it gets this compact row with its own inline
-/// `brew upgrade --formula <name>` action.
+/// bundle icon, channel, or changelog — so it gets this compact row with its own
+/// inline `brew upgrade --formula <name>` action, and a `FormulaIcon`.
 private struct BrewFormulaSidebarRow: View {
     let formula: BrewInstalledFormula
     @Bindable var model: AppListModel
@@ -1629,9 +1629,7 @@ private struct BrewFormulaSidebarRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "terminal")
-                .frame(width: 22, height: 22)
-                .foregroundStyle(.secondary)
+            FormulaIcon(name: formula.name, size: 22)
             VStack(alignment: .leading, spacing: 1) {
                 Text(formula.name).font(.body).lineLimit(1)
                 if let error {
@@ -1729,9 +1727,7 @@ private struct BrewUncheckedSidebarRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "terminal")
-                .frame(width: 22, height: 22)
-                .foregroundStyle(.secondary)
+            FormulaIcon(name: package.name, size: 22)
             VStack(alignment: .leading, spacing: 1) {
                 Text(package.name).font(.body).lineLimit(1)
                 Text(status)
@@ -1795,10 +1791,7 @@ private struct BrewUncheckedDetailPane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                Image(systemName: "terminal")
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
+                FormulaIcon(name: package.name, size: 44)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(package.name).font(.title2).fontWeight(.semibold)
                     // The version is brew's install record, the only one it gives
@@ -1906,10 +1899,7 @@ private struct FormulaDetailPane: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Image(systemName: "terminal")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-                .frame(width: 44, height: 44)
+            FormulaIcon(name: formula.name, size: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text(formula.name).font(.title2).fontWeight(.semibold)
                 if let available = formula.availableVersion {

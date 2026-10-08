@@ -246,33 +246,51 @@ struct GitHubSettingsPage: View {
 
     // MARK: - Budget
 
-    /// What GitHub's last API answers said is left, one row per window still
+    /// What GitHub's last API answers said is left, one bar per window still
     /// running (`GitHubRateBudget`: with a token GitHub has answered from two at
-    /// once), never fetched for its own sake. Re-read every few seconds while
-    /// the page is open: a check can land meanwhile, and a window can end.
+    /// once), never fetched for its own sake. Laid out as the Backups page's disk
+    /// rows are: a name, then a full-width bar with its two figures under its two
+    /// ends. Re-read every few seconds while the page is open: a check can land
+    /// meanwhile, and a window can end.
     private var budgetCard: some View {
         SettingsCard {
             TimelineView(.periodic(from: .now, by: 5)) { context in
                 let store = GitHubRateBudget.Store.shared
                 let windows = store.current(at: context.date)
-                SettingsField(title: "API requests left") {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("GitHub API requests")
                     if windows.isEmpty {
                         Text(Self.emptyLine(lastReset: store.lastReset))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
-                        VStack(alignment: .trailing, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 10) {
                             ForEach(windows, id: \.reset) { window in
-                                HStack(spacing: 10) {
-                                    BudgetBar(window: window).frame(width: 80)
-                                    Text(Self.windowLine(window))
-                                        .monospacedDigit()
-                                        .foregroundStyle(.secondary)
-                                }
+                                budgetWindow(window)
                             }
                         }
                     }
                 }
+                .settingsRow()
             }
+        }
+    }
+
+    /// One window: its bar, then what is left under the bar's left end, in the
+    /// bar's colour, and when it refills under the right. Orange once running low.
+    private func budgetWindow(_ window: GitHubRateBudget) -> some View {
+        let tint = window.isRunningLow ? Color.orange : Color.accentColor
+        return VStack(alignment: .leading, spacing: 3) {
+            CapacityBar(
+                backups: Int64(window.remaining), used: Int64(window.remaining),
+                total: Int64(window.limit), tint: tint)
+            HStack(spacing: 12) {
+                Text(Self.leftLine(window)).foregroundStyle(tint)
+                Spacer(minLength: 8)
+                Text(Self.resetLine(window)).foregroundStyle(.secondary)
+            }
+            .font(.caption)
+            .monospacedDigit()
         }
     }
 
@@ -282,9 +300,14 @@ struct GitHubSettingsPage: View {
         return String(localized: "Reset at \(time) · no answer since")
     }
 
-    private static func windowLine(_ window: GitHubRateBudget) -> String {
+    private static func leftLine(_ window: GitHubRateBudget) -> String {
+        guard window.remaining > 0 else { return String(localized: "None left of \(window.limit)") }
+        return String(localized: "\(window.remaining) left of \(window.limit)")
+    }
+
+    private static func resetLine(_ window: GitHubRateBudget) -> String {
         let time = window.reset.formatted(date: .omitted, time: .shortened)
-        return String(localized: "\(window.remaining) / \(window.limit) · resets at \(time)")
+        return String(localized: "Resets at \(time)")
     }
 
     // MARK: - Actions
@@ -319,30 +342,5 @@ struct GitHubSettingsPage: View {
         prefs.githubTokenAccount = ""
         verification = nil
         editing = true
-    }
-}
-
-/// How much of one window is left, drawn like the Backups page's capacity bar:
-/// the accent colour, orange once under a fifth of the limit. Hidden from
-/// accessibility: the line beside it says the same in words.
-private struct BudgetBar: View {
-    let window: GitHubRateBudget
-
-    private var fraction: Double {
-        guard window.limit > 0 else { return 0 }
-        return min(max(Double(window.remaining) / Double(window.limit), 0), 1)
-    }
-
-    var body: some View {
-        GeometryReader { geometry in
-            HStack(spacing: 0) {
-                Rectangle().fill(window.isRunningLow ? Color.orange : Color.accentColor)
-                    .frame(width: geometry.size.width * fraction)
-                Rectangle().fill(Color.secondary.opacity(0.18))
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 2.5, style: .continuous))
-        }
-        .frame(height: 5)
-        .accessibilityHidden(true)
     }
 }

@@ -1056,6 +1056,12 @@ final class AppListModel {
     private(set) var homebrewUpdateNote: String?
     /// Last `brew update` failure (or a run that left Homebrew behind); cleared on the next run.
     private(set) var homebrewUpdateError: String?
+    /// The background schedule's `brew update` (`backgroundRefreshHomebrew`).
+    /// Made on first use: its seams reach back into this model.
+    @ObservationIgnored private var homebrewBackgroundUpdate: HomebrewBackgroundUpdate?
+    /// A background `brew update` under way, which our own brew runs wait out
+    /// (`afterBackgroundHomebrewUpdate`).
+    @ObservationIgnored private var backgroundHomebrewUpdateTask: Task<HomebrewBackgroundUpdate.Outcome, Never>?
 
     /// Lazily-fetched release notes per formula, loaded only when a formula is
     /// selected in the workbench — so a long outdated list never burns the GitHub
@@ -3794,6 +3800,60 @@ final class AppListModel {
         homebrewUpdateEnvironment = outcome.environment
     }
 
+    /// The Homebrew half of a background tick: `brew update` when the user's
+    /// Homebrew settings say it is due (`HomebrewBackgroundUpdate`), then the
+    /// package list re-read, as a popover open reads it. Silent: no progress line,
+    /// no error under the row — those belong to the button the user pressed.
+    private func backgroundRefreshHomebrew(interval: TimeInterval?) async {
+        guard brewInstalled else { return }
+        let updater = homebrewBackgroundUpdate ?? makeHomebrewBackgroundUpdate()
+        homebrewBackgroundUpdate = updater
+        let task = Task { await updater.runIfDue(interval: interval) }
+        backgroundHomebrewUpdateTask = task
+        let outcome = await task.value
+        if backgroundHomebrewUpdateTask == task { backgroundHomebrewUpdateTask = nil }
+        switch outcome {
+        case .updated: Log.app.info("brew background update: ran")
+        case .failed(let message): Log.app.notice("brew background update failed: \(message, privacy: .public)")
+        default: Log.app.debug("brew background update: \(String(describing: outcome), privacy: .public)")
+        }
+        // `brew update` updates Homebrew itself too, so an offer on the workbench
+        // may now be for the version already installed.
+        if outcome == .updated, homebrewSelfUpdate != nil { await checkHomebrewSelfUpdate() }
+        // The workbench focus rule: a read started under one of our own runs could
+        // land after that run's own re-read with the half-done state.
+        guard brewIsIdle else { return }
+        await refreshBrewFormulae()
+    }
+
+    /// None of our own brew runs is under way. brew takes one global lock, and an
+    /// app row's cask install (`brew install --cask`) runs brew too.
+    private var brewIsIdle: Bool {
+        !brewUpgrading && !homebrewUpdating && upgradingFormulae.isEmpty
+            && installing.isEmpty && !isInstallingAll
+    }
+
+    private func makeHomebrewBackgroundUpdate() -> HomebrewBackgroundUpdate {
+        let service = brewFormulaService
+        let key = HomebrewBackgroundUpdate.lastRunKey
+        return HomebrewBackgroundUpdate(.init(
+            environment: { await LoginShellEnvironment.resolveHomebrewVariables() },
+            config: { await HomebrewConfig.read(environment: $0) },
+            idle: { [weak self] in await MainActor.run { self?.brewIsIdle ?? false } },
+            update: { try await service.updateHomebrew(environment: $0) { _ in } },
+            // UserDefaults rather than `Preferences`: the seams are read off the
+            // main actor, and this is not a setting anyone sees.
+            lastRun: { UserDefaults.standard.object(forKey: key) as? Date },
+            setLastRun: { UserDefaults.standard.set($0, forKey: key) }))
+    }
+
+    /// Wait out a background `brew update` already running before one of our own
+    /// brew runs starts: it would fail on brew's lock. One not yet started sees
+    /// the caller's flag and stands down (`brewIsIdle`).
+    private func afterBackgroundHomebrewUpdate() async {
+        _ = await backgroundHomebrewUpdateTask?.value
+    }
+
     /// Run `brew update` for the offered release, then re-check and re-read the
     /// Brew tree (an update refreshes the package lists, so new upgrades can appear).
     func updateHomebrew() async {
@@ -3804,6 +3864,7 @@ final class AppListModel {
         homebrewUpdateError = nil
         homebrewUpdateNote = String(localized: "Starting…")
         defer { homebrewUpdating = false; homebrewUpdateNote = nil }
+        await afterBackgroundHomebrewUpdate()
         do {
             try await brewFormulaService.updateHomebrew(
                 environment: homebrewUpdateEnvironment
@@ -3843,6 +3904,7 @@ final class AppListModel {
         brewUpgradeTotal = targets.count
         brewUpgradeDone = 0
         defer { brewUpgrading = false; brewUpgradeNote = nil; brewUpgradeDone = 0; brewUpgradeTotal = 0 }
+        await afterBackgroundHomebrewUpdate()
         do {
             let onOutput: @Sendable (String) -> Void = { [weak self] line in
                 Task { @MainActor in
@@ -3878,6 +3940,7 @@ final class AppListModel {
             upgradingFormulae.remove(name)
             formulaUpgradeNotes[name] = nil
         }
+        await afterBackgroundHomebrewUpdate()
         do {
             try await brewFormulaService.upgrade(formula: name) { [weak self] line in
                 // Map brew's noisy raw output to a clean phase word; ignore lines we
@@ -8332,15 +8395,20 @@ final class AppListModel {
     /// The command-line tools are checked on the same tick, beside the apps rather
     /// than after them, each tool on its own clock (`CLIToolsModel.backgroundCheck`).
     /// Before this they were checked only when the popover or the workbench opened.
+    /// Homebrew too: its package list re-read, after a `brew update` when one is
+    /// due (`backgroundRefreshHomebrew`).
     private func backgroundRefresh() async {
         let interval = prefs.checkFrequency.interval
-        let tools = Task { @MainActor in
-            await self.cliTools.backgroundCheck(interval: interval) {
-                await self.githubTokenForRecheck() != nil
-            }
-        }
+        let others = [
+            Task { @MainActor in
+                await self.cliTools.backgroundCheck(interval: interval) {
+                    await self.githubTokenForRecheck() != nil
+                }
+            },
+            Task { @MainActor in await self.backgroundRefreshHomebrew(interval: interval) },
+        ]
         await refresh(intent: .scheduled)
-        await tools.value
+        for task in others { await task.value }
     }
 
     /// Arm the watcher on TestFlight's own store. Called once at launch, network-free,

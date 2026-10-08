@@ -821,6 +821,7 @@ private struct CommandLineRow: View {
         // Formulae Homebrew is phasing out (`BrewLifecycle`): checked, so not in
         // either count, but nothing else here would say so.
         let deprecated = model.brewFormulae.filter { $0.lifecycle != nil }.count
+            + model.brewCaskLifecycles.count
         let deprecatedLine = deprecated > 0 ? Text(String(localized: "\(deprecated) deprecated")) : nil
         if outdated > 0 {
             let first = model.brewUpgradeError.map { Text($0).foregroundStyle(.red) }

@@ -198,6 +198,8 @@ struct WorkbenchWindowView: View {
         let brewCasks: [UpdateResult]
         let brewFormulae: [BrewInstalledFormula]
         let brewUnchecked: [BrewUncheckedPackage]
+        /// App-less casks Homebrew deprecated or disabled (`BrewCaskLifecycle`).
+        let brewLifecycleCasks: [BrewCaskLifecycle]
         /// The "Homebrew x is available" row, searched by the name it shows, so a
         /// query that matches nothing empties the Homebrew group like the other two.
         let homebrewSelfUpdate: HomebrewSelfUpdate?
@@ -216,7 +218,7 @@ struct WorkbenchWindowView: View {
         let allCasks = brewCasks
         let allRollbackable = rollbackableApps
         let brewTotal = allCasks.count + model.brewFormulae.count + model.brewUnchecked.count
-            + (model.homebrewSelfUpdate == nil ? 0 : 1)
+            + model.brewAppLessCaskLifecycles.count + (model.homebrewSelfUpdate == nil ? 0 : 1)
         let cliTools = CLIToolPresentation.holding(
             CLIToolPresentation.updatesFirst(model.cliTools.statuses), to: heldCLIOrder, id: \.toolID.tag)
         let formulae = CLIToolPresentation.holding(
@@ -227,6 +229,7 @@ struct WorkbenchWindowView: View {
             brewCasks: allCasks.filter(matchesSearch),
             brewFormulae: formulae.filter { matchesSearch($0.name) },
             brewUnchecked: model.brewUnchecked.filter { matchesSearch($0.fullName) },
+            brewLifecycleCasks: model.brewAppLessCaskLifecycles.filter { matchesSearch($0.token) },
             homebrewSelfUpdate: matchesSearch("Homebrew") ? model.homebrewSelfUpdate : nil,
             rollbackable: allRollbackable.filter(matchesSearch),
             hasCLI: brewTotal > 0 || !cliTools.isEmpty,
@@ -273,6 +276,15 @@ struct WorkbenchWindowView: View {
         return model.brewUnchecked.first { $0.id == packageID }
     }
 
+    /// The app-less deprecated cask selected, when the selection is one of those
+    /// rows (tagged `brew:cask:<token>`).
+    private var selectedLifecycleCask: BrewCaskLifecycle? {
+        let prefix = "brew:cask:"
+        guard let id = detailSelection, id.hasPrefix(prefix) else { return nil }
+        let token = String(id.dropFirst(prefix.count))
+        return model.brewAppLessCaskLifecycles.first { $0.token == token }
+    }
+
     /// The command-line tool install selected, when the selection is one of those
     /// rows (tagged `<kind>:<install path>`, `CLIToolID.tag`).
     private var selectedCLITool: CLIToolStatus? {
@@ -295,6 +307,9 @@ struct WorkbenchWindowView: View {
             } else if let package = selectedUnchecked {
                 BrewUncheckedDetailPane(package: package)
                     .id("brew:unchecked:\(package.id)")
+            } else if let cask = selectedLifecycleCask {
+                BrewLifecycleCaskDetailPane(cask: cask)
+                    .id("brew:cask:\(cask.token)")
             } else if let status = selectedCLITool {
                 Group {
                     if case .claudeCode(let claudeCode) = status.detail {
@@ -557,13 +572,13 @@ struct WorkbenchWindowView: View {
     /// Homebrew has anything for the CLI tab to show, before the search.
     private var homebrewHasAnything: Bool {
         !model.brewCaskResults.isEmpty || !model.brewFormulae.isEmpty || !model.brewUnchecked.isEmpty
-            || model.homebrewSelfUpdate != nil
+            || !model.brewAppLessCaskLifecycles.isEmpty || model.homebrewSelfUpdate != nil
     }
 
     /// Rows the Homebrew group shows after the search.
     private func brewItemCount(_ lists: SidebarLists) -> Int {
         lists.brewCasks.count + lists.brewFormulae.count + lists.brewUnchecked.count
-            + (lists.homebrewSelfUpdate == nil ? 0 : 1)
+            + lists.brewLifecycleCasks.count + (lists.homebrewSelfUpdate == nil ? 0 : 1)
     }
 
     /// Rows the CLI tab shows after the search, for the tab's count.
@@ -782,6 +797,7 @@ struct WorkbenchWindowView: View {
             let brewIDs = homebrewExpanded(lists)
                 ? lists.brewCasks.map(\.id)
                     + lists.brewFormulae.map { "brew:formula:\($0.name)" }
+                    + lists.brewLifecycleCasks.map { "brew:cask:\($0.token)" }
                     + lists.brewUnchecked.map { "brew:unchecked:\($0.id)" }
                 : []
             ids = brewIDs + (otherToolsExpanded(lists) ? lists.cliTools.map(\.toolID.tag) : [])
@@ -1074,7 +1090,8 @@ struct WorkbenchWindowView: View {
     private func homebrewSummary(_ lists: SidebarLists) -> some View {
         let casks = model.brewCaskResults
         return HomebrewGroupSummary(
-            packages: casks.count + model.brewFormulae.count + model.brewUnchecked.count,
+            packages: casks.count + model.brewFormulae.count + model.brewUnchecked.count
+                + model.brewAppLessCaskLifecycles.count,
             outdated: casks.filter(\.hasUpdate).count + model.brewFormulae.filter(\.hasUpdate).count,
             unchecked: model.brewUnchecked.count,
             homebrewUpdate: model.homebrewSelfUpdate?.latest,
@@ -1150,7 +1167,8 @@ struct WorkbenchWindowView: View {
                     skipVersion: { model.skipThisVersion(result) },
                     clearSkip: { model.prefs.clearSkip(result.app) },
                     fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
-                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() })
+                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
+                    caskLifecycle: model.brewCaskLifecycle(for: result)?.lifecycle)
                     .tag(result.id)
             }
         }
@@ -1203,7 +1221,8 @@ struct WorkbenchWindowView: View {
                                     skipVersion: { model.skipThisVersion(result) },
                                     clearSkip: { model.prefs.clearSkip(result.app) },
                                     fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
-                                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() })
+                                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
+                                    caskLifecycle: model.brewCaskLifecycle(for: result)?.lifecycle)
                                     .tag(result.id)
                             }
                             ForEach(lists.brewFormulae) { formula in
@@ -1211,6 +1230,10 @@ struct WorkbenchWindowView: View {
                                     formula: formula, model: model,
                                     isSelected: selection == "brew:formula:\(formula.name)")
                                     .tag("brew:formula:\(formula.name)")
+                            }
+                            ForEach(lists.brewLifecycleCasks) { cask in
+                                BrewLifecycleCaskSidebarRow(cask: cask, isSelected: selection == "brew:cask:\(cask.token)")
+                                    .tag("brew:cask:\(cask.token)")
                             }
                             ForEach(lists.brewUnchecked) { package in
                                 BrewUncheckedSidebarRow(package: package, highlighted: highlightUnchecked)
@@ -1318,6 +1341,11 @@ struct WorkbenchWindowView: View {
         let hasBackup = model.backupVersion(result.id) != nil
         VStack(alignment: .leading, spacing: 0) {
             DetailHeader(result: result, model: model)
+            if let cask = model.brewCaskLifecycle(for: result) {
+                BrewLifecycleNotice(name: cask.token, lifecycle: cask.lifecycle, isCask: true)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 10)
+            }
             if hasBackup {
                 Picker(selection: $detailMode) {
                     Text("Release Notes").tag(DetailMode.releaseNotes)
@@ -1382,6 +1410,9 @@ private struct WorkbenchSidebarRow: View {
     /// (`AppListModel.fullDiskAccessNeedsAffecting`), and the way to grant them.
     let fullDiskAccessNeeds: [FullDiskAccessNeed]
     let grantFullDiskAccess: () -> Void
+    /// Set when the cask that installed this app is deprecated or disabled
+    /// (`AppListModel.brewCaskLifecycle(for:)`); the detail pane says the rest.
+    var caskLifecycle: BrewLifecycle? = nil
 
     /// Whether the sidebar row has room for the runtime symbol.
     ///
@@ -1402,6 +1433,7 @@ private struct WorkbenchSidebarRow: View {
         let channel = ChannelTag.measuredWidth(for: result.effectiveReleaseChannel)
         if channel > 0 { used += channel + 6 }
         if !fullDiskAccessNeeds.isEmpty { used += FullDiskAccessMark.width() + 6 }
+        if caskLifecycle != nil { used += BrewCaskLifecycleMark.width + 6 }
         return used + RuntimeTag.width() + 6 <= Self.narrowestNameColumn ? runtime : nil
     }
 
@@ -1421,6 +1453,9 @@ private struct WorkbenchSidebarRow: View {
                     }
                     ChannelTag(channel: result.effectiveReleaseChannel)
                     FullDiskAccessMark(needs: fullDiskAccessNeeds, grant: grantFullDiskAccess)
+                    if let caskLifecycle {
+                        BrewCaskLifecycleMark(lifecycle: caskLifecycle, overHighlight: isSelected)
+                    }
                     if let runtimeTag {
                         RuntimeTag(runtime: runtimeTag, frameworks: result.app.linkedFrameworks,
                                    overHighlight: isSelected, interactive: false)
@@ -1993,6 +2028,9 @@ private struct FormulaDetailPane: View {
 private struct BrewLifecycleNotice: View {
     let name: String
     let lifecycle: BrewLifecycle
+    /// A cask's notice speaks of the cask, not of the app's updates, which may
+    /// come from another source (see `BrewCaskLifecycle`).
+    var isCask = false
 
     @State private var copied = false
     @State private var copiedResetTask: Task<Void, Never>?
@@ -2000,7 +2038,7 @@ private struct BrewLifecycleNotice: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label {
-                Text(lifecycle.sentences(for: name).joined(separator: " "))
+                Text(lifecycle.sentences(for: name, isCask: isCask).joined(separator: " "))
                     .fixedSize(horizontal: false, vertical: true)
             } icon: {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -2050,13 +2088,19 @@ extension BrewLifecycle {
 
     /// The notice's prose: what the stage means, why, and when — each its own
     /// sentence, so a translation never has to splice brew's reason into another.
-    func sentences(for name: String, today: String = Self.today()) -> [String] {
+    func sentences(for name: String, isCask: Bool = false, today: String = Self.today()) -> [String] {
         var out: [String] = []
-        switch stage {
-        case .deprecated:
+        switch (stage, isCask) {
+        case (.deprecated, false):
             out.append(String(localized: "Homebrew has deprecated \(name). It still installs and upgrades, with a warning."))
-        case .disabled:
+        case (.disabled, false):
             out.append(String(localized: "Homebrew has disabled \(name): it can no longer be installed or upgraded, so it gets no more updates."))
+        case (.deprecated, true):
+            out.append(String(localized: "Homebrew has deprecated the \(name) cask. It still installs and upgrades, with a warning."))
+        case (.disabled, true):
+            // Not "no more updates": the app may update itself, or be checked by
+            // another source — only Homebrew's part has stopped.
+            out.append(String(localized: "Homebrew has disabled the \(name) cask: Homebrew can no longer install or upgrade it."))
         }
         if let reason { out.append(Self.reasonSentence(reason)) }
         if let disableDate {
@@ -2068,8 +2112,10 @@ extension BrewLifecycle {
         return out
     }
 
-    /// brew's reason symbols (`DeprecateDisable::FORMULA_DEPRECATE_DISABLE_REASONS`),
-    /// translated; any other reason is the formula's own English text, quoted.
+    /// brew's reason symbols (`DeprecateDisable::FORMULA_DEPRECATE_DISABLE_REASONS`
+    /// and `CASK_DEPRECATE_DISABLE_REASONS`; the two that both lists have,
+    /// `unmaintained` and `unreachable`, read the same in each), translated; any
+    /// other reason is the package's own English text, quoted.
     static func reasonSentence(_ reason: String) -> String {
         switch reason {
         case "does_not_build": String(localized: "It doesn’t build.")
@@ -2082,6 +2128,11 @@ extension BrewLifecycle {
         case "deprecated_upstream": String(localized: "It’s deprecated upstream.")
         case "versioned_formula": String(localized: "It’s a versioned formula.")
         case "checksum_mismatch": String(localized: "Its source file’s checksum changed after release, so its upstream repository may have been compromised.")
+        case "discontinued": String(localized: "It’s discontinued upstream.")
+        case "moved_to_mas": String(localized: "It’s now distributed only on the Mac App Store.")
+        case "no_longer_available": String(localized: "It’s no longer available upstream.")
+        case "no_longer_meets_criteria": String(localized: "It no longer meets Homebrew’s criteria for casks.")
+        case "fails_gatekeeper_check": String(localized: "It doesn’t pass the macOS Gatekeeper check.")
         default: String(localized: "Homebrew’s reason: “\(reason)”.")
         }
     }
@@ -2090,6 +2141,81 @@ extension BrewLifecycle {
     static func today() -> String {
         let c = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: Date())
         return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
+    }
+}
+
+/// The mark an app row carries when the cask that installed it is deprecated or
+/// disabled. Orange like the formula rows' status; the detail pane explains.
+private struct BrewCaskLifecycleMark: View {
+    let lifecycle: BrewLifecycle
+    var overHighlight = false
+
+    static let width: CGFloat = 13
+
+    var body: some View {
+        Image(systemName: "exclamationmark.triangle.fill")
+            .font(.system(size: 10))
+            .foregroundStyle(overHighlight ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
+            .frame(width: Self.width)
+            .help(lifecycle.caskHelp)
+            .accessibilityLabel(lifecycle.caskHelp)
+    }
+}
+
+/// A Brew-tree row for a cask that installs no app (a CLI, a font) and that
+/// Homebrew deprecated or disabled: without it nothing would say so, since such a
+/// cask has a row only while it's outdated.
+private struct BrewLifecycleCaskSidebarRow: View {
+    let cask: BrewCaskLifecycle
+    var isSelected = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            FormulaIcon(name: cask.token, size: 22)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(cask.token).font(.body).lineLimit(1)
+                Text("\(cask.installedVersion) · \(cask.lifecycle.statusText)")
+                    .font(.caption)
+                    .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+/// The detail pane for an app-less deprecated cask: what Homebrew says about it.
+private struct BrewLifecycleCaskDetailPane: View {
+    let cask: BrewCaskLifecycle
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                FormulaIcon(name: cask.token, size: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(cask.token).font(.title2).fontWeight(.semibold)
+                    Text(cask.installedVersion)
+                        .font(.callout).foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                Spacer()
+            }
+            .padding(16)
+            BrewLifecycleNotice(name: cask.token, lifecycle: cask.lifecycle, isCask: true)
+                .padding(.horizontal, 16)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+extension BrewLifecycle {
+    /// The app row mark's tooltip.
+    var caskHelp: String {
+        switch stage {
+        case .deprecated: String(localized: "Homebrew has deprecated the cask this app was installed with")
+        case .disabled: String(localized: "Homebrew has disabled the cask this app was installed with")
+        }
     }
 }
 

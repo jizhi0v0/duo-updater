@@ -202,9 +202,21 @@ the update chain to verify who signed the thing replacing your app.
 
 There is no telemetry, no analytics SDK, and no server of ours. Every network
 request goes straight to the vendor whose app is being checked (or to
-`api.github.com` / `formulae.brew.sh`), and carries nothing about you beyond what
+`api.github.com` / `formulae.brew.sh`, and for formula icons the sites named
+just below), and carries nothing about you beyond what
 that request needs: the app's own version, so a vendor feed can answer for the
 right channel.
+
+**Homebrew formula icons.** For a formula DuoUpdater bundles no logo for, the
+Brew list shows the formula's own icon, fetched when its row first appears. It is
+asked for only where the project itself publishes one: the formula's homepage
+(the page's icon links, then `/favicon.ico`), or, for a project on GitHub,
+`api.github.com/users/<owner>` and, when the owner is an organisation, its
+avatar on `avatars.githubusercontent.com`. A person's avatar is never fetched,
+and code-hosting sites (SourceForge, GitLab and the like) are not asked. Each of
+those sites, and GitHub, can therefore tell that a formula of theirs is installed
+on this Mac. Icons are cached on disk; a formula with none is not asked again
+for a week.
 
 Four things are worth calling out explicitly, because they involve reading
 outside our own container:

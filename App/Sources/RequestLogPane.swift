@@ -949,6 +949,7 @@ struct RequestLogPane: View {
         case .versionCheck:   return .green
         case .changelog:      return .teal
         case .changelogImage: return .mint
+        case .packageIcon:    return .yellow
         case .other:          return .gray
         }
     }
@@ -961,6 +962,7 @@ struct RequestLogPane: View {
         case .versionCheck:   return String(localized: "Update checks")
         case .changelog:      return String(localized: "Release notes")
         case .changelogImage: return String(localized: "Release-note images")
+        case .packageIcon:    return String(localized: "Package icons")
         case .other:          return String(localized: "Other")
         }
     }
@@ -976,6 +978,7 @@ struct RequestLogPane: View {
         case .versionCheck:   return "check"
         case .changelog:      return "notes"
         case .changelogImage: return "images"
+        case .packageIcon:    return "icons"
         case .other:          return "other"
         }
     }

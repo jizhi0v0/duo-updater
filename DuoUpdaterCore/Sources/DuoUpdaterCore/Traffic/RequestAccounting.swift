@@ -15,6 +15,9 @@ public enum RequestPurpose: String, Codable, Sendable, CaseIterable {
     case changelog
     /// An image referenced by a changelog we already fetched.
     case changelogImage
+    /// A package's icon, and the page it is linked from: a Homebrew formula's
+    /// homepage icon or its GitHub owner's avatar (`BrewFormulaIconService`).
+    case packageIcon
     /// A bulk catalog: the Homebrew cask/formula index. Rare but large.
     case catalog
     /// An app's installer — the bytes that end up on disk. Also counted per-app
@@ -30,7 +33,7 @@ public enum RequestPurpose: String, Codable, Sendable, CaseIterable {
     /// Display order for a breakdown: heaviest-by-nature first, so a report reads
     /// top-down even before the numbers arrive.
     public static let displayOrder: [RequestPurpose] =
-        [.install, .selfUpdate, .catalog, .versionCheck, .changelog, .changelogImage, .other]
+        [.install, .selfUpdate, .catalog, .versionCheck, .changelog, .changelogImage, .packageIcon, .other]
 }
 
 /// Which of our two binaries made the request.

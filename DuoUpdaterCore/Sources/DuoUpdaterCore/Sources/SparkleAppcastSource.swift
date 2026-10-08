@@ -694,7 +694,8 @@ struct SparkleAppcastItem {
     /// into a structured changelog so the notes render natively instead of falling
     /// back to a web view. Localized the same way `descriptionHTML` is.
     var markdownDescription: String?
-    /// `<pubDate>` — the item's publish date, verbatim. RSS spells this many ways
+    /// `<pubDate>` — the item's publish date, verbatim; `<pubdate>` (Arc, Dia)
+    /// when the item has no `<pubDate>`. RSS spells this many ways
     /// (RFC822, ISO8601, or a bare Unix epoch as Surge does); kept raw and
     /// normalized only when we build a changelog entry.
     var pubDate: String?
@@ -925,6 +926,17 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
     /// reports "no source applied" — Rectangle and Keka were both invisible for
     /// exactly this reason, with no error anywhere to say so.
     private var deltasDepth = 0
+    /// The current item's `<pubdate>`, all lowercase — how Arc's and Dia's
+    /// appcasts spell every date. Held aside rather than written to `pubDate`
+    /// directly, and used at `</item>` only when the item has no `<pubDate>`, so
+    /// a feed carrying both reads exactly what it read before, in either order.
+    ///
+    /// Sparkle itself matches `pubDate` case-sensitively and never sees this
+    /// spelling, so this reads more than Sparkle does. That is safe here because
+    /// the date decides nothing about which build is offered: it feeds the
+    /// release timeline and the changelog rail's date. (Sparkle's one decision
+    /// that reads the date, phased rollout, is not something this parser does.)
+    private var lowercasePubDate: String?
 
     // MARK: - Namespace resolution
 
@@ -1081,6 +1093,7 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             // Whatever is still in the table belongs to an item that is over. See
             // `applyLocalizedChildren` for why the reset lives here.
             localizedChildren.removeAll(keepingCapacity: true)
+            lowercasePubDate = nil
         case "enclosure":
             // Inside <sparkle:deltas> this is a patch, not the release download.
             // Collected rather than merely skipped: it is the same release, reachable
@@ -1230,10 +1243,14 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             recordLocalized("markdownDescription", text)
         case "pubDate":
             if current?.pubDate == nil, !text.isEmpty { current?.pubDate = text }
+        case "pubdate":
+            // Only a fallback for an item with no `<pubDate>`; see `lowercasePubDate`.
+            if lowercasePubDate == nil, !text.isEmpty { lowercasePubDate = text }
         case "item":
             // Before appending: the localized children can only be resolved once
             // every variant in this item has been seen.
             applyLocalizedChildren()
+            if current?.pubDate == nil { current?.pubDate = lowercasePubDate }
             if let item = current { items.append(item) }
             current = nil
         default:

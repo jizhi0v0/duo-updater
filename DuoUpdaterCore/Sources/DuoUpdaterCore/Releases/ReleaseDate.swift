@@ -16,7 +16,9 @@ import Foundation
 ///     apart by `date(fromDigits:)`, whose rules are documented there
 ///
 /// Some feeds only ever publish a bare calendar day, no time — most commonly
-/// dashed (`"2026-08-31"`). `parse` returns nil for that spelling rather than
+/// dashed (`"2026-08-31"`) — or a time with no zone in a shape that is read as a
+/// day for that reason (`"Oct 2, 2026 at 9:47:01 PM"`, Arc and Dia; see
+/// `date(fromZonelessMediumStyle:)`). `parse` returns nil for those rather than
 /// fabricating a midnight moment the vendor never stated — the release timeline
 /// only plots a `publishedAt` it can trust to the minute (see
 /// `ReleaseTimelineStore`). Use ``parseWithPrecision(_:)`` (or the even more
@@ -39,8 +41,9 @@ public enum ReleaseDate {
     /// format we don't recognize. Never throws — an unparseable date just means
     /// "no authoritative release time", which the timeline records as absent.
     ///
-    /// Returns nil for a *dashed* date-only day (`"2026-08-31"`) — see
-    /// ``parseWithPrecision(_:)`` for that case — but NOT for a *bare-digit*
+    /// Returns nil for a *dashed* date-only day (`"2026-08-31"`) and for the
+    /// zone-less `"Oct 2, 2026 at 9:47:01 PM"` — see ``parseWithPrecision(_:)``
+    /// for those — but NOT for a *bare-digit*
     /// date-only day (`"20260831"`): that one still comes back as a plain `Date`,
     /// unchanged pre-existing behavior explained on ``ReleaseDate`` above. Moot
     /// for every production caller since #300 (none call `parse` any more), but
@@ -262,7 +265,8 @@ extension ReleaseDate {
         /// and minutes. This is the only precision `ReleaseTimeline.publishedAt`
         /// may hold; it is what lets the release-habit heatmap trust the hour.
         case minute
-        /// The vendor stated only a calendar day (`"2026-08-31"`). Real
+        /// The vendor stated only a calendar day (`"2026-08-31"`), or a time
+        /// with no zone that is read as its day (`"Oct 2, 2026 at 9:47:01 PM"`). Real
         /// information, but any hour we assigned it would be invented — we don't
         /// even know what time zone the vendor meant. Must flow only as
         /// `ReleaseTimeline.vendorDay`, never as `publishedAt`.
@@ -287,7 +291,9 @@ extension ReleaseDate {
     /// collapsing every result to "trustworthy to the minute". Shares every
     /// formatter and gate `parse` uses — same acceptance, same rejections — so the
     /// two can never answer "is this parseable?" differently; only what happens to
-    /// a bare calendar day changes.
+    /// a bare calendar day changes. One shape is read here and not by `parse` at
+    /// all: the zone-less `"Oct 2, 2026 at 9:47:01 PM"`, tried after every other
+    /// shape and returned at `.day` precision (`date(fromZonelessMediumStyle:)`).
     ///
     /// Nil under the exact conditions `parse` returns nil: empty, unparseable, or
     /// (unlike `parse`) never for a *bare-digit* `yyyyMMdd` — that shape still
@@ -327,8 +333,59 @@ extension ReleaseDate {
             }
         }
 
+        // Last, so it only ever sees a string every shape above rejected: no
+        // string that already parsed can read differently because of it.
+        if let value = date(fromZonelessMediumStyle: trimmed) {
+            return Parsed(date: value, precision: .day)
+        }
+
         return nil
     }
+
+    /// `"Oct 2, 2026 at 9:47:01 PM"` — what an en_US `DateFormatter` prints at
+    /// `.medium` date and time style (`MMM d, y 'at' h:mm:ss a`). Arc's and Dia's
+    /// appcasts write every `<pubdate>` this way. macOS 14+ prints U+202F (narrow
+    /// no-break space) before the AM/PM marker, which both feeds carry; earlier
+    /// releases printed a plain space. Both are accepted, nothing else.
+    ///
+    /// The string names no time zone, so it is read at `.day` precision: the
+    /// calendar day as written, at the start of that day in UTC, exactly as a
+    /// dashed `"2026-10-02"` is. The time of day is read only to check it is a
+    /// real one, then dropped — assuming a zone to keep it would invent an hour
+    /// for the release-habits heatmap that may be off by up to 14 hours. The day
+    /// itself is the vendor's local day; the UTC day the release fell on can
+    /// differ by one, the same caveat every `.day` value carries.
+    ///
+    /// Only ``parseWithPrecision(_:)`` calls this; `parse` returns nil for this
+    /// shape, as it does for a dashed day. Shape-gated for the same reason as
+    /// `date(fromDashedCalendarDay:)`: the formatter alone accepts more than this
+    /// wire format: "October", a lowercase "pm", a non-breaking space, full-width
+    /// digits, and a two-digit year, which it reads as the year 26.
+    private static func date(fromZonelessMediumStyle value: String) -> Date? {
+        guard value.range(of: zonelessMediumStyleShape, options: .regularExpression) != nil,
+              let moment = zonelessMediumStyle.date(from: value)
+        else { return nil }
+        return utcCalendar.startOfDay(for: moment)
+    }
+
+    private static let zonelessMediumStyleShape =
+        "^[A-Z][a-z]{2} [0-9]{1,2}, [0-9]{4} at [0-9]{1,2}:[0-9]{2}:[0-9]{2}[ \u{202F}](AM|PM)$"
+
+    private static let zonelessMediumStyle: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.isLenient = false
+        f.dateFormat = "MMM d, yyyy 'at' h:mm:ss a"
+        return f
+    }()
+
+    private static let utcCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }()
 
     /// Split a raw feed date string into the one field it may honestly fill,
     /// per ``Precision``: a real time of day becomes `publishedAt` — the only

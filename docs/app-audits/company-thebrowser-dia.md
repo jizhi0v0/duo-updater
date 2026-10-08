@@ -34,7 +34,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable | `company.thebrowser.dia` | 共享 | — | stable 构建的 `SUFeedURL` | ✓ |
-| beta（Early Birds，feed 叫 Release Candidate） | `company.thebrowser.dia` | 共享 | 包内 `BCNYReleaseType` = `Release Candidate`、图标 `AppIconBeta`（duo 都不读）；应用内选择存在哪里**没查到** | feed-swap：RC 构建的 `SUFeedURL` 本身就指向 RC feed；stable 构建在运行时覆盖 feed（推断） | 半 ✓（见下） |
+| beta（Early Birds，feed 叫 Release Candidate） | `company.thebrowser.dia` | 共享 | 包内 `BCNYReleaseType` = `Release Candidate`（duo 据此判 rc，#1069）、图标 `AppIconBeta`；应用内选择存在哪里**没查到** | feed-swap：RC 构建的 `SUFeedURL` 本身就指向 RC feed；stable 构建在运行时覆盖 feed（推断） | 半 ✓（见下） |
 | dev / canary / prototype / PR | 同上 | 共享 | — | 内部 | ✗ |
 
 **轨道怎么来的（从 stable 1.51.1 主程序 `Contents/MacOS/Dia` 的字符串读出，属客户端能力，不是服务端事实）:**
@@ -83,8 +83,9 @@ RC 地址不是猜的：主机 + 二进制里的 `release-candidate/<UUID>` + �
 - stable 构建 → 读 stable feed（`channel-verify`：1.51.0 → UPDATE 1.51.1；1.51.1 → up to date）。
 - RC 构建 → 读它自己 `SUFeedURL` 里的 RC feed（`channel-verify`：1.52.0 → up to date，下载 URL 在
   RC 目录下）。所以**已经装上 RC 构建**的副本跟的是 RC 轨。
-- 但 `detected channel` 对 RC 构建报 **stable**：包里的轨道标记 `BCNYReleaseType`（stable 包为
-  `Release`，RC 包为 `Release Candidate`）`ReleaseChannel.detect()` 不读，也没有 `ChannelBinding`。
+- `detected channel`：`ReleaseChannel.detect()` 读包里的轨道标记 `BCNYReleaseType`（stable 包为
+  `Release`，RC 包为 `Release Candidate`），RC 构建报 **rc**（#1069；之前报 stable）。只改行上显示的渠道，
+  不改推送：没有 `ChannelBinding`，`SparkleAppcastSource` 仍按已装 build 匹配到的 feed 条目定渠道，两条轨的条目都不带标签。
 
 **缺口（与 Arc 同形）:**
 
@@ -96,7 +97,9 @@ RC 地址不是猜的：主机 + 二进制里的 `release-candidate/<UUID>` + �
 2. **RC 构建上退出 Early Birds**（推断，未验证）：Dia 说退回 stable 最长要一周，期间应是运行时覆盖
    改成 release、等 stable 版本号超过已装的 RC。duo 仍读包里的 RC `SUFeedURL`，会把**下一个 RC** 推给
    已经退出的用户，属跨渠道推送。要先读到退出后偏好里写的是什么，才能确认。
-3. RC 构建被标成 stable，非 stable 一键安装要求的 `ChannelProofRegistry` 闸也就不会触发。
+3. （更正）这里原来写「RC 构建被标成 stable，非 stable 一键安装要求的 `ChannelProofRegistry` 闸也就不会触发」，
+   前提不成立：`ChannelProofRegistry` 只管 duo 自己选渠道的三类（vendor recipe、GitHub rule、`ChannelBinding`），
+   一键安装路径上没有按渠道触发的 proof 闸。RC 拷贝读的是包里自带的 `SUFeedURL`，渠道不是 duo 选的，没有可登记的 proof。
 
 ## 更新检测
 - 源: `SparkleAppcastSource`（`feed-discover`：`declared https://releases.diabrowser.com/BoostBrowser-updates.xml`）
@@ -173,7 +176,6 @@ RC 地址不是猜的：主机 + 二进制里的 `release-candidate/<UUID>` + �
 ## 已知问题
 - 已在应用内加入 Early Birds、但还是 stable 构建时：duo 报 up to date，Dia 自己会推 RC（缺口 1）
 - RC 构建退出 Early Birds 后，duo 可能推下一个 RC（缺口 2，推断，未验证）
-- RC 构建的 `detected channel` 是 stable（`BCNYReleaseType` 未读）
 - `latest` 显示为 `1.51.1 (88214)`（feed 的 `shortVersionString` 原样）
 - 发布日期只到「日」（feed 无时区，#1066 的处理）
 
@@ -182,9 +184,8 @@ RC 地址不是猜的：主机 + 二进制里的 `release-candidate/<UUID>` + �
    `switch-to-beta-enabled` 控制，没获批就看不到偏好怎么存（`updateChannelOverride` 是推断）。
    已装 RC 构建的拷贝 duo 已经跟随。与 Arc 不同的是 Dia 仍在积极开发，RC 每周领先一个 minor，
    缺口 1 对 Dia 的价值比对 Arc 高；如果有获批的账号，值得在真 app 上拨开关读一次偏好再决定。
-2. 让 `ReleaseChannel.detect()` 读 `Info.plist` 的 `BCNYReleaseType`（`Release Candidate` → beta），
-   Arc 与 Dia 共用这一条；并给 RC 轨登记 `ChannelProofRegistry`（证据：RC 1.52.0 (88244) 真包，bundle id
-   与 Team 同 stable，`BCNYReleaseType` = `Release Candidate`，`SUFeedURL` 指向 RC 目录）。
+2. （已做，#1069）`ReleaseChannel.detect()` 读 `BCNYReleaseType`，`Release Candidate` → `.rc`，Arc 与 Dia 共用。
+   不登记 `ChannelProofRegistry`，理由见「缺口」第 3 条。
 3. 一键端到端第二轮：Dia 运行中、它自己的更新器也拿到同一版时，两边会不会冲突。
 
 ## 如何复验
@@ -215,7 +216,7 @@ strings -a new/Dia.app/Contents/MacOS/Dia \
 |---|---|---|---|---|---|---|---|---|
 | stable 1.51.0 | `company.thebrowser.dia` | 1.51.0 / 88065 | S6N382Y83G | `/BoostBrowser-updates.xml` | `Release` | stable | **UPDATE → 1.51.1 (88214)** | source structured: 4 entries; 14 items, headings [] |
 | stable 1.51.1 | 同上 | 1.51.1 / 88214 | S6N382Y83G | `/BoostBrowser-updates.xml` | `Release` | stable | **up to date** | 同上 |
-| RC 1.52.0 | 同上 | 1.52.0 / 88244 | S6N382Y83G | `/release-candidate/D5B6…/BoostBrowser-updates.xml` | `Release Candidate` | stable（应为 beta） | up to date（读 RC feed） | raw inline notes, 211 chars, no structure |
+| RC 1.52.0 | 同上 | 1.52.0 / 88244 | S6N382Y83G | `/release-candidate/D5B6…/BoostBrowser-updates.xml` | `Release Candidate` | stable（#1069 起为 rc） | up to date（读 RC feed） | raw inline notes, 211 chars, no structure |
 
 三个包 `codesign --verify --deep --strict` 退出 0，`spctl` 来源 `Notarized Developer ID`，`lipo -archs` 均为 `arm64`。
 `feed-discover`：1.51.1 为 `declared  https://releases.diabrowser.com/BoostBrowser-updates.xml`；RC 1.52.0 为

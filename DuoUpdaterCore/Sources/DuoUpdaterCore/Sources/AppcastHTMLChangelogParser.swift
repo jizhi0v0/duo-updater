@@ -69,10 +69,11 @@ enum AppcastHTMLChangelogParser {
     /// category titles — folding each heading in as its own line immediately
     /// before the items under it, so "Added" / "Fixed" style sections land in the
     /// right place in the flattened `items` list instead of getting shuffled or
-    /// dropped.
+    /// dropped. Readable text between those matches (a bare sentence or `<p>`
+    /// outside the lists) is kept too, one item per paragraph, in place.
     ///
     /// Returns nil (never throws) when `isStructured` is false, `version` is
-    /// empty, or nothing survives cleaning — the caller falls back to the raw
+    /// empty, or no `<li>` survives cleaning — the caller falls back to the raw
     /// HTML path in every one of those cases.
     static func entry(html: String, version: String, date: String?) -> Changelog.Entry? {
         guard !version.isEmpty, isStructured(html) else { return nil }
@@ -94,8 +95,30 @@ enum AppcastHTMLChangelogParser {
 
         var items: [String] = []
         var pendingHeading: String?
+        var cursor = 0
+        var listItems = 0
+
+        // Text the vendor wrote OUTSIDE any heading or `<li>` — a bare sentence or
+        // `<p>` before, between or after the lists. Rectangle's 2.0.2 opens with
+        // the one sentence that describes 2.0.2 and then repeats 2.0's bullets, so
+        // reading only the matches showed 2.0's notes under 2.0.2's number. Kept in
+        // document order, a heading still pending goes first (the text sits under
+        // it). `gapParagraphs` drops what is chrome rather than content.
+        func takeGap(upTo end: Int) {
+            guard end > cursor else { return }
+            for text in gapParagraphs(ns.substring(with: NSRange(location: cursor, length: end - cursor))) {
+                if let heading = pendingHeading {
+                    items.append(heading)
+                    pendingHeading = nil
+                }
+                items.append(text)
+            }
+        }
 
         for match in matches {
+            takeGap(upTo: match.range.location)
+            cursor = match.range.location + match.range.length
+
             let headingRange = match.range(at: 2)   // group 1 is the heading level
             let itemRange = match.range(at: 3)
 
@@ -120,13 +143,55 @@ enum AppcastHTMLChangelogParser {
                 pendingHeading = nil
             }
             items.append(cleaned)
+            listItems += 1
         }
+        takeGap(upTo: ns.length)
 
-        guard !items.isEmpty else { return nil }
+        // At least one real `<li>` must have survived: kept prose alone is the
+        // "one bullet per paragraph" shape the type doc says the fallback renders
+        // better.
+        guard listItems > 0 else { return nil }
         return Changelog.Entry(version: version, date: date, items: items)
     }
 
     // MARK: - Internals
+
+    /// Block-level tags a gap (the HTML between two heading/`<li>` matches) is cut
+    /// into paragraphs on. `<br>` is deliberately absent: a line break inside one
+    /// paragraph joins with a space, as it does inside an `<li>`.
+    private static let gapBlockRegex = try? NSRegularExpression(
+        pattern: #"<\s*/?\s*(?:p|div|ul|ol|li|h[1-6]|hr|blockquote|section|table|tr|pre)\b[^>]*>"#,
+        options: [.caseInsensitive])
+
+    /// The readable paragraphs in a gap, in order. Dropped, because they are
+    /// chrome rather than notes:
+    /// - whitespace and empty paragraphs (`cleanInline` returns nil);
+    /// - a paragraph with no letter or digit OUTSIDE its links — Rectangle's
+    ///   `<p><a href="…/releases/tag/v2.0">Details</a></p>` and bare
+    ///   `<a href="…/versions">Recent version history</a>` on every item, and
+    ///   TablePlus's/Proxyman's `<h2><a href='…'>Older change logs.</a><h2>`
+    ///   footers (mistyped closer, so they reach here instead of the heading arm).
+    ///   A link inside a sentence keeps the sentence; a properly closed heading
+    ///   that is a link never reaches here at all;
+    /// - a "Release date: …" line, for the same reason the heading arm drops it.
+    private static func gapParagraphs(_ gap: String) -> [String] {
+        guard let gapBlockRegex else { return [] }
+        let marked = gapBlockRegex.stringByReplacingMatches(
+            in: gap, range: NSRange(gap.startIndex..., in: gap), withTemplate: "\u{0}")
+        return marked.split(separator: "\u{0}").compactMap { piece in
+            let raw = String(piece)
+            guard let cleaned = cleanInline(raw), !looksLikeDateOnly(cleaned) else { return nil }
+            var outsideLinks = raw
+            if let anchorRegex {
+                outsideLinks = anchorRegex.stringByReplacingMatches(
+                    in: raw, range: NSRange(raw.startIndex..., in: raw), withTemplate: "")
+            }
+            let rest = ChangelogExtractor.decodeHTMLEntities(
+                ChangelogExtractor.stripHTMLElements(outsideLinks))
+            guard rest.rangeOfCharacter(from: .alphanumerics) != nil else { return nil }
+            return cleaned
+        }
+    }
 
     /// Matches the common Sparkle boilerplate "Release date: 12 August 2026" (and
     /// bare "Release date" with no value) so it can be dropped as metadata rather

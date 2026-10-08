@@ -112,12 +112,13 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
         // The "Release date: …" h4 duplicates `entry.date` and must not appear.
         XCTAssertFalse(entry.items.contains { $0.lowercased().hasPrefix("release date") })
         // The trailing footer headings are pure links to other pages, not section
-        // titles. They are dropped because the vendor closes them with `<h2>` rather
-        // than `</h2>`, so the level-matched heading pattern never matches them —
-        // NOT by any filter aimed at them. (There used to be one, guessing that a
-        // heading made entirely of a link is chrome. It was removed: deleting it
-        // changed this feed's output not at all, and it would have dropped a real
-        // section title like `<h3><a href="…">What's new in 2.0</a></h3>`.)
+        // titles. The vendor closes them with `<h2>` rather than `</h2>`, so the
+        // level-matched heading pattern never matches them; they land in the text
+        // outside the lists, where a paragraph with nothing readable outside its
+        // links is dropped as chrome. (A properly closed heading is never judged
+        // that way: a filter guessing that a heading made entirely of a link is
+        // chrome was removed, because it would have dropped a real section title
+        // like `<h3><a href="…">What's new in 2.0</a></h3>`.)
         XCTAssertFalse(entry.items.contains("Older change logs."))
         XCTAssertFalse(entry.items.contains("Bug report."))
         // The three real <ol><li> change lines all survive, in order.
@@ -416,9 +417,11 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
             + "<h3>Added</h3><ul><li>Dark mode</li></ul>"
         let entry = try XCTUnwrap(
             AppcastHTMLChangelogParser.entry(html: html, version: "1.0", date: nil))
-        // The mistyped heading is lost — unavoidable, it isn't a heading — but every
-        // bullet survives, and the well-formed heading still lands in place.
-        XCTAssertEqual(entry.items, ["Crash on launch", "Slow startup", "Added", "Dark mode"])
+        // The mistyped heading doesn't match as a heading, but its text sits
+        // outside every `<li>`, so it is kept in place as bare text — which reads
+        // the same as a heading would. Every bullet survives, and the well-formed
+        // heading still lands in place.
+        XCTAssertEqual(entry.items, ["Fixed", "Crash on launch", "Slow startup", "Added", "Dark mode"])
     }
 
     /// TablePro writes SQL placeholders as literal angle brackets inside CDATA.
@@ -446,4 +449,108 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
             AppcastHTMLChangelogParser.entry(html: html, version: "1.0", date: nil))
         XCTAssertEqual(entry.items, ["Line one Line two", "First para. Second para."])
     }
+
+    // MARK: - Text outside the lists
+
+    /// Rectangle's live appcast (`rectangleapp.com/downloads/updates.xml`, fetched
+    /// 2026-10-08), item 2.0.2: the one sentence that describes 2.0.2 is bare text
+    /// ahead of the list, then a `<p>v2.0:</p>` label, then v2.0's five bullets
+    /// repeated. Reading only headings and `<li>` dropped both, so the pane showed
+    /// 2.0's notes under 2.0.2's number. Run through the production path
+    /// (`SparkleAppcastParser` → `SparkleAppcastSource.structuredChangelog`).
+    func testRectangleBareSentenceBeforeTheListIsKept() throws {
+        let xml = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+        <channel>
+          <item>
+            <title>2.0.2</title>
+            <sparkle:version>109</sparkle:version>
+            <sparkle:shortVersionString>2.0.2</sparkle:shortVersionString>
+            <description><![CDATA[\(Self.rectangle202Description)]]></description>
+          </item>
+        </channel>
+        </rss>
+        """
+        let parsed = SparkleAppcastParser.parse(xml.data(using: .utf8)!)
+        let changelog = try XCTUnwrap(SparkleAppcastSource.structuredChangelog(from: parsed))
+        XCTAssertEqual(changelog.entries.map(\.version), ["2.0.2"])
+        XCTAssertEqual(changelog.entries.first?.items, [
+            "v2.0.2: Fixes a couple of issues for macOS 15 and earlier, introduced in v2.0",
+            "v2.0:",
+            "The Rectangle UI has been redesigned to maintain simplicity while allowing for more changes and additions.",
+            "Several extra settings are now more easily accessible within the UI.",
+            "The Rectangle App Icon has been updated for macOS 27.",
+            "There are many improvements around maximizing windows and moving windows across displays.",
+            "In the Shortcuts tab, there are more actions in an Extras section, and in the Behavior tab (previously called General) there are several new toggles and features.",
+        ])
+    }
+
+    /// Every Rectangle item ends in `<p><a …>Details</a></p>` and a bare
+    /// `<a …>Recent version history</a>` — links to other pages, not notes. Text
+    /// outside the lists is kept only when something readable sits outside its
+    /// links. 2.0.3 from the same fetch: four bullets and nothing else.
+    func testLinkOnlyTextOutsideTheListsIsDropped() throws {
+        let entry = try XCTUnwrap(AppcastHTMLChangelogParser.entry(
+            html: Self.rectangle203Description, version: "2.0.3", date: nil))
+        XCTAssertEqual(entry.items, [
+            "Various bug fixes for the v2 redesign.",
+            "Stacked windows can now be cycled through using keyboard shortcuts configured in the Behavior tab.",
+            "Closing tabs in Chrome now will not trigger double-click the maximize in Rectangle.",
+            "Full-height vertical eighth window actions have been added, configurable only via Terminal command for now.",
+        ])
+    }
+
+    /// Constructed: the other things outside a list that are not notes, plus one
+    /// that is (a sentence with a link in it keeps the sentence and the link text).
+    func testEmptyParagraphsDateLinesAndWhitespaceOutsideTheListsAreDropped() throws {
+        let html = """
+        <p></p>
+        <p>&nbsp;</p>
+        <p>Release date: 12 August 2026</p>
+        <p> | <a href="https://example.invalid/a">Download</a> | </p>
+        <p>See the <a href="https://example.invalid/b">migration guide</a> first.</p>
+        <ul><li>One change</li></ul>
+        <br>
+        """
+        let entry = try XCTUnwrap(
+            AppcastHTMLChangelogParser.entry(html: html, version: "1.0", date: nil))
+        XCTAssertEqual(entry.items, ["See the migration guide first.", "One change"])
+    }
+
+    /// Kept prose is an addition to a list, never a replacement for one: when no
+    /// `<li>` survives cleaning, the body still goes to the HTML fallback rather
+    /// than coming out as one bullet per paragraph.
+    func testProseWithOnlyEmptyListItemsStillFallsBack() {
+        let html = "<p>This release focuses on stability.</p><ul><li> </li></ul><p>Thanks!</p>"
+        XCTAssertNil(AppcastHTMLChangelogParser.entry(html: html, version: "1.0", date: nil))
+    }
+
+    /// Byte-real inner lines of Rectangle 2.0.2's CDATA (2026-10-08); only the
+    /// whitespace before the first line and after the last is trimmed.
+    private static let rectangle202Description = """
+                    v2.0.2: Fixes a couple of issues for macOS 15 and earlier, introduced in v2.0
+                    <p>v2.0:</p>
+                    <ul>
+                        <li>The Rectangle UI has been redesigned to maintain simplicity while allowing for more changes and additions.</li>
+                        <li>Several extra settings are now more easily accessible within the UI.</li>
+                        <li>The Rectangle App Icon has been updated for macOS 27.</li>
+                        <li>There are many improvements around maximizing windows and moving windows across displays.</li>
+                        <li>In the Shortcuts tab, there are more actions in an Extras section, and in the Behavior tab (previously called General) there are several new toggles and features.</li>
+                    </ul>
+                    <p><a href="https://github.com/rxhanson/Rectangle/releases/tag/v2.0">Details</a></p>
+                    <a href="https://rectangleapp.com/versions">Recent version history</a>
+    """
+
+    /// Rectangle 2.0.3, same fetch and same trimming as above.
+    private static let rectangle203Description = """
+                    <ul>
+                        <li>Various bug fixes for the v2 redesign.</li>
+                        <li>Stacked windows can now be cycled through using keyboard shortcuts configured in the Behavior tab.</li>
+                        <li>Closing tabs in Chrome now will not trigger double-click the maximize in Rectangle.</li>
+                        <li>Full-height vertical eighth window actions have been added, configurable only via Terminal command for now.</li>
+                    </ul>
+                    <p><a href="https://github.com/rxhanson/Rectangle/releases/tag/v2.0">Details</a></p>
+                    <a href="https://rectangleapp.com/versions">Recent version history</a>
+    """
 }

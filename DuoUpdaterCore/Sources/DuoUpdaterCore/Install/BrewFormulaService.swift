@@ -184,8 +184,10 @@ public struct BrewUncheckedPackage: Sendable, Identifiable, Equatable {
         /// until `brew migrate` runs, `brew outdated --formula --json=v2` exits 1
         /// ("alloy was renamed to alloy-analyzer and needs to be migrated"), while
         /// the plain `brew outdated` exits 0 — measured 2026-10-08, Homebrew 7.0.8,
-        /// a keg left under the old name. `brew update` migrates it only on the
-        /// run that sees the rename.
+        /// a keg left under the old name. A `brew update` that brings any change
+        /// migrates it (`migrate_formula_rename` walks every installed formula,
+        /// Homebrew 7.0.8 `update-report.rb`), so this lasts until such an update
+        /// runs — or past it, when that migration fails.
         case renamed(to: String)
         /// A homebrew/core formula homebrew/core no longer has, with no same-named
         /// cask and no rename: brew loads it from the keg's copy, as with

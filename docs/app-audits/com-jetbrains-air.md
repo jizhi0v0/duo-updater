@@ -114,13 +114,15 @@
 - Recipe 状态: 已有，有效
 
 ## 一键安装
-- 状态: **非 Toolbox 拷贝：需要验证**（通用 Sparkle 路径，前提都满足，端到端未跑）；**Toolbox 拷贝：不做**，
+- 状态: **非 Toolbox 拷贝：✓**（通用 Sparkle 路径）；**Toolbox 拷贝：不做**，
   行动作是「打开 Toolbox」（`requiresManualInstaller: true`）
-- 端到端: 未跑。本次审计约束是不往 `/Applications` 装、不启动 Air（agent 类 app，启动可能写 `~/.claude/skills`）。
-  预期路线：上一版 262.834.70 用 `ditto` 放进 `/Applications`、不启动，`duo check` 报 `update 262.1037.6`，
-  `duo install /Applications/Air.app --yes --json` 走 `route sparkle`（`SparkleInstaller`，dmg，EdDSA + Team 闸），
-  无 delta，`bytesDownloaded` 应为 297,841,397。**按路径装**：如果同一台机器还有 Toolbox 管理的另一份 Air，
-  按名字会撞到那一份
+- 端到端（2026-10-08，第一轮，不启动）: 上一版 262.834.70 用 `ditto` 放进 `/Applications`，`duo check` 报
+  `update 262.1037.6`、`route in-place`、`source Sparkle`；`duo install /Applications/Air.app --yes --json` →
+  `outcome installed`、`applied true`、`route sparkle`、`bytesDownloaded 297841397`（整包，feed 无 delta），约 36 s。
+  装后：版本 262.1037.6，bundle inode 变了，`codesign --verify --deep --strict` 通过，`spctl` `accepted`
+  （`Notarized Developer ID`），Team `2ZEFAR8TH3`；与厂商 262.1037.6 dmg 内的 `Air.app` 逐文件比 SHA-256，
+  1560 个文件全部相同，9 个软链接目标全部相同。**按路径装**：同一台机器若还有 Toolbox 管理的另一份 Air，
+  按名字会撞到那一份；那一份没有被动到
 - 格式: dmg（`Air-<build>-aarch64.dmg` / `Air-<build>.dmg`），包内只有 `Air.app`
 - 校验:
   - feed 有 `sparkle:edSignature`，包里 `SUPublicEDKey` = `U2jeSprto8p3VM94307OhPEaHn3Io31Cd48f5ti9nko=`（两个包相同）。
@@ -134,7 +136,7 @@
 - 嵌套: `Contents` 下只有 `Frameworks`（`Sparkle.framework`，含 `Updater.app`）、`MacOS`、`Resources`、`app`、`jbr`、
   `license`；没有 `Contents/Library/LoginItems` 或 `Contents/Helpers`，`find -name '*.app' -maxdepth 4` 无结果。
   `app/bin/jetbrainsd.tar.gz` 是个打包的守护进程（运行时解开，作用没查）
-- 阻塞: 无已知；端到端两轮都未跑
+- 阻塞: 无已知；第二轮（Air 运行中、它自己的 Sparkle 也拿到同一版）未跑
 
 ## 独立 app 与 IDE 插件
 
@@ -185,12 +187,11 @@
 - Toolbox 拷贝：API 先于 Toolbox 目录出新版本时（2026-10-08 观察到至少 34 分钟），行会提示一个 Toolbox 里还没有的版本
 - `ToolboxSource` 注释里「Air/Fleet 的 baked-in `SUFeedURL` 指向 nightly」对 Air 已不成立：两个 Public Preview 包都指向
   `eap`。Air 走 API 分支、不用 `retargetChannel`，所以不影响行为，只是注释过时（Fleet 那半没核）
-- 非 Toolbox 拷贝的一键端到端未跑；Air 自己的 Sparkle 与 duo 会不会冲突（第二轮）未跑
+- Air 自己的 Sparkle 与 duo 会不会冲突（一键第二轮）未跑
 - nightly 包没下载，bundle id / 能否在应用内切到 nightly 未知
 
 ## 建议下一步
-1. 跑非 Toolbox 拷贝的一键端到端第一轮（不运行）：上一版 262.834.70 放 `/Applications`，按路径 `duo install --yes --json`，
-   预期 `route sparkle`。第二轮需要启动 Air，先确认能接受它在启动时写 `~/.claude/skills`（启动前后对比）。
+1. 一键第二轮需要启动 Air，先确认能接受它在启动时写 `~/.claude/skills`（启动前后对比）。第一轮已过（见「一键安装」）。
 2. 想覆盖 nightly 再下 `plugins.jetbrains.com/fleet-parts/fleet-installer/macos_aarch64/AIR-262.1054-aarch64.dmg` 读
    bundle id 与 `SUFeedURL`；要查应用内有没有渠道开关，得启动 app，同上。
 3. 2026.3 正式版发布后（预计 11 月）重查：releases API `code=AIR`、eap feed、产品页，看独立 app 是否停发或改名。

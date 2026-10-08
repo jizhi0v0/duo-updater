@@ -1920,16 +1920,35 @@ final class AppListModel {
         return nil
     }
 
+    /// A token for a request made outside the full round, and the credentials
+    /// generation it belongs to.
+    ///
+    /// The requests carrying it must run under that generation
+    /// (`GitHubCredentials.$pinnedGeneration`), as the round's do: a change in
+    /// Settings can land while they are in flight, and the token they carry is
+    /// still the old one. Unpinned, a 401 to the old token would be recorded as a
+    /// rejection of the new credentials — stripping the new token and telling the
+    /// user it was rejected — and the old token's budget would reach the card
+    /// again (review, #1064).
+    struct GitHubTokenForRecheck {
+        let token: String?
+        let generation: Int
+    }
+
     /// The token for a per-app recheck: the most recent resolution, unless the
     /// explicit Settings value has changed since — then a fresh resolve, remembered
     /// in turn. See `resolvedGitHubToken` for what this can and cannot notice.
-    private func githubTokenForRecheck() async -> String? {
+    ///
+    /// The generation is read with the settings, in the same main-actor step, so
+    /// it names the credentials the token was resolved from even when a change
+    /// lands during the resolve.
+    private func githubTokenForRecheck() async -> GitHubTokenForRecheck {
         let explicit = explicitGitHubToken()
         let usesCLI = prefs.useGitHubCLIToken
-        if let cached = resolvedGitHubToken, cached.explicit == explicit, cached.usesCLI == usesCLI {
-            return cached.token
-        }
         let generation = GitHubCredentials.shared.generation
+        if let cached = resolvedGitHubToken, cached.explicit == explicit, cached.usesCLI == usesCLI {
+            return GitHubTokenForRecheck(token: cached.token, generation: generation)
+        }
         let token = await Self.resolveGitHubToken(explicit: explicit)
         // Not remembered when the credentials changed during the resolve: the
         // change's own resolve owns `resolvedGitHubToken`, and `hasGitHubToken`
@@ -1937,7 +1956,7 @@ final class AppListModel {
         if GitHubCredentials.shared.generation == generation {
             resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, usesCLI: usesCLI, token: token)
         }
-        return token
+        return GitHubTokenForRecheck(token: token, generation: generation)
     }
 
     /// The one place a change to the GitHub credentials reaches the model: the
@@ -3869,7 +3888,7 @@ final class AppListModel {
         // One task for the whole pass, through the recheck cache: the resolution is
         // shared by every formula below (a per-formula resolve would be N
         // subprocesses), and a later pass reuses what this one recorded.
-        let tokenTask = Task { [weak self] in await self?.githubTokenForRecheck() ?? nil }
+        let tokenTask = Task { [weak self] in await self?.githubTokenForRecheck() }
         for formula in pending {
             let version = formula.availableVersion ?? formula.installedVersion
             Task { [weak self] in
@@ -3882,7 +3901,8 @@ final class AppListModel {
                 // an open pane spinning on an entry nobody would ever fill.
                 let cached = await self.formulaReleaseService.cached(
                     for: formula.name, version: version)
-                let token = await tokenTask.value
+                guard let resolved = await tokenTask.value else { return }
+                let token = resolved.token
                 // No token and not on disk: stay deliberately lazy/on-select so a
                 // screenful of outdated formulae can't burn the 60/hr
                 // unauthenticated budget. Claiming nothing leaves the on-select
@@ -3906,8 +3926,10 @@ final class AppListModel {
                 // A token means we have budget, so fetch up front. We can't delegate
                 // to `ensureFormulaReleaseLoading` — its own guard would reject the
                 // slot we just claimed — so do the load it would do.
-                let release = await self.formulaReleaseService.release(
-                    for: formula.name, version: version, token: token)
+                let release = await GitHubCredentials.$pinnedGeneration.withValue(resolved.generation) {
+                    await self.formulaReleaseService.release(
+                        for: formula.name, version: version, token: token)
+                }
                 self.formulaReleases.finish(name: formula.name, version: version, release: release)
             }
         }
@@ -3925,7 +3947,17 @@ final class AppListModel {
     private func checkHomebrewSelfUpdate() async {
         homebrewCheckGeneration += 1
         let generation = homebrewCheckGeneration
-        let outcome = await HomebrewSelfUpdateCheck.run { await self.githubTokenForRecheck() }
+        // `run` asks for the token only once the config says an update may be
+        // offered, so the pin is the generation read before it starts, and a token
+        // resolved under a later one (a change in Settings meanwhile) is not sent
+        // under it (`GitHubTokenForRecheck`).
+        let credentialGeneration = GitHubCredentials.shared.generation
+        let outcome = await GitHubCredentials.$pinnedGeneration.withValue(credentialGeneration) {
+            await HomebrewSelfUpdateCheck.run {
+                let resolved = await self.githubTokenForRecheck()
+                return resolved.generation == credentialGeneration ? resolved.token : nil
+            }
+        }
         // A check started before a `brew update` read the old `brew config`; if it
         // lands after the update's own re-check it would put the stale offer back.
         guard generation == homebrewCheckGeneration else { return }
@@ -4126,8 +4158,10 @@ final class AppListModel {
         Task {
             // Through the cache, like the prewarm pass: selecting formula after
             // formula used to resolve a token — a subprocess — every single time.
-            let token = await githubTokenForRecheck()
-            let release = await formulaReleaseService.release(for: name, version: version, token: token)
+            let resolved = await githubTokenForRecheck()
+            let release = await GitHubCredentials.$pinnedGeneration.withValue(resolved.generation) {
+                await formulaReleaseService.release(for: name, version: version, token: resolved.token)
+            }
             formulaReleases.finish(name: name, version: version, release: release)
         }
     }
@@ -8548,7 +8582,7 @@ final class AppListModel {
         let others = [
             Task { @MainActor in
                 await self.cliTools.backgroundCheck(interval: interval) {
-                    await self.githubTokenForRecheck() != nil
+                    await self.githubTokenForRecheck().token != nil
                 }
             },
             Task { @MainActor in await self.backgroundRefreshHomebrew(interval: interval) },
@@ -9232,7 +9266,8 @@ final class AppListModel {
         let ids = Set(targets.map(\.id))
         guard !ids.isEmpty else { return [] }
         let toolbox = await Task.detached(priority: .userInitiated) { Self.toolboxInventory() }.value
-        let githubToken = await githubTokenForRecheck()
+        let resolved = await githubTokenForRecheck()
+        let githubToken = resolved.token
         let bundles = targets.map(\.app.path)
         // Scanned without TestFlight's store, which `ScanRowAssembly.recheck` reads
         // afterwards and only for a TestFlight row — so a post-install recheck
@@ -9261,7 +9296,9 @@ final class AppListModel {
         // drift apart.
         let sources = makeSources(token: githubToken)
         let maxConcurrency = prefs.maxConcurrency
-        let (rows, kept) = await ScanRowAssembly.recheck(
+        // Under the generation the token was resolved in, which is what these
+        // sources send even after a change in Settings (`GitHubTokenForRecheck`).
+        let (rows, kept) = await GitHubCredentials.$pinnedGeneration.withValue(resolved.generation) { await ScanRowAssembly.recheck(
             targets, scanned: fresh,
             mayRead: mayReadTestFlightStore,
             read: {
@@ -9290,7 +9327,7 @@ final class AppListModel {
                     appStoreSignedIn: signedIn,
                     channelStore: ResolvedChannelStore.shared)
                 return await checker.check(apps, freshening: true)
-            })
+            }) }
         // Said out loud, because nothing else will: the caller logs a kept row's
         // status next as if it were an answer, and on screen a kept row looks
         // exactly like a checked one.

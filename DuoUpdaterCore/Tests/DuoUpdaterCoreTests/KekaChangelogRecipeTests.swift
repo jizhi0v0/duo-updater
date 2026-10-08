@@ -84,17 +84,19 @@ private func headings(_ entry: Changelog.Entry) -> [String] {
     #expect(!newest.items.contains { $0.contains("👉") || $0.contains("maintenance release") })
 }
 
-/// 1.6.7's body restates 1.6.6 under `# Changes in version 1.6.6`. That
-/// heading has a digit, so it is not styled; the restated lines stay in the
-/// 1.6.7 entry under a second `Fixes`. Pinned so a parser change that starts
-/// splitting (or dropping) them is noticed.
-@Test func kekaHotFixEntryKeepsTheRestatedPreviousRelease() throws {
+/// 1.6.7's body restates 1.6.6 under `# Changes in version 1.6.6`. 1.6.6 is
+/// older than 1.6.7, so `GitHubMarkdownParser` drops that heading and
+/// everything under it: the entry is the hot fix alone. Its one `Fixes`
+/// heading has no sibling left, so it is not styled.
+@Test func kekaHotFixEntryDropsTheRestatedPreviousRelease() throws {
     let recipe = try kekaRecipe()
     let changelog = try #require(ChangelogService.parse(recipe, body: kekaReleasesFixture))
     let hotFix = try #require(changelog.entries.first { $0.version == "1.6.7" })
     #expect(hotFix.date == "2026-06-30")
-    #expect(hotFix.items.count == 9)
-    #expect(headings(hotFix) == ["Fixes", "Fixes", "Formats", "Translations"])
+    #expect(hotFix.items == [
+        "Reverted BSDTAR from 3.8.8 to 3.8.7 due to issues on macOS 26.5.2 (Thanks to @suishouen) #1762",
+    ])
+    #expect(headings(hotFix).isEmpty)
 }
 
 /// Dev builds never render as releases on a stable copy. The prerelease flag

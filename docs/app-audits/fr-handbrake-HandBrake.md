@@ -126,11 +126,10 @@ Sparkle 读的同一个地址；snapshot 包实测读 `appcast_unstable.arm64.xm
   `1.4.0-beta.1`；snapshot 在另一个仓库（`HandBrake-snapshots`），不在这个列表里。
   （推断，未实测：snapshot 包同 bundle id，也会拿到这条 recipe；它的版本串是时间戳，rail 上不会有
   匹配它的条目。）
-- 已知缺口: 解析器的 strict pass 丢掉缩进的子项。HandBrake 几乎每版都有一条 `Updated libraries`，
-  真正的内容（`FFmpeg 8.0.2 (decoding and filters)` 这类库与版本）全在它的子项里，于是 pane 里只剩
-  一条光秃秃的 `Updated libraries`；1.11.0 的预设说明、1.10.0 的「preserving additional metadata
-  including:」也一样。现有 recipe 字段改不了这个（`GitHubMarkdownParser` 只对 `**scope**:` 标签
-  保留子项），要保留得改共享解析器（并 bump `Changelog.parserGeneration`）。计数见「历史与实测」。
+- 嵌套子项: HandBrake 几乎每版都有一条 `Updated libraries`，库与版本（`FFmpeg 8.0.2 (decoding and
+  filters)` 这类）写在它的子项里。`GitHubMarkdownParser` 保留顶层 bullet 下的嵌套子项，每个库是
+  `Updated libraries` 之后的一条；1.11.0 的预设说明、1.10.0 的「preserving additional metadata
+  including:」同理。计数见「历史与实测」。
 - Recipe 状态: ✓
 
 ## 一键安装
@@ -153,7 +152,6 @@ Sparkle 读的同一个地址；snapshot 包实测读 `appcast_unstable.arm64.xm
   （读代码得出，未实测）。
 
 ## 已知问题
-- Changelog 窗格里每版的 `Updated libraries` 不带库名与版本（嵌套子项被解析器丢掉，见 Changelog 节）。
 - 老 Intel-only 包读 x86_64 feed 时，最新版本显示为 `1.11.2 x86_64`（比较正确，仅显示）。
 - snapshot 与正式版同 bundle id；duo 与 app 内 Sparkle 一样只看包自己的 feed，snapshot 用户在
   正式版构建号赶上之前看不到更新——这是厂商的设计，不是缺口。
@@ -191,9 +189,7 @@ swift run --package-path application-test channel-verify HandBrake-1.11.2.dmg   
 ```
 
 ## 建议下一步
-1. 结构化 changelog 已接（见 Changelog 节）。剩下的是 `Updated libraries` 的子项：要显示库名与版本，
-   得让 `GitHubMarkdownParser` 保留这类子项（共享解析器改动，影响所有 GitHub 源的 app，需要
-   bump `Changelog.parserGeneration` 并在各仓库上量回归），不是 recipe 能做的。未做，待定。
+1. 结构化 changelog 已接，`Updated libraries` 下的库名与版本也显示（见 Changelog 节）。
 2. 一键：第一轮端到端已跑通（1.11.1 → 1.11.2）；第二轮未跑。
 3. `CHANNEL_COVERAGE_TODO.md` 的 HandBrake 条目：结论（不需要单独接轨、无独立 bundle id、无 app 内开关）
    成立，但「snapshot 与 stable 同构建」不对——snapshot 是 `master` 的构建，版本串、签名、`SUFeedURL`
@@ -222,6 +218,8 @@ swift run --package-path application-test channel-verify HandBrake-1.11.2.dmg   
   `Updated libraries` 下（10 个 release 里 9 个有这一条）；其余是 1.11.0 预设说明 12 行、1.10.0
   「preserving additional metadata including:」下 3 行、1.9.0「Added new translations」下 1 行。
   1.11.2 丢的两行是 `FFmpeg 8.0.2 (decoding and filters)`、`SVT-AV1 4.1.0 (AV1 video encoding)`。
+  解析器改为保留顶层 bullet 下的嵌套子项之后（`Changelog.parserGeneration` 10）：这两行跟在
+  `Updated libraries` 之后，1.11.2 从 9 条变 11 条，1.11.1 从 2 条变 4 条（`HandBrakeChangelogRecipeTests`）。
 - `channel-verify`（GitHub `1.11.2` 资产 `HandBrake-1.11.2.dmg`，47,978,117 字节，
   sha256 `4afe27aa…5de9d7`）: 短版本 `1.11.2`，与 tag 相同。`changelog pane` 行，前（index 里临时去掉
   这个家族）: `web page https://handbrake.fr/appcast/stable.html, no structure`；后: `recipe

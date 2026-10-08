@@ -13,9 +13,8 @@ enum ai_opencode_desktop {
         // its `**Thank you to N community contributors:**` block.
         //
         // This used to scrape github.com/anomalyco/opencode/releases with a
-        // `<li>` item pattern, which also took that block: on 2026-10-08 the
-        // page's ten releases showed 3–5 `@handle: <pull-request title>` lines
-        // each after their real changes (v1.18.35: 5 items for 2 changes).
+        // `<li>` item pattern, which also took that block as items.
+        // History: docs/app-audits/ai-opencode-desktop.md#历史与实测
         ChangelogRecipe(
             bundleID: "ai.opencode.desktop",
             source: OpencodeRelease.listURL,

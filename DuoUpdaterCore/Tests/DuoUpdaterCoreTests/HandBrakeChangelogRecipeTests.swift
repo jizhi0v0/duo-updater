@@ -80,7 +80,7 @@ private let handBrakeReleasesFixture = ###"""
     @Test func theNewestReleaseKeepsItsCategoriesAndOnlyTheMacSection() throws {
         let entry = try #require(try decode(handBrakeReleasesFixture).entries.first)
         #expect(entry.version == "1.11.2")
-        #expect(entry.items.count == 9)
+        #expect(entry.items.count == 11)  // 9 changes, plus the two libraries under `Updated libraries`
         #expect(headings(entry) ==
             ["Video", "Audio", "Subtitles", "Build system", "Third-party libraries", "Mac"])
         #expect(entry.items.first
@@ -104,21 +104,28 @@ private let handBrakeReleasesFixture = ###"""
         #expect(!items.contains { $0.contains(".NET 8 Desktop Runtime") })
     }
 
-    /// 1.11.1 has no Mac section, so its entry is the two shared changes.
+    /// 1.11.1 has no Mac section, so its entry is the shared changes: one fix,
+    /// and `Updated libraries` followed by the two libraries nested under it.
     @Test func aReleaseWithNoMacSectionStillHasAnEntry() throws {
         let entry = try #require(try decode(handBrakeReleasesFixture).entries.last)
         #expect(entry.version == "1.11.1")
-        #expect(entry.items.count == 2)
+        #expect(entry.items == [
+            "Fixed a crash that could happen when scanning a PCM track in a DVD-Video or Blu-ray",
+            "Updated libraries",
+            "Jansson 2.15.0 (JSON architecture)",
+            "zlib 1.3.2 (general)",
+        ])
         #expect(headings(entry) == ["Audio", "Third-party libraries"])
     }
 
-    /// Known limit, pinned so that a parser change which starts keeping them shows
-    /// up here: the strict pass drops indented sub-bullets, so `Updated libraries`
-    /// arrives without the library list under it (`FFmpeg 8.0.2 …`). No recipe
-    /// field changes this; History has the count over the live page.
-    @Test func theLibraryListUnderUpdatedLibrariesIsDropped() throws {
+    /// The library list nested under `Updated libraries` is kept: each library
+    /// is an item of its own, right after that line.
+    @Test func theLibraryListUnderUpdatedLibrariesIsKept() throws {
         let entry = try #require(try decode(handBrakeReleasesFixture).entries.first)
-        #expect(entry.items.contains("Updated libraries"))
-        #expect(!entry.items.contains { $0.contains("FFmpeg") || $0.contains("SVT-AV1") })
+        let at = try #require(entry.items.firstIndex(of: "Updated libraries"))
+        #expect(Array(entry.items[(at + 1)...].prefix(2)) == [
+            "FFmpeg 8.0.2 (decoding and filters)",
+            "SVT-AV1 4.1.0 (AV1 video encoding)",
+        ])
     }
 }

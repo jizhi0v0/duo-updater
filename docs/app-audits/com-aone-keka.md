@@ -117,9 +117,9 @@ duo 只读 `Info.plist` 里的 `SUFeedURL`（`BundleFacts`），不读这个覆�
 - 正文开头两行推广（Keka for iOS、Mastodon / X）和一句话概述不是列表项，解析器不收
 - dev / beta / rc 是同一列表里的 prerelease，`.gitHubReleases` 只取稳定版；`v1.2.0-dev.3742` 是
   `prerelease: false` 的 dev 包，靠 `tagPattern` 挡掉。stable 副本看不到任何 dev 条目
-- 已知形状：hot-fix 版的正文会在 `# Changes in version X.Y.Z` 下重述上一版（1.6.7 带 1.6.6、1.6.3
-  带 1.6.2）。这个标题带数字，解析器不把它当分节，重述的条目落在 hot-fix 条目里、第二个 `Fixes` 下
-  （1.6.7 显示 9 条，官网只有 1 条）。被重述的那一版自己的条目照常存在
+- hot-fix 版的正文会在 `# Changes in version X.Y.Z` 下重述上一版（1.6.7 带 1.6.6、1.6.3 带 1.6.2）。
+  `GitHubMarkdownParser` 在 X 比本版旧时整节丢掉，所以 hot-fix 条目只剩它自己的修复（1.6.7 显示 1 条，
+  与官网一致）。被重述的那一版自己的条目照常存在
 - 跟随 channel: 否。dev 副本读的也是 stable feed，面板显示稳定版的历史
 - Recipe 状态: ✓（`Recipes/com-aone-keka.swift`，测试 `KekaChangelogRecipeTests`）。匿名请求受 GitHub
   60 次/小时限流，配了 token 时 `ChangelogService` 会带上
@@ -217,6 +217,8 @@ swift run --package-path application-test channel-verify "$W/x/Keka-1.5.2-dev.r5
     条目和日期都对，但 `content` 为空，没有任何标题。1.6.7 是 1 条、1.6.3 是 1 条。
   - 比了最新 12 个版本（1.6.8 … 1.5.0）：同版本条目数一致（如 1.6.8 10/10、1.6.6 8/8、1.6.2 13/13），只有
     1.6.7（9 对 1）和 1.6.3（14 对 1）不同，原因是 GitHub 正文的 `# Changes in version …` 重述。更早的没比。
+  - 解析器改为丢掉重述上一版的节之后（`Changelog.parserGeneration` 11）：1.6.7 9 → 1 条、1.6.3 14 → 1 条，
+    与 changelog.keka.io 一致。
 - 选 GitHub 的理由：要求是保留厂商的分节标题，只有 GitHub 正文有；代价是上面两条 hot-fix 的重述和 GitHub 限流。
 - 列表里的非稳定条目：第 1 页有 9 个 prerelease（`v1.5.2-dev.r5614` … `v1.2.62-beta.1`），全部 `prerelease: true`。
   第 3 页有 `v1.2.0-dev.3742`（2019-12-20）是 `prerelease: false`，还有 `dev-test-builds`（`prerelease: true`，

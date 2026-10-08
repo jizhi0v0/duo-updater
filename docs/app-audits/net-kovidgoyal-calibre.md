@@ -60,7 +60,7 @@
 
 **duo 今天对 preview 拷贝的行为（实测，Caskroom 注入，见「如何复验」）:** 一份 brew 装的 calibre 被 preview 覆盖后，
 `HomebrewCaskSource` 报 `latest 9.15.0`、`up to date`（`9.15.101` > `9.15.0`），下一个正式版出来时会推正式版。也就是
-「preview → 下一个 stable」，不会推下一个 preview，也不会降级，方向是对的。直装的 preview 拷贝同 stable 直装：unknown。
+「preview → 下一个 stable」，不会推下一个 preview，也不会降级，方向是对的。直装的 preview 拷贝仍 unknown：直装 stable 走的 VendorProbe 是 stable 渠道，`installedVersionPattern` 也不收 `x.y.1nn`。
 
 ## 更新检测
 - 源: `HomebrewCaskSource`（仅 brew 装的拷贝）

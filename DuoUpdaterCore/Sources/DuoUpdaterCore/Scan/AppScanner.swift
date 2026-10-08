@@ -53,11 +53,25 @@ public struct AppScanner: Sendable {
         locations: [URL]? = nil,
         extraLocations: [URL] = [],
         toolbox: ToolboxInventory = ToolboxInventory(),
-        testflight: TestFlightInventory = TestFlightInventory()
+        testflight: TestFlightInventory = AppScanner.unattendedTestFlightInventory()
     ) {
         self.toolbox = toolbox
         self.testflight = testflight
         self.locations = (locations ?? Self.defaultLocations) + extraLocations
+    }
+
+    /// TestFlight's store for a scanner nobody handed one: read only where Full
+    /// Disk Access makes the read silent, the rule a scheduled round follows
+    /// (`RefreshIntent.readsTestFlight(fullDiskAccess:)`). The app passes its own;
+    /// this default serves the CLI and the tests. It used to read the store
+    /// unconditionally, and without the grant that read is not refused but
+    /// parked on the app-data gate: on the mini's CI runner the kernel held it
+    /// until `watchdog expired for approval entry … (kTCCServiceSystemPolicyAppData)`,
+    /// and a fixture database opened in the same seconds timed out behind it
+    /// (PR #1074).
+    public static func unattendedTestFlightInventory() -> TestFlightInventory {
+        RefreshIntent.scheduled.readsTestFlight(fullDiskAccess: TCCPreflight.fullDiskAccessStatus())
+            ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
     }
 
     /// Strip invisible bidi / zero-width formatting marks that some bundles embed in

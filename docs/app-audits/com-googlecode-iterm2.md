@@ -93,17 +93,24 @@
 - 来源: 每条 item 的 `<sparkle:releaseNotesLink>`，指向纯文本：stable `https://iterm2.com/appcasts/full_changes.txt`、
   test release `https://iterm2.com/appcasts/testing_changes3.txt`、nightly `https://iterm2.com/appcasts/nightly_changes.txt`
   （均为 `text/plain; charset=utf-8`）。feed 里没有 inline `<description>`。
-- 结构化: ✗。`channel-verify` 的 `changelog pane` 行原文：
-  - stable：`web page https://iterm2.com/appcasts/full_changes.txt, no structure`
-  - nightly：`web page https://iterm2.com/appcasts/nightly_changes.txt, no structure`
-- 文本形状：`Version 3.7.3 of iTerm2 was built on September 22, 2026.`，然后 `Bug Fixes:` / `New Features:` /
-  `Improvements:` 这类小节标题，条目以 `- ` 开头、按约 50 列硬换行（续行缩进两格）。`full_changes.txt` **只含最新一个 stable**；
-  每个版本另有 `https://iterm2.com/downloads/stable/iTerm2-<ver>.changelog`（3.7.2、3.7.3 均 200），内容同一格式，
-  末尾附一段 PGP 签名的 zip SHA-256。
+- 结构化: stable ✓、test release ✓（recipe 已接受该页，但要等 test-release 的 `ChannelBinding` 落地才会被解析到）、
+  nightly ✗（按设计不接）。`channel-verify` 的 `changelog pane` 行原文（2026-10-08，加 recipe 之后）：
+  - stable 3.7.3：`recipe changelog:com.googlecode.iterm2:-: 1 entries; newest 3.7.3: 15 items, headings ["Bug Fixes"]; first items ["Fixed the Python API not reporting OSC 8", "Fixed the Screen setting in Settings > P", "Fixed a crash when a program wrote a hyp"]`
+  - 3.7.4beta1（今天判为 stable、读 stable feed）：同上一行，逐字相同
+  - nightly 3.7.20261008-nightly：`web page https://iterm2.com/appcasts/nightly_changes.txt, no structure`
+- 文本形状：`Version 3.7.3 of iTerm2 was built on September 22, 2026.`（`of iTerm2` 不一定有；test release 的日期会折到下一行），
+  然后 `Bug Fixes:` / `New Features:` / `Improvements:` 这类小节标题，条目以 `- ` 开头、按约 50 列硬换行（续行缩进两格）。
+  `full_changes.txt` **只含最新一个 stable**；每个版本另有 `https://iterm2.com/downloads/stable/iTerm2-<ver>.changelog`
+  （3.7.2、3.7.3 均 200），内容同一格式，末尾附一段 PGP 签名的 zip SHA-256。`nightly_changes.txt` 是提交日志
+  （`2026-10-07: <subject>` + 正文段落），全文没有版本行。
 - 跟随 channel: 是（每条轨各自一个 txt）
-- Recipe 状态: 需要（○）。可用 `ChangelogRecipe` 读纯文本（`com-philandro-anydesk.swift` 是读 `.txt` 的先例），
-  `sourceTemplate` 指向按版本的 `.changelog`，`headingPattern` 取 `^[A-Z][A-Za-z ]+:$`。条目是多行硬换行，
-  抽取器是否会把续行的换行 + 缩进折叠成空格**未验证**，写 recipe 时要在真实响应上确认。
+- Recipe 状态: ✓ `Recipes/com-googlecode-iterm2.swift`。`feedPagePattern` 读**这份拷贝自己的 feed 解析出的那一页**，
+  只接受 `full_changes.txt` 与 `testing_changes3.txt`；nightly 拷贝解析出 `nightly_changes.txt`，不被接受，pane 照旧嵌入该页。
+  因为页面来自拷贝自己的 feed，nightly 拷贝拿不到 stable 的说明，stable 拷贝也拿不到 nightly 的。小节标题保留为 heading，
+  硬换行的条目合成一行（抽取器的空白折叠）。没选按版本的 `.changelog` + `sourceTemplate`：URL 里的版本号用下划线
+  （`3_7_3`），现有的模板记号里只有 `{appleDocVersion}` 产出下划线，它只读开头的数字段，会把 `3.7.4beta1` 拼成
+  `3_7_4`；beta 还在另一个目录（`downloads/beta/`）。两种做法覆盖面一样（每页一个版本），feed 页面这条不用另造记号。
+  test release 开头那段致谢（`Credit to …`）既不是条目也不是标题，被丢掉。
 
 ## 一键安装
 - 状态: 支持（通用 Sparkle 路径，第一轮端到端 ✓）
@@ -126,7 +133,8 @@
 ## 已知问题
 1. ~~test release 轨没接~~：2026-10-08 起由 `ITerm2Channel` 接上。它读 `CheckTestRelease`，打开时改读**这份拷贝 Info.plist 里的** `SUFeedURLForTesting`，关闭时读 `SUFeedURLForFinal`，和 iTerm2 自己的 `refreshSoftwareUpdateUserDefaults` 一样。地址取自 bundle、不写死，是为了 nightly：nightly 包三个 feed 键都指向 `nightly_modern.xml`，测试源和正式源相同时绑定返回 nil，所以从旧 stable 安装残留下来的 `CheckTestRelease = YES` 不会把 nightly 拷贝挪到 testing feed。
 2. **test release feed 可能落后 stable。** 只有 `release_beta.sh` 写它。iTerm2 自己在 test release 模式下只读这一份，绑定照搬，所以 test release 用户在 beta feed 追上之前看不到更新的 stable。这是厂商行为，已写在 `ITerm2Channel` 的注释里。
-3. `changelog pane` 只是一页纯文本 WebView，没有结构；`full_changes.txt` 只覆盖最新 stable，跨多版升级看不到中间版本的说明。
+3. `full_changes.txt` 只覆盖最新 stable，跨多版升级看不到中间版本的说明（recipe 已把它结构化，但覆盖面不变）。
+   nightly 的 pane 仍是一页纯文本 WebView：`nightly_changes.txt` 是提交日志，没有版本行可按版本切。
 4. 旧版审计（2026-06-04）的几处结论不成立：只列了 stable 一条轨（漏了 test release 与 nightly）；「Changelog: Sparkle
    inline … no custom recipe needed」不对——feed 没有 inline 说明，pane 是无结构的纯文本页；「一键安装: 阻塞 无」
    当时没有任何真包验证。
@@ -167,8 +175,8 @@ curl -sS "https://raw.githubusercontent.com/gnachman/iTerm2/master/sources/iTerm
 
 - `feed-discover`（3.7.3 zip）→ `declared  https://iterm2.com/appcasts/final_modern.xml`
 - 所有 `channel-verify` 都报 `ChannelBinding  <none for this app>`、`deltas 0`；stable 行 `release history 2 entries`，nightly 行 3
-- `changelog pane`：stable 两行与 beta 行均为 `web page https://iterm2.com/appcasts/full_changes.txt, no structure`；
-  nightly 两行为 `web page https://iterm2.com/appcasts/nightly_changes.txt, no structure`
+- `changelog pane`（加 recipe 之前）：stable 两行与 beta 行均为 `web page https://iterm2.com/appcasts/full_changes.txt, no structure`；
+  nightly 两行为 `web page https://iterm2.com/appcasts/nightly_changes.txt, no structure`。加 recipe 之后见「历史与实测」
 - feed 形状：final 2 条 / testing 1 条 / nightly 3 条，全部无 `<sparkle:channel>`；无 deltas、phasedRollout、max OS、hardwareRequirements
 - `shard=0..99`：两份 feed 各 100 份响应体 sha256 相同，且等于无参数响应
 - EdDSA：3.7.3 zip VALID，翻一字节 INVALID；zip sha256 `eb7a166061e58602e3d4bdf69d92f2c8cf6a63feed002f6adc07128a71c8dc39`
@@ -189,7 +197,37 @@ curl -sS "https://raw.githubusercontent.com/gnachman/iTerm2/master/sources/iTerm
 
 ## 建议下一步
 1. ~~加 `ChannelBinding`~~：已做（`ITerm2Channel`，见「已知问题」1 和「如何复验」）。没做的一步：在真 app 里拨复选框，确认写进 `com.googlecode.iterm2` 的是 Bool `CheckTestRelease`。这个键名和类型来自源码（`iTermPreferences.m` 的 `kPreferenceKeyCheckForTestReleases = @"CheckTestRelease"`）；验证时是用 `defaults write` 写进去的。
-2. **结构化 changelog**：`/fragile-recipe iTerm2`（ChangelogRecipe，纯文本），stable 读
-   `https://iterm2.com/downloads/stable/iTerm2-{version}.changelog`（或 `full_changes.txt`），beta 读
-   `https://iterm2.com/downloads/beta/iTerm2-{version}.changelog`；小节标题形如 `Bug Fixes:`，条目 `- ` 开头、硬换行。
+2. **结构化 changelog**：已做（见 Changelog 一节）。test-release binding 落地后，用 `channel-verify` 在
+   `CheckTestRelease = YES` 的拷贝上确认 pane 行变成 `recipe … newest 3.7.4beta…`（今天没有 binding，这条路径只在
+   fixture 与真实文本上验过，没走过 `channel-verify`）。
 3. 一键：第一轮（未运行）已跑通，3.7.2 → 3.7.3；第二轮（运行中且 iTerm2 自己的 Sparkle 已暂存）未跑。
+
+## 历史与实测
+
+### Recipes/com-googlecode-iterm2.swift — ChangelogRecipe（`feedPagePattern`，stable + test release）
+
+实测 2026-10-08（只读 GET 三份 appcast、三份 `*_changes.txt` 与 3.7.2 / 3.7.3 的 `.changelog`；跑的是生产
+`ChangelogExtractor`，临时 Swift 测试，跑完已删）：
+
+- 三份 feed 的 `<sparkle:releaseNotesLink>` 共 6 条：stable 2 条（3.6.11、3.7.3）都指 `full_changes.txt`，test release 1 条指
+  `testing_changes3.txt`，nightly 3 条都指 `nightly_changes.txt`。`feedPagePattern` 接受前两个，拒绝 `nightly_changes.txt`
+  与按版本的 `downloads/stable/iTerm2-3_7_3.changelog`。
+- 生产抽取器在真实文本上的结果：
+
+  | 文件 | entries | version | date | items | headings | 含换行的 item |
+  |---|---|---|---|---|---|---|
+  | `full_changes.txt` | 1 | 3.7.3 | September 22, 2026 | 15 | `Bug Fixes` | 0 |
+  | `testing_changes3.txt` | 1 | 3.7.4beta1 | September 30, 2026 | 128 | `Major New Features`、`New Features`、`Improvements`、`Bug Fixes` | 0 |
+  | `nightly_changes.txt` | 0（nil） | — | — | — | — | — |
+  | `iTerm2-3_7_3.changelog` | 1 | 3.7.3 | September 22, 2026 | 15 | `Bug Fixes` | 0 |
+  | `iTerm2-3_7_2.changelog` | 1 | 3.7.2 | September 14, 2026 | 15 | `Bug Fixes` | 0 |
+
+  item 数与各文件里以 `- ` 开头的行数一致（`grep -c '^- '`：15 / 128 / 15）。3.7.2 的版本行是
+  `Version 3.7.2 was built on …`，没有 `of iTerm2`。两个 `.changelog` 不在 recipe 的路径上，只用来确认形状稳定。
+- 变异测试（`ITerm2ChangelogRecipeTests`）：item 只取首行 → 硬换行测试失败；日期前只许 `[ \t]+` → test release 抽不出；
+  `feedPagePattern` 放宽成 `[a-z_]+\d*\.txt` → nightly 拷贝被提供 recipe。三处都被抓到，已还原。
+- `channel-verify`（真包，`ditto -x -k` 解包，未运行）的 `changelog pane` 行：
+  - stable 3.7.3 之前 `web page https://iterm2.com/appcasts/full_changes.txt, no structure`，之后
+    `recipe changelog:com.googlecode.iterm2:-: 1 entries; newest 3.7.3: 15 items, headings ["Bug Fixes"]; first items ["Fixed the Python API not reporting OSC 8", "Fixed the Screen setting in Settings > P", "Fixed a crash when a program wrote a hyp"]`
+  - 3.7.4beta1 之前同 stable 的旧行；之后与 stable 的新行逐字相同（今天没有 test-release binding，它读的是 stable feed）
+  - nightly 3.7.20261008-nightly 之前与之后都是 `web page https://iterm2.com/appcasts/nightly_changes.txt, no structure`

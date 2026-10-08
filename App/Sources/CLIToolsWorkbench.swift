@@ -95,8 +95,9 @@ struct CLIToolIcon: View {
                 : NSColor(srgbRed: 0x9C / 255, green: 0x82 / 255, blue: 0x26 / 255, alpha: 1)
         })
         case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr: Color(nsColor: .labelColor)
-        // JetBrains' and OpenAI's guidelines forbid recolouring their marks:
-        // Junie keeps its own green, Codex's blossom stays black or white.
+        // Their marks in their own colours: Junie in the green of JetBrains'
+        // published logo, and Codex's blossom black or white, as OpenAI's brand
+        // page asks ("don't add any colors to the Blossom").
         case .junie: Color(red: 0x48 / 255, green: 0xE0 / 255, blue: 0x54 / 255)
         case .codex: Color(nsColor: .labelColor)
         case .bub: .teal

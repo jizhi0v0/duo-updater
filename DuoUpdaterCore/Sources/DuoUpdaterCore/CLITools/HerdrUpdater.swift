@@ -103,7 +103,7 @@ public struct HerdrUpdater: Sendable {
         case .published, .unpublished:
             return .failed(
                 message: "not run: \(install.path) is not byte for byte the herdr \(before) herdr published", output: "")
-        case .couldNotVerify(let reason):
+        case .couldNotVerify(let reason), .rateLimited(let reason):
             return .failed(message: "not run: \(reason)", output: reason)
         }
         guard HerdrBuild.compare(installed, resolution.offered) == .orderedAscending else {
@@ -139,7 +139,7 @@ public struct HerdrUpdater: Sendable {
             case .unpublished:
                 return .failed(message: "herdr update finished, but the new file is no build herdr published",
                                output: run.text)
-            case .couldNotVerify(let reason):
+            case .couldNotVerify(let reason), .rateLimited(let reason):
                 return .failed(message: "herdr update finished, but \(reason)", output: run.text)
             }
         } catch {

@@ -31,7 +31,8 @@ public enum JunieChangelog {
     /// behind (1543.24 on release, 2026-10-02) sees the newest eight builds' notes.
     static let maximumRequests = 8
 
-    typealias Fetch = @Sendable (URL, Bool) async throws -> (Data, Int)
+    /// The body, the status and the answer's `X-RateLimit-Remaining`.
+    typealias Fetch = @Sendable (URL, Bool) async throws -> (Data, Int, String?)
 
     /// The builds to ask for, newest first: up to `maximumRequests` above
     /// `installed` and at or below `latest`, then — when that is fewer than
@@ -96,12 +97,13 @@ public enum JunieChangelog {
             return Answer(build: build, answered: false, entry: nil, failure: URLError(.badURL))
         }
         do {
-            let (data, status) = try await fetch(url, force)
+            let (data, status, remaining) = try await fetch(url, force)
             switch status {
             case 200: return Answer(build: build, answered: true, entry: parse(data, build: build), failure: nil)
             case 404: return Answer(build: build, answered: true, entry: nil, failure: nil)
             default:
-                return Answer(build: build, answered: false, entry: nil, failure: CLIToolReleaseNotesError.http(status))
+                return Answer(build: build, answered: false, entry: nil,
+                              failure: CLIToolReleaseNotesError.status(status, rateLimitRemaining: remaining, url: url))
             }
         } catch {
             return Answer(build: build, answered: false, entry: nil, failure: error)
@@ -123,7 +125,7 @@ public enum JunieChangelog {
 
     /// What the GitHub API is asked with: the headers `ChangelogService` sends, and
     /// the token when there is one.
-    static func get(_ url: URL, force: Bool, session: URLSession = .updates) async throws -> (Data, Int) {
+    static func get(_ url: URL, force: Bool, session: URLSession = .updates) async throws -> (Data, Int, String?) {
         var request = URLRequest(url: url)
         request.cachePolicy = force ? .reloadIgnoringLocalCacheData : URLRequest.versionFeedCachePolicy
         request.timeoutInterval = 15
@@ -133,6 +135,7 @@ public enum JunieChangelog {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         let (data, response) = try await session.countedData(for: request, purpose: .changelog)
-        return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
+        let http = response as? HTTPURLResponse
+        return (data, http?.statusCode ?? 0, http?.value(forHTTPHeaderField: "X-RateLimit-Remaining"))
     }
 }

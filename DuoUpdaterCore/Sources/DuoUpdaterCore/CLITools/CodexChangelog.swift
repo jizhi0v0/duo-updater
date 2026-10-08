@@ -28,12 +28,20 @@ public enum CodexChangelog {
     /// releases behind (0.143.0 on 2026-10-04) sees the newest eight.
     static let maximumRequests = 8
 
-    typealias Fetch = @Sendable (URL, Bool) async throws -> (Data, Int)
+    /// The body, the status and the answer's `X-RateLimit-Remaining`.
+    typealias Fetch = @Sendable (URL, Bool) async throws -> (Data, Int, String?)
 
     public static func fetch(installed: String?, latest: String?, force: Bool) async throws -> Changelog {
-        let fetch: Fetch = { try await JunieChangelog.get($0, force: $1) }
-        let (data, status) = try await fetch(tags, force)
-        guard status == 200 else { throw CLIToolReleaseNotesError.http(status) }
+        try await fetch(installed: installed, latest: latest, force: force,
+                        fetch: { try await JunieChangelog.get($0, force: $1) })
+    }
+
+    /// The seam tests use, so nothing here reaches the network.
+    static func fetch(installed: String?, latest: String?, force: Bool, fetch: @escaping Fetch) async throws -> Changelog {
+        let (data, status, remaining) = try await fetch(tags, force)
+        guard status == 200 else {
+            throw CLIToolReleaseNotesError.status(status, rateLimitRemaining: remaining, url: tags)
+        }
         let versions = await offCooperativePool { stableVersions(data) }
         guard !versions.isEmpty else { throw CLIToolReleaseNotesError.noSections }
         return try await notes(versions: versions, installed: installed, latest: latest, force: force, fetch: fetch)
@@ -103,12 +111,13 @@ public enum CodexChangelog {
             return Answer(version: version, answered: false, entry: nil, failure: URLError(.badURL))
         }
         do {
-            let (data, status) = try await fetch(url, force)
+            let (data, status, remaining) = try await fetch(url, force)
             switch status {
             case 200: return Answer(version: version, answered: true, entry: parse(data, version: version), failure: nil)
             case 404: return Answer(version: version, answered: true, entry: nil, failure: nil)
             default:
-                return Answer(version: version, answered: false, entry: nil, failure: CLIToolReleaseNotesError.http(status))
+                return Answer(version: version, answered: false, entry: nil,
+                              failure: CLIToolReleaseNotesError.status(status, rateLimitRemaining: remaining, url: url))
             }
         } catch {
             return Answer(version: version, answered: false, entry: nil, failure: error)

@@ -9,10 +9,65 @@ import Foundation
 ///   2. the `GITHUB_TOKEN` / `GH_TOKEN` environment variables,
 ///   3. the `gh` CLI's stored login (`gh auth token`) — zero-config for the
 ///      many developers who already have GitHub CLI authenticated.
+///
+/// Steps 2 and 3 are both "the GitHub CLI's sign-in": `gh` itself treats
+/// `GH_TOKEN` as one (`gh auth status` reports "Logged in to github.com account
+/// … (GH_TOKEN)"). With "Use the GitHub CLI’s sign-in" off (`usesCLIKey`) both
+/// are skipped and only the explicit value answers. Skipping `gh` alone was not
+/// enough on the Mac it was asked for: `GH_TOKEN` was in launchd's environment
+/// (`launchctl getenv GH_TOKEN`), so every GUI app, the menu-bar app included,
+/// inherited it and stayed signed in (2026-10-08).
 public enum GitHubToken {
+    /// The app's preference, in its defaults (`com.duoupdater.app`, which `duo`
+    /// reads too): false stops steps 2 and 3. Absent means true, the behaviour
+    /// before the setting existed.
+    public static let usesCLIKey = "UseGitHubCLIToken"
+
+    /// This process's reading of `usesCLIKey`, which `resolve(explicit:)` follows.
+    /// The app pushes it from `Preferences` at launch and on every change, as it
+    /// does the explicit token (`ChangelogService.setExplicitGitHubToken`).
+    public static var usesCLI: Bool {
+        usesCLILock.lock()
+        defer { usesCLILock.unlock() }
+        return usesCLIValue
+    }
+
+    public static func setUsesCLI(_ allowed: Bool) {
+        usesCLILock.lock()
+        defer { usesCLILock.unlock() }
+        usesCLIValue = allowed
+    }
+
+    private nonisolated(unsafe) static var usesCLIValue = true
+    private static let usesCLILock = NSLock()
+
     public static func resolve(explicit: String? = nil) async -> String? {
-        if let cheap = preresolved(explicit: explicit) { return cheap }
-        return await ghCLIToken()
+        await resolve(explicit: explicit, environment: ProcessInfo.processInfo.environment, cli: ghCLIToken)
+    }
+
+    /// `resolve(explicit:)` under this process's `usesCLI`, read at the call.
+    static func resolve(
+        explicit: String?, environment: [String: String], cli: @Sendable () async -> String?
+    ) async -> String? {
+        await resolve(explicit: explicit, usesCLI: usesCLI, environment: environment, cli: cli)
+    }
+
+    /// For a process that reads the preference itself (`duo`).
+    public static func resolve(explicit: String?, usesCLI: Bool) async -> String? {
+        await resolve(explicit: explicit, usesCLI: usesCLI,
+                      environment: ProcessInfo.processInfo.environment, cli: ghCLIToken)
+    }
+
+    /// The order itself, with the environment and `gh` injected for tests.
+    static func resolve(
+        explicit: String?, usesCLI: Bool, environment: [String: String],
+        cli: @Sendable () async -> String?
+    ) async -> String? {
+        if let cheap = preresolved(explicit: explicit, usesCLI: usesCLI, environment: environment) {
+            return cheap
+        }
+        guard usesCLI else { return nil }
+        return await cli()
     }
 
     /// Steps 1 and 2 alone — the ones that are two memory reads and cannot block.
@@ -30,13 +85,23 @@ public enum GitHubToken {
     /// admission is measured in seconds.
     ///
     /// So callers answer from here when they can, and spend the deadline only on
-    /// the call that can actually hang.
+    /// the call that can actually hang. Follows `usesCLI` as `resolve` does: with
+    /// it off the environment is not read.
     public static func preresolved(explicit: String? = nil) -> String? {
+        preresolved(explicit: explicit, environment: ProcessInfo.processInfo.environment)
+    }
+
+    /// `preresolved(explicit:)` under this process's `usesCLI`, read at the call.
+    static func preresolved(explicit: String?, environment: [String: String]) -> String? {
+        preresolved(explicit: explicit, usesCLI: usesCLI, environment: environment)
+    }
+
+    static func preresolved(explicit: String?, usesCLI: Bool, environment env: [String: String]) -> String? {
         if let explicit = explicit?.trimmingCharacters(in: .whitespacesAndNewlines),
            !explicit.isEmpty {
             return explicit
         }
-        let env = ProcessInfo.processInfo.environment
+        guard usesCLI else { return nil }
         for key in ["GITHUB_TOKEN", "GH_TOKEN"] {
             if let value = env[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
                !value.isEmpty {

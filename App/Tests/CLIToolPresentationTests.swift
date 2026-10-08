@@ -689,6 +689,22 @@ struct CLIToolPayloadPresentationTests {
             == "preview")
     }
 
+    /// GitHub's rate limit is said as the popover's banner says it, not as an
+    /// unreachable channel, on the row and in the pane; the banner counts it.
+    ///
+    /// Mutation: drop the `.rateLimited` case of `reason(_:of:)` (back to the
+    /// channel wording).
+    @Test func aRateLimitedChannelSaysSo() {
+        let limited = F.bun(withheld: .rateLimited)
+        let unchecked = F.status(.bun, path: limited.path, detail: limited.detail, latest: nil, state: .unknown,
+                                 withheld: .rateLimited)
+        #expect(CLIToolPresentation.rowWarning(unchecked) == "Hitting GitHub’s rate limit")
+        #expect(CLIToolPresentation.explanation(unchecked) == "Hitting GitHub’s rate limit")
+        #expect(unchecked.isRateLimitError)
+        #expect(CLIToolsModel.reason(.channelUnreadable, of: F.bun()) == "Couldn’t reach Bun’s release channel")
+        #expect(!F.bun(withheld: .channelUnreadable).isRateLimitError)
+    }
+
     /// Luvus's reasons, in its check's order: a link `luvus update` won't
     /// replace, a release from before the command, a folder only `sudo` could
     /// write to; a quarantined file; and, with no Team ID, no vendor named.

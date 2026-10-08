@@ -1324,10 +1324,14 @@ private func destinationKey(_ destination: BackupDestination) -> String {
 ///
 /// Hidden from accessibility: the line beneath it says the same thing in
 /// words, and a bar read aloud as three unnamed rectangles says nothing.
-private struct CapacityBar: View {
+///
+/// Settings › GitHub draws its API budget with it too: what is left as the
+/// first segment, nothing in the second, `tint` orange when it runs low.
+struct CapacityBar: View {
     let backups: Int64
     let used: Int64
     let total: Int64
+    var tint: Color = .accentColor
 
     var body: some View {
         GeometryReader { geometry in
@@ -1337,7 +1341,7 @@ private struct CapacityBar: View {
             // segment wider than the bar draws outside it.
             let ours = min(max(backups, 0), used)
             HStack(spacing: 0) {
-                Rectangle().fill(Color.accentColor)
+                Rectangle().fill(tint)
                     .frame(width: width * fraction(ours))
                 Rectangle().fill(Color.secondary.opacity(0.55))
                     .frame(width: width * fraction(used - ours))

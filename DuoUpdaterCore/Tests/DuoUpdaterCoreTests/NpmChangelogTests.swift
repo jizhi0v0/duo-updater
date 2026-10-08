@@ -141,10 +141,14 @@ import Foundation
             repository: "o/r", name: "r", versions: ["1.0.0"], force: false,
             fetch: { (Data(), self.response($0.url!.absoluteString, 404)) }, token: { nil })
         #expect(gone.entries.isEmpty)
+        // A 403 with budget left: not the rate limit (`CLIToolReleaseNotesRateLimitTests`).
         await #expect(throws: CLIToolReleaseNotesError.http(403)) {
             _ = try await NpmChangelog.fetch(
                 repository: "o/r", name: "r", versions: ["1.0.0"], force: false,
-                fetch: { (Data(), self.response($0.url!.absoluteString, 403)) }, token: { nil })
+                fetch: {
+                    (Data(), HTTPURLResponse(url: $0.url!, statusCode: 403, httpVersion: nil,
+                                             headerFields: ["X-RateLimit-Remaining": "12"])!)
+                }, token: { nil })
         }
     }
 }

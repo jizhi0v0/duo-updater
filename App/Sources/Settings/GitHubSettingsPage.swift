@@ -37,6 +37,7 @@ struct GitHubSettingsPage: View {
             // TOKEN, and it is the second card — below the CLI one, and below the
             // fold on a short window.
             tokenCard.settingsAnchor(.githubToken)
+            budgetCard
         }
         // Click anywhere outside the field to drop focus. Child controls get the
         // tap first, so buttons/field still work; only empty space resigns.
@@ -77,13 +78,19 @@ struct GitHubSettingsPage: View {
                 Spacer(minLength: 0)
             }
             .settingsRow()
+            SettingsDivider()
+            // Off: no token is taken from `gh auth token` or from GH_TOKEN /
+            // GITHUB_TOKEN, which gh counts as a sign-in (`GitHubToken.usesCLI`);
+            // a token pasted below still is.
+            Toggle("Use the GitHub CLI’s sign-in", isOn: $prefs.useGitHubCLIToken)
+                .settingsRow()
         }
     }
 
     private var cliBadge: SettingsStatusBadge.State {
         switch cliStatus {
         case .none:                          return .loading
-        case .authenticated:                 return .ok
+        case .authenticated:                 return prefs.useGitHubCLIToken ? .ok : .warning
         case .notInstalled, .notLoggedIn:    return .warning
         }
     }
@@ -91,6 +98,8 @@ struct GitHubSettingsPage: View {
     private var statusHeadline: String {
         switch cliStatus {
         case .none:          return String(localized: "Checking the gh CLI…")
+        case .authenticated where !prefs.useGitHubCLIToken:
+            return String(localized: "GitHub CLI is signed in, but DuoUpdater isn’t using its sign-in.")
         case .authenticated: return String(localized: "GitHub CLI is authenticated and ready.")
         case .notLoggedIn:   return String(localized: "GitHub CLI is installed but not signed in. Run `gh auth login`, or paste a token below.")
         case .notInstalled:  return String(localized: "GitHub CLI isn’t installed. Paste a personal access token below to raise the rate limit.")
@@ -233,6 +242,72 @@ struct GitHubSettingsPage: View {
         case .none:
             EmptyView()
         }
+    }
+
+    // MARK: - Budget
+
+    /// What GitHub's last API answers said is left, one bar per window still
+    /// running (`GitHubRateBudget`: with a token GitHub has answered from two at
+    /// once), never fetched for its own sake. Laid out as the Backups page's disk
+    /// rows are: a name, then a full-width bar with its two figures under its two
+    /// ends. Re-read every few seconds while the page is open: a check can land
+    /// meanwhile, and a window can end.
+    private var budgetCard: some View {
+        SettingsCard {
+            TimelineView(.periodic(from: .now, by: 5)) { context in
+                let store = GitHubRateBudget.Store.shared
+                let windows = store.current(at: context.date)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("GitHub API requests")
+                    if windows.isEmpty {
+                        Text(Self.emptyLine(lastReset: store.lastReset))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(windows, id: \.reset) { window in
+                                budgetWindow(window)
+                            }
+                        }
+                    }
+                }
+                .settingsRow()
+            }
+        }
+    }
+
+    /// One window: its bar, then what is left under the bar's left end, in the
+    /// bar's colour, and when it refills under the right. Orange once running low.
+    private func budgetWindow(_ window: GitHubRateBudget) -> some View {
+        let tint = window.isRunningLow ? Color.orange : Color.accentColor
+        return VStack(alignment: .leading, spacing: 3) {
+            CapacityBar(
+                backups: Int64(window.remaining), used: Int64(window.remaining),
+                total: Int64(window.limit), tint: tint)
+            HStack(spacing: 12) {
+                Text(Self.leftLine(window)).foregroundStyle(tint)
+                Spacer(minLength: 8)
+                Text(Self.resetLine(window)).foregroundStyle(.secondary)
+            }
+            .font(.caption)
+            .monospacedDigit()
+        }
+    }
+
+    private static func emptyLine(lastReset: Date?) -> String {
+        guard let lastReset else { return String(localized: "No answer from GitHub yet") }
+        let time = lastReset.formatted(date: .omitted, time: .shortened)
+        return String(localized: "Reset at \(time) · no answer since")
+    }
+
+    private static func leftLine(_ window: GitHubRateBudget) -> String {
+        guard window.remaining > 0 else { return String(localized: "None left of \(window.limit)") }
+        return String(localized: "\(window.remaining) left of \(window.limit)")
+    }
+
+    private static func resetLine(_ window: GitHubRateBudget) -> String {
+        let time = window.reset.formatted(date: .omitted, time: .shortened)
+        return String(localized: "Resets at \(time)")
     }
 
     // MARK: - Actions

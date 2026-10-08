@@ -1107,15 +1107,19 @@ struct CLIToolsModelTests {
     ///
     /// Mutation: drop the `unchecked.contains(where:)` clause from the guard.
     @Test func anUnansweredCopyRechecks() async {
-        let status = Self.status(Self.native, state: .unknown, oneClick: false, withheld: .channelUnreadable)
-        let found = ScanResult([status])
-        let check = FakeCheck([(Self.report(status), nil)])
-        let model = Self.model(check: check, scan: { found.sightings })
-        await model.refresh()
+        // GitHub's rate limit too: it ends with the hour, nothing on disk moves.
+        // Mutation: drop `.rateLimited` from `mayClearByItself`.
+        for withheld in [CLIToolWithheld.channelUnreadable, .rateLimited] {
+            let status = Self.status(Self.native, state: .unknown, oneClick: false, withheld: withheld)
+            let found = ScanResult([status])
+            let check = FakeCheck([(Self.report(status), nil)])
+            let model = Self.model(check: check, scan: { found.sightings })
+            await model.refresh()
 
-        await model.refreshOnOpen()
+            await model.refreshOnOpen()
 
-        #expect(await check.calls == 2)
+            #expect(await check.calls == 2, "\(withheld)")
+        }
     }
 
     /// (e) …but a copy whose reason only a change on disk can clear — not the

@@ -37,6 +37,7 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
     private let purpose: RequestPurpose
     private let appID: String?
     private let store: EventStore
+    private let rateBudget: GitHubRateBudget.Store
 
     public init(
         _ purpose: RequestPurpose, appID: String? = nil, store: EventStore = .shared
@@ -44,6 +45,16 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
         self.purpose = purpose
         self.appID = appID
         self.store = store
+        self.rateBudget = .shared
+        super.init()
+    }
+
+    /// The test seam for where a GitHub API answer's budget goes.
+    init(_ purpose: RequestPurpose, store: EventStore, rateBudget: GitHubRateBudget.Store) {
+        self.purpose = purpose
+        self.appID = nil
+        self.store = store
+        self.rateBudget = rateBudget
         super.init()
     }
 
@@ -51,6 +62,9 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
         _ session: URLSession, task: URLSessionTask,
         didFinishCollecting metrics: URLSessionTaskMetrics
     ) {
+        // Every GitHub API fetch passes here, so this is where Settings ▸ GitHub
+        // learns what is left of the budget, without a request of its own.
+        rateBudget.observe(metrics)
         let events = Self.events(from: metrics, task: task, purpose: purpose, appID: appID)
         guard !events.isEmpty else { return }
         // Synchronous hand-off, not `Task { await store.append(…) }`. This

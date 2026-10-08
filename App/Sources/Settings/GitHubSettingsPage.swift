@@ -37,6 +37,7 @@ struct GitHubSettingsPage: View {
             // TOKEN, and it is the second card — below the CLI one, and below the
             // fold on a short window.
             tokenCard.settingsAnchor(.githubToken)
+            budgetCard
         }
         // Click anywhere outside the field to drop focus. Child controls get the
         // tap first, so buttons/field still work; only empty space resigns.
@@ -233,6 +234,31 @@ struct GitHubSettingsPage: View {
         case .none:
             EmptyView()
         }
+    }
+
+    // MARK: - Budget
+
+    /// What GitHub's last API answer said is left of the hour's budget
+    /// (`GitHubRateBudget`), never fetched for its own sake. Re-read every few
+    /// seconds while the page is open: a check can land meanwhile, and the
+    /// window can end.
+    private var budgetCard: some View {
+        SettingsCard {
+            TimelineView(.periodic(from: .now, by: 5)) { context in
+                SettingsField(title: "API requests left") {
+                    Text(Self.budgetLine(GitHubRateBudget.Store.shared.latest, now: context.date))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private static func budgetLine(_ budget: GitHubRateBudget?, now: Date) -> String {
+        guard let budget else { return String(localized: "No answer from GitHub yet") }
+        let time = budget.reset.formatted(date: .omitted, time: .shortened)
+        guard budget.isCurrent(at: now) else { return String(localized: "Reset at \(time) · no answer since") }
+        return String(localized: "\(budget.remaining) of \(budget.limit) · resets at \(time)")
     }
 
     // MARK: - Actions

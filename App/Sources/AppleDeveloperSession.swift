@@ -132,6 +132,16 @@ final class AppleDeveloperSession {
         status = .expired
     }
 
+    /// Wait out a silent renewal that is running, if any. While one runs,
+    /// `status` still holds what it was before Apple's `.expired` answer, so
+    /// `signInNeed` alone cannot tell a caller to wait: anything about to use the
+    /// session (a download, Apple's download list) calls this first, or it would
+    /// carry the cookie Apple just refused while the renewal is seconds from
+    /// replacing it.
+    func awaitRenewal() async {
+        if let renewal { _ = await renewal.value }
+    }
+
     /// `status` is `.expired` and that is final: no renewal is running, and one
     /// was tried for this expiry or renewal is off
     /// (`AppleDeveloperSessionRenewal.hasGivenUp`). What the expiry banner waits
@@ -257,6 +267,7 @@ final class AppleDeveloperSession {
     /// Says nothing about the session either way — `check()` owns that.
     func fetchDownloadList() async -> Data? {
         await restore()
+        await awaitRenewal()
         let cookies = await dataStore.httpCookieStore.allCookies()
         await refreshSignedInState(cookies: cookies)
         guard signInNeed == nil,

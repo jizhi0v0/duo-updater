@@ -3626,7 +3626,7 @@ final class AppListModel {
         defer { if generation == brewRefreshGeneration { brewChecked = true } }
         // Independent of `outdated()` — four local reads, started now so they
         // overlap it rather than queueing behind it.
-        async let unchecked = brewFormulaService.uncheckedPackages()
+        async let report = brewFormulaService.installedReport()
         var outdated: [BrewOutdatedFormula]
         do {
             outdated = try await brewFormulaService.outdated()
@@ -3638,7 +3638,8 @@ final class AppListModel {
         // `BrewOutdatedFormula`. Best-effort: a failure here must not blank the
         // formula count we already have.
         let casks = (try? await brewFormulaService.outdatedCasks()) ?? []
-        let newUnchecked = await unchecked
+        let installed = await report
+        let newUnchecked = installed.unchecked
         // Every read is in; apply them together, and only if no newer refresh has
         // started since — its results are fresher and it applies its own.
         guard generation == brewRefreshGeneration else { return }
@@ -3655,11 +3656,17 @@ final class AppListModel {
         // uninstalling the very last leaf leaves its row up until a read that
         // returns something.
         let inventory = leaves.isEmpty ? brewFormulae : leaves
-        // A formula moved to a cask is still a leaf — brew loads it from its keg —
-        // and reads as up to date there; its unchecked row is the one that's true.
-        let moved = Set(newUnchecked.filter { $0.reason == .movedToCask }.map(\.name))
+        // A formula moved to a cask, removed or renamed is still a leaf — brew
+        // loads it from its keg, or under its new name — and reads as up to date
+        // there; its unchecked row is the one that's true.
+        let shadowed = Set(newUnchecked.compactMap(\.leafName))
         brewFormulae = BrewFormulaService.merge(inventory, outdated: outdated)
-            .filter { !moved.contains($0.name) }
+            .filter { !shadowed.contains($0.name) }
+            .map { f in
+                var f = f
+                f.lifecycle = installed.lifecycles[f.name]
+                return f
+            }
         brewOutdatedFormulae = outdated + casks
         brewUnchecked = newUnchecked
         if !brewUnchecked.isEmpty {

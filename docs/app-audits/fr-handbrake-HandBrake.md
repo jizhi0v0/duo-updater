@@ -103,7 +103,7 @@ Sparkle 读的同一个地址；snapshot 包实测读 `appcast_unstable.arm64.xm
 |---|---|---|---|
 | 按设备灰度 | 有（Sparkle 二进制含 `phasedRolloutInterval`） | 无（feed 无该元素） | — |
 | 按架构 / 按 OS 分轨 | 有（按架构分 feed，构建期写死） | 两条架构 feed 指向同一个 universal dmg；只有 `minimumSystemVersion 10.13.0`，无上限 | 是（读包自带的地址；min 由 `usableItems` 判） |
-| 自更新器会不会和我们抢 | `SUAllowsAutomaticUpdates = false`，Sparkle 不会后台静默安装，只弹窗由用户点 | — | 碰撞未实测（end-to-end 第二轮会看） |
+| 自更新器会不会和我们抢 | `SUAllowsAutomaticUpdates = false`，Sparkle 不会后台静默安装，只弹窗由用户点 | — | 碰撞未实测（端到端第二轮未跑） |
 
 - `LSMinimumSystemVersion`: 1.11.1 / 1.11.2 / snapshot 都是 `10.13.4`；1.3.3 是 `10.11`。
 
@@ -190,7 +190,7 @@ swift run --package-path application-test channel-verify <pkg>
    新家族文件 + `AppRecipeIndex.all` 一行 + fixture 测试 + 重录 `RecipeGoldenTests`。
    Sparkle 源的 changelogURL 仍是 `stable.html`，要确认 recipe 在 pane 的优先序里排在网页之前
    （skill 写的顺序是 recipe → structured → raw → web page）。
-2. 一键安装端到端（协调会话串行）: 装 1.11.1 → `duo install` → 应走 Sparkle enclosure 装上 1.11.2。
+2. 一键：第一轮端到端已跑通（1.11.1 → 1.11.2）；第二轮未跑。
 3. `CHANNEL_COVERAGE_TODO.md` 的 HandBrake 条目：结论（不需要单独接轨、无独立 bundle id、无 app 内开关）
    成立，但「snapshot 与 stable 同构建」不对——snapshot 是 `master` 的构建，版本串、签名、`SUFeedURL`
    都不同；不需要接轨的真正原因是每个包写死自己的 feed，而通用源读的就是它。同文件里把 HandBrake

@@ -148,7 +148,7 @@ duo 只读 `Info.plist` 里的 `SUFeedURL`（`BundleFacts`），不读这个覆�
   两边会看到不同的 feed。这是所有 Sparkle app 都有的通用差异，不只是 Keka；Keka 也没文档化这条路。
 
 ## 建议下一步
-1. 不需要检测或一键相关的代码。由协调会话串行跑一次端到端：先装 1.6.7（不启动）再
+1. 不需要检测或一键相关的代码。下一步跑一次端到端：先装 1.6.7（不启动）再
    `duo install`，然后在 app 运行、自动安装已就绪的状态下再跑一轮；看补丁路线（预期用
    `1.6.7r5729-1.6.8r5748.delta`）、FinderSync 扩展、`duo restart`。
 2. 结构化 changelog 二选一，用 `/fragile-recipe Keka`（ChangelogRecipe）：

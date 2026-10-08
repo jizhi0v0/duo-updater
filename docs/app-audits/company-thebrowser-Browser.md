@@ -112,7 +112,7 @@
 |---|---|---|---|
 | 按设备灰度 | Sparkle 支持 `phasedRolloutInterval`；Arc 另有 `auto-update-*` 安装时机 flag（只管什么时候装，不管分不分配） | 否：stable 与 RC feed 都没有 `phasedRolloutInterval` | 不需要 |
 | 按架构 / 按 OS 分轨 | — | 否：universal 单包；每条只有 `minimumSystemVersion` 13.0.0，没有上限 | `SparkleAppcastSource` 读 min/max 两端，下限会生效 |
-| 自更新器会不会和我们抢 | 会：`SUAutomaticallyUpdate` true，8 小时检查一次，`Will install update on quit` | 是：同一个 feed | 端到端第二轮要专门看 |
+| 自更新器会不会和我们抢 | 会：`SUAutomaticallyUpdate` true，8 小时检查一次，`Will install update on quit` | 是：同一个 feed | 端到端第二轮未跑 |
 
 ## Changelog
 - 来源: Sparkle inline（`<description>` 里是一个 `<h3>` 包住的整段话）
@@ -138,7 +138,7 @@
 - 嵌套: `check-bundle.sh` 没报 LoginItems / Helpers。包内有 `ArcCore.framework/Versions/A/Helpers/Browser Helper*.app`
   （Chromium 子进程，`LSUIElement`，跟随浏览器进程退出，不常驻）、`Sparkle.framework/Updater.app`、
   `PlugIns/DockTilePlugIn.plugin`，没有常驻 agent
-- 阻塞: 无已知；包大（约 450 MB），且 Arc 的自更新器会在退出时安装，端到端第二轮要看两边会不会冲突
+- 阻塞: 无已知；包大（约 450 MB），且 Arc 的自更新器会在退出时安装，端到端第二轮（两边会不会冲突）未跑
 
 ## 已知问题
 - 已在应用内加入 Early Birds、但还是 stable 构建时：duo 报 up to date，Arc 自己会推 RC（见 Channel 详情缺口 1）

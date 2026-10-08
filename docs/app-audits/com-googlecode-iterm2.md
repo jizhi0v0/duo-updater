@@ -121,7 +121,7 @@
   的**版本化副本**运行在 bundle 之外，旧副本由新版本清理——替换 bundle 不会把可执行文件从运行中的 shell 下面抽走
   （读源码得出，未实测）。
 - **读的是**: 人人可手动下载的 GA——enclosure 就是 iterm2.com 下载页上公开的 zip；`shard` 参数实测不改变响应。
-- 阻塞: 无已知阻塞；运行中替换 + app 自己的 Sparkle 是否抢装，待端到端那轮看。
+- 阻塞: 无已知阻塞；运行中替换 + app 自己的 Sparkle 是否抢装（第二轮）未跑。
 
 ## 已知问题
 1. **test release 轨没接（与 OBS 同型）。** stable 副本在 iTerm2 里打开 test release（`CheckTestRelease = YES`）后，
@@ -196,4 +196,4 @@ curl -sS "https://raw.githubusercontent.com/gnachman/iTerm2/master/sources/iTerm
 2. **结构化 changelog**：`/fragile-recipe iTerm2`（ChangelogRecipe，纯文本），stable 读
    `https://iterm2.com/downloads/stable/iTerm2-{version}.changelog`（或 `full_changes.txt`），beta 读
    `https://iterm2.com/downloads/beta/iTerm2-{version}.changelog`；小节标题形如 `Bug Fixes:`，条目 `- ` 开头、硬换行。
-3. 端到端一键（协调会话）：3.7.2 → 3.7.3，两轮（未运行 / 运行中且 iTerm2 自己的 Sparkle 已暂存）。
+3. 一键：第一轮（未运行）已跑通，3.7.2 → 3.7.3；第二轮（运行中且 iTerm2 自己的 Sparkle 已暂存）未跑。

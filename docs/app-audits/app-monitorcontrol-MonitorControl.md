@@ -102,7 +102,7 @@
 - 嵌套 app: `Contents/Library/LoginItems/MonitorControlHelper.app`（`app.monitorcontrol.MonitorControlHelper`，
   `LSBackgroundOnly` true）。源码 `MonitorControlHelper/main.swift`：主 app 没在跑就 `launchApplication`
   主 app，然后立刻 `terminate`——登录启动器，不常驻，不阻挡一键（同 OpenInTerminal 的情形）。
-- 阻塞: 无（端到端结果待协调会话补）
+- 阻塞: 无（第一轮端到端已跑通，第二轮未跑）
 
 ## 已知问题
 - **4.2.0 及更早是另一个身份，duo 与厂商都会报「已是最新」。** 4.2.0 真包：bundle id
@@ -159,4 +159,4 @@ gh api "repos/MonitorControl/MonitorControl/contents/MonitorControl/Support/Upda
 2. beta：现在不做。重开条件是 feed 出现第一条 `beta` item；届时加 `MonitorControlChannel`：读 CFPrefs
    `app.monitorcontrol.MonitorControl` 的 `isBetaChannel`（true → `.beta` + `sparkleChannelNames: ["beta"]`，
    否则 `.stable`），注册进 `ChannelBinding.resolver(for:)`，并以那个真实 beta 构建登记 binding proof。
-3. 一键端到端由协调会话串行跑（4.3.3 → 4.4.0）。
+3. 一键：第一轮端到端已跑通（4.3.3 → 4.4.0）；第二轮未跑。

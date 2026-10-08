@@ -1,6 +1,6 @@
 # IINA
 
-> 审计日期 2026-10-08 · 模式 REPORT（复审）· 结论：**stable/beta 两 channel，共享 bundle id，`IINAChannel` 读 `receiveBetaUpdate` 做 Sparkle feed-swap；对源码和真实包都核对过。检测 ✓（两轨）· 一键走通用 Sparkle 安装路径，端到端未跑 · changelog 只有 web page，未结构化（○，可用 `feedPagePattern` 补）**
+> 审计日期 2026-10-08 · 模式 REPORT（复审）· 结论：**stable/beta 两 channel，共享 bundle id，`IINAChannel` 读 `receiveBetaUpdate` 做 Sparkle feed-swap；对源码和真实包都核对过。检测 ✓（两轨）· 一键走通用 Sparkle 安装路径，第一轮端到端 ✓（delta） · changelog 只有 web page，未结构化（○，可用 `feedPagePattern` 补）**
 >
 > 本文替换 2026-06-04 那版。旧版只核对了 bundle 身份，结论「仅 Sparkle stable、无需改代码」，但 2026-06-07 代码已加了 beta `ChannelBinding`，旧文没跟上；旧文里的各项错误见文末「旧版结论勘误」。
 
@@ -61,7 +61,7 @@ beta 包的 `CFBundleShortVersionString` 是字面的 `1.5.0-beta2`，`ReleaseCh
 
 | | 客户端能力 | 服务端实际下发 | 我们能否消费 |
 |---|---|---|---|
-| 结论 | 有 | 有 | 能（检测侧已读到；安装侧是否走了 delta 由端到端那轮确认） |
+| 结论 | 有 | 有 | 能（第一轮端到端走的就是 `IINA180-168.delta`，68369402 字节） |
 | 证据 | 1.5.0 包内 `Sparkle.framework/Versions/B/Autoupdate` 的 strings 含 `BinaryDelta`、`SUBinaryDeltaCommon.m`、`/usr/bin/bspatch` | 2026-10-08 两份 feed：stable 42 条里 16 条带 `<sparkle:deltas>`；1.5.0 带 `deltaFrom` 172/170/168/167/164 五个 patch（`IINA180-168.delta` 68,369,402 B，`IINA180-172.delta` 6,264,954 B，整包 113,048,935 B） | `channel-verify` 对 1.4.4 打印 `deltas 5`，即 `SparkleAppcastSource` 已把 patch 列表带进 `RemoteVersion`；应用靠 `DeltaApplier`（Sparkle `BinaryDelta`） |
 
 - 格式: Sparkle binary delta（EdDSA 签名，同时还带旧的 DSA 签名）
@@ -73,7 +73,7 @@ beta 包的 `CFBundleShortVersionString` 是字面的 `1.5.0-beta2`，`ReleaseCh
 |---|---|---|---|
 | 按设备灰度 | Sparkle 2 支持 `phasedRolloutInterval` | 否：两份 feed 都没有该元素（2026-10-08） | 不适用 |
 | 按架构 / 按 OS 分轨 | Sparkle 支持 min/max 与 `hardwareRequirements` | 只有逐条 `minimumSystemVersion`（见上）；没有上限、没有架构分轨，包是 universal | 能：`SparkleAppcastSource.usableItems` 解析 min/max 与 `hardwareRequirements`；10.15 的 Mac 会停在 1.4.4，beta2 只给 12+ |
-| 自更新器会不会和我们抢 | 会：IINA 自带 Sparkle，用户可开自动检查/自动下载 | 没测 | 由协调会话的端到端第二轮（运行中 + 自更新器已暂存）验证 |
+| 自更新器会不会和我们抢 | 会：IINA 自带 Sparkle，用户可开自动检查/自动下载 | 没测 | 端到端第二轮（运行中 + 自更新器已暂存）未跑 |
 
 ## Changelog
 - 来源: web page（feed 只给 `releaseNotesLink`，无内联说明）
@@ -90,7 +90,7 @@ beta 包的 `CFBundleShortVersionString` 是字面的 `1.5.0-beta2`，`ReleaseCh
 - Team ID：上一版 1.4.4 与最新 1.5.0、beta2 都是 `67CQ77V27R`，`SignatureVerifier` 的 Team 精确匹配不会挡住老拷贝。三个包 `codesign --verify --deep --strict` 退出 0，`spctl` 为 `Notarized Developer ID`。
 - 嵌套组件：`check-bundle.sh` 在 `Contents/` 下 4 层内没有嵌套 `.app`；包里只有 Safari 扩展 `Contents/PlugIns/OpenInIINA.appex`（`com.colliderli.iina.OpenInIINA`，`com.apple.Safari.extension`，不是常驻进程）和 Sparkle 自带的 `Updater.app` / `Installer.xpc` / `Downloader.xpc`（Sparkle 自己的安装流程用，不常驻）。没有 LoginItem 或常驻 helper，不需要因为 helper 扣一键。
 - **读的是**: 人人可手动下载的 GA——feed 没有 `phasedRolloutInterval`，IINA 自己的 Sparkle 对同一个 feed 也会拿到同一个头条；stable 包和 beta 包都是 GitHub Releases 上公开挂出的资产（beta 标 `prerelease`），字节相同。
-- 阻塞: 无已知阻塞；待端到端确认（含自更新器碰撞那一轮）。
+- 阻塞: 无已知阻塞；第二轮（自更新器碰撞）未跑。
 
 ## 已知问题
 - `IINAChannel.readReceiveBeta()` 只认 `NSNumber`，IINA 的 `UserDefaults.bool(forKey:)` 也认字符串；手工写入字符串值时两边会分歧（落回 stable，保守方向）。正常使用不会出现。
@@ -104,7 +104,7 @@ beta 包的 `CFBundleShortVersionString` 是字面的 `1.5.0-beta2`，`ReleaseCh
    - `headingPattern`: `<h3[^>]*>(?<heading>.*?)</h3>`
    - `itemPatterns`: 顶层 `<li class="…">` 与嵌套 `<li>` 都要成为条目，且父项与第一个子项不能合并（同 MMF 的 `(?=<li|</li>|<ul>)` 终止写法）；全无列表时落到 `<p>`。
    - 验收：`channel-verify` 的 `changelog pane` 变成 recipe/structured，`headings` 列出 New / Bug Fixes / …，且标题文字不出现在条目里。
-2. 一键：协调会话按 `coverage-discovery` Phase 5 跑端到端两轮（1.4.4 → 1.5.0；第二轮让 IINA 的 Sparkle 先暂存一个更旧的包再 `duo install` + `duo restart`），结果写回本文「一键安装」。
+2. 一键：第一轮已跑通（见「一键安装」）。还没跑的是第二轮：让 IINA 的 Sparkle 先暂存一个更旧的包，再 `duo install` + `duo restart`。
 3. 可选：`IINAChannel.readReceiveBeta()` 改为与 `UserDefaults.bool(forKey:)` 同语义（也接受 `"YES"`/`"true"`/`"1"` 字符串），并加单测。不急。
 4. README 索引：IINA 现有两个 channel，应从「Sparkle-covered」移到「Multi-channel families」。
 
@@ -214,7 +214,7 @@ grep -ciE "maximumSystemVersion|hardwareRequirements|phasedRolloutInterval" "$D"
 2026-06-04 版的下列说法不成立或已过期：
 - 「覆盖矩阵只有 stable」：IINA 有 beta 轨（`appcast-beta.xml`），代码自 2026-06-07 起已用 `IINAChannel` 接入。
 - 「当前生效源: Sparkle for installed direct app with `SUFeedURL`」：生效的 feed 地址来自 `ChannelBinding` 的 `feedOverride`，不只是 Info.plist。
-- 「一键安装：Sparkle path only / 阻塞：无」：当时没有任何端到端或真实包证据；现在也只核对了包与签名，端到端仍未跑。
+- 「一键安装：Sparkle path only / 阻塞：无」：当时没有任何端到端或真实包证据。现在第一轮端到端已跑通（1.4.4 → 1.5.0，delta）。
 - 「Changelog: Sparkle/appcast-provided notes only」：feed 没有内联说明，面板显示的是 web page，没有结构。
 - 「建议下一步：No code change」：缺一条 changelog recipe。
 - 自更新机制写成「Sparkle / Homebrew cask `auto_updates`」：cask 的 `auto_updates` 不是更新机制，只是让 `HomebrewCaskSource` 不应答。

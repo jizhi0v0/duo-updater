@@ -78,7 +78,7 @@ MAS：`itunes.apple.com/lookup?bundleId=com.knollsoft.Rectangle` 返回 `resultC
 
 | | 客户端能力 | 服务端实际下发 | 我们能否消费 |
 |---|---|---|---|
-| 结论 | 有 | 有 | 能（未端到端跑） |
+| 结论 | 有 | 有 | 能（第一轮端到端走的就是 `Rectangle110-109.delta`，363770 字节） |
 | 证据 | 内嵌 Sparkle 2.10.0 的 `Autoupdate` 含 `deltaFromSparkleExecutableSize` / `deltaFromSparkleLocales` 字符串 | 2026-10-08 抓的 feed：14/14 item 带 `<sparkle:deltas>`，2.0.3 有 5 个 patch（from build 109/108/107/105/104）。`Rectangle110-109.delta` 363770 B，完整 dmg 4730793 B | `SparkleInstaller.download` 在 `DeltaApplier.isAvailable` 且已装 build 等于某个 `deltaFrom` 时走 patch；`channel-verify` 打印 `deltas  5`，说明解析到了 |
 
 - 格式: Sparkle binary delta
@@ -119,7 +119,7 @@ MAS：`itunes.apple.com/lookup?bundleId=com.knollsoft.Rectangle` 返回 `resultC
 - 自更新器会不会和我们抢：Rectangle 的 Sparkle 默认每 172800 秒（2 天）检查一次，没有在 Info.plist 里关掉自动下载（没有 `SUAllowsAutomaticUpdates`）。运行中被 Sparkle 暂存后再 `duo install` 的情况没测过，留给端到端第二轮。
 
 ## 建议下一步
-1. 检测和一键不需要代码改动，也不需要 `ChannelBinding`。协调会话按 `coverage-discovery` Phase 5 跑端到端：先装 2.0.2，`duo install` 到 2.0.3，看是否走 `delta route ... build 109`。
+1. 检测和一键不需要代码改动，也不需要 `ChannelBinding`。第一轮端到端已跑通（2.0.2 → 2.0.3，delta）；第二轮（运行中、自更新器已暂存）未跑。
 2. Changelog（可选，通用修复，不是 Rectangle 专属）：`AppcastHTMLChangelogParser.entry` 遇到 `<li>` 之外的顶层裸文本或 `<p>` 时，现在直接丢弃。
    两种做法任选：(a) 把列表前的顶层文本/`<p>`（排除只含链接的 `<p>`）收成条目开头的 item；(b) 只要存在 `<li>` 之外的非链接正文就返回 nil，退回 HTML 渲染。
    不管选哪种，都要用 2.0.2 这段 description 当 fixture，还要 bump `Changelog` 的解析代数。

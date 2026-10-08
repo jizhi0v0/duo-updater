@@ -193,7 +193,7 @@ gh api "repos/p0deje/Maccy/commits?path=appcast.xml&per_page=100"
 所以没有对非 stable 包跑 `channel-verify`。
 
 ## 建议下一步
-1. 协调会话串行跑端到端一键：装 2.7.0 → `duo check` 应报 `2.7.0 → 2.7.1 [Sparkle]` → `duo install --yes`，
+1. 下一步跑端到端一键：装 2.7.0 → `duo check` 应报 `2.7.0 → 2.7.1 [Sparkle]` → `duo install --yes`，
    确认走无 EdDSA 分支后装上 2.7.1、Team `MN3X4648SC`、签名完好；再跑「运行中 + 自更新器」一轮。
 2. 无代码改动：不需要 `ChannelBinding`（单轨、feed 无 tag）、不需要 recipe（Sparkle inline 已结构化）。
 3. 可选、非我们侧：如果想让行上有 changelog 外链，需要厂商把 `<releaseNotesLink>` 改成

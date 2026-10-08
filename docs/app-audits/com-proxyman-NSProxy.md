@@ -91,7 +91,7 @@
   - **特权 helper `Contents/Library/LaunchServices/com.proxyman.NSProxy.HelperTool`**，用 SMJobBless 安装。内嵌 launchd plist 只有 `MachServices` 和 `AssociatedBundleIdentifiers`，没有 `RunAtLoad`/`KeepAlive`，按需拉起。生效的是 app 拷到 `/Library/PrivilegedHelperTools/` 的那份副本，换 bundle 不会动它。26.0.0 和 26.0.1 里的 helper 都是 `PMHelperToolVersion` 1.7.0 / `CFBundleVersion` 170，二进制 sha256 不同（重新构建/签名），声明的版本没变。所以从 26.0.0 换到 26.0.1，helper 不会出现「新 app 配旧 helper」的版本差。helper 版本以后真变了怎么办，取决于 app 启动时会不会比对版本、重新 bless（会弹管理员授权），这一点未验证。不过 Proxyman 自己的 Sparkle 也只换 bundle、不碰 helper，一键在这点上和厂商路径一样，不构成阻塞。
   - `Contents/MacOS/mcp-server`：由外部 MCP 客户端以 stdio 子进程方式启动。换包时若正有客户端连着，它会继续跑旧代码，直到客户端重启。`proxyman-cli` 是一次性命令，cask 会把它软链到 `bin`，换包后链接路径不变。
 - 自更新器: Sparkle 1.27.0 的 `Autoupdate` 在 app 退出时安装已暂存的更新。`SUEnableAutomaticChecks` 默认 false，用户可以在设置里打开。需要按 Phase 4 第二轮验证会不会和我们抢
-- 阻塞: 无已知阻塞，待端到端
+- 阻塞: 无已知阻塞（第一轮端到端已跑通；helper 与第二轮未测）
 
 ## 已知问题
 - Changelog 只能显示 203 KB 原始 HTML（132 个版本混在一个条目里），见上。
@@ -109,7 +109,7 @@
 2. Release Log 日期: 在 `ReleaseDate.rfc822Formatters` 加一个能解析 `EEE, dd MMM yyyy HH:mm:ss 'GMT'Z`
    （或等价写法）的 formatter，并用 `Sun, 27 Sep 2026 16:09:46 GMT+0200` 写单测。这会影响所有 feed，属通用修复，
    不放在 Proxyman 的 recipe 里做。
-3. 一键端到端: 由协调会话按 Phase 4 跑两轮（26.0.0 → 26.0.1，Sparkle 路线），重点看 helper 和自更新器有没有冲突。
+3. 一键：第一轮已跑通（26.0.0 → 26.0.1）。还没测的是第二轮，以及启动过、helper 已安装时的情况，重点看 helper 和自更新器有没有冲突。
 4. Channel: 不需要 binding。HTTP/2 Beta 是一次性构建，和 stable 无法区分，也不另有 feed。`CHANNEL_COVERAGE_TODO.md`
    里「无 beta 渠道」那一行应改为「有一次性 HTTP/2 Beta 构建（同 id、同版本、同 feed），不构成轨道」。
 

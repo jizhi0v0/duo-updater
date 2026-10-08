@@ -73,7 +73,7 @@
 
 | | 客户端能力 | 服务端实际下发 | 我们能否消费 |
 |---|---|---|---|
-| 结论 | 有 | 有（只对上一版） | 能（生产链读出来了）；实际安装走没走 delta 未验（一键未跑） |
+| 结论 | 有 | 有（只对上一版） | 能，实测：一键端到端 8.2.4133.83 → .84 走 delta，`bytesDownloaded 25117814`（整包 227,218,412 B），装后与厂商包逐文件相同（见「一键安装」） |
 | 证据 | `Sparkle.framework/Autoupdate` 含 `BinaryDelta` 等 12 处相关串；Sparkle 2.9.1 | 2026-10-08 head 条目带 `Vivaldi-8.2.4133.84-8.2.4133.83.universal.delta`，`length` 25,117,814，`sparkle:deltaFrom` 8.2.4133.83；`deltaFromSparkleExecutableSize` 980432 与 .83 包里 `Sparkle.framework/Sparkle` 的大小相同 | `channel-verify`：`deltas 1`（两个包都是）；`DeltaApplier` 吃 Sparkle binary delta |
 
 - 格式: Sparkle binary delta（带 `sparkle:edSignature`）

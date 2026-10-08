@@ -18,7 +18,7 @@
 | **beta**     | ✓（`MonitorControlChannel`；厂商还没发过 beta） | — | — | —      | —           |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **Sparkle**。bundle 自带 `SUFeedURL`，通用
-`SparkleAppcastSource` 直接读；`isBetaChannel` 开着时由 `MonitorControlChannel` 判为 beta。
+`SparkleAppcastSource` 直接读，检测不用 recipe；`isBetaChannel` 开着时由 `MonitorControlChannel` 判为 beta（changelog 有 recipe，见「Changelog」）。
 
 - Homebrew —：cask `monitorcontrol`（2026-10-08 为 4.4.0）`auto_updates: true`，`HomebrewCaskSource` 退让。
 - MAS —：App Store 上的「MonitorControl Lite」是另一个产品（`app.monitorcontrol.MonitorControlLite`），不是本 bundle 的分发渠道。
@@ -83,14 +83,24 @@
   这页本身是空壳：页内 JS 用 `tag` 参数请求
   `api.github.com/repos/MonitorControl/MonitorControl/releases/tags/<tag>`，再用 `marked` 渲染 `body`
   （`github-pages` 分支 `docs/changelog.html`）。真正的内容就是 GitHub release 正文。
-- 结构化（2026-10-08，`channel-verify` 的 `changelog pane` 行，4.4.0 与 4.3.3 两次一致）:
-  `web page https://monitorcontrol.app/changelog.html?tag=v4.4.0, no structure` —— **没有结构化 changelog**，
-  pane 退到网页。网页在 pane 里是否真的渲染出正文（取决于 JS 与匿名 GitHub API 配额）**未验证**。
+- recipe: `Recipes/app-monitorcontrol-MonitorControl.swift`，读同一批正文的列表
+  `https://api.github.com/repos/MonitorControl/MonitorControl/releases?per_page=40`，`mode: .json`，
+  `structuredFormat: .gitHubReleases`，无 channel（只读 `prerelease: false`）。
+  - `tagPattern: ^v([0-9]+(?:\.[0-9]+)+)$`：版本 = tag 去掉 `v` = `CFBundleShortVersionString`（4.4.0）。
+    这里是过滤器不是 monorepo 拆分：`v4.0.0-rc1` 在 GitHub 上是 `prerelease: false`，没有它会作为
+    稳定版条目出现。
+  - `skipSections`: `Thanks to all our translators`（4.0.0 的译者名单）、`Notes`（每版末尾的致谢 /
+    「有问题开 issue」/「帮忙翻译」）、`Installation`（1.x 的安装说明）。New Contributors 与
+    Full Changelog 由 `GitHubMarkdownParser` 对所有 app 统一丢掉。
+  - 4.2.0 及更早（旧身份 `me.guillaumeb.MonitorControl`）**保留**：同一仓库、同一产品，身份变化是换签名
+    （厂商 v4.3.2 说明里写明），属于这个 app 的历史。这个 recipe 按新 bundle id 注册，不会给旧身份的副本用。
+- 结构化（2026-10-08，`channel-verify MonitorControl.4.4.0.dmg` 的 `changelog pane` 行）:
+  `recipe changelog:app.monitorcontrol.MonitorControl:-: 22 entries; newest 4.4.0: 4 items, headings []; first items ["Restored the traditional OSD for macOS 2", "Fixed app Settings appearing on every in", "Fixed custom keyboard shortcut recording"]`
+  —— 结构化 ✓。`## What's Changed` 不保留成标题：一个正文里只有它一个标题，低于
+  `GitHubMarkdownParser` 的「≥2 个标题才渲染」门槛，被丢掉（不并进条目）；条目就是下面的列表，
+  前后的介绍段落与 BetterDisplay 推荐不进条目。4.2.0 及更早有两个以上分类小标题的版本，小标题照常渲染。
 - 跟随 channel: 不适用（只有一条轨在发）
-- Recipe 状态: **需要**（○）。GitHub release 正文是 Markdown，带 `## What's Changed` 小节
-  （v4.4.0、v4.3.2 实测），与 Waku（`Recipes/sh-waku.swift`）同形：Sparkle 检测 + `.gitHubReleases`
-  `ChangelogRecipe` 读 `api.github.com/repos/MonitorControl/MonitorControl/releases?per_page=40`。
-  小标题在 pane 里保留成标题还是被压平，要加上 recipe 后再看 `changelog pane` 行——**未验证**。
+- Recipe 状态: ✓ 已接入
 
 ## 一键安装
 - 状态: 走 Sparkle 通用一键路径（enclosure = GitHub release 的 `MonitorControl.<v>.dmg`，带 `sparkle:edSignature`；4.3.3 与 4.4.0 的 `SUPublicEDKey` 相同）
@@ -142,7 +152,8 @@ gh api "repos/MonitorControl/MonitorControl/contents/MonitorControl/Support/Upda
 | 4.2.0（旧身份） | `me.guillaumeb.MonitorControl` | 4.2.0 (7048) | `CYC8C8R4K9` | `declared  https://monitorcontrol.app/appcast.xml` | latest 4.2.0、`status up to date`（见「已知问题」） |
 
 - 两个当前身份的包：`release history 3 entries`、`deltas 0`、`ChannelBinding <none for this app>`、
-  `changelog pane  web page https://monitorcontrol.app/changelog.html?tag=v4.4.0, no structure`。
+  `changelog pane  web page https://monitorcontrol.app/changelog.html?tag=v4.4.0, no structure`（加 changelog
+  recipe 之前；之后见「Changelog」）。
 - check-bundle：4.4.0 `codesign-verify-exit=0`、4.3.3 `codesign-verify-exit=1`（FinderInfo，见上），
   两者 `spctl source=Notarized Developer ID`，nested 只有 `MonitorControlHelper.app`（`LSBackgroundOnly=true`）。
 - feed：`appcast2.xml` 3 条 item，channel / deltas / phasedRolloutInterval / maximumSystemVersion /
@@ -150,9 +161,44 @@ gh api "repos/MonitorControl/MonitorControl/contents/MonitorControl/Support/Upda
   `dba06df90b` `6c67dd621e`）channel tag 均为 0。
 
 ## 建议下一步
-1. 加结构化 changelog: `/fragile-recipe MonitorControl`（ChangelogRecipe，`structuredFormat: .gitHubReleases`，
-   source `https://api.github.com/repos/MonitorControl/MonitorControl/releases?per_page=40`，`mode: .json`，
-   照 `Recipes/sh-waku.swift`）。加完跑 channel-verify 看 `changelog pane` 是否为 recipe、`## What's Changed`
-   是否作为标题保留。
+1. 结构化 changelog: 已做（见「Changelog」）。
 2. beta：`MonitorControlChannel` 已接（2026-10-08）。标签由 `.beta` 推出（`beta`），不是手写的，所以不需要 binding proof。厂商发第一条 beta item 时，拿真实 beta 包跑一遍 `channel-verify`。真实路径（`defaults write … isBetaChannel -bool true`，验完删除）：`ChannelBinding  beta — read from this app's own preference`，`detected channel → beta`，4.4.0 `up to date`（feed 里没有 beta item）；去掉这个键后是 `<none for this app>`、stable。
 3. 一键：第一轮端到端已跑通（4.3.3 → 4.4.0）；第二轮未跑。
+
+## 历史与实测
+
+### Recipes/app-monitorcontrol-MonitorControl.swift — ChangelogRecipe（2026-10-08 接入时）
+
+**真实响应。** `GET https://api.github.com/repos/MonitorControl/MonitorControl/releases?per_page=40`
+（匿名，浏览器 UA）：143605 字节，27 个 release；`per_page=100` 返回同样的 27 个，所以 40 一页装得下全部。
+`prerelease: true` 只有 `v4.0.0-beta1`、`v4.0.0-beta2`；`draft` 0 个。`v4.0.0-rc1` 是 `prerelease: false`。
+tag 全是 `v<版本>`（`v1.0`、`v1.1`、`v1.2` 两段，其余三段）。正文里的 `#` 标题：v4.4.0、v4.3.3、v4.3.2
+各只有一个 `## What's Changed`；v4.2.0、v4.1.0 是 GitHub 生成格式（`## What's Changed` + `###` 分类 +
+`## New Contributors` + `**Full Changelog**`）；v4.0.x / v3.x 是手写 `###` 分类 + `### Notes`；
+v1.x / v2.x 是 `### What's new` / `### Bug fixes`，v1.0–v1.4.0 带 `### Installation`。
+
+**生产解码器。** 一次性 Swift 测试（跑完已删）把上面的响应原样喂给
+`StructuredChangelogDecoder.decode(format: .gitHubReleases, channel: nil, maxEntries: 40, …)`：
+
+| 配置 | 条目数 | 与最终配置的差别 |
+|---|---|---|
+| 不加 `tagPattern` / `skipSections` | 25 | 多出 `4.0.0-rc1`（73 条，几乎是 4.0.0 的复本）、`1.1`、`1.0`（各 1 条，就是安装说明） |
+| 最终配置 | 22 | — |
+
+最终配置的 22 条：4.4.0（4 条，无标题）、4.3.3（4）、4.3.2（12）、4.2.0（15，标题 Improvements /
+Translations & other）、4.1.0（18）、4.0.2（4）、4.0.1（11）、4.0.0（63）、3.1.1（2）、3.1.0（2）、
+3.0.0（46），以及 2.1.0 到 1.2 共 11 条。被 `skipSections` 去掉的内容（逐版看过）：4.0.0 的
+`Thanks to all our translators` 是 9 行「语言 - thanks to @…」；`Notes` 在所有稳定版里都是致谢、
+「有问题开 issue」「帮忙翻译见 #637」一类（3.1.0 另有一句「v4.0.0 在开发中」）；`Installation` 全是
+「打开 .dmg 拖进 Applications」。
+
+v4.3.2 的一条是厂商原文两行粘在一起（`Added Japanese translation - @shsw228- Updated Russian translation - @ghostiam`），
+照原样显示。
+
+**真实路径。** `swift run --package-path application-test channel-verify MonitorControl.4.4.0.dmg`
+（官方 v4.4.0 release 资产，20391423 字节），同一个包前后各跑一次：
+
+- 不注册本 family：`changelog pane  web page https://monitorcontrol.app/changelog.html?tag=v4.4.0, no structure`
+- 注册后：`changelog pane  recipe changelog:app.monitorcontrol.MonitorControl:-: 22 entries; newest 4.4.0: 4 items, headings []; first items ["Restored the traditional OSD for macOS 2", "Fixed app Settings appearing on every in", "Fixed custom keyboard shortcut recording"]`
+
+两次其余各行相同：winning source Sparkle、latest 4.4.0、`status up to date`。

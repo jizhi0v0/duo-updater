@@ -26,6 +26,7 @@ public enum AppRecipeIndex {
         app_getmoshi_desktop.set,
         app_getmoshi_desktop_tauri.set,
         app_macdown_macdown3000.set,
+        app_monitorcontrol_MonitorControl.set,
         app_shift.set,
         app_yaak_desktop.set,
         app_zen_browser_zen.set,

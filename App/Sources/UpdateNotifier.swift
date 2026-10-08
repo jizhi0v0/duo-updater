@@ -9,20 +9,24 @@ import UserNotifications
 @MainActor
 enum UpdateNotifier {
 
-    /// A background check found updates. Carries the actionable category so the
-    /// banner shows "Update All" / "View" buttons (handled by
-    /// `NotificationController`). `total` is the full pending count; `newApps`
-    /// names the ones that newly appeared since the last check.
-    static func updatesAvailable(total: Int, newApps: [String]) {
+    /// A check found updates — apps, command-line tools, Homebrew packages, as
+    /// many of them as their switches allow (`UpdateBanner`). `total` is the full
+    /// pending count; `newItems` names the ones that newly appeared since the last
+    /// check. Carries an actionable category, handled by `NotificationController`:
+    /// "Update All" and "View" when everything new is an app (`appsOnly`), "View"
+    /// alone otherwise — "Update All" updates apps, and offered beside a new
+    /// command-line tool it would leave that tool where it was.
+    static func updatesAvailable(total: Int, newItems: [String], appsOnly: Bool) {
         let title = String(localized: "\(total) updates available")
         let body: String
-        switch newApps.count {
+        switch newItems.count {
         case 0:  return  // nothing newly appeared — don't nag
-        case 1:  body = String(localized: "\(newApps[0]) has an update.")
-        case 2:  body = String(localized: "\(newApps[0]) and \(newApps[1]) have updates.")
-        default: body = String(localized: "\(newApps[0]), \(newApps[1]), and \(newApps.count - 2) more have updates.")
+        case 1:  body = String(localized: "\(newItems[0]) has an update.")
+        case 2:  body = String(localized: "\(newItems[0]) and \(newItems[1]) have updates.")
+        default: body = String(localized: "\(newItems[0]), \(newItems[1]), and \(newItems.count - 2) more have updates.")
         }
-        post(title: title, body: body, categoryID: NotificationController.ID.updatesCategory)
+        post(title: title, body: body,
+             categoryID: appsOnly ? NotificationController.ID.updatesCategory : NotificationController.ID.viewUpdatesCategory)
     }
 
     /// Apple ended the Apple Developer session while an Xcode update is waiting

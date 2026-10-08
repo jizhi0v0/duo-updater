@@ -967,10 +967,19 @@ final class AppListModel {
     /// it — which made the badge flicker to the "no updates" icon and back. While a
     /// scan/check is in flight we hold the last settled count instead; otherwise we
     /// track `actionCount` live (so ignoring/skipping an app updates it at once).
+    ///
+    /// Plus the command-line tools a click updates and the outdated Homebrew
+    /// packages, each while its switch in Settings › Notifications is on
+    /// (`BadgeReadout.total`). Neither of those lists blanks mid-check, so only the
+    /// apps' part is held.
     var badgeCount: Int {
-        BadgeReadout.count(
-            live: actionCount, held: heldBadgeCount,
-            isScanning: isScanning, isChecking: isChecking)
+        BadgeReadout.total(
+            apps: BadgeReadout.count(
+                live: actionCount, held: heldBadgeCount,
+                isScanning: isScanning, isChecking: isChecking),
+            commandLineTools: cliTools.offered.count, homebrew: brewOutdatedFormulae.count,
+            countsCommandLineTools: prefs.notifyOnCLIToolUpdates,
+            countsHomebrew: prefs.notifyOnHomebrewUpdates)
     }
     @ObservationIgnored private var heldBadgeCount = 0
 
@@ -1797,6 +1806,8 @@ final class AppListModel {
         // row. The networked check runs on the background schedule, or when the
         // popover opens.
         Task { await cliTools.scanInstalls() }
+        // Every landed check, whichever path asked, may have something new to say.
+        cliTools.onReport = { [weak self] in self?.notifyNewCLIToolUpdates() }
     }
 
     /// The explicit GitHub token preference as the resolver should see it: nil when
@@ -3644,6 +3655,8 @@ final class AppListModel {
         // complete.
         brewRefreshGeneration += 1
         let generation = brewRefreshGeneration
+        brewReadsInFlight += 1
+        defer { brewReadsInFlight -= 1 }
         let leaves = (try? await brewFormulaService.installedLeaves()) ?? []
         if generation == brewRefreshGeneration, brewFormulae.isEmpty { brewFormulae = leaves }
 
@@ -3657,11 +3670,13 @@ final class AppListModel {
         // overlap it rather than queueing behind it.
         async let report = brewFormulaService.installedReport()
         var outdated: [BrewOutdatedFormula]
+        var outdatedRead = true
         do {
             outdated = try await brewFormulaService.outdated()
         } catch {
             Log.app.info("brew outdated --formula failed: \(error.localizedDescription, privacy: .public)")
             outdated = []
+            outdatedRead = false
         }
         // App-less casks (CLIs, fonts) have no per-app row and no other home — see
         // `BrewOutdatedFormula`. Best-effort: a failure here must not blank the
@@ -3702,6 +3717,9 @@ final class AppListModel {
         if !brewUnchecked.isEmpty {
             Log.app.info("brew: \(self.brewUnchecked.count, privacy: .public) packages not read from their tap (\(self.brewUnchecked.map { "\($0.fullName)=\($0.reason)" }.joined(separator: ", "), privacy: .public))")
         }
+        // Not on a failed read: it left the list empty, a first pass would take
+        // that as the baseline, and the next good read would announce everything.
+        if outdatedRead { notifyNewHomebrewUpdates() }
         prewarmFormulaReleases()
     }
 
@@ -3806,6 +3824,10 @@ final class AppListModel {
     /// no error under the row — those belong to the button the user pressed.
     private func backgroundRefreshHomebrew(interval: TimeInterval?) async {
         guard brewInstalled else { return }
+        // A `brew update` can take a minute; the round's banner waits for the
+        // read after it (`isRoundInFlight`).
+        brewReadsInFlight += 1
+        defer { brewReadsInFlight -= 1 }
         let updater = homebrewBackgroundUpdate ?? makeHomebrewBackgroundUpdate()
         homebrewBackgroundUpdate = updater
         let task = Task { await updater.runIfDue(interval: interval) }
@@ -8960,7 +8982,94 @@ final class AppListModel {
 
         guard !newly.isEmpty else { return }
         Log.app.info("notify: \(newly.count, privacy: .public) new updates")
-        UpdateNotifier.updatesAvailable(total: actionable.count, newApps: newly.map(\.app.name))
+        announce(.apps, newly.map(\.app.name))
+    }
+
+    /// `notifyNewUpdates` for command-line tools: the installs a click updates
+    /// (`CLIToolsModel.offered`, what the badge counts), each announced once per
+    /// version, after a silent first baseline (`UpdateAnnouncementLedger`). Run
+    /// whenever a check lands (`CLIToolsModel.onReport`).
+    private func notifyNewCLIToolUpdates() {
+        let offered = cliTools.offered.map {
+            UpdateAnnouncementItem(key: $0.toolID.tag, name: $0.name ?? $0.kind.displayName,
+                                   version: $0.latestVersion ?? "")
+        }
+        var ledger = prefs.cliToolAnnouncements
+        // Every install the reports hold, offered or not: one that is gone is
+        // forgotten. A check that failed leaves its installs here, unanswered.
+        let newly = ledger.pass(
+            enabled: prefs.notifyOnCLIToolUpdates, offered: offered,
+            liveKeys: Set(cliTools.statuses.map(\.toolID.tag)))
+        if ledger != prefs.cliToolAnnouncements { prefs.cliToolAnnouncements = ledger }
+        announce(.commandLineTools, newly)
+    }
+
+    /// The same for Homebrew: formulae, and the casks that install no app
+    /// (`brewOutdatedFormulae`; a cask's app is an app row already). Run after a
+    /// read of brew's outdated list that succeeded.
+    private func notifyNewHomebrewUpdates() {
+        let offered = brewOutdatedFormulae.map {
+            UpdateAnnouncementItem(key: "\($0.kind.rawValue):\($0.name)", name: $0.name, version: $0.currentVersion)
+        }
+        var ledger = prefs.homebrewAnnouncements
+        // Nothing is forgotten: a failed `brew outdated --cask` reads as no
+        // outdated casks at all (`runReading` answers "" for any failure), and
+        // forgetting them on it would announce every one again on the next good
+        // read. The ledger is bounded by what brew has installed.
+        let newly = ledger.pass(enabled: prefs.notifyOnHomebrewUpdates, offered: offered, liveKeys: nil)
+        if ledger != prefs.homebrewAnnouncements { prefs.homebrewAnnouncements = ledger }
+        announce(.homebrew, newly)
+    }
+
+    /// What has newly appeared since the last banner, per category, until the
+    /// round settles (`announce`).
+    @ObservationIgnored private var pendingAnnouncements: [UpdateBanner.Category: [String]] = [:]
+    @ObservationIgnored private var announcementFlush: Task<Void, Never>?
+    /// `refreshBrewFormulae` reads and background `brew update`s under way, so a
+    /// banner waits for Homebrew's part of the round.
+    @ObservationIgnored private var brewReadsInFlight = 0
+
+    /// Hold `names` for the round's one banner. The apps, the command-line tools
+    /// and Homebrew are checked side by side and land seconds apart — on a tick,
+    /// and on an open of the popover alike — and a banner each would be three
+    /// banners for one round. So the banner goes out once none of the three is
+    /// still checking, or after five minutes whatever is still running.
+    private func announce(_ category: UpdateBanner.Category, _ names: [String]) {
+        guard !names.isEmpty else { return }
+        pendingAnnouncements[category, default: []] += names
+        guard announcementFlush == nil else { return }
+        announcementFlush = Task { @MainActor [weak self] in
+            for _ in 0..<300 {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self else { return }
+                if !self.isRoundInFlight { break }
+            }
+            self?.postAnnouncements()
+        }
+    }
+
+    /// Any of the three parts of a round still checking.
+    private var isRoundInFlight: Bool {
+        isRefreshing || isScanning || isChecking || cliTools.checking || brewReadsInFlight > 0
+    }
+
+    private func postAnnouncements() {
+        announcementFlush = nil
+        let pending = pendingAnnouncements
+        pendingAnnouncements = [:]
+        // The switches are read now, not when the names were held: one turned off
+        // in between keeps its category out of this banner too.
+        let parts = [
+            UpdateBanner.Part(category: .apps, enabled: prefs.notifyOnUpdates,
+                              newly: pending[.apps] ?? [], pending: results.filter(isActionableUpdate).count),
+            UpdateBanner.Part(category: .commandLineTools, enabled: prefs.notifyOnCLIToolUpdates,
+                              newly: pending[.commandLineTools] ?? [], pending: cliTools.offered.count),
+            UpdateBanner.Part(category: .homebrew, enabled: prefs.notifyOnHomebrewUpdates,
+                              newly: pending[.homebrew] ?? [], pending: brewOutdatedFormulae.count),
+        ]
+        guard let banner = UpdateBanner.compose(parts) else { return }
+        Log.app.info("notify: banner for \(banner.names.count, privacy: .public) new of \(banner.total, privacy: .public) pending")
+        UpdateNotifier.updatesAvailable(total: banner.total, newItems: banner.names, appsOnly: banner.appsOnly)
     }
 
     // MARK: - Recheck

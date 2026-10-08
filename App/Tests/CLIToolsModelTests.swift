@@ -1299,6 +1299,25 @@ struct CLIToolsModelTests {
         #expect(await bun.calls == 2)
     }
 
+    /// Every check that lands tells the app, whichever path asked — the schedule
+    /// or an open of the popover — so a new version is announced either way.
+    ///
+    /// Mutation: drop `onReport?()` from `apply`.
+    @Test func everyLandedCheckIsReported() async {
+        let clock = Clock()
+        let (model, _, _) = Self.scheduled(clock: clock)
+        final class Count: @unchecked Sendable { var value = 0 }
+        let reports = Count()
+        model.onReport = { reports.value += 1 }
+
+        await model.backgroundCheck(interval: 5 * 60) { false }
+        #expect(reports.value == 1)
+
+        clock.now += CLIToolsModel.recheckInterval
+        await model.refreshOnOpen()
+        #expect(reports.value == 2)
+    }
+
     // MARK: release notes
 
     /// A tool's release notes are fetched once per session — unless the kept copy

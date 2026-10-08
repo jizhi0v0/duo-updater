@@ -170,6 +170,12 @@ final class CLIToolsModel {
     /// Checks started and not yet returned; `checking` while any is out.
     @ObservationIgnored private var checksInFlight = 0
 
+    /// Called whenever a check's reports have landed, whichever path asked: the
+    /// app announces new versions from there (`AppListModel.notifyNewCLIToolUpdates`),
+    /// so one found by an open of the popover is announced like one the schedule
+    /// found.
+    @ObservationIgnored var onReport: (@MainActor () -> Void)?
+
     /// Each document's whole release notes, fetched once and kept for the session:
     /// every install's pane reads the same document (Claude Code's is ~860 KB, 407
     /// sections on 2026-09-30), so switching between installs should not fetch and
@@ -388,6 +394,7 @@ final class CLIToolsModel {
         for (id, version) in justUpdated {
             if byID[id]?.installedVersion != version { justUpdated[id] = nil }
         }
+        onReport?()
     }
 
     /// Run the one-click update of the install `id` names, with its own tool's

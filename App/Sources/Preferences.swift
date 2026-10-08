@@ -98,6 +98,12 @@ final class Preferences {
         static let notifiedVersionList = "NotifiedVersionsList"
         static let notifiedStagedVersions = "NotifiedStagedVersions"
         static let notificationBaselineSeeded = "NotificationBaselineSeeded"
+        static let notifyOnCLIToolUpdates = "NotifyOnCLIToolUpdates"
+        static let notifyOnHomebrewUpdates = "NotifyOnHomebrewUpdates"
+        static let notifiedCLIToolVersions = "NotifiedCLIToolVersions"
+        static let cliToolNotificationBaselineSeeded = "CLIToolNotificationBaselineSeeded"
+        static let notifiedHomebrewVersions = "NotifiedHomebrewVersions"
+        static let homebrewNotificationBaselineSeeded = "HomebrewNotificationBaselineSeeded"
         static let marketingByBuild = "MarketingVersionByBuild"
         static let stagedPackages = "StagedPackages"
         static let showRuntimeTags = "ShowRuntimeTags"
@@ -252,6 +258,36 @@ final class Preferences {
     /// Post a notification when a background check finds updates.
     var notifyOnUpdates: Bool {
         didSet { defaults.set(notifyOnUpdates, forKey: Key.notifyOnUpdates) }
+    }
+
+    /// The same for command-line tools, and whether the menu-bar icon's number and
+    /// the Dock badge count them (`BadgeReadout.total`). Default on.
+    var notifyOnCLIToolUpdates: Bool {
+        didSet { defaults.set(notifyOnCLIToolUpdates, forKey: Key.notifyOnCLIToolUpdates) }
+    }
+
+    /// The same for Homebrew packages (formulae, and casks that install no app —
+    /// a cask's app is an app row). Default off.
+    var notifyOnHomebrewUpdates: Bool {
+        didSet { defaults.set(notifyOnHomebrewUpdates, forKey: Key.notifyOnHomebrewUpdates) }
+    }
+
+    /// What the banner has announced for command-line tools, and whether their
+    /// silent baseline has been taken (`UpdateAnnouncementLedger`). Keyed by install
+    /// (`CLIToolID.tag`).
+    var cliToolAnnouncements: UpdateAnnouncementLedger {
+        didSet {
+            defaults.set(cliToolAnnouncements.versions.persistable, forKey: Key.notifiedCLIToolVersions)
+            defaults.set(cliToolAnnouncements.seeded, forKey: Key.cliToolNotificationBaselineSeeded)
+        }
+    }
+
+    /// The same for Homebrew packages, keyed "formula:jq" / "cask:codex".
+    var homebrewAnnouncements: UpdateAnnouncementLedger {
+        didSet {
+            defaults.set(homebrewAnnouncements.versions.persistable, forKey: Key.notifiedHomebrewVersions)
+            defaults.set(homebrewAnnouncements.seeded, forKey: Key.homebrewNotificationBaselineSeeded)
+        }
     }
 
     /// After an in-place install of a *running* app, automatically quit and
@@ -558,6 +594,16 @@ final class Preferences {
             rawValue: defaults.string(forKey: Key.backupCompression) ?? "")
             ?? UpdateSettings.backupCompressionDefault
         self.notifyOnUpdates = defaults.object(forKey: Key.notifyOnUpdates) as? Bool ?? true
+        self.notifyOnCLIToolUpdates = defaults.object(forKey: Key.notifyOnCLIToolUpdates) as? Bool ?? true
+        self.notifyOnHomebrewUpdates = defaults.object(forKey: Key.notifyOnHomebrewUpdates) as? Bool ?? false
+        self.cliToolAnnouncements = UpdateAnnouncementLedger(
+            versions: NotifiedUpdateVersions(
+                persisted: defaults.dictionary(forKey: Key.notifiedCLIToolVersions) ?? [:]),
+            seeded: defaults.bool(forKey: Key.cliToolNotificationBaselineSeeded))
+        self.homebrewAnnouncements = UpdateAnnouncementLedger(
+            versions: NotifiedUpdateVersions(
+                persisted: defaults.dictionary(forKey: Key.notifiedHomebrewVersions) ?? [:]),
+            seeded: defaults.bool(forKey: Key.homebrewNotificationBaselineSeeded))
         self.autoRestartAfterUpdate = defaults.object(forKey: Key.autoRestartAfterUpdate) as? Bool ?? true
         self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true
         self.showRuntimeTags = defaults.object(forKey: Key.showRuntimeTags) as? Bool ?? true

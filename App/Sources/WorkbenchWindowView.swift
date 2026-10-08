@@ -1835,6 +1835,10 @@ private extension BrewUncheckedPackage {
 private struct BrewUncheckedDetailPane: View {
     let package: BrewUncheckedPackage
 
+    /// The narrowest a detail-pane block of wrapped, `fixedSize` text is laid out
+    /// at — see the frame at the end of `body`.
+    static let minTextWidth: CGFloat = 280
+
     private static let tapTrustDocs = URL(string: "https://docs.brew.sh/Tap-Trust")!
 
     @State private var copied = false
@@ -1910,7 +1914,14 @@ private struct BrewUncheckedDetailPane: View {
             // taller than it draws, and centered it sat 7pt lower for
             // claude-code-notification than for musl-cross (measured in an
             // NSHostingView copy of this pane), so switching rows jumped.
-            .frame(maxWidth: 560, alignment: .topLeading)
+            //
+            // A floor under the width, for the command's `fixedSize`: measuring
+            // the window's minimum size (`.contentMinSize`) proposes this column a
+            // sliver of width, and a fixed-height wrapped command one character
+            // wide pushed the window's minimum height to 1185pt — past the screen
+            // (measured on the installed app, 2026-10-08). Same trap as the
+            // offline-backup notice (2026-09-24).
+            .frame(minWidth: Self.minTextWidth, maxWidth: 560, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -2073,7 +2084,9 @@ private struct BrewLifecycleNotice: View {
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
             }
         }
-        .frame(maxWidth: 560, alignment: .topLeading)
+        // See `BrewUncheckedDetailPane.minTextWidth`: its `fixedSize` texts
+        // need a width floor when the window measures its minimum size.
+        .frame(minWidth: BrewUncheckedDetailPane.minTextWidth, maxWidth: 560, alignment: .topLeading)
     }
 }
 

@@ -309,7 +309,10 @@ let inferred = ReleaseChannel.detect(
     bundleFileName: displayName,
     // Arc's and Dia's release-candidate builds name their train here, as
     // AppScanner reads it. See `ReleaseChannel.detect` step 0.95.
-    browserCompanyReleaseType: info["BCNYReleaseType"] as? String
+    browserCompanyReleaseType: info["BCNYReleaseType"] as? String,
+    // JetBrains Air's nightly names its train in its own SUFeedURL, as
+    // AppScanner reads it. See `ReleaseChannel.detect` step 0.97.
+    sparkleFeedURL: info["SUFeedURL"] as? String
 )
 
 // `detect()` alone is NOT what production concludes. `AppScanner` then consults

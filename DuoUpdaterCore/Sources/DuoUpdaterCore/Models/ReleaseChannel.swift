@@ -99,6 +99,9 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     ///   0.95. A seventh bundle-id-scoped rule — Arc and Dia, whose release
     ///      candidate (Early Birds) build says so in its own `BCNYReleaseType`
     ///      plist key. See the block comment on the check.
+    ///   0.97. An eighth bundle-id-scoped rule — JetBrains Air, whose nightly
+    ///      build is told apart only by the train named in its own `SUFeedURL`.
+    ///      See the block comment on the check.
     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
     ///      authoritative).
@@ -119,7 +122,8 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
         version: String? = nil,
         mozillaRemotingName: String? = nil,
         bundleFileName: String? = nil,
-        browserCompanyReleaseType: String? = nil
+        browserCompanyReleaseType: String? = nil,
+        sparkleFeedURL: String? = nil
     ) -> ReleaseChannel {
         // 0. Mozilla `RemotingName` — authoritative for Firefox/Thunderbird.
         if let remoting = mozillaRemotingName?
@@ -291,6 +295,25 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return .rc
         }
 
+        // 0.97 JetBrains Air — nightly and Public Preview share bundle id
+        //     `com.jetbrains.air`, the name "Air" and the Team, and neither
+        //     version shape names a channel (nightly `262.1054`, Public Preview
+        //     `262.1037.6`). What differs is the feed each package bakes into its
+        //     own `SUFeedURL`: `…/fleet-feed/AIR/nightly/<arch>/feed.xml` in a
+        //     nightly, `…/fleet-feed/AIR/eap/<arch>/feed.xml` in Public Preview.
+        //     The segment after `fleet-feed/AIR/` is the train, so `nightly` there
+        //     is a nightly build; anything else falls through and Public Preview
+        //     keeps reading as stable.
+        //
+        //     This changes the row's label and which changelog recipe applies, not
+        //     the version check: `SparkleAppcastSource` already reads the feed in
+        //     the package, so a nightly copy follows its own nightly feed either way.
+        if bundleID == "com.jetbrains.air",
+           let feed = sparkleFeedURL.flatMap(URL.init(string:)),
+           isJetBrainsAirNightlyFeed(feed) {
+            return .nightly
+        }
+
         // 1. Keystone's own channel id — authoritative when present.
         if let ks = keystoneChannel?.trimmingCharacters(in: .whitespacesAndNewlines),
            !ks.isEmpty {
@@ -418,6 +441,16 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
         if name.hasSuffix("-dev") { return .dev }
         // A bare product name ("firefox"/"thunderbird"/"librewolf"/…) is stable.
         return name.allSatisfy { $0.isLetter || $0 == "." } ? .stable : nil
+    }
+
+    /// True if `feed` is `…/fleet-feed/AIR/nightly/…`: the train is the path
+    /// segment right after `fleet-feed/AIR`, the layout `ToolboxSource`
+    /// rewrites as well.
+    private static func isJetBrainsAirNightlyFeed(_ feed: URL) -> Bool {
+        let segments = feed.pathComponents
+        guard let i = segments.firstIndex(of: "fleet-feed"), i + 2 < segments.count
+        else { return false }
+        return segments[i + 1] == "AIR" && segments[i + 2] == "nightly"
     }
 
     /// True if `text` matches `pattern` in its entirety (anchored both ends).

@@ -718,7 +718,11 @@ public struct AppScanner: Sendable {
             bundleFileName: bundleURL.deletingPathExtension().lastPathComponent,
             // Arc's and Dia's release-candidate builds name their train here.
             // See `ReleaseChannel.detect` step 0.95.
-            browserCompanyReleaseType: plist["BCNYReleaseType"] as? String
+            browserCompanyReleaseType: plist["BCNYReleaseType"] as? String,
+            // JetBrains Air's nightly names its train in the feed it bakes in.
+            // The bundle's own value, not a catalog replacement for it. See
+            // `ReleaseChannel.detect` step 0.97.
+            sparkleFeedURL: plist["SUFeedURL"] as? String
         )
 
         // Some apps hide the user's channel choice in a private preference (no

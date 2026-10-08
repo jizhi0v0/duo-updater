@@ -106,7 +106,14 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   `<!-- lang:xx -->` comment. magpie appends a full Chinese translation
     ///   below `<!-- lang:zh -->`, under the same English headings, so notes
     ///   already cached from its releases list every change twice.
-    public static let parserGeneration = 9
+    /// - 10: `GitHubMarkdownParser`'s strict pass keeps a bullet nested under a
+    ///   top-level bullet, as an item of its own right after its parent, instead
+    ///   of dropping it. HandBrake nests every library bump under
+    ///   `- Updated libraries`, so notes already cached showed that line alone.
+    ///   Of 3,710 release bodies (the last 30 of every GitHub rule's and CLI
+    ///   tool's repo, every GitHub recipe's own page, HandBrake and Keka;
+    ///   2026-10-08) it changed 41 sources, adding 1,511 lines and removing none.
+    public static let parserGeneration = 10
 
     public let entries: [Entry]
 

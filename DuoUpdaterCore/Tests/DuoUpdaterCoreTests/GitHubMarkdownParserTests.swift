@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import DuoUpdaterCore
 
@@ -325,17 +326,39 @@ import Testing
     #expect(cl?.entries.first?.items == ["Fix the broken thing", "Add a useful feature"])
 }
 
-@Test func strictStillSkipsIndentedSubBulletsWhenTopLevelExist() {
-    // A PR-style body with top-level bullets and indented sub-detail: the strict
-    // pass takes only the top-level ones (the lenient pass must NOT run here, or
-    // the sub-details would leak in — the regression we're guarding against).
+@Test func strictKeepsANestedBulletRightAfterItsParent() {
+    // Top-level bullets with an indented one nested under the first: the strict
+    // pass reads the nested bullet as an item of its own, in document order.
     let body = """
     - Top level change number one
-      - indented sub detail that duplicates
+      - indented sub detail of it
     - Top level change number two
     """
     let cl = GitHubMarkdownParser.parse(body: body, version: "1.0.0", date: nil)
-    #expect(cl?.entries.first?.items == ["Top level change number one", "Top level change number two"])
+    #expect(cl?.entries.first?.items == [
+        "Top level change number one", "indented sub detail of it", "Top level change number two",
+    ])
+}
+
+@Test func strictNestsOnlyInsideATopLevelList() {
+    // An indented bullet after a heading, after unindented prose, or inside a
+    // fence is not nested under any item, and the strict pass still drops it.
+    let body = """
+    - Top level change number one
+    A paragraph that closes the list.
+      - indented after prose
+    - Top level change number two
+      ```
+      - inside a fence
+      ```
+    ## Heading
+      - indented after a heading
+    - Top level change number three
+    """
+    let cl = GitHubMarkdownParser.parse(body: body, version: "1.0.0", date: nil)
+    #expect(cl?.entries.first?.items == [
+        "Top level change number one", "Top level change number two", "Top level change number three",
+    ])
 }
 
 // MARK: - Lenient fallback (new — only when strict finds nothing)
@@ -520,4 +543,114 @@ import Testing
     let entry = GitHubMarkdownParser.parse(body: body, version: "1.0", date: nil)?.entries.first
     #expect(entry?.items.count == 3)
     #expect(entry?.items.first == "A fenced bullet the strict pass has always read as an item")
+}
+
+// MARK: - Real release bodies through the production decode path
+
+/// One release as `api.github.com/repos/<owner>/<repo>/releases` returns it, so
+/// a fixture goes through the production decode path
+/// (`StructuredChangelogDecoder.decode(_:format: .gitHubReleases, …)`) rather
+/// than the parser alone. `body` is the verbatim text with `\n`; the real
+/// responses use CRLF, so it is converted back before encoding.
+private func releasesJSON(tag: String, publishedAt: String, body: String) throws -> String {
+    let release: [String: Any] = [
+        "tag_name": tag, "prerelease": false, "draft": false,
+        "published_at": publishedAt,
+        "body": body.replacingOccurrences(of: "\n", with: "\r\n"),
+    ]
+    let data = try JSONSerialization.data(withJSONObject: [release])
+    return try #require(String(data: data, encoding: .utf8))
+}
+
+/// HandBrake 1.11.2's release body, verbatim (`HandBrake/HandBrake`, fetched
+/// 2026-10-08). Its library bumps are nested under one `- Updated libraries`
+/// line, and the strict pass used to drop every indented bullet that did not
+/// sit under a `**scope**:` label — the pane said "Updated libraries" and
+/// nothing about which. Across HandBrake's last ten releases that was 77 lines.
+///
+/// A nested item comes out as an item of its own, right after its parent, in
+/// both `items` and `content`.
+///
+/// Mutation: drop indented bullets again whenever there is no `**scope**:`
+/// label above them. The two library lines vanish and this fails.
+@Test func handBrakeNestedLibraryBumpsAreItemsAfterTheirParent() throws {
+    let body = """
+    ## Upgrade Notice
+
+    Before updating HandBrake, please make sure there are no pending encodes in the queue, and be sure to make a backup of any custom presets and app preferences you have, as they may not be compatible with newer versions.
+
+    Windows users, please make sure to install [Microsoft .NET Desktop Runtime version 10.0](https://dotnet.microsoft.com/en-us/download/dotnet/10.0/runtime)
+    Download available from Microsoft:
+    - [For x64 (AMD or Intel CPUs)](https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe)
+    - [For Arm64 (Qualcomm or other)](https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-arm64.exe)
+
+
+    ## HandBrake 1.11.2
+
+    ### All platforms
+
+    #### Video
+
+    - Fixed a crash that happened when doing a 2-pass lossless x265 encode
+    - Fixed a memory leak that happened when doing a 2-pass MPEG-4/MPEG-2/VP9/FFV1 encode
+
+    #### Audio
+
+    - Updated the list of supported dithers and encoders combinations
+    - Fixed the Core Audio AAC encoder 7.1 channel layout
+
+    #### Subtitles
+
+    - Fixed the VobSub palette creation in the MP4 container
+
+    #### Build system
+
+    - Improved build system compatibility with older build tools
+
+    #### Third-party libraries
+
+    - Updated libraries
+      - FFmpeg 8.0.2 (decoding and filters)
+      - SVT-AV1 4.1.0 (AV1 video encoding)
+
+    ### Linux
+
+    - Added WebM MIME type to the list of the supported formats
+
+    ### Mac
+
+    - Improved handling of unsupported presets
+    - Updated Sparkle automatic update library
+
+    ### Windows
+
+    - Improved handling of unsupported presets
+    - Improved queue low space pause behaviour
+    - Fixed the automatic audio track name generation
+    - Fixed the summary description of HDR video
+    """
+    let json = try releasesJSON(tag: "1.11.2", publishedAt: "2026-06-07T19:08:25Z", body: body)
+    let entry = try #require(StructuredChangelogDecoder.decode(
+        json, format: .gitHubReleases, channel: nil, maxEntries: nil)?.entries.first)
+
+    let parent = try #require(entry.items.firstIndex(of: "Updated libraries"))
+    #expect(Array(entry.items[parent...].prefix(4)) == [
+        "Updated libraries",
+        "FFmpeg 8.0.2 (decoding and filters)",
+        "SVT-AV1 4.1.0 (AV1 video encoding)",
+        "Added WebM MIME type to the list of the supported formats",
+    ])
+    #expect(entry.items.count == 18)
+
+    let notes = entry.content.compactMap { block -> String? in
+        if case let .note(text) = block { return text }; return nil
+    }
+    #expect(notes == entry.items, "content must carry the nested items in the same order")
+    let note = try #require(entry.content.firstIndex(of: .note("Updated libraries")))
+    #expect(Array(entry.content[note...].prefix(4)) == [
+        .note("Updated libraries"),
+        .note("FFmpeg 8.0.2 (decoding and filters)"),
+        .note("SVT-AV1 4.1.0 (AV1 video encoding)"),
+        .heading("Linux"),
+    ])
 }

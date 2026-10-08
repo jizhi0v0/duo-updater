@@ -29,9 +29,10 @@ public enum GitHubMarkdownParser {
     /// Parse a single release body into a `Changelog` with one entry, or nil
     /// when the body contains no extractable bullet items.
     ///
-    /// Two passes. The strict pass (original behavior) takes only top-level
-    /// `-`/`*`/`+` bullets. ONLY when that finds nothing do we retry leniently —
-    /// also accepting indented bullets and numbered lists, and skipping fenced code
+    /// Two passes. The strict pass (original behavior) takes top-level
+    /// `-`/`*`/`+` bullets and the bullets nested under them. ONLY when that finds
+    /// nothing do we retry leniently —
+    /// also accepting any indented bullet and numbered lists, and skipping fenced code
     /// blocks. Gating the lenient pass on an empty strict result means every body
     /// that already parsed is byte-for-byte unchanged (no regression for the GitHub
     /// apps that share this parser); the lenient pass purely rescues bodies that
@@ -383,6 +384,12 @@ public enum GitHubMarkdownParser {
         // Strict pass only: a top-level `**scope**:` bullet whose changes are
         // nested under it (see the strict branch below).
         var scope: String?
+        // Strict pass only: the line is inside a top-level bullet list, so an
+        // indented bullet here is nested under one of its items (see the strict
+        // branch below). Opened by a top-level bullet; closed by a heading or by
+        // any other unindented text. A blank line leaves it open — a loose list
+        // still nests.
+        var inTopLevelList = false
 
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -405,6 +412,7 @@ public enum GitHubMarkdownParser {
             if let raw = headingRawText(of: trimmed) {
                 let heading = raw.lowercased()
                 scope = nil
+                inTopLevelList = false
                 // Computed for a fenced heading too, exactly as before this guard
                 // existed: in the strict pass a fenced `## New Contributors` has
                 // always opened a skipped section, and which lines become items is
@@ -462,33 +470,51 @@ public enum GitHubMarkdownParser {
                     }
                 }
             } else {
-                // Bullet: `- text`, `* text`, `+ text`.
-                // Skip any indented sub-bullet — a leading space or tab marks PR-body
-                // detail that usually duplicates the top-level item. (Checked on the
-                // raw line; `trimmed` below has the indentation stripped.)
+                // Bullet: `- text`, `* text`, `+ text`. A leading space or tab
+                // (checked on the raw line; `trimmed` has it stripped) marks a
+                // bullet nested under the top-level one above it.
                 //
-                // Except under a bare scope label. changelogithub writes a scope with
-                // one change as `- **cli**: Title`, and one with several as
-                // `- **agent**:` with the changes nested under it — so there the
-                // nested bullets ARE the changes, and the label alone is not one
+                // Under a bare scope label, the nested bullets ARE the changes.
+                // changelogithub writes a scope with one change as
+                // `- **cli**: Title`, and one with several as `- **agent**:` with
+                // the changes nested under it, so the label alone is not one
                 // (bub 0.4.3's "Bug Fixes": two `**scope**:` items, four changes
                 // dropped). Each nested change becomes `**agent**: Title`, the
                 // shape of the one-change form.
+                //
+                // Under any other top-level bullet, a nested bullet is an item of
+                // its own, right after its parent. This pass used to drop them as
+                // PR-body detail duplicating the parent, and what it actually
+                // dropped was the detail the parent only names: HandBrake writes
+                // `- Updated libraries` with each library and version nested under
+                // it (77 lines across its last ten releases), and the pane said
+                // "Updated libraries" and nothing about which. Items are flat lines
+                // (the Workbench bullets `items`/`content.note` with no nesting),
+                // so a nested item reads as the line after its parent. Not inside a
+                // fence, and not after unindented prose (that is not a nested list).
                 guard let first = line.first, first != " ", first != "\t" else {
-                    if let scope, let raw = bulletContent(from: trimmed) {
-                        let cleaned = scope + " " + cleanItem(raw)
-                        items.append(cleaned)
-                        if !qualifying.isEmpty {
-                            if let heading = pendingHeading {
-                                content.append(heading)
-                                pendingHeading = nil
-                            }
-                            content.append(.note(cleaned))
+                    guard let raw = bulletContent(from: trimmed) else { continue }
+                    let cleaned: String
+                    if let scope {
+                        cleaned = scope + " " + cleanItem(raw)
+                    } else if inTopLevelList, !inFencedBlock {
+                        cleaned = cleanItem(raw)
+                        guard cleaned.count >= 6 else { continue }
+                    } else {
+                        continue
+                    }
+                    items.append(cleaned)
+                    if !qualifying.isEmpty {
+                        if let heading = pendingHeading {
+                            content.append(heading)
+                            pendingHeading = nil
                         }
+                        content.append(.note(cleaned))
                     }
                     continue
                 }
                 scope = nil
+                inTopLevelList = bulletContent(from: trimmed) != nil
 
                 if let raw = bulletContent(from: trimmed) {
                     let cleaned = cleanItem(raw)

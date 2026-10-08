@@ -93,8 +93,12 @@ import Foundation
     /// 9 (`GitHubMarkdownParser` stops at a whole-line `<!-- lang:xx -->`) moves
     /// neither fixture: neither body carries such a line. Pinned by
     /// `MagpieCoverageTests`.
+    ///
+    /// 10 (`GitHubMarkdownParser`'s strict pass keeps bullets nested under a
+    /// top-level bullet) moves neither fixture: neither has a nested bullet.
+    /// Pinned by `GitHubMarkdownParserTests` and `BubChangelogTests`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 9)
+        #expect(Changelog.parserGeneration == 10)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

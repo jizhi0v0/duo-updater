@@ -113,7 +113,7 @@ jobs:
         # CORE_TEST_FLAGS (says why there): set only where it is not hosted.
         env:
           DUO_DOWNLOAD_GATE: ${{ runner.environment == 'github-hosted' && '1' || '' }}
-          CORE_TEST_FLAGS: ${{ runner.environment == 'github-hosted' && '' || '--skip installPipelineDryRun' }}
+          CORE_TEST_FLAGS: ${{ runner.environment != 'github-hosted' && '--skip installPipelineDryRun' || '' }}
         run: scripts/run-with-hang-report.sh 1800 make test-swift
 
   app:
@@ -150,6 +150,18 @@ jobs:
       - name: make test-scripts
         run: make test-scripts
 
+      # The derived-data dir is per checkout, and on the mini it outlives the run:
+      # it still holds every earlier run's app-tests-<pid>.log and .xcresult, and
+      # the other runner's dir sits beside it under the same /tmp glob. So name
+      # this job's dir once (app-tests.sh takes it from APP_TESTS_DD), clear what
+      # earlier runs left in it, and point the failure steps below at it alone.
+      # The build products and caches in it stay: they are the warm build.
+      - name: Locate the app-tests directory
+        run: |
+          dd="$(python3 scripts/derived_data_path.py app-tests "$PWD")"
+          echo "APP_TESTS_DD=$dd" >> "$GITHUB_ENV"
+          rm -rf "$dd"/app-tests-*.log "$dd"/app-tests-*.xcresult "$dd"/ci-xcresult
+
       - name: make test-app
         run: scripts/run-with-hang-report.sh 1200 make test-app
 
@@ -160,10 +172,9 @@ jobs:
       # 35084900798), and `Could not resolve package dependencies:` with its
       # reasons only in that file (run 35085768264).
       #
-      # Globbed because the dir is per checkout (/tmp/duo-app-tests-<hash8>) and
-      # the log per process (app-tests-<pid>.log). Each hosted job gets a fresh
-      # VM, so only this job's dir can match. The rest of that dir is build
-      # products and caches (~500 MB on a local Mac, 2026-09-16).
+      # The dir is this job's APP_TESTS_DD (set above) and the log is per process
+      # (app-tests-<pid>.log), so only this run's files match. The rest of that
+      # dir is build products and caches (~500 MB on a local Mac, 2026-09-16).
       #
       # Not the .xcresult itself: on a failed run it embeds a system .logarchive,
       # and uploading the bundle as-is made a 107 MB artifact (run 35087278533,
@@ -182,7 +193,7 @@ jobs:
         timeout-minutes: 5
         run: |
           shopt -s nullglob
-          for bundle in /tmp/duo-app-tests-*/app-tests-*.xcresult; do
+          for bundle in "$APP_TESTS_DD"/app-tests-*.xcresult; do
             out="$(dirname "$bundle")/ci-xcresult/$(basename "$bundle" .xcresult)"
             mkdir -p "$out"
             xcrun xcresulttool get test-results tests --path "$bundle" > "$out/tests.json" \
@@ -202,9 +213,9 @@ jobs:
         with:
           name: app-tests-logs-attempt-${{ github.run_attempt }}
           path: |
-            /tmp/duo-app-tests-*/app-tests-*.log
-            /tmp/duo-app-tests-*/ci-xcresult/
-            /tmp/duo-app-tests-*/Logs/Package/*.xcactivitylog
+            ${{ env.APP_TESTS_DD }}/app-tests-*.log
+            ${{ env.APP_TESTS_DD }}/ci-xcresult/
+            ${{ env.APP_TESTS_DD }}/Logs/Package/*.xcactivitylog
 
   release:
     runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted","duo-mini"]') || 'xcode-27' }}
@@ -246,7 +257,7 @@ jobs:
       # Junie abort still reproduces that way.
       - name: Core tests (Release)
         env:
-          CORE_TEST_FLAGS: ${{ runner.environment == 'github-hosted' && '' || '--skip installPipelineDryRun' }}
+          CORE_TEST_FLAGS: ${{ runner.environment != 'github-hosted' && '--skip installPipelineDryRun' || '' }}
         run: scripts/run-with-hang-report.sh 1200 make test-release
 
   # The one check the `main` ruleset requires is named `test`, which was this

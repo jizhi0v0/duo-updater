@@ -134,7 +134,8 @@ prerelease。所以「4.x 预览轨」现在没有比 stable 新的构建，`lat
   - prerelease id（`org.audacityteam.Audacity`）：同 4.x 的说明，`minimumAppVersion "4"`；registry 按小写分组，组内在 4.0 处分开，
     所以 4.0.0 / 4.0.1 拿 4.x 说明、3.7.8 / 3.7.9 拿 3.x 说明
   - `Changelog.parserGeneration` 随之 bump
-  - 已知缺口（共享的 `GitHubMarkdownParser`）：列表项折行的续行被丢（3.7.9 #11696、3.7.8 #10870 各丢半句），不足 6 个字符的条目被丢（4.0.0 的 "Mixer"）
+  - 列表项折行的续行：已修，`GitHubMarkdownParser` 把紧跟在条目行后、不开新块的行接到条目上（3.7.9 #11696、3.7.8 #10870 现在完整）
+  - 仍有的缺口：不足 6 个字符的条目被丢（4.0.0 的 "Mixer"）。这个下限是有意的：降到 1 会在 3,740 个正文里多出 158 条，大多是 "N/A"、"None"、"rc-60" 这类噪音
 - 下面是**接新 recipe 之前**的实测（旧来源：`https://github.com/audacity/audacity/releases` 第一页的 HTML，只有 3.x 一条 recipe）
 - 结构化（`channel-verify` 原文）:
   - 3.7.8、3.7.9 两个包: `changelog pane  recipe changelog:org.audacityteam.audacity:-: 5 entries; newest 3.7.9: 8 items, headings []; first items ["#11690 Enabled ASIO support for the Wind", "#11679 Added FFmpeg 9 support", "#11714 Fixed several sources of project "]`
@@ -195,7 +196,7 @@ prerelease。所以「4.x 预览轨」现在没有比 stable 新的构建，`lat
 
 ## 建议下一步
 1. （已做）4.x changelog、prerelease id 的说明、3.x 说明不再依赖第一页（见「Changelog」）
-2. 共享 `GitHubMarkdownParser` 的折行续行与 6 字符下限（见「Changelog」已知缺口）
+2. （折行已修）6 字符下限保留（见「Changelog」）
 3. 老 `audacity` cask 装的 3.x：在 `HomebrewCaskSource` 里怎么处理是产品决定（跟 brew 一起跨到 4.x 是换产品、换 bundle id），
    先在 `CHANNEL_COVERAGE_TODO.md` 记下，不要顺手改
 4. （已做）直装检测：两条 stable GitHub rule（见「更新检测」）；直装一键真机端到端未跑

@@ -81,12 +81,15 @@
 - 来源: Sparkle inline（`<description>`，HTML）
 - 结构化: `changelog pane  source structured: 40 entries; newest 2.19.2: 2 items, headings []; first items ["Fixes", "Fixed an issue where app updates could g"]`
   （2.19.1、2.19.2 两个包相同；40 是解析器的条数上限）
-- 判断: **分节被压平了**。厂商的写法是 `<b>Fixes</b>`、`<b>Features & Improvements</b>`、`<b>Improvements</b>` 这样的粗体
+- 判断（修复前）: **分节被压平了**。厂商的写法是 `<b>Fixes</b>`、`<b>Features & Improvements</b>`、`<b>Improvements</b>` 这样的粗体
   小标题，后面各接一个 `<ul>`。`AppcastHTMLChangelogParser` 只认 `<h2>`–`<h4>` 作标题，粗体落在列表外的空隙里，被当成
   一段普通文字收进 `items`，所以面板里「Fixes」是一个条目、`headings []`。条目本身完整。
   **写 ChangelogRecipe 收益不大**：feed 已经内联了说明；官网 `superwhisper.com/changelog` 是 Next.js 页面，每版的
   `version` / `description`（同样的 `<ul><li>` HTML）以 JSON 嵌在页面里（与 feed 是否逐条相同没比）。更合适的是改通用解析器：列表前面紧挨着、只有一个 `<b>`/`<strong>` 的空隙段当作分节标题。
-  这比 OpenClaw 的 `<h3>` 情形更需要判断，误判会把正文的粗体句子当标题，要有反例测试。本次没改代码
+  这比 OpenClaw 的 `<h3>` 情形更需要判断，误判会把正文的粗体句子当标题，要有反例测试。
+- 已修：恰好一整段 `<b>`/`<strong>`、不含数字、后面紧接 `<ul>`/`<ol>` 的段落算分节标签；一条说明里 ≥2 个标签时产出为
+  `.heading` 块。只有一个标签的（2.19.2 只有一个「Fixes」）保持原样。84 个 appcast 回放：Superwhisper 33 条变化，都只是
+  标签行从条目移到标题；句中粗体、不接列表的粗体段落有反例测试
 - 跟随 channel: 否
 - Recipe 状态: 不需要（需要的是通用解析器改进）
 
@@ -106,7 +109,7 @@
 
 ## 已知问题
 - beta：有 `includeBetaUpdates` 这个键名，机制和服务端都没证实（见上）
-- changelog 的粗体分节被压平成条目
+- changelog：只有一个粗体分节的说明（如 2.19.2）仍把它当条目
 - 一键第二轮（app 运行中）未跑
 
 ## 建议下一步
@@ -114,7 +117,7 @@
    第二轮值得做：2.19.1 自带旧版 Sparkle，而 2.19.2 的说明正是修「更新卡在安装」（两者相关是推断）。
 2. beta：在真 app 上确认 `includeBetaUpdates`（`defaults read com.superduper.superwhisper includeBetaUpdates`，拨开关或
    `defaults write` 后看 Sparkle 是换 feed 还是加标签）。在确认前、且 feed 里出现带标签条目前，不做 binding。
-3. 通用解析器：`AppcastHTMLChangelogParser` 把列表前的粗体小标题识别为分节（与 OpenClaw 的 `<h3>` 一起考虑；单独开任务）。
+3. （已做）通用解析器把列表前的粗体小标题识别为分节（≥2 个时）
 
 ## 如何复验
 

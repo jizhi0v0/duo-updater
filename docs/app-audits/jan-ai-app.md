@@ -97,7 +97,7 @@
     `Jan-Desktop`、`jan` CLI 不再随 app、Local API Server 的 Trusted Hosts、`bash` 工具改名 `shell`，
     以及 “Settings that change on update” 这句引导语
   面板里 Migration 下只剩它们之间夹着的 6 条列表项
-- 判断: 这是 `GitHubMarkdownParser` 对「段落 + 列表混排」正文的通病，不是 Jan 特有；为 Jan 单写
+- 判断（修复前）: 这是 `GitHubMarkdownParser` 对「段落 + 列表混排」正文的通病，不是 Jan 特有；为 Jan 单写
   `ChangelogRecipe` 不对路。官网 `https://www.jan.ai/changelog` 存在，没评估其结构
 - 跟随 channel: nightly 没有 release 正文（feed 的 `notes` 为空串）
 - Recipe 状态: 不需要 per-app recipe；解析器的段落问题建议另开（见「建议下一步」）
@@ -119,7 +119,7 @@
 ## 已知问题
 - **Intel Mac 会被推 0.8.5**：0.8.5 的引擎只有 arm64，Intel 上本地模型不再能用，厂商建议 Intel 用户留在 0.8.4。
   duo 只看版本号，会照常显示更新、一键也会装
-- 面板丢了 Migration 的全部段落（包括上面这条 Intel 警告）
+- 面板仍不显示 `## This release is fixes only` 这一段（不在「迁移 / 注意」类标题下，有意不收）
 - nightly（`jan-nightly.ai.app`）duo 报 unknown
 - Homebrew cask 比 GitHub 慢（当天仍是 0.8.4）；cask 是 `auto_updates`，不影响检测
 
@@ -130,7 +130,9 @@
    short 逐字相同），channel nightly。写之前要先用 `VersionComparator` 跑一遍 `0.8.4-5203` 对
    `0.8.4-5210` / `0.8.5-5300` 这类形状的比较；装包可用 `Jan-nightly_<v>_universal.dmg`，非 stable 一键要
    `ChannelProofRegistry` 登记。feed 不带 SHA 摘要（只有 minisign 签名）
-3. `GitHubMarkdownParser`：正文里的非列表段落要不要进面板，值得单独一个 issue（Jan 0.8.5 是现成的反例）
+3. （已做）`GitHubMarkdownParser` 收「迁移 / 升级 / 破坏性变更 / 注意 / 已知问题 / 弃用」类标题下 1–2 段、无列表的说明，
+   Migration 的粗体引言（含 Intel 警告）现在进面板。更宽的「只要一节只有段落就收」在 3,710 个 release 正文上会多出 58 个来源
+   2,758 行样板话，所以没用；`This release is fixes only` 因此仍不进
 4. Intel 推送：目前没有 recipe 层能表达「这个版本对 Intel 是功能降级」的字段，先记在这里，不建议为此加机制
 
 ## 如何复验

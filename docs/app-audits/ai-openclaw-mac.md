@@ -104,12 +104,15 @@ arm64 zip。x86_64 包没下（**推断**同形）。同一个 bundle id、三�
 - 来源: Sparkle inline（`<description>`，由仓库的 `CHANGELOG` 经 `scripts/changelog-to-html.sh` 生成）
 - 结构化: `changelog pane  source structured: 3 entries; newest 2026.9.8: 54 items, headings []; first items ["Highlights", "Safer updates and Doctor recovery: prese", "Gateway availability: prevent duplicate "]`
   （2026.9.7、2026.9.8、arm64 三个包相同）
-- 判断: **分节被压平了**。厂商的 HTML 是 `<h2>OpenClaw 2026.9.8</h2>` 后接 `<h3>Highlights</h3>`、`<h3>Changes</h3>`、
+- 判断（修复前）: **分节被压平了**。厂商的 HTML 是 `<h2>OpenClaw 2026.9.8</h2>` 后接 `<h3>Highlights</h3>`、`<h3>Changes</h3>`、
   `<h3>Fixes</h3>` 各带一个 `<ul>`。`AppcastHTMLChangelogParser` 按设计把 `<h2>`–`<h4>` 当作一行文字折进 `items`，
   不产出 `.heading` 块，所以面板里 `Highlights` 是一个普通条目、`headings []`。条目本身完整（54 条）。
+- 已修：`AppcastHTMLChangelogParser` 在一条说明里有 ≥2 个分节标签时，把不含数字的 `<h2>`–`<h4>`（以及紧接列表的整段粗体）
+  产出为 `.heading` 块、移出 `items`；含版本号的 `<h2>OpenClaw 2026.9.9</h2>` 不算。84 个 appcast 回放：OpenClaw 3 条变化，
+  都只是标签行从条目移到标题，内容与顺序不变
   **写 ChangelogRecipe 不是对的修法**：feed 已经内联了说明，问题在通用解析器。让 `AppcastHTMLChangelogParser` 把
   `<h3>`/`<h4>` 产出成 `content` 里的 `.heading`（像 `GitHubMarkdownParser` 在 parser generation 3 做的那样），
-  OpenClaw 和其他用 HTML 标题分节的 Sparkle feed 一起受益。本次没改代码
+  OpenClaw 和其他用 HTML 标题分节的 Sparkle feed 一起受益（已这样修，见上一条）
 - 另记: 2026.9.7 那条 `<description>` 有 253 KB（2026.9.8 只有 8.5 KB）
 - 跟随 channel: 否（同一份 feed，标签条目当前没有）
 - Recipe 状态: 不需要（需要的是通用解析器改进）
@@ -133,7 +136,6 @@ arm64 zip。x86_64 包没下（**推断**同形）。同一个 bundle id、三�
 
 ## 已知问题
 - `beta` / `extended-stable` 两条 Sparkle 轨客户端已支持、duo 没有 binding（今天 feed 里没有带标签的条目，所以还没有实际影响）
-- changelog 分节标题被压平成条目
 - 一键第二轮（app 运行中）未跑；Gateway 进程在换包前后的状态未验证
 
 ## 建议下一步
@@ -141,7 +143,7 @@ arm64 zip。x86_64 包没下（**推断**同形）。同一个 bundle id、三�
    起的进程（node、cloudflared、cua-driver），以及换包后它们是否被 app 重启。⚠️ 这是 agent 类 app，启动前后对比 `~/.claude/skills`。
 2. 渠道：等 feed 里第一次出现带 `beta` 或 `extended-stable` 标签的条目再做 `ChannelBinding`（读 `~/.openclaw/openclaw.json`
    的 `update.channel`；`beta`/`dev` → 标签 `beta`，`extended-stable` → 只认该标签，并排除默认轨）。extended-stable 那半更要紧。
-3. 通用解析器：`AppcastHTMLChangelogParser` 把 `<h3>`/`<h4>` 产出成 `.heading` 块（单独开任务，要 bump parser generation）。
+3. （已做）通用解析器把 `<h3>`/`<h4>` 分节产出为 `.heading` 块（这个解析器的输出只在内存里，不需要 bump parser generation）
 
 ## 如何复验
 

@@ -225,11 +225,96 @@ public extension URLSession {
     /// server that ignores `Range` answers 200 with the entire file and it is in
     /// memory before the truncation runs. `PackageArchitectureProbe` range-reads
     /// installers that are gigabytes on disk, which is exactly that hazard.
-    /// Breaking out of the returned sequence cancels the transfer.
+    /// Breaking out of the returned sequence cancels the transfer, and however the
+    /// caller leaves it the request is recorded once — see ``CountedBytes``.
     func countedBytes(
         for request: URLRequest, purpose: RequestPurpose, store: EventStore = .shared
-    ) async throws -> (URLSession.AsyncBytes, URLResponse) {
-        try await bytes(for: request, delegate: RequestMetricsRecorder(
+    ) async throws -> (CountedBytes, URLResponse) {
+        let (bytes, response) = try await bytes(for: request, delegate: RequestMetricsRecorder(
             purpose, appID: RequestAttribution.appID, store: store))
+        return (CountedBytes(bytes), response)
+    }
+
+    /// The body of a ``countedBytes(for:purpose:store:)`` request: `AsyncBytes`
+    /// that make sure the task finishes, so its metrics are delivered.
+    ///
+    /// **Why this exists.** Metrics arrive only when a task completes, and a bytes
+    /// task cancelled before anything asked its iterator for a byte does not
+    /// complete — measured 2026-10-08 on a loopback server: cancelled straight
+    /// after the response, or released without being read, the task sat in
+    /// `.canceling` for seconds with neither `didCompleteWithError` nor
+    /// `didFinishCollecting` delivered, and the request never reached the ledger.
+    /// `NSURLSession.h` says a cancelled task *will* be sent
+    /// `didCompleteWithError`; this one was not until something called `next()`,
+    /// which then threw -999 and the metrics followed at once. Nor did a `break`
+    /// cancel anything by itself: the task kept running until the `AsyncBytes`
+    /// value was released.
+    ///
+    /// So when the reader leaves without reaching the end — a `break`, a throw,
+    /// or never iterating at all — the task is cancelled and its iterator pulled
+    /// until it ends. A body read to the end has already completed and is left
+    /// alone, so nothing is recorded twice; the bytes recorded are what the
+    /// platform counted off the wire, not what the caller consumed.
+    struct CountedBytes: AsyncSequence, Sendable {
+        public typealias Element = UInt8
+
+        private let bytes: URLSession.AsyncBytes
+        private let settler: Settler
+
+        init(_ bytes: URLSession.AsyncBytes) {
+            self.bytes = bytes
+            self.settler = Settler(bytes)
+        }
+
+        public var task: URLSessionTask { bytes.task }
+
+        public func makeAsyncIterator() -> Iterator {
+            Iterator(base: bytes.makeAsyncIterator(), reader: Reader(settler))
+        }
+
+        public struct Iterator: AsyncIteratorProtocol {
+            var base: URLSession.AsyncBytes.Iterator
+            let reader: Reader
+
+            public mutating func next() async throws -> UInt8? {
+                let byte = try await base.next()
+                if byte == nil { reader.settler.reachedEnd() }
+                return byte
+            }
+        }
+
+        /// Settles when the last iterator goes — the `break` case.
+        final class Reader: Sendable {
+            let settler: Settler
+            init(_ settler: Settler) { self.settler = settler }
+            deinit { settler.settle() }
+        }
+
+        /// Settles when the sequence and every iterator are gone — the case where
+        /// nothing ever iterated.
+        final class Settler: @unchecked Sendable {
+            private let bytes: URLSession.AsyncBytes
+            private let lock = NSLock()
+            private var done = false
+
+            init(_ bytes: URLSession.AsyncBytes) { self.bytes = bytes }
+            deinit { settle() }
+
+            func reachedEnd() { lock.withLock { done = true } }
+
+            func settle() {
+                let pending = lock.withLock {
+                    defer { done = true }
+                    return !done
+                }
+                guard pending else { return }
+                bytes.task.cancel()
+                let bytes = self.bytes
+                Task {
+                    var iterator = bytes.makeAsyncIterator()
+                    while (try? await iterator.next()) ?? nil != nil {}
+                }
+            }
+        }
     }
 }

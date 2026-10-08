@@ -62,7 +62,9 @@ public struct BunCheck: Sendable {
         do {
             newest = try await latest()
         } catch {
-            return verdict(.unknown, note: "could not read bun's release channel: \(error)", withheld: .channelUnreadable)
+            let limited = if case .rateLimited? = error as? BunRelease.Failure { true } else { false }
+            return verdict(.unknown, note: "could not read bun's release channel: \(error)",
+                           withheld: limited ? .rateLimited : .channelUnreadable)
         }
         let state: CLIToolState
         switch BunRelease.compare(installed, newest) {

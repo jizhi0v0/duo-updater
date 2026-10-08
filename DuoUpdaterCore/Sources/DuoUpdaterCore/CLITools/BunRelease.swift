@@ -20,6 +20,8 @@ public struct BunRelease: Sendable {
 
     public enum Failure: Error, Equatable, CustomStringConvertible {
         case http(Int)
+        /// GitHub's API rate limit (`GitHubReleasesSource.isRateLimited`).
+        case rateLimited(Int)
         case unreadable
         /// The release has no build for this Mac.
         case noBuild(String)
@@ -27,13 +29,16 @@ public struct BunRelease: Sendable {
         public var description: String {
             switch self {
             case .http(let status): return "HTTP \(status)"
+            case .rateLimited(let status):
+                return GitHubReleasesSource.GitHubError.rateLimited(status).errorDescription ?? "HTTP \(status)"
             case .unreadable: return "the answer could not be read"
             case .noBuild(let asset): return "the release has no \(asset)"
             }
         }
     }
 
-    typealias Fetch = @Sendable (URL) async throws -> (Data, Int)
+    /// The body, the status and the answer's `X-RateLimit-Remaining`.
+    typealias Fetch = @Sendable (URL) async throws -> (Data, Int, String?)
 
     let fetch: Fetch
     /// `bun-darwin-aarch64.zip` or `bun-darwin-x64.zip`: the build `bun upgrade`
@@ -51,7 +56,8 @@ public struct BunRelease: Sendable {
                     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
                 }
                 let (data, response) = try await session.countedData(for: request, purpose: .versionCheck)
-                return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
+                let http = response as? HTTPURLResponse
+                return (data, http?.statusCode ?? 0, http?.value(forHTTPHeaderField: "X-RateLimit-Remaining"))
             },
             asset: Self.assetName(arch))
     }
@@ -67,8 +73,11 @@ public struct BunRelease: Sendable {
     }
 
     public func latest() async throws -> String {
-        let (data, status) = try await fetch(Self.channel)
-        guard status == 200 else { throw Failure.http(status) }
+        let (data, status, remaining) = try await fetch(Self.channel)
+        guard status == 200 else {
+            throw GitHubReleasesSource.isRateLimited(status, rateLimitRemaining: remaining)
+                ? Failure.rateLimited(status) : Failure.http(status)
+        }
         let asset = self.asset
         return try await offCooperativePool { try Self.parse(data, asset: asset) }
     }

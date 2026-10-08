@@ -508,6 +508,14 @@ public struct GitHubReleasesSource: UpdateSource {
         return left <= 0 ? .rateLimited(code) : .badStatus(code)
     }
 
+    /// `statusError`'s rule for a caller with errors of its own — the command-line
+    /// tools whose channel is the GitHub API (`BunRelease`, `OpencodeRelease`,
+    /// `HerdrRelease`) — so a rate limit there is told apart by the same test.
+    static func isRateLimited(_ code: Int, rateLimitRemaining: String?) -> Bool {
+        if case .rateLimited = statusError(code, rateLimitRemaining: rateLimitRemaining) { return true }
+        return false
+    }
+
     /// Keyed by bundle id → the rules for that id, one per release channel.
     /// Most apps have a single (stable) rule; channels that share a bundle id
     /// list several and are disambiguated by the installed app's detected channel.

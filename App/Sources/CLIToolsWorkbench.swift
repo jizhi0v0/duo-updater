@@ -570,9 +570,10 @@ struct CLIToolDetailPane: View {
     }
 
     /// "stable → 0.5.0", or the version alone for a tool without channels. Not
-    /// read is not unreadable: only `channelUnreadable` says the asking failed.
+    /// read is not unreadable: only `channelUnreadable` and `rateLimited` say the
+    /// asking failed.
     private var latest: String {
-        let unreadable = status.withheld == .channelUnreadable
+        let unreadable = status.withheld == .channelUnreadable || status.withheld == .rateLimited
         switch (status.channel, status.latestVersion) {
         case (let channel?, let latest?): return "\(channel) → \(latest)"
         case (let channel?, nil):
@@ -698,6 +699,9 @@ private struct CLIToolReleaseNotesView: View {
             state = .loaded(CLIToolChangelog.relevant(changelog, installed: installed, latest: latest))
         } catch CLIToolReleaseNotesError.http(let status) {
             state = .failed(String(localized: "The server answered HTTP \(status)."))
+        } catch CLIToolReleaseNotesError.rateLimited {
+            // The rows' own words for the same refusal (`CLIToolWithheld.rateLimited`).
+            state = .failed(String(localized: "Hitting GitHub’s rate limit"))
         } catch CLIToolReleaseNotesError.noSections {
             state = .failed(String(localized: "The file loaded but carried no release sections."))
         } catch {

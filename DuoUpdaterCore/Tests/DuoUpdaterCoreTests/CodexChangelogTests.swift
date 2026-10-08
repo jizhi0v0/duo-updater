@@ -71,9 +71,9 @@ import Foundation
         let changelog = try await CodexChangelog.notes(
             versions: ["0.158.0", "0.159.3", "0.160.0"], installed: "0.158.0", latest: "0.160.0", force: false,
             fetch: { url, _ in
-                if url.absoluteString.hasSuffix("rust-v0.159.3") { return (Data(), 404) }
+                if url.absoluteString.hasSuffix("rust-v0.159.3") { return (Data(), 404, nil) }
                 let version = String(url.absoluteString.split(separator: "v").last!)
-                return (Self.release(version), 200)
+                return (Self.release(version), 200, nil)
             })
         #expect(changelog.entries.map(\.version) == ["0.160.0", "0.158.0"])
     }
@@ -82,7 +82,8 @@ import Foundation
         await #expect(throws: CLIToolReleaseNotesError.http(403)) {
             try await CodexChangelog.notes(
                 versions: ["0.160.0"], installed: "0.143.0", latest: "0.160.0", force: false,
-                fetch: { _, _ in (Data(), 403) })
+                // A 403 with budget left: not the rate limit.
+                fetch: { _, _ in (Data(), 403, "12") })
         }
     }
 }

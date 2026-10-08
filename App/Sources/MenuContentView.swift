@@ -328,9 +328,12 @@ struct MenuContentView: View {
         .background(Color.orange.opacity(0.08))
     }
 
-    /// How many rows failed this cycle with a GitHub rate-limit error.
+    /// How many rows failed this cycle with a GitHub rate-limit error: app rows,
+    /// and the command-line tools whose channel is the GitHub API (bun, OpenCode,
+    /// herdr), which spend the same hourly budget.
     private var rateLimitedCount: Int {
         model.results.filter(\.status.isRateLimitError).count
+            + model.cliTools.statuses.filter(\.isRateLimitError).count
     }
 
     /// Show the aggregate nudge only when several apps are rate-limited at once
@@ -426,7 +429,7 @@ struct MenuContentView: View {
                     .foregroundStyle(.orange)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Hitting GitHub’s rate limit").font(.caption).fontWeight(.medium)
-                    Text("\(rateLimitedCount) apps couldn’t be checked — add a token")
+                    Text("\(rateLimitedCount) items couldn’t be checked — add a token")
                         .font(.caption2).foregroundStyle(.secondary)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -815,10 +818,15 @@ private struct CommandLineRow: View {
         // Packages brew wouldn't read stay said beside the updates: they are the
         // ones no count here can include.
         let uncheckedLine = unchecked > 0 ? Text(String(localized: "\(unchecked) not checked")) : nil
+        // Formulae Homebrew is phasing out (`BrewLifecycle`): checked, so not in
+        // either count, but nothing else here would say so.
+        let deprecated = model.brewFormulae.filter { $0.lifecycle != nil }.count
+            + model.brewCaskLifecycles.count
+        let deprecatedLine = deprecated > 0 ? Text(String(localized: "\(deprecated) deprecated")) : nil
         if outdated > 0 {
             let first = model.brewUpgradeError.map { Text($0).foregroundStyle(.red) }
                 ?? Text(String(localized: "\(outdated) updates"))
-            return half([first, uncheckedLine].compactMap { $0 },
+            return half([first, uncheckedLine, deprecatedLine].compactMap { $0 },
                         mark: unchecked > 0 ? uncheckedMark : nil,
                         button: updateButton(
                             disabled: tools.updatingAll || !tools.updating.isEmpty || model.homebrewUpdating
@@ -826,14 +834,16 @@ private struct CommandLineRow: View {
                             help: String(localized: "Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
                         ) { await model.upgradeBrewFormulae() })
         }
-        if let uncheckedLine { return half([uncheckedLine], mark: uncheckedMark) }
-        return half([Text(String(localized: "Up to date"))], mark: seal)
+        if let uncheckedLine { return half([uncheckedLine, deprecatedLine].compactMap { $0 }, mark: uncheckedMark) }
+        return half([Text(String(localized: "Up to date")), deprecatedLine].compactMap { $0 }, mark: seal)
     }
 
     private var uncheckedMark: some View {
         BrewUncheckedMark(
             anyTapNotTrusted: model.brewUnchecked.contains { $0.reason == .tapNotTrusted },
             anyMovedToCask: model.brewUnchecked.contains { $0.reason == .movedToCask },
+            anyRenamed: model.brewUnchecked.contains { if case .renamed = $0.reason { true } else { false } },
+            anyRemoved: model.brewUnchecked.contains { $0.reason == .removed },
             showInWindow: showBrewUnchecked)
     }
 
@@ -940,6 +950,9 @@ private struct BrewUncheckedMark: View {
     /// A formula Homebrew replaced with a cask is among them: the sentence above
     /// speaks of taps, which isn't what happened to it.
     let anyMovedToCask: Bool
+    /// A renamed formula is among them — the one that stops every formula's check.
+    let anyRenamed: Bool
+    let anyRemoved: Bool
     let showInWindow: () -> Void
 
     private static let tapTrustDocs = URL(string: "https://docs.brew.sh/Tap-Trust")!
@@ -961,8 +974,20 @@ private struct BrewUncheckedMark: View {
                         .font(.callout)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if anyRenamed {
+                        Text(String(localized: "A formula Homebrew renamed has to be migrated before Homebrew can check any formula for updates — the window shows the command."))
+                            .font(.callout)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if anyMovedToCask {
                         Text(String(localized: "A formula Homebrew replaced with a cask gets no more updates as a formula — the window shows the commands that switch it to the cask."))
+                            .font(.callout)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if anyRemoved {
+                        Text(String(localized: "A formula Homebrew removed gets no more updates."))
                             .font(.callout)
                             .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)

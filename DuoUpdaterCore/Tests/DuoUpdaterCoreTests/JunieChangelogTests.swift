@@ -78,9 +78,9 @@ import Foundation
                 asked.add(url.absoluteString)
                 let build = url.lastPathComponent
                 switch build {
-                case "3419.22": return (Data(), 404)
-                case "3294.5", "3196.5": return (Self.release(build, body: ""), 200)
-                default: return (Self.release(build, body: "- notes of \(build)"), 200)
+                case "3419.22": return (Data(), 404, nil)
+                case "3294.5", "3196.5": return (Self.release(build, body: ""), 200, nil)
+                default: return (Self.release(build, body: "- notes of \(build)"), 200, nil)
                 }
             })
         #expect(changelog.entries.map(\.version) == ["3419.26", "3419.19", "3419.7"])
@@ -95,17 +95,18 @@ import Foundation
         await #expect(throws: CLIToolReleaseNotesError.http(403)) {
             try await JunieChangelog.fetch(
                 builds: Self.builds, installed: "3419.19", latest: "3419.26", force: false,
-                fetch: { _, _ in (Data(), 403) })
+                // A 403 with budget left: not the rate limit.
+                fetch: { _, _ in (Data(), 403, "12") })
         }
         let partial = try await JunieChangelog.fetch(
             builds: Self.builds, installed: "3419.19", latest: "3419.26", force: false,
             fetch: { url, _ in
-                url.lastPathComponent == "3419.26" ? (Self.release("3419.26", body: "- Added Junie Lite"), 200) : (Data(), 403)
+                url.lastPathComponent == "3419.26" ? (Self.release("3419.26", body: "- Added Junie Lite"), 200, nil) : (Data(), 403, "12")
             })
         #expect(partial.entries.map(\.version) == ["3419.26"])
         let empty = try await JunieChangelog.fetch(
             builds: Self.builds, installed: "3419.19", latest: "3419.26", force: false,
-            fetch: { url, _ in (Self.release(url.lastPathComponent, body: ""), 200) })
+            fetch: { url, _ in (Self.release(url.lastPathComponent, body: ""), 200, nil) })
         #expect(empty.entries.isEmpty)
     }
 }

@@ -125,17 +125,21 @@ final class OpencodeSandbox {
     @Test func latestIsTheReleaseWithThisMacsZip() async throws {
         let release = OpencodeRelease(fetch: { url, _ in
             #expect(url == OpencodeRelease.latestURL)
-            return (Self.latestAnswer(), 200)
+            return (Self.latestAnswer(), 200, nil)
         })
         #expect(try await release.latest(architecture: "arm64") == "1.18.34")
         await #expect(throws: OpencodeRelease.Failure.noBuild("opencode-darwin-x64.zip")) {
             try await release.latest(architecture: "x64")
         }
         await #expect(throws: OpencodeRelease.Failure.unreadable) {
-            try await OpencodeRelease(fetch: { _, _ in (Self.latestAnswer(tag: "1.18.34"), 200) }).latest(architecture: "arm64")
+            try await OpencodeRelease(fetch: { _, _ in (Self.latestAnswer(tag: "1.18.34"), 200, nil) }).latest(architecture: "arm64")
         }
+        // A 403 with budget left is not the rate limit; one with none is.
         await #expect(throws: OpencodeRelease.Failure.http(403)) {
-            try await OpencodeRelease(fetch: { _, _ in (Data(), 403) }).latest(architecture: "arm64")
+            try await OpencodeRelease(fetch: { _, _ in (Data(), 403, "12") }).latest(architecture: "arm64")
+        }
+        await #expect(throws: OpencodeRelease.Failure.rateLimited(403)) {
+            try await OpencodeRelease(fetch: { _, _ in (Data(), 403, "0") }).latest(architecture: "arm64")
         }
     }
 
@@ -199,6 +203,11 @@ final class OpencodeSandbox {
         let unreadable = await OpencodeCheck(latest: { _ in throw OpencodeRelease.Failure.http(502) })
             .status(of: install, settings: OpencodeSettings(), busy: nil)
         #expect(unreadable.withheld == .channelUnreadable)
+        // Mutation: make GitHub's rate limit `.channelUnreadable` too.
+        let limited = await OpencodeCheck(latest: { _ in throw OpencodeRelease.Failure.rateLimited(429) })
+            .status(of: install, settings: OpencodeSettings(), busy: nil)
+        #expect(limited.withheld == .rateLimited && limited.isRateLimitError)
+        #expect(limited.note?.contains("rate limit") == true)
     }
 
     // MARK: - Activity

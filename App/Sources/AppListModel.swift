@@ -993,6 +993,21 @@ final class AppListModel {
     /// (e.g. the tap isn't trusted). No read above can say whether they're outdated,
     /// and brew's own listings drop them silently — see `BrewUncheckedPackage`.
     private(set) var brewUnchecked: [BrewUncheckedPackage] = []
+    /// Installed casks Homebrew deprecated or disabled — see `BrewCaskLifecycle`.
+    private(set) var brewCaskLifecycles: [BrewCaskLifecycle] = []
+
+    /// The deprecated or disabled cask that installed this app, matched on the
+    /// path brew recorded for the cask's `app` artifact. Any row, whichever source
+    /// checks the app.
+    func brewCaskLifecycle(for result: UpdateResult) -> BrewCaskLifecycle? {
+        let path = result.app.path.standardizedFileURL.path
+        return brewCaskLifecycles.first { $0.appPaths.contains(path) }
+    }
+
+    /// Flagged casks that install no app, so no other row would carry the notice.
+    var brewAppLessCaskLifecycles: [BrewCaskLifecycle] {
+        brewCaskLifecycles.filter { !$0.installsAnApp }
+    }
     /// Whether Homebrew is installed at all (cached once — install state doesn't
     /// change mid-session). Lets the menu reserve the brew row's space from the very
     /// first paint for brew users, so the async `brew outdated` result lands in place
@@ -1142,8 +1157,12 @@ final class AppListModel {
     /// launch reaches the next full check, not the next install; until then a
     /// recheck runs unauthenticated, exactly as a full check would have before the
     /// login. Not read by the UI; the banner reads `hasGitHubToken`.
+    ///
+    /// `usesCLI` is compared the same way: turning the GitHub CLI's sign-in off in
+    /// Settings must not leave a recheck sending the `gh` token resolved before.
     private struct ResolvedGitHubToken {
         let explicit: String?
+        let usesCLI: Bool
         let token: String?
     }
     @ObservationIgnored private var resolvedGitHubToken: ResolvedGitHubToken?
@@ -1816,11 +1835,12 @@ final class AppListModel {
     /// in turn. See `resolvedGitHubToken` for what this can and cannot notice.
     private func githubTokenForRecheck() async -> String? {
         let explicit = explicitGitHubToken()
-        if let cached = resolvedGitHubToken, cached.explicit == explicit {
+        let usesCLI = prefs.useGitHubCLIToken
+        if let cached = resolvedGitHubToken, cached.explicit == explicit, cached.usesCLI == usesCLI {
             return cached.token
         }
         let token = await Self.resolveGitHubToken(explicit: explicit)
-        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, token: token)
+        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, usesCLI: usesCLI, token: token)
         return token
     }
 
@@ -2936,6 +2956,7 @@ final class AppListModel {
         // Start token resolution early and off-main so a slow `gh` CLI overlaps the
         // local scan instead of freezing the UI or delaying the whole refresh later.
         let explicitToken = explicitGitHubToken()
+        let usesCLI = prefs.useGitHubCLIToken
         async let githubToken = Self.resolveGitHubToken(explicit: explicitToken)
         // The rows' filesystem facts are observed in the same hop, for the list
         // the scan just found — see `pathFacts` for why not on the main actor.
@@ -3007,7 +3028,7 @@ final class AppListModel {
         // rechecks that follow this round's rows reuse it instead of asking `gh`
         // again (see `resolvedGitHubToken`).
         let token = await githubToken
-        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicitToken, token: token)
+        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicitToken, usesCLI: usesCLI, token: token)
         // Second witness for TestFlight rows, read off-main and bounded. It lives in
         // Notification Center's container — a different store behind a different
         // permission from TestFlight's own — so it is a separate way to be denied,
@@ -3598,6 +3619,7 @@ final class AppListModel {
             brewOutdatedFormulae = []
             brewFormulae = []
             brewUnchecked = []
+            brewCaskLifecycles = []
             brewChecked = true
             return
         }
@@ -3626,7 +3648,7 @@ final class AppListModel {
         defer { if generation == brewRefreshGeneration { brewChecked = true } }
         // Independent of `outdated()` — four local reads, started now so they
         // overlap it rather than queueing behind it.
-        async let unchecked = brewFormulaService.uncheckedPackages()
+        async let report = brewFormulaService.installedReport()
         var outdated: [BrewOutdatedFormula]
         do {
             outdated = try await brewFormulaService.outdated()
@@ -3638,7 +3660,8 @@ final class AppListModel {
         // `BrewOutdatedFormula`. Best-effort: a failure here must not blank the
         // formula count we already have.
         let casks = (try? await brewFormulaService.outdatedCasks()) ?? []
-        let newUnchecked = await unchecked
+        let installed = await report
+        let newUnchecked = installed.unchecked
         // Every read is in; apply them together, and only if no newer refresh has
         // started since — its results are fresher and it applies its own.
         guard generation == brewRefreshGeneration else { return }
@@ -3655,13 +3678,20 @@ final class AppListModel {
         // uninstalling the very last leaf leaves its row up until a read that
         // returns something.
         let inventory = leaves.isEmpty ? brewFormulae : leaves
-        // A formula moved to a cask is still a leaf — brew loads it from its keg —
-        // and reads as up to date there; its unchecked row is the one that's true.
-        let moved = Set(newUnchecked.filter { $0.reason == .movedToCask }.map(\.name))
+        // A formula moved to a cask, removed or renamed is still a leaf — brew
+        // loads it from its keg, or under its new name — and reads as up to date
+        // there; its unchecked row is the one that's true.
+        let shadowed = Set(newUnchecked.compactMap(\.leafName))
         brewFormulae = BrewFormulaService.merge(inventory, outdated: outdated)
-            .filter { !moved.contains($0.name) }
+            .filter { !shadowed.contains($0.name) }
+            .map { f in
+                var f = f
+                f.lifecycle = installed.lifecycles[f.name]
+                return f
+            }
         brewOutdatedFormulae = outdated + casks
         brewUnchecked = newUnchecked
+        brewCaskLifecycles = installed.caskLifecycles
         if !brewUnchecked.isEmpty {
             Log.app.info("brew: \(self.brewUnchecked.count, privacy: .public) packages not read from their tap (\(self.brewUnchecked.map { "\($0.fullName)=\($0.reason)" }.joined(separator: ", "), privacy: .public))")
         }

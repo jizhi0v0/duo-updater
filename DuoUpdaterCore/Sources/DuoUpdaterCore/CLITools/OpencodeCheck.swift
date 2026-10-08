@@ -69,7 +69,9 @@ public struct OpencodeCheck: Sendable {
         do {
             newest = try await latest(architecture)
         } catch {
-            return verdict(.unknown, note: "could not read OpenCode's latest release: \(error)", withheld: .channelUnreadable)
+            let limited = if case .rateLimited? = error as? OpencodeRelease.Failure { true } else { false }
+            return verdict(.unknown, note: "could not read OpenCode's latest release: \(error)",
+                           withheld: limited ? .rateLimited : .channelUnreadable)
         }
         let state: CLIToolState
         switch OpencodeRelease.compare(installed, newest) {

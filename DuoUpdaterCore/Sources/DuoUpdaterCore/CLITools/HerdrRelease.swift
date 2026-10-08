@@ -106,6 +106,9 @@ public struct HerdrRelease: Sendable {
 
     public enum Failure: Error, Equatable, CustomStringConvertible {
         case http(Int)
+        /// GitHub's API rate limit (`GitHubReleasesSource.isRateLimited`), on the
+        /// releases looked through for a digest.
+        case rateLimited(Int)
         case unreadable
         /// The channel has no build for this Mac.
         case noBuild(String)
@@ -116,6 +119,8 @@ public struct HerdrRelease: Sendable {
         public var description: String {
             switch self {
             case .http(let status): return "HTTP \(status)"
+            case .rateLimited(let status):
+                return GitHubReleasesSource.GitHubError.rateLimited(status).errorDescription ?? "HTTP \(status)"
             case .unreadable: return "the answer could not be read"
             case .noBuild(let target): return "the channel has no \(target) build"
             case .unnamed(let tag): return "its release \(tag) names no base version"
@@ -130,6 +135,9 @@ public struct HerdrRelease: Sendable {
         case unpublished
         /// The sources could not all be asked.
         case couldNotVerify(String)
+        /// As `couldNotVerify`, and GitHub's releases were among the sources left
+        /// unasked because its API's rate limit refused them: a token lifts it.
+        case rateLimited(String)
     }
 
     /// What one look at a channel answers: the build it offers for this Mac, and
@@ -139,7 +147,8 @@ public struct HerdrRelease: Sendable {
         public let installed: Identity
     }
 
-    typealias Fetch = @Sendable (URL) async throws -> (Data, Int)
+    /// The body, the status and the answer's `X-RateLimit-Remaining`.
+    typealias Fetch = @Sendable (URL) async throws -> (Data, Int, String?)
 
     let fetch: Fetch
 
@@ -158,7 +167,8 @@ public struct HerdrRelease: Sendable {
                 }
             }
             let (data, response) = try await session.countedData(for: request, purpose: .versionCheck)
-            return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
+            let http = response as? HTTPURLResponse
+            return (data, http?.statusCode ?? 0, http?.value(forHTTPHeaderField: "X-RateLimit-Remaining"))
         })
     }
 
@@ -183,7 +193,7 @@ public struct HerdrRelease: Sendable {
 
     func manifest(channel: String) async throws -> Manifest {
         let url = channel == "preview" ? Self.previewManifest : Self.stableManifest
-        let (data, status) = try await fetch(url)
+        let (data, status, _) = try await fetch(url)
         guard status == 200 else { throw Failure.http(status) }
         let parsed = channel == "preview" ? Self.parsePreview(data) : Self.parseStable(data)
         guard let parsed else { throw Failure.unreadable }
@@ -200,6 +210,7 @@ public struct HerdrRelease: Sendable {
             return Resolution(offered: offer.build, installed: .published(build))
         }
         var unasked: [String] = []
+        var rateLimited = false
         do {
             if let build = try await manifest(channel: channel == "preview" ? "stable" : "preview").builds[hash] {
                 return Resolution(offered: offer.build, installed: .published(build))
@@ -213,10 +224,12 @@ public struct HerdrRelease: Sendable {
             }
         } catch {
             unasked.append("herdr's GitHub releases (\(error))")
+            if case .rateLimited? = error as? Failure { rateLimited = true }
         }
         guard unasked.isEmpty else {
+            let reason = "could not ask " + unasked.joined(separator: " or ")
             return Resolution(offered: offer.build,
-                              installed: .couldNotVerify("could not ask " + unasked.joined(separator: " or ")))
+                              installed: rateLimited ? .rateLimited(reason) : .couldNotVerify(reason))
         }
         return Resolution(offered: offer.build, installed: .unpublished)
     }
@@ -225,8 +238,11 @@ public struct HerdrRelease: Sendable {
     /// nil when none of the newest `maxPages` pages has it.
     func gitHubBuild(sha256: String, target: String) async throws -> HerdrBuild? {
         for page in 1...Self.maxPages {
-            let (data, status) = try await fetch(Self.releasesPage(page))
-            guard status == 200 else { throw Failure.http(status) }
+            let (data, status, remaining) = try await fetch(Self.releasesPage(page))
+            guard status == 200 else {
+                throw GitHubReleasesSource.isRateLimited(status, rateLimitRemaining: remaining)
+                    ? Failure.rateLimited(status) : Failure.http(status)
+            }
             guard let releases = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
                 throw Failure.unreadable
             }

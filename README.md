@@ -13,7 +13,7 @@ own updater, it hands over instead of fighting it; when it can't do something
 safely, it says so rather than guessing. Pure Swift, no telemetry, no server.
 
 <p align="center">
-  <img src="assets/menu-bar.png" alt="The DuoUpdater menu bar popover, headed 58 updates available with an Update All button and a search field. Each row shows the installed version, the new version, a small badge for what the app is built with, and an Update button; Amp's row reads 1.0 (374) to 1.0 (390). A hover card over AndroMeld's badge reads: Native — a native Mac app, built straight on Apple's frameworks, not a cross-platform runtime. Links AppKit and SwiftUI. Built with the macOS 26.5 SDK. A row at the bottom reports 3 Homebrew packages not checked." width="420">
+  <img src="assets/menu-bar.png" alt="The DuoUpdater menu bar popover, headed 89 updates available with an Update All button and a search field. Each row shows the installed version, the new version, a small badge for what the app is built with, and an Update button; Anki's row reads 26.9.2 to 26.09.3. A hover card over BetterDisplay's badge reads: Native — a native Mac app, built straight on Apple's frameworks, not a cross-platform runtime. Links AppKit and SwiftUI. Built with the macOS 27.0 SDK. Two rows at the bottom: Homebrew, 9 updates and 3 not checked; Other tools, 1 update and 1 held back." width="420">
 </p>
 
 Each row says what you are going from and to, and the button says what will
@@ -22,14 +22,17 @@ disk and only the running copy is stale. A green dot marks an app that is
 running, so you know before you click whether something is about to be quit and
 reopened, and a channel tag appears where an app is not on its default track.
 When a release keeps the same marketing version, the row shows the build number
-beside it — Amp here is 1.0 on both sides, going from build 374 to 390.
+beside it.
 
-The single row at the bottom is everything Homebrew installs that **isn't an
+The **Homebrew** row at the bottom is everything Homebrew installs that **isn't an
 app**: command-line formulae, and casks that install no `.app` at all — a CLI, a
 font, a driver. None of those need a per-app decision, and they have no bundle to
 scan, so without that row they would be invisible entirely. A cask that *does*
 install an app gets an ordinary row like anything else, and is never touched by
-the upgrade here, so nothing is counted twice.
+the upgrade here, so nothing is counted twice. **Other tools** is the same idea
+for command-line tools installed some other way — Claude Code, Codex, uv, Bun,
+`npm install -g` packages — each found where its own installer put it and
+updated through that tool's own update command.
 
 <p align="center">
   <img src="assets/changelog.png" alt="The workbench window: a sidebar listing every scanned app, and the release notes for the selected one rendered as native text — version heading, date, and one bullet per change." width="760">
@@ -40,16 +43,27 @@ whatever you select. Where a vendor publishes notes in a form worth parsing,
 they are pulled apart and rendered as native text — version, date, one bullet per
 change — instead of an embedded web page. Sparkle appcasts and GitHub releases
 carry their notes inline; for the rest there is a per-app recipe, and vendors
-whose page resists parsing fall back to the page itself in a `WKWebView`. Some
-app names are blurred here; they are only this machine's library.
+whose page resists parsing fall back to the page itself in a `WKWebView`.
 
 <p align="center">
-  <img src="assets/settings.png" alt="DuoUpdater's General settings, beside a sidebar listing Folders, Updates, GitHub, Alcove, Ignored and Diagnostics: launch at login, check interval, hiding the Dock icon, whether to show what each app is built with, notifications, automatic relaunch, rollback backups and the space they use, how many apps to check at once, and install routing for App Store updates, self-updating apps and TestFlight betas." width="760">
+  <img src="assets/settings.png" alt="DuoUpdater's General settings, beside a sidebar listing Backups, Folders, Updates, GitHub, Alcove, Xcode, Ignored and Diagnostics: launch at login, check interval, hiding the Dock icon, whether to show what each app is built with, notifications, automatic relaunch, how many apps to check at once, and install routing for App Store updates, self-updating apps, apps without a developer signature and TestFlight betas." width="760">
 </p>
 
 Most of the settings are about how much autonomy you want to give it — whether
 to restart apps for you, whether to keep a rollback backup, and how to route the
 two awkward cases: Mac App Store apps, and apps that ship their own updater.
+
+<p align="center">
+  <img src="assets/xcode.png" alt="The Xcode settings page: signed in to Apple Developer, with an option to renew the session in the background. Below, a Download Xcode list with Betas &amp; RCs and Releases tabs, from Apple and xcodereleases.com, showing Xcode 27 builds from 27.2 beta 2 down to 27.0 beta 4, each with its date and the macOS it requires. Most have an Install button; the two already installed, as Xcode-beta.app and Xcode.app, offer Open and Download Only (.xip)." width="760">
+</p>
+
+Xcode betas and release candidates aren't on the App Store, and Apple only hands
+them out to a signed-in developer account. Sign in once under Settings → Xcode
+and a new beta becomes a one-click update like any other row. The same page lists
+every build Apple and xcodereleases.com know of: **Install** puts the one you pick
+in Applications as its own copy — `Xcode-27.2-beta-2.app`, say — beside any Xcode
+already there, and nothing installed is replaced; **Download Only** saves the
+`.xip` to Downloads instead.
 
 ## How it works
 

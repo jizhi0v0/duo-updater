@@ -10,7 +10,7 @@
 
 **HEAD からインストールした formula は、Homebrew が上流と比較しないことを表示するようになり、「上流を確認」で代わりに問い合わせられます。** 以前は常に最新と表示されていました。
 
-**対応する App とリリースチャンネルが増えました。** TRAE、Jan の nightly 版、開発元のサイトからインストールした Audacity 4 で、アップデートの確認とワンクリックアップデートができるようになりました。同じ方法でインストールした Audacity 3 も、アップデートを確認できるようになりました。OBS で選んだベータチャンネル、iTerm2 の「Check for test releases」設定、MonitorControl のベータ切り替えにも従うようになりました。Arc と Dia の Early Birds 版、OpenChamber preview、JetBrains Air nightly、calibre preview は、正式版ではなくテスト版として認識されるようになりました。
+**対応する App とリリースチャンネルが増えました。** TRAE、Jan の nightly 版、開発元のサイトからインストールした Audacity 4 で、アップデートの確認とワンクリックアップデートができるようになりました。同じ方法でインストールした Audacity 3 も、アップデートを確認できるようになりました。OBS で選んだベータチャンネルと、iTerm2 の「Update to Beta test releases」設定にも従うようになりました。Arc と Dia の Early Birds 版、OpenChamber preview、JetBrains Air nightly、calibre preview は、正式版ではなくテスト版として認識されるようになりました。
 
 **コマンドラインツールに Herdr と Luvus が加わりました。** CLI タブでは各ツールが自分のロゴを、Homebrew の formula もそれぞれのアイコンを表示し、灰色のターミナル記号ではなくなりました。
 

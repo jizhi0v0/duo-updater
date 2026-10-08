@@ -10,7 +10,7 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 **Eine aus HEAD installierte Formel sagt jetzt, dass Homebrew sie nicht mit Upstream vergleicht, und „Upstream prüfen“ fragt für dich nach.** Bisher galt sie immer als aktuell.
 
-**Mehr Apps und Release-Kanäle werden unterstützt.** TRAE, der Nightly-Build von Jan und Audacity 4, von der Website des Entwicklers installiert, werden jetzt auf Updates geprüft und lassen sich mit einem Klick aktualisieren; ein so installiertes Audacity 3 wird jetzt auf Updates geprüft. DuoUpdater folgt jetzt dem Beta-Kanal, den du in OBS wählst, der iTerm2-Einstellung „Check for test releases“ und dem Beta-Schalter von MonitorControl. Early-Birds-Builds von Arc und Dia, OpenChamber Preview, JetBrains Air Nightly und calibre Preview werden jetzt als Testversionen erkannt statt als stabile Releases.
+**Mehr Apps und Release-Kanäle werden unterstützt.** TRAE, der Nightly-Build von Jan und Audacity 4, von der Website des Entwicklers installiert, werden jetzt auf Updates geprüft und lassen sich mit einem Klick aktualisieren; ein so installiertes Audacity 3 wird jetzt auf Updates geprüft. DuoUpdater folgt jetzt dem Beta-Kanal, den du in OBS wählst, und der iTerm2-Einstellung „Update to Beta test releases“. Early-Birds-Builds von Arc und Dia, OpenChamber Preview, JetBrains Air Nightly und calibre Preview werden jetzt als Testversionen erkannt statt als stabile Releases.
 
 **Zwei weitere Kommandozeilen-Tools: Herdr und Luvus.** Im Tab CLI zeigt jedes Tool jetzt sein eigenes Logo, und Homebrew-Formeln zeigen ihr eigenes Symbol statt eines grauen Terminal-Symbols.
 

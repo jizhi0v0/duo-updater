@@ -10,7 +10,7 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **Una fórmula instalada desde HEAD ahora indica que Homebrew no la compara con el origen, y «Comprobar origen» lo consulta por ti.** Antes siempre aparecía como actualizada.
 
-**Hay más apps y canales de versiones compatibles.** TRAE, la versión nightly de Jan y Audacity 4 instalado desde la web del desarrollador ahora tienen comprobación de actualizaciones y actualización con un clic, y Audacity 3 instalado así ahora tiene comprobación de actualizaciones. DuoUpdater ahora sigue el canal beta que elijas en OBS, el ajuste «Check for test releases» de iTerm2 y el interruptor beta de MonitorControl. Las versiones Early Birds de Arc y Dia, OpenChamber preview, JetBrains Air nightly y calibre preview ahora se reconocen como versiones de prueba en lugar de versiones estables.
+**Hay más apps y canales de versiones compatibles.** TRAE, la versión nightly de Jan y Audacity 4 instalado desde la web del desarrollador ahora tienen comprobación de actualizaciones y actualización con un clic, y Audacity 3 instalado así ahora tiene comprobación de actualizaciones. DuoUpdater ahora sigue el canal beta que elijas en OBS y el ajuste «Update to Beta test releases» de iTerm2. Las versiones Early Birds de Arc y Dia, OpenChamber preview, JetBrains Air nightly y calibre preview ahora se reconocen como versiones de prueba en lugar de versiones estables.
 
 **Dos herramientas de línea de comandos más: Herdr y Luvus.** En la pestaña CLI cada herramienta muestra ahora su propio logotipo, y las fórmulas de Homebrew muestran su propio icono en lugar de un símbolo de terminal gris.
 

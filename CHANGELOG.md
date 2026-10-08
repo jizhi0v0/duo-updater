@@ -27,7 +27,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **A formula installed from HEAD now says that Homebrew doesn't compare it with upstream, and "Check Upstream" asks for you.** Before, it always showed as up to date.
 
-**More apps and release channels are supported.** TRAE, Jan's nightly build and Audacity 4 installed from the developer's website now get update checks and one-click updates, and Audacity 3 installed that way gets update checks. DuoUpdater now follows the beta channel you choose in OBS, iTerm2's "Check for test releases" setting and MonitorControl's beta switch. Arc and Dia Early Birds builds, OpenChamber preview, JetBrains Air nightly and calibre preview builds are now recognised as test builds instead of stable releases.
+**More apps and release channels are supported.** TRAE, Jan's nightly build and Audacity 4 installed from the developer's website now get update checks and one-click updates, and Audacity 3 installed that way gets update checks. DuoUpdater now follows the beta channel you choose in OBS and iTerm2's "Update to Beta test releases" setting. Arc and Dia Early Birds builds, OpenChamber preview, JetBrains Air nightly and calibre preview builds are now recognised as test builds instead of stable releases.
 
 **Two more command-line tools: Herdr and Luvus.** In the CLI tab each tool now shows its own logo, and Homebrew formulae show their own icons instead of a grey terminal symbol.
 

@@ -4,6 +4,8 @@ import Foundation
 /// updater (`Opencode*`), seen through `CLIToolProvider`.
 public struct OpencodeProvider: CLIToolProvider {
     public var kind: CLIToolKind { .opencode }
+    /// `OpencodeRelease` asks the GitHub API for the newest release on every check.
+    public var readsGitHubAPI: Bool { true }
 
     public init() {}
 

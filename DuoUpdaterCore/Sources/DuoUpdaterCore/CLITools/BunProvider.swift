@@ -7,6 +7,9 @@ import Foundation
 /// `NpmUpdater`, `NpmChangelog`), which knows them by `NpmInstall.bun`.
 public struct BunProvider: CLIToolProvider {
     public var kind: CLIToolKind { .bun }
+    /// `BunRelease` asks the GitHub API for bun's newest release on every check;
+    /// its packages ask the npm registry.
+    public var readsGitHubAPI: Bool { true }
 
     let home: URL
 

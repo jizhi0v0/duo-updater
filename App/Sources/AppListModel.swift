@@ -1788,7 +1788,8 @@ final class AppListModel {
         // Find command-line tool installs now, locally and without the network, so
         // the popover's first open already knows whether to reserve the
         // command-line tools row — the role `brewInstalled` plays for the brew
-        // row. The networked check runs when the popover opens.
+        // row. The networked check runs on the background schedule, or when the
+        // popover opens.
         Task { await cliTools.scanInstalls() }
     }
 
@@ -8327,8 +8328,19 @@ final class AppListModel {
     /// launch fires immediately) can't surface the "access data from other apps"
     /// prompt unprompted, and leaves the release notes the user may be reading in
     /// place (`RefreshIntent`).
+    ///
+    /// The command-line tools are checked on the same tick, beside the apps rather
+    /// than after them, each tool on its own clock (`CLIToolsModel.backgroundCheck`).
+    /// Before this they were checked only when the popover or the workbench opened.
     private func backgroundRefresh() async {
+        let interval = prefs.checkFrequency.interval
+        let tools = Task { @MainActor in
+            await self.cliTools.backgroundCheck(interval: interval) {
+                await self.githubTokenForRecheck() != nil
+            }
+        }
         await refresh(intent: .scheduled)
+        await tools.value
     }
 
     /// Arm the watcher on TestFlight's own store. Called once at launch, network-free,

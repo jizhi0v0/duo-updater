@@ -186,6 +186,7 @@ struct CLIToolsModelTests {
         var updater = FakeUpdater()
         var scanner: @Sendable () async -> [CLIToolSighting] = { [] }
         var notes = FakeNotes(Changelog(entries: []))
+        var readsGitHubAPI = false
 
         func scan() async -> [CLIToolSighting] { await scanner() }
 
@@ -797,7 +798,8 @@ struct CLIToolsModelTests {
     /// A one-tool re-check leaves every other verdict as old as it was, so it
     /// does not restart the clock an open of the popover reads.
     ///
-    /// Mutation: drop `if whole` before `lastChecked = now()`.
+    /// Mutation: stamp `checkedAt` for every provider in `apply`, not only the
+    /// ones asked.
     @Test func aOneToolRecheckDoesNotFreshenTheOthers() async {
         let clock = Clock()
         let claude = Self.status(Self.native)
@@ -1039,8 +1041,7 @@ struct CLIToolsModelTests {
     /// (a) With no completed check, an open checks — even when the scan finds
     /// nothing to disagree with.
     ///
-    /// Mutation: drop `guard let lastChecked else { return await refresh() }`
-    /// (and read `lastChecked ?? now()` below it).
+    /// Mutation: drop `guard !checkedAt.isEmpty else { return await refresh() }`.
     @Test func theFirstOpenChecks() async {
         let check = FakeCheck([(Self.report(), nil)])
         let model = Self.model(check: check, scan: { [] })
@@ -1055,7 +1056,7 @@ struct CLIToolsModelTests {
     /// The first half is the promise itself: an open with nothing changed costs
     /// no network.
     ///
-    /// Mutation: drop `stale ||` from the guard.
+    /// Mutation: `stale` filtering nothing out (every age counted as stale).
     @Test func anOpenRechecksOnlyAStaleReport() async {
         let status = Self.status(Self.native)
         let found = ScanResult([status])
@@ -1077,7 +1078,7 @@ struct CLIToolsModelTests {
     /// update` in a terminal), a copy appeared, or a copy of another tool did —
     /// re-checks at once, and re-checks every tool.
     ///
-    /// Mutation: drop `moved ||` from the guard.
+    /// Mutation: drop `moved ||` from the `refresh()` condition.
     @Test func aScanThatDisagreesRechecks() async {
         let status = Self.status(Self.native)
         let found = ScanResult([status])
@@ -1105,7 +1106,7 @@ struct CLIToolsModelTests {
     /// (d) A report that left a copy unanswered (offline, say) is retried on the
     /// next open rather than kept for fifteen minutes.
     ///
-    /// Mutation: drop the `unchecked.contains(where:)` clause from the guard.
+    /// Mutation: drop the `unchecked.contains(where:)` clause from the `refresh()` condition.
     @Test func anUnansweredCopyRechecks() async {
         // GitHub's rate limit too: it ends with the hour, nothing on disk moves.
         // Mutation: drop `.rateLimited` from `mayClearByItself`.
@@ -1167,6 +1168,135 @@ struct CLIToolsModelTests {
         found.sightings = [CLIToolSighting(kind: .claudeCode, path: Self.native, version: "2.1.274", state: "fine")]
         await model.refreshOnOpen()
         #expect(await check.calls == 2)
+    }
+
+    // MARK: the background schedule
+
+    /// Answers whether a GitHub token resolves, and counts how often it was asked.
+    final class TokenProbe: @unchecked Sendable {
+        var hasToken = false
+        var asked = 0
+        func ask() -> Bool { asked += 1; return hasToken }
+    }
+
+    /// Claude Code (no GitHub API) and Bun (its check reads the GitHub API), with
+    /// scans that agree with their checks, so an open re-checks for age alone.
+    static func scheduled(clock: Clock) -> (CLIToolsModel, claude: FakeCheck, bun: FakeCheck) {
+        let claude = Self.status(Self.native)
+        let bun = Self.status("/Users/u/.bun/bin/bun", kind: .bun, version: "1.3.0", latest: "1.3.1")
+        let claudeCheck = FakeCheck([(Self.report(claude), nil)])
+        let bunCheck = FakeCheck([(Self.report(.bun, [bun]), nil)])
+        let claudeScan = [Self.sighting(claude)]
+        let bunScan = [Self.sighting(bun)]
+        let model = Self.model([
+            FakeProvider(kind: .claudeCode, checker: claudeCheck, scanner: { claudeScan }),
+            FakeProvider(kind: .bun, checker: bunCheck, scanner: { bunScan }, readsGitHubAPI: true),
+        ], clock: clock)
+        return (model, claudeCheck, bunCheck)
+    }
+
+    /// The rule itself: every tool is due on every tick, except one that reads
+    /// the GitHub API with no token, which waits out `gitHubFloor` from the start
+    /// of its last check.
+    ///
+    /// Mutations: drop `!hasGitHubToken,` from `isDue`'s guard; return true in
+    /// place of the age comparison; drop `readsGitHubAPI,` from the guard.
+    @Test func onlyAGitHubReadingToolWithoutATokenWaitsOutTheFloor() {
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let floor = CLIToolsModel.gitHubFloor
+        let recent = now.addingTimeInterval(-(floor - 1))
+        let old = now.addingTimeInterval(-floor)
+        #expect(CLIToolsModel.isDue(readsGitHubAPI: false, checkedAt: recent, now: now, hasGitHubToken: false))
+        #expect(CLIToolsModel.isDue(readsGitHubAPI: true, checkedAt: recent, now: now, hasGitHubToken: true))
+        #expect(CLIToolsModel.isDue(readsGitHubAPI: true, checkedAt: nil, now: now, hasGitHubToken: false))
+        #expect(!CLIToolsModel.isDue(readsGitHubAPI: true, checkedAt: recent, now: now, hasGitHubToken: false))
+        #expect(CLIToolsModel.isDue(readsGitHubAPI: true, checkedAt: old, now: now, hasGitHubToken: false))
+    }
+
+    /// At the 5-minute schedule with no token, Claude Code is checked on every
+    /// tick and Bun only once 15 minutes have passed; with a token, Bun on every
+    /// tick too. The token is asked about only when Bun would otherwise be held
+    /// back — never on the first tick, when nothing has been checked yet.
+    ///
+    /// Mutation: in `backgroundCheck`, check every provider whatever `isDue` says.
+    @Test func theBackgroundCheckHoldsBackOnlyTheGitHubReadingTool() async {
+        let clock = Clock()
+        let (model, claude, bun) = Self.scheduled(clock: clock)
+        let token = TokenProbe()
+        let tick = { await model.backgroundCheck(interval: 5 * 60) { token.ask() } }
+
+        await tick()
+        #expect(await claude.calls == 1)
+        #expect(await bun.calls == 1)
+        #expect(token.asked == 0)
+
+        clock.now += 5 * 60
+        await tick()
+        #expect(await claude.calls == 2)
+        #expect(await bun.calls == 1)
+        #expect(token.asked == 1)
+
+        clock.now += 5 * 60
+        token.hasToken = true
+        await tick()
+        #expect(await claude.calls == 3)
+        #expect(await bun.calls == 2)
+
+        clock.now += 5 * 60
+        token.hasToken = false
+        await tick()
+        #expect(await bun.calls == 2)
+
+        clock.now += CLIToolsModel.gitHubFloor - 5 * 60
+        await tick()
+        #expect(await claude.calls == 5)
+        #expect(await bun.calls == 3)
+    }
+
+    /// "Only when I check": a tick already under way when the user chose it
+    /// checks nothing.
+    ///
+    /// Mutation: drop `guard interval != nil else { return }`.
+    @Test func noBackgroundCheckUnderManual() async {
+        let (model, claude, bun) = Self.scheduled(clock: Clock())
+
+        await model.backgroundCheck(interval: nil) { true }
+
+        #expect(await claude.calls == 0)
+        #expect(await bun.calls == 0)
+        #expect(!model.checked)
+    }
+
+    /// An open right after a background check asks nothing again, and an open
+    /// once only the held-back tool's report is old re-checks that tool alone.
+    ///
+    /// Mutations: `refreshOnOpen` calling `refresh()` when any report is stale
+    /// (in place of `check(stale)`); `backgroundCheck` not stamping `checkedAt`
+    /// (`apply` skipping it).
+    @Test func anOpenAfterABackgroundCheckAsksOnlyWhatIsOld() async {
+        let clock = Clock()
+        let (model, claude, bun) = Self.scheduled(clock: clock)
+        let tick = { await model.backgroundCheck(interval: 5 * 60) { false } }
+        await tick()
+
+        clock.now += 60
+        await model.refreshOnOpen()
+        #expect(await claude.calls == 1)
+        #expect(await bun.calls == 1)
+
+        // Ticks at +5 and +10 minutes check Claude Code and hold Bun back.
+        clock.now += 4 * 60
+        await tick()
+        clock.now += 5 * 60
+        await tick()
+        #expect(await claude.calls == 3)
+        #expect(await bun.calls == 1)
+
+        // Bun's report is now 15 minutes old, Claude Code's 5.
+        clock.now += 5 * 60
+        await model.refreshOnOpen()
+        #expect(await claude.calls == 3)
+        #expect(await bun.calls == 2)
     }
 
     // MARK: release notes

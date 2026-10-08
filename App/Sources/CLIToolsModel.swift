@@ -142,10 +142,18 @@ final class CLIToolsModel {
     /// scan against.
     @ObservationIgnored private var checkedSightings: [CLIToolSighting] = []
 
-    /// When the report on screen was taken; nil until a check has completed.
-    @ObservationIgnored private var lastChecked: Date?
+    /// Per provider (by index in `providers`), when the check whose report is on
+    /// screen started; no entry until one has landed. Per provider because the
+    /// background check asks only the tools whose turn it is (`isDue`), and an
+    /// update re-checks only its own: each tool's report is as old as its own
+    /// last check.
+    @ObservationIgnored private var checkedAt: [Int: Date] = [:]
     /// How old a report may get before an open of the popover checks again.
     static let recheckInterval: TimeInterval = 15 * 60
+    /// How often the background check may ask a tool whose check reads the
+    /// GitHub API (`CLIToolProvider.readsGitHubAPI`) while no GitHub token
+    /// resolves. With a token there is no floor: a 304 costs nothing then.
+    nonisolated static let gitHubFloor: TimeInterval = 15 * 60
 
     /// Bumped by every check; a check applies a tool's report only if it is still
     /// the latest one started for that tool (`latestCheck`). Reads overlap — a
@@ -205,19 +213,64 @@ final class CLIToolsModel {
     /// or when it left a copy unanswered. An update re-checks by itself and does
     /// not go through here.
     ///
-    /// One decision for every tool, because one check covers every tool
-    /// (`refresh`): a reason to re-check any of them re-checks all.
+    /// A change the scan sees, or an unanswered copy, re-checks every tool, as one
+    /// check of all of them (`refresh`) did before the reports had ages of their
+    /// own. Age alone re-checks only the tools whose report is that old: the
+    /// background check (`backgroundCheck`) keeps those ages too, so an open
+    /// right after it asks nothing again.
     func refreshOnOpen() async {
-        guard let lastChecked else { return await refresh() }
+        guard !checkedAt.isEmpty else { return await refresh() }
         let found = await scanAll()
-        let stale = now().timeIntervalSince(lastChecked) >= Self.recheckInterval
         // What the scan can see change without a check: which copies of which
         // tool there are, the version each one reads as, and the rest of what its
         // verdict rests on (`CLIToolSighting.state`) — held against what the last
         // check's own scan saw, built by the same rule.
         let moved = Set(found) != Set(checkedSightings)
-        guard stale || moved || unchecked.contains(where: Self.mayClearByItself) else { return }
-        await refresh()
+        if moved || unchecked.contains(where: Self.mayClearByItself) { return await refresh() }
+        let now = now()
+        let stale = providers.indices.filter { index in
+            checkedAt[index].map { now.timeIntervalSince($0) >= Self.recheckInterval } ?? true
+        }
+        guard !stale.isEmpty else { return }
+        await check(stale)
+    }
+
+    /// What a tick of the app's background schedule does for these tools: check
+    /// every tool whose turn it is (`isDue`), each on its own clock. `interval` is
+    /// the app's check interval; nil is "Only when I check", and then nothing runs
+    /// — a tick already under way when the user chose it must not start a check.
+    ///
+    /// `hasGitHubToken` is asked only when a tool would be held back for want of
+    /// one: resolving a token can run `gh auth token`.
+    func backgroundCheck(
+        interval: TimeInterval?, hasGitHubToken: () async -> Bool
+    ) async {
+        guard interval != nil else { return }
+        let now = now()
+        let due = { (token: Bool) in
+            self.providers.indices.filter { index in
+                Self.isDue(readsGitHubAPI: self.providers[index].readsGitHubAPI,
+                           checkedAt: self.checkedAt[index], now: now, hasGitHubToken: token)
+            }
+        }
+        var indices = due(false)
+        if indices.count < providers.count, await hasGitHubToken() { indices = due(true) }
+        guard !indices.isEmpty else { return }
+        await check(indices)
+    }
+
+    /// Whether a tool is checked on this tick. Every tool is, except one whose
+    /// check reads the GitHub API while no token resolves: that one waits until
+    /// `gitHubFloor` has passed since its last check started. Anonymous, the API
+    /// allows 60 requests an hour per IP, and the app's own rows spend from the
+    /// same budget; at the 5-minute schedule two such tools alone would spend 24.
+    /// Measured from the start of a check, as the schedule's ticks are spaced at
+    /// least an interval apart from the end of one round to the start of the next.
+    nonisolated static func isDue(
+        readsGitHubAPI: Bool, checkedAt: Date?, now: Date, hasGitHubToken: Bool
+    ) -> Bool {
+        guard readsGitHubAPI, !hasGitHubToken, let checkedAt else { return true }
+        return now.timeIntervalSince(checkedAt) >= gitHubFloor
     }
 
     /// Whether an unchecked install's reason can go away without anything on disk
@@ -269,6 +322,7 @@ final class CLIToolsModel {
         refreshGeneration += 1
         let generation = refreshGeneration
         for index in indices { latestCheck[index] = generation }
+        let started = now()
         checksInFlight += 1
         checking = true
         // Each provider's requests filed under its tool, so the request log's App
@@ -280,7 +334,7 @@ final class CLIToolsModel {
         checking = checksInFlight > 0
         let current = answers.filter { latestCheck[$0.0] == generation }
         guard !current.isEmpty else { return }
-        apply(current, whole: indices.count == providers.count)
+        apply(current, startedAt: started)
     }
 
     private func scanAll() async -> [CLIToolSighting] {
@@ -303,19 +357,20 @@ final class CLIToolsModel {
         }
     }
 
-    /// Put `answers` on screen in place of their providers' last reports. `whole`:
-    /// the check asked every provider, so the report as a whole is that recent.
-    private func apply(_ answers: [(Int, CLIToolReport)], whole: Bool) {
-        for (index, report) in answers { reports[index] = report }
+    /// Put `answers` on screen in place of their providers' last reports, each as
+    /// old as the check that asked it (`startedAt`).
+    private func apply(_ answers: [(Int, CLIToolReport)], startedAt: Date) {
+        // Only the tools asked: the others' verdicts are as old as they were.
+        for (index, report) in answers {
+            reports[index] = report
+            checkedAt[index] = startedAt
+        }
         let ordered = reports.keys.sorted().compactMap { reports[$0] }
         contexts = Dictionary(ordered.map { ($0.kind, $0.context) }, uniquingKeysWith: { a, _ in a })
         statuses = ordered.flatMap(\.statuses)
         checkedSightings = ordered.flatMap(\.sightings)
         sightings = checkedSightings
         checked = true
-        // A one-tool re-check leaves the others' verdicts as old as they were:
-        // only a check of all of them restarts the clock `refreshOnOpen` reads.
-        if whole { lastChecked = now() }
         let byID = Dictionary(statuses.map { ($0.toolID, $0) }, uniquingKeysWith: { a, _ in a })
         // An error describes an attempt at an update that is still on offer. Once
         // the copy is no longer behind — updated from a terminal, or gone — it

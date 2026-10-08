@@ -55,6 +55,7 @@ githubRules[0].installAssetPattern? = "^Headlamp-[0-9.]+-mac-arm64\\.dmg$"
 githubRules[0].installerKind? = .dmg
 githubRules[0].installTrust = .developerID
 githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
 
 appStoreCases = Array(count: 0)
 

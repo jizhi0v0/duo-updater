@@ -23,6 +23,7 @@ githubRules[0].installAssetPattern? = "^anki-[0-9.]+-mac-(apple|intel)\\.dmg$"
 githubRules[0].installerKind? = .dmg
 githubRules[0].installTrust = .developerID
 githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
 
 appStoreCases = Array(count: 0)
 

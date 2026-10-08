@@ -10,7 +10,7 @@ Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce 
 
 **HEAD’den kurulan bir formül artık Homebrew’un onu kaynakla karşılaştırmadığını söylüyor ve “Kaynağı Denetle” sizin yerinize soruyor.** Önceden her zaman güncel görünüyordu.
 
-**Daha fazla uygulama ve sürüm kanalı destekleniyor.** TRAE, Jan’ın nightly derlemesi ve geliştiricinin web sitesinden kurulan Audacity 3 ile 4 artık güncellemeler için denetleniyor ve tek tıkla güncelleniyor. DuoUpdater artık OBS’de seçtiğiniz beta kanalını, iTerm2’nin “Check for test releases” ayarını ve MonitorControl’ün beta düğmesini izliyor. Arc ile Dia’nın Early Birds derlemeleri, OpenChamber preview, JetBrains Air nightly ve calibre preview artık kararlı sürüm yerine test sürümü olarak tanınıyor.
+**Daha fazla uygulama ve sürüm kanalı destekleniyor.** TRAE, Jan’ın nightly derlemesi ve geliştiricinin web sitesinden kurulan Audacity 4 artık güncellemeler için denetleniyor ve tek tıkla güncelleniyor; aynı şekilde kurulan Audacity 3 de artık güncellemeler için denetleniyor. DuoUpdater artık OBS’de seçtiğiniz beta kanalını, iTerm2’nin “Check for test releases” ayarını ve MonitorControl’ün beta düğmesini izliyor. Arc ile Dia’nın Early Birds derlemeleri, OpenChamber preview, JetBrains Air nightly ve calibre preview artık kararlı sürüm yerine test sürümü olarak tanınıyor.
 
 **İki komut satırı aracı daha: Herdr ve Luvus.** CLI sekmesinde her araç artık kendi logosunu, Homebrew formülleri de gri bir terminal simgesi yerine kendi simgesini gösteriyor.
 

@@ -10,7 +10,7 @@
 
 **从 HEAD 安装的 formula 现在会说明 Homebrew 不会拿它和上游比对，点“检查上游”就能替你去问。** 以前它总是显示为已是最新。
 
-**支持的 App 和更新渠道更多了。** TRAE、Jan 的 nightly 版，以及从开发者网站安装的 Audacity 3 和 4 现在都能检查更新并一键更新。DuoUpdater 现在会跟随你在 OBS 里选的 Beta 渠道、iTerm2 的“Check for test releases”设置和 MonitorControl 的 Beta 开关。Arc 和 Dia 的 Early Birds 版、OpenChamber preview、JetBrains Air nightly 和 calibre preview 现在会被识别为测试版，而不是正式版。
+**支持的 App 和更新渠道更多了。** TRAE、Jan 的 nightly 版，以及从开发者网站安装的 Audacity 4 现在都能检查更新并一键更新；这样安装的 Audacity 3 现在也能检查更新。DuoUpdater 现在会跟随你在 OBS 里选的 Beta 渠道、iTerm2 的“Check for test releases”设置和 MonitorControl 的 Beta 开关。Arc 和 Dia 的 Early Birds 版、OpenChamber preview、JetBrains Air nightly 和 calibre preview 现在会被识别为测试版，而不是正式版。
 
 **又多了两个命令行工具：Herdr 和 Luvus。** 命令行 标签页里每个工具现在都显示自己的图标，Homebrew formula 也显示各自的图标，不再是一个灰色的终端符号。
 

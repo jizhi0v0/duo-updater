@@ -1714,7 +1714,8 @@ private struct HomebrewSelfUpdateSidebarRow: View {
 /// (`BrewUncheckedPackage`). Without it the package is simply missing from the
 /// tree — brew's own listings drop it — which reads as "nothing to update". No
 /// update action: we don't know the version, and trusting the tap is the user's
-/// call, so the row offers the `brew trust` command to copy instead of running it.
+/// call, so the row offers the `brew trust` command to copy instead of running it
+/// (for a formula moved to a cask, the commands that swap it — `fixCommand`).
 private struct BrewUncheckedSidebarRow: View {
     let package: BrewUncheckedPackage
     /// Set briefly when the popover's tip sends the user here.
@@ -1735,16 +1736,16 @@ private struct BrewUncheckedSidebarRow: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
             Spacer()
-            if package.reason == .tapNotTrusted {
+            if let command = package.fixCommand {
                 Button {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(package.trustCommand, forType: .string)
+                    NSPasteboard.general.setString(command, forType: .string)
                     copied = true
                 } label: {
                     Image(systemName: copied ? "checkmark" : "doc.on.doc")
                 }
                 .buttonStyle(.borderless)
-                .help(String(localized: "Copy “\(package.trustCommand)”"))
+                .help(String(localized: "Copy “\(command)”"))
             }
         }
         .padding(.vertical, 2)
@@ -1762,6 +1763,7 @@ private extension BrewUncheckedPackage {
         switch reason {
         case .tapNotTrusted: String(localized: "Not checked · tap not trusted")
         case .unreadable: String(localized: "Not checked · Homebrew can’t read it")
+        case .movedToCask: String(localized: "Not checked · moved to a cask")
         }
     }
 
@@ -1771,6 +1773,8 @@ private extension BrewUncheckedPackage {
             String(localized: "Homebrew won’t read \(fullName) from its tap until you trust it, so updates can’t be checked. To trust it, run: \(trustCommand)")
         case .unreadable:
             String(localized: "Homebrew didn’t read \(fullName) from its tap, so updates can’t be checked.")
+        case .movedToCask:
+            String(localized: "Homebrew replaced the \(name) formula with a cask of the same name, so the installed formula gets no more updates. To switch to the cask, run: \(migrateCommand)")
         }
     }
 }
@@ -1808,15 +1812,18 @@ private struct BrewUncheckedDetailPane: View {
             Divider()
             VStack(alignment: .leading, spacing: 12) {
                 Text(package.uncheckedExplanation)
-                if package.reason == .tapNotTrusted {
+                if let command = package.fixCommand {
                     HStack(spacing: 8) {
-                        Text(package.trustCommand)
+                        Text(command)
                             .font(.system(.body, design: .monospaced))
                             .textSelection(.enabled)
+                            // Wraps rather than truncating: the cask migration is two
+                            // commands, wider than the pane (`brew trust …` fit).
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer()
                         Button {
                             NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(package.trustCommand, forType: .string)
+                            NSPasteboard.general.setString(command, forType: .string)
                             copied = true
                             copiedResetTask?.cancel()
                             // Back to the copy glyph, so a second copy confirms again.
@@ -1832,10 +1839,12 @@ private struct BrewUncheckedDetailPane: View {
                                 .frame(width: 18, height: 18)
                         }
                         .buttonStyle(.borderless)
-                        .help(String(localized: "Copy “\(package.trustCommand)”"))
+                        .help(String(localized: "Copy “\(command)”"))
                     }
                     .padding(10)
                     .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                }
+                if package.reason == .tapNotTrusted {
                     // NSWorkspace rather than SwiftUI `openURL`, which errors -50 in
                     // this app's windows (see `AlcoveSettingsPage`).
                     Button {

@@ -3655,7 +3655,11 @@ final class AppListModel {
         // uninstalling the very last leaf leaves its row up until a read that
         // returns something.
         let inventory = leaves.isEmpty ? brewFormulae : leaves
+        // A formula moved to a cask is still a leaf — brew loads it from its keg —
+        // and reads as up to date there; its unchecked row is the one that's true.
+        let moved = Set(newUnchecked.filter { $0.reason == .movedToCask }.map(\.name))
         brewFormulae = BrewFormulaService.merge(inventory, outdated: outdated)
+            .filter { !moved.contains($0.name) }
         brewOutdatedFormulae = outdated + casks
         brewUnchecked = newUnchecked
         if !brewUnchecked.isEmpty {

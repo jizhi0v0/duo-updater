@@ -198,6 +198,10 @@ import Foundation
                     casks: #"{"token":"zzfixture-cli","full_token":"zzfixture-cli","tap":null,"installed":"0.1"}"#))
             case ["tap-info", "--json=v1", "--installed"]:
                 return (0, Data(#"[{"name":"zzfixture-org/tap","trusted":false}]"#.utf8))
+            case ["formulae"]:
+                return (0, Data("zzfixture-core\nzzfixture-org/tap/zzfixture-tool\n".utf8))
+            case ["casks"]:
+                return (0, Data("zzfixture-cli\n".utf8))
             default:
                 Issue.record("unexpected arguments: \(arguments)")
                 return (1, Data())
@@ -263,6 +267,71 @@ import Foundation
         let leaves = try await service.installedLeaves()
         #expect(leaves.map(\.name) == ["zzfixture-org/tap/zzfixture-tool"])
         #expect(leaves.first?.installedVersion == "1.4.2")
+    }
+
+    // MARK: - Moved to a cask
+
+    /// The azure-cli shape (2026-10-08, Homebrew 7.0.8): its keg still listed by
+    /// `list --full-name` as a bare name, the name gone from `brew formulae`, a cask
+    /// of that name in `brew casks`. Mutation: drop the `casks.contains` → a
+    /// deleted or renamed formula would be told to install a cask that isn't there.
+    @Test func aCoreFormulaGoneFromFormulaeWithASameNamedCaskIsReported() {
+        let result = BrewFormulaService.movedToCask(
+            formulaFullNames: ["zzfixture-moved", "zzfixture-deleted", "zzfixture-kept"],
+            availableFormulae: ["zzfixture-kept"],
+            availableCasks: ["zzfixture-moved", "zzfixture-kept"],
+            formulaVersions: ["zzfixture-moved": "2.90.0"])
+        #expect(result == [BrewUncheckedPackage(
+            fullName: "zzfixture-moved", kind: .formula,
+            installedVersion: "2.90.0", reason: .movedToCask)])
+        #expect(result.first?.fixCommand
+            == "brew uninstall --formula --force zzfixture-moved && brew install --cask zzfixture-moved")
+    }
+
+    /// Mutation: drop the `contains("/")` filter → a tap formula (whose name
+    /// `brew formulae` may not list, e.g. an untrusted tap) with a same-named cask
+    /// would be told it moved, on top of its unchecked row.
+    @Test func aTapFormulaIsNeverReportedAsMoved() {
+        let result = BrewFormulaService.movedToCask(
+            formulaFullNames: ["zzfixture-org/tap/zzfixture-tool"],
+            availableFormulae: ["zzfixture-other"],
+            availableCasks: ["zzfixture-tool", "zzfixture-org/tap/zzfixture-tool"],
+            formulaVersions: [:])
+        #expect(result.isEmpty)
+    }
+
+    /// Mutation: drop the empty guard → a failed `brew formulae` read ("") makes
+    /// every installed formula with a same-named cask (e.g. `docker`) read as moved.
+    @Test func aFailedFormulaeReadReportsNothingMoved() {
+        let result = BrewFormulaService.movedToCask(
+            formulaFullNames: ["zzfixture-both"],
+            availableFormulae: [],
+            availableCasks: ["zzfixture-both"],
+            formulaVersions: [:])
+        #expect(result.isEmpty)
+    }
+
+    /// Through the service, alongside a tap formula to label. Mutation: run the
+    /// moved packages through `label` → `.movedToCask` comes back `.unreadable`.
+    @Test func serviceKeepsMovedToCaskThroughLabeling() async {
+        let service = BrewFormulaService(executor: { arguments in
+            switch arguments {
+            case ["list", "--formula", "--full-name"]:
+                return (0, Data("zzfixture-moved\nzzfixture-org/tap/zzfixture-tool\n".utf8))
+            case ["list", "--formula", "--versions"]:
+                return (0, Data("zzfixture-moved 2.90.0\nzzfixture-tool 1.0\n".utf8))
+            case ["info", "--json=v2", "--installed"]:
+                return (0, Self.info(formulae: #"{"name":"zzfixture-moved","full_name":"zzfixture-moved"}"#))
+            case ["tap-info", "--json=v1", "--installed"]:
+                return (0, Data(#"[{"name":"zzfixture-org/tap","trusted":false}]"#.utf8))
+            case ["formulae"]: return (0, Data("zzfixture-other\n".utf8))
+            case ["casks"]: return (0, Data("zzfixture-moved\n".utf8))
+            default: return (1, Data())
+            }
+        })
+        let result = await service.uncheckedPackages()
+        #expect(result.map(\.fullName) == ["zzfixture-moved", "zzfixture-org/tap/zzfixture-tool"])
+        #expect(result.map(\.reason) == [.movedToCask, .tapNotTrusted])
     }
 
     final class CallLog: @unchecked Sendable {

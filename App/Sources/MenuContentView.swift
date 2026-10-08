@@ -833,6 +833,7 @@ private struct CommandLineRow: View {
     private var uncheckedMark: some View {
         BrewUncheckedMark(
             anyTapNotTrusted: model.brewUnchecked.contains { $0.reason == .tapNotTrusted },
+            anyMovedToCask: model.brewUnchecked.contains { $0.reason == .movedToCask },
             showInWindow: showBrewUnchecked)
     }
 
@@ -936,6 +937,9 @@ private struct BrewUncheckedMark: View {
     /// package brew can't read for another reason (tap gone, broken definition)
     /// isn't fixed by trusting anything.
     let anyTapNotTrusted: Bool
+    /// A formula Homebrew replaced with a cask is among them: the sentence above
+    /// speaks of taps, which isn't what happened to it.
+    let anyMovedToCask: Bool
     let showInWindow: () -> Void
 
     private static let tapTrustDocs = URL(string: "https://docs.brew.sh/Tap-Trust")!
@@ -957,6 +961,12 @@ private struct BrewUncheckedMark: View {
                         .font(.callout)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if anyMovedToCask {
+                        Text(String(localized: "A formula Homebrew replaced with a cask gets no more updates as a formula — the window shows the commands that switch it to the cask."))
+                            .font(.callout)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if anyTapNotTrusted {
                         // NSWorkspace rather than SwiftUI `openURL`, which errors -50
                         // in this app's windows (see `AlcoveSettingsPage`).

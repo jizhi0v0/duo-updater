@@ -7259,6 +7259,71 @@
         }
       }
     },
+    "A formula Homebrew replaced with a cask gets no more updates as a formula — the window shows the commands that switch it to the cask.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Formel, die Homebrew durch einen Cask ersetzt hat, erhält als Formel keine Updates mehr – das Fenster zeigt die Befehle, mit denen du auf den Cask wechselst."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una fórmula que Homebrew sustituyó por un cask ya no recibe actualizaciones como fórmula; la ventana muestra los comandos para cambiarla al cask."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une formule que Homebrew a remplacée par un cask ne reçoit plus de mises à jour en tant que formule — la fenêtre affiche les commandes pour passer au cask."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una formula che Homebrew ha sostituito con un cask non riceve più aggiornamenti come formula: la finestra mostra i comandi per passare al cask."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew が Cask に置き換えたフォーミュラには、フォーミュラとしてのアップデートが届きません。Cask に切り替えるコマンドはウインドウに表示されます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uma fórmula que o Homebrew substituiu por um cask não recebe mais atualizações como fórmula — a janela mostra os comandos para mudá-la para o cask."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Формула, которую Homebrew заменил на cask, больше не получает обновлений как формула — в окне показаны команды для перехода на cask."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew’un bir cask ile değiştirdiği formül, formül olarak artık güncelleme almaz — pencerede cask’e geçiren komutlar gösterilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "被 Homebrew 换成 cask 的配方不会再以配方形式收到更新——窗口里有切换到 cask 的命令。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "被 Homebrew 換成 cask 的 formula 不會再以 formula 形式收到更新——視窗裡有切換到 cask 的指令。"
+          }
+        }
+      }
+    },
     "A Java app, shipping the runtime it needs.": {
       "extractionState": "manual",
       "localizations": {
@@ -11553,6 +11618,71 @@
         }
       }
     },
+    "Homebrew replaced the %@ formula with a cask of the same name, so the installed formula gets no more updates. To switch to the cask, run: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew hat die Formel %@ durch einen gleichnamigen Cask ersetzt – die installierte Formel erhält daher keine Updates mehr. Zum Wechsel auf den Cask ausführen: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew sustituyó la fórmula %@ por un cask con el mismo nombre, así que la fórmula instalada ya no recibirá actualizaciones. Para cambiar al cask, ejecuta: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew a remplacé la formule %@ par un cask du même nom : la formule installée ne reçoit donc plus de mises à jour. Pour passer au cask, lancez : %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew ha sostituito la formula %@ con un cask omonimo, quindi la formula installata non riceve più aggiornamenti. Per passare al cask, esegui: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew は %@ のフォーミュラを同名の Cask に置き換えたため、インストール済みのフォーミュラにはアップデートが届きません。Cask に切り替えるには次を実行します: %@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Homebrew substituiu a fórmula %@ por um cask de mesmo nome, então a fórmula instalada não recebe mais atualizações. Para mudar para o cask, execute: %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew заменил формулу %@ одноимённым cask, поэтому установленная формула больше не получает обновлений. Чтобы перейти на cask, выполните: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew %@ formülünü aynı adlı bir cask ile değiştirdi; bu yüzden yüklü formül artık güncelleme almıyor. Cask’e geçmek için şunu çalıştırın: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 已用同名 cask 取代了 %@ 配方，已安装的配方不会再收到更新。要切换到 cask，请运行：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 已用同名 cask 取代 %@ formula，已安裝的 formula 不會再收到更新。要切換到 cask，請執行：%@"
+          }
+        }
+      }
+    },
     "Installed as an alias of %@": {
       "extractionState": "manual",
       "localizations": {
@@ -12979,6 +13109,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "不是 npm 套件庫中的發行版本"
+          }
+        }
+      }
+    },
+    "Not checked · moved to a cask": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht geprüft · zu einem Cask verschoben"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin comprobar · movida a un cask"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non vérifié · déplacé vers un cask"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non controllata · spostata in un cask"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未確認 · Cask に移行済み"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não verificado · movido para um cask"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не проверено · перенесено в cask"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denetlenmedi · cask’e taşındı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未检查 · 已迁移为 cask"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未檢查 · 已遷移為 cask"
           }
         }
       }

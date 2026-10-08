@@ -142,6 +142,15 @@ struct GitHubAssetSelectionTests {
         (#"^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-cn\.dmg$"#,
          ["cindy-0.1.97-darwin-arm64-cn.dmg", "cindy-0.1.97-darwin-arm64-global.dmg",
           "cindy-0.1.97-darwin-x64-cn.dmg", "cindy-0.1.97-darwin-x64-global.dmg"]),
+        // Audacity: arm64, universal and x86_64 dmgs under one tag, a universal
+        // pkg beside them on some 3.x releases (Audacity-3.7.9 and
+        // Audacity-4.0.1, macOS assets in the order GitHub listed them).
+        (#"^audacity-macOS-3\.[0-9]+\.[0-9]+-(?:arm64|x86_64|universal)\.dmg$"#,
+         ["audacity-macOS-3.7.9-arm64.dmg", "audacity-macOS-3.7.9-universal.dmg",
+          "audacity-macOS-3.7.9-universal.pkg", "audacity-macOS-3.7.9-x86_64.dmg"]),
+        (#"^audacity-macOS-4\.[0-9]+\.[0-9]+-(?:arm64|x86_64|universal)\.dmg$"#,
+         ["audacity-macOS-4.0.1-arm64.dmg", "audacity-macOS-4.0.1-universal.dmg",
+          "audacity-macOS-4.0.1-x86_64.dmg"]),
     ]
 
     /// Registry patterns whose alternation chooses between TAGS rather than

@@ -286,10 +286,15 @@ private let raycastChangelogFixture = #"""
     /// The version window must be inert for every recipe that declares none —
     /// scoping runs in front of ~100 recipes that have never had one, and a nil
     /// version must not start excluding recipes that were always eligible.
+    ///
+    /// The groups that do declare windows are named, so adding one is a
+    /// decision: Raycast's v1 archive, and Audacity's 3.x recipe and the 4.0
+    /// prerelease id's, which share one case-insensitive group.
     @Test func versionScopingIsANoOpForRecipesWithoutAWindow() {
         let windowed = ChangelogRecipeRegistry.recipes.filter(\.declaresVersionWindow)
-        #expect(windowed.allSatisfy { $0.bundleID == "com.raycast.macos" })
-        #expect(windowed.count == 1)
+        #expect(Set(windowed.map { $0.bundleID.lowercased() })
+                == ["com.raycast.macos", "org.audacityteam.audacity"])
+        #expect(windowed.count == 3)
 
         for recipe in ChangelogRecipeRegistry.recipes where !recipe.declaresVersionWindow {
             // Every bundle id whose group has no window resolves to the same recipe

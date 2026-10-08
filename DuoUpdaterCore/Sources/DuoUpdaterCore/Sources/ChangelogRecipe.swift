@@ -964,7 +964,8 @@ public enum ChangelogRecipeRegistry {
     /// from the registry, so a new preview-only app is covered the day it lands).
     /// Passing `channel: nil` skips step 1 and lands on step 2/3/4 — the behavior
     /// the old single-arg lookup had. Step 0 is inert for every group whose
-    /// recipes declare no window, which is all of them but Raycast's.
+    /// recipes declare no window, which is all of them but Raycast's and
+    /// Audacity's.
     public static func recipe(
         forBundleID bundleID: String?, channel: ReleaseChannel? = nil,
         version: String? = nil

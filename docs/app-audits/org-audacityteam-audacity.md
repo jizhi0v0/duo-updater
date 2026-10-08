@@ -33,13 +33,14 @@
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **3.x stable** (`…audacity`) | — | ✓ 仅 Caskroom 里是 `audacity@3`；✗ 老的 `audacity` cask 装的 3.x（见已知问题） | — | ○ | ○（`latest.xml`，需 `Audacity/` UA） |
-| **4.x stable** (`…audacity4`) | — | ✓ `audacity` cask 装的 | — | ○ | ○（`latest.json`） |
-| **4.x prerelease** (`…Audacity`) | — | — | — | ✗（见下） | ✗（`latest.test.json` 停在 beta 4） |
+| **3.x stable** (`…audacity`) | — | ✓ 仅 Caskroom 里是 `audacity@3`（老的 `audacity` cask 装的 3.x 落到 GitHub，见已知问题） | — | ✓ 直装（`variant audacity3`） | ○（`latest.xml`，需 `Audacity/` UA） |
+| **4.x stable** (`…audacity4`) | — | ✓ `audacity` cask 装的 | — | ✓ 直装（`variant audacity4`） | ○（`latest.json`） |
+| **4.x prerelease** (`…Audacity`) | — | — | — | ✗（决定不接，见下） | ✗（`latest.test.json` 停在 beta 4） |
 
-当前生效源（`UpdateChecker` 优先链中第一个应答的）: **Homebrew**（`HomebrewCaskSource`），只对 brew 装、且 Caskroom 里的
-cask 与 `.app` 文件名对得上的拷贝。直装（GitHub / 官网 dmg）的拷贝没有任何源应答：`channel-verify` 对 3.7.8、3.7.9、4.0.0、
-4.0.1、beta 4、alpha 2 六个包都是 `status unknown (no source answered)`。
+当前生效源（`UpdateChecker` 优先链中第一个应答的）: brew 装、且 Caskroom 里的 cask 与 `.app` 文件名对得上的拷贝 →
+**Homebrew**（`SourceStack` 里 Homebrew 在 GitHub 之前，`AudacityCoverageTests.brewCopiesStayWithHomebrew` /
+`homebrewIsAskedBeforeGitHub`）；直装的 3.x / 4.x → **GitHub**（两条 stable rule）；直装 prerelease 仍 unknown（有意为之）。
+接 GitHub rule 之前（2026-10-08 实测）直装的六个包都是 `status unknown (no source answered)`。
 
 ## Channel 详情
 
@@ -98,9 +99,13 @@ prerelease。所以「4.x 预览轨」现在没有比 stable 新的构建，`lat
   是三段、`CFBundleVersion` 是构建时间戳（`262721409`，看形状是「年后两位 + 年内第几天 + 时分」：beta 4 `262401356` 对应
   8 月 28 日 13:56，与 GitHub 发布时间同一天，**推断**），比较走 short 版本没问题
 - prerelease 的 short 版本是 `4.0.0`，与 4.0.0 正式版相同，没有后缀；只靠版本串分不出 beta 4 与 4.0.0
-- 直装拷贝要接检测（未实现）：3.x 和 4.x 都可以用 GitHub rule（`audacity/audacity`，tag `Audacity-<v>`，资产
-  `audacity-macOS-<v>-{arm64,x86_64,universal}.dmg`，有 digest；3.x 的 rule 要在 `versionPattern` 里限定主版本 3（`Audacity-3\.…`），否则 3.x 会被推
-  4.x）；或 VendorProbe 读厂商 feed（3.x 的 `latest.xml` 要带 `Audacity/` UA）
+- 直装拷贝：两条 stable GitHub rule（`audacity/audacity`），`versionPattern` 与 `installAssetPattern` 都把主版本钉死并锚定结尾：
+  3.x `^Audacity-(3\.[0-9]+\.[0-9]+)$` / `^audacity-macOS-3\.…-(?:arm64|x86_64|universal)\.dmg$`（`variant audacity3`），4.x 同形钉 4
+  （`variant audacity4`）。`/releases/latest` 跨两条线（2026-10-08 是 `Audacity-4.0.1`）；落在另一条线时两个 pattern 都拒绝，源回退到
+  去掉 prerelease 的 releases 列表（当天 3.7.9 在第 3 行）。所以 asset pattern 对检测也是承重的（去掉它 3.x rule 在 4.x 是 latest 时答不出）。
+  两条 rule 都碰不到 `…3.5.0-beta-3-*.dmg`、`.pkg` 和 prerelease 的 `Audacity-4.0.0-beta4-*.dmg`
+- prerelease（`org.audacityteam.Audacity`）不接 rule：没有渠道标记，版本是裸 `4.0.0`，分不出是哪个 beta；能给它的 stable 4.x 是另一个
+  bundle id，`SignatureVerifier` 实测拒绝（`bundleIdentifierMismatch`）
 
 ## 增量更新（delta / binary patch）
 > 三栏分开写，每栏标证据来源。空着不如写「没查」。
@@ -122,7 +127,15 @@ prerelease。所以「4.x 预览轨」现在没有比 stable 新的构建，`lat
 | 自更新器会不会和我们抢 | 3.x: 否（下到 Downloads 后打开 dmg，由用户拖）；4.x: 下载后退出并运行安装包（macOS 行为未验证） | 是：两个 feed 都在发 | 一键第二轮未跑 |
 
 ## Changelog
-- 来源: `ChangelogRecipe`（`https://github.com/audacity/audacity/releases` 第一页），bundle id `org.audacityteam.audacity`
+- 来源（现在）: 三条 `ChangelogRecipe`，都读 `api.github.com/repos/audacity/audacity/releases?per_page=100`（`.gitHubReleases`；
+  2026-10-08 共 67 个 release，gzip 108 KB）：
+  - 3.x（`org.audacityteam.audacity`）：`tagPattern ^Audacity-(3.x.y)$`，`belowAppVersion "4"`，39 条（3.7.9 … 3.0.0），3.7.9 与旧 HTML 抓取同为 8 条
+  - 4.x（`org.audacityteam.audacity4`）：`^Audacity-(4.x.y)$`，2 条；4.0.1 34 条，标题 Features / Accessibility / Bug fixes
+  - prerelease id（`org.audacityteam.Audacity`）：同 4.x 的说明，`minimumAppVersion "4"`；registry 按小写分组，组内在 4.0 处分开，
+    所以 4.0.0 / 4.0.1 拿 4.x 说明、3.7.8 / 3.7.9 拿 3.x 说明
+  - `Changelog.parserGeneration` 随之 bump
+  - 已知缺口（共享的 `GitHubMarkdownParser`）：列表项折行的续行被丢（3.7.9 #11696、3.7.8 #10870 各丢半句），不足 6 个字符的条目被丢（4.0.0 的 "Mixer"）
+- 下面是**接新 recipe 之前**的实测（旧来源：`https://github.com/audacity/audacity/releases` 第一页的 HTML，只有 3.x 一条 recipe）
 - 结构化（`channel-verify` 原文）:
   - 3.7.8、3.7.9 两个包: `changelog pane  recipe changelog:org.audacityteam.audacity:-: 5 entries; newest 3.7.9: 8 items, headings []; first items ["#11690 Enabled ASIO support for the Wind", "#11679 Added FFmpeg 9 support", "#11714 Fixed several sources of project "]`
   - 4.0.0、4.0.1 两个包: `changelog pane  none — the pane says there are no release notes`（brew 应答时也一样：Caskroom 注入下 recipe 无、回退页 nil）
@@ -136,10 +149,10 @@ prerelease。所以「4.x 预览轨」现在没有比 stable 新的构建，`lat
 - 风险: 4.x 继续发版后，3.x 的 release 会被挤出第一页，recipe 解析为 0 条后面板回退到网页（推断，取决于 4.x 发版节奏）
 - 厂商 feed 自带结构化说明：3.x `latest.xml` 的 `<Changelog><Item version="…">`，4.x `latest.json` 的 `bodyMarkdown`（带分节标题）
 - 跟随 channel: 否
-- Recipe 状态: 3.x 已有、今天可用；4.x **需要**（`org.audacityteam.audacity4` 没有 recipe）；prerelease 的 id 不该命中 3.x recipe
+- Recipe 状态: ✓ 3.x / 4.x / prerelease id 三条（见上）
 
 ## 一键安装
-- 状态: ✓ 仅 brew 装的拷贝（brew 路线：3.x 跑 `brew install --cask --force audacity@3`，4.x 跑 `… audacity`）；直装拷贝没有检测
+- 状态: brew 装的拷贝 ✓（brew 路线：3.x 跑 `brew install --cask --force audacity@3`，4.x 跑 `… audacity`）；直装 3.x / 4.x 走 GitHub dmg 一键（按架构选，先验 GitHub `digest` 再过 Team 闸），真机端到端未跑
 - 端到端（2026-10-08，第一轮，不启动）:
   - 4.x：brew 装的 4.0.0（`Audacity 4.app`，`org.audacityteam.audacity4`）→ `duo check` `update 4.0.1`、`source Homebrew`；
     `duo install --yes --json` → `installed`、`route homebrew`，约 19 s。装后 4.0.1，strict 通过，`Notarized Developer ID`，
@@ -155,10 +168,11 @@ prerelease。所以「4.x 预览轨」现在没有比 stable 新的构建，`lat
 - 校验: brew 校验 cask sha256；duo 的 brew 路线不过 Team 闸（`InstallCoordinator` 的 `.homebrew` 分支直接交给 brew），所以
   3.7.8 → 3.7.9 的 **Team 变化不挡 brew 路线**。下载哈希与 GitHub `digest` 全部一致（见「如何复验」）
 - **读的是**: 人人可手动下载的 GA（cask = GitHub release 资产，无分桶）
-- **Team 变化（实测）:** 3.7.8 `AWEYX923UX` → 3.7.9 `6EPAF2X3PR`。以后若给直装拷贝接 vendor / GitHub 一键，`SignatureVerifier`
-  要求 Team 完全相同，3.7.8 及更早的拷贝升 3.7.9 会被安全地拒绝，需要用户手动更新一次（4.x 全部是 `6EPAF2X3PR`，不受影响）
+- **Team 变化（实测）:** 3.7.8 `AWEYX923UX` → 3.7.9 `6EPAF2X3PR`。直装一键用 `SignatureVerifier.verifyInstallArtifact` 在真包对上实测：
+  3.7.8 ← 3.7.9 被拒（`teamIdentifierMismatch(installed: "AWEYX923UX", downloaded: "6EPAF2X3PR")`），行上有更新、一键被拒，用户需手动更新一次；
+  4.0.0 ← 4.0.1 全部闸通过；beta 4 / alpha 2 ← 4.0.1 被拒（`bundleIdentifierMismatch`）
 - 嵌套: 3.x 与 4.x 包里都没有嵌套 `.app` / `.xpc` / `.appex`。3.x 的 `CFBundleExecutable` 是启动器 `Wrapper`（见下）
-- 阻塞: 直装拷贝无检测；老 `audacity` cask 装的 3.x 无检测
+- 阻塞: 直装 ≤3.7.8 → 3.7.9 被 Team 闸拒（安全的拒绝，见上）
 
 ## 打包形状（runtime 标记相关）
 - 3.x 的 `CFBundleExecutable` 是 **`Wrapper`**，不是 `Audacity`：70,080 字节的启动器，`otool -L` 只有
@@ -172,26 +186,19 @@ prerelease。所以「4.x 预览轨」现在没有比 stable 新的构建，`lat
 - 4.x 是 Qt 应用，`CFBundleExecutable` 就是 `audacity`，`Contents/Frameworks` 72（4.0.0）/ 87（4.0.1）项；runtime 徽章没查
 
 ## 已知问题
-- **9 月前用 `audacity` cask 装的 3.x 拷贝现在是 unknown**（实测）：`Audacity.app` 只对得上 `audacity@3`，而 Caskroom 里是
-  `audacity`。同一时间 `brew upgrade` 会把这个 cask 升成 4.0.1，装出的是另一个 bundle（`Audacity 4.app` / `…audacity4`）——
+- **9 月前用 `audacity` cask 装的 3.x 拷贝**：Homebrew 不应答（`Audacity.app` 只对得上 `audacity@3`，而 Caskroom 里是
+  `audacity`，实测）；接 GitHub rule 后它落到 3.x rule，被推 3.7.9（≤3.7.8 的一键被 Team 闸拒），Caskroom 记录仍是 `audacity`。同一时间 `brew upgrade` 会把这个 cask 升成 4.0.1，装出的是另一个 bundle（`Audacity 4.app` / `…audacity4`）——
   这一半是从 cask 定义**推断**的，没跑 brew
-- prerelease（`org.audacityteam.Audacity`）的 changelog 面板显示 3.x 的说明（实测）；brew 装了 4.x 又被 beta 覆盖时（`.app`
+- prerelease（`org.audacityteam.Audacity`）的 changelog 面板现在是 4.x 的说明（之前是 3.x 的，实测）；brew 装了 4.x 又被 beta 覆盖时（`.app`
   同名），会被推 4.0.1（实测，方向对，但渠道报 stable）
-- 4.x 没有 changelog（实测 `none`）
-- 直装拷贝（3.x、4.x、prerelease）全部 unknown
+- 直装 prerelease 仍 unknown（有意为之，见「更新检测」）
 
 ## 建议下一步
-1. 4.x changelog：`/fragile-recipe Audacity 4`（ChangelogRecipe，bundle `org.audacityteam.audacity4`）。来源二选一：GitHub releases
-   （标题是 `Audacity-<v>` 或空名回落到 tag，正文有 `## Features` 等分节，要 `headingPattern`），或厂商 `latest.json` 的
-   `bodyMarkdown`（只有最新一版，且要 `Audacity/` UA）
-2. 让 `org.audacityteam.Audacity` 的 4.0.0 prerelease 不再拿到 3.x 说明。**只给 3.x recipe 加 `belowAppVersion: "4"` 不够**：
-   `ChangelogRecipeRegistry.scoped` 在没有任何窗口覆盖该版本时返回整组（`guard !covering.isEmpty else { return group }`），
-   4.0.0 仍会选中那条 3.x recipe。要么同一 bundle id 下再加一条窗口覆盖 4.x 的 recipe（`minimumAppVersion: "4"`，指向 4.x 的
-   说明来源），要么改 `scoped` 的兜底（共享代码，影响所有分窗口的 recipe）。同时考虑 3.x 的条目被挤出 GitHub 第一页的问题
-   （`latest.xml` 的 `<Changelog>` 按版本标注，可作替代来源）
+1. （已做）4.x changelog、prerelease id 的说明、3.x 说明不再依赖第一页（见「Changelog」）
+2. 共享 `GitHubMarkdownParser` 的折行续行与 6 字符下限（见「Changelog」已知缺口）
 3. 老 `audacity` cask 装的 3.x：在 `HomebrewCaskSource` 里怎么处理是产品决定（跟 brew 一起跨到 4.x 是换产品、换 bundle id），
    先在 `CHANNEL_COVERAGE_TODO.md` 记下，不要顺手改
-4. 直装检测：GitHub rule 分别给 3.x（限定主版本 3）与 4.x（`…audacity4`）；3.x 一键要在文档里写明 3.7.8 → 3.7.9 的 Team 变化
+4. （已做）直装检测：两条 stable GitHub rule（见「更新检测」）；直装一键真机端到端未跑
 5. prerelease：现在没有比 stable 新的 prerelease，`latest.test.json` 也停在 beta 4。等 4.1 之类的 beta 出现时，再看它的 bundle id
    是否仍是 `org.audacityteam.Audacity`；在那之前不接
 6. 一键第二轮（Audacity 运行中）未跑；第一轮已过（见「一键安装」）

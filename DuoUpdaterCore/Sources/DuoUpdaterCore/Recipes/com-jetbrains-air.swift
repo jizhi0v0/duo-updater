@@ -19,11 +19,16 @@ enum com_jetbrains_air {
         // IntelliJ's `IIU` with eap, rc and release; no product publishes `preview`
         // beside another type, so that case is assumed, not measured. A release
         // build newer than the previews therefore lands inside `maxEntries`.
+        // The nightly train (same bundle id; `ReleaseChannel.detect` reads it from
+        // the `nightly` feed in the package) is not in this API — `type=nightly`
+        // lists nothing and the preview list carries no nightly build — so a
+        // nightly copy is excluded rather than shown Public Preview's notes.
         // History: docs/app-audits/com-jetbrains-air.md#历史与实测
         ChangelogRecipe(
             bundleID: "com.jetbrains.air",
             source: URL(string: "https://data.services.jetbrains.com/products/releases?code=AIR&type=eap,preview,release")!,
             maxEntries: 20,
+            excludedChannels: [.nightly],
             structuredFormat: .jetBrainsProductReleases),
         ])
 }

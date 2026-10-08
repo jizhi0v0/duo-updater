@@ -221,6 +221,20 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// entries belong to the OTHER train and would be noise.
     public let includesPromotedStable: Bool
 
+    /// Channels this recipe's notes do NOT describe, so the lookup never hands it
+    /// to an install on one of them — at any step of the ladder in
+    /// `ChangelogRecipeRegistry.recipe(forBundleID:channel:version:)`, the
+    /// "any recipe in the group" fallback included. Empty (the default) leaves the
+    /// lookup exactly as it was.
+    ///
+    /// For a vendor whose notes cover only some of the trains sharing a bundle
+    /// id, where another train's notes would be wrong rather than merely partial.
+    /// JetBrains Air is the case: its releases API lists Public Preview builds
+    /// only, so a nightly copy shown that list would read notes for builds it is
+    /// not running and none for its own. With the recipe excluded the pane falls
+    /// back as for an app with no recipe.
+    public let excludedChannels: [ReleaseChannel]
+
     /// Optional regex run over each entry's `body` to pull illustration image URLs
     /// (capture group 1, or the named `image` group). Every match becomes one image,
     /// rendered after the change lines. nil = no images (the common case). Only
@@ -612,6 +626,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         indexLinkPattern: String? = nil,
         channel: ReleaseChannel? = nil,
         includesPromotedStable: Bool = false,
+        excludedChannels: [ReleaseChannel] = [],
         sourceTemplate: String? = nil,
         versionFromTemplate: Bool = false,
         newestLast: Bool = false,
@@ -643,6 +658,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.indexLinkPattern = indexLinkPattern
         self.channel = channel
         self.includesPromotedStable = includesPromotedStable
+        self.excludedChannels = excludedChannels
         self.sourceTemplate = sourceTemplate
         self.versionFromTemplate = versionFromTemplate
         self.newestLast = newestLast
@@ -785,7 +801,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         case itemPatterns
         case stripTags, decodeEntities, escapedMarkup, markdownSource, maxEntries
         case minItemLength, newestLast, indexLinkPattern, feedPagePattern, channel
-        case includesPromotedStable, imagePattern, headingPattern, minimumAppVersion
+        case includesPromotedStable, excludedChannels, imagePattern, headingPattern
+        case minimumAppVersion
         case belowAppVersion, carriesOtherTrainEntries, acknowledgedStaleEntry
         case structuredFormat, httpMethod
         case requestBody, skipSections, tagPattern
@@ -833,6 +850,8 @@ public struct ChangelogRecipe: Codable, Sendable {
             channel: try c.decodeOptional(ReleaseChannel.self, forKey: .channel, default: d.channel),
             includesPromotedStable: try c.decode(
                 Bool.self, forKey: .includesPromotedStable, default: d.includesPromotedStable),
+            excludedChannels: try c.decode(
+                [ReleaseChannel].self, forKey: .excludedChannels, default: d.excludedChannels),
             sourceTemplate: try c.decodeOptional(
                 String.self, forKey: .sourceTemplate, default: d.sourceTemplate),
             versionFromTemplate: try c.decode(
@@ -885,6 +904,7 @@ public struct ChangelogRecipe: Codable, Sendable {
             feedPagePattern, forKey: .feedPagePattern, defaultIsNil: d.feedPagePattern == nil)
         try c.encodeOptional(channel, forKey: .channel, defaultIsNil: d.channel == nil)
         try c.encode(includesPromotedStable, forKey: .includesPromotedStable)
+        try c.encode(excludedChannels, forKey: .excludedChannels)
         try c.encodeOptional(imagePattern, forKey: .imagePattern, defaultIsNil: d.imagePattern == nil)
         try c.encodeOptional(
             headingPattern, forKey: .headingPattern, defaultIsNil: d.headingPattern == nil)
@@ -945,7 +965,9 @@ public enum ChangelogRecipeRegistry {
     /// The recipe for an app on a given channel and version, if we have one.
     /// Case-insensitive on bundle id, to match `ChangelogCatalog`'s convention.
     ///
-    /// Selection within a bundle id's group:
+    /// Selection within a bundle id's group, after dropping every recipe whose
+    /// `excludedChannels` names the install's channel (so none of the steps
+    /// below can reach it):
     ///   0. narrow to the recipes whose version window covers `version`
     ///      (`scoped(_:toVersion:)`), then, among those:
     ///   1. a recipe whose `channel` exactly matches the install's channel;
@@ -971,7 +993,10 @@ public enum ChangelogRecipeRegistry {
         version: String? = nil
     ) -> ChangelogRecipe? {
         guard let bundleID else { return nil }
-        let group = scoped(byBundleID[bundleID.lowercased()] ?? [], toVersion: version)
+        let applicable = (byBundleID[bundleID.lowercased()] ?? []).filter { recipe in
+            channel.map { !recipe.excludedChannels.contains($0) } ?? true
+        }
+        let group = scoped(applicable, toVersion: version)
         if let channel, let exact = group.first(where: { $0.channel == channel }) {
             return exact
         }

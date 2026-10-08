@@ -134,9 +134,11 @@ public struct ToolboxSource: Sendable {
     }
 
     /// Rewrite a Fleet/Air Sparkle feed URL to a different channel: the path is
-    /// `…/fleet-feed/AIR/<channel>/macos_aarch64/feed.xml`, and the build ships
-    /// it hardcoded to 'nightly' even on a Public Preview install — we swap in the
-    /// channel Toolbox really tracks (its quality filter → "eap"/"release").
+    /// `…/fleet-feed/AIR/<channel>/macos_aarch64/feed.xml`, and each package bakes
+    /// in its own train's segment (`eap` in a Public Preview build, `nightly` in a
+    /// nightly one). A Toolbox install follows Toolbox's channel rather than the
+    /// package's, so we swap in the channel Toolbox really tracks (its quality
+    /// filter → "eap"/"release").
     static func retargetChannel(_ feed: URL, to channelType: String) -> URL? {
         guard var comps = URLComponents(url: feed, resolvingAgainstBaseURL: false) else { return nil }
         var segs = feed.pathComponents.filter { $0 != "/" }

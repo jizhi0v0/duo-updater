@@ -99,13 +99,19 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     ///   0.95. A seventh bundle-id-scoped rule — Arc and Dia, whose release
     ///      candidate (Early Birds) build says so in its own `BCNYReleaseType`
     ///      plist key. See the block comment on the check.
+    ///   0.97. An eighth bundle-id-scoped rule — JetBrains Air, whose nightly
+    ///      build is told apart only by the train named in its own `SUFeedURL`.
+    ///      See the block comment on the check.
+    ///   0.98. A ninth bundle-id-scoped rule — calibre, whose preview builds are
+    ///      numbered `<maj>.<min>.<N>` with N ≥ 100, a bound the vendor's release
+    ///      tooling enforces. See the block comment on the check.
     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
     ///      authoritative).
     ///   2. A channel suffix on the bundle id (`com.google.Chrome.canary`).
     ///   3. A standalone channel word in the display name ("Google Chrome Dev").
     ///   4. A pre-release shape in the version string: Mozilla's `b<N>`/`a<N>`/
-    ///      `esr`, full-semver `-beta<N>` / `-beta.<N>` suffixes, and a
+    ///      `esr`, full-semver `-beta<N>` / `-beta.<N>` / `-preview.<N>` suffixes, and a
     ///      prerelease WORD in the version's dash-separated tail (Freelens
     ///      `-nightly-…`, VLC `-dev`, KeePassXC `-snapshot`) for apps whose
     ///      bundle id, name, and filename are all silent — see the block comment
@@ -119,7 +125,8 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
         version: String? = nil,
         mozillaRemotingName: String? = nil,
         bundleFileName: String? = nil,
-        browserCompanyReleaseType: String? = nil
+        browserCompanyReleaseType: String? = nil,
+        sparkleFeedURL: String? = nil
     ) -> ReleaseChannel {
         // 0. Mozilla `RemotingName` — authoritative for Firefox/Thunderbird.
         if let remoting = mozillaRemotingName?
@@ -291,6 +298,44 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return .rc
         }
 
+        // 0.97 JetBrains Air — nightly and Public Preview share bundle id
+        //     `com.jetbrains.air`, the name "Air" and the Team, and neither
+        //     version shape names a channel (nightly `262.1054`, Public Preview
+        //     `262.1037.6`). What differs is the feed each package bakes into its
+        //     own `SUFeedURL`: `…/fleet-feed/AIR/nightly/<arch>/feed.xml` in a
+        //     nightly, `…/fleet-feed/AIR/eap/<arch>/feed.xml` in Public Preview.
+        //     The segment after `fleet-feed/AIR/` is the train, so `nightly` there
+        //     is a nightly build; anything else falls through and Public Preview
+        //     keeps reading as stable.
+        //
+        //     This changes the row's label and which changelog recipe applies, not
+        //     the version check: `SparkleAppcastSource` already reads the feed in
+        //     the package, so a nightly copy follows its own nightly feed either way.
+        if bundleID == "com.jetbrains.air",
+           let feed = sparkleFeedURL.flatMap(URL.init(string:)),
+           isJetBrainsAirNightlyFeed(feed) {
+            return .nightly
+        }
+
+        // 0.98 calibre — its preview builds (`download.calibre-ebook.com/preview/`,
+        //     typically weekly) ship the stable bundle id `net.kovidgoyal.calibre`,
+        //     the name "calibre", the Team and the stable plist keys, so the
+        //     version is the only local signal. The vendor's release tooling
+        //     states the rule: `setup/publish.py`'s `publish` refuses a version
+        //     whose third component is above 99 ("The version number … indicates
+        //     a preview release, did you mean to run ./setup.py publish_preview?")
+        //     and `publish_preview` refuses one below 100. So `<maj>.<min>.<N>`
+        //     with N ≥ 100 (`9.15.101`) is a preview, and a normal release never
+        //     carries one.
+        //
+        //     Scoped to this bundle id: a three-digit patch is an ordinary
+        //     release number elsewhere.
+        if bundleID == "net.kovidgoyal.calibre",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           isCalibrePreviewVersion(version) {
+            return .preview
+        }
+
         // 1. Keystone's own channel id — authoritative when present.
         if let ks = keystoneChannel?.trimmingCharacters(in: .whitespacesAndNewlines),
            !ks.isEmpty {
@@ -360,6 +405,14 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             // this pattern fail rather than turning a packaging label into a
             // release-channel signal.
             if fullyMatches(#"[0-9]+(\.[0-9]+)+-beta\.[0-9]+"#, version) { return .beta }
+            // The same dotted counter on the word `preview` (`2.0.0-preview.8`):
+            // OpenChamber's `v2-preview` test builds ship the stable bundle id,
+            // name and Team, so this string is their only local channel signal.
+            // Anchored like the `-beta.N` rule above: the whole string must end at
+            // the counter, so `-preview+sha` or `-preview.8.x` stays stable. The
+            // dash-tail table below does not cover it, because its counters are
+            // dash-separated.
+            if fullyMatches(#"[0-9]+(\.[0-9]+)+-preview\.[0-9]+"#, version) { return .preview }
 
             // A prerelease WORD in the version's dash-separated tail — the only
             // local channel signal some nightly/snapshot builds have. Freelens
@@ -410,6 +463,25 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
         if name.hasSuffix("-dev") { return .dev }
         // A bare product name ("firefox"/"thunderbird"/"librewolf"/…) is stable.
         return name.allSatisfy { $0.isLetter || $0 == "." } ? .stable : nil
+    }
+
+    /// True if `feed` is `…/fleet-feed/AIR/nightly/…`: the train is the path
+    /// segment right after `fleet-feed/AIR`, the layout `ToolboxSource`
+    /// rewrites as well.
+    private static func isJetBrainsAirNightlyFeed(_ feed: URL) -> Bool {
+        let segments = feed.pathComponents
+        guard let i = segments.firstIndex(of: "fleet-feed"), i + 2 < segments.count
+        else { return false }
+        return segments[i + 1] == "AIR" && segments[i + 2] == "nightly"
+    }
+
+    /// True for calibre's preview numbering: exactly three numeric components,
+    /// the third at least 100 — the bound its `setup/publish.py` enforces.
+    private static func isCalibrePreviewVersion(_ version: String) -> Bool {
+        guard fullyMatches(#"[0-9]+\.[0-9]+\.[0-9]+"#, version),
+              let patch = version.split(separator: ".").last.flatMap({ Int($0) })
+        else { return false }
+        return patch >= 100
     }
 
     /// True if `text` matches `pattern` in its entirety (anchored both ends).

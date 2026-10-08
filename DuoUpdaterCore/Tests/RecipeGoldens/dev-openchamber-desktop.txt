@@ -7,7 +7,7 @@ probes = Array(count: 0)
 
 changelogs = Array(count: 0)
 
-githubRules = Array(count: 1)
+githubRules = Array(count: 2)
 githubRules[0] = struct GitHubReleaseRule
 githubRules[0].bundleID = "dev.openchamber.desktop"
 githubRules[0].owner = "openchamber"
@@ -24,12 +24,34 @@ githubRules[0].installerKind? = .dmg
 githubRules[0].installTrust = .developerID
 githubRules[0].variant = nil
 githubRules[0].architectureRequirement = nil
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "dev.openchamber.desktop"
+githubRules[1].owner = "openchamber"
+githubRules[1].repo = "openchamber"
+githubRules[1].usePrereleases = false
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .preview
+githubRules[1].installAssetPattern? = "^OpenChamber-[0-9.]+-mac-(?:arm64|x64)\\.dmg$"
+githubRules[1].installerKind? = .dmg
+githubRules[1].installTrust = .developerID
+githubRules[1].variant = nil
+githubRules[1].architectureRequirement = nil
 
 appStoreCases = Array(count: 0)
 
 channelProofs = Dictionary(count: 0)
 
-githubChannelProofs = Dictionary(count: 0)
+githubChannelProofs = Dictionary(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "dev.openchamber.desktop", channel: .preview)] = .recipeAnchor(_:in:)
+githubChannelProofs[ChannelProofKey(bundleID: "dev.openchamber.desktop", channel: .preview)].0 = "^false$|\\[0-9\\]\\+\\)\\+\\)\\$$|^\\^OpenChamber-\\[0-9\\.\\]\\+-mac-"
+githubChannelProofs[ChannelProofKey(bundleID: "dev.openchamber.desktop", channel: .preview)].in = Set(count: 3)
+githubChannelProofs[ChannelProofKey(bundleID: "dev.openchamber.desktop", channel: .preview)].in{0} = "installAssetPattern"
+githubChannelProofs[ChannelProofKey(bundleID: "dev.openchamber.desktop", channel: .preview)].in{1} = "usePrereleases"
+githubChannelProofs[ChannelProofKey(bundleID: "dev.openchamber.desktop", channel: .preview)].in{2} = "versionPattern"
 
 bindingProofs = Dictionary(count: 0)
 

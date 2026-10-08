@@ -22,7 +22,7 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | —       | ✓（仅 brew 装的拷贝） | — | ○ | ✓ 一键（直装拷贝） |
-| **preview**  | —       | —（没有 preview cask） | — | — | ○（目录列表，见下） |
+| **preview**  | —       | —（没有 preview cask；brew 拷贝被 preview 覆盖时仍由 Homebrew 推下一个 stable） | — | — | ○（目录列表，见下） |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: brew 装的拷贝（Caskroom 里有 `calibre`）→ **Homebrew**
 （`HomebrewCaskSource`）；从官网 dmg 直接装的拷贝 → **VendorProbe**（`calibre-ebook.com/latest-version`，一键装
@@ -34,7 +34,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `net.kovidgoyal.calibre` | 共享 | — | Homebrew cask | ✓（brew）/ ○（直装） |
-| preview | `net.kovidgoyal.calibre` | 共享 | 版本第三段 ≥ 100（`9.15.101`）——**推断**，见下 | 独立下载目录，无应用内开关 | 未接（`detect()` 报 stable） |
+| preview | `net.kovidgoyal.calibre` | 共享 | 版本第三段 ≥ 100（`9.15.101`），厂商发布脚本写明，见下 | 独立下载目录，无应用内开关 | ✓ 检测（`detect()` 报 preview） |
 
 **preview 轨（实测 + 源码）:**
 
@@ -44,17 +44,23 @@
 - 另有 `https://download.calibre-ebook.com/betas/`，当时只有一组 `calibre-9.9.105.*`（21-Jun-2026，介于 9.9 与 9.10 之间）。
   这个目录在 9.10 发布后没有清空，像是更早的、没再更新的入口（推断）。
 - preview 真包: bundle id、Team、`LSMinimumSystemVersion` 与 stable 相同，版本 `9.15.101`；Info.plist 键集合与 stable 完全一样，
-  没有任何渠道标记。`channel-verify` 报 `inferred stable`。
+  没有任何渠道标记。`channel-verify` 当时报 `inferred stable`；按版本形状判 preview 之后报 `preview`（见下）。
 - 版本号规则来自源码：`master` 上 `src/calibre/constants.py` 是 `numeric_version = (9, 15, 101)`，即两次正式版之间 master
-  的版本就是 `<上个正式版>.1NN`。「第三段 ≥ 100 = preview/beta」是从这一处源码和两个目录样本（`9.9.105`、`9.15.101`）
-  得出的**推断**，没有找到厂商写明的规则。正式版的补丁号目前最大是 1（`9.3.1`、`9.2.1`）。
+  的版本就是 `<上个正式版>.1NN`。厂商在发布脚本里写明了这条规则：`setup/publish.py` 的 `Publish.pre_sub_commands`
+  拒绝 `version[2] > 99`，报错 "The version number {v} indicates a preview release, did you mean to run ./setup.py publish_preview?"；
+  `PublishPreview` 反过来拒绝 `version[2] < 100`（这道检查 2025-04-11 加入，commit `5d6f454ab3`，当天 `v8.2.100` 被当正式版发了出去，
+  那个包仍在 `download.calibre-ebook.com/8.2.100/`、不在 Changelog.txt）。`publish_betas`（`/betas/`，现为 9.9.105）没有版本检查。
+  正式版的补丁号目前最大是 1（`9.3.1`、`9.2.1`）。
+- duo 现在：`ReleaseChannel.detect()` 对这个 bundle id、恰为 `<主>.<次>.<N>` 且 N ≥ 100 时判 `.preview`。回放全部 413 个 `v*` tag
+  加 9.15.101、9.9.105：判 preview 的只有 9.15.101、9.9.105 和 `8.2.100`，其余 412 个仍是 stable。`channel-verify` 对 9.15.101：
+  `preview`；Homebrew 仍应答（不按渠道分），brew 装的 preview 拷贝会被推下一个 stable，与 calibre 自己的行为一致
 - 没有 Homebrew cask（2026-10-08 全量 cask 目录里只有 `calibre`），没有应用内切换。
 - 未查: preview 目录是否保留旧构建（两次观测都只有一组文件）；preview 有没有自己的更新提示（源码里提示逻辑与 stable
   共用一份，只比 `major.minor`，**推断** preview 用户只会在下一个正式 minor 出来时被提示）。
 
 **duo 今天对 preview 拷贝的行为（实测，Caskroom 注入，见「如何复验」）:** 一份 brew 装的 calibre 被 preview 覆盖后，
 `HomebrewCaskSource` 报 `latest 9.15.0`、`up to date`（`9.15.101` > `9.15.0`），下一个正式版出来时会推正式版。也就是
-「preview → 下一个 stable」，不会推下一个 preview，也不会降级，方向是对的。直装的 preview 拷贝同 stable 直装：unknown。
+「preview → 下一个 stable」，不会推下一个 preview，也不会降级，方向是对的。直装的 preview 拷贝仍 unknown：直装 stable 走的 VendorProbe 是 stable 渠道，`installedVersionPattern` 也不收 `x.y.1nn`。
 
 ## 更新检测
 - 源: `HomebrewCaskSource`（仅 brew 装的拷贝）
@@ -135,13 +141,11 @@
 
 ## 已知问题
 - preview 拷贝（`x.y.1nn`）仍 unknown（calibre 自己会把下一个 stable 推给它）
-- preview 拷贝报 stable（无渠道标记，只有版本形状）
-- changelog 没有分类小标题
 
 ## 建议下一步
 1. （已做）直装检测：VendorProbe 读 `latest-version`，一键装官网 dmg（见「更新检测」）。端到端未跑
-2. preview 轨：如果要接，信号只有版本第三段 ≥ 100，先找到厂商对这条规则的明文说明再写进 `detect()`；端点是目录列表
-   `download.calibre-ebook.com/preview/`。不接的话在 `CHANNEL_COVERAGE_TODO.md` 记为「同 id、版本形状可辨、未接」
+2. （已做）preview 渠道检测：厂商在 `setup/publish.py` 写明了「第三段 ≥ 100 = preview」，`detect()` 已按它判 preview。
+   preview 的更新源没接（端点是目录列表 `download.calibre-ebook.com/preview/`）
 3. （已做）changelog 分类标题：`headingPattern` 带前瞻，只认紧跟 `<span class="title">` 条目的分类
 4. 一键第二轮（calibre 运行中）未跑；第一轮已过（见「一键安装」）
 

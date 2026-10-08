@@ -25,7 +25,7 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe | Toolbox |
 |--------------|---------|----------|-----|--------|-------------|---------|
 | **Public Preview**（API `preview`，feed `eap`） | ✓ 非 Toolbox 拷贝 | —（`auto_updates`，让位） | — | — | — | ✓ Toolbox 拷贝（只检测） |
-| **nightly** | ✓ 已装 nightly 构建（读它自己的 nightly feed）；行上渠道显示为 stable、changelog 是 Public Preview 的（见下） | — | — | — | — | — |
+| **nightly** | ✓ 已装 nightly 构建（读它自己的 nightly feed，行上显示 nightly，不显示 Public Preview 的说明） | — | — | — | — | — |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）:
 - **Toolbox 管理的拷贝** → **Toolbox**（`ToolboxSource`，releases API `code=AIR`，`type=eap,preview`）。
@@ -37,7 +37,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | Public Preview | `com.jetbrains.air` | — | 包里 `SUFeedURL` = `…/fleet-feed/AIR/eap/<arch>/feed.xml` | 包自带的 feed | ✓ |
-| nightly | `com.jetbrains.air` | 共享 | 包里 `SUFeedURL` = `…/fleet-feed/AIR/nightly/<arch>/feed.xml`；版本两段式（`262.1054`） | 包自带的 feed | 半 ✓ 见下 |
+| nightly | `com.jetbrains.air` | 共享 | 包里 `SUFeedURL` = `…/fleet-feed/AIR/nightly/<arch>/feed.xml`；版本两段式（`262.1054`） | 包自带的 feed | ✓ 见下 |
 
 - 厂商对外只有一条轨：releases API 里 `AIR` 共 37 条，全部 `type` = `preview`、`printableReleaseType` =
   `Public Preview`（2026-10-08）。`type=release`、`eap`、`rc`、`beta` 没有一条；不带 `type` 时返回 `{"AIR":[]}`。
@@ -54,10 +54,12 @@
   Team `2ZEFAR8TH3`，`codesign --verify --deep --strict` 通过。**公证**：`stapler validate` 说没有装订票据，
   `spctl` 来源是 `Developer ID`（Public Preview 是 `Notarized Developer ID`，且有装订票据），
   `syspolicy_check distribution` 报 `Notary Ticket Missing`；是否已公证只是没装订，未验证。
-- `channel-verify` 对 nightly 包：`inferred stable`、`detected channel → stable`，`winning source Sparkle`，读它自己的
+- `channel-verify` 对 nightly 包（改之前）：`inferred stable`、`detected channel → stable`，`winning source Sparkle`，读它自己的
   nightly feed，`latest 262.1054`、`status up to date`。所以**已装 nightly 的拷贝跟的是 nightly 轨**，不会被推 Public Preview
-  （反过来也一样：Public Preview 拷贝读 eap feed）。两处不对：行上渠道显示为 stable；`changelog pane` 是 recipe 的
-  Public Preview 说明（`newest 262.1037.6`），没有 262.1054 这一条。duo 的安装闸看签名、Team、架构、OS 下限，
+  （反过来也一样：Public Preview 拷贝读 eap feed）。当时两处不对，**已修**：`ReleaseChannel.detect()` 对这个 bundle id、
+  `SUFeedURL` 路径 `fleet-feed/AIR/` 后一段是 `nightly` 时判 `.nightly`；Air 的 changelog recipe 带
+  `excludedChannels: [.nightly]`，nightly 拷贝不再拿 Public Preview 的说明（releases API 没有任何 nightly 条目，面板显示「没有说明」）。
+  修后 `channel-verify`：nightly → `nightly`、`Sparkle`、up to date、pane `none`；Public Preview 不变。duo 的安装闸看签名、Team、架构、OS 下限，
   不看公证（读 `SignatureVerifier` 得出），所以未装订票据不会挡一键。
 - 应用内有没有切到 nightly 的开关**未验证**：要启动 app 才能看，Air 是 agent 类 app，按审计约束没有启动。
 - `release`、`preview`、`stable` 三个 feed 名都是 403（`release`/`preview`）或断连（`stable` arm），即不存在。
@@ -197,18 +199,14 @@
 
 ## 已知问题
 - Toolbox 拷贝：API 先于 Toolbox 目录出新版本时（2026-10-08 观察到至少 34 分钟），行会提示一个 Toolbox 里还没有的版本
-- `ToolboxSource` 注释里「Air/Fleet 的 baked-in `SUFeedURL` 指向 nightly」对 Air 已不成立：两个 Public Preview 包都指向
-  `eap`。Air 走 API 分支、不用 `retargetChannel`，所以不影响行为，只是注释过时（Fleet 那半没核）
 - Air 自己的 Sparkle 与 duo 会不会冲突（一键第二轮）未跑
-- 已装 nightly 的拷贝：行上渠道显示为 stable；changelog 面板显示的是 Public Preview 的说明（recipe 不分轨）
 - 能否在应用内切到 nightly 未知（要启动 app）
 
 ## 建议下一步
 1. 一键第二轮需要启动 Air，先确认能接受它在启动时写 `~/.claude/skills`（启动前后对比）。第一轮已过（见「一键安装」）。
-2. nightly 包已读（见「Channel 详情」）。剩下两件：要查应用内有没有渠道开关，得启动 app，同上；如果要让 nightly 拷贝的行
-   显示 nightly、并且不显示 Public Preview 的 changelog，判据可以是 `SUFeedURL` 里的 `/nightly/`（未做，需要先定要不要）。
+2. nightly：渠道检测与 changelog 排除已做（见「Channel 详情」）。剩下应用内有没有渠道开关，要启动 app，同上。
 3. 2026.3 正式版发布后（预计 11 月）重查：releases API `code=AIR`、eap feed、产品页，看独立 app 是否停发或改名。
-4. （可选，代码）把 `ToolboxSource` 里关于 Air 指向 nightly 的那句注释改掉。
+4. （已做）`ToolboxSource` 里关于 Air 指向 nightly 的注释已改：Public Preview 包指向 `eap`，nightly 包指向 `nightly`。
 
 ## 如何复验
 

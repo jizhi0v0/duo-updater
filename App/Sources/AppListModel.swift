@@ -4584,6 +4584,11 @@ final class AppListModel {
 
             switch route {
             case .installer, .homebrew, .vendor, .sparkle, .xcode:
+                // A cask's install is `brew install --cask` (`HomebrewInstaller`),
+                // which would fail on brew's lock under a background `brew update`
+                // that has already started; one not yet started sees this row in
+                // `installing` and stands down (`brewIsIdle`).
+                if route == .homebrew { await afterBackgroundHomebrewUpdate() }
                 // A missing cask token used to reset the spinner and return
                 // false here; the coordinator throws instead, which the catch
                 // below settles the same way (and now says why).

@@ -61,6 +61,28 @@ public enum ChannelSwitchDetector {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
+    /// The fingerprint of a bound app's resolution, including "it resolved to
+    /// nothing".
+    ///
+    /// Several bindings answer nil on purpose — OBS with no `UpdateBranch` key,
+    /// CotEditor with its box unticked — to hand the decision back to the running
+    /// build. Skipping those ids instead (what the caller used to do) left them
+    /// out of `lastSeen`, so the flip OUT of nil — the stable user who picks beta
+    /// for the first time — arrived as a first sighting, was only seeded, and
+    /// rechecked nothing. Nil gets a fixed fingerprint of its own so that flip
+    /// compares like any other.
+    ///
+    /// A resolver that timed out also answers nil. Its next successful read then
+    /// reads as a change and costs one recheck, which is the honest outcome: we
+    /// did not know the channel before and do now.
+    public static func fingerprint(of resolved: ResolvedChannel?) -> String {
+        guard let resolved else { return noResolutionFingerprint }
+        return fingerprint(resolved)
+    }
+
+    /// Not a hex digest, so it can never collide with one.
+    static let noResolutionFingerprint = "no-resolution"
+
     /// - Parameters:
     ///   - current: bound-app id → fingerprint of its freshly resolved channel,
     ///     for every bound app currently installed (scanned).

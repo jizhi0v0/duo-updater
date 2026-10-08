@@ -4,6 +4,10 @@ import Foundation
 /// updater (`Herdr*`), seen through `CLIToolProvider`.
 public struct HerdrProvider: CLIToolProvider {
     public var kind: CLIToolKind { .herdr }
+    /// Only when herdr's manifests do not name the installed build, which is not
+    /// known before the check: then its GitHub releases are read
+    /// (`HerdrRelease.resolve`).
+    public var readsGitHubAPI: Bool { true }
 
     public init() {}
 

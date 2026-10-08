@@ -149,12 +149,8 @@ enum CapCutChannel {
         return packageChannel(inINI: text)
     }
 
-    /// Both files are a handful of lines; the cap is there so a path that turns
-    /// out to be something else entirely is not read into memory wholesale.
     private static func readINI(at url: URL) -> String? {
-        guard let data = try? Data(contentsOf: url), data.count <= 64 * 1024
-        else { return nil }
-        return String(data: data, encoding: .utf8)
+        INIText.read(at: url)
     }
 
     /// The `joinBeta` half, split out so it is testable without a file on disk.
@@ -180,34 +176,8 @@ enum CapCutChannel {
     }
 
     /// First value of `key` in the `[General]` section of an INI, or nil.
-    ///
-    /// Section-aware on purpose. Both files CapCut writes today have exactly one
-    /// section, but a bare "does the text contain joinBeta=true" scan would keep
-    /// answering true if the vendor moved the key under some other heading —
-    /// silently escalating a stable user to the beta track, which is the one
-    /// direction this resolver is not allowed to get wrong.
+    /// Section-aware for the reason `INIText.value` gives.
     private static func value(of key: String, inINI text: String) -> String? {
-        var inGeneral = false
-        for rawLine in text.split(whereSeparator: \.isNewline) {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
-            if line.hasPrefix("[") {
-                inGeneral = line.caseInsensitiveCompare("[General]") == .orderedSame
-                continue
-            }
-            guard inGeneral, let separator = line.firstIndex(of: "=") else { continue }
-            let name = line[..<separator].trimmingCharacters(in: .whitespaces)
-            guard name.caseInsensitiveCompare(key) == .orderedSame else { continue }
-            let value = line[line.index(after: separator)...]
-                .trimmingCharacters(in: .whitespaces)
-            // QSettings quotes values it considers to need it, and CapCut's own
-            // `looki_settings` in this same directory is full of them
-            // (`LookiDomainKey="https://…"`). Neither key read here is quoted
-            // today — but a quoted `"capcutpc_beta"` would silently stop matching
-            // the token and read as a stable build.
-            guard value.count >= 2, value.hasPrefix("\""), value.hasSuffix("\"")
-            else { return value }
-            return String(value.dropFirst().dropLast())
-        }
-        return nil
+        INIText.value(of: key, inSection: "General", of: text)
     }
 }

@@ -29,10 +29,17 @@ public struct HomebrewConfig: Sendable, Equatable {
     /// or `launchctl setenv`. They don't want Homebrew updating itself behind their
     /// back, so we don't offer to do it either.
     public let autoUpdateDisabled: Bool
+    /// `HOMEBREW_AUTO_UPDATE_SECS`, when the user set one: how often Homebrew's own
+    /// auto-update runs `brew update` before an install, upgrade or tap. nil when
+    /// unset — `brew config` lists a variable only when it differs from its default
+    /// (`SystemConfig.homebrew_env_config`, `EnvConfig.non_default_variables`,
+    /// Homebrew 7.0.8 source read 2026-10-08) — and when it is not a whole number.
+    public let autoUpdateSeconds: Int?
 
-    public init(version: String, autoUpdateDisabled: Bool) {
+    public init(version: String, autoUpdateDisabled: Bool, autoUpdateSeconds: Int? = nil) {
         self.version = version
         self.autoUpdateDisabled = autoUpdateDisabled
+        self.autoUpdateSeconds = autoUpdateSeconds
     }
 
     /// Parse `brew config` output. nil when there is no `HOMEBREW_VERSION:` line.
@@ -43,16 +50,20 @@ public struct HomebrewConfig: Sendable, Equatable {
     public static func parse(_ output: String) -> HomebrewConfig? {
         var version: String?
         var autoUpdateDisabled = false
+        var autoUpdateSeconds: Int?
         for raw in output.split(whereSeparator: \.isNewline) {
             let line = raw.trimmingCharacters(in: .whitespaces)
             if let value = Self.value(of: "HOMEBREW_VERSION", in: line) {
                 version = value
             } else if let value = Self.value(of: "HOMEBREW_NO_AUTO_UPDATE", in: line) {
                 autoUpdateDisabled = (value == "set")
+            } else if let value = Self.value(of: "HOMEBREW_AUTO_UPDATE_SECS", in: line) {
+                autoUpdateSeconds = Int(value).flatMap { $0 >= 0 ? $0 : nil }
             }
         }
         guard let version, !version.isEmpty else { return nil }
-        return HomebrewConfig(version: version, autoUpdateDisabled: autoUpdateDisabled)
+        return HomebrewConfig(
+            version: version, autoUpdateDisabled: autoUpdateDisabled, autoUpdateSeconds: autoUpdateSeconds)
     }
 
     private static func value(of key: String, in line: String) -> String? {

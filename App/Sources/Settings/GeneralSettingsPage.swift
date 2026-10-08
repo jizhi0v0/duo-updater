@@ -65,13 +65,25 @@ struct GeneralSettingsPage: View {
             }
             .settingsRow()
         } footer: {
+            // What else follows the schedule (`AppListModel.backgroundRefresh`).
+            // The 15-minute floor on command-line tools that read GitHub binds only
+            // at the 5-minute schedule without a token — the one case the caution
+            // below shows for — so it is said there rather than as a third line.
+            if prefs.checkFrequency.interval != nil {
+                Text("Command-line tools are checked on this schedule too.")
+                    .fixedSize(horizontal: false, vertical: true)
+                if model.brewInstalled {
+                    Text("Homebrew’s package list is refreshed once a day, following your Homebrew auto-update settings.")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
             if prefs.hideDockIcon {
                 Text("DuoUpdater runs from the menu bar only. The pending-update count moves to the menu-bar icon — the Dock badge needs a Dock icon to sit on.")
                     .fixedSize(horizontal: false, vertical: true)
             }
             if prefs.checkFrequency.isHighFrequency && hasGitHubToken == false {
                 Label(
-                    "No GitHub token: checking this often can hit GitHub’s rate limit (60/hour) and show errors on GitHub-sourced apps. Add a token or sign in with the gh CLI under GitHub.",
+                    "No GitHub token: checking this often can hit GitHub’s rate limit (60/hour) and show errors on GitHub-sourced apps, and command-line tools that read GitHub are checked at most every 15 minutes. Add a token or sign in with the gh CLI under GitHub.",
                     systemImage: "exclamationmark.triangle")
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -80,9 +92,6 @@ struct GeneralSettingsPage: View {
 
     private var afterUpdateCard: some View {
         SettingsCard(header: "After an update") {
-            Toggle("Notify me when updates are found", isOn: $prefs.notifyOnUpdates)
-                .settingsRow()
-            SettingsDivider()
             SettingsToggle(
                 "Relaunch updated apps automatically",
                 detail: "Apps are asked to quit normally, so unsaved-work prompts still appear. One that won’t quit keeps its Relaunch button.",

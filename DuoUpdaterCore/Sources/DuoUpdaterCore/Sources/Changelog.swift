@@ -127,7 +127,11 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   (vorssaint-utils v3.3.4/v3.3.5), still only for an X older than the
     ///   release. Notes already cached for those carry the earlier release's
     ///   notes too: 19, 21, 85 and 89 items for 5, 1, 2 and 6 of their own.
-    public static let parserGeneration = 13
+    /// - 14: OpenCode desktop's recipe reads the releases API the way the OpenCode
+    ///   CLI does (`.opencodeReleases`) instead of scraping the releases page's
+    ///   `<li>`s. Notes already cached carry each release's
+    ///   `@handle: <pull-request title>` contributor credits as changes.
+    public static let parserGeneration = 14
 
     public let entries: [Entry]
 

@@ -108,8 +108,12 @@ import Foundation
     ///
     /// 13 (three more wordings of a repeated earlier release) moves neither
     /// fixture: neither has such a heading. Pinned by `GitHubMarkdownParserTests`.
+    ///
+    /// 14 (OpenCode desktop reads its notes through `.opencodeReleases`) moves
+    /// neither fixture: it is one app's recipe. Pinned by
+    /// `openCodeDesktopNotesStopAtTheContributorCredits`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 13)
+        #expect(Changelog.parserGeneration == 14)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

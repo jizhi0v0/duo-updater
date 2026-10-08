@@ -243,17 +243,19 @@ import CryptoKit
 
     static func release(
         stable: String = stableJSON, preview: String = previewJSON, releases: String = releasesJSON,
-        failing: Set<String> = [], fetched: Fetched = Fetched()
+        failing: Set<String> = [], limited: Set<String> = [], fetched: Fetched = Fetched()
     ) -> HerdrRelease {
         HerdrRelease(fetch: { url in
             fetched.add(url)
             let host = url.host ?? ""
-            if failing.contains(host) || failing.contains(url.lastPathComponent) { return (Data(), 503) }
+            if failing.contains(host) || failing.contains(url.lastPathComponent) { return (Data(), 503, nil) }
+            // GitHub's answer once the hour's budget is spent.
+            if limited.contains(host) { return (Data(), 403, "0") }
             switch url.lastPathComponent {
-            case "latest.json": return (Data(stable.utf8), 200)
-            case "preview.json": return (Data(preview.utf8), 200)
-            case "releases": return (Data(releases.utf8), 200)
-            default: return (Data(), 404)
+            case "latest.json": return (Data(stable.utf8), 200, nil)
+            case "preview.json": return (Data(preview.utf8), 200, nil)
+            case "releases": return (Data(releases.utf8), 200, nil)
+            default: return (Data(), 404, nil)
             }
         })
     }
@@ -320,6 +322,19 @@ import CryptoKit
             .resolve(channel: "stable", target: "macos-aarch64", sha256: String(repeating: "7", count: 64))
         guard case .couldNotVerify(let reason) = noGitHub.installed else { Issue.record("\(noGitHub)"); return }
         #expect(reason.contains("GitHub"))
+        // GitHub's rate limit: the same answer, saying so, so that a token is
+        // offered as the fix. Mutations: throw `.http` for it; drop the flag.
+        let limited = try await Self.release(limited: ["api.github.com"])
+            .resolve(channel: "stable", target: "macos-aarch64", sha256: String(repeating: "7", count: 64))
+        guard case .rateLimited(let why) = limited.installed else { Issue.record("\(limited)"); return }
+        #expect(why.contains("rate limit"))
+        let row = await Self.check(String(repeating: "7", count: 64), release: Self.release(limited: ["api.github.com"]))
+            .status(of: Self.install(), busy: nil)
+        #expect(row.state == .unknown && row.withheld == .rateLimited && row.isRateLimitError)
+        // herdr.dev's own 403 is no GitHub rate limit, whatever it says.
+        await #expect(throws: HerdrRelease.Failure.http(403)) {
+            try await Self.release(limited: ["herdr.dev"]).resolve(channel: "stable", target: "macos-aarch64", sha256: Self.hexStable093)
+        }
         // The channel's own manifest unreachable, or without this Mac's build: no answer.
         await #expect(throws: HerdrRelease.Failure.http(503)) {
             try await Self.release(failing: ["latest.json"]).resolve(channel: "stable", target: "macos-aarch64", sha256: Self.hexStable093)
@@ -359,9 +374,9 @@ import CryptoKit
         // it; it gets no click.
         let preview = HerdrRelease(fetch: { url in
             switch url.lastPathComponent {
-            case "latest.json": return (Data(Self.stableJSON.replacingOccurrences(of: "\"version\":\"0.9.3\"", with: "\"version\":\"0.9.2\"").utf8), 200)
-            case "preview.json": return (Data(Self.previewJSON.utf8), 200)
-            default: return (Data(), 404)
+            case "latest.json": return (Data(Self.stableJSON.replacingOccurrences(of: "\"version\":\"0.9.3\"", with: "\"version\":\"0.9.2\"").utf8), 200, nil)
+            case "preview.json": return (Data(Self.previewJSON.utf8), 200, nil)
+            default: return (Data(), 404, nil)
             }
         })
         let ahead = await Self.check(Self.hexPreviewNew, release: preview).status(of: Self.install(), busy: nil)

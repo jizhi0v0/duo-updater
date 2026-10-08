@@ -206,21 +206,42 @@ final class BunSandbox {
     @Test func latestIsTheUpdaterChannelsTag() async throws {
         let release = BunRelease(fetch: { url in
             #expect(url == BunRelease.channel)
-            return (Self.channel(), 200)
+            return (Self.channel(), 200, nil)
         })
         #expect(try await release.latest() == "1.4.2")
         await #expect(throws: BunRelease.Failure.noBuild("bun-darwin-aarch64.zip")) {
-            try await BunRelease(fetch: { _ in (Self.channel(assets: ["bun-linux-x64.zip"]), 200) }).latest()
+            try await BunRelease(fetch: { _ in (Self.channel(assets: ["bun-linux-x64.zip"]), 200, nil) }).latest()
         }
         await #expect(throws: BunRelease.Failure.unreadable) {
-            try await BunRelease(fetch: { _ in (Self.channel(tag: "v1.4.2"), 200) }).latest()
+            try await BunRelease(fetch: { _ in (Self.channel(tag: "v1.4.2"), 200, nil) }).latest()
         }
+        // A 403 with budget left is not the rate limit.
         await #expect(throws: BunRelease.Failure.http(403)) {
-            try await BunRelease(fetch: { _ in (Data(), 403) }).latest()
+            try await BunRelease(fetch: { _ in (Data(), 403, "12") }).latest()
         }
         #expect(BunRelease.assetName(.arm64) == "bun-darwin-aarch64.zip")
         #expect(BunRelease.compare("1.4.2-canary.1", "1.4.2") == .orderedAscending)
         #expect(BunRelease.compare("1.10.0", "1.9.9") == .orderedDescending)
+    }
+
+    /// GitHub's rate limit is told apart by `GitHubReleasesSource`'s rule — a
+    /// 429, or a 403 with the budget spent or not stated — and made its own
+    /// reason, which the popover's banner counts. Mutations: throw `.http` for
+    /// every status; make the check's verdict `.channelUnreadable` for it.
+    @Test func aRateLimitIsItsOwnReason() async throws {
+        for (status, remaining) in [(403, "0"), (403, nil), (429, "7")] as [(Int, String?)] {
+            await #expect(throws: BunRelease.Failure.rateLimited(status)) {
+                try await BunRelease(fetch: { _ in (Data(), status, remaining) }).latest()
+            }
+        }
+        let box = try BunSandbox()
+        try box.installBun("1.3.10")
+        let install = try #require(box.scanner.scan().map(box.scanner.withSignature))
+        let limited = await BunCheck(latest: { throw BunRelease.Failure.rateLimited(403) }).status(of: install, busy: nil)
+        #expect(limited.state == .unknown && limited.withheld == .rateLimited && limited.isRateLimitError)
+        #expect(limited.note?.contains("rate limit") == true)
+        let down = await BunCheck(latest: { throw BunRelease.Failure.http(502) }).status(of: install, busy: nil)
+        #expect(down.withheld == .channelUnreadable && !down.isRateLimitError)
     }
 
     // MARK: - bun's own row

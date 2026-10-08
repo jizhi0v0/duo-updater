@@ -99,6 +99,8 @@ public struct HerdrCheck: Sendable {
                            withheld: .unverified)
         case .couldNotVerify(let reason):
             return verdict(.unknown, latest: latest, note: reason, withheld: .channelUnreadable)
+        case .rateLimited(let reason):
+            return verdict(.unknown, latest: latest, note: reason, withheld: .rateLimited)
         }
 
         let state: CLIToolState

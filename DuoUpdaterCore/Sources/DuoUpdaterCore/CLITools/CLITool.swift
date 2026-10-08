@@ -100,6 +100,11 @@ public enum CLIToolWithheld: String, Sendable, Codable {
     case versionUnreadable
     /// The channel could not be read (network).
     case channelUnreadable
+    /// The channel is the GitHub API, and it refused the read for its rate limit
+    /// (`GitHubReleasesSource.statusError`'s rule). Apart from `channelUnreadable`
+    /// because a token is the fix: the popover's rate-limit banner counts it with
+    /// the app rows.
+    case rateLimited
     /// The tool's own settings block every update path.
     case updatesDisabled
     /// The tool's own auto-update is off: reported, never offered.
@@ -212,6 +217,10 @@ public struct CLIToolStatus: Sendable, Equatable {
         self.releaseNotesKey = releaseNotesKey ?? kind.rawValue
         self.detail = detail
     }
+
+    /// The command-line counterpart of `UpdateStatus.isRateLimitError`: the check
+    /// stopped on GitHub's API rate limit.
+    public var isRateLimitError: Bool { withheld == .rateLimited }
 }
 
 /// One full look at one tool on this Mac.

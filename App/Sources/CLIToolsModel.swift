@@ -239,7 +239,9 @@ final class CLIToolsModel {
     /// `.updateAvailable`, so it is never among `unchecked` anyway.
     nonisolated static func mayClearByItself(_ status: CLIToolStatus) -> Bool {
         switch status.withheld {
-        case nil, .channelUnreadable, .busy, .versionUnreadable: return true
+        // A rate limit ends when GitHub's hour does, as `channelUnreadable` did
+        // for it before it had a case of its own.
+        case nil, .channelUnreadable, .rateLimited, .busy, .versionUnreadable: return true
         case .staged, .unverified, .runtimeTooOld: return false
         default: return false
         }
@@ -666,6 +668,9 @@ final class CLIToolsModel {
             return String(localized: "Couldn’t read the installed version")
         case .channelUnreadable:
             return String(localized: "Couldn’t reach \(tool)’s release channel")
+        case .rateLimited:
+            // The popover banner's own title: the same problem, the same words.
+            return String(localized: "Hitting GitHub’s rate limit")
         }
     }
 

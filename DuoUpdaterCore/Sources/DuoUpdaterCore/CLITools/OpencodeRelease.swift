@@ -21,6 +21,8 @@ public struct OpencodeRelease: Sendable {
 
     public enum Failure: Error, Equatable, CustomStringConvertible {
         case http(Int)
+        /// GitHub's API rate limit (`GitHubReleasesSource.isRateLimited`).
+        case rateLimited(Int)
         case unreadable
         /// The release has no build for this Mac.
         case noBuild(String)
@@ -28,13 +30,16 @@ public struct OpencodeRelease: Sendable {
         public var description: String {
             switch self {
             case .http(let status): return "HTTP \(status)"
+            case .rateLimited(let status):
+                return GitHubReleasesSource.GitHubError.rateLimited(status).errorDescription ?? "HTTP \(status)"
             case .unreadable: return "the answer could not be read"
             case .noBuild(let asset): return "the release has no \(asset)"
             }
         }
     }
 
-    typealias Fetch = @Sendable (URL, Bool) async throws -> (Data, Int)
+    /// The body, the status and the answer's `X-RateLimit-Remaining`.
+    typealias Fetch = @Sendable (URL, Bool) async throws -> (Data, Int, String?)
 
     let fetch: Fetch
 
@@ -50,7 +55,8 @@ public struct OpencodeRelease: Sendable {
             }
             let purpose: RequestPurpose = url == OpencodeRelease.latestURL ? .versionCheck : .changelog
             let (data, response) = try await session.countedData(for: request, purpose: purpose)
-            return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
+            let http = response as? HTTPURLResponse
+            return (data, http?.statusCode ?? 0, http?.value(forHTTPHeaderField: "X-RateLimit-Remaining"))
         })
     }
 
@@ -67,8 +73,11 @@ public struct OpencodeRelease: Sendable {
     }
 
     public func latest(architecture: String) async throws -> String {
-        let (data, status) = try await fetch(Self.latestURL, false)
-        guard status == 200 else { throw Failure.http(status) }
+        let (data, status, remaining) = try await fetch(Self.latestURL, false)
+        guard status == 200 else {
+            throw GitHubReleasesSource.isRateLimited(status, rateLimitRemaining: remaining)
+                ? Failure.rateLimited(status) : Failure.http(status)
+        }
         return try await offCooperativePool { try Self.parseLatest(data, asset: Self.asset(architecture: architecture)) }
     }
 
@@ -85,7 +94,7 @@ public struct OpencodeRelease: Sendable {
 
     /// The newest page of releases, one entry per release with notes, newest first.
     public func notes(force: Bool) async throws -> Changelog {
-        let (data, status) = try await fetch(Self.listURL, force)
+        let (data, status, _) = try await fetch(Self.listURL, force)
         guard status == 200 else { throw CLIToolReleaseNotesError.http(status) }
         let changelog = await offCooperativePool { Self.parseNotes(data) }
         guard let changelog else { throw CLIToolReleaseNotesError.noSections }

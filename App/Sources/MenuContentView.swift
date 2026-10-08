@@ -328,9 +328,12 @@ struct MenuContentView: View {
         .background(Color.orange.opacity(0.08))
     }
 
-    /// How many rows failed this cycle with a GitHub rate-limit error.
+    /// How many rows failed this cycle with a GitHub rate-limit error: app rows,
+    /// and the command-line tools whose channel is the GitHub API (bun, OpenCode,
+    /// herdr), which spend the same hourly budget.
     private var rateLimitedCount: Int {
         model.results.filter(\.status.isRateLimitError).count
+            + model.cliTools.statuses.filter(\.isRateLimitError).count
     }
 
     /// Show the aggregate nudge only when several apps are rate-limited at once

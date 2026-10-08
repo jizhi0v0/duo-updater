@@ -51,6 +51,8 @@ public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
     public var hasUpdate: Bool { availableVersion != nil }
     /// Set when Homebrew has deprecated or disabled it — see `BrewLifecycle`.
     public var lifecycle: BrewLifecycle? = nil
+    /// Set when the keg in use was built from HEAD — see `BrewHeadInstall`.
+    public var head: BrewHeadInstall? = nil
 }
 
 /// Homebrew's verdict that a formula or cask is on its way out: `deprecate!` or
@@ -457,7 +459,8 @@ public actor BrewFormulaService {
                 name: f.name,
                 installedVersion: f.installedVersion,
                 availableVersion: available[f.name],
-                lifecycle: f.lifecycle)
+                lifecycle: f.lifecycle,
+                head: f.head)
         }
         .sorted { lhs, rhs in
             if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
@@ -520,6 +523,8 @@ public actor BrewFormulaService {
         public var lifecycles: [String: BrewLifecycle] = [:]
         /// Installed casks Homebrew deprecated or disabled.
         public var caskLifecycles: [BrewCaskLifecycle] = []
+        /// Formulae whose keg in use was built from HEAD, keyed by `full_name`.
+        public var headInstalls: [String: BrewHeadInstall] = [:]
     }
 
     public func installedReport() async -> InstalledReport {
@@ -552,8 +557,11 @@ public actor BrewFormulaService {
             formulaVersions: versions)
         let lifecycles = Self.lifecycles(installedInfo: info)
         let caskLifecycles = Self.caskLifecycles(installedInfo: info, installsAnApp: caskInstallsAnApp)
+        let headInstalls = Self.headInstalls(installedInfo: info)
         guard !candidates.isEmpty else {
-            return InstalledReport(unchecked: orphans, lifecycles: lifecycles, caskLifecycles: caskLifecycles)
+            return InstalledReport(
+                unchecked: orphans, lifecycles: lifecycles, caskLifecycles: caskLifecycles,
+                headInstalls: headInstalls)
         }
 
         // `--installed` rather than naming the taps: `tap-info` on a tap that no
@@ -561,7 +569,24 @@ public actor BrewFormulaService {
         let tapInfo = await runReading(["tap-info", "--json=v1", "--installed"])
         let unchecked = (Self.label(candidates, untrustedTaps: Self.parseUntrustedTaps(Data(tapInfo.utf8))) + orphans)
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        return InstalledReport(unchecked: unchecked, lifecycles: lifecycles, caskLifecycles: caskLifecycles)
+        return InstalledReport(
+            unchecked: unchecked, lifecycles: lifecycles, caskLifecycles: caskLifecycles,
+            headInstalls: headInstalls)
+    }
+
+    /// `BrewHeadInstall` for every formula whose keg in use is a HEAD one, keyed by
+    /// `full_name`. [] for a read that doesn't parse.
+    static func headInstalls(installedInfo: Data) -> [String: BrewHeadInstall] {
+        guard
+            let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
+            let formulae = root["formulae"] as? [[String: Any]]
+        else { return [:] }
+        var out: [String: BrewHeadInstall] = [:]
+        for f in formulae {
+            guard let head = BrewHeadInstall.parse(f) else { continue }
+            out[head.name] = head
+        }
+        return out
     }
 
     /// `BrewCaskLifecycle` for every cask `info --json=v2 --installed` flags, by

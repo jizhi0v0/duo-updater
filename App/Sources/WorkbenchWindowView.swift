@@ -1680,6 +1680,15 @@ private struct BrewFormulaSidebarRow: View {
                         .font(.caption)
                         .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
                         .lineLimit(1)
+                } else if let head = formula.head {
+                    // Up to date by brew's measure, which doesn't look upstream:
+                    // say what is known about upstream instead.
+                    let status = model.headStatus(for: head)
+                    Text("\(formula.installedVersion) · \(status.text)")
+                        .font(.caption)
+                        .foregroundStyle(isSelected ? AnyShapeStyle(.white)
+                            : status.isBehind ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                        .lineLimit(1)
                 } else if let lifecycle = formula.lifecycle {
                     // Up to date, but Homebrew is phasing it out: say so in the one
                     // line the row has. An update line above outranks it.
@@ -1947,6 +1956,11 @@ private struct FormulaDetailPane: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
             }
+            if let head = formula.head {
+                BrewHeadNotice(head: head, model: model)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+            }
             Divider()
             notes
         }
@@ -2027,6 +2041,115 @@ private struct FormulaDetailPane: View {
             Text("Homebrew doesn’t publish notes for \(formula.name), and it isn’t a GitHub release we can read.")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - HEAD install notice
+
+/// What can be said about a formula installed from HEAD (`BrewHeadInstall`):
+/// that brew doesn't compare it with upstream, a way to ask upstream once, and
+/// the command that rebuilds it.
+private struct BrewHeadNotice: View {
+    let head: BrewHeadInstall
+    @Bindable var model: AppListModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label {
+                Text(head.commit.map { String(localized: "Installed from HEAD, built from commit \($0). Homebrew doesn’t compare it with upstream, so it reads as up to date until the formula’s next release.") }
+                     ?? String(localized: "Installed from HEAD. Homebrew doesn’t compare it with upstream, so it reads as up to date until the formula’s next release."))
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "arrow.triangle.branch").foregroundStyle(.secondary)
+            }
+            if model.canCheckHeadUpstream(head) {
+                HStack(spacing: 8) {
+                    Button(String(localized: "Check Upstream")) {
+                        Task { await model.checkHeadUpstream(head) }
+                    }
+                    .disabled(model.headCheck(for: head) == .checking)
+                    if model.headCheck(for: head) == .checking {
+                        ProgressView().controlSize(.small)
+                    } else if let line = model.headStatus(for: head).answerLine {
+                        Text(line)
+                            .foregroundStyle(model.headStatus(for: head).isBehind ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } else if case .github = head.upstream, head.commit != nil {
+                // The one case a setting changes: anonymous GitHub requests share
+                // 60 an hour with every other check, so this waits for a token.
+                Text(String(localized: "Add a GitHub token in Settings to check its upstream here."))
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Text(String(localized: "To rebuild it from upstream’s latest commit, run:"))
+            CopyableCommandBox(command: head.upgradeCommand)
+        }
+        // See `BrewUncheckedDetailPane.minTextWidth`: its `fixedSize` texts
+        // need a width floor when the window measures its minimum size.
+        .frame(minWidth: BrewUncheckedDetailPane.minTextWidth, maxWidth: 560, alignment: .topLeading)
+    }
+}
+
+/// A command shown for the user to run, with a copy button that confirms.
+private struct CopyableCommandBox: View {
+    let command: String
+
+    @State private var copied = false
+    @State private var copiedResetTask: Task<Void, Never>?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(command)
+                .font(.system(.body, design: .monospaced))
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(command, forType: .string)
+                copied = true
+                copiedResetTask?.cancel()
+                copiedResetTask = Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    guard !Task.isCancelled else { return }
+                    copied = false
+                }
+            } label: {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.borderless)
+            .help(String(localized: "Copy “\(command)”"))
+        }
+        .padding(10)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+extension AppListModel {
+    /// A HEAD install's upstream state, in the words the row and the notice use.
+    struct HeadStatus {
+        let text: String
+        let answerLine: String?
+        let isBehind: Bool
+    }
+
+    func headStatus(for head: BrewHeadInstall) -> HeadStatus {
+        switch headCheck(for: head) {
+        case nil:
+            return HeadStatus(text: String(localized: "not compared with upstream"), answerLine: nil, isBehind: false)
+        case .checking:
+            return HeadStatus(text: String(localized: "checking upstream…"), answerLine: nil, isBehind: false)
+        case .answered(.upToDate, _, _):
+            return HeadStatus(text: String(localized: "same as upstream"),
+                              answerLine: String(localized: "Upstream is still at this commit."), isBehind: false)
+        case .answered(.behind(let latest), _, _):
+            return HeadStatus(text: String(localized: "upstream has newer commits"),
+                              answerLine: String(localized: "Upstream has moved on to \(latest)."), isBehind: true)
+        case .answered(.failed(let message), _, _):
+            return HeadStatus(text: String(localized: "upstream check failed"), answerLine: message, isBehind: false)
+        }
     }
 }
 

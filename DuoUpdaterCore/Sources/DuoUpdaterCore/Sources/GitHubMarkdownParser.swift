@@ -620,7 +620,7 @@ public enum GitHubMarkdownParser {
     /// A line that is nothing but one emphasised thank-you: `*Thank you [x](…)!*`,
     /// `_Thanks [x](…) for the [suggestion](…)_`. KeepingYouAwake nests one under
     /// each contributed translation; as a nested item it is a credit standing
-    /// where a change should be (68 lines across its last 30 releases). Read only
+    /// where a change should be (64 lines across its last 30 releases). Read only
     /// for nested bullets, the ones generation 10 started keeping, so no line that
     /// was an item before is touched. A change that merely ends with thanks, or
     /// thanks written as plain text, is not this shape.

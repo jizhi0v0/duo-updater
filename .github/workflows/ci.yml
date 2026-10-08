@@ -22,6 +22,20 @@
 # There is no `macos-27` label: GitHub's only macOS 27 image is `xcode-27` (macOS 27
 # + Xcode 27, same 3-core M1 tier as macos-latest). NOT `xcode-27-xlarge` — larger
 # runners are billed even on public repositories.
+#
+# Except: a pull request from a branch of THIS repository runs on the mini
+# (self-hosted, label `duo-mini`). The free tier runs at most five macOS jobs at
+# once and every push here takes three, so two pull requests pushed together
+# queued — up to 12 minutes, 282 minutes in total over 60 runs from 2026-10-01.
+# What makes a self-hosted runner acceptable on a public repository now, when it
+# was not on 2026-08-14, is the repository settings, not this file: pull request
+# creation is limited to collaborators, and a fork's workflow waits for approval
+# whoever sent it (`all_external_contributors`). A fork's pull request runs the
+# fork's copy of this file, so the condition below cannot keep it off the mini by
+# itself; it keeps an approved fork PR on a hosted runner as long as the file is
+# ours. Pushes to main, the public record that main is green, stay hosted — and
+# with them the 3-core runner, the only place #351's pool starvation reproduced.
+# If the mini is down, dispatch this workflow on the branch: dispatch is hosted.
 name: CI
 
 on:
@@ -46,7 +60,7 @@ jobs:
   # the longest job instead of the sum. Standard runners on a public repository
   # cost nothing either way; the price is up to three macOS runners per push.
   swift:
-    runs-on: xcode-27
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted","duo-mini"]') || 'xcode-27' }}
     # Core's suite reaches vendor endpoints (the install gates download real
     # packages and verify sha512 + Team ID), so it is slower and less predictable
     # than a pure unit run. Generous, but far under the 6h job ceiling.
@@ -54,6 +68,17 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: ${{ runner.environment == 'github-hosted' }}
+
+      # The mini keeps its workspace between runs. Checkout's own clean is
+      # `git clean -ffdx`, which takes SwiftPM's .build with it: test-swift then
+      # compiled from nothing every run, 187 s on the mini against 45–59 s warm.
+      # Everything else untracked still goes — a gitignored App/DuoUpdater.xcodeproj
+      # left by another branch breaks `make test` on missing files.
+      - name: Reset the workspace, keeping SwiftPM's build
+        if: runner.environment == 'self-hosted'
+        run: git reset --hard HEAD && git clean -ffdx -e DuoUpdaterCore/.build
 
       - name: Toolchain
         run: |
@@ -82,16 +107,32 @@ jobs:
         # branch wedged, one of them for the full job budget with no output at
         # all. See #351 and scripts/run-with-hang-report.sh for why this is out
         # here and not a watchdog inside the test process.
+        #
+        # Hosted only: on the mini that connection is metered again, and the test
+        # itself says SKIPPED when the variable is unset. Same for the Makefile's
+        # CORE_TEST_FLAGS (says why there): set only where it is not hosted.
         env:
-          DUO_DOWNLOAD_GATE: "1"
+          DUO_DOWNLOAD_GATE: ${{ runner.environment == 'github-hosted' && '1' || '' }}
+          CORE_TEST_FLAGS: ${{ runner.environment != 'github-hosted' && '--skip installPipelineDryRun' || '' }}
         run: scripts/run-with-hang-report.sh 1800 make test-swift
 
   app:
-    runs-on: xcode-27
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted","duo-mini"]') || 'xcode-27' }}
     timeout-minutes: 30
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: ${{ runner.environment == 'github-hosted' }}
+
+      # The mini keeps its workspace between runs. Checkout's own clean is
+      # `git clean -ffdx`, which takes SwiftPM's .build with it: test-swift then
+      # compiled from nothing every run, 187 s on the mini against 45–59 s warm.
+      # Everything else untracked still goes — a gitignored App/DuoUpdater.xcodeproj
+      # left by another branch breaks `make test` on missing files.
+      - name: Reset the workspace, keeping SwiftPM's build
+        if: runner.environment == 'self-hosted'
+        run: git reset --hard HEAD && git clean -ffdx -e DuoUpdaterCore/.build
 
       - name: Toolchain
         run: |
@@ -101,11 +142,25 @@ jobs:
 
       # App/DuoUpdater.xcodeproj is gitignored — the spec in App/project.yml is the
       # source of truth and scripts/app-tests.sh regenerates it when missing.
+      # The mini has it already, and `brew install` there would auto-update brew.
       - name: Install XcodeGen
+        if: runner.environment == 'github-hosted'
         run: brew install xcodegen
 
       - name: make test-scripts
         run: make test-scripts
+
+      # The derived-data dir is per checkout, and on the mini it outlives the run:
+      # it still holds every earlier run's app-tests-<pid>.log and .xcresult, and
+      # the other runner's dir sits beside it under the same /tmp glob. So name
+      # this job's dir once (app-tests.sh takes it from APP_TESTS_DD), clear what
+      # earlier runs left in it, and point the failure steps below at it alone.
+      # The build products and caches in it stay: they are the warm build.
+      - name: Locate the app-tests directory
+        run: |
+          dd="$(python3 scripts/derived_data_path.py app-tests "$PWD")"
+          echo "APP_TESTS_DD=$dd" >> "$GITHUB_ENV"
+          rm -rf "$dd"/app-tests-*.log "$dd"/app-tests-*.xcresult "$dd"/ci-xcresult
 
       - name: make test-app
         run: scripts/run-with-hang-report.sh 1200 make test-app
@@ -117,10 +172,9 @@ jobs:
       # 35084900798), and `Could not resolve package dependencies:` with its
       # reasons only in that file (run 35085768264).
       #
-      # Globbed because the dir is per checkout (/tmp/duo-app-tests-<hash8>) and
-      # the log per process (app-tests-<pid>.log). Each hosted job gets a fresh
-      # VM, so only this job's dir can match. The rest of that dir is build
-      # products and caches (~500 MB on a local Mac, 2026-09-16).
+      # The dir is this job's APP_TESTS_DD (set above) and the log is per process
+      # (app-tests-<pid>.log), so only this run's files match. The rest of that
+      # dir is build products and caches (~500 MB on a local Mac, 2026-09-16).
       #
       # Not the .xcresult itself: on a failed run it embeds a system .logarchive,
       # and uploading the bundle as-is made a 107 MB artifact (run 35087278533,
@@ -139,7 +193,7 @@ jobs:
         timeout-minutes: 5
         run: |
           shopt -s nullglob
-          for bundle in /tmp/duo-app-tests-*/app-tests-*.xcresult; do
+          for bundle in "$APP_TESTS_DD"/app-tests-*.xcresult; do
             out="$(dirname "$bundle")/ci-xcresult/$(basename "$bundle" .xcresult)"
             mkdir -p "$out"
             xcrun xcresulttool get test-results tests --path "$bundle" > "$out/tests.json" \
@@ -159,16 +213,27 @@ jobs:
         with:
           name: app-tests-logs-attempt-${{ github.run_attempt }}
           path: |
-            /tmp/duo-app-tests-*/app-tests-*.log
-            /tmp/duo-app-tests-*/ci-xcresult/
-            /tmp/duo-app-tests-*/Logs/Package/*.xcactivitylog
+            ${{ env.APP_TESTS_DD }}/app-tests-*.log
+            ${{ env.APP_TESTS_DD }}/ci-xcresult/
+            ${{ env.APP_TESTS_DD }}/Logs/Package/*.xcactivitylog
 
   release:
-    runs-on: xcode-27
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted","duo-mini"]') || 'xcode-27' }}
     timeout-minutes: 30
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: ${{ runner.environment == 'github-hosted' }}
+
+      # The mini keeps its workspace between runs. Checkout's own clean is
+      # `git clean -ffdx`, which takes SwiftPM's .build with it: test-swift then
+      # compiled from nothing every run, 187 s on the mini against 45–59 s warm.
+      # Everything else untracked still goes — a gitignored App/DuoUpdater.xcodeproj
+      # left by another branch breaks `make test` on missing files.
+      - name: Reset the workspace, keeping SwiftPM's build
+        if: runner.environment == 'self-hosted'
+        run: git reset --hard HEAD && git clean -ffdx -e DuoUpdaterCore/.build
 
       - name: Toolchain
         run: |
@@ -191,6 +256,8 @@ jobs:
       # (DuoUpdaterCore/Package.swift says why). Checked on 2026-10-04 that the
       # Junie abort still reproduces that way.
       - name: Core tests (Release)
+        env:
+          CORE_TEST_FLAGS: ${{ runner.environment != 'github-hosted' && '--skip installPipelineDryRun' || '' }}
         run: scripts/run-with-hang-report.sh 1200 make test-release
 
   # The one check the `main` ruleset requires is named `test`, which was this

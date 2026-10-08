@@ -29,7 +29,7 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         "LSBackgroundOnly": true,
     ])
 
-    let apps = AppScanner(locations: [tmp]).scan()
+    let apps = AppScanner(locations: [tmp], testflight: TestFlightInventory(macRows: [])).scan()
     #expect(apps.map(\.name) == ["Real"])  // helper excluded
 }
 
@@ -55,7 +55,7 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         "CFBundleVersion": "   ",
     ])
 
-    let apps = AppScanner(locations: [tmp]).scan()
+    let apps = AppScanner(locations: [tmp], testflight: TestFlightInventory(macRows: [])).scan()
     let byName = Dictionary(uniqueKeysWithValues: apps.map { ($0.name, $0) })
     #expect(byName["EmptyBuild"]?.buildVersion == nil)
     #expect(byName["WhitespaceBuild"]?.buildVersion == nil)
@@ -78,7 +78,7 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         "CFBundleDisplayName": "\u{200E}WhatsApp",
     ])
 
-    let apps = AppScanner(locations: [tmp]).scan()
+    let apps = AppScanner(locations: [tmp], testflight: TestFlightInventory(macRows: [])).scan()
     #expect(apps.map(\.name) == ["WhatsApp"])  // bidi mark stripped
     #expect(!(apps.first?.name.unicodeScalars.contains("\u{200E}") ?? true))
 }
@@ -110,7 +110,7 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         "CFBundleName": "Eudic",
     ])
 
-    let apps = AppScanner(locations: [tmp]).scan()
+    let apps = AppScanner(locations: [tmp], testflight: TestFlightInventory(macRows: [])).scan()
     #expect(apps.map(\.name) == ["Eudic"])
 }
 
@@ -131,7 +131,7 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         "CFBundleName": "\u{200E}",
     ])
 
-    let apps = AppScanner(locations: [tmp]).scan()
+    let apps = AppScanner(locations: [tmp], testflight: TestFlightInventory(macRows: [])).scan()
     #expect(apps.map(\.name) == ["Nameless"])  // the bundle's own filename
 }
 
@@ -165,7 +165,7 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         "CFBundleShortVersionString": "2024.1",
     ])
 
-    let apps = AppScanner(locations: [tmp]).scan()
+    let apps = AppScanner(locations: [tmp], testflight: TestFlightInventory(macRows: [])).scan()
     #expect(apps.count == 2)
     #expect(Set(apps.map(\.id)).count == 2)  // distinct identities, no ghost row
     #expect(Set(apps.map(\.scratchSlug)).count == 2)  // distinct installer scratch dirs
@@ -204,7 +204,7 @@ private func makeWrappedIOSApp(at dir: URL, name: String, info: [String: Any]) t
         "CFBundleShortVersionString": "6.1.6",
     ])
 
-    let apps = AppScanner(locations: [tmp]).scan()
+    let apps = AppScanner(locations: [tmp], testflight: TestFlightInventory(macRows: [])).scan()
     #expect(apps.count == 1)
     let app = try #require(apps.first)
     #expect(app.name == "Aqara Home")
@@ -234,9 +234,9 @@ private func makeWrappedIOSApp(at dir: URL, name: String, info: [String: Any]) t
     ])
 
     // Default roots alone don't reach the temp dir.
-    #expect(!AppScanner().scan().contains { $0.bundleID == fixtureID })
+    #expect(!AppScanner(testflight: TestFlightInventory(macRows: [])).scan().contains { $0.bundleID == fixtureID })
     // With the folder added it shows up, alongside the real /Applications scan.
-    let apps = AppScanner(extraLocations: [tmp]).scan()
+    let apps = AppScanner(extraLocations: [tmp], testflight: TestFlightInventory(macRows: [])).scan()
     #expect(apps.contains { $0.bundleID == fixtureID })
     #expect(!apps.isEmpty)
 }
@@ -256,7 +256,7 @@ private func makeWrappedIOSApp(at dir: URL, name: String, info: [String: Any]) t
         withDestinationPath: systemApp
     )
 
-    let apps = AppScanner(locations: [tmp]).scan()
+    let apps = AppScanner(locations: [tmp], testflight: TestFlightInventory(macRows: [])).scan()
     #expect(!apps.contains { $0.bundleID?.hasPrefix("com.apple") == true })
 }
 
@@ -293,7 +293,7 @@ private func makeWrappedIOSApp(at dir: URL, name: String, info: [String: Any]) t
         "CFBundleVersion": "1267",
     ])
 
-    let apps = AppScanner(locations: [tmp]).scan()
+    let apps = AppScanner(locations: [tmp], testflight: TestFlightInventory(macRows: [])).scan()
     #expect(apps.count == 1)
     #expect(apps.first?.shortVersion == "0.1.1270")
 }
@@ -376,7 +376,7 @@ private func makeWrappedIOSApp(at dir: URL, name: String, info: [String: Any]) t
         withDestinationPath: "/System/Library/CoreServices/Applications/Feedback Assistant.app")
     let notAnApp = tmp.appendingPathComponent("notes.txt")
 
-    let scanner = AppScanner(locations: [tmp])
+    let scanner = AppScanner(locations: [tmp], testflight: TestFlightInventory(macRows: []))
     let full = scanner.scan()
     let scoped = scanner.scan(bundlesAt: [sidecar, alias, systemLink, notAnApp, real])
     #expect(full.count == 1)

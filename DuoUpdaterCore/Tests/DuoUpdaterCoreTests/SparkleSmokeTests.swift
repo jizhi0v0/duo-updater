@@ -6,7 +6,7 @@ import Foundation
 /// (App Store → Sparkle → Homebrew). Not a unit test — exercises the full
 /// network + parse + compare path and prints a summary to stderr.
 @Test func liveFullCheckSmoke() async {
-    let apps = AppScanner().scan()
+    let apps = AppScanner(testflight: TestFlightInventory(macRows: [])).scan()
     let err = FileHandle.standardError
     func log(_ s: String) { err.write((s + "\n").data(using: .utf8)!) }
 

@@ -26,7 +26,7 @@ import Foundation
     func log(_ s: String) { err.write((s + "\n").data(using: .utf8)!) }
 
     // Find Sparkle apps that have an update AND the metadata we need to verify.
-    let apps = AppScanner().scan().filter {
+    let apps = AppScanner(testflight: TestFlightInventory(macRows: [])).scan().filter {
         $0.sparkleFeedURL != nil && $0.sparkleEdPublicKey != nil
     }
     let checker = UpdateChecker(sources: [SparkleAppcastSource()])

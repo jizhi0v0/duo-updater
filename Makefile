@@ -51,9 +51,16 @@ test-scripts:
 	python3 scripts/check_prose_claims.py
 	python3 scripts/check_offpool.py
 
+# Extra `swift test` arguments for Core's suite, here and in test-release. Empty by
+# default. ci.yml sets `--skip installPipelineDryRun` on the mini: that test
+# downloads the first installed Sparkle app with a pending update (IINA, 110 MB,
+# twice per run there), and the mini's nightly sweep already runs it over every
+# candidate. A hosted runner has no Sparkle apps, so it skipped itself there anyway.
+CORE_TEST_FLAGS ?=
+
 # The two SwiftPM packages, plus the application-test harness built against them.
 test-swift:
-	cd DuoUpdaterCore && swift test
+	cd DuoUpdaterCore && swift test $(CORE_TEST_FLAGS)
 	swift test --package-path CLI --scratch-path DuoUpdaterCore/.build
 	swift build --package-path application-test --scratch-path DuoUpdaterCore/.build
 
@@ -67,7 +74,7 @@ test-app:
 # part of `make test`. The native build system is required, not a preference:
 # see the test target in DuoUpdaterCore/Package.swift.
 test-release:
-	swift test --package-path DuoUpdaterCore -c release --build-system native
+	swift test --package-path DuoUpdaterCore -c release --build-system native $(CORE_TEST_FLAGS)
 
 # Render every row state to verify/row-states/<surface>/*.png. The images are
 # committed:

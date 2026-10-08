@@ -71,7 +71,7 @@ struct HyperFramesRecipeTests {
                 .write(to: contents.appendingPathComponent("Info.plist"))
             return app
         }
-        let scanner = AppScanner(locations: [])
+        let scanner = AppScanner(locations: [], testflight: TestFlightInventory(macRows: []))
 
         let stable = try #require(scanner.readApp(
             at: try bundle("HyperFrames", id: "dev.hyperframes.desktop", label: "b270")))

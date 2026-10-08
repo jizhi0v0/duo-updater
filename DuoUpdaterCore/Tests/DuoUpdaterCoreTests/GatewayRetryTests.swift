@@ -176,8 +176,16 @@ struct GatewayRetryTests {
             try await session.versionFeedData(
                 for: URLRequest(url: Self.url), label: "test", retryDelay: .seconds(30))
         }
-        // Let the first attempt land and the sleep begin.
-        try await Task.sleep(for: .milliseconds(150))
+        // Let the first attempt land before cancelling. Waited for, not timed: a
+        // fixed 150 ms was not enough under a loaded parallel run (PR #1074, Release
+        // on the mini) — the cancel beat the request, this saw `[]`, and the request
+        // went out afterwards and ate the next test's scripted 504. Cancelling after
+        // it landed but before the sleep began still ends in `URLError(.cancelled)`:
+        // `Task.sleep` throws at once on a cancelled task.
+        let deadline = ContinuousClock.now + .seconds(10)
+        while ScriptedProtocol.script.requests.isEmpty, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(5))
+        }
         task.cancel()
 
         await #expect(throws: URLError.self) { try await task.value }

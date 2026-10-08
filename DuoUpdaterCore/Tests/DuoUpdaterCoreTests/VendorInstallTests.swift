@@ -1131,7 +1131,7 @@ private final class AweSunFeedStub: URLProtocol, @unchecked Sendable {
         return
     }
 
-    let installed = AppScanner().scan()
+    let installed = AppScanner(testflight: TestFlightInventory(macRows: [])).scan()
     // One candidate per archive path, first installed one wins. The zip list
     // carries the checksum branch (only two recipes in the whole registry publish
     // a sha512, and the other is 237.8 MB); the dmg list exercises hdiutil mount,

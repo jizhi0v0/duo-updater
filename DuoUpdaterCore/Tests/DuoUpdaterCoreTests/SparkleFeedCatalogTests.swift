@@ -254,7 +254,7 @@ struct SparkleFeedCatalogTests {
             return app
         }
 
-        let scanner = AppScanner()
+        let scanner = AppScanner(testflight: TestFlightInventory(macRows: []))
         let dead = "https://downloads.pdfexpert.com/release/appcast.xml"
         let live = "https://downloads.pdfexpert.com/pem3/release/appcast.xml"
 

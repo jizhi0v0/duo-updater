@@ -24,4 +24,15 @@ public final class GitHubCredentials: @unchecked Sendable {
     public func changed() {
         lock.withLock { generationValue += 1 }
     }
+
+    /// The generation a request made in this task is sent under, when that is
+    /// not the current one: a full round bakes the token it resolved into its
+    /// sources and goes on sending it after a change, so it runs its check under
+    /// the generation it resolved in. Read where the request is made, in the
+    /// calling task — never in a session delegate callback, which runs outside
+    /// the task's tree (see `RequestMetricsRecorder`).
+    @TaskLocal public static var pinnedGeneration: Int?
+
+    /// The generation a request made now, in this task, is sent under.
+    func requestGeneration() -> Int { Self.pinnedGeneration ?? generation }
 }

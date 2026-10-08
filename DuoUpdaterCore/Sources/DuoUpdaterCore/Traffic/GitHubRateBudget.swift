@@ -111,36 +111,78 @@ public struct GitHubRateBudget: Sendable, Equatable {
     }
 
     /// The process's windows.
+    ///
+    /// **Only the credentials in use now.** A change in Settings (the token
+    /// saved or removed, the GitHub CLI switch flipped) starts a new
+    /// `GitHubCredentials` generation, and every window read under an older one
+    /// goes: the store reads as empty — "No answer from GitHub yet" — until an
+    /// answer to a request made under the new credentials lands. Each request is
+    /// tagged with its generation where it is made (`RequestMetricsRecorder`), so
+    /// an answer that lands after the change from a request made before it is
+    /// ignored, and so is one from a round still checking with the old token,
+    /// which runs under the generation it started in
+    /// (`GitHubCredentials.pinnedGeneration`). Without this the card flipped
+    /// between the old round's limit and the new one's until that round drained,
+    /// since a different limit drops every window.
     public final class Store: @unchecked Sendable {
         public static let shared = Store()
 
         private let lock = NSLock()
         /// Earliest reset first. Some may have ended since they were kept.
         private var windows: [GitHubRateBudget] = []
+        /// The credentials generation `windows` were read under.
+        private var windowsGeneration: Int
         private let isAPI: @Sendable (URL) -> Bool
+        private let credentials: GitHubCredentials
 
         /// `isAPI` is a test seam: a loopback server is not `api.github.com`.
-        init(isAPI: @escaping @Sendable (URL) -> Bool = ChangelogService.isGitHubAPI) {
+        /// So is `credentials`, which only `.shared` changes in the app.
+        init(
+            isAPI: @escaping @Sendable (URL) -> Bool = ChangelogService.isGitHubAPI,
+            credentials: GitHubCredentials = .shared
+        ) {
             self.isAPI = isAPI
+            self.credentials = credentials
+            self.windowsGeneration = credentials.generation
         }
 
         /// The windows still running at `now`, earliest reset first; empty
-        /// before any API answer, and once every window seen has ended.
+        /// before any API answer, once every window seen has ended, and after a
+        /// credential change until the new credentials' first answer.
         public func current(at now: Date) -> [GitHubRateBudget] {
-            lock.withLock { windows.filter { $0.isCurrent(at: now) } }
+            let generation = credentials.generation
+            return lock.withLock {
+                windowsGeneration == generation ? windows.filter { $0.isCurrent(at: now) } : []
+            }
         }
 
-        /// The latest reset among the windows kept; nil before any API answer.
+        /// The latest reset among the windows kept; nil before any API answer,
+        /// and after a credential change until the new credentials' first one.
         /// Once `current` is empty, when the budget last refilled.
-        public var lastReset: Date? { lock.withLock { windows.map(\.reset).max() } }
-
-        func observe(_ metrics: URLSessionTaskMetrics) {
-            guard let seen = GitHubRateBudget.reading(from: metrics, isAPI: isAPI) else { return }
-            record(seen, now: Date())
+        public var lastReset: Date? {
+            let generation = credentials.generation
+            return lock.withLock { windowsGeneration == generation ? windows.map(\.reset).max() : nil }
         }
 
-        func record(_ seen: GitHubRateBudget, now: Date) {
+        /// The generation a request made now, in the calling task, is sent under.
+        func requestGeneration() -> Int { credentials.requestGeneration() }
+
+        func observe(_ metrics: URLSessionTaskMetrics, generation: Int) {
+            guard let seen = GitHubRateBudget.reading(from: metrics, isAPI: isAPI) else { return }
+            record(seen, now: Date(), generation: generation)
+        }
+
+        /// `generation` is the one the request was made under; nil, for a test
+        /// with no request, means the current one.
+        func record(_ seen: GitHubRateBudget, now: Date, generation: Int? = nil) {
+            let current = credentials.generation
+            // Read under credentials since replaced: not the budget in use now.
+            guard (generation ?? current) == current else { return }
             lock.withLock {
+                if windowsGeneration != current {
+                    windows = []
+                    windowsGeneration = current
+                }
                 let next = GitHubRateBudget.keeping(windows, seen, now: now)
                 // Empty only when `seen` had itself ended: the windows that ended
                 // before it still say when the budget last refilled.

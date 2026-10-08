@@ -3208,7 +3208,12 @@ final class AppListModel {
                 await self?.recheckTestFlightRows()
             }
         }
-        var checkedRows = await checker.check(plan.check) + plan.carried
+        // Under the generation the token was resolved in, which is what its
+        // requests carry even after a change in Settings: what GitHub says to
+        // them is not about the credentials in use then (`GitHubRateBudget.Store`).
+        var checkedRows = await GitHubCredentials.$pinnedGeneration.withValue(credentialGeneration) {
+            await checker.check(plan.check)
+        } + plan.carried
         // The TestFlight rows above were answered from the store as it stood when
         // this round began. If the sync changed it, answer them again from the new
         // one — and only them, since nothing else reads that store. Tagging is
@@ -3281,7 +3286,9 @@ final class AppListModel {
                     announcements: syncedAnnouncements,
                     appStoreSignedIn: appStoreSignedIn,
                     channelStore: ResolvedChannelStore.shared)
-                let rechecked = await resync.check(targets)
+                let rechecked = await GitHubCredentials.$pinnedGeneration.withValue(credentialGeneration) {
+                    await resync.check(targets)
+                }
                 Log.app.notice("TestFlight sync: re-checked \(rechecked.count, privacy: .public) TestFlight rows against the synced store")
                 checkedRows = TestFlightRefresh.merging(checkedRows, resynced: rechecked)
             }

@@ -106,7 +106,7 @@ untagged 的默认轨，stable 副本能匹配（`channel-verify` 对 2.7.0 实�
 ## 按 OS 分轨 / 灰度 / 自更新器
 - OS: feed 只有下限 `14.0`，与包一致；无上限、无分架构资产。
 - 灰度: feed 无 `phasedRolloutInterval`，人人拿到同一版。
-- 自更新器: Maccy 自己的 Sparkle 会和我们并存（「自动检查更新」开关由用户控制），属一般 Sparkle app 的常规情况；端到端的「运行中 + 自更新器已暂存」一轮由协调会话执行。
+- 自更新器: Maccy 自己的 Sparkle 会和我们并存（「自动检查更新」开关由用户控制），属一般 Sparkle app 的常规情况；端到端（含「运行中 + 自更新器已暂存」一轮）未跑。
 
 ## Changelog
 - 来源: Sparkle inline（`<description>` 里的 HTML 列表）

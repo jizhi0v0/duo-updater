@@ -658,8 +658,11 @@ public enum BackupStore {
         // status for the whole run, so a non-zero exit is only acceptable once we
         // have confirmed the ONLY things it dropped are the ones we meant to drop.
         // Asked before the copy rather than discovered by it: a full startup
-        // disk breaks far more than this backup. Logical size, so an app full
-        // of sparse or cloned files is overestimated — the safe direction.
+        // disk breaks far more than this backup. Logical size: `ditto` keeps a
+        // compressed file compressed and compresses nothing new (its man page:
+        // `--preserveHFSCompression` and `--nohfsCompression` are the
+        // defaults), so the copy's data is at most this. Each file's last
+        // block is not counted, which the floor's margin absorbs.
         let estimate = unreadable.bytes
         if let shortfall = spaceShortfall(forCopyOf: estimate) {
             Log.install.error(
@@ -2373,23 +2376,29 @@ extension BackupStore {
     /// — in which case nothing here refuses or deletes anything.
     ///
     /// This is the figure Finder shows — it counts purgeable space macOS would
-    /// clear for us — and it is not cheap: measured at 19.4 ms a read on this
-    /// Mac, against 0.02 ms for the raw figure, because it asks another process.
-    /// Fine once per backup; not every half second. See ``outboxRawFreeBytes()``.
+    /// clear for us — and it is not cheap: 19.4 ms a read when measured on the
+    /// dev Mac (2026-10-09), because it asks another process, against 0.002 ms
+    /// for `statfs`. Fine once per backup; not every half second. See
+    /// ``outboxRawFreeBytes()``.
     static func outboxFreeBytes() -> Int64? {
         if let freeBytesOverride { return freeBytesOverride() }
         return BackupDestinationProbe.freeBytes(at: outboxVolumeProbe)
     }
 
-    /// The raw free figure, without purgeable space: never higher than
-    /// ``outboxFreeBytes()``, and a thousandth of its cost. The copy watcher
-    /// polls this one and pays for the accurate figure only once this one is
-    /// already under the floor — so on a disk with room to spare, watching
-    /// costs one `statfs` (0.002 ms measured) per half second.
+    /// The raw free figure: blocks free right now, purgeable space not
+    /// counted. The copy watcher polls this one and pays for the purgeable-aware
+    /// figure only once this one is under the floor — so on a disk with room to
+    /// spare, watching costs one `statfs` per half second.
+    ///
+    /// Trusting it above the floor does not depend on how it compares with
+    /// ``outboxFreeBytes()`` (Apple documents no ordering; measured on the dev
+    /// Mac it read lower, 107.6 GB against 115.0 GB): these are blocks the
+    /// copy can write into without anything being purged first.
     static func outboxRawFreeBytes() -> Int64? {
         if let freeBytesOverride { return freeBytesOverride() }
         // `statfs` rather than `volumeAvailableCapacityKey`: a fresh syscall
-        // every time, where a resource value can be cached on the URL.
+        // every time, where `URL.resourceValues` caches on the URL value and a
+        // reused URL would keep answering with the first reading.
         var info = statfs()
         guard statfs(outboxVolumeProbe.path, &info) == 0 else { return nil }
         return Int64(info.f_bavail) * Int64(info.f_bsize)

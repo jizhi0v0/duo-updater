@@ -24,17 +24,21 @@ public struct LorcaProvider: CLIToolProvider {
     }
 
     public func check() async -> CLIToolReport {
-        let (installs, busy) = await offCooperativePool { () -> ([LorcaInstall], LorcaActivity.Busy?) in
+        let (installs, busy, appServe) = await offCooperativePool { () -> ([LorcaInstall], LorcaActivity.Busy?, pid_t?) in
             let installs = LorcaScanner().scan()
-            return (installs, installs.isEmpty ? nil : LorcaActivity.busy(processes: ClaudeCodeActivity.runningProcesses()))
+            guard !installs.isEmpty else { return (installs, nil, nil) }
+            let processes = ClaudeCodeActivity.runningProcesses()
+            return (installs, LorcaActivity.busy(processes: processes), LorcaActivity.appServe(processes: processes))
         }
-        return await Self.report(installs: installs, busy: busy, check: LorcaCheck())
+        return await Self.report(installs: installs, busy: busy, appServe: appServe, check: LorcaCheck())
     }
 
-    static func report(installs: [LorcaInstall], busy: LorcaActivity.Busy?, check: LorcaCheck) async -> CLIToolReport {
+    static func report(
+        installs: [LorcaInstall], busy: LorcaActivity.Busy?, appServe: pid_t? = nil, check: LorcaCheck
+    ) async -> CLIToolReport {
         var statuses: [CLIToolStatus] = []
         for install in installs {
-            statuses.append(await check.status(of: install, busy: busy))
+            statuses.append(await check.status(of: install, busy: busy, appServe: appServe))
         }
         return CLIToolReport(kind: .lorca, statuses: statuses, context: .lorca, sightings: installs.map(sighting))
     }

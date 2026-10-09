@@ -23,6 +23,12 @@ import Foundation
 /// 6. **The user's own setting**: `auto_update: false` in `~/.lorca/settings.json`
 ///    (`lorca update --auto off`) is reported with the command, not run.
 /// 7. **Never race a change already running** (`LorcaActivity`).
+/// 8. **Past the Mac app's `lorca serve`**: when the app's own copy holds the
+///    default port (`LorcaActivity.appServe`), the command names a free port
+///    instead (`--port <n>`), where nothing answers, so `lorca update` installs
+///    over its own file as it does with no serve running — measured 2026-10-09
+///    with the app running: `lorca --port 4999 update` exited 0 where `lorca
+///    update` failed.
 public struct LorcaCheck: Sendable {
 
     typealias Latest = @Sendable () async throws -> LorcaRelease.Manifest
@@ -30,8 +36,12 @@ public struct LorcaCheck: Sendable {
     /// digest is already known; nil when it is not. Blocking.
     typealias KnownVerdict = @Sendable (_ binary: String, _ version: String, _ target: String) -> Bool?
 
+    /// A loopback port nothing listens on, nil when none could be had. Blocking.
+    typealias FreePort = @Sendable () -> Int?
+
     let latest: Latest
     let knownVerdict: KnownVerdict
+    let freePort: FreePort
 
     public init(release: LorcaRelease = LorcaRelease()) {
         let verifier = LorcaVerifier()
@@ -40,12 +50,13 @@ public struct LorcaCheck: Sendable {
     }
 
     /// The seam tests use, so no verdict depends on the network.
-    init(latest: @escaping Latest, knownVerdict: @escaping KnownVerdict) {
+    init(latest: @escaping Latest, knownVerdict: @escaping KnownVerdict, freePort: @escaping FreePort = LorcaCheck.freeLoopbackPort) {
         self.latest = latest
         self.knownVerdict = knownVerdict
+        self.freePort = freePort
     }
 
-    public func status(of install: LorcaInstall, busy: LorcaActivity.Busy?) async -> CLIToolStatus {
+    public func status(of install: LorcaInstall, busy: LorcaActivity.Busy?, appServe: pid_t? = nil) async -> CLIToolStatus {
         func verdict(
             _ state: CLIToolState, latest: String? = nil, oneClick: CLIToolCommand? = nil,
             note: String? = nil, withheld: CLIToolWithheld? = nil, manualCommand: CLIToolCommand? = nil
@@ -102,7 +113,18 @@ public struct LorcaCheck: Sendable {
                            note: "not byte for byte the lorca \(installed) Lorca published: not run",
                            withheld: .unverified)
         }
-        let command = Self.updateCommand(binary: binary)
+        let command: CLIToolCommand
+        if appServe != nil {
+            let freePort = self.freePort
+            guard let port = await offCooperativePool({ freePort() }) else {
+                return verdict(state, latest: newest,
+                               note: "the Lorca app's lorca serve holds port \(LorcaActivity.defaultPort), and no free port was found to update past it",
+                               withheld: .busy)
+            }
+            command = Self.updateCommand(binary: binary, port: port)
+        } else {
+            command = Self.updateCommand(binary: binary)
+        }
         if !install.autoUpdate {
             return verdict(state, latest: newest, note: "auto_update is off in ~/.lorca/settings.json: reported only",
                            withheld: .autoUpdateOff, manualCommand: command)
@@ -115,7 +137,45 @@ public struct LorcaCheck: Sendable {
 
     /// `<binary> update`. lorca renames over its own canonical path, so the file
     /// itself is run, not a link to it.
-    static func updateCommand(binary: String) -> CLIToolCommand {
-        CLIToolCommand(executable: binary, arguments: ["update"], pathPrefix: nil)
+    static func updateCommand(binary: String, port: Int? = nil) -> CLIToolCommand {
+        CLIToolCommand(executable: binary, arguments: (port.map { ["--port", String($0)] } ?? []) + ["update"],
+                       pathPrefix: nil)
+    }
+
+    /// A port the kernel hands out for `127.0.0.1:0`, released at once. Blocking.
+    static func freeLoopbackPort() -> Int? {
+        let socket = Darwin.socket(AF_INET, SOCK_STREAM, 0)
+        guard socket >= 0 else { return nil }
+        defer { close(socket) }
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_addr.s_addr = inet_addr("127.0.0.1")
+        address.sin_port = 0
+        var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let bound = withUnsafeMutablePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(socket, $0, length) == 0 && getsockname(socket, $0, &length) == 0
+            }
+        }
+        guard bound else { return nil }
+        return Int(UInt16(bigEndian: address.sin_port))
+    }
+
+    /// Whether something accepts connections on `127.0.0.1:port`. Blocking.
+    static func isListening(_ port: Int) -> Bool {
+        let socket = Darwin.socket(AF_INET, SOCK_STREAM, 0)
+        guard socket >= 0 else { return false }
+        defer { close(socket) }
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_addr.s_addr = inet_addr("127.0.0.1")
+        address.sin_port = UInt16(port).bigEndian
+        return withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                connect(socket, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0
+            }
+        }
     }
 }

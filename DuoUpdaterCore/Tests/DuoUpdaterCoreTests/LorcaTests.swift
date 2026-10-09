@@ -47,9 +47,9 @@ import CryptoKit
             """
             #!/bin/sh
             # lorca/\(version)x-opencode-session and lorca/\(version)--version, lorca-agent/9.9.9
-            if [ "$1" = update ]; then
+            case " $* " in *" update "*)
             \(update)
-            fi
+            ;; esac
             """
         }
 
@@ -134,24 +134,25 @@ import CryptoKit
             let release = LorcaTests.release(latest: latest, fails: fails)
             let verifier = verifier()
             return LorcaCheck(latest: { try await release.latest() },
-                              knownVerdict: { verifier.knownVerdict(binary: $0, version: $1, target: $2) })
+                              knownVerdict: { verifier.knownVerdict(binary: $0, version: $1, target: $2) },
+                              freePort: { 50123 })
         }
 
         func updater(
             latest: String = "0.1.12", busy: @escaping LorcaUpdater.BusyCheck = { nil }, tamper: Bool = false,
-            settle: Duration = .seconds(10)
+            settle: Duration = .seconds(10), listening: Set<Int> = []
         ) -> LorcaUpdater {
             LorcaUpdater(
                 busy: busy, scanner: scanner, check: check(latest: latest), verifier: verifier(tamper: tamper),
                 environment: {
                     ["LORCA_DOWNLOAD_URL": "https://elsewhere.example", "LORCA_HOME": "/elsewhere", "KEEP": "1"]
                 },
-                settle: settle, pollInterval: .milliseconds(50))
+                settle: settle, pollInterval: .milliseconds(50), isListening: { listening.contains($0) })
         }
 
-        func status(latest: String = "0.1.12") async throws -> CLIToolStatus {
+        func status(latest: String = "0.1.12", appServe: pid_t? = nil) async throws -> CLIToolStatus {
             let install = try #require(scanner.scan().first)
-            return await check(latest: latest).status(of: install, busy: nil)
+            return await check(latest: latest).status(of: install, busy: nil, appServe: appServe)
         }
     }
 
@@ -411,6 +412,48 @@ import CryptoKit
         #expect(message.hasPrefix("lorca update finished"))
     }
 
+    // MARK: - The Mac app's lorca serve
+
+    /// With the Mac app's `lorca serve` on the default port, the click names a
+    /// free port, where nothing answers, so `lorca update` installs here.
+    ///
+    /// Mutation: ignore `appServe` in the check (the arguments are then plain
+    /// `update`); drop the listening re-check in the updater.
+    @Test func updatesPastTheMacAppsServe() async throws {
+        let box = try Sandbox()
+        try box.install(version: "0.1.11", update: try box.updateBody(to: "0.1.12"))
+        let status = try await box.status(appServe: 99)
+        #expect(status.oneClick?.arguments == ["--port", "50123", "update"])
+        guard case .failed(let message, _) = await box.updater(listening: [50123]).update(status) else {
+            Issue.record("ran with something on the port"); return
+        }
+        #expect(message == "not run: something now listens on port 50123")
+        #expect(box.read("ARGS") == nil)
+        #expect(await box.updater().update(status) == .updated(version: "0.1.12"))
+        #expect(box.read("ARGS")?.trimmingCharacters(in: .whitespacesAndNewlines) == "--port 50123 update")
+    }
+
+    @Test func findsTheMacAppsServeOnTheDefaultPort() {
+        func process(_ arguments: [String]) -> ClaudeCodeActivity.Process {
+            ClaudeCodeActivity.Process(pid: 9, arguments: arguments)
+        }
+        let app = "/Applications/Lorca.app/Contents/Resources/bin/lorca"
+        #expect(LorcaActivity.appServe(processes: [process(
+            [app, "serve", "--port", "4862", "--parent-pid", "1", "--ready-stdout"])]) == 9)
+        #expect(LorcaActivity.appServe(processes: [process([app, "--port", "4862", "serve"])]) == 9)
+        #expect(LorcaActivity.appServe(processes: [process([app, "serve"])]) == 9)
+        #expect(LorcaActivity.appServe(processes: [process([app, "serve", "--port", "5000"])]) == nil)
+        #expect(LorcaActivity.appServe(processes: [process(["/Users/ann/.local/bin/lorca", "serve"])]) == nil)
+        #expect(LorcaActivity.appServe(processes: [process([app, "status"])]) == nil)
+    }
+
+    /// The free port the kernel hands out has nothing on it.
+    @Test func aFreeLoopbackPortIsNotListenedOn() throws {
+        let port = try #require(LorcaCheck.freeLoopbackPort())
+        #expect(port > 0)
+        #expect(!LorcaCheck.isListening(port))
+    }
+
     // MARK: - Activity
 
     @Test func busyIsAnInstallingUpdateOrAnInstallerDownload() {
@@ -421,6 +464,8 @@ import CryptoKit
         #expect(LorcaActivity.busy(processes: [process(["lorca", "update", "--check"])]) == nil)
         #expect(LorcaActivity.busy(processes: [process(["lorca", "update", "--auto", "off"])]) == nil)
         #expect(LorcaActivity.busy(processes: [process(["lorca", "serve"])]) == nil)
+        #expect(LorcaActivity.busy(processes: [process(["lorca", "--port", "50123", "update"])]) == .update(7))
+        #expect(LorcaActivity.busy(processes: [process(["lorca", "--home", "/x", "update", "--check"])]) == nil)
         #expect(LorcaActivity.busy(processes: [process(
             ["curl", "-fL", "-o", "/tmp/x", "https://github.com/egoist/lorca/releases/latest/download/lorca-cli-macos-aarch64.tar.gz"])])
             == .download(7))

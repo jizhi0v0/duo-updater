@@ -17,8 +17,10 @@ import Foundation
 /// - **A `lorca serve` answers**: it asks it to (`device.update`) and exits at
 ///   once with `Installing lorca <version>; lorca serve restarts into it once no
 ///   bot is at work.` The serve downloads, checks and renames the file itself a
-///   moment later. So when the output says so, the file is watched until it
-///   reads newer, for up to `settle`.
+///   moment later: its `check` runs `put_in_place` (download, verify, rename)
+///   before it spawns `restart_when_idle`, so a serve whose bots are busy holds
+///   back only its own restart, not the file. So when the output says so, the
+///   file is watched until it reads newer, for up to `settle`.
 ///
 /// After it ran, the same rule is asked of what it left: a version newer than
 /// the one it replaced, byte for byte that version's published build. Anything
@@ -37,16 +39,18 @@ public struct LorcaUpdater: Sendable {
     /// How long a `lorca serve` that took the update may take to put the file in place.
     let settle: Duration
     let pollInterval: Duration
+    let isListening: @Sendable (Int) -> Bool
 
     /// The arm64 archive is 17.8 MB (0.1.11), fetched with a 15-minute timeout of
     /// lorca's own. The deadline is for a child that hangs, not for a slow one.
     static let defaultDeadline = ChildProcess.Deadline(terminateAfter: .seconds(10 * 60), killAfter: .seconds(10 * 60 + 30))
 
     /// `LORCA_DOWNLOAD_URL` stands for the releases page in `lorca update` as in
-    /// the install script, and `LORCA_HOME` moves its settings and port: a
+    /// the install script, `LORCA_HOME` moves its settings and `LORCA_PORT` the
+    /// serve it hands the update to: a
     /// terminal-run `duo` may carry them, a GUI app has none, and the check
     /// read neither.
-    static let overrides = ["LORCA_DOWNLOAD_URL", "LORCA_HOME"]
+    static let overrides = ["LORCA_DOWNLOAD_URL", "LORCA_HOME", "LORCA_PORT"]
 
     /// What `lorca update` prints when it handed the work to a running `lorca serve`.
     static let handedToServe = "lorca serve restarts into it"
@@ -70,7 +74,8 @@ public struct LorcaUpdater: Sendable {
         environment: @escaping @Sendable () -> [String: String],
         deadline: ChildProcess.Deadline = LorcaUpdater.defaultDeadline,
         settle: Duration = .seconds(5 * 60),
-        pollInterval: Duration = .seconds(1)
+        pollInterval: Duration = .seconds(1),
+        isListening: @escaping @Sendable (Int) -> Bool = LorcaCheck.isListening
     ) {
         self.busy = busy
         self.scanner = scanner
@@ -80,6 +85,7 @@ public struct LorcaUpdater: Sendable {
         self.deadline = deadline
         self.settle = settle
         self.pollInterval = pollInterval
+        self.isListening = isListening
     }
 
     public func update(
@@ -129,6 +135,14 @@ public struct LorcaUpdater: Sendable {
         // enough for a `lorca update` started in a terminal to be under way.
         if let running = await offCooperativePool({ busy() }) {
             return .busy(running.description)
+        }
+        // The port the check named to get past the Mac app's `lorca serve` must
+        // still have nothing on it: whatever answered there would be handed the update.
+        if let port = LorcaActivity.port(of: [binary] + command.arguments), port != LorcaActivity.defaultPort {
+            let isListening = self.isListening
+            if await offCooperativePool({ isListening(port) }) {
+                return .failed(message: "not run: something now listens on port \(port)", output: "")
+            }
         }
 
         var environment = self.environment()

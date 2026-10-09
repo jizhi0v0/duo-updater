@@ -24,6 +24,7 @@ githubRules[0].installerKind? = .pkg
 githubRules[0].installTrust = .developerID
 githubRules[0].variant = nil
 githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
 
 appStoreCases = Array(count: 0)
 

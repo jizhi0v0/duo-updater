@@ -110,12 +110,21 @@ nightly keeps following nightly",安装脚本的错误信息也写着
      最后一条 `cua-driver-v0.2.0`）。`^` 把它们挡在外面。
 - tag 语法直接抄厂商的 `_install-rust.sh`：stable 是 `^[0-9]+\.[0-9]+\.[0-9]+$`，
   nightly 是 `^[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}\.[1-9][0-9]*$`。
-- `listPageSize`：stable 50、nightly 48（故意不相等：同一个 list URL 会让 stable 那一页冒充 nightly 的首次整页 seeding，见 nightly rule 注释）。下限登记在
-  `GitHubListPageSizeTests.measuredMinimumDepth`：stable 27、nightly 31，都是 Python 独立复算
+- **nightly 规则不读列表页，按 tag 找**（`tagRefPrefix: "nightly-cua-driver-rs-v"`，#947）：
+  先取 `git/matching-refs/tags/nightly-cua-driver-rs-v`（一次请求，只含这条线的 tag，
+  不分页），用 `versionPattern` 过滤、按数字排序（与厂商安装脚本的 `sort -t. -k1..5nr`
+  同序；GitHub 文档没规定这个端点的顺序，实际返回是字典序），再按 exact tag 取最新那条
+  release。原因：厂商的 nightly planner 会因 release gate 失败或贡献者归属未解决而**无限期
+  hold 住这条线**，其间别的产品线照常发版，最新 nightly 在全仓列表里的位置没有上界——
+  12 行页和加深后的 48 行页先后都被它沉过（见「历史与实测」2026-10-03 与 2026-10-09）。
+  所以 nightly 不再有页深下限，也不在 `measuredMinimumDepth` 里。
+- `listPageSize`（只剩 stable 用）：50。下限登记在
+  `GitHubListPageSizeTests.measuredMinimumDepth`：stable 27，Python 独立复算
   （不是从 Swift 规则里重读）。⚠️ **决定下限的不是两条命中之间的间距，而是最新一条命中
   上面压着的那一段**：这个 monorepo 不断长出新产品线，一条新线两天里就能在列表顶上堆十几条
-  release，把两条规则同时挤出页面（#947，见「历史与实测」2026-10-03）。相邻命中的最大间距
-  反而小得多（stable 17–18、nightly 7）。50 / 48 大约再留出一次同等规模的突发。
+  release，把规则挤出页面（#947，见「历史与实测」2026-10-03）。相邻命中的最大间距
+  反而小得多（stable 17–18）。50 大约再留出一次同等规模的突发。stable 线若像 nightly
+  那样长时间停发，同样会沉出页面；那时改法相同（给它也设 `tagRefPrefix`）。
   **代价是实打实的**：gzip 线上字节 per_page=25 → 75.9 KB、40 → 140.0 KB、50 → 181.4 KB
   （2026-10-03，和请求账本同一单位）。这是本 registry 里最贵的一条 GitHub 规则。
   突发若比一页还长，最新那条命中仍会被挤出页面 —— 那条路径的出口是
@@ -228,6 +237,12 @@ nightly keeps following nightly",安装脚本的错误信息也写着
 gh api 'repos/trycua/cua/releases?per_page=100' -q '.[] | "\(.tag_name)\t\(.prerelease)"'
 # /releases/latest 会答成别的产品
 gh api repos/trycua/cua/releases/latest -q .tag_name
+# nightly 规则读的那份 tag 列表（字典序返回，规则自己按数字排序）
+gh api repos/trycua/cua/git/matching-refs/tags/nightly-cua-driver-rs-v -q '.[].ref'
+# nightly 停发时先看厂商是不是 hold 住了（plan 成功、build/publish skipped）
+gh api 'repos/trycua/cua/actions/workflows/nightly-cua-driver.yml/runs?per_page=5' \
+  -q '.workflow_runs[] | [.created_at, .conclusion] | @tsv'
+gh issue list --repo trycua/cua --search '"held by unresolved contributor attribution" in:title'
 # 厂商自己怎么定义轨道（搜 extract_published_release_versions / BAKED_VERSION）
 curl -fsSL https://cua.ai/driver/_install-rust.sh | sed -n '600,720p'
 # 包验：真下 darwin-universal，解包后
@@ -354,3 +369,33 @@ cua-driver channel status                  # Selected / Current 应当一致
   23 / 17 行，约等于这次突发的规模；两者错开是为了不共用同一个 list URL）。
 - 修后 `duo verify --github --only com.trycua.driver --samples`：两条都 ✓
   （stable `0.32.0`、nightly `0.30.5`）。
+
+### 2026-10-09 —— nightly 又掉出页面，改成按 tag 找（#947 复发）
+
+- `duo verify` 报 nightly 规则 `versionPatternNoMatch`（连续三轮），stable 规则当时仍绿
+  （第一条 `cua-driver-rs-v0.34.0` 在索引 9）。
+- `gh api --paginate 'repos/trycua/cua/releases?per_page=100'` 全量 762 条：最新 nightly
+  仍是 `nightly-cua-driver-rs-v0.30.5-nightly.20260929.36522098176`，位于**索引 57**，
+  超出 48 行的页。09-29 之后这条线一条都没再发，同期 stable 发到 `v0.34.0`、
+  别的产品线（`nightly-lume-*`、`cua-spaces*`、`cua-sdk-*` 等）继续往列表顶上堆。
+- **不是停更、不是改名，是厂商侧 hold 住了**：`Nightly: Cua Driver` workflow 仍是 `active`，
+  10-03 起每天定时运行都 `success`，但只有 `plan` 跑了，`build` / `publish` 都是 `skipped`；
+  10-04 起 `plan / report-attribution-hold` 每天都跑。planner 的 `reason == 'held-attribution'`
+  分支开出的 issue `trycua/cua#4597`（"Nightly cua-driver-rs held by unresolved contributor
+  attribution"，10-04 开、10-09 04:36Z 仍在刷新、open）写明卡在一个提交作者邮箱未关联 GitHub。
+  （09-30 到 10-02 三次 `failure` 是上一节记的 release gate。）hold 何时解除由厂商决定，
+  所以页深没有上界——这就是改法不再是「再加深一页」的原因。
+- 厂商安装脚本 nightly 轨的语义是「最新 nightly tag」（`resolve_latest_version_from_api`
+  按 `nightly-cua-driver-rs-v` 前缀 + nightly 语法过滤后数字排序取第一），即今天的正确答案就是
+  `0.30.5` 那条，哪怕 stable 已经更高。
+- `git/matching-refs/tags/nightly-cua-driver-rs-v`（带 token）：200，34 条 ref，**与列表里的
+  34 条 nightly release 一一对应**（零条 ref 无 release），gzip 线上 2.7 KB、无 `Link` 头；
+  返回顺序是字典序（`…/cua-driver-rs-v` 的 112 条 stable ref 以 `v0.9.1` 收尾）。
+  整仓 `matching-refs/tags/` 916 条一次返回、同样无 `Link` 头。不匹配的前缀答 200 + `[]`。
+  GitHub 文档对这个端点的分页与顺序都没有说明
+  （<https://docs.github.com/en/rest/git/refs#list-matching-references>），所以排序由规则自己做。
+- 红→绿（临时 Swift test 调生产 `resolveDiagnostic`，带 token，跑完删掉）：旧规则
+  （`listPageSize: 48`）→ `versionPatternNoMatch(sampleBytes: 1087)`，与 issue 同形；
+  新规则 → `0.30.5`，资产
+  `cua-driver-rs-0.30.5-nightly.20260929.36522098176-darwin-universal.tar.gz`；
+  同一轮 stable → `0.34.0`。

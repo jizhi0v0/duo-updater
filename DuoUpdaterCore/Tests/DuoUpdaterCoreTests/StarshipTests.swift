@@ -22,6 +22,14 @@ import CryptoKit
         private let lock = NSLock()
         private var published: [String: String] = [:]
         private var downloads = 0
+        private var rootsDirectory = false
+        private var rootCommands: [String] = []
+
+        var isRootsDirectory: Bool {
+            get { lock.withLock { rootsDirectory } }
+            set { lock.withLock { rootsDirectory = newValue } }
+        }
+        var ranAsRoot: [String] { lock.withLock { rootCommands } }
 
         init() throws {
             let made = FileManager.default.temporaryDirectory.appendingPathComponent("ZZFixture-starship-\(UUID().uuidString)")
@@ -106,21 +114,93 @@ import CryptoKit
         func check(latest: String = "1.26.0") -> StarshipCheck {
             let verifier = verifier()
             return StarshipCheck(latest: { latest },
-                                 knownVerdict: { verifier.knownVerdict(binary: $0, version: $1, target: $2) })
+                                 knownVerdict: { verifier.knownVerdict(binary: $0, version: $1, target: $2) },
+                                 rootDirectory: { _ in self.isRootsDirectory })
         }
 
-        func updater(latest: String = "1.26.0", script: Data) -> StarshipUpdater {
+        func updater(latest: String = "1.26.0", script: Data = Data(),
+                     asRoot: @escaping @Sendable () -> CLIToolAdministratorRun.Result = {
+                         Issue.record("ran as root"); return .declined
+                     }) -> StarshipUpdater {
             StarshipUpdater(busy: { nil }, scanner: scanner, check: check(latest: latest), verifier: verifier(),
                             environment: { ["BIN_DIR": "/elsewhere", "VERSION": "latest", "KEEP": "1"] },
                             fetchScript: { url in
                                 #expect(url == StarshipCheck.installer)
                                 return script
+                            },
+                            runAsRoot: { command, _ in
+                                self.lock.withLock { self.rootCommands.append(command) }
+                                return asRoot()
                             })
+        }
+
+        /// What `install.sh -y` run as root does to the fixture: a new file in
+        /// the read-only directory.
+        func rootRun(to version: String) -> CLIToolAdministratorRun.Result {
+            let next = Self.starship(version: version)
+            publish(version, next)
+            do {
+                try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.path)
+                try FileManager.default.removeItem(at: binary)
+                try Data(next.utf8).write(to: binary)
+                try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: bin.path)
+            } catch {
+                Issue.record("\(error)")
+            }
+            return Self.ran(["✓ Starship latest installed"], status: 0)
+        }
+
+        static func ran(_ lines: [String], status: Int32) -> CLIToolAdministratorRun.Result {
+            .ran(CLIToolCommandRunner.Run(
+                result: .finished(ChildProcess.Outcome(terminationStatus: status, uncaughtSignal: false, timedOut: false,
+                                                       standardOutput: Data(), standardError: Data())),
+                lines: lines))
         }
 
         func status(busy: StarshipActivity.Busy? = nil) async throws -> CLIToolStatus {
             await check().status(of: try #require(scanner.scan().first), busy: busy)
         }
+    }
+
+    // MARK: - As root
+
+    /// In root's `/usr/local/bin`: the documented command with `-y`, run as
+    /// root, the documented command itself kept for a terminal; what it left is
+    /// checked; a dismissed panel is not a failure; the click asks again whether
+    /// the directory is still root's. Mutations: drop `asRoot`'s `rootDirectory`;
+    /// drop `-y`; drop the click's `rootDirectory` test.
+    @Test func updatesAsRootInRootsDirectory() async throws {
+        let box = try Sandbox()
+        try box.install(version: "1.25.1")
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
+        let elsewhere = try await box.status()
+        #expect(elsewhere.withheld == .unsupportedInstaller)
+        #expect(!elsewhere.needsAdministrator)
+
+        box.isRootsDirectory = true
+        let status = try await box.status()
+        #expect(status.needsAdministrator)
+        #expect(status.withheld == nil)
+        #expect(status.oneClick?.display == "curl -sS https://starship.rs/install.sh | sh -s -- -y")
+        #expect(status.manualCommand?.display == "curl -sS https://starship.rs/install.sh | sh")
+
+        #expect(await box.updater(asRoot: { .declined }).update(status) == .declined)
+        box.isRootsDirectory = false
+        guard case .failed = await box.updater(asRoot: { box.rootRun(to: "1.26.0") }).update(status) else {
+            Issue.record("ran outside root's directory"); return
+        }
+        #expect(box.ranAsRoot == ["curl -sS https://starship.rs/install.sh | sh -s -- -y"])
+        box.isRootsDirectory = true
+
+        let failed = await box.updater(asRoot: {
+            Sandbox.ran(["\u{1B}[31mx Error reading from prompt (please re-run with the '--yes' option)\u{1B}(B\u{1B}[m"],
+                        status: 1)
+        }).update(status)
+        #expect(failed == .failed(message: "Error reading from prompt (please re-run with the '--yes' option) (exit 1)",
+                                  output: "\u{1B}[31mx Error reading from prompt (please re-run with the '--yes' option)\u{1B}(B\u{1B}[m"))
+
+        #expect(await box.updater(asRoot: { box.rootRun(to: "1.26.0") }).update(status) == .updated(version: "1.26.0"))
+        #expect(box.read("ARGS") == nil)
     }
 
     /// Mutation: accept disagreeing `pkg_version:` literals.

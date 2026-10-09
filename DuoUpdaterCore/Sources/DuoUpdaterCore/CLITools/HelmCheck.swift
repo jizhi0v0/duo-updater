@@ -11,8 +11,11 @@ import Foundation
 ///    USE_SUDO=false` with `--version v<target> --no-sudo` (`HelmUpdater`), which
 ///    checks the archive's sha256 and `cp`s the binary over the file. Only when
 ///    this user may overwrite the file without `sudo` — the default
-///    `/usr/local/bin` is root's on most Macs, and there the update is reported
-///    with the documented command for the user to run.
+///    `/usr/local/bin` is root's on most Macs. There — the directory the script
+///    defaults to and escalates for, and root's — the one-click is that
+///    documented command run as root behind the administrator panel
+///    (`CLIToolAdministratorRun`), after the same gates; anywhere else this user
+///    cannot write, the update is reported with the command for the user to run.
 /// 4. **The trust rule** (`CLIToolTrust`): helm is only ever ad hoc signed, and
 ///    the script runs the installed `helm version` before it replaces it, so the
 ///    file must be byte for byte its version's published build (`HelmVerifier`).
@@ -24,28 +27,37 @@ public struct HelmCheck: Sendable {
 
     let latest: Latest
     let knownVerdict: KnownVerdict
+    /// Whether the install's directory is root's `/usr/local/bin` — the script's
+    /// own default, which it escalates for — so its documented command may run
+    /// as root. A fixture directory in tests.
+    let rootDirectory: @Sendable (HelmInstall) -> Bool
 
     public init(release: HelmRelease = HelmRelease()) {
         let verifier = HelmVerifier()
         self.init(latest: { try await release.latest(major: $0) },
-                  knownVerdict: { verifier.knownVerdict(binary: $0, version: $1, target: $2) })
+                  knownVerdict: { verifier.knownVerdict(binary: $0, version: $1, target: $2) },
+                  rootDirectory: { CLIToolAdministratorRun.isRootsDefault($0.directory) })
     }
 
-    init(latest: @escaping Latest, knownVerdict: @escaping KnownVerdict) {
+    init(latest: @escaping Latest, knownVerdict: @escaping KnownVerdict,
+         rootDirectory: @escaping @Sendable (HelmInstall) -> Bool = { _ in false }) {
         self.latest = latest
         self.knownVerdict = knownVerdict
+        self.rootDirectory = rootDirectory
     }
 
     public func status(of install: HelmInstall, busy: HelmActivity.Busy?) async -> CLIToolStatus {
         func verdict(
             _ state: CLIToolState, latest: String? = nil, oneClick: CLIToolCommand? = nil,
-            note: String? = nil, withheld: CLIToolWithheld? = nil, manualCommand: CLIToolCommand? = nil
+            note: String? = nil, withheld: CLIToolWithheld? = nil, manualCommand: CLIToolCommand? = nil,
+            needsAdministrator: Bool = false
         ) -> CLIToolStatus {
             CLIToolStatus(
                 kind: .helm, path: install.path, installedVersion: install.version, latestVersion: latest,
                 channel: install.major.map { "v\($0)" }, state: state, oneClick: oneClick, withheld: withheld,
                 note: note, manualCommand: manualCommand,
-                releaseNotesKey: install.major.map { "helm-v\($0)" }, detail: .helm(install))
+                releaseNotesKey: install.major.map { "helm-v\($0)" }, detail: .helm(install),
+                needsAdministrator: needsAdministrator)
         }
 
         switch install.problem {
@@ -82,7 +94,10 @@ public struct HelmCheck: Sendable {
                            note: "\(install.path) links to \(binary): the script would write through the link",
                            withheld: .unsupportedInstaller)
         }
-        if !install.writable {
+        // Root's default directory: the documented command, as root, past the
+        // same gates as below (the script runs the installed `helm version`).
+        let asRoot = !install.writable && rootDirectory(install)
+        if !install.writable, !asRoot {
             return verdict(state, latest: newest,
                            note: "the script would need sudo to replace \(install.path)",
                            withheld: .unsupportedInstaller, manualCommand: Self.documentedCommand(installer: installer))
@@ -101,6 +116,12 @@ public struct HelmCheck: Sendable {
         }
         if let busy {
             return verdict(state, latest: newest, note: busy.description, withheld: .busy)
+        }
+        if asRoot {
+            let command = Self.documentedCommand(installer: installer)
+            return verdict(state, latest: newest, oneClick: command,
+                           note: "runs as root after an administrator password: \(install.directory) is root's",
+                           manualCommand: command, needsAdministrator: true)
         }
         return verdict(state, latest: newest,
                        oneClick: Self.updateCommand(installer: installer, directory: install.directory, version: newest))

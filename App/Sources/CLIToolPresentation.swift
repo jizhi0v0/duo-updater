@@ -181,8 +181,15 @@ enum CLIToolPresentation {
     /// - an unsigned uv's first update: the click downloads the release archive
     ///   of the version its receipt names to check the files against it
     ///   (`UvVerifier`) — 18,986,443 bytes for 0.9.18, the one measured.
+    ///
+    /// And an update that runs as root (`CLIToolStatus.needsAdministrator`):
+    /// the password it asks for, and why.
     static func caution(_ status: CLIToolStatus) -> String? {
         guard status.oneClick != nil else { return nil }
+        if status.needsAdministrator {
+            let directory = (status.path as NSString).deletingLastPathComponent
+            return String(localized: "Asks for an administrator password, then runs this command as root: only an administrator can write to \(directory).")
+        }
         switch status.detail {
         case .bub(let bub) where bub.project == .absent:
             return String(localized: "The first update creates bub’s project in ~/.bub/bub-project and may rebuild its environment with a newer Python. Packages installed into it by hand would be lost.")
@@ -387,8 +394,11 @@ enum CLIToolPresentation {
         if case .claudeCode(let claudeCode) = status.detail {
             return ClaudeCodePresentation.manualCommand(claudeCode)
         }
-        guard status.state == .updateAvailable,
-              let withheld = status.withheld, [.autoUpdateOff, .unsupportedInstaller, .unverified].contains(withheld)
+        guard status.state == .updateAvailable else { return nil }
+        // Beside an update that asks for a password: the same command, for a
+        // terminal, as the way to take it without DuoUpdater.
+        if status.needsAdministrator { return status.manualCommand?.display }
+        guard let withheld = status.withheld, [.autoUpdateOff, .unsupportedInstaller, .unverified].contains(withheld)
         else { return nil }
         return status.manualCommand?.display
     }

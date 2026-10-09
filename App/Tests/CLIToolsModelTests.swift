@@ -1629,4 +1629,64 @@ struct CLIToolsModelTests {
             #expect(!CLIToolsModel.mayClearByItself(F.rustup(state: .unknown, withheld: withheld)), "\(withheld)")
         }
     }
+
+    // MARK: administrator updates
+
+    static let rootHelm = "/usr/local/bin/helm"
+
+    /// A status whose one-click runs as root behind the administrator panel.
+    static func asAdministrator(_ status: CLIToolStatus) -> CLIToolStatus {
+        CLIToolStatus(
+            kind: status.kind, path: status.path, installedVersion: status.installedVersion,
+            latestVersion: status.latestVersion, channel: status.channel, state: status.state,
+            oneClick: status.oneClick, withheld: status.withheld, note: status.note,
+            manualCommand: status.oneClick, detail: status.detail, needsAdministrator: true)
+    }
+
+    /// Update All never raises the administrator panel: a copy whose update needs
+    /// it is left to its own row's click, which does run it.
+    ///
+    /// Mutation: build `updateAll`'s batch from `oneClickable` again.
+    @Test func updateAllLeavesAnAdministratorCopyToItsOwnClick() async {
+        let updater = FakeUpdater()
+        let helm = FakeProvider(
+            kind: .helm,
+            checker: FakeCheck([(Self.report(.helm, [Self.asAdministrator(Self.status(Self.rootHelm, kind: .helm))]), nil)]),
+            updater: updater)
+        let fx = FakeProvider(
+            kind: .fx, checker: FakeCheck([(Self.report(.fx, [Self.status(Self.fx, kind: .fx)]), nil)]), updater: updater)
+        let model = Self.model([helm, fx])
+        await model.refresh()
+        #expect(model.offered.count == 2)
+        #expect(model.batchOffered.map(\.toolID) == [Self.id(Self.fx, .fx)])
+        #expect(model.batchable.map(\.toolID) == [Self.id(Self.fx, .fx)])
+
+        await model.updateAll()
+        #expect(await updater.calls == [Self.id(Self.fx, .fx)])
+
+        await model.update(Self.id(Self.rootHelm, .helm))
+        #expect(await updater.calls == [Self.id(Self.fx, .fx), Self.id(Self.rootHelm, .helm)])
+    }
+
+    /// Dismissing the panel is a decision: no red line on the row, nothing
+    /// claimed as updated, and no re-check — nothing ran.
+    ///
+    /// Mutations: re-check after `.declined` (`needsRecheck`); word it as a failure.
+    @Test func aDismissedPanelIsNotAFailure() async {
+        let updater = FakeUpdater()
+        let id = Self.id(Self.rootHelm, .helm)
+        await updater.set(id, .declined)
+        let check = FakeCheck([(Self.report(.helm, [Self.asAdministrator(Self.status(Self.rootHelm, kind: .helm))]), nil)])
+        let model = Self.model([FakeProvider(kind: .helm, checker: check, updater: updater)])
+        await model.refresh()
+
+        await model.update(id)
+        #expect(await updater.calls == [id])
+        #expect(model.errors[id] == nil)
+        #expect(model.errorLogs[id] == nil)
+        #expect(model.justUpdated[id] == nil)
+        #expect(await check.calls == 1)
+        #expect(!model.updating.contains(id))
+        #expect(model.oneClickable.map(\.toolID) == [id])
+    }
 }

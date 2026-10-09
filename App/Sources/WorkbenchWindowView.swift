@@ -1024,14 +1024,14 @@ struct WorkbenchWindowView: View {
     @ViewBuilder
     private var otherToolsBulkUpdate: some View {
         let tools = model.cliTools
-        if !tools.offered.isEmpty {
+        if !tools.batchOffered.isEmpty {
             Button("Update All") { Task { await tools.updateAll() } }
                 .controlSize(.small)
                 .buttonStyle(.bordered)
                 // Not while brew upgrades: npm packages can run on Homebrew's node.
-                .disabled(tools.updatingAll || tools.oneClickable.isEmpty
+                .disabled(tools.updatingAll || tools.batchable.isEmpty
                     || model.brewUpgrading || !model.upgradingFormulae.isEmpty)
-                .help(String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update are left alone."))
+                .help(String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone."))
                 .opacity(tools.updatingAll ? 0 : 1)
                 .overlay {
                     if tools.updatingAll { ProgressView().controlSize(.small) }

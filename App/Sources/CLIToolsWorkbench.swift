@@ -209,6 +209,13 @@ struct CLIToolSidebarRow: View {
     private var trailing: some View {
         if updating {
             ProgressView().controlSize(.small)
+        } else if status.needsAdministrator, status.oneClick != nil {
+            // The same button as every row's, as an app row whose update can
+            // raise the administrator panel has; the password is in its help.
+            Button("Update") { Task { await cli.update(id) } }
+                .controlSize(.small)
+                .rowUpdateButtonStyle(selected: isSelected)
+                .help(String(localized: "Asks for an administrator password"))
         } else if status.oneClick != nil {
             Button("Update") { Task { await cli.update(id) } }
                 .controlSize(.small)
@@ -517,6 +524,11 @@ struct CLIToolDetailPane: View {
             Spacer()
             if updating {
                 UpdateProgressCapsule(line: cli.progress[id])
+            } else if status.needsAdministrator, status.oneClick != nil, let latest = status.latestVersion {
+                Button("Update to \(latest)") { Task { await cli.update(id) } }
+                    .controlSize(.large)
+                    .buttonStyle(.borderedProminent)
+                    .help(String(localized: "Asks for an administrator password"))
             } else if status.oneClick != nil, let latest = status.latestVersion {
                 Button("Update to \(latest)") { Task { await cli.update(id) } }
                     .controlSize(.large)
@@ -596,21 +608,18 @@ struct CLIToolDetailPane: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
+                // An update that asks for a password keeps the way round it.
+                if status.needsAdministrator, let command = CLIToolPresentation.manualCommand(status) {
+                    Text("To update it yourself, run:")
+                    manualCommandBox(command)
+                }
             }
         } else if let explanation = CLIToolPresentation.explanation(status) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(verbatim: explanation)
                 if let command = CLIToolPresentation.manualCommand(status) {
                     Text("To update it yourself, run:")
-                    HStack(spacing: 8) {
-                        Text(verbatim: command)
-                            .font(.system(.body, design: .monospaced))
-                            .textSelection(.enabled)
-                        Spacer()
-                        CopyCommandButton(command: command)
-                    }
-                    .padding(10)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                    manualCommandBox(command)
                 }
             }
         } else if status.state == .ahead {
@@ -618,6 +627,18 @@ struct CLIToolDetailPane: View {
         } else {
             Text("Up to date")
         }
+    }
+
+    private func manualCommandBox(_ command: String) -> some View {
+        HStack(spacing: 8) {
+            Text(verbatim: command)
+                .font(.system(.body, design: .monospaced))
+                .textSelection(.enabled)
+            Spacer()
+            CopyCommandButton(command: command)
+        }
+        .padding(10)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
     }
 }
 

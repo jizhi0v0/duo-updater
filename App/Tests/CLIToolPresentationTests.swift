@@ -988,4 +988,24 @@ struct CLIToolPayloadPresentationTests {
             F.rustup(version: nil, trusted: false, state: .unknown, withheld: .unverified))
             == "Not a published rustup build")
     }
+
+    /// An update that runs as root behind the administrator panel: the reason
+    /// line is gone, the caution names the password and the directory, and the
+    /// command for a terminal stays on offer beside it.
+    ///
+    /// Mutations: drop the `needsAdministrator` case from `caution`; drop it
+    /// from `manualCommand`.
+    @Test func anAdministratorUpdateSaysItAsksForAPassword() {
+        let documented = CLIToolCommand(
+            executable: "curl", arguments: ["-fsSL", "https://example.invalid/get-helm-3", "|", "bash"], pathPrefix: nil)
+        let base = F.helm(writable: false)
+        let status = CLIToolStatus(
+            kind: .helm, path: base.path, installedVersion: "3.21.4", latestVersion: "3.22.0", channel: "v3",
+            state: .updateAvailable, oneClick: documented, withheld: nil, note: nil, manualCommand: documented,
+            detail: base.detail, needsAdministrator: true)
+        #expect(CLIToolPresentation.explanation(status) == nil)
+        #expect(CLIToolPresentation.caution(status)
+            == "Asks for an administrator password, then runs this command as root: only an administrator can write to /usr/local/bin.")
+        #expect(CLIToolPresentation.manualCommand(status) == documented.display)
+    }
 }

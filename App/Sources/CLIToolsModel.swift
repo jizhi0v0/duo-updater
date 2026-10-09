@@ -909,9 +909,12 @@ final class CLIToolsModel {
             if starship.problem == nil, !starship.writable {
                 return String(localized: "Updating it needs administrator rights")
             }
-        // A folder this user cannot write to; else `DenoCheck`'s LTS, RC or canary
-        // build, or `MiseCheck`'s packager marker, which the generic wording covers.
-        case (.unsupportedInstaller, .deno(let deno)) where !deno.writable:
+        // A folder this user cannot write to — only once `DenoCheck` got past the
+        // build's channel, which it asks first: an RC, LTS or canary build keeps
+        // the generic wording even in a read-only folder, since fixing the folder
+        // would not give it a one-click. Likewise `MiseCheck`'s packager marker.
+        case (.unsupportedInstaller, .deno(let deno))
+            where !deno.writable && !deno.isPrerelease && deno.reported?.channel == "stable":
             return String(localized: "Updating it needs administrator rights")
         case (.unsupportedInstaller, .mise(let mise)) where !mise.writable && mise.selfUpdateDisabledBy == nil:
             return String(localized: "Updating it needs administrator rights")

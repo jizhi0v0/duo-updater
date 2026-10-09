@@ -239,11 +239,13 @@ enum CLIToolFixtures {
     }
 
     static func deno(
+        version: String = "2.9.6", channel: String = "stable",
         quarantined: Bool = false, writable: Bool = true, withheld: CLIToolWithheld? = nil
     ) -> CLIToolStatus {
         let path = "/Users/ann/.deno/bin/deno"
-        let install = DenoInstall(path: path, version: "2.9.6", quarantined: quarantined, writable: writable)
-        return status(.deno, path: path, detail: .deno(install), version: "2.9.6", latest: "2.9.7",
+        let install = DenoInstall(path: path, version: version, reported: .init(version: version, channel: channel),
+                                  quarantined: quarantined, writable: writable)
+        return status(.deno, path: path, detail: .deno(install), version: version, latest: "2.9.7",
                       withheld: withheld)
     }
 
@@ -950,6 +952,12 @@ struct CLIToolPayloadPresentationTests {
         let generic = "No one-click update for this kind of install"
         #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.deno(writable: false)) == admin)
         #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.deno()) == generic)
+        // `DenoCheck` asks the channel before the folder: a read-only LTS, canary
+        // or RC build is withheld for its channel, so the folder is not the reason.
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.deno(channel: "lts", writable: false)) == generic)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.deno(channel: "canary", writable: false)) == generic)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.deno(version: "2.0.0-rc.10", channel: "rc", writable: false))
+            == generic)
         #expect(CLIToolsModel.reason(.unverified, of: F.deno(quarantined: true)) == "Quarantined, so not run")
         #expect(CLIToolsModel.reason(.wrongSigner, of: F.deno()) == "Not signed by Deno Land")
         #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.mise(writable: false)) == admin)

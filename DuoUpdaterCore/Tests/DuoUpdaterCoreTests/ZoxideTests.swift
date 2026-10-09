@@ -411,7 +411,10 @@ import CryptoKit
         #expect(await box.updater(script: script, busy: { .installer(7) }).update(status) == .busy("zoxide's installer is running (pid 7)"))
         let notNewer = await box.updater(script: script, latest: "0.9.9").update(status)
         guard case .failed = notNewer else { Issue.record("expected failed, got \(notNewer)"); return }
-        let notInstaller = await box.updater(script: Data("<html>rate limited</html>".utf8)).update(status)
+        // Valid shell that would run — and leave ARGS — were it not refused for
+        // not being zoxide's installer; an HTML page would fail in `sh` anyway.
+        let notInstaller = await box.updater(script: Data("#!/bin/sh\necho \"$@\" > \"\(box.root.path)/ARGS\"\n".utf8))
+            .update(status)
         guard case .failed = notInstaller else { Issue.record("expected failed, got \(notInstaller)"); return }
 
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)

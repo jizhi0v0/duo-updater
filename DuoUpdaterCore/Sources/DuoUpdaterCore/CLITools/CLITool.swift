@@ -5,7 +5,7 @@ import Foundation
 /// Each one has its own rules — where its installers put it, how its version is
 /// read, which command updates it and when that may run — so each keeps its own
 /// detection and update code (`ClaudeCode*`, `Bub*`, `Fx*`, `Uv*`, `Junie*`,
-/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`, `Herdr*`, `Luvus*`, `Lorca*`, `Zoxide*`, `Nvm*`, `Atuin*`, `Ghcup*`). What they share is
+/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`, `Herdr*`, `Luvus*`, `Lorca*`, `Zoxide*`, `Nvm*`, `Atuin*`, `Ghcup*`, `Flyctl*`, `Helm*`, `Starship*`). What they share is
 /// how the app lists them, sums them up and runs their updates: `CLIToolStatus`,
 /// `CLIToolReport` and `CLIToolProvider` below. A later tool is a new provider and
 /// a new `Kind`; the popover row and the workbench's CLI tab read it the same way.
@@ -48,6 +48,12 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case atuin
     /// GHCup's own binary, `~/.ghcup/bin/ghcup` (not the toolchains it installs).
     case ghcup
+    /// Fly.io's flyctl, `~/.fly/bin/flyctl`.
+    case flyctl
+    /// Helm, `/usr/local/bin/helm` as its official script installs it.
+    case helm
+    /// Starship, `/usr/local/bin/starship` as its official script installs it.
+    case starship
 
     /// The tool's own name, as its vendor writes it. Untranslated, like a formula
     /// name on the brew row.
@@ -74,6 +80,9 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .nvm: return "nvm"
         case .atuin: return "Atuin"
         case .ghcup: return "GHCup"
+        case .flyctl: return "flyctl"
+        case .helm: return "Helm"
+        case .starship: return "Starship"
         }
     }
 }
@@ -217,6 +226,9 @@ public struct CLIToolStatus: Sendable, Equatable {
         case nvm(NvmInstall)
         case atuin(AtuinInstall)
         case ghcup(GhcupInstall)
+        case flyctl(FlyctlInstall)
+        case helm(HelmInstall)
+        case starship(StarshipInstall)
     }
 
     public init(
@@ -278,6 +290,9 @@ public struct CLIToolReport: Sendable, Equatable {
         case nvm
         case atuin
         case ghcup
+        case flyctl
+        case helm
+        case starship
     }
 
     public init(

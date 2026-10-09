@@ -217,6 +217,27 @@ enum CLIToolFixtures {
         return status(.ghcup, path: path, detail: .ghcup(install), version: "0.2.6.1", latest: "0.2.6.2")
     }
 
+    static func flyctl(quarantined: Bool = false, withheld: CLIToolWithheld? = nil) -> CLIToolStatus {
+        let path = "/Users/ann/.fly/bin/flyctl"
+        let install = FlyctlInstall(path: path, binary: path, version: "0.4.114", quarantined: quarantined)
+        return status(.flyctl, path: path, detail: .flyctl(install), version: "0.4.114", latest: "0.4.115",
+                      withheld: withheld)
+    }
+
+    static func helm(quarantined: Bool = false, writable: Bool = true, problem: HelmInstall.Problem? = nil) -> CLIToolStatus {
+        let path = "/usr/local/bin/helm"
+        let install = HelmInstall(path: path, binary: path, version: "3.21.4", quarantined: quarantined,
+                                  writable: writable, problem: problem)
+        return status(.helm, path: path, detail: .helm(install), version: "3.21.4", latest: "3.22.0")
+    }
+
+    static func starship(quarantined: Bool = false, writable: Bool = true) -> CLIToolStatus {
+        let path = "/usr/local/bin/starship"
+        let install = StarshipInstall(path: path, binary: path, version: "1.25.1", quarantined: quarantined,
+                                      writable: writable)
+        return status(.starship, path: path, detail: .starship(install), version: "1.25.1", latest: "1.26.0")
+    }
+
     static func codex(
         signature: CLIToolTrust.Signature? = .vendor, quarantined: Bool = false,
         problem: CodexInstall.Problem? = nil, withheld: CLIToolWithheld? = nil
@@ -807,8 +828,8 @@ struct CLIToolPayloadPresentationTests {
     /// a folder that needs sudo, a release without a digest to check against.
     /// Never beside a running update, nor once up to date.
     ///
-    /// Mutations: drop the `.zoxide`/`.nvm` arm of `manualCommand`; let it
-    /// hand out a command beside `.busy`; drop the `writable` branch of the
+    /// Mutations: drop `.unsupportedInstaller` or `.unverified` from the gate in
+    /// `manualCommand`; let it hand out a command beside `.busy`; drop the `writable` branch of the
     /// `(.unsupportedInstaller, .zoxide)` case or the `(.unverified, .zoxide)` case.
     @Test func zoxideAndNvmHandOutTheirCommand() {
         let zoxide = "curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh -s -- --bin-dir /Users/ann/.local/bin"
@@ -853,6 +874,48 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolsModel.vendor(of: .ghcup) == nil)
         #expect(CLIToolPresentation.facts(of: F.atuin(), home: "/Users/ann").isEmpty)
         #expect(CLIToolPresentation.facts(of: F.ghcup(), home: "/Users/ann").isEmpty)
+    }
+
+    /// flyctl, Helm and Starship: a quarantined file; Helm's and Starship's
+    /// folder only `sudo` could write to, and a link, which falls to the
+    /// tool-wide wording; flyctl's own auto-update off; no vendor named.
+    ///
+    /// Mutations: drop any of the `(.unverified, …) where quarantined` cases;
+    /// drop the `(.unsupportedInstaller, .helm)` or `.starship` case.
+    /// A read-only Helm or Starship (`/usr/local/bin` owned by root) is reported
+    /// with the vendor's documented command to copy, as `HelmCheck` and
+    /// `StarshipCheck` set it; never beside a running update.
+    ///
+    /// Mutation: drop `.unsupportedInstaller` from the gate in `manualCommand`.
+    @Test func readOnlyHelmAndStarshipHandOutTheVendorCommand() {
+        func readOnly(_ base: CLIToolStatus, command: String, withheld: CLIToolWithheld) -> CLIToolStatus {
+            CLIToolStatus(
+                kind: base.kind, path: base.path, installedVersion: base.installedVersion, latestVersion: base.latestVersion,
+                channel: nil, state: .updateAvailable, oneClick: nil, withheld: withheld, note: nil,
+                manualCommand: CLIToolCommand(executable: "curl", arguments: [command], pathPrefix: nil),
+                detail: base.detail)
+        }
+        let helm = readOnly(F.helm(writable: false), command: "-fsSL", withheld: .unsupportedInstaller)
+        let starship = readOnly(F.starship(writable: false), command: "-sS", withheld: .unsupportedInstaller)
+        #expect(CLIToolPresentation.manualCommand(helm) == "curl -fsSL")
+        #expect(CLIToolPresentation.manualCommand(starship) == "curl -sS")
+        #expect(CLIToolPresentation.manualCommand(readOnly(F.helm(), command: "-fsSL", withheld: .busy)) == nil)
+    }
+
+    @Test func flyctlHelmStarshipReasons() {
+        let quarantined = "Quarantined, so not run"
+        #expect(CLIToolsModel.reason(.unverified, of: F.flyctl(quarantined: true)) == quarantined)
+        #expect(CLIToolsModel.reason(.unverified, of: F.helm(quarantined: true)) == quarantined)
+        #expect(CLIToolsModel.reason(.unverified, of: F.starship(quarantined: true)) == quarantined)
+        #expect(CLIToolsModel.reason(.unverified, of: F.helm()) == "Not the build its developer published")
+        let admin = "Updating it needs administrator rights"
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.helm(writable: false)) == admin)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.starship(writable: false)) == admin)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.helm(problem: .linked))
+            == "No one-click update for this kind of install")
+        #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.flyctl()) == "Auto-update is off in flyctl’s settings")
+        for kind in [CLIToolKind.flyctl, .helm, .starship] { #expect(CLIToolsModel.vendor(of: kind) == nil) }
+        #expect(CLIToolPresentation.facts(of: F.helm(), home: "/Users/ann").isEmpty)
     }
 
     /// The pane's reason and the row's warning are the status's own: a newer

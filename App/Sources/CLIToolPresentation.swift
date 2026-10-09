@@ -218,7 +218,7 @@ enum CLIToolPresentation {
         case .bun(let bun): return facts(of: bun)
         case .opencode(let opencode): return facts(of: opencode)
         case .amp(let amp): return facts(of: amp)
-        case .claudeCode, .bub, .fx, .boat, .cursorAgent, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup: return []
+        case .claudeCode, .bub, .fx, .boat, .cursorAgent, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship: return []
         }
     }
 
@@ -376,17 +376,19 @@ enum CLIToolPresentation {
     /// off for — the same command a one-click would run. nil otherwise: every
     /// other gate means it should not be run now, or it is DuoUpdater's to run.
     ///
-    /// zoxide and nvm also hand theirs out where DuoUpdater will not run the
-    /// update itself: nvm always (`NvmCheck`), zoxide when its directory needs
-    /// `sudo` or what the installer leaves could not be checked (`ZoxideCheck`).
-    /// Their checks set the command only then — never beside a running update.
+    /// Some checks also hand theirs out where DuoUpdater will not run the update
+    /// itself, and the vendor's documented command is the way forward: nvm
+    /// always (`NvmCheck`); zoxide, Helm and Starship when their directory needs
+    /// `sudo` (`ZoxideCheck`, `HelmCheck`, `StarshipCheck`); zoxide when what its
+    /// installer leaves could not be checked; flyctl on the `pre` channel
+    /// (`FlyctlCheck`). A check sets the command only then — never beside a
+    /// running update — so here the gate only has to rule out the others.
     static func manualCommand(_ status: CLIToolStatus) -> String? {
         if case .claudeCode(let claudeCode) = status.detail {
             return ClaudeCodePresentation.manualCommand(claudeCode)
         }
         guard status.state == .updateAvailable,
-              status.withheld == .autoUpdateOff
-                || ([.zoxide, .nvm].contains(status.kind) && [.unsupportedInstaller, .unverified].contains(status.withheld))
+              let withheld = status.withheld, [.autoUpdateOff, .unsupportedInstaller, .unverified].contains(withheld)
         else { return nil }
         return status.manualCommand?.display
     }

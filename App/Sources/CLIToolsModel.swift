@@ -189,6 +189,7 @@ final class CLIToolsModel {
             BoatProvider(), CodexProvider(), BunProvider(), OpencodeProvider(), CursorAgentProvider(), AmpProvider(),
             VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), ZoxideProvider(), NvmProvider(),
             AtuinProvider(), GhcupProvider(),
+            FlyctlProvider(), HelmProvider(), StarshipProvider(),
         ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
@@ -682,7 +683,7 @@ final class CLIToolsModel {
         case .opencode: return "Anomaly"
         case .cursorAgent: return "Anysphere"
         case .amp: return "Amp Frontier"
-        case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup: return nil
+        case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship: return nil
         }
     }
 
@@ -812,6 +813,12 @@ final class CLIToolsModel {
             // Atuin's `update_check = false`: its background check only ever
             // tells the user, so the check is what was turned off.
             return String(localized: "Atuin’s update check is off in its config")
+        case (.unverified, .flyctl(let flyctl)) where flyctl.quarantined:
+            return quarantined
+        case (.unverified, .helm(let helm)) where helm.quarantined:
+            return quarantined
+        case (.unverified, .starship(let starship)) where starship.quarantined:
+            return quarantined
         case (.unsupportedInstaller, .bun):
             // A canary: `bun upgrade` installs the newest canary, with no version.
             return String(localized: "A canary build, which has no version to compare")
@@ -888,6 +895,13 @@ final class CLIToolsModel {
             return String(localized: "Updating it needs administrator rights")
         case (.unsupportedInstaller, .ghcup(let ghcup)) where ghcup.problem == nil && !ghcup.writable:
             return String(localized: "Updating it needs administrator rights")
+        // A folder only `sudo` could write to: the row offers the vendor's command.
+        case (.unsupportedInstaller, .helm(let helm)):
+            if helm.problem == nil, !helm.writable { return String(localized: "Updating it needs administrator rights") }
+        case (.unsupportedInstaller, .starship(let starship)):
+            if starship.problem == nil, !starship.writable {
+                return String(localized: "Updating it needs administrator rights")
+            }
         default:
             break
         }

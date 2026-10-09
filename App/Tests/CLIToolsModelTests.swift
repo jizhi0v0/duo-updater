@@ -65,6 +65,9 @@ struct CLIToolsModelTests {
         case .nvm: detail = .nvm(NvmInstall(path: path, version: version))
         case .atuin: detail = .atuin(AtuinInstall(path: path, version: version))
         case .ghcup: detail = .ghcup(GhcupInstall(path: path, version: version))
+        case .flyctl: detail = .flyctl(FlyctlInstall(path: path, version: version))
+        case .helm: detail = .helm(HelmInstall(path: path, version: version))
+        case .starship: detail = .starship(StarshipInstall(path: path, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -101,6 +104,9 @@ struct CLIToolsModelTests {
         case .nvm: context = .nvm
         case .atuin: context = .atuin
         case .ghcup: context = .ghcup
+        case .flyctl: context = .flyctl
+        case .helm: context = .helm
+        case .starship: context = .starship
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }

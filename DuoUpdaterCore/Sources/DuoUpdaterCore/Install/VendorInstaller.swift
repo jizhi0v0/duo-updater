@@ -194,7 +194,7 @@ public actor VendorInstaller {
             // Skipped for a patch: `kind` describes the ARCHIVE, and renaming a
             // `.delta` to `.zip` would only mislead the extractor it never reaches.
             let archive = patch == nil
-                ? try normalizedArchive(downloaded, kind: kind, workDir: workDir)
+                ? try Self.normalizedArchive(downloaded, kind: kind, workDir: workDir)
                 : downloaded
             return DownloadedUpdate(
                 archiveURL: archive,
@@ -303,98 +303,13 @@ public actor VendorInstaller {
                 edPublicKey: result.app.sparkleEdPublicKey,
                 onStage: onStage)
         } else {
-            // 2. Gate 1 (optional) — SHA-512 over the exact bytes we downloaded.
-            //
-            // Skipped for a local stash, which is a DIFFERENT container from the
-            // artifact this digest describes. Run here it could not pass, and it
-            // would fail as `checksumMismatch` ("may be corrupt or tampered") for a
-            // file that is neither. Its replacement already ran:
-            // `SelfUpdaterStash.resolve` checks these exact bytes against the digest
-            // the app's own updater recorded for them. See
-            // `docs/engine-notes/self-updater-stash.md` §6.
-            if let expected = remote.expectedSHA512, download.localStash == nil {
-                onStage(.verifyingSignature)
-                try verifyChecksum(download.archiveURL, expectedBase64: expected)
-            }
-            // The same gate for a vendor that publishes SHA-256 hex
-            // (`VendorInstallSpec.checksumFormat`) and for a GitHub asset with a
-            // `digest`. A digest-only download already had its SHA-256 checked
-            // above, as its proof of origin.
-            if remote.installTrust == .developerID, let expected = remote.expectedSHA256,
-               download.localStash == nil {
-                onStage(.verifyingSignature)
-                let archive = download.archiveURL
-                try await offCooperativePool { try Self.verifySHA256(archive, expectedHex: expected) }
-            }
-            // A MyGo vendor's own signature of the archive, over its SHA-256, with
-            // the key the recipe states. Required once a key is stated: a missing
-            // signature fails here as `myGoSignatureMissing`.
-            // Skipped for a local stash for the reason the digests above are.
-            if let myGo = remote.myGoSignature, download.localStash == nil {
-                onStage(.verifyingSignature)
-                let archive = download.archiveURL
-                try await offCooperativePool {
-                    let bytes = try Data(contentsOf: archive, options: .mappedIfSafe)
-                    try SignatureVerifier.verifyMyGoSignature(
-                        fileData: bytes,
-                        signatureBase64: myGo.signature,
-                        publicKeyBase64: myGo.publicKey)
-                }
-            }
-
-            // 3. Unpack the .app.
-            onStage(.extracting)
-            // Awaited in place: see `extractApp` for why it needs no hop and runs
-            // to completion.
-            if let pattern = remote.contentsArchivePattern, download.localStash == nil {
-                // A package that carries the app's INSIDE rather than the app —
-                // see `ContentsPayload`, which unpacks both levels and assembles a
-                // bundle for the gates below to read. It replaces `extractApp`
-                // rather than following it: there is no `.app` at either level, so
-                // extraction would answer `noAppFound` before this could run.
-                //
-                // Skipped for a local stash, and for the same reason as the
-                // checksum and `nestedArchivePath` above: this describes one
-                // vendor's own update package, and a stash is by definition some
-                // other updater's container. The consequence if one ever appears
-                // for an app of this shape is a loud `noAppFound` from the line
-                // below, not a wrong install.
-                newApp = try await ContentsPayload.assemble(
-                    outerArchive: download.archiveURL,
-                    innerArchivePattern: pattern,
-                    // The installed copy names the bundle, not the archive.
-                    bundleName: result.app.path.deletingPathExtension().lastPathComponent,
-                    workDir: download.workDir)
-            } else {
-                newApp = try await ArchiveExtractor.extractApp(
-                    from: download.archiveURL, workDir: download.workDir)
-                // 3b. Some vendors ship an installer stub with the app inside it —
-                // see `VendorInstallSpec.nestedArchivePath`. Unwrap one level, having
-                // first proven the stub is the vendor's: the nested archive sits under
-                // `Contents/Resources`, which the stub's own signature seals, so a
-                // valid signature from the installed app's Team is a statement about
-                // the payload we are about to take out of it. Bundle id is NOT pinned
-                // here — a stub's id is a sibling of the app's by construction
-                // (`…doubaoime.installer` vs `…doubaoime`) — and everything below,
-                // including the id pin, then runs against the payload itself.
-                //
-                // Also skipped for a local stash, and for the same reason as the
-                // checksum above: this path describes where a payload sits inside one
-                // particular stub installer the vendor publishes. A zip of the app is
-                // not that stub, so the lookup would fail as `nestedPayloadMissing` —
-                // naming a file the archive was never supposed to hold. ⚠️ No test
-                // pins this one; `LocalStashInstallWiringTests` says why.
-                if let nested = remote.nestedArchivePath, download.localStash == nil {
-                    let outer = newApp
-                    let installed = result.app.path
-                    try await offCooperativePool {
-                        try SignatureVerifier.verifyCodeSignature(appAt: outer)
-                        try SignatureVerifier.verifyTeamIdentifierMatch(
-                            installedApp: installed, downloadedApp: outer)
-                    }
-                    newApp = try await unwrapNestedPayload(at: nested, inside: newApp, workDir: download.workDir)
-                }
-            }
+            let installed = result.app.path
+            newApp = try await Self.unpackVerified(
+                remote, download: download,
+                // The installed copy names the bundle, not the archive.
+                bundleName: installed.deletingPathExtension().lastPathComponent,
+                onStage: onStage,
+                vetStub: Self.stubSignedByTeam(of: installed))
         }
 
         // 4. Validate the final app, whether unpacked or reconstructed from a delta.
@@ -416,6 +331,126 @@ public actor VendorInstaller {
         onStage(.done)
     }
 
+    /// Gate 1 and unpacking for a full archive: the published digests and MyGo
+    /// signature over the exact bytes downloaded, then the `.app` out of them —
+    /// through `ContentsPayload` or one level of installer stub when the recipe
+    /// says so. Returns the bundle the identity gates are to read.
+    ///
+    /// Split out of `applyVerified` so `duo verify-install` runs these same steps
+    /// on a machine with nothing installed. Everything here is about the download
+    /// alone, except two things a caller supplies: the bundle's name for an
+    /// assembled `ContentsPayload`, and `vetStub` — what proves an installer stub
+    /// is the vendor's before its payload is taken out (production: a valid
+    /// signature from the installed app's Team). `vetStub` runs off the
+    /// cooperative pool, as the Security calls in it need (#351).
+    static func unpackVerified(
+        _ remote: RemoteVersion,
+        download: DownloadedUpdate,
+        bundleName: String,
+        onStage: @Sendable @escaping (InstallStage) -> Void,
+        vetStub: @Sendable @escaping (URL) throws -> Void
+    ) async throws -> URL {
+        var newApp: URL
+        // 2. Gate 1 (optional) — SHA-512 over the exact bytes we downloaded.
+        //
+        // Skipped for a local stash, which is a DIFFERENT container from the
+        // artifact this digest describes. Run here it could not pass, and it
+        // would fail as `checksumMismatch` ("may be corrupt or tampered") for a
+        // file that is neither. Its replacement already ran:
+        // `SelfUpdaterStash.resolve` checks these exact bytes against the digest
+        // the app's own updater recorded for them. See
+        // `docs/engine-notes/self-updater-stash.md` §6.
+        if let expected = remote.expectedSHA512, download.localStash == nil {
+            onStage(.verifyingSignature)
+            try Self.verifyChecksum(download.archiveURL, expectedBase64: expected)
+        }
+        // The same gate for a vendor that publishes SHA-256 hex
+        // (`VendorInstallSpec.checksumFormat`) and for a GitHub asset with a
+        // `digest`. A digest-only download already had its SHA-256 checked
+        // above, as its proof of origin.
+        if remote.installTrust == .developerID, let expected = remote.expectedSHA256,
+           download.localStash == nil {
+            onStage(.verifyingSignature)
+            let archive = download.archiveURL
+            try await offCooperativePool { try Self.verifySHA256(archive, expectedHex: expected) }
+        }
+        // A MyGo vendor's own signature of the archive, over its SHA-256, with
+        // the key the recipe states. Required once a key is stated: a missing
+        // signature fails here as `myGoSignatureMissing`.
+        // Skipped for a local stash for the reason the digests above are.
+        if let myGo = remote.myGoSignature, download.localStash == nil {
+            onStage(.verifyingSignature)
+            let archive = download.archiveURL
+            try await offCooperativePool {
+                let bytes = try Data(contentsOf: archive, options: .mappedIfSafe)
+                try SignatureVerifier.verifyMyGoSignature(
+                    fileData: bytes,
+                    signatureBase64: myGo.signature,
+                    publicKeyBase64: myGo.publicKey)
+            }
+        }
+
+        // 3. Unpack the .app.
+        onStage(.extracting)
+        // Awaited in place: see `extractApp` for why it needs no hop and runs
+        // to completion.
+        if let pattern = remote.contentsArchivePattern, download.localStash == nil {
+            // A package that carries the app's INSIDE rather than the app —
+            // see `ContentsPayload`, which unpacks both levels and assembles a
+            // bundle for the gates below to read. It replaces `extractApp`
+            // rather than following it: there is no `.app` at either level, so
+            // extraction would answer `noAppFound` before this could run.
+            //
+            // Skipped for a local stash, and for the same reason as the
+            // checksum and `nestedArchivePath` above: this describes one
+            // vendor's own update package, and a stash is by definition some
+            // other updater's container. The consequence if one ever appears
+            // for an app of this shape is a loud `noAppFound` from the line
+            // below, not a wrong install.
+            newApp = try await ContentsPayload.assemble(
+                outerArchive: download.archiveURL,
+                innerArchivePattern: pattern,
+                bundleName: bundleName,
+                workDir: download.workDir)
+        } else {
+            newApp = try await ArchiveExtractor.extractApp(
+                from: download.archiveURL, workDir: download.workDir)
+            // 3b. Some vendors ship an installer stub with the app inside it —
+            // see `VendorInstallSpec.nestedArchivePath`. Unwrap one level, having
+            // first proven the stub is the vendor's: the nested archive sits under
+            // `Contents/Resources`, which the stub's own signature seals, so a
+            // valid signature from the installed app's Team is a statement about
+            // the payload we are about to take out of it. Bundle id is NOT pinned
+            // here — a stub's id is a sibling of the app's by construction
+            // (`…doubaoime.installer` vs `…doubaoime`) — and everything below,
+            // including the id pin, then runs against the payload itself.
+            //
+            // Also skipped for a local stash, and for the same reason as the
+            // checksum above: this path describes where a payload sits inside one
+            // particular stub installer the vendor publishes. A zip of the app is
+            // not that stub, so the lookup would fail as `nestedPayloadMissing` —
+            // naming a file the archive was never supposed to hold. ⚠️ No test
+            // pins this one; `LocalStashInstallWiringTests` says why.
+            if let nested = remote.nestedArchivePath, download.localStash == nil {
+                let outer = newApp
+                try await offCooperativePool { try vetStub(outer) }
+                newApp = try await unwrapNestedPayload(at: nested, inside: newApp, workDir: download.workDir)
+            }
+        }
+        return newApp
+    }
+
+    /// Production's `vetStub`: the stub's seal verifies and its Team is the
+    /// installed copy's. Built here, outside any `async` body, because it only
+    /// ever runs inside `unpackVerified`'s `offCooperativePool` hop.
+    private static func stubSignedByTeam(of installed: URL) -> @Sendable (URL) throws -> Void {
+        { stub in
+            try SignatureVerifier.verifyCodeSignature(appAt: stub)
+            try SignatureVerifier.verifyTeamIdentifierMatch(
+                installedApp: installed, downloadedApp: stub)
+        }
+    }
+
     /// Extract the archive at `relativePath` inside the installer stub `stub`, and
     /// return the `.app` it holds.
     ///
@@ -423,7 +458,7 @@ public actor VendorInstaller {
     /// containment check `ArchiveExtractor` makes about the bundle it returns: a
     /// registry string is not user input, but a `..` in one would otherwise reach
     /// anywhere on disk, and this is two steps upstream of a privileged swap.
-    private func unwrapNestedPayload(
+    private static func unwrapNestedPayload(
         at relativePath: String, inside stub: URL, workDir: URL
     ) async throws -> URL {
         let nested = stub.appendingPathComponent(relativePath).standardizedFileURL
@@ -451,7 +486,7 @@ public actor VendorInstaller {
         }
     }
 
-    private func verifyChecksum(_ file: URL, expectedBase64: String) throws {
+    static func verifyChecksum(_ file: URL, expectedBase64: String) throws {
         let data = try Data(contentsOf: file, options: .mappedIfSafe)
         let digest = SHA512.hash(data: data)
         let actual = Data(digest).base64EncodedString()
@@ -487,7 +522,7 @@ public actor VendorInstaller {
             try FileManager.default.copyItem(at: from, to: local)
         }
         return DownloadedUpdate(
-            archiveURL: try normalizedArchive(local, kind: stash.kind, workDir: workDir),
+            archiveURL: try Self.normalizedArchive(local, kind: stash.kind, workDir: workDir),
             // Zero: the field is what went over the network, and nothing did.
             // Reporting the file size here would put the whole archive in the
             // traffic ledger for a transfer that never happened, which is the one
@@ -498,7 +533,7 @@ public actor VendorInstaller {
 
     /// Move/rename the download so its extension reflects `kind`. The Tauri/CDN
     /// case has no extension in the URL, which would defeat extraction-by-suffix.
-    private func normalizedArchive(_ file: URL, kind: VendorInstallerKind, workDir: URL) throws -> URL {
+    static func normalizedArchive(_ file: URL, kind: VendorInstallerKind, workDir: URL) throws -> URL {
         let ext: String
         switch kind {
         case .zip: ext = "zip"

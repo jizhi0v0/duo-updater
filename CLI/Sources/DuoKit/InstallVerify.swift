@@ -1,0 +1,384 @@
+import Foundation
+import DuoUpdaterCore
+
+// Download every installer a vendor recipe or GitHub rule resolves, and read it
+// the way the install route does — `ArtifactInspection` — on a machine where none
+// of the apps are installed.
+//
+// `duo verify` deliberately never downloads an installer, so a failure that only
+// the bytes can show reaches no report: WorkBuddy CN's bundle id changed at 5.5.4
+// and the sweep stayed green for three weeks (#1030). This is the other half.
+// It is meant for a hosted runner, where the download costs nothing; it holds one
+// archive per host in flight and deletes each as soon as it has been read.
+//
+// For now it only reports. Comparing against what an earlier run saw, and filing
+// issues, come after a first run has shown what the noise looks like.
+
+public struct InstallVerifyOptions: Sendable {
+    public init() {}
+    public var only: [String] = []
+    public var hostConcurrency = 3
+    public var allowStaleBinary = false
+    public var githubToken: String?
+    public var jsonPath: URL?
+    public var markdownPath: URL?
+}
+
+public enum InstallVerify {
+
+    public enum Status: String, Codable, Sendable {
+        /// Downloaded, every check that runs without an installed copy passed.
+        case ok
+        /// Downloaded and readable, but not what the recipe says it installs.
+        case warn
+        /// A gate refused it, or it could not be fetched or unpacked.
+        case failed
+        /// The recipe resolved no installer to download.
+        case unresolved
+        /// Never fetched — see `detail`.
+        case skipped
+    }
+
+    public struct Item: Codable, Sendable {
+        public var recipeID: String
+        public var registry: String
+        public var bundleID: String
+        public var probeHost: String
+        public var version: String?
+        public var url: String?
+        public var finalHost: String?
+        public var kind: String?
+        public var status: Status
+        public var stage: ArtifactInspection.Stage?
+        public var detail: String?
+        public var warnings: [String] = []
+        public var notes: [String] = []
+        public var bytes: Int64 = 0
+        public var seconds: Double = 0
+        public var identity: ArtifactInspection.Identity?
+        public var packageTeamIdentifier: String?
+    }
+
+    public struct Report: Codable, Sendable {
+        public var generatedAt: Date
+        public var seconds: Double
+        public var bytes: Int64
+        /// The least free space the scratch volume had when sampled — before
+        /// each item, and again once its archive and unpacked app are both on
+        /// disk, just before they are deleted. What decides how many downloads
+        /// can safely be in flight.
+        public var minimumFreeBytes: Int64?
+        public var hostConcurrency: Int
+        public var items: [Item]
+    }
+
+    /// What one recipe asks to be downloaded.
+    struct Target: Sendable {
+        let recipeID: String
+        let registry: String
+        let bundleID: String
+        let probeHost: String
+        let resolve: @Sendable () async -> ProbeOutcome
+    }
+
+    public static func run(_ options: InstallVerifyOptions) async -> Int32 {
+        if case .stale(let reason) = SourceStamp.verdict() {
+            guard options.allowStaleBinary else {
+                die(SourceStamp.complaint(reason), code: 2)
+            }
+            print("\n  ⚠︎ \(reason).\n    Running anyway because --allow-stale-binary was passed.\n")
+        }
+
+        var token = options.githubToken
+        if token == nil { token = await GitHubToken.resolve() }
+        let github = GitHubReleasesSource(token: token)
+        let vendor = VendorProbeSource()
+
+        var targets: [Target] = []
+        var skipped: [Item] = []
+        var selector = VerifyOptions()
+        selector.only = options.only
+        for recipe in Verify.filtered(VendorProbeRegistry.recipes, selector)
+        where recipe.install != nil {
+            let host = recipe.url.host ?? "-"
+            // Never fetched by `duo verify` either: its URL, headers and body would
+            // all flow into a report.
+            if RegistrySecurity.isCredentialBearing(bundleID: recipe.bundleID) {
+                skipped.append(Item(
+                    recipeID: recipe.recipeID, registry: "vendor", bundleID: recipe.bundleID,
+                    probeHost: host, status: .skipped, detail: "credential-bearing — never fetched"))
+                continue
+            }
+            targets.append(Target(
+                recipeID: recipe.recipeID, registry: "vendor", bundleID: recipe.bundleID,
+                probeHost: host,
+                resolve: { await vendor.probeDiagnostic(recipe) }))
+        }
+        for rule in Verify.filtered(GitHubReleaseRegistry.rules, selector)
+        where rule.installAssetPattern != nil {
+            targets.append(Target(
+                recipeID: rule.recipeID, registry: "github", bundleID: rule.bundleID,
+                probeHost: "api.github.com",
+                resolve: { await github.resolveDiagnostic(rule) }))
+        }
+        guard !targets.isEmpty else {
+            die("nothing to verify — no recipe with an installer matches "
+                + options.only.joined(separator: ", "), code: 2)
+        }
+
+        print("""
+
+          duo verify-install
+          \(targets.count) installers  (\(skipped.count) skipped)  \
+        \(options.hostConcurrency) hosts at a time
+          ─────────────────────────────────────────────
+        """)
+
+        let started = Date()
+        let disk = FreeSpaceWatermark()
+        await disk.sample()
+        let inspected = await byHost(targets, concurrency: options.hostConcurrency) { target in
+            await disk.sample()
+            let item = await verify(target, disk: disk)
+            print(line(item))
+            return item
+        }
+        let items = (inspected + skipped).sorted { $0.recipeID < $1.recipeID }
+        let report = Report(
+            generatedAt: Date(), seconds: Date().timeIntervalSince(started),
+            bytes: items.reduce(0) { $0 + $1.bytes },
+            minimumFreeBytes: await disk.minimum, hostConcurrency: options.hostConcurrency,
+            items: items)
+
+        let summary = summaryText(report)
+        print(summary)
+        if let path = options.jsonPath {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            do { try encoder.encode(report).write(to: path) } catch {
+                die("could not write \(path.path): \(error.localizedDescription)", code: 1)
+            }
+        }
+        if let path = options.markdownPath {
+            do { try markdown(report).write(to: path, atomically: true, encoding: .utf8) } catch {
+                die("could not write \(path.path): \(error.localizedDescription)", code: 1)
+            }
+        }
+        return items.contains { $0.status == .failed || $0.status == .warn } ? 1 : 0
+    }
+
+    // MARK: - one installer
+
+    static func verify(_ target: Target, disk: FreeSpaceWatermark) async -> Item {
+        let started = Date()
+        var item = await inspect(target, disk: disk)
+        item.seconds = Date().timeIntervalSince(started)
+        return item
+    }
+
+    private static func inspect(_ target: Target, disk: FreeSpaceWatermark) async -> Item {
+        var item = Item(
+            recipeID: target.recipeID, registry: target.registry, bundleID: target.bundleID,
+            probeHost: target.probeHost, status: .unresolved)
+
+        let outcome = await target.resolve()
+        guard let remote = outcome.remote else {
+            item.detail = outcome.failure.map { "\($0.kind): \($0.detail)" } ?? "the probe answered nothing"
+            return item
+        }
+        item.version = remote.displayVersion
+        item.kind = remote.vendorInstallerKind.map { "\($0)" }
+        guard let url = remote.downloadURL, remote.vendorInstallerKind != nil else {
+            let said = outcome.warnings.map(\.display)
+            item.detail = said.isEmpty ? "the probe resolved no installer" : said.joined(separator: "; ")
+            return item
+        }
+        item.url = url.absoluteString
+
+        let workDir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "duo-verify-install-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: workDir) }
+        do {
+            try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        } catch {
+            item.status = .failed
+            item.detail = "could not create a scratch directory: \(error.localizedDescription)"
+            return item
+        }
+
+        let bundleName = target.bundleID.split(separator: ".").last.map(String.init) ?? "App"
+        let inspection = await ArtifactInspection.inspect(
+            remote, bundleName: bundleName, workDir: workDir)
+        // Here, not after returning: the archive and the unpacked app are both
+        // still in `workDir`, and the `defer` above deletes them on the way out.
+        await disk.sample()
+        switch inspection {
+        case .failure(let failure):
+            item.status = .failed
+            item.stage = failure.stage
+            item.detail = failure.message
+            item.bytes = failure.bytes
+        case .success(let inspected):
+            item.bytes = inspected.bytes
+            item.finalHost = inspected.finalHost
+            item.identity = inspected.identity
+            item.packageTeamIdentifier = inspected.packageTeamIdentifier
+            item.notes = inspected.notes
+            item.warnings = warnings(
+                identity: inspected.identity, remote: remote, recipeBundleID: target.bundleID)
+            item.notes += notes(identity: inspected.identity, remote: remote)
+            item.status = item.warnings.isEmpty ? .ok : .warn
+        }
+        return item
+    }
+
+    /// What an installed copy's gates would refuse, judged from the download
+    /// alone.
+    static func warnings(
+        identity: ArtifactInspection.Identity?, remote: RemoteVersion, recipeBundleID: String
+    ) -> [String] {
+        guard let identity else { return [] }
+        var out: [String] = []
+        // Recipes are keyed by the bundle id an installed copy reports, so a
+        // download that carries another one is either a vendor rename (#1030) or
+        // a recipe resolving some other product's installer. Gate 4 refuses both.
+        let downloaded = identity.bundleIdentifier ?? identity.signedIdentifier
+        if let downloaded, downloaded != recipeBundleID {
+            out.append("bundleIDMismatch: the download is \(downloaded), the recipe is keyed by \(recipeBundleID)")
+        }
+        // Gate 3 refuses a download without a Team unless the route is digest-only.
+        if identity.teamIdentifier == nil, remote.installTrust == .developerID {
+            out.append("noTeamIdentifier: the download is not Developer ID signed")
+        }
+        return out
+    }
+
+    /// Worth reading but not, on its own, a fault.
+    static func notes(identity: ArtifactInspection.Identity?, remote: RemoteVersion) -> [String] {
+        guard let identity, let probed = remote.shortVersion, let bundled = identity.shortVersion,
+              probed != bundled else { return [] }
+        return ["versionDiffers: the probe said \(probed), the bundle says \(bundled)"]
+    }
+
+    // MARK: - plumbing
+
+    /// One installer at a time per host, up to `concurrency` hosts at once —
+    /// the same politeness as `Verify.byHost`, and the same bound on how many
+    /// archives sit on disk together.
+    static func byHost(
+        _ targets: [Target], concurrency: Int,
+        work: @escaping @Sendable (Target) async -> Item
+    ) async -> [Item] {
+        let groups = Dictionary(grouping: targets, by: \.probeHost).values
+            .sorted { $0[0].probeHost < $1[0].probeHost }
+        var items: [Item] = []
+        var next = 0
+        await withTaskGroup(of: [Item].self) { group in
+            func addNext() {
+                guard next < groups.count else { return }
+                let batch = groups[next]
+                next += 1
+                group.addTask {
+                    var out: [Item] = []
+                    for target in batch { out.append(await work(target)) }
+                    return out
+                }
+            }
+            for _ in 0..<min(max(1, concurrency), groups.count) { addNext() }
+            for await produced in group {
+                items.append(contentsOf: produced)
+                addNext()
+            }
+        }
+        return items
+    }
+
+    actor FreeSpaceWatermark {
+        private(set) var minimum: Int64?
+        func sample() {
+            // Asked of the file system each time: a `URL`'s resource values are
+            // cached on the value, and a fresh read is the whole point here.
+            guard let attributes = try? FileManager.default.attributesOfFileSystem(
+                      forPath: NSTemporaryDirectory()),
+                  let free = (attributes[.systemFreeSize] as? NSNumber)?.int64Value
+            else { return }
+            minimum = min(minimum ?? free, free)
+        }
+    }
+
+    static func megabytes(_ bytes: Int64) -> String {
+        String(format: "%.1f MB", Double(bytes) / 1_000_000)
+    }
+
+    static func line(_ item: Item) -> String {
+        let mark: String
+        switch item.status {
+        case .ok: mark = "✓"
+        case .warn: mark = "⚠"
+        case .failed: mark = "✗"
+        case .unresolved: mark = "?"
+        case .skipped: mark = "-"
+        }
+        var parts = ["  \(mark) \(item.recipeID)"]
+        if let version = item.version { parts.append(version) }
+        if item.bytes > 0 { parts.append(megabytes(item.bytes)) }
+        parts.append(String(format: "%.0fs", item.seconds))
+        if let identity = item.identity {
+            parts.append("\(identity.bundleIdentifier ?? "?") / \(identity.teamIdentifier ?? "no team")")
+        } else if let team = item.packageTeamIdentifier {
+            parts.append("pkg / \(team)")
+        }
+        var out = parts.joined(separator: "  ")
+        if let stage = item.stage { out += "\n      \(stage.rawValue): \(item.detail ?? "")" }
+        else if let detail = item.detail { out += "\n      \(detail)" }
+        for warning in item.warnings { out += "\n      \(warning)" }
+        return out
+    }
+
+    static func counts(_ report: Report) -> [(Status, Int)] {
+        [Status.ok, .warn, .failed, .unresolved, .skipped].map { status in
+            (status, report.items.filter { $0.status == status }.count)
+        }
+    }
+
+    static func summaryText(_ report: Report) -> String {
+        let tally = counts(report).map { "\($0.0.rawValue) \($0.1)" }.joined(separator: "  ")
+        let disk = report.minimumFreeBytes.map { "  lowest free disk \(megabytes($0))" } ?? ""
+        return """
+
+          ─────────────────────────────────────────────
+          \(tally)
+          \(megabytes(report.bytes)) in \(String(format: "%.0f", report.seconds))s\(disk)
+        """
+    }
+
+    static func markdown(_ report: Report) -> String {
+        var out = "## duo verify-install\n\n"
+        out += counts(report).map { "**\($0.0.rawValue)** \($0.1)" }.joined(separator: " · ")
+        out += "\n\n\(megabytes(report.bytes)) downloaded in \(String(format: "%.0f", report.seconds)) s"
+        out += ", \(report.hostConcurrency) hosts at a time"
+        if let free = report.minimumFreeBytes { out += ", lowest free disk \(megabytes(free))" }
+        out += "\n\n"
+        let flagged = report.items.filter { $0.status != .ok }
+        if !flagged.isEmpty {
+            out += "| recipe | status | stage | detail |\n|---|---|---|---|\n"
+            for item in flagged {
+                let detail = ([item.detail].compactMap { $0 } + item.warnings + item.notes)
+                    .joined(separator: "; ")
+                    .replacingOccurrences(of: "|", with: "\\|")
+                    .replacingOccurrences(of: "\n", with: " ")
+                out += "| `\(item.recipeID)` | \(item.status.rawValue) | \(item.stage?.rawValue ?? "") | \(detail) |\n"
+            }
+            out += "\n"
+        }
+        let largest = report.items.sorted { $0.bytes > $1.bytes }.prefix(10).filter { $0.bytes > 0 }
+        if !largest.isEmpty {
+            out += "### Largest\n\n| recipe | size | time |\n|---|---|---|\n"
+            for item in largest {
+                out += "| `\(item.recipeID)` | \(megabytes(item.bytes)) | \(String(format: "%.0f", item.seconds)) s |\n"
+            }
+        }
+        return out
+    }
+}

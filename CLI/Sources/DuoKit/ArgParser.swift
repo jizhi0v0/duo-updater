@@ -47,7 +47,7 @@ public struct Args {
     static let valueFlags: Set<String> = [
         "triage", "budget",
         "only", "route", "max-concurrency", "source",
-        "baseline", "report", "markdown", "out", "max-calls",
+        "baseline", "report", "markdown", "out", "max-calls", "identities",
         "model", "variant",
         "since", "limit", "kind", "host", "purpose", "client", "filter", "path",
     ]

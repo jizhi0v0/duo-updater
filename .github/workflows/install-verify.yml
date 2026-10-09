@@ -7,10 +7,10 @@
 # (#1030). Downloading every installer is traffic that is free here and metered
 # on the mini — hence a hosted runner.
 #
-# Dispatch only, and it only reports, for now: the first runs are to measure how
-# big and how slow a full pass is, how low the disk gets, and which vendors refuse
-# a download from a US data centre. Comparing against earlier runs, filing issues
-# and a schedule come after that.
+# Dispatch only, and it only reports, for now. Each run holds the downloads
+# against `verify/identities.json` (what every installer was when first seen) and
+# uploads the updated file with the report; committing it back, filing issues and
+# a schedule come next.
 #
 # Same rules as ci.yml: hosted runner, no secrets (GITHUB_TOKEN only lifts the
 # GitHub API rate limit), actions pinned by SHA, read-only.
@@ -64,7 +64,8 @@ jobs:
         run: |
           args=(verify-install --allow-stale-binary
                 --max-concurrency "${CONCURRENCY:-3}"
-                --report verify-install.json --markdown verify-install.md)
+                --report verify-install.json --markdown verify-install.md
+                --identities verify/identities.json)
           if [ -n "$ONLY" ]; then args+=(--only "$ONLY"); fi
           set +e
           scripts/run-with-hang-report.sh 19800 CLI/.build/debug/duo "${args[@]}"
@@ -85,4 +86,5 @@ jobs:
           path: |
             verify-install.json
             verify-install.md
+            verify/identities.json
           if-no-files-found: ignore

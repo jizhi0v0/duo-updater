@@ -365,7 +365,8 @@ model why a broken one broke, and turn the result into issues. That is what the 
 check runs; they are not needed for ordinary use. `duo verify-install` is the half the
 sweep cannot see: it downloads every installer those recipes resolve and checks it the
 way an install would — published digests, unpacking, code signature, and the bundle id
-and Team ID the install gates compare — without installing anything. It runs on a
+and Team ID the install gates compare — without installing anything, and holds each
+one against what that installer was when first seen (`verify/identities.json`). It runs on a
 hosted runner (`.github/workflows/install-verify.yml`), where that traffic is free.
 
 ## Project layout

@@ -2465,9 +2465,14 @@ extension BackupStore {
             .sorted { $0.meta.savedAt < $1.meta.savedAt }
         for (victim, meta) in oldestFirst {
             let dir = root.appendingPathComponent(victim, isDirectory: true)
+            // Out of the transfer queue first, as Clean Up's delete does: a
+            // copy of this backup to the disk that is under way would otherwise
+            // end `.failed`, naming a backup that no longer exists.
+            await BackupTransferQueue.shared.withhold([victim])
             let removed = await offCooperativePool(qos: .userInitiated) {
                 removeClearingImmutableFlags(at: dir)
             }
+            await BackupTransferQueue.shared.release([victim])
             guard removed else { continue }
             // With a backup disk configured, a copy that is no longer owed has
             // already reached it, and the facts still describe that one.

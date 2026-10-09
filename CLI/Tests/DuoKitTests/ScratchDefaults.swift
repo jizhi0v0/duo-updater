@@ -78,7 +78,8 @@ enum ScratchSlot {
         let directory = String(cString: buffer)
         var slot = 0
         while true {
-            let path = directory + "com.duoupdater.tests.slot\(slot).lock"
+            let path = URL(fileURLWithPath: directory, isDirectory: true)
+                .appendingPathComponent("com.duoupdater.tests.slot\(slot).lock").path
             let fd = open(path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
             precondition(fd >= 0, "could not open \(path): errno \(errno)")
             // Never closed: closing the descriptor would release the lock.

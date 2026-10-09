@@ -208,6 +208,35 @@ struct BackupStoreSpaceTests {
         }
     }
 
+    /// The oldest backup finishes its copy to the backup disk while the
+    /// reclaim waits for it: by then it is off this Mac, which gave the space
+    /// back, and its facts describe the copy on the disk. It is skipped, not
+    /// counted as deleted, and its facts stay.
+    @Test func aBackupMovedToTheDiskDuringTheWaitKeepsItsFacts() async throws {
+        try await withScratch { scratch, root in
+            let moved = try await storeBackup("Moved", in: scratch, root: root, ageSeconds: 9000)
+            let newer = try await storeBackup("Newer", in: scratch, root: root, ageSeconds: 1000)
+            let facts = BackupFactsLibrary.directory(forKey: moved)
+            try FileManager.default.createDirectory(at: facts, withIntermediateDirectories: true)
+            try Data("{}".utf8).write(to: facts.appendingPathComponent("entry.json"))
+            let volume = Volume(
+                root: root, base: BackupStore.freeSpaceFloorBytes - gib, perRemoved: 2 * gib)
+            let recovered = await BackupStore.$reclaimAfterWithholdOverride.withValue({ key in
+                // The transfer's last step: the outbox copy goes.
+                if key == moved {
+                    try? FileManager.default.removeItem(at: root.appendingPathComponent(key))
+                }
+            }) {
+                await BackupStore.$freeBytesOverride.withValue({ volume.free() }) {
+                    await BackupStore.reclaimFreeSpace(sparing: "nobody")
+                }
+            }
+            #expect(recovered)
+            #expect(FileManager.default.fileExists(atPath: facts.path))
+            #expect(Volume.keys(in: root).contains(newer))
+        }
+    }
+
     /// End to end through `save`: the disk is fine when the copy starts and
     /// falls under the floor while `ditto` runs. The older backup is deleted
     /// to make room and the new copy still lands.

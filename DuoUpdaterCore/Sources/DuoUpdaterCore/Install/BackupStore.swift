@@ -2380,6 +2380,11 @@ extension BackupStore {
     /// Bound like ``rootOverride``; production never binds it.
     @TaskLocal static var freeBytesOverride: (@Sendable () -> Int64?)?
 
+    /// Test seam: runs in ``reclaimFreeSpace(sparing:target:)`` after a key is
+    /// withheld from the transfer queue and before it is deleted — where a copy
+    /// to the disk that was under way has just finished. Production never binds it.
+    @TaskLocal static var reclaimAfterWithholdOverride: (@Sendable (String) -> Void)?
+
     /// Test seam: how often the copy is watched. Production reads half a second.
     @TaskLocal static var spaceWatchIntervalOverride: Duration?
 
@@ -2463,12 +2468,26 @@ extension BackupStore {
                     .map { (candidate, $0) }
             }
             .sorted { $0.meta.savedAt < $1.meta.savedAt }
-        for (victim, meta) in oldestFirst {
+        for (victim, listed) in oldestFirst {
             let dir = root.appendingPathComponent(victim, isDirectory: true)
             // Out of the transfer queue first, as Clean Up's delete does: a
             // copy of this backup to the disk that is under way would otherwise
             // end `.failed`, naming a backup that no longer exists.
             await BackupTransferQueue.shared.withhold([victim])
+            reclaimAfterWithholdOverride?(victim)
+            // Read again after the wait: a copy that was under way has since
+            // moved this backup to the disk and taken it off this Mac, which
+            // freed the space without losing it — and the facts it recorded
+            // describe the copy on the disk, so they must stay.
+            guard let meta = readMeta(in: dir) else {
+                await BackupTransferQueue.shared.release([victim])
+                Log.install.notice(
+                    "backup: \(listed.bundleName, privacy: .public) moved to the backup disk while space was being freed — kept")
+                guard let now = outboxFreeBytes() else { return true }
+                free = now
+                if free >= target { return true }
+                continue
+            }
             let removed = await offCooperativePool(qos: .userInitiated) {
                 removeClearingImmutableFlags(at: dir)
             }

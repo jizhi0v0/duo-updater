@@ -394,10 +394,13 @@ import Testing
     /// still holds.)
     ///
     /// The descriptor comes from the top of the table: descriptors are allocated
-    /// lowest-free, and the tests running beside this one keep up to ~565 open
-    /// with no gaps (sampled with `lsof` during `swift test`, 2026-10-09), so the
+    /// lowest-free (POSIX.1-2024 §2.6), and the tests running beside this one
+    /// keep up to ~700 open, at times with no gaps past 300 (sampled with `lsof`
+    /// during `swift test` on the dev Mac and on the mini, 2026-10-09), so the
     /// lowest closed one at 300 or above was sometimes the next one another
-    /// test's `open` got — between the pick and the fill. The fill then rightly
+    /// test's `open` got — between the pick and the fill. `dup2` accepts any
+    /// number below `getdtablesize()` (dup2(2)); in the mini's test process that
+    /// is 7168, although its shell's `ulimit -n` is 256. The fill then rightly
     /// left it alone, the check failed, and the `close` closed that test's file.
     /// It is closed only if it is the `/dev/null` this test put there.
     @Test func aClosedDescriptorIsPointedAtDevNull() throws {

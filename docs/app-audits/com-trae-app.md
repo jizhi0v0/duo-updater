@@ -2,7 +2,7 @@
 
 审计 2026-10-08（重测；2026-08-17 那版的结论是「官方 API 只发布 `2.3.x` 打包号、没有可比的远端版本」，
 当时成立，**现在不成立了**：官方 API 已经按平台、架构发布与包内 `CFBundleShortVersionString` 同构的版本号。
-同日按 A 接入 VendorProbe，见「覆盖矩阵」与「更新检测」。）
+同日按 A 接入 VendorProbe，见「覆盖矩阵」与「更新检测」。2026-10-09 补跑一键端到端两轮，见「一键安装」。）
 
 ## 基本信息
 - Bundle ID: `com.trae.app`（官网 GA 与 API 里 `tob` 段的构建都是这个 id，见下）
@@ -98,7 +98,7 @@
 |---|---|---|---|
 | 按设备灰度 / 按人分流 | 有：检查带 `uid=<quality>_<设备号>`；远端 `featureVersion/releaseBranch` 能换分支 | 匿名随机设备号：12/12 相同，没看到按设备分；登录后未验证 | — |
 | 按架构 / 按 OS 分轨 | 按架构：`apple` / `intel` 两个 dmg；按区域：4 个 CDN | 8 项同一版本；OS 下限 12.0 只在包里 | recipe 要按本机架构选 URL |
-| 自更新器会不会和我们抢 | 有自己的下载 / `quitAndInstall` 流程 | — | 会：同一个官网 dmg 来源可能被两边各装一次；一键第二轮未跑 |
+| 自更新器会不会和我们抢 | 有自己的下载 / `quitAndInstall` 流程 | — | 第二轮已跑（见「一键安装」）：app 运行中 duo 装上 3.5.104，退出后没有被换回 |
 
 ## Changelog
 - 来源: 无（`trae.ai/changelog` 是 JS 壳，`docs.trae.ai/ide/changelog` 停在 v3.5.89~3.5.91），没有 changelog recipe
@@ -111,7 +111,14 @@
 
 ## 一键安装
 - 状态: 支持（dmg，按架构分包，每个架构一条 recipe、各带 `hostRequirement`；安装 URL 也钉死本架构的文件名）
-- 端到端: 未跑
+- 端到端（2026-10-09，CLI 由当天 `origin/main` `make cli` 构建）: 旧版用上表 3.5.87 arm64 包，`ditto` 进 `/Applications`。
+  `duo check` → `Trae  3.5.87  →  3.5.104  [Vendor, in-place]`。
+  - 第一轮（不运行）: `duo install /Applications/Trae.app --yes --json` → `outcome installed`、`route vendor`、
+    `bytesDownloaded 414318607`。装后 3.5.104，`codesign --verify --deep --strict` 通过，Team `79M8227NKH`
+  - 第二轮（运行中）: 换回 3.5.87、启动，运行约一分钟后 `duo install` → 同样 `installed`、`route vendor`、同样字节数；
+    磁盘上 3.5.104，运行中的进程仍是旧 PID；`duo restart /Applications/Trae.app` → `restarted`，新 PID；
+    正常退出后仍是 3.5.104、strict 通过，`duo check --all` → `up to date`。Trae 自己的应用内检查给的是 3.5.87
+    （见「更新检测」B），推断它当时没有可暂存的更新；暂存目录没查
 - 格式: dmg，按架构分包（arm64 414,318,607 B）
 - 校验: API body 没有摘要字段；CDN 的 `etag` / `content-md5` 是 MD5（不支持的格式），只能靠 Team 闸
 - **读的是**: 官网下载按钮给的 GA（A），人人可手动下载，**超前于 Trae 应用内检查分配的版本**（3.5.104 对 3.5.87）。
@@ -129,7 +136,7 @@
 1. （已做）A：VendorProbe 读官网下载 API，每个架构一条 recipe、各带 `hostRequirement`，一键装官网 dmg（见上）。
    `VendorProbeRecipe.swift` 里两段过期的 TRAE 注释已改
 2. B 更贴近 Trae 自己的行为，但请求要带包内 `package.json` 的 `buildId`，现有 recipe 字段没有这个能力；不建议为它加机制
-3. 一键端到端（3.5.87 → 3.5.104）未跑
+3. （已做）一键端到端 3.5.87 → 3.5.104 两轮，见「一键安装」
 
 ## 如何复验
 
@@ -165,7 +172,7 @@ python3 -c 'import json; p=json.load(open("<Trae.app>/Contents/Resources/app/pac
 
 三个包 `codesign --verify --deep --strict` 退出 0，`spctl` `accepted`（`source=Notarized Developer ID`）。
 
-**一键端到端预备:** 上一版用上表第二行的 3.5.87 arm64 包（接入 A 后它会被推 3.5.104）；端到端未跑。
+**一键端到端:** 上一版用上表第二行的 3.5.87 arm64 包（接入 A 后它被推 3.5.104），2026-10-09 两轮跑通，见「一键安装」。
 
 ## 重审更正（相对 2026-08-17 版）
 - 「网络响应不发布 `appVersion`」：现在发布了（`versions[].version`，与真包逐字相同）；Trae 自己的检查响应也带

@@ -47,7 +47,7 @@
   `kPreferenceKeyCheckForTestReleases`（`sources/Settings/iTermPreferences.m`：键名 `CheckTestRelease`，默认 `@NO`），
   YES 取 `SUFeedURLForTesting`、NO 取 `SUFeedURLForFinal`，追加 `?shard=<0..99>` 后**写进 app 自己的 user defaults 的
   `SUFeedURL`**，Sparkle 从那里读，盖过 Info.plist。启动时调一次，`CheckTestRelease` 变化时再调。
-- 设置界面：Settings → General 的 test release 复选框（`GeneralPreferencesViewController.m` `_checkTestRelease`，
+- 设置界面：Settings → General 的 test release 复选框，3.7.3 界面文字是 “Update to Beta test releases”（`PreferencePanel.nib`）（`GeneralPreferencesViewController.m` `_checkTestRelease`，
   绑定同一个键）；nightly 构建上该复选框禁用，并显示「nightly 不能更新到 beta/release」的提示。
 - 存储位置：`iTermUserDefaults.userDefaults` = `NSUserDefaults.standardUserDefaults`，即 CFPrefs 域
   `com.googlecode.iterm2`。例外：用 `-suite <name>` 参数启动时改用该 suite（`sources/AppKit/main.m`），属非常规用法。

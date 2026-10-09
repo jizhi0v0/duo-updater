@@ -4151,11 +4151,6 @@ final class AppListModel {
         return String(localized: "Upgrading… (\(current)/\(brewUpgradeTotal))")
     }
 
-    /// Fetch a formula's release notes once, on first selection. Idempotent for a
-    /// given version: a loaded/loading entry for that same version is left alone, so
-    /// reselecting renders the cache instantly. A DIFFERENT version re-fetches — the
-    /// caller must pass the version it is about to render, or the pane shows notes
-    /// for a version it is no longer displaying.
     /// The releases `update` would bring (`HomebrewReleaseNotes.relevant`). The
     /// fetched list is reused until it lacks the release on offer — a newer
     /// Homebrew found by a later check re-fetches it — or `force` (Try Again).
@@ -4169,6 +4164,11 @@ final class AppListModel {
         return HomebrewReleaseNotes.relevant(changelog, for: update)
     }
 
+    /// Fetch a formula's release notes once, on first selection. Idempotent for a
+    /// given version: a loaded/loading entry for that same version is left alone, so
+    /// reselecting renders the cache instantly. A DIFFERENT version re-fetches — the
+    /// caller must pass the version it is about to render, or the pane shows notes
+    /// for a version it is no longer displaying.
     func ensureFormulaReleaseLoading(name: String, version: String) {
         guard formulaReleases.claim(name: name, version: version) else { return }
         Task {

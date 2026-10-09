@@ -658,11 +658,16 @@ public enum BackupStore {
         // status for the whole run, so a non-zero exit is only acceptable once we
         // have confirmed the ONLY things it dropped are the ones we meant to drop.
         // Asked before the copy rather than discovered by it: a full startup
-        // disk breaks far more than this backup. Logical size: `ditto` keeps a
-        // compressed file compressed and compresses nothing new (its man page:
-        // `--preserveHFSCompression` and `--nohfsCompression` are the
-        // defaults), so the copy's data is at most this. Each file's last
-        // block is not counted, which the floor's margin absorbs.
+        // disk breaks far more than this backup.
+        //
+        // What is being reserved is not the copy itself. On the boot volume
+        // `ditto` clones: copying Postman.app (475 MB logical) took 4-5 MB of
+        // free space, against 507 MB with `--noclone` (measured twice each,
+        // 2026-10-09). The cost arrives when the update replaces the original
+        // and the backup keeps the old blocks from being freed — about the
+        // app's full size. That is what the logical size stands for; the
+        // last-block and metadata overhead beyond it (~7% in that
+        // measurement) falls inside the floor's margin.
         let estimate = unreadable.bytes
         if let shortfall = spaceShortfall(forCopyOf: estimate) {
             Log.install.error(

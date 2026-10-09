@@ -89,32 +89,12 @@ public struct AtuinRelease: Sendable {
     /// The highest semver among the feed's `…/v<version></id>` entries.
     static func newest(inFeed data: Data) -> String? {
         let text = String(decoding: data, as: UTF8.self)
-        guard let regex = try? NSRegularExpression(pattern: feedEntryID)
+        guard let regex = try? NSRegularExpression(pattern: #"<id>tag:github\.com,2008:Repository/\d+/v([^<]+)</id>"#)
         else { return nil }
         let versions = regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { match in
             Range(match.range(at: 1), in: text).map { String(text[$0]) }
         }
         return versions.filter(isVersion).max { compare($0, $1) == .orderedAscending }
-    }
-
-    /// A feed entry's id: `…/v<version>`, the version captured. A tag without
-    /// the `v` is not a release of this scheme and does not match.
-    static let feedEntryID = #"<id>tag:github\.com,2008:Repository/\d+/v([^<]+)</id>"#
-
-    /// Version → the UTC day of the entry's `<updated>` (the release's
-    /// `updated_at`), for the release notes' dates (`AtuinChangelog.dated`).
-    static func days(inFeed data: Data) -> [String: String] {
-        let text = String(decoding: data, as: UTF8.self)
-        guard let regex = try? NSRegularExpression(pattern: feedEntryID + #"\s*<updated>([^<]+)</updated>"#)
-        else { return [:] }
-        var days: [String: String] = [:]
-        for match in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
-            guard let version = Range(match.range(at: 1), in: text).map({ String(text[$0]) }), isVersion(version),
-                  let day = StructuredChangelogDecoder.isoDay(Range(match.range(at: 2), in: text).map { String(text[$0]) })
-            else { continue }
-            days[version] = day
-        }
-        return days
     }
 
     /// `18.23.0`, `18.20.0-beta.3`: semver. Also what keeps a version safe in a

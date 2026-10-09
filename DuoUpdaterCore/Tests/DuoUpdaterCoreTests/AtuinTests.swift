@@ -475,12 +475,12 @@ import CryptoKit
         #expect(!entry.items.contains { $0.contains("All notable changes") })
     }
 
-    /// The changelog has no dates; each entry takes the UTC day of its
-    /// release's `<updated>` in `releases.atom`, by id `…/v<version>`. A bare
-    /// tag (no `v`) dates nothing, and a version the ten entries do not reach
-    /// keeps none. The feed is the shape of the real one (2026-10-09), cut to
-    /// the elements read around them. Mutations: no `dated` (entries stay
-    /// undated); the date from the wrong capture group; the `v` made optional.
+    /// The changelog has no dates; each entry takes its release's
+    /// `published_at` day from the Releases API list, by tag `v<version>`. A
+    /// draft is not a release, and a version the list does not reach keeps
+    /// none. The list is the shape of the API's (2026-10-09), cut to the fields
+    /// read. Mutations: no `dated` (entries stay undated); drop the draft filter;
+    /// match the tag without its `v`.
     @Test func releaseNotesTakeTheirDatesFromTheReleases() throws {
         let markdown = """
             # Changelog
@@ -497,38 +497,25 @@ import CryptoKit
 
             - An old one
             """
-        let feed = Data("""
-            <?xml version="1.0" encoding="UTF-8"?>
-            <feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/" xml:lang="en-US">
-              <id>tag:github.com,2008:https://github.com/atuinsh/atuin/releases</id>
-              <updated>2026-09-21T23:48:32Z</updated>
-              <entry>
-                <id>tag:github.com,2008:Repository/301244405/v18.23.0</id>
-                <updated>2026-09-22T02:17:22Z</updated>
-                <link rel="alternate" type="text/html" href="https://github.com/atuinsh/atuin/releases/tag/v18.23.0"/>
-                <title>v18.23.0</title>
-              </entry>
-              <entry>
-                <id>tag:github.com,2008:Repository/301244405/v18.22.0</id>
-                <updated>2026-09-09T22:23:18Z</updated>
-                <title>v18.22.0</title>
-              </entry>
-              <entry>
-                <id>tag:github.com,2008:Repository/301244405/18.0.0</id>
-                <updated>2024-01-01T00:00:00Z</updated>
-                <title>18.0.0</title>
-              </entry>
-            </feed>
+        let releases = Data("""
+            [
+              {"tag_name": "v18.24.0", "draft": true, "prerelease": false, "published_at": null},
+              {"tag_name": "v18.23.0", "draft": false, "prerelease": false, "published_at": "2026-09-22T00:11:47Z"},
+              {"tag_name": "v18.22.0", "draft": false, "prerelease": false, "published_at": "2026-09-09T22:23:18Z"},
+              {"tag_name": "18.0.0", "draft": false, "prerelease": false, "published_at": "2024-01-01T00:00:00Z"}
+            ]
             """.utf8)
-        let log = AtuinChangelog.dated(try #require(AtuinChangelog.parse(markdown)), feed: feed)
+        let log = AtuinChangelog.dated(try #require(AtuinChangelog.parse(markdown)), releases: releases)
         #expect(log.entries.map(\.version) == ["18.23.0", "18.22.0", "18.0.0"])
         #expect(log.entries.map(\.date) == ["2026-09-22", "2026-09-09", nil])
         #expect(log.itemSyntax == .markdown)
         #expect(log.entries[0].items == ["Add easy config shortcuts ([#4213](https://github.com/atuinsh/atuin/issues/4213))"])
 
-        // An answer that is not the feed (an error page) dates nothing and keeps the notes.
+        let draft = Data(#"[{"tag_name": "v18.23.0", "draft": true, "published_at": "2026-09-20T00:00:00Z"}]"#.utf8)
+        #expect(AtuinChangelog.publishedDays(draft).isEmpty)
+        // An answer that is not a list (an error body) dates nothing and keeps the notes.
         let undated = AtuinChangelog.dated(try #require(AtuinChangelog.parse(markdown)),
-                                           feed: Data("<html>Too many requests</html>".utf8))
+                                           releases: Data(#"{"message": "API rate limit exceeded"}"#.utf8))
         #expect(undated.entries.map(\.date) == [nil, nil, nil])
         #expect(undated.entries.count == 3)
     }

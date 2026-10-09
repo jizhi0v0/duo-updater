@@ -285,6 +285,15 @@ struct WorkbenchWindowView: View {
         return model.brewAppLessCaskLifecycles.first { $0.token == token }
     }
 
+    /// The Homebrew self-update row's selection tag. Under `brew:`, so it counts
+    /// as one of the Homebrew group's rows (`isHomebrewRow`).
+    static let homebrewSelfUpdateTag = "brew:self-update"
+
+    /// The Homebrew update on offer, when its row is the selection.
+    private var selectedHomebrewSelfUpdate: HomebrewSelfUpdate? {
+        detailSelection == Self.homebrewSelfUpdateTag ? model.homebrewSelfUpdate : nil
+    }
+
     /// The command-line tool install selected, when the selection is one of those
     /// rows (tagged `<kind>:<install path>`, `CLIToolID.tag`).
     private var selectedCLITool: CLIToolStatus? {
@@ -310,6 +319,9 @@ struct WorkbenchWindowView: View {
             } else if let cask = selectedLifecycleCask {
                 BrewLifecycleCaskDetailPane(cask: cask)
                     .id("brew:cask:\(cask.token)")
+            } else if let update = selectedHomebrewSelfUpdate {
+                HomebrewSelfUpdateDetailPane(update: update, model: model)
+                    .id(Self.homebrewSelfUpdateTag)
             } else if let status = selectedCLITool {
                 Group {
                     if case .claudeCode(let claudeCode) = status.detail {
@@ -795,7 +807,8 @@ struct WorkbenchWindowView: View {
             // In the order `cliListView` draws them; a closed Homebrew group has no
             // rows to select.
             let brewIDs = homebrewExpanded(lists)
-                ? lists.brewCasks.map(\.id)
+                ? (lists.homebrewSelfUpdate == nil ? [] : [Self.homebrewSelfUpdateTag])
+                    + lists.brewCasks.map(\.id)
                     + lists.brewFormulae.map { "brew:formula:\($0.name)" }
                     + lists.brewLifecycleCasks.map { "brew:cask:\($0.token)" }
                     + lists.brewUnchecked.map { "brew:unchecked:\($0.id)" }
@@ -1201,9 +1214,12 @@ struct WorkbenchWindowView: View {
                             .selectionDisabled()
                         if brewExpanded {
                             if let update = lists.homebrewSelfUpdate {
-                                HomebrewSelfUpdateSidebarRow(update: update, model: model)
-                                    // Nothing to show in the detail pane for Homebrew itself.
-                                    .selectionDisabled()
+                                // Selecting it opens Homebrew's release notes
+                                // (`HomebrewSelfUpdateDetailPane`).
+                                HomebrewSelfUpdateSidebarRow(
+                                    update: update, model: model,
+                                    isSelected: selection == Self.homebrewSelfUpdateTag)
+                                    .tag(Self.homebrewSelfUpdateTag)
                             }
                             ForEach(lists.brewCasks) { result in
                                 WorkbenchSidebarRow(
@@ -1724,6 +1740,9 @@ private struct BrewFormulaSidebarRow: View {
 private struct HomebrewSelfUpdateSidebarRow: View {
     let update: HomebrewSelfUpdate
     @Bindable var model: AppListModel
+    /// Selected, the prominent button would be the selection's own fill
+    /// (`rowUpdateButtonStyle`).
+    var isSelected = false
 
     /// brew holds one global lock, so `brew update` can't start while an upgrade runs.
     private var brewBusy: Bool { model.brewUpgrading || !model.upgradingFormulae.isEmpty }
@@ -1752,12 +1771,102 @@ private struct HomebrewSelfUpdateSidebarRow: View {
             } else {
                 Button("Update") { Task { await model.updateHomebrew() } }
                     .controlSize(.small)
-                    .buttonStyle(.borderedProminent)
+                    .rowUpdateButtonStyle(selected: isSelected)
                     .disabled(brewBusy)
                     .help("Runs `brew update`, which updates Homebrew and refreshes its package lists using your own Homebrew settings.")
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// The self-update row's detail: Homebrew's release notes for the versions the
+/// offered `brew update` brings (`HomebrewReleaseNotes`), drawn by the view every
+/// other changelog uses. Loaded as `CLIToolReleaseNotesView` loads a tool's.
+private struct HomebrewSelfUpdateDetailPane: View {
+    let update: HomebrewSelfUpdate
+    @Bindable var model: AppListModel
+
+    private enum LoadState {
+        case loading
+        case loaded(Changelog?)
+        case failed(String)
+    }
+    @State private var state: LoadState = .loading
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+            Divider()
+            notes
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Keyed on both versions: a check that finds a newer Homebrew, or an
+        // update that moves the installed one, re-cuts the notes.
+        .task(id: "\(update.installed)|\(update.latest)") { await load(force: false) }
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "mug")
+                .font(.system(size: 26))
+                .frame(width: 44, height: 44)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: "Homebrew").font(.title2).fontWeight(.semibold)
+                Text("\(update.installed) → \(update.latest)")
+                    .font(.callout).foregroundStyle(.tint)
+            }
+            Spacer()
+        }
+        .padding(16)
+    }
+
+    @ViewBuilder
+    private var notes: some View {
+        switch state {
+        case .loading:
+            ProgressView().controlSize(.small)
+        case .loaded(let changelog?):
+            ChangelogEntriesView(changelog: changelog)
+        case .loaded(nil):
+            ContentUnavailableView {
+                Label("No release notes", systemImage: "doc.text.magnifyingglass")
+            } description: {
+                Text("\("Homebrew")’s release notes have no section for these versions yet.")
+            }
+        case .failed(let message):
+            VStack(spacing: 10) {
+                Image(systemName: "wifi.exclamationmark")
+                    .font(.system(size: 26))
+                    .foregroundStyle(.tertiary)
+                Text("Couldn't load the release notes")
+                    .font(.callout)
+                Text(verbatim: message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 30)
+                Button("Try Again") { Task { await load(force: true) } }
+                    .font(.callout)
+            }
+        }
+    }
+
+    private func load(force: Bool) async {
+        if force { state = .loading }
+        do {
+            state = .loaded(try await model.homebrewReleaseNotes(for: update, force: force))
+        } catch CLIToolReleaseNotesError.http(let status) {
+            state = .failed(String(localized: "The server answered HTTP \(status)."))
+        } catch CLIToolReleaseNotesError.rateLimited {
+            state = .failed(String(localized: "Hitting GitHub’s rate limit"))
+        } catch CLIToolReleaseNotesError.noSections {
+            state = .failed(String(localized: "The file loaded but carried no release sections."))
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
     }
 }
 

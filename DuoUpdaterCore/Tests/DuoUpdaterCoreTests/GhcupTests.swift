@@ -403,4 +403,45 @@ import Foundation
         #expect(log.entries[1].content.contains(.heading("Other bugfixes")))
         #expect(log.entries[0].items.first?.hasPrefix("Fix X.Y symlinks") == true)
     }
+
+    /// A sub-bullet stays under its bullet where the workbench draws it: each
+    /// entry carries its section as `markdown`, whose blocks put #1365's
+    /// `ghcup fixup symlinks` advice at depth 2 rather than as a change of its
+    /// own. A link with a commit hash in it (0.1.19.0's) is kept. Mutations: no
+    /// `markdown` (the flat items are drawn); `renderableMarkdown` instead of
+    /// the section as written.
+    @Test func releaseNotesKeepASubBulletUnderItsBullet() throws {
+        let markdown = """
+            # Version history for ghcup
+
+            ## 0.2.6.2 -- 2026-06-16
+
+            * Fix X.Y symlinks wrt [#1365](https://github.com/haskell/ghcup-hs/issues/1365)
+              - you may want to run `ghcup fixup symlinks` if you are affected
+            * Introduce `ghcup fixup` [#1369](https://github.com/haskell/ghcup-hs/issues/1369)
+
+            ## 0.1.19.0 -- 2023-1-13
+
+            * Add content-length property to downloads
+            * [Fix a grave bug on armv7](https://github.com/haskell/ghcup-hs/commit/78ee956df2618862f421178a565c82548ff7e578) during installation wrt [#415](https://github.com/haskell/ghcup-hs/issues/415)
+            """
+        let log = try #require(GhcupChangelog.parse(markdown))
+        func drawn(_ entry: Changelog.Entry) -> [String] {
+            ChangelogMarkdown.blocks(from: entry.markdown ?? "").map { block in
+                guard case .listItem(let depth, _) = block.kind else { return "?" }
+                return "\(depth) \(String(block.text.characters))"
+            }
+        }
+        #expect(drawn(log.entries[0]) == [
+            "1 Fix X.Y symlinks wrt #1365",
+            "2 you may want to run ghcup fixup symlinks if you are affected",
+            "1 Introduce ghcup fixup #1369",
+        ])
+        #expect(drawn(log.entries[1]) == [
+            "1 Add content-length property to downloads",
+            "1 Fix a grave bug on armv7 during installation wrt #415",
+        ])
+        // The flat reading for text-only readers is unchanged.
+        #expect(log.entries[0].items.count == 3)
+    }
 }

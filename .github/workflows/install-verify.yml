@@ -1,0 +1,88 @@
+# Download every installer the recipes resolve and check it the way an install
+# would — `duo verify-install`.
+#
+# `duo verify` (the recipe sweep, on the mini) stops at the installer's URL, so a
+# fault only the bytes show never reaches it: WorkBuddy CN shipped every build
+# from 5.5.4 under a new bundle id and the sweep stayed green for three weeks
+# (#1030). Downloading every installer is traffic that is free here and metered
+# on the mini — hence a hosted runner.
+#
+# Dispatch only, and it only reports, for now: the first runs are to measure how
+# big and how slow a full pass is, how low the disk gets, and which vendors refuse
+# a download from a US data centre. Comparing against earlier runs, filing issues
+# and a schedule come after that.
+#
+# Same rules as ci.yml: hosted runner, no secrets (GITHUB_TOKEN only lifts the
+# GitHub API rate limit), actions pinned by SHA, read-only.
+name: Install verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Only recipes whose bundle id or recipe id contains this (comma-separated). Empty: all."
+        required: false
+        default: ""
+      concurrency:
+        description: "Hosts downloaded from in parallel"
+        required: false
+        default: "3"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: install-verify
+  cancel-in-progress: false
+
+jobs:
+  verify-install:
+    runs-on: xcode-27
+    timeout-minutes: 340
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Toolchain and disk
+        run: |
+          xcodebuild -version
+          swift --version
+          df -h "$TMPDIR" /
+
+      # A plain debug build: nothing here needs a signed `duo`, and the work is
+      # network-bound, so the optimiser buys nothing.
+      - name: Build duo
+        run: swift build --package-path CLI --product duo
+
+      # `--allow-stale-binary`: the binary was built from this checkout two steps
+      # up; there is just no `build-cli.sh` stamp beside it to say so.
+      - name: duo verify-install
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ONLY: ${{ inputs.only }}
+          CONCURRENCY: ${{ inputs.concurrency }}
+        run: |
+          args=(verify-install --allow-stale-binary
+                --max-concurrency "${CONCURRENCY:-3}"
+                --report verify-install.json --markdown verify-install.md)
+          if [ -n "$ONLY" ]; then args+=(--only "$ONLY"); fi
+          set +e
+          scripts/run-with-hang-report.sh 19800 CLI/.build/debug/duo "${args[@]}"
+          status=$?
+          df -h "$TMPDIR" /
+          exit $status
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f verify-install.md ]; then cat verify-install.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verify-install
+          path: |
+            verify-install.json
+            verify-install.md
+          if-no-files-found: ignore

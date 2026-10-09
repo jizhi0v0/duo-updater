@@ -511,7 +511,7 @@ public actor PackageInstaller {
     }
 
     /// `nonisolated`, like the helpers it reaches (`verifyOpenable`,
-    /// `packageSignature`, `runCapturingOutput`, `run`, `resolveInstaller`): all of
+    /// `packageSignature`, `run`, `resolveInstaller`): all of
     /// them read only `let` state, and a `nonisolated async` function runs off
     /// this actor, so the actor is free while their child processes run. The
     /// actor was never the thing ordering these anyway — `handOver` already
@@ -1147,9 +1147,9 @@ public actor PackageInstaller {
         component.lowercased().hasSuffix(".app")
     }
 
-    /// `runCapturingOutput`, but usable from the static helpers above and able to
-    /// run in a working directory (`xar -xf` extracts relative to cwd). stdout and
-    /// stderr share one pipe, as they did.
+    /// A child's exit status and output, usable from the static helpers above and
+    /// able to run in a working directory (`xar -xf` extracts relative to cwd).
+    /// stdout and stderr share one pipe.
     ///
     /// `.runToCompletion`, like every child on this route, including the reads:
     /// these answers feed a fail-closed gate, and a `xar` killed by a cancellation
@@ -1295,9 +1295,14 @@ public actor PackageInstaller {
     /// `pkgutil --check-signature` validates the package chain and prints the
     /// Developer ID Installer certificate, whose parenthesized OU is the Team ID.
     private nonisolated func packageSignature(_ pkg: URL) async -> (isValid: Bool, teamIdentifier: String?) {
-        let result = await runCapturingOutput("/usr/sbin/pkgutil", ["--check-signature", pkg.path])
+        await Self.packageSignature(of: pkg)
+    }
+
+    /// The same check with no instance to hang it on, for `ArtifactInspection`.
+    static func packageSignature(of pkg: URL) async -> (isValid: Bool, teamIdentifier: String?) {
+        let result = await runCapturing("/usr/sbin/pkgutil", ["--check-signature", pkg.path])
         guard result.code == 0 else { return (false, nil) }
-        return (true, Self.packageTeamIdentifier(fromPkgutilOutput: result.output))
+        return (true, packageTeamIdentifier(fromPkgutilOutput: result.output))
     }
 
     /// Pick a package only when the answer is unambiguous. A single package needs
@@ -1373,11 +1378,6 @@ public actor PackageInstaller {
             standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion)
         else { return -1 }
         return outcome.terminationStatus
-    }
-
-    @discardableResult
-    private nonisolated func runCapturingOutput(_ launchPath: String, _ args: [String]) async -> (code: Int32, output: String) {
-        await Self.runCapturing(launchPath, args)
     }
 
     static func packageTeamIdentifier(fromPkgutilOutput output: String) -> String? {

@@ -36,6 +36,9 @@ commands:
                 into jq or anything that draws.
   verify        Sweep the recipes against their live endpoints and report the
                 ones that can no longer do their job.
+  verify-install
+                Download every installer the recipes resolve and check it the
+                way an install would, without installing anything.
   diff          What changed between two releases of an app, below the version
                 number: signing, entitlements, helpers, files, source paths,
                 localization, Electron packages.
@@ -240,6 +243,23 @@ verify options:
   --source-digest     Print what the sources in this checkout hash to and exit.
                       What `scripts/build-cli.sh` records beside the binary so
                       the check above has something to compare against.
+
+verify-install options:
+  --only <text>       Restrict to recipes whose bundle id or recipe id contains
+                      <text>. Comma-separated for several. Without it every
+                      vendor recipe and GitHub rule with an installer is
+                      downloaded — every one of them; meant for a hosted runner.
+  --report <path>     Write the results as JSON.
+  --markdown <path>   Write a summary as Markdown.
+  --max-concurrency N Hosts downloaded from in parallel (default 3). One
+                      download at a time per host, each deleted once read.
+  --allow-stale-binary
+                      As for verify.
+
+  Each download goes through the install route's own steps — published
+  digests, unpacking, code signature — and is reported with the identity the
+  install gates would compare against an installed copy: bundle id, Team ID,
+  architectures, OS floor. Nothing is installed, and nothing installed is read.
 
 diff options:
   <old> <new>         Two releases, each an .app, .zip, .dmg or .pkg. Archives are
@@ -541,6 +561,21 @@ case "verify":
     options.jsonPath = args.value("report").map { URL(fileURLWithPath: $0) }
     options.markdownPath = args.value("markdown").map { URL(fileURLWithPath: $0) }
     run = { await Verify.run(options) }
+
+case "verify-install":
+    var options = InstallVerifyOptions()
+    options.only = (args.value("only") ?? "")
+        .split(separator: ",")
+        .map { $0.trimmingCharacters(in: .whitespaces) }
+        .filter { !$0.isEmpty }
+    options.allowStaleBinary = args.has("allow-stale-binary")
+    if let concurrency = args.int("max-concurrency") {
+        options.hostConcurrency = max(1, concurrency)
+    }
+    options.jsonPath = args.value("report").map { URL(fileURLWithPath: $0) }
+    options.markdownPath = args.value("markdown").map { URL(fileURLWithPath: $0) }
+    let installVerifyOptions = options
+    run = { await InstallVerify.run(installVerifyOptions) }
 
 case "triage":
     guard let report = args.value("report"), let out = args.value("out") else {

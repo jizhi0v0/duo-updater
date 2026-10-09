@@ -362,7 +362,11 @@ Two things it deliberately refuses rather than half-doing:
 sweep every hand-written recipe — and every Sparkle feed address we hand out for
 an app whose own bundle does not state one — against its live endpoint, ask a
 model why a broken one broke, and turn the result into issues. That is what the nightly
-check runs; they are not needed for ordinary use.
+check runs; they are not needed for ordinary use. `duo verify-install` is the half the
+sweep cannot see: it downloads every installer those recipes resolve and checks it the
+way an install would — published digests, unpacking, code signature, and the bundle id
+and Team ID the install gates compare — without installing anything. It runs on a
+hosted runner (`.github/workflows/install-verify.yml`), where that traffic is free.
 
 ## Project layout
 

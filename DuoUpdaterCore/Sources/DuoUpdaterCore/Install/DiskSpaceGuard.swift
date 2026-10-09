@@ -5,16 +5,20 @@ import Foundation
 /// An install writes to the boot volume twice before anything is swapped — the
 /// downloaded archive and the bundle unpacked from it, both in the temporary
 /// directory — and when a rollback point was taken, the old version's blocks
-/// stay held by it after the swap instead of being freed: the backup is an
-/// APFS clone that costs nothing until the original is replaced. Several
+/// stay held by it after the swap instead of being freed. With the app on the
+/// outbox's APFS volume the backup is a clone that costs almost nothing until
+/// the original is replaced; an app on another volume was copied in full when
+/// the backup was taken, and holds nothing extra here afterwards. Several
 /// installs run at once (`InstallPermits`), so a check that only looked at
 /// free space would let four of them see the same figure and all decide there
 /// was room.
 ///
-/// The floor is the backups' one, ``BackupStore/freeSpaceFloorBytes``, read
-/// on the same volume: the outbox and the temporary directory are both on the
-/// boot volume. An app installed on another disk is still measured here, which
-/// over-reserves for it and never under-reserves.
+/// The floor is the backups' one, ``BackupStore/freeSpaceFloorBytes``, and
+/// it is read on the outbox's volume only. That is the volume that matters
+/// when the temporary directory is on it too — the per-user one under
+/// /var/folders and the outbox under the home folder are both on the Data
+/// volume of a standard install. A home folder moved to another disk would
+/// leave the temporary directory unwatched; nothing here checks for that.
 ///
 /// Three points, in order:
 /// 1. **Before anything is fetched** an install reserves what it is expected
@@ -56,8 +60,10 @@ public enum DiskSpaceGuard {
     /// on this Mac and will hold the old blocks after the swap.
     ///
     /// The installed bundle stands in for the new one because nothing else is
-    /// known before the fetch; an archive is never larger than what it
-    /// unpacks to, so counting it at full size errs high.
+    /// known before the fetch, and the archive is counted at the same size. A
+    /// compressed zip or DMG is smaller than what it unpacks to, so that errs
+    /// high; an uncompressed or padded image can be larger, and the floor's
+    /// margin is what covers it.
     static func estimate(for app: InstalledApp) async -> (total: Int64, toApply: Int64) {
         let path = app.path
         let size = await offCooperativePool(qos: .userInitiated) {

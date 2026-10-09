@@ -435,7 +435,8 @@ public actor InstallCoordinator {
                 throw CoordinatorError.routeNotSupportedHere(.xcode)
             }
             return try await fetchThenSwap(
-                result, progress: progress, releaseAfterDownload: releaseAfterDownload,
+                result, spaceToApply: 0,
+                progress: progress, releaseAfterDownload: releaseAfterDownload,
                 download: { try await XcodeInstaller.download($0, using: downloader, onStage: $1) },
                 apply: { try await XcodeInstaller.apply($0, download: $1, onStage: $2) })
 
@@ -487,7 +488,8 @@ public actor InstallCoordinator {
         case .vendor:
             do {
                 return try await fetchThenSwap(
-                    result, progress: progress, releaseAfterDownload: releaseAfterDownload,
+                    result, spaceToApply: spaceToApply,
+                    progress: progress, releaseAfterDownload: releaseAfterDownload,
                     download: {
                         try await self.vendor.download(
                             $0, preferDelta: true,
@@ -518,7 +520,8 @@ public actor InstallCoordinator {
         case .sparkle:
             do {
                 return try await fetchThenSwap(
-                    result, progress: progress, releaseAfterDownload: releaseAfterDownload,
+                    result, spaceToApply: spaceToApply,
+                    progress: progress, releaseAfterDownload: releaseAfterDownload,
                     download: {
                         try await self.sparkle.download($0, preferDelta: true, onStage: $1)
                     },
@@ -613,10 +616,12 @@ public actor InstallCoordinator {
     ///
     /// `spaceToApply` is what the swap still needs once the archive is down —
     /// see `DiskSpaceGuard`. Zero skips both space checks here, which is what
-    /// the `.xcode` route passes; its installer sizes the job itself.
+    /// the `.xcode` route passes; its installer sizes the job itself. No
+    /// default: a call site that forgot it would silently run unguarded,
+    /// which is how the first attempt of `.sparkle` and `.vendor` once did.
     func fetchThenSwap(
         _ result: UpdateResult,
-        spaceToApply: Int64 = 0,
+        spaceToApply: Int64,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void,
         download: @escaping @Sendable (UpdateResult, @Sendable @escaping (InstallStage) -> Void) async throws -> DownloadedUpdate,
@@ -629,6 +634,9 @@ public actor InstallCoordinator {
         progress(.downloading(fraction: 0))
         Log.install.debug("\(label, privacy: .public): waiting for a download permit")
         let backupKey = BackupStore.key(bundleID: result.app.bundleID, path: result.app.path)
+        if spaceToApply > 0 {
+            Log.install.notice("disk space: \(label, privacy: .public) watched while downloading, \(spaceToApply, privacy: .public) bytes checked before its swap")
+        }
         let downloaded = try await permits.withDownloadPermit {
             try Task.checkCancellation()
             guard spaceToApply > 0 else { return try await download(result, progress) }

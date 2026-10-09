@@ -163,7 +163,7 @@ import Testing
             runningProcesses: { [Self.blockingMachine()] })
         await #expect(throws: NestedAppRunningError.self) {
             _ = try await coordinator.fetchThenSwap(
-                Self.result(), progress: { _ in }, releaseAfterDownload: {},
+                Self.result(), spaceToApply: 0, progress: { _ in }, releaseAfterDownload: {},
                 download: { _, _ in
                     downloads.bump()
                     throw ZZApplied()
@@ -188,7 +188,7 @@ import Testing
             runningProcesses: { started.value ? [Self.blockingMachine()] : [] })
         await #expect(throws: NestedAppRunningError.self) {
             _ = try await coordinator.fetchThenSwap(
-                Self.result(), progress: { _ in }, releaseAfterDownload: {},
+                Self.result(), spaceToApply: 0, progress: { _ in }, releaseAfterDownload: {},
                 download: { _, _ in
                     started.set()
                     return DownloadedUpdate(
@@ -210,7 +210,7 @@ import Testing
         let coordinator = InstallCoordinator(
             permits: InstallPermits(downloads: 1, applies: 1), runningProcesses: { [] })
         _ = try await coordinator.fetchThenSwap(
-            Self.result(), progress: { _ in }, releaseAfterDownload: {},
+            Self.result(), spaceToApply: 0, progress: { _ in }, releaseAfterDownload: {},
             download: { _, _ in
                 DownloadedUpdate(
                     archiveURL: workDir.appendingPathComponent("ZZFixture.zip"),

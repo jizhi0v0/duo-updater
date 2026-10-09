@@ -52,7 +52,7 @@ import Testing
         let coordinator = InstallCoordinator(permits: InstallPermits(downloads: 1, applies: 1))
         let archive = workDir.appendingPathComponent("ZZFixture.zip")
         return try await coordinator.fetchThenSwap(
-            Self.result(), progress: { _ in }, releaseAfterDownload: {},
+            Self.result(), spaceToApply: 0, progress: { _ in }, releaseAfterDownload: {},
             download: { _, _ in
                 if cancelDuringDownload { withUnsafeCurrentTask { $0?.cancel() } }
                 return DownloadedUpdate(archiveURL: archive, bytesDownloaded: 1, workDir: workDir)

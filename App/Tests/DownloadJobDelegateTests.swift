@@ -45,6 +45,19 @@ struct DownloadJobDelegateTests {
         #expect(AppleDeveloperSessionRenewer().responds(to: NSSelectorFromString("webView:didFinishNavigation:")))
     }
 
+    /// The renewal's log trail: a method that only nearly matches is never
+    /// called, and its event silently drops out of the trail.
+    @Test(arguments: [
+        "webView:didReceiveServerRedirectForProvisionalNavigation:",
+        "webView:didCommitNavigation:",
+        "webView:didFailNavigation:withError:",
+        "webView:didFailProvisionalNavigation:withError:",
+        "webViewWebContentProcessDidTerminate:",
+    ])
+    func theSilentRenewalTrailAnswers(_ selector: String) {
+        #expect(AppleDeveloperSessionRenewer().responds(to: NSSelectorFromString(selector)))
+    }
+
     /// The sign-in window closes on the developer site's commit, falling back
     /// to its finish; either one missing silently brings back the wait, or the
     /// window that never closes.

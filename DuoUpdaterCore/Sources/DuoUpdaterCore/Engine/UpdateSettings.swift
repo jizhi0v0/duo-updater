@@ -207,6 +207,23 @@ public struct UpdateSettings: Sendable {
     /// the same update archived two different ways depending on who ran it.
     public static let backupCompressionDefault: BundleArchive.Compression = .fast
 
+    public static let keepBackupsKey = "KeepBackups"
+    /// Set by the welcome window's Get Started button.
+    public static let hasCompletedOnboardingKey = "hasCompletedOnboarding"
+
+    /// Whether to take a rollback point before each update, as the app and the
+    /// CLI both read it.
+    ///
+    /// Off unless chosen: a new user opts in from the welcome window. A Mac
+    /// that finished onboarding before that choice existed never saw it, and
+    /// has had backups on all along — so an absent key reads as on there, and
+    /// as off everywhere else. The app writes the answer on launch, which pins
+    /// it; this rule is for the CLI run before that, and for the first launch.
+    public static func keepBackups(in defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: keepBackupsKey) as? Bool
+            ?? defaults.bool(forKey: hasCompletedOnboardingKey)
+    }
+
     public init(
         appStoreUpdateStrategy: AppStoreUpdateStrategy,
         vendorInstallPolicy: VendorInstallPolicy,

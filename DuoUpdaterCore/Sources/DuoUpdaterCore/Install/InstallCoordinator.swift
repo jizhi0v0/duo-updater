@@ -111,13 +111,17 @@ public actor InstallCoordinator {
     /// The live process list `NestedAppGuard` reads before a swap. A seam for
     /// tests.
     private let runningProcesses: @Sendable () -> [NestedAppGuard.RunningProcess]
+    /// Free space claimed by this process's installs. See `DiskSpaceGuard`.
+    private let space: DiskSpaceGuard.SpaceLedger
 
     public init(
         permits: InstallPermits = InstallPermits(downloads: 4, applies: 2),
         xcodeDownloader: (any XcodeArchiveDownloading)? = nil,
-        runningProcesses: @escaping @Sendable () -> [NestedAppGuard.RunningProcess] = NestedAppGuard.liveProcesses
+        runningProcesses: @escaping @Sendable () -> [NestedAppGuard.RunningProcess] = NestedAppGuard.liveProcesses,
+        space: DiskSpaceGuard.SpaceLedger = .shared
     ) {
         self.permits = permits
+        self.space = space
         self.xcodeDownloader = xcodeDownloader
         self.runningProcesses = runningProcesses
     }
@@ -231,6 +235,9 @@ public actor InstallCoordinator {
         /// Stored, but without files the app had written into its own bundle.
         /// It restores; whatever state lived in them is lost.
         case savedWithoutRuntimeState(omitted: Int)
+        /// Skipped, or stopped mid-copy, because this Mac is too low on space
+        /// to hold a copy. See ``BackupStore/freeSpaceFloorBytes``.
+        case insufficientSpace
         case failed
     }
 
@@ -301,6 +308,9 @@ public actor InstallCoordinator {
             return unreadable.unsealed.isEmpty
                 ? .saved
                 : .savedWithoutRuntimeState(omitted: unreadable.unsealed.count)
+        } catch BackupStore.BackupError.insufficientSpace {
+            // `save` has already logged what it measured.
+            return .insufficientSpace
         } catch {
             // The identity of the error is the whole diagnosis, and collapsing
             // every `BackupError` into a bare `.failed` threw it away: the log
@@ -357,12 +367,15 @@ public actor InstallCoordinator {
             // same way its check was — so "everything that went anywhere for
             // Zed" is one query across both the socket rows and the ledger row.
             let outcome = try await RequestAttribution.withApp(result.app.id) {
-                try await performRoute(
-                    result, route: route, installedPopulation: installedPopulation,
-                    digestOnlyAllowed: digestOnlyAllowed,
-                    progress: progress,
-                    releaseAfterDownload: releaseAfterDownload,
-                    beforeInstallerOpen: beforeInstallerOpen)
+                try await withSpaceReserved(result, route: route) { toApply in
+                    try await performRoute(
+                        result, route: route, installedPopulation: installedPopulation,
+                        digestOnlyAllowed: digestOnlyAllowed,
+                        spaceToApply: toApply,
+                        progress: progress,
+                        releaseAfterDownload: releaseAfterDownload,
+                        beforeInstallerOpen: beforeInstallerOpen)
+                }
             }
             // `applied` is the load-bearing bit: false means the bytes are staged
             // but nothing on disk has changed yet, which is exactly the state that
@@ -377,11 +390,38 @@ public actor InstallCoordinator {
         }
     }
 
+    /// `body` with this install's expected use of the boot volume claimed in
+    /// the ledger, handing it the share the swap still needs once the archive
+    /// is down. Zero, and no claim, for the routes that bring their own check
+    /// (`.xcode`: `XcodeInstaller` sizes against the archive) or install
+    /// nothing here (`.appStore`).
+    private func withSpaceReserved(
+        _ result: UpdateResult, route: Route,
+        _ body: (Int64) async throws -> Outcome
+    ) async throws -> Outcome {
+        switch route {
+        case .xcode, .appStore:
+            return try await body(0)
+        case .sparkle, .vendor, .installer, .homebrew:
+            let estimate = await DiskSpaceGuard.estimate(for: result.app)
+            try await space.reserve(estimate.total)
+            do {
+                let outcome = try await body(estimate.toApply)
+                space.release(estimate.total)
+                return outcome
+            } catch {
+                space.release(estimate.total)
+                throw error
+            }
+        }
+    }
+
     private func performRoute(
         _ result: UpdateResult,
         route: Route,
         installedPopulation: [InstalledApp]?,
         digestOnlyAllowed: Bool,
+        spaceToApply: Int64,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void,
         beforeInstallerOpen: @Sendable () async -> Void
@@ -395,7 +435,8 @@ public actor InstallCoordinator {
                 throw CoordinatorError.routeNotSupportedHere(.xcode)
             }
             return try await fetchThenSwap(
-                result, progress: progress, releaseAfterDownload: releaseAfterDownload,
+                result, spaceToApply: 0,
+                progress: progress, releaseAfterDownload: releaseAfterDownload,
                 download: { try await XcodeInstaller.download($0, using: downloader, onStage: $1) },
                 apply: { try await XcodeInstaller.apply($0, download: $1, onStage: $2) })
 
@@ -447,7 +488,8 @@ public actor InstallCoordinator {
         case .vendor:
             do {
                 return try await fetchThenSwap(
-                    result, progress: progress, releaseAfterDownload: releaseAfterDownload,
+                    result, spaceToApply: spaceToApply,
+                    progress: progress, releaseAfterDownload: releaseAfterDownload,
                     download: {
                         try await self.vendor.download(
                             $0, preferDelta: true,
@@ -462,7 +504,8 @@ public actor InstallCoordinator {
                 // The patch's bytes were spent whether or not it worked, so they
                 // belong in the total this install reports.
                 return try await withBytes(failure.bytesSpent) { try await fetchThenSwap(
-                    result, progress: progress, releaseAfterDownload: releaseAfterDownload,
+                    result, spaceToApply: spaceToApply,
+                    progress: progress, releaseAfterDownload: releaseAfterDownload,
                     download: {
                         try await self.vendor.download(
                             $0, preferDelta: false,
@@ -477,7 +520,8 @@ public actor InstallCoordinator {
         case .sparkle:
             do {
                 return try await fetchThenSwap(
-                    result, progress: progress, releaseAfterDownload: releaseAfterDownload,
+                    result, spaceToApply: spaceToApply,
+                    progress: progress, releaseAfterDownload: releaseAfterDownload,
                     download: {
                         try await self.sparkle.download($0, preferDelta: true, onStage: $1)
                     },
@@ -492,7 +536,8 @@ public actor InstallCoordinator {
                 // The patch's bytes were spent whether or not it worked, so they
                 // belong in the total this install reports.
                 return try await withBytes(failure.bytesSpent) { try await fetchThenSwap(
-                    result, progress: progress, releaseAfterDownload: releaseAfterDownload,
+                    result, spaceToApply: spaceToApply,
+                    progress: progress, releaseAfterDownload: releaseAfterDownload,
                     download: {
                         try await self.sparkle.download($0, preferDelta: false, onStage: $1)
                     },
@@ -568,11 +613,18 @@ public actor InstallCoordinator {
     /// a whole app bundle — so it is removed on Dispatch, after the apply phase
     /// returns or throws (and after `swap` has handed its apply permit back).
     /// Internal for `FetchThenSwapCleanupTests`.
+    ///
+    /// `spaceToApply` is what the swap still needs once the archive is down —
+    /// see `DiskSpaceGuard`. Zero skips both space checks here, which is what
+    /// the `.xcode` route passes; its installer sizes the job itself. No
+    /// default: a call site that forgot it would silently run unguarded,
+    /// which is how the first attempt of `.sparkle` and `.vendor` once did.
     func fetchThenSwap(
         _ result: UpdateResult,
+        spaceToApply: Int64,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void,
-        download: @Sendable (UpdateResult, @Sendable @escaping (InstallStage) -> Void) async throws -> DownloadedUpdate,
+        download: @escaping @Sendable (UpdateResult, @Sendable @escaping (InstallStage) -> Void) async throws -> DownloadedUpdate,
         apply: @Sendable (UpdateResult, DownloadedUpdate, @Sendable @escaping (InstallStage) -> Void) async throws -> Void
     ) async throws -> Outcome {
         let label = "\(result.app.name)"
@@ -581,18 +633,28 @@ public actor InstallCoordinator {
         try refuseWhileNestedAppRuns(result)
         progress(.downloading(fraction: 0))
         Log.install.debug("\(label, privacy: .public): waiting for a download permit")
+        let backupKey = BackupStore.key(bundleID: result.app.bundleID, path: result.app.path)
+        if spaceToApply > 0 {
+            Log.install.notice("disk space: \(label, privacy: .public) watched while downloading, \(spaceToApply, privacy: .public) bytes checked before its swap")
+        }
         let downloaded = try await permits.withDownloadPermit {
             try Task.checkCancellation()
-            return try await download(result, progress)
+            guard spaceToApply > 0 else { return try await download(result, progress) }
+            return try await DiskSpaceGuard.watching(sparing: backupKey) {
+                try await download(result, progress)
+            }
         }
         defer { await removeItemOffCooperativePool(at: downloaded.workDir) }
         await releaseAfterDownload()
-        return try await swap(result, downloaded, label: label, progress: progress, apply: apply)
+        return try await swap(
+            result, downloaded, label: label, spaceToApply: spaceToApply, backupKey: backupKey,
+            progress: progress, apply: apply)
     }
 
     /// `fetchThenSwap` from the download onwards: wait for the apply permit, apply.
     private func swap(
         _ result: UpdateResult, _ downloaded: DownloadedUpdate, label: String,
+        spaceToApply: Int64, backupKey: String,
         progress: @Sendable @escaping (InstallStage) -> Void,
         apply: @Sendable (UpdateResult, DownloadedUpdate, @Sendable @escaping (InstallStage) -> Void) async throws -> Void
     ) async throws -> Outcome {
@@ -607,6 +669,11 @@ public actor InstallCoordinator {
         // patch-route `apply` is wrapped as `DeltaRouteFailure` and retried with
         // the full archive, and a refusal must not be retried.
         try refuseWhileNestedAppRuns(result)
+        // Last point at which a refusal changes nothing on disk. Not inside
+        // `apply`, for the same reason as the refusal above.
+        if spaceToApply > 0 {
+            try await DiskSpaceGuard.ensureRoom(for: spaceToApply, sparing: backupKey)
+        }
         Log.install.debug("\(label, privacy: .public): applying")
         try await apply(result, downloaded, progress)
         permits.signalApply()

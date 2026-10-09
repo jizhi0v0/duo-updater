@@ -657,7 +657,36 @@ public enum BackupStore {
         // code signature exactly — a plain copy can mangle them. It reports one
         // status for the whole run, so a non-zero exit is only acceptable once we
         // have confirmed the ONLY things it dropped are the ones we meant to drop.
-        let ditto = await runDitto(from: appPath, to: staged)
+        // Asked before the copy rather than discovered by it: a full startup
+        // disk breaks far more than this backup.
+        //
+        // What is being reserved is not, for most apps, the copy itself.
+        // With the app on the same APFS volume as the outbox, `ditto` clones:
+        // copying Postman.app (475 MB logical) took 4-5 MB of free space,
+        // against 507 MB with `--noclone` (measured twice each, 2026-10-09).
+        // The cost arrives when the update replaces the original and the
+        // backup keeps the old blocks from being freed — about the app's
+        // full size. An app on another volume cannot be cloned, and the copy
+        // costs that size at once. Either way the logical size is what is
+        // reserved. Block and metadata overhead beyond it (~7% for Postman, one
+        // app measured) is not added; the floor's 10 GB covers it for any
+        // bundle up to about 140 GB at that rate.
+        let estimate = unreadable.bytes
+        if let shortfall = spaceShortfall(forCopyOf: estimate) {
+            Log.install.error(
+                "backup: skipped \(name, privacy: .public) — \(shortfall.free, privacy: .public) bytes free, a \(estimate, privacy: .public)-byte copy needs \(shortfall.needed, privacy: .public) to keep the floor")
+            await removeItemOffCooperativePool(at: staging)
+            throw BackupError.insufficientSpace(needed: shortfall.needed, free: shortfall.free)
+        }
+
+        let (ditto, outOfSpace) = await runDittoWatchingSpace(from: appPath, to: staged, key: key)
+        if outOfSpace, !ditto.ok {
+            Log.install.error(
+                "backup: stopped copying \(name, privacy: .public) — this Mac fell under the free-space floor and no older backup was left to delete")
+            await removeItemOffCooperativePool(at: staging)
+            throw BackupError.insufficientSpace(
+                needed: estimate + freeSpaceFloorBytes, free: outboxFreeBytes() ?? 0)
+        }
         if !ditto.ok {
             Log.install.error(
                 "backup: ditto exited \(ditto.status, privacy: .public) copying \(name, privacy: .public) — \(ditto.stderrTail, privacy: .public)")
@@ -2025,6 +2054,9 @@ public enum BackupStore {
         return BackupSizeIndex.shared.sizes(of: dirs, measuring: directorySize).reduce(0, +)
     }
 
+    /// Logical size of everything under `url`. See `directorySize`.
+    static func logicalSize(of url: URL) -> Int64 { directorySize(url) }
+
     private static func directorySize(_ url: URL) -> Int64 {
         guard let enumerator = FileManager.default.enumerator(
             at: url, includingPropertiesForKeys: [.fileSizeKey],
@@ -2062,9 +2094,17 @@ public enum BackupStore {
         case destinationIsADifferentDisk(String)
         case destinationNotWritable(String)
         case identityMismatch(backup: String, installed: String)
+        /// This Mac is too low on space to hold a copy: either before the copy
+        /// (`needed` is what it would have taken) or because it fell under the
+        /// floor mid-copy with no older backup left to delete.
+        case insufficientSpace(needed: Int64, free: Int64)
 
         public var errorDescription: String? {
             switch self {
+            case .insufficientSpace(let needed, let free):
+                let format = { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+                return "This Mac has \(format(free)) free and a backup needs \(format(needed)), "
+                    + "so no rollback point was stored."
             case .identityMismatch(let backup, let installed):
                 return "The backup is “\(backup)” and the installed app is “\(installed)”, "
                     + "so it was not restored over it."
@@ -2145,7 +2185,7 @@ public enum BackupStore {
     /// be reported as "failed" — while ditto had, at that moment, named the exact
     /// file it could not copy. Keeping it is the difference between a report you
     /// can act on and one that needs the failure reproduced first.
-    struct DittoOutcome {
+    struct DittoOutcome: Sendable {
         let ok: Bool
         let status: Int32
         /// The tail of stderr. ditto emits one line per skipped file, and a big
@@ -2304,13 +2344,16 @@ public enum BackupStore {
     /// blocked it forever. `ChildProcess` drains both pipes as the child writes, so
     /// it is captured directly now. Runs to completion on cancellation: a half
     /// copy is what `save` and `restore` both exist to avoid.
-    private static func runDitto(from src: URL, to dst: URL) async -> DittoOutcome {
+    private static func runDitto(
+        from src: URL, to dst: URL,
+        onCancel: ChildProcess.Cancellation = .runToCompletion
+    ) async -> DittoOutcome {
         try? FileManager.default.removeItem(at: dst)
         let outcome: ChildProcess.Outcome
         do {
             outcome = try await ChildProcess.run(
                 "/usr/bin/ditto", [src.path, dst.path],
-                standardOutput: .discard, onCancel: .runToCompletion)
+                standardOutput: .discard, onCancel: onCancel)
         } catch {
             return DittoOutcome(ok: false, status: -1, stderrTail: "could not start ditto: \(error)")
         }
@@ -2320,5 +2363,177 @@ public enum BackupStore {
         return DittoOutcome(
             ok: outcome.terminationStatus == 0, status: outcome.terminationStatus,
             stderrTail: lines.count > 4 ? "(\(lines.count) lines) … \(tail)" : tail)
+    }
+}
+
+// MARK: - Free space on this Mac
+
+extension BackupStore {
+
+    /// Free space below which a backup is not worth taking. Every backup is
+    /// written to the outbox first, which is always on the boot volume, so this
+    /// is a floor for this Mac's startup disk: a rollback point that fills it is
+    /// not a safety net, it is the outage.
+    public static let freeSpaceFloorBytes: Int64 = 10 << 30
+
+    /// Test seam: the free bytes the guard believes the outbox's volume has.
+    /// Bound like ``rootOverride``; production never binds it.
+    @TaskLocal static var freeBytesOverride: (@Sendable () -> Int64?)?
+
+    /// Test seam: runs in ``reclaimFreeSpace(sparing:target:)`` after a key is
+    /// withheld from the transfer queue and before it is deleted — where a copy
+    /// to the disk that was under way has just finished. Production never binds it.
+    @TaskLocal static var reclaimAfterWithholdOverride: (@Sendable (String) -> Void)?
+
+    /// Test seam: how often the copy is watched. Production reads half a second.
+    @TaskLocal static var spaceWatchIntervalOverride: Duration?
+
+    /// Free bytes on the volume the outbox sits on, or nil when it will not say
+    /// — in which case nothing here refuses or deletes anything.
+    ///
+    /// This is the figure Finder shows — it counts purgeable space macOS would
+    /// clear for us — and it is not cheap: 19.4 ms a read when measured on the
+    /// dev Mac (2026-10-09), because it asks another process, against 0.002 ms
+    /// for `statfs`. Fine once per backup; not every half second. See
+    /// ``outboxRawFreeBytes()``.
+    static func outboxFreeBytes() -> Int64? {
+        if let freeBytesOverride { return freeBytesOverride() }
+        return BackupDestinationProbe.freeBytes(at: outboxVolumeProbe)
+    }
+
+    /// The raw free figure: blocks free right now, purgeable space not
+    /// counted. The copy watcher polls this one and pays for the purgeable-aware
+    /// figure only once this one is under the floor — so on a disk with room to
+    /// spare, watching costs one `statfs` per half second.
+    ///
+    /// Trusting it above the floor does not depend on how it compares with
+    /// ``outboxFreeBytes()`` (Apple documents no ordering; measured on the dev
+    /// Mac it read lower, 107.6 GB against 115.0 GB): these are blocks the
+    /// copy can write into without anything being purged first.
+    static func outboxRawFreeBytes() -> Int64? {
+        if let freeBytesOverride { return freeBytesOverride() }
+        // `statfs` rather than `volumeAvailableCapacityKey`: a fresh syscall
+        // every time, where `URL.resourceValues` caches on the URL value and a
+        // reused URL would keep answering with the first reading.
+        var info = statfs()
+        guard statfs(outboxVolumeProbe.path, &info) == 0 else { return nil }
+        return Int64(info.f_bavail) * Int64(info.f_bsize)
+    }
+
+    /// The outbox may not exist yet; its nearest existing parent is on the
+    /// same volume.
+    private static var outboxVolumeProbe: URL {
+        var probe = outboxRoot
+        while !FileManager.default.fileExists(atPath: probe.path), probe.pathComponents.count > 1 {
+            probe = probe.deletingLastPathComponent()
+        }
+        return probe
+    }
+
+    /// Whether a copy of `estimate` bytes would leave the floor intact. Asked
+    /// before the copy starts: when it would not, the backup is skipped rather
+    /// than started, and nothing is deleted to make room for it.
+    static func spaceShortfall(forCopyOf estimate: Int64) -> (needed: Int64, free: Int64)? {
+        guard let free = outboxFreeBytes() else { return nil }
+        let needed = estimate + freeSpaceFloorBytes
+        return free < needed ? (needed, free) : nil
+    }
+
+    /// The extreme case: the disk fell under the floor while a copy was running
+    /// — usually because something else on the Mac is writing too. Best effort
+    /// at getting back above it: delete this Mac's oldest backups, one at a
+    /// time, re-reading free space after each, sparing `key` (the app being
+    /// backed up, whose previous rollback point is still the only one it has
+    /// until this copy lands).
+    ///
+    /// Only the outbox is touched. It is the only store on this volume, so it is
+    /// the only one whose deletions give space back here.
+    ///
+    /// Returns true when free space is at or above `target` again, false when
+    /// there was nothing left to delete — the caller then gives up its copy.
+    /// `target` is the floor unless an install is making room to apply; see
+    /// ``DiskSpaceGuard/ensureRoom(for:sparing:)``.
+    static func reclaimFreeSpace(
+        sparing key: String, target: Int64 = freeSpaceFloorBytes
+    ) async -> Bool {
+        if let raw = outboxRawFreeBytes(), raw >= target { return true }
+        guard var free = outboxFreeBytes() else { return true }
+        if free >= target { return true }
+        let root = outboxRoot
+        let isExternal = destination.kind == .external
+        let oldestFirst: [(key: String, meta: Meta)] = storedKeys(in: root)
+            .filter { $0 != key }
+            .compactMap { candidate in
+                readMeta(in: root.appendingPathComponent(candidate, isDirectory: true))
+                    .map { (candidate, $0) }
+            }
+            .sorted { $0.meta.savedAt < $1.meta.savedAt }
+        for (victim, listed) in oldestFirst {
+            let dir = root.appendingPathComponent(victim, isDirectory: true)
+            // Out of the transfer queue first, as Clean Up's delete does: a
+            // copy of this backup to the disk that is under way would otherwise
+            // end `.failed`, naming a backup that no longer exists.
+            await BackupTransferQueue.shared.withhold([victim])
+            reclaimAfterWithholdOverride?(victim)
+            // Read again after the wait: a copy that was under way has since
+            // moved this backup to the disk and taken it off this Mac, which
+            // freed the space without losing it — and the facts it recorded
+            // describe the copy on the disk, so they must stay.
+            guard let meta = readMeta(in: dir) else {
+                await BackupTransferQueue.shared.release([victim])
+                Log.install.notice(
+                    "backup: \(listed.bundleName, privacy: .public) moved to the backup disk while space was being freed — kept")
+                guard let now = outboxFreeBytes() else { return true }
+                free = now
+                if free >= target { return true }
+                continue
+            }
+            let removed = await offCooperativePool(qos: .userInitiated) {
+                removeClearingImmutableFlags(at: dir)
+            }
+            await BackupTransferQueue.shared.release([victim])
+            guard removed else { continue }
+            // With a backup disk configured, a copy that is no longer owed has
+            // already reached it, and the facts still describe that one.
+            if !isExternal || meta.pendingTransfer == true {
+                BackupFactsLibrary.drop(forKey: victim)
+            }
+            Log.install.error(
+                "backup: this Mac is short of free space (\(free, privacy: .public) bytes, wanted \(target, privacy: .public)) — deleted the backup of \(meta.bundleName, privacy: .public) (\(meta.version ?? "?", privacy: .public)) to make room")
+            guard let now = outboxFreeBytes() else { return true }
+            free = now
+            if free >= target { return true }
+        }
+        return false
+    }
+
+    /// `runDitto`, watched: while the copy runs, free space is re-read every
+    /// half second, and a fall under the floor is answered by
+    /// ``reclaimFreeSpace(sparing:)``. When that runs out of backups to delete
+    /// the copy is stopped, and `outOfSpace` says why it failed.
+    ///
+    /// The copy runs in its own task so that only the watcher can stop it: a
+    /// cancellation from the caller still runs it to completion, as `runDitto`
+    /// always has. Two unstructured tasks rather than a task group — see the
+    /// Swift 6.4 release-build miscompile around `for await` over a group.
+    static func runDittoWatchingSpace(
+        from src: URL, to dst: URL, key: String
+    ) async -> (outcome: DittoOutcome, outOfSpace: Bool) {
+        let copy = Task { await runDitto(from: src, to: dst, onCancel: .terminateChild) }
+        let interval = spaceWatchIntervalOverride ?? .milliseconds(500)
+        let watcher = Task<Bool, Never> {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: interval)
+                if Task.isCancelled { return false }
+                if await !reclaimFreeSpace(sparing: key) {
+                    copy.cancel()
+                    return true
+                }
+            }
+            return false
+        }
+        let outcome = await copy.value
+        watcher.cancel()
+        return (outcome, await watcher.value)
     }
 }

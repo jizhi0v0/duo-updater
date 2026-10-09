@@ -1,13 +1,13 @@
 # Jan
 
 审计 2026-10-08（重审；2026-08-17 那版只核对了一个真包的 bundle 身份，没在新旧两个包上跑生产检测，
-没查 nightly / beta、没看 changelog 面板，也没跑一键）。
+没查 nightly / beta、没看 changelog 面板，也没跑一键）。2026-10-09 补跑 nightly 一键端到端两轮，见「一键安装」。
 
 ## 基本信息
 - Bundle ID: `jan.ai.app`（stable）。nightly 是**另一个** bundle id `jan-nightly.ai.app`，beta 构建脚本给
   `jan-beta.ai.app`（见 Channel 详情）
 - Team ID: `F8AH6NHVY5` — Developer ID Application: JAN AI PTE. LTD.（0.8.4、0.8.5、nightly 0.8.4-5203
-  三个真包相同，均 `Notarized Developer ID`）
+  三个真包相同，均 `Notarized Developer ID`；2026-10-09 端到端用的 nightly 0.8.4-5195 也是这个 Team）
 - 观测版本: stable `0.8.5`（2026-10-08 发布，short = build）、上一版 `0.8.4`；nightly `0.8.4-5203`。
   `LSMinimumSystemVersion` 10.13；主程序 universal（`x86_64 arm64`）
 - 自更新机制: Tauri updater（`tauri.conf.json` `plugins.updater.endpoints` =
@@ -84,7 +84,7 @@
 |---|---|---|---|
 | 按设备灰度 | 请求不带设备标识（endpoints 是固定 URL） | 否：`apps.jan.ai/update-check` 与 GitHub `latest.json` 一致 | 不需要 |
 | 按架构 / 按 OS 分轨 | mac 一个 universal 包 | **0.8.5 起本地模型只在 Apple Silicon 上跑**：随包的 `Contents/Resources/resources/bin/jan-llama-worker` `lipo -archs` = `arm64`，主程序仍是 universal；发布说明原话 “If you rely on local models on an Intel Mac, stay on v0.8.4” | **能**：包里没有可读的「Intel 不该升」信号，所以写在规则上——GitHub 规则的 `architectureRequirement`（0.8.5 起仅 arm64），Intel Mac 停在 0.8.4（见已知问题） |
-| 自更新器会不会和我们抢 | Tauri updater；Jan 是否后台自动下载 / 安装没查（未验证） | 同一个版本 | 第二轮未跑 |
+| 自更新器会不会和我们抢 | Tauri updater；Jan 是否后台自动下载 / 安装没查（未验证） | 同一个版本 | stable 第二轮未跑；nightly 第二轮已跑（见「一键安装」），退出后没有被换回 |
 
 ## Changelog
 - 来源: GitHub release 正文（Markdown）
@@ -105,6 +105,14 @@
 ## 一键安装
 - 状态: 支持（GitHub 规则带 `installAssetPattern` + `installerKind: .zip`）
 - 端到端（2026-10-08，第一轮，不启动）: 0.8.4 → `duo check` `update 0.8.5`、`source GitHub`；`duo install /Applications/Jan.app --yes --json` → `installed`、`route vendor`、`bytesDownloaded 102310987`（GitHub zip），约 12 s。装后 0.8.5，strict 通过，`Notarized Developer ID`，Team `F8AH6NHVY5`；与厂商 0.8.5 zip 逐文件比 SHA-256，27 个文件全部相同（包内无软链接）。`duo restart` 与主程序改名的交互没有测（没有启动 app）
+- nightly 端到端（2026-10-09，CLI 由当天 `origin/main` `make cli` 构建）: 旧版用 `delta.jan.ai/nightly/Jan-nightly_0.8.4-5195.app.tar.gz`
+  （feed 只列最新的 5203，5195 的同形 URL 仍 200），解包后 `ditto` 进 `/Applications`。`duo check` →
+  `Jan-nightly  0.8.4-5195  →  0.8.4-5203  [Vendor, in-place]`。
+  - 第一轮（不运行）: `duo install /Applications/Jan-nightly.app --yes --json` → `outcome installed`、`route vendor`、
+    `bytesDownloaded 105001696`（feed 的 `.app.tar.gz`）。装后 0.8.4-5203，strict 通过，Team `F8AH6NHVY5`
+  - 第二轮（运行中）: 换回 5195、启动，运行约一分钟后 `duo install` → 同样 `installed`；运行中的进程仍是旧 PID，
+    `duo restart /Applications/Jan-nightly.app` → `restarted`，新 PID（主程序 `Jan-Desktop-nightly`，按 bundle 拉起正常）；
+    正常退出后仍是 5203、strict 通过，`duo check --all` → `up to date`。子进程是否残留没查
 - 格式: zip（universal，0.8.5 为 102,310,987 B）
 - 校验: GitHub 资产 `digest`。下载 SHA-256 与 digest 相等：0.8.5 `dfd7b4f9…c8e1`、0.8.4 `2ae6e410…edf1`
 - **读的是**: 人人可手动下载的 GA（GitHub 正式版，与 Jan 自己的 update-check 同一版本）
@@ -127,12 +135,12 @@
 - Homebrew cask 比 GitHub 慢（当天仍是 0.8.4）；cask 是 `auto_updates`，不影响检测
 
 ## 建议下一步
-1. 一键第一轮已过（见「一键安装」）；第二轮（app 运行中）未跑
+1. stable 一键第一轮已过（见「一键安装」），第二轮（app 运行中）未跑；nightly 两轮已过
 2. （已做）nightly：VendorProbe 读 `delta.jan.ai/nightly/latest.json`，`.nightly` 渠道、每个架构一条 recipe（各带
    `hostRequirement`、只读本平台那一项），版本正则要求 `-<build>` 后缀；一键装 feed 给的 `.app.tar.gz`（Jan 自己的更新器装的
    就是它，feed 只有 minisign 签名、没有摘要，靠 Team 闸）；`ChannelProofRegistry` 登记 `.artifact("/nightly/Jan-nightly_")`。
    `VersionComparator` 实测：`0.8.4-5210 > 0.8.4-5203`、`0.8.5-5300 > 0.8.4-5203`、`0.8.4-10000 > 0.8.4-9999`、`0.8.4-5203 > 0.8.4`。
-   `channel-verify`：5203 → Vendor up to date，5195 → `UPDATE → 0.8.4-5203`。一键端到端未跑
+   `channel-verify`：5203 → Vendor up to date，5195 → `UPDATE → 0.8.4-5203`。一键端到端 5195 → 5203 两轮已跑（2026-10-09，见「一键安装」）
 3. （已做）`GitHubMarkdownParser` 收「迁移 / 升级 / 破坏性变更 / 注意 / 已知问题 / 弃用」类标题下 1–2 段、无列表的说明，
    Migration 的粗体引言（含 Intel 警告）现在进面板。更宽的「只要一节只有段落就收」在 3,710 个 release 正文上会多出 58 个来源
    2,758 行样板话，所以没用；`This release is fixes only` 因此仍不进

@@ -98,6 +98,45 @@ struct BundleIDMigrationTests {
         #expect(gate("com.example.old", "com.example.other", "1.4.0", "TEAM123456", "TEAM123456") == nil)
     }
 
+    // MARK: - the rollback gate
+
+    /// A rollback across the rename goes either way — old over new is the usual
+    /// one — for the entry's Team only, with the old-id copy below the bound.
+    @Test func aRollbackAcrossTheRenamePassesBothWaysForTheTeam() {
+        #expect(BundleIDMigration.restoreMigration(
+            backup: "com.example.old", installed: "com.example.new",
+            backupVersion: "1.4.0", installedVersion: "2.0.0",
+            backupTeam: "TEAM123456", installedTeam: "TEAM123456", in: Self.table) == Self.entry)
+        #expect(BundleIDMigration.restoreMigration(
+            backup: "com.example.new", installed: "com.example.old",
+            backupVersion: "2.0.0", installedVersion: "1.4.0",
+            backupTeam: "TEAM123456", installedTeam: "TEAM123456", in: Self.table) == Self.entry)
+    }
+
+    @Test func everyOtherRollbackIsRefused() {
+        func gate(_ backup: String, _ installed: String, _ backupVersion: String?,
+                  _ installedVersion: String?, _ backupTeam: String?, _ installedTeam: String?
+        ) -> BundleIDMigration? {
+            BundleIDMigration.restoreMigration(
+                backup: backup, installed: installed,
+                backupVersion: backupVersion, installedVersion: installedVersion,
+                backupTeam: backupTeam, installedTeam: installedTeam, in: Self.table)
+        }
+        let old = "com.example.old", new = "com.example.new", team = "TEAM123456"
+        // Another Team on either side, or none.
+        #expect(gate(old, new, "1.4.0", "2.0.0", "OTHERTEAM1", team) == nil)
+        #expect(gate(old, new, "1.4.0", "2.0.0", team, "OTHERTEAM1") == nil)
+        #expect(gate(old, new, "1.4.0", "2.0.0", nil, team) == nil)
+        #expect(gate(new, old, "2.0.0", "1.4.0", team, nil) == nil)
+        // The old-id side at or past the bound, or without a version.
+        #expect(gate(old, new, "2.0.0", "2.0.0", team, team) == nil)
+        #expect(gate(old, new, nil, "2.0.0", team, team) == nil)
+        #expect(gate(new, old, "2.0.0", "2.0.0", team, team) == nil)
+        // An id the entry does not pair.
+        #expect(gate("com.example.other", new, "1.4.0", "2.0.0", team, team) == nil)
+        #expect(gate(old, "com.example.other", "1.4.0", "2.0.0", team, team) == nil)
+    }
+
     /// The gate itself, on two real signed bundles with different ids: a
     /// registered rename between them is still refused when the bundles do not
     /// carry the entry's Team (Apple's system apps carry none). The passing

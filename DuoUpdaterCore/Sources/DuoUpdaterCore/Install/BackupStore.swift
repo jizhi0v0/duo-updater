@@ -510,10 +510,26 @@ public enum BackupStore {
     /// Current key followed by the pre-path-scoped key. Read paths use this so
     /// backups written before the collision fix still appear and can be restored;
     /// new writes always use ``key(bundleID:path:)``.
-    public static func keyCandidates(bundleID: String?, path: URL) -> [String] {
+    ///
+    /// Then the path-scoped key of every id a `BundleIDMigration` pairs with this
+    /// one: the update that crossed a rename saved its backup under the old id,
+    /// and from then on the bundle at this path is the new one (PrintCraft →
+    /// PdfCraft, 2026-10-09: `duo backups restore` said "no backup stored" with
+    /// the 0.2.1 copy in the store). Path-scoped only — a bare legacy key is not
+    /// tied to this copy, and no backup that old crossed a rename. A key found
+    /// this way holds a different bundle id, which `restore` gates on Team.
+    public static func keyCandidates(
+        bundleID: String?, path: URL, migrations: [BundleIDMigration] = BundleIDMigration.all
+    ) -> [String] {
         let current = key(bundleID: bundleID, path: path)
         let legacy = legacyKey(bundleID: bundleID, path: path)
-        return current == legacy ? [current] : [current, legacy]
+        var out = current == legacy ? [current] : [current, legacy]
+        for related in bundleID.map({ BundleIDMigration.relatedBundleIDs(of: $0, in: migrations) })?
+            .dropFirst() ?? [] {
+            let renamed = key(bundleID: related, path: path)
+            if !out.contains(renamed) { out.append(renamed) }
+        }
+        return out
     }
 
     private static func legacyKey(bundleID: String?, path: URL) -> String {
@@ -1323,6 +1339,12 @@ public enum BackupStore {
         }) else {
             throw BackupError.backupCorrupted(backup.bundlePath.lastPathComponent)
         }
+        // A key found through a `BundleIDMigration` holds the other id of the
+        // pair, so "this backup is this app" no longer follows from the key.
+        // Blocking Security calls when the ids differ, so off the pool.
+        try await offCooperativePool(qos: .userInitiated) {
+            try verifyRestoreIdentity(staged: staged, over: target)
+        }
         try await InPlaceSwap.replace(newApp: staged, over: target)
         // An input method's settings and learned dictionary are not in the bundle,
         // so restoring the bundle alone rolls back the code and leaves the data at
@@ -1359,6 +1381,39 @@ public enum BackupStore {
             }
         }
         return RestoreOutcome(version: backup.version, userData: userData)
+    }
+
+    /// Refuse to put a backup back over a copy with a different bundle id,
+    /// unless a registered rename pairs the two and both are signed by its Team.
+    ///
+    /// Same id — every backup found under the app's own key — passes without
+    /// reading a signature, so nothing changes for it, ad-hoc and unsigned apps
+    /// included. The ids are Info.plist's, the same ones the keys are made from;
+    /// the signed identifier is not used, because a linker-signed ad-hoc build
+    /// signs as its executable's name, not its bundle id (measured 2026-10-09:
+    /// `clang` into `T.app` with `CFBundleIdentifier` `com.example.t` reports
+    /// `Identifier=T`).
+    static func verifyRestoreIdentity(
+        staged: URL, over target: URL, migrations: [BundleIDMigration] = BundleIDMigration.all
+    ) throws {
+        let backup = SignatureVerifier.infoPlist(of: staged)
+        let installed = SignatureVerifier.infoPlist(of: target)
+        let backupID = backup["CFBundleIdentifier"] as? String
+        let installedID = installed["CFBundleIdentifier"] as? String
+        guard backupID != installedID else { return }
+        guard let backupID, let installedID,
+              BundleIDMigration.restoreMigration(
+                backup: backupID, installed: installedID,
+                backupVersion: backup["CFBundleShortVersionString"] as? String,
+                installedVersion: installed["CFBundleShortVersionString"] as? String,
+                backupTeam: try? SignatureVerifier.teamIdentifier(at: staged),
+                installedTeam: try? SignatureVerifier.teamIdentifier(at: target),
+                in: migrations) != nil
+        else {
+            Log.install.error(
+                "rollback: the backup is \(backupID ?? "?", privacy: .public) and the installed copy is \(installedID ?? "?", privacy: .public), and no registered rename with a matching Team pairs them — refusing to restore")
+            throw BackupError.identityMismatch(backup: backupID ?? "?", installed: installedID ?? "?")
+        }
     }
 
     /// Unpack this generation's user-data snapshot out of the destination into
@@ -2006,9 +2061,13 @@ public enum BackupStore {
         case destinationUnavailable(String)
         case destinationIsADifferentDisk(String)
         case destinationNotWritable(String)
+        case identityMismatch(backup: String, installed: String)
 
         public var errorDescription: String? {
             switch self {
+            case .identityMismatch(let backup, let installed):
+                return "The backup is “\(backup)” and the installed app is “\(installed)”, "
+                    + "so it was not restored over it."
             case .destinationUnavailable(let name):
                 return "The backup disk “\(name)” isn’t connected."
             case .destinationIsADifferentDisk(let path):

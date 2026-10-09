@@ -3,8 +3,8 @@ import Foundation
 /// A vendor that renamed its app's bundle id between two releases, recorded
 /// so a copy still on the old id is checked and updated as the app it is.
 ///
-/// Recipes are keyed by the NEW id, the one the vendor ships today. Three
-/// places read this table, and nothing else does — an entry changes all three:
+/// Recipes are keyed by the NEW id, the one the vendor ships today. Four
+/// places read this table, and nothing else does — an entry changes all four:
 ///  - `InstalledApp.recipeBundleID` files an old-id copy under the new id, so
 ///    vendor probes, GitHub rules and changelog recipes find it. `bundleID`
 ///    itself stays the id on disk.
@@ -16,6 +16,10 @@ import Foundation
 ///    `to` replace a copy signed as `from` — that one direction, only for the
 ///    registered Team, only for an installed version below `firstToVersion`.
 ///    The Team-ID gate still runs first, unchanged.
+///  - `BackupStore.keyCandidates` looks for a rollback point under both ids of
+///    a pair, at the same path, so the backup an update saved under the old id
+///    is found once the bundle is the new one; `BackupStore.restore` then puts
+///    it back only through `restoreMigration`, for the registered Team.
 ///
 /// `firstToVersion` is a bound, not a guess at the exact release that switched:
 /// a copy still signed as `from` at or above it is not the rename we measured,
@@ -78,6 +82,27 @@ public struct BundleIDMigration: Sendable, Equatable {
     ) -> [String] {
         [bundleID] + table.compactMap {
             $0.from == bundleID ? $0.to : ($0.to == bundleID ? $0.from : nil)
+        }
+    }
+
+    /// The registered rename that lets a rollback put a backup whose bundle id is
+    /// `backup` over an installed copy whose id is `installed`, or nil. Either
+    /// direction: rolling back across the rename puts `from` over `to`. Both
+    /// Teams must be the entry's, and the copy on the `from` side must be below
+    /// the bound — the same three conditions an update across it has to meet.
+    public static func restoreMigration(
+        backup: String, installed: String, backupVersion: String?, installedVersion: String?,
+        backupTeam: String?, installedTeam: String?, in table: [BundleIDMigration] = all
+    ) -> BundleIDMigration? {
+        table.first {
+            guard backupTeam == $0.teamID, installedTeam == $0.teamID else { return false }
+            if $0.from == backup, $0.to == installed {
+                return $0.covers(installedVersion: backupVersion)
+            }
+            if $0.to == backup, $0.from == installed {
+                return $0.covers(installedVersion: installedVersion)
+            }
+            return false
         }
     }
 

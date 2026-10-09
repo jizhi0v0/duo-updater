@@ -247,6 +247,28 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
         }
     }
 
+    /// The update that crossed WorkBuddy's rename saved its backup under the old
+    /// id; the bundle at that path is now the new one. Through the real table.
+    @Test func findsTheBackupSavedUnderARenamedAppsOldId() async throws {
+        try await withScratchRoot { _ in
+            let scratch = FileManager.default.temporaryDirectory
+                .appendingPathComponent("apps-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: scratch) }
+
+            let bundle = try makeApp(named: "WorkBuddy.app", in: scratch)
+            let oldKey = BackupStore.key(bundleID: "com.workbuddy.workbuddy", path: bundle)
+            try await BackupStore.save(
+                appPath: bundle, key: oldKey, version: "5.3.14", bundleID: "com.workbuddy.workbuddy")
+
+            let target = app("WorkBuddy", "com.tencent.workbuddy.mac", bundle.path)
+            #expect(Backups.resolveKey(for: target) == oldKey)
+            // Same id, another copy: not this one's rollback point.
+            let elsewhere = app("WorkBuddy", "com.tencent.workbuddy.mac", "/Applications/WorkBuddy.app")
+            #expect(Backups.resolveKey(for: elsewhere) == nil)
+        }
+    }
+
     @Test func returnsNilRatherThanAKeyWithNoBackup() async throws {
         try await withScratchRoot { _ in
             let target = app("Nope", "com.example.nope", "/Applications/Nope.app")

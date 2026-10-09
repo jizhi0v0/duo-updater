@@ -199,6 +199,24 @@ enum CLIToolFixtures {
             detail: .nvm(NvmInstall(path: path, version: "0.40.7")))
     }
 
+    static func atuin(
+        quarantined: Bool = false, writable: Bool = true, problem: AtuinInstall.Problem? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.atuin/bin/atuin"
+        let install = AtuinInstall(path: path, binary: path, version: "18.22.0", installDirectory: "/Users/ann/.atuin/bin",
+                                   quarantined: quarantined, writable: writable, problem: problem)
+        return status(.atuin, path: path, detail: .atuin(install), version: "18.22.0", latest: "18.23.0")
+    }
+
+    static func ghcup(
+        quarantined: Bool = false, writable: Bool = true, problem: GhcupInstall.Problem? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.ghcup/bin/ghcup"
+        let install = GhcupInstall(path: path, version: "0.2.6.1", quarantined: quarantined, writable: writable,
+                                   problem: problem)
+        return status(.ghcup, path: path, detail: .ghcup(install), version: "0.2.6.1", latest: "0.2.6.2")
+    }
+
     static func codex(
         signature: CLIToolTrust.Signature? = .vendor, quarantined: Bool = false,
         problem: CodexInstall.Problem? = nil, withheld: CLIToolWithheld? = nil
@@ -810,6 +828,31 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.nvm()) == "No one-click update for this kind of install")
         #expect(CLIToolsModel.vendor(of: .zoxide) == nil)
         #expect(CLIToolsModel.vendor(of: .nvm) == nil)
+    }
+
+    /// Atuin's and GHCup's reasons: a folder they cannot write to, a quarantined
+    /// file, Atuin's own update check turned off; a copy its updater refuses
+    /// keeps the general wording; no vendor named.
+    ///
+    /// Mutations: drop the `(.autoUpdateOff, .atuin)` case; drop either
+    /// `writable` case; drop either `(.unverified, …) where quarantined` case.
+    @Test func atuinAndGhcupReasons() {
+        #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.atuin()) == "Atuin’s update check is off in its config")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.atuin(writable: false))
+            == "Updating it needs administrator rights")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.atuin(problem: .noReceipt))
+            == "No one-click update for this kind of install")
+        #expect(CLIToolsModel.reason(.unverified, of: F.atuin(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.unverified, of: F.atuin()) == "Not the build its developer published")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.ghcup(writable: false))
+            == "Updating it needs administrator rights")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.ghcup(problem: .link))
+            == "No one-click update for this kind of install")
+        #expect(CLIToolsModel.reason(.unverified, of: F.ghcup(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.vendor(of: .atuin) == nil)
+        #expect(CLIToolsModel.vendor(of: .ghcup) == nil)
+        #expect(CLIToolPresentation.facts(of: F.atuin(), home: "/Users/ann").isEmpty)
+        #expect(CLIToolPresentation.facts(of: F.ghcup(), home: "/Users/ann").isEmpty)
     }
 
     /// The pane's reason and the row's warning are the status's own: a newer

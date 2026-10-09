@@ -51,6 +51,12 @@ xcuserdata/
 # protect. Keep it that way if you edit it.
 !/docs/update-manifest-families.md
 
+# …and the symbolication how-to: how to turn a crash or hang report from the
+# stripped release binary back into functions and lines with that release's
+# dSYM. Nothing machine-specific in it — no inventory, no installed-app state —
+# only the procedure and one dated check of it against a CI build.
+!/docs/symbolication.md
+
 # …and this one: engine-internals notes that back a core source file's
 # comments — incident timelines, one-off measurements, corrections to earlier
 # wrong comments (issue #409). One file per source file it explains. Same

@@ -171,7 +171,7 @@ exposes no released-only index to follow.
 
 复核第 4 轮 review（2026-09-25）：「列表长期保留每个分支最新的 Mac 构建」改为直接看 Mac 条目，而不是从 Windows 条目推断。当天的 daily 列表里 `darwin`/`arm64`/`dmg` 条目有 `v43` 的 4.3.2（`32f5fdce0a0a`，上传于 2025-01-10）、`v44` 的 4.4.3（`802179c51ccc`，2025-05-13）、`v50` 的 5.0.1（2026-02-06）——这几个分支早已不再出构建，条目仍在。
 
-### Recipes/org-blenderfoundation-blender.swift — ChangelogRecipe 不再提供给 alpha / beta / rc 拷贝
+### Recipes/org-blenderfoundation-blender.swift — ChangelogRecipe 不再提供给 alpha / beta 拷贝
 
 实测 2026-10-09：本机装的 Blender 是 5.3.0 alpha（`CFBundleShortVersionString` 5.3.0，可执行文件里有 `alpha`），
 Detection recipes 列表显示 `fetched developer.blender.org but extracted no entries`。只读 GET 三页，Python 按同一正则复算：
@@ -181,7 +181,12 @@ Detection recipes 列表显示 `fetched developer.blender.org but extracted no e
     /5.3/  "Blender 5.3 is currently in Alpha …"               0 条
 
 所以 recipe 本身没坏：5.3 alpha 的目标页就是开发中的那页，"was released on" 守卫按设计让它零条、回落嵌入网页，但每次零条都被
-`ChangelogService.recordHealth` 记成一次 miss。alpha / beta / rc 拷贝的目标 minor 总是开发中的那个（builder 轨不会把它们交给结束
-该周期的正式版），这条 recipe 在它们身上只会 miss，于是加 `excludedChannels: [.alpha, .beta, .rc]`：这些拷贝拿不到 recipe，直接
-嵌入网页，与原来的回落结果相同，只是不再报 miss。`AppScanner` 用 `BlenderBuildInfo` 从可执行文件读出周期并置为权威 channel，
+`ChangelogService.recordHealth` 记成一次 miss。alpha / beta 拷贝的目标 minor 总是开发中的那个，这条 recipe 在它们身上只会 miss，
+于是加 `excludedChannels: [.alpha, .beta]`：这些拷贝拿不到 recipe，直接嵌入网页，与原来的回落结果相同，只是不再报 miss。
+同日 builder 列表（`?format=json&v=1`）里 darwin dmg 的预发布条目是 `5.3.0 beta v53` 与 `5.4.0 alpha main`；本文记过的 beta 也都是
+`X.Y.0`（5.2.0 beta）。
+
+RC **不排除**（PR #1086 第一轮 review 指出）：Blender 也给已发布 minor 的修正版出 candidate（本文记过 `5.2.1-candidate+v52`、
+4.5.13 candidate），这类拷贝取 `/5.2/`、`/4.5/` 页，能解析（上文生产路径表：`5.2.1 → /5.2/ 1 条 24 项`）。只有新 minor 的
+`X.Y.0` RC 仍会由守卫解析为零条、在 RC 期间报 miss。`AppScanner` 用 `BlenderBuildInfo` 从可执行文件读出周期并置为权威 channel，
 所以这条拷贝走到查找时是 `.alpha`。正式版与读不出周期的拷贝照旧拿到 recipe，守卫仍然兜底。

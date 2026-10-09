@@ -196,19 +196,23 @@ private let blender53AlphaPage = #"""
         #expect(ChangelogExtractor.extract(from: blender53AlphaPage, using: try recipe()) == nil)
     }
 
-    /// An alpha, beta or RC copy's own minor is always the one still in
-    /// development, so the recipe could only miss on it, and each miss showed as
-    /// a broken recipe in the health list. Those copies get no recipe and embed
-    /// the page; a release copy, or one whose channel was not read, still gets it.
+    /// An alpha or beta copy's own minor is always the one still in development,
+    /// so the recipe could only miss on it, and each miss showed as a broken
+    /// recipe in the health list. Those copies get no recipe and embed the page.
+    /// A release candidate keeps it: a corrective-release RC (5.2.1) targets a
+    /// minor that is already out, whose page parses. So does a release copy, or
+    /// one whose channel was not read.
     ///
-    /// Mutation: drop `excludedChannels` — the three pre-release lookups find
-    /// the recipe again.
-    @Test func preReleaseCopiesAreNotOfferedTheRecipe() {
+    /// Mutation: drop `excludedChannels` — the alpha and beta lookups find the
+    /// recipe again. Add `.rc` to it — the 5.2.1 RC loses its notes.
+    @Test func alphaAndBetaCopiesAreNotOfferedTheRecipe() {
         let id = "org.blenderfoundation.blender"
-        for channel in [ReleaseChannel.alpha, .beta, .rc] {
+        for channel in [ReleaseChannel.alpha, .beta] {
             #expect(ChangelogRecipeRegistry.recipe(
                 forBundleID: id, channel: channel, version: "5.3.0") == nil)
         }
+        #expect(ChangelogRecipeRegistry.recipe(
+            forBundleID: id, channel: .rc, version: "5.2.1") != nil)
         #expect(ChangelogRecipeRegistry.recipe(
             forBundleID: id, channel: .stable, version: "5.2.1") != nil)
         #expect(ChangelogRecipeRegistry.recipe(

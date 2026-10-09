@@ -106,11 +106,15 @@ enum org_blenderfoundation_blender {
         // Requiring the literal "was released on" is a GUARD: daily/alpha/beta builds
         // share the bundle id, and an in-development minor's page reads "is currently
         // in Alpha/Beta" instead, so it yields zero entries rather than a partial
-        // changelog. Those builds are also excluded outright (`excludedChannels`):
-        // their own minor's page is always the in-development one, so the recipe
-        // could only ever miss on them and report itself broken. Excluded, they
-        // embed the page as an app with no recipe does. The guard still covers a
-        // copy whose channel was not read.
+        // changelog. Alpha and beta builds are also excluded outright
+        // (`excludedChannels`): they are only ever `X.Y.0` of a minor still in
+        // development, so the recipe could only miss on them and report itself
+        // broken. Excluded, they embed the page as an app with no recipe does.
+        // Release candidates are NOT excluded: Blender also ships them for
+        // corrective releases of a minor that is already out (5.2.1, 4.5.x LTS),
+        // and those pages parse. An `X.Y.0` RC still gets zero entries from the
+        // guard, and reports a miss while its RC phase lasts. The guard also covers
+        // a copy whose channel was not read.
         ChangelogRecipe(
             bundleID: "org.blenderfoundation.blender",
             source: URL(string: "https://developer.blender.org/docs/release_notes/5.2/")!,
@@ -121,7 +125,7 @@ enum org_blenderfoundation_blender {
                 + #"(?=<h2[^>]*id="corrective-releases"|</article>)"#,
             itemPatterns: [#"<li>\s*(?<item>.*?)\s*</li>"#],
             maxEntries: 1,
-            excludedChannels: [.alpha, .beta, .rc],
+            excludedChannels: [.alpha, .beta],
             sourceTemplate: "https://developer.blender.org/docs/release_notes/{majorMinor}/"),
         ],
         channelProofs: [

@@ -129,6 +129,18 @@ import DuoUpdaterCore
         #expect(InstallVerify.finding(item(.skipped)).status == .skipped)
     }
 
+    /// The sweep files a renamed release asset under its own id; filing it here
+    /// too would open two issues for one problem.
+    @Test func installPatternWarningsAreTheSweepsToFile() {
+        let renamed = "installAssetRenamed: a newer release's macOS installer no longer matches …"
+        let only = InstallVerify.finding(item(.warn, warnings: [renamed]))
+        #expect(only.status == .ok)
+        #expect(only.warnings.isEmpty)
+        let mixed = InstallVerify.finding(item(.warn, warnings: [renamed, "identityChanged: Team A → B"]))
+        #expect(mixed.status == .warn)
+        #expect(mixed.warnings == ["identityChanged: Team A → B"])
+    }
+
     @Test func aFailureCarriesItsStage() {
         let finding = InstallVerify.finding(item(.failed, stage: .checksum))
         #expect(finding.failureKind == "install.checksum")

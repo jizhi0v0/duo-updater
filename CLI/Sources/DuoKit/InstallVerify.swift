@@ -330,11 +330,18 @@ public enum InstallVerify {
     ///   finding to file, and filing it here as well would open a second issue.
     /// - No version: `Baseline` would hold it to the last one and repeat the
     ///   sweep's own "went backwards" check under a second id.
+    /// - Not the install-pattern warnings (`ProbeWarning.installPatternKinds`):
+    ///   they come from resolving the installer, which the sweep reports under
+    ///   its own id — kept, they would file each one twice. The report still
+    ///   shows them.
     static func finding(_ item: Item) -> Finding {
+        let warnings = item.warnings.filter { warning in
+            !ProbeWarning.installPatternKinds.contains { warning.hasPrefix($0 + ":") }
+        }
         let status: FindingStatus
         switch item.status {
         case .ok: status = .ok
-        case .warn: status = .warn
+        case .warn: status = warnings.isEmpty ? .ok : .warn
         case .failed:
             status = item.stage == .download && !isRefusal(item.httpStatus) ? .infra : .broken
         case .unresolved, .skipped: status = .skipped
@@ -345,7 +352,7 @@ public enum InstallVerify {
             channel: "-", status: status,
             failureKind: item.stage.map { "install.\($0.rawValue)" },
             failureDetail: item.status == .failed ? item.detail : nil,
-            warnings: item.warnings, endpointHost: host,
+            warnings: warnings, endpointHost: host,
             elapsedMs: Int(item.seconds * 1000))
     }
 

@@ -220,14 +220,37 @@ public enum Reconcile {
 
     static func title(for finding: Finding) -> String {
         let what = finding.status == .broken ? "Recipe broken" : "Recipe degraded"
-        return "\(what): \(finding.bundleID) (\(finding.registry.label)) — \(reason(for: finding))"
+        return "\(what): \(subject(finding)) (\(finding.registry.label)) — \(reason(for: finding))"
+    }
+
+    /// The app, and which of its recipes when the id says more than the app. A
+    /// bundle id alone named two different issues identically: TRAE's arm64 and
+    /// x64 recipes failed together and filed #1113 and #1114, both titled
+    /// "Recipe degraded: com.trae.app (vendor probe) — installURLUnresolved".
+    static func subject(_ finding: Finding) -> String {
+        qualifier(recipeID: finding.recipeID).map { "\(finding.bundleID) [\($0)]" } ?? finding.bundleID
+    }
+
+    /// What follows the app in a recipe id — `stable:arm64`, `preview`, `beta` —
+    /// or nil when that is nothing worth saying (`-`, a lone `stable`).
+    ///
+    /// Ids are `[install:]<registry>:<bundle id or owner/repo>[:<channel>[:<variant>…]]`;
+    /// neither a bundle id nor a repo slug contains a colon.
+    static func qualifier(recipeID: String) -> String? {
+        var parts = recipeID.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+        if parts.first == Registry.install.rawValue { parts.removeFirst() }
+        if let registry = parts.first, Registry(rawValue: registry) != nil { parts.removeFirst() }
+        guard !parts.isEmpty else { return nil }
+        parts.removeFirst()
+        let rest = parts.joined(separator: ":")
+        return rest.isEmpty || rest == "-" || rest == "stable" ? nil : rest
     }
 
     /// Deliberately a different headline from `title(for:)`. "Recipe broken"
     /// sends someone to read a regex; the fix here is almost never in the
     /// pattern, it's that the endpoint has to be replaced.
     static func unreachableTitle(for finding: Finding, entry: Baseline.Entry) -> String {
-        "Endpoint unreachable: \(finding.bundleID) (\(finding.registry.label)) — "
+        "Endpoint unreachable: \(subject(finding)) (\(finding.registry.label)) — "
             + "`\(finding.endpointHost)` on \(entry.consecutiveInfra) consecutive sweeps"
     }
 

@@ -19,6 +19,34 @@ import Foundation
             warnings: warnings, endpointHost: "example.invalid", pattern: "([0-9.]+)")
     }
 
+    /// TRAE's arm64 and x64 recipes failed together and filed two issues titled
+    /// identically (#1113, #1114). The title names the recipe when the id says
+    /// more than the app.
+    @Test func titlesTellRecipesOfOneAppApart() {
+        let arm = Reconcile.title(for: finding("vendor:com.trae.app:stable:arm64", status: .warn,
+                                               warnings: ["installURLUnresolved"]))
+        let x64 = Reconcile.title(for: finding("vendor:com.trae.app:stable:x64", status: .warn,
+                                               warnings: ["installURLUnresolved"]))
+        #expect(arm != x64)
+        #expect(arm.contains("com.example.app [stable:arm64]"))
+    }
+
+    @Test func theQualifierIsWhatFollowsTheApp() {
+        #expect(Reconcile.qualifier(recipeID: "vendor:com.trae.app:stable:arm64") == "stable:arm64")
+        #expect(Reconcile.qualifier(recipeID: "install:vendor:com.trae.app:stable:x64") == "stable:x64")
+        #expect(Reconcile.qualifier(recipeID: "github:zed-industries/zed:preview") == "preview")
+        #expect(Reconcile.qualifier(recipeID: "pkgarch:com.oray.sunlogin.macclient:stable") == nil)
+        // Nothing worth saying: the one channel, or none.
+        #expect(Reconcile.qualifier(recipeID: "vendor:com.example.app:stable") == nil)
+        #expect(Reconcile.qualifier(recipeID: "changelog:com.obsproject.obs-studio:-") == nil)
+        #expect(Reconcile.qualifier(recipeID: "appstore:batch") == nil)
+    }
+
+    @Test func aPlainRecipeKeepsItsTitle() {
+        let title = Reconcile.title(for: finding(status: .broken, failureKind: "versionPatternNoMatch"))
+        #expect(title == "Recipe broken: com.example.app (vendor probe) — versionPatternNoMatch")
+    }
+
     private func entry(
         issue: Int? = nil, streak: Int = 0, signature: String? = nil,
         previousSignature: String? = nil,

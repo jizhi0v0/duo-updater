@@ -238,6 +238,26 @@ enum CLIToolFixtures {
         return status(.starship, path: path, detail: .starship(install), version: "1.25.1", latest: "1.26.0")
     }
 
+    static func deno(
+        quarantined: Bool = false, writable: Bool = true, withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.deno/bin/deno"
+        let install = DenoInstall(path: path, version: "2.9.6", quarantined: quarantined, writable: writable)
+        return status(.deno, path: path, detail: .deno(install), version: "2.9.6", latest: "2.9.7",
+                      withheld: withheld)
+    }
+
+    static func mise(
+        quarantined: Bool = false, writable: Bool = true, disabledBy: String? = nil,
+        withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.local/bin/mise"
+        let install = MiseInstall(path: path, version: "2026.10.3", quarantined: quarantined, writable: writable,
+                                  selfUpdateDisabledBy: disabledBy)
+        return status(.mise, path: path, detail: .mise(install), version: "2026.10.3", latest: "2026.10.4",
+                      withheld: withheld)
+    }
+
     static func codex(
         signature: CLIToolTrust.Signature? = .vendor, quarantined: Bool = false,
         problem: CodexInstall.Problem? = nil, withheld: CLIToolWithheld? = nil
@@ -916,6 +936,29 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.flyctl()) == "Auto-update is off in flyctl’s settings")
         for kind in [CLIToolKind.flyctl, .helm, .starship] { #expect(CLIToolsModel.vendor(of: kind) == nil) }
         #expect(CLIToolPresentation.facts(of: F.helm(), home: "/Users/ann").isEmpty)
+    }
+
+    /// Deno's and mise's reasons: a folder they cannot write to, a quarantined
+    /// file, the signer named; Deno's other unsupported builds (LTS, RC,
+    /// canary) and mise's packager marker in the generic words.
+    ///
+    /// Mutations: drop the `(.unsupportedInstaller, .deno) where !writable` or
+    /// the mise one, or its `selfUpdateDisabledBy == nil`; drop either
+    /// `(.unverified, …) where quarantined` case; return nil as either vendor.
+    @Test func denoAndMiseReasons() {
+        let admin = "Updating it needs administrator rights"
+        let generic = "No one-click update for this kind of install"
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.deno(writable: false)) == admin)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.deno()) == generic)
+        #expect(CLIToolsModel.reason(.unverified, of: F.deno(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.wrongSigner, of: F.deno()) == "Not signed by Deno Land")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.mise(writable: false)) == admin)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.mise(writable: false, disabledBy: "/x/lib/.disable-self-update"))
+            == generic)
+        #expect(CLIToolsModel.reason(.unverified, of: F.mise(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.wrongSigner, of: F.mise()) == "Not signed by Jeffrey Dickey")
+        #expect(CLIToolPresentation.facts(of: F.deno(), home: "/Users/ann").isEmpty)
+        #expect(CLIToolPresentation.facts(of: F.mise(), home: "/Users/ann").isEmpty)
     }
 
     /// The pane's reason and the row's warning are the status's own: a newer

@@ -68,6 +68,8 @@ struct CLIToolsModelTests {
         case .flyctl: detail = .flyctl(FlyctlInstall(path: path, version: version))
         case .helm: detail = .helm(HelmInstall(path: path, version: version))
         case .starship: detail = .starship(StarshipInstall(path: path, version: version))
+        case .deno: detail = .deno(DenoInstall(path: path, version: version))
+        case .mise: detail = .mise(MiseInstall(path: path, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -107,6 +109,8 @@ struct CLIToolsModelTests {
         case .flyctl: context = .flyctl
         case .helm: context = .helm
         case .starship: context = .starship
+        case .deno: context = .deno
+        case .mise: context = .mise
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }

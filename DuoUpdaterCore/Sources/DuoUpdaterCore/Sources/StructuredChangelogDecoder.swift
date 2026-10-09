@@ -67,6 +67,8 @@ public enum StructuredChangelogDecoder {
             return decodeClaudeDesktop(body, maxEntries: maxEntries)
         case .hyperFramesWhatsNew:
             return decodeHyperFramesWhatsNew(body)
+        case .gotEmailReleases:
+            return decodeGotEmailReleases(body, maxEntries: maxEntries)
         case .opencodeReleases:
             guard let changelog = OpencodeRelease.parseNotes(Data(body.utf8)),
                   !changelog.entries.isEmpty
@@ -537,6 +539,45 @@ public enum StructuredChangelogDecoder {
         guard !items.isEmpty else { return nil }
         return Changelog(entries: [.init(
             version: build, date: isoDay(file.date), items: items, content: content)])
+    }
+
+    // MARK: - GotEmail (gotemail.shipcat.app/releases.json)
+
+    /// The file is edited by hand, so this reads it the way the vendor's own
+    /// What's New page does (`releasesHTML` in `/assets/site.js`, read 2026-10-09):
+    /// anything in `releases` or `items` that is not an object is skipped, and a
+    /// tag other than `new` / `changed` / `fixed` (any case) shows as Changed. The
+    /// tag is kept as a lead-in rather than regrouped under headings: the page
+    /// lists the lines in document order with a label on each, and so does the
+    /// appcast's `<description>` (`<b>Changed:</b> …`).
+    static func decodeGotEmailReleases(_ body: String, maxEntries: Int?) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let releases = root["releases"] as? [Any]
+        else { return nil }
+
+        let labels = ["new": "New", "changed": "Changed", "fixed": "Fixed"]
+        var entries: [Changelog.Entry] = []
+        for case let release as [String: Any] in releases {
+            guard let version = (release["version"] as? String)?
+                    .trimmingCharacters(in: .whitespaces),
+                  !version.isEmpty
+            else { continue }
+            var items: [String] = []
+            for case let item as [String: Any] in release["items"] as? [Any] ?? [] {
+                guard let text = (item["text"] as? String)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                      !text.isEmpty
+                else { continue }
+                let tag = ((item["tag"] as? String) ?? "").lowercased()
+                items.append("\(labels[tag] ?? "Changed"): \(text)")
+            }
+            guard !items.isEmpty else { continue }
+            entries.append(.init(
+                version: version, date: isoDay(release["date"] as? String), items: items))
+            if let cap = maxEntries, entries.count >= cap { break }
+        }
+        return entries.isEmpty ? nil : Changelog(entries: entries)
     }
 
     // MARK: - GitHub Desktop (central.github.com/deployments/desktop/desktop/changelog.json)

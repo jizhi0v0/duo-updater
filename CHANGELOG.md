@@ -19,6 +19,22 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.3
+
+**Rollback backups are now your choice.** On a new install, the welcome window asks whether to keep a copy of each app before updating it, and it's off unless you turn it on. If you already use DuoUpdater, your setting stays as it was. You can change it any time in Settings › Backups.
+
+**An update can no longer fill your startup disk.** If there isn't room for an update, DuoUpdater waits for other updates to finish, and if there still isn't room, it tells you how much space is needed and leaves the app as it was. When free space drops below 10 GB during a backup or a download, the oldest backups on this Mac are deleted to make room; if none are left, the backup is skipped or the download is stopped.
+
+**Clean Up in Settings › Backups shows its progress and deletes faster.** Before, the sheet closed and the deletion ran with nothing on screen. Long lists now scroll smoothly, and deleting a backup while it is being copied to the backup disk no longer reports a failed copy.
+
+**Rolling back an app that has changed its name now finds its backup.** This covers PrintCraft, now PdfCraft, and WorkBuddy.
+
+**More apps are supported.** Search (the Office Commun browser) now gets update checks and one-click updates, and PrintCraft is now offered 0.4.0, released under its new name, PdfCraft. Lorca's command-line tool now appears in the CLI tab, and the Lorca and GotEmail apps now get structured release notes.
+
+**Fixes for apps whose downloads changed.** One-click updates for TRAE work again, and DSH Desktop is offered its latest version instead of 2.0.15. Nightly builds of Cua Driver and T3 Code are found again, and iTerm2's stable release notes show again.
+
+**Under the hood.** DuoUpdater's own download is about a third smaller.
+
 ## 0.5.2
 
 **Command-line tools and Homebrew packages are now checked in the background, and their updates show up in notifications and in the badge.** Before, they were only checked when you opened the menu bar popover or the Workbench. A new Settings › Notifications page has a switch each for apps, command-line tools and Homebrew packages. Homebrew packages are off by default.

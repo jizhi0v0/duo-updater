@@ -2,6 +2,22 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.3
+
+**Backups zur Wiederherstellung sind jetzt deine Entscheidung.** Bei einer Neuinstallation fragt das Willkommensfenster, ob vor jedem Update eine Kopie der App aufbewahrt werden soll; das ist aus, solange du es nicht einschaltest. Wenn du DuoUpdater schon verwendest, bleibt deine Einstellung, wie sie war. Du kannst sie jederzeit unter Einstellungen › Backups ändern.
+
+**Ein Update kann dein Startvolume nicht mehr vollschreiben.** Ist für ein Update nicht genug Platz, wartet DuoUpdater, bis andere Updates fertig sind; reicht der Platz dann immer noch nicht, nennt es den benötigten Platz und lässt die App, wie sie war. Fällt der freie Speicher während eines Backups oder Downloads unter 10 GB, werden die ältesten Backups auf diesem Mac gelöscht, um Platz zu schaffen; ist keines mehr übrig, wird das Backup übersprungen oder der Download abgebrochen.
+
+**Aufräumen unter Einstellungen › Backups zeigt den Fortschritt und löscht schneller.** Bisher schloss sich das Fenster, und das Löschen lief ohne jede Anzeige. Lange Listen scrollen jetzt flüssig, und ein Backup zu löschen, während es auf das Backup-Laufwerk kopiert wird, meldet keinen fehlgeschlagenen Kopiervorgang mehr.
+
+**Eine App, die ihren Namen geändert hat, findet beim Zurücksetzen jetzt ihr Backup.** Das betrifft PrintCraft, jetzt PdfCraft, und WorkBuddy.
+
+**Mehr Apps werden unterstützt.** Search (der Browser von Office Commun) wird jetzt auf Updates geprüft und lässt sich mit einem Klick aktualisieren, und PrintCraft bekommt jetzt 0.4.0 angeboten, erschienen unter dem neuen Namen PdfCraft. Das Kommandozeilen-Tool von Lorca erscheint jetzt im Tab CLI, und die Apps Lorca und GotEmail bekommen jetzt strukturierte Release Notes.
+
+**Korrekturen für Apps, deren Downloads sich geändert haben.** Ein-Klick-Updates für TRAE funktionieren wieder, und DSH Desktop bekommt seine neueste Version statt 2.0.15 angeboten. Die Nightly-Builds von Cua Driver und T3 Code werden wieder gefunden, und die Release Notes der stabilen Versionen von iTerm2 erscheinen wieder.
+
+**Unter der Haube.** Der Download von DuoUpdater selbst ist etwa ein Drittel kleiner.
+
 ## 0.5.2
 
 **Kommandozeilen-Tools und Homebrew-Pakete werden jetzt im Hintergrund geprüft, und ihre Updates erscheinen in Mitteilungen und im Kennzeichen.** Bisher wurden sie nur geprüft, wenn du das Popover der Menüleiste oder die Werkbank geöffnet hast. Eine neue Seite Einstellungen › Mitteilungen hat je einen Schalter für Apps, Kommandozeilen-Tools und Homebrew-Pakete; Homebrew-Pakete sind standardmäßig aus.

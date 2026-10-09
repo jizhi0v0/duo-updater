@@ -2,6 +2,22 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.3
+
+**Las copias para revertir ahora las decides tú.** En una instalación nueva, la ventana de bienvenida pregunta si quieres guardar una copia de cada app antes de actualizarla, y está desactivado salvo que lo actives. Si ya usas DuoUpdater, tu ajuste se queda como estaba. Puedes cambiarlo cuando quieras en Ajustes › Copias de seguridad.
+
+**Una actualización ya no puede llenar tu disco de arranque.** Si no hay espacio para una actualización, DuoUpdater espera a que terminen las demás, y si sigue sin haber espacio, te dice cuánto hace falta y deja la app como estaba. Cuando el espacio libre baja de 10 GB durante una copia de seguridad o una descarga, se eliminan las copias de seguridad más antiguas de este Mac para hacer sitio; si no queda ninguna, se omite la copia o se detiene la descarga.
+
+**Limpiar en Ajustes › Copias de seguridad muestra su progreso y elimina más rápido.** Antes, la hoja se cerraba y la eliminación seguía sin nada en pantalla. Las listas largas ahora se desplazan con fluidez, y eliminar una copia mientras se copia al disco de copias de seguridad ya no informa de una copia fallida.
+
+**Revertir una app que ha cambiado de nombre ahora encuentra su copia de seguridad.** Esto incluye PrintCraft, ahora PdfCraft, y WorkBuddy.
+
+**Más apps compatibles.** Search (el navegador de Office Commun) ahora tiene comprobación de actualizaciones y actualización con un clic, y a PrintCraft ahora se le ofrece la 0.4.0, publicada con su nuevo nombre, PdfCraft. La herramienta de línea de comandos de Lorca ahora aparece en la pestaña CLI, y las apps Lorca y GotEmail ahora tienen notas de versión estructuradas.
+
+**Correcciones para apps cuyas descargas cambiaron.** La actualización con un clic de TRAE vuelve a funcionar, y a DSH Desktop se le ofrece su última versión en lugar de la 2.0.15. Las versiones nightly de Cua Driver y T3 Code vuelven a encontrarse, y las notas de versión estables de iTerm2 vuelven a mostrarse.
+
+**Por dentro.** La descarga del propio DuoUpdater es aproximadamente un tercio más pequeña.
+
 ## 0.5.2
 
 **Las herramientas de línea de comandos y los paquetes de Homebrew ahora se comprueban en segundo plano, y sus actualizaciones aparecen en las notificaciones y en el globo.** Antes solo se comprobaban al abrir el popover de la barra de menús o el workbench. Una nueva página Ajustes › Notificaciones tiene un interruptor para las apps, otro para las herramientas de línea de comandos y otro para los paquetes de Homebrew; los paquetes de Homebrew vienen desactivados.

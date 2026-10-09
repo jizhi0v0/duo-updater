@@ -2,6 +2,22 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.3
+
+**Backups para reversão agora são escolha sua.** Numa instalação nova, a janela de boas-vindas pergunta se você quer guardar uma cópia de cada app antes de atualizá-lo, e fica desligado a menos que você ligue. Se você já usa o DuoUpdater, seu ajuste continua como estava. Você pode mudá-lo quando quiser em Ajustes › Backups.
+
+**Uma atualização não consegue mais encher seu disco de inicialização.** Se não houver espaço para uma atualização, o DuoUpdater espera as outras terminarem; se ainda assim não houver espaço, ele diz quanto é necessário e deixa o app como estava. Quando o espaço livre cai abaixo de 10 GB durante um backup ou um download, os backups mais antigos deste Mac são apagados para abrir espaço; se não sobrar nenhum, o backup é pulado ou o download é interrompido.
+
+**Limpar, em Ajustes › Backups, mostra o progresso e apaga mais rápido.** Antes, a janela se fechava e a exclusão seguia sem nada na tela. Listas longas agora rolam com suavidade, e apagar um backup enquanto ele é copiado para o disco de backup não informa mais uma cópia com falha.
+
+**Reverter um app que mudou de nome agora encontra o backup dele.** Isso vale para o PrintCraft, agora PdfCraft, e para o WorkBuddy.
+
+**Mais apps são compatíveis.** O Search (o navegador da Office Commun) agora tem verificação de atualizações e atualização com um clique, e o PrintCraft agora recebe a oferta da 0.4.0, lançada com o novo nome, PdfCraft. A ferramenta de linha de comando do Lorca agora aparece na aba CLI, e os apps Lorca e GotEmail agora têm notas de versão estruturadas.
+
+**Correções para apps cujos downloads mudaram.** A atualização com um clique do TRAE voltou a funcionar, e o DSH Desktop recebe a oferta da versão mais recente em vez da 2.0.15. As versões nightly do Cua Driver e do T3 Code voltam a ser encontradas, e as notas de versão estáveis do iTerm2 voltam a aparecer.
+
+**Nos bastidores.** O download do próprio DuoUpdater ficou cerca de um terço menor.
+
 ## 0.5.2
 
 **Ferramentas de linha de comando e pacotes do Homebrew agora são verificados em segundo plano, e as atualizações deles aparecem nas notificações e no indicador.** Antes, eles só eram verificados quando você abria o popover da barra de menus ou a bancada. Uma nova página Ajustes › Notificações tem um botão para apps, outro para ferramentas de linha de comando e outro para pacotes do Homebrew; os pacotes do Homebrew vêm desligados.

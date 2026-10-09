@@ -195,4 +195,23 @@ private let blender53AlphaPage = #"""
     @Test func anInDevelopmentPageParsesToNothing() throws {
         #expect(ChangelogExtractor.extract(from: blender53AlphaPage, using: try recipe()) == nil)
     }
+
+    /// An alpha, beta or RC copy's own minor is always the one still in
+    /// development, so the recipe could only miss on it, and each miss showed as
+    /// a broken recipe in the health list. Those copies get no recipe and embed
+    /// the page; a release copy, or one whose channel was not read, still gets it.
+    ///
+    /// Mutation: drop `excludedChannels` — the three pre-release lookups find
+    /// the recipe again.
+    @Test func preReleaseCopiesAreNotOfferedTheRecipe() {
+        let id = "org.blenderfoundation.blender"
+        for channel in [ReleaseChannel.alpha, .beta, .rc] {
+            #expect(ChangelogRecipeRegistry.recipe(
+                forBundleID: id, channel: channel, version: "5.3.0") == nil)
+        }
+        #expect(ChangelogRecipeRegistry.recipe(
+            forBundleID: id, channel: .stable, version: "5.2.1") != nil)
+        #expect(ChangelogRecipeRegistry.recipe(
+            forBundleID: id, channel: nil, version: "5.2.1") != nil)
+    }
 }

@@ -149,3 +149,15 @@ URL would distinguish it, and `/releases/latest` would return it; the
 anchor documents that exposure rather than pretending to close it.
 
 复测 2026-09-14（约 07:31 UTC，只读 `gh api repos/pingdotgg/t3code/releases?per_page=100` 与 `releases/latest`）：最新 100 条里 nightly tag 的首次出现在第 1 位（第 0 位是 `v0.0.41-preview.20260914.1693`），相邻两个 nightly tag 的位置差最大是 4；100 条里有 4 个 `-preview.` tag，最早的是 `v0.0.41-preview.20260913.1634`（2026-09-13），都标了 prerelease；`releases/latest` 是 `v0.0.40`（2026-09-08）。`v0.0.41-preview.20260914.1693` 的 macOS 资产名是 `T3-Code-0.0.41-preview.20260914.1693-arm64.dmg` 与 `…-x64.dmg`。nightly rule 的 `listPageSize` 是 5。同日稍后（`gh api repos/pingdotgg/t3code/tags` 与 `releases`）：名字里带 `-preview.` 的 tag 最早是 `v0.0.41-preview.20260912.1595`，标成 release 的最早是 `v0.0.41-preview.20260913.1634`（2026-09-13T04:14:56Z）；另有一个滚动的 `desktop-preview` **release**（prerelease，名为 "Desktop preview builds"，发布于 2026-08-26T02:12:49Z，正文说是带 preview 标签的 PR 的未签名构建，资产形如 `T3-Code-0.0.40-pr.11709.12661-arm64.dmg`）——它早于提交 `8e0cc26e`（2026-08-30），两条 rule 的资产名模式都拒绝它的 `-pr.` 名字，`releases/latest` 也跳过 prerelease。
+
+### Recipes/com-t3tools-t3code.swift — nightly `listPageSize` 5 → 15
+
+复测 2026-10-09（约 02:29 UTC，只读 `gh api repos/pingdotgg/t3code/releases?per_page=100`）：Detection recipes 列表显示
+`5 releases fetched, none matched the version pattern`。最新 100 条里前 5 条全是 `-preview.`（`v0.0.46-preview.20261009.2851`、
+`…20261008.2848`、`…20261008.2844`、`…20261008.2802`、`…20261008.2800`），第一个 nightly（`v0.0.46-nightly.20261008.2849`）在第 5 位，
+所以 5 条的页里一个 nightly 都没有。相邻两个 nightly 的位置差最大是 4（`v0.0.43-nightly.20260920.2005`→`…20260920.1990`、
+`…20260926.2282`→`…20260925.2269`），100 条里有 22 个 `-preview.` tag，最早一条发布于 2026-09-17。preview 是成批发的，领头那一段才是
+页大小的下限：`GitHubListPageSizeTests` 的下限改为 6，`listPageSize` 取 15（下限前那段的 3 倍）。
+
+同时取回的页大小（gzip，带 token）：per_page=5 15,299 B，10 40,756 B，15 68,712 B，20 93,236 B。`probesNewestFirst` 先取 1 条，
+最新一条不是 nightly 时才付整页的钱。

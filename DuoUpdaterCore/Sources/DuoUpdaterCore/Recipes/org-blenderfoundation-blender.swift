@@ -105,8 +105,12 @@ enum org_blenderfoundation_blender {
         //
         // Requiring the literal "was released on" is a GUARD: daily/alpha/beta builds
         // share the bundle id, and an in-development minor's page reads "is currently
-        // in Alpha/Beta" instead, so it yields zero entries (safe embed fallback)
-        // rather than a partial changelog.
+        // in Alpha/Beta" instead, so it yields zero entries rather than a partial
+        // changelog. Those builds are also excluded outright (`excludedChannels`):
+        // their own minor's page is always the in-development one, so the recipe
+        // could only ever miss on them and report itself broken. Excluded, they
+        // embed the page as an app with no recipe does. The guard still covers a
+        // copy whose channel was not read.
         ChangelogRecipe(
             bundleID: "org.blenderfoundation.blender",
             source: URL(string: "https://developer.blender.org/docs/release_notes/5.2/")!,
@@ -117,6 +121,7 @@ enum org_blenderfoundation_blender {
                 + #"(?=<h2[^>]*id="corrective-releases"|</article>)"#,
             itemPatterns: [#"<li>\s*(?<item>.*?)\s*</li>"#],
             maxEntries: 1,
+            excludedChannels: [.alpha, .beta, .rc],
             sourceTemplate: "https://developer.blender.org/docs/release_notes/{majorMinor}/"),
         ],
         channelProofs: [

@@ -28,6 +28,23 @@ Bug Fixes:
 
 """
 
+/// The same file for 3.7.4, captured 2026-10-09: its first 10 lines verbatim
+/// (the version line, the heading and the first two of its 17 items). This
+/// version line ends at the year, with no period.
+private let stableNoPeriodFixture = """
+Version 3.7.4 was built on October 8, 2026
+
+Bug Fixes:
+- Fixed a crash that could recur every time
+  iTerm2 saved window state. Quitting while a
+  save was in progress could store duplicate
+  entries in the saved-state database, which
+  later saves could not handle.
+- Fixed a crash when opening a new tab next to a
+  tab in a tab group.
+
+"""
+
 /// `https://iterm2.com/appcasts/testing_changes3.txt` (the test-release feed's
 /// notes link), captured 2026-10-08, trimmed to whole items: the wrapped version
 /// line, the credit paragraph, all four section headings and one item under each
@@ -118,6 +135,20 @@ leaks into a copy button or a link target.
         #expect(entry.version == "3.7.3")
         #expect(entry.date == "September 22, 2026")
         #expect(entry.items.count == 3)
+        #expect(headings(entry) == ["Bug Fixes"])
+    }
+
+    /// Mutation: require the period after the year again — the entry no longer
+    /// matches and the pane embeds the file.
+    @Test func readsAStableFileWithNoPeriodAfterTheYear() throws {
+        let log = try #require(ChangelogExtractor.extract(
+            from: stableNoPeriodFixture, using: try recipe()))
+        #expect(log.entries.count == 1)
+        let entry = try #require(log.entries.first)
+        #expect(entry.version == "3.7.4")
+        #expect(entry.date == "October 8, 2026")
+        #expect(entry.items.count == 2)
+        #expect(entry.items.last == "Fixed a crash when opening a new tab next to a tab in a tab group.")
         #expect(headings(entry) == ["Bug Fixes"])
     }
 

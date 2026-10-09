@@ -38,15 +38,16 @@ enum com_t3tools_t3code {
         // carries `-nightly.` — which is also why the alpha pattern above cannot
         // drift onto this train: its `[0-9.]+` run refuses the dash.
         // listPageSize: releases of this repo's other trains land between two
-        // nightly tags, so the newest nightly need not be first in the list. 5 was
-        // sized for 2.5x headroom over the widest run measured on 2026-09-04, and
-        // a later recheck found a wider run (History has both, and the page
-        // sizes).
+        // nightly tags, so the newest nightly need not be first in the list. The
+        // `-preview.` series publishes in bursts, and a burst of five at the top
+        // of the list leaves a five-release page with no nightly at all; 15 is
+        // three times the widest such run measured (History has the runs and the
+        // page sizes).
         GitHubReleaseRule(
             bundleID: "com.t3tools.t3code",
             owner: "pingdotgg", repo: "t3code",
             usePrereleases: true,
-            listPageSize: 5,
+            listPageSize: 15,
             versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]+\.[0-9]+)$"#,
             installAssetPattern: #"^T3-Code-[0-9.]+-nightly\.[0-9.]+-arm64\.dmg$"#,
             installerKind: .dmg,

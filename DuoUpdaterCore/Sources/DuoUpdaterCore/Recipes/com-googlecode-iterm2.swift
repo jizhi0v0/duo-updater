@@ -27,8 +27,8 @@ enum com_googlecode_iterm2 {
         //   - Fixed the Python API not reporting OSC 8
         //     hyperlinks. A cell’s CellStyle.url is now
         //
-        // The date may wrap onto the next line (`\s+`), and `of iTerm2` is not
-        // always there. Items are hard-wrapped with a two-space indent; the item
+        // The date may wrap onto the next line (`\s+`), `of iTerm2` is not
+        // always there, and neither is the period after the year. Items are hard-wrapped with a two-space indent; the item
         // pattern takes the `- ` line plus every indented line after it, and
         // whitespace collapsing joins them into one line. `[^\n]`, not `.`: every
         // pattern is compiled with dot-matches-newline. Section labels
@@ -42,7 +42,7 @@ enum com_googlecode_iterm2 {
             source: URL(string: "https://iterm2.com/appcasts/final_modern.xml")!,
             entryPattern:
                 #"(?m)^Version[ \t]+(?<version>\d+(?:\.\d+)+[0-9a-z-]*)\s+(?:of\s+iTerm2\s+)?"#
-                + #"was\s+built\s+on\s+(?<date>[a-z]+\s+\d{1,2},\s+\d{4})\.[ \t]*\n"#
+                + #"was\s+built\s+on\s+(?<date>[a-z]+\s+\d{1,2},\s+\d{4})\.?[ \t]*\n"#
                 + #"(?<body>.*?)(?=\nVersion[ \t]+\d|\z)"#,
             itemPatterns: [#"(?m)^-[ \t]+(?<item>[^\n]*(?:\n[ \t]+\S[^\n]*)*)"#],
             stripTags: false,

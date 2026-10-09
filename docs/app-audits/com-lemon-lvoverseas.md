@@ -624,6 +624,51 @@ beta 还**倒退**了（9.4.0-beta8 → 9.3.5-beta1）。
 （容器里的 prefs 会不会被新版读到）的影响没有查过 —— 这是厂商自己的更新器也在推的同一个包
 （`update_url` 指向它）。
 
+### 第五个坑再现：beta 公告整体回退到 9.5.5-beta1（2026-09-28 起，#427）
+
+`_nosandbox` 修好后 beta 正常读到 9.6.0-beta5，2026-09-28 的 sweep 起改报
+「version went BACKWARDS（9.6.0-beta5 → 9.5.5-beta1）」，`Baseline` 按设计把
+`lastGoodVersion` 钉在 9.6.0-beta5，所以 issue 一直挂着。**这是厂商撤回公告，不是配方坏。**
+2026-10-03 第一次查过（结论见 #427 评论），2026-10-09 复测，结论不变：
+
+| 变的那一维 | 取值 | 结果（2026-10-09T05:35Z 起）|
+|---|---|---|
+| 重复 | 配方原 URL × 6 | 6/6 HTTP 200、字节数相同：`lastest_url` = `lastest_sync_url` = `CapCut_9_5_5-beta1_4583_capcutpc_beta_creatortool.dmg`，stable `9_5_0_4590`，`lastest_beta_number` `"1"` |
+| `version_code` × `channel` | `1.0.0` `9.5.0` `9.6.0` `9.7.0` `9.9` `9.99` `10.0.0` × `capcutpc_0`/`capcutpc_beta` | 全部同上 |
+| `version_code` | `9.999` | 无 `update_reminder`（既有行为）|
+
+body 里 `9_6_0` 与 `nosandbox` 各出现 0 次，全文只有上面两个 `CapCut_…dmg`。也就是说
+**没有任何桶、任何 channel token 在发 9.6.0**，2026-09-23 时还只出现在旧桶（`1.0.0`）的
+9.5.5-beta1 现在是所有桶的答案。
+
+CDN 上的产物没撤（HEAD，2026-10-09）：
+
+| 产物 | HEAD | Last-Modified |
+|---|---|---|
+| `CapCut_9_6_0-beta5_4643_capcutpc_beta_creatortool_nosandbox.dmg` | 200 | 2026-09-23 |
+| `CapCut_9_6_0-beta6_4644_…_nosandbox.dmg` | 200 | 2026-09-27 |
+| `CapCut_9_6_0-beta7_4645_…_nosandbox.dmg` | 200 | 2026-09-28 |
+| `CapCut_9_6_0_4650_capcutpc_0_creatortool_nosandbox.dmg`（**stable**）| 200 | 2026-10-07 |
+
+beta6/beta7 和 stable 9.6.0 都从未出现在端点上 —— 厂商在继续出包，只是不公告。
+**最后一行意味着 stable 也要改名了**：9.6.0 正式版一旦公告，`lastest_stable_url` 会是
+`…_capcutpc_0_creatortool_nosandbox.dmg`。第六个坑把 `(?:_nosandbox)?` 放进两轨共用的 helper，
+已经覆盖：用生产 `stable.versionPattern` 和 install pattern 对这个文件名各跑一次，分别得到
+`9.6.0` 和完整 URL（2026-10-09，临时 Swift test，未提交）。
+
+**生产路径今天解析出来的**（临时 Swift test，`VendorProbeSource.probeDiagnostic(_:checkingInstallURL: true)`）：
+stable `9.5.0`（install `…9_5_0_4590_capcutpc_0_creatortool.dmg`），beta `9.5.5-beta1`
+（install `…9_5_5-beta1_4583_capcutpc_beta_creatortool.dmg`），两条都无 failure、无 warning。
+Homebrew `capcut` 同为 `9.5.0.4590`、同一个 stable URL。
+
+**不改配方**，理由同第五个坑：VendorProbe 报的是厂商当前自己声明的东西；去 CDN 猜 build 号或
+读 Homebrew 都会让它不再是厂商源。对用户无害：装着 9.6.0-betaN 的 beta 用户看到的远端
+9.5.5-beta1 更旧，不会被提示降级。**别手动关 #427**（`Reconcile` 认 baseline 的 `closedAt`），
+厂商公告 ≥ 9.6.0-beta6 后第一次干净的 sweep 会自己关掉它。
+
+**未验证**：撤回的原因（beta 叫停 / 公告服务故障）看不到 —— `update_reminder` 里仍没有
+`beta_stop_notice` 之类的字段；stable 9.6.0 `_nosandbox` 包未下载，签名 / Team / 架构没核。
+
 ## 建议下一步
 
 1. CapCut 进 10.x 时 `version_code=9.99` 会掉出窗口 —— 那天 `duo verify` 会报

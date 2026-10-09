@@ -173,7 +173,8 @@ jobs:
       # which is where it is kept for good. Not attested: debugging material, not
       # something anyone runs. 90 days is GitHub's maximum for a public repository
       # (docs.github.com, "Configuring the retention period for GitHub Actions
-      # artifacts and logs"), so a run must be published within that.
+      # artifacts and logs"). The window that binds is the zip's 7 days above,
+      # not this: a run older than that has no zip left to publish.
       - name: Upload the dSYM
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

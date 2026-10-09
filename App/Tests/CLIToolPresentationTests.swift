@@ -170,6 +170,35 @@ enum CLIToolFixtures {
                       withheld: withheld)
     }
 
+    /// A status with the copy-command its check would set (`manual`).
+    static func zoxide(
+        linked: Bool = false, writable: Bool = true, withheld: CLIToolWithheld? = nil, manual: Bool = false
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.local/bin/zoxide"
+        let install = ZoxideInstall(path: path, binary: path, version: "0.9.9", linked: linked, writable: writable)
+        let command = CLIToolCommand(
+            executable: "curl",
+            arguments: ["-sSfL", "https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh", "|", "sh",
+                        "-s", "--", "--bin-dir", "/Users/ann/.local/bin"],
+            pathPrefix: nil)
+        return CLIToolStatus(
+            kind: .zoxide, path: path, installedVersion: "0.9.9", latestVersion: "0.10.0", channel: nil,
+            state: .updateAvailable, oneClick: nil, withheld: withheld, note: nil,
+            manualCommand: manual ? command : nil, detail: .zoxide(install))
+    }
+
+    static func nvm(state: CLIToolState = .updateAvailable, withheld: CLIToolWithheld? = .unsupportedInstaller) -> CLIToolStatus {
+        let path = "/Users/ann/.nvm/nvm.sh"
+        let command = CLIToolCommand(
+            executable: "curl",
+            arguments: ["-o-", "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh", "|", "bash"],
+            pathPrefix: nil)
+        return CLIToolStatus(
+            kind: .nvm, path: path, installedVersion: "0.40.7", latestVersion: "0.40.8", channel: nil,
+            state: state, oneClick: nil, withheld: withheld, note: nil, manualCommand: command,
+            detail: .nvm(NvmInstall(path: path, version: "0.40.7")))
+    }
+
     static func codex(
         signature: CLIToolTrust.Signature? = .vendor, quarantined: Bool = false,
         problem: CodexInstall.Problem? = nil, withheld: CLIToolWithheld? = nil
@@ -753,6 +782,34 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.lorca()) == "Auto-update is off in Lorca’s settings")
         #expect(CLIToolsModel.vendor(of: .lorca) == nil)
         #expect(CLIToolPresentation.facts(of: F.lorca(), home: "/Users/ann").isEmpty)
+    }
+
+    /// zoxide's and nvm's copy-commands are handed out beside the gates where
+    /// DuoUpdater will not run the update itself, and their reasons say why:
+    /// a folder that needs sudo, a release without a digest to check against.
+    /// Never beside a running update, nor once up to date.
+    ///
+    /// Mutations: drop the `.zoxide`/`.nvm` arm of `manualCommand`; let it
+    /// hand out a command beside `.busy`; drop the `writable` branch of the
+    /// `(.unsupportedInstaller, .zoxide)` case or the `(.unverified, .zoxide)` case.
+    @Test func zoxideAndNvmHandOutTheirCommand() {
+        let zoxide = "curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh -s -- --bin-dir /Users/ann/.local/bin"
+        #expect(CLIToolPresentation.manualCommand(F.zoxide(writable: false, withheld: .unsupportedInstaller, manual: true)) == zoxide)
+        #expect(CLIToolPresentation.manualCommand(F.zoxide(withheld: .unverified, manual: true)) == zoxide)
+        #expect(CLIToolPresentation.manualCommand(F.zoxide(withheld: .busy, manual: true)) == nil)
+        #expect(CLIToolPresentation.manualCommand(F.nvm())
+            == "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | bash")
+        #expect(CLIToolPresentation.manualCommand(F.nvm(state: .upToDate, withheld: nil)) == nil)
+
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.zoxide(writable: false))
+            == "Updating it needs administrator rights")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.zoxide(linked: true))
+            == "No one-click update for this kind of install")
+        #expect(CLIToolsModel.reason(.unverified, of: F.zoxide())
+            == "The new release can’t be checked against a published digest")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.nvm()) == "No one-click update for this kind of install")
+        #expect(CLIToolsModel.vendor(of: .zoxide) == nil)
+        #expect(CLIToolsModel.vendor(of: .nvm) == nil)
     }
 
     /// The pane's reason and the row's warning are the status's own: a newer

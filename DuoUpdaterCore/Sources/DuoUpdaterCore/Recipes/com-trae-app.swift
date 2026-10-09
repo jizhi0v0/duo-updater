@@ -28,12 +28,21 @@ enum com_trae_app {
         //
         // Architecture: separate arm64 (`apple`) and x86_64 (`intel`) dmgs, so one
         // recipe per architecture, split by `hostRequirement` so exactly one runs
-        // on any Mac. Each install pattern also pins its own
-        // `TraeCode-darwin-<arch>.dmg`, independent of the `arch` label.
+        // on any Mac. Each install pattern also pins its own `-darwin-<arch>.dmg`
+        // suffix, independent of the `arch` label.
+        //
+        // File name: the product segment before `-darwin-` is NOT pinned. The
+        // vendor renames it between releases (`Trae-`, then `TraeCode-`, then
+        // `TRAE-`, all signed by Team 79M8227NKH), and pinning it turned a rename
+        // into a resolved version with no installer. What keeps another
+        // product out is the walk above (`solo` holds `TraeWork-darwin-*.dmg`),
+        // and the install itself refuses a download whose signing identifier is
+        // not `com.trae.app` (`SignatureVerifier.verifyBundleIdentifierMatch`).
         //
         // One-click: both dmgs are notarized, Team 79M8227NKH like the installed
         // app; the bundle holds only its Electron helpers and Squirrel, nothing
         // installed outside it, so `.dmg`. The body carries no digest.
+        // History: docs/app-audits/com-trae-app.md#历史与实测
         traeRecipe(arch: .arm64),
         traeRecipe(arch: .x86_64),
         ])
@@ -61,7 +70,7 @@ enum com_trae_app {
             changelogURL: URL(string: "https://docs.trae.ai/ide/changelog"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(darwinEntry(arch: arch)
-                    + #"[^{}]*?"url"\s*:\s*"(https://lf-cdn\.trae\.ai/obj/trae-ai-us/pkg/app/releases/stable/[0-9.]+/darwin/TraeCode-darwin-\#(file)\.dmg)""#),
+                    + #"[^{}]*?"url"\s*:\s*"(https://lf-cdn\.trae\.ai/obj/trae-ai-us/pkg/app/releases/stable/[0-9.]+/darwin/[A-Za-z]+-darwin-\#(file)\.dmg)""#),
                 kind: .dmg),
             variant: file,
             hostRequirement: VendorHostRequirement(architectures: [arch]))

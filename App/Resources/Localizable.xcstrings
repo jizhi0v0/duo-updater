@@ -18575,6 +18575,71 @@
         }
       }
     },
+    "The new release can’t be checked against a published digest": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die neue Version lässt sich nicht mit einer veröffentlichten Prüfsumme abgleichen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La nueva versión no se puede comprobar con un resumen publicado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La nouvelle version ne peut pas être vérifiée avec une empreinte publiée"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La nuova versione non può essere verificata con un digest pubblicato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しいリリースを公開済みのダイジェストで検証できません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A nova versão não pode ser conferida com um digest publicado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новый выпуск нельзя сверить с опубликованной контрольной суммой"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni sürüm yayımlanmış bir özetle doğrulanamıyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新版本无法与已发布的摘要核对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新版本無法與已發佈的摘要核對"
+          }
+        }
+      }
+    },
     "The download doesn’t match the file hash GitHub publishes for it — it may be corrupt or replaced. Nothing was changed.": {
       "extractionState": "manual",
       "localizations": {

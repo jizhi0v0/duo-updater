@@ -187,7 +187,7 @@ final class CLIToolsModel {
         providers: [any CLIToolProvider] = [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
             BoatProvider(), CodexProvider(), BunProvider(), OpencodeProvider(), CursorAgentProvider(), AmpProvider(),
-            VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(),
+            VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), ZoxideProvider(), NvmProvider(),
         ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
@@ -681,7 +681,7 @@ final class CLIToolsModel {
         case .opencode: return "Anomaly"
         case .cursorAgent: return "Anysphere"
         case .amp: return "Amp Frontier"
-        case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca: return nil
+        case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm: return nil
         }
     }
 
@@ -869,6 +869,12 @@ final class CLIToolsModel {
             let command = "lorca update"
             if !lorca.hasUpdateCommand { return String(localized: "This version has no \(command)") }
             if !lorca.writable { return String(localized: "Updating it needs administrator rights") }
+        // In `ZoxideCheck`'s order: a link elsewhere (the generic reason), a
+        // folder only `sudo` could write to; then a release without a digest.
+        case (.unsupportedInstaller, .zoxide(let zoxide)):
+            if !zoxide.linked, !zoxide.writable { return String(localized: "Updating it needs administrator rights") }
+        case (.unverified, .zoxide):
+            return String(localized: "The new release can’t be checked against a published digest")
         default:
             break
         }

@@ -5,7 +5,7 @@ import Foundation
 /// Each one has its own rules — where its installers put it, how its version is
 /// read, which command updates it and when that may run — so each keeps its own
 /// detection and update code (`ClaudeCode*`, `Bub*`, `Fx*`, `Uv*`, `Junie*`,
-/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`, `Herdr*`, `Luvus*`, `Lorca*`). What they share is
+/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`, `Herdr*`, `Luvus*`, `Lorca*`, `Zoxide*`, `Nvm*`). What they share is
 /// how the app lists them, sums them up and runs their updates: `CLIToolStatus`,
 /// `CLIToolReport` and `CLIToolProvider` below. A later tool is a new provider and
 /// a new `Kind`; the popover row and the workbench's CLI tab read it the same way.
@@ -40,6 +40,10 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case luvus
     /// egoist's Lorca CLI, `~/.local/bin/lorca`.
     case lorca
+    /// ajeetdsouza's zoxide, `~/.local/bin/zoxide`.
+    case zoxide
+    /// nvm itself (not the nodes it keeps), `~/.nvm` or `~/.config/nvm`.
+    case nvm
 
     /// The tool's own name, as its vendor writes it. Untranslated, like a formula
     /// name on the brew row.
@@ -62,6 +66,8 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .herdr: return "Herdr"
         case .luvus: return "Luvus"
         case .lorca: return "Lorca"
+        case .zoxide: return "zoxide"
+        case .nvm: return "nvm"
         }
     }
 }
@@ -165,9 +171,11 @@ public struct CLIToolStatus: Sendable, Equatable {
     /// Why, in English, for `duo` and the log.
     public let note: String?
     /// The command for the user to run themselves, when the update is theirs to
-    /// take: only with `withheld == .autoUpdateOff` — the user turned the tool's own
+    /// take: with `withheld == .autoUpdateOff` — the user turned the tool's own
     /// auto-update off, so DuoUpdater reports the update and hands over the very
-    /// command a one-click would have run, instead of running it.
+    /// command a one-click would have run, instead of running it. zoxide and nvm
+    /// also set it where DuoUpdater will not run their update (`ZoxideCheck`,
+    /// `NvmCheck`).
     public let manualCommand: CLIToolCommand?
     /// The install's own name when the tool's group holds more than one kind of
     /// thing — "rustup", "stable-aarch64-apple-darwin", an npm package's name;
@@ -199,6 +207,8 @@ public struct CLIToolStatus: Sendable, Equatable {
         case herdr(HerdrInstall)
         case luvus(LuvusInstall)
         case lorca(LorcaInstall)
+        case zoxide(ZoxideInstall)
+        case nvm(NvmInstall)
     }
 
     public init(
@@ -256,6 +266,8 @@ public struct CLIToolReport: Sendable, Equatable {
         case herdr
         case luvus
         case lorca
+        case zoxide
+        case nvm
     }
 
     public init(
@@ -362,7 +374,8 @@ public protocol CLIToolProvider: Sendable {
     /// most every 15 minutes when no token resolves (`CLIToolsModel.isDue`).
     ///
     /// Measured 2026-10-08: of the version checks, only Bun's and OpenCode's
-    /// (`releases/latest`) ask it on every check, and Herdr's when its manifests
+    /// (`releases/latest`) ask it on every check (zoxide's and nvm's too, added
+    /// 2026-10-09), and Herdr's when its manifests
     /// do not name the build. Every other source answers with an ETag or a
     /// Last-Modified that revalidates to 304 at no cost. Release notes are not
     /// part of a check and do not count here.

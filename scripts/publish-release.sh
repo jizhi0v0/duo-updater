@@ -30,6 +30,9 @@ PROJECT_YML="$REPO_ROOT/App/project.yml"
 DIST_DIR="${DIST_DIR:-$REPO_ROOT/dist}"
 RELEASE_REPO="${RELEASE_REPO:-jizhi0v0/duo-updater}"
 FINAL_ZIP="${FINAL_ZIP:-$DIST_DIR/DuoUpdater-notarized.zip}"
+# Where notarize.sh leaves the dSYM of the build it zipped. Exported so the two
+# scripts agree on it when this one runs notarize.sh.
+export DSYM_ZIP="${DSYM_ZIP:-$(dirname "$FINAL_ZIP")/DuoUpdater-dSYM.zip}"
 DERIVED_DATA="${DERIVED_DATA:-/tmp/duo-notary-dd}"
 SKIP_NOTARIZE="${SKIP_NOTARIZE:-0}"
 RELEASE_NOTES_FILE="${RELEASE_NOTES_FILE:-}"
@@ -79,9 +82,29 @@ build="$(read_project_setting CURRENT_PROJECT_VERSION)" \
 TAG="${TAG:-v$version}"
 TITLE="${TITLE:-DuoUpdater $version}"
 ASSET_ZIP="$DIST_DIR/DuoUpdater-$version-macos.zip"
+DSYM_ASSET="$DIST_DIR/DuoUpdater-$version-dSYM.zip"
 AUTO_NOTES="$DIST_DIR/release-notes-$TAG.md"
 DOWNLOAD_PREFIX="https://github.com/$RELEASE_REPO/releases/download/$TAG/"
 RELEASE_PAGE_URL="https://github.com/$RELEASE_REPO/releases/tag/$TAG"
+
+# The shipped binary is stripped, so the dSYM is the only thing that turns a
+# crash or hang report from it back into function names — and only the dSYM of
+# that exact build: they pair by UUID, and a rebuild produces a different one.
+# Refuse a release whose dSYM is missing or belongs to another build; publishing
+# it would make every report from that version unreadable, permanently.
+check_dsym_matches() {
+    local app_zip="$1" dsym_zip="$2" tmp bin_uuid dsym_uuid
+    [ -f "$dsym_zip" ] || die "no dSYM at $dsym_zip — the release would ship unsymbolicatable"
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/duo-dsym-check.XXXXXX")"
+    ditto -x -k "$app_zip" "$tmp/app" || { rm -rf "$tmp"; die "could not unpack $app_zip"; }
+    ditto -x -k "$dsym_zip" "$tmp/dsym" || { rm -rf "$tmp"; die "could not unpack $dsym_zip"; }
+    bin_uuid="$(dwarfdump --uuid "$tmp"/app/*.app/Contents/MacOS/DuoUpdater 2>/dev/null | awk '{print $2}')"
+    dsym_uuid="$(dwarfdump --uuid "$tmp"/dsym/*.dSYM 2>/dev/null | awk '{print $2}')"
+    rm -rf "$tmp"
+    [ -n "$bin_uuid" ] && [ "$bin_uuid" = "$dsym_uuid" ] \
+        || die "dSYM UUID ($dsym_uuid) does not match the binary in $app_zip ($bin_uuid)"
+    printf '   %s\n' "$bin_uuid"
+}
 
 find_generate_appcast() {
     local candidate
@@ -759,8 +782,15 @@ if [ -n "${CI_RUN_ID:-}" ]; then
         || die "Gatekeeper rejects the CI artifact"
     printf '   %s\n' "$(printf '%s\n' "$ci_sig" | sed -n 's/^Authority=/Authority=/p' | head -n 1)"
 
+    # Uploaded by the same run as its own artifact. A run from before the dSYM
+    # was kept has none, and is refused below by check_dsym_matches.
+    gh run download "$CI_RUN_ID" --repo "$RELEASE_REPO" \
+        --name DuoUpdater-dSYM --dir "$ci_dir/dsym" \
+        || die "could not download the dSYM artifact from run $CI_RUN_ID"
+
     mkdir -p "$DIST_DIR"
     cp "$ci_zip" "$FINAL_ZIP"
+    cp "$ci_dir/dsym/DuoUpdater-dSYM.zip" "$DSYM_ZIP"
     rm -rf "$ci_dir"
 elif [ "$SKIP_NOTARIZE" = "1" ]; then
     say "SKIP_NOTARIZE=1 — NOT rebuilding; reusing $FINAL_ZIP as it stands."
@@ -790,7 +820,11 @@ zip_build="$(unzip -p "$FINAL_ZIP" "$zip_info" | plutil -extract CFBundleVersion
 [ "$zip_build" = "$build" ] \
     || die "artifact is build $zip_build but this release is build $build — stale zip? (rebuild, or unset SKIP_NOTARIZE)"
 
+say "Checking the dSYM belongs to this build"
+check_dsym_matches "$FINAL_ZIP" "$DSYM_ZIP"
+
 cp "$FINAL_ZIP" "$ASSET_ZIP"
+cp "$DSYM_ZIP" "$DSYM_ASSET"
 checksum="$(shasum -a 256 "$ASSET_ZIP" | awk '{print $1}')"
 
 if [ -z "$RELEASE_NOTES_FILE" ]; then
@@ -924,7 +958,7 @@ if [ "$release_exists" = "1" ]; then
         --notes-file "$GITHUB_NOTES_FILE" \
         --draft="$([ "$is_draft" = "1" ] && echo true || echo false)" \
         --prerelease="$([ "$is_prerelease" = "1" ] && echo true || echo false)"
-    gh release upload "$TAG" "$ASSET_ZIP" "${delta_assets[@]+"${delta_assets[@]}"}" \
+    gh release upload "$TAG" "$ASSET_ZIP" "$DSYM_ASSET" "${delta_assets[@]+"${delta_assets[@]}"}" \
         --repo "$RELEASE_REPO" \
         --clobber
 else
@@ -932,7 +966,7 @@ else
     # `"${a[@]}"` on an empty array is an unbound-variable error under bash 3.2
     # (what /usr/bin/env bash is on macOS) with `set -u`, so the guarded form has
     # to be at the USE site — reassigning the array beforehand does nothing.
-    gh release create "$TAG" "$ASSET_ZIP" "${delta_assets[@]+"${delta_assets[@]}"}" \
+    gh release create "$TAG" "$ASSET_ZIP" "$DSYM_ASSET" "${delta_assets[@]+"${delta_assets[@]}"}" \
         --repo "$RELEASE_REPO" \
         ${RELEASE_TARGET_FLAG:+--target "$RELEASE_COMMIT"} \
         --title "$TITLE" \
@@ -965,6 +999,7 @@ $(printf '\033[1;32m✓ Published successfully.\033[0m')
    tag      : $TAG
    title    : $TITLE
    asset    : $ASSET_ZIP
+   dSYM     : $DSYM_ASSET
    appcast  : https://raw.githubusercontent.com/$RELEASE_REPO/main/appcast.xml
    notes    : $RELEASE_NOTES_FILE (in-app) / $GITHUB_NOTES_FILE (release page)
    sha256   : $checksum

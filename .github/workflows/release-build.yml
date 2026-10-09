@@ -168,10 +168,12 @@ jobs:
           retention-days: 7
 
       # The shipped binary is stripped; this is what turns a crash report from it
-      # back into function names. Not attested and not published — debugging
-      # material only. 90 days is GitHub's maximum for a public repository
+      # back into function names. publish-release.sh downloads it with the zip,
+      # checks its UUID against the binary, and attaches it to the GitHub release,
+      # which is where it is kept for good. Not attested: debugging material, not
+      # something anyone runs. 90 days is GitHub's maximum for a public repository
       # (docs.github.com, "Configuring the retention period for GitHub Actions
-      # artifacts and logs").
+      # artifacts and logs"), so a run must be published within that.
       - name: Upload the dSYM
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

@@ -16105,6 +16105,71 @@
         }
       }
     },
+    "Keeps a copy of each app’s current version before updating it, so an update can be undone. Each copy takes as much disk space as the app; backups are skipped when this Mac is low on space. You can change this in Settings → Backups.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bewahrt vor jedem Update eine Kopie der aktuellen Version auf, damit sich das Update rückgängig machen lässt. Jede Kopie belegt so viel Speicherplatz wie die App selbst; bei wenig freiem Speicher auf diesem Mac werden keine Backups angelegt. Ändern lässt sich das unter Einstellungen → Backups."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda una copia de la versión actual de cada app antes de actualizarla, para poder deshacer la actualización. Cada copia ocupa tanto espacio como la app; si a este Mac le queda poco espacio, no se hacen copias. Puedes cambiarlo en Ajustes → Copias de seguridad."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conserve une copie de la version actuelle de chaque app avant sa mise à jour, pour pouvoir l’annuler. Chaque copie occupe autant d’espace que l’app ; aucune sauvegarde n’est faite quand l’espace disponible sur ce Mac est faible. Modifiable dans Réglages → Sauvegardes."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conserva una copia della versione attuale di ogni app prima di aggiornarla, così l’aggiornamento si può annullare. Ogni copia occupa tanto spazio quanto l’app; se questo Mac ha poco spazio, il backup viene saltato. Puoi cambiarlo in Impostazioni → Backup."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "各アプリを更新する前に現在のバージョンのコピーを保存し、更新を元に戻せるようにします。コピー 1 つにつきアプリと同じだけのディスク容量を使い、この Mac の空き容量が少ないときはバックアップを行いません。設定 → バックアップでいつでも変更できます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda uma cópia da versão atual de cada app antes de atualizá-lo, para que a atualização possa ser desfeita. Cada cópia ocupa tanto espaço quanto o app; o backup é ignorado quando este Mac está com pouco espaço. Você pode mudar isso em Ajustes → Backups."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перед обновлением сохраняет копию текущей версии каждого приложения, чтобы обновление можно было отменить. Каждая копия занимает столько же места, сколько само приложение; при нехватке места на этом Mac копии не создаются. Изменить можно в разделе Настройки → Резервные копии."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her uygulamayı güncellemeden önce geçerli sürümün bir kopyasını tutar, böylece güncelleme geri alınabilir. Her kopya uygulamanın kendisi kadar yer kaplar; bu Mac’te yer azaldığında yedek alınmaz. Bunu Ayarlar → Yedekler bölümünden değiştirebilirsiniz."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新每个 app 前先保存一份当前版本的副本，以便撤销更新。每份副本占用的磁盘空间与 app 本身相当；这台 Mac 剩余空间不足时会自动跳过备份。可随时在“设置 → 备份”中更改。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新每個 app 前先保存一份目前版本的副本，以便還原更新。每份副本佔用的磁碟空間與 app 本身相當；這台 Mac 空間不足時會自動略過備份。可隨時在「設定 → 備份」中更改。"
+          }
+        }
+      }
+    },
     "Launcher": {
       "extractionState": "manual",
       "localizations": {
@@ -16491,6 +16556,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "尚未收到 GitHub 的回應"
+          }
+        }
+      }
+    },
+    "No rollback point: this Mac is low on space, so this update will be applied without a backup.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Wiederherstellungspunkt: Auf diesem Mac ist wenig Speicherplatz frei, daher wird dieses Update ohne Backup eingespielt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin punto de reversión: a este Mac le queda poco espacio, así que esta actualización se aplicará sin copia de seguridad."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun point de restauration : l’espace disponible sur ce Mac est faible, cette mise à jour sera donc appliquée sans sauvegarde."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun punto di ripristino: questo Mac ha poco spazio, quindi questo aggiornamento verrà applicato senza backup."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "巻き戻しポイントはありません: この Mac の空き容量が少ないため、この更新はバックアップなしで適用されます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sem ponto de reversão: este Mac está com pouco espaço, então esta atualização será aplicada sem backup."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Точки отката нет: на этом Mac мало свободного места, поэтому обновление будет установлено без резервной копии."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geri alma noktası yok: bu Mac’te yer az, bu yüzden bu güncelleme yedek alınmadan uygulanacak."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有回滚点：这台 Mac 剩余空间不足，这次更新将不做备份直接安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有還原點：這台 Mac 的空間不足，這次更新將不做備份直接套用。"
           }
         }
       }
@@ -17986,6 +18116,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 重設"
+          }
+        }
+      }
+    },
+    "Rollback backups": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backups zur Wiederherstellung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copias para revertir"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sauvegardes de restauration"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup di ripristino"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ロールバック用バックアップ"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backups para reversão"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резервные копии для отката"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geri alma yedekleri"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回滚备份"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還原備份"
           }
         }
       }
@@ -55027,71 +55222,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "新的備份會先留在這台 Mac 上，等磁碟重新連接後再自動搬過去。若磁碟不在期間這台 Mac 空間不足，更新會在沒有還原點的情況下安裝，而不會塞滿啟動磁碟。"
-          }
-        }
-      }
-    },
-    "No rollback point: the backup disk isn’t connected and this Mac is low on space.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kein Wiederherstellungspunkt: Die Backup-Festplatte ist nicht angeschlossen und auf diesem Mac ist wenig Speicherplatz frei."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sin punto de reversión: el disco de copias no está conectado y a este Mac le queda poco espacio."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aucun point de restauration : le disque de sauvegarde n’est pas connecté et l’espace disponible sur ce Mac est faible."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nessun punto di ripristino: il disco di backup non è collegato e questo Mac ha poco spazio."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "巻き戻しポイントはありません: バックアップディスクが接続されておらず、この Mac の空き容量も少なくなっています。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sem ponto de reversão: o disco de backup não está conectado e este Mac está com pouco espaço."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Точки отката нет: диск для копий не подключён, а на этом Mac мало свободного места."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Geri alma noktası yok: yedekleme diski bağlı değil ve bu Mac’te yer az."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "没有回滚点：备份磁盘未连接，且这台 Mac 剩余空间不足。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "沒有還原點：備份磁碟未連接，且這台 Mac 的空間不足。"
           }
         }
       }

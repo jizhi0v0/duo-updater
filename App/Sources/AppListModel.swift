@@ -7281,21 +7281,9 @@ final class AppListModel {
     private func backupCurrent(
         _ result: UpdateResult, route: InstallCoordinator.Route, transferNow: Bool = true
     ) async -> InstallCoordinator.BackupOutcome {
-        // With the store pointed at a disk that is not here, a backup still gets
-        // taken — it just waits locally for the disk to come back. That is the
-        // agreed degradation, and it is the right one until the boot volume is
-        // the thing under pressure, which is usually the very reason the store
-        // was moved. Past that point the honest answer is to skip, and say so.
-        let diskIsHere: Bool
-        if case .ready = BackupStore.availability() { diskIsHere = true } else { diskIsHere = false }
-        if prefs.backupDestination.kind == .external, !diskIsHere, isBootVolumeTight {
-            Log.install.notice(
-                "backup skipped: \(result.app.name, privacy: .public) — backup disk away and this Mac is low on space")
-            installNotes[result.id] = String(
-                localized: "No rollback point: the backup disk isn’t connected and this Mac is low on space.")
-            return .failed
-        }
-
+        // Low space on this Mac is decided inside `BackupStore.save` — every
+        // backup lands on the boot volume first, wherever the store points —
+        // and comes back as `.insufficientSpace`, for the CLI as much as here.
         let outcome = await InstallCoordinator.backUp(result.app, route: route)
         // Anything that landed is owed to the disk. Draining reads what is owed
         // from the sidecars rather than from this call, so a backup taken while
@@ -7309,6 +7297,10 @@ final class AppListModel {
         if case .unreadable(let path) = outcome {
             Log.install.notice("backup skipped: \(result.app.name, privacy: .public) — \(path, privacy: .public) unreadable")
             installNotes[result.id] = Self.backupUnreadableNote
+        }
+        if outcome == .insufficientSpace {
+            Log.install.notice("backup skipped: \(result.app.name, privacy: .public) — this Mac is low on space")
+            installNotes[result.id] = Self.backupLowSpaceNote
         }
         if outcome == .failed {
             Log.install.error("backup failed: \(result.app.name, privacy: .public) — proceeding without a rollback point")
@@ -7325,6 +7317,9 @@ final class AppListModel {
     /// `restartHoldBackNotes`), so it retracts exactly these texts and nothing else.
     private static var backupUnreadableNote: String {
         String(localized: "No rollback point: parts of this app aren’t readable by you (common for apps installed by a .pkg, which are often root-owned).")
+    }
+    private static var backupLowSpaceNote: String {
+        String(localized: "No rollback point: this Mac is low on space, so this update will be applied without a backup.")
     }
     private static var backupFailedNote: String {
         String(localized: "Couldn’t back up the current version — this update will be applied without a rollback point.")
@@ -7370,7 +7365,7 @@ final class AppListModel {
             return running
         }
         // This attempt's outcome replaces whatever an earlier one said.
-        for note in [Self.backupUnreadableNote, Self.backupFailedNote] where installNotes[result.id] == note {
+        for note in [Self.backupUnreadableNote, Self.backupLowSpaceNote, Self.backupFailedNote] where installNotes[result.id] == note {
             installNotes[result.id] = nil
         }
         do {
@@ -7398,7 +7393,7 @@ final class AppListModel {
                 await offCooperativePool(qos: .utility) { BackupStore.remove(forKey: key) }
                 Log.install.error("relaunch-staged: discarded \(result.app.name, privacy: .public)'s backup — its bundle may have been swapped mid-copy")
                 installNotes[result.id] = Self.backupFailedNote
-            case .unreadable, .failed:
+            case .unreadable, .insufficientSpace, .failed:
                 break
             }
         }
@@ -7411,18 +7406,6 @@ final class AppListModel {
     /// auto-prune preference, and refreshes the on-screen backup index so any
     /// rollback affordance that pointed at a just-removed orphan disappears.
     /// Returns the bytes freed, for the confirmation the button shows.
-    /// Free space on the boot volume below which we stop adding to the local
-    /// outbox. A backup that fills the startup disk is not a safety net.
-    private static let bootVolumeFloorBytes: Int64 = 10 << 30
-
-    private var isBootVolumeTight: Bool {
-        let free = (try? URL(fileURLWithPath: NSHomeDirectory())
-            .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
-            .volumeAvailableCapacityForImportantUsage
-        guard let free else { return false }
-        return free < Self.bootVolumeFloorBytes
-    }
-
     // MARK: - Backup destination
 
     /// Whether the configured backup disk can be written to right now.

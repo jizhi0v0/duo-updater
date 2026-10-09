@@ -136,7 +136,7 @@ public struct Settings: Sendable {
             // choice has been recorded (it writes one on first launch). `.off` is
             // the right reading for that: read nothing until somebody has said to.
             testFlightDetection: testFlightDetection(from: defaults),
-            keepBackups: defaults.object(forKey: "KeepBackups") as? Bool ?? true,
+            keepBackups: UpdateSettings.keepBackups(in: defaults),
             githubToken: githubToken,
             alcove: licenseKey.isEmpty || instanceID.isEmpty
                 ? nil

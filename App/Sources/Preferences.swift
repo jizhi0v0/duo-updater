@@ -586,8 +586,13 @@ final class Preferences {
         self.launchAtLogin = defaults.bool(forKey: Key.launchAtLogin)
         let storedConcurrency = defaults.integer(forKey: Key.maxConcurrency)
         self.maxConcurrency = storedConcurrency == 0 ? 12 : min(32, max(1, storedConcurrency))
-        // Default ON for these — all opt-out conveniences.
-        self.keepBackups = defaults.object(forKey: Key.keepBackups) as? Bool ?? true
+        // Written straight back so the answer is pinned: read again after the
+        // welcome window, an absent key would flip to on for a user who left
+        // the box unticked. See `UpdateSettings.keepBackups(in:)`.
+        let keepBackups = UpdateSettings.keepBackups(in: defaults)
+        defaults.set(keepBackups, forKey: Key.keepBackups)
+        self.keepBackups = keepBackups
+        // Default ON — an opt-out convenience.
         self.pruneOrphanBackups = defaults.object(forKey: Key.pruneOrphanBackups) as? Bool ?? true
         self.backupDestination = BackupDestination.load(from: defaults)
         self.backupCompression = BundleArchive.Compression(

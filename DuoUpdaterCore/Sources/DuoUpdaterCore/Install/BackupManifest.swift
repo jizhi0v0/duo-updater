@@ -48,6 +48,10 @@ public struct BackupManifest: Codable, Equatable, Sendable {
         /// Relative to the bundle root, e.g. `Contents/mmkv.default`.
         public let sealed: [String]
         public let unsealed: [String]
+        /// Logical size of every regular file in the bundle, read by the same
+        /// walk — so the backup can be sized before it is copied without
+        /// walking a 160,000-file Xcode a second time.
+        public var bytes: Int64 = 0
         public var isEmpty: Bool { sealed.isEmpty && unsealed.isEmpty }
     }
 
@@ -65,13 +69,15 @@ public struct BackupManifest: Codable, Equatable, Sendable {
         let base = bundle.standardizedFileURL.path
         var sealed: [String] = []
         var unsealed: [String] = []
+        var bytes: Int64 = 0
         guard let walker = fm.enumerator(
-            at: bundle, includingPropertiesForKeys: [.isRegularFileKey], options: [])
+            at: bundle, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey], options: [])
         else { return UnreadableFiles(sealed: [], unsealed: []) }
         for case let item as URL in walker {
-            let values = try? item.resourceValues(forKeys: [.isRegularFileKey])
-            guard values?.isRegularFile == true,
-                  !fm.isReadableFile(atPath: item.path) else { continue }
+            let values = try? item.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            guard values?.isRegularFile == true else { continue }
+            bytes += Int64(values?.fileSize ?? 0)
+            guard !fm.isReadableFile(atPath: item.path) else { continue }
             let relative = String(item.standardizedFileURL.path.dropFirst(base.count + 1))
             // `CodeResources` keys are relative to the bundle's interior, the
             // tree we walk is relative to the bundle root.
@@ -86,7 +92,7 @@ public struct BackupManifest: Codable, Equatable, Sendable {
                 unsealed.append(relative)
             }
         }
-        return UnreadableFiles(sealed: sealed.sorted(), unsealed: unsealed.sorted())
+        return UnreadableFiles(sealed: sealed.sorted(), unsealed: unsealed.sorted(), bytes: bytes)
     }
 
     /// Paths listed in the bundle's `_CodeSignature/CodeResources`, relative to

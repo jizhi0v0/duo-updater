@@ -56,7 +56,7 @@ struct WelcomeView: View {
                     .padding(.bottom, 26)
             }
         }
-        .frame(width: 560, height: 700)
+        .frame(width: 560, height: 790)
         .onAppear {
             model.windowAppeared()
             model.beginTrustPolling()
@@ -159,6 +159,9 @@ struct WelcomeView: View {
                 grantedLabel: String(localized: "Connected"),
                 action: { openGitHubSetup() }
             )
+            BackupChoiceCard(isOn: Binding(
+                get: { model.prefs.keepBackups },
+                set: { model.prefs.keepBackups = $0 }))
         }
         if #available(macOS 26.0, *) {
             GlassEffectContainer(spacing: 14) { stack }
@@ -350,6 +353,41 @@ private struct PermissionCard: View {
         } else {
             if prominent { button.buttonStyle(.borderedProminent) } else { button.buttonStyle(.bordered) }
         }
+    }
+}
+
+// MARK: - Backup choice
+
+/// Rollback backups, as a choice rather than a permission: off until ticked,
+/// because each one is a full copy of the app on this Mac's disk. Not a
+/// `PermissionCard` — there is nothing to grant, only a box to tick.
+private struct BackupChoiceCard: View {
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.title2)
+                .foregroundStyle(.tint)
+                .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Rollback backups").font(.headline)
+                Text("Keeps a copy of each app’s current version before updating it, so an update can be undone. Each copy takes as much disk space as the app; backups are skipped when this Mac is low on space. You can change this in Settings → Backups.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            Toggle("Rollback backups", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .frame(minWidth: 92, alignment: .trailing)
+        }
+        .padding(16)
+        .modifier(GlassTile())
     }
 }
 

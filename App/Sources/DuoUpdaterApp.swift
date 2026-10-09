@@ -20,7 +20,7 @@ struct DuoUpdaterApp: App {
         Window("Welcome to DuoUpdater", id: WelcomeView.windowID) {
             WelcomeView(model: model)
         }
-        .defaultSize(width: 560, height: 700)
+        .defaultSize(width: 560, height: 790)
         .windowResizability(.contentSize)
         .windowStyle(.hiddenTitleBar)  // chromeless, setup-assistant feel
 

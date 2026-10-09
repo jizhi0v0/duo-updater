@@ -231,6 +231,9 @@ public actor InstallCoordinator {
         /// Stored, but without files the app had written into its own bundle.
         /// It restores; whatever state lived in them is lost.
         case savedWithoutRuntimeState(omitted: Int)
+        /// Skipped, or stopped mid-copy, because this Mac is too low on space
+        /// to hold a copy. See ``BackupStore/freeSpaceFloorBytes``.
+        case insufficientSpace
         case failed
     }
 
@@ -301,6 +304,9 @@ public actor InstallCoordinator {
             return unreadable.unsealed.isEmpty
                 ? .saved
                 : .savedWithoutRuntimeState(omitted: unreadable.unsealed.count)
+        } catch BackupStore.BackupError.insufficientSpace {
+            // `save` has already logged what it measured.
+            return .insufficientSpace
         } catch {
             // The identity of the error is the whole diagnosis, and collapsing
             // every `BackupError` into a bare `.failed` threw it away: the log

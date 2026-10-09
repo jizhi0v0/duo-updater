@@ -1390,7 +1390,9 @@ public enum BackupStore {
     /// reading a signature, so nothing changes for it, ad-hoc and unsigned apps
     /// included. The ids are Info.plist's, the same ones the keys are made from;
     /// the signed identifier is not used, because a linker-signed ad-hoc build
-    /// has none that stays put between versions.
+    /// signs as its executable's name, not its bundle id (measured 2026-10-09:
+    /// `clang` into `T.app` with `CFBundleIdentifier` `com.example.t` reports
+    /// `Identifier=T`).
     static func verifyRestoreIdentity(
         staged: URL, over target: URL, migrations: [BundleIDMigration] = BundleIDMigration.all
     ) throws {

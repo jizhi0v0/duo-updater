@@ -45,6 +45,21 @@ public struct AppScanner: Sendable {
     /// tag installs as TestFlight-managed (and keep them out of the MAS path).
     private let testflight: TestFlightInventory
 
+    /// Where `readApp` gets an app's user-chosen channel. Always
+    /// `ChannelBinding.resolve` outside tests.
+    ///
+    /// A seam because that answer is the one field of a row that is not a pure
+    /// function of the bundle: it is a live read of another app's preferences,
+    /// bounded by a deadline, and on a Mac where macOS holds that read behind the
+    /// AppData consent gate it can come back on one pass and time out on the next.
+    /// `scopedScanMatchesTheFullScanRowForRow` failed exactly that way on CI
+    /// (CotEditor, 2026-10-09): the full scan read `.beta`, the scoped re-read
+    /// three seconds later hit the 2s deadline while the kernel held the open for
+    /// approval. A test comparing two scans injects a deterministic answer here
+    /// so it compares what the scanner does with the binding, not how the gate
+    /// felt that second.
+    let channelBinding: @Sendable (_ bundleID: String?, _ bundleFeeds: [String: URL]) -> ResolvedChannel?
+
     /// - extraLocations: user-added folders appended to the built-in roots (see
     ///   `Preferences.customScanPaths`). Each should be a directory that *contains*
     ///   `.app` bundles, so apps installed outside the standard locations — a
@@ -55,8 +70,23 @@ public struct AppScanner: Sendable {
         toolbox: ToolboxInventory = ToolboxInventory(),
         testflight: TestFlightInventory = TestFlightInventory()
     ) {
+        self.init(
+            locations: locations, extraLocations: extraLocations,
+            toolbox: toolbox, testflight: testflight,
+            channelBinding: { ChannelBinding.resolve(bundleID: $0, bundleFeeds: $1) })
+    }
+
+    /// The above, with the channel read injected. See `channelBinding`.
+    init(
+        locations: [URL]? = nil,
+        extraLocations: [URL] = [],
+        toolbox: ToolboxInventory = ToolboxInventory(),
+        testflight: TestFlightInventory = TestFlightInventory(),
+        channelBinding: @escaping @Sendable (_ bundleID: String?, _ bundleFeeds: [String: URL]) -> ResolvedChannel?
+    ) {
         self.toolbox = toolbox
         self.testflight = testflight
+        self.channelBinding = channelBinding
         self.locations = (locations ?? Self.defaultLocations) + extraLocations
     }
 
@@ -750,8 +780,7 @@ public struct AppScanner: Sendable {
             releaseChannel = channel
             channelIsAuthoritative = true
         }
-        if let bound = ChannelBinding.resolve(
-            bundleID: bundleID, bundleFeeds: ChannelBinding.bundleFeeds(fromInfoPlist: plist)) {
+        if let bound = channelBinding(bundleID, ChannelBinding.bundleFeeds(fromInfoPlist: plist)) {
             releaseChannel = bound.channel
             channelIsAuthoritative = true
             if let feed = bound.feedOverride { feedURL = feed }

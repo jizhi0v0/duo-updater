@@ -651,8 +651,8 @@ CDN 上的产物没撤（HEAD，2026-10-09）：
 | `CapCut_9_6_0_4650_capcutpc_0_creatortool_nosandbox.dmg`（**stable**）| 200 | 2026-10-07 |
 
 beta6/beta7 和 stable 9.6.0 都从未出现在端点上 —— 厂商在继续出包，只是不公告。
-**最后一行意味着 stable 也要改名了**：9.6.0 正式版一旦公告，`lastest_stable_url` 会是
-`…_capcutpc_0_creatortool_nosandbox.dmg`。第六个坑把 `(?:_nosandbox)?` 放进两轨共用的 helper，
+**最后一行说明 stable 很可能也要改名**（推测：依据是 CDN 上已暂存的文件名，端点上还没见到过）：9.6.0 正式版公告时，
+`lastest_stable_url` 预计是 `…_capcutpc_0_creatortool_nosandbox.dmg`。第六个坑把 `(?:_nosandbox)?` 放进两轨共用的 helper，
 已经覆盖：用生产 `stable.versionPattern` 和 install pattern 对这个文件名各跑一次，分别得到
 `9.6.0` 和完整 URL（2026-10-09，临时 Swift test，未提交）。
 

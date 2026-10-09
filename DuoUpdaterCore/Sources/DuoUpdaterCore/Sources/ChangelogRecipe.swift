@@ -531,6 +531,13 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// contributors:**` paragraph. That block lists every contributor's pull
         /// requests and is credits, not notes; `gitHubReleases` would keep it.
         case opencodeReleases
+        /// GotEmail's `gotemail.shipcat.app/releases.json` — `{releases: [{version,
+        /// date, items: [{tag, text}]}]}`, newest first, the file its What's New
+        /// page renders. Each line keeps its tag as a `New:` / `Changed:` /
+        /// `Fixed:` lead-in, in document order, the way that page and the
+        /// appcast's inline notes show it. See
+        /// `StructuredChangelogDecoder.decodeGotEmailReleases`.
+        case gotEmailReleases
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex

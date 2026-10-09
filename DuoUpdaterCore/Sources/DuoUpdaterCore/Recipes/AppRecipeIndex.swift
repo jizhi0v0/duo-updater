@@ -184,6 +184,7 @@ public enum AppRecipeIndex {
         com_usebruno_app.set,
         com_utmapp_UTM.set,
         com_vivaldi_Vivaldi.set,
+        com_voprex_gotemail.set,
         com_vorssaint_utils.set,
         com_vscodium.set,
         com_windscribe_client.set,

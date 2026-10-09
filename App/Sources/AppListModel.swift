@@ -1114,6 +1114,9 @@ final class AppListModel {
     /// A background `brew update` under way, which our own brew runs wait out
     /// (`afterBackgroundHomebrewUpdate`).
     @ObservationIgnored private var backgroundHomebrewUpdateTask: Task<HomebrewBackgroundUpdate.Outcome, Never>?
+    /// Homebrew's release list, fetched when its self-update row is first selected
+    /// and kept for the session, as `CLIToolsModel.releaseNotes` keeps a tool's.
+    @ObservationIgnored private var homebrewReleaseNotesCache: Changelog?
 
     /// Lazily-fetched release notes per formula, loaded only when a formula is
     /// selected in the workbench — so a long outdated list never burns the GitHub
@@ -4146,6 +4149,19 @@ final class AppListModel {
         guard brewUpgrading, brewUpgradeTotal > 0 else { return nil }
         let current = min(brewUpgradeDone + 1, brewUpgradeTotal)
         return String(localized: "Upgrading… (\(current)/\(brewUpgradeTotal))")
+    }
+
+    /// The releases `update` would bring (`HomebrewReleaseNotes.relevant`). The
+    /// fetched list is reused until it lacks the release on offer — a newer
+    /// Homebrew found by a later check re-fetches it — or `force` (Try Again).
+    func homebrewReleaseNotes(for update: HomebrewSelfUpdate, force: Bool) async throws -> Changelog? {
+        if !force, let cached = homebrewReleaseNotesCache,
+           cached.entries.contains(where: { $0.version == update.latest }) {
+            return HomebrewReleaseNotes.relevant(cached, for: update)
+        }
+        let changelog = try await HomebrewReleaseNotes.fetch(force: force)
+        homebrewReleaseNotesCache = changelog
+        return HomebrewReleaseNotes.relevant(changelog, for: update)
     }
 
     /// Fetch a formula's release notes once, on first selection. Idempotent for a

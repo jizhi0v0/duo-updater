@@ -1126,6 +1126,16 @@ public enum Verify {
                 // make an older version look like another page.
                 headingMatchesPage: recipe.sourceTemplate == nil ? nil
                     : Baseline.templatedPage(recipe, forHeading: top) == diagnostic.resolvedURL,
+                // The page the entries were parsed from, asked only when the
+                // count is one — the reading `Baseline` would otherwise call a
+                // collapse on the count alone (#821). A structured recipe has no
+                // entry pattern to ask, so it stays nil and keeps that check.
+                entrySwallowsAnother: changelog.entries.count == 1
+                    && recipe.structuredFormat == nil
+                    ? diagnostic.bodySample.flatMap {
+                        ChangelogExtractor.anEntrySwallowsAnother(in: $0, using: recipe)
+                    }
+                    : nil,
                 elapsedMs: elapsed,
                 bodySample: diagnostic.bodySample)
         }
@@ -1807,7 +1817,7 @@ extension Finding {
             // rows it exists to explain. `findingRebuildsForwardEveryField`
             // pins the whole list now instead of trusting this comment.
             entryCount: entryCount, entryVersions: entryVersions,
-            headingMatchesPage: headingMatchesPage,
+            headingMatchesPage: headingMatchesPage, entrySwallowsAnother: entrySwallowsAnother,
             elapsedMs: elapsedMs, bodySample: bodySample)
     }
 
@@ -1825,7 +1835,7 @@ extension Finding {
             // exactly the findings that carry a complaint — the ones most worth
             // reading.
             entryCount: entryCount, entryVersions: entryVersions,
-            headingMatchesPage: headingMatchesPage,
+            headingMatchesPage: headingMatchesPage, entrySwallowsAnother: entrySwallowsAnother,
             elapsedMs: elapsedMs, bodySample: bodySample)
     }
 }

@@ -101,3 +101,11 @@ a 324 KB body, so that form drops it and the pane loses an entry with
 nothing anywhere saying so.
 
 复测 2026-09-14（03:13 UTC，只读 GET）：标签页 569,736 字节，只含 1 个 `title='Stable Channel Update for Desktop'`、3 个 `<script type='text/template'>`，最长的正文 216,368 字符。代码里 "second post is a 324 KB body" 那句已改写成不依赖具体帖子的说法。
+
+### `duo verify` 的「entry count COLLAPSED」误报（#821）
+
+标签页只有 1 个桌面帖是这个页面的正常状态（上面 09-14 那次就是），但夜扫的塌缩检查当时只看条数：从 >1 掉到 1 就报警，且不记录这个 1，于是之后每轮都拿旧的 3 比、反复报。
+
+复测 2026-10-09（只读 GET，生产 `ChangelogExtractor` + 注册的 recipe，临时 Swift 测试）：622,955 字节的页面里只有 1 个桌面帖（另一个是 Chrome for Android），解析出 1 条 `155.0.8059.39`（Tuesday, October 6, 2026），正文停在它自己的 `</script>`，后面还有约 336k 字符没被吞。正文占了页面四成左右，所以「正文占页面比例」当不了判据。
+
+修法（同一 PR）：只剩 1 条时，sweep 再问一次页面——这条的正文里是否还有另一条 entry 的开头（`ChangelogExtractor.anEntrySwallowsAnother`，记在 `Finding.entrySwallowsAnother`）。明确「没有」才不报；真塌缩（终止符失配、后面各条都被吞进第一条）照报。这个 1 仍不写进 baseline。

@@ -164,6 +164,18 @@ public struct Finding: Codable, Sendable {
     /// on purpose. Optional so a `report.json` written before this existed still
     /// decodes; nil — not recorded, or not templated — keeps the check.
     public let headingMatchesPage: Bool?
+    /// For a changelog sweep that read exactly one entry: whether another match of
+    /// the entry pattern begins inside an entry's body
+    /// (`ChangelogExtractor.anEntrySwallowsAnother`). This is what tells a page
+    /// that collapsed — a terminator stopped matching and the first entry carries
+    /// the rest — from a page the vendor left holding one post (#821), which the
+    /// count alone cannot.
+    ///
+    /// Recorded only when the count is one, the only reading `Baseline` asks it
+    /// about. Optional so a `report.json` written before this existed still
+    /// decodes; nil — not recorded, or a recipe it cannot judge — keeps the
+    /// collapse check firing on the count alone.
+    public let entrySwallowsAnother: Bool?
     public let elapsedMs: Int
     /// Redacted and capped. Present only for actionable findings, since this is
     /// the one field that carries arbitrary vendor content.
@@ -189,7 +201,7 @@ public struct Finding: Codable, Sendable {
         warnings: [String] = [], endpointHost: String, pattern: String? = nil,
         attempts: Int = 1, gatewayRetries: Int? = nil,
         entryCount: Int? = nil, entryVersions: [String]? = nil,
-        headingMatchesPage: Bool? = nil,
+        headingMatchesPage: Bool? = nil, entrySwallowsAnother: Bool? = nil,
         elapsedMs: Int = 0, bodySample: String? = nil
     ) {
         self.recipeID = recipeID
@@ -212,6 +224,7 @@ public struct Finding: Codable, Sendable {
         // model prompt can skip it.
         self.entryVersions = entryVersions.map { $0.map { Redactor.text($0) } }
         self.headingMatchesPage = headingMatchesPage
+        self.entrySwallowsAnother = entrySwallowsAnother
         self.elapsedMs = elapsedMs
         // Condense before redacting: the changelog path hands over a whole raw
         // HTML page, and a report full of `<link rel="preload">` is a report

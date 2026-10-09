@@ -594,13 +594,13 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
-    "install:github:storytold\/photocraft:stable" : {
+    "install:github:storytold\/pdfcraft:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
-    "install:github:storytold\/printcraft:stable" : {
+    "install:github:storytold\/photocraft:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1676,5 +1676,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-09T05:20:46Z"
+  "updatedAt" : "2026-10-09T12:37:57Z"
 }

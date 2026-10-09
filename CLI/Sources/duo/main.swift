@@ -555,7 +555,9 @@ case "verify":
         options.hostConcurrency = max(1, concurrency)
     }
     // Naming any registry narrows to exactly those; naming none sweeps all.
-    let selected = Registry.allCases.filter { args.has($0.rawValue) }
+    // `install` is `duo verify-install`'s, never a sweep of this command's: left
+    // in, `--install` would parse and then select nothing at all.
+    let selected = Registry.allCases.filter { $0 != .install && args.has($0.rawValue) }
     if !selected.isEmpty { options.registries = Set(selected) }
     options.baselinePath = args.value("baseline").map { URL(fileURLWithPath: $0) }
     options.jsonPath = args.value("report").map { URL(fileURLWithPath: $0) }

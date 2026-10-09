@@ -36,6 +36,10 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
     /// — a spec that stops declaring, or starts declaring one architecture — and
     /// is not an installability check. See `PackageArchitectureProbe`.
     case pkgArch = "pkgarch"
+    /// Not swept by `duo verify` at all: `duo verify-install` downloads each
+    /// installer on a hosted runner and files its findings through the same
+    /// `Baseline` and `Reconcile`, under ids of its own (`install:<recipe id>`).
+    case install
 
     public var label: String {
         switch self {
@@ -48,6 +52,7 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
         // TRUNCATES anything longer, so a descriptive name would print as
         // "pkg architectu" in the per-registry summary.
         case .pkgArch: return "pkg arch"
+        case .install: return "installer"
         }
     }
 }

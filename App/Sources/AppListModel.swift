@@ -5232,7 +5232,13 @@ final class AppListModel {
                 return .notInstalled
             }
             Log.install.error("install failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            installErrors[id] = error.localizedDescription
+            if let short = error as? DiskSpaceGuard.InsufficientSpace {
+                let free = ByteCountFormatter.string(fromByteCount: short.free, countStyle: .file)
+                let needed = ByteCountFormatter.string(fromByteCount: short.needed, countStyle: .file)
+                installErrors[id] = String(localized: "Not enough free space on this Mac to install this update: \(free) free, \(needed) needed. Nothing was changed.")
+            } else {
+                installErrors[id] = error.localizedDescription
+            }
         }
         // If an AX App Store update quit the app but then threw before the swap
         // landed (e.g. timed out, or App Store raised an unexpected sheet), Continue

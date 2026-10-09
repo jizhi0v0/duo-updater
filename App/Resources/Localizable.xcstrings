@@ -17275,6 +17275,71 @@
         }
       }
     },
+    "Not enough free space on this Mac to install this update: %@ free, %@ needed. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf diesem Mac ist nicht genug Speicherplatz frei, um dieses Update zu installieren: %@ frei, %@ benötigt. Es wurde nichts verändert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay suficiente espacio libre en este Mac para instalar esta actualización: %@ libres, se necesitan %@. No se ha cambiado nada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espace libre insuffisant sur ce Mac pour installer cette mise à jour : %@ disponibles, %@ nécessaires. Rien n’a été modifié."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spazio libero insufficiente su questo Mac per installare questo aggiornamento: %@ liberi, ne servono %@. Non è stato modificato nulla."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Mac の空き容量が足りないため、この更新をインストールできません: 空き %@、必要 %@。何も変更されていません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não há espaço livre suficiente neste Mac para instalar esta atualização: %@ livres, %@ necessários. Nada foi alterado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На этом Mac недостаточно свободного места для установки обновления: свободно %@, нужно %@. Ничего не изменено."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu güncellemeyi yüklemek için bu Mac’te yeterli boş alan yok: %@ boş, %@ gerekiyor. Hiçbir şey değiştirilmedi."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 Mac 剩余空间不足，无法安装这次更新：剩余 %@，需要 %@。没有做任何改动。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這台 Mac 的可用空間不足，無法安裝這次更新：剩餘 %@，需要 %@。沒有做任何變更。"
+          }
+        }
+      }
+    },
     "Not the build %@ published": {
       "extractionState": "manual",
       "localizations": {

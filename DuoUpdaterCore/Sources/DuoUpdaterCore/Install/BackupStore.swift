@@ -2051,6 +2051,9 @@ public enum BackupStore {
         return BackupSizeIndex.shared.sizes(of: dirs, measuring: directorySize).reduce(0, +)
     }
 
+    /// Logical size of everything under `url`. See `directorySize`.
+    static func logicalSize(of url: URL) -> Int64 { directorySize(url) }
+
     private static func directorySize(_ url: URL) -> Int64 {
         guard let enumerator = FileManager.default.enumerator(
             at: url, includingPropertiesForKeys: [.fileSizeKey],
@@ -2438,12 +2441,16 @@ extension BackupStore {
     /// Only the outbox is touched. It is the only store on this volume, so it is
     /// the only one whose deletions give space back here.
     ///
-    /// Returns true when free space is at or above the floor again, false when
+    /// Returns true when free space is at or above `target` again, false when
     /// there was nothing left to delete — the caller then gives up its copy.
-    static func reclaimFreeSpace(sparing key: String) async -> Bool {
-        if let raw = outboxRawFreeBytes(), raw >= freeSpaceFloorBytes { return true }
+    /// `target` is the floor unless an install is making room to apply; see
+    /// ``DiskSpaceGuard/ensureRoom(for:sparing:)``.
+    static func reclaimFreeSpace(
+        sparing key: String, target: Int64 = freeSpaceFloorBytes
+    ) async -> Bool {
+        if let raw = outboxRawFreeBytes(), raw >= target { return true }
         guard var free = outboxFreeBytes() else { return true }
-        if free >= freeSpaceFloorBytes { return true }
+        if free >= target { return true }
         let root = outboxRoot
         let isExternal = destination.kind == .external
         let oldestFirst: [(key: String, meta: Meta)] = storedKeys(in: root)
@@ -2465,10 +2472,10 @@ extension BackupStore {
                 BackupFactsLibrary.drop(forKey: victim)
             }
             Log.install.error(
-                "backup: this Mac fell under \(freeSpaceFloorBytes >> 30, privacy: .public) GB free mid-copy — deleted the backup of \(meta.bundleName, privacy: .public) (\(meta.version ?? "?", privacy: .public)) to make room")
+                "backup: this Mac is short of free space (\(free, privacy: .public) bytes, wanted \(target, privacy: .public)) — deleted the backup of \(meta.bundleName, privacy: .public) (\(meta.version ?? "?", privacy: .public)) to make room")
             guard let now = outboxFreeBytes() else { return true }
             free = now
-            if free >= freeSpaceFloorBytes { return true }
+            if free >= target { return true }
         }
         return false
     }

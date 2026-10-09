@@ -61,6 +61,8 @@ struct CLIToolsModelTests {
         case .herdr: detail = .herdr(HerdrInstall(path: path))
         case .luvus: detail = .luvus(LuvusInstall(path: path, version: version))
         case .lorca: detail = .lorca(LorcaInstall(path: path, version: version))
+        case .atuin: detail = .atuin(AtuinInstall(path: path, version: version))
+        case .ghcup: detail = .ghcup(GhcupInstall(path: path, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -93,6 +95,8 @@ struct CLIToolsModelTests {
         case .herdr: context = .herdr
         case .luvus: context = .luvus
         case .lorca: context = .lorca
+        case .atuin: context = .atuin
+        case .ghcup: context = .ghcup
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }

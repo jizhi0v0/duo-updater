@@ -66354,6 +66354,71 @@
         }
       }
     },
+    "Atuin’s update check is off in its config": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Updateprüfung von Atuin ist in seiner Konfiguration deaktiviert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La comprobación de actualizaciones de Atuin está desactivada en su configuración"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La vérification des mises à jour de Atuin est désactivée dans sa configuration"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il controllo degli aggiornamenti di Atuin è disattivato nella sua configurazione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atuin のアップデート確認が設定でオフになっています"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A verificação de atualizações do Atuin está desativada na configuração dele"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка обновлений Atuin отключена в его конфигурации"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atuin’in güncelleme denetimi yapılandırmasında kapalı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atuin 的配置里关闭了更新检查"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atuin 的設定裡關閉了更新檢查"
+          }
+        }
+      }
+    },
     "%@ isn’t this install’s launcher": {
       "extractionState": "manual",
       "localizations": {

@@ -5,7 +5,7 @@ import Foundation
 /// Each one has its own rules — where its installers put it, how its version is
 /// read, which command updates it and when that may run — so each keeps its own
 /// detection and update code (`ClaudeCode*`, `Bub*`, `Fx*`, `Uv*`, `Junie*`,
-/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`, `Herdr*`, `Luvus*`, `Lorca*`). What they share is
+/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`, `Herdr*`, `Luvus*`, `Lorca*`, `Atuin*`, `Ghcup*`). What they share is
 /// how the app lists them, sums them up and runs their updates: `CLIToolStatus`,
 /// `CLIToolReport` and `CLIToolProvider` below. A later tool is a new provider and
 /// a new `Kind`; the popover row and the workbench's CLI tab read it the same way.
@@ -40,6 +40,10 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case luvus
     /// egoist's Lorca CLI, `~/.local/bin/lorca`.
     case lorca
+    /// atuinsh's Atuin, `~/.atuin/bin/atuin`.
+    case atuin
+    /// GHCup's own binary, `~/.ghcup/bin/ghcup` (not the toolchains it installs).
+    case ghcup
 
     /// The tool's own name, as its vendor writes it. Untranslated, like a formula
     /// name on the brew row.
@@ -62,6 +66,8 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .herdr: return "Herdr"
         case .luvus: return "Luvus"
         case .lorca: return "Lorca"
+        case .atuin: return "Atuin"
+        case .ghcup: return "GHCup"
         }
     }
 }
@@ -199,6 +205,8 @@ public struct CLIToolStatus: Sendable, Equatable {
         case herdr(HerdrInstall)
         case luvus(LuvusInstall)
         case lorca(LorcaInstall)
+        case atuin(AtuinInstall)
+        case ghcup(GhcupInstall)
     }
 
     public init(
@@ -256,6 +264,8 @@ public struct CLIToolReport: Sendable, Equatable {
         case herdr
         case luvus
         case lorca
+        case atuin
+        case ghcup
     }
 
     public init(

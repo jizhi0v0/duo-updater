@@ -187,7 +187,7 @@ final class CLIToolsModel {
         providers: [any CLIToolProvider] = [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
             BoatProvider(), CodexProvider(), BunProvider(), OpencodeProvider(), CursorAgentProvider(), AmpProvider(),
-            VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(),
+            VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), AtuinProvider(), GhcupProvider(),
         ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
@@ -681,7 +681,7 @@ final class CLIToolsModel {
         case .opencode: return "Anomaly"
         case .cursorAgent: return "Anysphere"
         case .amp: return "Amp Frontier"
-        case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca: return nil
+        case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .atuin, .ghcup: return nil
         }
     }
 
@@ -803,6 +803,14 @@ final class CLIToolsModel {
             return quarantined
         case (.unverified, .lorca(let lorca)) where lorca.quarantined:
             return quarantined
+        case (.unverified, .atuin(let atuin)) where atuin.quarantined:
+            return quarantined
+        case (.unverified, .ghcup(let ghcup)) where ghcup.quarantined:
+            return quarantined
+        case (.autoUpdateOff, .atuin):
+            // Atuin's `update_check = false`: its background check only ever
+            // tells the user, so the check is what was turned off.
+            return String(localized: "Atuin’s update check is off in its config")
         case (.unsupportedInstaller, .bun):
             // A canary: `bun upgrade` installs the newest canary, with no version.
             return String(localized: "A canary build, which has no version to compare")
@@ -869,6 +877,10 @@ final class CLIToolsModel {
             let command = "lorca update"
             if !lorca.hasUpdateCommand { return String(localized: "This version has no \(command)") }
             if !lorca.writable { return String(localized: "Updating it needs administrator rights") }
+        case (.unsupportedInstaller, .atuin(let atuin)) where atuin.problem == nil && !atuin.writable:
+            return String(localized: "Updating it needs administrator rights")
+        case (.unsupportedInstaller, .ghcup(let ghcup)) where ghcup.problem == nil && !ghcup.writable:
+            return String(localized: "Updating it needs administrator rights")
         default:
             break
         }

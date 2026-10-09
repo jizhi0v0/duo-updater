@@ -16,7 +16,7 @@ struct CLIToolGitHubAPITests {
         let providers: [any CLIToolProvider] = [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
             BoatProvider(), CodexProvider(), BunProvider(), OpencodeProvider(), CursorAgentProvider(), AmpProvider(),
-            VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(),
+            VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), AtuinProvider(), GhcupProvider(),
         ]
         #expect(Set(providers.map(\.kind)) == Set(CLIToolKind.allCases))
         #expect(Set(providers.filter(\.readsGitHubAPI).map(\.kind)) == [.bun, .opencode, .herdr])

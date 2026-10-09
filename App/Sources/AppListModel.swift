@@ -7837,10 +7837,10 @@ final class AppListModel {
 
     /// How far a delete from the Clean Up sheet has got, while one is running.
     /// On the model rather than the page: the sheet closes as soon as Delete is
-    /// pressed, and the deletion — about 1.4 s per large bundle — carries on
-    /// after the page itself may have been left and come back to. Without it the
-    /// page had no way to say anything was happening, and Clean Up reopened onto
-    /// a store already half gone.
+    /// pressed, and the deletion — 1.4–1.5 s per large bundle, measured below —
+    /// carries on after the page itself may have been left and come back to.
+    /// Without it the page had no way to say anything was happening, and Clean
+    /// Up reopened onto a store already half gone.
     var backupDeletion: (done: Int, total: Int)?
 
     /// Delete exactly the backups the user ticked, then re-read the index so the
@@ -7856,8 +7856,10 @@ final class AppListModel {
         await BackupTransferQueue.shared.withhold(withheld)
         // Deletes whole bundle copies: Dispatch, not a detached task, which would
         // still hold a cooperative thread for all of it. Several at once: removal
-        // is metadata-bound, and six copies of a 924 MB, 21k-file bundle took
-        // 8.4–9.0 s one after another against 2.4–2.8 s concurrently.
+        // is metadata-bound. Measured 2026-10-09 on one Mac's APFS boot volume,
+        // two runs each, `FileManager.removeItem` over six `ditto` copies of a
+        // 924 MB, 21k-file bundle: 8.4–9.0 s in a loop, 2.4–2.8 s under
+        // `concurrentPerform`.
         await offCooperativePool(qos: .utility) {
             DispatchQueue.concurrentPerform(iterations: keys.count) { index in
                 BackupStore.remove(forKey: keys[index])

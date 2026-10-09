@@ -175,9 +175,11 @@ struct BackupsSheet: View {
             return NSWorkspace.shared.icon(for: .applicationBundle)
         }
         // Cached: `LazyVStack` builds a row each time one scrolls into view, and
-        // an uncached read is a LaunchServices hit plus a fresh rasterisation —
-        // 5.6–7.5 ms a row over 60 real bundles, enough on its own to make a long
-        // list stutter.
+        // each build here read the icon afresh. Measured 2026-10-09 over 60
+        // bundles in one /Applications, `icon(forFile:)` plus rasterising it to
+        // a `CGImage`: 5.6 ms a row on the first pass and 7.5 ms on a repeat —
+        // the uncached call does not get cheaper the second time — against a
+        // 16 ms frame.
         return AppIconCache.icon(for: path.path)
     }
 

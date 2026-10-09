@@ -284,6 +284,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Rockxy**](com-amunx-rockxy-community.md) · `com.amunx.rockxy.community` — C + Sparkle verified · appcast 是原地重写的单条文件（1 个 `<item>`），inline notes 只够一格版本轨，故 changelog 走 GitHub releases（40/40 解析，0 prerelease）· 只有一条轨：prod 与 staging 两个 xcconfig 指向同一个 feed、同一个 bundle id · 2026-09-09
 - [x] [**VMPal**](com-tableplus-VMPal.md) · `com.tableplus.VMPal` — C + Sparkle（bundle 不声明 `SUFeedURL`，地址由 `SparkleFeedCatalog` 补）· 单轨 · 真包 0.36 挂载验证 ✓（Team `3X57WP8E8V`）· 一键 dmg：0.35 → 0.36 真机跑通（未运行、以及 app 与 VM 都在运行两种状态；包内容与厂商 dmg 逐项一致）· ⚠️ VM 进程（包内 helper）升级后继续跑旧引擎，duo 的运行检测只看主 bundle · 2026-10-06
 - [x] [**GotEmail**](com-voprex-gotemail.md) · `com.voprex.gotemail` — C (`releases.json`，新 decoder `.gotEmailReleases`) + Sparkle · 单轨 · appcast 只留最新一条、dmg 地址不带版本号 · EdDSA + 公证验证 ✓（Team `RQBC2CSG5T`）· 一键（Sparkle dmg）端到端未跑：拿不到上一版 · 2026-10-09
+- [x] [**Lorca**](app-lorca.md) · `app.lorca` — C (`Lorca-{version}.md` 模板) + Sparkle · 单轨 · Sparkle 增量包 ✓ · 一键（Sparkle）真机端到端 ✓（未运行 + 运行中）· changelog 结构化 ✓ · 2026-10-09
 - [x] [**magpie**](com-yetone-magpie.md) · `com.yetone.magpie` — C (GitHub releases `yetone/magpie-releases`) · 单轨 · install.sh 与 dmg 落地同一个 bundle（Team `LY7MVTUDZG`）· 一键 zip（按架构）· changelog recipe：正文的中文副本与下载说明已切掉 · 一键 zip 未运行时真机跑通 · 运行中一键：暂存的是最新 → Relaunch，暂存旧于最新 → 先清暂存再装（与 Sparkle 同规则，两种真机跑通）· 2026-10-06
 
 ## Electron-covered (auto-detected via the bundle's `app-update.yml`, no version recipe)

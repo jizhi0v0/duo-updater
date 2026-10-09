@@ -46,6 +46,7 @@ struct BackupsSheet: View {
             footer
         }
         .frame(width: 620, height: 470)
+        .onAppear { AppIconCache.prefetch(backups.compactMap { $0.bundlePath?.path }) }
     }
 
     private var header: some View {
@@ -173,7 +174,13 @@ struct BackupsSheet: View {
         guard let path = backup.bundlePath else {
             return NSWorkspace.shared.icon(for: .applicationBundle)
         }
-        return NSWorkspace.shared.icon(forFile: path.path)
+        // Cached: `LazyVStack` builds a row each time one scrolls into view, and
+        // each build here read the icon afresh. Measured 2026-10-09 over 60
+        // bundles in one /Applications, `icon(forFile:)` plus rasterising it to
+        // a `CGImage`: 5.6 ms a row on the first pass and 7.5 ms on a repeat —
+        // the uncached call does not get cheaper the second time — against a
+        // 16 ms frame.
+        return AppIconCache.icon(for: path.path)
     }
 
     private var footer: some View {

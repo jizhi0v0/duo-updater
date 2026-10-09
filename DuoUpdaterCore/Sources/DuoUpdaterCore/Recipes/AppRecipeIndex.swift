@@ -25,6 +25,7 @@ public enum AppRecipeIndex {
         app_freelens_Freelens.set,
         app_getmoshi_desktop.set,
         app_getmoshi_desktop_tauri.set,
+        app_lorca.set,
         app_macdown_macdown3000.set,
         app_monitorcontrol_MonitorControl.set,
         app_shift.set,

@@ -7824,14 +7824,42 @@ final class AppListModel {
         await Task.detached(priority: .utility) { BackupStore.listing() }.value
     }
 
+    /// How far a delete from the Clean Up sheet has got, while one is running.
+    /// On the model rather than the page: the sheet closes as soon as Delete is
+    /// pressed, and the deletion — 1.4–1.5 s per large bundle, measured below —
+    /// carries on after the page itself may have been left and come back to.
+    /// Without it the page had no way to say anything was happening, and Clean
+    /// Up reopened onto a store already half gone.
+    var backupDeletion: (done: Int, total: Int)?
+
     /// Delete exactly the backups the user ticked, then re-read the index so the
     /// rows lose their rollback affordance and the total is honest again.
     func deleteBackups(keys: [String]) async {
+        guard backupDeletion == nil, !keys.isEmpty else { return }
+        backupDeletion = (0, keys.count)
+        // Out of the copy queue first, and only once any copy of one of them has
+        // ended: Copy Now, or a disk being plugged in, can be moving one of these
+        // right now, and the two pulling the same directory apart ended the run
+        // reporting a failed copy of something just deleted.
+        let withheld = Set(keys)
+        await BackupTransferQueue.shared.withhold(withheld)
         // Deletes whole bundle copies: Dispatch, not a detached task, which would
-        // still hold a cooperative thread for all of it.
+        // still hold a cooperative thread for all of it. Several at once: removal
+        // is metadata-bound. Measured 2026-10-09 on one Mac's APFS boot volume,
+        // two runs each, `FileManager.removeItem` over six `ditto` copies of a
+        // 924 MB, 21k-file bundle: 8.4–9.0 s in a loop, 2.4–2.8 s under
+        // `concurrentPerform`.
         await offCooperativePool(qos: .utility) {
-            for key in keys { BackupStore.remove(forKey: key) }
+            DispatchQueue.concurrentPerform(iterations: keys.count) { index in
+                BackupStore.remove(forKey: keys[index])
+                Task { @MainActor [weak self] in
+                    guard let self, let progress = self.backupDeletion else { return }
+                    self.backupDeletion = (min(progress.done + 1, progress.total), progress.total)
+                }
+            }
         }
+        await BackupTransferQueue.shared.release(withheld)
+        backupDeletion = nil
         Log.install.notice("backups: deleted \(keys.count, privacy: .public) on request")
         await refreshBackupIndex()
     }

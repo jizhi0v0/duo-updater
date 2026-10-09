@@ -202,7 +202,13 @@ final class AppleDeveloperSession {
     private func renew() async -> AppleDeveloperSessionProbe.Verdict {
         let since = lastConfirmed.map { Int(Date().timeIntervalSince($0) / 60) } ?? -1
         let started = Date()
-        let landed = await AppleDeveloperSessionRenewer().run(in: dataStore)
+        // Names and domains only, never values: whether `acsso` was still in the
+        // store is the first thing a failed renewal raises.
+        let held = await dataStore.httpCookieStore.allCookies()
+            .map { "\($0.name)@\($0.domain)" }.sorted().joined(separator: " ")
+        let renewer = AppleDeveloperSessionRenewer()
+        let landed = await renewer.run(in: dataStore)
+        Log.app.notice("apple session renewal page: \(renewer.trail.joined(separator: ", "), privacy: .public); store held: \(held.isEmpty ? "none" : held, privacy: .public)")
         let verdict = landed ? await ask() : .expired
         // Set here, inside the task, so a caller waiting on `renewal` reads the
         // final status when it resumes. An inconclusive second answer does not

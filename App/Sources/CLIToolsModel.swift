@@ -187,7 +187,7 @@ final class CLIToolsModel {
         providers: [any CLIToolProvider] = [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
             BoatProvider(), CodexProvider(), BunProvider(), OpencodeProvider(), CursorAgentProvider(), AmpProvider(),
-            VitePlusProvider(), HerdrProvider(), LuvusProvider(),
+            VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(),
         ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
@@ -681,7 +681,7 @@ final class CLIToolsModel {
         case .opencode: return "Anomaly"
         case .cursorAgent: return "Anysphere"
         case .amp: return "Amp Frontier"
-        case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus: return nil
+        case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca: return nil
         }
     }
 
@@ -801,6 +801,8 @@ final class CLIToolsModel {
             return quarantined
         case (.unverified, .luvus(let luvus)) where luvus.quarantined:
             return quarantined
+        case (.unverified, .lorca(let lorca)) where lorca.quarantined:
+            return quarantined
         case (.unsupportedInstaller, .bun):
             // A canary: `bun upgrade` installs the newest canary, with no version.
             return String(localized: "A canary build, which has no version to compare")
@@ -861,6 +863,12 @@ final class CLIToolsModel {
             if luvus.problem == .unknownLocation { return String(localized: "A link \(command) won’t replace") }
             if !luvus.hasUpdateCommand { return String(localized: "This version has no \(command)") }
             if !luvus.writable { return String(localized: "Updating it needs administrator rights") }
+        // In `LorcaCheck`'s order: a release before the command, a folder it
+        // cannot write to.
+        case (.unsupportedInstaller, .lorca(let lorca)):
+            let command = "lorca update"
+            if !lorca.hasUpdateCommand { return String(localized: "This version has no \(command)") }
+            if !lorca.writable { return String(localized: "Updating it needs administrator rights") }
         default:
             break
         }

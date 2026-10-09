@@ -192,14 +192,14 @@ import Foundation
         #expect(status.withheld == nil)
         #expect(status.manualCommand == nil)
         #expect(status.oneClick?.display
-            == "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | bash")
+            == "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | NVM_DIR='\(box.home.path)/.nvm' PROFILE=/dev/null bash")
     }
 
-    /// A directory this user cannot write keeps today's command to copy.
-    /// Mutation: drop the `writable` gate.
+    /// A directory this user cannot write keeps a command to copy, naming that
+    /// directory. Mutations: drop the `writable` gate; drop the directory.
     @Test func aReadOnlyDirectoryIsTheCommandOnly() async throws {
         let box = try Sandbox()
-        let file = try box.install("0.40.7", git: false)
+        let file = try box.install("0.40.7", in: ".config/nvm", git: false)
         let dir = file.deletingLastPathComponent().path
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: dir)
         defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir) }
@@ -207,8 +207,52 @@ import Foundation
         #expect(status.oneClick == nil)
         #expect(status.withheld == .unsupportedInstaller)
         #expect(status.manualCommand?.display
-            == "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | bash")
+            == "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | NVM_DIR='\(box.home.path)/.config/nvm' PROFILE=/dev/null bash")
         if case .nvm(let install) = status.detail { #expect(!install.writable) } else { Issue.record("no nvm detail") }
+    }
+
+    /// The command names the install's own directory, as the README's
+    /// `NVM_DIR` variable, and opts out of profile edits as the one-click does,
+    /// for either default directory and one with a space or a quote in it.
+    /// Mutations: drop `NVM_DIR`; drop `PROFILE`; drop the quoting.
+    @Test func theCommandNamesItsDirectory() {
+        let url = "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh"
+        func display(_ directory: String) -> String {
+            NvmCheck.updateCommand(version: "0.40.8", directory: directory).display
+        }
+        #expect(display("/Users/ZZFixture-ann/.config/nvm")
+            == "curl -o- \(url) | NVM_DIR='/Users/ZZFixture-ann/.config/nvm' PROFILE=/dev/null bash")
+        #expect(display("/Users/ZZFixture-ann/.nvm")
+            == "curl -o- \(url) | NVM_DIR='/Users/ZZFixture-ann/.nvm' PROFILE=/dev/null bash")
+        #expect(display("/Users/ZZFixture ann/.nvm")
+            == "curl -o- \(url) | NVM_DIR='/Users/ZZFixture ann/.nvm' PROFILE=/dev/null bash")
+        #expect(display("/Users/ZZFixture-o'brien/.nvm")
+            == #"curl -o- \#(url) | NVM_DIR='/Users/ZZFixture-o'\''brien/.nvm' PROFILE=/dev/null bash"#)
+    }
+
+    /// What the user pastes, run by a shell: the variables reach the `bash`
+    /// that runs the script, not just `curl`, and a directory with a space, a
+    /// `$` and a quote arrives as written even when the shell already exports
+    /// another `NVM_DIR`. `curl` here is a stand-in that prints a script
+    /// echoing the two variables. Mutations: put the variables before `curl`;
+    /// drop the quoting.
+    @Test func thePastedCommandReachesBash() async throws {
+        let box = try Sandbox()
+        let bin = box.root.appendingPathComponent("bin")
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        let curl = bin.appendingPathComponent("curl")
+        try Data("#!/bin/sh\nprintf '%s\\n' 'printf \"%s|%s\" \"$NVM_DIR\" \"$PROFILE\"'\n".utf8).write(to: curl)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: curl.path)
+        let directory = box.home.path + "/My nvm $HOME o'brien"
+        let command = NvmCheck.updateCommand(version: "0.40.8", directory: directory).display
+
+        let outcome = try await ChildProcess.run(
+            "/bin/zsh", ["-f", "-c", command],
+            environment: ["PATH": "\(bin.path):/usr/bin:/bin", "HOME": box.home.path,
+                          "NVM_DIR": box.home.path + "/.nvm"],
+            onCancel: .terminateChild)
+        #expect(outcome.terminationStatus == 0)
+        #expect(String(decoding: outcome.standardOutput, as: UTF8.self) == "\(directory)|/dev/null")
     }
 
     /// A checkout needs a git that is not `/usr/bin/git`'s shim; the bare files

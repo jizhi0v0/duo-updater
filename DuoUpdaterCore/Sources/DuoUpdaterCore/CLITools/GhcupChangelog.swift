@@ -28,10 +28,27 @@ public enum GhcupChangelog {
 
     /// One entry per `## <version>` section that yields any change, in file order
     /// (newest first). nil when there is none.
+    ///
+    /// Each entry also carries its section as `markdown`, which the workbench
+    /// draws as written (`Changelog.Entry.markdown`), so a sub-bullet stays
+    /// indented under its bullet — `- you may want to run ghcup fixup symlinks…`
+    /// under 0.2.6.2's #1365 item. `items` and `content`, the parser's flat
+    /// reading, list it as an item of its own after its parent, for text-only
+    /// readers.
     public static func parse(_ markdown: String) -> Changelog? {
-        let entries = sections(markdown).compactMap { section in
-            GitHubMarkdownParser.parse(body: section.body.joined(separator: "\n"), version: section.version,
-                                       date: section.date)?.entries.first
+        let entries = sections(markdown).compactMap { section -> Changelog.Entry? in
+            let body = section.body.joined(separator: "\n")
+            guard let entry = GitHubMarkdownParser.parse(body: body, version: section.version, date: section.date)?
+                .entries.first
+            else { return nil }
+            // The section as written, not `AppcastMarkdownParser.renderableMarkdown`:
+            // its checksum rule (a 32+ character hex run) drops 0.1.19.0's
+            // `[Fix a grave bug on armv7](…/commit/78ee956d…)` for the commit hash
+            // in its link, and nothing else it removes (badges, boilerplate
+            // sections, a heading restating the version) occurs in this file.
+            return Changelog.Entry(
+                title: entry.title, version: entry.version, date: entry.date, items: entry.items,
+                content: entry.content, markdown: body.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return entries.isEmpty ? nil : Changelog(entries: entries, itemSyntax: .markdown)
     }

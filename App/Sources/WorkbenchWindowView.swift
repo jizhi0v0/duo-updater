@@ -418,6 +418,11 @@ struct WorkbenchWindowView: View {
             if !model.brewUpgrading, !model.homebrewUpdating, model.upgradingFormulae.isEmpty {
                 Task { await model.refreshBrewFormulae() }
             }
+            // And the CLI tab's tools, which the window's open alone scanned: a
+            // Helm or Starship installed in a terminal meanwhile stayed missing
+            // until the window was reopened. Networked only when the scan finds
+            // a change (`refreshOnFocus`).
+            Task { await model.cliTools.refreshOnFocus() }
         }
         // Stationary stay (never lose focus) → the backstop timer keeps versions
         // fresh. Skip ticks while hidden/minimized: refreshing for a window no one

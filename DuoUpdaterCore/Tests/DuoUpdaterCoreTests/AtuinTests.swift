@@ -474,4 +474,49 @@ import CryptoKit
         #expect(entry.items.count == 2)
         #expect(!entry.items.contains { $0.contains("All notable changes") })
     }
+
+    /// The changelog has no dates; each entry takes its release's
+    /// `published_at` day from the Releases API list, by tag `v<version>`. A
+    /// draft is not a release, and a version the list does not reach keeps
+    /// none. The list is the shape of the API's (2026-10-09), cut to the fields
+    /// read. Mutations: no `dated` (entries stay undated); drop the draft filter;
+    /// match the tag without its `v`.
+    @Test func releaseNotesTakeTheirDatesFromTheReleases() throws {
+        let markdown = """
+            # Changelog
+
+            ## 18.23.0
+
+            - Add easy config shortcuts ([#4213](https://github.com/atuinsh/atuin/issues/4213))
+
+            ## 18.22.0
+
+            - Fix transaction lock ([#4152](https://github.com/atuinsh/atuin/issues/4152))
+
+            ## 18.0.0
+
+            - An old one
+            """
+        let releases = Data("""
+            [
+              {"tag_name": "v18.24.0", "draft": true, "prerelease": false, "published_at": null},
+              {"tag_name": "v18.23.0", "draft": false, "prerelease": false, "published_at": "2026-09-22T00:11:47Z"},
+              {"tag_name": "v18.22.0", "draft": false, "prerelease": false, "published_at": "2026-09-09T22:23:18Z"},
+              {"tag_name": "18.0.0", "draft": false, "prerelease": false, "published_at": "2024-01-01T00:00:00Z"}
+            ]
+            """.utf8)
+        let log = AtuinChangelog.dated(try #require(AtuinChangelog.parse(markdown)), releases: releases)
+        #expect(log.entries.map(\.version) == ["18.23.0", "18.22.0", "18.0.0"])
+        #expect(log.entries.map(\.date) == ["2026-09-22", "2026-09-09", nil])
+        #expect(log.itemSyntax == .markdown)
+        #expect(log.entries[0].items == ["Add easy config shortcuts ([#4213](https://github.com/atuinsh/atuin/issues/4213))"])
+
+        let draft = Data(#"[{"tag_name": "v18.23.0", "draft": true, "published_at": "2026-09-20T00:00:00Z"}]"#.utf8)
+        #expect(AtuinChangelog.publishedDays(draft).isEmpty)
+        // An answer that is not a list (an error body) dates nothing and keeps the notes.
+        let undated = AtuinChangelog.dated(try #require(AtuinChangelog.parse(markdown)),
+                                           releases: Data(#"{"message": "API rate limit exceeded"}"#.utf8))
+        #expect(undated.entries.map(\.date) == [nil, nil, nil])
+        #expect(undated.entries.count == 3)
+    }
 }

@@ -14,7 +14,7 @@ import Testing
 
     static let apps = [
         "designcraft", "effectcraft", "filmcraft", "lightcraft",
-        "photocraft", "printcraft", "vectorcraft",
+        "pdfcraft", "photocraft", "vectorcraft",
     ]
 
     private static func rule(_ app: String) -> GitHubReleaseRule? {
@@ -124,5 +124,107 @@ import Testing
         #expect(outcome.remote?.shortVersion == "0.2.0")
         #expect(outcome.remote?.downloadURL?.lastPathComponent
                 == "photocraft-0.2.0-macos-universal.dmg")
+    }
+
+    // MARK: - PrintCraft became PdfCraft (#1087)
+
+    /// The rename moved the repo, the asset names and the bundle id at once. The
+    /// rule reads the new repo and takes the new dmg only — an old-name dmg is the
+    /// old id, which gate 4 never lets replace a PdfCraft copy.
+    /// Mutation: point the rule back at `printcraft` (repo or dmg) → red.
+    @Test func pdfCraftReadsTheRenamedRepoAndDmg() throws {
+        let rule = try #require(Self.rule("pdfcraft"))
+        #expect(rule.slug == "storytold/pdfcraft")
+        let pattern = try #require(rule.installAssetPattern)
+        func matches(_ name: String) -> Bool {
+            name.range(of: pattern, options: .regularExpression) != nil
+        }
+        // v0.4.0's real macOS assets.
+        #expect(matches("pdfcraft-0.4.0-macos-universal.dmg"))
+        #expect(!matches("pdfcraft-cli-0.4.0-macos-universal.zip"))
+        // v0.2.1's, under the old name.
+        #expect(!matches("printcraft-0.2.1-macos-universal.dmg"))
+        #expect(!matches("printcraft-cli-0.2.1-macos-universal.zip"))
+        // Nothing is keyed by the old id any more: a PrintCraft copy gets here
+        // through `BundleIDMigration`.
+        #expect(Self.rule("printcraft") == nil)
+    }
+
+    /// v0.4.0 above v0.2.1, as the renamed repo lists them.
+    final class StubPdfCraft: URLProtocol, @unchecked Sendable {
+        nonisolated(unsafe) static var requested: [String] = []
+        static let releases: [(String, [String])] = [
+            ("v0.4.0", ["pdfcraft-0.4.0-macos-universal.dmg",
+                        "pdfcraft-cli-0.4.0-macos-universal.zip"]),
+            ("v0.2.1", ["printcraft-0.2.1-macos-universal.dmg",
+                        "printcraft-cli-0.2.1-macos-universal.zip"]),
+        ]
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+        override func startLoading() {
+            let url = request.url?.absoluteString ?? ""
+            Self.requested.append(url)
+            let body = url.contains("/releases/latest")
+                ? "{\(Self.fields(Self.releases[0]))}"
+                : "[\(Self.releases.map { "{\(Self.fields($0))}" }.joined(separator: ","))]"
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data(body.utf8))
+            client?.urlProtocolDidFinishLoading(self)
+        }
+
+        private static func fields(_ release: (String, [String])) -> String {
+            let assets = release.1.map {
+                """
+                {"name":"\($0)","browser_download_url":\
+                "https://github.com/storytold/pdfcraft/releases/download/\(release.0)/\($0)",\
+                "size":1000}
+                """
+            }
+            return """
+            "tag_name":"\(release.0)","name":"\(release.0)","draft":false,\
+            "prerelease":false,"published_at":"2026-10-08T00:00:00Z",\
+            "html_url":"https://github.com/storytold/pdfcraft/releases/tag/\(release.0)",\
+            "body":"notes","assets":[\(assets.joined(separator: ","))]
+            """
+        }
+
+        override func stopLoading() {}
+    }
+
+    private static func installed(_ id: String, _ version: String) -> InstalledApp {
+        InstalledApp(
+            name: "PrintCraft", bundleID: id, shortVersion: version, buildVersion: version,
+            path: URL(fileURLWithPath: "/Applications/ZZFixture-PrintCraft.app"),
+            isMASApp: false, sparkleFeedURL: nil, releaseChannel: .stable)
+    }
+
+    /// A PrintCraft 0.2.1 copy, still `ai.storyteller.printcraft`, is offered
+    /// PdfCraft 0.4.0's dmg by the production source, asking the new slug — not
+    /// the old one, whose redirect drops the token. A copy on the old id at or
+    /// past the migration's bound is not the rename and gets nothing.
+    /// Mutation: drop the PrintCraft entry from `BundleIDMigration.all`, or look
+    /// rules up by `app.bundleID` again → the first expectation fails.
+    @Test func anOldPrintCraftCopyIsOfferedPdfCraft() async throws {
+        let rule = try #require(Self.rule("pdfcraft"))
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubPdfCraft.self]
+        let source = GitHubReleasesSource(rules: [rule], session: URLSession(configuration: config))
+
+        StubPdfCraft.requested = []
+        let remote = try await source.latestVersion(for: Self.installed("ai.storyteller.printcraft", "0.2.1"))
+        #expect(remote?.shortVersion == "0.4.0")
+        #expect(remote?.downloadURL?.lastPathComponent == "pdfcraft-0.4.0-macos-universal.dmg")
+        #expect(!StubPdfCraft.requested.isEmpty)
+        #expect(StubPdfCraft.requested.allSatisfy { $0.contains("/repos/storytold/pdfcraft/") },
+                "\(StubPdfCraft.requested)")
+
+        #expect(try await source.latestVersion(
+            for: Self.installed("ai.storyteller.printcraft", "0.4.0")) == nil)
+        #expect(try await source.latestVersion(
+            for: Self.installed("ai.storyteller.pdfcraft", "0.4.0"))?.shortVersion == "0.4.0")
     }
 }

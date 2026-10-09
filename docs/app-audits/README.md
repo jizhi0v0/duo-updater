@@ -262,7 +262,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**VectorCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.vectorcraft` — G (one-click universal dmg) · 真包 v0.3.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
 - [x] [**FilmCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.filmcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
 - [x] [**LightCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.lightcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
-- [x] [**PrintCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.printcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
+- [x] [**PdfCraft（原 PrintCraft）**](ai-storyteller-photocraft.md) · `ai.storyteller.pdfcraft`（≤0.2.1 为 `ai.storyteller.printcraft`，`BundleIDMigration` 登记）— G (one-click universal dmg) · 仓库改名 `storytold/pdfcraft` · 真包 v0.4.0 挂载验证 ✓ · 一键端到端 0.2.1→0.4.0 ✓（两轮，含运行中重启与设置迁移）（rc 轨未接入）· 2026-10-09
 - [x] [**EffectCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.effectcraft` — G (one-click universal dmg) · 真包 v0.3.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
 - [x] [**DesignCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.designcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
 - [x] [**Spotifast**](rocks-spotifast-Spotifast.md) · `rocks.spotifast.Spotifast` — G (one-click universal dmg) · 真包 0.10.0/0.11.2/0.12.0 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中）· 改名前旧 id `me.paolino.fastpotify` 只检测 · changelog 结构化 ✓ · 2026-10-07
@@ -283,6 +283,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**欧路词典 (Eudic)**](com-eusoft-eudic.md) · `com.eusoft.eudic` — C + Sparkle **1**.27.3 · recipe 的 `source` 就是 appcast 本身：整部历史（1 个 `<h2>` + 34 个 `<h3>`、0 个 `<li>`）塞在最新一条 item 的 `<description>` 里，原本十六年记录全挂在「26.9.0」标题下；34 个标题里 7 个是标签「更新内容」，故按"含点分数字的标题"切而非按标签 · live feed + fixture 双证 29 条 ✓ · 另记两个已修的坑：`CFBundleDisplayName` 是**空串**（行里没名字）、未登录时的登录 sheet 挡住退出（Relaunch 静默失败）· 2026-09-01
 - [x] [**Rockxy**](com-amunx-rockxy-community.md) · `com.amunx.rockxy.community` — C + Sparkle verified · appcast 是原地重写的单条文件（1 个 `<item>`），inline notes 只够一格版本轨，故 changelog 走 GitHub releases（40/40 解析，0 prerelease）· 只有一条轨：prod 与 staging 两个 xcconfig 指向同一个 feed、同一个 bundle id · 2026-09-09
 - [x] [**VMPal**](com-tableplus-VMPal.md) · `com.tableplus.VMPal` — C + Sparkle（bundle 不声明 `SUFeedURL`，地址由 `SparkleFeedCatalog` 补）· 单轨 · 真包 0.36 挂载验证 ✓（Team `3X57WP8E8V`）· 一键 dmg：0.35 → 0.36 真机跑通（未运行、以及 app 与 VM 都在运行两种状态；包内容与厂商 dmg 逐项一致）· ⚠️ VM 进程（包内 helper）升级后继续跑旧引擎，duo 的运行检测只看主 bundle · 2026-10-06
+- [x] [**GotEmail**](com-voprex-gotemail.md) · `com.voprex.gotemail` — C (`releases.json`，新 decoder `.gotEmailReleases`) + Sparkle · 单轨 · appcast 只留最新一条、dmg 地址不带版本号 · EdDSA + 公证验证 ✓（Team `RQBC2CSG5T`）· 一键（Sparkle dmg）端到端未跑：拿不到上一版 · 2026-10-09
 - [x] [**magpie**](com-yetone-magpie.md) · `com.yetone.magpie` — C (GitHub releases `yetone/magpie-releases`) · 单轨 · install.sh 与 dmg 落地同一个 bundle（Team `LY7MVTUDZG`）· 一键 zip（按架构）· changelog recipe：正文的中文副本与下载说明已切掉 · 一键 zip 未运行时真机跑通 · 运行中一键：暂存的是最新 → Relaunch，暂存旧于最新 → 先清暂存再装（与 Sparkle 同规则，两种真机跑通）· 2026-10-06
 
 ## Electron-covered (auto-detected via the bundle's `app-update.yml`, no version recipe)

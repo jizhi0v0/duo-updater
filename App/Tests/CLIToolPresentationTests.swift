@@ -187,7 +187,9 @@ enum CLIToolFixtures {
             manualCommand: manual ? command : nil, detail: .zoxide(install))
     }
 
-    static func nvm(state: CLIToolState = .updateAvailable, withheld: CLIToolWithheld? = .unsupportedInstaller) -> CLIToolStatus {
+    static func nvm(
+        state: CLIToolState = .updateAvailable, withheld: CLIToolWithheld? = .unsupportedInstaller, writable: Bool = false
+    ) -> CLIToolStatus {
         let path = "/Users/ann/.nvm/nvm.sh"
         let command = CLIToolCommand(
             executable: "curl",
@@ -196,7 +198,7 @@ enum CLIToolFixtures {
         return CLIToolStatus(
             kind: .nvm, path: path, installedVersion: "0.40.7", latestVersion: "0.40.8", channel: nil,
             state: state, oneClick: nil, withheld: withheld, note: nil, manualCommand: command,
-            detail: .nvm(NvmInstall(path: path, version: "0.40.7")))
+            detail: .nvm(NvmInstall(path: path, version: "0.40.7", writable: writable)))
     }
 
     static func atuin(
@@ -852,7 +854,8 @@ struct CLIToolPayloadPresentationTests {
     ///
     /// Mutations: drop `.unsupportedInstaller` or `.unverified` from the gate in
     /// `manualCommand`; let it hand out a command beside `.busy`; drop the `writable` branch of the
-    /// `(.unsupportedInstaller, .zoxide)` case or the `(.unverified, .zoxide)` case.
+    /// `(.unsupportedInstaller, .zoxide)` case, the `(.unverified, .zoxide)` case or the
+    /// `(.unsupportedInstaller, .nvm)` case.
     @Test func zoxideAndNvmHandOutTheirCommand() {
         let zoxide = "curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh -s -- --bin-dir /Users/ann/.local/bin"
         #expect(CLIToolPresentation.manualCommand(F.zoxide(writable: false, withheld: .unsupportedInstaller, manual: true)) == zoxide)
@@ -868,7 +871,11 @@ struct CLIToolPayloadPresentationTests {
             == "No one-click update for this kind of install")
         #expect(CLIToolsModel.reason(.unverified, of: F.zoxide())
             == "The new release can’t be checked against a published digest")
-        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.nvm()) == "No one-click update for this kind of install")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.nvm()) == "Updating it needs administrator rights")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.nvm(writable: true))
+            == "No one-click update for this kind of install")
+        #expect(CLIToolsModel.reason(.updaterMissing, of: F.nvm(withheld: .updaterMissing))
+            == "The program that updates it wasn’t found")
         #expect(CLIToolsModel.vendor(of: .zoxide) == nil)
         #expect(CLIToolsModel.vendor(of: .nvm) == nil)
     }

@@ -918,6 +918,10 @@ final class CLIToolsModel {
             return String(localized: "Updating it needs administrator rights")
         case (.unsupportedInstaller, .mise(let mise)) where !mise.writable && mise.selfUpdateDisabledBy == nil:
             return String(localized: "Updating it needs administrator rights")
+        // nvm's only copy-command case (`NvmCheck`): a directory this user
+        // cannot write to.
+        case (.unsupportedInstaller, .nvm(let nvm)) where !nvm.writable:
+            return String(localized: "Updating it needs administrator rights")
         default:
             break
         }

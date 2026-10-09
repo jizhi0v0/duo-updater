@@ -3,9 +3,11 @@ import Foundation
 @testable import DuoUpdaterCore
 
 /// nvm: finding it where its installer puts it — and not where Homebrew does —
-/// reading its version out of `nvm.sh`, its verdict (detection and the command
-/// only) and its release notes. The release API is injected; nothing here runs
-/// nvm, asks git or reaches the network.
+/// reading its version out of `nvm.sh`, its verdict, its one-click (the newer
+/// tag's installer) and its release notes. The release API, the installer, the
+/// git found and the process table are injected; nothing here runs nvm or git,
+/// or reaches the network. The "installer" is a bash stand-in that records what
+/// it was given and copies a staged `nvm.sh` into `$NVM_DIR`.
 @Suite struct NvmTests {
 
     final class Sandbox: @unchecked Sendable {
@@ -54,12 +56,59 @@ import Foundation
 
         var scanner: NvmScanner { NvmScanner(home: home) }
 
-        func check(latest: String = "0.40.8", status: Int = 200) -> NvmCheck {
+        static let git = "/ZZFixture-git/bin/git"
+
+        func check(latest: String = "0.40.8", status: Int = 200, git: String? = Sandbox.git) -> NvmCheck {
             let release = NvmRelease(fetch: { url, _ in
                 #expect(url == NvmRelease.latestURL)
                 return (Data(#"{"tag_name": "v\#(latest)", "assets": []}"#.utf8), status, status == 200 ? nil : "0")
             })
-            return NvmCheck(latest: { try await release.latest() })
+            return NvmCheck(latest: { try await release.latest() }, git: { git })
+        }
+
+        func status(
+            latest: String = "0.40.8", git: String? = Sandbox.git, busy: NvmActivity.Busy? = nil
+        ) async throws -> CLIToolStatus {
+            let install = try #require(scanner.scan().first)
+            return await check(latest: latest, git: git).status(of: install, busy: busy)
+        }
+
+        /// The installer stand-in: records its environment, its `PATH`'s
+        /// programs and where its `git` points, then copies a staged `nvm.sh`
+        /// of `version` into `$NVM_DIR`, as the real one rewrites it there.
+        func installer(installs version: String?, body: String? = nil) throws -> Data {
+            var copy = "echo nothing"
+            if let version {
+                let staged = root.appendingPathComponent("staged-\(version)")
+                try Data(Self.nvmSH(version).utf8).write(to: staged)
+                copy = #"/bin/cp "\#(staged.path)" "$NVM_DIR/nvm.sh""#
+            }
+            return Data("""
+                #!/usr/bin/env bash
+                nvm_do_install() {
+                  if [ "${PROFILE-}" = '/dev/null' ] ; then echo; fi
+                }
+                /usr/bin/env > "\(root.path)/ENV"
+                /bin/ls "$PATH" > "\(root.path)/PATHLS"
+                /bin/cat "$PATH/git" > "\(root.path)/GIT"
+                \(body ?? copy)
+                """.utf8)
+        }
+
+        var ran: Bool { FileManager.default.fileExists(atPath: root.appendingPathComponent("ENV").path) }
+        func read(_ name: String) -> String? { try? String(contentsOf: root.appendingPathComponent(name), encoding: .utf8) }
+
+        func updater(
+            script: Data, git: String? = Sandbox.git, busy: @escaping NvmUpdater.BusyCheck = { nil },
+            environment: [String: String] = ["KEEP": "1"]
+        ) -> NvmUpdater {
+            NvmUpdater(
+                busy: busy, scanner: scanner, git: { git },
+                fetchScript: { url in
+                    #expect(url.absoluteString == "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh")
+                    return script
+                },
+                environment: { environment })
         }
     }
 
@@ -131,35 +180,220 @@ import Foundation
 
     // MARK: - The verdict
 
-    /// Never a click: the README's update, the newer tag's installer, to copy.
-    /// Mutations: offer a click; name the installed tag instead of the latest.
-    @Test func anUpdateIsTheCommandOnly() async throws {
+    /// A newer tag is a click: the README's update, the newer tag's installer,
+    /// in either layout. Mutation: name the installed tag instead of the latest.
+    @Test func anUpdateIsAClick() async throws {
         let box = try Sandbox()
         try box.install("0.40.7")
-        let status = await box.check().status(of: try #require(box.scanner.scan().first))
+        let status = try await box.status()
         #expect(status.state == .updateAvailable)
         #expect(status.installedVersion == "0.40.7")
         #expect(status.latestVersion == "0.40.8")
+        #expect(status.withheld == nil)
+        #expect(status.manualCommand == nil)
+        #expect(status.oneClick?.display
+            == "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | bash")
+    }
+
+    /// A directory this user cannot write keeps today's command to copy.
+    /// Mutation: drop the `writable` gate.
+    @Test func aReadOnlyDirectoryIsTheCommandOnly() async throws {
+        let box = try Sandbox()
+        let file = try box.install("0.40.7", git: false)
+        let dir = file.deletingLastPathComponent().path
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: dir)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir) }
+        let status = try await box.status()
         #expect(status.oneClick == nil)
         #expect(status.withheld == .unsupportedInstaller)
         #expect(status.manualCommand?.display
             == "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | bash")
-        #expect(await NvmProvider().update(status, progress: { _ in }) == .notOffered)
+        if case .nvm(let install) = status.detail { #expect(!install.writable) } else { Issue.record("no nvm detail") }
+    }
+
+    /// A checkout needs a git that is not `/usr/bin/git`'s shim; the bare files
+    /// need none. Mutations: drop the git gate; ask it of the script layout too.
+    @Test func aCheckoutWithoutARealGitIsNoClick() async throws {
+        let box = try Sandbox()
+        try box.install("0.40.7")
+        let noGit = try await box.status(git: nil)
+        #expect(noGit.oneClick == nil)
+        #expect(noGit.withheld == .updaterMissing)
+        #expect(noGit.manualCommand == nil)
+
+        let bare = try Sandbox()
+        try bare.install("0.40.7", in: ".config/nvm", git: false)
+        let script = try await bare.status(git: nil)
+        #expect(script.oneClick != nil)
+        #expect(script.withheld == nil)
+    }
+
+    /// Mutation: drop the busy gate.
+    @Test func aRunUnderWayIsBusy() async throws {
+        let box = try Sandbox()
+        try box.install("0.40.7")
+        let status = try await box.status(busy: .installer(9))
+        #expect(status.oneClick == nil)
+        #expect(status.withheld == .busy)
+        #expect(status.note == "nvm's installer is running (pid 9)")
     }
 
     @Test func otherVerdicts() async throws {
         let box = try Sandbox()
         try box.install("0.40.8")
         let install = try #require(box.scanner.scan().first)
-        let current = await box.check().status(of: install)
+        let current = await box.check().status(of: install, busy: nil)
         #expect(current.state == .upToDate)
+        #expect(current.oneClick == nil)
         #expect(current.manualCommand == nil)
-        #expect(await box.check(latest: "0.40.7").status(of: install).state == .ahead)
-        #expect(await box.check(status: 403).status(of: install).withheld == .rateLimited)
-        #expect(await box.check(status: 502).status(of: install).withheld == .channelUnreadable)
+        #expect(await box.check(latest: "0.40.7").status(of: install, busy: nil).state == .ahead)
+        #expect(await box.check(status: 403).status(of: install, busy: nil).withheld == .rateLimited)
+        #expect(await box.check(status: 502).status(of: install, busy: nil).withheld == .channelUnreadable)
 
         let unreadable = NvmInstall(path: install.path, version: nil, problem: .versionUnreadable)
-        #expect(await box.check().status(of: unreadable).withheld == .versionUnreadable)
+        #expect(await box.check().status(of: unreadable, busy: nil).withheld == .versionUnreadable)
+    }
+
+    // MARK: - git
+
+    /// The first candidate that is a real file outside `/usr/bin`: a link to the
+    /// shim is passed over, whatever its name. Mutations: drop the `/usr/bin`
+    /// check; return the candidate rather than what it resolves to.
+    @Test func gitIsNeverTheShim() {
+        let facts = [
+            "/ZZFixture-a/git": "/usr/bin/git",
+            "/ZZFixture-b/git": "/ZZFixture-Cellar/git/2.51.0/bin/git",
+        ]
+        #expect(NvmUpdater.git(candidates: ["/ZZFixture-none/git", "/ZZFixture-a/git", "/ZZFixture-b/git"],
+                               resolve: { facts[$0] })
+            == "/ZZFixture-Cellar/git/2.51.0/bin/git")
+        #expect(NvmUpdater.git(candidates: ["/usr/bin/git", "/ZZFixture-a/git"], resolve: { facts[$0] ?? $0 }) == nil)
+        #expect(!NvmUpdater.gitCandidates.contains { $0.hasPrefix("/usr/bin/") })
+    }
+
+    // MARK: - The update
+
+    /// The bare files: `bash <install.sh>` with `NVM_DIR` the install's own
+    /// directory, `PROFILE=/dev/null`, `HOME` the scan's, a `PATH` of the
+    /// script's programs only — no git, `sudo`, `xcode-select` or `which` — and
+    /// the variables that would redirect it gone. Mutations: drop any `overrides`
+    /// entry or the `BASH_FUNC_` filter; skip `NVM_DIR` or `PROFILE`; put git on
+    /// the bare files' `PATH`.
+    @Test func updatesTheBareFilesInPlace() async throws {
+        let box = try Sandbox()
+        try box.install("0.40.7", in: ".config/nvm", git: false)
+        let status = try await box.status()
+        let inherited = [
+            "KEEP": "1", "NVM_SOURCE": "https://example.com/nvm.sh", "NVM_INSTALL_VERSION": "v0.1.0",
+            "NVM_INSTALL_GITHUB_REPO": "someone/nvm", "METHOD": "git", "NODE_VERSION": "22", "NVM_ENV": "x",
+            "XDG_CONFIG_HOME": "/ZZFixture-xdg", "BASH_ENV": "/ZZFixture-bashenv", "SHELLOPTS": "xtrace",
+            "BASH_FUNC_git%%": "() {  /usr/bin/true\n}",
+        ]
+        let outcome = await box.updater(script: try box.installer(installs: "0.40.8"), environment: inherited).update(status)
+        #expect(outcome == .updated(version: "0.40.8"))
+        let env = try #require(box.read("ENV"))
+        #expect(env.contains("NVM_DIR=\(box.home.path)/.config/nvm\n"))
+        #expect(env.contains("PROFILE=/dev/null\n"))
+        #expect(env.contains("HOME=\(box.home.path)\n"))
+        #expect(env.contains("KEEP=1\n"))
+        for key in inherited.keys where key != "KEEP" {
+            #expect(!env.contains("\(key)"), "\(key) reached the installer")
+        }
+        let tools = Set(try #require(box.read("PATHLS")).split(separator: "\n").map(String.init))
+        #expect(tools == Set(NvmUpdater.defaultTools.keys))
+        #expect(tools.isDisjoint(with: ["git", "sudo", "xcode-select", "which"]))
+        #expect(box.scanner.scan().map(\.version) == ["0.40.8"])
+        #expect(!FileManager.default.fileExists(atPath: box.home.appendingPathComponent(".nvm").path))
+    }
+
+    /// A checkout: `git` on the `PATH` is a wrapper that `exec`s the real one
+    /// found, beside the same programs. Mutation: leave it off; link it.
+    @Test func updatesACheckoutWithTheGitFound() async throws {
+        let box = try Sandbox()
+        try box.install("0.40.7")
+        let status = try await box.status()
+        let outcome = await box.updater(script: try box.installer(installs: "0.40.8")).update(status)
+        #expect(outcome == .updated(version: "0.40.8"))
+        #expect(box.read("GIT") == "#!/bin/sh\nexec '\(Sandbox.git)' \"$@\"\n")
+        let tools = Set(try #require(box.read("PATHLS")).split(separator: "\n").map(String.init))
+        #expect(tools == Set(NvmUpdater.defaultTools.keys).union(["git"]))
+        #expect(try #require(box.read("ENV")).contains("NVM_DIR=\(box.home.path)/.nvm\n"))
+    }
+
+    /// The installer's own last line and its exit status are the row's reason;
+    /// the whole output is the detail pane's. Exit 0 with `nvm.sh` not at the
+    /// target is a failure too. Mutations: drop the exit status; trust exit 0.
+    @Test func whatTheInstallerLeftIsReadBack() async throws {
+        let box = try Sandbox()
+        try box.install("0.40.7")
+        let status = try await box.status()
+        let failing = try box.installer(installs: nil, body: """
+            echo "=> nvm is already installed in $NVM_DIR, trying to update using git"
+            echo "Failed to update nvm with v0.40.8, run 'git fetch' in $NVM_DIR yourself." >&2
+            exit 1
+            """)
+        let failed = await box.updater(script: failing).update(status)
+        guard case .failed(let message, let output) = failed else { Issue.record("expected failed, got \(failed)"); return }
+        #expect(message == "Failed to update nvm with v0.40.8, run 'git fetch' in \(box.home.path)/.nvm yourself. (exit 1)")
+        #expect(output.contains("trying to update using git"))
+
+        let unchanged = await box.updater(script: try box.installer(installs: nil)).update(status)
+        guard case .failed(let still, _) = unchanged else { Issue.record("expected failed, got \(unchanged)"); return }
+        #expect(still == "install.sh finished, but nvm.sh is still 0.40.7")
+
+        let other = await box.updater(script: try box.installer(installs: "0.40.6")).update(status)
+        guard case .failed(let wrong, _) = other else { Issue.record("expected failed, got \(other)"); return }
+        #expect(wrong == "install.sh finished, but nvm.sh is still 0.40.6")
+    }
+
+    /// Asked again at the click: a run under way, the install changed, a
+    /// directory gone read-only, git gone from a checkout, a download that is
+    /// not nvm's installer. Nothing is run in any of them. Mutations: drop any one.
+    @Test func theClickAsksTheGatesAgain() async throws {
+        let box = try Sandbox()
+        try box.install("0.40.7")
+        let status = try await box.status()
+        let script = try box.installer(installs: "0.40.8")
+
+        #expect(await box.updater(script: script, busy: { .installer(7) }).update(status)
+            == .busy("nvm's installer is running (pid 7)"))
+        let noGit = await box.updater(script: script, git: nil).update(status)
+        guard case .failed(let gitWhy, _) = noGit else { Issue.record("expected failed, got \(noGit)"); return }
+        #expect(gitWhy.contains("/usr/bin/git"))
+        // Valid bash that would run — and leave ENV — were it not refused.
+        let notInstaller = await box.updater(script: Data("#!/usr/bin/env bash\n/usr/bin/env > \"\(box.root.path)/ENV\"\n".utf8))
+            .update(status)
+        guard case .failed = notInstaller else { Issue.record("expected failed, got \(notInstaller)"); return }
+
+        let dir = box.home.appendingPathComponent(".nvm").path
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: dir)
+        let readOnly = await box.updater(script: script).update(status)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir)
+        guard case .failed(let why, _) = readOnly else { Issue.record("expected failed, got \(readOnly)"); return }
+        #expect(why.contains("sudo"))
+
+        try box.install("0.40.6")
+        let moved = await box.updater(script: script).update(status)
+        guard case .failed = moved else { Issue.record("expected failed, got \(moved)"); return }
+        #expect(!box.ran)
+    }
+
+    @Test func aStatusWithoutTheClickRunsNothing() async throws {
+        let box = try Sandbox()
+        try box.install("0.40.7")
+        let status = try await box.status(git: nil)
+        #expect(await box.updater(script: try box.installer(installs: "0.40.8")).update(status) == .notOffered)
+        #expect(!box.ran)
+    }
+
+    // MARK: - Activity
+
+    /// Only DuoUpdater's own run of the installer. Mutation: match any bash.
+    @Test func busyIsOurInstaller() {
+        typealias P = ClaudeCodeActivity.Process
+        #expect(NvmActivity.busy(processes: [P(pid: 3, arguments: ["/bin/bash", "/var/folders/x/duo-nvm-1/nvm-install-AB.sh"])])
+            == .installer(3))
+        #expect(NvmActivity.busy(processes: [P(pid: 5, arguments: ["bash"]), P(pid: 6, arguments: ["/bin/bash", "install.sh"])]) == nil)
     }
 
     // MARK: - Release notes

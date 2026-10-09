@@ -40,14 +40,21 @@ public struct NvmInstall: Sendable, Equatable, Codable {
     public let path: String
     public let version: String?
     public let layout: Layout
+    /// The directory, `nvm.sh` and (a checkout's) `.git` may be written without
+    /// `sudo`: what the installer rewrites. Without it there is no one-click.
+    public let writable: Bool
     public let problem: Problem?
 
-    public init(path: String, version: String?, layout: Layout = .git, problem: Problem? = nil) {
+    public init(path: String, version: String?, layout: Layout = .git, writable: Bool = true, problem: Problem? = nil) {
         self.path = path
         self.version = version
         self.layout = layout
+        self.writable = writable
         self.problem = problem
     }
+
+    /// `~/.nvm` or `~/.config/nvm`: the directory the installer is pointed at.
+    public var directory: String { (path as NSString).deletingLastPathComponent }
 }
 
 /// Finds nvm where its installer puts it. Network-free, and nothing is run.
@@ -75,6 +82,11 @@ public struct NvmScanner: Sendable {
         return installs
     }
 
+    /// The install at `path` as it is now. Blocking.
+    func reread(_ path: String) -> NvmInstall? {
+        scan().first { $0.path == path }
+    }
+
     /// Blocking.
     func read(directory: String, canonical: String) -> NvmInstall? {
         let path = directory + "/nvm.sh"
@@ -87,7 +99,9 @@ public struct NvmScanner: Sendable {
         else { return nil }
         let version = Self.version(in: String(decoding: data, as: UTF8.self))
         let layout: NvmInstall.Layout = FileManager.default.fileExists(atPath: directory + "/.git") ? .git : .script
+        let written = [directory, file] + (layout == .git ? [directory + "/.git"] : [])
         return NvmInstall(path: path, version: version, layout: layout,
+                          writable: written.allSatisfy { access($0, W_OK) == 0 },
                           problem: version == nil ? .versionUnreadable : nil)
     }
 

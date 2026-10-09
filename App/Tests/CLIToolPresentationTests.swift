@@ -170,6 +170,27 @@ enum CLIToolFixtures {
                       withheld: withheld)
     }
 
+    static func flyctl(quarantined: Bool = false, withheld: CLIToolWithheld? = nil) -> CLIToolStatus {
+        let path = "/Users/ann/.fly/bin/flyctl"
+        let install = FlyctlInstall(path: path, binary: path, version: "0.4.114", quarantined: quarantined)
+        return status(.flyctl, path: path, detail: .flyctl(install), version: "0.4.114", latest: "0.4.115",
+                      withheld: withheld)
+    }
+
+    static func helm(quarantined: Bool = false, writable: Bool = true, problem: HelmInstall.Problem? = nil) -> CLIToolStatus {
+        let path = "/usr/local/bin/helm"
+        let install = HelmInstall(path: path, binary: path, version: "3.21.4", quarantined: quarantined,
+                                  writable: writable, problem: problem)
+        return status(.helm, path: path, detail: .helm(install), version: "3.21.4", latest: "3.22.0")
+    }
+
+    static func starship(quarantined: Bool = false, writable: Bool = true) -> CLIToolStatus {
+        let path = "/usr/local/bin/starship"
+        let install = StarshipInstall(path: path, binary: path, version: "1.25.1", quarantined: quarantined,
+                                      writable: writable)
+        return status(.starship, path: path, detail: .starship(install), version: "1.25.1", latest: "1.26.0")
+    }
+
     static func codex(
         signature: CLIToolTrust.Signature? = .vendor, quarantined: Bool = false,
         problem: CodexInstall.Problem? = nil, withheld: CLIToolWithheld? = nil
@@ -753,6 +774,28 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.lorca()) == "Auto-update is off in Lorca’s settings")
         #expect(CLIToolsModel.vendor(of: .lorca) == nil)
         #expect(CLIToolPresentation.facts(of: F.lorca(), home: "/Users/ann").isEmpty)
+    }
+
+    /// flyctl, Helm and Starship: a quarantined file; Helm's and Starship's
+    /// folder only `sudo` could write to, and a link, which falls to the
+    /// tool-wide wording; flyctl's own auto-update off; no vendor named.
+    ///
+    /// Mutations: drop any of the `(.unverified, …) where quarantined` cases;
+    /// drop the `(.unsupportedInstaller, .helm)` or `.starship` case.
+    @Test func flyctlHelmStarshipReasons() {
+        let quarantined = "Quarantined, so not run"
+        #expect(CLIToolsModel.reason(.unverified, of: F.flyctl(quarantined: true)) == quarantined)
+        #expect(CLIToolsModel.reason(.unverified, of: F.helm(quarantined: true)) == quarantined)
+        #expect(CLIToolsModel.reason(.unverified, of: F.starship(quarantined: true)) == quarantined)
+        #expect(CLIToolsModel.reason(.unverified, of: F.helm()) == "Not the build its developer published")
+        let admin = "Updating it needs administrator rights"
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.helm(writable: false)) == admin)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.starship(writable: false)) == admin)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.helm(problem: .linked))
+            == "No one-click update for this kind of install")
+        #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.flyctl()) == "Auto-update is off in flyctl’s settings")
+        for kind in [CLIToolKind.flyctl, .helm, .starship] { #expect(CLIToolsModel.vendor(of: kind) == nil) }
+        #expect(CLIToolPresentation.facts(of: F.helm(), home: "/Users/ann").isEmpty)
     }
 
     /// The pane's reason and the row's warning are the status's own: a newer

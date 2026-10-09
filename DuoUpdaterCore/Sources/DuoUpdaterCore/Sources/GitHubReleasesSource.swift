@@ -1606,8 +1606,9 @@ public struct GitHubReleasesSource: UpdateSource {
                     releaseHistory: history,
                     releaseChannel: rule.channel
                 ), tags: releases.map(\.tag), archIncompatible: false,
-                // Only what is newer than the answer: the API orders its list by
-                // creation, so a backport published later can sit above it.
+                // Only what is newer than the answer: the list is not in version
+                // order (nor reliably in any timestamp's — measured on trycua/cua,
+                // where v0.9.1 sat above v0.10.0), so a backport can sit above it.
                 skippedPast: skippedPast.filter { VersionComparator.isNewer($0.version, than: version) })
             }
         }

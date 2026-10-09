@@ -354,6 +354,17 @@ public enum ProbeWarning: Sendable, Equatable {
     /// for your Mac" — but it must not stay silent either, because the sweep is
     /// the only thing that will ever notice the ceiling stopped being read.
     case osBoundPatternNoMatch
+    /// A GitHub rule answered with an older release because newer ones carry no
+    /// asset its install pattern matches — although they do carry what looks like
+    /// a macOS installer (`GitHubReleaseRule.renamedInstallerCandidates`). The
+    /// vendor most likely renamed the artifact, and every user is being offered
+    /// `offered` as the latest.
+    case installAssetRenamed(release: String, assets: [String], offered: String)
+    /// The same walk past a newer release, which carries nothing that looks like
+    /// a macOS installer. Often a release without a macOS build at all, but
+    /// reported anyway: a rename into a shape the name check does not know looks
+    /// exactly like this, and users are not offered `release` either way.
+    case installAssetMissing(release: String, offered: String)
 
     /// The part of a warning that varies, kept OUT of `kind` on purpose.
     ///
@@ -371,6 +382,15 @@ public enum ProbeWarning: Sendable, Equatable {
     /// the signature for no new information.
     public var detail: String? {
         switch self {
+        case .installAssetRenamed(let release, let assets, let offered):
+            // The stable sentence first: `Finding.signature` keeps the opening
+            // characters, and the tag changes with every release.
+            return "a newer release's macOS installer no longer matches the install pattern — "
+                + "\(release) carries \(assets.joined(separator: ", ")), so \(offered) is offered as the latest"
+        case .installAssetMissing(let release, let offered):
+            return "a newer release has no installer the install pattern matches — "
+                + "\(release) carries no macOS installer it recognises, so \(offered) is offered as the latest; "
+                + "a release without a macOS build looks the same, so check before changing the rule"
         case .installURLNotFound(let status, let host):
             let code = status.map { "HTTP \($0)" } ?? "no answer"
             return host.map { "\(code) from \($0)" } ?? code
@@ -395,6 +415,12 @@ public enum ProbeWarning: Sendable, Equatable {
         detail.map { "\(kind): \($0)" } ?? kind
     }
 
+    /// The warnings that say the INSTALL pattern stopped matching while the
+    /// version pattern is fine — the same shape as `ProbeFailure.assetPatternNoMatch`,
+    /// for a walk that still found an older answer. Whatever names the regex to
+    /// fix, or asks a model for one, has to treat them alike.
+    public static let installPatternKinds: Set<String> = ["installAssetRenamed", "installAssetMissing"]
+
     public var kind: String {
         switch self {
         case .installURLUnresolved: return "installURLUnresolved"
@@ -407,6 +433,8 @@ public enum ProbeWarning: Sendable, Equatable {
         case .publishedAtPatternNoMatch: return "publishedAtPatternNoMatch"
         case .publishedAtUnreadable: return "publishedAtUnreadable"
         case .osBoundPatternNoMatch: return "osBoundPatternNoMatch"
+        case .installAssetRenamed: return "installAssetRenamed"
+        case .installAssetMissing: return "installAssetMissing"
         }
     }
 }

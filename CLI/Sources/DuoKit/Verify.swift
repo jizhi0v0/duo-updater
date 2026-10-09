@@ -915,8 +915,14 @@ public enum Verify {
             // TAG pattern is still matching every release, so quoting it sends the
             // reader to the wrong regex — `assetPatternNoMatch` is the one failure
             // that is about the install pattern instead.
+            // The same for a walk that answered an older release past newer ones
+            // carrying no matching asset (`ProbeWarning.installPatternKinds`).
+            var installPatternMiss = outcome.warnings.contains {
+                ProbeWarning.installPatternKinds.contains($0.kind)
+            }
+            if case .assetPatternNoMatch = outcome.failure { installPatternMiss = true }
             let reportedPattern: String
-            if case .assetPatternNoMatch = outcome.failure, let install = rule.installAssetPattern {
+            if installPatternMiss, let install = rule.installAssetPattern {
                 reportedPattern = install
             } else {
                 reportedPattern = rule.versionPattern

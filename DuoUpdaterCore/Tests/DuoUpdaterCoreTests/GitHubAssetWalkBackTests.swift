@@ -77,6 +77,29 @@ import Testing
             ("v2.0.14", "App-2.0.14-arm64.dmg"),
             ("v2.0.13", "App-2.0.13-mac-arm64.dmg"),
         ],
+        // PrintCraft's v0.4.0: the repo and its dmg were renamed to pdfcraft.
+        "zz-owner/printcraft-shape": [
+            ("v0.4.0", "pdfcraft-0.4.0-macos-universal.dmg"),
+            ("v0.2.1", "App-0.2.1-arm64.dmg"),
+        ],
+        // LocalSend's v1.18.1: a release with no macOS build at all.
+        "zz-owner/android-only": [
+            ("v1.18.1", "App-1.18.1-android.apk"),
+            ("v1.18.0", "App-1.18.0-arm64.dmg"),
+        ],
+        "zz-owner/windows-zip-only": [
+            ("v3.0.1", "App-3.0.1-windows-x64-portable.zip"),
+            ("v3.0.0", "App-3.0.0-arm64.dmg"),
+        ],
+        // A backport cut after the newer release sits above it in the list.
+        "zz-owner/backport-above": [
+            ("v1.9.5", "App-1.9.5-mac-arm64.dmg"),
+            ("v2.0.0", "App-2.0.0-arm64.dmg"),
+        ],
+        "zz-owner/mac-zip": [
+            ("v3.0.1", "App-3.0.1-macos.zip"),
+            ("v3.0.0", "App-3.0.0-arm64.dmg"),
+        ],
     ]
 
     /// Serves `/releases/latest` as one release and `/releases?per_page=N` as a
@@ -174,6 +197,60 @@ import Testing
         let outcome = await diagnostic("zz-owner/renamed-then-old")
         #expect(outcome.remote?.shortVersion == "2.0.9")
         #expect(outcome.failure == nil)
+        // …but no longer silently: the releases it walked past carry a dmg, so
+        // the answer says the artifact was most likely renamed, naming the newest.
+        #expect(outcome.warnings == [.installAssetRenamed(
+            release: "v2.0.14", assets: ["App-2.0.14-mac-arm64.dmg"], offered: "2.0.9")])
+    }
+
+    /// PrintCraft (#1087): one renamed release above the last old-name one. The
+    /// walk offers v0.2.1 and, before `installAssetRenamed`, every check called
+    /// that healthy.
+    @Test func aRenamedInstallerAboveTheAnswerIsAWarning() async {
+        let outcome = await diagnostic("zz-owner/printcraft-shape")
+        #expect(outcome.remote?.shortVersion == "0.2.1")
+        #expect(outcome.warnings == [.installAssetRenamed(
+            release: "v0.4.0", assets: ["pdfcraft-0.4.0-macos-universal.dmg"], offered: "0.2.1")])
+    }
+
+    /// A release with no macOS build is what the walk exists for, and it still
+    /// answers the older version — but says so, as a separate kind: it cannot be
+    /// told apart from a rename the name check does not recognise for certain.
+    @Test func aReleaseWithNoMacOSBuildIsStillReported() async {
+        let android = await diagnostic("zz-owner/android-only")
+        #expect(android.remote?.shortVersion == "1.18.0")
+        #expect(android.warnings == [.installAssetMissing(release: "v1.18.1", offered: "1.18.0")])
+        let windows = await diagnostic("zz-owner/windows-zip-only")
+        #expect(windows.remote?.shortVersion == "3.0.0")
+        #expect(windows.warnings == [.installAssetMissing(release: "v3.0.1", offered: "3.0.0")])
+    }
+
+    /// A release with a macOS-looking installer is named over a newer one with
+    /// none: it is the likelier rename.
+    @Test func aRenameIsNamedOverANewerMissingBuild() {
+        let skipped: [GitHubReleasesSource.SkippedRelease] = [
+            .init(tag: "v3.0.2", version: "3.0.2", candidates: []),
+            .init(tag: "v3.0.1", version: "3.0.1", candidates: ["App-3.0.1.dmg"]),
+        ]
+        #expect(GitHubReleasesSource.skippedReleaseWarning(skipped, offered: "3.0.0")
+            == .installAssetRenamed(release: "v3.0.1", assets: ["App-3.0.1.dmg"], offered: "3.0.0"))
+        #expect(GitHubReleasesSource.skippedReleaseWarning(Array(skipped.prefix(1)), offered: "3.0.0")
+            == .installAssetMissing(release: "v3.0.2", offered: "3.0.0"))
+        #expect(GitHubReleasesSource.skippedReleaseWarning([], offered: "3.0.0") == nil)
+    }
+
+    /// The list is ordered by creation, not version: an older line's backport
+    /// above the answer is not a newer release the user is missing.
+    @Test func aBackportListedAboveTheAnswerIsNotARename() async {
+        let outcome = await diagnostic("zz-owner/backport-above")
+        #expect(outcome.remote?.shortVersion == "2.0.0")
+        #expect(outcome.warnings.isEmpty)
+    }
+
+    /// A zip counts when its name says mac.
+    @Test func aMacZipIsARename() async {
+        let outcome = await diagnostic("zz-owner/mac-zip")
+        #expect(outcome.warnings.first?.kind == "installAssetRenamed")
     }
 
     /// Four asset-less releases and a match: the ordinary platform-partial case the
@@ -191,5 +268,21 @@ import Testing
         #expect(outcome.remote?.shortVersion == "2.0.14")
         #expect(outcome.remote?.downloadURL?.lastPathComponent == "App-2.0.14-arm64.dmg")
         #expect(outcome.failure == nil)
+        #expect(outcome.warnings.isEmpty)
+    }
+
+    /// What counts as a macOS installer by its name alone.
+    @Test func whichAssetsLookLikeAMacOSInstaller() {
+        let url = URL(string: "https://example.com/x")!
+        let names = [
+            "App.dmg", "App.pkg", "App-macos.zip", "App_osx.tar.gz", "App-darwin-arm64.tgz",
+            "App-apple-silicon.zip", "App-windows-x64-portable.zip", "App.AppImage",
+            "App.apk", "App-linux.tar.gz", "Macro-1.0-windows.zip", "SHA256SUMS.txt",
+        ]
+        #expect(GitHubReleaseRule.renamedInstallerCandidates(
+            in: names.map { ($0, url, nil) }) == [
+            "App.dmg", "App.pkg", "App-macos.zip", "App_osx.tar.gz", "App-darwin-arm64.tgz",
+            "App-apple-silicon.zip",
+        ])
     }
 }

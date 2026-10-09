@@ -441,6 +441,32 @@ public struct GitHubReleaseRule: Sendable {
         assets.contains { $0.name.range(of: pattern, options: .regularExpression) != nil }
     }
 
+    /// The assets of a release the install pattern skipped that look like a macOS
+    /// installer all the same — what tells a renamed artifact apart from a release
+    /// that simply has no macOS build.
+    ///
+    /// The walk back past asset-less releases exists for the second (LocalSend's
+    /// v1.18.1 ships four `.apk`s and nothing else), and it cannot see the first:
+    /// PrintCraft's v0.4.0 renamed its dmg to `pdfcraft-0.4.0-macos-universal.dmg`,
+    /// the walk offered v0.2.1 as the latest, and every check called it healthy.
+    ///
+    /// A `.dmg` or `.pkg` is a macOS container whatever it is called. A `.zip` or
+    /// tarball is not — Windows portable builds are zips too — so it counts only
+    /// when its name says mac (`mac`, `macos`, `osx`, `darwin`, `apple`).
+    static func renamedInstallerCandidates(
+        in assets: [(name: String, url: URL, size: Int64?)]
+    ) -> [String] {
+        assets.map(\.name).filter { name in
+            let lower = name.lowercased()
+            if lower.hasSuffix(".dmg") || lower.hasSuffix(".pkg") { return true }
+            guard lower.hasSuffix(".zip") || lower.hasSuffix(".tar.gz") || lower.hasSuffix(".tgz")
+            else { return false }
+            return lower.range(
+                of: #"(^|[^a-z])(mac|macos|osx|darwin|apple)([^a-z]|$)"#,
+                options: .regularExpression) != nil
+        }
+    }
+
     /// True when this release ships a macOS asset matching `pattern`, but every
     /// such asset targets an architecture this host cannot run — as opposed to
     /// shipping no macOS asset at all. The two need different handling: no
@@ -962,12 +988,13 @@ public struct GitHubReleasesSource: UpdateSource {
             Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
         }
         func outcome(
-            remote: RemoteVersion?, failure: ProbeFailure?, tags: [String] = [], status: Int? = nil
+            remote: RemoteVersion?, failure: ProbeFailure?, tags: [String] = [], status: Int? = nil,
+            warnings: [ProbeWarning] = []
         ) -> ProbeOutcome {
             ProbeOutcome(
                 recipeID: rule.recipeID,
                 bundleID: rule.bundleID, channel: rule.channel,
-                remote: remote, failure: failure, httpStatus: status,
+                remote: remote, failure: failure, warnings: warnings, httpStatus: status,
                 bodySample: tags.isEmpty ? nil : tags.joined(separator: "\n"),
                 elapsedMs: elapsed())
         }
@@ -1002,7 +1029,10 @@ public struct GitHubReleasesSource: UpdateSource {
                 rule, anchoredTo: anchor, preferring: hostArch,
                 allowingIntelTranslation: canRunIntel, reusingListPage: discovered)
             if let remote = resolved.remote {
-                return outcome(remote: remote, failure: nil, tags: resolved.tags)
+                return outcome(
+                    remote: remote, failure: nil, tags: resolved.tags,
+                    warnings: Self.skippedReleaseWarning(
+                        resolved.skippedPast, offered: remote.shortVersion ?? "?").map { [$0] } ?? [])
             }
             if resolved.archIncompatible {
                 return outcome(
@@ -1281,6 +1311,25 @@ public struct GitHubReleasesSource: UpdateSource {
         }
     }
 
+    /// What to say when the answer is older than releases the walk skipped.
+    ///
+    /// Always something: a newer release with no matching installer is either a
+    /// release without a macOS build (LocalSend's v1.18.1, four `.apk`s) or a
+    /// renamed artifact (PrintCraft's v0.4.0, DSH Desktop's v2.0.16), and the
+    /// walk cannot tell them apart for certain. Reporting the first as well is the
+    /// price of never missing the second — the user is not offered that newer
+    /// version either way. A release that carries a macOS-looking installer is
+    /// named in preference, being the likelier rename.
+    static func skippedReleaseWarning(
+        _ skipped: [SkippedRelease], offered: String
+    ) -> ProbeWarning? {
+        if let renamed = skipped.first(where: { !$0.candidates.isEmpty }) {
+            return .installAssetRenamed(
+                release: renamed.tag, assets: renamed.candidates, offered: offered)
+        }
+        return skipped.first.map { .installAssetMissing(release: $0.tag, offered: offered) }
+    }
+
     private struct Resolution {
         let remote: RemoteVersion?
         let tags: [String]
@@ -1291,6 +1340,18 @@ public struct GitHubReleasesSource: UpdateSource {
         /// name the INSTALL pattern instead of blaming the tag pattern, which is
         /// still matching perfectly.
         var assetMiss: Int = 0
+        /// Releases newer than the answer that the walk skipped for carrying no
+        /// asset the install pattern matches, newest first. Set only on an
+        /// answer: with no answer at all, `assetMiss` already says it.
+        var skippedPast: [SkippedRelease] = []
+    }
+
+    /// A release the install pattern skipped, with whatever on it looks like a
+    /// macOS installer anyway (`renamedInstallerCandidates`; often nothing).
+    struct SkippedRelease: Equatable {
+        let tag: String
+        let version: String
+        let candidates: [String]
     }
 
     /// - anchoredTo: the marketing version of the copy on disk, for a rule whose
@@ -1440,6 +1501,7 @@ public struct GitHubReleasesSource: UpdateSource {
             return ReleaseHistoryEntry(version: v, publishedAt: fields.publishedAt, vendorDay: fields.vendorDay)
         }
         var skippedForMissingAsset: [String] = []
+        var skippedPast: [SkippedRelease] = []
         var refusedForHost: [String] = []
         var archIncompatible = false
         for release in releases {
@@ -1450,6 +1512,9 @@ public struct GitHubReleasesSource: UpdateSource {
                 if let pattern = rule.installAssetPattern,
                    !GitHubReleaseRule.carriesInstallableAsset(from: release.assets, matching: pattern) {
                     skippedForMissingAsset.append(release.tag)
+                    skippedPast.append(SkippedRelease(
+                        tag: release.tag, version: version,
+                        candidates: GitHubReleaseRule.renamedInstallerCandidates(in: release.assets)))
                     // Walking back forever is how a renamed asset turns into a
                     // confident "up to date" on a version from a year ago. A
                     // handful of platform-partial releases is normal; a run of
@@ -1540,7 +1605,11 @@ public struct GitHubReleasesSource: UpdateSource {
                     vendorDay: publishedFields.vendorDay,
                     releaseHistory: history,
                     releaseChannel: rule.channel
-                ), tags: releases.map(\.tag), archIncompatible: false)
+                ), tags: releases.map(\.tag), archIncompatible: false,
+                // Only what is newer than the answer: the list is not in version
+                // order (nor reliably in any timestamp's — measured on trycua/cua,
+                // where v0.9.1 sat above v0.10.0), so a backport can sit above it.
+                skippedPast: skippedPast.filter { VersionComparator.isNewer($0.version, than: version) })
             }
         }
         // Not a recipe failure — the vendor did ship a macOS build for the

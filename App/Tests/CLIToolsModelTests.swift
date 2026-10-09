@@ -1190,6 +1190,89 @@ struct CLIToolsModelTests {
         #expect(await check.calls == 2)
     }
 
+    // MARK: the workbench becoming key again
+
+    /// A tool installed in a terminal while the workbench is open — Helm into
+    /// `/usr/local/bin`, seen on the real machine — is found when the window is
+    /// focused again, and checked. Focusing again with nothing new asks nothing.
+    ///
+    /// Mutations: `refreshOnFocus` returning before its scan; dropping the
+    /// `Set(found) != Set(checkedSightings)` guard.
+    @Test func aFocusFindsAToolInstalledMeanwhile() async {
+        let status = Self.status(Self.native)
+        let found = ScanResult([status])
+        let helmFound = ScanResult([])
+        let check = FakeCheck([(Self.report(status), nil)])
+        let helm = Self.status("/usr/local/bin/helm", kind: .helm)
+        let helmCheck = FakeCheck([(Self.report(.helm, []), nil), (Self.report(.helm, [helm]), nil)])
+        let model = Self.model(check: check, scan: { found.sightings },
+                               others: [FakeProvider(kind: .helm, checker: helmCheck, scanner: { helmFound.sightings })])
+        await model.refreshOnOpen()
+        #expect(await helmCheck.calls == 1)
+
+        await model.refreshOnFocus()
+        await model.refreshOnFocus()
+        #expect(await helmCheck.calls == 1)
+
+        helmFound.set([helm])
+        await model.refreshOnFocus()
+        #expect(await helmCheck.calls == 2)
+        #expect(await check.calls == 2)
+        #expect(model.status(helm.toolID) != nil)
+
+        await model.refreshOnFocus()
+        #expect(await helmCheck.calls == 2)
+    }
+
+    /// Focus is not an open: an old report, or a copy left unanswered (GitHub's
+    /// rate limit), is not re-checked on each trip back to the window — that is
+    /// the popover's open and the background check's to do.
+    ///
+    /// Mutation: `refreshOnFocus` calling `refreshOnOpen()` after its guard.
+    @Test func aFocusIgnoresAgeAndUnansweredCopies() async {
+        let status = Self.status(Self.native, state: .unknown, oneClick: false, withheld: .rateLimited)
+        let found = ScanResult([status])
+        let clock = Clock()
+        let check = FakeCheck([(Self.report(status), nil)])
+        let model = Self.model(check: check, scan: { found.sightings }, clock: clock)
+        await model.refresh()
+
+        clock.now += CLIToolsModel.recheckInterval * 2
+        for _ in 0..<5 { await model.refreshOnFocus() }
+        #expect(await check.calls == 1)
+    }
+
+    /// Before the first report lands, and while a check is out, a focus asks
+    /// nothing: the window's open is already checking, and the report in
+    /// flight is about to replace the one a scan would be held against.
+    ///
+    /// Mutations: drop `!checkedAt.isEmpty`; drop `!checking`.
+    @Test func aFocusWaitsForTheCheckUnderWay() async {
+        let status = Self.status(Self.native)
+        let found = ScanResult([status])
+        let gate = Gate()
+        // The third answer is not held, so a check the focus wrongly starts
+        // returns and is counted, rather than waiting on the gate below.
+        let check = FakeCheck([(Self.report(status), nil), (Self.report(status), gate), (Self.report(status), nil)])
+        let model = Self.model(check: check, scan: { found.sightings })
+        let moved = [Self.status(Self.native, version: "2.1.285")]
+
+        // No report yet: the scan disagrees with nothing, and still no check.
+        let fresh = FakeCheck([(Self.report(status), nil)])
+        let unopened = Self.model(check: fresh, scan: { found.sightings })
+        await unopened.refreshOnFocus()
+        #expect(await fresh.calls == 0)
+
+        await model.refresh()
+        let second = Task { await model.refresh() }
+        await until { await gate.arrived == 1 }
+        found.set(moved)
+        await model.refreshOnFocus()
+        #expect(await check.calls == 2)
+        await gate.open()
+        await second.value
+    }
+
     // MARK: the background schedule
 
     /// Answers whether a GitHub token resolves, and counts how often it was asked.

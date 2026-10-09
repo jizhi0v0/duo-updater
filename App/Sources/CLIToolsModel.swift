@@ -244,6 +244,24 @@ final class CLIToolsModel {
         await check(stale)
     }
 
+    /// What the workbench becoming key again does: a local scan, and a check of
+    /// every tool only when the scan disagrees with the report on screen (a
+    /// copy appeared or went, or its version moved — a tool installed in a
+    /// terminal while the window was open). The apps' rule on the same event
+    /// (`AppListModel.refreshLocal`): a disk re-read, never the network for its
+    /// own sake, so going back and forth between windows asks nothing. Age and
+    /// unanswered copies are left to the popover's open (`refreshOnOpen`) and
+    /// the background check. Skipped until a first report has landed (the
+    /// window's open checks), while a check is out (its report is about to
+    /// replace the one this compares against) and while an update runs (which
+    /// re-checks by itself, and a scan mid-run sees a half-done copy).
+    func refreshOnFocus() async {
+        guard !checkedAt.isEmpty, !checking, updating.isEmpty, !updatingAll else { return }
+        let found = await scanAll()
+        guard Set(found) != Set(checkedSightings) else { return }
+        await refresh()
+    }
+
     /// What a tick of the app's background schedule does for these tools: check
     /// every tool whose turn it is (`isDue`), each on its own clock. `interval` is
     /// the app's check interval; nil is "Only when I check", and then nothing runs

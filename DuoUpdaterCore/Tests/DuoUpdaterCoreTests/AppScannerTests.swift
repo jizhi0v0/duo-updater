@@ -28,7 +28,28 @@ import Foundation
 /// `Hashable`). One scanner instance so both reads share the Toolbox/TestFlight
 /// inventories, as the App's recheck does.
 @Test func scopedScanMatchesTheFullScanRowForRow() throws {
-    let scanner = AppScanner(testflight: TestFlightInventory(macRows: []))
+    // The channel binding is injected, not read. The real one is a live read of
+    // another app's preferences under a 2s deadline, and on 2026-10-09 the CI
+    // mini's AppData consent gate let the full scan read CotEditor's `.beta` and
+    // then held the scoped re-read past the deadline (non-authoritative
+    // `.stable`) — two scans disagreeing about the machine, not about the bundle.
+    // The stand-in answers for EVERY bundle and is a pure function of what the
+    // scanner hands it, with each input echoed into a different field of the
+    // row: a scoped path that skipped the binding, or handed it another id or
+    // other feeds, still yields a row that differs. What this no longer covers is
+    // whether the preference read itself answers in time — that is
+    // `ChannelBindingBoundTests` and the per-app channel tests.
+    let scanner = AppScanner(
+        testflight: TestFlightInventory(macRows: []),
+        channelBinding: { bundleID, feeds in
+            guard let bundleID else { return nil }
+            let keys = feeds.keys.sorted()
+            return ResolvedChannel(
+                channel: .beta,
+                feedOverride: URL(string: "https://binding.invalid/\(bundleID)"),
+                feedHTTPHeaders: Dictionary(uniqueKeysWithValues: keys.map { ($0, feeds[$0]!.absoluteString) }),
+                sparkleChannelNames: [bundleID])
+        })
     let full = scanner.scan()
     try #require(!full.isEmpty, "expected at least one app in the default locations")
     for app in full {

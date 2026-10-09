@@ -12,17 +12,48 @@
 | VectorCraft | Illustrator | `ai.storyteller.vectorcraft` | `storytold/vectorcraft` | 0.3.1 |
 | FilmCraft | Premiere Pro | `ai.storyteller.filmcraft` | `storytold/filmcraft` | 0.2.1 |
 | LightCraft | Lightroom | `ai.storyteller.lightcraft` | `storytold/lightcraft` | 0.2.1 |
-| PrintCraft | Acrobat | `ai.storyteller.printcraft` | `storytold/printcraft` | 0.2.1 |
+| PdfCraft（原 PrintCraft，见「PdfCraft 改名」） | Acrobat | `ai.storyteller.pdfcraft`（≤0.2.1: `ai.storyteller.printcraft`） | `storytold/pdfcraft`（原 `storytold/printcraft`） | 0.4.0 |
 | EffectCraft | After Effects | `ai.storyteller.effectcraft` | `storytold/effectcraft` | 0.3.1 |
 | DesignCraft | InDesign | `ai.storyteller.designcraft` | `storytold/designcraft` | 0.2.1 |
 
 - Team ID: `DJ6XS33FX8`（Learning Machines LLC），七个全部 Developer ID 签名 + 公证
 - 观测日期: 2026-10-07
-- 自更新机制: 无。Rust/egui 应用，bundle 里没有 `Frameworks/`、没有 `SUFeedURL`。只有 PrintCraft 有
-  Help ▸ Check for updates（`apps/printcraft/src/updates.rs`）：读同一个 `/releases/latest`、只打开
+- 自更新机制: 无。Rust/egui 应用，bundle 里没有 `Frameworks/`、没有 `SUFeedURL`。只有 PrintCraft（现 PdfCraft）有
+  Help ▸ Check for updates（当时的 `apps/printcraft/src/updates.rs`）：读同一个 `/releases/latest`、只打开
   release 页面，不下载不安装，不会和我们抢
 - 分发: 只有 GitHub Releases（另有 Linux / Windows / FreeBSD 产物与 web 版 zip）
 - 开源: 是（MIT OR Apache-2.0）。版本方案、渠道、产物命名都读自仓库源码
+
+## PdfCraft 改名（2026-10-08，v0.4.0，#1087）
+
+PrintCraft 在 v0.4.0 改名 PdfCraft，三样一起变：
+
+| | ≤ v0.2.1 | v0.4.0 起 |
+|---|---|---|
+| 仓库 | `storytold/printcraft` | `storytold/pdfcraft`（同一个 repo id 1398086162；旧名 301 到 `/repositories/1398086162/…`） |
+| macOS 资产 | `printcraft-X.Y.Z-macos-universal.dmg` | `pdfcraft-X.Y.Z-macos-universal.dmg` |
+| app | `PrintCraft.app`，`ai.storyteller.printcraft` | `PdfCraft.app`，`ai.storyteller.pdfcraft` |
+
+中间没有 0.3.x release。
+
+- 真包实测（2026-10-09，`pdfcraft-0.4.0-macos-universal.dmg`，sha256 与 GitHub `digest` 一致，只读挂载、未运行）:
+  `CFBundleIdentifier` `ai.storyteller.pdfcraft`、`CFBundleName`/`CFBundleDisplayName` `PdfCraft`、
+  `CFBundleExecutable` `PdfCraft`、short == build == `0.4.0`、自定义键改为 `PdfCraftVersion`；
+  `codesign -dv`: Identifier `ai.storyteller.pdfcraft`，`Developer ID Application: Learning Machines LLC (DJ6XS33FX8)`
+  ——**Team 不变**；`lipo -archs` `x86_64 arm64`；`stapler validate` 通过。
+- settled from source: `apps/pdfcraft/src/main.rs` 的 `migrate_legacy_folders()` 在首次启动时把
+  PrintCraft 的设置目录（`eframe::storage_dir("PrintCraft")`）改名成 PdfCraft 的，新目录已存在则不动——
+  厂商有意支持从 PrintCraft 原地升级。
+- 我们的处理: recipe 改键 `ai.storyteller.pdfcraft`（family 文件、golden 随之改名为
+  `ai-storyteller-pdfcraft`），`repo: "pdfcraft"`，dmg 锚只收 `pdfcraft-`（旧名 dmg 里是旧 id，闸 4 不会让它
+  替换 PdfCraft 副本，而且没有一个比任何能来问的 PrintCraft 副本更新）。`BundleIDMigration` 登记
+  `ai.storyteller.printcraft → ai.storyteller.pdfcraft`（Team `DJ6XS33FX8`，lastFrom 0.2.1，firstTo 0.4.0）：
+  旧 id 副本经 `InstalledApp.recipeBundleID` 走新 id 规则（`GitHubReleasesSource` 自 #1087 起也按它查），
+  闸 4 放行这一方向，`AppRestarter` 能找到仍在跑的旧 id 进程。
+- ⚠️ 原地替换保留磁盘上的路径（`InPlaceSwap.replace(newApp:over:)` 换到已装副本的位置）：一键后是
+  `PrintCraft.app` 这个文件名里装着 PdfCraft。Finder/Dock 里显示哪个名字**未验证**。手动从 dmg 拖装则会得到
+  并排的 `PdfCraft.app`。
+- 一键端到端 0.2.1 → 0.4.0: **未验证**（#1087 待真机跑）。
 
 ## 覆盖矩阵
 

@@ -750,7 +750,9 @@ public struct GitHubReleasesSource: UpdateSource {
                 "GitHub skip \(app.bundleID ?? "?", privacy: .public): App Store copy, the store owns its updates")
             return nil
         }
-        guard let bundleID = app.bundleID, let candidates = rules[bundleID] else {
+        // `recipeBundleID`, not `bundleID`: a copy still on an id the vendor has
+        // since renamed (`BundleIDMigration`) is checked by the new id's rules.
+        guard let bundleID = app.recipeBundleID, let candidates = rules[bundleID] else {
             return nil  // no rule for this app — not applicable
         }
         // Channel gate: pick the rule whose channel matches the installed app's,

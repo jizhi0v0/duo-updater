@@ -660,14 +660,17 @@ public enum BackupStore {
         // Asked before the copy rather than discovered by it: a full startup
         // disk breaks far more than this backup.
         //
-        // What is being reserved is not the copy itself. On the boot volume
-        // `ditto` clones: copying Postman.app (475 MB logical) took 4-5 MB of
-        // free space, against 507 MB with `--noclone` (measured twice each,
-        // 2026-10-09). The cost arrives when the update replaces the original
-        // and the backup keeps the old blocks from being freed — about the
-        // app's full size. That is what the logical size stands for; the
-        // last-block and metadata overhead beyond it (~7% in that
-        // measurement) falls inside the floor's margin.
+        // What is being reserved is not, for most apps, the copy itself.
+        // With the app on the same APFS volume as the outbox, `ditto` clones:
+        // copying Postman.app (475 MB logical) took 4-5 MB of free space,
+        // against 507 MB with `--noclone` (measured twice each, 2026-10-09).
+        // The cost arrives when the update replaces the original and the
+        // backup keeps the old blocks from being freed — about the app's
+        // full size. An app on another volume cannot be cloned, and the copy
+        // costs that size at once. Either way the logical size is what is
+        // reserved. Block and metadata overhead beyond it (~7% for Postman, one
+        // app measured) is not added; the floor's 10 GB covers it for any
+        // bundle up to about 140 GB at that rate.
         let estimate = unreadable.bytes
         if let shortfall = spaceShortfall(forCopyOf: estimate) {
             Log.install.error(

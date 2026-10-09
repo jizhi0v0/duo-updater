@@ -11,15 +11,20 @@ import Testing
 /// and a disagreement between them would not surface as an error. Each would
 /// simply use a different store, and the first sign of it would be a rollback
 /// offered in one place and absent in the other.
-@Suite struct BackupDestinationTests {
+///
+/// Serialized because every test shares one scratch domain (see `withDefaults`).
+@Suite(.serialized) struct BackupDestinationTests {
 
     /// A private, empty defaults suite — never `.standard`, which would read and
     /// write the developer's real preferences.
+    ///
+    /// One fixed label for the whole suite, not a UUID per test: each UUID was a
+    /// plist in `~/Library/Preferences` that outlived the run, about ten per Core
+    /// test run (6,350 on the dev Mac by 2026-10-09). See `ScratchDefaults`.
     private func withDefaults(_ body: (UserDefaults) throws -> Void) throws {
-        let name = "BackupDestinationTests-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: name))
-        defer { defaults.removePersistentDomain(forName: name) }
-        try body(defaults)
+        let scratch = ScratchDefaults("backup-destination")
+        defer { scratch.clear() }
+        try body(scratch.defaults)
     }
 
     private func scratch() -> URL {

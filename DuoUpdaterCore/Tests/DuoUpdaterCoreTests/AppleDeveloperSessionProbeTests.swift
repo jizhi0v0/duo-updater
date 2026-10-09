@@ -80,11 +80,10 @@ import Testing
 }
 
 /// On until the user turns it off: a Mac that never saw the switch renews.
-@Test func sessionRenewalIsOnUntilTurnedOff() throws {
-    let suite = "AppleDeveloperSessionRenewalTests"
-    let defaults = try #require(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
-    defaults.removeObject(forKey: AppleDeveloperSessionRenewal.enabledKey)
+@Test func sessionRenewalIsOnUntilTurnedOff() {
+    let scratch = ScratchDefaults("session-renewal")
+    defer { scratch.clear() }
+    let defaults = scratch.defaults
     #expect(AppleDeveloperSessionRenewal.isEnabled(in: defaults))
     defaults.set(false, forKey: AppleDeveloperSessionRenewal.enabledKey)
     #expect(!AppleDeveloperSessionRenewal.isEnabled(in: defaults))

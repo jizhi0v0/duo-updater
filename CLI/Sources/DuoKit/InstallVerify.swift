@@ -22,6 +22,9 @@ public struct InstallVerifyOptions: Sendable {
     public var githubToken: String?
     public var jsonPath: URL?
     public var markdownPath: URL?
+    /// Read and update what each installer was the first time it was seen
+    /// (`InstallIdentities`). Without it every run is judged on its own.
+    public var identitiesPath: URL?
 }
 
 public enum InstallVerify {
@@ -94,6 +97,17 @@ public enum InstallVerify {
         let github = GitHubReleasesSource(token: token)
         let vendor = VendorProbeSource()
 
+        var identities: InstallIdentities?
+        if let path = options.identitiesPath {
+            do { identities = try InstallIdentities.load(from: path) } catch {
+                die("""
+                    could not read \(path.path): \(error)
+                    Refusing to run: starting over would record today's installers as \
+                    correct whatever they are. Restore the file from git.
+                    """, code: 2)
+            }
+        }
+
         var targets: [Target] = []
         var skipped: [Item] = []
         var selector = VerifyOptions()
@@ -143,7 +157,24 @@ public enum InstallVerify {
             print(line(item))
             return item
         }
-        let items = (inspected + skipped).sorted { $0.recipeID < $1.recipeID }
+        var items = (inspected + skipped).sorted { $0.recipeID < $1.recipeID }
+        if var store = identities, let path = options.identitiesPath {
+            let now = Date()
+            for index in items.indices {
+                compare(&items[index], with: &store, at: now)
+            }
+            // Each item's line went out as it finished; identity is judged only
+            // once every download is in, so its verdict needs its own lines.
+            let changed = items.filter { $0.warnings.contains { $0.hasPrefix("identityChanged:") } }
+            if !changed.isEmpty {
+                print("\n  identity changes since first seen:")
+                for item in changed { print(line(item)) }
+            }
+            store.prune(keeping: liveRecipeIDs())
+            do { try store.save(to: path) } catch {
+                die("could not write \(path.path): \(error.localizedDescription)", code: 1)
+            }
+        }
         let report = Report(
             generatedAt: Date(), seconds: Date().timeIntervalSince(started),
             bytes: items.reduce(0) { $0 + $1.bytes },
@@ -231,6 +262,31 @@ public enum InstallVerify {
             item.status = item.warnings.isEmpty ? .ok : .warn
         }
         return item
+    }
+
+    /// Hold one item's download against what was recorded for its recipe. Only
+    /// a download that was read counts: a failed or unresolved one says nothing
+    /// about the vendor's identity, and must neither record nor clear anything.
+    static func compare(_ item: inout Item, with store: inout InstallIdentities, at date: Date) {
+        guard item.status == .ok || item.status == .warn,
+              let observed = InstallIdentities.observed(
+                  identity: item.identity, packageTeamIdentifier: item.packageTeamIdentifier,
+                  version: item.version, at: date)
+        else { return }
+        let changes = store.record(item.recipeID, observed)
+        guard !changes.isEmpty else { return }
+        let since = store.entries[item.recipeID].map {
+            " (recorded at \($0.lastSeenVersion ?? "?"), \($0.lastSeenAt.formatted(.iso8601.year().month().day())))"
+        } ?? ""
+        item.warnings.append("identityChanged: " + changes.joined(separator: "; ") + since)
+        item.status = .warn
+    }
+
+    /// Every recipe this command could download, whatever `--only` says — what
+    /// the identity store keeps entries for.
+    static func liveRecipeIDs() -> Set<String> {
+        Set(VendorProbeRegistry.recipes.filter { $0.install != nil }.map(\.recipeID)
+            + GitHubReleaseRegistry.rules.filter { $0.installAssetPattern != nil }.map(\.recipeID))
     }
 
     /// What an installed copy's gates would refuse, judged from the download

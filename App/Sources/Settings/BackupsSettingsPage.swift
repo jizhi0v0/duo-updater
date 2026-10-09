@@ -95,6 +95,10 @@ struct BackupsSettingsPage: View {
     @State private var showingBackups = false
     @State private var backupListing: [BackupStore.Listing] = []
     @State private var isCleaningBackups = false
+    /// Clean Up found nothing to list; said for a moment, the way Copy Now
+    /// says why it could not copy.
+    @State private var nothingToCleanUp = false
+    @State private var nothingToCleanUpResetTask: Task<Void, Never>?
     /// The size walk in flight, so a refresh can replace it rather than race it.
     @State private var sizeTask: Task<Void, Never>?
 
@@ -641,17 +645,31 @@ struct BackupsSettingsPage: View {
 
             SettingsDivider()
             HStack {
+                // The sheet closes on Delete while the deletion carries on, so
+                // this row is the only place left to say it is still going.
+                if let deletion = model.backupDeletion {
+                    ProgressView().controlSize(.small)
+                    Text("Deleting backups: \(deletion.done) of \(deletion.total)")
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                } else if nothingToCleanUp {
+                    // An empty store used to make this button do nothing at all,
+                    // which reads the same as a button that is broken.
+                    Label("No backups to delete", systemImage: "checkmark.circle")
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button("Clean Up…") {
-                    guard !isCleaningBackups else { return }
+                    guard !isCleaningBackups, model.backupDeletion == nil else { return }
                     isCleaningBackups = true
                     Task {
                         backupListing = await model.backupListing()
                         isCleaningBackups = false
                         showingBackups = !backupListing.isEmpty
+                        if backupListing.isEmpty { flagNothingToCleanUp() }
                     }
                 }
-                .disabled(isCleaningBackups)
+                .disabled(isCleaningBackups || model.backupDeletion != nil)
             }
             .settingsRow()
         } footer: {
@@ -1180,6 +1198,16 @@ struct BackupsSettingsPage: View {
                 guard !Task.isCancelled else { return }
                 copyNowRefusal = nil
             }
+        }
+    }
+
+    private func flagNothingToCleanUp() {
+        nothingToCleanUp = true
+        nothingToCleanUpResetTask?.cancel()
+        nothingToCleanUpResetTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            nothingToCleanUp = false
         }
     }
 

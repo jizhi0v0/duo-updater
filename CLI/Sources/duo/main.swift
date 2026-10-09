@@ -256,6 +256,11 @@ verify-install options:
                       that differs is a warning, and the recorded identity is
                       kept until someone edits or deletes the entry. A file
                       that cannot be read stops the run.
+  --baseline <path>   Read and update failure streaks and issue numbers, as for
+                      verify. Keep it apart from verify's: the two run on
+                      different machines.
+  --findings <path>   Write the results in verify's report format, for
+                      `duo reconcile --report`. Ids are install:<recipe id>.
   --max-concurrency N Hosts downloaded from in parallel (default 3). One
                       download at a time per host, each deleted once read.
   --allow-stale-binary
@@ -560,9 +565,9 @@ case "verify":
         options.hostConcurrency = max(1, concurrency)
     }
     // Naming any registry narrows to exactly those; naming none sweeps all.
-    // `install` is `duo verify-install`'s, never a sweep of this command's: left
-    // in, `--install` would parse and then select nothing at all.
-    let selected = Registry.allCases.filter { $0 != .install && args.has($0.rawValue) }
+    // `Registry.swept`, not `allCases`: `install` is `duo verify-install`'s, and as
+    // a flag here it would parse and then select nothing at all.
+    let selected = Registry.swept.filter { args.has($0.rawValue) }
     if !selected.isEmpty { options.registries = Set(selected) }
     options.baselinePath = args.value("baseline").map { URL(fileURLWithPath: $0) }
     options.jsonPath = args.value("report").map { URL(fileURLWithPath: $0) }
@@ -582,6 +587,8 @@ case "verify-install":
     options.jsonPath = args.value("report").map { URL(fileURLWithPath: $0) }
     options.markdownPath = args.value("markdown").map { URL(fileURLWithPath: $0) }
     options.identitiesPath = args.value("identities").map { URL(fileURLWithPath: $0) }
+    options.baselinePath = args.value("baseline").map { URL(fileURLWithPath: $0) }
+    options.findingsPath = args.value("findings").map { URL(fileURLWithPath: $0) }
     let installVerifyOptions = options
     run = { await InstallVerify.run(installVerifyOptions) }
 

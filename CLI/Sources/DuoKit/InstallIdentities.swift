@@ -100,15 +100,19 @@ public struct InstallIdentities: Codable, Sendable, Equatable {
     }
 
     /// Fold one download into the store and return what changed. A new recipe
-    /// is recorded; a matching one has its last-seen stamp moved; a changed one
-    /// is left exactly as recorded (see the type's doc).
+    /// is recorded; a matching one has its last-seen stamp moved when its version
+    /// did; a changed one is left exactly as recorded (see the type's doc).
+    ///
+    /// Only when the version moved: the file is committed back after every run,
+    /// four a day, and a stamp that moved every time would make each of those
+    /// pull requests rewrite every entry — burying the one line that matters.
     mutating func record(_ recipeID: String, _ now: Recorded) -> [String] {
         guard let recorded = entries[recipeID] else {
             entries[recipeID] = now
             return []
         }
         let changes = Self.changes(from: recorded, to: now)
-        if changes.isEmpty {
+        if changes.isEmpty, recorded.lastSeenVersion != now.lastSeenVersion {
             entries[recipeID]?.lastSeenAt = now.lastSeenAt
             entries[recipeID]?.lastSeenVersion = now.lastSeenVersion
         }

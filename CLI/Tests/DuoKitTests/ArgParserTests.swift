@@ -59,11 +59,19 @@ import Testing
     /// Derived from the enum rather than spelled out: a fourth registry would
     /// otherwise get a flag that nothing checks is still accepted.
     @Test func everyRegistryIsAcceptedUnderItsOwnName() {
-        for registry in Registry.allCases {
+        for registry in Registry.swept {
             let args = self.args("verify", "--\(registry.rawValue)")
-            _ = Registry.allCases.filter { args.has($0.rawValue) }
+            _ = Registry.swept.filter { args.has($0.rawValue) }
             #expect(args.unrecognised() == nil, "--\(registry.rawValue) should be accepted")
         }
+    }
+
+    /// `install` findings come from `duo verify-install`; `duo verify --install`
+    /// would sweep nothing, so it is refused like any other unknown flag.
+    @Test func theInstallRegistryIsNotAVerifyFlag() {
+        let args = self.args("verify", "--install")
+        _ = Registry.swept.filter { args.has($0.rawValue) }
+        #expect(args.unrecognised() != nil)
     }
 
     /// `duo verify workbuddy` is the `--only` you forgot to type, and it used to
@@ -190,7 +198,7 @@ import Testing
 
         // `verify` names the registries from the enum rather than one call per
         // flag, so the scan cannot see them; take them from the enum too.
-        let read = readInMain.union(Registry.allCases.map(\.rawValue))
+        let read = readInMain.union(Registry.swept.map(\.rawValue))
         // `--help` and `-h` are answered off `CommandLine.arguments` before
         // `Args` exists, so no scan of flag reads can find them. Read off that
         // line rather than written down here — and off that line only, so a

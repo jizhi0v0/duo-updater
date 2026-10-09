@@ -55,6 +55,10 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
         case .install: return "installer"
         }
     }
+
+    /// What `duo verify` sweeps, each under a flag of its own name. Everything
+    /// but `install`, which only `duo verify-install` produces.
+    public static let swept: [Registry] = allCases.filter { $0 != .install }
 }
 
 /// What a sweep decided about one recipe.

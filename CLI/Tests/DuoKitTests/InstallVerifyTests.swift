@@ -81,3 +81,65 @@ import DuoUpdaterCore
         #expect(InstallVerify.notes(identity: identity(), remote: remote()).isEmpty)
     }
 }
+
+/// How a `duo verify-install` item reaches `Baseline` and `Reconcile`.
+@Suite struct InstallVerifyFindingTests {
+
+    private func item(
+        _ status: InstallVerify.Status, stage: ArtifactInspection.Stage? = nil,
+        warnings: [String] = []
+    ) -> InstallVerify.Item {
+        var item = InstallVerify.Item(
+            recipeID: "vendor:com.example.app:stable", registry: "vendor",
+            bundleID: "com.example.app", probeHost: "example.com", status: status)
+        item.stage = stage
+        item.detail = stage == nil ? nil : "it went wrong"
+        item.warnings = warnings
+        item.url = "https://cdn.example.com/App.dmg"
+        item.version = "1.0"
+        return item
+    }
+
+    /// Its own namespace, so it never shares a streak or an issue with the
+    /// sweep's finding for the same recipe.
+    @Test func idsAreNamespaced() {
+        let finding = InstallVerify.finding(item(.ok))
+        #expect(finding.recipeID == "install:vendor:com.example.app:stable")
+        #expect(finding.registry == .install)
+        #expect(finding.endpointHost == "cdn.example.com")
+    }
+
+    @Test func statusesMapToWhatTheBaselineCounts() {
+        #expect(InstallVerify.finding(item(.ok)).status == .ok)
+        #expect(InstallVerify.finding(item(.warn, warnings: ["identityChanged: …"])).status == .warn)
+        // A dropped transfer is the network until a run of them says otherwise.
+        #expect(InstallVerify.finding(item(.failed, stage: .download)).status == .infra)
+        #expect(InstallVerify.finding(item(.failed, stage: .checksum)).status == .broken)
+        #expect(InstallVerify.finding(item(.failed, stage: .unpack)).status == .broken)
+        #expect(InstallVerify.finding(item(.failed, stage: .signature)).status == .broken)
+        // Resolving the installer is the sweep's finding to file.
+        #expect(InstallVerify.finding(item(.unresolved)).status == .skipped)
+        #expect(InstallVerify.finding(item(.skipped)).status == .skipped)
+    }
+
+    @Test func aFailureCarriesItsStage() {
+        let finding = InstallVerify.finding(item(.failed, stage: .checksum))
+        #expect(finding.failureKind == "install.checksum")
+        #expect(finding.failureDetail == "it went wrong")
+    }
+
+    /// No version: the baseline would otherwise repeat the sweep's own
+    /// "went backwards" check under a second id.
+    @Test func noVersionReachesTheBaseline() {
+        #expect(InstallVerify.finding(item(.ok)).version == nil)
+    }
+
+    /// An installer issue reproduces with the command that found it.
+    @Test func anInstallerIssueSaysHowToReproduceIt() {
+        let finding = InstallVerify.finding(item(.failed, stage: .checksum))
+        #expect(Reconcile.reproduce(finding, samples: true).contains("duo verify-install --only com.example.app"))
+        let body = Reconcile.body(for: finding, entry: Baseline.Entry())
+        #expect(body.contains("`duo verify-install`"))
+        #expect(!body.contains("duo verify --install"))
+    }
+}

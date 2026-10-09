@@ -218,7 +218,7 @@ enum CLIToolPresentation {
         case .bun(let bun): return facts(of: bun)
         case .opencode(let opencode): return facts(of: opencode)
         case .amp(let amp): return facts(of: amp)
-        case .claudeCode, .bub, .fx, .boat, .cursorAgent, .vitePlus, .herdr, .luvus, .lorca: return []
+        case .claudeCode, .bub, .fx, .boat, .cursorAgent, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship, .deno, .mise: return []
         }
     }
 
@@ -375,11 +375,21 @@ enum CLIToolPresentation {
     /// The command to copy beside an update the user turned the tool's auto-update
     /// off for — the same command a one-click would run. nil otherwise: every
     /// other gate means it should not be run now, or it is DuoUpdater's to run.
+    ///
+    /// Some checks also hand theirs out where DuoUpdater will not run the update
+    /// itself, and the vendor's documented command is the way forward: nvm,
+    /// zoxide, Helm and Starship when their directory needs `sudo` (`NvmCheck`,
+    /// `ZoxideCheck`, `HelmCheck`, `StarshipCheck`); zoxide when what its
+    /// installer leaves could not be checked; flyctl on the `pre` channel
+    /// (`FlyctlCheck`). A check sets the command only then — never beside a
+    /// running update — so here the gate only has to rule out the others.
     static func manualCommand(_ status: CLIToolStatus) -> String? {
         if case .claudeCode(let claudeCode) = status.detail {
             return ClaudeCodePresentation.manualCommand(claudeCode)
         }
-        guard status.state == .updateAvailable, status.withheld == .autoUpdateOff else { return nil }
+        guard status.state == .updateAvailable,
+              let withheld = status.withheld, [.autoUpdateOff, .unsupportedInstaller, .unverified].contains(withheld)
+        else { return nil }
         return status.manualCommand?.display
     }
 

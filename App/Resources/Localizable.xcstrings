@@ -18575,6 +18575,71 @@
         }
       }
     },
+    "The new release can’t be checked against a published digest": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die neue Version lässt sich nicht mit einer veröffentlichten Prüfsumme abgleichen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La nueva versión no se puede comprobar con un resumen publicado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La nouvelle version ne peut pas être vérifiée avec une empreinte publiée"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La nuova versione non può essere verificata con un digest pubblicato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しいリリースを公開済みのダイジェストで検証できません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A nova versão não pode ser conferida com um digest publicado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новый выпуск нельзя сверить с опубликованной контрольной суммой"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni sürüm yayımlanmış bir özetle doğrulanamıyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新版本无法与已发布的摘要核对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新版本無法與已發佈的摘要核對"
+          }
+        }
+      }
+    },
     "The download doesn’t match the file hash GitHub publishes for it — it may be corrupt or replaced. Nothing was changed.": {
       "extractionState": "manual",
       "localizations": {
@@ -66350,6 +66415,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "Herdr 的設定裡關閉了更新檢查"
+          }
+        }
+      }
+    },
+    "Atuin’s update check is off in its config": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Updateprüfung von Atuin ist in seiner Konfiguration deaktiviert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La comprobación de actualizaciones de Atuin está desactivada en su configuración"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La vérification des mises à jour de Atuin est désactivée dans sa configuration"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il controllo degli aggiornamenti di Atuin è disattivato nella sua configurazione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atuin のアップデート確認が設定でオフになっています"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A verificação de atualizações do Atuin está desativada na configuração dele"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка обновлений Atuin отключена в его конфигурации"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atuin’in güncelleme denetimi yapılandırmasında kapalı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atuin 的配置里关闭了更新检查"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atuin 的設定裡關閉了更新檢查"
           }
         }
       }

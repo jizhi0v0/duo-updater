@@ -170,6 +170,98 @@ enum CLIToolFixtures {
                       withheld: withheld)
     }
 
+    /// A status with the copy-command its check would set (`manual`).
+    static func zoxide(
+        linked: Bool = false, writable: Bool = true, withheld: CLIToolWithheld? = nil, manual: Bool = false
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.local/bin/zoxide"
+        let install = ZoxideInstall(path: path, binary: path, version: "0.9.9", linked: linked, writable: writable)
+        let command = CLIToolCommand(
+            executable: "curl",
+            arguments: ["-sSfL", "https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh", "|", "sh",
+                        "-s", "--", "--bin-dir", "/Users/ann/.local/bin"],
+            pathPrefix: nil)
+        return CLIToolStatus(
+            kind: .zoxide, path: path, installedVersion: "0.9.9", latestVersion: "0.10.0", channel: nil,
+            state: .updateAvailable, oneClick: nil, withheld: withheld, note: nil,
+            manualCommand: manual ? command : nil, detail: .zoxide(install))
+    }
+
+    static func nvm(
+        state: CLIToolState = .updateAvailable, withheld: CLIToolWithheld? = .unsupportedInstaller, writable: Bool = false
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.nvm/nvm.sh"
+        let command = CLIToolCommand(
+            executable: "curl",
+            arguments: ["-o-", "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh", "|", "bash"],
+            pathPrefix: nil)
+        return CLIToolStatus(
+            kind: .nvm, path: path, installedVersion: "0.40.7", latestVersion: "0.40.8", channel: nil,
+            state: state, oneClick: nil, withheld: withheld, note: nil, manualCommand: command,
+            detail: .nvm(NvmInstall(path: path, version: "0.40.7", writable: writable)))
+    }
+
+    static func atuin(
+        quarantined: Bool = false, writable: Bool = true, problem: AtuinInstall.Problem? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.atuin/bin/atuin"
+        let install = AtuinInstall(path: path, binary: path, version: "18.22.0", installDirectory: "/Users/ann/.atuin/bin",
+                                   quarantined: quarantined, writable: writable, problem: problem)
+        return status(.atuin, path: path, detail: .atuin(install), version: "18.22.0", latest: "18.23.0")
+    }
+
+    static func ghcup(
+        quarantined: Bool = false, writable: Bool = true, problem: GhcupInstall.Problem? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.ghcup/bin/ghcup"
+        let install = GhcupInstall(path: path, version: "0.2.6.1", quarantined: quarantined, writable: writable,
+                                   problem: problem)
+        return status(.ghcup, path: path, detail: .ghcup(install), version: "0.2.6.1", latest: "0.2.6.2")
+    }
+
+    static func flyctl(quarantined: Bool = false, withheld: CLIToolWithheld? = nil) -> CLIToolStatus {
+        let path = "/Users/ann/.fly/bin/flyctl"
+        let install = FlyctlInstall(path: path, binary: path, version: "0.4.114", quarantined: quarantined)
+        return status(.flyctl, path: path, detail: .flyctl(install), version: "0.4.114", latest: "0.4.115",
+                      withheld: withheld)
+    }
+
+    static func helm(quarantined: Bool = false, writable: Bool = true, problem: HelmInstall.Problem? = nil) -> CLIToolStatus {
+        let path = "/usr/local/bin/helm"
+        let install = HelmInstall(path: path, binary: path, version: "3.21.4", quarantined: quarantined,
+                                  writable: writable, problem: problem)
+        return status(.helm, path: path, detail: .helm(install), version: "3.21.4", latest: "3.22.0")
+    }
+
+    static func starship(quarantined: Bool = false, writable: Bool = true) -> CLIToolStatus {
+        let path = "/usr/local/bin/starship"
+        let install = StarshipInstall(path: path, binary: path, version: "1.25.1", quarantined: quarantined,
+                                      writable: writable)
+        return status(.starship, path: path, detail: .starship(install), version: "1.25.1", latest: "1.26.0")
+    }
+
+    static func deno(
+        version: String = "2.9.6", channel: String = "stable",
+        quarantined: Bool = false, writable: Bool = true, withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.deno/bin/deno"
+        let install = DenoInstall(path: path, version: version, reported: .init(version: version, channel: channel),
+                                  quarantined: quarantined, writable: writable)
+        return status(.deno, path: path, detail: .deno(install), version: version, latest: "2.9.7",
+                      withheld: withheld)
+    }
+
+    static func mise(
+        quarantined: Bool = false, writable: Bool = true, disabledBy: String? = nil,
+        withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.local/bin/mise"
+        let install = MiseInstall(path: path, version: "2026.10.3", quarantined: quarantined, writable: writable,
+                                  selfUpdateDisabledBy: disabledBy)
+        return status(.mise, path: path, detail: .mise(install), version: "2026.10.3", latest: "2026.10.4",
+                      withheld: withheld)
+    }
+
     static func codex(
         signature: CLIToolTrust.Signature? = .vendor, quarantined: Bool = false,
         problem: CodexInstall.Problem? = nil, withheld: CLIToolWithheld? = nil
@@ -753,6 +845,135 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.lorca()) == "Auto-update is off in Lorca’s settings")
         #expect(CLIToolsModel.vendor(of: .lorca) == nil)
         #expect(CLIToolPresentation.facts(of: F.lorca(), home: "/Users/ann").isEmpty)
+    }
+
+    /// zoxide's and nvm's copy-commands are handed out beside the gates where
+    /// DuoUpdater will not run the update itself, and their reasons say why:
+    /// a folder that needs sudo, a release without a digest to check against.
+    /// Never beside a running update, nor once up to date.
+    ///
+    /// Mutations: drop `.unsupportedInstaller` or `.unverified` from the gate in
+    /// `manualCommand`; let it hand out a command beside `.busy`; drop the `writable` branch of the
+    /// `(.unsupportedInstaller, .zoxide)` case, the `(.unverified, .zoxide)` case or the
+    /// `(.unsupportedInstaller, .nvm)` case.
+    @Test func zoxideAndNvmHandOutTheirCommand() {
+        let zoxide = "curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh -s -- --bin-dir /Users/ann/.local/bin"
+        #expect(CLIToolPresentation.manualCommand(F.zoxide(writable: false, withheld: .unsupportedInstaller, manual: true)) == zoxide)
+        #expect(CLIToolPresentation.manualCommand(F.zoxide(withheld: .unverified, manual: true)) == zoxide)
+        #expect(CLIToolPresentation.manualCommand(F.zoxide(withheld: .busy, manual: true)) == nil)
+        #expect(CLIToolPresentation.manualCommand(F.nvm())
+            == "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | bash")
+        #expect(CLIToolPresentation.manualCommand(F.nvm(state: .upToDate, withheld: nil)) == nil)
+
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.zoxide(writable: false))
+            == "Updating it needs administrator rights")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.zoxide(linked: true))
+            == "No one-click update for this kind of install")
+        #expect(CLIToolsModel.reason(.unverified, of: F.zoxide())
+            == "The new release can’t be checked against a published digest")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.nvm()) == "Updating it needs administrator rights")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.nvm(writable: true))
+            == "No one-click update for this kind of install")
+        #expect(CLIToolsModel.reason(.updaterMissing, of: F.nvm(withheld: .updaterMissing))
+            == "The program that updates it wasn’t found")
+        #expect(CLIToolsModel.vendor(of: .zoxide) == nil)
+        #expect(CLIToolsModel.vendor(of: .nvm) == nil)
+    }
+
+    /// Atuin's and GHCup's reasons: a folder they cannot write to, a quarantined
+    /// file, Atuin's own update check turned off; a copy its updater refuses
+    /// keeps the general wording; no vendor named.
+    ///
+    /// Mutations: drop the `(.autoUpdateOff, .atuin)` case; drop either
+    /// `writable` case; drop either `(.unverified, …) where quarantined` case.
+    @Test func atuinAndGhcupReasons() {
+        #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.atuin()) == "Atuin’s update check is off in its config")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.atuin(writable: false))
+            == "Updating it needs administrator rights")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.atuin(problem: .noReceipt))
+            == "No one-click update for this kind of install")
+        #expect(CLIToolsModel.reason(.unverified, of: F.atuin(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.unverified, of: F.atuin()) == "Not the build its developer published")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.ghcup(writable: false))
+            == "Updating it needs administrator rights")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.ghcup(problem: .link))
+            == "No one-click update for this kind of install")
+        #expect(CLIToolsModel.reason(.unverified, of: F.ghcup(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.vendor(of: .atuin) == nil)
+        #expect(CLIToolsModel.vendor(of: .ghcup) == nil)
+        #expect(CLIToolPresentation.facts(of: F.atuin(), home: "/Users/ann").isEmpty)
+        #expect(CLIToolPresentation.facts(of: F.ghcup(), home: "/Users/ann").isEmpty)
+    }
+
+    /// flyctl, Helm and Starship: a quarantined file; Helm's and Starship's
+    /// folder only `sudo` could write to, and a link, which falls to the
+    /// tool-wide wording; flyctl's own auto-update off; no vendor named.
+    ///
+    /// Mutations: drop any of the `(.unverified, …) where quarantined` cases;
+    /// drop the `(.unsupportedInstaller, .helm)` or `.starship` case.
+    /// A read-only Helm or Starship (`/usr/local/bin` owned by root) is reported
+    /// with the vendor's documented command to copy, as `HelmCheck` and
+    /// `StarshipCheck` set it; never beside a running update.
+    ///
+    /// Mutation: drop `.unsupportedInstaller` from the gate in `manualCommand`.
+    @Test func readOnlyHelmAndStarshipHandOutTheVendorCommand() {
+        func readOnly(_ base: CLIToolStatus, command: String, withheld: CLIToolWithheld) -> CLIToolStatus {
+            CLIToolStatus(
+                kind: base.kind, path: base.path, installedVersion: base.installedVersion, latestVersion: base.latestVersion,
+                channel: nil, state: .updateAvailable, oneClick: nil, withheld: withheld, note: nil,
+                manualCommand: CLIToolCommand(executable: "curl", arguments: [command], pathPrefix: nil),
+                detail: base.detail)
+        }
+        let helm = readOnly(F.helm(writable: false), command: "-fsSL", withheld: .unsupportedInstaller)
+        let starship = readOnly(F.starship(writable: false), command: "-sS", withheld: .unsupportedInstaller)
+        #expect(CLIToolPresentation.manualCommand(helm) == "curl -fsSL")
+        #expect(CLIToolPresentation.manualCommand(starship) == "curl -sS")
+        #expect(CLIToolPresentation.manualCommand(readOnly(F.helm(), command: "-fsSL", withheld: .busy)) == nil)
+    }
+
+    @Test func flyctlHelmStarshipReasons() {
+        let quarantined = "Quarantined, so not run"
+        #expect(CLIToolsModel.reason(.unverified, of: F.flyctl(quarantined: true)) == quarantined)
+        #expect(CLIToolsModel.reason(.unverified, of: F.helm(quarantined: true)) == quarantined)
+        #expect(CLIToolsModel.reason(.unverified, of: F.starship(quarantined: true)) == quarantined)
+        #expect(CLIToolsModel.reason(.unverified, of: F.helm()) == "Not the build its developer published")
+        let admin = "Updating it needs administrator rights"
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.helm(writable: false)) == admin)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.starship(writable: false)) == admin)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.helm(problem: .linked))
+            == "No one-click update for this kind of install")
+        #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.flyctl()) == "Auto-update is off in flyctl’s settings")
+        for kind in [CLIToolKind.flyctl, .helm, .starship] { #expect(CLIToolsModel.vendor(of: kind) == nil) }
+        #expect(CLIToolPresentation.facts(of: F.helm(), home: "/Users/ann").isEmpty)
+    }
+
+    /// Deno's and mise's reasons: a folder they cannot write to, a quarantined
+    /// file, the signer named; Deno's other unsupported builds (LTS, RC,
+    /// canary) and mise's packager marker in the generic words.
+    ///
+    /// Mutations: drop the `(.unsupportedInstaller, .deno) where !writable` or
+    /// the mise one, or its `selfUpdateDisabledBy == nil`; drop either
+    /// `(.unverified, …) where quarantined` case; return nil as either vendor.
+    @Test func denoAndMiseReasons() {
+        let admin = "Updating it needs administrator rights"
+        let generic = "No one-click update for this kind of install"
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.deno(writable: false)) == admin)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.deno()) == generic)
+        // `DenoCheck` asks the channel before the folder: a read-only LTS, canary
+        // or RC build is withheld for its channel, so the folder is not the reason.
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.deno(channel: "lts", writable: false)) == generic)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.deno(channel: "canary", writable: false)) == generic)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.deno(version: "2.0.0-rc.10", channel: "rc", writable: false))
+            == generic)
+        #expect(CLIToolsModel.reason(.unverified, of: F.deno(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.wrongSigner, of: F.deno()) == "Not signed by Deno Land")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.mise(writable: false)) == admin)
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.mise(writable: false, disabledBy: "/x/lib/.disable-self-update"))
+            == generic)
+        #expect(CLIToolsModel.reason(.unverified, of: F.mise(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.wrongSigner, of: F.mise()) == "Not signed by Jeffrey Dickey")
+        #expect(CLIToolPresentation.facts(of: F.deno(), home: "/Users/ann").isEmpty)
+        #expect(CLIToolPresentation.facts(of: F.mise(), home: "/Users/ann").isEmpty)
     }
 
     /// The pane's reason and the row's warning are the status's own: a newer

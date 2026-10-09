@@ -61,6 +61,15 @@ struct CLIToolsModelTests {
         case .herdr: detail = .herdr(HerdrInstall(path: path))
         case .luvus: detail = .luvus(LuvusInstall(path: path, version: version))
         case .lorca: detail = .lorca(LorcaInstall(path: path, version: version))
+        case .zoxide: detail = .zoxide(ZoxideInstall(path: path, version: version))
+        case .nvm: detail = .nvm(NvmInstall(path: path, version: version))
+        case .atuin: detail = .atuin(AtuinInstall(path: path, version: version))
+        case .ghcup: detail = .ghcup(GhcupInstall(path: path, version: version))
+        case .flyctl: detail = .flyctl(FlyctlInstall(path: path, version: version))
+        case .helm: detail = .helm(HelmInstall(path: path, version: version))
+        case .starship: detail = .starship(StarshipInstall(path: path, version: version))
+        case .deno: detail = .deno(DenoInstall(path: path, version: version))
+        case .mise: detail = .mise(MiseInstall(path: path, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -93,6 +102,15 @@ struct CLIToolsModelTests {
         case .herdr: context = .herdr
         case .luvus: context = .luvus
         case .lorca: context = .lorca
+        case .zoxide: context = .zoxide
+        case .nvm: context = .nvm
+        case .atuin: context = .atuin
+        case .ghcup: context = .ghcup
+        case .flyctl: context = .flyctl
+        case .helm: context = .helm
+        case .starship: context = .starship
+        case .deno: context = .deno
+        case .mise: context = .mise
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }

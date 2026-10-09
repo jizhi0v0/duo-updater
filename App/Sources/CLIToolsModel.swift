@@ -187,7 +187,10 @@ final class CLIToolsModel {
         providers: [any CLIToolProvider] = [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
             BoatProvider(), CodexProvider(), BunProvider(), OpencodeProvider(), CursorAgentProvider(), AmpProvider(),
-            VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(),
+            VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), ZoxideProvider(), NvmProvider(),
+            AtuinProvider(), GhcupProvider(),
+            FlyctlProvider(), HelmProvider(), StarshipProvider(),
+            DenoProvider(), MiseProvider(),
         ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
@@ -681,7 +684,9 @@ final class CLIToolsModel {
         case .opencode: return "Anomaly"
         case .cursorAgent: return "Anysphere"
         case .amp: return "Amp Frontier"
-        case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca: return nil
+        case .deno: return "Deno Land"
+        case .mise: return "Jeffrey Dickey"
+        case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship: return nil
         }
     }
 
@@ -803,6 +808,24 @@ final class CLIToolsModel {
             return quarantined
         case (.unverified, .lorca(let lorca)) where lorca.quarantined:
             return quarantined
+        case (.unverified, .atuin(let atuin)) where atuin.quarantined:
+            return quarantined
+        case (.unverified, .ghcup(let ghcup)) where ghcup.quarantined:
+            return quarantined
+        case (.autoUpdateOff, .atuin):
+            // Atuin's `update_check = false`: its background check only ever
+            // tells the user, so the check is what was turned off.
+            return String(localized: "Atuin’s update check is off in its config")
+        case (.unverified, .flyctl(let flyctl)) where flyctl.quarantined:
+            return quarantined
+        case (.unverified, .helm(let helm)) where helm.quarantined:
+            return quarantined
+        case (.unverified, .starship(let starship)) where starship.quarantined:
+            return quarantined
+        case (.unverified, .deno(let deno)) where deno.quarantined:
+            return quarantined
+        case (.unverified, .mise(let mise)) where mise.quarantined:
+            return quarantined
         case (.unsupportedInstaller, .bun):
             // A canary: `bun upgrade` installs the newest canary, with no version.
             return String(localized: "A canary build, which has no version to compare")
@@ -869,6 +892,36 @@ final class CLIToolsModel {
             let command = "lorca update"
             if !lorca.hasUpdateCommand { return String(localized: "This version has no \(command)") }
             if !lorca.writable { return String(localized: "Updating it needs administrator rights") }
+        // In `ZoxideCheck`'s order: a link elsewhere (the generic reason), a
+        // folder only `sudo` could write to; then a release without a digest.
+        case (.unsupportedInstaller, .zoxide(let zoxide)):
+            if !zoxide.linked, !zoxide.writable { return String(localized: "Updating it needs administrator rights") }
+        case (.unverified, .zoxide):
+            return String(localized: "The new release can’t be checked against a published digest")
+        case (.unsupportedInstaller, .atuin(let atuin)) where atuin.problem == nil && !atuin.writable:
+            return String(localized: "Updating it needs administrator rights")
+        case (.unsupportedInstaller, .ghcup(let ghcup)) where ghcup.problem == nil && !ghcup.writable:
+            return String(localized: "Updating it needs administrator rights")
+        // A folder only `sudo` could write to: the row offers the vendor's command.
+        case (.unsupportedInstaller, .helm(let helm)):
+            if helm.problem == nil, !helm.writable { return String(localized: "Updating it needs administrator rights") }
+        case (.unsupportedInstaller, .starship(let starship)):
+            if starship.problem == nil, !starship.writable {
+                return String(localized: "Updating it needs administrator rights")
+            }
+        // A folder this user cannot write to — only once `DenoCheck` got past the
+        // build's channel, which it asks first: an RC, LTS or canary build keeps
+        // the generic wording even in a read-only folder, since fixing the folder
+        // would not give it a one-click. Likewise `MiseCheck`'s packager marker.
+        case (.unsupportedInstaller, .deno(let deno))
+            where !deno.writable && !deno.isPrerelease && deno.reported?.channel == "stable":
+            return String(localized: "Updating it needs administrator rights")
+        case (.unsupportedInstaller, .mise(let mise)) where !mise.writable && mise.selfUpdateDisabledBy == nil:
+            return String(localized: "Updating it needs administrator rights")
+        // nvm's only copy-command case (`NvmCheck`): a directory this user
+        // cannot write to.
+        case (.unsupportedInstaller, .nvm(let nvm)) where !nvm.writable:
+            return String(localized: "Updating it needs administrator rights")
         default:
             break
         }

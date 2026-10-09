@@ -187,7 +187,7 @@ final class CLIToolsModel {
         providers: [any CLIToolProvider] = [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
             BoatProvider(), CodexProvider(), BunProvider(), OpencodeProvider(), CursorAgentProvider(), AmpProvider(),
-            VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(),
+            VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), DenoProvider(), MiseProvider(),
         ],
         now: @escaping @Sendable () -> Date = { Date() },
         confirmationWindow: Duration = .seconds(2)
@@ -681,6 +681,8 @@ final class CLIToolsModel {
         case .opencode: return "Anomaly"
         case .cursorAgent: return "Anysphere"
         case .amp: return "Amp Frontier"
+        case .deno: return "Deno Land"
+        case .mise: return "Jeffrey Dickey"
         case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca: return nil
         }
     }
@@ -803,6 +805,10 @@ final class CLIToolsModel {
             return quarantined
         case (.unverified, .lorca(let lorca)) where lorca.quarantined:
             return quarantined
+        case (.unverified, .deno(let deno)) where deno.quarantined:
+            return quarantined
+        case (.unverified, .mise(let mise)) where mise.quarantined:
+            return quarantined
         case (.unsupportedInstaller, .bun):
             // A canary: `bun upgrade` installs the newest canary, with no version.
             return String(localized: "A canary build, which has no version to compare")
@@ -869,6 +875,12 @@ final class CLIToolsModel {
             let command = "lorca update"
             if !lorca.hasUpdateCommand { return String(localized: "This version has no \(command)") }
             if !lorca.writable { return String(localized: "Updating it needs administrator rights") }
+        // A folder this user cannot write to; else `DenoCheck`'s LTS, RC or canary
+        // build, or `MiseCheck`'s packager marker, which the generic wording covers.
+        case (.unsupportedInstaller, .deno(let deno)) where !deno.writable:
+            return String(localized: "Updating it needs administrator rights")
+        case (.unsupportedInstaller, .mise(let mise)) where !mise.writable && mise.selfUpdateDisabledBy == nil:
+            return String(localized: "Updating it needs administrator rights")
         default:
             break
         }

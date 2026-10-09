@@ -7,16 +7,35 @@
 # (#1030). Downloading every installer is traffic that is free here and metered
 # on the mini — hence a hosted runner.
 #
-# Dispatch only, and it only reports, for now. Each run holds the downloads
-# against `verify/identities.json` (what every installer was when first seen) and
-# uploads the updated file with the report; committing it back, filing issues and
-# a schedule come next.
+# Four times a day, between the mini's sweeps. Each run:
+#   1. holds the downloads against `verify/identities.json` (what each installer
+#      was when first seen) and `verify/install-baseline.json` (streaks, issue
+#      numbers — its own file, never the sweep's `verify/baseline.json`);
+#   2. files and closes issues with `duo reconcile`, under `install:` ids;
+#   3. commits both files back through a `verify/install-<stamp>` pull request
+#      with auto-merge, like the mini's baseline.
 #
-# Same rules as ci.yml: hosted runner, no secrets (GITHUB_TOKEN only lifts the
-# GitHub API rate limit), actions pinned by SHA, read-only.
+# Each run starts from the previous run's state, so it first waits (up to 30
+# minutes, before checking out) for any open `verify/install-` pull request to
+# land. Starting from a `main` without the issue numbers that pull request
+# carries would file every open finding a second time, and its own pull request
+# would conflict with the pending one. If it does not land, the run still
+# verifies and reports but files and commits nothing.
+#
+# The pull request is opened with INSTALL_VERIFY_PR_TOKEN, a fine-grained token
+# (contents + pull requests, this repository only): one opened with GITHUB_TOKEN
+# does not run CI until someone approves it, so the required `test` check would
+# never report and it would never merge. Without the secret, steps 2 and 3 are
+# skipped rather than half-done: an issue filed whose number is never committed
+# would be filed again by the next run.
+#
+# Otherwise ci.yml's rules: hosted runner, actions pinned by SHA.
 name: Install verify
 
 on:
+  schedule:
+    # UTC. The mini sweeps at :17 past 02/08/14/20 UTC; these sit halfway between.
+    - cron: "47 5,11,17,23 * * *"
   workflow_dispatch:
     inputs:
       only:
@@ -28,8 +47,12 @@ on:
         required: false
         default: "3"
 
+# Issues through GITHUB_TOKEN; the branch and the pull request through the
+# secret above, which carries its own permissions.
 permissions:
   contents: read
+  issues: write
+  pull-requests: read
 
 concurrency:
   group: install-verify
@@ -39,9 +62,47 @@ jobs:
   verify-install:
     runs-on: xcode-27
     timeout-minutes: 340
+    # Secrets cannot be referenced in an `if:` directly; a job-level variable
+    # carries the answer to the steps that need it.
+    env:
+      HAS_PR_TOKEN: ${{ secrets.INSTALL_VERIFY_PR_TOKEN != '' }}
     steps:
+      - name: Wait for the previous run's state to land
+        id: previous
+        if: env.HAS_PR_TOKEN == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 30); do
+            open=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 200 --json headRefName \
+                     -q '[.[] | select(.headRefName | startswith("verify/install-"))] | length')
+            if [ "$open" = "0" ]; then
+              echo "clear=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "a verify/install- pull request is still open ($attempt/30)"
+            sleep 60
+          done
+          echo "::warning::A verify/install- pull request has been open for 30 minutes. This run files and commits nothing; merge or close that pull request."
+          echo "clear=false" >> "$GITHUB_OUTPUT"
+
+      # No persisted credentials: checkout would store GITHUB_TOKEN as an
+      # Authorization header for github.com, which git sends ahead of the token in
+      # the push URL below — so the push would go out as this job's read-only
+      # token and be refused (actions/checkout#162, #181).
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Checkout takes the commit the run was triggered for, fixed at trigger
+      # time — before the wait above. A state pull request that landed during
+      # the wait is only on the branch's head now, so move there explicitly.
+      - name: Move to the branch's current head
+        run: |
+          git fetch -q --depth=1 origin "$GITHUB_REF"
+          git checkout -q --detach FETCH_HEAD
+          echo "triggered at ${GITHUB_SHA::8}, running at $(git rev-parse --short=8 HEAD)"
 
       - name: Toolchain and disk
         run: |
@@ -55,8 +116,10 @@ jobs:
         run: swift build --package-path CLI --product duo
 
       # `--allow-stale-binary`: the binary was built from this checkout two steps
-      # up; there is just no `build-cli.sh` stamp beside it to say so.
+      # up; there is just no `build-cli.sh` stamp beside it to say so. Exit 1 is
+      # the run's verdict, not this step's — what it found goes to issues below.
       - name: duo verify-install
+        id: verify
         env:
           GH_TOKEN: ${{ github.token }}
           ONLY: ${{ inputs.only }}
@@ -65,13 +128,55 @@ jobs:
           args=(verify-install --allow-stale-binary
                 --max-concurrency "${CONCURRENCY:-3}"
                 --report verify-install.json --markdown verify-install.md
-                --identities verify/identities.json)
+                --identities verify/identities.json
+                --baseline verify/install-baseline.json
+                --findings install-findings.json)
           if [ -n "$ONLY" ]; then args+=(--only "$ONLY"); fi
           set +e
           scripts/run-with-hang-report.sh 19800 CLI/.build/debug/duo "${args[@]}"
           status=$?
           df -h "$TMPDIR" /
-          exit $status
+          # 1 = something warned or failed, which is what the issues are for.
+          # Anything else is the command itself going wrong.
+          if [ "$status" -gt 1 ]; then exit "$status"; fi
+
+      - name: File and close issues
+        if: steps.previous.outputs.clear == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CLI/.build/debug/duo reconcile \
+            --report install-findings.json \
+            --baseline verify/install-baseline.json
+
+      # Even when filing failed part-way: `duo reconcile` saves the numbers of
+      # the issues it did open before returning non-zero, and dropping them here
+      # would file those again next run. Only a completed verification has state
+      # worth keeping.
+      - name: Commit the state back
+        if: ${{ !cancelled() && steps.previous.outputs.clear == 'true' && steps.verify.outcome == 'success' }}
+        env:
+          PR_TOKEN: ${{ secrets.INSTALL_VERIFY_PR_TOKEN }}
+        run: |
+          git add verify/identities.json verify/install-baseline.json
+          if git diff --staged --quiet; then
+            echo "state unchanged"
+            exit 0
+          fi
+          branch="verify/install-$(date -u +%Y%m%dT%H%M%SZ)"
+          git -c user.name="duo-verify" -c user.email="duo-verify@users.noreply.github.com" \
+            commit -q -m "verify-install: update identities and baseline"
+          git push -q "https://x-access-token:${PR_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:refs/heads/${branch}"
+          GH_TOKEN="$PR_TOKEN" gh pr create --base main --head "$branch" \
+            --title "verify-install: update identities and baseline" \
+            --body "State written by run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}."
+          GH_TOKEN="$PR_TOKEN" gh pr merge "$branch" --squash --delete-branch --auto
+
+      - name: Say why nothing was filed
+        if: env.HAS_PR_TOKEN != 'true'
+        run: |
+          echo "::warning::INSTALL_VERIFY_PR_TOKEN is not set: nothing was filed and the state was not committed. See the comment at the top of this workflow."
 
       - name: Summary
         if: always()
@@ -86,5 +191,7 @@ jobs:
           path: |
             verify-install.json
             verify-install.md
+            install-findings.json
             verify/identities.json
+            verify/install-baseline.json
           if-no-files-found: ignore

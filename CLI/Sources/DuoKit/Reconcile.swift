@@ -258,9 +258,19 @@ public enum Reconcile {
         out += "```bash\ndig +short \(finding.endpointHost) @1.1.1.1\n```\n\n"
         out += "If that comes back empty, the endpoint is gone and the recipe needs a new "
         out += "source or needs deleting — it cannot be fixed in place.\n\n"
-        out += "Reproduce the sweep's own view:\n\n```bash\nswift run --package-path CLI duo verify "
-        out += "--\(finding.registry.rawValue) --only \(finding.bundleID)\n```\n"
+        out += "Reproduce the sweep's own view:\n\n```bash\n\(reproduce(finding, samples: false))\n```\n"
         return out
+    }
+
+    /// The command that shows what the scheduled job saw. An installer finding
+    /// comes from `duo verify-install`, which has no `--samples`: what it reads is
+    /// a download, not a captured body.
+    static func reproduce(_ finding: Finding, samples: Bool) -> String {
+        if finding.registry == .install {
+            return "swift run --package-path CLI duo verify-install --only \(finding.bundleID) --allow-stale-binary"
+        }
+        return "swift run --package-path CLI duo verify --\(finding.registry.rawValue) --only \(finding.bundleID)"
+            + (samples ? " --samples" : "")
     }
 
     /// A short, readable cause for the title. Not `signature`: that is keyed for
@@ -285,7 +295,9 @@ public enum Reconcile {
         suggestion: TriageSuggestion? = nil
     ) -> String {
         var out = "<!-- duo-verify-id: \(finding.recipeID) -->\n\n"
-        out += "Found by the scheduled `duo verify` sweep. "
+        out += finding.registry == .install
+            ? "Found by the scheduled `duo verify-install` run, which downloads the installer. "
+            : "Found by the scheduled `duo verify` sweep. "
         out += "The version check and the app both keep working in the cases marked "
         out += "*degraded* — that is what makes these invisible without this job.\n\n"
         out += "| | |\n|---|---|\n"
@@ -337,8 +349,7 @@ public enum Reconcile {
         if let suggestion, suggestion.signature == finding.signature {
             out += "\n" + suggestionBlock(suggestion)
         }
-        out += "\nReproduce locally:\n\n```bash\nswift run --package-path CLI duo verify "
-        out += "--\(finding.registry.rawValue) --only \(finding.bundleID) --samples\n```\n"
+        out += "\nReproduce locally:\n\n```bash\n\(reproduce(finding, samples: true))\n```\n"
         return out
     }
 

@@ -80,6 +80,16 @@ import DuoUpdaterCore
         #expect(entry?.lastSeenVersion == "2.0")
     }
 
+    /// The file is committed back after every run: a stamp that moved on every
+    /// run would rewrite every entry four times a day.
+    @Test func theSameVersionAgainChangesNothing() {
+        var store = InstallIdentities()
+        _ = store.record("vendor:a", recorded())
+        let before = store
+        #expect(store.record("vendor:a", recorded(at: day2)).isEmpty)
+        #expect(store == before)
+    }
+
     /// The whole point: a change is reported and NOT accepted, so it is
     /// reported again next run until someone edits the entry.
     @Test func aChangeLeavesTheRecordAsItWas() {

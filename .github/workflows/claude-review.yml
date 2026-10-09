@@ -51,11 +51,14 @@ jobs:
     # `verify/baseline-<stamp>` branch, under the maintainer's own account, and
     # the whole diff is verify/baseline.json — machine state, regenerated, with
     # nothing for a reviewer to say. Skipped at the job level so no runner and
-    # no model time is spent on them at all.
+    # no model time is spent on them at all. `verify/install-<stamp>` is the same
+    # for install-verify.yml (verify/identities.json, verify/install-baseline.json),
+    # opened with the maintainer's token so its CI runs.
     if: >-
       github.event.pull_request.user.login == 'jizhi0v0' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      !startsWith(github.event.pull_request.head.ref, 'verify/baseline-')
+      !startsWith(github.event.pull_request.head.ref, 'verify/baseline-') &&
+      !startsWith(github.event.pull_request.head.ref, 'verify/install-')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

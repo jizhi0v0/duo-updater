@@ -25,6 +25,12 @@ public struct InstallVerifyOptions: Sendable {
     /// Read and update what each installer was the first time it was seen
     /// (`InstallIdentities`). Without it every run is judged on its own.
     public var identitiesPath: URL?
+    /// Read and update failure streaks and issue numbers, as `duo verify
+    /// --baseline` does — a file of its own, since the two jobs run on
+    /// different machines and each commits what it writes.
+    public var baselinePath: URL?
+    /// Write the results as `duo verify --report` does, for `duo reconcile`.
+    public var findingsPath: URL?
 }
 
 public enum InstallVerify {
@@ -54,6 +60,8 @@ public enum InstallVerify {
         public var status: Status
         public var stage: ArtifactInspection.Stage?
         public var detail: String?
+        /// The status a server refused the download with, if that is why it failed.
+        public var httpStatus: Int?
         public var warnings: [String] = []
         public var notes: [String] = []
         public var bytes: Int64 = 0
@@ -175,6 +183,19 @@ public enum InstallVerify {
                 die("could not write \(path.path): \(error.localizedDescription)", code: 1)
             }
         }
+        if options.baselinePath != nil || options.findingsPath != nil {
+            var baseline = options.baselinePath.map(Baseline.load) ?? Baseline()
+            let findings = items.map(finding)
+            for finding in findings { _ = baseline.reconcile(finding) }
+            baseline.updatedAt = Date()
+            _ = baseline.prune(keeping: Set(liveRecipeIDs().map(findingID)))
+            do {
+                if let path = options.baselinePath { try baseline.save(to: path) }
+                if let path = options.findingsPath { try DuoKit.Report.json(findings, to: path) }
+            } catch {
+                die("could not write the baseline or findings: \(error.localizedDescription)", code: 1)
+            }
+        }
         let report = Report(
             generatedAt: Date(), seconds: Date().timeIntervalSince(started),
             bytes: items.reduce(0) { $0 + $1.bytes },
@@ -250,6 +271,7 @@ public enum InstallVerify {
             item.stage = failure.stage
             item.detail = failure.message
             item.bytes = failure.bytes
+            item.httpStatus = failure.httpStatus
         case .success(let inspected):
             item.bytes = inspected.bytes
             item.finalHost = inspected.finalHost
@@ -285,6 +307,59 @@ public enum InstallVerify {
         } ?? ""
         item.warnings.append("identityChanged: " + changes.joined(separator: "; ") + since)
         item.status = .warn
+    }
+
+    /// This command's id for a recipe in `Baseline` and on an issue. Namespaced
+    /// like every registry's, so it cannot share a streak or an issue with the
+    /// sweep's own finding for the same recipe.
+    static func findingID(_ recipeID: String) -> String { "install:" + recipeID }
+
+    /// An item as `Baseline` and `Reconcile` read a finding.
+    ///
+    /// - A download that stopped at the network is `infra`: a vendor CDN that
+    ///   drops a long transfer from a US data centre (Baidu Netdisk, run
+    ///   37876975684: "The network connection was lost" after 252 MB) is not a
+    ///   broken recipe, and only a run of them is news. So is a 5xx, a 408 and a
+    ///   429 — the server is there and may answer next time.
+    /// - A download the server refused (any other 4xx — the asset was deleted or
+    ///   renamed) is `broken`: waiting out the infra window would take days and
+    ///   then file it as an unreachable host, which it is not.
+    /// - A gate that refused the bytes — digest, unpacking, signature — is
+    ///   `broken`.
+    /// - Unresolved is `skipped`: resolving the installer is `duo verify`'s
+    ///   finding to file, and filing it here as well would open a second issue.
+    /// - No version: `Baseline` would hold it to the last one and repeat the
+    ///   sweep's own "went backwards" check under a second id.
+    /// - Not the install-pattern warnings (`ProbeWarning.installPatternKinds`):
+    ///   they come from resolving the installer, which the sweep reports under
+    ///   its own id — kept, they would file each one twice. The report still
+    ///   shows them.
+    static func finding(_ item: Item) -> Finding {
+        let warnings = item.warnings.filter { warning in
+            !ProbeWarning.installPatternKinds.contains { warning.hasPrefix($0 + ":") }
+        }
+        let status: FindingStatus
+        switch item.status {
+        case .ok: status = .ok
+        case .warn: status = warnings.isEmpty ? .ok : .warn
+        case .failed:
+            status = item.stage == .download && !isRefusal(item.httpStatus) ? .infra : .broken
+        case .unresolved, .skipped: status = .skipped
+        }
+        let host = item.finalHost ?? item.url.flatMap { URL(string: $0)?.host } ?? item.probeHost
+        return Finding(
+            recipeID: findingID(item.recipeID), registry: .install, bundleID: item.bundleID,
+            channel: "-", status: status,
+            failureKind: item.stage.map { "install.\($0.rawValue)" },
+            failureDetail: item.status == .failed ? item.detail : nil,
+            warnings: warnings, endpointHost: host,
+            elapsedMs: Int(item.seconds * 1000))
+    }
+
+    /// A status that says the request itself is wrong rather than the moment.
+    static func isRefusal(_ status: Int?) -> Bool {
+        guard let status else { return false }
+        return (400..<500).contains(status) && status != 408 && status != 429
     }
 
     /// Every recipe this command could download, whatever `--only` says — what

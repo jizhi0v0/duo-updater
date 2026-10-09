@@ -68,6 +68,24 @@ import DuoUpdaterCore
         #expect(why?.contains("asset-pattern miss") == true)
     }
 
+    /// The walk that still found an older release reports the same problem as a
+    /// warning, over the same tag-list body — the same trap.
+    @Test func anInstallPatternWarningIsNotAsked() {
+        for warning in [
+            "installAssetRenamed: a newer release's macOS installer no longer matches the install pattern — v0.4.0 carries x.dmg, so 0.2.1 is offered as the latest",
+            "installAssetMissing: a newer release has no installer the install pattern matches — v1.18.1 …",
+        ] {
+            let f = finding(
+                status: .warn, sample: "v0.4.0\nv0.2.1", pattern: #"^App-[0-9.]+\.dmg$"#,
+                warnings: [warning])
+            let why = Triage.eligibility(f, baseline: baseline(streak: 3))
+            #expect(why?.contains("asset-pattern miss") == true, "\(warning.prefix(19))")
+        }
+        // An unrelated warning is still asked about.
+        let other = finding(status: .warn, warnings: ["staleSlug: the registry says a/b"])
+        #expect(Triage.eligibility(other, baseline: baseline(streak: 3)) == nil)
+    }
+
     /// The same question twice produces the same answer and costs another call —
     /// and, worse, another comment on an issue that already has one.
     @Test func aFailureAlreadyTriagedIsNotAskedAgain() {

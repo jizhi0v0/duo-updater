@@ -256,7 +256,12 @@ public enum InstallVerify {
             item.identity = inspected.identity
             item.packageTeamIdentifier = inspected.packageTeamIdentifier
             item.notes = inspected.notes
-            item.warnings = warnings(
+            // The installer read fine, but it is an older release's: newer ones
+            // carry none the rule matches — renamed (PrintCraft, #1087) or absent.
+            let renamed = outcome.warnings
+                .filter { ProbeWarning.installPatternKinds.contains($0.kind) }
+                .map(\.display)
+            item.warnings = renamed + warnings(
                 identity: inspected.identity, remote: remote, recipeBundleID: target.bundleID)
             item.notes += notes(identity: inspected.identity, remote: remote)
             item.status = item.warnings.isEmpty ? .ok : .warn

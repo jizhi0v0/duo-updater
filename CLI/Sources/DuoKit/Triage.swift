@@ -233,7 +233,13 @@ public enum Triage {
         // pattern already matches. Any tag regex would come back "✅ Verified" on an
         // issue whose whole point is that the tag regex is fine; the asset names
         // the real fix needs were never captured.
-        if finding.failureKind == ProbeFailure.assetPatternNoMatch(walked: 0).kind {
+        // Same body, same trap, for the walk that did find an older release
+        // (`installAssetRenamed` / `installAssetMissing`): the finding is a warning
+        // rather than a failure, and the tag list still verifies any tag regex.
+        if finding.failureKind == ProbeFailure.assetPatternNoMatch(walked: 0).kind
+            || finding.warnings.contains(where: { warning in
+                ProbeWarning.installPatternKinds.contains { warning.hasPrefix($0 + ":") }
+            }) {
             return "asset-pattern miss — the captured body is the tag list, which "
                 + "cannot show or check an install-pattern fix"
         }

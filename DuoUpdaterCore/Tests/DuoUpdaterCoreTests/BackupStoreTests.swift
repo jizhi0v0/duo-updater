@@ -41,7 +41,9 @@ struct BackupStoreTests {
     /// `errSecCSUnsigned` (a bare directory reports `errSecCSBadBundleFormat`, which
     /// is — correctly — treated as corruption).
     @discardableResult
-    private func makeApp(named name: String, in dir: URL, marker: String) throws -> URL {
+    private func makeApp(
+        named name: String, in dir: URL, marker: String, bundleID: String = "com.example.testapp"
+    ) throws -> URL {
         let app = dir.appendingPathComponent(name)
         let contents = app.appendingPathComponent("Contents")
         try? FileManager.default.removeItem(at: app)
@@ -51,7 +53,7 @@ struct BackupStoreTests {
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0"><dict>
           <key>CFBundleExecutable</key><string>App</string>
-          <key>CFBundleIdentifier</key><string>com.example.testapp</string>
+          <key>CFBundleIdentifier</key><string>\(bundleID)</string>
           <key>CFBundleName</key><string>App</string>
           <key>CFBundlePackageType</key><string>APPL</string>
         </dict></plist>
@@ -103,6 +105,70 @@ struct BackupStoreTests {
 
         #expect(candidates.first == BackupStore.key(bundleID: "com.example.app", path: app))
         #expect(candidates.contains("com.example.app"))
+    }
+
+    private static let renamed = [BundleIDMigration(
+        from: "com.example.old", to: "com.example.new",
+        teamID: "TEAM123456", lastFromVersion: "1.4.0", firstToVersion: "2.0.0")]
+
+    /// A renamed app's rollback point was saved under the old id at the same
+    /// path. It is looked for after the app's own keys, from either side, and
+    /// only under the path-scoped key: a bare old id is not this copy.
+    @Test func keyCandidatesReachThePairedIdAtTheSamePath() {
+        let path = URL(fileURLWithPath: "/Applications/Foo.app")
+        let fromNew = BackupStore.keyCandidates(
+            bundleID: "com.example.new", path: path, migrations: Self.renamed)
+        #expect(fromNew == [
+            BackupStore.key(bundleID: "com.example.new", path: path), "com.example.new",
+            BackupStore.key(bundleID: "com.example.old", path: path),
+        ])
+        let fromOld = BackupStore.keyCandidates(
+            bundleID: "com.example.old", path: path, migrations: Self.renamed)
+        #expect(fromOld.last == BackupStore.key(bundleID: "com.example.new", path: path))
+        #expect(!fromOld.contains("com.example.new"))
+        #expect(BackupStore.keyCandidates(
+            bundleID: "com.example.other", path: path, migrations: Self.renamed).count == 2)
+        #expect(BackupStore.keyCandidates(bundleID: nil, path: path, migrations: Self.renamed)
+                == BackupStore.keyCandidates(bundleID: nil, path: path, migrations: []))
+    }
+
+    /// Being paired is not enough to put one id back over the other: the Team
+    /// gate still has to pass, and these fixtures carry no Team. The installed
+    /// copy is left as it was.
+    @Test func aBackupOfAnotherIdIsNotRestoredWithoutTheTeam() async throws {
+        try await withScratchRoot { _ in
+            let apps = FileManager.default.temporaryDirectory
+                .appendingPathComponent("apps-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: apps) }
+
+            let app = try makeApp(named: "Foo.app", in: apps, marker: "v1", bundleID: "com.example.old")
+            let key = BackupStore.key(bundleID: "com.example.old", path: app)
+            try await BackupStore.save(appPath: app, key: key, version: "1.4.0", bundleID: "com.example.old")
+            try makeApp(named: "Foo.app", in: apps, marker: "v2", bundleID: "com.example.new")
+
+            let stored = try #require(BackupStore.backup(forKey: key)).bundlePath
+            #expect(throws: BackupStore.BackupError.self) {
+                try BackupStore.verifyRestoreIdentity(
+                    staged: stored, over: app, migrations: Self.renamed)
+            }
+            await #expect(throws: BackupStore.BackupError.self) {
+                try await BackupStore.restore(forKey: key, over: app)
+            }
+            #expect(marker(of: app) == "v2")
+        }
+    }
+
+    /// Same id: no signature is consulted, so an unsigned app rolls back as it
+    /// always did.
+    @Test func theSameIdPassesTheIdentityGateUnsigned() throws {
+        let apps = FileManager.default.temporaryDirectory
+            .appendingPathComponent("apps-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: apps) }
+        let a = try makeApp(named: "A.app", in: apps, marker: "v1")
+        let b = try makeApp(named: "B.app", in: apps, marker: "v2")
+        try BackupStore.verifyRestoreIdentity(staged: a, over: b, migrations: Self.renamed)
     }
 
     // MARK: - Save / query

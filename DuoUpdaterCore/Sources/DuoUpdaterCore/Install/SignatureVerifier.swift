@@ -250,7 +250,7 @@ public enum SignatureVerifier {
         }
     }
 
-    private static func infoPlist(of app: URL) -> [String: Any] {
+    static func infoPlist(of app: URL) -> [String: Any] {
         guard let data = try? Data(contentsOf: app.appendingPathComponent("Contents/Info.plist")),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil)
                 as? [String: Any]

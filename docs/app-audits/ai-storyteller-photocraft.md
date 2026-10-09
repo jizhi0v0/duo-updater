@@ -51,9 +51,19 @@ PrintCraft 在 v0.4.0 改名 PdfCraft，三样一起变：
   旧 id 副本经 `InstalledApp.recipeBundleID` 走新 id 规则（`GitHubReleasesSource` 自 #1087 起也按它查），
   闸 4 放行这一方向，`AppRestarter` 能找到仍在跑的旧 id 进程。
 - ⚠️ 原地替换保留磁盘上的路径（`InPlaceSwap.replace(newApp:over:)` 换到已装副本的位置）：一键后是
-  `PrintCraft.app` 这个文件名里装着 PdfCraft。Finder/Dock 里显示哪个名字**未验证**。手动从 dmg 拖装则会得到
+  `PrintCraft.app` 这个文件名里装着 PdfCraft。Finder 显示的名字仍是 `PrintCraft`（`mdls` 的 `kMDItemDisplayName` 与 Finder `displayed name` 都是 `PrintCraft.app`，2026-10-09 实测）；Dock 未看。手动从 dmg 拖装则会得到
   并排的 `PdfCraft.app`。
-- 一键端到端 0.2.1 → 0.4.0: **未验证**（#1087 待真机跑）。
+- 一键端到端 0.2.1 → 0.4.0（2026-10-09 真机，#1087）:
+  - 第一轮，不运行: `duo check` 给 `PrintCraft 0.2.1 → 0.4.0 [GitHub, in-place]`；`duo install /Applications/PrintCraft.app --yes`
+    退出 0，backup → download → verifyingSignature → extract → verifyingCodeSignature → install 全过；之后 bundle 为
+    `ai.storyteller.pdfcraft` 0.4.0、Team `DJ6XS33FX8`，`spctl -a` 为 `Notarized Developer ID`。
+  - 第二轮，0.2.1 运行中: `duo install` `installed`，结尾提示 `duo restart '/Applications/PrintCraft.app'`（改名后旧名已匹配不到，
+    提示改给路径）；照抄执行 → `PdfCraft restarted`，新进程是 `Contents/MacOS/PdfCraft`；再 `duo check` 无待更新。
+  - 设置迁移: 0.2.1 退出时写 `~/Library/Application Support/PrintCraft/`；0.4.0 首次启动后它被改名为 `PdfCraft/`，旧目录消失。
+    若 `PdfCraft/` 已存在则不迁（与源码一致）。
+  - `codesign --verify --strict` 报 `resource fork, Finder information, or similar detritus`：厂商 dmg 里的文件自带
+    `com.apple.FinderInfo`，同家族没动过的 PhotoCraft/DesignCraft 也一样，与本次改名无关；非 strict 校验和 `spctl` 都通过。
+  - 已知缺口: 改名后 `duo backups restore` 按新 id 找不到旧 id 下的备份（`no backup stored for PdfCraft`），另案处理。
 
 ## 覆盖矩阵
 

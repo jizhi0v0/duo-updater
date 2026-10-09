@@ -193,7 +193,8 @@ enum CLIToolFixtures {
         let path = "/Users/ann/.nvm/nvm.sh"
         let command = CLIToolCommand(
             executable: "curl",
-            arguments: ["-o-", "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh", "|", "bash"],
+            arguments: ["-o-", "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh", "|",
+                        "NVM_DIR='/Users/ann/.nvm'", "PROFILE=/dev/null", "bash"],
             pathPrefix: nil)
         return CLIToolStatus(
             kind: .nvm, path: path, installedVersion: "0.40.7", latestVersion: "0.40.8", channel: nil,
@@ -862,7 +863,7 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolPresentation.manualCommand(F.zoxide(withheld: .unverified, manual: true)) == zoxide)
         #expect(CLIToolPresentation.manualCommand(F.zoxide(withheld: .busy, manual: true)) == nil)
         #expect(CLIToolPresentation.manualCommand(F.nvm())
-            == "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | bash")
+            == "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh | NVM_DIR='/Users/ann/.nvm' PROFILE=/dev/null bash")
         #expect(CLIToolPresentation.manualCommand(F.nvm(state: .upToDate, withheld: nil)) == nil)
 
         #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.zoxide(writable: false))

@@ -68,7 +68,7 @@ public struct NvmCheck: Sendable {
         }
         guard state == .updateAvailable else { return verdict(state, latest: newest) }
 
-        let command = Self.updateCommand(version: newest)
+        let command = Self.updateCommand(version: newest, directory: install.directory)
         // Rule 5.
         guard install.writable else {
             return verdict(state, latest: newest, note: "\(install.directory) cannot be written without sudo",
@@ -86,13 +86,25 @@ public struct NvmCheck: Sendable {
         return verdict(state, latest: newest, oneClick: command)
     }
 
-    /// `curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v<version>/install.sh | bash`,
-    /// as the README writes it. What `NvmUpdater` runs is its equivalent without
-    /// the pipe (the script downloaded whole, then run), with the install's
-    /// directory as `NVM_DIR` and no profile.
-    static func updateCommand(version: String) -> CLIToolCommand {
+    /// `curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v<version>/install.sh | NVM_DIR='<directory>' PROFILE=/dev/null bash`:
+    /// the README's install with two of its documented variables — `NVM_DIR`,
+    /// so the install's own directory is the one written (a shell exporting
+    /// another `NVM_DIR`, as Homebrew's nvm asks for, would otherwise win), and
+    /// `PROFILE=/dev/null`, so no shell profile is edited. Both stand after the
+    /// pipe, on `bash`, the process that reads them; before `curl` they would
+    /// reach only `curl`. The directory is single-quoted, so a space or a `$`
+    /// in it is pasted as written. What `NvmUpdater` runs is its equivalent
+    /// without the pipe (the script downloaded whole, then run), with the same
+    /// two variables.
+    static func updateCommand(version: String, directory: String) -> CLIToolCommand {
         CLIToolCommand(executable: "curl",
-                       arguments: ["-o-", NvmRelease.installer(version: version).absoluteString, "|", "bash"],
+                       arguments: ["-o-", NvmRelease.installer(version: version).absoluteString, "|",
+                                   "NVM_DIR=" + shellQuoted(directory), "PROFILE=/dev/null", "bash"],
                        pathPrefix: nil)
+    }
+
+    /// POSIX single quotes; a `'` inside is closed, escaped and reopened.
+    static func shellQuoted(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
     }
 }

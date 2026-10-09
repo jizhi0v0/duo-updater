@@ -15,6 +15,13 @@
 #   3. commits both files back through a `verify/install-<stamp>` pull request
 #      with auto-merge, like the mini's baseline.
 #
+# Each run starts from the previous run's state, so it first waits (up to 30
+# minutes, before checking out) for any open `verify/install-` pull request to
+# land. Starting from a `main` without the issue numbers that pull request
+# carries would file every open finding a second time, and its own pull request
+# would conflict with the pending one. If it does not land, the run still
+# verifies and reports but files and commits nothing.
+#
 # The pull request is opened with INSTALL_VERIFY_PR_TOKEN, a fine-grained token
 # (contents + pull requests, this repository only): one opened with GITHUB_TOKEN
 # does not run CI until someone approves it, so the required `test` check would
@@ -45,6 +52,7 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: read
 
 concurrency:
   group: install-verify
@@ -59,6 +67,25 @@ jobs:
     env:
       HAS_PR_TOKEN: ${{ secrets.INSTALL_VERIFY_PR_TOKEN != '' }}
     steps:
+      - name: Wait for the previous run's state to land
+        id: previous
+        if: env.HAS_PR_TOKEN == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 30); do
+            open=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --json headRefName \
+                     -q '[.[] | select(.headRefName | startswith("verify/install-"))] | length')
+            if [ "$open" = "0" ]; then
+              echo "clear=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "a verify/install- pull request is still open ($attempt/30)"
+            sleep 60
+          done
+          echo "::warning::A verify/install- pull request has been open for 30 minutes. This run files and commits nothing; merge or close that pull request."
+          echo "clear=false" >> "$GITHUB_OUTPUT"
+
       # No persisted credentials: checkout would store GITHUB_TOKEN as an
       # Authorization header for github.com, which git sends ahead of the token in
       # the push URL below — so the push would go out as this job's read-only
@@ -83,6 +110,7 @@ jobs:
       # up; there is just no `build-cli.sh` stamp beside it to say so. Exit 1 is
       # the run's verdict, not this step's — what it found goes to issues below.
       - name: duo verify-install
+        id: verify
         env:
           GH_TOKEN: ${{ github.token }}
           ONLY: ${{ inputs.only }}
@@ -104,7 +132,7 @@ jobs:
           if [ "$status" -gt 1 ]; then exit "$status"; fi
 
       - name: File and close issues
-        if: env.HAS_PR_TOKEN == 'true'
+        if: steps.previous.outputs.clear == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -112,8 +140,12 @@ jobs:
             --report install-findings.json \
             --baseline verify/install-baseline.json
 
+      # Even when filing failed part-way: `duo reconcile` saves the numbers of
+      # the issues it did open before returning non-zero, and dropping them here
+      # would file those again next run. Only a completed verification has state
+      # worth keeping.
       - name: Commit the state back
-        if: env.HAS_PR_TOKEN == 'true'
+        if: ${{ !cancelled() && steps.previous.outputs.clear == 'true' && steps.verify.outcome == 'success' }}
         env:
           PR_TOKEN: ${{ secrets.INSTALL_VERIFY_PR_TOKEN }}
         run: |

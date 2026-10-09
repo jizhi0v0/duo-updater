@@ -114,6 +114,13 @@ import DuoUpdaterCore
         #expect(InstallVerify.finding(item(.warn, warnings: ["identityChanged: …"])).status == .warn)
         // A dropped transfer is the network until a run of them says otherwise.
         #expect(InstallVerify.finding(item(.failed, stage: .download)).status == .infra)
+        // A refusal is the link, not the network; a 5xx, 408 or 429 may pass.
+        for (status, expected) in [(404, FindingStatus.broken), (403, .broken), (410, .broken),
+                                   (500, .infra), (503, .infra), (408, .infra), (429, .infra)] {
+            var refused = item(.failed, stage: .download)
+            refused.httpStatus = status
+            #expect(InstallVerify.finding(refused).status == expected, "HTTP \(status)")
+        }
         #expect(InstallVerify.finding(item(.failed, stage: .checksum)).status == .broken)
         #expect(InstallVerify.finding(item(.failed, stage: .unpack)).status == .broken)
         #expect(InstallVerify.finding(item(.failed, stage: .signature)).status == .broken)

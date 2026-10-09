@@ -61,6 +61,9 @@ public enum ArtifactInspection {
         /// What came over the network before it stopped; zero before the download
         /// finished.
         public let bytes: Int64
+        /// The status a server refused the download with, when that is why it
+        /// stopped — which says the installer link is wrong, not the network.
+        public var httpStatus: Int? = nil
     }
 
     public struct Inspected: Sendable {
@@ -91,9 +94,13 @@ public enum ArtifactInspection {
             let downloaded = try await downloader.download(url, headers: remote.downloadHeaders)
             archive = try VendorInstaller.normalizedArchive(downloaded, kind: kind, workDir: workDir)
         } catch {
-            return .failure(Failure(
+            var failure = Failure(
                 stage: .download, message: error.localizedDescription,
-                bytes: downloader.bytesDownloaded))
+                bytes: downloader.bytesDownloaded)
+            if case Downloader.DownloadError.httpStatus(let status) = error {
+                failure.httpStatus = status
+            }
+            return .failure(failure)
         }
         let bytes = downloader.bytesDownloaded
         func failure(_ stage: Stage, _ error: Error) -> Result<Inspected, Failure> {

@@ -60,6 +60,8 @@ public enum InstallVerify {
         public var status: Status
         public var stage: ArtifactInspection.Stage?
         public var detail: String?
+        /// The status a server refused the download with, if that is why it failed.
+        public var httpStatus: Int?
         public var warnings: [String] = []
         public var notes: [String] = []
         public var bytes: Int64 = 0
@@ -269,6 +271,7 @@ public enum InstallVerify {
             item.stage = failure.stage
             item.detail = failure.message
             item.bytes = failure.bytes
+            item.httpStatus = failure.httpStatus
         case .success(let inspected):
             item.bytes = inspected.bytes
             item.finalHost = inspected.finalHost
@@ -310,7 +313,12 @@ public enum InstallVerify {
     ///
     /// - A download that stopped at the network is `infra`: a vendor CDN that
     ///   drops a long transfer from a US data centre (Baidu Netdisk, run
-    ///   37876975684) is not a broken recipe, and only a run of them is news.
+    ///   37876975684: "The network connection was lost" after 252 MB) is not a
+    ///   broken recipe, and only a run of them is news. So is a 5xx, a 408 and a
+    ///   429 — the server is there and may answer next time.
+    /// - A download the server refused (any other 4xx — the asset was deleted or
+    ///   renamed) is `broken`: waiting out the infra window would take days and
+    ///   then file it as an unreachable host, which it is not.
     /// - A gate that refused the bytes — digest, unpacking, signature — is
     ///   `broken`.
     /// - Unresolved is `skipped`: resolving the installer is `duo verify`'s
@@ -322,7 +330,8 @@ public enum InstallVerify {
         switch item.status {
         case .ok: status = .ok
         case .warn: status = .warn
-        case .failed: status = item.stage == .download ? .infra : .broken
+        case .failed:
+            status = item.stage == .download && !isRefusal(item.httpStatus) ? .infra : .broken
         case .unresolved, .skipped: status = .skipped
         }
         let host = item.finalHost ?? item.url.flatMap { URL(string: $0)?.host } ?? item.probeHost
@@ -333,6 +342,12 @@ public enum InstallVerify {
             failureDetail: item.status == .failed ? item.detail : nil,
             warnings: item.warnings, endpointHost: host,
             elapsedMs: Int(item.seconds * 1000))
+    }
+
+    /// A status that says the request itself is wrong rather than the moment.
+    static func isRefusal(_ status: Int?) -> Bool {
+        guard let status else { return false }
+        return (400..<500).contains(status) && status != 408 && status != 429
     }
 
     /// Every recipe this command could download, whatever `--only` says — what

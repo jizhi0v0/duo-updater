@@ -63,8 +63,10 @@ public enum InstallVerify {
         public var generatedAt: Date
         public var seconds: Double
         public var bytes: Int64
-        /// The least free space the scratch volume had at any item's start or
-        /// end — what decides how many downloads can safely be in flight.
+        /// The least free space the scratch volume had when sampled — before
+        /// each item, and again once its archive and unpacked app are both on
+        /// disk, just before they are deleted. What decides how many downloads
+        /// can safely be in flight.
         public var minimumFreeBytes: Int64?
         public var hostConcurrency: Int
         public var items: [Item]
@@ -137,8 +139,7 @@ public enum InstallVerify {
         await disk.sample()
         let inspected = await byHost(targets, concurrency: options.hostConcurrency) { target in
             await disk.sample()
-            let item = await verify(target)
-            await disk.sample()
+            let item = await verify(target, disk: disk)
             print(line(item))
             return item
         }
@@ -169,14 +170,14 @@ public enum InstallVerify {
 
     // MARK: - one installer
 
-    static func verify(_ target: Target) async -> Item {
+    static func verify(_ target: Target, disk: FreeSpaceWatermark) async -> Item {
         let started = Date()
-        var item = await inspect(target)
+        var item = await inspect(target, disk: disk)
         item.seconds = Date().timeIntervalSince(started)
         return item
     }
 
-    private static func inspect(_ target: Target) async -> Item {
+    private static func inspect(_ target: Target, disk: FreeSpaceWatermark) async -> Item {
         var item = Item(
             recipeID: target.recipeID, registry: target.registry, bundleID: target.bundleID,
             probeHost: target.probeHost, status: .unresolved)
@@ -207,7 +208,12 @@ public enum InstallVerify {
         }
 
         let bundleName = target.bundleID.split(separator: ".").last.map(String.init) ?? "App"
-        switch await ArtifactInspection.inspect(remote, bundleName: bundleName, workDir: workDir) {
+        let inspection = await ArtifactInspection.inspect(
+            remote, bundleName: bundleName, workDir: workDir)
+        // Here, not after returning: the archive and the unpacked app are both
+        // still in `workDir`, and the `defer` above deletes them on the way out.
+        await disk.sample()
+        switch inspection {
         case .failure(let failure):
             item.status = .failed
             item.stage = failure.stage

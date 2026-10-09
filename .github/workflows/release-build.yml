@@ -167,6 +167,19 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # The shipped binary is stripped; this is what turns a crash report from it
+      # back into function names. Not attested and not published — debugging
+      # material only. 90 days is GitHub's maximum for a public repository
+      # (docs.github.com, "Configuring the retention period for GitHub Actions
+      # artifacts and logs").
+      - name: Upload the dSYM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: DuoUpdater-dSYM
+          path: dist/DuoUpdater-dSYM.zip
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Remove the signing keychain
         if: always()
         run: |

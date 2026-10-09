@@ -26,6 +26,11 @@ STAGE_DIR="${DIST_DIR:-$REPO/dist/notarize}"
 STAGE_APP="$STAGE_DIR/DuoUpdater.app"
 SUBMIT_ZIP="$STAGE_DIR/DuoUpdater-notary-upload.zip"
 FINAL_ZIP="${FINAL_ZIP:-$REPO/dist/DuoUpdater-notarized.zip}"
+# The shipped binary is stripped (DEPLOYMENT_POSTPROCESSING in App/project.yml),
+# so a crash report from it names functions only through this dSYM. Kept beside
+# the zip; release-build.yml uploads it as its own artifact.
+BUILD_DSYM="$BUILD_APP.dSYM"
+DSYM_ZIP="${DSYM_ZIP:-$(dirname "$FINAL_ZIP")/DuoUpdater-dSYM.zip}"
 RESULT_JSON="$STAGE_DIR/notary-result.json"
 LOG_JSON="$STAGE_DIR/notary-log.json"
 # The Developer ID team the build signs with, and the identity every gate in
@@ -46,7 +51,7 @@ xcrun --find stapler >/dev/null 2>&1 || die "xcrun stapler unavailable"
 [ -n "$PROFILE" ] || die $'NOTARYTOOL_PROFILE is required.\nStore credentials first with:\n  xcrun notarytool store-credentials <profile-name> ...'
 
 mkdir -p "$STAGE_DIR" "$(dirname "$FINAL_ZIP")"
-rm -rf "$STAGE_APP" "$SUBMIT_ZIP" "$RESULT_JSON" "$LOG_JSON" "$FINAL_ZIP"
+rm -rf "$STAGE_APP" "$SUBMIT_ZIP" "$RESULT_JSON" "$LOG_JSON" "$FINAL_ZIP" "$DSYM_ZIP"
 
 say "Generating Xcode project from App/project.yml"
 ( cd "$APP_DIR" && xcodegen generate >/dev/null )
@@ -57,6 +62,17 @@ xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
            -derivedDataPath "$DD" build >/dev/null
 
 [ -d "$BUILD_APP" ] || die "build produced no app at $BUILD_APP"
+
+# The dSYM has to describe THIS binary: one left over from an earlier build in a
+# reused derived-data directory would symbolicate every crash wrongly, silently.
+say "Keeping the dSYM for symbolication"
+[ -d "$BUILD_DSYM" ] || die "build produced no dSYM at $BUILD_DSYM"
+bin_uuid="$(dwarfdump --uuid "$BUILD_APP/Contents/MacOS/DuoUpdater" | awk '{print $2}')"
+dsym_uuid="$(dwarfdump --uuid "$BUILD_DSYM" | awk '{print $2}')"
+[ -n "$bin_uuid" ] && [ "$bin_uuid" = "$dsym_uuid" ] \
+    || die "dSYM UUID ($dsym_uuid) does not match the binary ($bin_uuid)"
+ditto -c -k --keepParent "$BUILD_DSYM" "$DSYM_ZIP"
+printf '   %s  %s\n' "$bin_uuid" "$DSYM_ZIP"
 
 # The compiled string catalog has to have landed, and the build will not tell
 # you when it hasn't — see scripts/verify-localizations.sh. Shipping is the one
@@ -140,6 +156,7 @@ cat <<EOF
 $(printf '\033[1;32m✓ Notarized successfully.\033[0m')
    app        : $STAGE_APP
    zip        : $FINAL_ZIP
+   dSYM       : $DSYM_ZIP
    submission : $submission_id
    result     : $RESULT_JSON
 EOF

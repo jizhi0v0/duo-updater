@@ -269,6 +269,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Cindy**](com-xd-cindy.md) · `com.xd.cindy` / `com.xd.cindycn` — G (one-click arm64/x64 dmg，国际版/国内版分 Team) · 真包挂载验证 ✓ · 一键端到端 ✓（两版；不运行 + 运行中）· 无资产的 `v1.0.0` 快照靠 dmg 锚挡（变异测试）· changelog 走 ChangelogRecipe ✓ · beta 轨 ✓（`CindyChannel` 读 app 的 `update-channel-settings.json`，真 app 拨开关取证）· 2026-10-07
 - [x] [**Lokii**](com-lokii-app.md) · `com.lokii.app` — G (**digest-only**，ad-hoc 签名) · 4 个真包核对封印/标识/版本/digest ✓ · 一键端到端 ✓（设置关闭→拒绝；打开→installed） · **changelog 无从结构化**（厂商正文只有一句） · 2026-10-07
 - [x] [**Herdr**](so-pen-herdr-gpui.md) · `so.pen.herdr-gpui` — G (one-click universal dmg) · 日期版本 `vYYYYMMDD.N` · 真包 20261007.1/.2 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中）· changelog 结构化 ✓ · 2026-10-07
+- [x] [**Search**](com-officecommun-search.md) · `com.officecommun.search` — G (one-click arm64 dmg，1.0.5 起另有 `Search-Intel.dmg`) · 真包 1.0.3/1.0.4 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中；自研更新器启动即换 bundle）· changelog 结构化 ✓ · 2026-10-09
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

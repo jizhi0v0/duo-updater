@@ -27,9 +27,14 @@ import Foundation
         var given: [String] { lock.withLock { shells } }
 
         /// Runs the line as this user and answers as the panel would have.
+        /// Everything the run said and the moment the panel was raised, in order.
+        private var events: [String] = []
+        var said: [String] { lock.withLock { events } }
+        func say(_ line: String) { lock.withLock { events.append("line: " + line) } }
+
         func asUser(answer: CLIToolAdministratorRun.Authorization? = nil) -> CLIToolAdministratorRun.Authorize {
             { shell in
-                self.lock.withLock { self.shells.append(shell) }
+                self.lock.withLock { self.shells.append(shell); self.events.append("panel") }
                 if let answer { return answer }
                 return Sandbox.sh(shell) ? .authorized : .error(number: 1, message: "sh failed")
             }
@@ -58,7 +63,7 @@ import Foundation
                    deadline: Duration = .seconds(20)) -> CLIToolAdministratorRun.Shell {
             CLIToolAdministratorRun.Shell(
                 authorize: asUser(answer: answer), workRoot: root, environment: { environment },
-                poll: .milliseconds(20), deadline: ChildProcess.Deadline(terminateAfter: deadline, killAfter: deadline))
+                poll: .milliseconds(20), beforePanel: .zero, deadline: ChildProcess.Deadline(terminateAfter: deadline, killAfter: deadline))
         }
 
         var leftovers: [String] { (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? [] }
@@ -86,7 +91,7 @@ import Foundation
         let outcome = try #require(Self.outcome(run))
         #expect(outcome.terminationStatus == 3)
         #expect(!outcome.timedOut)
-        #expect(lines.all == ["one", "two"])
+        #expect(lines.all == ["Waiting for an administrator password…", "one", "two"])
         #expect(box.given.count == 1)
         #expect(box.leftovers.isEmpty)
     }
@@ -130,6 +135,15 @@ import Foundation
         #expect(reason == "The administrator user name or password was incorrect.")
         #expect(!FileManager.default.fileExists(atPath: marker))
         #expect(box.leftovers.isEmpty)
+    }
+
+    /// The row is told the panel is coming before it is raised: once
+    /// `NSAppleScript` holds the main thread, no later line is drawn until the
+    /// user answers. Mutations: drop the line; say it after the panel.
+    @Test func saysThePanelIsComingBeforeRaisingIt() async throws {
+        let box = try Sandbox()
+        _ = await box.shell(answer: .error(number: -128, message: "User canceled.")).run("true") { box.say($0) }
+        #expect(box.said == ["line: Waiting for an administrator password…", "panel"])
     }
 
     /// A run still going at the deadline is reported as timed out, not waited on.

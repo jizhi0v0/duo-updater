@@ -133,7 +133,6 @@ public struct StarshipUpdater: Sendable {
             return .busy(running.description)
         }
         if status.needsAdministrator {
-            progress("Waiting for an administrator password…")
             switch await runAsRoot(StarshipCheck.rootCommand.display, progress) {
             case .declined:
                 return .declined

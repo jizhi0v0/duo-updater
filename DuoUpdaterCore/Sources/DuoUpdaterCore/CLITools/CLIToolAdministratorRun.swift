@@ -63,6 +63,9 @@ enum CLIToolAdministratorRun {
 
     typealias Authorize = @MainActor @Sendable (_ shell: String) -> Authorization
 
+    /// The row's line while the panel is up, said before it is raised.
+    static let waitingLine = "Waiting for an administrator password…"
+
     /// AppleScript's "User canceled." — what dismissing the panel answers.
     static let userCanceled = -128
 
@@ -82,7 +85,7 @@ enum CLIToolAdministratorRun {
             authorize: { inProcess($0) },
             workRoot: FileManager.default.temporaryDirectory,
             environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
-            poll: .milliseconds(500), deadline: deadline)
+            poll: .milliseconds(500), beforePanel: .milliseconds(150), deadline: deadline)
         return { command, progress in await shell.run(command, progress: progress) }
     }
 
@@ -91,6 +94,12 @@ enum CLIToolAdministratorRun {
         let workRoot: URL
         let environment: @Sendable () -> [String: String]
         let poll: Duration
+        /// How long the main thread is left free between saying the panel is
+        /// coming and raising it, so the row can draw that line first: once
+        /// `NSAppleScript` holds the main thread nothing redraws until the
+        /// user answers, and the row went on reading "Checking …" behind the
+        /// panel (seen 2026-10-10).
+        let beforePanel: Duration
         let deadline: ChildProcess.Deadline
 
         func run(_ command: String, progress: @escaping @Sendable (String) -> Void) async -> Result {
@@ -104,6 +113,8 @@ enum CLIToolAdministratorRun {
             defer { try? FileManager.default.removeItem(at: directory) }
             let text = CLIToolAdministratorRun.shell(
                 command: command, directory: directory.path, proxies: CLIToolAdministratorRun.proxies(environment()))
+            progress(CLIToolAdministratorRun.waitingLine)
+            try? await Task.sleep(for: beforePanel)
             let authorize = self.authorize
             switch await MainActor.run(body: { authorize(text) }) {
             case .error(let number, _) where number == CLIToolAdministratorRun.userCanceled:

@@ -154,7 +154,6 @@ public struct HelmUpdater: Sendable {
             return .busy(running.description)
         }
         if status.needsAdministrator {
-            progress("Waiting for an administrator password…")
             switch await runAsRoot(rootCommand.display, progress) {
             case .declined:
                 return .declined

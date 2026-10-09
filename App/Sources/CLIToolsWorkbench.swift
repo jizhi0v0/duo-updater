@@ -210,14 +210,12 @@ struct CLIToolSidebarRow: View {
         if updating {
             ProgressView().controlSize(.small)
         } else if status.needsAdministrator, status.oneClick != nil {
-            // The lock and the ellipsis say a password comes next (HIG: an
-            // ellipsis "signals that people can provide additional input").
-            Button { Task { await cli.update(id) } } label: {
-                Label("Update…", systemImage: "lock.fill")
-            }
-            .controlSize(.small)
-            .rowUpdateButtonStyle(selected: isSelected)
-            .help(CLIToolPresentation.caution(status) ?? "")
+            // The same button as every row's, as an app row whose update can
+            // raise the administrator panel has; the password is in its help.
+            Button("Update") { Task { await cli.update(id) } }
+                .controlSize(.small)
+                .rowUpdateButtonStyle(selected: isSelected)
+                .help(String(localized: "Asks for an administrator password"))
         } else if status.oneClick != nil {
             Button("Update") { Task { await cli.update(id) } }
                 .controlSize(.small)
@@ -527,12 +525,10 @@ struct CLIToolDetailPane: View {
             if updating {
                 UpdateProgressCapsule(line: cli.progress[id])
             } else if status.needsAdministrator, status.oneClick != nil, let latest = status.latestVersion {
-                Button { Task { await cli.update(id) } } label: {
-                    Label("Update to \(latest)…", systemImage: "lock.fill")
-                }
-                .controlSize(.large)
-                .buttonStyle(.borderedProminent)
-                .help(CLIToolPresentation.caution(status) ?? "")
+                Button("Update to \(latest)") { Task { await cli.update(id) } }
+                    .controlSize(.large)
+                    .buttonStyle(.borderedProminent)
+                    .help(String(localized: "Asks for an administrator password"))
             } else if status.oneClick != nil, let latest = status.latestVersion {
                 Button("Update to \(latest)") { Task { await cli.update(id) } }
                     .controlSize(.large)

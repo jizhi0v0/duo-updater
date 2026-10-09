@@ -236,7 +236,7 @@ import Foundation
     /// another `NVM_DIR`. `curl` here is a stand-in that prints a script
     /// echoing the two variables. Mutations: put the variables before `curl`;
     /// drop the quoting.
-    @Test func thePastedCommandReachesBash() throws {
+    @Test func thePastedCommandReachesBash() async throws {
         let box = try Sandbox()
         let bin = box.root.appendingPathComponent("bin")
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
@@ -246,18 +246,13 @@ import Foundation
         let directory = box.home.path + "/My nvm $HOME o'brien"
         let command = NvmCheck.updateCommand(version: "0.40.8", directory: directory).display
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-f", "-c", command]
-        process.environment = ["PATH": "\(bin.path):/usr/bin:/bin", "HOME": box.home.path,
-                               "NVM_DIR": box.home.path + "/.nvm"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        try process.run()
-        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        process.waitUntilExit()
-        #expect(process.terminationStatus == 0)
-        #expect(output == "\(directory)|/dev/null")
+        let outcome = try await ChildProcess.run(
+            "/bin/zsh", ["-f", "-c", command],
+            environment: ["PATH": "\(bin.path):/usr/bin:/bin", "HOME": box.home.path,
+                          "NVM_DIR": box.home.path + "/.nvm"],
+            onCancel: .terminateChild)
+        #expect(outcome.terminationStatus == 0)
+        #expect(String(decoding: outcome.standardOutput, as: UTF8.self) == "\(directory)|/dev/null")
     }
 
     /// A checkout needs a git that is not `/usr/bin/git`'s shim; the bare files

@@ -407,6 +407,69 @@ import Testing
         }
     }
 
+    // MARK: - Deleting what is being copied
+
+    /// Deleting a backup while the queue is copying it. Clean Up's sheet closes
+    /// on Delete and the copy can be running at that moment — from Copy Now, or
+    /// on its own when the disk is plugged in. Unguarded, the two pull the same
+    /// directory out from under each other: the copy loses its source mid-read,
+    /// retries against a backup that is gone, and ends the run reporting a
+    /// failure for something the user just chose to delete.
+    @Test func deletingAKeyMidCopyWaitsForTheCopyAndReportsNoFailure() async throws {
+        try await withStores { stores in
+            // Enough files that the copy is still running when the delete lands.
+            let app = try makeApp(named: "Big.app", in: stores.apps, marker: "v1")
+            let resources = app.appendingPathComponent("Contents/Resources", isDirectory: true)
+            try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+            for i in 0..<3000 {
+                try Data(repeating: UInt8(i & 0xff), count: 2048)
+                    .write(to: resources.appendingPathComponent("f\(i)"))
+            }
+            try await BackupStore.save(
+                appPath: app, key: "k", version: "1.0", bundleID: "com.example.testapp")
+
+            let queue = BackupTransferQueue(maxAttempts: 2, backoffUnitNanos: 1_000)
+            await queue.enqueue("k")
+            let drain = Task { await queue.drain() }
+            let deadline = ContinuousClock.now + .seconds(10)
+            while await !queue.protectedKeys.contains("k"), ContinuousClock.now < deadline {
+                await Task.yield()
+            }
+            #expect(await queue.protectedKeys.contains("k"), "the copy never started")
+
+            await queue.withhold(["k"])
+            BackupStore.remove(forKey: "k")
+            await queue.release(["k"])
+            await drain.value
+
+            #expect(await queue.state == .idle)
+            #expect(BackupStore.backup(forKey: "k") == nil)
+            let fm = FileManager.default
+            #expect(!fm.fileExists(atPath: stores.outbox.appendingPathComponent("k").path))
+            #expect(!fm.fileExists(atPath: stores.destination.appendingPathComponent("k").path))
+        }
+    }
+
+    /// A withheld key is not picked up again while it is being deleted: its
+    /// sidecar still says "owed" until the delete reaches it, and a launch-time
+    /// or disk-mount `resumePending` in that window would queue it straight back.
+    @Test func aWithheldKeyIsNotQueuedOrCopied() async throws {
+        try await withStores { stores in
+            try await saveBackup(stores, key: "k")
+            let queue = BackupTransferQueue(backoffUnitNanos: 1_000)
+            await queue.enqueue("k")
+            await queue.withhold(["k"])
+            await queue.resumePending()
+            #expect(await queue.pendingCount == 0)
+            await queue.drain()
+            #expect(BackupStore.backup(forKey: "k")?.location == .outbox)
+
+            await queue.release(["k"])
+            await queue.resumePending()
+            #expect(await queue.pendingCount == 1)
+        }
+    }
+
     // MARK: - Sweeping interrupted work
 
     @Test func staleScratchIsSweptFromBothStores() async throws {

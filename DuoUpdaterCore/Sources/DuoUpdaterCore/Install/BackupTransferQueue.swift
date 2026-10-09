@@ -52,7 +52,19 @@ public actor BackupTransferQueue {
     /// The key being copied right now. `BackupStore.sweepStaleScratch` must skip
     /// it: its `.partial` is minutes old by design on a slow disk, and mtime
     /// alone cannot tell that apart from abandoned scratch.
-    private var inFlight: String?
+    private var inFlight: String? {
+        didSet {
+            guard inFlight == nil, !inFlightEnded.isEmpty else { return }
+            let waiting = inFlightEnded
+            inFlightEnded = []
+            for continuation in waiting { continuation.resume() }
+        }
+    }
+    /// Keys being deleted, which must not be queued or copied meanwhile. See
+    /// ``withhold(_:)``.
+    private var withheld: Set<String> = []
+    /// ``withhold(_:)`` calls waiting for the copy in flight to end.
+    private var inFlightEnded: [CheckedContinuation<Void, Never>] = []
     private var draining = false
     private var napAssertion: NSObjectProtocol?
 
@@ -83,7 +95,7 @@ public actor BackupTransferQueue {
     // MARK: - Enqueuing
 
     public func enqueue(_ key: String) {
-        guard !pending.contains(key), inFlight != key else { return }
+        guard !pending.contains(key), inFlight != key, !withheld.contains(key) else { return }
         pending.append(key)
     }
 
@@ -95,6 +107,34 @@ public actor BackupTransferQueue {
     /// disk was elsewhere, and an in-memory queue would have forgotten it.
     public func resumePending() {
         for key in BackupStore.pendingTransferKeys() { enqueue(key) }
+    }
+
+    // MARK: - Deleting
+
+    /// Keep `keys` out of the queue while they are deleted, and return only once
+    /// none of them is being copied.
+    ///
+    /// Without it a delete and a copy of the same backup pull the directory out
+    /// from under each other: the copy loses its source mid-read, retries against
+    /// a backup that is gone, and the run ends `.failed` naming something the
+    /// user has just chosen to delete. Waiting rather than cancelling: a copy
+    /// that finishes has moved the backup to the disk, which the delete then
+    /// reaches like any other store; one cut off would leave its scratch behind.
+    ///
+    /// Pair with ``release(_:)`` once the delete is done.
+    public func withhold(_ keys: Set<String>) async {
+        withheld.formUnion(keys)
+        pending.removeAll { keys.contains($0) }
+        while let key = inFlight, keys.contains(key) {
+            await withCheckedContinuation { inFlightEnded.append($0) }
+        }
+    }
+
+    /// Let `keys` be queued again. By now they are normally gone, so nothing is
+    /// re-queued here; a key whose delete failed is picked up by the next
+    /// ``resumePending()`` like any other owed backup.
+    public func release(_ keys: Set<String>) {
+        withheld.subtract(keys)
     }
 
     // MARK: - Draining
@@ -136,7 +176,8 @@ public actor BackupTransferQueue {
                 continue
             case .diskGone:
                 // Put it back at the front — it is still owed, and it was next.
-                pending.insert(key, at: 0)
+                // Unless it is being deleted, in which case it is owed nothing.
+                if !withheld.contains(key) { pending.insert(key, at: 0) }
                 state = .waitingForDisk(pending: pending.count)
                 return
             case .failed(let message):

@@ -41,9 +41,15 @@ struct LogoTile<Mark: View>: View {
 /// rest are each vendor's own: fx.sh's header, boat.dev's favicon, ampcode.com's
 /// press kit, herdr's repo `assets/logo.svg` (backdrop removed), luvus.dev's
 /// brand kit (cropped to the glyph), JetBrains' brand resources for Junie, and
-/// OpenAI's blossom from developers.openai.com/codex for Codex. bub and Lorca
-/// publish only a PNG, so they stand in with an SF Symbol; Deno and mise do
-/// too, until their marks are added.
+/// OpenAI's blossom from developers.openai.com/codex for Codex. Helm, Starship,
+/// nvm and GHCup's Haskell mark are Simple Icons 16.34.0 too (nvm cropped to its
+/// wordmark); Deno is deno.com's brand kit, its light mark and, in the dark, its
+/// outlined one, as the kit's guidelines ask; mise is its repo's
+/// `docs/public/logo-light.svg`; Atuin's turtle (atuin.sh's brand assets) and
+/// zoxide's keycap (`contrib/logo-{light,dark}.svg`) keep their own colours,
+/// since one colour would leave a blob and a blank square. bub and Lorca publish
+/// only a PNG, so they stand in with an SF Symbol; flyctl does too, since
+/// Fly.io's brand page asks for written authorization to use its assets.
 struct CLIToolIcon: View {
     let kind: CLIToolKind
     let size: CGFloat
@@ -58,9 +64,9 @@ struct CLIToolIcon: View {
             Image(logo)
                 .resizable()
                 .scaledToFit()
-                // Amp's mark is its wordmark, twice as wide as tall: it gets
-                // the tile's width to stay legible.
-                .frame(width: size * (kind == .amp ? 0.8 : 0.6), height: size * 0.6)
+                // Amp's and nvm's marks are wordmarks, two and three times as
+                // wide as tall: they get the tile's width to stay legible.
+                .frame(width: size * (kind == .amp || kind == .nvm ? 0.8 : 0.6), height: size * 0.6)
         } else {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.55, weight: .semibold))
@@ -84,7 +90,15 @@ struct CLIToolIcon: View {
         case .luvus: "cli-luvus"
         case .junie: "cli-junie"
         case .codex: "cli-codex"
-        case .bub, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship, .deno, .mise: nil
+        case .zoxide: "cli-zoxide"
+        case .nvm: "cli-nvm"
+        case .atuin: "cli-atuin"
+        case .ghcup: "cli-ghcup"
+        case .helm: "cli-helm"
+        case .starship: "cli-starship"
+        case .deno: "cli-deno"
+        case .mise: "cli-mise"
+        case .bub, .lorca, .flyctl: nil
         }
     }
 
@@ -112,7 +126,25 @@ struct CLIToolIcon: View {
                 ? NSColor(srgbRed: 0xDB / 255, green: 0xC6 / 255, blue: 0x6F / 255, alpha: 1)
                 : NSColor(srgbRed: 0x9C / 255, green: 0x82 / 255, blue: 0x26 / 255, alpha: 1)
         })
-        case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship, .deno, .mise: Color(nsColor: .labelColor)
+        case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr, .lorca, .zoxide, .nvm, .flyctl, .deno, .mise: Color(nsColor: .labelColor)
+        case .starship: Color(red: 0xDD / 255, green: 0x0B / 255, blue: 0x78 / 255)
+        // GHCup's page heads itself with the Haskell logo: Haskell's purple,
+        // and in the dark the lightest purple of haskell.org's own logo, as
+        // #5D4F85 all but vanished on a dark sidebar.
+        case .ghcup: Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                ? NSColor(srgbRed: 0x8F / 255, green: 0x4E / 255, blue: 0x8B / 255, alpha: 1)
+                : NSColor(srgbRed: 0x5D / 255, green: 0x4F / 255, blue: 0x85 / 255, alpha: 1)
+        })
+        // Atuin's turtle keeps its own colours; the tile takes its green.
+        case .atuin: Color(red: 0x38 / 255, green: 0xC8 / 255, blue: 0x5A / 255)
+        // Helm's navy sinks into a dark sidebar: its published white version
+        // there, its navy #0F1689 in the light.
+        case .helm: Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                ? .white
+                : NSColor(srgbRed: 0x0F / 255, green: 0x16 / 255, blue: 0x89 / 255, alpha: 1)
+        })
         // Their marks in their own colours: Junie in the green of JetBrains'
         // published logo, and Codex's blossom black or white, as OpenAI's brand
         // page asks ("don't add any colors to the Blossom").

@@ -2,6 +2,22 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.3
+
+**Geri alma yedekleri artık sizin tercihiniz.** Yeni bir kurulumda karşılama penceresi, her uygulamayı güncellemeden önce bir kopyasının tutulup tutulmayacağını soruyor; siz açmadıkça kapalı kalıyor. DuoUpdater’ı zaten kullanıyorsanız ayarınız olduğu gibi kalıyor. Bunu istediğiniz zaman Ayarlar › Yedekler’den değiştirebilirsiniz.
+
+**Bir güncelleme artık başlangıç diskinizi dolduramaz.** Bir güncelleme için yer yoksa DuoUpdater diğer güncellemelerin bitmesini bekliyor; yine de yer yoksa ne kadar alan gerektiğini söylüyor ve uygulamayı olduğu gibi bırakıyor. Bir yedekleme ya da indirme sırasında boş alan 10 GB’ın altına düşerse, yer açmak için bu Mac’teki en eski yedekler siliniyor; silinecek yedek kalmadıysa yedekleme atlanıyor ya da indirme durduruluyor.
+
+**Ayarlar › Yedekler’deki Temizle artık ilerlemesini gösteriyor ve daha hızlı siliyor.** Önceden pencere kapanıyor ve silme işlemi ekranda hiçbir şey göstermeden sürüyordu. Uzun listeler artık akıcı kayıyor, yedek diskine kopyalanırken bir yedeği silmek de artık başarısız bir kopyalama bildirmiyor.
+
+**Adı değişen bir uygulamayı geri alırken yedeği artık bulunuyor.** Bu, artık PdfCraft olan PrintCraft’ı ve WorkBuddy’yi kapsıyor.
+
+**Daha fazla uygulama destekleniyor.** Search (Office Commun tarayıcısı) artık güncellemeler için denetleniyor ve tek tıkla güncelleniyor; PrintCraft’a da artık yeni adı PdfCraft ile yayımlanan 0.4.0 sunuluyor. Lorca’nın komut satırı aracı artık CLI sekmesinde görünüyor, Lorca ve GotEmail uygulamaları da artık yapılandırılmış sürüm notları alıyor.
+
+**İndirmeleri değişen uygulamalar için düzeltmeler.** TRAE için tek tıkla güncelleme yeniden çalışıyor, DSH Desktop’a da 2.0.15 yerine en son sürümü sunuluyor. Cua Driver ve T3 Code’un nightly derlemeleri yeniden bulunuyor, iTerm2’nin kararlı sürüm notları da yeniden görünüyor.
+
+**Perde arkasında.** DuoUpdater’ın kendi indirmesi yaklaşık üçte bir oranında küçüldü.
+
 ## 0.5.2
 
 **Komut satırı araçları ve Homebrew paketleri artık arka planda denetleniyor, güncellemeleri de bildirimlerde ve rozette görünüyor.** Önceden yalnızca menü çubuğu açılır penceresini ya da çalışma alanını açtığınızda denetleniyorlardı. Yeni Ayarlar › Bildirimler sayfasında uygulamalar, komut satırı araçları ve Homebrew paketleri için ayrı birer düğme var; Homebrew paketleri varsayılan olarak kapalı.

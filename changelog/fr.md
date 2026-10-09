@@ -2,6 +2,22 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.3
+
+**Les sauvegardes de restauration sont désormais votre choix.** Lors d’une nouvelle installation, la fenêtre de bienvenue demande s’il faut conserver une copie de chaque app avant de la mettre à jour ; c’est désactivé tant que vous ne l’activez pas. Si vous utilisez déjà DuoUpdater, votre réglage reste tel quel. Vous pouvez le modifier à tout moment dans Réglages › Sauvegardes.
+
+**Une mise à jour ne peut plus remplir votre disque de démarrage.** S’il n’y a pas assez de place pour une mise à jour, DuoUpdater attend que les autres se terminent ; s’il n’y en a toujours pas assez, il indique l’espace nécessaire et laisse l’app telle quelle. Quand l’espace libre passe sous 10 Go pendant une sauvegarde ou un téléchargement, les sauvegardes les plus anciennes de ce Mac sont supprimées pour faire de la place ; s’il n’en reste aucune, la sauvegarde est ignorée ou le téléchargement est arrêté.
+
+**Nettoyer, dans Réglages › Sauvegardes, affiche sa progression et supprime plus vite.** Auparavant, la fenêtre se fermait et la suppression se déroulait sans rien à l’écran. Les longues listes défilent désormais sans à-coups, et supprimer une sauvegarde pendant sa copie vers le disque de sauvegarde ne signale plus une copie en échec.
+
+**Restaurer une app qui a changé de nom retrouve désormais sa sauvegarde.** Cela concerne PrintCraft, devenu PdfCraft, et WorkBuddy.
+
+**Davantage d’apps sont prises en charge.** Search (le navigateur d’Office Commun) est désormais vérifié et se met à jour en un clic, et PrintCraft se voit désormais proposer la 0.4.0, publiée sous son nouveau nom, PdfCraft. L’outil en ligne de commande de Lorca apparaît désormais dans l’onglet CLI, et les apps Lorca et GotEmail ont désormais des notes de version structurées.
+
+**Corrections pour les apps dont les téléchargements ont changé.** Les mises à jour en un clic de TRAE fonctionnent de nouveau, et DSH Desktop se voit proposer sa dernière version au lieu de la 2.0.15. Les versions nightly de Cua Driver et de T3 Code sont de nouveau trouvées, et les notes de version stables d’iTerm2 s’affichent de nouveau.
+
+**Sous le capot.** Le téléchargement de DuoUpdater lui-même est environ un tiers plus léger.
+
 ## 0.5.2
 
 **Les outils en ligne de commande et les paquets Homebrew sont désormais vérifiés en arrière-plan, et leurs mises à jour apparaissent dans les notifications et dans la pastille.** Auparavant, ils n’étaient vérifiés qu’à l’ouverture du popover de la barre des menus ou de l’établi. Une nouvelle page Réglages › Notifications propose un interrupteur pour les apps, un pour les outils en ligne de commande et un pour les paquets Homebrew ; les paquets Homebrew sont désactivés par défaut.

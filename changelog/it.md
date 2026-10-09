@@ -2,6 +2,22 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.3
+
+**I backup di ripristino ora sono una tua scelta.** In una nuova installazione, la finestra di benvenuto chiede se conservare una copia di ogni app prima di aggiornarla, ed è disattivato finché non lo attivi. Se usi già DuoUpdater, la tua impostazione resta com’era. Puoi cambiarla quando vuoi in Impostazioni › Backup.
+
+**Un aggiornamento non può più riempire il disco di avvio.** Se non c’è spazio per un aggiornamento, DuoUpdater aspetta che finiscano gli altri, e se lo spazio ancora non basta, ti dice quanto ne serve e lascia l’app com’era. Quando lo spazio libero scende sotto i 10 GB durante un backup o un download, i backup più vecchi su questo Mac vengono eliminati per fare spazio; se non ne resta nessuno, il backup viene saltato o il download interrotto.
+
+**Pulisci in Impostazioni › Backup mostra l’avanzamento ed elimina più in fretta.** Prima il pannello si chiudeva e l’eliminazione procedeva senza nulla a schermo. Gli elenchi lunghi ora scorrono in modo fluido, ed eliminare un backup mentre viene copiato sul disco di backup non segnala più una copia non riuscita.
+
+**Il ripristino di un’app che ha cambiato nome ora trova il suo backup.** Questo vale per PrintCraft, ora PdfCraft, e per WorkBuddy.
+
+**Più app supportate.** Search (il browser di Office Commun) ora ha il controllo degli aggiornamenti e l’aggiornamento con un clic, e a PrintCraft ora viene proposta la 0.4.0, uscita con il nuovo nome PdfCraft. Lo strumento da riga di comando di Lorca ora compare nella scheda CLI, e le app Lorca e GotEmail ora hanno note di rilascio strutturate.
+
+**Correzioni per le app i cui download sono cambiati.** L’aggiornamento con un clic di TRAE funziona di nuovo, e a DSH Desktop viene proposta la versione più recente invece della 2.0.15. Le build nightly di Cua Driver e T3 Code vengono di nuovo trovate, e le note di rilascio stabili di iTerm2 tornano a comparire.
+
+**Dietro le quinte.** Il download di DuoUpdater stesso è circa un terzo più leggero.
+
 ## 0.5.2
 
 **Gli strumenti da riga di comando e i pacchetti Homebrew ora vengono controllati in background, e i loro aggiornamenti compaiono nelle notifiche e nel badge.** Prima venivano controllati solo aprendo il popover della barra dei menu o il banco di lavoro. Una nuova pagina Impostazioni › Notifiche ha un interruttore per le app, uno per gli strumenti da riga di comando e uno per i pacchetti Homebrew; i pacchetti Homebrew sono disattivati per impostazione predefinita.

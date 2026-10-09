@@ -260,24 +260,33 @@ import Testing
 
         let start = Date().addingTimeInterval(-1)
         let outcome = try await InPlaceSwap.replace(newApp: fixture.incoming, over: fixture.target)
+        // Written after everything `replace` logs. If this never reads back either,
+        // the unified log stopped recording this process: logd quarantines a
+        // process for "HIGH LOGGING VOLUME" and drops its entries until it exits.
+        // Two full suites run side by side on the dev Mac tripped that eight
+        // seconds in (2026-10-09), and the network tests' Apple logging dominates
+        // the volume. No retry budget brings those entries back.
+        let sentinel = "log sentinel: \(name)"
+        Logger(subsystem: Log.subsystem, category: "test").notice("\(sentinel, privacy: .public)")
 
         let lines = try await offCooperativePool { () throws -> [String] in
             let store = try OSLogStore(scope: .currentProcessIdentifier)
             let position = store.position(date: start)
             let predicate = NSPredicate(
-                format: "subsystem == %@ AND category == %@", Log.subsystem, "install")
+                format: "subsystem == %@ AND category IN %@", Log.subsystem, ["install", "test"])
             // Bounded retries, not a deadline: delivery into the store is
             // asynchronous, and nothing here asserts on how long it took. It stops at
-            // the `defer`'s line whichever of its three shapes that is, so a
-            // regression that logs "swap done" instead fails on the first read rather
-            // than after every retry.
+            // the `defer`'s line whichever of its three shapes that is, once the
+            // sentinel is in too, so a regression that logs "swap done" instead fails
+            // on the first read rather than after every retry.
             let completion = ["swap done: \(name)", "cleanup failed", "swap did NOT"]
             var lines: [String] = []
             for _ in 0..<20 {
                 lines = try store.getEntries(at: position, matching: predicate)
                     .compactMap { ($0 as? OSLogEntryLog)?.composedMessage }
                     .filter { $0.contains(name) }
-                if lines.contains(where: { line in completion.contains { line.contains($0) } }) {
+                if lines.contains(where: { line in completion.contains { line.contains($0) } }),
+                   lines.contains(sentinel) {
                     break
                 }
                 Thread.sleep(forTimeInterval: 0.1)
@@ -291,6 +300,9 @@ import Testing
             return
         }
         #expect(!reason.isEmpty)
+        if !lines.contains(sentinel) {
+            try Test.cancel("the unified log stopped recording this process (its own sentinel line never read back) — \(lines)")
+        }
         #expect(lines.contains { $0.contains("swap start: \(name)") },
                 "fixture broken: not even the swap-start line was read back — \(lines)")
         #expect(lines.contains { $0.contains("cleanup failed") && $0.contains(reason) },

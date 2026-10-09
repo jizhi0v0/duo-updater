@@ -2,18 +2,21 @@
 
 审计 2026-10-08（重测；2026-08-17 那版的结论是「官方 API 只发布 `2.3.x` 打包号、没有可比的远端版本」，
 当时成立，**现在不成立了**：官方 API 已经按平台、架构发布与包内 `CFBundleShortVersionString` 同构的版本号。
-同日按 A 接入 VendorProbe，见「覆盖矩阵」与「更新检测」。2026-10-09 补跑一键端到端两轮，见「一键安装」。）
+同日按 A 接入 VendorProbe，见「覆盖矩阵」与「更新检测」。2026-10-09 补跑一键端到端两轮，见「一键安装」。
+2026-10-09 3.6.1 起 dmg 又改名为 `TRAE-darwin-*.dmg`，钉死旧文件名的安装 pattern 失配（#1113 / #1114），已修，见「历史与实测」。）
 
 ## 基本信息
 - Bundle ID: `com.trae.app`（官网 GA 与 API 里 `tob` 段的构建都是这个 id，见下）
 - Team ID: `79M8227NKH` — Developer ID Application: SPRING (SG) PTE. LTD.（3.5.81、3.5.87、3.5.104 三个真包相同，
   均 `Notarized Developer ID`）
-- 观测版本: `3.5.104`（`product.json` `tronBuildVersion` `2.3.88407`，2026-09-22 构建）；更早的真包
+- 观测版本: `3.6.1`（`tronBuildVersion` `2.3.90453`，arm64 / x64 两包，2026-10-09 下载）；`3.5.104`（`product.json` `tronBuildVersion` `2.3.88407`，2026-09-22 构建）；更早的真包
   `3.5.87`（`2.3.68993`）、`3.5.81`（`2.3.61406`）。三包 short = build；`LSMinimumSystemVersion` 12.0；
   arm64 与 x64 分开发包（arm64 dmg `lipo -archs` = `arm64`）。主程序可执行文件名是 `Electron`
 - 自更新机制: 自研（VS Code 系 update service + 字节的 “tron” 检查客户端），落地用 electron-updater 的
   custom provider + Squirrel.framework。包里 `app-update.yml` 是 `provider: custom`、`url: ''`
-- 产品线: 下载文件已从 `Trae-darwin-*.dmg` 改名为 `TraeCode-darwin-*.dmg`（`product.json` `nameAlias: TraeCode`）。
+- 产品线: 下载文件名改过两次：`Trae-darwin-*.dmg` → `TraeCode-darwin-*.dmg`（`product.json` `nameAlias: TraeCode`）→
+  3.6.1 起 `TRAE-darwin-*.dmg`（`nameAlias: TRAE`）；三种名字的包都是 Team `79M8227NKH`，`TraeCode-` 与 `TRAE-` 的包挂载后都是
+  `Trae.app` / `com.trae.app`（`Trae-` 那个包的 bundle id 没在本文记录）。
   同一 API 还发布 `solo` 段（`TraeWork-darwin-*.dmg`，版本 `0.1.69`）——那是另一个产品，bundle id 没查，不在本审计范围
 - Homebrew: cask `trae` 停在 `2.3.61406`，URL 是旧文件名 `Trae-darwin-arm64.dmg`；同一旧文件名在 `2.3.88407` 目录下 404。
   推断 cask 的 livecheck 跟不上改名（未验证）。cask 是 `auto_updates: true`，本来也不参与检测
@@ -110,7 +113,8 @@
 - Recipe 状态: 检测接上之前不需要；接上之后也难做（版本区间、日期分条、内容滞后）
 
 ## 一键安装
-- 状态: 支持（dmg，按架构分包，每个架构一条 recipe、各带 `hostRequirement`；安装 URL 也钉死本架构的文件名）
+- 状态: 支持（dmg，按架构分包，每个架构一条 recipe、各带 `hostRequirement`；安装 URL 钉死本架构的 `-darwin-<arch>.dmg`
+  后缀，**不钉文件名里的产品名段**——它随版本改名，钉住就会变成「有版本、没安装包」，见「历史与实测」）
 - 端到端（2026-10-09，CLI 由当天 `origin/main` `make cli` 构建）: 旧版用上表 3.5.87 arm64 包，`ditto` 进 `/Applications`。
   `duo check` → `Trae  3.5.87  →  3.5.104  [Vendor, in-place]`。
   - 第一轮（不运行）: `duo install /Applications/Trae.app --yes --json` → `outcome installed`、`route vendor`、
@@ -180,3 +184,30 @@ python3 -c 'import json; p=json.load(open("<Trae.app>/Contents/Resources/app/pac
 - 「Homebrew ✗」：cask 存在，`auto_updates`，且停在旧版本 / 旧文件名
 - 新增：官网与应用内检查给的版本不一致；API 里有 `tob` 与 `solo` 两段同形数据，写 recipe 时必须避开
 - 「已验证版本」改为「观测版本」
+
+## 历史与实测
+
+### 2026-10-09：dmg 改名 `TraeCode-` → `TRAE-`，一键失效（#1113 / #1114）
+
+- 现象：夜扫与托管 `duo verify-install`（run 37886265470）报两条 recipe `resolved 3.6.1`、`installURLUnresolved`。本地复现
+  `swift run --package-path CLI duo verify --only com.trae.app --vendor --no-installed --allow-stale-binary --samples`
+  → `⚠ 2`，两条都是 `resolved 3.6.1` / `warning installURLUnresolved`。
+- 根因：API 形状没变（`data.manifest.darwin.versions[]` 仍是 4 区 × 2 架构，全是 `3.6.1`），变的是文件名：
+  `releases/stable/2.3.90453/darwin/TRAE-darwin-{arm64,x64}.dmg`（win32 / linux 同样改成 `TRAE-`）。
+  安装 pattern 钉的是 `TraeCode-darwin-<arch>.dmg`，于是版本照读、URL 一个都不匹配。同一响应里 `tob` 段仍是
+  `2.3.68993` / `3.5.87` / `TraeCode-`，`solo` 段是 TraeWork `0.2.1`（`2.3.90450`）。
+- 修法：文件名的产品名段放开为 `[A-Za-z]+`，`-darwin-<arch>.dmg` 后缀和 CDN 路径照旧钉死；排除别的产品靠
+  `data` → `manifest` → `darwin` 的锚定，安装时 `SignatureVerifier.verifyBundleIdentifierMatch` 还会拒签名标识不是
+  `com.trae.app` 的包。旧 pattern 在当天真响应上用 Python 跑：两个架构 URL 都是 `None`；新 pattern 各取到本架构的 `TRAE-` URL。
+- 真包（`va` 区，`curl -fL`，MD5 与 CDN `etag` 相同，只读挂载、未安装、未启动）：
+
+| 包 | 字节 | MD5 = etag | bundle id | short / build | `tronBuildVersion` | Team | `lipo -archs` | strict | spctl |
+|---|---|---|---|---|---|---|---|---|---|
+| `TRAE-darwin-arm64.dmg` | 450,557,605 | `5cb1d2c7…c34a` | `com.trae.app` | 3.6.1 / 3.6.1 | 2.3.90453 | 79M8227NKH | arm64 | 退出 0 | Notarized Developer ID |
+| `TRAE-darwin-x64.dmg` | 479,396,196 | `255736c5…74f3` | `com.trae.app` | 3.6.1 / 3.6.1 | 2.3.90453 | 79M8227NKH | x86_64 | 退出 0 | Notarized Developer ID |
+
+  `LSMinimumSystemVersion` 仍是 12.0，`product.json` `nameAlias` 变成 `TRAE`，`quality` `stable`。
+- 修后：同一条 `duo verify` → `✓ 2  ⚠ 0`；`swift run --package-path CLI duo verify-install --only com.trae.app --allow-stale-binary`
+  → `vendor:com.trae.app:stable:arm64  3.6.1  450.6 MB  com.trae.app / 79M8227NKH`、
+  `vendor:com.trae.app:stable:x64  3.6.1  479.4 MB  com.trae.app / 79M8227NKH`，`ok 2`。与上文审计记录的 bundle id、Team 一致。
+- 没做：3.5.104 → 3.6.1 的真机一键端到端（`duo install`）这次没跑。

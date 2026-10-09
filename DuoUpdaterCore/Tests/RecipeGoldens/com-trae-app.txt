@@ -34,7 +34,7 @@ probes[0].maximumSystemVersionPattern = nil
 probes[0].entryStartPattern = nil
 probes[0].install? = struct VendorInstallSpec
 probes[0].install?.urlSource = .bodyPattern(_:)
-probes[0].install?.urlSource.0 = "(?s)\"data\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"manifest\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"darwin\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile|win32|linux)\"\\s*:).)*?\"versions\"\\s*:\\s*\\[[^\\]]*?\\{(?=[^{}]*\"region\"\\s*:\\s*\"va\")(?=[^{}]*\"arch\"\\s*:\\s*\"apple\")[^{}]*?\"url\"\\s*:\\s*\"(https://lf-cdn\\.trae\\.ai/obj/trae-ai-us/pkg/app/releases/stable/[0-9.]+/darwin/TraeCode-darwin-arm64\\.dmg)\""
+probes[0].install?.urlSource.0 = "(?s)\"data\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"manifest\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"darwin\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile|win32|linux)\"\\s*:).)*?\"versions\"\\s*:\\s*\\[[^\\]]*?\\{(?=[^{}]*\"region\"\\s*:\\s*\"va\")(?=[^{}]*\"arch\"\\s*:\\s*\"apple\")[^{}]*?\"url\"\\s*:\\s*\"(https://lf-cdn\\.trae\\.ai/obj/trae-ai-us/pkg/app/releases/stable/[0-9.]+/darwin/[A-Za-z]+-darwin-arm64\\.dmg)\""
 probes[0].install?.kind = .dmg
 probes[0].install?.checksumPattern = nil
 probes[0].install?.checksumFormat = .sha512Base64
@@ -75,7 +75,7 @@ probes[1].maximumSystemVersionPattern = nil
 probes[1].entryStartPattern = nil
 probes[1].install? = struct VendorInstallSpec
 probes[1].install?.urlSource = .bodyPattern(_:)
-probes[1].install?.urlSource.0 = "(?s)\"data\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"manifest\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"darwin\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile|win32|linux)\"\\s*:).)*?\"versions\"\\s*:\\s*\\[[^\\]]*?\\{(?=[^{}]*\"region\"\\s*:\\s*\"va\")(?=[^{}]*\"arch\"\\s*:\\s*\"intel\")[^{}]*?\"url\"\\s*:\\s*\"(https://lf-cdn\\.trae\\.ai/obj/trae-ai-us/pkg/app/releases/stable/[0-9.]+/darwin/TraeCode-darwin-x64\\.dmg)\""
+probes[1].install?.urlSource.0 = "(?s)\"data\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"manifest\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile)\"\\s*:).)*?\"darwin\"\\s*:\\s*\\{(?:(?!\"(?:solo|tob|mobile|win32|linux)\"\\s*:).)*?\"versions\"\\s*:\\s*\\[[^\\]]*?\\{(?=[^{}]*\"region\"\\s*:\\s*\"va\")(?=[^{}]*\"arch\"\\s*:\\s*\"intel\")[^{}]*?\"url\"\\s*:\\s*\"(https://lf-cdn\\.trae\\.ai/obj/trae-ai-us/pkg/app/releases/stable/[0-9.]+/darwin/[A-Za-z]+-darwin-x64\\.dmg)\""
 probes[1].install?.kind = .dmg
 probes[1].install?.checksumPattern = nil
 probes[1].install?.checksumFormat = .sha512Base64

@@ -46,6 +46,14 @@ carry their notes inline; for the rest there is a per-app recipe, and vendors
 whose page resists parsing fall back to the page itself in a `WKWebView`.
 
 <p align="center">
+  <img src="assets/cli.png" alt="The workbench's CLI tab: a sidebar grouping command-line tools by how they were installed — Homebrew, npm under nvm and fnm, Claude Code, bub, fx, uv, Junie, Rust and Codex — each with its path and version. Claude Code is selected: installed by the native installer, version 2.1.295 matching Anthropic's release manifest, signed by Anthropic, on the latest channel and up to date, with its release notes listed by version beside it." width="760">
+</p>
+
+The **CLI** tab does the same for command-line tools: where each one is
+installed, what installed it, who signed it, which channel it follows, and its
+release notes.
+
+<p align="center">
   <img src="assets/settings.png" alt="DuoUpdater's General settings, beside a sidebar listing Backups, Folders, Updates, GitHub, Alcove, Xcode, Ignored and Diagnostics: launch at login, check interval, hiding the Dock icon, whether to show what each app is built with, notifications, automatic relaunch, how many apps to check at once, and install routing for App Store updates, self-updating apps, apps without a developer signature and TestFlight betas." width="760">
 </p>
 

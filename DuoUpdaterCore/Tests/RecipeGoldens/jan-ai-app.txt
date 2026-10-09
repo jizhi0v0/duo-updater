@@ -109,6 +109,7 @@ githubRules[0].architectureRequirement? = struct GitHubArchitectureRequirement
 githubRules[0].architectureRequirement?.fromVersion = "0.8.5"
 githubRules[0].architectureRequirement?.architectures = Array(count: 1)
 githubRules[0].architectureRequirement?.architectures[0] = .arm64
+githubRules[0].tagRefPrefix = nil
 
 appStoreCases = Array(count: 0)
 

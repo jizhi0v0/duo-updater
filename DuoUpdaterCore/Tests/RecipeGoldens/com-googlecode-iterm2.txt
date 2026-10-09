@@ -12,7 +12,7 @@ changelogs[0].source = URL("https://iterm2.com/appcasts/final_modern.xml")
 changelogs[0].sourceTemplate = nil
 changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
-changelogs[0].entryPattern = "(?m)^Version[ \\t]+(?<version>\\d+(?:\\.\\d+)+[0-9a-z-]*)\\s+(?:of\\s+iTerm2\\s+)?was\\s+built\\s+on\\s+(?<date>[a-z]+\\s+\\d{1,2},\\s+\\d{4})\\.[ \\t]*\\n(?<body>.*?)(?=\\nVersion[ \\t]+\\d|\\z)"
+changelogs[0].entryPattern = "(?m)^Version[ \\t]+(?<version>\\d+(?:\\.\\d+)+[0-9a-z-]*)\\s+(?:of\\s+iTerm2\\s+)?was\\s+built\\s+on\\s+(?<date>[a-z]+\\s+\\d{1,2},\\s+\\d{4})\\.?[ \\t]*\\n(?<body>.*?)(?=\\nVersion[ \\t]+\\d|\\z)"
 changelogs[0].itemPatterns = Array(count: 1)
 changelogs[0].itemPatterns[0] = "(?m)^-[ \\t]+(?<item>[^\\n]*(?:\\n[ \\t]+\\S[^\\n]*)*)"
 changelogs[0].stripTags = false

@@ -229,3 +229,16 @@ curl -sS "https://raw.githubusercontent.com/gnachman/iTerm2/master/sources/iTerm
     `recipe changelog:com.googlecode.iterm2:-: 1 entries; newest 3.7.3: 15 items, headings ["Bug Fixes"]; first items ["Fixed the Python API not reporting OSC 8", "Fixed the Screen setting in Settings > P", "Fixed a crash when a program wrote a hyp"]`
   - 3.7.4beta1 之前同 stable 的旧行；之后与 stable 的新行逐字相同（今天没有 test-release binding，它读的是 stable feed）
   - nightly 3.7.20261008-nightly 之前与之后都是 `web page https://iterm2.com/appcasts/nightly_changes.txt, no structure`
+
+### Recipes/com-googlecode-iterm2.swift — 版本行年份后的句号改成可选
+
+实测 2026-10-09（只读 GET `full_changes.txt` 与 `testing_changes3.txt`，Python 按同一正则复算）：stable 文件换成 3.7.4 后，首行是
+`Version 3.7.4 was built on October 8, 2026`，年份后**没有句号**（3.7.3 那份有）。旧 `entryPattern` 要求 `\.`，于是 stable 抽出 0 条，
+Detection recipes 列表显示 `fetched iterm2.com but extracted no entries`。句号改成 `\.?` 后：
+
+| 文件 | 旧正则 | 新正则 |
+|---|---|---|
+| `full_changes.txt` | 0 条 | 1 条：3.7.4、October 8, 2026、17 项（`grep -c '^- '` 也是 17） |
+| `testing_changes3.txt` | 1 条：3.7.4beta1、September 30, 2026、128 项 | 同左 |
+
+`ITerm2ChangelogRecipeTests.readsAStableFileWithNoPeriodAfterTheYear` 的 fixture 是这次取回文件的前 10 行。

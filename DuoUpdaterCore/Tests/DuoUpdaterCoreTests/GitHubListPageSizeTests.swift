@@ -60,7 +60,12 @@ struct GitHubListPageSizeTests {
         "com.vorssaint.utils/beta": 2,        // gap 1 (only 4 -beta. tags ever), +1
         "com.microsoft.Headlamp/stable": 5,   // gap 4 (v0.23.0→v0.22.0), +1
         "com.bitwarden.desktop/stable": 8,    // gap 7 (desktop-v2026.6.0→…2026.5.0), +1
-        "com.t3tools.t3code/nightly": 3,      // gap 2 (…20260902.1252→…20260901.1250), +1
+        // T3 Code nightly: a LEADING-run floor too. Newest 100 releases on
+        // 2026-10-09: the first nightly sat at index 5, under a burst of five
+        // `-preview.` releases (v0.0.46-preview.20261009.2851 down to
+        // …20261008.2800), so 6. The worst gap between two nightlies in that
+        // window is 4 (2026-09-14 found 4 as well; 2026-09-04 found 2).
+        "com.t3tools.t3code/nightly": 6,
         // Cua Driver: the one row here whose floor comes from the LEADING run —
         // the rows ahead of the newest match — rather than from a gap between
         // two matches. Newest 300 releases on 2026-10-03: the first

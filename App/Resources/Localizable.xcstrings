@@ -11360,6 +11360,71 @@
         }
       }
     },
+    "Asks for an administrator password, then runs this command as root: only an administrator can write to %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fragt nach einem Administratorpasswort und führt diesen Befehl dann als root aus: Nur ein Administrator kann in %@ schreiben."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pide una contraseña de administrador y luego ejecuta este comando como root: solo un administrador puede escribir en %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demande un mot de passe administrateur, puis exécute cette commande en tant que root : seul un administrateur peut écrire dans %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chiede una password di amministratore, poi esegue questo comando come root: solo un amministratore può scrivere in %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理者パスワードを求めてから、このコマンドを root として実行します。%@ に書き込めるのは管理者だけです。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pede a senha de administrador e depois executa este comando como root: só um administrador pode gravar em %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запрашивает пароль администратора, затем выполняет эту команду от имени root: записывать в %@ может только администратор."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yönetici parolası ister, ardından bu komutu root olarak çalıştırır: %@ konumuna yalnızca bir yönetici yazabilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会先要求输入管理员密码，再以 root 身份运行此命令：只有管理员才能写入 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "會先要求輸入管理者密碼，再以 root 身分執行此指令：只有管理者才能寫入 %@。"
+          }
+        }
+      }
+    },
     "Auto-update is off in %@’s settings": {
       "extractionState": "manual",
       "localizations": {
@@ -19546,6 +19611,201 @@
           "stringUnit": {
             "state": "translated",
             "value": "請在設定中更新或移除"
+          }
+        }
+      }
+    },
+    "Update to %@…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf %@ aktualisieren …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar a %@…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettre à jour vers %@…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna a %@…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ にアップデート…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizar para %@…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновить до %@…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ sürümüne güncelle…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新到 %@…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新至 %@…"
+          }
+        }
+      }
+    },
+    "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktualisiert jede Kopie an Ort und Stelle mit dem Update-Befehl ihres eigenen Tools, auf dem Kanal, den dieses Tool eingestellt hat. Kopien ohne Ein-Klick-Update und Kopien, deren Update nach einem Administratorpasswort fragt, bleiben unberührt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualiza cada copia en su sitio con el comando de actualización de su propia herramienta, en el canal que esa herramienta tenga configurado. Las copias sin actualización en un clic, y las copias cuya actualización pide una contraseña de administrador, no se tocan."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Met à jour chaque copie sur place avec la commande de mise à jour de son propre outil, sur le canal choisi dans cet outil. Les copies sans mise à jour en un clic, et celles dont la mise à jour demande un mot de passe administrateur, ne sont pas touchées."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna ogni copia sul posto con il comando di aggiornamento del suo strumento, sul canale impostato in quello strumento. Le copie senza aggiornamento in un clic, e quelle il cui aggiornamento chiede una password di amministratore, non vengono toccate."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "各コピーを、その場所のまま、それぞれのツール自身のアップデートコマンドで、そのツールに設定されたチャンネルでアップデートします。ワンクリック更新のないコピーと、アップデートに管理者パスワードが必要なコピーには触れません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualiza cada cópia no lugar com o comando de atualização da própria ferramenta, no canal definido nessa ferramenta. Cópias sem atualização em um clique, e cópias cuja atualização pede a senha de administrador, não são alteradas."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновляет каждую копию на месте командой обновления её собственного инструмента, на канале, выбранном в этом инструменте. Копии без обновления в один клик и копии, обновление которых запрашивает пароль администратора, не затрагиваются."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her kopyayı yerinde, kendi aracının güncelleme komutuyla ve o araçta ayarlı kanalda günceller. Tek tıkla güncellemesi olmayan kopyalara ve güncellemesi yönetici parolası isteyen kopyalara dokunulmaz."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在原位置、用各自工具自己的更新命令、按该工具设定的渠道更新每一份副本。没有一键更新的副本，以及更新需要管理员密码的副本，保持不动。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在原位置、用各自工具自己的更新指令、依該工具設定的頻道更新每一份副本。沒有一鍵更新的副本，以及更新需要管理者密碼的副本，維持不動。"
+          }
+        }
+      }
+    },
+    "Update…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktualisieren …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettre à jour…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデート…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizar…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновить…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncelle…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新…"
           }
         }
       }
@@ -48188,71 +48448,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 的設定中已關閉更新"
-          }
-        }
-      }
-    },
-    "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update are left alone.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aktualisiert jede Kopie an Ort und Stelle mit dem Update-Befehl ihres eigenen Tools, auf dem Kanal, den dieses Tool eingestellt hat. Kopien ohne Ein-Klick-Update bleiben unberührt."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Actualiza cada copia en su sitio con el comando de actualización de su propia herramienta, en el canal que esa herramienta tenga configurado. Las copias sin actualización en un clic no se tocan."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Met à jour chaque copie sur place avec la commande de mise à jour de son propre outil, sur le canal choisi dans cet outil. Les copies sans mise à jour en un clic ne sont pas touchées."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aggiorna ogni copia sul posto con il comando di aggiornamento del suo strumento, sul canale impostato in quello strumento. Le copie senza aggiornamento in un clic non vengono toccate."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "各コピーを、その場所のまま、それぞれのツール自身のアップデートコマンドで、そのツールに設定されたチャンネルでアップデートします。ワンクリック更新のないコピーには触れません。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atualiza cada cópia no lugar com o comando de atualização da própria ferramenta, no canal definido nessa ferramenta. Cópias sem atualização em um clique não são alteradas."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Обновляет каждую копию на месте командой обновления её собственного инструмента, на канале, выбранном в этом инструменте. Копии без обновления в один клик не затрагиваются."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Her kopyayı yerinde, kendi aracının güncelleme komutuyla ve o araçta ayarlı kanalda günceller. Tek tıkla güncellemesi olmayan kopyalara dokunulmaz."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在原位置、用各自工具自己的更新命令、按该工具设定的渠道更新每一份副本。没有一键更新的副本保持不动。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在原位置、用各自工具自己的更新指令、依該工具設定的頻道更新每一份副本。沒有一鍵更新的副本維持不動。"
           }
         }
       }

@@ -208,6 +208,10 @@ public struct CLIToolStatus: Sendable, Equatable {
     public let releaseNotesKey: String
     /// The tool's own view of the install, for its detail pane.
     public let detail: Detail
+    /// `oneClick` runs as root, behind the system's administrator panel
+    /// (`CLIToolAdministratorRun`): the install's directory is root's. Only a
+    /// click on the row's own Update runs it, never Update All.
+    public let needsAdministrator: Bool
 
     public enum Detail: Sendable, Equatable {
         case claudeCode(ClaudeCodeStatus)
@@ -243,7 +247,7 @@ public struct CLIToolStatus: Sendable, Equatable {
         kind: CLIToolKind, path: String, installedVersion: String?, latestVersion: String?,
         channel: String?, state: CLIToolState, oneClick: CLIToolCommand?,
         withheld: CLIToolWithheld?, note: String?, manualCommand: CLIToolCommand? = nil,
-        name: String? = nil, releaseNotesKey: String? = nil, detail: Detail
+        name: String? = nil, releaseNotesKey: String? = nil, detail: Detail, needsAdministrator: Bool = false
     ) {
         self.kind = kind
         self.path = path
@@ -258,6 +262,7 @@ public struct CLIToolStatus: Sendable, Equatable {
         self.name = name
         self.releaseNotesKey = releaseNotesKey ?? kind.rawValue
         self.detail = detail
+        self.needsAdministrator = needsAdministrator
     }
 
     /// The command-line counterpart of `UpdateStatus.isRateLimitError`: the check
@@ -352,6 +357,9 @@ public enum CLIToolUpdateOutcome: Sendable, Equatable {
     /// The command ran and failed. `message` is the line for the row, `output`
     /// the whole log for the detail pane.
     case failed(message: String, output: String)
+    /// The user dismissed the administrator panel (`needsAdministrator`):
+    /// nothing ran, and nothing failed.
+    case declined
 }
 
 public enum CLIToolReleaseNotesError: Error, Equatable {

@@ -22,6 +22,16 @@ import CryptoKit
         private let lock = NSLock()
         private var published: [String: String] = [:]
         private var downloads = 0
+        private var rootsDirectory = false
+        private var rootCommands: [String] = []
+
+        /// Whether the check reads the fixture directory as root's default.
+        var isRootsDirectory: Bool {
+            get { lock.withLock { rootsDirectory } }
+            set { lock.withLock { rootsDirectory = newValue } }
+        }
+        /// What was run as root, in order.
+        var ranAsRoot: [String] { lock.withLock { rootCommands } }
 
         init() throws {
             let made = FileManager.default.temporaryDirectory.appendingPathComponent("ZZFixture-helm-\(UUID().uuidString)")
@@ -114,18 +124,48 @@ import CryptoKit
                 if fails { throw HelmRelease.Failure.http(503) }
                 guard let version = latest[major] else { throw HelmRelease.Failure.noLine(major) }
                 return version
-            }, knownVerdict: { verifier.knownVerdict(binary: $0, version: $1, target: $2) })
+            }, knownVerdict: { verifier.knownVerdict(binary: $0, version: $1, target: $2) },
+               rootDirectory: { _ in self.isRootsDirectory })
         }
 
-        func updater(latest: [Int: String] = [3: "3.22.0", 4: "4.3.0"], script: Data,
-                     busy: @escaping HelmUpdater.BusyCheck = { nil }) -> HelmUpdater {
+        func updater(latest: [Int: String] = [3: "3.22.0", 4: "4.3.0"], script: Data = Data(),
+                     busy: @escaping HelmUpdater.BusyCheck = { nil },
+                     asRoot: @escaping @Sendable () -> CLIToolAdministratorRun.Result = {
+                         Issue.record("ran as root"); return .declined
+                     }) -> HelmUpdater {
             HelmUpdater(busy: busy, scanner: scanner, check: check(latest: latest), verifier: verifier(),
                         environment: { ["USE_SUDO": "true", "HELM_INSTALL_DIR": "/elsewhere", "DESIRED_VERSION": "v9.9.9",
                                         "KEEP": "1"] },
                         fetchScript: { url in
                             #expect(url.absoluteString == "https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3")
                             return script
+                        },
+                        runAsRoot: { command, _ in
+                            self.lock.withLock { self.rootCommands.append(command) }
+                            return asRoot()
                         })
+        }
+
+        /// What `get-helm-3` run as root does to the fixture: `cp` the next
+        /// build over the file in the read-only directory.
+        func rootRun(to version: String, publishNew: Bool = true) -> CLIToolAdministratorRun.Result {
+            let next = Self.helm(version: version)
+            if publishNew { publish(version, next) }
+            do {
+                try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.path)
+                try Data(next.utf8).write(to: binary)
+                try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: bin.path)
+            } catch {
+                Issue.record("\(error)")
+            }
+            return Self.ran(["helm installed into \(bin.path)/helm"], status: 0)
+        }
+
+        static func ran(_ lines: [String], status: Int32) -> CLIToolAdministratorRun.Result {
+            .ran(CLIToolCommandRunner.Run(
+                result: .finished(ChildProcess.Outcome(terminationStatus: status, uncaughtSignal: false, timedOut: false,
+                                                       standardOutput: Data(), standardError: Data())),
+                lines: lines))
         }
 
         func status(busy: HelmActivity.Busy? = nil) async throws -> CLIToolStatus {
@@ -322,6 +362,116 @@ import CryptoKit
         }
         #expect(message == "SHA sum of /tmp/x.tar.gz does not match. Aborting. (exit 1)")
         #expect(output.contains("For support"))
+    }
+
+    // MARK: - As root
+
+    static let documented = "curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
+
+    /// In root's `/usr/local/bin` the documented command is the one-click, run
+    /// as root, with the same command still offered for a terminal; elsewhere
+    /// read-only stays a copy-command (`aReadOnlyInstallGetsTheDocumentedCommand`).
+    /// The gates before it still hold. Mutations: drop `asRoot`'s
+    /// `rootDirectory`; skip the gates for a root run.
+    @Test func rootsDirectoryOffersTheDocumentedCommandAsRoot() async throws {
+        let box = try Sandbox()
+        try box.install(version: "3.21.4")
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
+        box.isRootsDirectory = true
+        let status = try await box.status()
+        #expect(status.needsAdministrator)
+        #expect(status.withheld == nil)
+        #expect(status.oneClick?.display == Self.documented)
+        #expect(status.manualCommand?.display == Self.documented)
+        #expect(try await box.status(busy: .download(3)).withheld == .busy)
+        box.publish("3.21.4", "not this file")
+        _ = await box.verifier().verify(binary: box.binary.path, version: "3.21.4", target: "arm64")
+        let tampered = try await box.status()
+        #expect(tampered.withheld == .unverified)
+        #expect(!tampered.needsAdministrator)
+    }
+
+    /// The click runs exactly the documented command as root, and what it left
+    /// is checked like any update's. Mutation: run another command than
+    /// `HelmCheck.documentedCommand`.
+    @Test func updatesAsRoot() async throws {
+        let box = try Sandbox()
+        try box.install(version: "3.21.4")
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
+        box.isRootsDirectory = true
+        let status = try await box.status()
+        let outcome = await box.updater(asRoot: { box.rootRun(to: "3.22.0") }).update(status)
+        #expect(outcome == .updated(version: "3.22.0"))
+        #expect(box.ranAsRoot == [Self.documented])
+        #expect(box.read("ARGS") == nil)
+    }
+
+    /// What a root run left must be a newer published build, as any update's.
+    /// Mutation: return `.updated` straight after a root run.
+    @Test func anUnpublishedRootResultIsAFailure() async throws {
+        let box = try Sandbox()
+        try box.install(version: "3.21.4")
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
+        box.isRootsDirectory = true
+        let status = try await box.status()
+        box.publish("3.22.0", "the real 3.22.0")
+        let outcome = await box.updater(asRoot: { box.rootRun(to: "3.22.0", publishNew: false) }).update(status)
+        guard case .failed(let message, _) = outcome else {
+            Issue.record("an unpublished result read as updated"); return
+        }
+        #expect(message.contains("is not the helm 3.22.0"))
+    }
+
+    /// A dismissed panel ran nothing and is no failure; a refused one says the
+    /// system's words; a failed script says its own, with the exit status.
+    /// Mutations: map `.declined` to a failure; drop the script's reason rule.
+    @Test func whatARootRunCanAnswer() async throws {
+        let box = try Sandbox()
+        try box.install(version: "3.21.4")
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
+        box.isRootsDirectory = true
+        let status = try await box.status()
+        #expect(await box.updater(asRoot: { .declined }).update(status) == .declined)
+        #expect(box.scanner.scan().first?.version == "3.21.4")
+        let wrong = "The administrator user name or password was incorrect."
+        #expect(await box.updater(asRoot: { .refused(wrong) }).update(status) == .failed(message: wrong, output: wrong))
+        let failed = await box.updater(asRoot: {
+            Sandbox.ran(["Downloading https://get.helm.sh/helm-v3.22.0-darwin-arm64.tar.gz",
+                         "SHA sum of /tmp/x.tar.gz does not match. Aborting.", "Failed to install helm",
+                         "\tFor support, go to https://github.com/helm/helm."], status: 1)
+        }).update(status)
+        guard case .failed(let message, _) = failed else { Issue.record("expected a failure, got \(failed)"); return }
+        #expect(message == "SHA sum of /tmp/x.tar.gz does not match. Aborting. (exit 1)")
+    }
+
+    /// Asked again at the click: still root's directory, still not writable, the
+    /// file still its published build — else nothing runs as root.
+    /// Mutations: drop the click's `rootDirectory` test; drop `!now.writable`.
+    @Test func aRootRunReasksItsGates() async throws {
+        let box = try Sandbox()
+        try box.install(version: "3.21.4")
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
+        box.isRootsDirectory = true
+        let status = try await box.status()
+
+        box.isRootsDirectory = false
+        guard case .failed(let moved, _) = await box.updater(asRoot: { box.rootRun(to: "3.22.0") }).update(status) else {
+            Issue.record("ran outside root's directory"); return
+        }
+        #expect(moved.contains("no longer root’s directory"))
+        box.isRootsDirectory = true
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: box.bin.path)
+        guard case .failed = await box.updater(asRoot: { box.rootRun(to: "3.22.0") }).update(status) else {
+            Issue.record("ran as root in a directory this user can write"); return
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
+
+        box.publish("3.21.4", "not this file")
+        guard case .failed = await box.updater(asRoot: { box.rootRun(to: "3.22.0") }).update(status) else {
+            Issue.record("ran as root over an unpublished file"); return
+        }
+        #expect(box.ranAsRoot.isEmpty)
     }
 
     @Test func busyIsTheScriptOrItsDownload() {

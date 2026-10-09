@@ -8,9 +8,14 @@ import Foundation
 ///    script installs.
 /// 3. **Starship has no self-update; one-click is its official script**, run
 ///    as `install.sh -y -b <the install's own directory> -v v<target>`
-///    (`StarshipUpdater`). Only when this user may write there without `sudo`:
-///    the default `/usr/local/bin` is root's on most Macs, and there the update
-///    is reported with the documented command for the user to run.
+///    (`StarshipUpdater`), when this user may write there without `sudo`. The
+///    default `/usr/local/bin` is root's on most Macs; there — the directory the
+///    script defaults to and escalates for, and root's — the one-click is the
+///    documented command with the script's own `-y` (its one question reads
+///    `/dev/tty`, which a run behind the panel has not got) run as root behind
+///    the administrator panel (`CLIToolAdministratorRun`), after the same gates.
+///    Anywhere else this user cannot write, the documented command is reported
+///    for the user to run.
 /// 4. **The trust rule** (`CLIToolTrust`): every build is held to the `.sha256`
 ///    its release publishes (`StarshipVerifier`), before the click and after.
 ///    The script checks no hash itself.
@@ -22,16 +27,22 @@ public struct StarshipCheck: Sendable {
 
     let latest: Latest
     let knownVerdict: KnownVerdict
+    /// Whether the install's directory is root's `/usr/local/bin`, the script's
+    /// default, which it escalates for. A fixture directory in tests.
+    let rootDirectory: @Sendable (StarshipInstall) -> Bool
 
     public init(release: StarshipRelease = StarshipRelease()) {
         let verifier = StarshipVerifier()
         self.init(latest: { try await release.latest() },
-                  knownVerdict: { verifier.knownVerdict(binary: $0, version: $1, target: $2) })
+                  knownVerdict: { verifier.knownVerdict(binary: $0, version: $1, target: $2) },
+                  rootDirectory: { CLIToolAdministratorRun.isRootsDefault($0.directory) })
     }
 
-    init(latest: @escaping Latest, knownVerdict: @escaping KnownVerdict) {
+    init(latest: @escaping Latest, knownVerdict: @escaping KnownVerdict,
+         rootDirectory: @escaping @Sendable (StarshipInstall) -> Bool = { _ in false }) {
         self.latest = latest
         self.knownVerdict = knownVerdict
+        self.rootDirectory = rootDirectory
     }
 
     public static let installer = URL(string: "https://starship.rs/install.sh")!
@@ -39,12 +50,13 @@ public struct StarshipCheck: Sendable {
     public func status(of install: StarshipInstall, busy: StarshipActivity.Busy?) async -> CLIToolStatus {
         func verdict(
             _ state: CLIToolState, latest: String? = nil, oneClick: CLIToolCommand? = nil,
-            note: String? = nil, withheld: CLIToolWithheld? = nil, manualCommand: CLIToolCommand? = nil
+            note: String? = nil, withheld: CLIToolWithheld? = nil, manualCommand: CLIToolCommand? = nil,
+            needsAdministrator: Bool = false
         ) -> CLIToolStatus {
             CLIToolStatus(
                 kind: .starship, path: install.path, installedVersion: install.version, latestVersion: latest,
                 channel: nil, state: state, oneClick: oneClick, withheld: withheld, note: note,
-                manualCommand: manualCommand, detail: .starship(install))
+                manualCommand: manualCommand, detail: .starship(install), needsAdministrator: needsAdministrator)
         }
 
         switch install.problem {
@@ -78,7 +90,8 @@ public struct StarshipCheck: Sendable {
                            note: "\(install.path) links to \(binary): the script would unpack over the link",
                            withheld: .unsupportedInstaller)
         }
-        if !install.writable {
+        let asRoot = !install.writable && rootDirectory(install)
+        if !install.writable, !asRoot {
             return verdict(state, latest: newest,
                            note: "the script would need sudo to replace \(install.path)",
                            withheld: .unsupportedInstaller, manualCommand: Self.documentedCommand)
@@ -98,6 +111,11 @@ public struct StarshipCheck: Sendable {
         if let busy {
             return verdict(state, latest: newest, note: busy.description, withheld: .busy)
         }
+        if asRoot {
+            return verdict(state, latest: newest, oneClick: Self.rootCommand,
+                           note: "runs as root after an administrator password: \(install.directory) is root's",
+                           manualCommand: Self.documentedCommand, needsAdministrator: true)
+        }
         return verdict(state, latest: newest, oneClick: Self.updateCommand(directory: install.directory, version: newest))
     }
 
@@ -105,6 +123,12 @@ public struct StarshipCheck: Sendable {
     /// the script's `sudo` can ask.
     static let documentedCommand = CLIToolCommand(
         executable: "curl", arguments: ["-sS", installer.absoluteString, "|", "sh"], pathPrefix: nil)
+
+    /// What runs as root in root's `/usr/local/bin`: the documented command with
+    /// the script's `-y`, and nothing else — its `BIN_DIR` default is that
+    /// directory.
+    static let rootCommand = CLIToolCommand(
+        executable: "curl", arguments: ["-sS", installer.absoluteString, "|", "sh", "-s", "--", "-y"], pathPrefix: nil)
 
     /// What the one-click stands for; `StarshipUpdater` runs its equivalent from
     /// a fetched file, never this text.

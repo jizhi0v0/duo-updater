@@ -30,6 +30,13 @@ import Foundation
 /// still name a newer version; that version is the one the script is pinned to.
 /// Afterwards the file must read as a newer version of the same line, byte for
 /// byte that version's published build, or the outcome is a failure.
+///
+/// In root's `/usr/local/bin` (`CLIToolStatus.needsAdministrator`) the same
+/// gates are asked, the directory must still be root's, and then Helm's
+/// documented command (`HelmCheck.documentedCommand`) runs as root through the
+/// administrator panel (`CLIToolAdministratorRun`): the script fetched by root's
+/// own `curl`, its defaults (`/usr/local/bin`, `USE_SUDO`, which is moot as
+/// root) left as the vendor set them. The same check of what it left follows.
 public struct HelmUpdater: Sendable {
 
     typealias BusyCheck = @Sendable () -> HelmActivity.Busy?
@@ -43,6 +50,7 @@ public struct HelmUpdater: Sendable {
     let fetchScript: FetchScript
     let tools: [String: String]
     let deadline: ChildProcess.Deadline
+    let runAsRoot: CLIToolAdministratorRun.Runner
 
     /// An archive is ~20 MB (3.22.0 darwin-arm64), and the script's curl has no
     /// timeout of its own.
@@ -79,7 +87,8 @@ public struct HelmUpdater: Sendable {
         environment: @escaping @Sendable () -> [String: String],
         fetchScript: @escaping FetchScript,
         tools: [String: String] = HelmUpdater.defaultTools,
-        deadline: ChildProcess.Deadline = HelmUpdater.defaultDeadline
+        deadline: ChildProcess.Deadline = HelmUpdater.defaultDeadline,
+        runAsRoot: CLIToolAdministratorRun.Runner? = nil
     ) {
         self.busy = busy
         self.scanner = scanner
@@ -89,6 +98,7 @@ public struct HelmUpdater: Sendable {
         self.fetchScript = fetchScript
         self.tools = tools
         self.deadline = deadline
+        self.runAsRoot = runAsRoot ?? CLIToolAdministratorRun.live(deadline: deadline)
     }
 
     public func update(
@@ -109,8 +119,18 @@ public struct HelmUpdater: Sendable {
         else {
             return .failed(message: "not run: \(install.path) is no longer the helm that was checked", output: "")
         }
-        guard now.writable else {
-            return .failed(message: "not run: the script would need sudo to replace \(install.path)", output: "")
+        let rootCommand = HelmCheck.documentedCommand(installer: installer)
+        if status.needsAdministrator {
+            let check = self.check
+            guard status.oneClick == rootCommand, !now.writable,
+                  await offCooperativePool({ check.rootDirectory(now) })
+            else {
+                return .failed(message: "not run: \(install.directory) is no longer root’s directory", output: "")
+            }
+        } else {
+            guard now.writable else {
+                return .failed(message: "not run: the script would need sudo to replace \(install.path)", output: "")
+            }
         }
         let newest: String
         do {
@@ -132,6 +152,23 @@ public struct HelmUpdater: Sendable {
         }
         if let running = await offCooperativePool({ busy() }) {
             return .busy(running.description)
+        }
+        if status.needsAdministrator {
+            progress("Waiting for an administrator password…")
+            switch await runAsRoot(rootCommand.display, progress) {
+            case .declined:
+                return .declined
+            case .refused(let reason):
+                return .failed(message: reason, output: reason)
+            case .ran(let run):
+                guard case .finished(let outcome) = run.result else {
+                    return .failed(message: "could not run the script as root", output: run.text)
+                }
+                guard outcome.succeeded else {
+                    return .failed(message: Self.failureMessage(run.lines, outcome, deadline: deadline), output: run.text)
+                }
+                return await settle(install, before: before, major: major, output: run.text)
+            }
         }
 
         let script: Data
@@ -181,20 +218,26 @@ public struct HelmUpdater: Sendable {
         guard outcome.succeeded else {
             return .failed(message: Self.failureMessage(run.lines, outcome, deadline: deadline), output: run.text)
         }
+        return await settle(install, before: before, major: major, output: run.text)
+    }
 
+    /// What the script left: a newer version of the same line, byte for byte
+    /// its published build.
+    private func settle(_ install: HelmInstall, before: String, major: Int, output: String) async -> CLIToolUpdateOutcome {
+        let scanner = self.scanner
         guard let after = await offCooperativePool({ scanner.scan().first }), after.problem == nil,
               let version = after.version, let newBinary = after.binary, let newTarget = after.target
         else {
-            return .failed(message: "the script finished, but \(install.path) no longer reads as helm", output: run.text)
+            return .failed(message: "the script finished, but \(install.path) no longer reads as helm", output: output)
         }
         guard VersionComparator.compare(version, before) == .orderedDescending, after.major == major else {
-            return .failed(message: "the script finished, but \(install.path) is helm \(version)", output: run.text)
+            return .failed(message: "the script finished, but \(install.path) is helm \(version)", output: output)
         }
         switch await verifier.verify(binary: newBinary, version: version, target: newTarget) {
         case .matches:
             return .updated(version: version)
         case .differs(let reason), .couldNotVerify(let reason):
-            return .failed(message: "the script finished, but \(reason)", output: run.text)
+            return .failed(message: "the script finished, but \(reason)", output: output)
         }
     }
 

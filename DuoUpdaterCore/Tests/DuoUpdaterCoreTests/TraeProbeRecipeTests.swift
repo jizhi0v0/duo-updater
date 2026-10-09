@@ -7,27 +7,27 @@ import Foundation
 struct TraeProbeRecipeTests {
 
     /// `api.trae.ai/icube/api/v1/native/version/trae/latest` as served on
-    /// 2026-10-08, trimmed: regions `sg` and `usttp` and most Linux packages are
+    /// 2026-10-09, trimmed: regions `sg` and `usttp` and most Linux packages are
     /// dropped. Key order is the vendor's. The `tob` block (3.5.87, the same
-    /// bundle id) and the `solo` block (TraeWork 0.1.69) are kept because they
+    /// bundle id) and the `solo` block (TraeWork 0.2.1) are kept because they
     /// carry `region: va` / `arch: apple` entries of their own — the trap. The
     /// real body has no line breaks; they are removed below.
     static let body = #"""
-    {"success":true,"status":"success","message":"","data":{"manifest":{"win32":{"download":[{"region":"va","x64":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.88407/win32/TraeCode-Setup-x64.exe"}],"versions":[{"region":"va","arch":"x64","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.88407/win32/TraeCode-Setup-x64.exe","version":"3.5.104"}]},
-    "darwin":{"download":[{"region":"va","apple":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.88407/darwin/TraeCode-darwin-arm64.dmg","intel":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.88407/darwin/TraeCode-darwin-x64.dmg"}],
-    "versions":[{"region":"cn","arch":"apple","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.88407/darwin/TraeCode-darwin-arm64.dmg","version":"3.5.104"},{"region":"cn","arch":"intel","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.88407/darwin/TraeCode-darwin-x64.dmg","version":"3.5.104"},
-    {"region":"va","arch":"apple","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.88407/darwin/TraeCode-darwin-arm64.dmg","version":"3.5.104"},
-    {"region":"va","arch":"intel","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.88407/darwin/TraeCode-darwin-x64.dmg","version":"3.5.104"}]},
-    "linux":{"download":[{"region":"va","arm64.tar.gz":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.88407/linux/TraeCode-linux-arm64.tar.gz"}],"versions":[{"region":"va","arch":"arm64.tar.gz","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.88407/linux/TraeCode-linux-arm64.tar.gz","version":"3.5.104"}]}},
-    "solo":{"win32":{"download":[{"region":"va","x64":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.87414/win32/TraeWork-Setup-x64.exe"}],"versions":[{"region":"va","arch":"x64","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.87414/win32/TraeWork-Setup-x64.exe","version":"0.1.69"}]},
-    "darwin":{"download":[{"region":"va","apple":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.87414/darwin/TraeWork-darwin-arm64.dmg","intel":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.87414/darwin/TraeWork-darwin-x64.dmg"}],"versions":[{"region":"cn","arch":"apple","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.87414/darwin/TraeWork-darwin-arm64.dmg","version":"0.1.69"},{"region":"cn","arch":"intel","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.87414/darwin/TraeWork-darwin-x64.dmg","version":"0.1.69"},{"region":"va","arch":"apple","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.87414/darwin/TraeWork-darwin-arm64.dmg","version":"0.1.69"},{"region":"va","arch":"intel","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.87414/darwin/TraeWork-darwin-x64.dmg","version":"0.1.69"}]}},
+    {"success":true,"status":"success","message":"","data":{"manifest":{"win32":{"download":[{"region":"va","x64":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90453/win32/TRAE-Setup-x64.exe"}],"versions":[{"region":"va","arch":"x64","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90453/win32/TRAE-Setup-x64.exe","version":"3.6.1"}]},
+    "darwin":{"download":[{"region":"va","apple":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90453/darwin/TRAE-darwin-arm64.dmg","intel":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90453/darwin/TRAE-darwin-x64.dmg"}],
+    "versions":[{"region":"cn","arch":"apple","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.90453/darwin/TRAE-darwin-arm64.dmg","version":"3.6.1"},{"region":"cn","arch":"intel","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.90453/darwin/TRAE-darwin-x64.dmg","version":"3.6.1"},
+    {"region":"va","arch":"apple","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90453/darwin/TRAE-darwin-arm64.dmg","version":"3.6.1"},
+    {"region":"va","arch":"intel","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90453/darwin/TRAE-darwin-x64.dmg","version":"3.6.1"}]},
+    "linux":{"download":[{"region":"va","arm64.tar.gz":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90453/linux/TRAE-linux-arm64.tar.gz"}],"versions":[{"region":"va","arch":"arm64.tar.gz","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90453/linux/TRAE-linux-arm64.tar.gz","version":"3.6.1"}]}},
+    "solo":{"win32":{"download":[{"region":"va","x64":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90450/win32/TraeWork-Setup-x64.exe"}],"versions":[{"region":"va","arch":"x64","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90450/win32/TraeWork-Setup-x64.exe","version":"0.2.1"}]},
+    "darwin":{"download":[{"region":"va","apple":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90450/darwin/TraeWork-darwin-arm64.dmg","intel":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90450/darwin/TraeWork-darwin-x64.dmg"}],"versions":[{"region":"cn","arch":"apple","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.90450/darwin/TraeWork-darwin-arm64.dmg","version":"0.2.1"},{"region":"cn","arch":"intel","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.90450/darwin/TraeWork-darwin-x64.dmg","version":"0.2.1"},{"region":"va","arch":"apple","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90450/darwin/TraeWork-darwin-arm64.dmg","version":"0.2.1"},{"region":"va","arch":"intel","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90450/darwin/TraeWork-darwin-x64.dmg","version":"0.2.1"}]}},
     "mobile":{"ios":{"url":{"va":"https://apps.apple.com/app/id6761401019"}}},
     "tob":{"manifest":{"win32":{"download":[{"region":"va","x64":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.68993/win32/TraeCode-Setup-x64.exe"}],"versions":[{"region":"va","arch":"x64","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.68993/win32/TraeCode-Setup-x64.exe","version":"3.5.87"}]},
     "darwin":{"download":[{"region":"va","apple":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.68993/darwin/TraeCode-darwin-arm64.dmg","intel":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.68993/darwin/TraeCode-darwin-x64.dmg"}],"versions":[{"region":"cn","arch":"apple","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.68993/darwin/TraeCode-darwin-arm64.dmg","version":"3.5.87"},{"region":"cn","arch":"intel","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.68993/darwin/TraeCode-darwin-x64.dmg","version":"3.5.87"},
     {"region":"va","arch":"apple","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.68993/darwin/TraeCode-darwin-arm64.dmg","version":"3.5.87"},
     {"region":"va","arch":"intel","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.68993/darwin/TraeCode-darwin-x64.dmg","version":"3.5.87"}]},
     "linux":{"download":[{"region":"va","arm64.tar.gz":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.68993/linux/TraeCode-linux-arm64.tar.gz"}],"versions":[{"region":"va","arch":"arm64.tar.gz","url":"https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.68993/linux/TraeCode-linux-arm64.tar.gz","version":"3.5.87"}]}},
-    "solo":{"win32":{"download":[{"region":"va"}],"versions":[]},"darwin":{"download":[{"region":"va"}],"versions":[]}},"mobile":{"ios":{},"android":{}}}},"logId":"2026100822081406F4B757E864DB400FDD"}
+    "solo":{"win32":{"download":[{"region":"va"}],"versions":[]},"darwin":{"download":[{"region":"va"}],"versions":[]}},"mobile":{"ios":{},"android":{}}}},"logId":"20261009165517CD843594C5B71D3BB079"}
     """#.replacingOccurrences(of: "\n", with: "")
 
     static var recipes: [VendorProbeRecipe] {
@@ -39,8 +39,8 @@ struct TraeProbeRecipeTests {
     }
 
     static let dmg: [HostArch: String] = [
-        .arm64: "https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.88407/darwin/TraeCode-darwin-arm64.dmg",
-        .x86_64: "https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.88407/darwin/TraeCode-darwin-x64.dmg",
+        .arm64: "https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90453/darwin/TRAE-darwin-arm64.dmg",
+        .x86_64: "https://lf-cdn.trae.ai/obj/trae-ai-us/pkg/app/releases/stable/2.3.90453/darwin/TRAE-darwin-x64.dmg",
     ]
 
     static func read(_ recipe: VendorProbeRecipe, _ body: String) throws -> (version: String?, url: String?) {
@@ -66,17 +66,34 @@ struct TraeProbeRecipeTests {
     @Test func readsTheWebsiteBuildAndItsOwnArchitecturesDmg() throws {
         for arch in HostArch.allCases {
             let read = try Self.read(try Self.recipe(arch), Self.body)
-            #expect(read.version == "3.5.104", "\(arch)")
+            #expect(read.version == "3.6.1", "\(arch)")
             #expect(read.url == Self.dmg[arch], "\(arch)")
         }
     }
 
+    /// The product segment of the file name is not pinned: the same entry under
+    /// each name the vendor has shipped this bundle as still resolves its own
+    /// architecture's dmg. `TRAE-` is today's; `TraeCode-` is the name the
+    /// install pattern used to pin, which left 3.6.1 with no installer.
+    @Test func resolvesTheDmgUnderEachProductName() throws {
+        for name in ["TRAE", "TraeCode", "Trae"] {
+            let renamed = Self.body.replacingOccurrences(
+                of: "/2.3.90453/darwin/TRAE-darwin-", with: "/2.3.90453/darwin/\(name)-darwin-")
+            for arch in HostArch.allCases {
+                let read = try Self.read(try Self.recipe(arch), renamed)
+                #expect(read.version == "3.6.1", "\(name) \(arch)")
+                #expect(read.url == Self.dmg[arch]?.replacingOccurrences(of: "/TRAE-", with: "/\(name)-"),
+                        "\(name) \(arch): \(read.url ?? "nil")")
+            }
+        }
+    }
+
     /// The `va` entry for this architecture gone from `manifest.darwin`: nothing
-    /// is read, although `tob` (3.5.87) and `solo` (0.1.69) still hold one.
+    /// is read, although `tob` (3.5.87) and `solo` (0.2.1) still hold one.
     @Test func neverFallsThroughToAnotherBlock() throws {
         for arch in HostArch.allCases {
             let label = arch == .arm64 ? "apple" : "intel"
-            let entry = #"{"region":"va","arch":"\#(label)","url":"\#(Self.dmg[arch]!)","version":"3.5.104"}"#
+            let entry = #"{"region":"va","arch":"\#(label)","url":"\#(Self.dmg[arch]!)","version":"3.6.1"}"#
             #expect(Self.body.components(separatedBy: entry).count == 2)
             let gone = Self.body.replacingOccurrences(
                 of: entry, with: entry.replacingOccurrences(of: #""va""#, with: #""zz""#))
@@ -125,11 +142,11 @@ struct TraeProbeRecipeTests {
     /// so the version and the URL come from one object.
     @Test func readsTheVaEntryNotTheFirstRegion() throws {
         let cnElsewhere = Self.body.replacingOccurrences(
-            of: #""region":"cn","arch":"apple","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.88407/darwin/TraeCode-darwin-arm64.dmg","version":"3.5.104""#,
-            with: #""region":"cn","arch":"apple","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.99999/darwin/TraeCode-darwin-arm64.dmg","version":"3.5.200""#)
+            of: #""region":"cn","arch":"apple","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.90453/darwin/TRAE-darwin-arm64.dmg","version":"3.6.1""#,
+            with: #""region":"cn","arch":"apple","url":"https://lf-cdn.trae.com.cn/obj/trae-com-cn/pkg/app/releases/stable/2.3.99999/darwin/TRAE-darwin-arm64.dmg","version":"3.6.200""#)
         #expect(cnElsewhere != Self.body)
         let read = try Self.read(try Self.recipe(.arm64), cnElsewhere)
-        #expect(read.version == "3.5.104")
+        #expect(read.version == "3.6.1")
         #expect(read.url == Self.dmg[.arm64])
     }
 
@@ -142,7 +159,7 @@ struct TraeProbeRecipeTests {
             of: #","versions":["#, options: .backwards,
             range: Self.body.range(of: #""manifest":{"#)!.upperBound..<start.lowerBound))
         let oldShape = Self.body.replacingCharacters(in: versions.lowerBound..<start.upperBound, with: #"},"linux":{"#)
-        #expect(oldShape.contains(#"TraeCode-darwin-x64.dmg"}]},"linux":{"#))
+        #expect(oldShape.contains(#"TRAE-darwin-x64.dmg"}]},"linux":{"#))
         for arch in HostArch.allCases {
             let read = try Self.read(try Self.recipe(arch), oldShape)
             #expect(read.version == nil && read.url == nil, "\(arch): \(read)")
@@ -151,15 +168,15 @@ struct TraeProbeRecipeTests {
 
     /// The entry is found by its `region` and `arch` values, not by key order.
     @Test func entryFieldOrderDoesNotMatter() throws {
-        let entry = #"{"region":"va","arch":"apple","url":"\#(Self.dmg[.arm64]!)","version":"3.5.104"}"#
-        let reordered = #"{"version":"3.5.104","url":"\#(Self.dmg[.arm64]!)","arch":"apple","region":"va"}"#
+        let entry = #"{"region":"va","arch":"apple","url":"\#(Self.dmg[.arm64]!)","version":"3.6.1"}"#
+        let reordered = #"{"version":"3.6.1","url":"\#(Self.dmg[.arm64]!)","arch":"apple","region":"va"}"#
         let read = try Self.read(try Self.recipe(.arm64), Self.body.replacingOccurrences(of: entry, with: reordered))
-        #expect(read.version == "3.5.104")
+        #expect(read.version == "3.6.1")
         #expect(read.url == Self.dmg[.arm64])
     }
 
-    /// Through the probe runtime against the fixture: 3.5.104 is an update for
-    /// the 3.5.87 build and not for itself.
+    /// Through the probe runtime against the fixture: 3.6.1 is an update for
+    /// the 3.5.104 build and not for itself.
     @Test func probesTheFixtureEndToEnd() async throws {
         let server = try RecipeVerificationTests.StubServer(body: Self.body, contentType: "application/json")
         defer { server.stop() }
@@ -168,11 +185,11 @@ struct TraeProbeRecipeTests {
             let outcome = await source.probeDiagnostic(try Self.recipe(arch).with(url: server.url))
             #expect(outcome.failure == nil, "\(arch): \(String(describing: outcome.failure))")
             let version = try #require(outcome.remote?.shortVersion)
-            #expect(version == "3.5.104")
+            #expect(version == "3.6.1")
             #expect(outcome.remote?.downloadURL?.absoluteString == Self.dmg[arch])
             #expect(outcome.remote?.vendorInstallerKind == .dmg)
-            #expect(VersionComparator.isNewer(version, than: "3.5.87"))
-            #expect(!VersionComparator.isNewer(version, than: "3.5.104"))
+            #expect(VersionComparator.isNewer(version, than: "3.5.104"))
+            #expect(!VersionComparator.isNewer(version, than: "3.6.1"))
         }
     }
 }

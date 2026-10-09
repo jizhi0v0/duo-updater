@@ -12,7 +12,8 @@ enum com_officecommun_search {
         // asset's `digest` (checked 2026-10-09 on 1.0.4).
         //
         // `Search.dmg` is Apple silicon only (arm64 slice, no marker in the
-        // name); `Search-Intel.dmg` joins it from 1.0.5. The asset selector reads
+        // name); `Search-Intel.dmg` joins it from 1.0.5 — the name is the one the
+        // vendor's `tap.sh` downloads, not yet seen on a release. The asset selector reads
         // `Intel` as the x86_64 marker, so an Intel Mac gets that one and Apple
         // silicon gets the unmarked one. One-click installs the notarised,
         // stapled DMG; no nested apps or helpers in the bundle.

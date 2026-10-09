@@ -392,14 +392,24 @@ import Testing
     /// that it is closed → the pipe below is replaced by `/dev/null`. (Dropping
     /// only the first changes nothing observable: the re-check before `dup2`
     /// still holds.)
+    ///
+    /// The descriptor comes from the top of the table: descriptors are allocated
+    /// lowest-free, and the tests running beside this one keep up to ~565 open
+    /// with no gaps (sampled with `lsof` during `swift test`, 2026-10-09), so the
+    /// lowest closed one at 300 or above was sometimes the next one another
+    /// test's `open` got — between the pick and the fill. The fill then rightly
+    /// left it alone, the check failed, and the `close` closed that test's file.
+    /// It is closed only if it is the `/dev/null` this test put there.
     @Test func aClosedDescriptorIsPointedAtDevNull() throws {
-        let closed = try #require((Int32(300)..<Int32(1000)).first { fcntl($0, F_GETFD) == -1 })
-        defer { close(closed) }
+        let closed = try #require(
+            stride(from: getdtablesize() - 1, to: getdtablesize() - 100, by: -1).first { fcntl($0, F_GETFD) == -1 })
         ChildProcess.fillWithDevNullIfClosed(closed)
         var filled = stat(), devNull = stat()
         #expect(fstat(closed, &filled) == 0)
         #expect(stat("/dev/null", &devNull) == 0)
-        #expect(filled.st_rdev == devNull.st_rdev && (filled.st_mode & S_IFMT) == S_IFCHR)
+        let isDevNull = filled.st_rdev == devNull.st_rdev && (filled.st_mode & S_IFMT) == S_IFCHR
+        defer { if isDevNull { close(closed) } }
+        #expect(isDevNull)
 
         var ends: [Int32] = [0, 0]
         #expect(pipe(&ends) == 0)

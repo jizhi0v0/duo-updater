@@ -122,21 +122,16 @@ enum com_trycua_driver {
         // third-party executables to learn a version is not a trade this project
         // makes.
         //
-        // `probesNewestFirst` stays at its default for the mirror image of
-        // stable's reason: the nightly job cuts a release most mornings, so a
-        // matching tag is usually row 0 and a page of one answers. The full page
-        // is still about as deep as stable's, because "most mornings" is not
-        // every morning: the job skips days (its release gate fails, or there is
-        // nothing new to cut), and other trains keep publishing meanwhile, so
-        // the newest nightly can sink under the same burst that sinks stable.
-        // Floor measured the same way as stable's; see
-        // `GitHubListPageSizeTests.measuredMinimumDepth`.
-        //
-        // 48, not stable's 50, on purpose: equal sizes would give both rules
-        // the same list URL, and `newestProbeSize(for:)` reads "this rule's full
-        // page was already fetched once" off that URL's validator. A stable
-        // fetch would then pass for the nightly rule's seeding page, and the
-        // nightly timeline would never be back-filled.
+        // **Found by tag (`tagRefPrefix`), not by position on the list page.**
+        // The nightly job does not publish every morning: the vendor's planner
+        // holds the train whenever a release gate fails or a commit's
+        // contributor attribution is unresolved, and a hold lasts until someone
+        // upstream clears it. Meanwhile every other train in the monorepo keeps
+        // publishing, so the newest nightly sinks down the list without bound —
+        // it went off a 12-row page and then off a 48-row one (History, #947).
+        // The tag refs under this prefix are only this train's tags, so their
+        // depth in the repo's release list no longer matters. History has the
+        // hold, the refs count and the wire bytes.
         //
         // One-click: same artifact shape, same `-binary` exclusion, and the
         // nightly build is signed and notarized exactly like stable (Developer ID
@@ -148,13 +143,13 @@ enum com_trycua_driver {
             bundleID: "com.trycua.driver",
             owner: "trycua", repo: "cua",
             usePrereleases: true,
-            listPageSize: 48,
             versionPattern:
                 #"^nightly-cua-driver-rs-v([0-9]+\.[0-9]+\.[0-9]+)-nightly\.[0-9]{8}\.[1-9][0-9]*$"#,
             installAssetPattern:
                 #"^cua-driver-rs-[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}\.[1-9][0-9]*-darwin-universal\.tar\.gz$"#,
             installerKind: .tarGz,
-            channel: .nightly),
+            channel: .nightly,
+            tagRefPrefix: "nightly-cua-driver-rs-v"),
         ],
         githubChannelProofs: [
         // Both halves of the resolved URL name the train, and either alone would

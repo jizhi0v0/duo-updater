@@ -117,6 +117,42 @@ public enum ChangelogExtractor {
         return entries.isEmpty ? nil : Changelog(entries: entries)
     }
 
+    /// Whether another match of the entry pattern begins inside the `body` of a
+    /// match on `text` — the shape left behind when an entry pattern's terminator
+    /// stops matching: the first entry's body runs on past where the next entry
+    /// starts, and every later entry is swallowed inside it.
+    ///
+    /// This asks the page rather than the count. A page that holds one entry
+    /// because the vendor published one (Chrome's Stable label page, #821) has
+    /// nothing else matching inside that body; a collapsed page has the next
+    /// entry's start right there, with the same terminator still available to it.
+    ///
+    /// Searched from the start of the BODY, not of the match, so the entry's own
+    /// heading cannot be found again: with `(?m)` a `(?:^|\n)` start re-matches one
+    /// character in. Without anchoring bounds so `^`/`\A` keep meaning the start of
+    /// the page, and with transparent bounds so a lookbehind sees what precedes.
+    ///
+    /// Nil when it cannot say: a pattern that does not compile, one with no `body`
+    /// group, or a page it does not match at all.
+    public static func anEntrySwallowsAnother(
+        in text: String, using recipe: ChangelogRecipe
+    ) -> Bool? {
+        guard let regex = compile(recipe.entryPattern) else { return nil }
+        let length = (text as NSString).length
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: length))
+        let bodies = matches.map { $0.range(withName: "body") }
+            .filter { $0.location != NSNotFound }
+        guard !bodies.isEmpty else { return nil }
+        for body in bodies {
+            guard let next = regex.firstMatch(
+                in: text, options: [.withTransparentBounds, .withoutAnchoringBounds],
+                range: NSRange(location: body.location, length: length - body.location))
+            else { continue }
+            if next.range.location < NSMaxRange(body) { return true }
+        }
+        return false
+    }
+
     // MARK: - Internals
 
     private static func compile(_ pattern: String) -> NSRegularExpression? {

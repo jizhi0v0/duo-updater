@@ -55,7 +55,10 @@ final class AppleDeveloperSessionRenewer: NSObject {
 
     private func note(_ event: String, _ url: URL?, _ error: Error? = nil) {
         let seconds = String(format: "%.1f", Date().timeIntervalSince(started))
-        let place = url.map { "\($0.host ?? "?")\($0.path)" } ?? "-"
+        // A failure names the URL that failed; `webView.url` may still be the
+        // page before it.
+        let failed = (error as NSError?)?.userInfo[NSURLErrorFailingURLErrorKey] as? URL
+        let place = (failed ?? url).map { "\($0.host ?? "?")\($0.path)" } ?? "-"
         let failure = (error as NSError?).map { " (\($0.domain) \($0.code))" } ?? ""
         trail.append("+\(seconds)s \(event) \(place)\(failure)")
     }

@@ -176,23 +176,18 @@ targets:
           # Drop the x86_64 slice from every universal Mach-O we embed: the app is
           # arm64-only (ARCHS above), so an Intel slice can never run. Bundled
           # `mas`, BinaryDelta and Sparkle all arrive universal; thinning them took
-          # 4.4 MB off the 0.5.2 zip (measured 2026-10-09). Sparkle
-          # was already signed when it was embedded, so thinning breaks its seal —
-          # it is thinned only on the signing path, where sign-sparkle-helpers.sh
-          # re-seals it right after.
+          # 4.4 MB off the 0.5.2 zip (measured 2026-10-09). Each slice carries
+          # its own signature, so Sparkle's seal survives the thinning
+          # (`codesign --verify --strict` on the thinned framework passes).
           thin() {
             for f in "$@"; do
               [ -f "$f" ] && lipo "$f" -verify_arch x86_64 2>/dev/null || continue
               lipo -thin "$ARCHS" "$f" -output "$f.thin" && mv "$f.thin" "$f"
             done
           }
-          thin "$APP/Contents/Resources/mas" "$APP/Contents/MacOS/BinaryDelta"
+          thin "$APP/Contents/Resources/mas" "$APP/Contents/MacOS/BinaryDelta" \
+            $(find "$APP/Contents/Frameworks/Sparkle.framework/Versions/B" -type f -perm +111 2>/dev/null)
           if [ -n "$EXPANDED_CODE_SIGN_IDENTITY" ] && [ "$EXPANDED_CODE_SIGN_IDENTITY" != "-" ]; then
-            SPARKLE="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
-            if [ -d "$SPARKLE" ]; then
-              thin $(find "$SPARKLE" -type f -perm +111)
-              "$SRCROOT/../scripts/sign-sparkle-helpers.sh" "$APP" "$EXPANDED_CODE_SIGN_IDENTITY" none
-            fi
             rt=""
             [ "$CONFIGURATION" = "Release" ] && rt="--options runtime"
             codesign --force $rt --sign "$EXPANDED_CODE_SIGN_IDENTITY" \
@@ -244,12 +239,13 @@ targets:
           # fine for local development but invalid for notarized distribution.
           CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
           # Actually strip the binary. STRIP_INSTALLED_PRODUCT is already YES, but
-          # Xcode only acts on it under deployment postprocessing, which is on for
-          # `archive`/`install` and off for the `xcodebuild build` that install.sh
-          # and notarize.sh run. Without this the 0.5.2 binary shipped 279k
-          # symbols — 17 of its 30 MB, 2.4 MB of the zip. Symbolication goes
-          # through the dSYM (DEBUG_INFORMATION_FORMAT is dwarf-with-dsym), which
-          # notarize.sh keeps beside the release zip.
+          # `-showBuildSettings` for the `xcodebuild build` that install.sh and
+          # notarize.sh run gave DEPLOYMENT_POSTPROCESSING = NO, and the 0.5.2
+          # binary shipped 279k symbols — 17 of its 30 MB, 2.4 MB of the zip.
+          # With this on it is stripped. Symbolication goes through the dSYM,
+          # still generated from the unstripped link (`atos` against it resolves
+          # addresses in the stripped binary); notarize.sh keeps it beside the
+          # release zip.
           DEPLOYMENT_POSTPROCESSING: YES
 
   # Privileged helper: a root LaunchDaemon (registered via SMAppService.daemon)

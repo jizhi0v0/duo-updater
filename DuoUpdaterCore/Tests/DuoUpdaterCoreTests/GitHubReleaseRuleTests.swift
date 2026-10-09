@@ -63,7 +63,15 @@ private func extract(
     #expect(extract("v2.0.4", "ai.deepseek.dsh.desktop") == "2.0.4")
     let pattern = try! #require(rule("ai.deepseek.dsh.desktop").installAssetPattern)
     #expect("DSH.Desktop-2.0.4-universal.dmg".range(of: pattern, options: .regularExpression) != nil)
+    // From v2.0.16 the dmg is spelled with a hyphen like its siblings.
+    #expect("DSH-Desktop-2.0.17-universal.dmg".range(of: pattern, options: .regularExpression) != nil)
     #expect("DSH-Desktop-2.0.4-x64-Setup.exe".range(of: pattern, options: .regularExpression) == nil)
+    // The -beta.N and -next sibling releases of the same tag stay out, by
+    // asset name and by tag.
+    #expect("DSH-Desktop-Beta-2.0.17-beta.1-universal.dmg".range(of: pattern, options: .regularExpression) == nil)
+    #expect("DSH-NEXT-2.0.17-next-universal.dmg".range(of: pattern, options: .regularExpression) == nil)
+    #expect(extract("v2.0.17-beta.1", "ai.deepseek.dsh.desktop") == nil)
+    #expect(extract("v2.0.17-next", "ai.deepseek.dsh.desktop") == nil)
     #expect(rule("ai.deepseek.dsh.desktop").slug == "anywhere-labs/dsh-desktop")
     #expect(rule("ai.deepseek.dsh.desktop").installerKind == .dmg)
 }

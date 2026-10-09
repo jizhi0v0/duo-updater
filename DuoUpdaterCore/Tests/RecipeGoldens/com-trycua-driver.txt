@@ -24,12 +24,13 @@ githubRules[0].installerKind? = .tarGz
 githubRules[0].installTrust = .developerID
 githubRules[0].variant = nil
 githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
 githubRules[1] = struct GitHubReleaseRule
 githubRules[1].bundleID = "com.trycua.driver"
 githubRules[1].owner = "trycua"
 githubRules[1].repo = "cua"
 githubRules[1].usePrereleases = true
-githubRules[1].listPageSize = 48
+githubRules[1].listPageSize = 20
 githubRules[1].versionPattern = "^nightly-cua-driver-rs-v([0-9]+\\.[0-9]+\\.[0-9]+)-nightly\\.[0-9]{8}\\.[1-9][0-9]*$"
 githubRules[1].candidateScope = .newest
 githubRules[1].probesNewestFirst = true
@@ -40,6 +41,7 @@ githubRules[1].installerKind? = .tarGz
 githubRules[1].installTrust = .developerID
 githubRules[1].variant = nil
 githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix? = "nightly-cua-driver-rs-v"
 
 appStoreCases = Array(count: 0)
 

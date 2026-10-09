@@ -33,7 +33,7 @@ import DuoUpdaterCore
         pattern: "<h3>(?<version>[^<]+)</h3>",
         attempts: 3, gatewayRetries: 2,
         entryCount: 20, entryVersions: ["4.8.0", "4.7.9", "4.7.8"],
-        headingMatchesPage: true,
+        headingMatchesPage: true, entrySwallowsAnother: true,
         elapsedMs: 1234, bodySample: "<h3>4.8.0</h3>")
 
     private func children(_ finding: Finding) -> [String: String] {

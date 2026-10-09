@@ -545,7 +545,7 @@ extension GitHubReleaseRule: Codable {
         case bundleID, owner, repo, usePrereleases, listPageSize, versionPattern
         case candidateScope, probesNewestFirst, installedTagPrefix, channel
         case installAssetPattern, installerKind, installTrust, variant
-        case architectureRequirement
+        case architectureRequirement, tagRefPrefix
     }
 
     private static var codingDefaults: GitHubReleaseRule {
@@ -581,7 +581,9 @@ extension GitHubReleaseRule: Codable {
             variant: try c.decodeOptional(String.self, forKey: .variant, default: d.variant),
             architectureRequirement: try c.decodeOptional(
                 GitHubArchitectureRequirement.self, forKey: .architectureRequirement,
-                default: d.architectureRequirement))
+                default: d.architectureRequirement),
+            tagRefPrefix: try c.decodeOptional(
+                String.self, forKey: .tagRefPrefix, default: d.tagRefPrefix))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -607,6 +609,7 @@ extension GitHubReleaseRule: Codable {
         try c.encodeOptional(
             architectureRequirement, forKey: .architectureRequirement,
             defaultIsNil: d.architectureRequirement == nil)
+        try c.encodeOptional(tagRefPrefix, forKey: .tagRefPrefix, defaultIsNil: d.tagRefPrefix == nil)
     }
 }
 

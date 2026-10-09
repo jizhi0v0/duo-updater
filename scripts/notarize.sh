@@ -28,7 +28,7 @@ SUBMIT_ZIP="$STAGE_DIR/DuoUpdater-notary-upload.zip"
 FINAL_ZIP="${FINAL_ZIP:-$REPO/dist/DuoUpdater-notarized.zip}"
 # The shipped binary is stripped (DEPLOYMENT_POSTPROCESSING in App/project.yml),
 # so a crash report from it names functions only through this dSYM. Kept beside
-# the zip; release-build.yml uploads it as its own artifact.
+# the zip; publish-release.sh attaches it to the GitHub release.
 BUILD_DSYM="$BUILD_APP.dSYM"
 DSYM_ZIP="${DSYM_ZIP:-$(dirname "$FINAL_ZIP")/DuoUpdater-dSYM.zip}"
 RESULT_JSON="$STAGE_DIR/notary-result.json"

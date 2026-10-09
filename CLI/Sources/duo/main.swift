@@ -251,6 +251,11 @@ verify-install options:
                       downloaded — every one of them; meant for a hosted runner.
   --report <path>     Write the results as JSON.
   --markdown <path>   Write a summary as Markdown.
+  --identities <path> Read and update what each installer was when first seen:
+                      bundle id, Team, Sparkle key, architectures. A download
+                      that differs is a warning, and the recorded identity is
+                      kept until someone edits or deletes the entry. A file
+                      that cannot be read stops the run.
   --max-concurrency N Hosts downloaded from in parallel (default 3). One
                       download at a time per host, each deleted once read.
   --allow-stale-binary
@@ -574,6 +579,7 @@ case "verify-install":
     }
     options.jsonPath = args.value("report").map { URL(fileURLWithPath: $0) }
     options.markdownPath = args.value("markdown").map { URL(fileURLWithPath: $0) }
+    options.identitiesPath = args.value("identities").map { URL(fileURLWithPath: $0) }
     let installVerifyOptions = options
     run = { await InstallVerify.run(installVerifyOptions) }
 

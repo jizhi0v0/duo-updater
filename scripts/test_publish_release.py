@@ -192,5 +192,78 @@ class SparkleToolLookup(unittest.TestCase):
         self.assertIn("xcodegen not found", run.stderr)
 
 
+def extract_function(name):
+    """One function, verbatim, by the same slicing rule as above."""
+    lines = SCRIPT.read_text().splitlines()
+    start = lines.index(f"{name}() {{")
+    end = next(i for i in range(start, len(lines)) if lines[i] == "}")
+    return "\n".join(lines[start:end + 1])
+
+
+DSYM_DRIVER = """
+set -euo pipefail
+die() {{ printf 'DIE %s\\n' "$*" >&2; exit 3; }}
+{function}
+check_dsym_matches "$1" "$2"
+"""
+
+
+class DsymGate(unittest.TestCase):
+    """`check_dsym_matches`, on real Mach-O binaries and real dSYMs.
+
+    The shipped binary is stripped, so a dSYM from any other build would make
+    every report from that release unreadable, and nothing downstream notices.
+    Built here with clang + dsymutil rather than faked, because the gate is a
+    UUID comparison and only a real link produces a real UUID.
+    """
+
+    def setUp(self):
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="duo-dsym-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def build(self, tag):
+        """A zipped DuoUpdater.app around a fresh binary, and its zipped dSYM."""
+        root = self.tmp / tag
+        macos = root / "DuoUpdater.app" / "Contents" / "MacOS"
+        macos.mkdir(parents=True)
+        src = root / "main.c"
+        src.write_text(f'int main(void) {{ return {len(tag)}; }} const char *t = "{tag}";\n')
+        binary = macos / "DuoUpdater"
+        subprocess.run(["xcrun", "clang", "-g", "-o", binary, src], check=True)
+        dsym = root / "DuoUpdater.app.dSYM"
+        subprocess.run(["xcrun", "dsymutil", binary, "-o", dsym], check=True)
+        subprocess.run(["xcrun", "strip", binary], check=True)
+        app_zip, dsym_zip = root / "app.zip", root / "dsym.zip"
+        for src_path, out in ((root / "DuoUpdater.app", app_zip), (dsym, dsym_zip)):
+            subprocess.run(["ditto", "-c", "-k", "--keepParent", src_path, out], check=True)
+        return app_zip, dsym_zip
+
+    def check(self, app_zip, dsym_zip):
+        script = DSYM_DRIVER.format(function=extract_function("check_dsym_matches"))
+        return subprocess.run(["bash", "-c", script, "check", str(app_zip), str(dsym_zip)],
+                              capture_output=True, text=True)
+
+    def test_the_builds_own_dsym_passes(self):
+        app, dsym = self.build("a")
+        run = self.check(app, dsym)
+        self.assertEqual(run.returncode, 0, run.stderr)
+
+    # Mutation: drop the UUID comparison and this passes another build's dSYM.
+    def test_another_builds_dsym_is_refused(self):
+        app, _ = self.build("a")
+        _, other = self.build("bb")
+        run = self.check(app, other)
+        self.assertEqual(run.returncode, 3, run.stderr)
+        self.assertIn("does not match", run.stderr)
+
+    # Mutation: drop the `-f` check and this dies on ditto's error instead,
+    # which does not say the release would ship without symbols.
+    def test_a_missing_dsym_is_refused_by_name(self):
+        app, _ = self.build("a")
+        run = self.check(app, self.tmp / "absent.zip")
+        self.assertEqual(run.returncode, 3, run.stderr)
+        self.assertIn("no dSYM", run.stderr)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

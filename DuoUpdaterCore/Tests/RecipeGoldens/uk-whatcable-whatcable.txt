@@ -24,6 +24,7 @@ githubRules[0].installerKind? = .zip
 githubRules[0].installTrust = .developerID
 githubRules[0].variant = nil
 githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
 githubRules[1] = struct GitHubReleaseRule
 githubRules[1].bundleID = "uk.whatcable.whatcable"
 githubRules[1].owner = "darrylmorley"
@@ -40,6 +41,7 @@ githubRules[1].installerKind? = .zip
 githubRules[1].installTrust = .developerID
 githubRules[1].variant = nil
 githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
 
 appStoreCases = Array(count: 0)
 

@@ -242,8 +242,8 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// (sideloaded copies report 0).
     public let appStoreAdamID: Int?
 
-    /// The id this copy's vendor probes and changelog recipes are filed under:
-    /// `bundleID`, unless the vendor has since renamed the app and this copy is
+    /// The id this copy's vendor probes, GitHub rules and changelog recipes are
+    /// filed under: `bundleID`, unless the vendor has since renamed the app and this copy is
     /// still on the old id (`BundleIDMigration`). Only recipe lookups use it.
     /// `bundleID` stays the id on disk; `AppRestarter.runningInstances` widens
     /// its process query with `BundleIDMigration.relatedBundleIDs` on its own.

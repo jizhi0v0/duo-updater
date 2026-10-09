@@ -6,8 +6,8 @@ import Foundation
 /// Recipes are keyed by the NEW id, the one the vendor ships today. Four
 /// places read this table, and nothing else does — an entry changes all four:
 ///  - `InstalledApp.recipeBundleID` files an old-id copy under the new id, so
-///    vendor probes and changelog recipes find it. `bundleID` itself stays the
-///    id on disk.
+///    vendor probes, GitHub rules and changelog recipes find it. `bundleID`
+///    itself stays the id on disk.
 ///  - `AppRestarter.runningInstances` queries running processes under both ids
 ///    of a pair (`relatedBundleIDs`) and then filters by path, so restart and
 ///    quit reach an old-id process still running from a bundle just swapped
@@ -45,6 +45,15 @@ public struct BundleIDMigration: Sendable, Equatable {
         BundleIDMigration(
             from: "com.workbuddy.workbuddy", to: "com.tencent.workbuddy.mac",
             teamID: "FN2V63AD2J", lastFromVersion: "5.3.14", firstToVersion: "5.5.4"),
+        // PrintCraft became PdfCraft: v0.2.1 is PrintCraft.app,
+        // `ai.storyteller.printcraft`; v0.4.0 is PdfCraft.app,
+        // `ai.storyteller.pdfcraft`, the same Team; there is no 0.3.x release.
+        // PdfCraft moves PrintCraft's settings folder to its own on first launch
+        // (`migrate_legacy_folders` in the vendor's `apps/pdfcraft/src/main.rs`).
+        // See docs/app-audits/ai-storyteller-photocraft.md, PdfCraft 改名.
+        BundleIDMigration(
+            from: "ai.storyteller.printcraft", to: "ai.storyteller.pdfcraft",
+            teamID: "DJ6XS33FX8", lastFromVersion: "0.2.1", firstToVersion: "0.4.0"),
     ]
 
     /// Whether an installed copy signed as `from` at `version` is this rename.

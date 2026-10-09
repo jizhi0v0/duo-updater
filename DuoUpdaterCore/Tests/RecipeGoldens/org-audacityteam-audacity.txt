@@ -117,6 +117,7 @@ githubRules[0].installerKind? = .dmg
 githubRules[0].installTrust = .developerID
 githubRules[0].variant? = "audacity3"
 githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
 githubRules[1] = struct GitHubReleaseRule
 githubRules[1].bundleID = "org.audacityteam.audacity4"
 githubRules[1].owner = "audacity"
@@ -133,6 +134,7 @@ githubRules[1].installerKind? = .dmg
 githubRules[1].installTrust = .developerID
 githubRules[1].variant? = "audacity4"
 githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
 
 appStoreCases = Array(count: 0)
 

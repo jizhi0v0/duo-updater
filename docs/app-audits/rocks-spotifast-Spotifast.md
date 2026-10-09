@@ -38,8 +38,8 @@
 - 注意事项 —— **改名**: v0.8.0–v0.9.1 每个 release 同时有 `fastpotify-…` 和 `spotifast-…` 两个 dmg，
   两个 dmg 里的 app（0.9.1 里叫 Fastpotify.app / Spotifast.app）bundle id 都是 `me.paolino.fastpotify`；
   v0.10.0 起只有 `spotifast-…`，bundle id 换成 `rocks.spotifast.Spotifast`。dmg 锚只收 `spotifast-v…`。
-- 旧 id 规则只检测：下载的是新 id，bundle-id 闸会拒；`BundleIDMigration` 只接在 vendor/changelog
-  recipe 上（`InstalledApp.recipeBundleID`），GitHub 规则不读它，所以没登记改名表。厂商 0.12.0 说明写明
+- 旧 id 规则只检测：下载的是新 id，bundle-id 闸会拒；没登记 `BundleIDMigration` 改名表（#1087 起
+  GitHub 规则也按 `InstalledApp.recipeBundleID` 查，登记了就会走新 id 规则和一键）。不登记的理由是厂商 0.12.0 说明写明
   0.9.0 及更早直接跳到 0.12.0 会丢设置。0.9.1 二进制已含新 id 与 `Spotifast.app` 字符串，看起来
   它自己的更新器是为这次搬迁准备的（读字符串得出，没实跑）。
 

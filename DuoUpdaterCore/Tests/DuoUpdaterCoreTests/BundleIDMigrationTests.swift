@@ -19,13 +19,13 @@ struct BundleIDMigrationTests {
     @Test func everyEntryLandsOnRecipesAndLeavesTheOldIdUnkeyed() {
         let vendorIDs = Set(VendorProbeRegistry.recipes.map(\.bundleID))
         let changelogIDs = Set(ChangelogRecipeRegistry.recipes.map(\.bundleID))
+        let githubIDs = Set(GitHubReleaseRegistry.rules.map(\.bundleID))
+        let keyed = vendorIDs.union(changelogIDs).union(githubIDs)
         #expect(!BundleIDMigration.all.isEmpty)
         for m in BundleIDMigration.all {
             #expect(m.from != m.to)
-            #expect(vendorIDs.contains(m.to) || changelogIDs.contains(m.to),
-                    "\(m.to) has no recipe to land on")
-            #expect(!vendorIDs.contains(m.from) && !changelogIDs.contains(m.from),
-                    "\(m.from) is still keyed by a recipe")
+            #expect(keyed.contains(m.to), "\(m.to) has no recipe to land on")
+            #expect(!keyed.contains(m.from), "\(m.from) is still keyed by a recipe")
             #expect(VersionComparator.compare(m.lastFromVersion, m.firstToVersion) == .orderedAscending)
             #expect(m.covers(installedVersion: m.lastFromVersion))
             #expect(!m.covers(installedVersion: m.firstToVersion))

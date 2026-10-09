@@ -1209,3 +1209,24 @@ import DuoUpdaterCore
         #expect(stored?.isEmpty == true)
     }
 }
+
+@Suite struct RestartHintArgumentTests {
+    let path = URL(fileURLWithPath: "/Applications/Print Craft's.app")
+
+    @Test func anAppThatKeptItsIDIsNamed() {
+        #expect(Install.restartArgument(name: "PrintCraft", path: path,
+                                        bundleIDBefore: "a.b", bundleIDNow: "a.b") == "PrintCraft")
+    }
+
+    @Test func aRenamedAppIsNamedByItsQuotedPath() {
+        #expect(Install.restartArgument(name: "PrintCraft", path: path,
+                                        bundleIDBefore: "ai.storyteller.printcraft",
+                                        bundleIDNow: "ai.storyteller.pdfcraft")
+                == "'/Applications/Print Craft'\\''s.app'")
+    }
+
+    @Test func anUnreadableIDKeepsTheName() {
+        #expect(Install.restartArgument(name: "X", path: path, bundleIDBefore: nil, bundleIDNow: "a") == "X")
+        #expect(Install.restartArgument(name: "X", path: path, bundleIDBefore: "a", bundleIDNow: nil) == "X")
+    }
+}

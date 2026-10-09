@@ -765,7 +765,7 @@ public enum Install {
         // means `coordinator.perform` returned (or failed) WITHOUT putting the
         // new version on disk — `applied` is exactly the signal for that, and is
         // more precise than "the call didn't throw" (#404 review #2).
-        var attempted: [(name: String, path: URL)] = []
+        var attempted: [(name: String, path: URL, bundleID: String?)] = []
         for item in plan {
             let name = item.result.app.name
             if !json { print("→ \(name)") }
@@ -889,7 +889,7 @@ public enum Install {
                 // of the same ternary.
                 let category = rowOutcome(forApplied: installOutcome.applied)
                 if installOutcome.applied {
-                    attempted.append((name: name, path: toInstall.app.path))
+                    attempted.append((name: name, path: toInstall.app.path, bundleID: toInstall.app.bundleID))
                 }
                 tally.record(category)
                 emit(name: name, route: route, outcome: installOutcome, json: json)
@@ -967,13 +967,29 @@ public enum Install {
             let running = Check.runningBundlePaths()
             let stale = attempted
                 .filter { running.contains(UpdatePolicy.runtimeBundlePath($0.path)) }
-                .map(\.name)
             if !stale.isEmpty {
-                print("\nStill running the old code: \(stale.joined(separator: ", "))")
-                print("  duo restart \(stale.joined(separator: " "))")
+                print("\nStill running the old code: \(stale.map(\.name).joined(separator: ", "))")
+                // Info.plist read directly: `Bundle(url:)` caches per path, and
+                // this path held a different bundle when this run started.
+                let arguments = stale.map {
+                    restartArgument(name: $0.name, path: $0.path, bundleIDBefore: $0.bundleID,
+                                    bundleIDNow: NSDictionary(contentsOf: $0.path.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String)
+                }
+                print("  duo restart \(arguments.joined(separator: " "))")
             }
         }
         return tally.failed == 0 ? 0 : 1
+    }
+
+    /// What to hand `duo restart` for an app this run updated. Its name, unless
+    /// the update renamed the app (`BundleIDMigration`): the bundle at that path
+    /// now reads under the new name, so the old one matches nothing and the path
+    /// is the only argument that still finds it.
+    static func restartArgument(
+        name: String, path: URL, bundleIDBefore: String?, bundleIDNow: String?
+    ) -> String {
+        guard let bundleIDBefore, let bundleIDNow, bundleIDBefore != bundleIDNow else { return name }
+        return "'" + path.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     /// The text-mode summary line, pulled out as a pure function so its exact

@@ -27,9 +27,9 @@ public struct Baseline: Codable, Sendable {
         public var lastGoodVersion: String?
         public var lastGoodAt: Date?
         /// Entries the last sweep that got a BELIEVABLE answer extracted from
-        /// this recipe's page — a count that collapsed to one is complained
-        /// about and not recorded, so this stays the yardstick the next sweep
-        /// measures against. Changelog recipes only — nil everywhere else, and nil
+        /// this recipe's page — a count that fell to one is not recorded (and
+        /// is complained about unless the page shows nothing was swallowed), so
+        /// this stays the yardstick the next sweep measures against. Changelog recipes only — nil everywhere else, and nil
         /// on a row written before this field existed, which is why the
         /// collapse check needs a previous value and cannot fire on the first
         /// sweep after an upgrade.
@@ -487,17 +487,31 @@ public struct Baseline: Codable, Sendable {
         // when they prune — which they are entitled to do. A partial merge is
         // therefore NOT covered here, deliberately, rather than covered by a
         // threshold nobody could defend.
+        //
+        // And only when the page agrees it collapsed. Becoming one is not proof
+        // either: Chrome's Stable label page holds one desktop post whenever the
+        // vendor's latest posts are for other platforms, and judged on the count
+        // alone that warned on every sweep until the page grew again (#821). The
+        // sweep asks the page whether another entry begins inside an entry's body
+        // (`Finding.entrySwallowsAnother`) — the swallowing itself, not a symptom
+        // of it. Only an explicit `false` stands the complaint down; nil (not
+        // recorded, or a recipe that cannot be asked) keeps the count's verdict.
         if let count = finding.entryCount, finding.status != .infra {
             if let previous = entry.lastGoodEntryCount, previous > 1, count == 1 {
-                complaints.append("entry count COLLAPSED to one since the last sweep "
-                    + "(\(previous) → 1) — an entry pattern whose terminator stopped "
-                    + "matching leaves the first entry carrying the whole page, with its "
-                    + "version still parsing correctly off the heading")
+                if finding.entrySwallowsAnother != false {
+                    complaints.append("entry count COLLAPSED to one since the last sweep "
+                        + "(\(previous) → 1) — an entry pattern whose terminator stopped "
+                        + "matching leaves the first entry carrying the whole page, with its "
+                        + "version still parsing correctly off the heading")
+                }
                 // Same reason as the version above: recording the 1 would leave
                 // the next sweep comparing 1 against 1, which is the shape this
                 // check reads as healthy. The collapse would then be reported by
                 // exactly one sweep and never again — and one sweep is below
-                // `actionableThreshold`, so it would reach nobody.
+                // `actionableThreshold`, so it would reach nobody. Held on a
+                // single entry that swallowed nothing too: recording that 1 would
+                // disarm the check for the sweep where the page grows back and
+                // its terminator breaks at the same time.
             } else {
                 entry.lastGoodEntryCount = count
             }

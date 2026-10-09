@@ -76,12 +76,9 @@ struct GitHubListPageSizeTests {
         // 2026-09-16). The deepest floor here by a wide margin, and the rule pays
         // for it in bytes; the audit carries the wire cost.
         "com.trycua.driver/stable": 27,
-        // Cua Driver nightly: usually row 0 (the job cuts a release most
-        // mornings; worst gap between two nightlies in the newest 300 rows is
-        // 7), but the same 2026-10-03 walk found the newest nightly at index 30:
-        // the job had cut nothing for four days while the burst above landed.
-        // So 31.
-        "com.trycua.driver/nightly": 31,
+        // Cua Driver nightly is absent on purpose: it finds its releases by tag
+        // (`tagRefPrefix`), because a held nightly train sinks down this list
+        // without bound — see `depthCheckedListRules`.
         "uk.whatcable.whatcable/beta": 1,     // gap 0 (all 100 tags match), +1
         // CotEditor: gap 0 — its beta rule accepts plain tags as well as `-beta`
         // ones (a cyclical train whose copies must be able to take the release
@@ -113,10 +110,12 @@ struct GitHubListPageSizeTests {
 
     /// The rules this whole mechanism is about: every rule that reads the list
     /// endpoint EXCEPT the line-anchored one, which measures a different
-    /// question (see the table's doc comment above).
+    /// question (see the table's doc comment above), and a rule with
+    /// `tagRefPrefix`, which never reads the list page at all.
     private static var depthCheckedListRules: [GitHubReleaseRule] {
         GitHubReleaseRegistry.rules.filter {
             $0.usePrereleases && $0.candidateScope != .installedMajorLineOrNewestStable
+                && $0.tagRefPrefix == nil
         }
     }
 

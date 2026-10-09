@@ -217,6 +217,25 @@ public struct GitHubReleaseRule: Sendable {
     /// every Mac the asset selector would hand them to.
     public let architectureRequirement: GitHubArchitectureRequirement?
 
+    /// Tag-name prefix that makes this rule find its releases by TAG instead of
+    /// by position on the `/releases` list page. Nil (the default) for every
+    /// rule that reads the list or `/releases/latest`.
+    ///
+    /// For a monorepo where this rule's train is one of many: a list page holds
+    /// only the newest N releases of the WHOLE repo, so whenever the other
+    /// trains publish more than N releases while this one is quiet, the newest
+    /// match scrolls off the page and the rule goes `.unknown`. No page size is
+    /// deep enough for a train that can stall for as long as its vendor likes.
+    /// With a prefix set, `resolve` asks `git/matching-refs/tags/<prefix>` for
+    /// every tag under it (one request holding only this train's tags), keeps
+    /// the ones `versionPattern` accepts, orders them itself — GitHub documents
+    /// no order for that endpoint, and the one it returns is lexical, `v0.9.1`
+    /// after `v0.10.0` — and fetches the newest by exact tag. `listPageSize`
+    /// and `probesNewestFirst` play no part. Only for a `usePrereleases`,
+    /// `.newest` rule without `installedTagPrefix`;
+    /// `GitHubTagRefResolutionTests.tagRefRulesAreWellFormed` enforces that.
+    public let tagRefPrefix: String?
+
     public init(
         bundleID: String,
         owner: String,
@@ -232,9 +251,11 @@ public struct GitHubReleaseRule: Sendable {
         channel: ReleaseChannel = .stable,
         probesNewestFirst: Bool = true,
         variant: String? = nil,
-        architectureRequirement: GitHubArchitectureRequirement? = nil
+        architectureRequirement: GitHubArchitectureRequirement? = nil,
+        tagRefPrefix: String? = nil
     ) {
         self.bundleID = bundleID
+        self.tagRefPrefix = tagRefPrefix
         self.variant = variant
         self.architectureRequirement = architectureRequirement
         self.channel = channel
@@ -684,6 +705,37 @@ public struct GitHubReleasesSource: UpdateSource {
     static func listEndpoint(_ rule: GitHubReleaseRule, pageSize: Int) -> String {
         "https://api.github.com/repos/\(rule.slug)/releases?per_page=\(pageSize)"
     }
+    /// Every tag ref under `prefix` — see `GitHubReleaseRule.tagRefPrefix`.
+    static func tagRefsEndpoint(_ rule: GitHubReleaseRule, prefix: String) -> String? {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/")
+        guard let escaped = prefix.addingPercentEncoding(withAllowedCharacters: allowed) else {
+            return nil
+        }
+        return "https://api.github.com/repos/\(rule.slug)/git/matching-refs/tags/\(escaped)"
+    }
+
+    /// The tags `versionPattern` accepts, newest first. Ordered by
+    /// `VersionComparator` on what follows the prefix, so digit runs compare as
+    /// numbers (`0.10.0` above `0.9.1`, and a nightly's date and run id break
+    /// ties on one base) — the same order the vendor's installer sorts into.
+    /// Ties keep their incoming order, so the result does not depend on how
+    /// the sort happens to treat equal elements.
+    static func newestTagsFirst(_ tags: [String], prefix: String, pattern: String) -> [String] {
+        let accepted = tags.enumerated().filter {
+            $0.element.hasPrefix(prefix)
+                && VendorProbeRecipe.extractVersion(from: $0.element, pattern: pattern) != nil
+        }
+        return accepted.sorted { lhs, rhs in
+            switch VersionComparator.compare(
+                String(lhs.element.dropFirst(prefix.count)),
+                String(rhs.element.dropFirst(prefix.count))) {
+            case .orderedDescending: return true
+            case .orderedAscending: return false
+            case .orderedSame: return lhs.offset < rhs.offset
+            }
+        }.map(\.element)
+    }
 
     /// One row. The newest release IS the answer for a `.newest` prerelease
     /// rule on every round that does not land between a platform-partial
@@ -697,6 +749,7 @@ public struct GitHubReleasesSource: UpdateSource {
     /// `newestProbeSize(for:)`.
     static func probesNewestFirst(_ rule: GitHubReleaseRule) -> Bool {
         rule.usePrereleases && rule.candidateScope == .newest && rule.probesNewestFirst
+            && rule.tagRefPrefix == nil
     }
 
     /// The page size `resolve` opens with, or nil to fetch the rule's full page
@@ -750,7 +803,9 @@ public struct GitHubReleasesSource: UpdateSource {
                 "GitHub skip \(app.bundleID ?? "?", privacy: .public): App Store copy, the store owns its updates")
             return nil
         }
-        guard let bundleID = app.bundleID, let candidates = rules[bundleID] else {
+        // `recipeBundleID`, not `bundleID`: a copy still on an id the vendor has
+        // since renamed (`BundleIDMigration`) is checked by the new id's rules.
+        guard let bundleID = app.recipeBundleID, let candidates = rules[bundleID] else {
             return nil  // no rule for this app — not applicable
         }
         // Channel gate: pick the rule whose channel matches the installed app's,
@@ -1378,6 +1433,11 @@ public struct GitHubReleasesSource: UpdateSource {
                 preferring: hostArch, allowingIntelTranslation: canRunIntel,
                 recordingMisses: true)
         }
+        if let prefix = rule.tagRefPrefix {
+            return try await resolveByTagRefs(
+                rule, prefix: prefix, anchoredTo: installedVersion,
+                preferring: hostArch, allowingIntelTranslation: canRunIntel)
+        }
         // One row first, when the rule allows it — see `newestProbeSize(for:)`.
         // A probe that cannot answer is not a recipe miss (the release it wants
         // may simply sit below the newest row), so nothing is recorded against
@@ -1402,6 +1462,93 @@ public struct GitHubReleasesSource: UpdateSource {
             rule, releases: releases, anchoredTo: installedVersion,
             preferring: hostArch, allowingIntelTranslation: canRunIntel,
             recordingMisses: true)
+    }
+
+    /// `resolve` for a rule with `tagRefPrefix`. The newest accepted tags are
+    /// fetched by exact tag and handed to `settle` in that order, so the draft
+    /// filter, the asset walk-back and its bound, history and health all run
+    /// exactly as they do for a list page. A tag with no release behind it
+    /// (404: pushed but not published) is passed over. Fetching stops at the
+    /// first release that can answer, and never goes past the bound `settle`
+    /// would stop its walk at anyway.
+    private func resolveByTagRefs(
+        _ rule: GitHubReleaseRule,
+        prefix: String,
+        anchoredTo installedVersion: String?,
+        preferring hostArch: HostArch,
+        allowingIntelTranslation canRunIntel: Bool
+    ) async throws -> Resolution {
+        guard let tags = try await fetchTagRefs(rule, prefix: prefix) else {
+            return Resolution(remote: nil, tags: [], archIncompatible: false)
+        }
+        let ordered = Self.newestTagsFirst(tags, prefix: prefix, pattern: rule.versionPattern)
+        var releases: [Release] = []
+        for tag in ordered.prefix(Self.maxReleasesWithoutMacOSAsset + 1) {
+            guard let release = try await fetchReleases(rule, list: false, tag: tag)?.first else {
+                continue
+            }
+            releases.append(release)
+            let canAnswer = !release.isDraft && rule.admits(release, on: hostArch)
+                && (rule.installAssetPattern.map {
+                    GitHubReleaseRule.carriesInstallableAsset(from: release.assets, matching: $0)
+                } ?? true)
+            if canAnswer { break }
+        }
+        guard !releases.isEmpty else {
+            let detail = ordered.isEmpty
+                ? "\(tags.count) tag(s) under \(prefix), none matched the version pattern"
+                : "\(ordered.count) tag(s) matched the version pattern, none of the newest has a published release"
+            Log.source.error("GitHub \(rule.slug, privacy: .public): \(detail, privacy: .public)")
+            await RecipeHealth.shared.recordMiss(id: rule.recipeID, source: name, detail: detail)
+            return Resolution(remote: nil, tags: tags, archIncompatible: false)
+        }
+        return try await settle(
+            rule, releases: releases, anchoredTo: installedVersion,
+            preferring: hostArch, allowingIntelTranslation: canRunIntel,
+            recordingMisses: true)
+    }
+
+    /// The tag names under `prefix`, or nil when the endpoint URL could not be
+    /// built or the response was not HTTP. A bad status throws, the same
+    /// contract as `fetchReleases`. Not routed through `validatorCache`: the
+    /// body has no download counters in it, so `URLCache`'s own revalidation
+    /// already holds.
+    private func fetchTagRefs(_ rule: GitHubReleaseRule, prefix: String) async throws -> [String]? {
+        guard let endpoint = Self.tagRefsEndpoint(rule, prefix: prefix),
+              let url = URL(string: endpoint) else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+
+        Log.source.debug("GitHub GET \(endpoint, privacy: .public) (auth=\(self.token != nil, privacy: .public))")
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "GitHub \(rule.slug) tags")
+        guard let http = response as? HTTPURLResponse else { return nil }
+        GitHubEndpointAudit.record(
+            requestedSlug: rule.slug, requestedURL: url, response: http,
+            firstReleaseHTMLURL: nil, sentToken: token != nil)
+        guard (200..<300).contains(http.statusCode) else {
+            let budget = http.value(forHTTPHeaderField: "X-RateLimit-Remaining")
+            Log.source.error("GitHub \(rule.slug, privacy: .public): tag refs HTTP \(http.statusCode, privacy: .public) (ratelimit-remaining=\(budget ?? "?", privacy: .public))")
+            throw Self.statusError(http.statusCode, rateLimitRemaining: budget)
+        }
+        return Self.tagNames(fromMatchingRefs: data)
+    }
+
+    /// `refs/tags/<name>` → `<name>` for each entry of a `matching-refs`
+    /// response. An unexpected shape decodes to no tags, which `resolveByTagRefs`
+    /// reports as a miss rather than as "up to date".
+    static func tagNames(fromMatchingRefs data: Data) -> [String] {
+        guard let refs = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else {
+            return []
+        }
+        return refs.compactMap { entry in
+            guard let ref = entry["ref"] as? String, ref.hasPrefix("refs/tags/") else { return nil }
+            return String(ref.dropFirst("refs/tags/".count))
+        }
     }
 
     /// Everything `resolve` does once it holds a page: scope ceiling, the

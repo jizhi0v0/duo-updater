@@ -5,7 +5,7 @@ import Foundation
 /// Each one has its own rules — where its installers put it, how its version is
 /// read, which command updates it and when that may run — so each keeps its own
 /// detection and update code (`ClaudeCode*`, `Bub*`, `Fx*`, `Uv*`, `Junie*`,
-/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`, `Herdr*`, `Luvus*`). What they share is
+/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`, `Herdr*`, `Luvus*`, `Lorca*`). What they share is
 /// how the app lists them, sums them up and runs their updates: `CLIToolStatus`,
 /// `CLIToolReport` and `CLIToolProvider` below. A later tool is a new provider and
 /// a new `Kind`; the popover row and the workbench's CLI tab read it the same way.
@@ -38,6 +38,8 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case herdr
     /// RizRiyz's Luvus, `/usr/local/bin/luvus` or `~/.local/bin/luvus`.
     case luvus
+    /// egoist's Lorca CLI, `~/.local/bin/lorca`.
+    case lorca
 
     /// The tool's own name, as its vendor writes it. Untranslated, like a formula
     /// name on the brew row.
@@ -59,6 +61,7 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .vitePlus: return "Vite+"
         case .herdr: return "Herdr"
         case .luvus: return "Luvus"
+        case .lorca: return "Lorca"
         }
     }
 }
@@ -195,6 +198,7 @@ public struct CLIToolStatus: Sendable, Equatable {
         case vitePlus(VitePlusInstall)
         case herdr(HerdrInstall)
         case luvus(LuvusInstall)
+        case lorca(LorcaInstall)
     }
 
     public init(
@@ -251,6 +255,7 @@ public struct CLIToolReport: Sendable, Equatable {
         case vitePlus
         case herdr
         case luvus
+        case lorca
     }
 
     public init(

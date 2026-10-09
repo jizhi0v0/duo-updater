@@ -41,8 +41,8 @@ struct LogoTile<Mark: View>: View {
 /// rest are each vendor's own: fx.sh's header, boat.dev's favicon, ampcode.com's
 /// press kit, herdr's repo `assets/logo.svg` (backdrop removed), luvus.dev's
 /// brand kit (cropped to the glyph), JetBrains' brand resources for Junie, and
-/// OpenAI's blossom from developers.openai.com/codex for Codex. bub publishes
-/// only a PNG, so it stands in with an SF Symbol.
+/// OpenAI's blossom from developers.openai.com/codex for Codex. bub and Lorca
+/// publish only a PNG, so they stand in with an SF Symbol.
 struct CLIToolIcon: View {
     let kind: CLIToolKind
     let size: CGFloat
@@ -83,7 +83,7 @@ struct CLIToolIcon: View {
         case .luvus: "cli-luvus"
         case .junie: "cli-junie"
         case .codex: "cli-codex"
-        case .bub: nil
+        case .bub, .lorca: nil
         }
     }
 
@@ -111,7 +111,7 @@ struct CLIToolIcon: View {
                 ? NSColor(srgbRed: 0xDB / 255, green: 0xC6 / 255, blue: 0x6F / 255, alpha: 1)
                 : NSColor(srgbRed: 0x9C / 255, green: 0x82 / 255, blue: 0x26 / 255, alpha: 1)
         })
-        case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr: Color(nsColor: .labelColor)
+        case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr, .lorca: Color(nsColor: .labelColor)
         // Their marks in their own colours: Junie in the green of JetBrains'
         // published logo, and Codex's blossom black or white, as OpenAI's brand
         // page asks ("don't add any colors to the Blossom").

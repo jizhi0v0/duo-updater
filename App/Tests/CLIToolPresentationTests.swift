@@ -159,6 +159,17 @@ enum CLIToolFixtures {
                       withheld: withheld)
     }
 
+    static func lorca(
+        version: String = "0.1.11", quarantined: Bool = false, writable: Bool = true,
+        withheld: CLIToolWithheld? = nil
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.local/bin/lorca"
+        let install = LorcaInstall(path: path, binary: path, version: version, quarantined: quarantined,
+                                   writable: writable)
+        return status(.lorca, path: path, detail: .lorca(install), version: version, latest: "0.1.12",
+                      withheld: withheld)
+    }
+
     static func codex(
         signature: CLIToolTrust.Signature? = .vendor, quarantined: Bool = false,
         problem: CodexInstall.Problem? = nil, withheld: CLIToolWithheld? = nil
@@ -723,6 +734,25 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolsModel.reason(.unverified, of: F.luvus()) == "Not the build its developer published")
         #expect(CLIToolsModel.vendor(of: .luvus) == nil)
         #expect(CLIToolPresentation.facts(of: F.luvus(), home: "/Users/ann").isEmpty)
+    }
+
+    /// Lorca's reasons, in its check's order: a release from before `lorca
+    /// update`, a folder it cannot write to; a quarantined file; its own
+    /// auto-update turned off; and, with no Team ID, no vendor named.
+    ///
+    /// Mutations: drop either branch of the `(.unsupportedInstaller, .lorca)`
+    /// case; drop the `(.unverified, .lorca) where quarantined` case; return a
+    /// vendor for `.lorca`.
+    @Test func lorcaReasons() {
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.lorca(version: "0.1.10"))
+            == "This version has no lorca update")
+        #expect(CLIToolsModel.reason(.unsupportedInstaller, of: F.lorca(writable: false))
+            == "Updating it needs administrator rights")
+        #expect(CLIToolsModel.reason(.unverified, of: F.lorca(quarantined: true)) == "Quarantined, so not run")
+        #expect(CLIToolsModel.reason(.unverified, of: F.lorca()) == "Not the build its developer published")
+        #expect(CLIToolsModel.reason(.autoUpdateOff, of: F.lorca()) == "Auto-update is off in Lorca’s settings")
+        #expect(CLIToolsModel.vendor(of: .lorca) == nil)
+        #expect(CLIToolPresentation.facts(of: F.lorca(), home: "/Users/ann").isEmpty)
     }
 
     /// The pane's reason and the row's warning are the status's own: a newer

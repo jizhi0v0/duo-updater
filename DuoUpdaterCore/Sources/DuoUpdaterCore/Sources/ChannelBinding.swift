@@ -386,13 +386,6 @@ public enum ChannelBinding {
         return bounded.run(key: id, timeout: resolveTimeout) { resolver(bundleFeeds) } ?? nil
     }
 
-    /// How long a resolver gets before it is abandoned.
-    ///
-    /// Every resolver here is one plist read or one `CFPreferences` lookup —
-    /// sub-millisecond warm, single-digit milliseconds cold — so this is three
-    /// orders of magnitude of headroom and nothing near it is a slow disk. What it
-    /// is instead is the gate: see `BoundedBlockingWork`.
-    ///
     /// What a fresh install that nobody has configured is allowed, for an app whose
     /// feed puts even that install off the default channel. Machine-independent:
     /// answered from the vendor's own default, never from this Mac's preferences.
@@ -415,6 +408,13 @@ public enum ChannelBinding {
         }
     }
 
+    /// How long a resolver gets before it is abandoned.
+    ///
+    /// Every resolver here is one plist read or one `CFPreferences` lookup —
+    /// sub-millisecond warm, single-digit milliseconds cold — so this is three
+    /// orders of magnitude of headroom and nothing near it is a slow disk. What it
+    /// is instead is the gate: see `BoundedBlockingWork`.
+    ///
     /// Shorter than `TestFlightInventory.openTimeout` (5s) on purpose. That one is
     /// paid once per scan; this one is paid once per BOUND APP per scan, so on a
     /// machine where the gate covers several of them the wait multiplies.

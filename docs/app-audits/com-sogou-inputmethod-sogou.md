@@ -165,11 +165,31 @@ HTTPS 可用（抓包里客户端走的是 http）。同一 URL 连打五次**�
   `post_type` 条目，全部带版本号，按产品名分：`搜狗输入法 for Mac` ×94、
   **`搜狗输入法 for Mac touchbar` ×3**、`搜狗五笔输入法for Mac` ×4。
   - 五笔的 `for` 前面**没有空格**，拼音一律有（97 有 / 4 无），所以空格判据对五笔成立，
-    而且它**纯 ASCII**：页面 GBK 而 probe 按 UTF-8 解，汉字变替换字符，锚"五笔"两个字做不到。
+    而且它**纯 ASCII**：页面 GBK 而 probe（`VendorProbeSource`）按 UTF-8 解，汉字变替换字符，
+    锚"五笔"两个字做不到。（changelog 抓取 `ChangelogService` 已改为按响应声明的 charset 解码，
+    见下一小节；`VendorProbeSource` 没改，仍是 UTF-8。）
   - **touchbar 那三条不是被空格排除的**，是碰巧——它们的版本号写在 `touchbar` 这个词后面
     （`touchbar3.0`），恰好不匹配。**碰巧排除掉的东西不算被规则挡住。**
   - 五笔在 1.x 比不过 6.x 同样只是兜底，不是理由。
 - **只发三段**，见上。
+
+### 为什么仍然没有 ChangelogRecipe
+
+页面只能当 web view 嵌入，`ChangelogCoverage.acknowledged` 里记着原因。
+
+- **编码已经不是障碍。** 服务器在响应头里声明 `Content-Type: text/html;charset=gbk`
+  （HTML 里另有 `<meta … charset=gbk>`，但用不着嗅它），`ChangelogService` 现在按声明的
+  charset 解码，GB 系一律按 GB18030（超集）。2026-10-10 实测（`curl -sI` 看头；临时 Swift 测试
+  走 `ChangelogService.loadDiagnostic` 读线上页）：0 个替换字符，锚在「搜狗输入法 for Mac 」上的
+  试写 pattern 读出最新三条 `6.25.1`（2026-09-16）、`6.24.1`（2026-07-17）、`6.24.0`（2026-07-08）。
+  同日页面 `post_type` 共 102 条：拼音 95、touchbar 3、五笔 4。
+- **剩下的障碍是版本号的形状。** 页面条目写 `6.25.1`，而本 app 被提供、被安装的版本是
+  `6.25.1.11973`（接口和 bundle 都是四段，见上）。页面没有第四段可读，四段也推不出来；
+  反过来把装机侧裁成三段，正是上面说的、改到接口时删掉的 `firstThreeSegments`。
+  所以条目永远对不上被提供的版本：`Changelog.carries(version:)` 把四段读成比三段新，
+  该页的磁盘缓存永远是 provisional（过 6 小时就重读），重新验证的欠账也永远还不清。
+  这和 JetBrains Toolbox（`3.8.1` 对 `3.8.1.88030`）是同一种情况，那边是接受了这个代价的；
+  这里按「条目版本必须与提供的版本同一套方案」的规则不写，要接受同样的代价得另行决定。
 
 ## 下载文件名不是版本（实测排除）
 

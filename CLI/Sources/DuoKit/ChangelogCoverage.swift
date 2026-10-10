@@ -99,7 +99,7 @@ enum ChangelogCoverage {
         "com.runningwithcrayons.Alfred":
             "feasible, not written yet: regex on alfredapp.com/changelog",
         "com.sogou.inputmethod.sogou":
-            "GBK-encoded page, and the changelog fetch decodes UTF-8 only; page lists 3-part versions",
+            "update log titles versions x.y.z but the offered build is x.y.z.build, so no entry ever matches it",
         "com.steipete.codexbar":
             "Sparkle appcast ships inline HTML notes for every item, so the page is never shown",
         "com.sublimemerge":

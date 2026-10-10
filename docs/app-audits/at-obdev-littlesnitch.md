@@ -89,7 +89,13 @@ Mozilla 的 `aN`/`bN`/`esr` 形状,是空格 + 括号构建号）,`ReleaseChanne
 - Nightly **没有**对应的整页历史,只有 feed 里指向 `releasenotes-legacy-swu.php?version=<build>`
   的单版本片段接口——把它写死进 recipe 会随着下一个 nightly 发布而失效（版本号写死了）,所以
   nightly recipe 的 `changelogURL` 留空,渲染为"无发布说明"而不是一个会静默过期的链接。
-- Recipe 状态: 已有（stable）/ 故意不加（nightly）。
+- ChangelogRecipe（stable）: 已接。正则读 `releasenotes6.html` 的每个 `<div class="changelog-entry">`:
+  版本取 h3 里的 marketing 版本（`6.5`,与 stable probe 的 `displayVersionPattern` 同一口径,不取
+  span 里的 build）,日期取 `<div class="date">`,条目是 `<li>` 与 `<p>` 按文档顺序（hot fix 版只有
+  `<p>`）,`<h4>`/`<h5>` 渲染为小标题。页面只列正式版,没有 nightly/beta/preview 条目;recipe 设
+  `channel: .stable` + `excludedChannels: [.nightly]`,nightly 副本不拿这页（否则查找阶梯的回退会把
+  stable recipe 给它）。
+- Recipe 状态: 已有（stable 的 probe `changelogURL` + ChangelogRecipe）/ 故意不加（nightly）。
 
 ## 一键安装
 
@@ -182,3 +188,11 @@ nightly ships.
 `versionPatternNoMatch`，stable 解析出 6.5 但报 `entryPatternNoMatch`（`highestVersionEntry`
 当时把"只有一条记录"当作回退）。响应体原样存为 `Tests/LittleSnitchFeedFixture.swift` 的
 `body20261003`。
+
+### Recipes/at-obdev-littlesnitch.swift — stable ChangelogRecipe（`releasenotes6.html`）
+
+实测 2026-10-10（只读 GET，curl 与生产解析器 `ChangelogService.loadDiagnostic` 各一次）：200，25010 字节，
+20 个条目，最新 `6.5`（September 8, 2026，13 条，小标题 Improvements / Bug Fixes），最旧 `6`（May 21, 2024）。
+同日 `verify/baseline.json` 的 `vendor:at.obdev.littlesnitch:stable` 为 `6.5`，与最新条目一致。页面全文
+`nightly`/`beta`/`preview` 出现 0 次。`6.4` 一条含 27 个 `<h5>` 子标题之一（`macOS 26 Tahoe` 等），
+所以小标题读 `<h4>` 和 `<h5>`。nightly 副本查不到 recipe（`recipe(forBundleID:channel: .nightly)` 为 nil）。

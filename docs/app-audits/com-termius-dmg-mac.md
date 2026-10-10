@@ -226,11 +226,19 @@ Beta 的一键 URL 和 sha512 都在生产路径上解出来了。
 
 ## Changelog
 
-**没有接。** 站点没有可用的 release notes 页（见上「issue 核对」的第 2 条发现）。
-既存 stable recipe 的 `changelogURL` 已死，Beta 新 recipe 干脆不设。
+- **stable (`com.termius-dmg.mac`)：已接 `ChangelogRecipe`（2026-10-10）**，正则读
+  `https://docs.termius.com/changelog`（GitBook 页，和 probe 的 `changelogURL` 同一页）。
+  每条 release 是 `<time dateTime="YYYY-MM-DD">` + `<h2 id="id-<版本>">`，正文是 `<p>` 里按换行分的
+  一行一条（老条目是 `<ul><li><p>`）。条目版本与 feed `version:` 同一方案（`10.1.3`；个别标题带
+  构建号如 `9.37.3 (4)`，只取数字段）。页面解码后约 6.7 MB：`ChangelogService` 不设 body 大小上限，
+  session 限制是 15 s 空闲超时 + 90 s 整体超时，线上 gzip 传输约 170 KB——生产解析器实测见
+  「历史与实测」。
+- **beta (`com.termius-beta.mac`)**：仍未设 `changelogURL`、无 recipe；docs 页是否带 beta 构建
+  的说明没有核对。
 
-更正 2026-09-14：上面两句写于 `34dea5eb` 之前。stable 的 `changelogURL` 同日已改指
-`https://docs.termius.com/changelog`（2026-09-14 复测 200）；Beta recipe 仍未设 `changelogURL`。
+接入前（保留原记录）：「**没有接。** 站点没有可用的 release notes 页……既存 stable recipe 的
+`changelogURL` 已死」——写于 `34dea5eb` 之前；同日 stable 的 `changelogURL` 已改指
+`https://docs.termius.com/changelog`（2026-09-14 复测 200）。
 
 ## 一键安装
 
@@ -301,3 +309,16 @@ exists in the vendor's sitemap — flagged separately, not fixed here.
 更正 2026-09-14：同日稍晚的提交 `34dea5eb`（2026-08-27 23:40 +0800，关闭 #102）已把 stable 的 `changelogURL` 改指 `https://docs.termius.com/changelog`，提交说明写明此前「没有替代页」的结论是只查了站点地图得出的。
 
 复测 2026-09-14（11:02 UTC，只读、不跟随重定向）：`termius.com/release-notes` 404；`termius.com/changelog` 308 → `https://docs.termius.com/changelog`；后者 200。没有核对那页是否带 beta 构建的说明。
+
+### Recipes/com-termius-dmg-mac.swift — stable ChangelogRecipe（2026-10-10 接入）
+
+实测 2026-10-10：`curl --compressed` 取 `https://docs.termius.com/changelog` → 200，线上 171,911 字节，
+解码后 6,697,475 字节，0.85 s。页面有 233 个带日期的 `<time dateTime="YYYY-MM-DD">` 区块、9 个年份
+`<h2>`（2018–2026），最新 `10.1.3`（September 30, 2026）= baseline 的 `vendor:com.termius-dmg.mac:stable`
+`lastGoodVersion` `10.1.3`。Python 同正则全页读出 232 条（按版本去重后）。
+
+生产解析器（临时测试调 `ChangelogService.loadDiagnostic`，跑完已删）：http=200，body 6,697,475 字节，
+1.70 s，40 条（`maxEntries` 默认上限），最新三条 `10.1.3`（2 条）、`10.1.0`（4 条）、`10.0.6`（3 条），
+日期 `September 30, 2026` / `September 21, 2026` / `September 17, 2026`。没有被截断：6.7 MB 整页读完、
+最新条目在页首。
+

@@ -74,6 +74,43 @@ enum com_termius_dmg_mac {
                 checksumPattern: #"Termius Beta\.dmg\s*\n\s*sha512:\s*([A-Za-z0-9+/=]+)"#),
             channel: .beta),
         ],
+        changelogs: [
+        // History: docs/app-audits/com-termius-dmg-mac.md#历史与实测
+        // Termius stable — the GitBook changelog at docs.termius.com/changelog
+        // (the probe's `changelogURL`). One block per release, newest first:
+        // `<time dateTime="YYYY-MM-DD">September 30, 2026</time>` ahead of an
+        // `<h2 id="id-10.1.3"><span>10.1.3</span>…</h2>`, then the notes as
+        // `<p>` blocks whose lines are separated by plain newlines (one line per
+        // change, emoji-prefixed), or, on older releases, a `<ul>` of `<li><p>`.
+        //
+        //   * The version is the numeric run of the heading's first `<span>`:
+        //     a few headings carry a build suffix ("9.37.3 (4)") the feed's
+        //     `version:` does not.
+        //   * The body runs to the next DATED `<time>` (date-only `dateTime`),
+        //     not the next `<h2>`: the year headings (`<h2 id="id-2026">`) sit
+        //     between releases and carry no notes. The page's "Last updated"
+        //     `<time>` has a full timestamp, so it can never start an entry, and
+        //     the body also stops at it.
+        //   * One item pattern reads a line inside a `<p>`: it starts at the
+        //     `<p>` or a newline and ends at the next newline or `</p>`, which
+        //     serves both the newline-separated blocks and the one-`<p>`-per-`<li>`
+        //     lists. A leading "- " (a sub-point under a line) is dropped.
+        //   * The page is several megabytes decoded (each block repeats GitBook's
+        //     icon SVGs). `ChangelogService` sets no body-size cap; the session's
+        //     limits are a 15 s idle timeout and a 90 s whole-resource timeout,
+        //     and the response is gzip-compressed on the wire.
+        ChangelogRecipe(
+            bundleID: "com.termius-dmg.mac",
+            source: URL(string: "https://docs.termius.com/changelog")!,
+            entryPattern:
+                #"<time dateTime="\d{4}-\d{2}-\d{2}"[^>]*>(?<date>[^<]+)</time>\s*</div>\s*"#
+                + #"<div[^>]*>\s*<h2 id="id-[^"]*"[^>]*>\s*<span[^>]*>\s*"#
+                + #"(?<version>\d+(?:\.\d+)+)[^<]*</span>.*?</h2>"#
+                + #"(?<body>.*?)(?=<time dateTime="\d{4}-\d{2}-\d{2}"|<p[^>]*>Last updated|</main>)"#,
+            itemPatterns: [
+                #"(?:<p[^>]*>|\n)\s*(?:-\s+)?(?<item>(?:(?!</p>)[^\n])+)(?=\n|</p>)"#,
+            ]),
+        ],
         channelProofs: [
         // Termius Beta already has an independent bundle id (`com.termius-beta.mac`
         // vs stable's `com.termius-dmg.mac`), so this is belt-and-suspenders: the

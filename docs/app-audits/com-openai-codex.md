@@ -105,3 +105,11 @@ PUBLISHING manifest. Its Last-Modified was 06:12:52Z on 2026-08-22,
 ninety seconds after 26.818.41705 published — the very build the
 rollout was still withholding. Pointing anything at it walks straight
 back into the fight this recipe exists to end.
+
+### VendorProbe 的 changelogURL 改到 learn.chatgpt.com（2026-10-10）
+
+接入前 probe 的 `changelogURL` 还是 `https://developers.openai.com/codex/changelog?type=codex-app`；2026-10-10
+`curl -sIL`（Safari UA）：308 → `https://learn.chatgpt.com/docs/changelog?type=codex-app` → 200，页面里 54 个
+`data-codex-topics` 含 `codex-app` 的条目。ChangelogRecipe 的 `source` 早已是新地址，这次只把 probe 的链接对齐。
+同日用生产解析器（`ChangelogService.loadDiagnostic`，临时测试，已删）读线上页：HTTP 200，20 条，最新
+26.924（2026-09-25，"macOS security update"）、26.908（2026-09-11），第三条无版本号（2026-08-25）。

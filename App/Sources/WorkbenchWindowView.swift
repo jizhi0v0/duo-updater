@@ -805,46 +805,48 @@ struct WorkbenchWindowView: View {
         detailMode = tab == .rollback ? .bundleDiff : .releaseNotes
         // A reveal is for the visit it was made for.
         if tab != .cli { homebrewRevealing = false; otherToolsRevealing = false }
-        let lists = sidebarLists
-        let ids: [String]
-        switch tab {
-        case .apps:
-            ids = lists.filteredApps.map(\.id)
-        case .cli:
-            // In the order `cliListView` draws them; a closed Homebrew group has no
-            // rows to select.
-            let brewIDs = homebrewExpanded(lists)
-                ? (lists.homebrewSelfUpdate == nil ? [] : [Self.homebrewSelfUpdateTag])
-                    + lists.brewCasks.map(\.id)
-                    + lists.brewFormulae.map { "brew:formula:\($0.name)" }
-                    + lists.brewLifecycleCasks.map { "brew:cask:\($0.token)" }
-                    + lists.brewUnchecked.map { "brew:unchecked:\($0.id)" }
-                : []
-            ids = brewIDs + (otherToolsExpanded(lists) ? lists.cliTools.map(\.toolID.tag) : [])
-        case .rollback:
-            ids = lists.rollbackable.map(\.id)
-        }
+        let ids = selectableIDs(tab, sidebarLists)
         if let current = selection, ids.contains(current) { return }
         selection = ids.first
         detailSelection = selection
         listFocused = true
     }
 
+    /// A tab's selectable rows, in the order its list draws them: what the arrow
+    /// keys walk, and where entering the tab puts the selection. A closed group's
+    /// rows are not drawn, so they are not in it.
+    private func selectableIDs(_ tab: SidebarTab, _ lists: SidebarLists) -> [String] {
+        switch tab {
+        case .apps:
+            return lists.filteredApps.map(\.id)
+        case .cli:
+            let brew = (lists.homebrewSelfUpdate == nil ? [] : [Self.homebrewSelfUpdateTag])
+                + lists.brewCasks.map(\.id)
+                + lists.brewFormulae.map(Self.formulaTag)
+                + lists.brewLifecycleCasks.map { "brew:cask:\($0.token)" }
+                + lists.brewUnchecked.map { "brew:unchecked:\($0.id)" }
+            return SidebarSelection.cliOrder(
+                homebrewExpanded: homebrewExpanded(lists), homebrew: brew,
+                otherToolsExpanded: otherToolsExpanded(lists), tools: lists.cliTools.map(\.toolID.tag))
+        case .rollback:
+            return lists.rollbackable.map(\.id)
+        }
+    }
+
     /// The Rollback tab: every app with a backup we can restore, each with an inline
     /// "Roll back" action. Selecting one opens its Bundle Diff, the change a rollback
     /// would undo.
     private func rollbackListView(_ lists: SidebarLists) -> some View {
-        List(selection: $selection) {
+        SidebarList(selection: $selection, order: selectableIDs(.rollback, lists),
+                    label: String(localized: "Rollback"), focus: $listFocused) {
             ForEach(lists.rollbackable) { result in
                 WorkbenchRollbackRow(
                     result: result,
                     target: model.backupVersion(result.id) ?? "previous",
                     model: model)
-                    .tag(result.id)
+                    .sidebarRow(result.id, selection: $selection)
             }
         }
-        .listStyle(.sidebar)
-        .focused($listFocused)
         .overlay {
             if lists.rollbackable.isEmpty {
                 if !searchQuery.isEmpty {
@@ -1170,13 +1172,13 @@ struct WorkbenchWindowView: View {
 
     /// The Apps tab's list.
     private func appsListView(_ lists: SidebarLists) -> some View {
-        List(selection: $selection) {
+        SidebarList(selection: $selection, order: selectableIDs(.apps, lists),
+                    label: String(localized: "Apps"), focus: $listFocused) {
             ForEach(lists.filteredApps) { result in
                 WorkbenchSidebarRow(
                     result: result,
                     checkAgain: { Task { await model.retry(result) } },
                     isChecking: model.installing[result.id] != nil,
-                    isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
                     versionLineState: model.versionLineState(for: result),
                     showsRuntime: model.prefs.showRuntimeTags,
@@ -1189,11 +1191,9 @@ struct WorkbenchWindowView: View {
                     fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
                     grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
                     caskLifecycle: model.brewCaskLifecycle(for: result)?.lifecycle)
-                    .tag(result.id)
+                    .sidebarRow(result.id, selection: $selection)
             }
         }
-        .listStyle(.sidebar)
-        .focused($listFocused)
         .overlay {
             if lists.filteredApps.isEmpty {
                 ContentUnavailableView.search(text: searchText)
@@ -1214,102 +1214,90 @@ struct WorkbenchWindowView: View {
         // a search that matches nothing inside it hides it like any other row.
         let showsBrew = searchQuery.isEmpty ? homebrewHasAnything : brewItemCount(lists) > 0
         return ScrollViewReader { proxy in
-            List(selection: $selection) {
+            SidebarList(selection: $selection, order: selectableIDs(.cli, lists),
+                        label: String(localized: "CLI"), focus: $listFocused) {
                 if showsBrew {
-                    Section {
-                        homebrewSummary(lists)
-                            .selectionDisabled()
-                        if brewExpanded {
-                            if let update = lists.homebrewSelfUpdate {
-                                // Selecting it opens Homebrew's release notes
-                                // (`HomebrewSelfUpdateDetailPane`).
-                                HomebrewSelfUpdateSidebarRow(
-                                    update: update, model: model,
-                                    isSelected: selection == Self.homebrewSelfUpdateTag)
-                                    .tag(Self.homebrewSelfUpdateTag)
-                            }
-                            ForEach(lists.brewCasks) { result in
-                                WorkbenchSidebarRow(
-                                    result: result,
-                                    checkAgain: { Task { await model.retry(result) } },
-                                    isChecking: model.installing[result.id] != nil,
-                                    isSelected: result.id == selection,
-                                    isRunning: model.isRunning(result),
-                                    versionLineState: model.versionLineState(for: result),
-                                    showsRuntime: model.prefs.showRuntimeTags,
-                                    isIgnored: model.prefs.isIgnored(result.app),
-                                    isVersionSkipped: model.prefs.isVersionSkipped(
-                                        result.app, version: result.remote?.versionSide),
-                                    toggleIgnore: { model.toggleIgnore(result) },
-                                    skipVersion: { model.skipThisVersion(result) },
-                                    clearSkip: { model.prefs.clearSkip(result.app) },
-                                    fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
-                                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
-                                    caskLifecycle: model.brewCaskLifecycle(for: result)?.lifecycle)
-                                    .tag(result.id)
-                            }
-                            ForEach(lists.brewFormulae) { formula in
-                                BrewFormulaSidebarRow(
-                                    formula: formula, model: model,
-                                    isSelected: selection == "brew:formula:\(formula.name)")
-                                    .tag("brew:formula:\(formula.name)")
-                            }
-                            ForEach(lists.brewLifecycleCasks) { cask in
-                                BrewLifecycleCaskSidebarRow(cask: cask, isSelected: selection == "brew:cask:\(cask.token)")
-                                    .tag("brew:cask:\(cask.token)")
-                            }
-                            ForEach(lists.brewUnchecked) { package in
-                                BrewUncheckedSidebarRow(package: package, highlighted: highlightUnchecked)
-                                    .tag("brew:unchecked:\(package.id)")
-                            }
+                    homebrewHeader(lists, expanded: brewExpanded)
+                        .sidebarSectionHeader(first: true)
+                    homebrewSummary(lists)
+                        .sidebarStaticRow()
+                    if brewExpanded {
+                        if let update = lists.homebrewSelfUpdate {
+                            // Selecting it opens Homebrew's release notes
+                            // (`HomebrewSelfUpdateDetailPane`).
+                            HomebrewSelfUpdateSidebarRow(update: update, model: model)
+                                .sidebarRow(Self.homebrewSelfUpdateTag, selection: $selection)
                         }
-                    } header: {
-                        homebrewHeader(lists, expanded: brewExpanded)
+                        ForEach(lists.brewCasks) { result in
+                            WorkbenchSidebarRow(
+                                result: result,
+                                checkAgain: { Task { await model.retry(result) } },
+                                isChecking: model.installing[result.id] != nil,
+                                isRunning: model.isRunning(result),
+                                versionLineState: model.versionLineState(for: result),
+                                showsRuntime: model.prefs.showRuntimeTags,
+                                isIgnored: model.prefs.isIgnored(result.app),
+                                isVersionSkipped: model.prefs.isVersionSkipped(
+                                    result.app, version: result.remote?.versionSide),
+                                toggleIgnore: { model.toggleIgnore(result) },
+                                skipVersion: { model.skipThisVersion(result) },
+                                clearSkip: { model.prefs.clearSkip(result.app) },
+                                fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
+                                grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
+                                caskLifecycle: model.brewCaskLifecycle(for: result)?.lifecycle)
+                                .sidebarRow(result.id, selection: $selection)
+                        }
+                        ForEach(lists.brewFormulae) { formula in
+                            BrewFormulaSidebarRow(formula: formula, model: model)
+                                .sidebarRow(Self.formulaTag(formula), selection: $selection)
+                        }
+                        ForEach(lists.brewLifecycleCasks) { cask in
+                            BrewLifecycleCaskSidebarRow(cask: cask)
+                                .sidebarRow("brew:cask:\(cask.token)", selection: $selection)
+                        }
+                        ForEach(lists.brewUnchecked) { package in
+                            BrewUncheckedSidebarRow(package: package, highlighted: highlightUnchecked)
+                                .sidebarRow("brew:unchecked:\(package.id)", selection: $selection)
+                        }
                     }
                 }
                 // The popover's second row, "Other tools", as a level of its own:
                 // what the groups below come to, and Update All for them.
                 let othersExpanded = otherToolsExpanded(lists)
                 if searchQuery.isEmpty ? !model.cliTools.statuses.isEmpty : !lists.cliTools.isEmpty {
-                    Section {
-                        otherToolsSummary(lists).selectionDisabled()
-                    } header: {
-                        // Homebrew's header, so the two levels open, close and line
-                        // up alike.
-                        HomebrewGroupHeader(
-                            title: String(localized: "Other tools"),
-                            expanded: othersExpanded,
-                            toggleDisabled: otherToolsSearchHits(lists),
-                            toggle: { inOneFrame { toggleOtherTools(lists) } }
-                        ) {
-                            // One spinner for a check, which reads every tool at
-                            // once: drawn on each group's header, twelve of them
-                            // turned while one update re-checked. Update All shows
-                            // its own while it runs.
-                            if model.cliTools.checking && !model.cliTools.updatingAll {
-                                ProgressView().controlSize(.mini)
-                            }
-                            otherToolsBulkUpdate
+                    // Homebrew's header, so the two levels open, close and line up
+                    // alike.
+                    HomebrewGroupHeader(
+                        title: String(localized: "Other tools"),
+                        expanded: othersExpanded,
+                        toggleDisabled: otherToolsSearchHits(lists),
+                        toggle: { inOneFrame { toggleOtherTools(lists) } }
+                    ) {
+                        // One spinner for a check, which reads every tool at once:
+                        // drawn on each group's header, twelve of them turned while
+                        // one update re-checked. Update All shows its own while it
+                        // runs.
+                        if model.cliTools.checking && !model.cliTools.updatingAll {
+                            ProgressView().controlSize(.mini)
                         }
-                        .padding(.trailing, Self.sectionHeaderTrailingInset)
+                        otherToolsBulkUpdate
                     }
+                    .padding(.trailing, Self.sectionHeaderTrailingInset)
+                    .sidebarSectionHeader(first: !showsBrew)
+                    otherToolsSummary(lists)
+                        .sidebarStaticRow()
                 }
                 ForEach(othersExpanded ? CLIToolPresentation.groups(lists.cliTools) : []) { group in
-                    Section {
-                        ForEach(group.statuses, id: \.toolID) { status in
-                            CLIToolSidebarRow(
-                                status: status, cli: model.cliTools,
-                                isSelected: selection == status.toolID.tag,
-                                showsRuntime: model.prefs.showRuntimeTags)
-                                .tag(status.toolID.tag)
-                        }
-                    } header: {
-                        cliToolHeader(group)
+                    cliToolHeader(group)
+                        .sidebarSectionHeader(first: false)
+                    ForEach(group.statuses, id: \.toolID) { status in
+                        CLIToolSidebarRow(
+                            status: status, cli: model.cliTools,
+                            showsRuntime: model.prefs.showRuntimeTags)
+                            .sidebarRow(status.toolID.tag, selection: $selection)
                     }
                 }
             }
-            .listStyle(.sidebar)
-            .focused($listFocused)
             .overlay {
                 if cliItemCount(lists) == 0, !searchQuery.isEmpty {
                     ContentUnavailableView.search(text: searchText)
@@ -1342,12 +1330,12 @@ struct WorkbenchWindowView: View {
                 // tried as a "did it land" signal and read true after the short
                 // scroll too, so it can't decide whether to retry.
                 //
-                // Scrolled to by the row's selection tag, not an `.id`. Once the rows
-                // were tagged (so selecting one opens `BrewUncheckedDetailPane`),
-                // `scrollTo(package.id)` with `.id(package.id)` on the row stopped
-                // moving the list at all, with `.id` inside or outside the tag
-                // (measured: one run each, list left at the top); scrolling to the
-                // tag value reached the bottom (measured: one run).
+                // Scrolled to by the row's selection id, which `sidebarRow` sets as
+                // the row's `.id` (`SidebarRowModifier`) — the same `.id` the
+                // keyboard's `scrollTo` in `SidebarList` resolves, so keep it on every
+                // row. (Under the old `List` the rows carried a selection `.tag`
+                // instead, and a separate `.id(package.id)` stopped the scroll
+                // working; that no longer applies.)
                 proxy.scrollTo("brew:unchecked:\(last.id)", anchor: .bottom)
                 try? await Task.sleep(for: .milliseconds(250))
                 proxy.scrollTo("brew:unchecked:\(last.id)", anchor: .bottom)
@@ -1404,11 +1392,6 @@ private struct WorkbenchSidebarRow: View {
     /// it observes one — and these are the only two things the menu needs.
     let checkAgain: () -> Void
     let isChecking: Bool
-    /// Whether this row is the selected one. The selection highlight is blue, and so
-    /// is the update tint — so a selected update row was blue-on-blue (unreadable).
-    /// When selected we render the version line in the emphasized foreground (white
-    /// over the highlight) instead of the tint; the arrow still conveys "update".
-    let isSelected: Bool
     /// Whether the app currently has a running process — shows the green live dot.
     let isRunning: Bool
     /// The one version-line fact this row should explain, in the same priority
@@ -1478,11 +1461,11 @@ private struct WorkbenchSidebarRow: View {
                     ChannelTag(channel: result.effectiveReleaseChannel)
                     FullDiskAccessMark(needs: fullDiskAccessNeeds, grant: grantFullDiskAccess)
                     if let caskLifecycle {
-                        BrewCaskLifecycleMark(lifecycle: caskLifecycle, overHighlight: isSelected)
+                        BrewCaskLifecycleMark(lifecycle: caskLifecycle)
                     }
                     if let runtimeTag {
                         RuntimeTag(runtime: runtimeTag, frameworks: result.app.linkedFrameworks,
-                                   overHighlight: isSelected, interactive: false)
+                                   interactive: false)
                     }
                 }
                 subtitle
@@ -1539,7 +1522,7 @@ private struct WorkbenchSidebarRow: View {
             let line = result.stagedRelaunchLine(staged)
             Text("\(line.from) → \(line.to)")
                 .font(.caption)
-                .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
+                .foregroundStyle(.tint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
         case .stagedRelaunchVersionUnknown:
@@ -1548,7 +1531,7 @@ private struct WorkbenchSidebarRow: View {
             // it opens carries the clickable `StagedVersionUnknownMark`.
             Text(verbatim: "\(result.installedDisplay ?? "?") → ?")
                 .font(.caption)
-                .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
+                .foregroundStyle(.tint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .help(String(localized: "\(result.app.name) has already downloaded an update itself, but which version can't be read from here — usually because it installs with administrator rights. Relaunch to apply it."))
@@ -1564,7 +1547,7 @@ private struct WorkbenchSidebarRow: View {
             let line = UpdateResult.relaunchLine(from: from, to: result.relaunchTargetSide)
             Text("\(line.from) → \(line.to)")
                 .font(.caption)
-                .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
+                .foregroundStyle(.orange)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
         case .downgrade(let older):
@@ -1588,8 +1571,7 @@ private struct WorkbenchSidebarRow: View {
                 let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
                 Text("\(from) → \(to)")
                     .font(.caption)
-                    // White over the blue highlight when selected; blue tint otherwise.
-                    .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
+                    .foregroundStyle(.tint)
                     .lineLimit(1)
                     // Its `.stagedRelaunch` / `.restart` siblings scale; this one is
                     // the longest of the four (two versions, both possibly with a
@@ -1676,11 +1658,6 @@ extension AppListModel {
 private struct BrewFormulaSidebarRow: View {
     let formula: BrewInstalledFormula
     @Bindable var model: AppListModel
-    /// On the selection's accent fill the tinted version line and the prominent
-    /// Update button are the fill's own colour: the line vanished and the button
-    /// merged into the highlight. White line and a plain bordered button there,
-    /// as `CLIToolSidebarRow` does.
-    var isSelected = false
 
     private var upgrading: Bool { model.isUpgrading(formula) }
     private var error: String? { model.formulaUpgradeErrors[formula.name] }
@@ -1702,7 +1679,7 @@ private struct BrewFormulaSidebarRow: View {
                 } else if let available = formula.availableVersion {
                     Text("\(formula.installedVersion) → \(available)")
                         .font(.caption)
-                        .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
+                        .foregroundStyle(.tint)
                         .lineLimit(1)
                 } else if let head = formula.head {
                     // Up to date by brew's measure, which doesn't look upstream:
@@ -1710,15 +1687,14 @@ private struct BrewFormulaSidebarRow: View {
                     let status = model.headStatus(for: head)
                     Text("\(formula.installedVersion) · \(status.text)")
                         .font(.caption)
-                        .foregroundStyle(isSelected ? AnyShapeStyle(.white)
-                            : status.isBehind ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                        .foregroundStyle(status.isBehind ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                         .lineLimit(1)
                 } else if let lifecycle = formula.lifecycle {
                     // Up to date, but Homebrew is phasing it out: say so in the one
                     // line the row has. An update line above outranks it.
                     Text("\(formula.installedVersion) · \(lifecycle.statusText)")
                         .font(.caption)
-                        .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
+                        .foregroundStyle(.orange)
                         .lineLimit(1)
                 } else {
                     // Up-to-date leaf: just its version, like an up-to-date app row.
@@ -1732,7 +1708,7 @@ private struct BrewFormulaSidebarRow: View {
             } else if formula.hasUpdate {
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
                     .controlSize(.small)
-                    .rowUpdateButtonStyle(selected: isSelected)
+                    .buttonStyle(.borderedProminent)
                     .disabled(model.homebrewUpdating)
             }
         }
@@ -1748,9 +1724,6 @@ private struct BrewFormulaSidebarRow: View {
 private struct HomebrewSelfUpdateSidebarRow: View {
     let update: HomebrewSelfUpdate
     @Bindable var model: AppListModel
-    /// Selected, the prominent button would be the selection's own fill
-    /// (`rowUpdateButtonStyle`).
-    var isSelected = false
 
     /// brew holds one global lock, so `brew update` can't start while an upgrade runs.
     private var brewBusy: Bool { model.brewUpgrading || !model.upgradingFormulae.isEmpty }
@@ -1779,7 +1752,7 @@ private struct HomebrewSelfUpdateSidebarRow: View {
             } else {
                 Button("Update") { Task { await model.updateHomebrew() } }
                     .controlSize(.small)
-                    .rowUpdateButtonStyle(selected: isSelected)
+                    .buttonStyle(.borderedProminent)
                     .disabled(brewBusy)
                     .help("Runs `brew update`, which updates Homebrew and refreshes its package lists using your own Homebrew settings.")
             }
@@ -2401,14 +2374,13 @@ extension BrewLifecycle {
 /// disabled. Orange like the formula rows' status; the detail pane explains.
 private struct BrewCaskLifecycleMark: View {
     let lifecycle: BrewLifecycle
-    var overHighlight = false
 
     static let width: CGFloat = 13
 
     var body: some View {
         Image(systemName: "exclamationmark.triangle.fill")
             .font(.system(size: 10))
-            .foregroundStyle(overHighlight ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
+            .foregroundStyle(.orange)
             .frame(width: Self.width)
             .help(lifecycle.caskHelp)
             .accessibilityLabel(lifecycle.caskHelp)
@@ -2420,7 +2392,6 @@ private struct BrewCaskLifecycleMark: View {
 /// cask has a row only while it's outdated.
 private struct BrewLifecycleCaskSidebarRow: View {
     let cask: BrewCaskLifecycle
-    var isSelected = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -2429,7 +2400,7 @@ private struct BrewLifecycleCaskSidebarRow: View {
                 Text(cask.token).font(.body).lineLimit(1)
                 Text("\(cask.installedVersion) · \(cask.lifecycle.statusText)")
                     .font(.caption)
-                    .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
+                    .foregroundStyle(.orange)
                     .lineLimit(1)
             }
             Spacer()

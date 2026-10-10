@@ -31,12 +31,6 @@ struct RuntimeTag: View {
     /// Edge of the square the mark is drawn in. The default suits a list row; the
     /// workbench's detail header sets it larger to sit beside a `.title2` name.
     var size: CGFloat = 12
-    /// Drawn on top of a selection highlight, which is blue — so the hue is
-    /// dropped for the emphasized foreground the rest of a selected row already
-    /// uses. Without this a blue `native` mark on a selected row is blue on blue
-    /// and simply disappears; the same trap `ChannelTag` and the version line
-    /// document for this list.
-    var overHighlight: Bool = false
     /// Whether clicking the mark opens the explanation.
     ///
     /// On everywhere it can be, and off in the workbench's sidebar list: a button
@@ -90,9 +84,7 @@ struct RuntimeTag: View {
 
     private var mark: some View {
         RuntimeMark(runtime: runtime, size: size)
-            .foregroundStyle(overHighlight
-                             ? AnyShapeStyle(Color.white.opacity(0.92))
-                             : AnyShapeStyle(Self.tint(runtime).opacity(Self.intensity)))
+            .foregroundStyle(Self.tint(runtime).opacity(Self.intensity))
             // A 12pt glyph is a 12pt hit target. Padding the tappable area without
             // padding the drawing keeps the row's spacing while making the thing
             // clickable on the first try.

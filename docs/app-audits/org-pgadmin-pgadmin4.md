@@ -30,3 +30,11 @@ here; an Intel Mac is refused by the runnable-arch gate rather than
 given a build it can't run.
 
 更正 2026-09-14：DuoUpdater 只有 arm64 构建（`App/project.yml:23` `ARCHS: arm64`），没有 Intel 宿主，所以「Intel Mac 被 runnable-arch 闸拒掉」这条路径不存在。代码里改成：arm64-only 的产物，Apple silicon 是 DuoUpdater 运行的每一台宿主（`App/project.yml`，`ARCHS: arm64`）。
+
+### Recipes/org-pgadmin-pgadmin4.swift — ChangelogRecipe（两段式 release_notes，2026-10-10）
+
+接入前：`ChangelogCoverage.acknowledged` 里记为 "feasible, not written yet"，pane 嵌入 `release_notes.html`，而那一页只是版本目录。
+
+实测（2026-10-10，只读 GET）：`www.pgadmin.org/docs/pgadmin4/latest/release_notes.html` 200，12,980 B；`release_notes_X_Y.html` 链接 241 个（侧栏与正文 toctree 各一遍），去重 120 个，全部是 `X_Y` 两段（1.0 到 9.18），文档顺序里第一个是 `release_notes_9_18.html`。该页 200，17,427 B：`<h1>Version 9.18…</h1>`、`<p>Release date: 2026-09-17</p>`，之后 6 个 `<h2>` 小节，其中 Supported Database Servers 与 Bundled PostgreSQL Utilities 只有段落，New features / Housekeeping / Bug fixes / Dependencies 是 `<div class="line">` 行，共 92 行。
+
+生产解析器（`ChangelogService.loadDiagnostic`，临时测试，跑完删除）读线上地址：detail 页 `release_notes_9_18.html`，1 条；`9.18` / 2026-09-17 / 92 条，首条 "Issue #9631 - Collapse and restore the Object Explorer …"。`9.18` 与 `verify/baseline.json` 里 `vendor:org.pgadmin.pgadmin4:stable` 的 `lastGoodVersion` 相同。

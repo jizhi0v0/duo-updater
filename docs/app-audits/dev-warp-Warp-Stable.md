@@ -37,9 +37,9 @@ Beta/Canary 轨道仍在 `channel_versions.json` 中有键，但版本停更已�
 - preview/dev: VendorProbe `releases.warp.dev/channel_versions.json` → `"version":"v<ver>.<channel>_NN"` 各自 pattern
 
 ## Changelog
-- stable: ChangelogRecipe ✓（`docs.warp.dev/changelog/2026/`，Starlight 渲染页，年份路径）
-- preview/dev: 无独立 changelogURL（WebView 均指向同一 `docs.warp.dev/changelog` 页）
-- 缺口: preview 和 dev 的 `changelogURL` 与 stable 共用；VendorProbe 的 changelogURL 字段已设，不是 ChangelogRecipe
+- stable / preview: ChangelogRecipe ✓，各一条，都读 `releases.warp.dev/channel_versions.json` 的 `changelogs` map（`structuredFormat: .warpChannelVersions`，`channel` 选子 feed）。最早的 stable recipe 抓的是 `docs.warp.dev/changelog/2026/` 的 Starlight 渲染页，后来改读这份 JSON（经过见下面历史）。
+- dev: 无 ChangelogRecipe，登记在 `ChangelogCoverage.acknowledged`：dev 轨没有发布 notes，`changelogs.dev` 只有一条占位数据（「dev 1 / dev 2」，2021 年的日期）。pane 内嵌 VendorProbe 的 `changelogURL`（`docs.warp.dev/changelog`）。
+- VendorProbe 的 `changelogURL`：preview/dev 指 `docs.warp.dev/changelog`，stable 指 `docs.warp.dev/changelog/2026/`；只在没有 recipe 或 recipe 解析失败时当 WebView 兜底页。
 
 ## 一键安装
 - stable: ✓ dmg（`releases.warp.dev/stable/v<ver>/Warp.dmg`），Team 2BBY89MBSN

@@ -36,7 +36,7 @@ PTB 无 `<sparkle:channel>`/版本后缀，靠名称中独立词 `"PTB"` 触发 
 
 ## Changelog
 - changelogURL: `https://discord.com/blog`（三 channel 共用，WebView 内嵌）
-- 无 ChangelogRecipe
+- 无 ChangelogRecipe，三个 bundle id 都登记在 `ChangelogCoverage.acknowledged`（#1149，理由转引，本次未复测）：blog 帖按日期排，每条不带客户端版本号，没法对上 host 版本，写不出 recipe。
 
 ## 一键安装
 - 状态: **已接入**（三 channel）。此前记为「仅检测」，是旧策略的残留。

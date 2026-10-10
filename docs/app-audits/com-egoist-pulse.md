@@ -77,8 +77,13 @@
 - 阻塞: 无
 
 ## 已知问题
-- **没测到与自更新器的碰撞。** 60 s 内它只检查、不下载，没有可以「抢」的暂存构建；manifest 地址写死在二进制里，
-  也没有找到能让它暂存更旧版本的覆盖开关。它的更新是否要用户在界面里确认，未验证。
+- **自更新默认要用户确认。** 发现新版后弹 Sparkle 式的「Software Update」窗口（release notes + Skip This
+  Version / Remind Me Later / Install Update），底部的「Automatically download and install updates in the
+  future」默认不勾（2026-10-10 截图，0.1.4 → 0.1.5）。所以默认设置下 60 s 内只检查、不下载，与上面的实测一致。
+  二进制里有 `automaticChecks` / `automaticDownloads` / `skippedVersion` 字串，勾选状态大概率写进
+  `updater.json`——**未拨开关验证**。
+- **勾了自动安装后的碰撞没测。** manifest 地址写死在二进制里，找不到让它暂存更旧版本的覆盖开关；它暂存的只会是
+  duo 要装的同一个版本，碰撞即便发生也看不出来。
 - `install.sh` 不是 macOS 的 CLI，见「基本信息」。若以后 mygo 给 macOS 加命令行入口，需要重新审计。
 
 ## 建议下一步

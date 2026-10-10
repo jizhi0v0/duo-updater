@@ -183,12 +183,30 @@ public enum Check {
         // with nothing to update (or, for `list`, nothing installed), and the run
         // would end in "Everything is up to date." or "No apps found."
         let scanned = await Inventory.scanIfFinished(settings)
+        // The app's command-line tool rows (`CLIToolRows`): `list` reads them
+        // off disk, `check` asks each tool's channel. Not under `--source`, which
+        // names app sources a tool row never has. Started now, beside the app
+        // check, unless an argument may name a tool — then it is needed to
+        // resolve the arguments.
+        let wantsTools = options.sources.isEmpty && Inventory.queriesMayNameTools(scanned, options.queries)
+        let checkForUpdates = options.checkForUpdates
+        let toolRows: Task<[CLIToolRows.Row], Never>? = wantsTools
+            ? Task { checkForUpdates ? await CLIToolRows.check().map(CLIToolRows.Row.init) : await CLIToolRows.scan() }
+            : nil
         let selected: [InstalledApp]
-        switch Inventory.select(scanned, matching: options.queries) {
-        case .success(let matched): selected = matched
-        case .failure(let message):
-            FileHandle.standardError.write(Data("duo: \(message)\n".utf8))
-            return 2
+        var selectedTools: [CLIToolRows.Row]?
+        if options.queries.isEmpty {
+            selected = scanned ?? []
+        } else {
+            let tools = await toolRows?.value ?? []
+            switch Inventory.select(scanned, tools: tools, toolsConsidered: wantsTools, matching: options.queries) {
+            case .success(let matched):
+                selected = matched.apps
+                selectedTools = matched.tools
+            case .failure(let message):
+                FileHandle.standardError.write(Data("duo: \(message)\n".utf8))
+                return 2
+            }
         }
 
         // An ignored app is not asked after — its row would be filtered out below
@@ -270,8 +288,18 @@ public enum Check {
                     : nil))
         }
 
+        var tools: [CLIToolRows.Row] = []
+        if let selectedTools {
+            tools = selectedTools
+        } else if let toolRows {
+            tools = await toolRows.value
+        }
+        // `--all`'s rule for apps: without it, a check shows what has an update
+        // and what could not be checked.
+        if options.checkForUpdates && !options.all { tools = tools.filter { $0.hasUpdate || $0.unchecked } }
+
         return finish(
-            rows, command: options.checkForUpdates ? "check" : "list", json: options.json,
+            rows, tools: tools, command: options.checkForUpdates ? "check" : "list", json: options.json,
             scanAbandoned: scanned == nil, testFlightGap: gap)
     }
 
@@ -428,7 +456,7 @@ public enum Check {
     /// checked, and its own stderr line has already said why. Both commands say so
     /// in place of their empty-result line.
     static func finish(
-        _ rows: [Row], command: String, json: Bool,
+        _ rows: [Row], tools: [CLIToolRows.Row] = [], command: String, json: Bool,
         scanAbandoned: Bool, testFlightGap gap: TestFlightGap?,
         out: (String) -> Void = { print($0) },
         err: (String) -> Void = { line in
@@ -438,17 +466,19 @@ public enum Check {
     ) -> Int32 {
         let checked = command == "check"
         if json {
-            emitJSON(rows, command: command)
+            emitJSON(rows, tools: tools, command: command, print: out)
         } else {
             let incomplete: Incomplete? = scanAbandoned
                 ? .scanAbandoned
                 : (gap?.leavesVerdictsUnproven == true ? .verdictsUnproven : nil)
-            emitText(rows, checked: checked, incomplete: incomplete, print: out)
+            emitText(rows, tools: tools, checked: checked, incomplete: incomplete, print: out)
         }
         if checked, let gap { err(note(gap)) }
         // Exit 1 signals "there is something to do", so `duo check && echo clean`
-        // works. A hidden row is by definition not something to do.
-        return rows.contains(where: isActionable) ? 1 : 0
+        // works. A hidden row is by definition not something to do. A tool's
+        // update counts whether or not the app would run it, as an app's does
+        // whether or not `duo install` can.
+        return rows.contains(where: isActionable) || tools.contains(where: \.hasUpdate) ? 1 : 0
     }
 
     /// How this update *would* be applied, from the same policy the app uses.
@@ -500,9 +530,15 @@ public enum Check {
 
     // MARK: - Output
 
-    static func emitJSON(_ rows: [Row], command: String) {
-        NDJSON.begin(command)
-        for row in rows { NDJSON.row(row) }
+    static func emitJSON(
+        _ rows: [Row], tools: [CLIToolRows.Row] = [], command: String,
+        print: (String) -> Void = { Swift.print($0) }
+    ) {
+        NDJSON.begin(command, print: print)
+        for row in rows { NDJSON.row(row, print: print) }
+        // After the apps, in the app's tool order; told apart by `tool`, which
+        // no app row has.
+        for tool in tools { NDJSON.row(tool, print: print) }
     }
 
     /// Why an empty result may not be reported as the usual empty-result line.
@@ -519,10 +555,10 @@ public enum Check {
     /// "everything is current", or — after an abandoned scan — "nothing looked at"
     /// rather than "nothing installed". `print` is the stream, for tests.
     static func emitText(
-        _ rows: [Row], checked: Bool, incomplete: Incomplete? = nil,
+        _ rows: [Row], tools: [CLIToolRows.Row] = [], checked: Bool, incomplete: Incomplete? = nil,
         print: (String) -> Void = { Swift.print($0) }
     ) {
-        guard !rows.isEmpty else {
+        guard !rows.isEmpty || !tools.isEmpty else {
             guard checked else {
                 print(incomplete == .scanAbandoned
                     ? "No apps listed: the app scan was abandoned (see above)."
@@ -540,6 +576,13 @@ public enum Check {
             return
         }
         let nameWidth = min(38, rows.map(\.name.count).max() ?? 10)
+        // Tools to show and no app: the tools' heading and the summary say it
+        // all, except that an abandoned scan looked at no app.
+        if rows.isEmpty, incomplete == .scanAbandoned {
+            print(checked
+                ? "No apps were checked: the app scan was abandoned (see above)."
+                : "No apps listed: the app scan was abandoned (see above).")
+        }
         for row in rows {
             let name = row.name.count > nameWidth
                 ? String(row.name.prefix(nameWidth - 1)) + "…"
@@ -565,11 +608,14 @@ public enum Check {
             if let failure = failure(row) { line += "  — check failed: \(failure)" }
             print(line)
         }
-        let actionable = rows.filter(isActionable).count
-        let failed = rows.filter { failure($0) != nil }.count
+        CLIToolRows.emitText(tools, checked: checked, print: print)
+        let actionable = rows.filter(isActionable).count + tools.filter(\.hasUpdate).count
+        let failed = rows.filter { failure($0) != nil }.count + tools.filter(\.unchecked).count
         if checked {
+            let toolsShown = tools.isEmpty
+                ? "" : " and \(tools.count) command-line tool\(tools.count == 1 ? "" : "s")"
             print("\n  \(actionable) update\(actionable == 1 ? "" : "s") available "
-                + "of \(rows.count) app\(rows.count == 1 ? "" : "s") shown"
+                + "of \(rows.count) app\(rows.count == 1 ? "" : "s")\(toolsShown) shown"
                 + (failed == 0 ? "." : "; \(failed) could not be checked."))
         }
     }

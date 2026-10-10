@@ -17,7 +17,8 @@ let usage = """
 usage: duo <command> [options]
 
 commands:
-  list          What is installed, without touching the network.
+  list          What is installed, without touching the network: apps, and the
+                command-line tools the app's CLI tab lists.
   check         What has an update, and how it would be applied.
   install       Apply updates, through the same engine the menu-bar app uses.
   restart       Quit and relaunch apps whose running copy is stale.
@@ -49,9 +50,13 @@ commands:
   help          Show this message. So do --help and -h after any command.
 
 list / check options:
-  [<app>…]            Which apps, resolved as an install path, then a bundle id,
-                      then a name prefix. An ambiguous prefix is an error, never
-                      a guess. Omit for all of them.
+  [<app>…]            Which apps or command-line tools, resolved as an install
+                      path, then a bundle id, then a name prefix — an app's name,
+                      a tool's (uv, Deno), or a package's or toolchain's
+                      (mcp-remote, rustup). `list` reads no verdicts, so there a
+                      tool is named by its path or its tool name only. An
+                      ambiguous prefix is an error, never a guess. Omit for all
+                      of them.
   --json              One JSON object per line, so a slow check streams. The
                       first line names the schema version.
   --all               Include apps that are already up to date (implied by list).
@@ -69,16 +74,25 @@ list / check options:
   --source <names>    Only apps answered by these sources, comma-separated:
                       sparkle, homebrew, vendor, github, "app store", toolbox,
                       testflight. `check` only — `list` asks no source, so it has
-                      nothing to filter on.
+                      nothing to filter on. Leaves the command-line tools out:
+                      none of them has a source by these names.
 
   Both read the menu-bar app's own settings — same sources, same order, same
   ignore and skip lists — so a disagreement between duo and the app is a bug.
-  `check` exits 1 when anything has an update, so `duo check && …` is usable in
-  a script.
+  `check` exits 1 when anything has an update, an app or a command-line tool,
+  so `duo check && …` is usable in a script.
+
+  Command-line tools are listed after the apps with their path, and, from
+  `check`, their latest version. One whose update the app holds back says why
+  and prints the command the app hands out to copy; so does one whose update
+  needs an administrator password. Without --all, `check` shows the tools with
+  an update or without a verdict. --json rows for tools carry `tool` in place
+  of `bundleID`; the schema line says version 2.
 
 install options:
-  [<app>…] | --all    Which apps. Resolved like check's. --all means every
-                      update you would see in the app; a named app is installed
+  [<app>…] | --all    Which apps or command-line tools. Resolved like check's.
+                      --all means every update you would see in the app, the
+                      command-line tools' included; a named app is installed
                       even if you had hidden it.
   --dry-run           Print the plan and stop. Exits 1 if there is work.
   --yes               Don't ask. Required when stdin isn't a terminal, so a
@@ -87,16 +101,26 @@ install options:
                       homebrew, installer, vendor, sparkle. A filter, NOT an
                       override — the route follows from the source, and forcing a
                       different one is how you install a build from the wrong
-                      channel.
+                      channel. Apps only: no command-line tool takes these
+                      routes, so naming any leaves the tools out.
   --json              One JSON object per line, after a schema line — one row
                       per plan item, whether it installed or not. `outcome` is
                       installed, openedInstaller, skipped, declined, or failed;
                       `applied` says whether the bundle on disk actually changed.
+                      A command-line tool's row has `tool`, `name` and `path` in
+                      place of `app`.
 
   App Store updates are refused, not attempted: that route needs the privileged
   helper or the Accessibility API, neither of which a standalone binary has.
   Holds a machine-wide lock, so it exits rather than swapping a bundle while the
   menu-bar app is installing.
+
+  A command-line tool is updated by its own tool's update command — the one its
+  row's Update button runs in the app — after the apps, one at a time, with the
+  command's output on stderr. A failure prints the tool's own last line and its
+  exit status. Not run, and printed with the app's reason and the command to run
+  yourself: an update the app holds back, and one that needs an administrator
+  password (duo never asks for one). Like the app, it holds no lock for these.
 
 restart options:
   <app>…              Which apps. Resolved like check's. There is no --all: most

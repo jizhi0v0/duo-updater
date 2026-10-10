@@ -351,6 +351,13 @@ duo backups                  # list rollback points, or put one back
 `--include-hidden`; `duo ignore` / `duo skip` write the same preferences the app
 reads, so hiding something in one hides it in the other.
 
+The command-line tools the app's CLI tab lists are there too, after the apps:
+`duo check` shows each one's path and latest version, and `duo install uv` (or
+its path, or an npm package's name) runs the same update command the row's
+Update button runs, with the tool's own output on stderr. An update the app
+holds back, or one that needs an administrator password, is not run: `duo`
+prints the app's reason and the command to run yourself.
+
 TestFlight follows the app's rule too: without Full Disk Access `duo` does not
 attempt TestFlight's reads, and `duo check` says the betas were not checked
 instead of calling everything up to date. The grant that counts is the one on the

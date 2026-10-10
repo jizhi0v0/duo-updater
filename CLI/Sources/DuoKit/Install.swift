@@ -72,9 +72,20 @@ public enum Install {
 
         let settings = await Settings.load()
         let scanned = await Inventory.scanIfFinished(settings)
+        // The app's command-line tool rows, checked as `duo check` checks them
+        // (`CLIToolRows`). Not under `--route`: its names are the app install
+        // routes, which no tool update takes, so a filter by them leaves every
+        // tool out. Not asked when every argument is an app's path or bundle id.
+        let providers = CLITools.providers()
+        let wantsTools = options.routes.isEmpty
+            && (options.all || Inventory.queriesMayNameTools(scanned, options.queries))
+        let toolRows = wantsTools ? await CLIToolRows.check(providers).map(CLIToolRows.Row.init) : []
         let selected: [InstalledApp]
-        switch Inventory.select(scanned, matching: options.queries) {
-        case .success(let matched): selected = matched
+        let selectedTools: [CLIToolRows.Row]
+        switch Inventory.select(scanned, tools: toolRows, toolsConsidered: wantsTools, matching: options.queries) {
+        case .success(let matched):
+            selected = matched.apps
+            selectedTools = matched.tools
         case .failure(let failure):
             FileHandle.standardError.write(Data("duo: \(failure)\n".utf8))
             return 2
@@ -90,8 +101,10 @@ public enum Install {
         // when hidden (see the loop below), and must therefore still be checked.
         let checkable = settings.appsWorthChecking(selected, named: !options.queries.isEmpty)
         // Suppressed in `--json` mode: the schema line above is already
-        // stdout's first line (same rule `Check`'s TestFlight note follows).
-        if !options.json {
+        // stdout's first line (same rule `Check`'s TestFlight note follows). Not
+        // when the arguments named only command-line tools: "Checking 0 apps…"
+        // over a plan of tools reads as if they had been missed.
+        if !options.json, !(checkable.isEmpty && !selectedTools.isEmpty) {
             print("Checking \(checkable.count) app\(checkable.count == 1 ? "" : "s")…")
         }
         let results = await Inventory.checker(settings).check(checkable)
@@ -126,7 +139,12 @@ public enum Install {
             }
         }
 
-        guard !plan.isEmpty || !refusals.isEmpty else {
+        // The tools with an update: run as the app's Update All would run them,
+        // or skipped with the app's reason and the command it hands out
+        // (`CLIToolRows.decide`). A named tool is held to the same rule.
+        let (toolPlan, toolRefusals) = CLIToolRows.plan(selectedTools)
+
+        guard !plan.isEmpty || !refusals.isEmpty || !toolPlan.isEmpty || !toolRefusals.isEmpty else {
             // `--json` mode: the schema line already opened is the whole
             // stream — zero rows, the convention `Check`/`Backups` also use.
             if !options.json { print(emptyPlanLine(scanAbandoned: scanned == nil)) }
@@ -139,16 +157,19 @@ public enum Install {
             for (result, why, route) in refusals {
                 NDJSON.emit(skippedPayload(name: result.app.name, route: route, reason: why, outcome: .skipped))
             }
+            for (status, why, command) in toolRefusals {
+                NDJSON.emit(CLIToolRows.skippedPayload(status, reason: why, command: command))
+            }
         } else {
             // The human plan — suppressed in `--json` mode (see above).
-            describe(plan, refusals: refusals)
+            describe(plan, refusals: refusals, tools: toolPlan, toolRefusals: toolRefusals)
         }
         // `--json --dry-run` doesn't enumerate `plan` itself: no existing row
         // shape fits an item nothing was attempted on (each one asserts an
         // install did or would happen, or a refusal).
-        if options.dryRun { return plan.isEmpty ? 0 : 1 }
-        guard !plan.isEmpty else { return 1 }
-        guard options.assumeYes || confirm(count: plan.count, json: options.json) else {
+        if options.dryRun { return plan.isEmpty && toolPlan.isEmpty ? 0 : 1 }
+        guard !plan.isEmpty || !toolPlan.isEmpty else { return 1 }
+        guard options.assumeYes || confirm(count: plan.count + toolPlan.count, json: options.json) else {
             if options.json {
                 FileHandle.standardError.write(Data("duo: cancelled\n".utf8))
             } else {
@@ -163,7 +184,7 @@ public enum Install {
         // replacing the bundle of one the user launched while reading the prompt.
         // Re-derive and drop anything that would now defer. Only ever removes work,
         // so a plan the user approved can never grow behind their back.
-        if settings.updateSettings.vendorInstallPolicy == .deferWhenRunning {
+        if settings.updateSettings.vendorInstallPolicy == .deferWhenRunning, !plan.isEmpty {
             // Staging is re-read too: the confirmation prompt blocks on stdin, and
             // an app can finish staging its own update while the user reads it.
             let live = InstallEnvironment(
@@ -192,29 +213,40 @@ public enum Install {
                 plan.removeAll { planned in
                     started.contains { $0.result.app.path == planned.result.app.path }
                 }
-                guard !plan.isEmpty else { return 0 }
+                guard !plan.isEmpty || !toolPlan.isEmpty else { return 0 }
             }
         }
 
-        // One process at a time, machine-wide — the menu-bar app takes the same
-        // claim around each of its installs. Refused rather than queued: the
-        // holder may be part-way through a 400 MB download, and a CLI that looks
-        // hung is worse than one that tells you who has it.
-        do {
-            try await ProcessInstallLock.shared.claim()
-        } catch {
-            FileHandle.standardError.write(Data("duo: \(error)\n".utf8))
-            return 1
+        var tally = Tally()
+        var attempted: [Attempted] = []
+        var lockRefused = false
+        if !plan.isEmpty {
+            // One process at a time, machine-wide — the menu-bar app takes the same
+            // claim around each of its installs. Refused rather than queued: the
+            // holder may be part-way through a 400 MB download, and a CLI that looks
+            // hung is worse than one that tells you who has it.
+            do {
+                try await ProcessInstallLock.shared.claim()
+                attempted = await apply(
+                    plan, settings: settings, routes: options.routes,
+                    json: options.json, keepBackups: settings.keepBackups,
+                    installedPopulation: scanned, tally: &tally)
+                // Awaited, not handed to a Task: the process exits soon after
+                // this, and a detached release may never run. (The kernel drops the
+                // flock on exit either way — this keeps the reference count honest
+                // for anything that runs in between.)
+                await ProcessInstallLock.shared.release()
+            } catch {
+                FileHandle.standardError.write(Data("duo: \(error)\n".utf8))
+                lockRefused = true
+                if toolPlan.isEmpty { return 1 }
+            }
         }
-        // Awaited, not handed to a Task: the process exits immediately after
-        // this, and a detached release may never run. (The kernel drops the flock
-        // on exit either way — this keeps the reference count honest for anything
-        // that runs in between.)
-        defer { await ProcessInstallLock.shared.release() }
-        return await apply(
-            plan, settings: settings, routes: options.routes,
-            json: options.json, keepBackups: settings.keepBackups,
-            installedPopulation: scanned)
+        // The tools after the apps, outside the lock: the app takes none around
+        // a tool's update, and each tool's own update says when it is busy.
+        await CLIToolRows.apply(toolPlan, providers: providers, json: options.json, tally: &tally)
+        if !options.json { finishText(tally, attempted: attempted) }
+        return tally.failed == 0 && !lockRefused ? 0 : 1
     }
 
 
@@ -615,19 +647,35 @@ public enum Install {
         }
     }
 
-    static func describe(_ plan: [Planned], refusals: [(UpdateResult, String, InstallCoordinator.Route?)]) {
-        if !plan.isEmpty {
+    static func describe(
+        _ plan: [Planned], refusals: [(UpdateResult, String, InstallCoordinator.Route?)],
+        tools: [CLIToolStatus] = [], toolRefusals: [(CLIToolStatus, String, String?)] = [],
+        print: (String) -> Void = { Swift.print($0) }
+    ) {
+        if !plan.isEmpty || !tools.isEmpty {
             print("\nWill install:")
             for item in plan {
                 print("  \(item.result.app.name)  \(item.result.app.shortVersion ?? "?")"
                     + "  →  \(item.result.remote?.displayVersion ?? "?")"
                     + "  [\(item.route.rawValue)]")
             }
+            // A tool's route is its own update command: the one its row's
+            // Update button runs.
+            for status in tools {
+                print("  \(status.name ?? status.kind.displayName)  \(status.installedVersion ?? "?")"
+                    + "  →  \(status.latestVersion ?? "?")  \(status.path)"
+                    + "  [\(status.oneClick?.display ?? "?")]")
+            }
         }
-        if !refusals.isEmpty {
+        if !refusals.isEmpty || !toolRefusals.isEmpty {
             print("\nSkipping:")
             for (result, why, _) in refusals {
                 print("  \(result.app.name)  —  \(why)")
+            }
+            for (status, why, command) in toolRefusals {
+                print("  \(status.name ?? status.kind.displayName)  \(status.installedVersion ?? "?")"
+                    + "  →  \(status.latestVersion ?? "?")  \(status.path)  —  \(why)")
+                if let command { print("      to update it yourself: \(command)") }
             }
         }
         print("")
@@ -721,8 +769,8 @@ public enum Install {
     ///   cache directory it shares.
     static func apply(
         _ plan: [Planned], settings: Settings, routes: Set<InstallCoordinator.Route>,
-        json: Bool, keepBackups: Bool, installedPopulation: [InstalledApp]?
-    ) async -> Int32 {
+        json: Bool, keepBackups: Bool, installedPopulation: [InstalledApp]?, tally: inout Tally
+    ) async -> [Attempted] {
         // The schema line is `run`'s job now — see its `NDJSON.begin` call.
         let coordinator = InstallCoordinator()
         // `elevationRequiredPaths` is a fact about the install locations, which
@@ -754,8 +802,8 @@ public enum Install {
         // other (#445) — see `Tally.record`. Before this, `apply` kept five
         // separate `var`s and incremented one by hand next to each exit from
         // the loop below, which let the emitted row and the incremented
-        // counter disagree (#436's defect).
-        var tally = Tally()
+        // counter disagree (#436's defect). The caller's, so the tools that
+        // `run` updates after the apps land in the same summary.
         // Only items whose bundle was ACTUALLY replaced
         // (`InstallCoordinator.Outcome.applied`) — a `.notRequested`, `.skip`,
         // `.unreadable`, `.cannotConfirm`, or `.answerRegressed` item was never
@@ -765,7 +813,7 @@ public enum Install {
         // means `coordinator.perform` returned (or failed) WITHOUT putting the
         // new version on disk — `applied` is exactly the signal for that, and is
         // more precise than "the call didn't throw" (#404 review #2).
-        var attempted: [(name: String, path: URL, bundleID: String?)] = []
+        var attempted: [Attempted] = []
         for item in plan {
             let name = item.result.app.name
             if !json { print("→ \(name)") }
@@ -959,28 +1007,35 @@ public enum Install {
                 }
             }
         }
-        if !json {
-            print("\n" + summaryLine(tally))
-            // The bundle on disk is new; the process still running is not. The
-            // menu-bar app restarts these itself per the user's preference; the
-            // CLI does not quit your apps behind your back, but it must not leave
-            // you believing the update is already live either. Sampled after the
-            // batch, so an app that exited during it is not named.
-            let running = Check.runningBundlePaths()
-            let stale = attempted
-                .filter { running.contains(UpdatePolicy.runtimeBundlePath($0.path)) }
-            if !stale.isEmpty {
-                print("\nStill running the old code: \(stale.map(\.name).joined(separator: ", "))")
-                // Info.plist read directly: `Bundle(url:)` caches per path, and
-                // this path held a different bundle when this run started.
-                let arguments = stale.map {
-                    restartArgument(name: $0.name, path: $0.path, bundleIDBefore: $0.bundleID,
-                                    bundleIDNow: NSDictionary(contentsOf: $0.path.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String)
-                }
-                print("  duo restart \(arguments.joined(separator: " "))")
+        return attempted
+    }
+
+    /// An app whose bundle `apply` replaced: what the "still running the old
+    /// code" line needs of it.
+    typealias Attempted = (name: String, path: URL, bundleID: String?)
+
+    /// The text-mode ending of a run: the summary over apps and tools alike,
+    /// and the apps whose running copy is now stale.
+    static func finishText(_ tally: Tally, attempted: [Attempted]) {
+        print("\n" + summaryLine(tally))
+        // The bundle on disk is new; the process still running is not. The
+        // menu-bar app restarts these itself per the user's preference; the
+        // CLI does not quit your apps behind your back, but it must not leave
+        // you believing the update is already live either. Sampled after the
+        // batch, so an app that exited during it is not named.
+        let running = Check.runningBundlePaths()
+        let stale = attempted
+            .filter { running.contains(UpdatePolicy.runtimeBundlePath($0.path)) }
+        if !stale.isEmpty {
+            print("\nStill running the old code: \(stale.map(\.name).joined(separator: ", "))")
+            // Info.plist read directly: `Bundle(url:)` caches per path, and
+            // this path held a different bundle when this run started.
+            let arguments = stale.map {
+                restartArgument(name: $0.name, path: $0.path, bundleIDBefore: $0.bundleID,
+                                bundleIDNow: NSDictionary(contentsOf: $0.path.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String)
             }
+            print("  duo restart \(arguments.joined(separator: " "))")
         }
-        return tally.failed == 0 ? 0 : 1
     }
 
     /// What to hand `duo restart` for an app this run updated. Its name, unless

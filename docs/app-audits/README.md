@@ -336,7 +336,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 ## Investigated — blocked safely
 
 - [x] [**CotEditor**](com-coteditor-CotEditor.md) · `com.coteditor.CotEditor` — P(stable/beta) B · **两轨全接（GitHub 两条规则 + ChannelBinding，一键 ✓，Team HT3Z3A72WZ 两轨真包核对）**；appcast **故意不读**——它只留一个预发布名额，旧 beta 副本找不到自己会被推 `7.0.9` 这个 marketing 降级包（守卫见 #368），换 GitHub 后渠道由 tag 和 `checksUpdatesForBeta` 决定，盲区消失 · 2026-09-06
-- [x] [**TRAE**](com-trae-app.md) · `com.trae.app` — P（官网下载 API，arm64 / x64 各一条，一键 dmg ✓ 端到端）· 跟随官网，领先应用内分配 · 3.5.87 → 3.5.104 检测 ✓ · 2026-10-08
+- [x] [**TRAE**](com-trae-app.md) · `com.trae.app` — P（官网下载 API，arm64 / x64 各一条，一键 dmg ✓ 端到端）· 跟随官网，领先应用内分配 · 3.5.87 → 3.5.104 检测 ✓ · changelog 结构化 ✓（docs 页，2026-10-10）· 2026-10-08
 - [x] [**macFUSE**](io-macfuse-preferencepanes-macfuse.md) · `io.macfuse.preferencepanes.macfuse` — 装的是 `.prefPane` + `/Library/Filesystems/macfuse.fs`（嵌套的 `macfuse.app` 自报 `1.0`），都不在 `AppScanner` 的扫描目录里；GitHub 侧可行但接不到检查，是扫描模型的缺口不是 recipe 缺口 · 2026-09-14 复核
 
 ## 未编入分类（补录 2026-08-30）

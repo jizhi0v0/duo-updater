@@ -40,3 +40,11 @@ merely the best evidence, it is the only evidence there is, and the
 proof says so.
 
 复测 2026-09-14（约 07:35 UTC，只读 GET `www.alfredapp.com/app/update5/general.xml` 与 `prerelease.xml`）：两者都是 `version` 5.8、`build` 2348，仍是同一个 build。
+
+### Recipes/com-runningwithcrayons-Alfred.swift — ChangelogRecipe（`alfredapp.com/changelog/`）
+
+实测 2026-10-10（只读 GET，curl 与生产解析器 `ChangelogService.loadDiagnostic` 各一次）：200，21525 字节，
+23 个条目，`5.8.1`（Build 2349, Thursday 24th September 2026）到 `5.0`；页底的 `Alfred 5.0 EA3` / `EA2`
+两条早期测试版不计入。同日 `general.xml` 与 `prerelease.xml` 都是 `version` 5.8.1、`build` 2349，
+`verify/baseline.json` 的 stable 与 beta 两行也都是 `5.8.1`：页面版本号、plist 的 `version` 与两行
+offered 同一口径（build 号只出现在日期前那段文字里）。beta 渠道查到的是同一个 recipe。

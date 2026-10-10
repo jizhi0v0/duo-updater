@@ -46,3 +46,11 @@ verified to match that header byte-for-byte, but that's outside what
 Installed-bundle identity confirmed 2026-08-16: `org.gnome.Meld`,
 notarized Developer ID, Team SW3D6BB6A6 (Rene de Hesselle) — `spctl`
 accepted as "Notarized Developer ID".
+
+### Recipes/org-gnome-Meld.swift — ChangelogRecipe（GitLab releases API，2026-10-10）
+
+接入前：`ChangelogCoverage.acknowledged` 里记为 "feasible, not written yet"，pane 嵌入 `gitlab.com/dehesselle/meld_macos/-/releases` 网页。
+
+实测（2026-10-10，只读 GET）：`gitlab.com/api/v4/projects/dehesselle%2Fmeld_macos/releases` 200，3,008 B（压缩传输），7 个 release，新到旧；每个 `description` 是一行一条的 Markdown 列表（`- …\n- …`），字段顺序 `name`、`tag_name`、`description`、`created_at`、`released_at`。
+
+生产解析器（`ChangelogService.loadDiagnostic`，临时测试，跑完删除）读线上地址：7 条；`3.22.3+105` / 2025-03-03 / 2 条（"Update dependencies."、"Modernize application bundle structure."），`3.22.3+100` / 2025-01-19 / 2 条（`"SF Pro"` 的转义已解开），`3.22.3+96` / 2025-01-11 / 3 条。最新条目 `3.22.3+105` 与 `verify/baseline.json` 里 `vendor:org.gnome.Meld:stable` 的 `lastGoodVersion` 相同。

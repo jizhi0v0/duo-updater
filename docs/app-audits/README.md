@@ -360,7 +360,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**MarkEdit**](app-cyan-markedit.md) · `app.cyan.markedit` — 仅迁出历史：universal 与 `-apple-silicon` 两个 dmg 的核对
 - [ ] [**ChatWise**](app-chatwise.md) · `app.chatwise` — 仅迁出历史：changelog 页 SvelteKit 壳的大小
 - [ ] [**Zen Browser**](app-zen-browser-zen.md) · `app.zen-browser.zen` — 仅迁出历史：一键 dmg 的签名核对
-- [ ] [**Shottr**](cc-ffitch-shottr.md) · `cc.ffitch.shottr` — 仅迁出历史：`latestVersion` 当时的值
+- [ ] [**Shottr**](cc-ffitch-shottr.md) · `cc.ffitch.shottr` — 仅迁出历史：`latestVersion` 当时的值、changelog 页结构实测
 - [ ] [**1Password**](com-1password-1password.md) · `com.1password.1password` — 仅迁出历史：一键 zip 的下载核对
 - [ ] [**Pearcleaner**](com-alienator88-Pearcleaner.md) · `com.alienator88.Pearcleaner` — 仅迁出历史：一键 dmg 的签名核对
 - [ ] [**Claude Desktop**](com-anthropic-claudefordesktop.md) · `com.anthropic.claudefordesktop` — 仅迁出历史：2026-08-15 灰度发布与 device id 分桶
@@ -393,10 +393,10 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**AnyDesk**](com-philandro-anydesk.md) · `com.philandro.anydesk` — 仅迁出历史：一键 dmg 的签名核对、各平台版本号
 - [ ] [**Postman**](com-postmanlabs-mac.md) · `com.postmanlabs.mac` — 仅迁出历史：旧正则截断条目的计数
 - [ ] [**PureMac**](com-puremac-app.md) · `com.puremac.app` — 仅迁出历史：`cli-v1.0.0` tag 被读成版本号
-- [ ] [**Alfred**](com-runningwithcrayons-Alfred.md) · `com.runningwithcrayons.Alfred` — 仅迁出历史：一键 tarball 的核对
+- [ ] [**Alfred**](com-runningwithcrayons-Alfred.md) · `com.runningwithcrayons.Alfred` — 仅迁出历史：一键 tarball 的核对、changelog 页结构实测
 - [ ] [**Shotbase**](com-shotbase-app.md) · `com.shotbase.app` — 仅迁出历史：appcast 条目数
 - [ ] [**Spotify**](com-spotify-client.md) · `com.spotify.client` — 仅迁出历史：stub 安装器版本与 cask 的比较、changelog 的排查
-- [ ] [**Sublime Merge**](com-sublimemerge.md) · `com.sublimemerge` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正
+- [ ] [**Sublime Merge**](com-sublimemerge.md) · `com.sublimemerge` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正、changelog 段结构实测
 - [ ] [**Sublime Text**](com-sublimetext-4.md) · `com.sublimetext.4` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正
 - [ ] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 zip 的签名核对
 - [ ] [**Telegram Desktop**](com-tdesktop-Telegram.md) · `com.tdesktop.Telegram` — 仅迁出历史：两次挂载 dmg 的核对、文件名改名的时间线
@@ -427,7 +427,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**qBittorrent**](org-qbittorrent-qBittorrent.md) · `org.qbittorrent.qBittorrent` — 仅迁出历史：dmg 签名被拒的核对
 - [ ] [**Wine Staging**](org-winehq-wine-staging-wine.md) · `org.winehq.wine-staging.wine` — 仅迁出历史：「`.tar.xz` 解不开」的更正、两条线的版本
 - [ ] [**XQuartz**](org-xquartz-X11.md) · `org.xquartz.X11` — 仅迁出历史：pkg 签名与 `Distribution` 的核对
-- [ ] [**Zotero**](org-zotero-zotero.md) · `org.zotero.zotero` — 仅迁出历史：10.0 与 9.0.6 两次挂载核对
+- [ ] [**Zotero**](org-zotero-zotero.md) · `org.zotero.zotero` — 仅迁出历史：10.0 与 9.0.6 两次挂载核对、changelog 页结构实测
 - [ ] [**BetterDisplay**](pro-betterdisplay-BetterDisplay.md) · `pro.betterdisplay.BetterDisplay` — 仅迁出历史：changelog 空壳页、`pre` release 与贡献者名单的计数
 - [ ] [**Waku**](sh-waku.md) · `sh.waku` — 仅迁出历史：notes 文件的探测、GitHub releases 的条数
 - [ ] [**Plex**](tv-plex-desktop.md) · `tv.plex.desktop` — 仅迁出历史：「cask 没有 livecheck」的更正、feed 的实测

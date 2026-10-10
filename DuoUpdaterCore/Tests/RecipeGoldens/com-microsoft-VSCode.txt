@@ -81,7 +81,7 @@ probes[1].requestBody = nil
 probes[1].followRedirects = true
 probes[1].requestHeaders = Dictionary(count: 0)
 
-changelogs = Array(count: 1)
+changelogs = Array(count: 2)
 changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.microsoft.VSCode"
 changelogs[0].source = URL("https://code.visualstudio.com/updates")
@@ -114,6 +114,38 @@ changelogs[0].httpMethod = .get
 changelogs[0].requestBody = nil
 changelogs[0].skipSections = Array(count: 0)
 changelogs[0].tagPattern = nil
+changelogs[1] = struct ChangelogRecipe
+changelogs[1].bundleID = "com.microsoft.VSCodeInsiders"
+changelogs[1].source = URL("https://code.visualstudio.com/updates")
+changelogs[1].sourceTemplate = nil
+changelogs[1].versionFromTemplate = false
+changelogs[1].mode = .html
+changelogs[1].entryPattern = "<h1>Visual Studio Code (?<version>[0-9]+\\.[0-9]+) \\(Insiders\\)</h1>(?:(?!</main>).)*?<p><em>Last updated:\\s*(?<date>[^<]+)</em></p>(?:(?!</main>).)*?(?<body><h2[^>]*>(?:(?!</main>).)*?)<hr>"
+changelogs[1].itemPatterns = Array(count: 1)
+changelogs[1].itemPatterns[0] = "<li>(?<item>.*?)</li>"
+changelogs[1].stripTags = true
+changelogs[1].decodeEntities = true
+changelogs[1].escapedMarkup = false
+changelogs[1].markdownSource = false
+changelogs[1].maxEntries? = 1
+changelogs[1].minItemLength = 1
+changelogs[1].newestLast = false
+changelogs[1].indexLinkPattern? = "href=\"(?<link>/updates/v1_[0-9]+)\"\\s*>\\s*Insiders\\s*</a>"
+changelogs[1].feedPagePattern = nil
+changelogs[1].channel? = .preview
+changelogs[1].includesPromotedStable = false
+changelogs[1].excludedChannels = Array(count: 0)
+changelogs[1].imagePattern = nil
+changelogs[1].headingPattern? = "<h2[^>]*>(?<heading>[^<]+)</h2>"
+changelogs[1].minimumAppVersion = nil
+changelogs[1].belowAppVersion = nil
+changelogs[1].carriesOtherTrainEntries = false
+changelogs[1].acknowledgedStaleEntry = nil
+changelogs[1].structuredFormat = nil
+changelogs[1].httpMethod = .get
+changelogs[1].requestBody = nil
+changelogs[1].skipSections = Array(count: 0)
+changelogs[1].tagPattern = nil
 
 githubRules = Array(count: 0)
 

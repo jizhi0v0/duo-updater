@@ -47,6 +47,12 @@ VendorProbeRecipe(
     followRedirects: Bool = true)
 ```
 
+A `changelogURL` with no `ChangelogRecipe` for the same bundle id is flagged by
+`duo verify` (`coverage:<bundle id>`, `noChangelogRecipe`): the pane would embed
+the page rather than show structured notes. Either write the changelog recipe too,
+or add the bundle id to `ChangelogCoverage.acknowledged`
+(`CLI/Sources/DuoKit/ChangelogCoverage.swift`) with the reason there will not be one.
+
 The rest, by the problem they solve — go to the source for the exact semantics:
 
 | Problem | Field |

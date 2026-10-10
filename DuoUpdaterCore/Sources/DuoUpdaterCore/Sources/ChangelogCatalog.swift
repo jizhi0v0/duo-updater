@@ -16,8 +16,9 @@ import Foundation
 /// orthogonal to whether (and how) we can install an update — an app we refuse to
 /// update through brew (because it self-updates) can still show its release notes.
 public enum ChangelogCatalog {
-    /// bundleID (lowercased) → changelog page.
-    static let pages: [String: URL] =
+    /// bundleID (lowercased) → changelog page. Public for `duo verify`'s
+    /// changelog-coverage check, which asks which of these have no recipe.
+    public static let pages: [String: URL] =
         AppRecipeIndex.merged(\.changelogPages, into: "ChangelogCatalog.pages")
 
     /// The curated changelog page for an app, if we have one. Case-insensitive on

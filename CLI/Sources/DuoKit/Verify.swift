@@ -60,6 +60,7 @@ extension GitHubReleaseRule: VerifySelectable {}
 extension ChangelogRecipe: VerifySelectable {}
 extension MacAppStoreProbeCase: VerifySelectable {}
 extension SparkleFeedCatalog.VerificationCase: VerifySelectable {}
+extension Finding: VerifySelectable {}
 
 /// A registry entry the Homebrew cross-check can speak for: it needs the channel
 /// as well as the app, and takes both off the entry so no call site can pair a
@@ -106,6 +107,10 @@ public enum Verify {
         // zero and dies with "nothing to verify - no recipe matches", blaming an
         // `--only` the user never typed.
         let pkgs = vendor.filter { $0.install?.kind == .pkg }
+        // Computed from the whole registries and then narrowed, like `--only`
+        // narrows everything else: whether an app has a recipe is a fact about the
+        // registries, not about which of them this run sweeps.
+        let coverage = filtered(ChangelogCoverage.findings(), options)
         // Written as a loop rather than a chain of ternaries: at six registries
         // the chained form exceeded the type checker's budget outright ("unable to
         // type-check this expression in reasonable time"), and a seventh registry
@@ -114,6 +119,7 @@ public enum Verify {
             (.vendor, vendor.count), (.github, github.count),
             (.changelog, changelog.count), (.appStore, appStore.count),
             (.feed, feeds.count), (.pkgArch, pkgs.count),
+            (.changelogCoverage, coverage.count),
         ]
         let total = counts.reduce(0) { sum, entry in
             sum + (options.registries.contains(entry.0) ? entry.1 : 0)
@@ -132,7 +138,8 @@ public enum Verify {
         \(options.registries.contains(.changelog) ? "\(changelog.count) changelogs  " : "")\
         \(options.registries.contains(.appStore) ? "\(appStore.count) App Store probes  " : "")\
         \(options.registries.contains(.feed) ? "\(feeds.count) Sparkle feeds  " : "")\
-        \(options.registries.contains(.pkgArch) ? "\(pkgs.count) pkg architectures" : "")
+        \(options.registries.contains(.pkgArch) ? "\(pkgs.count) pkg architectures  " : "")\
+        \(options.registries.contains(.changelogCoverage) ? "\(coverage.count) changelog pages" : "")
           ─────────────────────────────────────────────
         """)
         // Said once, up front, rather than left for the reader to infer from a
@@ -210,6 +217,9 @@ public enum Verify {
         if options.registries.contains(.pkgArch) {
             findings += await sweepPackageArchitecture(
                 vendor, urls: await resolvedInstallURLs.all(), options: options)
+        }
+        if options.registries.contains(.changelogCoverage) {
+            findings += coverage
         }
 
         findings.sort { $0.recipeID < $1.recipeID }
@@ -626,7 +636,8 @@ public enum Verify {
                 + SparkleFeedCatalog.verificationCases.map(\.recipeID)
                 + VendorProbeRegistry.recipes
                     .filter { $0.install?.kind == .pkg }
-                    .map { pkgArchID($0) })
+                    .map { pkgArchID($0) }
+                + ChangelogCoverage.findings().map(\.recipeID))
     }
 
     /// The resolved install artifact, or nil when the probe fell back.

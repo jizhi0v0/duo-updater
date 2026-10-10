@@ -136,6 +136,9 @@ public enum Report {
                 + summary(subset))
         }
         print("  total          \(summary(findings))      \(elapsed)s")
+        if let coverage = ChangelogCoverage.summary(findings) {
+            print("  \(coverage)")
+        }
     }
 
     private static func summary(_ findings: [Finding]) -> String {
@@ -175,6 +178,10 @@ public enum Report {
             func n(_ s: FindingStatus) -> Int { counts[s] ?? 0 }
             out += "| \(registry.label) | \(n(.ok)) | \(n(.warn)) | \(n(.broken)) "
                 + "| \(n(.infra)) | \(n(.skipped)) |\n"
+        }
+
+        if let coverage = ChangelogCoverage.summary(findings) {
+            out += "\n\(coverage).\n"
         }
 
         // Persistently-unreachable endpoints belong in the artifact for the same

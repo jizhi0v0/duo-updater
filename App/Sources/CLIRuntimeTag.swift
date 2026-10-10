@@ -30,8 +30,8 @@ final class CLIRuntimeStore {
 
 /// A small coloured label beside a CLI tool's name saying what it is built
 /// with — Go, Rust, Swift, Bun, … — behaving like `RuntimeTag` does for an app:
-/// the runtime's hue, white on a selected row, a tooltip where it is not
-/// clickable and the explanation one click away where it is.
+/// the runtime's hue, a tooltip where it is not clickable and the explanation one
+/// click away where it is.
 ///
 /// Text rather than a mark. Each language's own Simple Icons mark was tried in
 /// its place, drawn as `RuntimeTag` draws its marks, and looked at in the CLI tab
@@ -39,7 +39,6 @@ final class CLIRuntimeStore {
 /// third as tall as it is wide, which at 12pt read as a small "∞".
 struct CLIRuntimeTag: View {
     let reading: CLIRuntimeReading
-    var overHighlight: Bool = false
     /// Whether clicking opens the explanation. Off in the sidebar, where a
     /// button inside a `List` row eats the click that selects the row.
     var interactive: Bool = true
@@ -80,10 +79,8 @@ struct CLIRuntimeTag: View {
             .fixedSize()
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
-            .background(Capsule().fill(overHighlight ? Color.white.opacity(0.22) : tint.opacity(0.16)))
-            .foregroundStyle(overHighlight
-                             ? AnyShapeStyle(Color.white.opacity(0.92))
-                             : AnyShapeStyle(textTint.opacity(Self.intensity)))
+            .background(Capsule().fill(tint.opacity(0.16)))
+            .foregroundStyle(textTint.opacity(Self.intensity))
     }
 
     private var detail: some View {
@@ -163,7 +160,6 @@ struct CLIRuntimeTag: View {
 /// it says something; reads it whenever the path appears.
 struct CLIRuntimeTagSlot: View {
     let path: String
-    var overHighlight: Bool = false
     var interactive: Bool = true
     private var store: CLIRuntimeStore { .shared }
 
@@ -173,7 +169,7 @@ struct CLIRuntimeTagSlot: View {
         // and the first reading would never be asked for.
         ZStack {
             if let reading = store.reading(path) {
-                CLIRuntimeTag(reading: reading, overHighlight: overHighlight, interactive: interactive)
+                CLIRuntimeTag(reading: reading, interactive: interactive)
             } else {
                 Color.clear.frame(width: 0, height: 0)
             }

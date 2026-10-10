@@ -163,21 +163,6 @@ struct CLIToolIcon: View {
 
 // MARK: - Sidebar row
 
-extension View {
-    /// A sidebar row's Update: prominent, except on the selected row. The
-    /// selection's accent fill is the prominent button's own colour, and the
-    /// button merged into the highlight (seen on 2026-10-06 on a brew formula);
-    /// a plain bordered button stands out from it.
-    @ViewBuilder
-    func rowUpdateButtonStyle(selected: Bool) -> some View {
-        if selected {
-            buttonStyle(.bordered)
-        } else {
-            buttonStyle(.borderedProminent)
-        }
-    }
-}
-
 /// One install of any tool in the CLI tab. The trailing control follows the rules
 /// the user set: Update only when every gate passed (`oneClick`), the command to
 /// copy when the tool's own auto-update is off, and otherwise nothing — the caption
@@ -185,17 +170,9 @@ extension View {
 struct CLIToolSidebarRow: View {
     let status: CLIToolStatus
     let cli: CLIToolsModel
-    /// On the selection's accent fill a tinted caption is the fill's own colour
-    /// and vanishes (seen on 2026-10-01: a selected bub row read as title only),
-    /// so it turns white there, like the app and formula rows'.
-    var isSelected = false
     /// Whether to show what the tool is built with — the app list's runtime
     /// tags setting (`Preferences.showRuntimeTags`), which covers these too.
     var showsRuntime = true
-
-    private func emphasis(_ style: some ShapeStyle) -> AnyShapeStyle {
-        isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(style)
-    }
 
     private var id: CLIToolID { status.toolID }
     private var updating: Bool { cli.updating.contains(id) }
@@ -208,7 +185,7 @@ struct CLIToolSidebarRow: View {
                     Text(verbatim: CLIToolPresentation.title(of: status, home: homeDirectory, among: cli.statuses))
                         .font(.body).lineLimit(1).truncationMode(.middle)
                     if showsRuntime {
-                        CLIRuntimeTagSlot(path: status.path, overHighlight: isSelected, interactive: false)
+                        CLIRuntimeTagSlot(path: status.path, interactive: false)
                     }
                 }
                 caption
@@ -223,7 +200,7 @@ struct CLIToolSidebarRow: View {
     @ViewBuilder
     private var caption: some View {
         if let error = cli.errors[id] {
-            Text(verbatim: error).font(.caption).foregroundStyle(emphasis(.red)).lineLimit(1)
+            Text(verbatim: error).font(.caption).foregroundStyle(.red).lineLimit(1)
         } else if updating {
             // The update's own output ("Downloading…"), so it visibly moves, like a
             // formula upgrade's row.
@@ -241,12 +218,12 @@ struct CLIToolSidebarRow: View {
             }
             .font(.caption).foregroundStyle(.secondary).lineLimit(1)
         } else if let warning = CLIToolPresentation.rowWarning(status) {
-            Text(verbatim: warning).font(.caption).foregroundStyle(emphasis(.orange)).lineLimit(1)
+            Text(verbatim: warning).font(.caption).foregroundStyle(.orange).lineLimit(1)
         } else {
             // Tinted when it is an update, like a formula row's `a → b`.
             Text(verbatim: CLIToolPresentation.versionCaption(status))
                 .font(.caption)
-                .foregroundStyle(status.state == .updateAvailable ? emphasis(.tint) : AnyShapeStyle(.secondary))
+                .foregroundStyle(status.state == .updateAvailable ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                 .lineLimit(1)
         }
     }
@@ -260,12 +237,12 @@ struct CLIToolSidebarRow: View {
             // raise the administrator panel has; the password is in its help.
             Button("Update") { Task { await cli.update(id) } }
                 .controlSize(.small)
-                .rowUpdateButtonStyle(selected: isSelected)
+                .buttonStyle(.borderedProminent)
                 .help(String(localized: "Asks for an administrator password"))
         } else if status.oneClick != nil {
             Button("Update") { Task { await cli.update(id) } }
                 .controlSize(.small)
-                .rowUpdateButtonStyle(selected: isSelected)
+                .buttonStyle(.borderedProminent)
         } else if let command = CLIToolPresentation.manualCommand(status) {
             // A glyph, like the Brew trust command's row button: a labelled button
             // would leave a 260 pt sidebar too little room for the title beside it.

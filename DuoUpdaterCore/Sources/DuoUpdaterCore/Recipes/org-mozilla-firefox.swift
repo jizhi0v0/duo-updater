@@ -33,7 +33,7 @@ enum org_mozilla_firefox {
             mode: .responseBody,
             versionPattern: #""LATEST_FIREFOX_VERSION"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/"),
-            changelogURL: URL(string: "https://www.mozilla.org/firefox/notes/"),
+            changelogURL: URL(string: "https://www.firefox.com/firefox/notes/"),
             install: VendorInstallSpec(
                 urlSource: .redirect(
                     URL(string: "https://download.mozilla.org/?product=firefox-latest&os=osx&lang=en-US")!),
@@ -123,7 +123,7 @@ enum org_mozilla_firefox {
             mode: .responseBody,
             versionPattern: #"buildID="([0-9]{14})""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/channel/desktop/"),
-            changelogURL: URL(string: "https://www.mozilla.org/firefox/beta/notes/"),
+            changelogURL: URL(string: "https://www.firefox.com/firefox/beta/notes/"),
             versionIsBuild: true,
             buildNamespace: .vendor,
             displayVersionPattern:
@@ -139,7 +139,7 @@ enum org_mozilla_firefox {
             mode: .responseBody,
             versionPattern: #""FIREFOX_ESR"\s*:\s*"([0-9]+(?:\.[0-9]+)+esr)""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/enterprise/"),
-            changelogURL: URL(string: "https://www.mozilla.org/firefox/organizations/notes/"),
+            changelogURL: URL(string: "https://www.firefox.com/firefox/organizations/notes/"),
             install: VendorInstallSpec(
                 urlSource: .redirect(
                     URL(string: "https://download.mozilla.org/?product=firefox-esr-latest&os=osx&lang=en-US")!),
@@ -151,7 +151,7 @@ enum org_mozilla_firefox {
             mode: .responseBody,
             versionPattern: #"buildID="([0-9]{14})""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/developer/"),
-            changelogURL: URL(string: "https://www.mozilla.org/firefox/beta/notes/"),
+            changelogURL: URL(string: "https://www.firefox.com/firefox/beta/notes/"),
             versionIsBuild: true,
             buildNamespace: .vendor,
             displayVersionPattern:
@@ -170,7 +170,7 @@ enum org_mozilla_firefox {
             mode: .responseBody,
             versionPattern: #"buildID="([0-9]{14})""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/channel/desktop/"),
-            changelogURL: URL(string: "https://www.mozilla.org/firefox/nightly/notes/"),
+            changelogURL: URL(string: "https://www.firefox.com/firefox/nightly/notes/"),
             versionIsBuild: true,
             buildNamespace: .vendor,
             displayVersionPattern: #"displayVersion="([^"]+)""#,

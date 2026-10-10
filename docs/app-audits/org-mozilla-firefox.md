@@ -89,7 +89,7 @@ Dev Edition 的 `RemotingName=firefox-dev` 归 `.dev`（旧"版本是 bN → 归
 - **esr 带后缀、安装版剥后缀，但仍安全**：`140.14.0esr` 比 `140.14.0` 多一截，比较器把
   预发布串排在正式版**之下**，所以当前版判"已是最新"、不会误报；真正升版
   （`140.14.0esr`→`140.15.0esr`）仍比得出更新。
-- `FIREFOX_ESR_NEXT`（当前 `153.1.0esr`）没跟 —— ESR 切版重叠期的双轨，低优先级。
+- `FIREFOX_ESR_NEXT`（2026-10-10 `product-details` 为 `153.4.0esr`）没跟 —— ESR 切版重叠期的双轨，低优先级。
 
 ### beta / dev-edition / nightly — AUS（`aus5.mozilla.org`）
 
@@ -154,7 +154,9 @@ nightly 的锚点特意用 `120.0a1` 而不是当前的 `157.0a1`：`RecipeSanit
   `Recipes/org-mozilla-firefox.swift` 的 `changelogs:`。官网每个版本一页
   （`www.firefox.com/en-US/firefox/<token>/releasenotes/`；`www.mozilla.org` 的同路径 301 过去），
   和 Thunderbird 一样用 `sourceTemplate` 代入「提供的更新版本，否则安装版本」，不用钉版本。
-  解析失败时仍回落到 WebView 内嵌 probe 的 `changelogURL`。
+  解析失败时仍回落到 WebView 内嵌 probe 的 `changelogURL`（2026-10-10 起直接指向
+  `www.firefox.com/firefox/{notes,beta/notes,organizations/notes,nightly/notes}/`，即旧
+  `www.mozilla.org` 地址 301 的目标；这些别名再 302 到当前版本页）。
 - 各 channel 的 URL token（2026-10-10 逐个对过状态码）:
   | Channel | 代入的版本 | 页面 | 机制 |
   |---|---|---|---|
@@ -205,7 +207,7 @@ nightly 的锚点特意用 `120.0a1` 而不是当前的 `157.0a1`：`RecipeSanit
   详见上面「锚点是写死的」。
 - **AUS 不发布发布时间**：没有 `pubDate` 之类的字段，所以这三条 channel 的 Release Log
   仍然只有"我们何时看见"，没有"厂商何时发布"。
-- `FIREFOX_ESR_NEXT` 当前为 `153.1.0esr`；ESR 重叠期双轨低优先级，暂不加。
+- `FIREFOX_ESR_NEXT` 2026-10-10 `product-details` 为 `153.4.0esr`（此前记的 `153.1.0esr` 已过时）；ESR 重叠期双轨低优先级，暂不加。
 - **一键安装仍然装 `-latest`**，不是 AUS `<patch>` 里那个 `.mar`。`.mar` 是 Mozilla 自己
   更新器用的增量/完整补丁格式，我们不解析它；`-latest` 的重定向产物就是 AUS 报的那个
   build（2026-08-30 五条 channel 逐一对过 `BuildID`）。

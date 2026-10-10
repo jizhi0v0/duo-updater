@@ -712,6 +712,10 @@ public enum SelfUpdaterStaging {
     /// 2.10 one, so this is the 2.10 test. `Launcher/`, `Installation/` and
     /// `PersistentDownloads/` all sit below the one folder Sparkle picks
     /// (`SUInstallerLauncher.m`, `AppInstaller.m`, `SPUDownloader.m`).
+    ///
+    /// Observed 2026-10-11: DuoUpdater itself (`com.duoupdater.app`, Sparkle
+    /// 2.10.0) keeps all three under `Caches/com.duoupdater.app.sparkle/`, and
+    /// `Caches/com.duoupdater.app/` has no `org.sparkle-project.Sparkle` at all.
     static func sparkleCacheFolderNames(for bundleID: String) -> [String] {
         let lowercased = bundleID.lowercased()
         guard problematicBundleIdentifierExtensions.contains(where: lowercased.hasSuffix)
@@ -730,7 +734,8 @@ public enum SelfUpdaterStaging {
     /// changed across releases (`InstallerLauncher/SUInstallerLauncher.m`, read at
     /// each tag on 2026-09-13):
     ///
-    ///   - **≤ 2.9.5**: always copied into `<Caches>/<bundleID>/…/Launcher/<random>/`,
+    ///   - **≤ 2.9.5**: always copied into `<Caches>/<folder>/…/Launcher/<random>/`
+    ///     (`<folder>` per `sparkleCacheFolderNames`),
     ///     including for an install needing administrator authorisation (whose
     ///     INSTALLER then runs as root). Observed on Tailscale's Sparkle 2.8.0.
     ///   - **2.9.6**: `BOOL copyProgressTool = !rootUser`, `rootUser` being the

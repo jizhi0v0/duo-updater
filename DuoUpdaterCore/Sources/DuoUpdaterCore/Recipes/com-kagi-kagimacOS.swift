@@ -26,10 +26,45 @@ enum com_kagi_kagimacOS {
             mode: .responseBody,
             versionPattern: #"<sparkle:shortVersionString>([0-9]+(?:\.[0-9]+)+)</sparkle:shortVersionString>"#,
             downloadURL: URL(string: "https://browser.kagi.com/"),
-            changelogURL: URL(string: "https://browser.kagi.com/updates/orion-release-notes.html"),
+            // The page the appcast's own `<sparkle:releaseNotesLink>` names. The
+            // browser.kagi.com spelling 302s to a cdn.kagi.com copy that stopped
+            // at 1.1.
+            changelogURL: URL(string: "https://orionbrowser.com/updates/orion-release-notes.html"),
             selectHighest: true,
             install: VendorInstallSpec(
                 urlSource: .bodyPatternLast(#"url="(https://[^"]+\.zip)""#),
                 kind: .zip)),
+        ],
+        changelogs: [
+        // History: docs/app-audits/com-kagi-kagimacOS.md#历史与实测
+        // Orion's macOS release notes at orionbrowser.com, the page every item of
+        // the appcast links. One `<h2 id="macos-orion-…">` per release, newest
+        // first. Since 1.0 the heading is `<b>Orion 1.1.3 (152)</b> ✴︎ Sep 28,
+        // 2026` with `<h3>` sections over `<ul>`s; before it,
+        // `Orion 0.99.138 - Nov 18, 2025` with `<h2>` sections (no id).
+        //
+        //   * Stable only: the version must follow "Orion " directly, so the
+        //     "Orion RC …" and "Orion Beta …" blocks still on the page (RC notes
+        //     now have a page of their own) are skipped.
+        //   * The version is the marketing number the appcast's
+        //     `shortVersionString` carries; the build in parentheses is dropped.
+        //     A suffix inside the `<b>` ("- hotfix") becomes the entry's title,
+        //     which keeps the 1.1.2 hotfix (151) and 1.1.2 (150) as two entries.
+        //   * A body runs to the next release heading (an `<h2>` whose id starts
+        //     `macos-orion-`), so the old layout's section `<h2>`s stay inside it
+        //     and become headings along with the new layout's `<h3>`s.
+        ChangelogRecipe(
+            bundleID: "com.kagi.kagimacOS",
+            source: URL(string: "https://orionbrowser.com/updates/orion-release-notes.html")!,
+            entryPattern:
+                #"<h2[^>]*\bid="macos-orion-[^"]*"[^>]*>\s*(?:<b>\s*)?Orion\s+(?<version>\d+(?:\.\d+)+)"#
+                + #"(?:\s*\(\d+\))?(?:\s*-\s*(?<title>[^<]+?)(?=\s*</b>))?\s*(?:</b>)?"#
+                + #"\s*(?:\x{2734}\x{FE0E}?|-)?\s*(?<date>[^<]*?)\s*</h2>"#
+                + #"(?<body>.*?)(?=<h2[^>]*\bid="macos-orion-|</main>|</body>)"#,
+            itemPatterns: [
+                #"<li[^>]*>(?<item>.*?)</li>"#,
+                #"<p[^>]*>(?<item>.*?)</p>"#,
+            ],
+            headingPattern: #"<h[23]\b(?![^>]*\bid="macos-orion-)[^>]*>(?<heading>.*?)</h[23]>"#),
         ])
 }

@@ -44,8 +44,6 @@ enum ChangelogCoverage {
             "brave.com/latest lists release-channel versions only; beta notes are not published",
         "com.brave.Browser.nightly":
             "brave.com/latest lists release-channel versions only; nightly builds have no notes",
-        "com.exafunction.windsurf":
-            "feasible, not written yet: regex on docs.devin.ai/desktop/changelog, where the declared URL redirects",
         "com.figma.DesktopBeta":
             "feasible, not written yet: the stable Figma atom recipe under the beta bundle id",
         "com.getdropbox.dropbox":
@@ -66,14 +64,8 @@ enum ChangelogCoverage {
             "blog posts keyed by date, with no client version per entry (discord.com/blog)",
         "com.jetbrains.intellij-EAP":
             "EAP whatsnew in the releases API only links a YouTrack issue table",
-        "com.kagi.kagimacOS":
-            "feasible, not written yet: regex on orionbrowser.com release notes (the declared URL redirects to a frozen mirror)",
         "com.macpaw.site.theunarchiver":
             "feasible but low value: regex on the DevMate notes page; the app has not shipped since 4.3.9",
-        "com.microsoft.edgemac":
-            "feasible, not written yet: (Stable)-labelled entries on the Edge stable release notes (a shallow page)",
-        "com.microsoft.edgemac.Beta":
-            "feasible, not written yet: regex on the Edge beta release notes",
         "com.microsoft.Excel":
             "feasible, not written yet: the app's section of the Office for Mac release notes",
         "com.microsoft.OneDrive":
@@ -108,8 +100,6 @@ enum ChangelogCoverage {
             "feasible, not written yet: feedPagePattern on the appcast's per-version rnotes.html",
         "com.tdesktop.Telegram":
             "feasible, not written yet: .gitHubReleases on telegramdesktop/tdesktop (telegram.org/blog has no versions)",
-        "com.termius-dmg.mac":
-            "feasible, not written yet: regex on docs.termius.com/changelog (a 6.7 MB page)",
         "com.tigervnc.tigervnc":
             "feasible, not written yet: .gitHubReleases on TigerVNC/tigervnc (some bodies are prose only)",
         "com.vivaldi.Vivaldi.snapshot":
@@ -122,8 +112,6 @@ enum ChangelogCoverage {
             "feasible, not written yet: .gitHubReleases on element-hq/element-web, ^v tagPattern (element-desktop is archived)",
         "im.riot.nightly":
             "nightly build stamps (YYYYMMDDNN) have no tag or notes of their own",
-        "MstyStudio":
-            "feasible, not written yet: regex on msty.ai's Studio changelog, stable entries only",
         "net.librewolf.librewolf":
             "release bodies only link Firefox's upstream notes; tags carry a -N build suffix",
         "net.pornel.ImageOptim":

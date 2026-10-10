@@ -114,8 +114,60 @@ enum com_microsoft_edgemac {
                 checksumFormat: .sha256Hex),
             channel: .dev),
         ],
+        changelogs: [
+        // History: docs/app-audits/com-microsoft-edgemac.md#历史与实测
+        // Edge's enterprise release notes on Learn, one page per channel (the
+        // probes' `changelogURL`s). A release is an
+        // `<h2>Version 155.0.4283.45: October 08, 2026 …</h2>` up to the next
+        // `<h2>`, newest first; the version is the same four-part
+        // `ProductVersion` the enterprise API reports. Both recipes share the
+        // body reading:
+        //
+        //   * Notes are `<li>`s, often `<li><p>…</p>` with a nested `<ul>` of
+        //     sub-points; the item pattern stops at the first `</p>`, `<ul>` or
+        //     `<li>`, so a parent and each sub-point are separate lines. A
+        //     release with no list (a minor update) falls back to its "Release
+        //     Summary" table's description cells, then to its paragraphs (minus
+        //     the "Back to top" link).
+        //   * `<h3>`/`<h4>` sections ("Announcements", "Feature updates",
+        //     "Policy updates") are kept as headings.
+        //
+        // Stable's page also carries the Extended Stable train (152.x updates
+        // labelled "(Extended Stable)") interleaved with Stable's own entries, so
+        // its entry pattern requires the "(Stable)" label. The page only covers
+        // the current and previous major, so it holds a handful of entries.
+        ChangelogRecipe(
+            bundleID: "com.microsoft.edgemac",
+            source: URL(
+                string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnote-stable-channel")!,
+            entryPattern:
+                #"<h2[^>]*>\s*Version\s+(?<version>\d+(?:\.\d+){3}):\s*(?<date>[^<(]+?)\s*\(Stable\)[^<]*"#
+                + #"(?:<a[^>]*>\s*</a>\s*)?</h2>(?<body>.*?)(?=<h2[\s>]|</main>)"#,
+            itemPatterns: edgeItemPatterns,
+            headingPattern: #"<h[34]\b(?![^>]*\bid="release-summary)[^>]*>(?<heading>.*?)</h[34]>"#),
+        // Beta's page has no channel label: every `Version …: <date>` heading
+        // is a Beta build.
+        ChangelogRecipe(
+            bundleID: "com.microsoft.edgemac.Beta",
+            source: URL(
+                string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnote-beta-channel")!,
+            entryPattern:
+                #"<h2[^>]*>\s*Version\s+(?<version>\d+(?:\.\d+){3}):\s*(?<date>[^<]+?)\s*"#
+                + #"(?:<a[^>]*>\s*</a>\s*)?</h2>(?<body>.*?)(?=<h2[\s>]|</main>)"#,
+            itemPatterns: edgeItemPatterns,
+            headingPattern: #"<h[34]\b(?![^>]*\bid="release-summary)[^>]*>(?<heading>.*?)</h[34]>"#),
+        ],
         channelProofs: [
         ChannelProofKey("com.microsoft.edgemac.Beta", .beta): .artifact(#"MicrosoftEdgeBeta-"#),
         ChannelProofKey("com.microsoft.edgemac.Dev", .dev): .artifact(#"MicrosoftEdgeDev-"#),
         ])
+
+    /// The note lines of a release on either Edge release-notes page, tried in
+    /// order: list lines, then the summary table's description cells, then
+    /// paragraphs.
+    private static let edgeItemPatterns = [
+        #"<li[^>]*>\s*(?:<p[^>]*>)?(?<item>(?:(?!</?li[\s>]|</p>|<[uo]l[\s>]).)+)"#,
+        #"<tr>\s*<td>(?:(?!</td>).)*</td>\s*<td>(?<item>.*?)</td>"#,
+        #"<p[^>]*>(?!\s*<a[^>]*>\s*Back to top)(?<item>.*?)</p>"#,
+    ]
 }

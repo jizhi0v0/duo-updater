@@ -16,7 +16,9 @@ private let grandPerspectiveFixture = #"""
 
 /// TigerVNC's `best_release.json`, captured verbatim 2026-08-16
 /// (`curl https://sourceforge.net/projects/tigervnc/best_release.json`, HTTP
-/// 200). THIS is the fixture that pins the trap: top-level `release.filename`
+/// 200). The TigerVNC recipe no longer reads this endpoint (it reads the
+/// stable RSS below); the fixture stays because it pins two things: the
+/// `mac` entry lagging the release, and the trap: top-level `release.filename`
 /// is `/stable/1.16.0/tigervnc64-1.16.0.exe` — a Windows binary — while
 /// `platform_releases.mac.filename` is `/stable/1.16.0/TigerVNC-1.16.0.dmg`,
 /// the macOS artifact. A recipe reading the top-level key would still produce
@@ -26,6 +28,60 @@ private let grandPerspectiveFixture = #"""
 /// installed on this machine.
 private let tigerVNCFixture = #"""
 {"release": {"bytes": 4596360, "date": "2026-01-27 14:25:02", "date_modified": "2026-01-27 14:25:02", "file_type": "PE32 executable", "filename": "/stable/1.16.0/tigervnc64-1.16.0.exe", "md5sum": "dbb9de325493d75067eb3379cb9bdf65", "mime_type": "application/vnd.microsoft.portable-executable; charset=binary", "release_notes_url": null, "sf_download_label": null, "sf_file_id": 60900144, "sf_package_id": null, "sf_platform": [], "sf_platform_default": ["windows"], "sf_release_id": null, "sf_release_notes_file": null, "sf_type": null, "staged_until": null, "url": "https://sourceforge.net/projects/tigervnc/files/stable/1.16.0/tigervnc64-1.16.0.exe/download", "vscan": "OK", "vscan_when": "2026-01-27 14:33:22"}, "platform_releases": {"mac": {"bytes": 6844016, "date": "2026-01-27 14:24:13", "date_modified": "2026-01-27 14:24:13", "file_type": "zlib compressed data", "filename": "/stable/1.16.0/TigerVNC-1.16.0.dmg", "md5sum": "f3d8db3ebbbb3dd802c1ac5d8c77682c", "mime_type": "application/zlib; charset=binary", "release_notes_url": null, "sf_download_label": null, "sf_file_id": 60900082, "sf_package_id": null, "sf_platform": [], "sf_platform_default": ["mac"], "sf_release_id": null, "sf_release_notes_file": null, "sf_type": null, "staged_until": null, "url": "http://downloads.sourceforge.net/project/tigervnc/stable/1.16.0/TigerVNC-1.16.0.dmg?ts=gAAAAABpxS92YRGIhZ0NwRXrQBv8g546kXOw-bed0d59mFcrDbosNlxER7yoHrgqtskbnRRboJ42AmPHVUY6i9BTi79tD1HSlg%3D%3D", "vscan": "OK", "vscan_when": "2026-01-27 14:33:40"}, "windows": {"bytes": 4596360, "date": "2026-01-27 14:25:02", "date_modified": "2026-01-27 14:25:02", "file_type": "PE32 executable", "filename": "/stable/1.16.0/tigervnc64-1.16.0.exe", "md5sum": "dbb9de325493d75067eb3379cb9bdf65", "mime_type": "application/vnd.microsoft.portable-executable; charset=binary", "release_notes_url": null, "sf_download_label": null, "sf_file_id": 60900144, "sf_package_id": null, "sf_platform": [], "sf_platform_default": ["windows"], "sf_release_id": null, "sf_release_notes_file": null, "sf_type": null, "staged_until": null, "url": "http://downloads.sourceforge.net/project/tigervnc/stable/1.16.0/tigervnc64-1.16.0.exe?ts=gAAAAABpxS920ecjRBnvnb6bR7555aSpIelbCHX7_6aU4kE5WUiyxP9tbC_nMqAkM8aym484BYpu1P8jldb7Bw7Q40PPFtV3tQ%3D%3D", "vscan": "OK", "vscan_when": "2026-01-27 14:33:22"}, "linux": {"bytes": 649799, "date": "2026-03-26 11:53:06", "date_modified": "2026-03-26 11:53:06", "file_type": "Java archive data (JAR)", "filename": "/stable/1.16.2/VncViewer-1.16.2.jar", "md5sum": "21d9a757df08f9143bc350ce53265a8f", "mime_type": "application/java-archive; charset=binary", "release_notes_url": null, "sf_download_label": null, "sf_file_id": 62329599, "sf_package_id": null, "sf_platform": [], "sf_platform_default": [], "sf_release_id": null, "sf_release_notes_file": null, "sf_type": null, "staged_until": null, "url": "http://downloads.sourceforge.net/project/tigervnc/stable/1.16.2/VncViewer-1.16.2.jar?ts=gAAAAABpxS923_sqBpL6Ir1uepuF2Thia1SlyKF2U_1pvLt_PyVQVaFKtnjd9melKRUagklciGVIs5-2A-EGHEBWaW3_Ji-SNg%3D%3D", "vscan": "OK", "vscan_when": "2026-03-26 12:00:38"}}}
+"""#
+
+/// A slice of `https://sourceforge.net/projects/tigervnc/rss?path=/stable`,
+/// captured 2026-10-10 with `User-Agent: DuoUpdater/0.1` (HTTP 200, 100 items).
+/// Items kept verbatim, in feed order: the first item (a 1.16.2 Windows exe),
+/// the only dmg in the feed (item 73 of 100), the 1.16.2 jar uploaded the same
+/// second, and the last item (a 1.16.1 deb). The channel header is trimmed to its title.
+private let tigerVNCStableRSSFixture = #"""
+<?xml version="1.0" encoding="utf-8"?>
+<rss xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:files="https://sourceforge.net/api/files.rdf#" xmlns:media="http://video.search.yahoo.com/mrss/" xmlns:doap="http://usefulinc.com/ns/doap#" xmlns:sf="https://sourceforge.net/api/sfelements.rdf#" version="2.0">
+  <channel xmlns:files="https://sourceforge.net/api/files.rdf#" xmlns:media="http://video.search.yahoo.com/mrss/" xmlns:doap="http://usefulinc.com/ns/doap#" xmlns:sf="https://sourceforge.net/api/sfelements.rdf#">
+    <title>TigerVNC</title>
+    <item>
+      <title><![CDATA[/stable/1.16.2/vncviewer64-1.16.2.exe]]></title>
+      <link>https://sourceforge.net/projects/tigervnc/files/stable/1.16.2/vncviewer64-1.16.2.exe/download</link>
+      <guid>https://sourceforge.net/projects/tigervnc/files/stable/1.16.2/vncviewer64-1.16.2.exe/download</guid>
+      <pubDate>Thu, 26 Mar 2026 11:55:34 UT</pubDate>
+      <description><![CDATA[/stable/1.16.2/vncviewer64-1.16.2.exe]]></description>
+      <files:sf-file-id xmlns:files="https://sourceforge.net/api/files.rdf#">62329744</files:sf-file-id>
+      <files:extra-info xmlns:files="https://sourceforge.net/api/files.rdf#">PE32+ executable</files:extra-info>
+      <media:content xmlns:media="http://video.search.yahoo.com/mrss/" type="application/vnd.microsoft.portable-executable; charset=binary" url="https://sourceforge.net/projects/tigervnc/files/stable/1.16.2/vncviewer64-1.16.2.exe/download" filesize="24072224"><media:hash algo="md5">62d89206d118deed93b7df651499b456</media:hash></media:content>
+    </item>
+    <item>
+      <title><![CDATA[/stable/1.16.2/TigerVNC-1.16.2.dmg]]></title>
+      <link>https://sourceforge.net/projects/tigervnc/files/stable/1.16.2/TigerVNC-1.16.2.dmg/download</link>
+      <guid>https://sourceforge.net/projects/tigervnc/files/stable/1.16.2/TigerVNC-1.16.2.dmg/download</guid>
+      <pubDate>Thu, 26 Mar 2026 11:53:06 UT</pubDate>
+      <description><![CDATA[/stable/1.16.2/TigerVNC-1.16.2.dmg]]></description>
+      <files:sf-file-id xmlns:files="https://sourceforge.net/api/files.rdf#">62329598</files:sf-file-id>
+      <files:extra-info xmlns:files="https://sourceforge.net/api/files.rdf#">zlib compressed data</files:extra-info>
+      <media:content xmlns:media="http://video.search.yahoo.com/mrss/" type="application/zlib; charset=binary" url="https://sourceforge.net/projects/tigervnc/files/stable/1.16.2/TigerVNC-1.16.2.dmg/download" filesize="6845311"><media:hash algo="md5">f304571d98c4b39bbd82f135f25d1830</media:hash></media:content>
+    </item>
+    <item>
+      <title><![CDATA[/stable/1.16.2/VncViewer-1.16.2.jar]]></title>
+      <link>https://sourceforge.net/projects/tigervnc/files/stable/1.16.2/VncViewer-1.16.2.jar/download</link>
+      <guid>https://sourceforge.net/projects/tigervnc/files/stable/1.16.2/VncViewer-1.16.2.jar/download</guid>
+      <pubDate>Thu, 26 Mar 2026 11:53:06 UT</pubDate>
+      <description><![CDATA[/stable/1.16.2/VncViewer-1.16.2.jar]]></description>
+      <files:sf-file-id xmlns:files="https://sourceforge.net/api/files.rdf#">62329599</files:sf-file-id>
+      <files:extra-info xmlns:files="https://sourceforge.net/api/files.rdf#">Java archive data (JAR)</files:extra-info>
+      <media:content xmlns:media="http://video.search.yahoo.com/mrss/" type="application/java-archive; charset=binary" url="https://sourceforge.net/projects/tigervnc/files/stable/1.16.2/VncViewer-1.16.2.jar/download" filesize="649799"><media:hash algo="md5">21d9a757df08f9143bc350ce53265a8f</media:hash></media:content>
+    </item>
+    <item>
+      <title><![CDATA[/stable/1.16.1/ubuntu-22.04LTS/arm64/tigervnc-java_1.16.1-1ubuntu1_arm64.deb]]></title>
+      <link>https://sourceforge.net/projects/tigervnc/files/stable/1.16.1/ubuntu-22.04LTS/arm64/tigervnc-java_1.16.1-1ubuntu1_arm64.deb/download</link>
+      <guid>https://sourceforge.net/projects/tigervnc/files/stable/1.16.1/ubuntu-22.04LTS/arm64/tigervnc-java_1.16.1-1ubuntu1_arm64.deb/download</guid>
+      <pubDate>Wed, 25 Mar 2026 02:57:18 UT</pubDate>
+      <description><![CDATA[/stable/1.16.1/ubuntu-22.04LTS/arm64/tigervnc-java_1.16.1-1ubuntu1_arm64.deb]]></description>
+      <files:sf-file-id xmlns:files="https://sourceforge.net/api/files.rdf#">62295057</files:sf-file-id>
+      <files:extra-info xmlns:files="https://sourceforge.net/api/files.rdf#">Debian binary package (format 2.0), with control.tar.zst, data compression zst</files:extra-info>
+      <media:content xmlns:media="http://video.search.yahoo.com/mrss/" type="application/vnd.debian.binary-package; charset=binary" url="https://sourceforge.net/projects/tigervnc/files/stable/1.16.1/ubuntu-22.04LTS/arm64/tigervnc-java_1.16.1-1ubuntu1_arm64.deb/download" filesize="5246"><media:hash algo="md5">d612ebea34a8f65696c36e3e35eb94d7</media:hash></media:content>
+    </item>
+  </channel>
+</rss>
 """#
 
 /// qBittorrent's `best_release.json`, captured verbatim 2026-08-16
@@ -40,9 +96,10 @@ private let qBittorrentFixture = #"""
 {"release": {"bytes": 43100219, "date": "2026-07-07 22:00:50", "date_modified": "2026-07-07 22:00:50", "file_type": "PE32 executable", "filename": "/qbittorrent-win32/qbittorrent-5.2.3/qbittorrent_5.2.3_x64_setup.exe", "md5sum": "c4c58fa22842733f566c4ef47306bfd3", "mime_type": "application/vnd.microsoft.portable-executable; charset=binary", "release_notes_url": null, "sf_download_label": null, "sf_file_id": 64917119, "sf_package_id": null, "sf_platform": [], "sf_platform_default": ["windows"], "sf_release_id": null, "sf_release_notes_file": null, "sf_type": null, "staged_until": null, "url": "https://sourceforge.net/projects/qbittorrent/files/qbittorrent-win32/qbittorrent-5.2.3/qbittorrent_5.2.3_x64_setup.exe/download", "vscan": "OK", "vscan_when": null}, "platform_releases": {"mac": {"bytes": 48317381, "date": "2026-07-07 21:56:24", "date_modified": "2026-07-07 21:56:24", "file_type": "zlib compressed data", "filename": "/qbittorrent-mac/qbittorrent-5.2.3/qbittorrent-5.2.3.dmg", "md5sum": "0fc4d1c986502e65228339b7d08c4ecf", "mime_type": "application/zlib; charset=binary", "release_notes_url": null, "sf_download_label": null, "sf_file_id": 64917018, "sf_package_id": null, "sf_platform": [], "sf_platform_default": ["mac"], "sf_release_id": null, "sf_release_notes_file": null, "sf_type": null, "staged_until": null, "url": "http://downloads.sourceforge.net/project/qbittorrent/qbittorrent-mac/qbittorrent-5.2.3/qbittorrent-5.2.3.dmg?ts=gAAAAABqTYg6NDxVsQgB6DL15dSpuhDxlB_PYVhqdwJ87PtQOJHORqDIsYc0vkxAj2L2NyD9Yi9VyZ8ZQx5VR7JMY1OPmEh0dg%3D%3D", "vscan": "OK", "vscan_when": null}, "windows": {"bytes": 43100219, "date": "2026-07-07 22:00:50", "date_modified": "2026-07-07 22:00:50", "file_type": "PE32 executable", "filename": "/qbittorrent-win32/qbittorrent-5.2.3/qbittorrent_5.2.3_x64_setup.exe", "md5sum": "c4c58fa22842733f566c4ef47306bfd3", "mime_type": "application/vnd.microsoft.portable-executable; charset=binary", "release_notes_url": null, "sf_download_label": null, "sf_file_id": 64917119, "sf_package_id": null, "sf_platform": [], "sf_platform_default": ["windows"], "sf_release_id": null, "sf_release_notes_file": null, "sf_type": null, "staged_until": null, "url": "http://downloads.sourceforge.net/project/qbittorrent/qbittorrent-win32/qbittorrent-5.2.3/qbittorrent_5.2.3_x64_setup.exe?ts=gAAAAABqTYg6I9tlCP0zm72iLYm9Jj_df1KITozfyHCWC2fVB2xQb7yNlKyHaf2auh-QmpiOm5eLLH3pEEDIThY5bYkChK1c8w%3D%3D", "vscan": "OK", "vscan_when": null}, "linux": {"bytes": 101222904, "date": "2026-07-07 21:59:14", "date_modified": "2026-07-07 21:59:14", "file_type": "ELF 64-bit LSB pie executable, x86-64 (SYSV), static-pie linked", "filename": "/qbittorrent-appimage/qbittorrent-5.2.3/qbittorrent-5.2.3_x86_64.AppImage", "md5sum": "29c2816b8bf8163af5c98906cd5429cb", "mime_type": "application/x-pie-executable; charset=binary", "release_notes_url": null, "sf_download_label": null, "sf_file_id": 64917083, "sf_package_id": null, "sf_platform": [], "sf_platform_default": ["linux"], "sf_release_id": null, "sf_release_notes_file": null, "sf_type": null, "staged_until": null, "url": "http://downloads.sourceforge.net/project/qbittorrent/qbittorrent-appimage/qbittorrent-5.2.3/qbittorrent-5.2.3_x86_64.AppImage?ts=gAAAAABqTYg6cIrT_h3ynWXOr71MXKRc3whvHTIFLtc6iNR0ltFw-xR_y-Ee-8KqtXfgm8RawcGzNq2bRdJFhTya5SzpoQuacg%3D%3D", "vscan": "OK", "vscan_when": null}}}
 """#
 
-/// The three 2026-08-16 SourceForge `best_release.json` recipes, all wired
-/// through the shared `sourceForgeMacRecipe` helper at the bottom of
-/// `VendorProbeRecipe.swift`.
+/// The three 2026-08-16 SourceForge recipes. GrandPerspective is wired through
+/// the shared `sourceForgeMacRecipe` helper at the bottom of
+/// `VendorProbeRecipe.swift`; TigerVNC reads the stable RSS; qBittorrent moved
+/// to GitHub.
 struct GroupCProbeRecipeTests {
 
     private func recipe(_ bundleID: String) throws -> VendorProbeRecipe {
@@ -76,40 +133,78 @@ struct GroupCProbeRecipeTests {
             + "/grandperspective/3.7.2/GrandPerspective-3_7_2.dmg/download")
     }
 
-    // MARK: - TigerVNC — the top-level-vs-platform_releases.mac trap
+    // MARK: - TigerVNC — read from the stable RSS, not best_release.json
 
-    @Test func tigerVNCReadsTheMacVersionNotTheTopLevelWindowsOne() throws {
+    /// The reason TigerVNC left `best_release.json`: in the 2026-08-16 capture,
+    /// `platform_releases.mac` names the 1.16.0 dmg while `linux` in the same
+    /// document already names the 1.16.2 jar. The maintainer never moved the
+    /// macOS default, although a notarized 1.16.2 dmg is on SourceForge. Pinned so
+    /// nobody points this app back at that field without seeing the gap.
+    @Test func tigerVNCBestReleaseMacEntryLagsTheRelease() throws {
+        let macFilename = #""mac":\s*\{[^}]*?"filename":\s*"([^"]+)""#
+        let linuxFilename = #""linux":\s*\{[^}]*?"filename":\s*"([^"]+)""#
+        #expect(VendorProbeRecipe.extractVersion(from: tigerVNCFixture, pattern: macFilename)
+            == "/stable/1.16.0/TigerVNC-1.16.0.dmg")
+        #expect(VendorProbeRecipe.extractVersion(from: tigerVNCFixture, pattern: linuxFilename)
+            == "/stable/1.16.2/VncViewer-1.16.2.jar")
         let recipe = try self.recipe("com.tigervnc.tigervnc")
-        // Sanity: the fixture really does have a Windows exe as its top-level
-        // "release" — if this stops being true the fixture no longer proves
-        // anything about the trap.
-        #expect(tigerVNCFixture.contains(#""filename": "/stable/1.16.0/tigervnc64-1.16.0.exe""#))
-        #expect(VendorProbeRecipe.extractVersion(
-            from: tigerVNCFixture, pattern: recipe.versionPattern) == "1.16.0")
+        #expect(recipe.url.absoluteString
+            == "https://sourceforge.net/projects/tigervnc/rss?path=/stable")
+        guard case .responseBody = recipe.mode else {
+            Issue.record("expected a response-body probe"); return
+        }
     }
 
-    @Test func tigerVNCIsOneClick() throws {
+    @Test func tigerVNCReadsTheDmgFromTheStableFeed() throws {
+        let recipe = try self.recipe("com.tigervnc.tigervnc")
+        #expect(recipe.selectHighest)
+        // Every other item in the slice (exe, jar, deb of 1.16.1 and 1.16.2) is
+        // version-shaped; only the dmg title may match.
+        #expect(VendorProbeRecipe.highestVersion(
+            from: tigerVNCStableRSSFixture, pattern: recipe.versionPattern) == "1.16.2")
+        let regex = try NSRegularExpression(pattern: recipe.versionPattern)
+        let range = NSRange(tigerVNCStableRSSFixture.startIndex..., in: tigerVNCStableRSSFixture)
+        #expect(regex.numberOfMatches(in: tigerVNCStableRSSFixture, range: range) == 1)
+    }
+
+    /// The backreference ties the folder to the filename, and the anchor on the
+    /// `TigerVNC-` prefix and `.dmg` keeps every other artifact out.
+    @Test func tigerVNCPatternRejectsOtherArtifactsAndMismatchedPaths() throws {
+        let pattern = try self.recipe("com.tigervnc.tigervnc").versionPattern
+        for title in [
+            "/stable/1.16.2/tigervnc64-1.16.2.exe",
+            "/stable/1.16.2/VncViewer-1.16.2.jar",
+            "/stable/1.16.2/TigerVNC-1.16.1.dmg",
+            "/beta/1.16.90/TigerVNC-1.16.90.dmg",
+        ] {
+            #expect(VendorProbeRecipe.extractVersion(
+                from: "<title><![CDATA[\(title)]]></title>", pattern: pattern) == nil, "\(title)")
+        }
+    }
+
+    @Test func tigerVNCIsOneClickFromTheResolvedVersion() throws {
         let recipe = try self.recipe("com.tigervnc.tigervnc")
         let spec = try #require(recipe.install)
         #expect(spec.kind == .dmg)
-        guard case .bodyTemplate(let template, let fields) = spec.urlSource else {
-            Issue.record("expected a body template"); return
+        guard case .versionTemplate(let template) = spec.urlSource else {
+            Issue.record("expected a version template"); return
         }
-        let filename = try #require(
-            VendorProbeRecipe.extractVersion(from: tigerVNCFixture, pattern: fields[0]))
-        #expect(filename == "/stable/1.16.0/TigerVNC-1.16.0.dmg")
-        let resolved = template.replacingOccurrences(of: "{0}", with: filename)
+        let version = try #require(VendorProbeRecipe.highestVersion(
+            from: tigerVNCStableRSSFixture, pattern: recipe.versionPattern))
+        let resolved = template.replacingOccurrences(of: "{version}", with: version)
         #expect(resolved
             == "https://sourceforge.net/projects/tigervnc/files"
-            + "/stable/1.16.0/TigerVNC-1.16.0.dmg/download")
+            + "/stable/1.16.2/TigerVNC-1.16.2.dmg/download")
+        // The same URL the feed itself publishes as the item's link.
+        #expect(tigerVNCStableRSSFixture.contains("<link>\(resolved)</link>"))
     }
 
-    /// A pattern shaped like the naive, un-scoped read this group deliberately
-    /// avoids: applied to the whole document it finds the FIRST version-shaped
-    /// filename, which is the top-level (Windows) `release` block, not
-    /// `platform_releases.mac`. This is what a recipe reading the wrong key
-    /// would report — pinned here so a future edit that widens the scoping
-    /// re-introduces a red test instead of silently reproducing the trap.
+    /// A pattern shaped like the naive, un-scoped read `sourceForgeMacRecipe`
+    /// deliberately avoids: applied to the whole document it finds the FIRST
+    /// version-shaped filename, which is the top-level (Windows) `release` block,
+    /// not `platform_releases.mac`. Pinned on TigerVNC's capture, the one where
+    /// the two differ, against the helper's own filename capture (GrandPerspective
+    /// still uses the helper).
     @Test func aTopLevelOnlyPatternWouldHaveReadTheWindowsBuild() throws {
         // What "just read release.filename" looks like as a pattern — no
         // scoping to platform_releases.mac at all.
@@ -118,11 +213,14 @@ struct GroupCProbeRecipeTests {
             VendorProbeRecipe.extractVersion(from: tigerVNCFixture, pattern: bareTopLevelPattern))
         #expect(wrongValue == "/stable/1.16.0/tigervnc64-1.16.0.exe")
         #expect(!wrongValue.contains(".dmg"))
-        // The real recipe pattern, scoped to platform_releases.mac, is immune.
-        let recipe = try self.recipe("com.tigervnc.tigervnc")
+        // The helper's capture, scoped to platform_releases.mac, is immune.
+        let spec = try #require(try self.recipe("net.sourceforge.grandperspectiv").install)
+        guard case .bodyTemplate(_, let fields) = spec.urlSource else {
+            Issue.record("expected a body template"); return
+        }
         let correctValue = try #require(
-            VendorProbeRecipe.extractVersion(from: tigerVNCFixture, pattern: recipe.versionPattern))
-        #expect(correctValue == "1.16.0")
+            VendorProbeRecipe.extractVersion(from: tigerVNCFixture, pattern: fields[0]))
+        #expect(correctValue == "/stable/1.16.0/TigerVNC-1.16.0.dmg")
     }
 
     // MARK: - qBittorrent — moved to a GitHub release rule

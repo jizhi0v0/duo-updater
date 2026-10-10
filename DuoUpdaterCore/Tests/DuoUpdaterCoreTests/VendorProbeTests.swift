@@ -565,15 +565,79 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "26120.3106.4725.800")
 }
 
-@Test func oneDriveProbeExtractsMarketingVersionFromLocationPath() {
-    // The 302 from go.microsoft.com/fwlink/?linkid=823060 lands on a versioned
-    // .pkg URL whose filename is just "OneDrive.pkg" — the version lives in the
-    // path. Capture only the first THREE components: that equals the installed
-    // CFBundleShortVersionString (26.078.0426); the trailing .0002 is a build
-    // revision the marketing version omits, and reading it would phantom-update.
-    let location = "https://oneclient.sfx.ms/Mac/Installers/26.078.0426.0002/universal/OneDrive.pkg"
-    let pattern = #"/Installers/([0-9]+\.[0-9]+\.[0-9]+)\.[0-9]+/"#
-    #expect(VendorProbeRecipe.extractVersion(from: location, pattern: pattern) == "26.078.0426")
+/// OneDrive's standalone-updater Production manifest
+/// (`g.live.com/0USSDMC_W5T/MacODSUProduction` → `oneclient.sfx.ms/Mac/Prod/<hash>.xml`),
+/// fetched 2026-10-10, verbatim except the leading byte-order mark. The non-universal
+/// `PkgBinaryURL` sits just above the universal one, and `CFBundleVersion` uses its
+/// own scheme (`0906.0008`).
+private let oneDriveProductionManifest = #"""
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>RootManifestVersion</key>
+    <integer>1</integer>
+    <key>ManifestArray</key>
+    <array>
+      <dict>
+        <key>CFBundleShortVersionString</key>
+        <string>26.173.0906</string>
+        <key>CFBundleVersion</key>
+        <string>0906.0008</string>
+        <key>MinimumRequiredVersion</key>
+        <string>17.000.5001.0225</string>
+        <key>MinApplicable</key>
+        <string>17.003.6389.0225</string>
+        <key>MaxApplicable</key>
+        <string>26.999.9999.9999</string>
+        <key>BinaryURL</key>
+        <string>https://oneclient.sfx.ms/Mac/Apps/26.173.0906.0008/OneDrive.zip</string>
+        <key>Sha1Hash</key>
+        <string>63e57af9a2b53a0ece30ff203fb8c0d203541f6e</string>
+        <key>PkgBinaryURL</key>
+        <string>https://oneclient.sfx.ms/Mac/Installers/26.173.0906.0008/OneDrive.pkg</string>
+        <key>PkgSha256Hash</key>
+        <string>f12qB9IEAZ6RO9oaJaFJNE3KV/GHIim95HlFBWJ1ZFk=</string>
+        <key>UniversalPkgBinaryURL</key>
+        <string>https://oneclient.sfx.ms/Mac/Installers/26.173.0906.0008/universal/OneDrive.pkg</string>
+        <key>UniversalPkgSha256Hash</key>
+        <string>zAJwEw3DLPktJ6UqFFY5psu/DogoehtWA75Ckq+dpmo=</string>
+        <key>UniversalBinaryURL</key>
+        <string>https://oneclient.sfx.ms/Mac/Apps/26.173.0906.0008/universal/OneDrive.zip</string>
+        <key>UniversalSha1Hash</key>
+        <string>bd7d81729289e4ad9766d0a5c779a02eef36d510</string>
+        <key>UpdatePeriod</key>
+        <integer>1440</integer>
+        <key>Throttle</key>
+        <real>100</real>
+      </dict>
+    </array>
+  </dict>
+</plist>
+"""#
+
+@Test func oneDriveProbeReadsTheUpdaterManifest() throws {
+    let recipe = registryRecipe("com.microsoft.OneDrive")
+    #expect(recipe.url.absoluteString == "https://g.live.com/0USSDMC_W5T/MacODSUProduction")
+    guard case .responseBody = recipe.mode else {
+        Issue.record("OneDrive must read the manifest body")
+        return
+    }
+    #expect(!recipe.versionIsBuild)
+    // The marketing string, three components: what the installed bundle reports.
+    #expect(VendorProbeRecipe.extractVersion(
+        from: oneDriveProductionManifest, pattern: recipe.versionPattern) == "26.173.0906")
+
+    let install = try #require(recipe.install)
+    #expect(install.kind == .pkg)
+    guard case .bodyPattern(let urlPattern) = install.urlSource else {
+        Issue.record("OneDrive install URL must come from the manifest body")
+        return
+    }
+    // The universal pkg of the SAME build the version was read from, not the
+    // arm64/x64-only `PkgBinaryURL` above it.
+    #expect(VendorProbeRecipe.extractVersion(from: oneDriveProductionManifest, pattern: urlPattern)
+        == "https://oneclient.sfx.ms/Mac/Installers/26.173.0906.0008/universal/OneDrive.pkg")
 }
 
 // MARK: - Office suite probes (unified version via fwlink / XML)
@@ -1549,7 +1613,7 @@ private let weChatFeed = #"""
 
 @Test func nonBuildRecipesStillCompareAgainstMarketingVersion() {
     // Teams and OneDrive stay non-build. `extracted` is what each recipe's pattern
-    // captures (OneDrive: first 3 path components, NOT the 4-component path); short
+    // captures (OneDrive: the manifest's 3-component marketing string); short
     // / build are the real installed Info.plist fields read from the vendor pkg.
     // An installed copy at the current version is up to date; a newer one surfaces.
     struct Case { let bundleID, short, build, current, newer: String }
@@ -1558,8 +1622,8 @@ private let weChatFeed = #"""
         Case(bundleID: "com.microsoft.teams2", short: "26120.3106.4725.800",
              build: "26120.3106.4725.800", current: "26120.3106.4725.800",
              newer: "26121.0.0.0"),
-        // OneDrive: short is 3-component, build merges the first two — neither equals
-        // the 4-component path. The pattern captures the first 3 (== short).
+        // OneDrive: short is 3-component, build merges the first two. The pattern
+        // captures the manifest's CFBundleShortVersionString (== short).
         Case(bundleID: "com.microsoft.OneDrive", short: "26.078.0426",
              build: "26078.0426.0002", current: "26.078.0426", newer: "26.079.0501"),
     ] {

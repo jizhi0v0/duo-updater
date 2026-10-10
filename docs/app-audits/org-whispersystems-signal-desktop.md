@@ -30,7 +30,13 @@
 
 ## Changelog
 - changelogURL: `https://github.com/signalapp/Signal-Desktop/releases`（两 channel 共用）
-- 无 ChangelogRecipe
+- ChangelogRecipe ✓（两 channel）：`.gitHubReleases` 读 `api.github.com/repos/signalapp/Signal-Desktop/releases?per_page=40`，
+  `maxEntries: 20`。stable recipe `channel: .stable`（只读非 prerelease），beta recipe `channel: .beta`（只读 prerelease，
+  **不**开 `includesPromotedStable`：Signal Beta 是独立 app，beta-mac.yml 与 beta dmg 文件名都是 `-beta.N` 构建）。
+- 版本对齐：tag `v8.30.0` / `v8.31.0-beta.1` 去掉 `v` 就是 latest-mac.yml / beta-mac.yml 的 `version:`；GitHub 的
+  `prerelease` 位恰好落在 `-beta.N` tag 上，所以不需要 `tagPattern`。
+- **正文很薄**：每个 release 一到两条散文 bullet，常是套话 "Small tweaks, bug fixes, and performance enhancements"；
+  beta 的正文通常原样复制到随后的 stable。数字见「历史与实测」。
 
 ## 一键安装
 - 两 channel 均为 best-effort 一键（同一份 yml 里的 **universal dmg**，非 per-arch zip），
@@ -81,3 +87,14 @@ swift run --package-path application-test channel-verify "/tmp/Signal Beta.app" 
    real dmgs: notarized Developer ID, Team U68MSDN6DR on both channels,
    and a signed bundle id that pins each channel to its own install.
 ```
+
+### Changelog recipe 接入，2026-10-10
+
+- `gh api "repos/signalapp/Signal-Desktop/releases?per_page=40"`：18 条 stable（v8.30.0 … v8.14.0）+ 22 条 prerelease，
+  prerelease 全是 `-beta.N` tag，stable 全是 `vX.Y.Z`。正文长度 79–493 字符；18 条 stable 里 13 条只有一个 bullet、
+  4 条两个、1 条（v8.28.0）没有列表符号只是一句话；40 条里 9 条是 "small tweaks, bug fixes…" 套话。
+- 同时 `updates.signal.org/desktop/latest-mac.yml` → `version: 8.30.0`，`beta-mac.yml` → `version: 8.31.0-beta.1`，
+  各自等于本 channel 最新 tag。
+- 未验证：beta-mac.yml 是否曾经给出过不带 `-beta.N` 的版本。历次记录的 beta 版本（8.14.0-beta.1、8.23.0-beta.1、
+  8.31.0-beta.1）都带后缀，beta dmg pattern 也要求 `signal-desktop-beta-` 前缀；据此不开 `includesPromotedStable`。
+

@@ -255,11 +255,26 @@ public enum Install {
         case cleared(String)
         /// Staged version, reason, and whether part of the installer was removed.
         case failed(String, String, touchedInstaller: Bool)
+        /// An installer whose staged build was deleted, removed
+        /// (`SelfUpdaterStaging.sparkleInstallerOrphaned`).
+        case clearedOrphan
+        /// Reason it could not be.
+        case orphanNotCleared(String)
     }
 
     /// Clear a stale staged build (Sparkle, magpie) in the way of `result`'s install — the
     /// case `classify` let through (`UpdatePolicy.clearsStagedBuild`).
     static func clearStaleStaging(_ result: UpdateResult) async -> StagingClearance {
+        // Same as the menu-bar app: `classify` lets an orphaned installer through
+        // (it can apply nothing), and it goes here, before our install's quit
+        // would wake it.
+        if UpdatePolicy.armedInstallerBlocksInstall(
+            result, armed: SelfUpdaterStaging.sparkleInstallerOrphaned(for: result.app)) {
+            switch await SparkleStagingClearance.clearOrphanedInstaller(for: result.app) {
+            case .cleared: return .clearedOrphan
+            case .notCleared(let reason, _): return .orphanNotCleared(reason)
+            }
+        }
         guard let staged = UpdatePolicy.stagedBlocksInstall(
             result,
             staged: SelfUpdaterStaging.staged(
@@ -877,6 +892,15 @@ public enum Install {
                 break
             case .cleared(let version):
                 if !json { print("   cleared \(version), staged by its own updater") }
+            case .clearedOrphan:
+                if !json { print("   stopped its own updater, whose downloaded update had been deleted") }
+            case .orphanNotCleared(let why):
+                let reason = "its own updater's downloaded update was deleted, but the updater "
+                    + "could not be stopped (\(why)) — quit and reopen it, then run this again"
+                if !json { print("   \(reason)") }
+                emitSkipped(name: name, route: route, reason: reason, outcome: .skipped, json: json)
+                tally.record(.skipped)
+                continue
             case .failed(let version, let why, let touched):
                 let reason = touched
                     ? "its own updater could only be partly stopped (\(why)) — "

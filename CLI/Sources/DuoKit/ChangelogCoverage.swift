@@ -30,8 +30,6 @@ enum ChangelogCoverage {
     /// A reason starting with `notWrittenYet` is backlog, not a verdict: a recipe
     /// is possible along the line it names. Delete the line when one lands.
     static let acknowledged: [String: String] = [
-        "com.aionui.app":
-            "feasible, not written yet: .gitHubReleases on iOfficeAI/AionUi",
         "com.bjango.istatmenus":
             "the page prints 7.5 for version 7.50, which no pattern can pad; newest entry is a placeholder",
         "com.brave.Browser.beta":
@@ -60,18 +58,10 @@ enum ChangelogCoverage {
             "feasible but low value: regex on the DevMate notes page; the app has not shipped since 4.3.9",
         "com.microsoft.teams2":
             "monthly cross-platform what's-new with no client version per entry",
-        "com.mongodb.compass":
-            "feasible, not written yet: .gitHubReleases on mongodb-js/compass, or regex on the docs release notes",
         "com.nssurge.surge-mac":
             "Sparkle feeds carry inline markdownDescription notes on every item; the page is a JS shell",
-        "com.robinebers.openusage":
-            "feasible, not written yet: .gitHubReleases on robinebers/openusage, stable and beta",
         "com.steipete.codexbar":
             "Sparkle appcast ships inline HTML notes for every item, so the page is never shown",
-        "com.tigervnc.tigervnc":
-            "feasible, not written yet: .gitHubReleases on TigerVNC/tigervnc (some bodies are prose only)",
-        "dev.commandline.waveterm":
-            "feasible, not written yet: .gitHubReleases on wavetermdev/waveterm",
         "dev.warp.Warp-Dev":
             "the dev track publishes no notes: its channel_versions.json entry is a placeholder",
         "im.riot.nightly":

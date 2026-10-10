@@ -28,5 +28,33 @@ enum com_mongodb_compass {
                 urlSource: .bodyPattern(
                     #""arch"\s*:\s*"arm64"\s*,\s*"os"\s*:\s*"darwin"\s*,\s*"name"\s*:\s*"[^"]*"\s*,\s*"download_link"\s*:\s*"([^"]+)""#),
                 kind: .dmg)),
+        ],
+        changelogs: [
+        // History: docs/app-audits/com-mongodb-compass.md#历史与实测
+        // MongoDB Compass — the docs release-notes page (the probe's
+        // `changelogURL`), server-rendered HTML, one `<h2>` "MongoDB Compass
+        // <version>" per release, newest first, then `<em>Released <date></em>`
+        // and `<li>` items until the next `<h2>` or the section's end.
+        //
+        // Chosen over mongodb-js/compass's GitHub releases. Those are not a
+        // monorepo list (only `v<version>` and `v<version>-beta.N` tags), but the
+        // bodies are commit subjects (`feat(compass-indexes): …`, `fix(ci): …`)
+        // where the page has edited sentences, and the page lists only releases
+        // that shipped stable, in the same `1.52.0` shape the download-center
+        // JSON offers.
+        //
+        // Anchored on the heading text and the `headerlink` anchor, not on the
+        // hashed CSS-module class names, which change with every docs build. The
+        // date group is optional so an entry without the `Released` line still
+        // parses.
+        ChangelogRecipe(
+            bundleID: "com.mongodb.compass",
+            source: URL(string: "https://www.mongodb.com/docs/compass/release-notes/")!,
+            entryPattern:
+                #"<h2[^>]*>MongoDB Compass(?:<!-- -->)?\s*(?<version>[0-9]+\.[0-9]+\.[0-9]+)<a[^>]*class="headerlink.*?</h2>\s*"#
+                + #"(?:<p[^>]*><em>Released (?<date>[^<]+)</em></p>)?"#
+                + #"(?<body>.*?)(?=<h2|</section>)"#,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
+            maxEntries: 20),
         ])
 }

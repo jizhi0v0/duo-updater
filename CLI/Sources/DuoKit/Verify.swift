@@ -1121,7 +1121,8 @@ public enum Verify {
                 probeVersionsByChannel: probeVersionsByChannel(
                     forBundleID: recipe.bundleID, among: versionSources),
                 carriesOtherTrainEntries: recipe.carriesOtherTrainEntries,
-                ordersByLineage: VendorProbeRegistry.ordersByLineage(bundleID: recipe.bundleID)) {
+                ordersByLineage: VendorProbeRegistry.ordersByLineage(bundleID: recipe.bundleID),
+                covers: { recipe.covers(appVersion: $0) }) {
                 warnings.append(complaint)
             }
             return Finding(
@@ -1539,6 +1540,13 @@ public enum Verify {
     ///   qualifier from both, which is sound for a check that only ever asks
     ///   whether a WHOLE release separates the two.
     ///
+    /// - **a recipe scoped to one train** — Bartender 6 and 7 share a bundle id;
+    ///   the 7.x changelog recipe (`minimumAppVersion: "7"`) has no 7.x probe row,
+    ///   only the 6.x one, which is pinned to 6.x installs. `covers` (the recipe's
+    ///   version window) drops the rows outside it before anything is compared,
+    ///   the same scoping the lag check applies to `version`. Always true for a
+    ///   recipe without a window, so those are untouched.
+    ///
     /// Persistence is not enforced here: a publishing-order skew resolves in a
     /// sweep or two, and `Baseline.actionableThreshold` already holds a warning
     /// back until it has survived two sweeps before anything is filed.
@@ -1551,13 +1559,16 @@ public enum Verify {
     /// withdrawn; the message says "stopped offering" for that reason.
     static func changelogLeadsProbeComplaint(
         entry: String, probeVersionsByChannel: [String: [String]],
-        carriesOtherTrainEntries: Bool = false, ordersByLineage: Bool = false
+        carriesOtherTrainEntries: Bool = false, ordersByLineage: Bool = false,
+        covers: (String) -> Bool = { _ in true }
     ) -> String? {
         // Same scoping as `changelogLagComplaint`: hash builds have no order a
         // version string can show, and a headline captured into `version` is not a
         // version at all.
         if ordersByLineage || carriesOtherTrainEntries { return nil }
         guard entry.first?.isNumber == true else { return nil }
+        let probeVersionsByChannel = probeVersionsByChannel
+            .mapValues { $0.filter(covers) }.filter { !$0.value.isEmpty }
         let rows = probeVersionsByChannel.values.flatMap { $0 }
         guard !rows.isEmpty, rows.allSatisfy({ $0.first?.isNumber == true }) else { return nil }
         // A channel that answers in two namespaces cannot be led or trailed.

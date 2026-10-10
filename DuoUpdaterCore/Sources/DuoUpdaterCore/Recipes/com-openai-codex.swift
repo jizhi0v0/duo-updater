@@ -135,7 +135,7 @@ enum com_openai_codex {
             // Pointing anything at it walks straight back into the fight this
             // recipe exists to end.
             downloadURL: URL(string: "https://chatgpt.com/download/"),
-            changelogURL: URL(string: "https://developers.openai.com/codex/changelog?type=codex-app")!,
+            changelogURL: URL(string: "https://learn.chatgpt.com/docs/changelog?type=codex-app")!,
             // Redirect followed (the default), so the body parsed here is the
             // pinned appcast. Its enclosure points at the full zip; the `.delta`
             // urls are ignored, unchanged from when this read the static feed.

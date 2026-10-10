@@ -34,14 +34,10 @@ enum ChangelogCoverage {
             "feasible, not written yet: .gitHubReleases on iOfficeAI/AionUi",
         "com.bjango.istatmenus":
             "the page prints 7.5 for version 7.50, which no pattern can pad; newest entry is a placeholder",
-        "com.bombich.ccc":
-            "feasible, not written yet: four page recipes (CCC 7 stable and beta, CCC 6, CCC 5) with version windows",
         "com.brave.Browser.beta":
             "brave.com/latest lists release-channel versions only; beta notes are not published",
         "com.brave.Browser.nightly":
             "brave.com/latest lists release-channel versions only; nightly builds have no notes",
-        "com.exafunction.windsurf":
-            "feasible, not written yet: regex on docs.devin.ai/desktop/changelog, where the declared URL redirects",
         "com.figma.DesktopBeta":
             "feasible, not written yet: the stable Figma atom recipe under the beta bundle id",
         "com.getdropbox.dropbox":
@@ -62,14 +58,8 @@ enum ChangelogCoverage {
             "blog posts keyed by date, with no client version per entry (discord.com/blog)",
         "com.jetbrains.intellij-EAP":
             "EAP whatsnew in the releases API only links a YouTrack issue table",
-        "com.kagi.kagimacOS":
-            "feasible, not written yet: regex on orionbrowser.com release notes (the declared URL redirects to a frozen mirror)",
         "com.macpaw.site.theunarchiver":
             "feasible but low value: regex on the DevMate notes page; the app has not shipped since 4.3.9",
-        "com.microsoft.edgemac":
-            "feasible, not written yet: (Stable)-labelled entries on the Edge stable release notes (a shallow page)",
-        "com.microsoft.edgemac.Beta":
-            "feasible, not written yet: regex on the Edge beta release notes",
         "com.microsoft.Excel":
             "feasible, not written yet: the app's section of the Office for Mac release notes",
         "com.microsoft.OneDrive":
@@ -96,8 +86,6 @@ enum ChangelogCoverage {
             "Sparkle appcast ships inline HTML notes for every item, so the page is never shown",
         "com.surteesstudios.Bartender":
             "feasible, not written yet: feedPagePattern on the appcast's per-version rnotes.html",
-        "com.termius-dmg.mac":
-            "feasible, not written yet: regex on docs.termius.com/changelog (a 6.7 MB page)",
         "com.tigervnc.tigervnc":
             "feasible, not written yet: .gitHubReleases on TigerVNC/tigervnc (some bodies are prose only)",
         "com.vivaldi.Vivaldi.snapshot":
@@ -108,8 +96,6 @@ enum ChangelogCoverage {
             "the dev track publishes no notes: its channel_versions.json entry is a placeholder",
         "im.riot.nightly":
             "nightly build stamps (YYYYMMDDNN) have no tag or notes of their own",
-        "MstyStudio":
-            "feasible, not written yet: regex on msty.ai's Studio changelog, stable entries only",
         "net.librewolf.librewolf":
             "release bodies only link Firefox's upstream notes; tags carry a -N build suffix",
         "net.pornel.ImageOptim":
@@ -117,11 +103,11 @@ enum ChangelogCoverage {
         "net.sourceforge.grandperspectiv":
             "news page is behind a Cloudflare challenge (403); its RSS posts are single prose paragraphs",
         "net.whatsapp.WhatsApp":
-            "the vendor notes URL redirects to WhatsApp Web; the App Store's What's New is boilerplate",
+            "WhatsApp publishes no Mac release notes; the App Store listing's What's New is boilerplate",
         "org.gimp.gimp":
             "prose release announcements mixed into a news index; no per-version change list",
         "org.gnu.Emacs":
-            "feasible but headlines only: NEWS.<major>.html section titles (the declared URL is a directory listing)",
+            "feasible but headlines only: the home page's #Releases highlights; full NEWS is one text file per version",
         "org.libreoffice.script":
             "landing page of blurbs; the real notes are per branch, on a bot-walled wiki",
         "org.mozilla.firefox":

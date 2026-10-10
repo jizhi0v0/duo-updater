@@ -386,6 +386,28 @@ public enum ChannelBinding {
         return bounded.run(key: id, timeout: resolveTimeout) { resolver(bundleFeeds) } ?? nil
     }
 
+    /// What a fresh install that nobody has configured is allowed, for an app whose
+    /// feed puts even that install off the default channel. Machine-independent:
+    /// answered from the vendor's own default, never from this Mac's preferences.
+    ///
+    /// For `duo verify`'s stand-in install (`SparkleAppcastSource.probeApp`), which
+    /// has no version to infer a channel from and so sits on the default channel
+    /// alone. OBS tags every current release `stable` or `beta`; on the default
+    /// channel alone the stand-in saw only 2023's untagged 29.0.2, and its notes
+    /// link is not one the changelog recipe accepts (#1112). `resolve(bundleID:)`
+    /// cannot answer this: it reads the sweeping machine's file, and OBS's own
+    /// resolver answers nil for a missing key on purpose (see `OBSChannel`).
+    ///
+    /// nil for every app whose fresh install the default channel already describes.
+    static func freshInstallResolution(bundleID: String) -> ResolvedChannel? {
+        switch bundleID.lowercased() {
+        case OBSChannel.bundleID.lowercased():
+            return OBSChannel.resolve(updateBranch: OBSChannel.defaultBranch)
+        default:
+            return nil
+        }
+    }
+
     /// How long a resolver gets before it is abandoned.
     ///
     /// Every resolver here is one plist read or one `CFPreferences` lookup —

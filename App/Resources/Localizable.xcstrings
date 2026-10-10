@@ -63282,13 +63282,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "命令行"
+            "value": "CLI"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "命令列"
+            "value": "CLI"
           }
         }
       }

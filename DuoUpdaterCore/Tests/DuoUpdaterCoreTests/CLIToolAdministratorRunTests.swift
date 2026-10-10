@@ -148,12 +148,14 @@ import Foundation
 
     /// A run still going at the deadline is reported as timed out, not waited on.
     ///
-    /// The command lasts until the test lets it go, not for a set time: in the
-    /// parallel suite on the 3-core runner the poll's `Task.sleep` woke seconds
-    /// late, after a `sleep 2` had already written exit 0, and the loop reads
-    /// the status before the clock — so the run read as a success (main's push
-    /// CI from #1127 on; reproduced by holding every `.medium` pool thread for
-    /// 3 s). Held, the deadline is the only way out however late the poll wakes.
+    /// The command lasts until the test lets it go, not for a set time. With
+    /// `sleep 2` it read as exit 0, not timed out, on every hosted-runner push
+    /// run from #1127 on. Holding every `.medium` pool thread for 3 s reproduces
+    /// that locally: the poll's `Task.sleep` wakes after `sleep 2` has written
+    /// exit 0, and the loop reads the status before the clock. (That the
+    /// parallel suite starves the pool the same way on CI is inferred, not
+    /// instrumented.) Held, the deadline is the only way out however late the
+    /// poll wakes.
     /// Mutation: drop the deadline test from the loop (the command then gives
     /// up on its own after ~300 s and reads as exit 0).
     @Test func aRunPastTheDeadlineTimesOut() async throws {

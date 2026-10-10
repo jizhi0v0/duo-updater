@@ -60,14 +60,14 @@
 - entryPattern 用标题字面量 `Stable Channel Update for Desktop` 同时选中桌面 stable 帖、排除 Beta/Dev/Early/Extended（标题不同）。
 - itemPatterns 两形态按序：① 安全帖的 `CVE-YYYY-N:` 内联 span；② 推广帖的 `promotion of Chrome…/been updated to…` 整段 `<p>`（tempered dot 防越界）。
 - 跟随 channel: **否**——只覆盖 stable。beta/dev/canary 的 `changelogURL` 指向 `https://developer.chrome.com/release-notes`（按 channel 无独立 recipe，UI 内嵌网页）。
-- Recipe 状态: stable 已有；非 stable 无 recipe（低优先，inline 网页兜底）。
+- Recipe 状态: stable 已有；beta/dev/canary 无 recipe，也写不出来，登记在 `ChangelogCoverage.acknowledged`（#1149，理由转引，本次未复测）：`developer.chrome.com/release-notes` 是个 stub；Chrome Releases blog 的 beta/dev 帖只有一行版本说明；Canary 没有发布过 notes（blog 的对应 label 是空的）。所以这三个渠道一直是 inline 网页兜底。
 
 ## 已知问题
 - 无功能性问题。stable 检测端到端实测通过。
 
 ## 建议下一步
 1. **无需改代码** — 四 channel 检测均已接入且实测正确，写/更新本审计文档即可。
-2. （可选，低优先）beta/dev/canary 暂无独立 changelog recipe，靠 `developer.chrome.com/release-notes` 内嵌兜底。若要做 per-channel changelog，需确认 Chrome Releases blog 是否有 `Beta updates`/`Dev updates` label 页结构同 stable —— 收益低，不建议现在做。
+2. beta/dev/canary 的 changelog recipe 不做：#1149 已查过 Chrome Releases blog 的 beta/dev 帖（只有一行版本说明）和 Canary（无 notes），理由见上面 Changelog 一节。
 
 ## 历史与实测
 

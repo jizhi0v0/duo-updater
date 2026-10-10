@@ -65,8 +65,9 @@ final class AppListModel {
 
     /// Bumped by every write to `results`, element writes included. Lets work done
     /// off the main actor against a snapshot of `results` tell, once back, whether
-    /// the rows it read are still the rows on screen — without comparing them.
-    @ObservationIgnored private var resultsGeneration = 0
+    /// the rows it read are still the rows on screen — without comparing them; and
+    /// lets the workbench keep its sorted lists between passes the same way.
+    @ObservationIgnored private(set) var resultsGeneration = 0
 
     /// Drop the install errors that no longer describe anything real. Hung off the
     /// same write that invalidates the memos above because that is the one place

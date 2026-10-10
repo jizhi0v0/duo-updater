@@ -27,13 +27,19 @@ import AppKit
 /// (measured 2026-10-10: scrolled past a header, none stayed pinned), and a lazy
 /// stack's `Section` put its header after its rows in the accessibility order
 /// (read through the AX API, 2026-10-10).
-struct SidebarList<Content: View>: View {
+struct SidebarList<Content: View, FocusValue: Hashable>: View {
     @Binding var selection: String?
     /// The selectable rows' ids in the order they are drawn: what the keys walk.
     let order: [String]
     /// The list's name for VoiceOver.
     let label: String
-    var focus: FocusState<Bool>.Binding
+    /// Which of the window's lists holds the keyboard, and this list's value in it.
+    /// One value per list rather than one flag for all: the workbench keeps a
+    /// tab's list once built and only hides it, so several are alive at once.
+    var focus: FocusState<FocusValue?>.Binding
+    let focusValue: FocusValue
+    /// The list is the one on screen. A hidden one is kept out of the key loop.
+    var isShown = true
     @ViewBuilder var content: () -> Content
 
     @State private var viewportHeight: CGFloat = 0
@@ -50,8 +56,8 @@ struct SidebarList<Content: View>: View {
             // `.edit`: focused by a click and by Tab, whatever the system's
             // keyboard-navigation setting — `.activate` alone would only take the
             // keyboard with that setting on, and the arrow keys would be dead.
-            .focusable(interactions: .edit)
-            .focused(focus)
+            .focusable(isShown, interactions: .edit)
+            .focused(focus, equals: focusValue)
             .focusEffectDisabled()
             .onKeyPress(keys: [.upArrow, .downArrow, .home, .end, .pageUp, .pageDown]) { press in
                 guard let move = Self.move(for: press.key) else { return .ignored }

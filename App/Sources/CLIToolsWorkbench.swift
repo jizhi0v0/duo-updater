@@ -189,6 +189,9 @@ struct CLIToolSidebarRow: View {
     /// and vanishes (seen on 2026-10-01: a selected bub row read as title only),
     /// so it turns white there, like the app and formula rows'.
     var isSelected = false
+    /// Whether to show what the tool is built with — the app list's runtime
+    /// tags setting (`Preferences.showRuntimeTags`), which covers these too.
+    var showsRuntime = true
 
     private func emphasis(_ style: some ShapeStyle) -> AnyShapeStyle {
         isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(style)
@@ -201,8 +204,13 @@ struct CLIToolSidebarRow: View {
         HStack(spacing: 8) {
             CLIToolIcon(kind: status.kind, size: 22)
             VStack(alignment: .leading, spacing: 1) {
-                Text(verbatim: CLIToolPresentation.title(of: status, home: homeDirectory, among: cli.statuses))
-                    .font(.body).lineLimit(1).truncationMode(.middle)
+                HStack(spacing: 6) {
+                    Text(verbatim: CLIToolPresentation.title(of: status, home: homeDirectory, among: cli.statuses))
+                        .font(.body).lineLimit(1).truncationMode(.middle)
+                    if showsRuntime {
+                        CLIRuntimeTagSlot(path: status.path, overHighlight: isSelected, interactive: false)
+                    }
+                }
                 caption
             }
             Spacer()
@@ -359,6 +367,7 @@ private struct FailedUpdateLogRow: View {
 struct ClaudeCodeDetailPane: View {
     let status: ClaudeCodeStatus
     let cli: CLIToolsModel
+    var showsRuntime = true
 
     private var path: String { status.install.path }
     private var id: CLIToolID { CLIToolID(kind: .claudeCode, path: path) }
@@ -385,7 +394,10 @@ struct ClaudeCodeDetailPane: View {
         HStack(spacing: 12) {
             CLIToolIcon(kind: .claudeCode, size: 44)
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: CLIToolKind.claudeCode.displayName).font(.title2).fontWeight(.semibold)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(verbatim: CLIToolKind.claudeCode.displayName).font(.title2).fontWeight(.semibold)
+                    if showsRuntime { CLIRuntimeTagSlot(path: path) }
+                }
                 Text(verbatim: location)
                     .font(.callout).foregroundStyle(.secondary)
                     .lineLimit(2).truncationMode(.middle)
@@ -530,6 +542,7 @@ struct ClaudeCodeDetailPane: View {
 struct CLIToolDetailPane: View {
     let status: CLIToolStatus
     let cli: CLIToolsModel
+    var showsRuntime = true
 
     private var id: CLIToolID { status.toolID }
     private var updating: Bool { cli.updating.contains(id) }
@@ -553,7 +566,10 @@ struct CLIToolDetailPane: View {
             VStack(alignment: .leading, spacing: 2) {
                 // "rustup", an npm package's name: the install's own name when the
                 // tool's group holds several kinds of thing. The path says which.
-                Text(verbatim: status.name ?? status.kind.displayName).font(.title2).fontWeight(.semibold)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(verbatim: status.name ?? status.kind.displayName).font(.title2).fontWeight(.semibold)
+                    if showsRuntime { CLIRuntimeTagSlot(path: status.path) }
+                }
                 Text(verbatim: ClaudeCodePresentation.abbreviate(status.path, home: homeDirectory))
                     .font(.callout).foregroundStyle(.secondary)
                     .lineLimit(2).truncationMode(.middle)

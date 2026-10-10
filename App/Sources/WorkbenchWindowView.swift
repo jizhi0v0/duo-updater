@@ -325,9 +325,11 @@ struct WorkbenchWindowView: View {
             } else if let status = selectedCLITool {
                 Group {
                     if case .claudeCode(let claudeCode) = status.detail {
-                        ClaudeCodeDetailPane(status: claudeCode, cli: model.cliTools)
+                        ClaudeCodeDetailPane(status: claudeCode, cli: model.cliTools,
+                                             showsRuntime: model.prefs.showRuntimeTags)
                     } else {
-                        CLIToolDetailPane(status: status, cli: model.cliTools)
+                        CLIToolDetailPane(status: status, cli: model.cliTools,
+                                          showsRuntime: model.prefs.showRuntimeTags)
                     }
                 }
                 .id(status.toolID.tag)
@@ -1297,7 +1299,8 @@ struct WorkbenchWindowView: View {
                         ForEach(group.statuses, id: \.toolID) { status in
                             CLIToolSidebarRow(
                                 status: status, cli: model.cliTools,
-                                isSelected: selection == status.toolID.tag)
+                                isSelected: selection == status.toolID.tag,
+                                showsRuntime: model.prefs.showRuntimeTags)
                                 .tag(status.toolID.tag)
                         }
                     } header: {

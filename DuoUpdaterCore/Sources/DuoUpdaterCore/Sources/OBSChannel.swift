@@ -52,6 +52,9 @@ enum OBSChannel {
     /// The `<sparkle:channel>` OBS's feed puts its stable releases on.
     static let stableTag = "stable"
 
+    /// The branch OBS uses when `UpdateBranch` is missing — a fresh install's.
+    static let defaultBranch = "stable"
+
     /// Map OBS's `UpdateBranch` value to a resolution, or nil to leave the
     /// decision to the running build. Pure and tested.
     static func resolve(updateBranch: String?) -> ResolvedChannel? {

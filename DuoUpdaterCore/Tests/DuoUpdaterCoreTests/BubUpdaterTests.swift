@@ -154,11 +154,25 @@ import Foundation
         #expect(output.hasSuffix("failed with exit code 2."))
     }
 
+    /// The update lasts until the test lets it go, not for a set time. With
+    /// `exec sleep 30` a deadline delivered late finds it exited 0, which reads
+    /// as "bub update bub finished, but bub is still 0.4.4". Holding every
+    /// `.medium` pool thread for 3 s past a scaled-down `exec sleep 2`
+    /// reproduces that locally; no CI run is known to have shown it. (That CI
+    /// starves the pool the same way is inferred, not instrumented.) Held, only
+    /// the deadline's SIGTERM can end it.
+    /// Mutation: drop `group.cancelAll()` after the deadline fires in
+    /// `ChildProcess` (the update then gives up on its own after ~300 s and
+    /// reads as finished but still 0.4.4).
     @Test func aHungUpdateIsStopped() async throws {
         let box = try BubSandbox()
-        let install = try install(box, bub: "echo started\nexec sleep 30")
+        let hold = box.url("hold")
+        FileManager.default.createFile(atPath: hold.path, contents: nil)
+        let install = try install(
+            box, bub: "echo started\nn=0; while [ -e '\(hold.path)' ] && [ $n -lt 3000 ]; do /bin/sleep 0.1; n=$((n+1)); done")
         let outcome = await updater(box, deadline: .init(terminateAfter: .seconds(1), killAfter: .seconds(3)))
             .update(await status(install))
+        try FileManager.default.removeItem(at: hold)
         // The message only: whether "started" lands before SIGTERM is the
         // scheduler's business (see ClaudeCodeUpdaterTests' twin).
         guard case .failed(let message, _) = outcome else {

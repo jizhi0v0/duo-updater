@@ -198,4 +198,15 @@ private let bartenderAppcastFixture = #"""
         }
         #expect(recipe.acceptedFeedPage(nil) == nil)
     }
+
+    /// The probe's `changelogURL` is what the pane embeds when no recipe
+    /// produces notes: the human release-notes page, never the appcast, and not
+    /// a page this recipe would try to parse.
+    @Test func theFallbackPageIsTheHumanReleaseNotes() throws {
+        let probe = try #require(VendorProbeRegistry.recipes
+            .first { $0.bundleID == "com.surteesstudios.Bartender" })
+        let page = try #require(probe.changelogURL)
+        #expect(page.absoluteString == "https://www.macbartender.com/Bartender6/release_notes/")
+        #expect(try recipe().acceptedFeedPage(page) == nil)
+    }
 }

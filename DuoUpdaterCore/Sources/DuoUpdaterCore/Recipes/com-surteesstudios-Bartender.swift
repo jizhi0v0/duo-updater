@@ -22,7 +22,11 @@ enum com_surteesstudios_Bartender {
             url: URL(string: "https://www.macbartender.com/B2/updates/AppcastB6.xml")!,
             mode: .responseBody,
             versionPattern: #"<sparkle:shortVersionString>([0-9]+\.[0-9]+\.[0-9]+)</sparkle:shortVersionString>"#,
-            changelogURL: URL(string: "https://www.macbartender.com/B2/updates/AppcastB6.xml")!,
+            // The human release-notes page (every Bartender 6 build, newest
+            // first), not the appcast: this URL is what the pane embeds when no
+            // recipe produces notes. It does not match the changelog recipe's
+            // `feedPagePattern` on purpose, so it is only ever embedded.
+            changelogURL: URL(string: "https://www.macbartender.com/Bartender6/release_notes/")!,
             selectHighest: true,
             // `bodyPatternLast`, not `bodyPattern`: this appcast is ASCENDING, so the
             // first enclosure is 6.0.0 and the newest is the final one — the same

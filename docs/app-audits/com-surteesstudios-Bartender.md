@@ -45,3 +45,12 @@ accepts either host.)
 从 appcast 解析出 `…/6-6-2/rnotes.html`（200），1 条 `6.6.2`、8 条、heading `Fixes`，首条
 "Memory usage should no longer creep up over longer sessions for users with triggers enabled."；
 `ChangelogService.load(forBundleID:)` 按设计返回 nil（没有更新结果可取页面）。
+
+### Recipes/com-surteesstudios-Bartender.swift — VendorProbe `changelogURL`（2026-10-10 改）
+
+接入前 probe 的 `changelogURL` 是 appcast `www.macbartender.com/B2/updates/AppcastB6.xml`（307 到
+`downloads.macbartender.com`），recipe 出不了内容时 pane 会嵌一份原始 XML。只读 GET 找人读的页面：
+`/Bartender6/support/` 链出 `/Bartender6/release_notes/`（200，9314 B，标题 "Bartender 6 - Release Notes"，
+同页列出 6.x 各版说明，最新 6.6.2；另有 "Test Builds" 一节）；`/Bartender6/releasenotes/`、`/Bartender6/changelog/`、
+`/B2/updates/` 均 404。改指 `/Bartender6/release_notes/`。它不匹配 `feedPagePattern`，所以只会被嵌入，不会被 recipe 解析。
+同一 support 页还链出 `/Bartender7/release_notes/` 与 Bartender 7 的 dmg：Bartender 7 已存在，本次未调查。

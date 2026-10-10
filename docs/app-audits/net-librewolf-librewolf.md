@@ -40,7 +40,7 @@ Firefox/Thunderbird 之外的单轨判定）。
 ## Changelog
 - 来源: Codeberg releases 页 `https://codeberg.org/librewolf/bsys6/releases`（WebView）
 - 跟随 channel: 单轨
-- Recipe 状态: 不需要（无结构化 changelog recipe；releases 页可内嵌）
+- Recipe 状态: 无 ChangelogRecipe，也写不出有用的：登记在 `ChangelogCoverage.acknowledged`（#1149，理由转引，本次未复测）——release 正文只是指向 Firefox 上游 notes 的链接，tag 还带 `-N` 构建后缀。pane 内嵌 releases 页。
 
 ## 一键安装
 - 状态: **仅检测（不可一键 — 已定论）**

@@ -147,11 +147,23 @@ import Foundation
     }
 
     /// A run still going at the deadline is reported as timed out, not waited on.
-    /// Mutation: drop the deadline test from the loop (the test then hangs past
-    /// the suite's time limit, or until the command ends and reads as exit 0).
+    ///
+    /// The command lasts until the test lets it go, not for a set time: in the
+    /// parallel suite on the 3-core runner the poll's `Task.sleep` woke seconds
+    /// late, after a `sleep 2` had already written exit 0, and the loop reads
+    /// the status before the clock — so the run read as a success (main's push
+    /// CI from #1127 on; reproduced by holding every `.medium` pool thread for
+    /// 3 s). Held, the deadline is the only way out however late the poll wakes.
+    /// Mutation: drop the deadline test from the loop (the command then gives
+    /// up on its own after ~300 s and reads as exit 0).
     @Test func aRunPastTheDeadlineTimesOut() async throws {
         let box = try Sandbox()
-        let result = await box.shell(deadline: .milliseconds(300)).run("sleep 2") { _ in }
+        let hold = box.root.appendingPathComponent("hold")
+        FileManager.default.createFile(atPath: hold.path, contents: nil)
+        let held = CLIToolAdministratorRun.quote(hold.path)
+        let result = await box.shell(deadline: .milliseconds(300))
+            .run("n=0; while [ -e \(held) ] && [ $n -lt 3000 ]; do sleep 0.1; n=$((n+1)); done") { _ in }
+        try FileManager.default.removeItem(at: hold)
         let outcome = try #require(Self.outcome(Self.ran(result)))
         #expect(outcome.timedOut)
         #expect(!outcome.succeeded)

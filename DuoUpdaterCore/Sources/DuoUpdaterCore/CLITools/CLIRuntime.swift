@@ -54,37 +54,17 @@ extension CLIRuntime {
 
 /// What one read of a tool's file says.
 public struct CLIRuntimeReading: Sendable, Equatable {
-    /// What the program that does the work is built with. Nil only under a
-    /// `launcher` whose native binary was found but carries no marker this file
-    /// recognises: a Node launcher is known, what it execs is not.
-    public let runtime: CLIRuntime?
-    /// Set when the file the user runs is a launcher for another one — today
-    /// only `.node`, for an npm package whose JavaScript bin execs the native
-    /// executable of its platform package (`<name>-darwin-<arch>`).
-    public let launcher: CLIRuntime?
-    /// The file `runtime` was read from — the native binary under a launcher.
+    /// What the program that does the work is built with — for an npm package
+    /// whose Node.js bin starts its platform package's native executable, that
+    /// executable's runtime, not Node.js.
+    public let runtime: CLIRuntime
+    /// The file `runtime` was read from — the native binary behind such a bin.
     public let binary: String
-    /// What decided `runtime`; nil exactly when `runtime` is.
-    public let evidence: CLIRuntimeEvidence?
+    /// What decided `runtime`.
+    public let evidence: CLIRuntimeEvidence
 
-    /// "Go"; "Node.js → Go" under a launcher; "Node.js launcher" when what the
-    /// launcher starts could not be identified. Nil when the reading names
-    /// neither, which `CLIRuntimeDetector` never returns.
-    public var title: String? {
-        switch (launcher, runtime) {
-        case (let launcher?, let runtime?): "\(launcher.displayName) → \(runtime.displayName)"
-        case (let launcher?, nil):
-            String(localized: "\(launcher.displayName) launcher",
-                   comment: "CLI runtime label: a Node.js script that starts a native binary whose toolchain is unknown")
-        case (nil, let runtime?): runtime.displayName
-        case (nil, nil): nil
-        }
-    }
-
-    public init(runtime: CLIRuntime?, launcher: CLIRuntime? = nil, binary: String,
-                evidence: CLIRuntimeEvidence?) {
+    public init(runtime: CLIRuntime, binary: String, evidence: CLIRuntimeEvidence) {
         self.runtime = runtime
-        self.launcher = launcher
         self.binary = binary
         self.evidence = evidence
     }
@@ -204,9 +184,10 @@ public enum CLIRuntimeEvidence: Sendable, Equatable {
 /// declares a platform package `<name>-darwin-<arch>` among its
 /// `optionalDependencies` or `dependencies` (the convention esbuild popularised;
 /// scoped names keep their scope) and that package holds a Mach-O executable
-/// named for one of the package's commands, the verdict is that binary's, under
-/// a `.node` launcher. The launcher's JavaScript is never parsed — whether it
-/// really execs that binary is the convention's claim, not this file's.
+/// named for one of the package's commands, the verdict is that binary's — the
+/// program that does the work — and nil when that binary carries no marker. The
+/// script's JavaScript is never parsed — whether it really execs that binary is
+/// the convention's claim, not this file's.
 ///
 /// **Cost.** Steps 1 and 2 (bar Haskell) are the load-command pass `MachOImports`
 /// makes, bounded by the load-command region whatever the file's size. Only a
@@ -252,7 +233,7 @@ public enum CLIRuntimeDetector {
     static func readFile(_ url: URL, packageRoot: URL?) -> CLIRuntimeReading? {
         switch verdict(at: url) {
         case .machO(let runtime, let evidence):
-            guard let runtime else { return nil }
+            guard let runtime, let evidence else { return nil }
             return CLIRuntimeReading(runtime: runtime, binary: url.path, evidence: evidence)
         case .script(let interpreter):
             guard let runtime = runtime(ofInterpreter: interpreter) else { return nil }
@@ -262,9 +243,9 @@ public enum CLIRuntimeDetector {
                   let root = packageRoot ?? enclosingPackage(of: url),
                   let native = platformExecutable(forPackageAt: root)
             else { return own }
-            guard case .machO(let nativeRuntime, let evidence) = verdict(at: native) else { return own }
-            return CLIRuntimeReading(runtime: nativeRuntime, launcher: .node, binary: native.path,
-                                     evidence: evidence)
+            // The script only starts `native`; what runs is that binary, and
+            // when it proves nothing, nothing is said — not "Node.js".
+            return readFile(native, packageRoot: nil)
         case .unknown:
             return nil
         }

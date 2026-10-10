@@ -234,9 +234,11 @@ import DuoUpdaterCore
 
     static let readings: [String: CLIRuntimeReading] = [
         uv.path: CLIRuntimeReading(runtime: .rust, binary: uv.path, evidence: .cargoAuditable),
-        mcpRemote.path: CLIRuntimeReading(runtime: .go, launcher: .node, binary: "/ZZFixture-platform/bin/x",
+        // An npm package's Node.js bin that starts its Go platform binary:
+        // read as Go, what runs.
+        mcpRemote.path: CLIRuntimeReading(runtime: .go, binary: "/ZZFixture-platform/bin/x",
                                           evidence: .goBuildInfo(goVersion: nil)),
-        helm.path: CLIRuntimeReading(runtime: nil, launcher: .node, binary: "/ZZFixture-platform/bin/y", evidence: nil),
+        helm.path: CLIRuntimeReading(runtime: .shell, binary: helm.path, evidence: .shebang(interpreter: "sh")),
     ]
 
     static func withRuntimes() async -> [CLIToolRows.Row] {
@@ -248,27 +250,21 @@ import DuoUpdaterCore
     /// nothing carries none.
     @Test func rowsCarryWhatTheyAreBuiltWith() async {
         let rows = await Self.withRuntimes()
-        #expect(rows.map(\.runtime) == ["rust", "go", nil, nil])
-        #expect(rows.map(\.launcher) == [nil, "node", "node", nil])
-        #expect(rows.map(\.builtWith) == ["Rust", "Node.js → Go", "Node.js launcher", nil])
+        #expect(rows.map(\.runtime) == ["rust", "go", "shell", nil])
+        #expect(rows.map(\.builtWith) == ["Rust", "Go", "Shell", nil])
     }
 
-    @Test func jsonCarriesRuntimeAndLauncher() async throws {
+    @Test func jsonCarriesRuntime() async throws {
         let rows = await Self.withRuntimes()
         let lines = Lines()
         Check.emitJSON([], tools: rows, command: "list", print: { lines.add($0) })
         let objects = try lines.all.dropFirst().map {
             try JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]
         }
-        #expect(objects[0]?["runtime"] as? String == "rust")
-        #expect(objects[0]?["launcher"] == nil)
-        #expect(objects[1]?["runtime"] as? String == "go")
-        #expect(objects[1]?["launcher"] as? String == "node")
-        #expect(objects[2]?["runtime"] == nil)
-        #expect(objects[2]?["launcher"] as? String == "node")
-        #expect(objects[3]?["runtime"] == nil)
-        // The text form stays out of the JSON: `runtime` and `launcher` say it.
-        #expect(objects.allSatisfy { $0?["builtWith"] == nil })
+        #expect(objects.map { $0?["runtime"] as? String } == ["rust", "go", "shell", nil])
+        // The text form stays out of the JSON — `runtime` says it — and so does
+        // the Node.js bin that starts the Go row's binary.
+        #expect(objects.allSatisfy { $0?["builtWith"] == nil && $0?["launcher"] == nil })
     }
 
     @Test func textSaysWhatEachIsBuiltWith() async {
@@ -277,8 +273,9 @@ import DuoUpdaterCore
         Check.emitText([], tools: rows, checked: false, print: { lines.add($0) })
         let text = lines.all.joined(separator: "\n")
         #expect(text.contains("→  1.1.0  [Rust]  \(Self.uv.path)"))
-        #expect(text.contains("[Node.js → Go]  \(Self.mcpRemote.path)"))
-        #expect(text.contains("[Node.js launcher]  \(Self.helm.path)"))
+        #expect(text.contains("[Go]  \(Self.mcpRemote.path)"))
+        #expect(!text.contains("Node.js"))
+        #expect(text.contains("[Shell]  \(Self.helm.path)"))
         #expect(text.contains("1.0.0  \(Self.deno.path)"))
     }
 

@@ -46,14 +46,13 @@ enum CLIToolRows {
         /// it out to copy.
         var command: String? = nil
         /// What the install is built with, `CLIRuntime`'s raw value ("go",
-        /// "rust", "bun"), as the app's CLI tab tags it; nil where its file
-        /// proves nothing (`CLIRuntimeDetector`). Under a `launcher`, the native
-        /// binary's — nil there when that binary carries no marker.
+        /// "rust", "bun"), as the app's CLI tab marks it; nil where its file
+        /// proves nothing (`CLIRuntimeDetector`). For an npm package whose
+        /// Node.js bin starts its platform package's native binary, that
+        /// binary's — nil when it carries no marker.
         var runtime: String? = nil
-        /// "node" when the install runs a Node.js script that starts its npm
-        /// platform package's native binary; nil otherwise.
-        var launcher: String? = nil
-        /// The tag's words — "Rust", "Node.js → Go" — for the text output.
+        /// The runtime's name — "Rust", "Go" — for the text output, which
+        /// cannot draw the app's mark.
         var builtWith: String? = nil
         /// What a name argument is matched against: the install's own name when
         /// it has one, else the tool's display name and raw value.
@@ -63,7 +62,7 @@ enum CLIToolRows {
 
         enum CodingKeys: String, CodingKey {
             case tool, name, path, installedVersion, latestVersion, channel, state, hasUpdate, oneClick,
-                 needsAdministrator, withheld, reason, note, command, runtime, launcher
+                 needsAdministrator, withheld, reason, note, command, runtime
         }
 
         init(_ status: CLIToolStatus) {
@@ -101,9 +100,8 @@ enum CLIToolRows {
         /// This row with what `reading` says it is built with.
         func with(_ reading: CLIRuntimeReading?) -> Row {
             var row = self
-            row.runtime = reading?.runtime?.rawValue
-            row.launcher = reading?.launcher?.rawValue
-            row.builtWith = reading?.title
+            row.runtime = reading?.runtime.rawValue
+            row.builtWith = reading?.runtime.displayName
             return row
         }
     }

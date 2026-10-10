@@ -275,7 +275,6 @@ struct CLIRuntimeDetectionTests {
 
         for path in [link.path, root.path] {
             let reading = CLIRuntimeDetector.read(path: path)
-            #expect(reading?.launcher == .node)
             #expect(reading?.runtime == .go)
             #expect(reading?.binary.hasSuffix("tool-darwin-\(CLIRuntimeDetector.npmArchitecture)/bin/tool") == true)
         }
@@ -291,7 +290,6 @@ struct CLIRuntimeDetectionTests {
         let platform = try scratch.npmPackage("lib/node_modules/tool-darwin-\(arch)", name: "tool-darwin-\(arch)")
         try image([("__TEXT", "__cstring", cstring(rustPath))]).write(to: platform.appendingPathComponent("tool"))
         let reading = CLIRuntimeDetector.read(path: root.path)
-        #expect(reading?.launcher == .node)
         #expect(reading?.runtime == .rust)
     }
 
@@ -306,7 +304,6 @@ struct CLIRuntimeDetectionTests {
             "lib/node_modules/tool/node_modules/tool-darwin-\(arch)", name: "tool-darwin-\(arch)")
         try image([("__DATA", "__go_buildinfo", Data(count: 64))]).write(to: platform.appendingPathComponent("tool"))
         let reading = CLIRuntimeDetector.read(path: root.path)
-        #expect(reading?.launcher == nil)
         #expect(reading?.runtime == .node)
     }
 
@@ -334,7 +331,6 @@ struct CLIRuntimeDetectionTests {
             "lib/node_modules/tool/node_modules/tool-darwin-\(arch)", name: "tool-darwin-\(arch)")
         try Data("#!/bin/sh\n".utf8).write(to: platform.appendingPathComponent("tool"))
         let reading = CLIRuntimeDetector.read(path: root.path)
-        #expect(reading?.launcher == nil)
         #expect(reading?.runtime == .node)
     }
 
@@ -353,12 +349,12 @@ struct CLIRuntimeDetectionTests {
         try image([("__DATA", "__go_buildinfo", Data(count: 64))])
             .write(to: try scratch.directory(platform.appendingPathComponent("bin")).appendingPathComponent("tool"))
         let reading = CLIRuntimeDetector.read(path: root.path)
-        #expect(reading?.launcher == .node)
         #expect(reading?.runtime == .go)
     }
 
-    /// A native binary with no marker: the launcher is known, what it runs is not.
-    @Test func unidentifiedPlatformBinaryKeepsOnlyTheLauncher() throws {
+    /// A native binary with no marker: what runs is unknown, so nothing is said
+    /// — not "Node.js", which only starts it.
+    @Test func unidentifiedPlatformBinaryReadsAsNothing() throws {
         let scratch = try Scratch()
         defer { scratch.cleanUp() }
         let arch = CLIRuntimeDetector.npmArchitecture
@@ -367,10 +363,7 @@ struct CLIRuntimeDetectionTests {
         let platform = try scratch.npmPackage(
             "lib/node_modules/tool/node_modules/tool-darwin-\(arch)", name: "tool-darwin-\(arch)")
         try image([("__TEXT", "__cstring", cstring("hi"))]).write(to: platform.appendingPathComponent("tool"))
-        let reading = CLIRuntimeDetector.read(path: root.path)
-        #expect(reading?.launcher == .node)
-        #expect(reading?.runtime == nil)
-        #expect(reading?.evidence == nil)
+        #expect(CLIRuntimeDetector.read(path: root.path) == nil)
     }
 
     /// agent-browser's shape: the prefix's `bin/` link points straight at a
@@ -385,7 +378,6 @@ struct CLIRuntimeDetectionTests {
         _ = try scratch.binLink("browser", to: "../lib/node_modules/browser/bin/browser-darwin-arm64")
         let reading = CLIRuntimeDetector.read(path: root.path)
         #expect(reading?.runtime == .rust)
-        #expect(reading?.launcher == nil)
     }
 
     /// A `dist/package.json` holding only `"type"` is not the package.

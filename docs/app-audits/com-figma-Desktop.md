@@ -43,10 +43,15 @@
   与 `CFBundleShortVersionString` 同方案（无 build/marketing 陷阱）。
 
 ## Changelog
-- 来源: ChangelogRecipe(`com.figma.Desktop`) 抓 `figma.com/release-notes`（结构化）；
-  beta 经 VendorProbe 的 `changelogURL` 走同一页（web view）。
+- 来源: ChangelogRecipe(`com.figma.Desktop`) 与 ChangelogRecipe(`com.figma.DesktopBeta`)
+  读同一个 Atom feed `figma.com/release-notes/feed/atom.xml`（结构化，pattern 相同）。
+  接入前 beta 经 VendorProbe 的 `changelogURL` 嵌同一页（web view）。
 - 跟随 channel: 否（全产品公告页，无 per-channel 区分）
-- Recipe 状态: stable 已有；beta 共用，无需独立 recipe。
+- 版本对得上吗：**对不上，stable 和 beta 都一样**。feed 是产品公告，条目「版本」是文章标题，
+  不含任何桌面端 build 号，所以没有一条能匹配 beta 被提供的版本（见历史与实测 2026-10-10）。
+  `Changelog.carries` 与 verify 把无编号页视为「不落后」，不会因此误报。
+- Recipe 状态: stable、beta 均已有（beta 为 stable 的同 feed 拷贝，`FigmaBetaChangelogRecipeTests`
+  断言两者 pattern 一致）。
 
 ## 一键安装
 - 状态: **支持**（stable + beta）
@@ -114,3 +119,11 @@ item text drops from 3390 to 1062 characters (31%) versus the old
 `<article>`/`<p>` scrape, while every title and date matches byte-for-byte.
 
 复测 2026-09-14（03:20 UTC 前后，只读 GET）：Atom feed 有 450 个 `<entry>`。
+
+### Figma Beta ChangelogRecipe 接入（2026-10-10）
+
+只读 GET。`desktop.figma.com/mac-arm/beta/RELEASE.json` 答 `126.10.3`（baseline
+`vendor:com.figma.DesktopBeta:beta` 的 `lastGoodVersion` 也是 126.10.3）。Atom feed 200、63853 字节、
+459 个 `<entry>`；全文搜 `126\.` 零命中，没有任何条目带桌面端 build 号（stable 的 126.9.13 同样不在）。
+生产解析器（`ChangelogService.loadDiagnostic`，临时测试）对 beta recipe：20 条，最新
+"The Figma agent is generally available" / 2026-10-06，`carries(version: "126.10.3") == true`（无编号页不判落后）。

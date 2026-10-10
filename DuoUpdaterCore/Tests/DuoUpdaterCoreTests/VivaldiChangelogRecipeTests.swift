@@ -118,9 +118,71 @@ private let vivaldiMissingPageBody = """
 
     /// Vivaldi Snapshot is its own bundle id with its own pages
     /// (`relnotes/snapshot/<version>.html`), so the Stable recipe never reaches it.
-    @Test func snapshotIsNotGivenTheStablePages() {
-        #expect(ChangelogRecipeRegistry.recipe(forBundleID: "com.vivaldi.Vivaldi.snapshot") == nil)
-        #expect(ChangelogRecipeRegistry.recipe(
-            forBundleID: "com.vivaldi.Vivaldi.snapshot", channel: .preview) == nil)
+    @Test func snapshotIsNotGivenTheStablePages() throws {
+        let snapshot = try #require(ChangelogRecipeRegistry.recipe(
+            forBundleID: "com.vivaldi.Vivaldi.snapshot", channel: .preview))
+        #expect(snapshot.bundleID == "com.vivaldi.Vivaldi.snapshot")
+        #expect(snapshot.resolvedSource(forVersion: "8.3.4175.3").absoluteString
+            == "https://update.vivaldi.com/update/1.0/relnotes/snapshot/8.3.4175.3.html")
+    }
+}
+
+/// `relnotes/snapshot/8.3.4175.3.html` as served (fetched 2026-10-10), the
+/// `<style>` block dropped and its ten changes cut to three. A snapshot page has
+/// no intro and one section, measured from the previous snapshot build.
+private let vivaldiSnapshotFixture = """
+\u{FEFF}<html>
+<head>
+  <title>Vivaldi Snapshot Changelog</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="robots" content="anchors">
+</head>
+<body>
+<h2>Changelog since version 4171.3</h2>
+<ul>
+\t<li>[Ad Blocker] Check for invalid rule lists before parsing them <span>VB-132030</span></li>
+\t<li>[Ad Blocker] Resetting a level should reset the document an first-party blocking settings for that level <span>VB-131986</span></li>
+\t<li>[UI] CSS cleanup: could cause regressions <span>VB-132024</span></li>
+</ul>
+</body>
+</html>
+"""
+
+@Suite struct VivaldiSnapshotChangelogRecipeTests {
+    private func recipe() throws -> ChangelogRecipe {
+        try #require(ChangelogRecipeRegistry.recipe(
+            forBundleID: "com.vivaldi.Vivaldi.snapshot", channel: .preview))
+    }
+
+    /// The page the snapshot feed links for a version is the one the template
+    /// builds (`<sparkle:releaseNotesLink>` of the 8.3.4185.3 item, 2026-10-10).
+    /// Mutation: drop `snapshot/` from `sourceTemplate` — the Stable path, which
+    /// has no snapshot builds.
+    @Test func thePageIsTheOneTheFeedLinks() throws {
+        #expect(try recipe().resolvedSource(forVersion: "8.3.4185.3").absoluteString
+            == "https://update.vivaldi.com/update/1.0/relnotes/snapshot/8.3.4185.3.html")
+    }
+
+    /// Only the page's one section, named by the requested version rather than
+    /// the build its heading measures from.
+    @Test func readsTheSnapshotPage() throws {
+        let log = try #require(ChangelogService.parse(
+            try recipe(), body: vivaldiSnapshotFixture, version: "8.3.4175.3"))
+        #expect(log.entries.count == 1)
+        let entry = try #require(log.entries.first)
+        #expect(entry.version == "8.3.4175.3")
+        #expect(entry.date == nil)
+        #expect(entry.items.count == 3)
+        #expect(entry.content.first == .heading("Changelog since version 4171.3"))
+        #expect(entry.items.first == "[Ad Blocker] Check for invalid rule lists before parsing them VB-132030")
+    }
+
+    @Test func withoutAVersionNothingIsExtracted() throws {
+        #expect(ChangelogService.parse(try recipe(), body: vivaldiSnapshotFixture) == nil)
+    }
+
+    @Test func aMissingPageIsNotRead() throws {
+        #expect(ChangelogService.parse(
+            try recipe(), body: vivaldiMissingPageBody, version: "8.3.4185.99") == nil)
     }
 }

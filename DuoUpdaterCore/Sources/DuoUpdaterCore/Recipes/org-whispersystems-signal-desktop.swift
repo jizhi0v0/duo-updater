@@ -60,6 +60,40 @@ enum org_whispersystems_signal_desktop {
                 kind: .dmg),
             channel: .beta),
         ],
+        changelogs: [
+        // History: docs/app-audits/org-whispersystems-signal-desktop.md#历史与实测
+        // Signal Stable + Beta — GitHub releases of signalapp/Signal-Desktop, the
+        // page both probes link. One repo, one tag scheme: stable is `v8.30.0`,
+        // beta is `v8.31.0-beta.1`, and GitHub's `prerelease` bit is set on exactly
+        // the `-beta.N` tags. With the leading `v` stripped, each tag is the
+        // version its channel's yml offers, so no `tagPattern` is needed.
+        //
+        // The notes are thin: one to three bullets of prose per release, often the
+        // stock "Small tweaks, bug fixes, and performance enhancements" line, and
+        // a beta's body is usually copied unchanged into the stable release that
+        // follows it.
+        //
+        // The beta recipe reads prereleases only (`channel: .beta`) and does NOT
+        // set `includesPromotedStable`: Signal Beta is a separate app whose feed
+        // and artifact (`signal-desktop-beta-mac-universal-<ver>-beta.N.dmg`) are
+        // always a `-beta.N` build, so a stable entry would describe a build this
+        // install is never offered.
+        ChangelogRecipe(
+            bundleID: "org.whispersystems.signal-desktop",
+            source: URL(string: "https://api.github.com/repos/signalapp/Signal-Desktop/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .stable,
+            structuredFormat: .gitHubReleases),
+
+        ChangelogRecipe(
+            bundleID: "org.whispersystems.signal-desktop-beta",
+            source: URL(string: "https://api.github.com/repos/signalapp/Signal-Desktop/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .beta,
+            structuredFormat: .gitHubReleases),
+        ],
         channelProofs: [
         ChannelProofKey("org.whispersystems.signal-desktop-beta", .beta): .artifact(#"signal-desktop-beta-mac-"#),
         ])

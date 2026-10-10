@@ -25,7 +25,11 @@
 - 生产验证: mounted DMG `2.1.56 → 2.1.56`, stable/up-to-date。
 
 ## Changelog
-- GitHub Releases 页面作为人工说明入口。
+- 来源: **`ChangelogRecipe`**，`.gitHubReleases` 读 `api.github.com/repos/iOfficeAI/AionUi/releases?per_page=40`，
+  stable 轨，最多 20 条。tag `v<版本>` 去掉 `v` 即 manifest 的 `version:`，与 probe 提供的版本同形。
+- `tagPattern` 只为一个稳定 tag `v2.1.47-final` 存在：不加它这条读成 `2.1.47-final`，没有任何装机会报这个版本。
+- 兜底: probe 的 `changelogURL`（GitHub Releases 页）。
+- 接入前（2026-10-10 之前）: 只有 GitHub Releases 页作为人工说明入口，面板嵌网页。
 
 ## 一键安装
 - 状态: **已启用**（2026-08-29），`.versionTemplate` →
@@ -71,3 +75,7 @@ Verified 2026-08-29:
 manifest value exactly. Extracted: `com.aionui.app`, 2.1.61, `Developer
 ID Application: AionUi Inc. (52JQX2HUSC)`, spctl "accepted / Notarized
 Developer ID", stapled, `lipo -archs` = arm64.
+
+### Recipes/com-aionui-app.swift — `.gitHubReleases` changelog（2026-10-10）
+
+实测（2026-10-10，`gh api repos/iOfficeAI/AionUi/releases?per_page=40`）：40 条全是 `prerelease: false`，tag 都是 `v<x.y.z>`，只有 `v2.1.47-final` 带后缀；`per_page=100` 里另有 8 条 prerelease（`v2.1.3`、`v1.9.18`、`v2.0.x-dev-<hash>` 6 条），stable 轨不读。生产解析器（临时 Swift test 调 `ChangelogService.loadDiagnostic`，跑完已删）对线上端点：HTTP 200，20 条（`maxEntries` 截断），最新 `2.2.2` / `2026-09-09` / 10 项，等于 baseline 的 `lastGoodVersion` 2.2.2；`2.1.47-final` 那条读成 `2.1.47`。

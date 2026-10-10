@@ -30,16 +30,12 @@ enum ChangelogCoverage {
     /// A reason starting with `notWrittenYet` is backlog, not a verdict: a recipe
     /// is possible along the line it names. Delete the line when one lands.
     static let acknowledged: [String: String] = [
-        "com.aionui.app":
-            "feasible, not written yet: .gitHubReleases on iOfficeAI/AionUi",
         "com.bjango.istatmenus":
             "the page prints 7.5 for version 7.50, which no pattern can pad; newest entry is a placeholder",
         "com.brave.Browser.beta":
             "brave.com/latest lists release-channel versions only; beta notes are not published",
         "com.brave.Browser.nightly":
             "brave.com/latest lists release-channel versions only; nightly builds have no notes",
-        "com.figma.DesktopBeta":
-            "feasible, not written yet: the stable Figma atom recipe under the beta bundle id",
         "com.getdropbox.dropbox":
             "feasible but weak: one forum post per build, and the offered build often has none",
         "com.google.android.studio":
@@ -60,42 +56,14 @@ enum ChangelogCoverage {
             "EAP whatsnew in the releases API only links a YouTrack issue table",
         "com.macpaw.site.theunarchiver":
             "feasible but low value: regex on the DevMate notes page; the app has not shipped since 4.3.9",
-        "com.microsoft.Excel":
-            "feasible, not written yet: the app's section of the Office for Mac release notes",
-        "com.microsoft.OneDrive":
-            "feasible, not written yet: macOS Production ring of learn.microsoft.com's sync release notes",
-        "com.microsoft.onenote.mac":
-            "feasible, not written yet: the app's section of the Office for Mac release notes (mostly boilerplate)",
-        "com.microsoft.Outlook":
-            "feasible, not written yet: the app's section of the Office for Mac release notes",
-        "com.microsoft.Powerpoint":
-            "feasible, not written yet: the app's section of the Office for Mac release notes",
         "com.microsoft.teams2":
             "monthly cross-platform what's-new with no client version per entry",
-        "com.microsoft.Word":
-            "feasible, not written yet: the app's section of the Office for Mac release notes",
-        "com.mongodb.compass":
-            "feasible, not written yet: .gitHubReleases on mongodb-js/compass, or regex on the docs release notes",
         "com.nssurge.surge-mac":
             "Sparkle feeds carry inline markdownDescription notes on every item; the page is a JS shell",
-        "com.robinebers.openusage":
-            "feasible, not written yet: .gitHubReleases on robinebers/openusage, stable and beta",
         "com.steipete.codexbar":
             "Sparkle appcast ships inline HTML notes for every item, so the page is never shown",
-        "com.surteesstudios.Bartender":
-            "feasible, not written yet: feedPagePattern on the appcast's per-version rnotes.html",
-        "com.tdesktop.Telegram":
-            "feasible, not written yet: .gitHubReleases on telegramdesktop/tdesktop (telegram.org/blog has no versions)",
-        "com.tigervnc.tigervnc":
-            "feasible, not written yet: .gitHubReleases on TigerVNC/tigervnc (some bodies are prose only)",
-        "com.vivaldi.Vivaldi.snapshot":
-            "feasible, not written yet: the stable Vivaldi recipe on the feed's relnotes/snapshot/<version>.html page",
-        "dev.commandline.waveterm":
-            "feasible, not written yet: .gitHubReleases on wavetermdev/waveterm",
         "dev.warp.Warp-Dev":
             "the dev track publishes no notes: its channel_versions.json entry is a placeholder",
-        "im.riot.app":
-            "feasible, not written yet: .gitHubReleases on element-hq/element-web, ^v tagPattern (element-desktop is archived)",
         "im.riot.nightly":
             "nightly build stamps (YYYYMMDDNN) have no tag or notes of their own",
         "net.librewolf.librewolf":
@@ -112,10 +80,6 @@ enum ChangelogCoverage {
             "feasible but headlines only: the home page's #Releases highlights; full NEWS is one text file per version",
         "org.libreoffice.script":
             "landing page of blurbs; the real notes are per branch, on a bot-walled wiki",
-        "org.whispersystems.signal-desktop":
-            "feasible, not written yet: .gitHubReleases on signalapp/Signal-Desktop (notes are thin)",
-        "org.whispersystems.signal-desktop-beta":
-            "feasible, not written yet: .gitHubReleases on signalapp/Signal-Desktop, channel .beta",
         "tv.plex.desktop":
             "feasible but weak: a forum thread that posts only some releases, via an undocumented JSON clamp",
     ]

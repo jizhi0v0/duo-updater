@@ -128,11 +128,11 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 > exercised by a MAS install and stays **needs-verify** for a non-MAS Office.
 > PowerPoint/Outlook/OneDrive/Teams = `.pkg` casks → skipped (need sudo).
 
-- [~] **Word** · `com.microsoft.Word` — P(stable, versionIsBuild, one-click) · ✓ install detected via **App Store** (VendorProbe path needs-verify)
-- [~] **Excel** · `com.microsoft.Excel` — P(stable, versionIsBuild, one-click) · ✓ install detected via **App Store** (VendorProbe path needs-verify)
-- [ ] **PowerPoint** · `com.microsoft.Powerpoint` — P(stable, versionIsBuild, one-click) · ⏭ pkg/sudo
-- [ ] **Outlook** · `com.microsoft.Outlook` — P(stable, versionIsBuild, one-click) · ⏭ pkg/sudo
-- [ ] **OneDrive** · `com.microsoft.OneDrive` — P(stable, one-click) · ⏭ pkg/sudo
+- [~] **Word** · `com.microsoft.Word` — P(stable, versionIsBuild, one-click) · ✓ install detected via **App Store** (VendorProbe path needs-verify) · C(regex，Office for Mac release notes 里 Word 段 + Office Suite 段；条目为 CFBundleShortVersionString `16.113.4`，探针比较 CFBundleVersion `16.113.26100421`，有意不匹配：运行中圆点不亮、`Changelog.carries` 为 false、verify 检查不触发；MAS 拷贝不用 recipe) · 2026-10-10
+- [~] **Excel** · `com.microsoft.Excel` — P(stable, versionIsBuild, one-click) · ✓ install detected via **App Store** (VendorProbe path needs-verify) · C(regex，同页 Excel 段 + Office Suite 段，版本有意不匹配，同上) · 2026-10-10
+- [ ] **PowerPoint** · `com.microsoft.Powerpoint` — P(stable, versionIsBuild, one-click) · ⏭ pkg/sudo · C(regex，同页 PowerPoint 段 + Office Suite 段，版本有意不匹配，同 Word) · 2026-10-10
+- [ ] **Outlook** · `com.microsoft.Outlook` — P(stable, versionIsBuild, one-click) · ⏭ pkg/sudo · C(regex，同页 Outlook 段 + Office Suite 段，版本有意不匹配，见 [历史](com-microsoft-Outlook.md)) · 2026-10-10
+- [ ] **OneDrive** · `com.microsoft.OneDrive` — P(stable, one-click) · ⏭ pkg/sudo · 探针读 standalone updater 的 Production manifest（`g.live.com/0USSDMC_W5T/MacODSUProduction`），一键取其 `UniversalPkgBinaryURL`（UBF8T346G9）· C(regex，learn.microsoft.com `sharepoint/sync-release-notes` 的 macOS Production Ring；条目取前三段版本，同探针) · 见 [历史](com-microsoft-OneDrive.md) · 2026-10-10
 - [ ] **Teams** · `com.microsoft.teams2` — P(stable, one-click) · ⏭ pkg/sudo
 
 ## Single-channel — VendorProbe + optional Changelog
@@ -184,7 +184,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**AirCard**](com-mak5er-aircard.md) · `com.mak5er.aircard` — G (detection-only) · ad-hoc 签名无 Team ID，一键过不了 Team 闸 · 2026-09-24
 - [x] [**Comet**](ai-perplexity-comet.md) · `ai.perplexity.comet` — P · 一键 ✓（2026-08-29，`.fixed` 指向网关）· redirect version avoids stale rollout API · real DMG + live probe ✓ · 2026-08-17
 - [x] [**Devin Desktop**](com-exafunction-windsurf.md) · `com.exafunction.windsurf` — P (one-click dmg via `.bodyPattern`) · former Windsurf bundle · real DMG + live probe ✓ · 2026-08-17
-- [x] [**AionUi**](com-aionui-app.md) · `com.aionui.app` — P · 一键 ✓（2026-08-29，`.versionTemplate` + sha512 闸）· real DMG + live probe ✓ · 2026-08-17
+- [x] [**AionUi**](com-aionui-app.md) · `com.aionui.app` — P C · changelog=GitHub releases（2026-10-10）· 一键 ✓（2026-08-29，`.versionTemplate` + sha512 闸）· real DMG + live probe ✓ · 2026-08-17
 - [x] [**Msty Studio**](MstyStudio.md) · `MstyStudio` — P · 一键 ✓（2026-08-29，arm64 条目的 sha512）· real DMG + live probe ✓ · 2026-08-17
 - [x] [**Grok Bot**](com-anysphere-sand.md) · `com.anysphere.sand` — P (one-click arm64 dmg, Team DCNK4UB866) · xAI 的产品但由 Anysphere 构建，走 Cursor 的更新基建（`api2.cursor.sh` / `downloads.cursor.com`），接口上的 app name 是 `sand` · asar 里的 nightly/dogfood 两轨客户端与服务端都不可达，故单 channel · 官网按钮那条无版本号、cask livecheck 那条最新时回 204，都不用 · 真实 DMG + live probe ✓ · 2026-08-29
 - [x] [**TimeMachineEditor**](com-tclementdev-timemachineeditor-application.md) · `com.tclementdev.timemachineeditor.application` — P (one-click pkg, Team 68GTH78H6S) · cask `auto_updates:true` 被跳过，故 vendor 主页是唯一版本源 · 无 JSON API，读首页下载链接文字里的版本号，与 Homebrew 自己的 livecheck 独立印证 · pkg 装了 LaunchDaemon，故一键必须走 `.pkg` 而非 dmg/zip · 真实 pkg 展开验证 + live probe ✓ · 2026-08-29
@@ -309,7 +309,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**MonitorControl**](app-monitorcontrol-MonitorControl.md) · `app.monitorcontrol.MonitorControl` — S+B · 一键 ✓ · beta 开关（`MonitorControlChannel`，feed 尚无 beta）· changelog recipe ✓ · 2026-10-08
 - [x] [**Maccy**](org-p0deje-Maccy.md) · `org.p0deje.Maccy` — S · 检测 + changelog 结构化 ✓ · 一键未跑 · 2026-10-08
 - [x] [**Keka**](com-aone-keka.md) · `com.aone.keka` — S · 检测 ✓ · changelog recipe（GitHub）✓ · 一键未跑 · 2026-10-08
-- [x] [**Vivaldi**](com-vivaldi-Vivaldi.md) · `com.vivaldi.Vivaldi` — S · 真包 8.2.4133.83/.84 验证 ✓ · 一键（delta）✓ · Snapshot 为独立 bundle id · changelog 仅网页（建议 recipe）· 2026-10-08
+- [x] [**Vivaldi**](com-vivaldi-Vivaldi.md) · `com.vivaldi.Vivaldi` — S · 真包 8.2.4133.83/.84 验证 ✓ · 一键（delta）✓ · Snapshot 为独立 bundle id · changelog recipe（stable + Snapshot）· 2026-10-08
 - [x] [**OBS**](com-obsproject-obs-studio.md) · `com.obsproject.obs-studio` — S · 真包 32.2.1/32.2.2/33.0.0-beta5/beta6 验证 ✓ · stable 一键（delta）端到端 ✓ · beta `UpdateBranch` 绑定 ✓ · changelog recipe（feedPagePattern）✓ · 2026-10-08
 - [x] [**HandBrake**](fr-handbrake-HandBrake.md) · `fr.handbrake.HandBrake` — S · 一键 ✓ · changelog recipe（GitHub）✓ · 2026-10-08
 - [x] [**Typeless**](now-typeless-desktop.md) · `now.typeless.desktop` — P+C · electron-builder feed (VendorProbe) · 一键 dmg + sha512 · 结构化 changelog（gzip __NEXT_DATA__，含图）· channel-verify ✓ · 2026-06-19
@@ -324,7 +324,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**ChatGPT Atlas**](com-openai-atlas.md) · `com.openai.atlas` — S · ⚠️ **已停产**（OpenAI 2026-08-09 停止运行，feed 停在 1.2026.189.1）· 真包挂载验证 ✓ · 原审计误称「无 delta」，实测 head 条目 5 个 `<sparkle:deltas>`；无 changelog · 2026-08-31
 - [x] [**Perplexity**](ai-perplexity-macv3.md) · `ai.perplexity.macv3` — S · 真包 26.34.0 挂载验证 ✓（公证已恢复，一键可用）· ⚠️ **无 changelog**（feed 无 inline；docs.perplexity.ai 那份是 API 的，不是桌面端）· 2026-08-31
 - [x] [**TypeWhisper**](com-typewhisper-mac.md) · `com.typewhisper.mac` — S(stable+rc+daily) C · 三轨 tag 过、共享 bundle id · 真包 1.6.0/rc2/daily 三轨验证 ✓ · **rc 轨当时被判成 stable**（rc 包 short 也是 `1.6.0`），引擎已修 + 装 rc2 上机复验 · changelog 走官网 recipe（feed 无 inline；页面 mac/Windows 混排，须锚平台徽章）· 2026-08-31
-- [x] [**OpenUsage**](com-robinebers-openusage.md) · `com.robinebers.openusage` — S(stable+beta) C · 真包 v0.7.10 挂载验证 ✓（beta 显式 channel tag，beta 包实测正确升 stable）· **feed 51 条全无 `<description>`**，changelog 走 `ChangelogCatalog` 兜底到 GitHub releases（2026-08-31 补）· 2026-08-31
+- [x] [**OpenUsage**](com-robinebers-openusage.md) · `com.robinebers.openusage` — S(stable+beta) C · 真包 v0.7.10 挂载验证 ✓（beta 显式 channel tag，beta 包实测正确升 stable）· **feed 51 条全无 `<description>`**，changelog 读 GitHub releases（stable+beta 两条 recipe，2026-10-10；之前是 `ChangelogCatalog` 兜底页，2026-08-31 补，仍留作兜底）· 2026-08-31
 - [x] [**Supacode**](app-supabit-supacode.md) · `app.supabit.supacode` — S · default+tip 两轨真包验证 ✓（tip 经 build 反查推断，零 recipe）· **2026-08-31 复验发现 tip 轨当时被判成 default**（tip 包 short 与 default 条目同为 `0.10.8`，渠道推断按文档序先撞上 short），引擎已修为两趟匹配；tip 条目本身无 changelog · 2026-08-31
 - [x] [**PDF Expert**](com-readdle-PDFExpert-Mac.md) · `com.readdle.PDFExpert-Mac` — S C · ⚠️ bundle 的 `SUFeedURL` 指着一份 **2022 年冻结**的 feed（build 764），其中一条没有 `maximumSystemVersion`，于是通用 Sparkle 源在现代 Mac 上读到 2.5.22 并判「已是最新」——零报错、cask 又是 `auto_updates` 无人兜底，这个 app 一直是隐形的。新增 `SparkleFeedCatalog.supersededFeeds` 按**死地址**（不是 bundle id）换到 pem3 feed；判据是 pem3 的 `edSignature` 用装机 bundle 自己的 `SUPublicEDKey` 验签通过 ✓。changelog 走 recipe 解 `fullReleaseNotesLink` 那张页（88 条，appcast 那份只有最新一版）· **一键真机端到端 ✓**（降到官方 3.13.1 再让引擎装回 3.13.2，走的是 781 KB 增量包而非 128 MB 全量，签名/公证/回滚点全绿）· 2026-09-04
 - [x] [**CodeEdit**](app-codeedit-CodeEdit.md) · `app.codeedit.CodeEdit` — S · 每个 release 的 appcast 只有一条、且都打 `dev` tag（没有默认 channel），落后一版的副本会读成 unknown；加常量 `ChannelBinding` 放行 `dev` · 真包 v0.3.6 挂载验证 ✓ · 2026-09-12
@@ -383,10 +383,11 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Orion**](com-kagi-kagimacOS.md) · `com.kagi.kagimacOS` — 仅迁出历史：release notes 页从冻结的 cdn 副本改到 orionbrowser.com、changelog recipe 的实测
 - [ ] [**The Unarchiver**](com-macpaw-site-theunarchiver.md) · `com.macpaw.site.theunarchiver` — 仅迁出历史：一键 zip 的签名核对
 - [ ] [**Headlamp**](com-microsoft-Headlamp.md) · `com.microsoft.Headlamp` — 仅迁出历史：changelog 条目符号与计数的测量、repo 改名
-- [ ] [**Microsoft OneNote**](com-microsoft-onenote-mac.md) · `com.microsoft.onenote.mac` — 仅迁出历史：套件 pkg 与独立 pkg 的解析核对
-- [ ] [**Microsoft Outlook**](com-microsoft-Outlook.md) · `com.microsoft.Outlook` — 仅迁出历史：一键修复经过与 MAU 各 payload 的测量
+- [ ] [**Microsoft OneDrive**](com-microsoft-OneDrive.md) · `com.microsoft.OneDrive` — 仅迁出历史：探针换到 updater manifest 的经过（fwlink 停在 26.153）、真包签名核对、changelog recipe 接入实测
+- [ ] [**Microsoft OneNote**](com-microsoft-onenote-mac.md) · `com.microsoft.onenote.mac` — 仅迁出历史：套件 pkg 与独立 pkg 的解析核对、changelog recipe 接入实测
+- [ ] [**Microsoft Outlook**](com-microsoft-Outlook.md) · `com.microsoft.Outlook` — 仅迁出历史：一键修复经过与 MAU 各 payload 的测量、changelog recipe 接入实测
 - [ ] [**VS Code**](com-microsoft-VSCode.md) · `com.microsoft.VSCode` — 仅迁出历史：release 页加 blockquote 导致的回退
-- [ ] [**MongoDB Compass**](com-mongodb-compass.md) · `com.mongodb.compass` — 仅迁出历史：download-center JSON 与挂载 dmg 的核对
+- [ ] [**MongoDB Compass**](com-mongodb-compass.md) · `com.mongodb.compass` — 仅迁出历史：download-center JSON 与挂载 dmg 的核对；changelog 选 docs 页的取证
 - [ ] [**UURemote（网易UU远程）**](com-netease-uuremote.md) · `com.netease.uuremote` — 仅迁出历史：一键 pkg 的签名核对、changelog 页的排查
 - [ ] [**ChatGPT（原 Codex 桌面端）**](com-openai-codex.md) · `com.openai.codex` — 仅迁出历史：静态 feed 与灰度端点不一致、`plan_type` 两条轨的测量
 - [ ] [**Opera**](com-operasoftware-Opera.md) · `com.operasoftware.Opera` — 仅迁出历史：挂载 dmg 的版本方案核对、group D「只检测」说法的更正
@@ -399,14 +400,14 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Spotify**](com-spotify-client.md) · `com.spotify.client` — 仅迁出历史：stub 安装器版本与 cask 的比较、changelog 的排查
 - [ ] [**Sublime Merge**](com-sublimemerge.md) · `com.sublimemerge` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正、changelog 段结构实测
 - [ ] [**Sublime Text**](com-sublimetext-4.md) · `com.sublimetext.4` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正
-- [ ] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 zip 的签名核对
+- [ ] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 zip 的签名核对、changelog `feedPagePattern` 实测
 - [ ] [**Telegram Desktop**](com-tdesktop-Telegram.md) · `com.tdesktop.Telegram` — 仅迁出历史：两次挂载 dmg 的核对、文件名改名的时间线
-- [ ] [**TigerVNC**](com-tigervnc-tigervnc.md) · `com.tigervnc.tigervnc` — 仅迁出历史：一键 dmg 的核对
+- [ ] [**TigerVNC**](com-tigervnc-tigervnc.md) · `com.tigervnc.tigervnc` — 仅迁出历史：一键 dmg 的核对；changelog 为何用 JSON 正则；2026-10-10 改读 stable RSS（`best_release.json` 的 mac 默认停在 1.16.0）
 - [ ] [**Cursor**](com-todesktop-230313mzl4w4u92.md) · `com.todesktop.230313mzl4w4u92` — 仅迁出历史：changelog 页尾吞进页面框架的大小
 - [ ] [**Unity Hub**](com-unity3d-unityhub.md) · `com.unity3d.unityhub` — 仅迁出历史：一键 zip 对 `latest-mac.yml` 里 sha512 的字节核对
 - [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — 仅迁出历史：Insiders 一键 zip 的核对、channel proof 的 tag 计数、`detect` 那段指向的更正；stable 未审计，同 family 的 Insiders 已审计（见上「未编入分类」）
 - [ ] [**ToDesk**](com-youqu-todesk-mac.md) · `com.youqu.todesk.mac` — 仅迁出历史：下载页锚点的变化经过、灰度链接排到 GA 前面的复测、改读配置 API 只取 GA 的经过、macOS 更新日志页停更的版本
-- [ ] [**Wave Terminal**](dev-commandline-waveterm.md) · `dev.commandline.waveterm` — 仅迁出历史：一键 zip 对 `latest-mac.yml` 里 sha512 的字节核对
+- [ ] [**Wave Terminal**](dev-commandline-waveterm.md) · `dev.commandline.waveterm` — 仅迁出历史：一键 zip 对 `latest-mac.yml` 里 sha512 的字节核对；changelog 实测
 - [ ] [**Kiro**](dev-kiro-desktop.md) · `dev.kiro.desktop` — 仅迁出历史：从下载页换到更新元数据的经过、一键 zip 的核对、RSS 里不带版本号的条目数
 - [ ] [**Beekeeper Studio**](io-beekeeperstudio-desktop.md) · `io.beekeeperstudio.desktop` — 仅迁出历史：一键 arm64 dmg 的核对
 - [ ] [**Podman Desktop**](io-podmandesktop-PodmanDesktop.md) · `io.podmandesktop.PodmanDesktop` — 仅迁出历史：airgap 包的大小、repo 改名导致匿名限流的测量

@@ -159,17 +159,8 @@ public enum SparkleStagingClearance {
         let installers = installerJobs.filter { !isAgent($0) }
         let agents = installerJobs.filter(isAgent)
 
-        let first = await removeAndWait(installers, system: system)
-        guard first.survivors.isEmpty
-        else {
-            // The agent is untouched, so the gates still see an armed installer
-            // and "will apply it when you quit it" is still what they say.
-            return .notCleared(reason: first.reason, touchedInstaller: false)
-        }
-        let second = await removeAndWait(agents, system: system)
-        guard second.survivors.isEmpty
-        else {
-            return .notCleared(reason: second.reason, touchedInstaller: !installers.isEmpty)
+        if let failed = await removeInPhases(installers: installers, agents: agents, system: system) {
+            return failed
         }
 
         // Only now, with nothing left to act on it.
@@ -184,6 +175,86 @@ public enum SparkleStagingClearance {
         else { return .notCleared(reason: "staged bundle still on disk", touchedInstaller: true) }
         Log.install.notice("sparkle staging cleared: \(app.name, privacy: .public) — jobs gone, deleted \(stagingDirectory.path, privacy: .public)")
         return .cleared
+    }
+
+    /// Remove an installer parked on `app`'s quit whose staged build is gone
+    /// (`SelfUpdaterStaging.sparkleInstallerOrphaned`). There is nothing to
+    /// delete; what this buys is that the dead installer is not woken by the quit
+    /// our install makes, and that the app's own Sparkle, which only resumes a
+    /// parked installer, can check and stage again.
+    ///
+    /// Fails closed like `clear`: staging that is back, no `Autoupdate` job in this
+    /// user's domain (a root installer is not ours to judge dead), or a process
+    /// that survives removal all answer `.notCleared`.
+    public static func clearOrphanedInstaller(
+        for app: InstalledApp,
+        cachesDirectory: URL? = nil,
+        system: System = .live,
+        fileManager: FileManager = .default
+    ) async -> Outcome {
+        let outcome = await attemptOrphaned(
+            for: app, cachesDirectory: cachesDirectory, system: system, fileManager: fileManager)
+        if case .notCleared(let reason, _) = outcome {
+            Log.install.error("orphaned sparkle installer not cleared: \(app.name, privacy: .public) — \(reason, privacy: .public)")
+        }
+        return outcome
+    }
+
+    private static func attemptOrphaned(
+        for app: InstalledApp,
+        cachesDirectory: URL?,
+        system: System,
+        fileManager: FileManager
+    ) async -> Outcome {
+        guard let bundleID = app.bundleID,
+              let caches = cachesDirectory
+                ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
+        else { return .notCleared(reason: "no Sparkle cache this can locate", touchedInstaller: false) }
+        let sparkleRoot = caches
+            .appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
+        guard SelfUpdaterStaging.sparkleStagingIsGone(sparkleRoot: sparkleRoot, fileManager: fileManager)
+        else { return .notCleared(reason: "its staging is not gone", touchedInstaller: false) }
+
+        guard let jobs = await system.listJobs()
+        else { return .notCleared(reason: "could not list launchd jobs", touchedInstaller: false) }
+        let installerJobs = installerJobs(
+            in: jobs, for: app, sparkleRoot: sparkleRoot, system: system)
+        let isAgent: (Job) -> Bool = { job in
+            system.bundleIdentifier(job.pid).map(SelfUpdaterStaging.sparkleInstallerBundleIDs.contains) ?? false
+        }
+        let installers = installerJobs.filter { !isAgent($0) }
+        let agents = installerJobs.filter(isAgent)
+        guard !installers.isEmpty
+        else { return .notCleared(reason: "no installer job found for \(bundleID) in this user's domain", touchedInstaller: false) }
+
+        let described = installerJobs.map { "\($0.label) [\($0.pid)]" }.joined(separator: ", ")
+        Log.install.notice("sparkle installer orphaned: removing \(app.name, privacy: .public)'s installer jobs \(described, privacy: .public) — its staged build is gone")
+        if let failed = await removeInPhases(installers: installers, agents: agents, system: system) {
+            return failed
+        }
+        Log.install.notice("orphaned sparkle installer cleared: \(app.name, privacy: .public)")
+        return .cleared
+    }
+
+    /// `installers` first, `agents` only once those are confirmed gone — why, in
+    /// `attempt`. nil when every job is gone.
+    private static func removeInPhases(
+        installers: [Job], agents: [Job], system: System
+    ) async -> Outcome? {
+        let first = await removeAndWait(installers, system: system)
+        guard first.survivors.isEmpty
+        else {
+            // The agent is untouched, so the gates still see an armed installer
+            // and "will apply it when you quit it" is still what they say.
+            return .notCleared(reason: first.reason, touchedInstaller: false)
+        }
+        let second = await removeAndWait(agents, system: system)
+        guard second.survivors.isEmpty
+        else {
+            return .notCleared(reason: second.reason, touchedInstaller: !installers.isEmpty)
+        }
+        return nil
     }
 
     /// The pids of the installer `Autoupdate` processes parked on `app`'s quit —

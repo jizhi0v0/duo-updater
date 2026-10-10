@@ -4673,13 +4673,42 @@ final class AppListModel {
             return .notInstalled
         }
 
+        // An installer parked on this app's quit whose staged build was deleted
+        // from under it (ChatGPT, 2026-10-06 and 2026-10-11). It can apply
+        // nothing, so it is no collision — but our install's quit would wake it,
+        // and while it stays parked the app's own Sparkle never stages again.
+        // Removed first; one that will not go yields, like a partial clearance.
+        // See `SelfUpdaterStaging.sparkleInstallerOrphaned`.
+        var clearedOrphanedInstaller = false
+        if UpdatePolicy.armedInstallerBlocksInstall(
+            result, armed: SelfUpdaterStaging.sparkleInstallerOrphaned(for: result.app)) {
+            switch await SparkleStagingClearance.clearOrphanedInstaller(for: result.app) {
+            case .cleared:
+                clearedOrphanedInstaller = true
+            case .notCleared:
+                // Still true whatever was removed: quitting the app ends the
+                // installer (it fails and exits), and the next Update goes through.
+                let note = String(localized: "Couldn’t fully stop \(result.app.name)’s own updater — quit and reopen it, then update.")
+                installNotes[id] = note
+                inFlightNotes[id] = note
+                if !deferBookkeeping { await computeSelfUpdateStaging() }
+                installing[id] = nil
+                return .notInstalled
+            }
+        }
+
+        // Skipped once the orphan is cleared: its progress agent can outlive
+        // `Autoupdate` by a moment (on the mini it exited on its own just after),
+        // and seen alone, with no same-user `Autoupdate` left, it reads as the
+        // root-installer case below — yielding on the very install this cleared.
+        //
         // Same collision with the version unknown: an installer is parked on this
         // app's quit, and what it staged cannot be read (typically root staging
         // under /var/root). Measured
         // on Tailscale 2026-09-13: its vendor .pkg's preinstall quits the app, the
         // parked installer swaps its own copy in mid-install, and PackageKit writes
         // into that bundle. See `sparkleInstallerArmedWithUnreadableStaging`.
-        if UpdatePolicy.armedInstallerBlocksInstall(
+        if !clearedOrphanedInstaller, UpdatePolicy.armedInstallerBlocksInstall(
             result,
             armed: SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(for: result.app)) {
             Log.install.info("install yielded to armed self-updater: \(result.app.name, privacy: .public) has an installer parked on its quit (staged build unreadable)")

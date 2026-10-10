@@ -54381,6 +54381,71 @@
         }
       }
     },
+    "With DuoUpdater's helper turned on, the version can be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit eingeschaltetem Hilfsprogramm von DuoUpdater lässt sich die Version lesen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con el asistente de DuoUpdater activado, se puede leer la versión."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avec l’assistant de DuoUpdater activé, la version peut être lue."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con l’helper di DuoUpdater attivo, la versione si può leggere."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater のヘルパーをオンにすると、バージョンを読み取れます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Com o auxiliar do DuoUpdater ativado, a versão pode ser lida."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Если включить помощник DuoUpdater, версию можно будет прочитать."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater yardımcısı açıkken sürüm okunabilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 DuoUpdater 的辅助程序后，即可读取版本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟 DuoUpdater 的輔助程式後，即可讀取版本。"
+          }
+        }
+      }
+    },
     "Version unknown — click for why": {
       "extractionState": "manual",
       "localizations": {

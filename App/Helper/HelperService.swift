@@ -9,6 +9,12 @@ final class HelperService: NSObject, MASHelperProtocol {
 
     private static let workQueue = DispatchQueue(label: "com.duoupdater.helper.install")
 
+    /// Reads (`stagedSparkleBundleVersions`). Its own queue, never `workQueue`:
+    /// an install holds that one for as long as `mas` runs — minutes — and a read
+    /// must neither wait behind it nor delay it. Serial, so concurrent requests
+    /// cost root one walk at a time.
+    private static let readQueue = DispatchQueue(label: "com.duoupdater.helper.read")
+
     /// Fixed at accept time by `HelperPeerGate`, from the connection that passed
     /// the code-signing requirement.
     private let clientIdentity: HelperClientIdentity
@@ -88,7 +94,23 @@ final class HelperService: NSObject, MASHelperProtocol {
     }
 
     func helperVersion(withReply reply: @escaping (String) -> Void) {
-        reply((Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "0")
+        reply(HelperProtocolRevision.versionReply(
+            bundleVersion: (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "0"))
+    }
+
+    /// Read-only, and takes nothing from the client but the identifier, which
+    /// `StagedSparkleVersions.read` allow-lists before building a path from it.
+    /// No identity claim to check: nothing here runs in, or writes to, anyone's
+    /// session, and the connection itself already passed `HelperPeerGate`.
+    func stagedSparkleBundleVersions(bundleID: String,
+                                     withReply reply: @escaping (String?, String?, String?) -> Void) {
+        Self.readQueue.async {
+            guard let fields = StagedSparkleVersions.read(bundleID: bundleID) else {
+                reply(nil, nil, nil)
+                return
+            }
+            reply(fields.identifier, fields.shortVersion, fields.buildVersion)
+        }
     }
 
     enum LogFileError: LocalizedError {

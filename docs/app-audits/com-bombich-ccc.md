@@ -235,9 +235,14 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
   提供的版本（7.2）和旁边的说明（7.1.7-b7）说的不是一回事。没有按形状切换页面——那要从
   文件名去猜厂商当前处在哪个状态，正是这条 recipe 在别处刻意避免的推断。
   （2026-10-10 补：beta 页现在有结构化 `ChangelogRecipe`，所以周期之间 pane 显示的是
-  上一个 prerelease 的结构化条目；`duo verify` 的 changelog 行那时会因为最新条目在
-  major.minor 上落后 beta probe 的毕业版而出 `warn`。这是同一个已知代价的另一面，不是
-  recipe 坏了。2026-10-10 当天 beta 周期开着，页面和 probe 都是 `7.2.2-b4`，不触发。）
+  上一个 prerelease 的结构化条目。`duo verify` 的 lag 检查（`Verify.changelogLagComplaint`）
+  只比 major.minor，所以只在**毕业版换了 minor** 时出 `warn`：用生产函数实测，页面
+  `7.2.2-b4` 对 probe `7.2.2` 不报，对 `7.3.0` 报 "trails the detected version … by a whole
+  release"；9 月那次真实的 `7.1.7-b7` → `7.2` 也会报。反方向（页面 `7.3.0-b1`、probe
+  `7.2.2`）的 lead 检查不报，因为 stable 这一 channel 同时有 7.x/6.x/5.x 三个代际的行，
+  `changelogLeadsProbeComplaint` 的「一个 channel 两个命名空间」守卫直接返回 nil。
+  `warn` 会累加 `consecutiveActionable`，所以这种毕业会在下一个 beta 周期开张前每轮扫描
+  都算一次。2026-10-10 当天 beta 周期开着，页面和 probe 都是 `7.2.2-b4`，不触发。）
 
 **复审补出来的两条代价（第一版的代价清单漏了，记在这里而不是留给下一个人发现）：**
 

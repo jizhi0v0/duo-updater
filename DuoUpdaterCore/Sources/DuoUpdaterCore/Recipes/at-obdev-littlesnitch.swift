@@ -154,8 +154,9 @@ enum at_obdev_littlesnitch {
         // the span is left out. The very first release reads "Little Snitch 6", so
         // the minor is optional. `<li>` and `<p>` are one item pattern in document
         // order: a hot-fix release is plain paragraphs, and 6.5 opens with an
-        // "IMPORTANT" paragraph before its lists. `<h4>` section names render as
-        // headings. The body ends at the next block or the end of the section.
+        // "IMPORTANT" paragraph before its lists. `<h4>` section names and the
+        // `<h5>` sub-sections of larger releases render as headings. The body ends
+        // at the next block or the end of the section.
         //
         // The page lists final releases only; it carries no nightly, beta or
         // preview entry. That is why a nightly copy is excluded rather than shown
@@ -173,6 +174,6 @@ enum at_obdev_littlesnitch {
             itemPatterns: [#"<(?:li|p)(?:\s[^>]*)?>(?<item>.*?)</(?:li|p)>"#],
             channel: .stable,
             excludedChannels: [.nightly],
-            headingPattern: #"<h4[^>]*>(?<heading>[^<]*)</h4>"#),
+            headingPattern: #"<h[45][^>]*>(?<heading>[^<]*)</h[45]>"#),
         ])
 }

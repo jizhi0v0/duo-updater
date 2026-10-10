@@ -32,9 +32,12 @@ enum com_surteesstudios_Bartender {
             mode: .responseBody,
             versionPattern: #"<sparkle:shortVersionString>([0-9]+\.[0-9]+\.[0-9]+)</sparkle:shortVersionString>"#,
             // The human release-notes page (every Bartender 6 build, newest
-            // first), not the appcast: this URL is what the pane embeds when no
-            // recipe produces notes. It does not match the changelog recipe's
-            // `feedPagePattern` on purpose, so it is only ever embedded.
+            // first), because an appcast XML is not a changelog page. It only
+            // matters if this probe ever answers, and in production it does not:
+            // Sparkle answers first (above), so the pane falls back to that
+            // answer's per-version `rnotes.html` link, a 404 page for the
+            // versions whose page is gone. It does not match the changelog
+            // recipe's `feedPagePattern`, so it would only be embedded.
             changelogURL: URL(string: "https://www.macbartender.com/Bartender6/release_notes/")!,
             selectHighest: true,
             // `bodyPatternLast`, not `bodyPattern`: this appcast is ASCENDING, so the

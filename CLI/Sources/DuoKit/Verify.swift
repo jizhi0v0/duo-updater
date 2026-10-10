@@ -1104,11 +1104,8 @@ public enum Verify {
             // is no detected version for the other train to compare against, so the
             // honest move is to skip the cross-check rather than to invent a
             // complaint the recipe can never clear.
-            if let version, recipe.covers(appVersion: version),
-               let complaint = changelogLagComplaint(
-                   entry: top, detected: version,
-                   acknowledged: recipe.acknowledgedStaleEntry,
-                   ordersByLineage: VendorProbeRegistry.ordersByLineage(bundleID: recipe.bundleID)) {
+            if let version,
+               let complaint = changelogLagWarning(recipe, entry: top, detected: version) {
                 warnings.append(complaint)
             }
             // And the reverse: this page ahead of every probe row for the app,
@@ -1470,6 +1467,52 @@ public enum Verify {
         else { return nil }
         return "newest changelog entry (\(entry)) trails the detected version (\(detected)) "
             + "by a whole release — the entry pattern may be reading a stale section"
+    }
+
+    /// The lag cross-check as `sweepChangelog` applies it to one recipe: only
+    /// against a version the recipe is for, and only when the page and that
+    /// version are on the same train (`probeRestsOffChannel`).
+    static func changelogLagWarning(
+        _ recipe: ChangelogRecipe, entry: String, detected: String
+    ) -> String? {
+        guard recipe.covers(appVersion: detected),
+              !probeRestsOffChannel(recipe, entry: entry, detected: detected)
+        else { return nil }
+        return changelogLagComplaint(
+            entry: entry, detected: detected,
+            acknowledged: recipe.acknowledgedStaleEntry,
+            ordersByLineage: VendorProbeRegistry.ordersByLineage(bundleID: recipe.bundleID))
+    }
+
+    /// Whether a channel recipe's page and the version it would be judged against
+    /// are on different trains — the page's newest entry is marked as this
+    /// recipe's channel, and the probe's answer is not.
+    ///
+    /// Carbon Copy Cloner is the case: `ccc7_rn_beta.html` describes the current
+    /// beta cycle, and between cycles `?v=latestbeta` answers the graduated
+    /// stable while the page stays on the closed cycle's last prerelease. A
+    /// graduation that bumps the minor (`7.1.7-b7` → `7.2`) then reads as the
+    /// page trailing "by a whole release" on every sweep until the vendor opens
+    /// the next cycle — a recurring issue against a page that is correct. There
+    /// is nothing on this channel's train to compare the page with, so the lag
+    /// check is skipped, the same call `covers(appVersion:)` makes for a version
+    /// outside the recipe's window.
+    ///
+    /// Both sides go through `ReleaseChannel.detect` from the version and bundle
+    /// id alone. Requiring the PAGE to read as the channel keeps this to vendors
+    /// whose versions carry the channel: for one whose versions carry no marker,
+    /// the entry reads as stable, this answers false, and the lag check runs as
+    /// before. A beta page behind a beta answer (`7.1.7-b7` against `7.3.0-b1`)
+    /// is still judged — that page really is stale.
+    static func probeRestsOffChannel(
+        _ recipe: ChangelogRecipe, entry: String, detected: String
+    ) -> Bool {
+        guard let channel = recipe.channel, channel != .stable else { return false }
+        func read(_ version: String) -> ReleaseChannel {
+            ReleaseChannel.detect(
+                name: "", bundleID: recipe.bundleID, keystoneChannel: nil, version: version)
+        }
+        return read(entry) == channel && read(detected) != channel
     }
 
     /// How far a date-numbered changelog may fall behind the shipped build before

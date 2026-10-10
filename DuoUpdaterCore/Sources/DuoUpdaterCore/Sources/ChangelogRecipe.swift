@@ -58,6 +58,9 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// whose path spells the version its own way (`26.6` → `26_6`, `27.0` → `27`).
     /// See `appleDocVersionToken(for:)` for why none of the other three can stand
     /// in for it.
+    ///
+    /// `{firefoxVersion}` is `{version}` as firefox.com spells it, which differs
+    /// from thunderbird.net only for ESR: see `firefoxVersionToken(for:)`.
     public let sourceTemplate: String?
 
     /// The fetched document names no version, so each entry's version is the one
@@ -755,7 +758,28 @@ public struct ChangelogRecipe: Codable, Sendable {
             urlString = urlString.replacingOccurrences(
                 of: "{appleDocVersion}", with: Self.appleDocVersionToken(for: token))
         }
+        if urlString.contains("{firefoxVersion}") {
+            urlString = urlString.replacingOccurrences(
+                of: "{firefoxVersion}", with: Self.firefoxVersionToken(for: token))
+        }
         return URL(string: urlString) ?? source
+    }
+
+    /// The channel-normalized token (`urlVersionToken`) as firefox.com names its
+    /// release-notes pages. Only the ESR form differs from thunderbird.net's: an
+    /// ESR keeps its `esr` suffix only while its minor is `0`, when the number is
+    /// shared with a Release build (`140.0esr` next to Release `140.0`, `115.0.2esr`
+    /// next to `115.0.2`). From `X.1.0` on the number is ESR's alone and the page
+    /// carries the bare version (`/140.17.0/`), while `/140.17.0esr/` is a 404.
+    /// Thunderbird's ESR pages keep the suffix throughout, which is why this is a
+    /// separate placeholder rather than a change to `{version}`.
+    /// Every other token (Beta's `158.0beta`, Nightly's `160.0a1`) passes through.
+    static func firefoxVersionToken(for token: String) -> String {
+        guard token.hasSuffix("esr") else { return token }
+        let bare = String(token.dropLast(3))
+        let parts = bare.split(separator: ".")
+        guard parts.count >= 2, parts[1] != "0" else { return token }
+        return bare
     }
 
     /// The version as Apple spells it in a `developer.apple.com` release-notes
@@ -805,7 +829,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         case .esr:
             return version.hasSuffix("esr") ? version : version + "esr"
         case .beta:
-            // Thunderbird beta notes live at "<major.minor>beta" (e.g. 152.0beta).
+            // Thunderbird and Firefox beta notes live at "<major.minor>beta" (e.g. 152.0beta).
             // The install strips the bN build suffix (152.0); the probe carries it
             // (152.0b3). Drop any trailing bN, then append "beta".
             let base = version.replacingOccurrences(

@@ -159,10 +159,15 @@ accepts either host.)
 ### Recipes/com-surteesstudios-Bartender.swift — VendorProbe `changelogURL`（2026-10-10 改）
 
 接入前 probe 的 `changelogURL` 是 appcast `www.macbartender.com/B2/updates/AppcastB6.xml`（307 到
-`downloads.macbartender.com`），recipe 出不了内容时 pane 会嵌一份原始 XML。只读 GET 找人读的页面：
+`downloads.macbartender.com`）。appcast XML 不是 changelog 页，所以改值；但这个字段只在 probe 自己应答时才用到，
+生产上不会：`SourceStack` 里 `SparkleAppcastSource` 排在 `VendorProbeSource` 前，`UpdateChecker` 取第一个应答的源，
+`RemoteVersion.changelogURL` = `best.releaseNotesLink`，`ChangelogRecipeSelection.fallbackPage` 用的就是它。
+所以 recipe 出不了内容时 pane 嵌的是该版本的 `rnotes.html`；6.1.2、6.1.3、6.2.1、6.3.0、6.3.1、6.4.1 那 6 页是 404，
+嵌的就是 404 页——已知缺口，本次不改行为。（本节初稿和那次提交说明写成「pane 会嵌原始 XML」，是错的。）
+只读 GET 找人读的页面：
 `/Bartender6/support/` 链出 `/Bartender6/release_notes/`（200，9314 B，标题 "Bartender 6 - Release Notes"，
 同页列出 6.x 各版说明，最新 6.6.2；另有 "Test Builds" 一节）；`/Bartender6/releasenotes/`、`/Bartender6/changelog/`、
-`/B2/updates/` 均 404。改指 `/Bartender6/release_notes/`。它不匹配 `feedPagePattern`，所以只会被嵌入，不会被 recipe 解析。
+`/B2/updates/` 均 404。改指 `/Bartender6/release_notes/`。它不匹配 `feedPagePattern`，若被用到也只会被嵌入，不会被 recipe 解析。
 同一 support 页还链出 `/Bartender7/release_notes/` 与 Bartender 7 的 dmg：Bartender 7 已存在，本次未调查。
 
 ### Bartender 7 接入（2026-10-10）

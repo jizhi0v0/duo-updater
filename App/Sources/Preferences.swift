@@ -107,6 +107,7 @@ final class Preferences {
         static let marketingByBuild = "MarketingVersionByBuild"
         static let stagedPackages = "StagedPackages"
         static let showRuntimeTags = "ShowRuntimeTags"
+        static let showCLIRuntimeTags = "ShowCLIRuntimeTags"
         static let renewAppleDeveloperSession = AppleDeveloperSessionRenewal.enabledKey
         static let acknowledgedSpotlights = "AcknowledgedSettingsSpotlights"
         static let lastRunSelfVersion = "LastRunSelfVersion"
@@ -326,6 +327,14 @@ final class Preferences {
     /// filter admits, six of about a hundred and fifty here.
     var showRuntimeTags: Bool {
         didSet { defaults.set(showRuntimeTags, forKey: Key.showRuntimeTags) }
+    }
+
+    /// The same for the CLI tab: whether each command-line tool's row and detail
+    /// header say what it is built with (Go, Rust, Bun, …). Its own switch, beside
+    /// the apps' one, so either list can go without the other. Display only, like
+    /// `showRuntimeTags`; `duo` prints the runtime regardless.
+    var showCLIRuntimeTags: Bool {
+        didSet { defaults.set(showCLIRuntimeTags, forKey: Key.showCLIRuntimeTags) }
     }
 
     /// When Apple ends the Apple Developer session, try once to get a new one
@@ -612,6 +621,7 @@ final class Preferences {
         self.autoRestartAfterUpdate = defaults.object(forKey: Key.autoRestartAfterUpdate) as? Bool ?? true
         self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true
         self.showRuntimeTags = defaults.object(forKey: Key.showRuntimeTags) as? Bool ?? true
+        self.showCLIRuntimeTags = defaults.object(forKey: Key.showCLIRuntimeTags) as? Bool ?? true
         self.renewAppleDeveloperSession = AppleDeveloperSessionRenewal.isEnabled(in: defaults)
         self.acknowledgedSpotlights = Set(defaults.stringArray(forKey: Key.acknowledgedSpotlights) ?? [])
         // `.incremental` is not offered in Settings (see `visibleCases`), but it is

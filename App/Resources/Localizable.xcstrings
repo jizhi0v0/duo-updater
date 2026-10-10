@@ -43293,6 +43293,71 @@
         }
       }
     },
+    "Show what each command-line tool is built with": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anzeigen, womit jedes Befehlszeilenwerkzeug gebaut ist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar con qué está hecha cada herramienta de línea de comandos"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher avec quoi chaque outil en ligne de commande est conçu"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra con cosa è creato ogni strumento da riga di comando"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "各コマンドラインツールの実装技術を表示"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar com o que cada ferramenta de linha de comando é feita"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывать, на чём написан каждый инструмент командной строки"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her komut satırı aracının neyle geliştirildiğini göster"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示每个命令行工具用什么技术构建"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示每個命令列工具以什麼技術建構"
+          }
+        }
+      }
+    },
     "Showing the most recent %lld of %lld matching requests": {
       "extractionState": "manual",
       "localizations": {

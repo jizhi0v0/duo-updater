@@ -7,9 +7,9 @@ enum com_tigervnc_tigervnc {
         // History: docs/app-audits/com-tigervnc-tigervnc.md#历史与实测
         // TigerVNC — read from SourceForge's file RSS for `/stable`, not from
         // `best_release.json`. That JSON's `platform_releases.mac` is the
-        // project's chosen *default download*, which a maintainer moves by hand,
-        // and it can stay on an older release after a newer dmg is uploaded (see
-        // History). The RSS lists the files themselves, newest upload first.
+        // project's *default download* for macOS, and it can stay on an older
+        // release after a newer dmg is uploaded (see History). The RSS lists the files themselves, roughly newest upload
+        // first (not strictly — History).
         //
         // Each item's `<title>` is the file's path. The pattern takes only
         // `/stable/<v>/TigerVNC-<v>.dmg` — the backreference requires the folder
@@ -25,11 +25,12 @@ enum com_tigervnc_tigervnc {
         // the probe sees an older dmg or none: a late or unknown answer, never a
         // version that was not shipped.
         //
-        // ONE-CLICK via `.versionTemplate`: the URL is SourceForge's permanent
-        // `files/<path>/download` redirect, filled with the version that won the
-        // comparison, so the download is the dmg being reported. Developer ID
-        // (Brian Hinz, S5LX88A9BW), notarized; `spctl` accepts the app mounted
-        // from the dmg (checked 2026-10-10; History has the dmg version).
+        // ONE-CLICK via `.versionTemplate`: the URL is SourceForge's stable
+        // `files/<path>/download` link (it 302s to a mirror), filled with the
+        // version that won the comparison, so the download is the dmg being
+        // reported. Developer ID (Brian Hinz, S5LX88A9BW), notarized; `spctl`
+        // accepts the app mounted from the dmg (checked 2026-10-10; History has
+        // the dmg version).
         VendorProbeRecipe(
             bundleID: "com.tigervnc.tigervnc",
             url: URL(string: "https://sourceforge.net/projects/tigervnc/rss?path=/stable")!,
@@ -43,8 +44,9 @@ enum com_tigervnc_tigervnc {
                     "https://sourceforge.net/projects/tigervnc/files/stable/"
                     + "{version}/TigerVNC-{version}.dmg/download"),
                 kind: .dmg),
-            // Same SourceForge edge as `sourceForgeMacRecipe`: it has refused the
-            // browser-like default UA, so send a tool UA here too.
+            // This feed answered a browser UA too (History); the tool UA is kept
+            // because the same host's `best_release.json` has 403'd the browser one
+            // (`sourceForgeMacRecipe`), and one rule per host is easier to keep.
             requestHeaders: ["User-Agent": "DuoUpdater/0.1"]),
         ])
 }

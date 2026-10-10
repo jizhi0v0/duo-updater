@@ -7575,7 +7575,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "被 Homebrew 删除的配方不会再收到更新。"
+            "value": "被 Homebrew 删除的 formula 不会再收到更新。"
           }
         },
         "zh-Hant": {
@@ -7640,7 +7640,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "被 Homebrew 改名的配方必须先迁移，Homebrew 才能检查任何配方的更新——窗口里有迁移命令。"
+            "value": "被 Homebrew 改名的 formula 必须先迁移，Homebrew 才能检查任何 formula 的更新——窗口里有迁移命令。"
           }
         },
         "zh-Hant": {
@@ -7705,7 +7705,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "被 Homebrew 换成 cask 的配方不会再以配方形式收到更新——窗口里有切换到 cask 的命令。"
+            "value": "被 Homebrew 换成 cask 的 formula 不会再以 formula 形式收到更新——窗口里有切换到 cask 的命令。"
           }
         },
         "zh-Hant": {
@@ -13624,7 +13624,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew 已不再提供 %@ 配方，也没有同名 cask 取代它，已安装的副本不会再收到更新。"
+            "value": "Homebrew 已不再提供 %@ formula，也没有同名 cask 取代它，已安装的副本不会再收到更新。"
           }
         },
         "zh-Hant": {
@@ -13689,7 +13689,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew 已将 %@ 改名为 %@，但已安装的副本还没有迁移。迁移之前，Homebrew 无法检查任何配方的更新。要迁移，请运行：%@"
+            "value": "Homebrew 已将 %@ 改名为 %@，但已安装的副本还没有迁移。迁移之前，Homebrew 无法检查任何 formula 的更新。要迁移，请运行：%@"
           }
         },
         "zh-Hant": {
@@ -13754,7 +13754,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew 已用同名 cask 取代了 %@ 配方，已安装的配方不会再收到更新。要切换到 cask，请运行：%@"
+            "value": "Homebrew 已用同名 cask 取代了 %@ formula，已安装的 formula 不会再收到更新。要切换到 cask，请运行：%@"
           }
         },
         "zh-Hant": {
@@ -14014,7 +14014,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "从 HEAD 安装，构建自提交 %@。Homebrew 不会把它和上游比较，所以在这个配方发布下一个版本之前，它都显示为最新。"
+            "value": "从 HEAD 安装，构建自提交 %@。Homebrew 不会把它和上游比较，所以在这个 formula 发布下一个版本之前，它都显示为最新。"
           }
         },
         "zh-Hant": {
@@ -14079,7 +14079,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "从 HEAD 安装。Homebrew 不会把它和上游比较，所以在这个配方发布下一个版本之前，它都显示为最新。"
+            "value": "从 HEAD 安装。Homebrew 不会把它和上游比较，所以在这个 formula 发布下一个版本之前，它都显示为最新。"
           }
         },
         "zh-Hant": {
@@ -15769,7 +15769,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "它是带版本号的配方。"
+            "value": "它是带版本号的 formula。"
           }
         },
         "zh-Hant": {
@@ -41787,7 +41787,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "运行 `brew upgrade --formula` — 一次性升级所有过期的命令行配方。Cask 在上方逐行管理。"
+            "value": "运行 `brew upgrade --formula` — 一次性升级所有过期的命令行 formula。Cask 在上方逐行管理。"
           }
         },
         "zh-Hant": {
@@ -41917,7 +41917,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "运行 `brew upgrade --formula`，然后按名称升级所有列出的 cask。涵盖命令行配方以及不安装应用的 cask（CLI、字体）— 它们没有自己的行。GUI cask 在上方按应用逐个管理，绝不会被触及。计数读取你本地的 tap；brew 会在升级过程中自我刷新，因此仍会获取最新版本。"
+            "value": "运行 `brew upgrade --formula`，然后按名称升级所有列出的 cask。涵盖命令行 formula 以及不安装应用的 cask（CLI、字体）— 它们没有自己的行。GUI cask 在上方按应用逐个管理，绝不会被触及。计数读取你本地的 tap；brew 会在升级过程中自我刷新，因此仍会获取最新版本。"
           }
         },
         "zh-Hant": {

@@ -84,8 +84,6 @@ enum ChangelogCoverage {
             "Sparkle appcast ships inline HTML notes for every item, so the page is never shown",
         "com.surteesstudios.Bartender":
             "feasible, not written yet: feedPagePattern on the appcast's per-version rnotes.html",
-        "com.tdesktop.Telegram":
-            "feasible, not written yet: .gitHubReleases on telegramdesktop/tdesktop (telegram.org/blog has no versions)",
         "com.tigervnc.tigervnc":
             "feasible, not written yet: .gitHubReleases on TigerVNC/tigervnc (some bodies are prose only)",
         "com.vivaldi.Vivaldi.snapshot":
@@ -94,8 +92,6 @@ enum ChangelogCoverage {
             "feasible, not written yet: .gitHubReleases on wavetermdev/waveterm",
         "dev.warp.Warp-Dev":
             "the dev track publishes no notes: its channel_versions.json entry is a placeholder",
-        "im.riot.app":
-            "feasible, not written yet: .gitHubReleases on element-hq/element-web, ^v tagPattern (element-desktop is archived)",
         "im.riot.nightly":
             "nightly build stamps (YYYYMMDDNN) have no tag or notes of their own",
         "net.librewolf.librewolf":
@@ -112,10 +108,6 @@ enum ChangelogCoverage {
             "feasible but headlines only: the home page's #Releases highlights; full NEWS is one text file per version",
         "org.libreoffice.script":
             "landing page of blurbs; the real notes are per branch, on a bot-walled wiki",
-        "org.whispersystems.signal-desktop":
-            "feasible, not written yet: .gitHubReleases on signalapp/Signal-Desktop (notes are thin)",
-        "org.whispersystems.signal-desktop-beta":
-            "feasible, not written yet: .gitHubReleases on signalapp/Signal-Desktop, channel .beta",
         "tv.plex.desktop":
             "feasible but weak: a forum thread that posts only some releases, via an undocumented JSON clamp",
     ]

@@ -38,7 +38,7 @@
   desktop 版本现在由 element-web 出，tag `v1.12.30` 去掉 `v` = `currentRelease`。tagPattern 必需：同一个
   Releases 列表还发 `module/banner/v2.1.1` 等模块包，且它们**不是** prerelease，光靠 stable 过滤会混进来；
   `-rc.N` 是 prerelease，被 stable 过滤掉，`$` 锚也拒。
-- **nightly**：changelogURL 仍是 `https://github.com/element-hq/element-desktop/releases`（已归档仓库）；
+- **nightly**：changelogURL 同样改为 `https://github.com/element-hq/element-web/releases`（原 element-desktop 仓库已归档）；
   不写 recipe —— 版本是 `YYYYMMDDNN` 构建戳，没有自己的 tag 或 release notes，没有任何条目能对上
   （`ChangelogCoverage.acknowledged` 里那一行保留）。
 

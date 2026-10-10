@@ -28,7 +28,7 @@ enum im_riot_app {
             mode: .responseBody,
             versionPattern: #""currentRelease"\s*:\s*"([^"]+)""#,
             downloadURL: URL(string: "https://element.io/download"),
-            changelogURL: URL(string: "https://github.com/element-hq/element-desktop/releases"),
+            changelogURL: URL(string: "https://github.com/element-hq/element-web/releases"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#""url"\s*:\s*"(https://packages\.element\.io/[^"]+\.zip)""#),
                 kind: .zip),

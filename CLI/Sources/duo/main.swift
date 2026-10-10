@@ -232,8 +232,8 @@ events options:
 verify options:
   --only <text>       Restrict to recipes whose bundle id or recipe id contains
                       <text> (so `--only beta` selects every beta channel).
-                      Comma-separated for several. Without it all six
-                      registries are swept (~150 requests, about 3 minutes).
+                      Comma-separated for several. Without it every registry
+                      below is swept (~150 requests, about 3 minutes).
   --vendor            Sweep only the vendor probe recipes.
   --github            Sweep only the GitHub release rules.
   --changelog         Sweep only the changelog recipes.
@@ -247,6 +247,10 @@ verify options:
                       its own it has none and reports every package as skipped.
                       Watches for drift, NOT installability: the declaration is
                       the vendor's claim, not the payload's slices (#415).
+  --coverage          Report only the apps that link a changelog page but have
+                      no recipe to structure it, and are not in the list of
+                      accepted gaps (ChangelogCoverage.acknowledged). Fetches
+                      nothing.
   --samples           Print the fetched body sample for each flagged recipe —
                       what you need to re-derive a broken pattern.
   --no-installed      Don't cross-check against locally installed apps. Implied

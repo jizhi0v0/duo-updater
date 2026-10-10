@@ -42,7 +42,12 @@
 - stable: changelogURL `https://learn.microsoft.com/deployedge/microsoft-edge-relnote-stable-channel` (WebView)
 - beta: `https://learn.microsoft.com/deployedge/microsoft-edge-relnote-beta-channel`
 - dev: **无 changelogURL**
-- 无 ChangelogRecipe（均为 WebView 内嵌官网页）
+- **stable / beta 已接 `ChangelogRecipe`（2026-10-10）**，正则读上面两页：每条是
+  `<h2>Version <4 段版本>: <日期> …</h2>` 到下一个 `<h2>`，版本与企业 API 的 `ProductVersion` 同一方案。
+  stable 页同时列 Extended Stable 的更新，recipe 只取标题带「(Stable)」的；页面只覆盖当前与上一个大版本，
+  所以只有几条（2026-10-10 为 4 条）。beta 页不分标签，全取。列表行逐条（嵌套子项单列），小版本没有列表时
+  取「Release Summary」表的描述格，再退到段落。dev 仍无页、无 recipe。
+- 接入前：无 ChangelogRecipe（stable/beta 均为 WebView 内嵌官网页）。
 
 2026-08-28（issue #107）：Microsoft 把**按 channel 分的**页面从 `…-relnotes-<channel>`
 改成 `…-relnote-<channel>`（单数），旧拼法全部 404。stable / beta 按新拼法重指即可。
@@ -117,3 +122,17 @@ with 154.0.4258.9 back under Beta, it stops matching.
 实测（2026-10-07，只读 GET `edgeupdates.microsoft.com/api/products?view=enterprise`，326,171 B）：三个 channel 的首个 MacOS release 都是 `universal`，各列三个 artifact——`pkg`、`plist`、`p7s`——键依次是 `ArtifactName, Location, Hash, HashAlgorithm, SizeInBytes`，`Hash` 是大写 hex、`HashAlgorithm` 都是 `SHA256`（`CLIToolTrust.matches` 不分大小写）。Dev `156.0.4301.0`、Beta `155.0.4283.39`、Stable `154.0.4258.62`。`go.microsoft.com/fwlink/?linkid=2093504` 302 到 `…/a51ab0b3-605c-4237-9ea5-eedd05bb664a/MicrosoftEdge-154.0.4258.62.pkg`，与 API 里 Stable 首个 MacOS pkg 的 `Location` 逐字相同。
 
 三个 pkg（Dev 434,828,393 B、Beta 432,748,275 B、Stable 经 fwlink 447,901,536 B，都等于 `SizeInBytes`）下载后 `shasum -a 256` 分别是 `60481a8a…44bc`、`aaaa74fd…4d3b`、`78caa04b…5af1`，与各自 pkg 的 `Hash` 相同。临时 Swift 测试经生产 `VendorProbeSource` 跑三个 recipe，`expectedSHA256` 即上述 `Hash`，`VendorInstaller.verifySHA256` 对真文件通过、翻转一个字节后抛 `checksumMismatch`。没有跑 `duo install`。fwlink 与 API 在新版发布时是否会短暂错开没有观测过（未验证）；错开时 Stable 的安装会因摘要不符被拒，而不是装上未核对的包。
+
+### Recipes/com-microsoft-edgemac.swift — stable / beta ChangelogRecipe（2026-10-10 接入）
+
+实测 2026-10-10，生产解析器（临时测试，`ChangelogService.loadDiagnostic`）：
+
+- stable（`microsoft-edge-relnote-stable-channel`，69,167 字节）：http=200，4 条 ——`155.0.4283.45`
+  （October 08, 2026，Main Release，14 条 + 5 个小标题）、`152.0.4191.53`（August 27, 2026）、`152.0.4191.66`、
+  `152.0.4191.62`（后两条是只有摘要表的小更新）。页面另有 7 条「(Extended Stable)」152.0.4191.x 更新，被跳过。
+  最新条目 = baseline `vendor:com.microsoft.edgemac:stable` 的 `155.0.4283.45`。
+- beta（`microsoft-edge-relnote-beta-channel`，215,005 字节）：http=200，40 条（`maxEntries` 上限，页面共
+  107 条），最新 `156.0.4314.8`（October 6, 2026，24 条）、`155.0.4283.39`、`155.0.4283.33`。baseline
+  `vendor:com.microsoft.edgemac.Beta:beta` 是 `156.0.4314.15`：页面比 Beta 实际推送晚几个构建，
+  `156.0.4314.15` 不在条目里（同一大版本，`duo verify` 的 major.minor 落后检查不会报）。
+

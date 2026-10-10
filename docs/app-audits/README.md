@@ -380,6 +380,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Gemini**](com-google-GeminiMacOS.md) · `com.google.GeminiMacOS` — 仅迁出历史：Omaha 版本方案核对、release-notes 页不对应
 - [ ] [**Alcove**](com-henrikruscon-Alcove.md) · `com.henrikruscon.Alcove` — 仅迁出历史：旧端点 NXDOMAIN、公开 trial 包滞后、changelog 网页的旧形态 · 另记 `minimum_system_version`（公开端点 2026-09-15 实测为 `15 Sequoia`）
 - [ ] [**IntelliJ IDEA**](com-jetbrains-intellij.md) · `com.jetbrains.intellij` — 仅迁出历史：版本段数被钉死时的故障
+- [ ] [**Orion**](com-kagi-kagimacOS.md) · `com.kagi.kagimacOS` — 仅迁出历史：release notes 页从冻结的 cdn 副本改到 orionbrowser.com、changelog recipe 的实测
 - [ ] [**The Unarchiver**](com-macpaw-site-theunarchiver.md) · `com.macpaw.site.theunarchiver` — 仅迁出历史：一键 zip 的签名核对
 - [ ] [**Headlamp**](com-microsoft-Headlamp.md) · `com.microsoft.Headlamp` — 仅迁出历史：changelog 条目符号与计数的测量、repo 改名
 - [ ] [**Microsoft OneNote**](com-microsoft-onenote-mac.md) · `com.microsoft.onenote.mac` — 仅迁出历史：套件 pkg 与独立 pkg 的解析核对

@@ -25,7 +25,10 @@
 - 生产验证: mounted DMG `2.9.7 → 2.9.7`, stable/up-to-date。
 
 ## Changelog
-- `https://msty.ai/resources/changelog/studio/`。
+- `https://msty.ai/resources/changelog/studio/`，**已接 `ChangelogRecipe`（2026-10-10）**，正则只读稳定版：
+  页面把 3.0 beta 线（`id="msty-3.0.0-beta.N"`，「Msty Studio 3.0.0 Beta N」）和 2.0 的 alpha/beta 与稳定版
+  交错放在一起，recipe 要求 `<h2 id="msty-` 后只有数字和点，beta/alpha 和早期无日期的 slug 帖全部跳过。
+  条目版本与 `latest-mac.yml` 的 `version` 同一方案（`2.9.11`）。`<h3>` 分类（Features / Fixes）保留为小标题。
 
 ## 一键安装
 - 状态: **已启用**（2026-08-29），`.fixed` →
@@ -86,3 +89,12 @@ Verified 2026-08-29 on the artifact this spec selects: 248,234,928 B,
 extracts to `MstyStudio.app` 2.9.8, `Developer ID Application: Ashok
 Gelal (S6CF5A8MX9)`, spctl "accepted / Notarized Developer ID",
 `lipo -archs` = arm64.
+
+### Recipes/MstyStudio.swift — ChangelogRecipe（2026-10-10 接入）
+
+实测 2026-10-10：`msty.ai/resources/changelog/studio/` → 200，解码后 143,171 字节。页首顺序是
+`3.0.0-beta.15`、`beta.14`、`beta.13`、`2.9.11`、`beta.12`、`2.9.10`……；稳定版 id 里 `msty-2.1.0.` 与
+`msty-2.0.1.` 带一个多余的尾点。生产解析器（临时测试，`ChangelogService.loadDiagnostic`）：http=200，33 条，
+最新 `2.9.11`（2026-09-15，2 条，小标题 Features/Fixes）、`2.9.10`（2026-09-13）、`2.9.9`（2026-09-10），
+最旧 `2.0.0`。最新条目 = baseline `vendor:MstyStudio:stable` 的 `2.9.11`。
+

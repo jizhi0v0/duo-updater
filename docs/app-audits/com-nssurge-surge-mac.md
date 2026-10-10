@@ -27,8 +27,10 @@
 `SurgeChannel.readIncludeBeta()` 读 `~/Library/Application Support/com.nssurge.surge-mac/KDDefaults.plist`（非 UserDefaults——Surge 自己管 plist）。文件缺失或 key 不存在时回落到 stable。
 
 ## Changelog
-- 无 ChangelogRecipe（`changelogURL` 由 Sparkle feed 内 `<description>` 提供，WebView）
-- ○ 可加（Surge changelog 在 `nssurge.com/mac/v5_changelog.html` 等页面，未实现）
+- 来源: Sparkle inline——feed 的 `<item>` 带 `<markdownDescription>`，由 `AppcastMarkdownParser` 转成结构化条目（不是 `<description>`，也不是 WebView）。stable feed 本次实测见下；beta feed 每条都带是 `acknowledged` 理由的说法，本次未复测。
+- 无 ChangelogRecipe，也不需要：登记在 `ChangelogCoverage.acknowledged`（理由原文：Sparkle feeds carry inline markdownDescription notes on every item; the page is a JS shell）。`ChangelogCatalog` 另有 `nssurge.com/support/mac/release-notes`，只在 feed 没给 notes 时当 WebView 兜底页。
+- 复测 2026-10-10（只读 GET `nssurge.com/mac/latest/appcast-signed.xml`，200，22,306 B）：22 个 `<item>`、22 个 `<markdownDescription>`，0 个 `<description>`。beta feed 这次没有请求。
+- 早先这里写过「○ 可加（Surge changelog 在 `nssurge.com/mac/v5_changelog.html` 等页面，未实现）」，与上面三条不符，已改。
 
 ## 一键安装
 - Sparkle 自更新

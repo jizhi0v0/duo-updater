@@ -74,8 +74,9 @@ import CryptoKit
 
         /// What `lorca update` does to the disk: stage the new build beside the
         /// old one and rename it into place, after `delay` seconds in the
-        /// background when it is handed to `lorca serve`.
-        func updateBody(to version: String, served: Bool = false, delay: Double = 0) throws -> String {
+        /// background when it is handed to `lorca serve` — or, given `held`,
+        /// once that file is gone (~300 s at most).
+        func updateBody(to version: String, served: Bool = false, delay: Double = 0, held: URL? = nil) throws -> String {
             let next = Self.script(version: version)
             publish(version, next)
             let staged = root.appendingPathComponent("next-\(version)")
@@ -89,9 +90,12 @@ import CryptoKit
                 /usr/bin/env > "\(root.path)/ENV"
                 """
             if served {
+                let wait = held.map {
+                    "n=0; while [ -e \"\($0.path)\" ] && [ $n -lt 3000 ]; do /bin/sleep 0.1; n=$((n+1)); done"
+                } ?? "/bin/sleep \(delay)"
                 return record + """
 
-                    ( /bin/sleep \(delay); \(swap) ) >/dev/null 2>&1 &
+                    ( \(wait); \(swap) ) >/dev/null 2>&1 &
                     echo "Installing lorca \(version); lorca serve restarts into it once no bot is at work."
                     """
             }
@@ -371,11 +375,22 @@ import CryptoKit
         #expect(outcome == .updated(version: "0.1.12"))
     }
 
+    /// The swap waits for the test, not for a set time: with a 30 s delay it
+    /// read as `.updated` on a hosted-runner push run (38024970744, the test
+    /// taking 74 s), and holding every `.medium` pool thread past a scaled-down
+    /// delay reproduces that locally — the settle loop wakes after the swap.
+    /// (That CI starves the pool the same way is inferred, not instrumented.)
+    /// Held, nothing but `settle` running out can end the wait.
+    /// Mutation: drop `clock.now < end` from the settle loop (the swap then
+    /// comes after ~300 s and the outcome reads `.updated`).
     @Test func aServeThatNeverSwapsIsAFailure() async throws {
         let box = try Sandbox()
-        try box.install(version: "0.1.11", update: try box.updateBody(to: "0.1.12", served: true, delay: 30))
+        let hold = box.root.appendingPathComponent("hold")
+        FileManager.default.createFile(atPath: hold.path, contents: nil)
+        try box.install(version: "0.1.11", update: try box.updateBody(to: "0.1.12", served: true, held: hold))
         let status = try await box.status()
         let outcome = await box.updater(settle: .milliseconds(300)).update(status)
+        try FileManager.default.removeItem(at: hold)
         guard case .failed(let message, _) = outcome else { Issue.record("\(outcome)"); return }
         #expect(message.contains("is still lorca 0.1.11"))
     }

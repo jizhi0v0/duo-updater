@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import Foundation
 
 /// A Squirrel (Electron) self-update that has been fully downloaded and unpacked
@@ -513,24 +514,152 @@ public enum SelfUpdaterStaging {
     /// parked either way, and either way ours would race it. Deliberately `false`
     /// when a readable staged build exists, older or newer: that case already
     /// carries a version and belongs to `staged(for:)` / `sparkleStagedBundle`.
+    ///
+    /// Also `false` for an installer whose staging is GONE rather than unreadable
+    /// (`sparkleInstallerOrphaned`): it can apply nothing, so there is no
+    /// collision to stand down for, and a Relaunch into it is certain to fail.
     public static func sparkleInstallerArmedWithUnreadableStaging(
         for app: InstalledApp,
         cachesDirectory: URL? = nil,
         parkedInstallerBundleURLs: [URL]? = nil,
+        installerRunsAsThisUser: Bool? = nil,
         fileManager: FileManager = .default
     ) -> Bool {
+        guard let sparkleRoot = parkedWithNothingReadable(
+            app, cachesDirectory: cachesDirectory,
+            parkedInstallerBundleURLs: parkedInstallerBundleURLs, fileManager: fileManager)
+        else { return false }
+        return !stagingGoneUnderSameUserInstaller(
+            app, sparkleRoot: sparkleRoot,
+            installerRunsAsThisUser: installerRunsAsThisUser, fileManager: fileManager)
+    }
+
+    /// An installer is parked on this Sparkle app's quit, and what it staged has
+    /// been deleted from under it. It can apply nothing: on the quit it fails and
+    /// exits, the bundle untouched. Until then the app's own Sparkle only resumes
+    /// it (`SparkleStagingClearance`'s header), so the app never stages again.
+    ///
+    /// Observed twice on ChatGPT (Sparkle 2.9.1). 2026-10-06: the whole
+    /// `org.sparkle-project.Sparkle` cache gone, deleter unknown. 2026-10-11 on the
+    /// mini: a disk cleanup ran `rm -rf` on that directory while `Autoupdate` had
+    /// been parked for two days. Both times the row offered a version-less
+    /// Relaunch, and the quit it made ended in `Autoupdate` logging "Source file
+    /// to move (ChatGPT.app) does not exist" two seconds later.
+    ///
+    /// Told apart from the unreadable case (`sparkleInstallerArmedWithUnreadableStaging`)
+    /// by two things, both required:
+    ///
+    ///   - **The installer runs as this user.** Then it stages in this user's
+    ///     cache (`AppInstaller.m`: `SPULocalCacheDirectory cachePathForBundleIdentifier:`,
+    ///     `NSCachesDirectory` in the user domain), so not finding it there means
+    ///     it is not anywhere. Tailscale's root installer fails this and keeps
+    ///     its version-less Relaunch.
+    ///   - **Neither `Installation/` nor `PersistentDownloads/` holds anything.**
+    ///     Sparkle downloads into `PersistentDownloads/` and the installer moves
+    ///     the archive from there into a fresh `Installation/<random>/` before
+    ///     unpacking (`AppInstaller.m`, read at 2.10.0), so a healthy install
+    ///     has something in one of the two until the swap. A package update or
+    ///     one still unpacking is therefore never mistaken for this.
+    public static func sparkleInstallerOrphaned(
+        for app: InstalledApp,
+        cachesDirectory: URL? = nil,
+        parkedInstallerBundleURLs: [URL]? = nil,
+        installerRunsAsThisUser: Bool? = nil,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        guard let sparkleRoot = parkedWithNothingReadable(
+            app, cachesDirectory: cachesDirectory,
+            parkedInstallerBundleURLs: parkedInstallerBundleURLs, fileManager: fileManager)
+        else { return false }
+        return stagingGoneUnderSameUserInstaller(
+            app, sparkleRoot: sparkleRoot,
+            installerRunsAsThisUser: installerRunsAsThisUser, fileManager: fileManager)
+    }
+
+    /// The app's Sparkle cache root when an installer is parked on its quit and
+    /// no staged build of it can be read; nil otherwise.
+    private static func parkedWithNothingReadable(
+        _ app: InstalledApp, cachesDirectory: URL?,
+        parkedInstallerBundleURLs: [URL]?, fileManager: FileManager
+    ) -> URL? {
         // Same admission as `staged(for:)`'s Sparkle branch.
         guard !app.hasSelfUpdater, app.hasSparkleUpdater,
               app.bundleID != spotifyBundleID,
               let sparkleRoot = sparkleCacheRoot(
                 for: app, cachesDirectory: cachesDirectory, fileManager: fileManager)
-        else { return false }
+        else { return nil }
         let parked = parkedInstallerBundleURLs ?? liveParkedSparkleInstallers()
-        guard hasParkedSparkleInstaller(for: app, sparkleRoot: sparkleRoot, parked: parked)
-        else { return false }
-        return sparkleStagedBundle(
-            for: app, cachesDirectory: cachesDirectory,
-            parkedInstallerBundleURLs: parked, fileManager: fileManager) == nil
+        guard hasParkedSparkleInstaller(for: app, sparkleRoot: sparkleRoot, parked: parked),
+              sparkleStagedBundle(
+                for: app, cachesDirectory: cachesDirectory,
+                parkedInstallerBundleURLs: parked, fileManager: fileManager) == nil
+        else { return nil }
+        return sparkleRoot
+    }
+
+    /// Cheapest first: the process walk only runs once the cache is found empty.
+    private static func stagingGoneUnderSameUserInstaller(
+        _ app: InstalledApp, sparkleRoot: URL,
+        installerRunsAsThisUser: Bool?, fileManager: FileManager
+    ) -> Bool {
+        sparkleStagingIsGone(sparkleRoot: sparkleRoot, fileManager: fileManager)
+            && (installerRunsAsThisUser
+                ?? sameUserSparkleInstallerRunning(for: app, sparkleRoot: sparkleRoot))
+    }
+
+    /// Nothing (hidden files aside) in `Installation/` or `PersistentDownloads/`,
+    /// either of which may be missing altogether — the 2026-10-11 deletion took
+    /// the whole cache. Any other read failure answers `false`: unsure is not gone.
+    static func sparkleStagingIsGone(sparkleRoot: URL, fileManager: FileManager) -> Bool {
+        for name in ["Installation", "PersistentDownloads"] {
+            let directory = sparkleRoot.appendingPathComponent(name, isDirectory: true)
+            do {
+                let entries = try fileManager.contentsOfDirectory(
+                    at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+                if !entries.isEmpty { return false }
+            } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+                continue
+            } catch {
+                return false
+            }
+        }
+        return true
+    }
+
+    /// Whether an `Autoupdate` of `app`'s runs under this user's uid. Same homes
+    /// as `SparkleStagingClearance`'s job match: the app's own `Sparkle.framework`
+    /// (where it runs from, observed on TinyWeb and ChatGPT) or its cache. A root
+    /// installer's uid is not readable from here (`proc_pidinfo` answered EPERM
+    /// for Tailscale's on 2026-09-13, issue #588) — it is skipped, which is the
+    /// answer wanted for it.
+    private static func sameUserSparkleInstallerRunning(
+        for app: InstalledApp, sparkleRoot: URL
+    ) -> Bool {
+        let homes = [sparkleRoot, app.path.appendingPathComponent("Contents/Frameworks/Sparkle.framework", isDirectory: true)]
+            .map { $0.resolvingSymlinksInPath().path }
+        let capacity = Int(proc_listallpids(nil, 0)) + 64
+        guard capacity > 64 else { return false }
+        var pids = [pid_t](repeating: 0, count: capacity)
+        let count = Int(pids.withUnsafeMutableBytes {
+            proc_listallpids($0.baseAddress, Int32($0.count))
+        })
+        guard count > 0 else { return false }
+        var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        let uid = getuid()
+        for pid in pids.prefix(min(count, capacity)) where pid > 0 {
+            let length = Int(proc_pidpath(pid, &buffer, UInt32(buffer.count)))
+            guard length > 0 else { continue }
+            let path = String(decoding: buffer.prefix(length).map { UInt8(bitPattern: $0) }, as: UTF8.self)
+            guard (path as NSString).lastPathComponent == "Autoupdate",
+                  homes.contains(where: { AppRestarter.isExecutable(path, insideBundlePath: $0) })
+            else { continue }
+            var info = proc_bsdinfo()
+            let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+            if proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size, info.pbi_uid == uid {
+                return true
+            }
+        }
+        return false
     }
 
     /// `<Caches>/<bundleID>/org.sparkle-project.Sparkle`, in this user's domain.

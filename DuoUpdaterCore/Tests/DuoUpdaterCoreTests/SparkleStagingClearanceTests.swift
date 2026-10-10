@@ -285,6 +285,86 @@ struct SparkleStagingClearanceTests {
         }
     }
 
+    // MARK: - clearOrphanedInstaller
+
+    /// The whole Sparkle cache deleted under a parked installer, as on the mini
+    /// 2026-10-11 (`rm -rf …/com.openai.codex/org.sparkle-project.Sparkle`).
+    private func deleteSparkleCache(_ f: Fixture) throws {
+        try FileManager.default.removeItem(
+            at: f.caches.appendingPathComponent("\(bundleID)/org.sparkle-project.Sparkle"))
+    }
+
+    /// Both jobs go, `Autoupdate` first, and nothing is deleted (there is nothing).
+    ///
+    /// Mutation: swap the two phases in `removeInPhases` (the order assertion
+    /// goes red).
+    @Test func removesAnOrphanedInstallersJobsInstallerFirst() async throws {
+        try await withFixture { f in
+            try deleteSparkleCache(f)
+            let calls = Calls()
+            let outcome = await SparkleStagingClearance.clearOrphanedInstaller(
+                for: f.app, cachesDirectory: f.caches, system: system(f, calls: calls))
+            #expect(outcome == .cleared)
+            #expect(calls.removed == [
+                "com.example.tinyweb-sparkle-updater", "com.example.tinyweb-sparkle-progress",
+            ])
+        }
+    }
+
+    /// A staging that is there after all is a live installer, not a dead one —
+    /// whatever made the caller think otherwise. One that is only mid-unpack
+    /// (archive, no `.app` yet) counts as there.
+    ///
+    /// Mutation: drop the `sparkleStagingIsGone` guard (nothing may be removed;
+    /// goes red).
+    @Test func leavesAnInstallerWhoseStagingIsThere() async throws {
+        try await withFixture { f in
+            try FileManager.default.removeItem(at: f.stagingRun.appendingPathComponent("PZ96JBkAi"))
+            let calls = Calls()
+            let outcome = await SparkleStagingClearance.clearOrphanedInstaller(
+                for: f.app, cachesDirectory: f.caches, system: system(f, calls: calls))
+            #expect(outcome == .notCleared(reason: "its staging is not gone", touchedInstaller: false))
+            #expect(calls.removed.isEmpty)
+        }
+    }
+
+    /// Only the progress agent in this user's domain: the installer runs as
+    /// root (Tailscale's shape) and staged where this user cannot look, so it is
+    /// not shown to be dead.
+    ///
+    /// Mutation: drop the `!installers.isEmpty` guard (the agent gets removed).
+    @Test func leavesAnInstallerWithNoAutoupdateInThisUsersDomain() async throws {
+        try await withFixture { f in
+            try deleteSparkleCache(f)
+            let calls = Calls()
+            let outcome = await SparkleStagingClearance.clearOrphanedInstaller(
+                for: f.app, cachesDirectory: f.caches,
+                system: system(f, calls: calls, jobs: [
+                    .init(pid: 804, label: "com.example.tinyweb-sparkle-progress"),
+                ]))
+            guard case .notCleared(_, touchedInstaller: false) = outcome else {
+                Issue.record("expected notCleared, got \(outcome)"); return
+            }
+            #expect(calls.removed.isEmpty)
+        }
+    }
+
+    /// An `Autoupdate` that survives removal keeps its agent, so the gates still
+    /// see an armed installer.
+    @Test func keepsTheAgentWhenAnOrphanedInstallerSurvives() async throws {
+        try await withFixture { f in
+            try deleteSparkleCache(f)
+            let calls = Calls()
+            let outcome = await SparkleStagingClearance.clearOrphanedInstaller(
+                for: f.app, cachesDirectory: f.caches,
+                system: system(f, calls: calls, alive: [802]))
+            guard case .notCleared(_, touchedInstaller: false) = outcome else {
+                Issue.record("expected notCleared, got \(outcome)"); return
+            }
+            #expect(calls.removed == ["com.example.tinyweb-sparkle-updater"])
+        }
+    }
+
     @Test func parsesLaunchctlList() {
         let output = """
             PID\tStatus\tLabel

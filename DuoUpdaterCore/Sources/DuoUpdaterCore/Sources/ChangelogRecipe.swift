@@ -538,6 +538,19 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// appcast's inline notes show it. See
         /// `StructuredChangelogDecoder.decodeGotEmailReleases`.
         case gotEmailReleases
+        /// TRAE's docs changelog, `docs.trae.ai/ide/changelog` — an Arcosite page
+        /// whose text is a Quill-style delta (`ops[]`) inside the server-rendered
+        /// `window._ROUTER_DATA` script. One `h2` line per release, dated ("October
+        /// 08, 2026 (Feature Release)"); the first plain line under it names the
+        /// version or a range ("TraeCode v3.5.97 ~ 3.5.104 are released"); the
+        /// bullets are the notes.
+        ///
+        /// A decoder because a note is a RUN of ops, not one: bold, inline code and
+        /// a link to another doc page (a mention, whose visible text is only in its
+        /// `dataMetaBlockProps` JSON) each split the sentence, so a pattern that
+        /// captures "the text" stops at the first of them. See
+        /// `StructuredChangelogDecoder.decodeTraeDocsChangelog`.
+        case traeDocsChangelog
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex

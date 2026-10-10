@@ -64,6 +64,9 @@ struct GeneralSettingsPage: View {
                 if spotlit.contains(SettingsSpotlights.appRuntimeTags.id) { SpotlightDot() }
             }
             .settingsRow()
+            SettingsDivider()
+            Toggle("Show what each command-line tool is built with", isOn: $prefs.showCLIRuntimeTags)
+                .settingsRow()
         } footer: {
             // What else follows the schedule (`AppListModel.backgroundRefresh`).
             // The 15-minute floor on command-line tools that read GitHub binds only

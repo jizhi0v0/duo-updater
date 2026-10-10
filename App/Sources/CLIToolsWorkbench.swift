@@ -170,8 +170,8 @@ struct CLIToolIcon: View {
 struct CLIToolSidebarRow: View {
     let status: CLIToolStatus
     let cli: CLIToolsModel
-    /// Whether to show what the tool is built with — the app list's runtime
-    /// tags setting (`Preferences.showRuntimeTags`), which covers these too.
+    /// Whether to show what the tool is built with — the CLI tab's own setting,
+    /// `Preferences.showCLIRuntimeTags`.
     var showsRuntime = true
 
     private var id: CLIToolID { status.toolID }

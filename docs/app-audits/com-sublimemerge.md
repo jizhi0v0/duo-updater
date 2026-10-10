@@ -43,4 +43,4 @@ bundle reports; a URL can't carry it). Verified 2026-08-09 on build
 recipe 默认上限取前 40 个。每个 article 的第一个 `<h3>` 都是 `Build NNNN`（4 位），没有例外。条目
 版本取完整的 `Build 2132`：同日 `verify/baseline.json` 的 `vendor:com.sublimemerge:stable` 是
 `Build 2132`，上面记录的已装 bundle 的 `CFBundleShortVersionString` 也是 `Build NNNN` 形状；取裸数字
-就永远对不上。本机没装 Sublime Merge，这次没有重新读 bundle。
+就永远对不上。这次没有重新读 bundle。

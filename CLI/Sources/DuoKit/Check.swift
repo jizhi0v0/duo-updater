@@ -191,7 +191,7 @@ public enum Check {
         let wantsTools = options.sources.isEmpty && Inventory.queriesMayNameTools(scanned, options.queries)
         let checkForUpdates = options.checkForUpdates
         let toolRows: Task<[CLIToolRows.Row], Never>? = wantsTools
-            ? Task { checkForUpdates ? await CLIToolRows.check().map(CLIToolRows.Row.init) : await CLIToolRows.scan() }
+            ? Task { checkForUpdates ? await CLIToolRows.checkedRows() : await CLIToolRows.scannedRows() }
             : nil
         let selected: [InstalledApp]
         var selectedTools: [CLIToolRows.Row]?

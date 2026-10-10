@@ -80,8 +80,6 @@ enum ChangelogCoverage {
             "Sparkle feeds carry inline markdownDescription notes on every item; the page is a JS shell",
         "com.robinebers.openusage":
             "feasible, not written yet: .gitHubReleases on robinebers/openusage, stable and beta",
-        "com.sogou.inputmethod.sogou":
-            "GBK-encoded page, and the changelog fetch decodes UTF-8 only; page lists 3-part versions",
         "com.steipete.codexbar":
             "Sparkle appcast ships inline HTML notes for every item, so the page is never shown",
         "com.surteesstudios.Bartender":

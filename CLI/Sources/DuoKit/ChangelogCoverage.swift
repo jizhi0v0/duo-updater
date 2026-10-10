@@ -34,8 +34,6 @@ enum ChangelogCoverage {
             "feasible, not written yet: .gitHubReleases on iOfficeAI/AionUi",
         "com.bjango.istatmenus":
             "the page prints 7.5 for version 7.50, which no pattern can pad; newest entry is a placeholder",
-        "com.bombich.ccc":
-            "feasible, not written yet: four page recipes (CCC 7 stable and beta, CCC 6, CCC 5) with version windows",
         "com.brave.Browser.beta":
             "brave.com/latest lists release-channel versions only; beta notes are not published",
         "com.brave.Browser.nightly":

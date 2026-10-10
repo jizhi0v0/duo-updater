@@ -325,5 +325,109 @@ enum com_bombich_ccc {
             variant: "ccc5",
             hostRequirement: VendorHostRequirement(minimumSystemVersion: "10.10"),
             installedVersionPattern: #"^5\."#),
+        ],
+        // History: docs/app-audits/com-bombich-ccc.md#历史与实测
+        //
+        // Four changelog recipes, one per probe above and on the same page that
+        // probe's `changelogURL` names. They share one bundle id and three of them
+        // share `.stable`, so `channel` alone cannot pick between them: each
+        // declares the major-version window of its generation, the changelog
+        // analogue of the probes' `installedVersionPattern`. The windows tile
+        // [5, 6), [6, 7), [7, 8) with no overlap; `ChangelogRecipeRegistry`
+        // narrows the group to the covering window first and then matches the
+        // channel, so a 6.x install gets the CCC 6 page and a 7.x beta copy the
+        // beta page. Every entry pattern is ALSO anchored to its own major. The
+        // CCC 5 and CCC 6 pages end with headings for older generations
+        // (`Carbon Copy Cloner 4.1.24`, `Carbon Copy Cloner 5.1.22` on the CCC 6
+        // page). Today those carry only a date and no notes, so the extractor
+        // drops them anyway; the anchor keeps them out if they ever gain notes,
+        // which would otherwise put entries outside the window and make
+        // `duo verify` report `entriesOutsideVersionWindow`.
+        changelogs: [
+        // CCC 7 stable — `software/updates/ccc7_rn.html`, the page the app itself
+        // shows. One `<details>` per release, the version in its `<summary>`
+        // ("CCC 7.2: September 13, 2026"). The newest release's summary carries no
+        // date ("CCC 7.2.1 — This is a FREE update…"), so `date` is optional.
+        // The version is read from the summary TEXT, not the `<a name>` anchor:
+        // the 7.1.1 summary's anchor says `7.1.2`.
+        ChangelogRecipe(
+            bundleID: "com.bombich.ccc",
+            source: URL(string: "https://bombich.com/software/updates/ccc7_rn.html")!,
+            entryPattern: ccc7EntryPattern,
+            itemPatterns: ccc7ItemPatterns,
+            channel: .stable,
+            headingPattern: #"<h2>(?<heading>[^<]+)</h2>"#,
+            minimumAppVersion: "7", belowAppVersion: "8"),
+
+        // CCC 7 beta — `ccc7_rn_beta.html`, same template as the stable page but
+        // one `<details>` only: the current (or last) prerelease, versioned the way
+        // the beta zip's `CFBundleShortVersionString` is (`7.2.2-b4`). Between beta
+        // cycles the page stays on the closed cycle's last prerelease while the
+        // beta probe answers the graduated stable (see the probe's comment), so
+        // the pane then shows that prerelease's notes beside a newer offer; the
+        // recipe reads what the vendor publishes for this channel and does not
+        // guess the cycle state. The page's "If you prefer to not see beta
+        // versions…" boilerplate is a `<p class=…>` and is left out by the item
+        // pattern's bare `<p>`.
+        ChangelogRecipe(
+            bundleID: "com.bombich.ccc",
+            source: URL(string: "https://bombich.com/software/updates/ccc7_rn_beta.html")!,
+            entryPattern: ccc7EntryPattern,
+            itemPatterns: ccc7ItemPatterns,
+            channel: .beta,
+            headingPattern: #"<h2>(?<heading>[^<]+)</h2>"#,
+            minimumAppVersion: "7", belowAppVersion: "8"),
+
+        // CCC 6 — the knowledge-base article `en/kb/ccc/6/release-notes`. Each
+        // release is an `<h2>` ("CCC 6.1.13") followed by a `<p>` date and a list,
+        // up to the next `<h2>` or the end of the `<article>`. Below 6.0 the page
+        // lists one-line "Carbon Copy Cloner 5.1.22 … qualification" headings with
+        // no notes, which the `CCC 6.` anchor skips.
+        ChangelogRecipe(
+            bundleID: "com.bombich.ccc",
+            source: URL(string: "https://bombich.com/en/kb/ccc/6/release-notes")!,
+            entryPattern: kbEntryPattern(title: "CCC", major: "6"),
+            itemPatterns: kbItemPatterns,
+            channel: .stable,
+            headingPattern: #"<h3>(?<heading>[^<]+)</h3>"#,
+            minimumAppVersion: "6", belowAppVersion: "7"),
+
+        // CCC 5 — `en/kb/ccc/5/release-notes`, same article template, titled
+        // "Carbon Copy Cloner 5.1.28". The page continues into CCC 4.x and 3.x
+        // releases after 5.0; the `Carbon Copy Cloner 5.` anchor stops there.
+        ChangelogRecipe(
+            bundleID: "com.bombich.ccc",
+            source: URL(string: "https://bombich.com/en/kb/ccc/5/release-notes")!,
+            entryPattern: kbEntryPattern(title: "Carbon Copy Cloner", major: "5"),
+            itemPatterns: kbItemPatterns,
+            channel: .stable,
+            headingPattern: #"<h3>(?<heading>[^<]+)</h3>"#,
+            minimumAppVersion: "5", belowAppVersion: "6"),
         ])
+
+    /// One `<details>` block of the CCC 7 release-notes template (stable and beta
+    /// pages). The `-b<N>` suffix only ever appears on the beta page.
+    private static let ccc7EntryPattern =
+        #"<summary>(?:<a\b[^>]*></a>)?\s*CCC (?<version>7(?:\.[0-9]+)+(?:-b[0-9]+)?)"#
+        + #"(?::\s*(?<date>[a-z]+ [0-9]{1,2}, [0-9]{4}))?.*?</summary>"#
+        + #"(?<body>.*?)</details>"#
+
+    /// A change line is the `description` span of a list item, or a bare `<p>`
+    /// paragraph (the "What's new" prose of feature releases like 7.2). One
+    /// pattern for both rather than two fallbacks: the first item pattern that
+    /// yields anything wins, so a list-only pattern would drop 7.2's paragraphs.
+    /// On a description span the lazy item stops at its inner `</p>`.
+    private static let ccc7ItemPatterns =
+        [#"(?:<span class="description">|<p>)(?<item>.*?)</(?:span|p)>"#]
+
+    /// One release of the knowledge-base release-notes article (CCC 5 and 6).
+    private static func kbEntryPattern(title: String, major: String) -> String {
+        #"<h2>(?:<a\b[^>]*></a>)*\s*"# + title + #" (?<version>"# + major + #"(?:\.[0-9]+)+)</h2>\s*"#
+            + #"(?:<p>(?<date>[a-z]+ [0-9]{1,2}, [0-9]{4})[^<]*</p>)?"#
+            + #"(?<body>.*?)(?=<h2\b|</article>)"#
+    }
+
+    /// List items and paragraphs together, for the same reason as
+    /// `ccc7ItemPatterns`: some releases (5.1.27, 5.1.23) lead with a paragraph.
+    private static let kbItemPatterns = [#"<(li|p)\b[^>]*>(?<item>.*?)</\1>"#]
 }

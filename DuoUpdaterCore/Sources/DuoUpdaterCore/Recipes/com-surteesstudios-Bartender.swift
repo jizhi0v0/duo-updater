@@ -21,11 +21,12 @@ enum com_surteesstudios_Bartender {
         // `installedVersionPattern` pins it to Bartender 6. Bartender 7 keeps the
         // same bundle id, Team and EdDSA key, but it is a separate paid upgrade
         // with its own feed (`…/Bartender7/updates/AppcastB7.xml`, declared in its
-        // bundle), and this feed tops out at 6.x. Unpinned, a 7.x install whose
-        // Sparkle check failed would be answered here with "latest 6.6.2" and a
-        // Bartender 6 zip and release-notes page. There is deliberately no
-        // Bartender 7 row: its declared feed answers it, and offering 7 to a 6
-        // install would sell an upgrade the user has not bought.
+        // bundle), while AppcastB6, the feed this row reads, tops out at 6.x.
+        // Unpinned, a 7.x install whose Sparkle check failed would be answered
+        // here with "latest 6.6.2" and a Bartender 6 zip and release-notes page.
+        // There is no Bartender 7 row: the feed its bundle declares already
+        // answers it, and its changelog recipe below reads that feed in
+        // `duo verify`.
         VendorProbeRecipe(
             bundleID: "com.surteesstudios.Bartender",
             url: URL(string: "https://www.macbartender.com/B2/updates/AppcastB6.xml")!,

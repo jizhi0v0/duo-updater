@@ -143,7 +143,7 @@ struct ChangelogRecipeSelectionTests {
         let recipes = Set(ChangelogRecipeRegistry.recipes.map { $0.bundleID.lowercased() })
         #expect(catalog.intersection(recipes) == [
             "app.chatwise", "com.electron.ollama", "com.longbridge.app.desktop",
-            "com.mitchellh.ghostty", "net.imput.helium",
+            "com.mitchellh.ghostty", "com.robinebers.openusage", "net.imput.helium",
         ], "The catalog/recipe overlap moved. Re-read ChangelogRecipeSelection.fallbackPage: a new entry here is a vendor page that a store copy could reach through the web view.")
         // The case the whole change is about has no catalog entry, so it lands on
         // "No release notes" rather than a vendor page. If this ever gains one,

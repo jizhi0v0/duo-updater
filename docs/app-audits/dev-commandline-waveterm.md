@@ -11,3 +11,7 @@
 实测（2026-10-07，GET `dl.waveterm.dev/releases-w2/latest-mac.yml`）：`version: 0.14.5`，`files:` 共 10 项，第一项是 arm64 zip，之后 x64 zip 重复 3 次、arm64 dmg 重复 3 次、x64 dmg 重复 3 次（重复项内容相同），键顺序都是 `url, sha512, size`；之后是顶层 `path:`（指 arm64 zip）和 `sha512:`。URL pattern 取到第一项 `Wave-darwin-arm64-0.14.5.zip`。下载 `dl.waveterm.dev/releases-w2/Wave-darwin-arm64-0.14.5.zip`（192,631,777 B，等于该项的 `size`）后实算 base64 SHA-512 = `mFzBsQz8dWk5…aTgprg==`，与该项的 `sha512` 逐字相等（顶层 `sha512:` 也是同一个值）。与 Signal 不同：Signal 的 CDN 在出包后又 staple，下载比 `size` 大 2563 字节，摘要永远对不上；这里大小与摘要都一致。
 
 生产路径（临时 Swift test，跑完已删）：`VendorProbeSource.probeDiagnostic` 对线上端点解析出 0.14.5、上面的下载 URL，`expectedSHA512` 等于该项摘要、`expectedSHA256` 为 nil、无 warning；把下载到的 zip 交给 `VendorInstaller.apply`，越过摘要闸进入 `extracting`；同一文件翻转一个字节后被拒为 `checksumMismatch`。
+
+### Recipes/dev-commandline-waveterm.swift — `.gitHubReleases` changelog（2026-10-10）
+
+实测（2026-10-10，`gh api repos/wavetermdev/waveterm/releases?per_page=40`）：stable `v<x.y.z>` 15 条，其余 25 条是 `-beta.N` prerelease；probe 读的 `latest-mac.yml` 是 stable 那条线，stable 轨不读 beta。生产解析器（临时 Swift test 调 `ChangelogService.loadDiagnostic`，跑完已删）对线上端点：HTTP 200，15 条，最新 `0.14.5` / `2026-04-16` / 41 项，等于 baseline 的 `lastGoodVersion` 0.14.5。

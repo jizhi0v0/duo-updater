@@ -43,5 +43,19 @@ enum dev_commandline_waveterm {
                 kind: .zip,
                 checksumPattern:
                     #"\A(?:(?!Wave-darwin-arm64-[^\s]+\.zip)[\s\S])*?\n[ \t]*-[ \t](?=[^\n]*(?:\n[ \t]+(?![\s-])[^\n]*)*?Wave-darwin-arm64-[^\s]+\.zip)(?:[^\n]*\n[ \t]+(?![\s-]))*?sha512:[ \t]*([A-Za-z0-9+/=]+)"#)),
+        ],
+        changelogs: [
+        // History: docs/app-audits/dev-commandline-waveterm.md#历史与实测
+        // Wave Terminal — notes are the GitHub release bodies of
+        // wavetermdev/waveterm (the probe's `changelogURL`), Markdown lists. Tags
+        // are `v<version>`, the same string the feed's `version:` carries. The
+        // repo cuts `-beta.N` prereleases between stable releases; the feed this
+        // probe reads is the stable one, and a stable rail skips prereleases.
+        ChangelogRecipe(
+            bundleID: "dev.commandline.waveterm",
+            source: URL(string: "https://api.github.com/repos/wavetermdev/waveterm/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            structuredFormat: .gitHubReleases),
         ])
 }

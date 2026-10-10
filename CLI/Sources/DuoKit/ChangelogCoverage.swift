@@ -34,8 +34,6 @@ enum ChangelogCoverage {
             "feasible, not written yet: regex on releasenotes6.html, channel .stable",
         "cc.ffitch.shottr":
             "feasible, not written yet: regex on shottr.cc/newversion.html (no dates on the page)",
-        "com.aionui.app":
-            "feasible, not written yet: .gitHubReleases on iOfficeAI/AionUi",
         "com.bjango.istatmenus":
             "the page prints 7.5 for version 7.50, which no pattern can pad; newest entry is a placeholder",
         "com.bombich.ccc":
@@ -90,12 +88,8 @@ enum ChangelogCoverage {
             "feasible, not written yet: two-stage /updates index to the v1_N Insiders page; blank at each stable release",
         "com.microsoft.Word":
             "feasible, not written yet: the app's section of the Office for Mac release notes",
-        "com.mongodb.compass":
-            "feasible, not written yet: .gitHubReleases on mongodb-js/compass, or regex on the docs release notes",
         "com.nssurge.surge-mac":
             "Sparkle feeds carry inline markdownDescription notes on every item; the page is a JS shell",
-        "com.robinebers.openusage":
-            "feasible, not written yet: .gitHubReleases on robinebers/openusage, stable and beta",
         "com.runningwithcrayons.Alfred":
             "feasible, not written yet: regex on alfredapp.com/changelog",
         "com.sogou.inputmethod.sogou":
@@ -110,12 +104,8 @@ enum ChangelogCoverage {
             "feasible, not written yet: .gitHubReleases on telegramdesktop/tdesktop (telegram.org/blog has no versions)",
         "com.termius-dmg.mac":
             "feasible, not written yet: regex on docs.termius.com/changelog (a 6.7 MB page)",
-        "com.tigervnc.tigervnc":
-            "feasible, not written yet: .gitHubReleases on TigerVNC/tigervnc (some bodies are prose only)",
         "com.vivaldi.Vivaldi.snapshot":
             "feasible, not written yet: the stable Vivaldi recipe on the feed's relnotes/snapshot/<version>.html page",
-        "dev.commandline.waveterm":
-            "feasible, not written yet: .gitHubReleases on wavetermdev/waveterm",
         "dev.warp.Warp-Dev":
             "the dev track publishes no notes: its channel_versions.json entry is a placeholder",
         "im.riot.app":

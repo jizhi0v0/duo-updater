@@ -24,3 +24,12 @@ notarized Developer ID, Team 4XWMY46275 (MongoDB, Inc.) — `spctl`
 accepted as "Notarized Developer ID".
 
 复测 2026-09-14（07:27 UTC，只读 GET 同一 JSON）：200，7,760 B；`versions` 有 6 个条目，依次是 `1.50.0`、`1.50.0-readonly`、`1.50.0-isolated`、`1.50.0-beta.0`、`1.50.0-beta.0-readonly`、`1.50.0-beta.0-isolated`；版本 pattern 和一键 pattern 的首个匹配都落在 `1.50.0` 那一条；全文没有 sha/md5/checksum 字段。当天 7,814 B 与今天 6 个条目的 7,760 B 大小相近，所以原文那天很可能也不止一个条目——这是推断，没有当天的完整响应可以对照（`GroupAProbeRecipeTests` 的 fixture 是裁剪过的）。
+
+### Recipes/com-mongodb-compass.swift — docs release-notes changelog（2026-10-10）
+
+两个候选都实测过（2026-10-10）：
+
+- GitHub `mongodb-js/compass` releases：最新 40 条和第 101–200 条里只有 `v<x.y.z>` 与 `v<x.y.z>-beta.N` 两种 tag，Releases 列表不是 monorepo 混排，不需要 `tagPattern`。但正文是提交标题（`feat(compass-indexes): …`、`fix(ci): bump js-yaml to latest …`），生产解码器读 1.51.0 得 11 项，含 CI 杂项。
+- `www.mongodb.com/docs/compass/release-notes/`：服务端渲染，324,601 B，每个版本一个 `<h2>` "MongoDB Compass <版本>"、`<em>Released <日期></em>` 和 `<li>` 列表；Python 原型匹配 100 条，1.51.0 是 9 句改写过的英文，没有 CI 杂项；只列转正过的版本（1.49.13 只有 beta，页上没有）。
+
+选了 docs 页。生产解析器（临时 Swift test 调 `ChangelogService.loadDiagnostic`，跑完已删）对线上页：HTTP 200，20 条（`maxEntries` 截断），最新 `1.52.0` / `October 2, 2026` / 5 项，等于 baseline 的 `lastGoodVersion` 1.52.0。

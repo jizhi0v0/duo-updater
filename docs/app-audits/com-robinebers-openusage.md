@@ -46,9 +46,16 @@ appcast 同样把 beta 条目标成 `<sparkle:channel>beta</sparkle:channel>`，
 | 证据 | — | feed 条目无 `<sparkle:deltas>`（观测 2026-08-30） | — |
 
 ## Changelog
-- 来源: **`ChangelogCatalog` 兜底页**（github.com/robinebers/openusage/releases）
-- 跟随 channel: 否——是一张不分版本的 releases 页
-- Recipe 状态: 不需要 recipe，但**必须有兜底**
+- 来源: **`ChangelogRecipe` ×2**，`.gitHubReleases` 读
+  `api.github.com/repos/robinebers/openusage/releases?per_page=40`，每轨最多 20 条。
+- 跟随 channel: 是。stable recipe 只读 `prerelease: false`；beta recipe 读 prerelease
+  并带 `includesPromotedStable`——appcast 的 beta 条目标 `<sparkle:channel>beta`、stable 条目不标，
+  Sparkle 给 beta 装机同时看 default，所以 beta 拷贝会被推转正的 stable，面板得有那一条。
+- 版本对齐: tag 去掉 `v` 与 appcast 的 `sparkle:shortVersionString` 逐字相同（两轨都是，
+  2026-10-10 核对见「历史与实测」）。
+- 兜底: 仍保留 `ChangelogCatalog` 页（github.com/robinebers/openusage/releases），recipe 解析不出时嵌它；
+  Sparkle 源本身不给说明链接。
+- 接入前（2026-10-10 之前）: 只有上面的兜底页，不分版本、不跟 channel，当时的结论是「不需要 recipe」。
 - ⚠️ 2026-08-31 更正：本文档原先写「Sparkle inline（feed 条目的 `<description>`）」，
   是错的。实测 feed 51 条**没有一条**带 `<description>`，也没有
   `sparkle:releaseNotesLink`；生产链跑真包拿到的 `releaseNotesHTML` 是 0 字符、
@@ -75,7 +82,7 @@ appcast 同样把 beta 条目标成 `<sparkle:channel>beta</sparkle:channel>`，
 ```
 
 ## 建议下一步
-无。检测 + 一键 + changelog 均由泛化 Sparkle 源覆盖，零代码，审计文档即交付物。
+无。检测 + 一键由泛化 Sparkle 源覆盖；changelog 由上面两条 `ChangelogRecipe` 读 GitHub releases。
 
 ## 历史与实测
 
@@ -94,3 +101,9 @@ is the same content the maintainer publishes, and nothing here needs a
 per-version parse.
 
 复测 2026-09-14（约 08:06 UTC，只读 GET `robinebers.github.io/openusage/appcast.xml`）：53 个 `<item>`，`<description` 与 `releaseNotesLink` 都出现 0 次，代码里 "not one of its appcast items" 仍成立。
+
+### Recipes/com-robinebers-openusage.swift — stable + beta `.gitHubReleases` changelog（2026-10-10）
+
+实测（2026-10-10）：`robinebers.github.io/openusage/appcast.xml` 61 个 `<item>`；最新 14 条的 `sparkle:shortVersionString` 与 GitHub tag 去掉 `v` 逐字相同（`0.7.14`、`0.7.14-beta.1`、…、`0.7.10-beta.1`），beta 条目都带 `<sparkle:channel>beta</sparkle:channel>`，stable 条目不带。`gh api repos/robinebers/openusage/releases?per_page=40`：13 条 stable、27 条 `-beta.N` prerelease。
+
+生产解析器（临时 Swift test 调 `ChangelogService.loadDiagnostic`，跑完已删）对线上端点：stable 13 条，最新 `0.7.14` / `2026-10-06` / 11 项；beta 20 条（截断），依次 `0.7.14`、`0.7.14-beta.1`、`0.7.13`、`0.7.13-beta.3`…，即两轨交错（`includesPromotedStable`）。

@@ -39,5 +39,24 @@ enum com_aionui_app {
                     + "AionUi-{version}-mac-arm64.zip"),
                 kind: .zip,
                 checksumPattern: #"(?m)^sha512:\s*(\S+)\s*$"#)),
+        ],
+        changelogs: [
+        // History: docs/app-audits/com-aionui-app.md#历史与实测
+        // AionUi — the vendor writes its notes on the GitHub releases of
+        // iOfficeAI/AionUi (the probe's `changelogURL`), as Markdown lists. Tags
+        // are `v<version>`, the same string the manifest's `version:` carries, so
+        // an entry lines up with what the probe offers.
+        //
+        // `tagPattern` exists for one stable tag, `v2.1.47-final`: without it that
+        // entry reads `2.1.47-final`, a version no install ever reports. The
+        // pattern drops the suffix and nothing else; the repo's `-dev-<hash>`
+        // tags are prereleases, which a stable rail never reads anyway.
+        ChangelogRecipe(
+            bundleID: "com.aionui.app",
+            source: URL(string: "https://api.github.com/repos/iOfficeAI/AionUi/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            structuredFormat: .gitHubReleases,
+            tagPattern: #"^v([0-9]+(?:\.[0-9]+)+)(?:-final)?$"#),
         ])
 }

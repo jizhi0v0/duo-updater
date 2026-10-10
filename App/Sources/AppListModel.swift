@@ -185,7 +185,8 @@ final class AppListModel {
     /// under `/var/root`, but also a staged package or an unpack still in progress
     /// (see `sparkleInstallerArmedWithUnreadableStaging`). Same Relaunch, same
     /// stand-down as `pendingSelfUpdate`, with no version to name. Written only by
-    /// `computeSelfUpdateStaging`.
+    /// `computeSelfUpdateStaging`, which moves a row from here into
+    /// `pendingSelfUpdate` when the privileged helper can name the build (#588).
     private(set) var armedSelfInstallers: Set<String> = []
     /// Installer packages already downloaded and handed to the system installer,
     /// keyed by row id. While one is present and still matches the version on offer,
@@ -1149,6 +1150,9 @@ final class AppListModel {
     /// client backs the Settings "Enable…" UI and the `canAutoInstall` gate.
     let helperClient = PrivilegedHelperClient()
     private let masInstaller = MASInstaller(runner: HelperShellRunner())
+    /// Names the build a root-run Sparkle installer staged (#588). See
+    /// `computeSelfUpdateStaging`.
+    private let stagedVersionReader = HelperStagedVersionReader.live
     private let appStoreAXInstaller = AppStoreAXInstaller()
 
     /// Drives the App Management drag-to-authorize panel (vendored PermissionFlow)
@@ -1722,8 +1726,14 @@ final class AppListModel {
     /// the main thread (see `PrivilegedHelperClient.refreshStatusOffMain`).
     func refreshHelperStatus() async {
         await helperClient.refreshStatusOffMain()
+        let wasEnabled = helperEnabled
         // The mirror it just wrote, not another live query — see the doc above.
         helperEnabled = helperClient.status == .enabled
+        // A row showing "→ ?" because only root can read its staged build can
+        // name it now (#588) — the "?" popover's "Turn On Helper…" leads here.
+        if !wasEnabled, helperEnabled, !armedSelfInstallers.isEmpty {
+            await computeSelfUpdateStaging()
+        }
     }
 
     /// Track AX trust while a permission-aware window (Welcome, Settings) is open, so a
@@ -5531,7 +5541,7 @@ final class AppListModel {
     /// actor.
     private func computeSelfUpdateStaging() async {
         let apps = results.map(\.app).filter(SelfUpdaterStaging.mayHaveStaging)
-        let (staged, armed) = await Task.detached(priority: .utility) {
+        var (staged, armed) = await Task.detached(priority: .utility) {
             // Asked once for the whole sweep rather than per app: the answer is a
             // single global list either way, and `mayHaveStaging` admits every
             // Sparkle app on the machine.
@@ -5546,6 +5556,14 @@ final class AppListModel {
             }
             return (map, armed)
         }.value
+        // An armed row whose staging only root can read: ask the helper which
+        // build it is, and give the row the versioned Relaunch when the answer
+        // is one (#588). Display only — the install gate and the restart
+        // standoff re-read the armed state themselves and never see this.
+        for (id, rootStaged) in await rootStagedSelfUpdates(armed: armed) {
+            staged[id] = rootStaged
+            armed.remove(id)
+        }
         pendingSelfUpdate = staged
         armedSelfInstallers = armed
         if !armed.isEmpty {
@@ -5616,6 +5634,25 @@ final class AppListModel {
         // Same bookkeeping pass, same preconditions (`results` is current): drop any
         // downloaded installer package that no longer matches what's on offer.
         pruneStagedPackages()
+    }
+
+    /// For each armed row, the staged update the privileged helper reads from
+    /// root's cache, kept only when it is one the row should show
+    /// (`SelfUpdaterStaging.rootStagedUpdate`). Empty when nothing is armed — the
+    /// usual case, which costs no XPC at all — and for every row the helper
+    /// cannot answer for: off, too old, silent, or nothing readable.
+    private func rootStagedSelfUpdates(armed: Set<String>) async -> [String: StagedSelfUpdate] {
+        guard !armed.isEmpty else { return [:] }
+        var found: [String: StagedSelfUpdate] = [:]
+        for result in results where armed.contains(result.id) {
+            guard let bundleID = result.app.bundleID else { continue }
+            let read = await stagedVersionReader.read(bundleID: bundleID)
+            if let rootStaged = SelfUpdaterStaging.rootStagedUpdate(
+                for: result, armed: true, read: read) {
+                found[result.id] = rootStaged
+            }
+        }
+        return found
     }
 
     // MARK: - Staged installer packages

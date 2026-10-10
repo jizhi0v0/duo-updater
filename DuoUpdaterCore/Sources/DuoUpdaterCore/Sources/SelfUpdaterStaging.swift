@@ -533,6 +533,63 @@ public enum SelfUpdaterStaging {
             parkedInstallerBundleURLs: parked, fileManager: fileManager) == nil
     }
 
+    /// What the privileged helper read from root's Sparkle cache for one bundle
+    /// identifier (`MASHelperProtocol.stagedSparkleBundleVersions`): the staged
+    /// bundle's `CFBundleIdentifier`, `CFBundleShortVersionString` and
+    /// `CFBundleVersion`, as the helper returned them.
+    public struct RootStagedVersions: Sendable, Equatable {
+        public let identifier: String?
+        public let shortVersion: String?
+        public let buildVersion: String?
+
+        public init(identifier: String?, shortVersion: String?, buildVersion: String?) {
+            self.identifier = identifier
+            self.shortVersion = shortVersion
+            self.buildVersion = buildVersion
+        }
+    }
+
+    /// The versioned staged update to show for a row whose installer is armed with
+    /// staging this user cannot read, now that the helper has read it as root —
+    /// or nil, which leaves the row exactly where
+    /// `sparkleInstallerArmedWithUnreadableStaging` put it (Relaunch, "→ ?").
+    ///
+    /// Non-nil only when all of these hold:
+    ///   - the row IS armed — a read never creates a staged update on its own;
+    ///   - the helper answered, for this exact bundle identifier, with a usable
+    ///     marketing version;
+    ///   - the build is one Relaunch should apply: newer than what is installed
+    ///     and not behind the latest on offer (`UpdatePolicy.actionableStaged`).
+    ///     A known but trailing or older staged build stays version-unknown
+    ///     rather than becoming a row that offers an Update the install gate
+    ///     (below) refuses on every click.
+    ///
+    /// **This only ever changes what the row says, never what installs.** The
+    /// install gates in the app and in `duo` re-read the armed state from disk
+    /// (`UpdatePolicy.armedInstallerBlocksInstall` over a fresh
+    /// `sparkleInstallerArmedWithUnreadableStaging`) and take no input from the
+    /// helper, so they refuse exactly as before; the restart standoff likewise
+    /// re-reads and still holds back version-unknown. The returned value carries
+    /// no path anyone may act on: `stagedBundlePath` names root's `Installation`
+    /// directory for the log, and every clearance path works from its own fresh
+    /// read of this user's cache, which never contains it.
+    public static func rootStagedUpdate(
+        for result: UpdateResult, armed: Bool, read: RootStagedVersions?
+    ) -> StagedSelfUpdate? {
+        guard armed, let read, let bundleID = result.app.bundleID,
+              read.identifier == bundleID,
+              let short = VersionSide.plistVersionField(read.shortVersion)
+        else { return nil }
+        let staged = StagedSelfUpdate(
+            version: short,
+            buildVersion: VersionSide.plistVersionField(read.buildVersion),
+            stagedBundlePath: URL(fileURLWithPath: "/var/root/Library/Caches", isDirectory: true)
+                .appendingPathComponent(bundleID, isDirectory: true)
+                .appendingPathComponent("org.sparkle-project.Sparkle/Installation", isDirectory: true),
+            appliesOn: .quit, updater: .sparkle)
+        return UpdatePolicy.actionableStaged(result, staged: staged)
+    }
+
     /// `<Caches>/<bundleID>/org.sparkle-project.Sparkle`, in this user's domain.
     private static func sparkleCacheRoot(
         for app: InstalledApp, cachesDirectory: URL?, fileManager: FileManager

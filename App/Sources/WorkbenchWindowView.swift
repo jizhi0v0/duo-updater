@@ -2732,7 +2732,9 @@ private struct DetailHeader: View {
         case .stagedRelaunchVersionUnknown:
             HStack(spacing: 0) {
                 Text(verbatim: "\(result.installedDisplay ?? "?")  →  ")
-                StagedVersionUnknownMark(appName: result.app.name)
+                StagedVersionUnknownMark(
+                    appName: result.app.name, helperOff: !model.helperEnabled,
+                    enableHelper: model.enableAppStoreHelper)
             }
             .font(.callout).foregroundStyle(.tint)
             .lineLimit(1).minimumScaleFactor(0.75)

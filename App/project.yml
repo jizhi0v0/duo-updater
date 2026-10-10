@@ -85,6 +85,12 @@ targets:
       # main.swift's top-level code stays out.
       - path: Helper/HelperPeerGate.swift
       - path: Helper/HelperService.swift
+      # The helper's read of root's Sparkle staging, run against fixture trees,
+      # and the app's side of that call, run against in-process listeners.
+      # Foundation + Core only; the SMAppService connection stays in
+      # PrivilegedHelperClient.swift.
+      - path: Helper/StagedSparkleVersions.swift
+      - path: Sources/HelperStagedVersionReader.swift
       - path: Shared/OwnTeamIdentifier.swift
       - path: Shared/MASHelperProtocol.swift
     dependencies:

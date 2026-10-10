@@ -30,10 +30,6 @@ enum ChangelogCoverage {
     /// A reason starting with `notWrittenYet` is backlog, not a verdict: a recipe
     /// is possible along the line it names. Delete the line when one lands.
     static let acknowledged: [String: String] = [
-        "at.obdev.littlesnitch":
-            "feasible, not written yet: regex on releasenotes6.html, channel .stable",
-        "cc.ffitch.shottr":
-            "feasible, not written yet: regex on shottr.cc/newversion.html (no dates on the page)",
         "com.aionui.app":
             "feasible, not written yet: .gitHubReleases on iOfficeAI/AionUi",
         "com.bjango.istatmenus":
@@ -94,14 +90,10 @@ enum ChangelogCoverage {
             "Sparkle feeds carry inline markdownDescription notes on every item; the page is a JS shell",
         "com.robinebers.openusage":
             "feasible, not written yet: .gitHubReleases on robinebers/openusage, stable and beta",
-        "com.runningwithcrayons.Alfred":
-            "feasible, not written yet: regex on alfredapp.com/changelog",
         "com.sogou.inputmethod.sogou":
             "GBK-encoded page, and the changelog fetch decodes UTF-8 only; page lists 3-part versions",
         "com.steipete.codexbar":
             "Sparkle appcast ships inline HTML notes for every item, so the page is never shown",
-        "com.sublimemerge":
-            "feasible, not written yet: regex on the /download page's changelog section, keyed Build NNNN",
         "com.surteesstudios.Bartender":
             "feasible, not written yet: feedPagePattern on the appcast's per-version rnotes.html",
         "com.tdesktop.Telegram":
@@ -146,8 +138,6 @@ enum ChangelogCoverage {
             "feasible, not written yet: .gitHubReleases on signalapp/Signal-Desktop (notes are thin)",
         "org.whispersystems.signal-desktop-beta":
             "feasible, not written yet: .gitHubReleases on signalapp/Signal-Desktop, channel .beta",
-        "org.zotero.zotero":
-            "feasible, not written yet: regex on zotero.org/support/changelog",
         "tv.plex.desktop":
             "feasible but weak: a forum thread that posts only some releases, via an undocumented JSON clamp",
     ]

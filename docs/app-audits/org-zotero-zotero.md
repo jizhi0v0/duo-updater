@@ -34,3 +34,11 @@ Digital Scholarship), notarized Developer ID, universal binary. Zotero
 publishes every release at that exact path/filename shape, so the
 install URL is templated from the matched version rather than scraped
 (there is no link to scrape — the download button is client-rendered).
+
+### Recipes/org-zotero-zotero.swift — ChangelogRecipe（`zotero.org/support/changelog`）
+
+实测 2026-10-10（只读 GET，curl 与生产解析器 `ChangelogService.loadDiagnostic` 各一次）：200，13560 字节，
+7 个条目，`10.0.6`（October 7, 2026）到 `10.0`（August 17, 2026）。页面只覆盖 10.0 这一个大版本，
+"Older Changes" 只是指向 `/support/9.0_changelog` 的链接。同日 `verify/baseline.json` 的
+`vendor:org.zotero.zotero:stable` 为 `10.0.6`，与最新条目一致。`10.0.4` 列表前有一段
+`<p><em>Zotero for Mac only</em></p>`，作为一条读出。

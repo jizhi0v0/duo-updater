@@ -60,3 +60,10 @@ the pkg's xar signature 2026-08-09, no full download needed).
 - OneNote：200，Content-Length 628294615；同一签名；pkg-ref 只有 `com.microsoft.onenote.mac`，`customLocation="/Applications"`；顶层 bundle `./Microsoft OneNote.app` `com.microsoft.onenote.mac` 16.113.4 / 16.113.26100421。
 
 新增 `MicrosoftAutoUpdateManifestHostTests`：从注册表里挑出所有读 `/MacAutoupdate/*.xml` 的 recipe，要求 host 是 `res.public.onecdn.static.microsoft`。
+
+真机一键（2026-10-10，用本分支 `make cli` 装的 `duo`）：先用 16.109 的 `Microsoft_{Outlook,OneNote}_16.109.26053122_Updater.pkg`（同 Team、已公证，仍在新主机上）经 `installer` 装回旧版；这两个 Updater 包只有最低系统版本检查，没装过也能装，且不带 MAU。`duo check` 两个都报 `16.109.26053122 → 16.113.26100421 [Vendor, installer]`。
+
+- OneNote（不运行）：`duo install "/Applications/Microsoft OneNote.app" --yes --json` → `outcome: openedInstaller`、`bytesDownloaded: 628294615`、暂存 `Microsoft_OneNote_16.113.26100421_Updater.pkg`；在 Installer.app 里认证完成后 bundle 是 16.113.4 / 16.113.26100421，`codesign --verify --deep --strict` 通过，`spctl` 为 Notarized Developer ID（UBF8T346G9），receipt `com.microsoft.package.Microsoft_OneNote.app` 16.113.26100421，`duo check` 报 up to date。
+- Outlook（16.109 运行中）：同样 `openedInstaller`、`bytesDownloaded: 1233749418`、暂存 `Microsoft_Outlook_16.113.26100421_Updater.pkg`；Installer 按 Distribution 的 `must-close` 先让 Outlook 退出（进程在版本切换前约 55 秒消失），装完不会自动重开。之后 bundle 16.113.4 / 16.113.26100421，签名、公证、receipt、`duo check` 结果同上。
+
+一键在这里是「下载并校验后交给系统 Installer」，认证由用户在 Installer.app 里完成。

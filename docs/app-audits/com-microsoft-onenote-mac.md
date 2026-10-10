@@ -27,3 +27,5 @@ OneNote package that declares exactly one destination,
 ### 2026-10-10 — manifest 换主机（与 Outlook 同一件事）
 
 `officecdn.microsoft.com/pr/…/0409ONMC2019.xml` 仍返回 200，但停在 `16.109.26053122`（manifest 日期 2026-05-31）。`res.public.onecdn.static.microsoft/mro1cdnstorage/` 同路径是 `16.113.26100421`（2026-10-04），App ID 仍为 `ONMC2019`。recipe 的 `url` 已改到新主机，正则未改。新主机上 `FullUpdaterLocation` 解析到 `Microsoft_OneNote_16.113.26100421_Updater.pkg`：200，628294615 字节，签名 `Developer ID Installer: Microsoft Corporation (UBF8T346G9)`，pkg-ref 只有 `com.microsoft.onenote.mac`，`customLocation="/Applications"`，bundle 16.113.4 / 16.113.26100421。各主机对比表、官方文档出处、对用户的影响见 [Outlook 的同日记录](com-microsoft-Outlook.md#历史与实测)。
+
+真机一键 2026-10-10：16.109.26053122（不运行）→ `duo install` 打开 Installer.app 装 `Microsoft_OneNote_16.113.26100421_Updater.pkg` → 16.113.26100421，签名/公证/receipt 均通过。细节见 [Outlook 的同日记录](com-microsoft-Outlook.md#历史与实测)。

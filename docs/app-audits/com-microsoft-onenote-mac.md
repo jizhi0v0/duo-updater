@@ -32,5 +32,5 @@ OneNote package that declares exactly one destination,
 - 生产解析器（`ChangelogService.loadDiagnostic`，临时 Swift 测试，跑完已删）对线上页：30 条，最新 3 条 16.113.4 / 16.113.3 / 16.113.2，各 1 条「Quality and performance improvements.」。条目数受 `maxEntries: 30` 截断。
 - `\G` 链的正确性：用一份不依赖 `\G` 的 Python 参照实现（按 `<h3>` 分段、取本 app 与 Office Suite 段的 `<li>`/`<p>`）数前 30 个发布块，五个 app 的条目总数与生产解析器逐一相等（Excel 238、Word 189、PowerPoint 129、Outlook 154、OneNote 119）。
 - 解析不到的历史形状（都在 30 条窗口之外）：`November 18, 2025` 的版本行按 app 列了两个 build（`… - Excel, OneNote; <br> … - PowerPoint`），整块不成条目；`November 14, 2025` 的列表没有 app 小标题，不归任何 app；`February 18, 2025` 的版本行前多了一段残留 `</li></ul>`，该块不成条目。
-- OneNote 段几乎全是样板：30 条里只有 6 条有样板以外的内容，其中 5 条的非样板内容只来自 Office Suite 段（共享框架的 CVE、套件级功能），只有 1 条来自 OneNote 自己的段。用户看到的就是这些。探针当时报 16.109.26053122（MAU manifest 停在 16.109，另一个会话在修），页面领先探针。
+- OneNote 段几乎全是样板：30 条里只有 6 条有样板以外的内容，其中 5 条的非样板内容只来自 Office Suite 段（共享框架的 CVE、套件级功能），只有 1 条来自 OneNote 自己的段。用户看到的就是这些。探针当时报 16.109.26053122（MAU manifest 停在 16.109，另一个会话在修），页面领先探针；`duo verify` 的两个交叉检查对这一对都返回 nil（临时 DuoKit 测试实跑 `changelogLeadsProbeComplaint` / `changelogLagComplaint`，2026-10-10）：`Verify.buildDate` 把 `16.113`、`16.109` 读成 2016-01-13 / 2016-01-09，走按天的尺子，相差 4 天，低于 60 天阈值，所以不报警。
 - 接入前：这个 app 在 `ChangelogCoverage.acknowledged` 里标「feasible, not written yet」，详情页内嵌整页网页。

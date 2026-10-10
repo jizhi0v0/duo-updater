@@ -31,3 +31,15 @@ One-click verified 2026-08-09 on build 4200: `Sublime Text.app` in the
 archive, bundle id and Team (Z6D26JE4Y4) matching the installed copy,
 its CFBundleShortVersionString literally "Build 4200" like the probe's
 value, spctl "Notarized Developer ID".
+
+### Recipes/com-sublimetext-4.swift — ChangelogRecipe（版本改成完整的 "Build NNNN"）
+
+实测 2026-10-10。
+
+- 起因：写 Sublime Merge 的 changelog recipe（#1161）时发现，这条 recipe 的条目版本是裸数字 `4215`，而 probe 报的、bundle 自己写的都是 `Build 4215`。
+- bundle：用 HTTP Range 只读了 `https://download.sublimetext.com/sublime_text_build_4215_mac.zip`（53301345 字节）里的 `Sublime Text.app/Contents/Info.plist`，读到 `CFBundleIdentifier = com.sublimetext.4`、`CFBundleShortVersionString = "Build 4215"`、`CFBundleVersion = "4215"`。`verify/baseline.json` 里 `vendor:com.sublimetext.4:stable` 记的是 `Build 4215`。
+- 页面：当天的 `/download` 有 17 个 `<article>`。旧正则读出 `4215` … `4107`，新正则读出 `Build 4215` … `Build 4107`，条数、日期、条目都一样，只多了前缀。第一版 v4 的标题是 `4 (Build 4107)`，新正则去掉 `4 (` 和 `)`。
+- 影响面：原报告说的 `WorkbenchWindowView` 里那个 `isRunning`（`==` 比较），只有 duo 自己的更新日志和 CLI 工具工作台会传 `runningVersion`，app 的厂商 changelog 一律传 nil，所以 Sublime Text 的面板本来就不标「当前版本」，改不改都一样。`Changelog.carries(version:)` 也不受影响：`Build 4215` 不是 version-shaped（含空格），对任何条目都直接返回 true。能看到的差别是条目标题从 `4215` 变成 `Build 4215`，和 probe 报的、bundle 写的是同一种写法（UI 没有开起来看）。
+- `duo verify`：lag 检查（`changelogLagComplaint`）要两边都以数字开头，被检测的版本一直是 `Build 4215`，所以改前就跳过；lead 检查（`changelogLeadsProbeComplaint`）要求 probe 行都以数字开头，`Build 4215` 也让它改前就跳过。改后照旧跳过，没有少掉覆盖。
+- baseline：只改 recipe 不改 baseline，`duo verify --only sublimetext` 对 baseline 副本报 `version went BACKWARDS since the last sweep (4215 → Build 4215)`，退出码 1；`VersionComparator` 把数字排在文字前面，而且回退的值不会写进 baseline，这条会一直报到 reconcile 开 issue。所以同一个提交里把 `changelog:com.sublimetext.4:-` 的 `lastGoodVersion` 改成 `Build 4215`，重跑退出码 0。把 baseline 副本换成 `Build 4216` 再跑，仍报 `Build 4216 → Build 4215`，说明新写法下回退检查照样有效。
+- 缓存：`entryPattern` 改了已缓存版本的解析结果，所以 `Changelog.parserGeneration` 从 17 升到 18，已缓存的 `4215` 条目会被当作未命中重新抓取。

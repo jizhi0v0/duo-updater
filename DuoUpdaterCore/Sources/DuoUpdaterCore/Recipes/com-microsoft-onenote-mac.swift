@@ -7,7 +7,10 @@ enum com_microsoft_onenote_mac {
         // History: docs/app-audits/com-microsoft-onenote-mac.md#历史与实测
         // Microsoft OneNote — Office suite, unified version. MAU-managed, and read
         // from the MAU manifest rather than the suite fwlink, the same way Outlook
-        // is in `Recipes/com-microsoft-Outlook.swift`.
+        // is in `Recipes/com-microsoft-Outlook.swift`, and from the same host:
+        // `res.public.onecdn.static.microsoft`, not `officecdn.microsoft.com`,
+        // whose copy of this manifest still answers but stopped advancing (see
+        // the Outlook recipe).
         //
         // It used to use the suite fwlink (linkid=525133), on the reasoning that
         // there is no dedicated OneNote fwlink and the suite reports the same
@@ -28,7 +31,7 @@ enum com_microsoft_onenote_mac {
         // baseline installs a broken app.
         VendorProbeRecipe(
             bundleID: "com.microsoft.onenote.mac",
-            url: URL(string: "https://officecdn.microsoft.com/pr/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/0409ONMC2019.xml")!,
+            url: URL(string: "https://res.public.onecdn.static.microsoft/mro1cdnstorage/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/0409ONMC2019.xml")!,
             mode: .responseBody,
             versionPattern: #"<key>Update Version</key>\s*<string>([0-9]+\.[0-9]+\.[0-9]+)</string>"#,
             downloadURL: URL(string: "https://www.microsoft.com/en-us/microsoft-365/onenote/digital-note-taking-app")!,

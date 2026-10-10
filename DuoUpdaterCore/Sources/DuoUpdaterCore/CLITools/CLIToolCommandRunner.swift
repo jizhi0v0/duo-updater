@@ -41,6 +41,7 @@ enum CLIToolCommandRunner {
             result = .couldNotStart("\(error)")
         }
         log.finish()
+        if case .finished(let outcome) = result { CLIToolExit.report(command, outcome) }
         return Run(result: result, lines: log.lines)
     }
 

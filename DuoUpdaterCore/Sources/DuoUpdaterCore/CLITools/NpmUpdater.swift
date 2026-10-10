@@ -189,6 +189,7 @@ public struct NpmUpdater: Sendable {
             result = .couldNotStart("\(error)")
         }
         log.finish()
+        if case .finished(let outcome) = result { CLIToolExit.report(command, outcome) }
         return CLIToolCommandRunner.Run(result: result, lines: log.lines)
     }
 

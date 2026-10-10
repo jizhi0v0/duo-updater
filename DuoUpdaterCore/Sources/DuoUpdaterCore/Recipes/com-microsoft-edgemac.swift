@@ -127,8 +127,7 @@ enum com_microsoft_edgemac {
         //     sub-points; the item pattern stops at the first `</p>`, `<ul>` or
         //     `<li>`, so a parent and each sub-point are separate lines. A
         //     release with no list (a minor update) falls back to its "Release
-        //     Summary" table's description cells, then to its paragraphs (minus
-        //     the "Back to top" link).
+        //     Summary" table's description cells, then to its paragraphs.
         //   * `<h3>`/`<h4>` sections ("Announcements", "Feature updates",
         //     "Policy updates") are kept as headings.
         //
@@ -164,10 +163,11 @@ enum com_microsoft_edgemac {
 
     /// The note lines of a release on either Edge release-notes page, tried in
     /// order: list lines, then the summary table's description cells, then
-    /// paragraphs.
+    /// paragraphs, minus the "Back to top" link and the bare "Note" label that
+    /// opens Learn's note boxes.
     private static let edgeItemPatterns = [
         #"<li[^>]*>\s*(?:<p[^>]*>)?(?<item>(?:(?!</?li[\s>]|</p>|<[uo]l[\s>]).)+)"#,
         #"<tr>\s*<td>(?:(?!</td>).)*</td>\s*<td>(?<item>.*?)</td>"#,
-        #"<p[^>]*>(?!\s*<a[^>]*>\s*Back to top)(?<item>.*?)</p>"#,
+        #"<p[^>]*>(?!\s*<a[^>]*>\s*Back to top|\s*Note\s*</p>)(?<item>.*?)</p>"#,
     ]
 }

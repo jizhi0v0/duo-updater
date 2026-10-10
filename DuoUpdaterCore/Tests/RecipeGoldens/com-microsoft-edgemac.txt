@@ -119,7 +119,75 @@ probes[2].requestBody = nil
 probes[2].followRedirects = true
 probes[2].requestHeaders = Dictionary(count: 0)
 
-changelogs = Array(count: 0)
+changelogs = Array(count: 2)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "com.microsoft.edgemac"
+changelogs[0].source = URL("https://learn.microsoft.com/deployedge/microsoft-edge-relnote-stable-channel")
+changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
+changelogs[0].mode = .html
+changelogs[0].entryPattern = "<h2[^>]*>\\s*Version\\s+(?<version>\\d+(?:\\.\\d+){3}):\\s*(?<date>[^<(]+?)\\s*\\(Stable\\)[^<]*(?:<a[^>]*>\\s*</a>\\s*)?</h2>(?<body>.*?)(?=<h2[\\s>]|</main>)"
+changelogs[0].itemPatterns = Array(count: 3)
+changelogs[0].itemPatterns[0] = "<li[^>]*>\\s*(?:<p[^>]*>)?(?<item>(?:(?!</?li[\\s>]|</p>|<[uo]l[\\s>]).)+)"
+changelogs[0].itemPatterns[1] = "<tr>\\s*<td>(?:(?!</td>).)*</td>\\s*<td>(?<item>.*?)</td>"
+changelogs[0].itemPatterns[2] = "<p[^>]*>(?!\\s*<a[^>]*>\\s*Back to top|\\s*Note\\s*</p>)(?<item>.*?)</p>"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 40
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel = nil
+changelogs[0].includesPromotedStable = false
+changelogs[0].excludedChannels = Array(count: 0)
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern? = "<h[34]\\b(?![^>]*\\bid=\"release-summary)[^>]*>(?<heading>.*?)</h[34]>"
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].carriesOtherTrainEntries = false
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+changelogs[1] = struct ChangelogRecipe
+changelogs[1].bundleID = "com.microsoft.edgemac.Beta"
+changelogs[1].source = URL("https://learn.microsoft.com/deployedge/microsoft-edge-relnote-beta-channel")
+changelogs[1].sourceTemplate = nil
+changelogs[1].versionFromTemplate = false
+changelogs[1].mode = .html
+changelogs[1].entryPattern = "<h2[^>]*>\\s*Version\\s+(?<version>\\d+(?:\\.\\d+){3}):\\s*(?<date>[^<]+?)\\s*(?:<a[^>]*>\\s*</a>\\s*)?</h2>(?<body>.*?)(?=<h2[\\s>]|</main>)"
+changelogs[1].itemPatterns = Array(count: 3)
+changelogs[1].itemPatterns[0] = "<li[^>]*>\\s*(?:<p[^>]*>)?(?<item>(?:(?!</?li[\\s>]|</p>|<[uo]l[\\s>]).)+)"
+changelogs[1].itemPatterns[1] = "<tr>\\s*<td>(?:(?!</td>).)*</td>\\s*<td>(?<item>.*?)</td>"
+changelogs[1].itemPatterns[2] = "<p[^>]*>(?!\\s*<a[^>]*>\\s*Back to top|\\s*Note\\s*</p>)(?<item>.*?)</p>"
+changelogs[1].stripTags = true
+changelogs[1].decodeEntities = true
+changelogs[1].escapedMarkup = false
+changelogs[1].markdownSource = false
+changelogs[1].maxEntries? = 40
+changelogs[1].minItemLength = 1
+changelogs[1].newestLast = false
+changelogs[1].indexLinkPattern = nil
+changelogs[1].feedPagePattern = nil
+changelogs[1].channel = nil
+changelogs[1].includesPromotedStable = false
+changelogs[1].excludedChannels = Array(count: 0)
+changelogs[1].imagePattern = nil
+changelogs[1].headingPattern? = "<h[34]\\b(?![^>]*\\bid=\"release-summary)[^>]*>(?<heading>.*?)</h[34]>"
+changelogs[1].minimumAppVersion = nil
+changelogs[1].belowAppVersion = nil
+changelogs[1].carriesOtherTrainEntries = false
+changelogs[1].acknowledgedStaleEntry = nil
+changelogs[1].structuredFormat = nil
+changelogs[1].httpMethod = .get
+changelogs[1].requestBody = nil
+changelogs[1].skipSections = Array(count: 0)
+changelogs[1].tagPattern = nil
 
 githubRules = Array(count: 0)
 

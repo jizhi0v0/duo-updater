@@ -29,8 +29,15 @@ Everything else (push to main, dispatch, a fork's pull request) stays hosted,
 exactly as before. Anything that goes wrong reading the queue falls back to the
 mini, which is what every same-repository pull request got before this.
 
-The count is a snapshot. Two pull requests routed in the same second can both see
-an idle mini; the cost is that one of them queues there, as all of them did before.
+The count is a snapshot, and it cannot see a run whose macOS jobs do not exist yet:
+another run's jobs appear only once its own `route` job has finished. Two pull
+requests pushed within that window both miss each other (measured 2026-10-11: two
+runs 3 s apart both saw "mini 4 active" and both took the mini; the second waited
+18.7 minutes there). The cost is that one of them queues on the mini, as all of
+them did before this script.
+
+Also not counted: macOS jobs of the owner's other repositories, which share the
+five hosted slots (the limit is per account).
 """
 
 import json
@@ -83,15 +90,23 @@ def gh(path):
     return json.loads(out)
 
 
+def active_runs(repo, this_run, fetch=None):
+    """Run ids from the five status lists, each once. A run that changes status
+    between two of the list requests (queued, then in_progress) is in both."""
+    fetch = fetch or gh
+    seen = []
+    for status in ("queued", "in_progress", "waiting", "pending", "requested"):
+        for run in fetch(f"repos/{repo}/actions/runs?status={status}&per_page=100")["workflow_runs"]:
+            if run["id"] != this_run and run["id"] not in seen:
+                seen.append(run["id"])
+    return seen
+
+
 def active_jobs(repo, this_run):
     jobs = []
-    for status in ("queued", "in_progress", "waiting", "pending", "requested"):
-        runs = gh(f"repos/{repo}/actions/runs?status={status}&per_page=100")["workflow_runs"]
-        for run in runs:
-            if run["id"] == this_run:
-                continue
-            for job in gh(f"repos/{repo}/actions/runs/{run['id']}/jobs?per_page=100")["jobs"]:
-                jobs.append((job["status"], job.get("labels") or []))
+    for run in active_runs(repo, this_run):
+        for job in gh(f"repos/{repo}/actions/runs/{run}/jobs?per_page=100")["jobs"]:
+            jobs.append((job["status"], job.get("labels") or []))
     return jobs
 
 

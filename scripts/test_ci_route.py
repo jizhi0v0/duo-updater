@@ -66,6 +66,16 @@ class Choose(unittest.TestCase):
         self.assertFalse(cr.is_hosted_mac(MINI))
 
 
+class ActiveRuns(unittest.TestCase):
+    def test_a_run_in_two_status_lists_counts_once(self):
+        # Run 7 was queued when that list was read and in_progress by the next.
+        lists = {"queued": [7, 8], "in_progress": [7, 9], "waiting": [], "pending": [], "requested": [1]}
+        def fetch(path):
+            status = path.split("status=")[1].split("&")[0]
+            return {"workflow_runs": [{"id": i} for i in lists[status]]}
+        self.assertEqual(cr.active_runs("o/r", 1, fetch), [7, 8, 9])
+
+
 class Main(unittest.TestCase):
     def run_main(self, env, jobs=None, error=None):
         out, err = io.StringIO(), io.StringIO()

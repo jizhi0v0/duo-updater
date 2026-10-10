@@ -38,11 +38,13 @@
 # If the mini is down, dispatch this workflow on the branch: dispatch is hosted.
 #
 # Which of the two a same-repository pull request gets is decided per run by the
-# `route` job (scripts/ci_route.py): the mini when it is idle, a hosted Mac when
-# the mini is busy and the hosted slots have room for all three jobs, the mini
-# again when both are full. Sending every one to the mini left the hosted slots
-# empty while PR jobs queued there for 17 minutes on average (the script says
-# when that was measured). GitHub has no "whichever runner is free" of its own.
+# `route` job (scripts/ci_route.py): it estimates when this run would finish on
+# each side, from the jobs already queued or running there and measured median
+# job times, and takes the earlier, the mini on a tie. An idle mini always wins;
+# a hosted Mac can win even with fewer than three free slots, or none, when the
+# mini's queue is longer still. Sending every one to the mini left the hosted
+# slots empty while PR jobs queued there for 17 minutes on average (the script
+# says when that was measured). GitHub has no "whichever runner is free" of its own.
 name: CI
 
 on:

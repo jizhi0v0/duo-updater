@@ -199,9 +199,10 @@ private let bartenderAppcastFixture = #"""
         #expect(recipe.acceptedFeedPage(nil) == nil)
     }
 
-    /// The probe's `changelogURL` is what the pane embeds when no recipe
-    /// produces notes: the human release-notes page, never the appcast, and not
-    /// a page this recipe would try to parse.
+    /// The probe's `changelogURL` is the human release-notes page, not the
+    /// appcast, and not a page this recipe would try to parse. It is used only
+    /// if the probe itself answers; in production Sparkle answers first, and the
+    /// pane falls back to that answer's per-version `rnotes.html` instead.
     @Test func theFallbackPageIsTheHumanReleaseNotes() throws {
         let probe = try #require(VendorProbeRegistry.recipes
             .first { $0.bundleID == "com.surteesstudios.Bartender" })

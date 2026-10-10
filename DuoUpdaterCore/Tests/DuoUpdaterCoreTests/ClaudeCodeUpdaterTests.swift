@@ -312,12 +312,26 @@ import Foundation
     }
 
     /// A child that never exits is stopped at the deadline and reported as such.
+    ///
+    /// The command lasts until the test lets it go, not for a set time. With
+    /// `exec sleep 30` a deadline delivered late finds it exited 0, and exit 0
+    /// is read before anything else: `.updated`. Holding every `.medium` pool
+    /// thread for 3 s past a scaled-down `exec sleep 2` reproduces that locally;
+    /// no CI run is known to have shown it. (That CI starves the pool the same
+    /// way is inferred, not instrumented.) Held, only the deadline's SIGTERM —
+    /// to the shell the updater spawned — can end the command.
+    /// Mutation: drop `group.cancelAll()` after the deadline fires in
+    /// `ChildProcess` (the command then gives up on its own after ~300 s and
+    /// reads as `.updated`).
     @Test func aHungCommandIsStoppedAtTheDeadline() async throws {
         let box = try Sandbox()
-        try box.script("run", "echo started\nexec sleep 30")
+        let hold = box.root.appendingPathComponent("hold")
+        FileManager.default.createFile(atPath: hold.path, contents: nil)
+        try box.script("run", "echo started\nn=0; while [ -e '\(hold.path)' ] && [ $n -lt 3000 ]; do /bin/sleep 0.1; n=$((n+1)); done")
         let outcome = await updater(
             box, deadline: .init(terminateAfter: .seconds(1), killAfter: .seconds(3))
         ).update(scriptStatus(box, "run"))
+        try FileManager.default.removeItem(at: hold)
         // The message only. Whether "started" made it into the log before SIGTERM
         // is up to the scheduler: in the full parallel `make test` the child was
         // stopped before its first line (2026-09-30, output ""), so pinning the

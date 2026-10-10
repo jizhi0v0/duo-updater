@@ -215,10 +215,24 @@ import Foundation
         #expect(lines.all.contains("read=0"))
     }
 
+    /// The child lasts until the test lets it go, not for a set time. With
+    /// `sleep 30` a deadline delivered late finds it exited 0, which reads as
+    /// "the update finished, but mcp-remote is 0.1.38, not 0.14.3". Holding
+    /// every `.medium` pool thread for 3 s past a scaled-down `sleep 2`
+    /// reproduces that locally; no CI run is known to have shown it. (That CI
+    /// starves the pool the same way is inferred, not instrumented.) Held, only
+    /// the deadline's SIGTERM can end it.
+    /// Mutation: drop `group.cancelAll()` after the deadline fires in
+    /// `ChildProcess` (the child then gives up on its own after ~300 s and the
+    /// update reads as finished at the old version).
     @Test func aHungChildIsStopped() async throws {
         let box = try NpmSandbox()
-        let status = try await status(box, node: "sleep 30")
+        let hold = box.url("hold")
+        FileManager.default.createFile(atPath: hold.path, contents: nil)
+        let status = try await status(
+            box, node: "n=0; while [ -e '\(hold.path)' ] && [ $n -lt 3000 ]; do /bin/sleep 0.1; n=$((n+1)); done")
         let outcome = await updater(deadline: .init(terminateAfter: .seconds(1), killAfter: .seconds(2))).update(status)
+        try FileManager.default.removeItem(at: hold)
         guard case .failed(let message, _) = outcome else { Issue.record("\(outcome)"); return }
         #expect(message == "stopped: still running after 1 s")
     }

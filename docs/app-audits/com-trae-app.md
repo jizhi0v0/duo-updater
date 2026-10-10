@@ -3,7 +3,8 @@
 审计 2026-10-08（重测；2026-08-17 那版的结论是「官方 API 只发布 `2.3.x` 打包号、没有可比的远端版本」，
 当时成立，**现在不成立了**：官方 API 已经按平台、架构发布与包内 `CFBundleShortVersionString` 同构的版本号。
 同日按 A 接入 VendorProbe，见「覆盖矩阵」与「更新检测」。2026-10-09 补跑一键端到端两轮，见「一键安装」。
-2026-10-09 3.6.1 起 dmg 又改名为 `TRAE-darwin-*.dmg`，钉死旧文件名的安装 pattern 失配（#1113 / #1114），已修，见「历史与实测」。）
+2026-10-09 3.6.1 起 dmg 又改名为 `TRAE-darwin-*.dmg`，钉死旧文件名的安装 pattern 失配（#1113 / #1114），已修，见「历史与实测」。
+2026-10-10 接入 changelog：`docs.trae.ai/ide/changelog` 已追上（最新 3.6.0），按 `.traeDocsChangelog` 结构化，见「Changelog」。）
 
 ## 基本信息
 - Bundle ID: `com.trae.app`（官网 GA 与 API 里 `tob` 段的构建都是这个 id，见下）
@@ -104,13 +105,18 @@
 | 自更新器会不会和我们抢 | 有自己的下载 / `quitAndInstall` 流程 | — | 第二轮已跑（见「一键安装」）：app 运行中 duo 装上 3.5.104，退出后没有被换回 |
 
 ## Changelog
-- 来源: 无（`trae.ai/changelog` 是 JS 壳，`docs.trae.ai/ide/changelog` 停在 v3.5.89~3.5.91），没有 changelog recipe
-- 结构化: `changelog pane  none — the pane says there are no release notes`（3.5.104 与 3.5.87 两个包）
-- `https://www.trae.ai/changelog` 返回的是 JS 壳（16 KB HTML，`file` 判定为 UTF-8 文本，不是压缩字节；无版本号）
-- `https://docs.trae.ai/ide/changelog` 有内容，嵌在页面里的 Quill delta JSON：按日期分条（“August 19, 2026 (Hotfix)”），
-  条目写版本区间（“TraeCode v3.5.89 ~ 3.5.91 are released”）。最新一条是 2026-08-19，**没有 3.5.104**
-  （3.5.104 构建于 09-22）
-- Recipe 状态: 检测接上之前不需要；接上之后也难做（版本区间、日期分条、内容滞后）
+- 来源: `https://docs.trae.ai/ide/changelog`（就是 VendorProbe `changelogURL` 指向、此前 pane 里内嵌的那一页）。
+  `https://www.trae.ai/changelog` 是 JS 壳（16 KB HTML，无版本号），不可用
+- 形状: Arcosite 文档站，正文是 `window._ROUTER_DATA` 里的 Quill 式 delta（`ops[]`）。每个 release 一行 `h2`（日期 +
+  类型，“October 08, 2026 (Feature Release)”），下面第一行普通段落写版本或区间（“TraeCode v3.5.97 ~ 3.5.104 are
+  released”），其后是 `bullet1` / `bullet2` / `indent1` 列表
+- Recipe: `Recipes/com-trae-app.swift`，`structuredFormat: .traeDocsChangelog`，`maxEntries: 40`。版本取区间的**最后一个**；
+  日期 = `h2` 原文；mention（链到别的文档页）取 `dataMetaBlockProps` 里的 `props.title`；粗体 / 行内代码 / mention 把一句
+  拆成多个 op，所以用解码器而不是 regex
+- 结构化: ✓。`channel-verify /Applications/Trae.app`（3.6.1）→ `changelog pane  recipe changelog:com.trae.app:-: 40 entries;
+  newest 3.6.0: 4 items`
+- 滞后: hotfix 常被并进下一条或不写，最新条目可能落后 probe 给的版本（2026-10-10：3.6.0 对 3.6.2）。同一 minor 内
+  `duo verify` 不报；整个 minor 落后才报
 
 ## 一键安装
 - 状态: 支持（dmg，按架构分包，每个架构一条 recipe、各带 `hostRequirement`；安装 URL 钉死本架构的 `-darwin-<arch>.dmg`
@@ -141,6 +147,7 @@
    `VendorProbeRecipe.swift` 里两段过期的 TRAE 注释已改
 2. B 更贴近 Trae 自己的行为，但请求要带包内 `package.json` 的 `buildId`，现有 recipe 字段没有这个能力；不建议为它加机制
 3. （已做）一键端到端 3.5.87 → 3.5.104 两轮，见「一键安装」
+4. （已做）changelog：docs 页结构化（`.traeDocsChangelog`），见「Changelog」
 
 ## 如何复验
 
@@ -186,6 +193,18 @@ python3 -c 'import json; p=json.load(open("<Trae.app>/Contents/Resources/app/pac
 - 「已验证版本」改为「观测版本」
 
 ## 历史与实测
+
+### 2026-10-10：接入 changelog（docs 页追上了）
+
+- 2026-10-08 审计时 docs 页最新一条是 2026-08-19（v3.5.89~3.5.91），没有 3.5.104，所以没写 recipe。2026-10-10 重取：
+  最新一条是 2026-10-08 的 3.6.0，前一条 2026-09-20 写的就是 3.5.97 ~ 3.5.104。
+- 页面：`curl --compressed` 两次 200、字节相同，解压后 2,209,761 B。（本机 Python `urllib` 读到约 1 MB 处报
+  `IncompleteRead`，是本机代理截断大响应，不是页面问题。）`window._ROUTER_DATA` 里同一份文档出现两次
+  （`loaderData.layout` 与 `loaderData.$`，各 1891 个 op），另有几个 1 个 op 的提示框 delta。
+- 全页 181 个 `h2` 条目，用与解码器同规则的 Python 原型逐条解析：181 条都有版本、都有至少一条 note。版本行写法有
+  `vX is released`、`X is released`（无 v）、`vX ~ Y`、`vX ～ Y`（全角）、`vX & Y`、`vX & vY`、`vX and Y`。
+  前 40 条里不是列表的正文行只有 3.5.42 的两行，都是真改动；1.0.1 里的 “Optimizations” / “Fixes” 小标题在 40 条之外。
+- 生产路径：`make cli` 后 `duo verify --only com.trae.app` → changelog `ok`、40 条、最新 3.6.0；两条 VendorProbe `ok` 3.6.2。
 
 ### 2026-10-09：dmg 改名 `TraeCode-` → `TRAE-`，一键失效（#1113 / #1114）
 

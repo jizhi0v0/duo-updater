@@ -158,12 +158,20 @@ public extension SparkleAppcastSource {
     /// not one anybody can act on. The architecture inputs are pinned at the
     /// call site above for the same reason; `osVersion` is the one host fact
     /// left in the answer, and it is reported.
+    ///
+    /// The one exception is an app whose fresh install is not on the default
+    /// channel at all (OBS tags its stable releases `stable`): the stand-in then
+    /// wears the vendor's own default, `ChannelBinding.freshInstallResolution`,
+    /// which is just as machine-independent.
     private static func probeApp(bundleID: String, feedURL: URL) -> InstalledApp {
-        InstalledApp(
+        let fresh = ChannelBinding.freshInstallResolution(bundleID: bundleID)
+        return InstalledApp(
             name: bundleID, bundleID: bundleID,
             shortVersion: nil, buildVersion: nil,
             path: URL(fileURLWithPath: "/Applications/\(bundleID).app"),
             isMASApp: false, sparkleFeedURL: feedURL,
-            releaseChannel: .stable, channelIsAuthoritative: false)
+            sparkleChannelNames: fresh?.sparkleChannelNames ?? [],
+            releaseChannel: fresh?.channel ?? .stable,
+            channelIsAuthoritative: fresh != nil)
     }
 }

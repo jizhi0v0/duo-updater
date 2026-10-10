@@ -45,6 +45,24 @@ enum com_trae_app {
         // History: docs/app-audits/com-trae-app.md#历史与实测
         traeRecipe(arch: .arm64),
         traeRecipe(arch: .x86_64),
+        ],
+        changelogs: [
+        // TRAE — the docs changelog, the page the probe's `changelogURL` already
+        // embeds. `www.trae.ai/changelog` is a JS shell with no notes in it.
+        //
+        // The notes are a delta inside the page's `window._ROUTER_DATA`, read by
+        // `.traeDocsChangelog`: one entry per dated `h2`, newest first. An entry
+        // can cover a RANGE of builds ("TraeCode v3.5.97 ~ 3.5.104"); its version
+        // is the last one in it. Hotfixes are often folded into the next entry or
+        // not written up at all, so the newest entry can trail the version the
+        // probe offers within the same minor (3.6.0 against 3.6.2); `duo verify`
+        // flags only a whole minor behind.
+        // History: docs/app-audits/com-trae-app.md#历史与实测
+        ChangelogRecipe(
+            bundleID: "com.trae.app",
+            source: URL(string: "https://docs.trae.ai/ide/changelog")!,
+            maxEntries: 40,
+            structuredFormat: .traeDocsChangelog),
         ])
 
     /// Everything up to the start of the `manifest.darwin.versions[]` entry for

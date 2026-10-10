@@ -69,6 +69,8 @@ public enum StructuredChangelogDecoder {
             return decodeHyperFramesWhatsNew(body)
         case .gotEmailReleases:
             return decodeGotEmailReleases(body, maxEntries: maxEntries)
+        case .traeDocsChangelog:
+            return decodeTraeDocsChangelog(body, maxEntries: maxEntries)
         case .opencodeReleases:
             guard let changelog = OpencodeRelease.parseNotes(Data(body.utf8)),
                   !changelog.entries.isEmpty
@@ -578,6 +580,126 @@ public enum StructuredChangelogDecoder {
             if let cap = maxEntries, entries.count >= cap { break }
         }
         return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    // MARK: - TRAE (docs.trae.ai/ide/changelog)
+
+    /// The page's text is a delta: an op `{"insert": "*", "attributes": {"lmkr":
+    /// "1", …}}` opens each line and carries its kind (`heading: "h2"`, `list:
+    /// "bullet1"` / `"bullet2"` / `"indent1"`), the ops after it are the line's text
+    /// up to an `\n`. A mention (a link to another doc page) is an op whose insert
+    /// is a single space; the words the page shows are `props.title` in its
+    /// `dataMetaBlockProps` JSON. An image or a callout box is likewise one space,
+    /// and drops out with the whitespace.
+    ///
+    /// An entry is an `h2` line, verbatim as its date, and the lines under it. The
+    /// first plain (non-list) line that holds a version names the release; for a
+    /// range ("v3.5.97 ~ 3.5.104", "v3.5.64 ～ 3.5.65", "v3.5.4 & 3.5.5") that is the
+    /// LAST version in it, the build the range ends on and the one an install of
+    /// it reports. Every other non-empty line is a note, a nested bullet as a line
+    /// of its own after its parent. An entry with no version line is left out.
+    static func decodeTraeDocsChangelog(_ body: String, maxEntries: Int?) -> Changelog? {
+        guard let ops = traeDocOps(in: body) else { return nil }
+        let versionRegex = try? NSRegularExpression(pattern: #"\bv?([0-9]+(?:\.[0-9]+){2,3})\b"#)
+
+        var entries: [Changelog.Entry] = []
+        var heading: String?
+        var version: String?
+        var items: [String] = []
+        func close() {
+            if let heading, let version, !items.isEmpty {
+                entries.append(.init(version: version, date: heading, items: items))
+            }
+        }
+        for line in traeDocLines(ops) {
+            if line.isHeading {
+                close()
+                heading = line.text.isEmpty ? nil : line.text
+                version = nil
+                items = []
+                continue
+            }
+            guard heading != nil, !line.text.isEmpty else { continue }
+            if version == nil, !line.isList, let versionRegex {
+                let range = NSRange(line.text.startIndex..., in: line.text)
+                if let last = versionRegex.matches(in: line.text, range: range).last,
+                   let r = Range(last.range(at: 1), in: line.text) {
+                    version = String(line.text[r])
+                    continue
+                }
+            }
+            items.append(line.text)
+        }
+        close()
+        if let cap = maxEntries { entries = Array(entries.prefix(cap)) }
+        return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    /// The `ops` of the changelog document in `window._ROUTER_DATA`. The page
+    /// carries other deltas (each callout box is one) and the same document twice
+    /// (`loaderData.layout` and `loaderData.$`), so: the longest one that has an
+    /// `h2` line.
+    private static func traeDocOps(in body: String) -> [[String: Any]]? {
+        let marker = "window._ROUTER_DATA = "
+        guard let start = body.range(of: marker),
+              let end = body.range(of: "</script>", range: start.upperBound..<body.endIndex)
+        else { return nil }
+        var json = body[start.upperBound..<end.lowerBound]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if json.hasSuffix(";") { json.removeLast() }
+        guard let root = try? JSONSerialization.jsonObject(with: Data(json.utf8)) else { return nil }
+
+        var best: [[String: Any]]?
+        func walk(_ node: Any) {
+            if let dict = node as? [String: Any] {
+                if let ops = dict["ops"] as? [[String: Any]], ops.count > (best?.count ?? 0),
+                   ops.contains(where: { ($0["attributes"] as? [String: Any])?["heading"] as? String == "h2" }) {
+                    best = ops
+                }
+                for value in dict.values { walk(value) }
+            } else if let array = node as? [Any] {
+                for value in array { walk(value) }
+            }
+        }
+        walk(root)
+        return best
+    }
+
+    private struct TraeDocLine {
+        let isHeading: Bool
+        let isList: Bool
+        let text: String
+    }
+
+    private static func traeDocLines(_ ops: [[String: Any]]) -> [TraeDocLine] {
+        var lines: [TraeDocLine] = []
+        var marker: [String: Any] = [:]
+        var text = ""
+        for op in ops {
+            guard var insert = op["insert"] as? String else { continue }
+            let attributes = op["attributes"] as? [String: Any] ?? [:]
+            if insert == "*", attributes["lmkr"] != nil {
+                marker = attributes
+                continue
+            }
+            if let meta = attributes["dataMetaBlockProps"] as? String {
+                let props = (try? JSONSerialization.jsonObject(with: Data(meta.utf8)))
+                    .flatMap { ($0 as? [String: Any])?["props"] as? [String: Any] }
+                insert = props?["title"] as? String ?? ""
+            }
+            let pieces = insert.components(separatedBy: "\n")
+            for (index, piece) in pieces.enumerated() {
+                text += piece
+                guard index < pieces.count - 1 else { break }
+                lines.append(TraeDocLine(
+                    isHeading: marker["heading"] as? String == "h2",
+                    isList: marker["list"] != nil,
+                    text: text.trimmingCharacters(in: .whitespacesAndNewlines)))
+                marker = [:]
+                text = ""
+            }
+        }
+        return lines
     }
 
     // MARK: - GitHub Desktop (central.github.com/deployments/desktop/desktop/changelog.json)

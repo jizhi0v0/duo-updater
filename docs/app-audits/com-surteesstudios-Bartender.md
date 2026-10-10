@@ -30,3 +30,18 @@ and the recent ones from downloads.macbartender.com — the pattern
 accepts either host.)
 
 复测 2026-09-14（约 07:30 UTC，只读 GET；`www.macbartender.com/B2/updates/AppcastB6.xml` 先 307 到 `downloads.macbartender.com` 同一路径）：16 个 `<item>`，第一个 enclosure 是 6.0.0（`macbartender.com/B2/updates/6-0-0/…`），最后一个是 6.6.2（`downloads.macbartender.com/…/6-6-2/…`）。代码里 "the first enclosure is 6.0.0" 和两个主机的说法因此原样保留。
+
+### Recipes/com-surteesstudios-Bartender.swift — ChangelogRecipe（`feedPagePattern`，2026-10-10 接入）
+
+只读 GET，2026-10-10。appcast（`www.` 307 到 `downloads.macbartender.com`）16 个 `<item>`，升序，最新 6.6.2
+（= baseline `vendor:com.surteesstudios.Bartender:stable` 的 `lastGoodVersion`），每个 item 一个
+`<sparkle:releaseNotesLink>`，无 `xml:lang`。6.0.0–6.4.1 链接 `macbartender.com/B2/updates/<6-x-y>/rnotes.html`，
+6.5.1 起是 `downloads.macbartender.com/…`。16 个链接全部被 `feedPagePattern` 接受；逐个 GET：6.1.2、6.1.3、6.2.1、
+6.3.0、6.3.1、6.4.1 共 6 个 404，其余 10 个 200。
+
+生产解析器（`ChangelogExtractor`，临时测试）在 10 个活页上都出 1 条，版本 = 链接版本，唯独 6.0.0 页标题是
+"Bartender 6"，版本读成 `6`；该页正文多数是 `<h4>` 下的散文，只有末尾 4 条 `<li>`（已知问题）成为条目，
+6 个 `<h4>` 成为 heading。6.0.3 页没有列表，落到 `<p>`（1 条）。`ChangelogService.loadDiagnostic(feedPage: nil)`
+从 appcast 解析出 `…/6-6-2/rnotes.html`（200），1 条 `6.6.2`、8 条、heading `Fixes`，首条
+"Memory usage should no longer creep up over longer sessions for users with triggers enabled."；
+`ChangelogService.load(forBundleID:)` 按设计返回 nil（没有更新结果可取页面）。

@@ -613,6 +613,11 @@ The Unarchiver 等。
 | **The Unarchiver** | `com.macpaw.site.theunarchiver` | `updates.devmate.com/releasenotes/147/…` | DevMate 页面，`<h2>` + `<strong>` section + `<ul>`，`<hr />` 分隔 |
 | **Plex Desktop** | `tv.plex.desktop` | `forums.plex.tv/…/446435.rss` | Discourse RSS feed，`<item>` 内 `<p>Version X.Y.Z…` + `<ul>` |
 
+> **2026-10-10 更正：** 这张表不成立。git 历史里这 5 个（以及下文说的 Sublime Merge / Brave / Alfred）
+> 从来只有 VendorProbe 的 `changelogURL`，没有 `ChangelogRecipe`；`com.macbartender.Bartender6` 这个 bundle id
+> 在代码里也不存在（Bartender 是 `com.surteesstudios.Bartender`）。现状以 `duo verify` 的 `coverage` 为准：
+> 每个有 changelog 页、没 recipe 的 app 都登记在 `CLI/Sources/DuoKit/ChangelogCoverage.swift`，原因逐个对线上页面核过。
+
 **确认不可解析、fallback webview（6 个）：**
 
 | App | 原因 |

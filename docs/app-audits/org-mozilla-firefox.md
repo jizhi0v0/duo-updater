@@ -89,7 +89,7 @@ Dev Edition 的 `RemotingName=firefox-dev` 归 `.dev`（旧"版本是 bN → 归
 - **esr 带后缀、安装版剥后缀，但仍安全**：`140.14.0esr` 比 `140.14.0` 多一截，比较器把
   预发布串排在正式版**之下**，所以当前版判"已是最新"、不会误报；真正升版
   （`140.14.0esr`→`140.15.0esr`）仍比得出更新。
-- `FIREFOX_ESR_NEXT`（当前 `153.1.0esr`）没跟 —— ESR 切版重叠期的双轨，低优先级。
+- `FIREFOX_ESR_NEXT`（2026-10-10 `product-details` 为 `153.4.0esr`）没跟 —— ESR 切版重叠期的双轨，低优先级。
 
 ### beta / dev-edition / nightly — AUS（`aus5.mozilla.org`）
 
@@ -150,12 +150,29 @@ nightly 的锚点特意用 `120.0a1` 而不是当前的 `157.0a1`：`RecipeSanit
 长期亮着。
 
 ## Changelog
-- 来源: **WebView 内嵌官网 release notes**，每条 recipe 自带 `changelogURL`：
-  stable `firefox/notes/`、beta `firefox/beta/notes/`、esr `firefox/organizations/notes/`、
-  nightly `firefox/nightly/notes/`。
-- 跟随 channel: **是**（每 channel 一个 notes 页）。
-- Recipe 状态: **不需要**专门的 `ChangelogRecipe`（`ChangelogRecipe.swift` 无 Firefox 条目）。
-  官网 notes 页直接 WebView 展示即可。
+- 来源: **结构化 `ChangelogRecipe`**（2026-10-10 接入），五条 channel 各一条，都在
+  `Recipes/org-mozilla-firefox.swift` 的 `changelogs:`。官网每个版本一页
+  （`www.firefox.com/en-US/firefox/<token>/releasenotes/`；`www.mozilla.org` 的同路径 301 过去），
+  和 Thunderbird 一样用 `sourceTemplate` 代入「提供的更新版本，否则安装版本」，不用钉版本。
+  解析失败时仍回落到 WebView 内嵌 probe 的 `changelogURL`（2026-10-10 起直接指向
+  `www.firefox.com/firefox/{notes,beta/notes,organizations/notes,nightly/notes}/`，即旧
+  `www.mozilla.org` 地址 301 的目标；这些别名再 302 到当前版本页）。
+- 各 channel 的 URL token（2026-10-10 逐个对过状态码）:
+  | Channel | 代入的版本 | 页面 | 机制 |
+  |---|---|---|---|
+  | stable | `157.0.1` | `/157.0.1/` | `{version}` 原样 |
+  | beta | `158.0b5` 或安装的 `158.0` | `/158.0beta/`（整周期一页；`/158.0b5/` 404） | `{version}` + `.beta` 的 `urlVersionToken`，与 Thunderbird beta 同一规则 |
+  | esr | `140.17.0esr` 或安装的 `140.17.0` | `/140.17.0/`（`/140.17.0esr/` 404） | **`{firefoxVersion}`**（新占位符，见下） |
+  | dev-edition | `158.0b5` 或 `158.0` | `/158.0beta/`（官网 `firefox/developer/notes/` 本身就重定向到 beta 页） | `{majorMinor}beta`（`.dev` 的 token 原样透传） |
+  | nightly | `160.0a1` | `/160.0a1/` | `{version}` 原样 |
+- **ESR 的 URL 规则和 Thunderbird 不同**：Thunderbird ESR 页一律带 `esr`（`140.11.1esr`），
+  Firefox 只在次版本为 0 时带（`140.0esr`、`115.0.2esr` 与 Release 同号，所以要后缀区分；
+  `140.1.0`、`128.5.0`、`153.1.0` 起页面是裸版本，加 `esr` 即 404）。所以引擎加了
+  `{firefoxVersion}` 占位符（`ChangelogRecipe.firefoxVersionToken`），`{version}` 和
+  Thunderbird 的行为不变。
+- 条目版本取页面自己的写法：beta / dev-edition 是 `158.0beta`（与 Thunderbird beta 相同），
+  其余与提供的版本同形（esr 页写 `140.17.0`，提供的是 `140.17.0esr`，major.minor 一致）。
+- 跟随 channel: **是**（Release/Beta/ESR 共享 bundle id，按 recipe 的 `channel` 选）。
 
 ## 一键安装
 - 状态: **已接入**，stable / beta / esr 三条 recipe 都带 `install: VendorInstallSpec`
@@ -190,7 +207,7 @@ nightly 的锚点特意用 `120.0a1` 而不是当前的 `157.0a1`：`RecipeSanit
   详见上面「锚点是写死的」。
 - **AUS 不发布发布时间**：没有 `pubDate` 之类的字段，所以这三条 channel 的 Release Log
   仍然只有"我们何时看见"，没有"厂商何时发布"。
-- `FIREFOX_ESR_NEXT` 当前为 `153.1.0esr`；ESR 重叠期双轨低优先级，暂不加。
+- `FIREFOX_ESR_NEXT` 2026-10-10 `product-details` 为 `153.4.0esr`（此前记的 `153.1.0esr` 已过时）；ESR 重叠期双轨低优先级，暂不加。
 - **一键安装仍然装 `-latest`**，不是 AUS `<patch>` 里那个 `.mar`。`.mar` 是 Mozilla 自己
   更新器用的增量/完整补丁格式，我们不解析它；`-latest` 的重定向产物就是 AUS 报的那个
   build（2026-08-30 五条 channel 逐一对过 `BuildID`）。
@@ -222,7 +239,7 @@ swift run --package-path application-test channel-verify /tmp/ff-dev.dmg    --ex
 端点侧：
 
 ```
-duo verify --only mozilla          # 9 条 vendor probe + 3 条 changelog
+duo verify --only mozilla          # 9 条 vendor probe + 8 条 changelog（Thunderbird 3 + Firefox 5）
 ```
 
 ## 历史与实测
@@ -333,3 +350,28 @@ Thunderbird's `application.ini` names `aus.thunderbird.net`, which 302s
 to the same path on `aus5.mozilla.org`. We follow Thunderbird's own host
 rather than short-cutting to the redirect target: if the two ever
 diverge, the app's URL is the one that stays right.
+
+### Recipes/org-mozilla-firefox.swift — changelog recipes（URL 形式的实测，2026-10-10）
+
+当天 `product-details`：Release `157.0.1`、Beta/DevEdition `158.0b5`、ESR `140.17.0esr`
+（`FIREFOX_ESR_NEXT` `153.4.0esr`）、Nightly `160.0a1`，与 `verify/baseline.json` 一致。
+`www.mozilla.org/en-US/firefox/<v>/releasenotes/` 一律 301 到 `www.firefox.com` 同路径，
+recipe 直接用 firefox.com。各形式在 firefox.com 上的状态码（curl，不跟随重定向）：
+
+| 200 | 404 |
+|---|---|
+| `157.0.1`、`158.0beta`、`160.0a1`、`159.0a1`、`158.0a1` | `158.0b5`、`158.0b1` |
+| ESR：`140.17.0`、`153.4.0`、`140.1.0`、`128.5.0`、`153.1.0`、`115.42.0` | ESR：`140.17.0esr`、`153.4.0esr`、`140.1.0esr`、`128.5.0esr`、`153.1.0esr` |
+| ESR 首版：`140.0esr`、`153.0esr`、`128.0esr`、`115.0esr`、`115.0.2esr` | `128.0.3esr`、`140.0.1esr`（这两个 ESR 版本可能本就没发过） |
+
+`140.0`、`153.0`、`115.0.2`、`140.0.1` 也是 200，但页面产品名是 "Firefox Release" —— 次版本为 0
+时号码与 Release 撞车，所以 ESR 页带 `esr`；之后不带。Thunderbird ESR 一律带 `esr`，
+这是新增 `{firefoxVersion}` 而不改 `{version}` 的原因。
+
+「最新」别名都重定向到当前版本页：`firefox/notes/` → `157.0.1`、`firefox/beta/notes/` →
+`158.0beta`、`firefox/organizations/notes/` → `140.17.0`、`firefox/nightly/notes/` → `160.0a1`、
+`firefox/developer/notes/` → `158.0beta`（Developer Edition 没有自己的 notes）。
+
+页面条目数（Python 同一正则 + 生产解析器两边一致）：`157.0.1` 5 条、`158.0beta` 13 条、
+`140.17.0` 1 条、`160.0a1` 5 条；每页另有一个 `id="note-mdn"` 的 "Developer Information"
+链接，不计入。尚未发布的 `/158.0/` 也是 200，但没有日期也没有条目。

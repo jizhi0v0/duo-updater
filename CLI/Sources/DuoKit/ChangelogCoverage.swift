@@ -80,8 +80,6 @@ enum ChangelogCoverage {
             "Sparkle feeds carry inline markdownDescription notes on every item; the page is a JS shell",
         "com.robinebers.openusage":
             "feasible, not written yet: .gitHubReleases on robinebers/openusage, stable and beta",
-        "com.sogou.inputmethod.sogou":
-            "GBK-encoded page, and the changelog fetch decodes UTF-8 only; page lists 3-part versions",
         "com.steipete.codexbar":
             "Sparkle appcast ships inline HTML notes for every item, so the page is never shown",
         "com.surteesstudios.Bartender":
@@ -110,12 +108,6 @@ enum ChangelogCoverage {
             "feasible but headlines only: the home page's #Releases highlights; full NEWS is one text file per version",
         "org.libreoffice.script":
             "landing page of blurbs; the real notes are per branch, on a bot-walled wiki",
-        "org.mozilla.firefox":
-            "feasible, not written yet: Thunderbird-style {version} template for stable and beta; ESR needs an engine change",
-        "org.mozilla.firefoxdeveloperedition":
-            "feasible, not written yet: the Firefox beta notes page through the {version} template",
-        "org.mozilla.nightly":
-            "feasible, not written yet: the {version} template on the nightly notes page",
         "tv.plex.desktop":
             "feasible but weak: a forum thread that posts only some releases, via an undocumented JSON clamp",
     ]

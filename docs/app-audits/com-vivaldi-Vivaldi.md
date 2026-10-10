@@ -90,8 +90,11 @@
 
 ## Changelog
 - 来源: Sparkle `releaseNotesLink`（网页），feed 不内联
-- 结构化: `changelog pane  web page https://update.vivaldi.com/update/1.0/relnotes/8.2.4133.84.html, no structure`
+- 结构化（接入前，2026-10-08）: `changelog pane  web page https://update.vivaldi.com/update/1.0/relnotes/8.2.4133.84.html, no structure`
   （.83 与 .84 两个包相同）
+- 现状: stable 与 snapshot 各有一个 ChangelogRecipe，都是 `sourceTemplate` + `versionFromTemplate`，
+  只取第一段 `Changelog since …`（每页一条，版本取自 URL，标题留作 heading）：
+  stable `relnotes/{version}.html`，snapshot `relnotes/snapshot/{version}.html`
 - 页面形状（2026-10-08，9,551 B）: 每个版本一页，开头一个 `<h2>` 标题，然后 10 段
   `<h2>Changelog since Vivaldi 8.2 (4133.83)</h2><ul><li>…</li></ul>`，**累积**到上一个 minor。
   第一段 `<ul class="latestchanges">` 就是本版的改动；标题里的版本号是**上一版**（「since 4133.83」那段是 .84 的内容）。
@@ -99,9 +102,12 @@
 - 判断: **写 recipe 有用**，页面结构干净。但标题里的版本号差一位，不能直接当 `version` 组用。可行的写法：
   `sourceTemplate` `https://update.vivaldi.com/update/1.0/relnotes/{version}.html` + `versionFromTemplate`，只取
   `latestchanges` 那一段（每页一条，版本取自 URL）；或 `feedPagePattern` 匹配 feed 给的 `releaseNotesLink`。
-  `<span>` 要去掉或保留成括注。本次没写（只做文档）
-- 跟随 channel: 否。Snapshot 走自己的 feed 和页面，旧 recipe 的 `changelogURL` 指博客
-- Recipe 状态: 需要（建议，见「建议下一步」）
+  `<span>` 要去掉或保留成括注。（以上为 2026-10-08 的接入前判断；后来按第一种写法接入，`<span>` 去标签后保留文字）
+- Snapshot 页（2026-10-10）: `relnotes/snapshot/<version>.html`，无开头介绍，只有一段
+  `<h2>Changelog since version 4175.3</h2><ul>…</ul>`（相对上一个 snapshot build），stable 的 pattern 原样适用
+- 跟随 channel: 是，按 bundle id 分开：Snapshot 走自己的 feed 和页面（`relnotes/snapshot/`），
+  Snapshot VendorProbe 的 `changelogURL` 仍指博客（检测上是死 recipe，Sparkle 先应答，给的是 `releaseNotesLink`）
+- Recipe 状态: stable ✓、snapshot ✓
 
 ## 一键安装
 - 状态: ✓（通用 Sparkle 路径，走 delta）
@@ -119,13 +125,10 @@
 
 ## 已知问题
 - 一键第二轮（app 运行中）未跑
-- changelog 只能嵌网页（见上，建议加 recipe）
 
 ## 建议下一步
 1. 一键第一轮已过（delta，`bytesDownloaded` 25117814，见「一键安装」）；第二轮（Vivaldi 运行中）未跑。
-2. Changelog recipe：`/fragile-recipe Vivaldi`（ChangelogRecipe，`sourceTemplate`
-   `https://update.vivaldi.com/update/1.0/relnotes/{version}.html` + `versionFromTemplate`，只取
-   `<ul class="latestchanges">` 的 `<li>`）。
+2. Changelog recipe：已完成（stable 与 snapshot，见「Changelog」）。
 3. 渠道：不需要动作。stable/snapshot 已是两个 bundle id，各读自己的 feed。
 
 ## 如何复验
@@ -184,3 +187,11 @@ appcast.xml`, this exact address, so Sparkle answers first.
 
 只取了 feed，没下 Snapshot 包：`snapshot/mac/appcast.xml` 1 条（8.3.4185.3，Thu, 08 Oct 2026 08:02:13 +0200），
 `<sparkle:channel>` 0 条。
+
+### 2026-10-10 — Snapshot ChangelogRecipe 接入
+
+只读 GET。snapshot feed 1 条 8.3.4185.3（= baseline `vendor:com.vivaldi.Vivaldi.snapshot:preview` 的
+`lastGoodVersion`），`releaseNotesLink` 为 `…/relnotes/snapshot/8.3.4185.3.html`（200，2344 B 正文）；上一个
+snapshot 的 `…/snapshot/8.3.4175.3.html` 仍 200（10 条）。生产解析器（`ChangelogService.loadDiagnostic`，临时测试，
+version 8.3.4185.3）：1 条，`8.3.4185.3`，无日期，48 条，heading `Changelog since version 4175.3`，
+首条 `[Ad Blocker] Blocked pings show up in Site info while blocker is set to Off VB-131983`。

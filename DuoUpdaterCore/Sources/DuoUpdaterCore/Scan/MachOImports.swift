@@ -108,12 +108,45 @@ public enum MachOImports {
         /// holds, so finding it costs a comparison per section and no extra read.
         /// `GoBuildInfo` reads what is in it.
         public let goBuildInfo: FileRange?
+        /// Every section of every 64-bit segment, in load-command order, with
+        /// its place in the file. Recorded for `CLIRuntimeDetector`, whose
+        /// strongest evidence is a section a packager or compiler had to write —
+        /// Bun's `__BUN,__bun`, Node's `NODE_SEA`, Swift's `__swift5_entry` —
+        /// and which reads one bounded section rather than a whole binary. Like
+        /// `goBuildInfo`, it costs nothing but the headers already in hand.
+        public let sections: [Section]
+
+        /// The section named `name` in segment `segment`, if the image has one.
+        public func section(_ segment: String, _ name: String) -> Section? {
+            sections.first { $0.segment == segment && $0.name == name }
+        }
+    }
+
+    /// One `section_64` header: its segment and section names (each at most 16
+    /// bytes, NUL-padded on disk) and where its bytes sit in the file.
+    public struct Section: Sendable, Equatable {
+        public let segment: String
+        public let name: String
+        /// Absolute: a fat binary's slice offset is already added. Zero for a
+        /// zero-fill section, which has no bytes in the file.
+        public let range: FileRange
+
+        public init(segment: String, name: String, range: FileRange) {
+            self.segment = segment
+            self.name = name
+            self.range = range
+        }
     }
 
     /// A byte range of the file on disk.
     public struct FileRange: Sendable, Equatable {
         public let offset: UInt64
         public let size: UInt64
+
+        public init(offset: UInt64, size: UInt64) {
+            self.offset = offset
+            self.size = size
+        }
     }
 
     public static func loadCommands(at url: URL) -> LoadCommands? {
@@ -241,6 +274,7 @@ public enum MachOImports {
         var names: [String: String] = [:]
         var sdks: [BuildSDK] = []
         var goBuildInfo: FileRange?
+        var sections: [Section] = []
         var cursor = 0
         for _ in 0..<commandCount {
             guard cursor + 8 <= region.count,
@@ -272,46 +306,59 @@ public enum MachOImports {
                 let platform = cmd == LoadCommand.versionMinMacOSX
                     ? BuildSDK.Platform.macOS : BuildSDK.Platform.iOS
                 if let found = BuildSDK(platform: platform, packed: sdk) { sdks.append(found) }
-            } else if cmd == LoadCommand.segment64, goBuildInfo == nil,
-                      let found = goBuildInfoSection(in: region, segmentAt: cursor, size: Int(size)) {
+            } else if cmd == LoadCommand.segment64,
+                      let found = segmentSections(in: region, segmentAt: cursor, size: Int(size)) {
                 // A section's `offset` counts from the start of its own slice,
                 // not of the file.
-                goBuildInfo = FileRange(offset: sliceOffset + found.offset, size: found.size)
+                for section in found {
+                    let placed = Section(
+                        segment: section.segment, name: section.name,
+                        range: FileRange(offset: section.offset == 0 ? 0 : sliceOffset + section.offset,
+                                         size: section.size))
+                    sections.append(placed)
+                    // By name alone and in whichever segment holds it, as Go's own
+                    // `debug/buildinfo` looks it up (`machoExe.DataStart`, Go
+                    // 1.27.1). It sat in `__DATA` in every Go binary looked at.
+                    if goBuildInfo == nil, section.name == "__go_buildinfo", section.offset > 0 {
+                        goBuildInfo = placed.range
+                    }
+                }
             }
             cursor += Int(size)
         }
         return LoadCommands(dylibs: names, buildSDK: BuildSDK.preferred(among: sdks),
-                            goBuildInfo: goBuildInfo)
+                            goBuildInfo: goBuildInfo, sections: sections)
     }
 
-    /// The `__go_buildinfo` section among one segment's section headers, by name
-    /// alone and in whichever segment holds it, as Go's own `debug/buildinfo`
-    /// looks it up (`machoExe.DataStart`, Go 1.27.1). It sat in `__DATA` in every
-    /// Go binary looked at. Offsets are relative to the slice.
+    /// One segment's section headers. Offsets are relative to the slice.
     ///
     /// `segment_command_64` is 72 bytes, `nsects` at 64; each `section_64` after
     /// it is 80 — `sectname[16]`, `segname[16]`, `addr`, `size` (u64 at 40),
     /// `offset` (u32 at 48), then alignment, relocation and flag words. A count
-    /// that does not fit in the command is a header this file does not trust.
-    private static func goBuildInfoSection(
+    /// that does not fit in the command is a header this file does not trust, and
+    /// its sections are skipped rather than half-read.
+    private static func segmentSections(
         in region: Data, segmentAt start: Int, size: Int
-    ) -> (offset: UInt64, size: UInt64)? {
+    ) -> [(segment: String, name: String, offset: UInt64, size: UInt64)]? {
         let segmentHeader = 72, sectionHeader = 80
         guard size >= segmentHeader, let count = region.u32(at: start + 64),
               segmentHeader + Int(count) * sectionHeader <= size
         else { return nil }
-        let name = Data("__go_buildinfo".utf8)
+        func name(at offset: Int) -> String {
+            let from = region.index(region.startIndex, offsetBy: offset)
+            let raw = region[from..<region.index(from, offsetBy: 16)].prefix { $0 != 0 }
+            return String(decoding: raw, as: UTF8.self)
+        }
+        var found: [(segment: String, name: String, offset: UInt64, size: UInt64)] = []
         for index in 0..<Int(count) {
             let section = start + segmentHeader + index * sectionHeader
-            let rawName = region[region.index(region.startIndex, offsetBy: section)
-                                 ..< region.index(region.startIndex, offsetBy: section + 16)]
-            guard rawName.prefix(while: { $0 != 0 }) == name,
-                  let low = region.u32(at: section + 40), let high = region.u32(at: section + 44),
-                  let offset = region.u32(at: section + 48), offset > 0
+            guard let low = region.u32(at: section + 40), let high = region.u32(at: section + 44),
+                  let offset = region.u32(at: section + 48)
             else { continue }
-            return (UInt64(offset), UInt64(high) << 32 | UInt64(low))
+            found.append((name(at: section + 16), name(at: section), UInt64(offset),
+                          UInt64(high) << 32 | UInt64(low)))
         }
-        return nil
+        return found
     }
 
     // MARK: - Bounded reads

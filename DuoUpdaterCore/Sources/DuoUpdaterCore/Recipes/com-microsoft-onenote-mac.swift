@@ -38,5 +38,50 @@ enum com_microsoft_onenote_mac {
                 urlSource: .bodyPattern(
                     #"<key>FullUpdaterLocation</key>\s*<string>(https://[^<\s]+/Microsoft_OneNote_[0-9.]+_Updater\.pkg)</string>"#),
                 kind: .pkg)),
+        ],
+        changelogs: [
+        // OneNote's section of the shared Office for Mac release notes. One `<h2>`
+        // per release, dated, then `<p><em>Version 16.113.4 (Build 26100421)</em></p>`
+        // (older entries omit the word "Build"), then up to three blocks (Feature
+        // updates / Resolved issues / Security updates), each with one `<h3>` per
+        // app (`id="onenote"`, `"onenote-4"`, …) followed by a `<ul>`.
+        //
+        // VERSION MISMATCH, ACCEPTED ON PURPOSE. Entries carry the page's
+        // "Version" (`16.113.4`) = CFBundleShortVersionString. The probe compares
+        // CFBundleVersion (`16.113.26100421`, from the installer filename,
+        // `versionIsBuild: true`). The page names one release both ways ("Version
+        // 16.113.4 (Build 26100421)"), but one capture group cannot join two
+        // spans. So the running-version dot never lights on these entries,
+        // `Changelog.carries(version:)` is false for the offered build (the notes
+        // never count as confirmed and are re-read), and verify's lag/lead checks
+        // don't fire (`Verify.buildDate` reads `16.113` as a date). Matching would
+        // need a multi-capture version field, which changes every changelog golden.
+        //
+        // The item pattern takes only `<li>`s in this app's sections and in
+        // "Office Suite" ones (items Microsoft lists for every suite app: mostly
+        // CVEs in the shared frameworks, which each app bundles its own copy of).
+        // The first `<li>` of a list must follow the app's `<h3>` directly; every
+        // later one must start exactly where the previous match ended (`\G`) on a
+        // `</li>`, so the chain stops at that list's `</ul>` and never runs into
+        // another app's section. `\G` needs ICU (NSRegularExpression); it is not
+        // available in Python's `re`.
+        //
+        // OneNote's own section is almost always the one line "Quality and
+        // performance improvements.", so most entries say only that; when one
+        // says more, it is nearly always an Office Suite item (security fixes in
+        // the shared frameworks, suite-wide features).
+        ChangelogRecipe(
+            bundleID: "com.microsoft.onenote.mac",
+            source: URL(string: "https://learn.microsoft.com/en-us/officeupdates/release-notes-office-for-mac")!,
+            entryPattern:
+                #"<h2 id="[^"]*">(?<date>[^<]+)</h2>\s*"#
+                + #"<p><em>Version\s+(?<version>[0-9]+\.[0-9]+(?:\.[0-9]+)?)\s+\((?:Build\s+)?[0-9]+\)</em></p>"#
+                + #"(?<body>.*?)(?=<h2[\s>]|</main>)"#,
+            itemPatterns: [
+                #"(?:<h3 id="(?:onenote|office-suite)(?:-[0-9]+)?">[^<]*</h3>\s*(?:<ul>\s*<li>|<p>)"#
+                + #"|\G(?<=</li>)\s*<li>)"#
+                + #"(?<item>.*?)(?:</li>|</p>(?=\s*<h[23]))"#
+            ],
+            maxEntries: 30),
         ])
 }

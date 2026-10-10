@@ -131,13 +131,13 @@ enum ChangelogCoverage {
         "net.sourceforge.grandperspectiv":
             "news page is behind a Cloudflare challenge (403); its RSS posts are single prose paragraphs",
         "net.whatsapp.WhatsApp":
-            "the vendor notes URL redirects to WhatsApp Web; the App Store's What's New is boilerplate",
+            "WhatsApp publishes no Mac release notes; the App Store listing's What's New is boilerplate",
         "org.gimp.gimp":
             "prose release announcements mixed into a news index; no per-version change list",
         "org.gnome.Meld":
             "feasible, not written yet: .json regex over the GitLab releases API the probe already reads",
         "org.gnu.Emacs":
-            "feasible but headlines only: NEWS.<major>.html section titles (the declared URL is a directory listing)",
+            "feasible but headlines only: the home page's #Releases highlights; full NEWS is one text file per version",
         "org.libreoffice.script":
             "landing page of blurbs; the real notes are per branch, on a bot-walled wiki",
         "org.mozilla.firefox":

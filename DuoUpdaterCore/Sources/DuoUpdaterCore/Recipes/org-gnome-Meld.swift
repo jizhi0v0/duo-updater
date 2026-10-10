@@ -50,5 +50,30 @@ enum org_gnome_Meld {
                 urlSource: .bodyPattern(
                     #""name"\s*:\s*"Meld-[0-9.+]+_arm64\.dmg"[^}]*"direct_asset_url"\s*:\s*"([^"]+)""#),
                 kind: .dmg)),
+        ],
+        changelogs: [
+        // History: docs/app-audits/org-gnome-Meld.md#历史与实测
+        // Meld — the repack's own release notes, from the same GitLab releases
+        // API the probe above reads (newest first, the default order). Each
+        // release's `description` is a short Markdown bullet list ("- Update
+        // dependencies.\n- …") inside a JSON string, so items split on the
+        // two-character `\n` escape; `.json` mode then unescapes `\"`.
+        //
+        // The version is the tag minus its `v`, i.e. `3.22.3+105` — the same
+        // string `displayVersionPattern` shows on the row, not the bare build
+        // number the probe compares. The gaps between fields refuse to cross a
+        // `"tag_name":`, so a release with a null description is skipped rather
+        // than paired with the next release's notes; `\s*` around each colon
+        // tolerates a pretty-printed response (see Headlamp's recipe).
+        ChangelogRecipe(
+            bundleID: "org.gnome.Meld",
+            source: URL(string: "https://gitlab.com/api/v4/projects/dehesselle%2Fmeld_macos/releases")!,
+            entryPattern:
+                #""tag_name"\s*:\s*"v(?<version>[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+)""#
+                + #"(?:(?!"tag_name"\s*:).)*?"description"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#
+                + #"(?:(?!"tag_name"\s*:).)*?"released_at"\s*:\s*"(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})T"#,
+            itemPatterns: [#"(?:^|\\n)[-*]\s+(?<item>(?:\\[^n]|[^\\])+)"#],
+            mode: .json,
+            maxEntries: 20),
         ])
 }

@@ -86,8 +86,6 @@ enum ChangelogCoverage {
             "feasible, not written yet: the app's section of the Office for Mac release notes",
         "com.microsoft.teams2":
             "monthly cross-platform what's-new with no client version per entry",
-        "com.microsoft.VSCodeInsiders":
-            "feasible, not written yet: two-stage /updates index to the v1_N Insiders page; blank at each stable release",
         "com.microsoft.Word":
             "feasible, not written yet: the app's section of the Office for Mac release notes",
         "com.mongodb.compass":
@@ -134,14 +132,10 @@ enum ChangelogCoverage {
             "the vendor notes URL redirects to WhatsApp Web; the App Store's What's New is boilerplate",
         "org.gimp.gimp":
             "prose release announcements mixed into a news index; no per-version change list",
-        "org.gnome.Meld":
-            "feasible, not written yet: .json regex over the GitLab releases API the probe already reads",
         "org.gnu.Emacs":
             "feasible but headlines only: NEWS.<major>.html section titles (the declared URL is a directory listing)",
         "org.libreoffice.script":
             "landing page of blurbs; the real notes are per branch, on a bot-walled wiki",
-        "org.pgadmin.pgadmin4":
-            "feasible, not written yet: two-stage release_notes index to the release_notes_X_Y.html page",
         "org.whispersystems.signal-desktop":
             "feasible, not written yet: .gitHubReleases on signalapp/Signal-Desktop (notes are thin)",
         "org.whispersystems.signal-desktop-beta":

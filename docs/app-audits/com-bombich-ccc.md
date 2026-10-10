@@ -17,14 +17,16 @@
 
 > ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
 
-|              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
-|--------------|---------|----------|-----|--------|-------------|
-| **CCC 7 stable** | ✗（见下）| ✗（auto_updates）| —   | —      | ✓           |
-| **CCC 7 beta**   | ✗（见下）| —        | —   | —      | ✓（2026-08-29 补齐）|
-| **CCC 6 stable** | ✗（同一套失效基建）| ✗（auto_updates 只覆盖 latest 那份 cask）| — | — | ✓（2026-08-29 补齐） |
-| **CCC 5 stable** | ✗（同上）| ✗（同上）| — | — | ✓（2026-08-29 补齐） |
+|              | Sparkle | Homebrew | MAS | GitHub | VendorProbe | Changelog recipe | 一键 |
+|--------------|---------|----------|-----|--------|-------------|------------------|------|
+| **CCC 7 stable** | ✗（见下）| ✗（auto_updates）| —   | —      | ✓           | ✓ `ccc7_rn.html`，窗口 [7, 8) | ○（范围决策，见「一键安装」）|
+| **CCC 7 beta**   | ✗（见下）| —        | —   | —      | ✓（2026-08-29 补齐）| ✓ `ccc7_rn_beta.html`，窗口 [7, 8) | ○（同上）|
+| **CCC 6 stable** | ✗（同一套失效基建）| ✗（auto_updates 只覆盖 latest 那份 cask）| — | — | ✓（2026-08-29 补齐） | ✓ `en/kb/ccc/6/release-notes`，窗口 [6, 7) | ○（同上）|
+| **CCC 5 stable** | ✗（同上）| ✗（同上）| — | — | ✓（2026-08-29 补齐） | ✓ `en/kb/ccc/5/release-notes`，窗口 [5, 6) | ○（同上）|
 
-当前生效源（`UpdateChecker` 优先链中第一个应答的）: **VendorProbe**（四条 recipe）
+当前生效源（`UpdateChecker` 优先链中第一个应答的）: **VendorProbe**（四条 recipe）。
+Changelog: 四条 `ChangelogRecipe`（2026-10-10 接入），每条对应一条 probe、读同一个
+`changelogURL`。
 
 ## Channel 详情
 
@@ -105,7 +107,8 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
 - 版本方案: 与 CCC 7 stable 同一套正则（`ccc-<marketing>.<build>.zip`）
 - `installedVersionPattern: ^6\.`——锁定这条只对装机是 6.x 的 CCC 生效，见上面"补记 2"
 - changelog: `https://bombich.com/en/kb/ccc/6/release-notes`（独立于 CCC 7 的页面，
-  2026-08-29 核对 200 且有真实内容，标题 "CCC 6 Release Notes"）
+  2026-08-29 核对 200 且有真实内容，标题 "CCC 6 Release Notes"），由版本窗口
+  [6, 7) 的 `ChangelogRecipe` 结构化解析，见下「Changelog」
 
 ### CCC 5 stable
 
@@ -115,7 +118,8 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
 - 真机验证（下载并展开真实 zip）: `CFBundleShortVersionString="5.1.28"
   CFBundleVersion="6213" CFBundleIdentifier="com.bombich.ccc"`，Team `L4F2DED5Q7`
 - 版本方案: 同上，`installedVersionPattern: ^5\.`
-- changelog: `https://bombich.com/en/kb/ccc/5/release-notes`（2026-08-29 核对 200）
+- changelog: `https://bombich.com/en/kb/ccc/5/release-notes`（2026-08-29 核对 200），
+  由版本窗口 [5, 6) 的 `ChangelogRecipe` 结构化解析
 
 ### beta（CCC 7 专属）
 
@@ -137,7 +141,8 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
   接不住，补了一条按 bundle id 限定的 step 0.8（同 Little Snitch 那条 0.7 一个思路：
   bundle id 共享、版本串本身就是唯一信号时，才值得为单个 app 单独开规则，不改全局
   pattern）
-- changelog: 复用之前调查阶段就已经找到的 `ccc7_rn_beta.html`（当时只是没接进 recipe）
+- changelog: `ccc7_rn_beta.html`（调查阶段就找到的页面），2026-10-10 起由 `channel: .beta`、
+  窗口 [7, 8) 的 `ChangelogRecipe` 结构化解析
 
 **2026-09-14 实测：beta 轨道是周期性的，`?v=latestbeta` 在两个周期之间答 stable。**
 这是厂商的常态，不是故障。当天用与 `.redirectFilename` 同样的 HEAD-并跟随请求实测：
@@ -229,6 +234,10 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
 - **changelog 会对不上。** `ccc7_rn_beta.html` 是**已关闭周期**的页面，所以两个周期之间
   提供的版本（7.2）和旁边的说明（7.1.7-b7）说的不是一回事。没有按形状切换页面——那要从
   文件名去猜厂商当前处在哪个状态，正是这条 recipe 在别处刻意避免的推断。
+  （2026-10-10 补：beta 页现在有结构化 `ChangelogRecipe`，所以周期之间 pane 显示的是
+  上一个 prerelease 的结构化条目；`duo verify` 的 changelog 行那时会因为最新条目在
+  major.minor 上落后 beta probe 的毕业版而出 `warn`。这是同一个已知代价的另一面，不是
+  recipe 坏了。2026-10-10 当天 beta 周期开着，页面和 probe 都是 `7.2.2-b4`，不触发。）
 
 **复审补出来的两条代价（第一版的代价清单漏了，记在这里而不是留给下一个人发现）：**
 
@@ -285,19 +294,39 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
 
 ## Changelog
 
-- 来源: 每条 recipe 的 `changelogURL` 指向该代际自己的发布记录页——CCC 7 stable
+- 来源: 每条 probe 的 `changelogURL` 指向该代际自己的发布记录页——CCC 7 stable
   `ccc7_rn.html`、CCC 7 beta `ccc7_rn_beta.html`、CCC 6
-  `en/kb/ccc/6/release-notes`、CCC 5 `en/kb/ccc/5/release-notes`，全部 2026-08-29
-  核对过 200 且有真实按版本排列的内容
-- 跟随 channel/代际: 是，四条各自独立
-- Recipe 状态: 不需要独立 `ChangelogRecipe`——都是可读的人工发布记录页，详情窗口
-  WebView 呈现即可
+  `en/kb/ccc/6/release-notes`、CCC 5 `en/kb/ccc/5/release-notes`
+- Recipe 状态: **✓ 四条 `ChangelogRecipe`**（`Recipes/com-bombich-ccc.swift` 的
+  `changelogs:`，2026-10-10 接入；接入前四页都是 WebView 嵌入，`ChangelogCoverage.acknowledged`
+  里挂着 "feasible, not written yet"，已删除）
+- 跟随 channel/代际: 是。同一个 bundle id、三条同为 `.stable`，所以靠版本窗口分：
+  CCC 7 stable `channel: .stable` + [7, 8)、CCC 7 beta `channel: .beta` + [7, 8)、
+  CCC 6 `.stable` + [6, 7)、CCC 5 `.stable` + [5, 6)。`ChangelogRecipeRegistry` 先按
+  版本窗口收窄、再按 channel 精确匹配，是 probe 侧 `installedVersionPattern` 的对偶
+- 解析方式:
+  - CCC 7 两页同一模板：每个版本一个 `<details>`，版本在 `<summary>` 文字里
+    （`CCC 7.2: September 13, 2026`；最新一条没有日期，`date` 可选；版本取文字不取
+    `<a name>`，因为 7.1.1 那条的锚写成了 `7.1.2`）。条目 = 列表项的
+    `<span class="description">` 或裸 `<p>` 段落（7.2 的 "What's new" 是段落），一条
+    pattern 同时收两种；`<h2>` 作为分节标题。beta 页的「If you prefer to not see beta
+    versions…」是带 class 的 `<p>`，不收
+  - CCC 5/6 是知识库文章：每个版本一个 `<h2>`（CCC 6 写 `CCC 6.1.13`，CCC 5 写
+    `Carbon Copy Cloner 5.1.28`），后跟日期 `<p>` 和列表，`<li>` 与 `<p>` 一起收；
+    `<h3>` 作为分节标题（5.1.10 有三节）
+  - entry pattern 都锚在本代际的 major 上：CCC 5/6 页面末尾有更老代际的标题（4.x、
+    3.x，CCC 6 页上还有 5.1.x），今天只有日期没有内容、本来就会被丢掉，锚是为了它们
+    以后有了内容也不越出窗口
+- 条目版本方案与 probe 一致（`7.2.1`、`7.2.2-b4`、`6.1.13`、`5.1.28`），2026-10-10 四页
+  的最新条目都等于各自 probe 的 `lastGoodVersion`，实测见「历史与实测」
+- 回归测试: `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CarbonCopyClonerChangelogRecipeTests.swift`
+  （真实页面切片 + 四种装机的选页断言）
 
 ## 一键安装
 
 - 状态: **仅检测**，四条都未接一键
 - 格式: zip（`.app` 直出，无嵌套 pkg），三个代际一致
-- **读的是**: 人人可手动下载的 GA（`download_ccc.php?v=<latest|latestbeta|ccc6|ccc5>`
+- **读的是**: 人人可手动下载的 GA（`download_ccc.php?v=<ccc7|latestbeta|ccc6|ccc5>`
   就是厂商下载页对应按钮背后的同一个链接，不存在轨道/灰度问题）
 - 阻塞: 不是技术阻塞，是范围决策——CCC 装机时带一个特权 helper
   （`com.bombich.ccchelper`）、一个 LaunchDaemon 和一个 XPC service（CCC 6 的挂载
@@ -318,8 +347,8 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
 ## 建议下一步
 
 1. **CCC 7 stable/beta 检测已完成**：
-   `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift` 两条
-   `com.bombich.ccc` recipe（`.redirectFilename`，`download_ccc.php?v=ccc7` /
+   `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-bombich-ccc.swift` 里的两条
+   `com.bombich.ccc` recipe（连同 CCC 6/5 共四条 probe）（`.redirectFilename`，`download_ccc.php?v=ccc7` /
    `?v=latestbeta`——stable 那条 2026-08-29 起是按代际限定的 `?v=ccc7`，不是 `?v=latest`）；`ReleaseChannel.swift` 新增 step 0.8 识别 `-b<N>` 短后缀。
 2. **多代际正确性已修复（2026-08-29，用户发现的问题）**：新增
    `VendorProbeRecipe.installedVersionPattern` 字段（`hostRequirement` 的对偶）+
@@ -332,11 +361,12 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
    四条 recipe 数量断言、每代际 `installedVersionPattern` 的 3×3 矩阵（只有对角线为
    真）、一条不依赖网络的"未来第 8 代际找不到 recipe 时必须答 nil 而不是随便退化到
    某一条"、以及一条打真实端点的活测试（CCC 6 装机必须解析到 build `7699`，不能是
-   CCC 7 的 `8368`）。`duo verify --only bombich`：四条全绿。
+   CCC 7 的 `8368`）。`duo verify --only bombich`：四条全绿（2026-08-29 当时）。
 3. **一键安装**：技术上可行（zip 直出 `.app`，四条 recipe 的 Team 都是
    `L4F2DED5Q7`，签名闸能一致通过），但因为装机带特权 helper/LaunchDaemon/XPC，是否
    要做需要单独决定，未在本次默认加入。
-4. **CCC 5/6 beta 轨道**：未确认是否存在，不是本次范围；如果以后要查，起点是
+4. **Changelog 已完成（2026-10-10）**：四条 `ChangelogRecipe`，见上「Changelog」。
+5. **CCC 5/6 beta 轨道**：未确认是否存在，不是本次范围；如果以后要查，起点是
    `?v=<ccc5|ccc6>beta` 这类同构猜测,或者装一份 5/6 真机在偏好里勾选 beta 开关看
    `SUFeedURL` 请求变化。
 
@@ -478,3 +508,23 @@ exactly, so `versionIsBuild` stays the default `false`, same as
 stable.
 
 复测 2026-09-15（UTC 2026-09-14 16:14，逐跳 HEAD、不跟随重定向，只读 `Location`）：`download_ccc.php?v=latestbeta`、`?v=ccc7`、`?v=latest` 都经 `api.bombich.com/download/ccc?v=…` 302 到 `https://bombich-cdn.com/ccc-7.2.8399.zip`。
+
+### Recipes/com-bombich-ccc.swift — 四条 ChangelogRecipe（接入实测，2026-10-10）
+
+2026-10-10 用 curl（Safari UA、`--compressed`）取四页，全部 HTTP 200：`ccc7_rn.html`
+14613 字节（压缩）、`ccc7_rn_beta.html` 2015、`en/kb/ccc/6/release-notes` 29375、
+`en/kb/ccc/5/release-notes` 37633。再用生产解析器（临时 Swift 测试，经
+`ChangelogRecipeRegistry.recipe(forBundleID:channel:version:)` 选页后调
+`ChangelogService.loadDiagnostic`）打活页：
+
+| 装机（channel / version） | 选中的 recipe | 条目数 | 最新条目 | 等于 probe `lastGoodVersion`？ |
+|---|---|---|---|---|
+| stable / 7.2.1 | `changelog:com.bombich.ccc:stable:7-8` | 14（7.2.1 … 7.0） | 7.2.1（无日期），10 条 | 是（7.2.1） |
+| beta / 7.2.2-b4 | `changelog:com.bombich.ccc:beta:7-8` | 1 | 7.2.2-b4（无日期），12 条 | 是（7.2.2-b4） |
+| stable / 6.1.13 | `changelog:com.bombich.ccc:stable:6-7` | 20（6.1.13 … 6.0） | 6.1.13，March 16, 2026，3 条 | 是（6.1.13） |
+| stable / 5.1.28 | `changelog:com.bombich.ccc:stable:5-6` | 37（5.1.28 … 5.0） | 5.1.28，September 16, 2021，4 条 | 是（5.1.28） |
+
+当天 beta 周期开着：`ccc7_rn_beta.html` 的 `<summary>` 是 "CCC 7.2.2-b4 — This is a
+pre-release update of CCC"。stable 页上 7.1.1 那条的 `<a name>` 写的是 `7.1.2`（summary
+文字是对的）。CCC 6 页 6.0 之后是 5.1.22 起的一串 "Carbon Copy Cloner x.y" 标题，CCC 5 页
+5.0 之后是 4.1.24 起的 4.x/3.x/2.x/1.0 标题，都只有日期段落、没有列表。

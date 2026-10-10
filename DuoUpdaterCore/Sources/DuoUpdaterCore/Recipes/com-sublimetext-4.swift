@@ -36,25 +36,28 @@ enum com_sublimetext_4 {
                 kind: .zip)),
         ],
         changelogs: [
+        // History: docs/app-audits/com-sublimetext-4.md#历史与实测
         // Sublime Text 4 — the /download page is fully server-rendered and carries
         // the <h2>Changelog</h2> inline (no hydration). Each release is an <article>
         // (the newest is <article class="current">) shaped as:
         //   <h3>Build 4200</h3><div class="release-date">21 May 2025</div>
         //   <h3>New Features and Improvements</h3>     ← section sub-headings, ignored
         //   <ul class="topic"><li>…</li>…</ul>          ← one or more lists per build
-        // Versions are 4-digit BUILD numbers. The version h3 is usually "Build 4200",
-        // but the original v4 release reads "4 (Build 4107)", so the h3 capture
-        // tolerates a leading "<digit> (Build " and trailing ")" and grabs only the
-        // 4xxx digits. `body` runs to the next </article>, spanning every section's
-        // <li> in a build; the sub-heading <h3>s between are harmless because
-        // itemPatterns only consume <li>. The page mixes stable + dev builds
-        // newest-first; we take whatever it presents.
+        // The version is the FULL "Build NNNN", the same string the probe above
+        // offers and the bundle reports as CFBundleShortVersionString; a bare build
+        // number would never equal either (same scheme as `com-sublimemerge.swift`).
+        // The h3 is usually "Build 4200", but the original v4 release reads
+        // "4 (Build 4107)", so the capture skips a leading "<text> (" and a trailing
+        // ")" and keeps "Build 4107". `body` runs to the next </article>, spanning
+        // every section's <li> in a build; the sub-heading <h3>s between are
+        // harmless because itemPatterns only consume <li>. The page mixes stable +
+        // dev builds newest-first; we take whatever it presents.
         ChangelogRecipe(
             bundleID: "com.sublimetext.4",
             source: URL(string: "https://www.sublimetext.com/download")!,
             entryPattern:
                 #"<article[^>]*>\s*"#
-                + #"<h3>(?:[^<]*?\(Build\s+)?(?:Build\s+)?(?<version>4\d{3})\)?</h3>\s*"#
+                + #"<h3>(?:[^<]*?\()?(?<version>Build\s+4\d{3})\)?</h3>\s*"#
                 + #"<div class="release-date">(?<date>[^<]*)</div>"#
                 + #"(?<body>.*?)</article>"#,
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),

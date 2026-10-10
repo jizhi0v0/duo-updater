@@ -27,12 +27,20 @@ enum com_microsoft_Outlook {
         // running one against the wrong installed build would silently lay down a
         // partial Outlook.
         //
+        // Manifest host: `res.public.onecdn.static.microsoft/mro1cdnstorage/`, the
+        // host Microsoft documents as MAU's hard-coded manifest endpoint
+        // (learn.microsoft.com/microsoft-365/enterprise/network-requests-in-office-2016-for-mac).
+        // The same path on `officecdn.microsoft.com` still answers 200 with a
+        // well-formed manifest, but it stopped advancing at 16.109 — nothing
+        // fails, the probe just reports an old build. The `OPIM2019` App ID is
+        // still what the live manifest carries; the "2019" is not a product line.
+        // `MicrosoftAutoUpdateManifestHostTests` keeps every MAU recipe off the
+        // old host.
+        //
         // The URL is READ from `FullUpdaterLocation`, not assembled from the
         // version — same call as AweSun's 0.3.13 fix (building the filename from
-        // the version broke the moment Oray renamed the file). It also means the
-        // CDN move Microsoft is midway through follows automatically: payload URLs
-        // now point at `res.public.onecdn.static.microsoft` while only the manifest
-        // itself still lives on `officecdn.microsoft.com`. Both patterns take the
+        // the version broke the moment Oray renamed the file), so a payload CDN
+        // move follows automatically. Both patterns take the
         // first match, so both read out of the same first dict — the pkg is the
         // build we report (`duo verify` re-checks that against the live endpoint,
         // and `microsoftOutlookInstallURLMatchesProbedBuild` guards it in CI).
@@ -51,7 +59,7 @@ enum com_microsoft_Outlook {
         // the pkg's xar signature).
         VendorProbeRecipe(
             bundleID: "com.microsoft.Outlook",
-            url: URL(string: "https://officecdn.microsoft.com/pr/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/0409OPIM2019.xml")!,
+            url: URL(string: "https://res.public.onecdn.static.microsoft/mro1cdnstorage/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/0409OPIM2019.xml")!,
             mode: .responseBody,
             versionPattern: #"<key>Update Version</key>\s*<string>([0-9]+\.[0-9]+\.[0-9]+)</string>"#,
             downloadURL: URL(string: "https://www.microsoft.com/en-us/microsoft-365/outlook/outlook-for-business")!,

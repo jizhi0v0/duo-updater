@@ -140,5 +140,40 @@ enum at_obdev_littlesnitch {
                 #"<key>ReleaseLifecycle</key>\s*<string>nightly</string>[\s\S]*?<key>MaximumSystemVersion</key>\s*<string>([^<]+)</string>"#,
             entryStartPattern: #"<key>ReleaseLifecycle</key>\s*<string>"#,
             channel: .nightly),
+        ],
+        changelogs: [
+        // History: docs/app-audits/at-obdev-littlesnitch.md#历史与实测
+        // Little Snitch, STABLE notes — `releasenotes6.html`, the page the stable
+        // probe links. Server-rendered, newest first, one block per release:
+        //   <div class="changelog-entry" id="version-<build>">
+        //     <div class="date"><span>September 8, 2026</span></div>
+        //     <div class="details"><h3 …>Little Snitch 6.5 <span class="buildnumber">(7303)</span></h3>
+        //     <div class="changes"> <h4>Improvements</h4> <ul><li>…</li></ul> …
+        // The version is the h3's marketing number, which is what the stable probe's
+        // `displayVersionPattern` reads and the pane matches against; the build in
+        // the span is left out. The very first release reads "Little Snitch 6", so
+        // the minor is optional. `<li>` and `<p>` are one item pattern in document
+        // order: a hot-fix release is plain paragraphs, and 6.5 opens with an
+        // "IMPORTANT" paragraph before its lists. `<h4>` section names and the
+        // `<h5>` sub-sections of larger releases render as headings. The body ends
+        // at the next block or the end of the section.
+        //
+        // The page lists final releases only; it carries no nightly, beta or
+        // preview entry. That is why a nightly copy is excluded rather than shown
+        // these notes: its build is not on this page, and the nightly probe above
+        // links no page for the same reason.
+        ChangelogRecipe(
+            bundleID: "at.obdev.littlesnitch",
+            source: URL(string: "https://obdev.at/products/littlesnitch/releasenotes6.html")!,
+            entryPattern:
+                #"<div class="changelog-entry"[^>]*>\s*"#
+                + #"<div class="date">\s*<span>(?<date>[^<]*)</span>\s*</div>\s*"#
+                + #"<div class="details">\s*<h3[^>]*>\s*Little Snitch\s+(?<version>[0-9]+(?:\.[0-9]+){0,3})\s*"#
+                + #"<span class="buildnumber">[^<]*</span>\s*</h3>"#
+                + #"(?<body>.*?)(?=<div class="changelog-entry"|</section>)"#,
+            itemPatterns: [#"<(?:li|p)(?:\s[^>]*)?>(?<item>.*?)</(?:li|p)>"#],
+            channel: .stable,
+            excludedChannels: [.nightly],
+            headingPattern: #"<h[45][^>]*>(?<heading>[^<]*)</h[45]>"#),
         ])
 }

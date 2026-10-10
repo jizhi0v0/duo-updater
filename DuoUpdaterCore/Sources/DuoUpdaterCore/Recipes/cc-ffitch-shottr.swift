@@ -36,5 +36,36 @@ enum cc_ffitch_shottr {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#""package"\s*:\s*"(https://shottr\.cc/[^"]+\.pkg)""#),
                 kind: .pkg)),
+        ],
+        changelogs: [
+        // History: docs/app-audits/cc-ffitch-shottr.md#历史与实测
+        // Shottr — `newversion.html`, the page the probe links. Static HTML, newest
+        // first, one `<div class="segment">` per release, with NO dates anywhere:
+        //   <div class="leftcol"><h3>Shottr v1.9.2</h3></div>
+        //   <div class="rightcol"><b>Improvements</b><ul><li>…</li></ul> …</div>
+        // The newest release is the page's headline instead, `<h1>Shottr v1.9.3 is
+        // out!</h1>`, so both heading levels and the trailing words are accepted.
+        // Older segments keep a commented-out copy of that headline
+        // (`<!--<h1>Shottr v1.7.2 is out!</h1>`), which the `leftcol` anchor keeps
+        // from reading as a second entry. The version is the number after "v", the
+        // same marketing version the probe's `latestVersion` reports.
+        //
+        // The gap from the heading to `rightcol` may not cross into the next
+        // segment, so a release without notes cannot take the next one's. Items
+        // are `<li>`; a release written as paragraphs (1.7.1) falls back to `<p>`,
+        // skipping the bold one that is its section name. `<b>` section names
+        // directly before a list or closing a paragraph render as headings.
+        ChangelogRecipe(
+            bundleID: "cc.ffitch.shottr",
+            source: URL(string: "https://shottr.cc/newversion.html")!,
+            entryPattern:
+                #"<div class="leftcol">\s*<h[13]>\s*Shottr v(?<version>[0-9]+(?:\.[0-9]+){1,3})(?:\s+is out!)?\s*</h[13]>"#
+                + #"(?:(?!<div class="segment").)*?<div class="rightcol">"#
+                + #"(?<body>.*?)(?=<div class="segment"|<style|</body>)"#,
+            itemPatterns: [
+                #"<li[^>]*>(?<item>.*?)</li>"#,
+                #"<p>(?!\s*<b>)(?<item>.*?)</p>"#,
+            ],
+            headingPattern: #"<b>(?<heading>[^<]+)</b>\s*(?=<ul|<li|</p>)"#),
         ])
 }

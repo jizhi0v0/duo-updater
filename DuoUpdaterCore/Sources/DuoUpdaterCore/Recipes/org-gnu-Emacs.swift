@@ -25,13 +25,18 @@ enum org_gnu_Emacs {
         // always fetches the dmg for the version just matched (suffix included,
         // since that's the real filename) rather than a template that would guess
         // wrong when a repack bumps only the suffix.
+        //
+        // Changelog: the GNU Emacs home page's `#Releases` section, which always
+        // describes the newest releases (highlights plus a link to each version's
+        // full NEWS). Not a `news/NEWS.<major>.html` page: those exist for only
+        // some majors, so a URL naming one would go stale at the next major.
         VendorProbeRecipe(
             bundleID: "org.gnu.Emacs",
             url: URL(string: "https://emacsformacosx.com/atom/release")!,
             mode: .responseBody,
             versionPattern: #"<title>Emacs Version ([0-9]+\.[0-9]+)(?:-[0-9]+)?</title>"#,
             downloadURL: URL(string: "https://emacsformacosx.com/"),
-            changelogURL: URL(string: "https://www.gnu.org/software/emacs/news/"),
+            changelogURL: URL(string: "https://www.gnu.org/software/emacs/#Releases"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"<link type="binary/octet-stream" href="(https://emacsformacosx\.com/emacs-builds/Emacs-[^"]+-universal\.dmg)""#),

@@ -45,7 +45,7 @@ probes[0].versionPattern = "<sparkle:shortVersionString>([0-9][^<]*)</sparkle:sh
 probes[0].transientBodyPattern = nil
 probes[0].trackClosedPattern = nil
 probes[0].downloadURL? = URL("https://chatgpt.com/download/")
-probes[0].changelogURL? = URL("https://developers.openai.com/codex/changelog?type=codex-app")
+probes[0].changelogURL? = URL("https://learn.chatgpt.com/docs/changelog?type=codex-app")
 probes[0].selectHighest = false
 probes[0].versionIsBuild = false
 probes[0].buildNamespace = .bundle

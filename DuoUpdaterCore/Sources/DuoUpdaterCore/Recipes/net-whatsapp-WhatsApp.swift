@@ -26,12 +26,16 @@ enum net_whatsapp_WhatsApp {
         // WhatsApp also updates itself, so this row usually just confirms what
         // already happened — but when its own updater is behind, the swap is ours
         // to make.
+        //
+        // No `changelogURL`: WhatsApp publishes no release-notes page for the Mac
+        // app (`…/mac_native/release-notes/` redirects to WhatsApp Web). Without
+        // one the pane falls back to the App Store listing in `changelogPages`
+        // below, the only place the Mac build's notes appear at all.
         VendorProbeRecipe(
             bundleID: "net.whatsapp.WhatsApp",
             url: URL(string: "https://web.whatsapp.com/desktop/mac_native/release/?configuration=Release&src=whatsapp_downloads_desktop_page")!,
             mode: .redirectFilename,
             versionPattern: #"WhatsApp-[0-9]+\.([0-9]+(?:\.[0-9]+){1,2})\.dmg"#,
-            changelogURL: URL(string: "https://web.whatsapp.com/desktop/mac_native/release-notes/"),
             install: VendorInstallSpec(
                 urlSource: .redirect(
                     URL(string: "https://web.whatsapp.com/desktop/mac_native/release/?configuration=Release&src=whatsapp_downloads_desktop_page")!),

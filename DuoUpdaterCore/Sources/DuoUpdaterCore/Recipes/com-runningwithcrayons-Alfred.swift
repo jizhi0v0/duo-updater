@@ -53,6 +53,34 @@ enum com_runningwithcrayons_Alfred {
                     #"<key>location</key>\s*<string>(https://[^<]+\.tar\.gz)</string>"#),
                 kind: .tarGz)),
         ],
+        changelogs: [
+        // History: docs/app-audits/com-runningwithcrayons-Alfred.md#历史与实测
+        // Alfred 5 — `alfredapp.com/changelog/`, the page both probes link. Static
+        // HTML, newest first:
+        //   <h2>Alfred 5.8.1</h2>
+        //   <p>Build 2349, Thursday 24th September 2026</p>
+        //   <h3>Workflow Improvements and Fixes</h3>   ← only on larger releases
+        //   <ul><li>…<ul><li>…</li></ul></li></ul>
+        // The version is the h2's number, the same `version` both update plists
+        // carry; the build in the paragraph is the plists' `build`, not part of it.
+        // The date is the rest of that paragraph, kept verbatim. The version must
+        // be followed directly by `</h2>`, which leaves out the "Alfred 5.0 EA3"
+        // early-access entries at the bottom; the page names no other pre-release.
+        // The pre-release copy uses this recipe too: its plist has served the same
+        // version and build as stable whenever it was read, so there is no
+        // separate train to keep apart. Nested lists are one line per `<li>`, cut
+        // at the next `<li>`/`<ul>` so a parent and its first child stay apart;
+        // `<h3>` section names render as headings.
+        ChangelogRecipe(
+            bundleID: AlfredChannel.bundleID,
+            source: URL(string: "https://www.alfredapp.com/changelog/")!,
+            entryPattern:
+                #"<h2>\s*Alfred\s+(?<version>[0-9]+(?:\.[0-9]+){1,3})\s*</h2>\s*"#
+                + #"(?:<p>\s*Build\s+[0-9]+,\s*(?<date>[^<]*)</p>)?"#
+                + #"(?<body>.*?)(?=<h2[\s>]|</section>)"#,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)(?=<li[\s>]|</li>|<ul[\s>])"#],
+            headingPattern: #"<h3[^>]*>(?<heading>[^<]*)</h3>"#),
+        ],
         channelProofs: [
         // Alfred serves stable and pre-release from two endpoints that frequently
         // carry the SAME build (History has a dated example), and the

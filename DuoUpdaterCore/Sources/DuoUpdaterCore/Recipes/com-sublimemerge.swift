@@ -34,5 +34,29 @@ enum com_sublimemerge {
                     "https://download.sublimetext.com/sublime_merge_build_{0}_mac.zip",
                     fields: [#"class="latest"><i>Version:</i>\s*Build\s+([0-9]{4})"#]),
                 kind: .zip)),
+        ],
+        changelogs: [
+        // History: docs/app-audits/com-sublimemerge.md#历史与实测
+        // Sublime Merge — the same /download page the probe reads carries the
+        // changelog inline, server-rendered, newest first (same shape as Sublime
+        // Text's page):
+        //   <article class="current"><h3>Build 2132</h3><div class="release-date">18 September 2026</div>
+        //   <h3>New Features and Improvements</h3>   ← section names, larger builds only
+        //   <ul class="topic"><li>…</li></ul> … </article>
+        // The version is the FULL "Build NNNN", the same string the probe offers and
+        // the bundle reports as CFBundleShortVersionString; a bare number would
+        // never equal either. Only 4-digit builds directly in the article's first
+        // `<h3>` are entries, so the section `<h3>`s inside a body are headings,
+        // not versions. The page lists stable builds only; dev builds have their
+        // own page (/dev).
+        ChangelogRecipe(
+            bundleID: "com.sublimemerge",
+            source: URL(string: "https://www.sublimemerge.com/download")!,
+            entryPattern:
+                #"<article[^>]*>\s*<h3>\s*(?<version>Build\s+[0-9]{4})\s*</h3>\s*"#
+                + #"(?:<div class="release-date">(?<date>[^<]*)</div>)?"#
+                + #"(?<body>.*?)</article>"#,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
+            headingPattern: #"<h3[^>]*>(?<heading>[^<]*)</h3>"#),
         ])
 }

@@ -286,7 +286,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**GotEmail**](com-voprex-gotemail.md) · `com.voprex.gotemail` — C (`releases.json`，新 decoder `.gotEmailReleases`) + Sparkle · 单轨 · appcast 只留最新一条、dmg 地址不带版本号 · EdDSA + 公证验证 ✓（Team `RQBC2CSG5T`）· 一键（Sparkle dmg）端到端未跑：拿不到上一版 · 2026-10-09
 - [x] [**Lorca**](app-lorca.md) · `app.lorca` — C (`Lorca-{version}.md` 模板) + Sparkle · 单轨 · Sparkle 增量包 ✓ · 一键（Sparkle）真机端到端 ✓（未运行 + 运行中）· changelog 结构化 ✓ · 2026-10-09
 - [x] [**magpie**](com-yetone-magpie.md) · `com.yetone.magpie` — C (GitHub releases `yetone/magpie-releases`) · 单轨 · install.sh 与 dmg 落地同一个 bundle（Team `LY7MVTUDZG`）· 一键 zip（按架构）· changelog recipe：正文的中文副本与下载说明已切掉 · 一键 zip 未运行时真机跑通 · 运行中一键：暂存的是最新 → Relaunch，暂存旧于最新 → 先清暂存再装（与 Sparkle 同规则，两种真机跑通）· 2026-10-06
-- [x] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — C + Sparkle · 6 与 7 同 id、各自声明 feed；7 是付费升级，6 的 probe 钉 `^6\.` · changelog recipe 6 / 7 按版本窗口分 ✓ · 真包 6.6.2 / 7.0.4 / 7.0.5 验证 ✓ · 一键未跑 · Test Builds 未接 · 2026-10-10
+- [x] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — C + Sparkle · 6 与 7 同 id、各自声明 feed；7 是付费升级，6 的 probe 钉 `^6\.` · changelog recipe 6 / 7 按版本窗口分 ✓ · 真包 6.6.2 / 7.0.4 / 7.0.5 验证 ✓ · 一键（Sparkle zip）真机端到端 ✓（未运行 + 运行中）· Test Builds 未接 · 2026-10-10
 
 ## Electron-covered (auto-detected via the bundle's `app-update.yml`, no version recipe)
 

@@ -6,7 +6,7 @@
 - Bundle ID: `com.surteesstudios.Bartender`（6 与 7 相同；app 名分别是 `Bartender 6.app` / `Bartender 7.app`）
 - Team ID: `24J875RH8J`（Bartender App LLC；6.6.2、7.0.4、7.0.5 三个真包相同，均 spctl「Notarized Developer ID」）
 - 观测版本: 6.6.2（`CFBundleVersion` 662000）、7.0.4（700011）、7.0.5（700012）
-- 自更新机制: Sparkle 2.6.4，两代 `SUPublicEDKey` 相同；**各自声明自己的 `SUFeedURL`**
+- 自更新机制: Sparkle 2.6.4，两代 `SUPublicEDKey` 相同；**各自声明自己的 `SUFeedURL`**。两代 Info.plist 都是 `SUAllowsAutomaticUpdates = false`（`SUEnableAutomaticChecks` TRUE）：只自动检查，不静默下载、不在退出时安装，所以没有「自更新器暂存了包、等 app 退出」这一态。
   - 6.x: `https://www.macbartender.com/B2/updates/AppcastB6.xml`（307 到 `downloads.macbartender.com` 同路径）
   - 7.x: `https://downloads.macbartender.com/Bartender7/updates/AppcastB7.xml`
 - `LSMinimumSystemVersion` 两代都是 14.0；但 7.0.0 的说明写明这一版只支持 macOS 27，7.0.5 的说明也说"requires macOS 27 or later"，厂商购买页写「Includes Bartender 6 for Tahoe, and 7 for Golden Gate」。feed 的 `sparkle:minimumSystemVersion` 是 `14.0`，不表达这条限制。
@@ -73,12 +73,15 @@ cask `bartender` 已是 7.0.5（`app "Bartender #{version.major}.app"`、`auto_u
 
 ## 一键安装
 - 状态: 支持（走 Sparkle enclosure，zip）。
-- 端到端: **未跑**。本次约定不安装、不运行 Bartender。
+- 端到端（2026-10-10，本分支 `make cli` 构建的 duo，按路径 `duo install "/Applications/Bartender 7.app" --yes --json`）：
+  - 未运行：7.0.4 → 7.0.5，`{"outcome":"installed","route":"sparkle","bytesDownloaded":60564183}`，约 20 s。结果 `CFBundleVersion` 700012、inode 变、`codesign --verify --deep --strict` 0、Team `24J875RH8J`、spctl Notarized Developer ID；与厂商 7.0.5 zip 解出的 bundle `diff -r --no-dereference` 无差异；`duo backups` 留了 7.0.4 的回滚副本。
+  - 运行中：7.0.1 启动后（未授予任何权限、未处理引导页）`duo install` → `installed`/`sparkle`，旧进程继续跑；`duo restart "Bartender 7"` → 新进程，`lsappinfo` 报 Version 700012；之后 16 s 内磁盘版本一直是 7.0.5，无回退。因为 `SUAllowsAutomaticUpdates = false`，这一轮无法让 Bartender 自己的 Sparkle 先暂存一个包（试过本地 feed 的办法，读到这个键后放弃），「暂存冲突」在这个 app 上没有前提。
+  - 两轮都没有装上 privileged helper 或 audio plug-in（启动时它们需要用户授权，没给）。
 - 签名: 7.0.4 与 7.0.5 真包同为 Team `24J875RH8J`、Notarized Developer ID，从上一版 7.x 一键过 Team 闸；6.6.2 同 Team。
 - 格式: zip（`Bartender 7.app` / `Bartender 6.app`）。7.0.0 的 enclosure 带 `?revision=` 查询串。
 - 校验: appcast 只有 `sparkle:edSignature`（6.x 另有 `dsaSignature`），没有 SHA 摘要字段。
 - **读的是**: 轨道最新，也就是人人可手动下载的版本（`/Bartender6/support/` 链出 `…/Bartender7/updates/Latest/Bartender%207.dmg`；feed 里的每个 zip 也公开可下）。
-- 阻塞: 无。注意嵌套的 `Bartender Service.xpc` 未审读其驻留行为，端到端时应看替换后它是否随主 app 重启。
+- 阻塞: 无。嵌套的 `Bartender Service.xpc` 在重启前后的进程没单独核对（只核了主进程）。
 
 ## 已知问题
 - AppcastB6 的 `pubDate` 写作 `September 13, 2025 09:45:00 +0000`，`channel-verify` 对 6.6.2 报 `release history 0 entries`（AppcastB7 用 RFC 822 日期，报 4 条）。未查是不是这个日期格式导致的。
@@ -86,9 +89,8 @@ cask `bartender` 已是 7.0.5（`app "Bartender #{version.major}.app"`、`auto_u
 - 厂商说 7 目前只支持 macOS 27，但 feed 和 bundle 都写 14.0；在 macOS 26 上的 7.x 安装（若存在）会被提示更新到同样不支持该系统的构建。没有可读的上限，`SparkleAppcastSource` 也就无从过滤。
 
 ## 建议下一步
-1. 一键端到端（7.0.4 → 7.0.5，未运行与运行中两轮），按 `coverage-discovery` Phase 5；需要安装 Bartender，本次未做。
-2. Test Builds：先找到 app 里切测试版的方式（偏好键 / 单独 feed），再决定是否加 `ChannelBinding`；在那之前记为缺口。
-3. 查 AppcastB6 release history 为 0 的原因。
+1. Test Builds：先找到 app 里切测试版的方式（偏好键 / 单独 feed），再决定是否加 `ChannelBinding`；在那之前记为缺口。
+2. 查 AppcastB6 release history 为 0 的原因。
 
 ## 如何复验
 

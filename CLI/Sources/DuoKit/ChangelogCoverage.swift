@@ -140,12 +140,6 @@ enum ChangelogCoverage {
             "feasible but headlines only: NEWS.<major>.html section titles (the declared URL is a directory listing)",
         "org.libreoffice.script":
             "landing page of blurbs; the real notes are per branch, on a bot-walled wiki",
-        "org.mozilla.firefox":
-            "feasible, not written yet: Thunderbird-style {version} template for stable and beta; ESR needs an engine change",
-        "org.mozilla.firefoxdeveloperedition":
-            "feasible, not written yet: the Firefox beta notes page through the {version} template",
-        "org.mozilla.nightly":
-            "feasible, not written yet: the {version} template on the nightly notes page",
         "org.pgadmin.pgadmin4":
             "feasible, not written yet: two-stage release_notes index to the release_notes_X_Y.html page",
         "org.whispersystems.signal-desktop":

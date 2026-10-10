@@ -66,6 +66,8 @@ targets:
       - path: Sources/CLIToolPresentation.swift
       # When the CLI tab's Homebrew group is open. Foundation only.
       - path: Sources/HomebrewGroupState.swift
+      # Where the workbench sidebars' keys move the selection. Foundation only.
+      - path: Sources/SidebarSelection.swift
       # The CLI tools model: Foundation + Core only, with its providers injected,
       # so its tests run no installer and reach no network.
       - path: Sources/CLIToolsModel.swift

@@ -745,11 +745,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop.tauri:stable" : {
-      "consecutiveActionable" : 1,
+      "consecutiveActionable" : 2,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
+      "issueNumber" : 1167,
+      "lastCommentedAt" : "2026-10-10T16:52:59Z",
       "lastSignature" : "bundleIDMismatch: the download is app.ge|identityChanged: bundle id app.getmoshi.",
-      "sweepsSinceComment" : 1
+      "previousSignature" : "bundleIDMismatch: the download is app.ge|identityChanged: bundle id app.getmoshi.",
+      "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -1683,5 +1686,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-10T11:48:00Z"
+  "updatedAt" : "2026-10-10T16:52:59Z"
 }

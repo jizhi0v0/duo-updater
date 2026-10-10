@@ -58,20 +58,8 @@ enum ChangelogCoverage {
             "EAP whatsnew in the releases API only links a YouTrack issue table",
         "com.macpaw.site.theunarchiver":
             "feasible but low value: regex on the DevMate notes page; the app has not shipped since 4.3.9",
-        "com.microsoft.Excel":
-            "feasible, not written yet: the app's section of the Office for Mac release notes",
-        "com.microsoft.OneDrive":
-            "feasible, not written yet: macOS Production ring of learn.microsoft.com's sync release notes",
-        "com.microsoft.onenote.mac":
-            "feasible, not written yet: the app's section of the Office for Mac release notes (mostly boilerplate)",
-        "com.microsoft.Outlook":
-            "feasible, not written yet: the app's section of the Office for Mac release notes",
-        "com.microsoft.Powerpoint":
-            "feasible, not written yet: the app's section of the Office for Mac release notes",
         "com.microsoft.teams2":
             "monthly cross-platform what's-new with no client version per entry",
-        "com.microsoft.Word":
-            "feasible, not written yet: the app's section of the Office for Mac release notes",
         "com.nssurge.surge-mac":
             "Sparkle feeds carry inline markdownDescription notes on every item; the page is a JS shell",
         "com.steipete.codexbar":

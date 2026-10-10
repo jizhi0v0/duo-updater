@@ -74,22 +74,10 @@ enum ChangelogCoverage {
             "feasible, not written yet: (Stable)-labelled entries on the Edge stable release notes (a shallow page)",
         "com.microsoft.edgemac.Beta":
             "feasible, not written yet: regex on the Edge beta release notes",
-        "com.microsoft.Excel":
-            "feasible, not written yet: the app's section of the Office for Mac release notes",
-        "com.microsoft.OneDrive":
-            "feasible, not written yet: macOS Production ring of learn.microsoft.com's sync release notes",
-        "com.microsoft.onenote.mac":
-            "feasible, not written yet: the app's section of the Office for Mac release notes (mostly boilerplate)",
-        "com.microsoft.Outlook":
-            "feasible, not written yet: the app's section of the Office for Mac release notes",
-        "com.microsoft.Powerpoint":
-            "feasible, not written yet: the app's section of the Office for Mac release notes",
         "com.microsoft.teams2":
             "monthly cross-platform what's-new with no client version per entry",
         "com.microsoft.VSCodeInsiders":
             "feasible, not written yet: two-stage /updates index to the v1_N Insiders page; blank at each stable release",
-        "com.microsoft.Word":
-            "feasible, not written yet: the app's section of the Office for Mac release notes",
         "com.mongodb.compass":
             "feasible, not written yet: .gitHubReleases on mongodb-js/compass, or regex on the docs release notes",
         "com.nssurge.surge-mac":

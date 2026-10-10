@@ -28,10 +28,42 @@ enum com_microsoft_OneDrive {
             mode: .redirectFilename,
             versionPattern: #"/Installers/([0-9]+\.[0-9]+\.[0-9]+)\.[0-9]+/"#,
             downloadURL: URL(string: "https://www.microsoft.com/en-us/microsoft-365/onedrive/download")!,
-            changelogURL: URL(string: "https://support.microsoft.com/en-us/office/onedrive-release-notes-845dcf18-f921-435e-bf28-4e24b95e5fc0")!,
+            changelogURL: URL(string: "https://learn.microsoft.com/en-us/sharepoint/sync-release-notes")!,
             install: VendorInstallSpec(
                 urlSource: .redirect(URL(string: "https://go.microsoft.com/fwlink/?linkid=823060")!),
                 kind: .pkg),
             followRedirects: false),
+        ],
+        changelogs: [
+        // OneDrive's sync release notes, one page for Windows and macOS. The macOS
+        // part is `<h2 id="macos-production-ring">` followed by one
+        // `<h4>26.173.0906.0008 (September 25, 2026)</h4>` + `<ul>` per release,
+        // newest first, and then `<h2 id="macos-deferred-ring">` with older builds.
+        // The Windows rings above it use the same `<h4>` shape and the same
+        // versions, and the `<h4>` ids differ only by a de-duplication suffix, so
+        // neither can pick out the macOS entries. The entry pattern does: the first
+        // entry must follow the macOS Production heading, and every later one must
+        // start exactly where the previous match ended (`\G`, ICU), which holds only
+        // while consecutive `<h4>` blocks follow each other. The chain ends at the
+        // Deferred `<h2>`.
+        //
+        // Version is the first three components, the probe's scheme and the
+        // installed CFBundleShortVersionString (`26.173.0906`); the fourth is a
+        // build revision neither carries.
+        //
+        // Some releases nest a list under "New features gradually rolling out:".
+        // An item ends at its own `</li>` or at a nested `<ul>`, so that lead-in
+        // and each nested feature come out as separate lines.
+        ChangelogRecipe(
+            bundleID: "com.microsoft.OneDrive",
+            source: URL(string: "https://learn.microsoft.com/en-us/sharepoint/sync-release-notes")!,
+            entryPattern:
+                #"(?:<h2 id="macos-production-ring">[^<]*</h2>|\G)\s*"#
+                + #"<h4 id="[^"]*">(?<version>[0-9]+\.[0-9]+\.[0-9]+)\.[0-9]+\s*\((?<date>[^)<]+)\)</h4>"#
+                + #"(?<body>.*?)(?=<h[1-4][\s>]|</main>)"#,
+            itemPatterns: [
+                #"<li>(?<item>(?:(?!<li>|</li>|<ul>).)*?)(?:</li>|<ul>)"#
+            ],
+            maxEntries: 30),
         ])
 }

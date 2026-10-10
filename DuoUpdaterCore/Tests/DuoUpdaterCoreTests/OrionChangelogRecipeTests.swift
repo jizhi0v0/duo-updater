@@ -6,7 +6,8 @@ import Testing
 /// Six release headings of `orionbrowser.com/updates/orion-release-notes.html`,
 /// fetched 2026-10-10, in page order but not contiguous: 1.1.3, the 1.1.2 hotfix
 /// (151) and 1.1.2 (150) from the top; an RC block from the 1.0.x era and one from
-/// 0.99.x; and 0.99.131.0.2, in the pre-1.0 layout whose sections are `<h2>`s.
+/// 0.99.x; 0.99.131.0.2, in the pre-1.0 layout whose sections are `<h2>`s; and
+/// "Orion 130.2", one of the 2024 blocks titled with a WebKit-style number.
 /// Each list is cut to its first two items; the kept bytes are verbatim.
 private let orionChangelogFixture = #"""
 <h2 class="divider" id="macos-orion-1-1-3-152"><b>Orion 1.1.3 (152)</b> ✴︎ Sep 28, 2026</h2>
@@ -48,6 +49,7 @@ private let orionChangelogFixture = #"""
       </ul>
 
             <h2 class="divider" id="macos-orion-0-99-131-0-2">Orion 0.99.131.0.2 - Mar 11, 2025</h2><h2>Improvements and bug fixes</h2><ul><li>Orion-specific issues with runbot.odoo.com @Zuilin</li><li>New Orion RC Crash <a href="https://orionfeedback.org/d/10040">#10040</a> @kfo21</li></ul>
+<h2 class="divider" id="macos-orion-130-2">Orion 130.2 - Dec 28, 2024</h2><h2>Improvements and bug fixes</h2><ul><li>Dragging a tab out of a window causes Orion to become unresponsive. <a href="https://orionfeedback.org/d/9342">#9342</a> @ejgavin </li><li>Right clicking on a tab when the cursor is over the favicon doesn't work <a href="https://orionfeedback.org/d/9410">#9410</a> @ps </li></ul>
   </main>
 """#
 
@@ -79,3 +81,19 @@ private let orionChangelogFixture = #"""
         "Orion-specific issues with runbot.odoo.com @Zuilin", "New Orion RC Crash #10040 @kfo21",
     ])
 }
+
+@Test func orionSkipsTheWebKitNumberedBlocksSoThePageIsNotJudgedAhead() throws {
+    // "Orion 130.2" is not a version the appcast ever offered (those builds
+    // shipped as 0.99.x). `Changelog.carries(version:)` takes the HIGHEST
+    // version-shaped entry, so as an entry it would make the page read as ahead
+    // of 1.1.4, 2.0, … and a stale cached page would never be re-read.
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.kagi.kagimacOS"))
+    let log = try #require(ChangelogExtractor.extract(from: orionChangelogFixture, using: recipe))
+
+    #expect(!log.entries.contains { $0.version == "130.2" })
+    #expect(log.carries(version: "1.1.3"))
+    #expect(!log.carries(version: "1.1.4"))
+    // Its block is skipped, not folded into the entry above it.
+    #expect(log.entries.last?.items.count == 2)
+}
+

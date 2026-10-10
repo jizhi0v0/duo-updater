@@ -50,6 +50,14 @@ enum com_kagi_kagimacOS {
         //     `shortVersionString` carries; the build in parentheses is dropped.
         //     A suffix inside the `<b>` ("- hotfix") becomes the entry's title,
         //     which keeps the 1.1.2 hotfix (151) and 1.1.2 (150) as two entries.
+        //   * The major is one or two digits. A stretch of 2024 releases is titled
+        //     "Orion 130.2", "Orion 128.2.1", "Orion 127.3" — the WebKit-style
+        //     number, not the `0.99.x` marketing version those builds shipped as —
+        //     and those must not be entries: `Changelog.carries(version:)` judges
+        //     the page by its HIGHEST version-shaped entry, so a `130.2` would make
+        //     the page look ahead of every future 1.x/2.x and keep a stale cached
+        //     page from ever being re-read. Their blocks are skipped like the RC
+        //     ones: the entry above still ends at their heading.
         //   * A body runs to the next release heading (an `<h2>` whose id starts
         //     `macos-orion-`), so the old layout's section `<h2>`s stay inside it
         //     and become headings along with the new layout's `<h3>`s.
@@ -57,7 +65,7 @@ enum com_kagi_kagimacOS {
             bundleID: "com.kagi.kagimacOS",
             source: URL(string: "https://orionbrowser.com/updates/orion-release-notes.html")!,
             entryPattern:
-                #"<h2[^>]*\bid="macos-orion-[^"]*"[^>]*>\s*(?:<b>\s*)?Orion\s+(?<version>\d+(?:\.\d+)+)"#
+                #"<h2[^>]*\bid="macos-orion-[^"]*"[^>]*>\s*(?:<b>\s*)?Orion\s+(?<version>\d{1,2}(?:\.\d+)+)"#
                 + #"(?:\s*\(\d+\))?(?:\s*-\s*(?<title>[^<]+?)(?=\s*</b>))?\s*(?:</b>)?"#
                 + #"\s*(?:\x{2734}\x{FE0E}?|-)?\s*(?<date>[^<]*?)\s*</h2>"#
                 + #"(?<body>.*?)(?=<h2[^>]*\bid="macos-orion-|</main>|</body>)"#,

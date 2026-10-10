@@ -16,8 +16,13 @@
   「Orion 1.1.3 (152) ✴︎ Sep 28, 2026」= baseline `vendor:com.kagi.kagimacOS:stable` 的 `1.1.3`。页面另有
   `orion-rc-release-notes.html` 链接（RC 说明已单独成页），但本页较早部分仍留着「Orion RC …」「Orion Beta …」
   条目，recipe 跳过它们。
-- 生产解析器（临时测试，`ChangelogService.loadDiagnostic`）：http=200，28 条，最新 `1.1.3`（Sep 28, 2026，
+- 生产解析器（临时测试，`ChangelogService.loadDiagnostic`），初版 recipe：http=200，28 条，最新 `1.1.3`（Sep 28, 2026，
   46 条，小标题「Legacy macOS fixes」「Other improvements and bug fixes」）、`1.1.2`（title `hotfix`，构建 151，
-  Aug 18, 2026）、`1.1.2`（构建 150，Aug 17, 2026）。1.0 之前的老格式条目也读出（`0.99.138` …`0.99.127`），其中
-  几条页面上就写作「Orion 130.2」「Orion 128.2.1」这类（没有 `0.99.` 前缀），与 `shortVersionString` 方案不同；
-  只影响历史条目的显示，最新条目不受影响。
+  Aug 18, 2026）、`1.1.2`（构建 150，Aug 17, 2026）。其中 6 条来自 2024 年标题写作「Orion 130.2」「Orion 130.1」
+  「Orion 128.2.1」「Orion 128.2」「Orion 128.1」「Orion 127.3」的区块（WebKit 式编号，不是当时发的 `0.99.x`）。
+- 这 6 条不是无害的：同一次实测对这份解析调 `Changelog.carries(version:)`，可比较版本的最大值是 `130.2`，
+  `carries("1.1.4")`、`carries("1.2")`、`carries("2.0")` 全是 `true`。也就是说 Orion 发 1.1.4 而页面还没更新时，
+  磁盘缓存不会把旧页标成 provisional、不会重读。其他读条目版本的地方（`duo verify` 取 `entries.first`、
+  面板按 `==` 标记当前运行版本）只看页面顺序或相等，不受影响。
+- 于是 recipe 把版本的大版本号限成一到两位数，这些区块像 RC 块一样被跳过。改后同一测试：22 条，可比较最大值
+  `1.1.3`；`carries("1.1.3")` = true，`carries("1.1.4")`、`carries("1.2")`、`carries("2.0")` = false。

@@ -62,5 +62,24 @@ enum com_tdesktop_Telegram {
                 urlSource: .redirect(URL(string: "https://telegram.org/dl/desktop/mac")!),
                 kind: .dmg),
             followRedirects: false),
+        ],
+        changelogs: [
+        // History: docs/app-audits/com-tdesktop-Telegram.md#历史与实测
+        // Telegram Desktop — GitHub releases of telegramdesktop/tdesktop. The
+        // probe's changelogURL (telegram.org/blog) is a feature blog that names no
+        // desktop versions, so it cannot be parsed into per-version notes; the
+        // repo's release bodies are the per-version change lists.
+        //
+        // Tags are `v<X.Y.Z>` and the probe reads the same `X.Y.Z` from the
+        // redirect filename, so stripping the `v` lines the two up. Betas are
+        // tagged with plain numbers too (`v7.2.10`, `v7.2.6`) and only GitHub's
+        // `prerelease` bit marks them; the stable-only default of `.gitHubReleases`
+        // is what keeps them out, matching the probe, which never offers a beta.
+        ChangelogRecipe(
+            bundleID: "com.tdesktop.Telegram",
+            source: URL(string: "https://api.github.com/repos/telegramdesktop/tdesktop/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            structuredFormat: .gitHubReleases),
         ])
 }

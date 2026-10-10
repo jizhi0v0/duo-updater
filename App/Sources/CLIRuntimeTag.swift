@@ -29,15 +29,14 @@ final class CLIRuntimeStore {
 }
 
 /// A small coloured label beside a CLI tool's name saying what it is built
-/// with — Go, Rust, Swift, Bun, … — drawn and behaving like `RuntimeTag` does
-/// for an app: the runtime's hue at the same strength, white on a selected row,
-/// a tooltip where it is not clickable and the explanation one click away where
-/// it is.
+/// with — Go, Rust, Swift, Bun, … — behaving like `RuntimeTag` does for an app:
+/// the runtime's hue, white on a selected row, a tooltip where it is not
+/// clickable and the explanation one click away where it is.
 ///
-/// Text rather than a mark. `RuntimeTag` draws a shape per runtime because an app
-/// row has a name to sit beside and nine marks were drawn as one family; there is
-/// no such set for languages, and a two-letter word reads at 9pt where a small
-/// imitation of the Go gopher or the Rust gear would not.
+/// Text rather than a mark. Each language's own Simple Icons mark was tried in
+/// its place, drawn as `RuntimeTag` draws its marks, and looked at in the CLI tab
+/// (2026-10-10): the words were kept. Go's mark is a wordmark, a "GO" about a
+/// third as tall as it is wide, which at 12pt read as a small "∞".
 struct CLIRuntimeTag: View {
     let reading: CLIRuntimeReading
     var overHighlight: Bool = false
@@ -52,7 +51,7 @@ struct CLIRuntimeTag: View {
         if interactive {
             Button { showingDetail = true } label: { label }
                 .buttonStyle(.borderless)
-                .help(String(localized: "\(Self.title(reading)) — click for details"))
+                .help(String(localized: "\(reading.runtime.displayName) — click for details"))
                 .accessibilityLabel(Self.help(reading))
                 .popover(isPresented: $showingDetail, arrowEdge: .bottom) { detail }
         } else {
@@ -62,7 +61,7 @@ struct CLIRuntimeTag: View {
         }
     }
 
-    private var tint: Color { Self.tint(reading.runtime ?? reading.launcher) }
+    private var tint: Color { Self.tint(reading.runtime) }
 
     /// The letters' colour. In the light appearance the system hues are drawn
     /// for fills, not for 9pt text on a pale capsule: cyan, green and orange
@@ -75,7 +74,7 @@ struct CLIRuntimeTag: View {
     }
 
     private var label: some View {
-        Text(verbatim: Self.title(reading))
+        Text(verbatim: reading.runtime.displayName)
             .font(.system(size: 9, weight: .semibold))
             .lineLimit(1)
             .fixedSize()
@@ -89,19 +88,17 @@ struct CLIRuntimeTag: View {
 
     private var detail: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(verbatim: Self.title(reading)).font(.headline)
+            Text(verbatim: reading.runtime.displayName).font(.headline)
             Text(Self.help(reading))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if let evidence = reading.evidence {
-                Text("Evidence: \(evidence.summary)",
-                     comment: "Detail line: the Mach-O section, string or #! line a CLI tool's runtime was read from")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 2)
-            }
+            Text("Evidence: \(reading.evidence.summary)",
+                 comment: "Detail line: the Mach-O section, string or #! line a CLI tool's runtime was read from")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
             Text(verbatim: ClaudeCodePresentation.abbreviate(
                 reading.binary, home: FileManager.default.homeDirectoryForCurrentUser.path))
                 .font(.caption.monospaced())
@@ -126,38 +123,24 @@ struct CLIRuntimeTag: View {
     /// it was clearly the faintest tag in the list (OpenCode's row, 2026-10-10),
     /// and the next hue toward it is Rust's orange, which Bun sits beside in the
     /// same list. Pink is far from every other hue here and reads in both.
-    static func tint(_ runtime: CLIRuntime?) -> Color {
+    static func tint(_ runtime: CLIRuntime) -> Color {
         switch runtime {
-        case .go?:      .cyan
-        case .rust?:    .orange
-        case .swift?:   .red
-        case .node?:    .green
-        case .haskell?: .purple
-        case .python?:  .blue
-        case .bun?:     .pink
-        case .deno?:    .indigo
-        case .ruby?:    .mint
-        case .perl?:    .teal
-        case .shell?, nil: .gray
+        case .go:      .cyan
+        case .rust:    .orange
+        case .swift:   .red
+        case .node:    .green
+        case .haskell: .purple
+        case .python:  .blue
+        case .bun:     .pink
+        case .deno:    .indigo
+        case .ruby:    .mint
+        case .perl:    .teal
+        case .shell:   .gray
         }
     }
 
-    /// The tag's words: `CLIRuntimeReading.title`, shared with `duo`.
-    static func title(_ reading: CLIRuntimeReading) -> String { reading.title ?? "" }
-
-    /// The tooltip and the detail's description: what the runtime means, then —
-    /// for a launcher — what it does.
-    static func help(_ reading: CLIRuntimeReading) -> String {
-        var lines: [String] = []
-        if let runtime = reading.runtime { lines.append(sentence(runtime)) }
-        if reading.launcher != nil {
-            lines.append(String(localized: "Started by a Node.js script that runs a native binary from the package’s platform package."))
-            if reading.runtime == nil {
-                lines.append(String(localized: "What that binary is built with couldn’t be determined."))
-            }
-        }
-        return lines.joined(separator: " ")
-    }
+    /// The tooltip and the detail's description.
+    static func help(_ reading: CLIRuntimeReading) -> String { sentence(reading.runtime) }
 
     static func sentence(_ runtime: CLIRuntime) -> String {
         switch runtime {
@@ -189,7 +172,7 @@ struct CLIRuntimeTagSlot: View {
         // that resolves to nothing never appears, so its `.task` would never run
         // and the first reading would never be asked for.
         ZStack {
-            if let reading = store.reading(path), reading.runtime != nil || reading.launcher != nil {
+            if let reading = store.reading(path) {
                 CLIRuntimeTag(reading: reading, overHighlight: overHighlight, interactive: interactive)
             } else {
                 Color.clear.frame(width: 0, height: 0)

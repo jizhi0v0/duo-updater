@@ -5,24 +5,15 @@ import DuoUpdaterCore
 /// A small coloured mark beside an app's name saying what it is built with —
 /// Electron, Tauri, Qt, native, …
 ///
-/// **These are our own marks, not vendor logos.** Two reasons, and the first is
-/// not the legal one. A real brand logo is drawn for a website header: the
-/// Electron mark, rendered at the 10pt this sits at, is a dark disc with hairline
-/// orbits inside it — it brings its own background into the row and its detail is
-/// the first thing to disappear. Drawn as one set, in one 16-unit box with one
-/// stroke weight, nine marks read as a family and each survives the size it is
-/// actually used at. The second reason is that it keeps Oracle's, Google's and The
-/// Qt Company's trademarked artwork out of this repository.
-///
-/// Where a mark echoes the real one it is because the real one is already simple:
-/// Electron *is* an atom, Qt *is* a Q in a square, Java *is* a steaming cup.
-/// Tauri's is the one that resembles nothing in particular — its actual mark could
-/// not be referenced when this was drawn, so it takes a hexagon and a core, the
-/// crate-and-webview shape, rather than a bad guess at their artwork.
-///
-/// The three Apple-platform cases are device silhouettes and the cross-platform
-/// runtimes are abstract shapes, which is itself a cue: a phone, a tablet with a
-/// way out of it, a Mac.
+/// **Where a runtime has a mark of its own, this draws that mark**, not an
+/// imitation of it: Electron, Tauri, Flutter and Qt are Simple Icons artwork
+/// (`RuntimeArtwork`, which says why hand-drawn near-misses were replaced), a
+/// single path in a 24-unit box filled with the runtime's hue. Chromium's disc
+/// and MyGo's ring-in-a-square are drawn from geometry here, because they are
+/// nothing but geometry and neither has an icon to import. The rest take SF
+/// Symbols: a steaming cup for Java, which has no usable mark, and for the three
+/// Apple-platform cases a device silhouette — a tablet and phone for Catalyst, a
+/// phone for an iOS app, the Apple logo for native.
 struct RuntimeTag: View {
     let runtime: AppRuntime
     /// The bundle the mark belongs to, read only when its detail is opened — the

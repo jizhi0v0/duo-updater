@@ -215,51 +215,108 @@ public enum Inventory {
     public static func select(
         _ apps: [InstalledApp]?, matching queries: [String]
     ) -> Result<[InstalledApp], SelectionFailure> {
-        guard let apps else {
-            guard let query = queries.first else { return .success([]) }
-            return .failure(SelectionFailure(description:
-                "can't tell whether '\(query)' is installed: the app scan was abandoned (see above)"))
-        }
-        guard !queries.isEmpty else { return .success(apps) }
+        select(apps, tools: [], toolsConsidered: false, matching: queries).map(\.apps)
+    }
+
+    /// What `select` resolved the arguments to: apps, and the menu-bar app's
+    /// command-line tool rows (`CLIToolRows`).
+    struct Selection {
+        let apps: [InstalledApp]
+        let tools: [CLIToolRows.Row]
+    }
+
+    /// `select`, with the command-line tools in the running too. An argument is
+    /// resolved as an app's install path, then a tool's (`path`), then a bundle
+    /// id, then a case-insensitive prefix of an app's name or of a tool's
+    /// (`names`) — the apps' rule, with the same refusal: a prefix that matches
+    /// more than one thing, apps and tools together, is an error, never a guess.
+    ///
+    /// `toolsConsidered` is false where only apps can be named (`restart`,
+    /// `ignore`, …), and only changes what a miss says.
+    static func select(
+        _ apps: [InstalledApp]?, tools: [CLIToolRows.Row], toolsConsidered: Bool = true,
+        matching queries: [String]
+    ) -> Result<Selection, SelectionFailure> {
+        let standardized = { (path: String) in URL(fileURLWithPath: path).standardizedFileURL.path }
+        guard !queries.isEmpty else { return .success(Selection(apps: apps ?? [], tools: tools)) }
         var selected: [InstalledApp] = []
+        var selectedTools: [CLIToolRows.Row] = []
         for query in queries {
-            let path = URL(fileURLWithPath: query).standardizedFileURL.path
-            if let exact = apps.first(where: { $0.path.standardizedFileURL.path == path }) {
+            let path = standardized(query)
+            if let apps, let exact = apps.first(where: { $0.path.standardizedFileURL.path == path }) {
                 selected.append(exact)
                 continue
+            }
+            let byPath = tools.filter { standardized($0.path) == path }
+            if !byPath.isEmpty {
+                selectedTools.append(contentsOf: byPath)
+                continue
+            }
+            // Past an exact path, an abandoned scan leaves nothing to say: the
+            // query may name an app nobody looked at.
+            guard let apps else {
+                return .failure(SelectionFailure(description:
+                    "can't tell whether '\(query)' is installed: the app scan was abandoned (see above)"))
             }
             let byBundle = apps.filter { $0.bundleID == query }
             if !byBundle.isEmpty {
                 selected.append(contentsOf: byBundle)
                 continue
             }
+            let prefix = query.lowercased()
             let byName = apps.filter {
-                $0.name.lowercased().hasPrefix(query.lowercased())
+                $0.name.lowercased().hasPrefix(prefix)
             }
-            switch byName.count {
+            let toolsByName = tools.filter { $0.names.contains { $0.lowercased().hasPrefix(prefix) } }
+            switch byName.count + toolsByName.count {
             case 0:
-                return .failure(SelectionFailure(description: "no installed app matches '\(query)'"))
+                return .failure(SelectionFailure(description: toolsConsidered
+                    ? "no installed app or command-line tool matches '\(query)'"
+                    : "no installed app matches '\(query)'"))
             case 1:
-                selected.append(byName[0])
+                selected.append(contentsOf: byName)
+                selectedTools.append(contentsOf: toolsByName)
             default:
                 // Version included because the name alone often can't separate the
                 // candidates: two Xcode betas are both called "Xcode" and both report
                 // 27.0, and it is the build that says which is which.
-                let names = byName.map { app in
+                let names = (byName.map { app in
                     let version = app.shortVersion.map { " \($0)" } ?? ""
                     return "  \(app.name)\(version) — \(app.path.path)"
-                }.joined(separator: "\n")
+                } + toolsByName.map { tool in
+                    "  \(tool.name) \(tool.installedVersion ?? "?") — \(tool.path) (command-line tool)"
+                }).joined(separator: "\n")
                 // "Name one exactly" is not advice that can work when the matches
                 // share a name — naming it exactly matches all of them again.
-                let hint = Set(byName.map(\.name)).count == 1
+                let distinct = Set(byName.map { $0.name.lowercased() }
+                    + toolsByName.map { $0.name.lowercased() })
+                let hint = distinct.count == 1
                     ? "They share a name, so pass the path of the one you mean."
                     : "Name one exactly, or pass its path."
+                let count = byName.count + toolsByName.count
+                let noun = toolsByName.isEmpty ? "apps" : "installs"
                 return .failure(SelectionFailure(description:
-                    "'\(query)' matches \(byName.count) apps:\n\(names)\n" + hint))
+                    "'\(query)' matches \(count) \(noun):\n\(names)\n" + hint))
             }
         }
-        // Same app named twice (by path and by id) should be acted on once.
+        // Same app named twice (by path and by id) should be acted on once; a
+        // tool likewise, by its path.
         var seen = Set<String>()
-        return .success(selected.filter { seen.insert($0.id).inserted })
+        var seenTools = Set<String>()
+        return .success(Selection(
+            apps: selected.filter { seen.insert($0.id).inserted },
+            tools: selectedTools.filter { seenTools.insert(standardized($0.path)).inserted }))
+    }
+
+    /// Whether resolving `queries` needs the tools at all: not when every one
+    /// is an app's install path or a bundle id, which no tool can be. Saves
+    /// `duo check com.example.App` asking every tool's channel.
+    static func queriesMayNameTools(_ apps: [InstalledApp]?, _ queries: [String]) -> Bool {
+        guard !queries.isEmpty else { return true }
+        guard let apps else { return true }
+        return queries.contains { query in
+            let path = URL(fileURLWithPath: query).standardizedFileURL.path
+            return !apps.contains { $0.path.standardizedFileURL.path == path || $0.bundleID == query }
+        }
     }
 }

@@ -59,5 +59,35 @@ enum MstyStudio {
                         + "MstyStudio_arm64.zip")!),
                 kind: .zip,
                 checksumPattern: #"url:\s*MstyStudio_arm64\.zip\s*\n\s*sha512:\s*(\S+)"#)),
+        ],
+        changelogs: [
+        // History: docs/app-audits/MstyStudio.md#历史与实测
+        // Msty Studio — msty.ai's Studio changelog (the probe's `changelogURL`).
+        // One block per release, newest first, separated by `<hr>`: an
+        // `<h2 id="msty-2.9.11">` headline, then `<p><small>2026-09-15</small>`,
+        // a summary paragraph, and `<h3>` category headings ("Features",
+        // "Fixes") over `<ul>` lists.
+        //
+        //   * Stable releases only. The same page interleaves the 3.0 beta train
+        //     (`id="msty-3.0.0-beta.14"`, "Msty Studio 3.0.0 Beta 14") and, further
+        //     down, 2.0's alphas and betas; the probe reads the stable feed. The
+        //     id must be `msty-` plus digits and dots and nothing else, which
+        //     leaves every `-beta.N` / `-alpha.N` block (and the dateless
+        //     pre-2.0 posts with slug ids) out. Two stable ids end in a stray
+        //     dot (`msty-2.1.0.`); it is allowed and not captured.
+        //   * Items are the list lines; an entry with no list falls back to its
+        //     paragraphs. The `<h3>`s are kept as headings.
+        ChangelogRecipe(
+            bundleID: "MstyStudio",
+            source: URL(string: "https://msty.ai/resources/changelog/studio/")!,
+            entryPattern:
+                #"<h2 id="msty-(?<version>\d+(?:\.\d+)+)\.?"[^>]*>.*?</h2>\s*"#
+                + #"(?:<p>\s*<small>(?<date>\d{4}-\d{2}-\d{2})</small>)?"#
+                + #"(?<body>.*?)(?=<hr|<h2[\s>]|</main>|</article>)"#,
+            itemPatterns: [
+                #"<li[^>]*>(?<item>.*?)</li>"#,
+                #"<p>(?!\s*<small>)(?<item>.*?)</p>"#,
+            ],
+            headingPattern: #"<h3[^>]*>(?<heading>.*?)</h3>"#),
         ])
 }

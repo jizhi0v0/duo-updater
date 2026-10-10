@@ -401,7 +401,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Sublime Text**](com-sublimetext-4.md) · `com.sublimetext.4` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正
 - [ ] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 zip 的签名核对
 - [ ] [**Telegram Desktop**](com-tdesktop-Telegram.md) · `com.tdesktop.Telegram` — 仅迁出历史：两次挂载 dmg 的核对、文件名改名的时间线
-- [ ] [**TigerVNC**](com-tigervnc-tigervnc.md) · `com.tigervnc.tigervnc` — 仅迁出历史：一键 dmg 的核对
+- [ ] [**TigerVNC**](com-tigervnc-tigervnc.md) · `com.tigervnc.tigervnc` — 仅迁出历史：一键 dmg 的核对；2026-10-10 改读 stable RSS（`best_release.json` 的 mac 默认停在 1.16.0）
 - [ ] [**Cursor**](com-todesktop-230313mzl4w4u92.md) · `com.todesktop.230313mzl4w4u92` — 仅迁出历史：changelog 页尾吞进页面框架的大小
 - [ ] [**Unity Hub**](com-unity3d-unityhub.md) · `com.unity3d.unityhub` — 仅迁出历史：一键 zip 对 `latest-mac.yml` 里 sha512 的字节核对
 - [ ] [**VSCodium**](com-vscodium.md) · `com.vscodium` — 仅迁出历史：Insiders 一键 zip 的核对、channel proof 的 tag 计数、`detect` 那段指向的更正；stable 未审计，同 family 的 Insiders 已审计（见上「未编入分类」）

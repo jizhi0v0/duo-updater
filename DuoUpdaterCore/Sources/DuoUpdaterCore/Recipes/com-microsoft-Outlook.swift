@@ -69,11 +69,16 @@ enum com_microsoft_Outlook {
         // updates / Resolved issues / Security updates), each with one `<h3>` per
         // app (`id="outlook"`, `"outlook-4"`, …) followed by a `<ul>`.
         //
-        // Entry version is the MARKETING version (`16.113.4`), the scheme of the
-        // installed bundle's CFBundleShortVersionString. The probe reports the
-        // build (`16.113.26100421`, = CFBundleVersion: the page's major.minor plus
-        // its "Build" number); one capture group cannot join two spans, so the
-        // entries cannot carry that form.
+        // VERSION MISMATCH, ACCEPTED ON PURPOSE. Entries carry the page's
+        // "Version" (`16.113.4`) = CFBundleShortVersionString. The probe compares
+        // CFBundleVersion (`16.113.26100421`, from the installer filename,
+        // `versionIsBuild: true`). The page names one release both ways ("Version
+        // 16.113.4 (Build 26100421)"), but one capture group cannot join two
+        // spans. So the running-version dot never lights on these entries,
+        // `Changelog.carries(version:)` is false for the offered build (the notes
+        // never count as confirmed and are re-read), and verify's lag/lead checks
+        // don't fire (`Verify.buildDate` reads `16.113` as a date). Matching would
+        // need a multi-capture version field, which changes every changelog golden.
         //
         // The item pattern takes only `<li>`s in this app's sections and in
         // "Office Suite" ones (items Microsoft lists for every suite app: mostly

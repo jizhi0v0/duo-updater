@@ -128,11 +128,11 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 > exercised by a MAS install and stays **needs-verify** for a non-MAS Office.
 > PowerPoint/Outlook/OneDrive/Teams = `.pkg` casks → skipped (need sudo).
 
-- [~] **Word** · `com.microsoft.Word` — P(stable, versionIsBuild, one-click) · ✓ install detected via **App Store** (VendorProbe path needs-verify) · C(regex，Office for Mac release notes 里 Word 段 + Office Suite 段；条目为营销版本 `16.113.4`，探针报 build `16.113.26100421`；MAS 拷贝不用 recipe) · 2026-10-10
-- [~] **Excel** · `com.microsoft.Excel` — P(stable, versionIsBuild, one-click) · ✓ install detected via **App Store** (VendorProbe path needs-verify) · C(regex，同页 Excel 段 + Office Suite 段，同上) · 2026-10-10
-- [ ] **PowerPoint** · `com.microsoft.Powerpoint` — P(stable, versionIsBuild, one-click) · ⏭ pkg/sudo · C(regex，同页 PowerPoint 段 + Office Suite 段) · 2026-10-10
-- [ ] **Outlook** · `com.microsoft.Outlook` — P(stable, versionIsBuild, one-click) · ⏭ pkg/sudo · C(regex，同页 Outlook 段 + Office Suite 段，见 [历史](com-microsoft-Outlook.md)) · 2026-10-10
-- [ ] **OneDrive** · `com.microsoft.OneDrive` — P(stable, one-click) · ⏭ pkg/sudo · C(regex，learn.microsoft.com `sharepoint/sync-release-notes` 的 macOS Production Ring；条目取前三段版本，同探针) · 2026-10-10
+- [~] **Word** · `com.microsoft.Word` — P(stable, versionIsBuild, one-click) · ✓ install detected via **App Store** (VendorProbe path needs-verify) · C(regex，Office for Mac release notes 里 Word 段 + Office Suite 段；条目为 CFBundleShortVersionString `16.113.4`，探针比较 CFBundleVersion `16.113.26100421`，有意不匹配：运行中圆点不亮、`Changelog.carries` 为 false、verify 检查不触发；MAS 拷贝不用 recipe) · 2026-10-10
+- [~] **Excel** · `com.microsoft.Excel` — P(stable, versionIsBuild, one-click) · ✓ install detected via **App Store** (VendorProbe path needs-verify) · C(regex，同页 Excel 段 + Office Suite 段，版本有意不匹配，同上) · 2026-10-10
+- [ ] **PowerPoint** · `com.microsoft.Powerpoint` — P(stable, versionIsBuild, one-click) · ⏭ pkg/sudo · C(regex，同页 PowerPoint 段 + Office Suite 段，版本有意不匹配，同 Word) · 2026-10-10
+- [ ] **Outlook** · `com.microsoft.Outlook` — P(stable, versionIsBuild, one-click) · ⏭ pkg/sudo · C(regex，同页 Outlook 段 + Office Suite 段，版本有意不匹配，见 [历史](com-microsoft-Outlook.md)) · 2026-10-10
+- [ ] **OneDrive** · `com.microsoft.OneDrive` — P(stable, one-click) · ⏭ pkg/sudo · 探针读 standalone updater 的 Production manifest（`g.live.com/0USSDMC_W5T/MacODSUProduction`），一键取其 `UniversalPkgBinaryURL`（UBF8T346G9）· C(regex，learn.microsoft.com `sharepoint/sync-release-notes` 的 macOS Production Ring；条目取前三段版本，同探针) · 见 [历史](com-microsoft-OneDrive.md) · 2026-10-10
 - [ ] **Teams** · `com.microsoft.teams2` — P(stable, one-click) · ⏭ pkg/sudo
 
 ## Single-channel — VendorProbe + optional Changelog
@@ -382,6 +382,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**IntelliJ IDEA**](com-jetbrains-intellij.md) · `com.jetbrains.intellij` — 仅迁出历史：版本段数被钉死时的故障
 - [ ] [**The Unarchiver**](com-macpaw-site-theunarchiver.md) · `com.macpaw.site.theunarchiver` — 仅迁出历史：一键 zip 的签名核对
 - [ ] [**Headlamp**](com-microsoft-Headlamp.md) · `com.microsoft.Headlamp` — 仅迁出历史：changelog 条目符号与计数的测量、repo 改名
+- [ ] [**Microsoft OneDrive**](com-microsoft-OneDrive.md) · `com.microsoft.OneDrive` — 仅迁出历史：探针换到 updater manifest 的经过（fwlink 停在 26.153）、真包签名核对、changelog recipe 接入实测
 - [ ] [**Microsoft OneNote**](com-microsoft-onenote-mac.md) · `com.microsoft.onenote.mac` — 仅迁出历史：套件 pkg 与独立 pkg 的解析核对、changelog recipe 接入实测
 - [ ] [**Microsoft Outlook**](com-microsoft-Outlook.md) · `com.microsoft.Outlook` — 仅迁出历史：一键修复经过与 MAU 各 payload 的测量、changelog recipe 接入实测
 - [ ] [**VS Code**](com-microsoft-VSCode.md) · `com.microsoft.VSCode` — 仅迁出历史：release 页加 blockquote 导致的回退

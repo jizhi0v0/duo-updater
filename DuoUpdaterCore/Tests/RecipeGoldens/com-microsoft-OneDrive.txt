@@ -12,11 +12,11 @@ probes[0].hostRequirement = nil
 probes[0].installedVersionPattern = nil
 probes[0].buildLineage = nil
 probes[0].headBuildPattern = nil
-probes[0].url = URL("https://go.microsoft.com/fwlink/?linkid=823060")
+probes[0].url = URL("https://g.live.com/0USSDMC_W5T/MacODSUProduction")
 probes[0].identities = Array(count: 0)
 probes[0].track = nil
-probes[0].mode = .redirectFilename
-probes[0].versionPattern = "/Installers/([0-9]+\\.[0-9]+\\.[0-9]+)\\.[0-9]+/"
+probes[0].mode = .responseBody
+probes[0].versionPattern = "<key>CFBundleShortVersionString</key>\\s*<string>([0-9]+\\.[0-9]+\\.[0-9]+)</string>"
 probes[0].transientBodyPattern = nil
 probes[0].trackClosedPattern = nil
 probes[0].downloadURL? = URL("https://www.microsoft.com/en-us/microsoft-365/onedrive/download")
@@ -30,8 +30,8 @@ probes[0].minimumSystemVersionPattern = nil
 probes[0].maximumSystemVersionPattern = nil
 probes[0].entryStartPattern = nil
 probes[0].install? = struct VendorInstallSpec
-probes[0].install?.urlSource = .redirect(_:)
-probes[0].install?.urlSource.0 = URL("https://go.microsoft.com/fwlink/?linkid=823060")
+probes[0].install?.urlSource = .bodyPattern(_:)
+probes[0].install?.urlSource.0 = "<key>UniversalPkgBinaryURL</key>\\s*<string>(https://oneclient\\.sfx\\.ms/Mac/Installers/[0-9.]+/universal/OneDrive\\.pkg)</string>"
 probes[0].install?.kind = .pkg
 probes[0].install?.checksumPattern = nil
 probes[0].install?.checksumFormat = .sha512Base64
@@ -40,7 +40,7 @@ probes[0].install?.nestedArchivePath = nil
 probes[0].install?.contentsArchivePattern = nil
 probes[0].install?.myGoPublicKey = nil
 probes[0].requestBody = nil
-probes[0].followRedirects = false
+probes[0].followRedirects = true
 probes[0].requestHeaders = Dictionary(count: 0)
 
 changelogs = Array(count: 1)

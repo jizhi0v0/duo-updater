@@ -174,5 +174,40 @@ enum com_sogou_inputmethod_sogou {
                     #"\npid=0\n(?:[^\[]*?\n)?version=[0-9]+(?:\.[0-9]+)+[^\[]*?\nupdate_pack_url=(https?://[^\s]+\.zip)"#),
                 kind: .zip,
                 contentsArchivePattern: #"^Contents[0-9.]+\.zip$"#)),
+        ],
+        changelogs: [
+        // History: docs/app-audits/com-sogou-inputmethod-sogou.md#历史与实测
+        // The update log the probe's `changelogURL` names. It is served as
+        // `Content-Type: text/html;charset=gbk`, which `ChangelogService` honours
+        // (GB18030); read as UTF-8 every Chinese character here would be U+FFFD.
+        //
+        // VERSION MISMATCH, ACCEPTED ON PURPOSE. The page titles releases `x.y.z`;
+        // the version this app is offered and installed with is `x.y.z.build`
+        // (the probe above reads the bundle's own four-part string). The page has
+        // no fourth part to read, so: no entry is ever marked as the running
+        // version, `Changelog.carries(version:)` stays false (the disk-cached
+        // notes stay provisional and are re-read every 6 h), and `duo verify`'s
+        // lag check, which compares major.minor, is unaffected. Same trade-off as
+        // JetBrains Toolbox (`com-jetbrains-toolbox.swift`).
+        //
+        // One page, three products: `搜狗输入法 for Mac <ver>` (this app),
+        // `搜狗输入法 for Mac touchbar<ver>` and `搜狗五笔输入法for Mac <ver>`. The
+        // entry is anchored on the full Chinese title with a space and a DIGIT
+        // straight after `for Mac`, which is what keeps the other two out —
+        // matching Chinese text is only possible because the page is decoded as GBK.
+        //
+        // Older entries lose their closing `</p>` before the next entry, so the
+        // body ends at `</p>` OR the next `<p class="post_message"`; without the
+        // second stop one entry's body swallows the next and that release vanishes.
+        // Items are numbered `1、` in newer entries and `1.` in older ones, each
+        // after a `<br>` / `<br/>`.
+        ChangelogRecipe(
+            bundleID: "com.sogou.inputmethod.sogou",
+            source: URL(string: "https://pinyin.sogou.com/mac/update_log.php")!,
+            entryPattern:
+                #"<span class="post_type">搜狗输入法 for Mac (?<version>\d+(?:\.\d+)+)</span>\s*"#
+                + #"<span class="post_time">(?<date>[^<]*)</span>\s*</p>\s*"#
+                + #"<p class="type_mes">(?<body>.*?)(?=</p>|<p class="post_message")"#,
+            itemPatterns: [#"<br\s*/?>\s*\d+[、.](?<item>[^<]+)"#]),
         ])
 }

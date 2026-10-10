@@ -98,8 +98,6 @@ enum ChangelogCoverage {
             "feasible, not written yet: .gitHubReleases on robinebers/openusage, stable and beta",
         "com.runningwithcrayons.Alfred":
             "feasible, not written yet: regex on alfredapp.com/changelog",
-        "com.sogou.inputmethod.sogou":
-            "update log titles versions x.y.z but the offered build is x.y.z.build, so no entry ever matches it",
         "com.steipete.codexbar":
             "Sparkle appcast ships inline HTML notes for every item, so the page is never shown",
         "com.sublimemerge":

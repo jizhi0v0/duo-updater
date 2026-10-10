@@ -153,7 +153,7 @@ HTTPS 可用（抓包里客户端走的是 http）。同一 URL 连打五次**�
 没有这道守卫的话，哨兵会被报成 `1.0.0.1`，那读起来是"所有人都该降级"——夜扫会响，
 但**明确拒绝**好过"响一声然后报一个我们明知不是版本的数"。
 
-## 更新日志页：现在只当 notes 源
+## 更新日志页：notes 源（不当版本源）
 
 `https://pinyin.sogou.com/mac/update_log.php`（`charset=gbk`）仍然是 `changelogURL`，
 因为 notes 只存在于这里，而且它和接口**互相印证**：页面最新条目 `搜狗输入法 for Mac 6.24.1` /
@@ -173,23 +173,31 @@ HTTPS 可用（抓包里客户端走的是 http）。同一 URL 连打五次**�
   - 五笔在 1.x 比不过 6.x 同样只是兜底，不是理由。
 - **只发三段**，见上。
 
-### 为什么仍然没有 ChangelogRecipe
+### ChangelogRecipe（2026-10-10 接入）：读这一页，版本形状不一致是有意接受的
 
-页面只能当 web view 嵌入，`ChangelogCoverage.acknowledged` 里记着原因。
+`com-sogou-inputmethod-sogou.swift` 的 `changelogs:` 读这一页，渲染成原生条目，不再嵌 web view。
 
-- **编码已经不是障碍。** 服务器在响应头里声明 `Content-Type: text/html;charset=gbk`
-  （HTML 里另有 `<meta … charset=gbk>`，但用不着嗅它），`ChangelogService` 现在按声明的
-  charset 解码，GB 系一律按 GB18030（超集）。2026-10-10 实测（`curl -sI` 看头；临时 Swift 测试
-  走 `ChangelogService.loadDiagnostic` 读线上页）：0 个替换字符，锚在「搜狗输入法 for Mac 」上的
-  试写 pattern 读出最新三条 `6.25.1`（2026-09-16）、`6.24.1`（2026-07-17）、`6.24.0`（2026-07-08）。
-  同日页面 `post_type` 共 102 条：拼音 95、touchbar 3、五笔 4。
-- **剩下的障碍是版本号的形状。** 页面条目写 `6.25.1`，而本 app 被提供、被安装的版本是
-  `6.25.1.11973`（接口和 bundle 都是四段，见上）。页面没有第四段可读，四段也推不出来；
-  反过来把装机侧裁成三段，正是上面说的、改到接口时删掉的 `firstThreeSegments`。
-  所以条目永远对不上被提供的版本：`Changelog.carries(version:)` 把四段读成比三段新，
-  该页的磁盘缓存永远是 provisional（过 6 小时就重读），重新验证的欠账也永远还不清。
-  这和 JetBrains Toolbox（`3.8.1` 对 `3.8.1.88030`）是同一种情况，那边是接受了这个代价的；
-  这里按「条目版本必须与提供的版本同一套方案」的规则不写，要接受同样的代价得另行决定。
+- **编码**：服务器在响应头里声明 `Content-Type: text/html;charset=gbk`（HTML 里另有
+  `<meta … charset=gbk>`，用不着嗅它）。接入前 `ChangelogService` 一律按 UTF-8 解，汉字全成替换字符；
+  同一个 PR 改为按声明的 charset 解码，GB 系一律按 GB18030（超集）。
+- **只读拼音**：锚在完整中文标题「搜狗输入法 for Mac 」后面紧跟数字上，touchbar（`touchbar3.0`）和
+  五笔（`for` 前没空格）都进不来——这次是被规则挡住的，不是碰巧（对比上面「真要拿它当版本源」那段）。
+- **两种旧格式**：较老的条目缺 `</p>`，所以 body 在 `</p>` 或下一个 `<p class="post_message"`
+  处结束，否则一条会吞掉下一条；条目编号新的写 `1、`、旧的写 `1.`，两种都认。
+  试写 pattern 只认 `</p>` 和 `1、` 时线上只出 34 条：6.16.0 及更老的 `1.` 条目 6 条没有 item 被丢，
+  6.3.0 / 6.0.6 / 6.0.4 被前一条吞掉。修完后前 40 条（`maxEntries` 上限）全有 item。
+  上限以外还剩两种形状没管：`5.0` 包在 `uplog_hide` 的 `div` 里、标题和正文分在两处；
+  `2.1.0`、`1.5.1.21442`、`1.1.1`、`1.0.2` 没有编号 item。都在第 40 条以后，不影响显示。
+- **版本形状不一致，有意接受。** 页面条目写 `x.y.z`（`6.25.1`），本 app 被提供、被安装的是
+  `x.y.z.build`（`6.25.1.11973`，接口和 bundle 都是四段，见上）。页面没有第四段可读，
+  而把装机侧裁成三段正是改到接口时删掉的 `firstThreeSegments`。后果：没有条目会被标成正在运行的版本；
+  `Changelog.carries(version:)` 恒为 false，所以磁盘缓存的 notes 一直是 provisional、每 6 小时重读一次；
+  `duo verify` 的滞后检查只比 major.minor，不受影响。和 JetBrains Toolbox（`3.8.1` 对 `3.8.1.88030`）
+  是同一个取舍。
+- **2026-10-10 实测**（`curl -sI` 看头；临时 Swift 测试走 `ChangelogService.loadDiagnostic` 读线上页）：
+  HTTP 200，0 个替换字符，40 条（上限），最后一条 `6.0.4`，没有空 item 的条目；最新三条
+  `6.25.1`（2026-09-16）、`6.24.1`（2026-07-17）、`6.24.0`（2026-07-08）；
+  `carries("6.25.1.11973") == false`。同日页面 `post_type` 共 102 条：拼音 95、touchbar 3、五笔 4。
 
 ## 下载文件名不是版本（实测排除）
 

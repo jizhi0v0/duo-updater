@@ -20,7 +20,7 @@ enum com_microsoft_teams2 {
             mode: .responseBody,
             versionPattern: #""WebView2Canary":\{"macOS":\{"latestVersion":"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
             downloadURL: URL(string: "https://www.microsoft.com/en-us/microsoft-teams/download-app")!,
-            changelogURL: URL(string: "https://support.microsoft.com/en-us/office/what-s-new-in-microsoft-teams-d7092a6d-c896-424c-b362-a472d5f105de")!,
+            changelogURL: URL(string: "https://support.microsoft.com/en-us/teams/platform/what-s-new-in-microsoft-teams")!,
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#""WebView2Canary":\{"macOS":\{"latestVersion":"[^"]*","buildLink":"([^"]+MicrosoftTeams\.pkg)""#),
                 kind: .pkg)),

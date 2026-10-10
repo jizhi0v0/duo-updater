@@ -122,8 +122,10 @@ import Foundation
     /// hard-wrapped list items) moves neither fixture: neither has prose under a
     /// notice heading or a wrapped item. Pinned by `GitHubSectionProseTests` and
     /// `GitHubListContinuationTests`.
+    /// 18 (Sublime Text's entry versions keep "Build ") moves neither fixture: it
+    /// is one app's recipe. Pinned by `sublimeTextEntryVersionsMatchTheInstalledBundle`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 17)
+        #expect(Changelog.parserGeneration == 18)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

@@ -145,7 +145,10 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   Migration notes, among them that Intel Macs should stay on 0.8.4. It
     ///   also joins a list item's hard-wrapped lines onto it: notes already
     ///   cached from Audacity, darktable or Diri keep only each item's first line.
-    public static let parserGeneration = 17
+    /// - 18: Sublime Text's recipe keeps the "Build " in its entry versions
+    ///   (`Build 4215`, the string the probe offers and the bundle reports).
+    ///   Notes already cached for a build carry the bare `4215`.
+    public static let parserGeneration = 18
 
     public let entries: [Entry]
 

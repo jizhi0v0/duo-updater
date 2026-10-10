@@ -210,4 +210,20 @@ ResetOSXVSyncOnExit=true
         #expect(offeredBuild(for: app(short: "32.2.1", build: "30131037208", branch: nil)) == stable2)
         #expect(offeredBuild(for: app(short: "32.2.0", build: "29532805833", branch: nil)) == beta6)
     }
+
+    // MARK: - duo verify's stand-in install
+
+    /// The page `duo verify` resolves for the changelog recipe, which has no
+    /// installed copy to ask (#1112). A fresh OBS has no `UpdateBranch`, which OBS
+    /// reads as `stable`, so it is offered 32.2.2 and its `notes_stable.html`.
+    /// Mutation that turns this red: dropping OBS from
+    /// `ChannelBinding.freshInstallResolution` — the stand-in is then on the
+    /// default channel alone, whose only item is 29.0.2 and its
+    /// `stable/notes.html`, a page the recipe refuses: `noFeedPage`.
+    @Test func verifyReadsTheStablePageAFreshInstallIsOffered() throws {
+        let feedURL = try #require(Self.feedURL)
+        let link = SparkleAppcastSource.probeReleaseNotesLink(
+            in: Data(obsFeedFixture.utf8), feedURL: feedURL, bundleID: Self.bundleID)
+        #expect(link?.absoluteString == "https://obsproject.com/osx_update/notes_stable.html")
+    }
 }

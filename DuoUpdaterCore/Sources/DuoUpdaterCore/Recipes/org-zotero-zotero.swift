@@ -47,5 +47,30 @@ enum org_zotero_zotero {
                     "https://download.zotero.org/client/release/{0}/Zotero-{0}.dmg",
                     fields: [#""standaloneVersions"\s*:\s*\{\s*"mac"\s*:\s*"([0-9]+(?:\.[0-9]+){1,2})""#]),
                 kind: .dmg)),
+        ],
+        changelogs: [
+        // History: docs/app-audits/org-zotero-zotero.md#历史与实测
+        // Zotero — `zotero.org/support/changelog`, the page the probe links. A
+        // DokuWiki page, server-rendered, newest first, covering the CURRENT major
+        // only (older majors move to `/support/<major>_changelog`, linked under
+        // "Older Changes", which no entry reads):
+        //   <h2 id="changes_in_1006_…">Changes in 10.0.6 (October 7, 2026)<a class="headerlink" …>#</a></h2>
+        //   <ul><li>…</li></ul>     ← optional <p> notes and <h3> sub-sections too
+        // The version is the h2's number, the same `standaloneVersions.mac` string
+        // the probe reads (two components for a .0 release, "10.0"); the date is
+        // the parenthesis. The body runs to the next `<h2>` or the end of the
+        // article. `<li>` and `<p>` are one item pattern in document order, cut at
+        // the next `<li>`/`<ul>` so nested lists stay one line per item; `<h3>`
+        // sub-sections ("Developer-specific changes/fixes") render as headings,
+        // read up to the permalink anchor.
+        ChangelogRecipe(
+            bundleID: "org.zotero.zotero",
+            source: URL(string: "https://www.zotero.org/support/changelog")!,
+            entryPattern:
+                #"<h2[^>]*>\s*Changes in (?<version>[0-9]+(?:\.[0-9]+){1,3})\s*\((?<date>[^)<]*)\)"#
+                + #"(?:<a [^>]*>[^<]*</a>)?\s*</h2>"#
+                + #"(?<body>.*?)(?=<h2[\s>]|</article>)"#,
+            itemPatterns: [#"(?:<li[^>]*>|<p>)(?<item>.*?)(?=<li[\s>]|</li>|<ul[\s>]|</p>)"#],
+            headingPattern: #"<h3[^>]*>(?<heading>[^<]*)"#),
         ])
 }

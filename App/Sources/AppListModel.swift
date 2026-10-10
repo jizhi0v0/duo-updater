@@ -4663,6 +4663,26 @@ final class AppListModel {
             return .notInstalled
         }
 
+        // An installer parked on this app's quit whose staged build was deleted
+        // from under it (ChatGPT, 2026-10-06 and 2026-10-11). It can apply
+        // nothing, so it is no collision — but our install's quit would wake it,
+        // and while it stays parked the app's own Sparkle never stages again.
+        // Removed first; one that will not go yields, like a partial clearance.
+        // See `SelfUpdaterStaging.sparkleInstallerOrphaned`.
+        if UpdatePolicy.armedInstallerBlocksInstall(
+            result, armed: SelfUpdaterStaging.sparkleInstallerOrphaned(for: result.app)) {
+            if case .notCleared = await SparkleStagingClearance.clearOrphanedInstaller(for: result.app) {
+                // Still true whatever was removed: quitting the app ends the
+                // installer (it fails and exits), and the next Update goes through.
+                let note = String(localized: "Couldn’t fully stop \(result.app.name)’s own updater — quit and reopen it, then update.")
+                installNotes[id] = note
+                inFlightNotes[id] = note
+                if !deferBookkeeping { await computeSelfUpdateStaging() }
+                installing[id] = nil
+                return .notInstalled
+            }
+        }
+
         // Same collision with the version unknown: an installer is parked on this
         // app's quit, and what it staged cannot be read (typically root staging
         // under /var/root). Measured

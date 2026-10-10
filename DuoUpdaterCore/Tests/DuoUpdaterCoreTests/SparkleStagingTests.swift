@@ -588,6 +588,99 @@ struct SparkleStagingTests {
         }
     }
 
+    // MARK: - An armed installer whose staging is gone
+
+    /// ChatGPT on the mini, 2026-10-11: the whole `org.sparkle-project.Sparkle`
+    /// cache deleted while its installer (running as this user) stayed parked.
+    /// Orphaned — so not armed, and the row offers Update instead of a Relaunch
+    /// certain to fail. The same cache with the installer running as root is
+    /// Tailscale's, and keeps its version-less Relaunch.
+    ///
+    /// Mutations: drop the same-user clause from `stagingGoneUnderSameUserInstaller`
+    /// (the root case goes red); drop the `!` in `sparkleInstallerArmedWithUnreadableStaging`
+    /// (both go red).
+    @Test func aSameUserInstallerWhoseCacheIsGoneIsOrphanedNotArmed() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "26.917.51856", build: "10492")
+            let app = sparkleApp(at: installed, short: "26.917.51856", build: "10492")
+            let parked = [parkedInstaller(in: caches)]
+            #expect(!FileManager.default.fileExists(atPath: caches.path))
+
+            #expect(SelfUpdaterStaging.sparkleInstallerOrphaned(
+                for: app, cachesDirectory: caches, parkedInstallerBundleURLs: parked,
+                installerRunsAsThisUser: true))
+            #expect(!SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
+                for: app, cachesDirectory: caches, parkedInstallerBundleURLs: parked,
+                installerRunsAsThisUser: true))
+
+            #expect(!SelfUpdaterStaging.sparkleInstallerOrphaned(
+                for: app, cachesDirectory: caches, parkedInstallerBundleURLs: parked,
+                installerRunsAsThisUser: false))
+            #expect(SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
+                for: app, cachesDirectory: caches, parkedInstallerBundleURLs: parked,
+                installerRunsAsThisUser: false))
+        }
+    }
+
+    /// A healthy install always has its archive somewhere: in
+    /// `PersistentDownloads/` until the installer moves it, then in its
+    /// `Installation/<random>/` while unpacking. Either one present is not gone.
+    ///
+    /// Mutation: drop `PersistentDownloads` from `sparkleStagingIsGone` (the
+    /// first case goes red); stop treating a non-empty directory as present
+    /// (both go red).
+    @Test func anArchiveInEitherPlaceIsNotOrphaned() throws {
+        for place in ["PersistentDownloads/Wq1hFvM2a", "Installation/x9EqkgOes"] {
+            try withScratch { root in
+                let caches = root.appendingPathComponent("Caches")
+                let dir = caches.appendingPathComponent(bundleID)
+                    .appendingPathComponent("org.sparkle-project.Sparkle")
+                    .appendingPathComponent(place)
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                try Data().write(to: dir.appendingPathComponent("update.zip"))
+                let installed = root.appendingPathComponent("Sparkly.app")
+                try makeApp(at: installed, identifier: bundleID, short: "1.0", build: "1")
+                let app = sparkleApp(at: installed, short: "1.0", build: "1")
+                let parked = [parkedInstaller(in: caches)]
+
+                #expect(!SelfUpdaterStaging.sparkleInstallerOrphaned(
+                    for: app, cachesDirectory: caches, parkedInstallerBundleURLs: parked,
+                    installerRunsAsThisUser: true), "archive in \(place)")
+                #expect(SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
+                    for: app, cachesDirectory: caches, parkedInstallerBundleURLs: parked,
+                    installerRunsAsThisUser: true), "archive in \(place)")
+            }
+        }
+    }
+
+    /// Empty directories, as Sparkle leaves them after a run, are gone too.
+    @Test func emptyStagingDirectoriesAreGone() throws {
+        try withScratch { root in
+            let sparkleRoot = root.appendingPathComponent("org.sparkle-project.Sparkle")
+            for name in ["Installation", "PersistentDownloads", "Launcher/PLYg3vVky"] {
+                try FileManager.default.createDirectory(
+                    at: sparkleRoot.appendingPathComponent(name), withIntermediateDirectories: true)
+            }
+            #expect(SelfUpdaterStaging.sparkleStagingIsGone(
+                sparkleRoot: sparkleRoot, fileManager: .default))
+        }
+    }
+
+    /// No parked installer, no orphan: the cache being empty proves nothing alone.
+    @Test func withoutAParkedInstallerNothingIsOrphaned() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "1.0", build: "1")
+            #expect(!SelfUpdaterStaging.sparkleInstallerOrphaned(
+                for: sparkleApp(at: installed, short: "1.0", build: "1"),
+                cachesDirectory: caches, parkedInstallerBundleURLs: [],
+                installerRunsAsThisUser: true))
+        }
+    }
+
     /// No parked installer means nothing applies on quit, whatever the cache
     /// holds or lacks — the same evidence rule as `aLeftoverWithNoParkedInstallerIsIgnored`,
     /// and it matters more here: a false positive replaces Update with a Relaunch

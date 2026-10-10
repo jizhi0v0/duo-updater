@@ -38,8 +38,6 @@ enum ChangelogCoverage {
             "brave.com/latest lists release-channel versions only; beta notes are not published",
         "com.brave.Browser.nightly":
             "brave.com/latest lists release-channel versions only; nightly builds have no notes",
-        "com.figma.DesktopBeta":
-            "feasible, not written yet: the stable Figma atom recipe under the beta bundle id",
         "com.getdropbox.dropbox":
             "feasible but weak: one forum post per build, and the offered build often has none",
         "com.google.android.studio":
@@ -70,12 +68,8 @@ enum ChangelogCoverage {
             "feasible, not written yet: .gitHubReleases on robinebers/openusage, stable and beta",
         "com.steipete.codexbar":
             "Sparkle appcast ships inline HTML notes for every item, so the page is never shown",
-        "com.surteesstudios.Bartender":
-            "feasible, not written yet: feedPagePattern on the appcast's per-version rnotes.html",
         "com.tigervnc.tigervnc":
             "feasible, not written yet: .gitHubReleases on TigerVNC/tigervnc (some bodies are prose only)",
-        "com.vivaldi.Vivaldi.snapshot":
-            "feasible, not written yet: the stable Vivaldi recipe on the feed's relnotes/snapshot/<version>.html page",
         "dev.commandline.waveterm":
             "feasible, not written yet: .gitHubReleases on wavetermdev/waveterm",
         "dev.warp.Warp-Dev":

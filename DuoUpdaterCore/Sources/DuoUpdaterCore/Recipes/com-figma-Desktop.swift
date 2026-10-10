@@ -108,6 +108,26 @@ enum com_figma_Desktop {
                 + #"(?<body><content type="html"><!\[CDATA\[.*?\]\]></content>)"#,
             itemPatterns: [#"<content type="html"><!\[CDATA\[(?<item>.*?)\]\]></content>"#],
             maxEntries: 20),
+
+        // Figma Beta — the same feed, read the same way as stable above. Figma
+        // publishes no beta notes: the beta probe's `changelogURL` is the same
+        // product release-notes page this feed mirrors, so the pane shows the same
+        // posts, natively instead of embedded. Like stable, no entry names an app
+        // build (titles are post headlines), so no entry ever matches the beta
+        // version the app is offered; `Changelog.carries` and the verify checks
+        // treat a version-less page as never behind rather than judging it.
+        ChangelogRecipe(
+            bundleID: "com.figma.DesktopBeta",
+            source: URL(string: "https://www.figma.com/release-notes/feed/atom.xml")!,
+            entryPattern:
+                #"<entry>\s*"#
+                + #"<title type="html"><!\[CDATA\[(?<version>.*?)\]\]></title>\s*"#
+                + #"<id>[^<]*</id>\s*"#
+                + #"<link[^>]*/>\s*"#
+                + #"<updated>(?<date>[^T]+)T[^<]*</updated>\s*"#
+                + #"(?<body><content type="html"><!\[CDATA\[.*?\]\]></content>)"#,
+            itemPatterns: [#"<content type="html"><!\[CDATA\[(?<item>.*?)\]\]></content>"#],
+            maxEntries: 20),
         ],
         channelProofs: [
         ChannelProofKey("com.figma.DesktopBeta", .beta): .artifact(#"/beta/FigmaBeta-"#),

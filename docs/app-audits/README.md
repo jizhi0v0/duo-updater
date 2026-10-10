@@ -309,7 +309,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**MonitorControl**](app-monitorcontrol-MonitorControl.md) · `app.monitorcontrol.MonitorControl` — S+B · 一键 ✓ · beta 开关（`MonitorControlChannel`，feed 尚无 beta）· changelog recipe ✓ · 2026-10-08
 - [x] [**Maccy**](org-p0deje-Maccy.md) · `org.p0deje.Maccy` — S · 检测 + changelog 结构化 ✓ · 一键未跑 · 2026-10-08
 - [x] [**Keka**](com-aone-keka.md) · `com.aone.keka` — S · 检测 ✓ · changelog recipe（GitHub）✓ · 一键未跑 · 2026-10-08
-- [x] [**Vivaldi**](com-vivaldi-Vivaldi.md) · `com.vivaldi.Vivaldi` — S · 真包 8.2.4133.83/.84 验证 ✓ · 一键（delta）✓ · Snapshot 为独立 bundle id · changelog 仅网页（建议 recipe）· 2026-10-08
+- [x] [**Vivaldi**](com-vivaldi-Vivaldi.md) · `com.vivaldi.Vivaldi` — S · 真包 8.2.4133.83/.84 验证 ✓ · 一键（delta）✓ · Snapshot 为独立 bundle id · changelog recipe（stable + Snapshot）· 2026-10-08
 - [x] [**OBS**](com-obsproject-obs-studio.md) · `com.obsproject.obs-studio` — S · 真包 32.2.1/32.2.2/33.0.0-beta5/beta6 验证 ✓ · stable 一键（delta）端到端 ✓ · beta `UpdateBranch` 绑定 ✓ · changelog recipe（feedPagePattern）✓ · 2026-10-08
 - [x] [**HandBrake**](fr-handbrake-HandBrake.md) · `fr.handbrake.HandBrake` — S · 一键 ✓ · changelog recipe（GitHub）✓ · 2026-10-08
 - [x] [**Typeless**](now-typeless-desktop.md) · `now.typeless.desktop` — P+C · electron-builder feed (VendorProbe) · 一键 dmg + sha512 · 结构化 changelog（gzip __NEXT_DATA__，含图）· channel-verify ✓ · 2026-06-19
@@ -400,7 +400,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Spotify**](com-spotify-client.md) · `com.spotify.client` — 仅迁出历史：stub 安装器版本与 cask 的比较、changelog 的排查
 - [ ] [**Sublime Merge**](com-sublimemerge.md) · `com.sublimemerge` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正、changelog 段结构实测
 - [ ] [**Sublime Text**](com-sublimetext-4.md) · `com.sublimetext.4` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正
-- [ ] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 zip 的签名核对
+- [ ] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 zip 的签名核对、changelog `feedPagePattern` 实测
 - [ ] [**Telegram Desktop**](com-tdesktop-Telegram.md) · `com.tdesktop.Telegram` — 仅迁出历史：两次挂载 dmg 的核对、文件名改名的时间线
 - [ ] [**TigerVNC**](com-tigervnc-tigervnc.md) · `com.tigervnc.tigervnc` — 仅迁出历史：一键 dmg 的核对；2026-10-10 改读 stable RSS（`best_release.json` 的 mac 默认停在 1.16.0）
 - [ ] [**Cursor**](com-todesktop-230313mzl4w4u92.md) · `com.todesktop.230313mzl4w4u92` — 仅迁出历史：changelog 页尾吞进页面框架的大小

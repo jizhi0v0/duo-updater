@@ -242,7 +242,12 @@ CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商
   `7.2.2`）的 lead 检查不报，因为 stable 这一 channel 同时有 7.x/6.x/5.x 三个代际的行，
   `changelogLeadsProbeComplaint` 的「一个 channel 两个命名空间」守卫直接返回 nil。
   `warn` 会累加 `consecutiveActionable`，所以这种毕业会在下一个 beta 周期开张前每轮扫描
-  都算一次。2026-10-10 当天 beta 周期开着，页面和 probe 都是 `7.2.2-b4`，不触发。）
+  都算一次。2026-10-10 当天 beta 周期开着，页面和 probe 都是 `7.2.2-b4`，不触发。
+  **已修**（同一 PR）：`Verify.probeRestsOffChannel`——channel recipe 的最新条目经
+  `ReleaseChannel.detect` 读成本 channel、而 probe 的答案读不成时，跳过 lag 检查（周期
+  之间没有同一条 train 上的版本可比）。`7.2.2-b4` 对 `7.3.0`、`7.1.7-b7` 对 `7.2` 现在都不报；
+  beta 页落后于一个 beta 答案（`7.1.7-b7` 对 `7.3.0-b1`）仍然报。回归测试
+  `CLI/Tests/DuoKitTests/ChangelogLagOffChannelTests.swift`。）
 
 **复审补出来的两条代价（第一版的代价清单漏了，记在这里而不是留给下一个人发现）：**
 

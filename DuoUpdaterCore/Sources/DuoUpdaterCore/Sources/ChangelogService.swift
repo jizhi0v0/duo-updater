@@ -657,7 +657,40 @@ public enum ChangelogService {
         }
         guard let http = response as? HTTPURLResponse else { return (nil, nil) }
         guard (200..<300).contains(http.statusCode) else { return (nil, http.statusCode) }
-        return (String(decoding: data, as: UTF8.self), http.statusCode)
+        return (decodeBody(data, declaredCharset: http.textEncodingName), http.statusCode)
+    }
+
+    /// The body as text, in the charset the response's `Content-Type` declares.
+    ///
+    /// UTF-8 unless the server names something else: an undeclared or `utf-8`
+    /// body takes exactly the lossy UTF-8 decode every page always had, so only a
+    /// page that says it is NOT UTF-8 is read any differently. Sogou's update log
+    /// is the case that needed it: `Content-Type: text/html;charset=gbk`, and read
+    /// as UTF-8 every Chinese character turned into U+FFFD.
+    ///
+    /// The GB family (`gbk`, `gb2312`, `gb18030`) decodes as GB18030, which is a
+    /// superset of the other two, so a page that says `gb2312` but uses a GBK-only
+    /// character still decodes. A charset Foundation doesn't know, or bytes that
+    /// aren't valid in the declared one, fall back to the UTF-8 decode rather than
+    /// to nil: a page that fetched fine stays a page.
+    static func decodeBody(_ data: Data, declaredCharset: String?) -> String {
+        guard let name = declaredCharset?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !name.isEmpty
+        else { return String(decoding: data, as: UTF8.self) }
+        let cf = CFStringConvertIANACharSetNameToEncoding(name as CFString)
+        guard cf != kCFStringEncodingInvalidId else { return String(decoding: data, as: UTF8.self) }
+        let gbFamily: Set<CFStringEncoding> = [
+            CFStringEncoding(CFStringEncodings.GBK_95.rawValue),
+            CFStringEncoding(CFStringEncodings.GB_2312_80.rawValue),
+            CFStringEncoding(CFStringEncodings.EUC_CN.rawValue),
+            CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue),
+        ]
+        let effective = gbFamily.contains(cf)
+            ? CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue) : cf
+        let encoding = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(effective))
+        guard encoding != .utf8, let text = String(data: data, encoding: encoding)
+        else { return String(decoding: data, as: UTF8.self) }
+        return text
     }
 
     /// Convenience: look up a recipe by bundle id (and channel, for apps whose

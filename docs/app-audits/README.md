@@ -198,7 +198,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**WorkBuddy AI（国际站）**](com-workbuddy-workbuddy-ai.md) · `com.workbuddy.workbuddy-ai` — P (one-click) · 按架构分两条 recipe · changelog 页滞后于自己的轨道（厂商侧）· 共用部分链到国内站那份 · 真实 DMG channel-verify ✓ · 2026-08-27
 - [x] [**Canva**](com-canva-CanvaDesktop.md) · `com.canva.CanvaDesktop` — P (one-click, dmg + feed sha512) · Electron 套壳，端点取自 app 自带 `app-update.yml` · cask 是 `auto_updates` 且滞后一版 · beta 轨道 2024-11 起废弃，pattern 以数字点结尾拒读 · 真实 DMG + live probe + `duo check` 全链 ✓ · 2026-08-27
 - [x] [**Little Snitch**](at-obdev-littlesnitch.md) · `at.obdev.littlesnitch` — P(stable/nightly) C(stable only) · 2 channels，共享 bundle id，channel 词烤进 `CFBundleShortVersionString`（`ReleaseChannel.detect()` 新增 0.7 步）· 端点是 Homebrew cask 自己 livecheck 也在用的 obdev 静态 feed，两 cask 均 `auto_updates` 故原本 `.unknown` · **detection-only**：网络防火墙 + System Extension，一键需要真机红→绿验证才能开 · 未装机审计，从官方 dmg 挂载验证 · 2026-08-29
-- [x] [**Carbon Copy Cloner**](com-bombich-ccc.md) · `com.bombich.ccc` — P(CCC5/CCC6/CCC7 stable + CCC7 beta，均 detection-only) · **三个独立、仍可下载的大版本代际共用同一 bundle id**（真机核实），`?v=latest` 只给最新的 CCC7，跨代际比较会把 CCC5/6 用户导向一次付费大版本升级——修法是新增 `VendorProbeRecipe.installedVersionPattern`（`hostRequirement` 的对偶，锁定装机代际）+ `VendorProbeSource` 新增一道过滤，四条 recipe 各自独立 `variant` · 有 `SUFeedURL` 但两条(CCC7 自己的 + CCC5/6 共用的)都回空 body，Sparkle 静默失效；改读 cask 自带 livecheck 同款的 `download_ccc.php?v=<latest|ccc6|ccc5>` 重定向文件名 · cask 是 `auto_updates` · beta 用 `?v=latestbeta`（无连字符，2026-08-29 补齐）· channel 信号是版本串 `-b<N>` 短后缀，`ReleaseChannel.detect()` 新增 step 0.8 · 2026-08-29
+- [x] [**Carbon Copy Cloner**](com-bombich-ccc.md) · `com.bombich.ccc` — P(CCC5/CCC6/CCC7 stable + CCC7 beta，均 detection-only) · **三个独立、仍可下载的大版本代际共用同一 bundle id**（真机核实），`?v=latest` 只给最新的 CCC7，跨代际比较会把 CCC5/6 用户导向一次付费大版本升级——修法是新增 `VendorProbeRecipe.installedVersionPattern`（`hostRequirement` 的对偶，锁定装机代际）+ `VendorProbeSource` 新增一道过滤，四条 recipe 各自独立 `variant` · 有 `SUFeedURL` 但两条(CCC7 自己的 + CCC5/6 共用的)都回空 body，Sparkle 静默失效；改读 `download_ccc.php?v=<ccc7|ccc6|ccc5>` 重定向文件名（cask livecheck 用的是 `?v=latest`，按代际限定才不会在 CCC 8 发布时跨代际）· cask 是 `auto_updates` · beta 用 `?v=latestbeta`（无连字符，2026-08-29 补齐）· channel 信号是版本串 `-b<N>` 短后缀，`ReleaseChannel.detect()` 新增 step 0.8 · changelog：四条按版本窗口分代际的 `ChangelogRecipe`（2026-10-10）· 2026-08-29
 - [x] [**Windscribe**](com-windscribe-client.md) · `com.windscribe.client`（**不是 cask 写的 `com.windscribe.gui.macos`**）— P(stable/beta/guinea pig) C B · 3 channels，共享 bundle id + `ChannelBinding` · 渠道读的是被 **SimpleCrypt 加密**的 `engineSettings.updateChannel`——密钥是厂商开源仓库里的明文常量，字段排在流的第 4 位、在所有 version 分支之前（真实 plist 对齐，三个取值全验过；当场抓出 qChecksum 写成了 Qt4 版本，往返测试结构上抓不到）· 三轨是**成熟度阶梯**不是平行列车（官方文档 + feed 回放确认），所以 beta recipe 读 `beta:[01]`、gp 读 `[0-2]` 再 `selectHighest` 取 max · stable 走更小的 `ChangeLogs/summary` · 一键**结构性拒绝**（dmg 里只有安装器壳，安装要写 LaunchDaemon + 特权 helper + system extension）· changelog 三轨各一条（非 stable 带 `includesPromotedStable`，正是阶梯语义）——代价是 GitHub 分不出 beta 与 guinea pig，面板会多列另一轨和未公告的构建，已钉成断言 · 五份真实构建 + 真机全链验证 ✓ · 2026-09-07
 - [x] [**Moshi Go**](app-getmoshi-desktop.md) · `app.getmoshi.desktop` — P C (one-click, tar.gz) · Moshi 的原生重写，与 Tauri 版是两个 bundle id · MyGo delta 增量更新 ✓（原生应用器 + Ed25519 签名校验，仅 tar.gz 装的副本可吃）· 全量包同样验 MyGo 签名· 真实 DMG channel-verify + duo install 两轮 ✓ · 2026-10-07
 - [x] [**Moshi（Tauri）**](app-getmoshi-desktop-tauri.md) · `app.getmoshi.desktop.tauri` — P C (one-click, tar.gz) · Tauri updater `latest.json` · 运行中会在启动后数秒内自更新且不重启 · 真实 DMG channel-verify + duo install ✓ · 2026-10-07
@@ -360,7 +360,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**MarkEdit**](app-cyan-markedit.md) · `app.cyan.markedit` — 仅迁出历史：universal 与 `-apple-silicon` 两个 dmg 的核对
 - [ ] [**ChatWise**](app-chatwise.md) · `app.chatwise` — 仅迁出历史：changelog 页 SvelteKit 壳的大小
 - [ ] [**Zen Browser**](app-zen-browser-zen.md) · `app.zen-browser.zen` — 仅迁出历史：一键 dmg 的签名核对
-- [ ] [**Shottr**](cc-ffitch-shottr.md) · `cc.ffitch.shottr` — 仅迁出历史：`latestVersion` 当时的值
+- [ ] [**Shottr**](cc-ffitch-shottr.md) · `cc.ffitch.shottr` — 仅迁出历史：`latestVersion` 当时的值、changelog 页结构实测
 - [ ] [**1Password**](com-1password-1password.md) · `com.1password.1password` — 仅迁出历史：一键 zip 的下载核对
 - [ ] [**Pearcleaner**](com-alienator88-Pearcleaner.md) · `com.alienator88.Pearcleaner` — 仅迁出历史：一键 dmg 的签名核对
 - [ ] [**Claude Desktop**](com-anthropic-claudefordesktop.md) · `com.anthropic.claudefordesktop` — 仅迁出历史：2026-08-15 灰度发布与 device id 分桶
@@ -380,6 +380,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Gemini**](com-google-GeminiMacOS.md) · `com.google.GeminiMacOS` — 仅迁出历史：Omaha 版本方案核对、release-notes 页不对应
 - [ ] [**Alcove**](com-henrikruscon-Alcove.md) · `com.henrikruscon.Alcove` — 仅迁出历史：旧端点 NXDOMAIN、公开 trial 包滞后、changelog 网页的旧形态 · 另记 `minimum_system_version`（公开端点 2026-09-15 实测为 `15 Sequoia`）
 - [ ] [**IntelliJ IDEA**](com-jetbrains-intellij.md) · `com.jetbrains.intellij` — 仅迁出历史：版本段数被钉死时的故障
+- [ ] [**Orion**](com-kagi-kagimacOS.md) · `com.kagi.kagimacOS` — 仅迁出历史：release notes 页从冻结的 cdn 副本改到 orionbrowser.com、changelog recipe 的实测
 - [ ] [**The Unarchiver**](com-macpaw-site-theunarchiver.md) · `com.macpaw.site.theunarchiver` — 仅迁出历史：一键 zip 的签名核对
 - [ ] [**Headlamp**](com-microsoft-Headlamp.md) · `com.microsoft.Headlamp` — 仅迁出历史：changelog 条目符号与计数的测量、repo 改名
 - [ ] [**Microsoft OneDrive**](com-microsoft-OneDrive.md) · `com.microsoft.OneDrive` — 仅迁出历史：探针换到 updater manifest 的经过（fwlink 停在 26.153）、真包签名核对、changelog recipe 接入实测
@@ -394,10 +395,10 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**AnyDesk**](com-philandro-anydesk.md) · `com.philandro.anydesk` — 仅迁出历史：一键 dmg 的签名核对、各平台版本号
 - [ ] [**Postman**](com-postmanlabs-mac.md) · `com.postmanlabs.mac` — 仅迁出历史：旧正则截断条目的计数
 - [ ] [**PureMac**](com-puremac-app.md) · `com.puremac.app` — 仅迁出历史：`cli-v1.0.0` tag 被读成版本号
-- [ ] [**Alfred**](com-runningwithcrayons-Alfred.md) · `com.runningwithcrayons.Alfred` — 仅迁出历史：一键 tarball 的核对
+- [ ] [**Alfred**](com-runningwithcrayons-Alfred.md) · `com.runningwithcrayons.Alfred` — 仅迁出历史：一键 tarball 的核对、changelog 页结构实测
 - [ ] [**Shotbase**](com-shotbase-app.md) · `com.shotbase.app` — 仅迁出历史：appcast 条目数
 - [ ] [**Spotify**](com-spotify-client.md) · `com.spotify.client` — 仅迁出历史：stub 安装器版本与 cask 的比较、changelog 的排查
-- [ ] [**Sublime Merge**](com-sublimemerge.md) · `com.sublimemerge` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正
+- [ ] [**Sublime Merge**](com-sublimemerge.md) · `com.sublimemerge` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正、changelog 段结构实测
 - [ ] [**Sublime Text**](com-sublimetext-4.md) · `com.sublimetext.4` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正
 - [ ] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 zip 的签名核对
 - [ ] [**Telegram Desktop**](com-tdesktop-Telegram.md) · `com.tdesktop.Telegram` — 仅迁出历史：两次挂载 dmg 的核对、文件名改名的时间线
@@ -428,7 +429,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**qBittorrent**](org-qbittorrent-qBittorrent.md) · `org.qbittorrent.qBittorrent` — 仅迁出历史：dmg 签名被拒的核对
 - [ ] [**Wine Staging**](org-winehq-wine-staging-wine.md) · `org.winehq.wine-staging.wine` — 仅迁出历史：「`.tar.xz` 解不开」的更正、两条线的版本
 - [ ] [**XQuartz**](org-xquartz-X11.md) · `org.xquartz.X11` — 仅迁出历史：pkg 签名与 `Distribution` 的核对
-- [ ] [**Zotero**](org-zotero-zotero.md) · `org.zotero.zotero` — 仅迁出历史：10.0 与 9.0.6 两次挂载核对
+- [ ] [**Zotero**](org-zotero-zotero.md) · `org.zotero.zotero` — 仅迁出历史：10.0 与 9.0.6 两次挂载核对、changelog 页结构实测
 - [ ] [**BetterDisplay**](pro-betterdisplay-BetterDisplay.md) · `pro.betterdisplay.BetterDisplay` — 仅迁出历史：changelog 空壳页、`pre` release 与贡献者名单的计数
 - [ ] [**Waku**](sh-waku.md) · `sh.waku` — 仅迁出历史：notes 文件的探测、GitHub releases 的条数
 - [ ] [**Plex**](tv-plex-desktop.md) · `tv.plex.desktop` — 仅迁出历史：「cask 没有 livecheck」的更正、feed 的实测

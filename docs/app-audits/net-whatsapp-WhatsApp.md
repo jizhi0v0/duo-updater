@@ -54,3 +54,13 @@ Key MUST be lowercase — `url(forBundleID:)` lowercases its argument
 before the lookup, so a mixed-case key here is simply unreachable. This
 one was `net.whatsapp.WhatsApp` and never resolved; `keysAreLowercased`
 now guards the whole table.
+
+### 去掉 VendorProbe 的 changelogURL（2026-10-10）
+
+接入前 VendorProbe 挂的是 `https://web.whatsapp.com/desktop/mac_native/release-notes/`。2026-10-10 `curl -sIL`
+（Safari UA）：302 → `https://web.whatsapp.com/#` → 200，即 WhatsApp Web，不是更新说明。网页搜索
+（"WhatsApp for Mac desktop release notes changelog official"）只找到 WABetaInfo 等第三方转述 App Store 的
+What's New，没找到 WhatsApp 自己的 Mac 更新说明页。于是去掉 probe 的 `changelogURL`：
+`ChangelogRecipeSelection.fallbackPage` 在 `remote?.changelogURL` 为空时落到 `changelogPages` 里的 App Store
+页（`isMASApp` 为假的 Developer ID 副本也拿到 `.fromCatalog`）。`ChangelogCoverage.acknowledged` 的这一行
+仍然需要（catalog 页还在，app 仍「链接了页面却没有 recipe」），只改了理由文字。

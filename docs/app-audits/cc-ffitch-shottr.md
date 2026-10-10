@@ -14,3 +14,12 @@
 app's CFBundleShortVersionString.
 
 复测 2026-09-14（UTC 2026-09-13 23:38–23:50，只读 GET）：`latestVersion` 仍是 `1.9.1`，`betaLatestVersion` 是 `1.9.0`。
+
+### Recipes/cc-ffitch-shottr.swift — ChangelogRecipe（`shottr.cc/newversion.html`）
+
+实测 2026-10-10（只读 GET，curl 与生产解析器 `ChangelogService.loadDiagnostic` 各一次）：200，10877 字节，
+16 个条目，`1.9.3`（页首 `<h1>Shottr v1.9.3 is out!</h1>`）到 `1.5.1`，页面没有任何日期。同日
+`verify/baseline.json` 的 `vendor:cc.ffitch.shottr:stable` 为 `1.9.3`，与最新条目一致。`1.7.1` 一段没有
+列表，只有两个 `<p>`（第一个是加粗的 `Changes`），所以条目回退读 `<p>`。`1.7.2` 段里留着被注释掉的
+`<!--<h1>Shottr v1.7.2 is out!</h1>`，不能算成第二条。页面里的 "Beta" 两处都是正文（macOS Ventura Beta、
+视频路径），没有 beta 条目。

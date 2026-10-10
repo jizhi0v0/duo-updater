@@ -106,8 +106,6 @@ enum ChangelogCoverage {
             "feasible, not written yet: regex on the /download page's changelog section, keyed Build NNNN",
         "com.surteesstudios.Bartender":
             "feasible, not written yet: feedPagePattern on the appcast's per-version rnotes.html",
-        "com.tdesktop.Telegram":
-            "feasible, not written yet: .gitHubReleases on telegramdesktop/tdesktop (telegram.org/blog has no versions)",
         "com.termius-dmg.mac":
             "feasible, not written yet: regex on docs.termius.com/changelog (a 6.7 MB page)",
         "com.tigervnc.tigervnc":
@@ -118,8 +116,6 @@ enum ChangelogCoverage {
             "feasible, not written yet: .gitHubReleases on wavetermdev/waveterm",
         "dev.warp.Warp-Dev":
             "the dev track publishes no notes: its channel_versions.json entry is a placeholder",
-        "im.riot.app":
-            "feasible, not written yet: .gitHubReleases on element-hq/element-web, ^v tagPattern (element-desktop is archived)",
         "im.riot.nightly":
             "nightly build stamps (YYYYMMDDNN) have no tag or notes of their own",
         "MstyStudio":
@@ -148,10 +144,6 @@ enum ChangelogCoverage {
             "feasible, not written yet: the {version} template on the nightly notes page",
         "org.pgadmin.pgadmin4":
             "feasible, not written yet: two-stage release_notes index to the release_notes_X_Y.html page",
-        "org.whispersystems.signal-desktop":
-            "feasible, not written yet: .gitHubReleases on signalapp/Signal-Desktop (notes are thin)",
-        "org.whispersystems.signal-desktop-beta":
-            "feasible, not written yet: .gitHubReleases on signalapp/Signal-Desktop, channel .beta",
         "org.zotero.zotero":
             "feasible, not written yet: regex on zotero.org/support/changelog",
         "tv.plex.desktop":

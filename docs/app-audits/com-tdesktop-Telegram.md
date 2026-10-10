@@ -1,6 +1,15 @@
 # Telegram Desktop
 
-**这不是审计**：family `com-tdesktop-Telegram`（`Recipes/com-tdesktop-Telegram.swift`）里 Telegram Desktop `com.tdesktop.Telegram` 的覆盖情况没有审过。这份文件只接收从 recipe 注释迁出的历史，登记在索引的「仅迁出历史（未审计）」一节。
+**这不是审计**：family `com-tdesktop-Telegram`（`Recipes/com-tdesktop-Telegram.swift`）里 Telegram Desktop `com.tdesktop.Telegram` 的覆盖情况没有审过。这份文件只接收从 recipe 注释迁出的历史和 changelog recipe 的说明，登记在索引的「仅迁出历史（未审计）」一节。
+
+## Changelog
+
+- probe 的 changelogURL 是 `https://telegram.org/blog`（功能博客，不写桌面版本号，不能逐版本解析）。
+- ChangelogRecipe ✓：`.gitHubReleases` 读 `api.github.com/repos/telegramdesktop/tdesktop/releases?per_page=40`，
+  `maxEntries: 20`，不设 channel（只读非 prerelease）。tag `v7.3.1` 去掉 `v` = 重定向文件名 `td-setup-mac-7.3.1.dmg`
+  里的版本。beta 也用纯数字 tag（`v7.2.10`、`v7.2.6`），只靠 GitHub 的 `prerelease` 位区分，stable 过滤把它们挡掉，
+  与 probe 从不给 beta 一致。
+- probe 的 changelogURL 没改，仍是博客；结构化条目来自 GitHub。
 
 ## 历史与实测
 
@@ -39,3 +48,10 @@ ID", universal — i.e. only the filename changed, not the artifact's
 identity or its version scheme.
 
 复测 2026-09-14（约 08:20 UTC，只读 HEAD `telegram.org/dl/desktop/mac`，不跟重定向）：302，`location: https://td.telegram.org/mac/td-setup-mac-7.2.8.dmg`。没有复查旧路径，也没有下载。
+
+### Changelog recipe 接入，2026-10-10
+
+- `gh api "repos/telegramdesktop/tdesktop/releases?per_page=40"`：最新 `v7.3.1`（2026-10-10，非 prerelease）、`v7.3.0`
+  （正文只有 "- Money."）、`v7.2.10`（prerelease）、`v7.2.9` …；40 条里 prerelease 7 条，tag 全是 `vX.Y.Z`。
+- 同时 `curl -sSI https://telegram.org/dl/desktop/mac` → `location: https://td.telegram.org/mac/td-setup-mac-7.3.1.dmg`，
+  与最新 stable tag 一致（baseline 里的 7.2.9 也在条目里）。

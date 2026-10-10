@@ -1988,7 +1988,7 @@ let figmaFixture = #"""
 // fixed element names instead of `c-updates__*` styling classes.
 
 // Sublime Text — two /download build blocks; the 4200 block keeps an `&amp;`
-// entity and an inline <tt> tag. Versions are 4-digit build numbers.
+// entity and an inline <tt> tag. Versions are the full "Build NNNN".
 private let sublimeFixture = """
 <h2>Changelog</h2>
 <article class="current">
@@ -2015,11 +2015,52 @@ private let sublimeFixture = """
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.sublimetext.4"))
     let cl = try #require(ChangelogExtractor.extract(from: sublimeFixture, using: recipe))
     #expect(cl.entries.count == 2)
-    #expect(cl.entries.first?.version == "4200")
+    #expect(cl.entries.first?.version == "Build 4200")
     #expect(cl.entries.first?.date == "21 May 2025")
     #expect(cl.entries.first?.items.count == 2)
     #expect(cl.entries.first?.items[1] == "Mac: Added security entitlements allowing plugins & build systems to request the camera and microphone")
-    #expect(cl.entries.last?.version == "4192")
+    #expect(cl.entries.last?.version == "Build 4192")
+}
+
+// sublimetext.com/download, fetched 2026-10-10: the current build and the head of
+// the original v4 release, whose heading is "4 (Build 4107)". Lists are cut; every
+// line kept is verbatim.
+private let sublimeCurrentAndFirstFixture = #"""
+    <h2>Changelog</h2>
+    <article class="current">
+<h3>Build 4215</h3>
+<div class="release-date">25 Sep 2026</div>
+<ul>
+    <li>Fixed vintage "M" command not working</li>
+    <li>Mac: Fixed compatibility issue with macOS 10.13 and 10.14</li>
+</ul>
+</article>
+
+<article>
+<h3>4 (Build 4107)</h3>
+<div class="release-date">20 May 2021</div>
+<div class="forum-link">See also the <a href="https://www.sublimetext.com/blog/articles/sublime-text-4">Announcement Post</a></div>
+
+<h3>Release Highlights</h3>
+<ul class="topic">
+    <li>Multi-select tabs to view them side-by-side</li>
+</ul>
+</article>
+"""#
+
+@Test func sublimeTextEntryVersionsMatchTheInstalledBundle() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.sublimetext.4"))
+    let cl = try #require(ChangelogExtractor.extract(from: sublimeCurrentAndFirstFixture, using: recipe))
+    // "Build 4215" is the bundle's CFBundleShortVersionString (read from the
+    // vendor's 4215 zip, 2026-10-10) and what the probe offers; "4 (" is dropped.
+    #expect(cl.entries.map(\.version) == ["Build 4215", "Build 4107"])
+    try #require(cl.entries.count == 2)
+    #expect(cl.entries[0].date == "25 Sep 2026")
+    #expect(cl.entries[0].items == [
+        "Fixed vintage \"M\" command not working",
+        "Mac: Fixed compatibility issue with macOS 10.13 and 10.14",
+    ])
+    #expect(cl.entries[1].items == ["Multi-select tabs to view them side-by-side"])
 }
 
 // Calibre — calibre-ebook.com/whats-new: version+date in the <h2> title; items

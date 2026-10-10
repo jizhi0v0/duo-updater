@@ -1065,6 +1065,11 @@ private struct BrewUncheckedMark: View {
 /// `FullDiskAccessMark`. Shared by the popover row and the workbench detail header.
 struct StagedVersionUnknownMark: View {
     let appName: String
+    /// Whether the privileged helper is off. Only it can read a build staged as
+    /// root (#588), so the explanation then offers to turn it on.
+    let helperOff: Bool
+    /// The existing "Turn On Helper…" action (`AppListModel.enableAppStoreHelper`).
+    let enableHelper: () -> Void
 
     @State private var showTip = false
 
@@ -1079,17 +1084,28 @@ struct StagedVersionUnknownMark: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { showTip = true }
             .popover(isPresented: $showTip, arrowEdge: .bottom) {
-                Text(String(localized: "\(appName) has already downloaded an update itself, but which version can't be read from here — usually because it installs with administrator rights. Relaunch to apply it."))
-                    .font(.callout)
-                    .foregroundStyle(.primary)
-                    // The anchor sits in a one-line, scale-to-fit version line, and
-                    // popover content inherits that environment: without resetting
-                    // both, the explanation renders as a single truncated line.
-                    .lineLimit(nil)
-                    .minimumScaleFactor(1)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(12)
-                    .frame(width: 260, alignment: .leading)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(String(localized: "\(appName) has already downloaded an update itself, but which version can't be read from here — usually because it installs with administrator rights. Relaunch to apply it."))
+                    if helperOff {
+                        Text(String(localized: "With DuoUpdater's helper turned on, the version can be read."))
+                            .foregroundStyle(.secondary)
+                        Button("Turn On Helper…") {
+                            showTip = false
+                            enableHelper()
+                        }
+                        .buttonStyle(.link)
+                    }
+                }
+                .font(.callout)
+                .foregroundStyle(.primary)
+                // The anchor sits in a one-line, scale-to-fit version line, and
+                // popover content inherits that environment: without resetting
+                // both, the explanation renders as a single truncated line.
+                .lineLimit(nil)
+                .minimumScaleFactor(1)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(12)
+                .frame(width: 260, alignment: .leading)
             }
     }
 }
@@ -1544,7 +1560,9 @@ private struct AppRow: View {
             HStack(spacing: 4) {
                 Text(result.installedDisplay ?? "?")
                 Image(systemName: "arrow.right").font(.caption2)
-                StagedVersionUnknownMark(appName: result.app.name)
+                StagedVersionUnknownMark(
+                    appName: result.app.name, helperOff: !model.helperEnabled,
+                    enableHelper: model.enableAppStoreHelper)
             }
             .font(.caption)
             .lineLimit(1)

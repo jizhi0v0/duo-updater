@@ -45,6 +45,16 @@ enum CLIToolRows {
         /// The command for the user to run themselves, as the app's row hands
         /// it out to copy.
         var command: String? = nil
+        /// What the install is built with, `CLIRuntime`'s raw value ("go",
+        /// "rust", "bun"), as the app's CLI tab tags it; nil where its file
+        /// proves nothing (`CLIRuntimeDetector`). Under a `launcher`, the native
+        /// binary's — nil there when that binary carries no marker.
+        var runtime: String? = nil
+        /// "node" when the install runs a Node.js script that starts its npm
+        /// platform package's native binary; nil otherwise.
+        var launcher: String? = nil
+        /// The tag's words — "Rust", "Node.js → Go" — for the text output.
+        var builtWith: String? = nil
         /// What a name argument is matched against: the install's own name when
         /// it has one, else the tool's display name and raw value.
         let names: [String]
@@ -53,7 +63,7 @@ enum CLIToolRows {
 
         enum CodingKeys: String, CodingKey {
             case tool, name, path, installedVersion, latestVersion, channel, state, hasUpdate, oneClick,
-                 needsAdministrator, withheld, reason, note, command
+                 needsAdministrator, withheld, reason, note, command, runtime, launcher
         }
 
         init(_ status: CLIToolStatus) {
@@ -87,6 +97,26 @@ enum CLIToolRows {
         /// A check that gave no verdict: broken, not the vendor's, unreadable,
         /// or its channel did not answer. Not "current" — nothing was learned.
         var unchecked: Bool { state == CLIToolState.unknown.rawValue }
+
+        /// This row with what `reading` says it is built with.
+        func with(_ reading: CLIRuntimeReading?) -> Row {
+            var row = self
+            row.runtime = reading?.runtime?.rawValue
+            row.launcher = reading?.launcher?.rawValue
+            row.builtWith = reading?.title
+            return row
+        }
+    }
+
+    /// `rows`, each with what its path is built with — the same reading the
+    /// app's CLI tab tags it with. Reads files (load commands, a bounded
+    /// section, a `#!` line), so it runs off the cooperative pool. `read` is
+    /// injected for tests; production reads the real files.
+    static func withRuntimes(
+        _ rows: [Row], read: @escaping @Sendable (String) -> CLIRuntimeReading? = CLIRuntimeDetector.read(path:)
+    ) async -> [Row] {
+        guard !rows.isEmpty else { return rows }
+        return await offCooperativePool(qos: .utility) { rows.map { $0.with(read($0.path)) } }
     }
 
     // MARK: - Reading
@@ -95,6 +125,16 @@ enum CLIToolRows {
     static func scan(_ providers: [any CLIToolProvider] = CLITools.providers()) async -> [Row] {
         await CLITools.inProviderOrder(providers, Array(providers.indices)) { await $0.scan() }
             .flatMap { $0.1 }.map(Row.init)
+    }
+
+    /// `check`'s verdicts as rows, with what each install is built with.
+    static func checkedRows(_ providers: [any CLIToolProvider] = CLITools.providers()) async -> [Row] {
+        await withRuntimes(await check(providers).map(Row.init))
+    }
+
+    /// `scan`'s rows, with what each install is built with: `list`'s.
+    static func scannedRows(_ providers: [any CLIToolProvider] = CLITools.providers()) async -> [Row] {
+        await withRuntimes(await scan(providers))
     }
 
     /// Every install with its verdict, each tool's requests filed under it as
@@ -125,6 +165,7 @@ enum CLIToolRows {
             } else if checked, let latest = row.latestVersion, row.state != CLIToolState.unknown.rawValue {
                 line += "  (latest \(latest))"
             }
+            if let builtWith = row.builtWith { line += "  [\(builtWith)]" }
             line += "  \(row.path)"
             if row.unchecked { line += "  — not checked: \(row.reason ?? row.note ?? "no verdict")" }
             print(line)

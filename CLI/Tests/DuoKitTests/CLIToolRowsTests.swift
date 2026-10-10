@@ -230,6 +230,88 @@ import DuoUpdaterCore
         #expect(row?["status"] == nil)
     }
 
+    // MARK: - What a tool is built with
+
+    static let readings: [String: CLIRuntimeReading] = [
+        uv.path: CLIRuntimeReading(runtime: .rust, binary: uv.path, evidence: .cargoAuditable),
+        mcpRemote.path: CLIRuntimeReading(runtime: .go, launcher: .node, binary: "/ZZFixture-platform/bin/x",
+                                          evidence: .goBuildInfo(goVersion: nil)),
+        helm.path: CLIRuntimeReading(runtime: nil, launcher: .node, binary: "/ZZFixture-platform/bin/y", evidence: nil),
+    ]
+
+    static func withRuntimes() async -> [CLIToolRows.Row] {
+        await CLIToolRows.withRuntimes([uv, mcpRemote, helm, deno].map(CLIToolRows.Row.init),
+                                       read: { readings[$0] })
+    }
+
+    /// Each row carries the app's reading of its own path; a path that proves
+    /// nothing carries none.
+    @Test func rowsCarryWhatTheyAreBuiltWith() async {
+        let rows = await Self.withRuntimes()
+        #expect(rows.map(\.runtime) == ["rust", "go", nil, nil])
+        #expect(rows.map(\.launcher) == [nil, "node", "node", nil])
+        #expect(rows.map(\.builtWith) == ["Rust", "Node.js → Go", "Node.js launcher", nil])
+    }
+
+    @Test func jsonCarriesRuntimeAndLauncher() async throws {
+        let rows = await Self.withRuntimes()
+        let lines = Lines()
+        Check.emitJSON([], tools: rows, command: "list", print: { lines.add($0) })
+        let objects = try lines.all.dropFirst().map {
+            try JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]
+        }
+        #expect(objects[0]?["runtime"] as? String == "rust")
+        #expect(objects[0]?["launcher"] == nil)
+        #expect(objects[1]?["runtime"] as? String == "go")
+        #expect(objects[1]?["launcher"] as? String == "node")
+        #expect(objects[2]?["runtime"] == nil)
+        #expect(objects[2]?["launcher"] as? String == "node")
+        #expect(objects[3]?["runtime"] == nil)
+        // The text form stays out of the JSON: `runtime` and `launcher` say it.
+        #expect(objects.allSatisfy { $0?["builtWith"] == nil })
+    }
+
+    @Test func textSaysWhatEachIsBuiltWith() async {
+        let rows = await Self.withRuntimes()
+        let lines = Lines()
+        Check.emitText([], tools: rows, checked: false, print: { lines.add($0) })
+        let text = lines.all.joined(separator: "\n")
+        #expect(text.contains("→  1.1.0  [Rust]  \(Self.uv.path)"))
+        #expect(text.contains("[Node.js → Go]  \(Self.mcpRemote.path)"))
+        #expect(text.contains("[Node.js launcher]  \(Self.helm.path)"))
+        #expect(text.contains("1.0.0  \(Self.deno.path)"))
+    }
+
+    /// `list`'s rows read the real file each sighting names, through the
+    /// production detector — here a `#!/bin/sh` script in a scratch directory.
+    @Test func scannedRowsReadTheirFiles() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-duo-runtime-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let script = directory.appendingPathComponent("tool")
+        try Data("#!/bin/sh\necho\n".utf8).write(to: script)
+        let rows = await CLIToolRows.scannedRows([SightingProvider(path: script.path)])
+        #expect(rows.map(\.runtime) == ["shell"])
+        #expect(rows.map(\.builtWith) == ["Shell"])
+        // `check`'s rows the same way.
+        let checked = await CLIToolRows.checkedRows([SightingProvider(path: script.path)])
+        #expect(checked.map(\.runtime) == ["shell"])
+    }
+
+    struct SightingProvider: CLIToolProvider {
+        let kind = CLIToolKind.junie
+        let path: String
+        func scan() async -> [CLIToolSighting] { [CLIToolSighting(kind: kind, path: path, version: "1")] }
+        func check() async -> CLIToolReport {
+            CLIToolReport(kind: kind, statuses: [CLIToolRowsTests.status(kind, path)], context: .fx(FxSettings()))
+        }
+        func update(_ status: CLIToolStatus, progress: @escaping @Sendable (String) -> Void) async -> CLIToolUpdateOutcome {
+            .notOffered
+        }
+        func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog { Changelog(entries: []) }
+    }
+
     // MARK: - Fixtures
 
     struct ScriptedProvider: CLIToolProvider {

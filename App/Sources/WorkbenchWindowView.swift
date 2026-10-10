@@ -1330,12 +1330,12 @@ struct WorkbenchWindowView: View {
                 // tried as a "did it land" signal and read true after the short
                 // scroll too, so it can't decide whether to retry.
                 //
-                // Scrolled to by the row's selection tag, not an `.id`. Once the rows
-                // were tagged (so selecting one opens `BrewUncheckedDetailPane`),
-                // `scrollTo(package.id)` with `.id(package.id)` on the row stopped
-                // moving the list at all, with `.id` inside or outside the tag
-                // (measured: one run each, list left at the top); scrolling to the
-                // tag value reached the bottom (measured: one run).
+                // Scrolled to by the row's selection id, which `sidebarRow` sets as
+                // the row's `.id` (`SidebarRowModifier`) — the same `.id` the
+                // keyboard's `scrollTo` in `SidebarList` resolves, so keep it on every
+                // row. (Under the old `List` the rows carried a selection `.tag`
+                // instead, and a separate `.id(package.id)` stopped the scroll
+                // working; that no longer applies.)
                 proxy.scrollTo("brew:unchecked:\(last.id)", anchor: .bottom)
                 try? await Task.sleep(for: .milliseconds(250))
                 proxy.scrollTo("brew:unchecked:\(last.id)", anchor: .bottom)

@@ -39,13 +39,23 @@ struct WorkbenchWindowView: View {
     /// view, which AppKit auto-focuses) or on nothing at all — either way the arrow
     /// keys had no destination. `defaultFocus` alone did not move it; setting this
     /// once the first results land does.
-    @FocusState private var listFocused: Bool
+    ///
+    /// Which list rather than whether: a tab's list is kept once built
+    /// (`builtTabs`), so the hidden ones are alive beside the one on screen.
+    @FocusState private var listFocus: SidebarTab?
     /// Sidebar filter text, applied to the list the current tab shows. Empty shows
     /// everything; otherwise rows whose name (or bundle id) contains the query,
     /// case/diacritic-insensitively.
     @State private var searchText = ""
     /// Which list the sidebar shows. Not persisted: the window always opens on Apps.
     @State private var sidebarTab: SidebarTab = .apps
+    /// The tabs whose list has been on screen this visit. The Apps and Rollback
+    /// lists are kept, hidden, once the reader moves on, rather than torn down:
+    /// with 229 apps, rebuilding the Apps list held the main thread for 175–208 ms
+    /// on every switch back to it (SwiftUI-template hitches, 2026-10-10), the old
+    /// `List` alike. Built on the first visit, not up front, so opening the window
+    /// costs what it did. The CLI list is not kept; see `sidebar`.
+    @State private var builtTabs: Set<SidebarTab> = []
     /// Lets the selected tab's highlight slide between tabs instead of blinking.
     @Namespace private var tabHighlight
     /// The tab under the pointer while the highlight is being dragged along the
@@ -113,22 +123,38 @@ struct WorkbenchWindowView: View {
     ///
     /// Brew-managed casks are excluded here: they live under the Brew tree instead
     /// (the "cask 只在此面板" rule), so they never appear in both places.
-    private var apps: [UpdateResult] {
-        model.results
-            .filter { $0.remote?.sourceName != "Homebrew" }
-            .sorted { lhs, rhs in
-                if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
-                return lhs.app.name.localizedCaseInsensitiveCompare(rhs.app.name) == .orderedAscending
-            }
-    }
+    private var apps: [UpdateResult] { sortedResults().apps }
 
     /// Brew-managed casks, updates first then alphabetical — the cask half of the
     /// Brew tree. (The formula half is `model.brewFormulae` — all top-level leaves.)
-    private var brewCasks: [UpdateResult] {
-        model.brewCaskResults.sorted { lhs, rhs in
+    private var brewCasks: [UpdateResult] { sortedResults().brewCasks }
+
+    /// `apps` and `brewCasks`, sorted once per write to `model.results` rather than
+    /// on every pass of this body: a tab switch, a selection, a download tick each
+    /// re-sorted all 229 apps on the developer's Mac. Handing the Apps list the same
+    /// array again also makes its comparison (`WorkbenchAppsList`) a check of one
+    /// buffer instead of every app.
+    private final class SortedResults {
+        var generation = -1
+        var apps: [UpdateResult] = []
+        var brewCasks: [UpdateResult] = []
+    }
+    @State private var sortedResultsCache = SortedResults()
+
+    private func sortedResults() -> SortedResults {
+        // Read whether or not the cache holds: it is what makes a new list re-run
+        // this body.
+        let results = model.results
+        let cache = sortedResultsCache
+        guard cache.generation != model.resultsGeneration else { return cache }
+        let order: (UpdateResult, UpdateResult) -> Bool = { lhs, rhs in
             if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
             return lhs.app.name.localizedCaseInsensitiveCompare(rhs.app.name) == .orderedAscending
         }
+        cache.apps = results.filter { $0.remote?.sourceName != "Homebrew" }.sorted(by: order)
+        cache.brewCasks = model.brewCaskResults.sorted(by: order)
+        cache.generation = model.resultsGeneration
+        return cache
     }
 
     /// Apps that have a restorable backup on disk — the ones the user can roll back
@@ -224,7 +250,8 @@ struct WorkbenchWindowView: View {
         let formulae = CLIToolPresentation.holding(
             CLIToolPresentation.outdatedFirst(model.brewFormulae, \.hasUpdate), to: heldCLIOrder, id: Self.formulaTag)
         return SidebarLists(
-            filteredApps: allApps.filter(matchesSearch),
+            // Unfiltered, the same array as the last pass (`sortedResults`).
+            filteredApps: searchQuery.isEmpty ? allApps : allApps.filter(matchesSearch),
             cliTools: CLIToolPresentation.groups(cliTools.filter(matchesSearch)).flatMap(\.statuses),
             brewCasks: allCasks.filter(matchesSearch),
             brewFormulae: formulae.filter { matchesSearch($0.name) },
@@ -381,7 +408,7 @@ struct WorkbenchWindowView: View {
             }
             // Claim the keyboard only now: before the rows exist there is no list to
             // focus, and the search field has already taken it by default.
-            listFocused = true
+            listFocus = shownTab(sidebarLists)
         }
         // Brew tree data (formulae + the cask set derives from results above).
         .task { await model.refreshBrewFormulae() }
@@ -405,7 +432,7 @@ struct WorkbenchWindowView: View {
             // view — so ↑/↓ went dead again after any trip away from the window
             // (measured: AXFocusedUIElement back on the search text field).
             // Skipped mid-search, where the caret is where the user wants it.
-            if searchText.isEmpty { listFocused = true }
+            if searchText.isEmpty { listFocus = shownTab(sidebarLists) }
             // The lock and the TestFlight tip offer "Grant…" from a mirror of the
             // permission that only the menu's open and the Welcome/Settings polling
             // refresh. Coming back from System Settings is exactly this moment.
@@ -465,7 +492,7 @@ struct WorkbenchWindowView: View {
             // mid-keystroke, and the outline drops the `scrollRowToVisible` that
             // normally follows an arrow-key selection — the highlight walks off the
             // bottom of the viewport and never comes back, even after the keys stop.
-            if !listFocused { listFocused = true }
+            if listFocus == nil { listFocus = shownTab(sidebarLists) }
             let name = model.results.first { $0.id == newValue }?.app.name
             Log.changelog.info("perf selection → \(name ?? newValue ?? "nil", privacy: .public)")
             // Adaptive settle. A fixed 160 ms was shorter than a key REPEAT (~240 ms
@@ -651,19 +678,34 @@ struct WorkbenchWindowView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
 
-            switch tab {
-            case .apps:
-                appsListView(lists)
-            case .cli:
-                cliListView(lists)
-            case .rollback:
-                // Shown even with nothing restorable locally: that is precisely the
-                // case where the list would otherwise look empty rather than partial.
-                if let disk = model.offlineBackupDisk {
-                    offlineBackupNotice(disk, hasRollback: !lists.rollbackable.isEmpty)
+            // Every list built so far, the one on screen above the others
+            // (`builtTabs`). Each is its own branch, so showing one leaves the
+            // others' identity, rows and scroll position alone.
+            ZStack {
+                if tab == .apps || builtTabs.contains(.apps) {
+                    appsListView(lists, isShown: tab == .apps)
+                        .keptLayer(isShown: tab == .apps)
                 }
-                rollbackListView(lists)
+                // Not kept: its list is drawn in this body, so a hidden copy was rebuilt
+                // with every pass of it and made each switch between the other two
+                // 25–30 ms slower (Time Profiler, 2026-10-10).
+                if lists.hasCLI, tab == .cli {
+                    cliListView(lists)
+                }
+                if tab == .rollback || builtTabs.contains(.rollback) {
+                    VStack(spacing: 0) {
+                        // Shown even with nothing restorable locally: that is precisely
+                        // the case where the list would otherwise look empty rather than
+                        // partial.
+                        if let disk = model.offlineBackupDisk {
+                            offlineBackupNotice(disk, hasRollback: !lists.rollbackable.isEmpty)
+                        }
+                        rollbackListView(lists, isShown: tab == .rollback)
+                    }
+                    .keptLayer(isShown: tab == .rollback)
+                }
             }
+            .onChange(of: tab, initial: true) { _, shown in builtTabs.insert(shown) }
         }
         .onChange(of: sidebarTab) { _, newTab in tabChanged(to: newTab) }
     }
@@ -805,11 +847,15 @@ struct WorkbenchWindowView: View {
         detailMode = tab == .rollback ? .bundleDiff : .releaseNotes
         // A reveal is for the visit it was made for.
         if tab != .cli { homebrewRevealing = false; otherToolsRevealing = false }
-        let ids = selectableIDs(tab, sidebarLists)
+        let lists = sidebarLists
+        // The list that held the keyboard stays alive, hidden and out of the key
+        // loop, so the keyboard moves to the one now on screen.
+        if listFocus != nil { listFocus = shownTab(lists) }
+        let ids = selectableIDs(tab, lists)
         if let current = selection, ids.contains(current) { return }
         selection = ids.first
         detailSelection = selection
-        listFocused = true
+        listFocus = shownTab(lists)
     }
 
     /// A tab's selectable rows, in the order its list draws them: what the arrow
@@ -836,53 +882,11 @@ struct WorkbenchWindowView: View {
     /// The Rollback tab: every app with a backup we can restore, each with an inline
     /// "Roll back" action. Selecting one opens its Bundle Diff, the change a rollback
     /// would undo.
-    private func rollbackListView(_ lists: SidebarLists) -> some View {
-        SidebarList(selection: $selection, order: selectableIDs(.rollback, lists),
-                    label: String(localized: "Rollback"), focus: $listFocused) {
-            ForEach(lists.rollbackable) { result in
-                WorkbenchRollbackRow(
-                    result: result,
-                    target: model.backupVersion(result.id) ?? "previous",
-                    model: model)
-                    .sidebarRow(result.id, selection: $selection)
-            }
-        }
-        .overlay {
-            if lists.rollbackable.isEmpty {
-                if !searchQuery.isEmpty {
-                    ContentUnavailableView.search(text: searchText)
-                } else {
-                    rollbackEmptyState
-                }
-            }
-        }
-    }
-
-    /// Why the Rollback tab is empty, which is the question a reader has here: either
-    /// backups are off, or no update has gone through DuoUpdater since they were
-    /// turned on. An app that updates itself replaces its bundle without us, so it
-    /// never gets a backup — said here because it is the case people will hit.
-    @ViewBuilder
-    private var rollbackEmptyState: some View {
-        if model.prefs.keepBackups {
-            ContentUnavailableView {
-                Label("Nothing to roll back yet", systemImage: "arrow.uturn.backward")
-            } description: {
-                Text("A backup is kept each time DuoUpdater updates an app. Apps that update themselves are not backed up.")
-            }
-        } else {
-            ContentUnavailableView {
-                Label("Backups are off", systemImage: "arrow.uturn.backward")
-            } description: {
-                Text("Turn them on to roll back an update and compare what it changed.")
-            } actions: {
-                Button("Open Settings") {
-                    model.requestedSettingsAnchor = .backups
-                    openWindow(id: SettingsView.windowID)
-                    model.surfaceWindow(sceneID: SettingsView.windowID)
-                }
-            }
-        }
+    private func rollbackListView(_ lists: SidebarLists, isShown: Bool) -> some View {
+        WorkbenchRollbackList(
+            apps: lists.rollbackable, searchText: searchText, isShown: isShown,
+            model: model, selection: $selection, focus: $listFocus)
+            .equatable()
     }
 
     /// Bulk "Upgrade All" for the Homebrew group — runs `brew upgrade --formula` (all
@@ -1171,34 +1175,11 @@ struct WorkbenchWindowView: View {
     }
 
     /// The Apps tab's list.
-    private func appsListView(_ lists: SidebarLists) -> some View {
-        SidebarList(selection: $selection, order: selectableIDs(.apps, lists),
-                    label: String(localized: "Apps"), focus: $listFocused) {
-            ForEach(lists.filteredApps) { result in
-                WorkbenchSidebarRow(
-                    result: result,
-                    checkAgain: { Task { await model.retry(result) } },
-                    isChecking: model.installing[result.id] != nil,
-                    isRunning: model.isRunning(result),
-                    versionLineState: model.versionLineState(for: result),
-                    showsRuntime: model.prefs.showRuntimeTags,
-                    isIgnored: model.prefs.isIgnored(result.app),
-                    isVersionSkipped: model.prefs.isVersionSkipped(
-                        result.app, version: result.remote?.versionSide),
-                    toggleIgnore: { model.toggleIgnore(result) },
-                    skipVersion: { model.skipThisVersion(result) },
-                    clearSkip: { model.prefs.clearSkip(result.app) },
-                    fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
-                    grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
-                    caskLifecycle: model.brewCaskLifecycle(for: result)?.lifecycle)
-                    .sidebarRow(result.id, selection: $selection)
-            }
-        }
-        .overlay {
-            if lists.filteredApps.isEmpty {
-                ContentUnavailableView.search(text: searchText)
-            }
-        }
+    private func appsListView(_ lists: SidebarLists, isShown: Bool) -> some View {
+        WorkbenchAppsList(
+            apps: lists.filteredApps, searchText: searchText, isShown: isShown,
+            model: model, selection: $selection, focus: $listFocus)
+            .equatable()
     }
 
     /// The CLI tab's list, one group per tool: Homebrew, then each `CLIToolKind`
@@ -1215,7 +1196,7 @@ struct WorkbenchWindowView: View {
         let showsBrew = searchQuery.isEmpty ? homebrewHasAnything : brewItemCount(lists) > 0
         return ScrollViewReader { proxy in
             SidebarList(selection: $selection, order: selectableIDs(.cli, lists),
-                        label: String(localized: "CLI"), focus: $listFocused) {
+                        label: String(localized: "CLI"), focus: $listFocus, focusValue: .cli) {
                 if showsBrew {
                     homebrewHeader(lists, expanded: brewExpanded)
                         .sidebarSectionHeader(first: true)
@@ -1229,22 +1210,8 @@ struct WorkbenchWindowView: View {
                                 .sidebarRow(Self.homebrewSelfUpdateTag, selection: $selection)
                         }
                         ForEach(lists.brewCasks) { result in
-                            WorkbenchSidebarRow(
-                                result: result,
-                                checkAgain: { Task { await model.retry(result) } },
-                                isChecking: model.installing[result.id] != nil,
-                                isRunning: model.isRunning(result),
-                                versionLineState: model.versionLineState(for: result),
-                                showsRuntime: model.prefs.showRuntimeTags,
-                                isIgnored: model.prefs.isIgnored(result.app),
-                                isVersionSkipped: model.prefs.isVersionSkipped(
-                                    result.app, version: result.remote?.versionSide),
-                                toggleIgnore: { model.toggleIgnore(result) },
-                                skipVersion: { model.skipThisVersion(result) },
-                                clearSkip: { model.prefs.clearSkip(result.app) },
-                                fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
-                                grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
-                                caskLifecycle: model.brewCaskLifecycle(for: result)?.lifecycle)
+                            WorkbenchAppRow(result: result, model: model)
+                                .equatable()
                                 .sidebarRow(result.id, selection: $selection)
                         }
                         ForEach(lists.brewFormulae) { formula in
@@ -1372,13 +1339,161 @@ struct WorkbenchWindowView: View {
                 .padding(.bottom, 10)
             }
             Divider()
-            if hasBackup && detailMode == .bundleDiff {
-                BundleDiffPane(result: result)
-            } else {
-                ReleaseNotesPane(result: result, model: model)
-            }
+            DetailLenses(result: result, model: model, lens: hasBackup ? detailMode : .releaseNotes)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+extension View {
+    /// A view kept alive while another takes its place — a sidebar tab's list, a
+    /// detail pane's lens — drawn, hit and read by VoiceOver only while shown.
+    func keptLayer(isShown: Bool) -> some View {
+        opacity(isShown ? 1 : 0)
+            .allowsHitTesting(isShown)
+            .accessibilityHidden(!isShown)
+            .zIndex(isShown ? 1 : 0)
+    }
+}
+
+// MARK: - Sidebar lists
+
+/// The Apps tab's list, its own view compared on what it shows.
+///
+/// As part of the window's body it was rebuilt on every pass of that body — a tab
+/// switch, the detail pane's lens, a selection, a download tick — each one
+/// diffing all 229 apps on the developer's Mac and placing the rows again, though
+/// nothing in the list had changed. Equal now, the pass skips it. What a row reads
+/// from the model it reads in its own body (`WorkbenchAppRow`), so a change there
+/// still reaches the row without passing through here.
+///
+/// The selection is not compared: each row's `sidebarRow` reads the binding
+/// itself, and a change to it updates those rows alone.
+private struct WorkbenchAppsList: View, @MainActor Equatable {
+    let apps: [UpdateResult]
+    let searchText: String
+    let isShown: Bool
+    let model: AppListModel
+    @Binding var selection: String?
+    var focus: FocusState<WorkbenchWindowView.SidebarTab?>.Binding
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.apps == rhs.apps && lhs.searchText == rhs.searchText && lhs.isShown == rhs.isShown
+            && lhs.model === rhs.model
+    }
+
+    var body: some View {
+        SidebarList(selection: $selection, order: apps.map(\.id),
+                    label: String(localized: "Apps"), focus: focus, focusValue: .apps,
+                    isShown: isShown) {
+            ForEach(apps) { result in
+                WorkbenchAppRow(result: result, model: model)
+                    .equatable()
+                    .sidebarRow(result.id, selection: $selection)
+            }
+        }
+        .overlay {
+            if apps.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+            }
+        }
+    }
+}
+
+/// An app's row in the Apps list or the CLI tab's Homebrew group: what
+/// `WorkbenchSidebarRow` draws, read from the model here, in this row's own body,
+/// so only the rows on screen read it and each re-reads only when what it read
+/// changes.
+private struct WorkbenchAppRow: View, @MainActor Equatable {
+    let result: UpdateResult
+    let model: AppListModel
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.result == rhs.result && lhs.model === rhs.model
+    }
+
+    var body: some View {
+        WorkbenchSidebarRow(
+            result: result,
+            checkAgain: { Task { await model.retry(result) } },
+            isChecking: model.installing[result.id] != nil,
+            isRunning: model.isRunning(result),
+            versionLineState: model.versionLineState(for: result),
+            showsRuntime: model.prefs.showRuntimeTags,
+            isIgnored: model.prefs.isIgnored(result.app),
+            isVersionSkipped: model.prefs.isVersionSkipped(
+                result.app, version: result.remote?.versionSide),
+            toggleIgnore: { model.toggleIgnore(result) },
+            skipVersion: { model.skipThisVersion(result) },
+            clearSkip: { model.prefs.clearSkip(result.app) },
+            fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
+            grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
+            caskLifecycle: model.brewCaskLifecycle(for: result)?.lifecycle)
+            .equatable()
+    }
+}
+
+/// The Rollback tab's list, kept out of the window's body passes like
+/// `WorkbenchAppsList`.
+private struct WorkbenchRollbackList: View, @MainActor Equatable {
+    let apps: [UpdateResult]
+    let searchText: String
+    let isShown: Bool
+    let model: AppListModel
+    @Binding var selection: String?
+    var focus: FocusState<WorkbenchWindowView.SidebarTab?>.Binding
+    @Environment(\.openWindow) private var openWindow
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.apps == rhs.apps && lhs.searchText == rhs.searchText && lhs.isShown == rhs.isShown
+            && lhs.model === rhs.model
+    }
+
+    var body: some View {
+        SidebarList(selection: $selection, order: apps.map(\.id),
+                    label: String(localized: "Rollback"), focus: focus, focusValue: .rollback,
+                    isShown: isShown) {
+            ForEach(apps) { result in
+                WorkbenchRollbackRow(result: result, model: model)
+                    .sidebarRow(result.id, selection: $selection)
+            }
+        }
+        .overlay {
+            if apps.isEmpty {
+                if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                } else {
+                    emptyState
+                }
+            }
+        }
+    }
+
+    /// Why the Rollback tab is empty, which is the question a reader has here: either
+    /// backups are off, or no update has gone through DuoUpdater since they were
+    /// turned on. An app that updates itself replaces its bundle without us, so it
+    /// never gets a backup — said here because it is the case people will hit.
+    @ViewBuilder
+    private var emptyState: some View {
+        if model.prefs.keepBackups {
+            ContentUnavailableView {
+                Label("Nothing to roll back yet", systemImage: "arrow.uturn.backward")
+            } description: {
+                Text("A backup is kept each time DuoUpdater updates an app. Apps that update themselves are not backed up.")
+            }
+        } else {
+            ContentUnavailableView {
+                Label("Backups are off", systemImage: "arrow.uturn.backward")
+            } description: {
+                Text("Turn them on to roll back an update and compare what it changed.")
+            } actions: {
+                Button("Open Settings") {
+                    model.requestedSettingsAnchor = .backups
+                    openWindow(id: SettingsView.windowID)
+                    model.surfaceWindow(sceneID: SettingsView.windowID)
+                }
+            }
+        }
     }
 }
 
@@ -1586,6 +1701,20 @@ private struct WorkbenchSidebarRow: View {
     }
 }
 
+/// Compared on what it draws, leaving out the closures. A closure never compares
+/// equal, so without this every visible row re-ran its body on each pass of the
+/// window's — a tab switch, a download tick — whether or not anything in it had
+/// changed. Leaving them out is sound because each one only calls the model, the
+/// same one every pass, about `result`, which is compared.
+extension WorkbenchSidebarRow: @MainActor Equatable {
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.result == rhs.result && lhs.isChecking == rhs.isChecking && lhs.isRunning == rhs.isRunning
+            && lhs.versionLineState == rhs.versionLineState && lhs.showsRuntime == rhs.showsRuntime
+            && lhs.isIgnored == rhs.isIgnored && lhs.isVersionSkipped == rhs.isVersionSkipped
+            && lhs.fullDiskAccessNeeds == rhs.fullDiskAccessNeeds && lhs.caskLifecycle == rhs.caskLifecycle
+    }
+}
+
 // MARK: - Rollback row
 
 /// One row in the Rollback section: an app with a restorable backup, plus an inline
@@ -1594,10 +1723,13 @@ private struct WorkbenchSidebarRow: View {
 /// like an install does (and the model's own guard stops a rollback from racing one).
 private struct WorkbenchRollbackRow: View {
     let result: UpdateResult
-    /// The version the backup restores to; "previous" when its marketing version
-    /// wasn't recorded.
-    let target: String
     @Bindable var model: AppListModel
+
+    /// The version the backup restores to; "previous" when its marketing version
+    /// wasn't recorded. Read here rather than handed in: the list above is skipped
+    /// while its rows are unchanged (`WorkbenchRollbackList`), and this row's own
+    /// body is what hears a new backup.
+    private var target: String { model.backupVersion(result.id) ?? "previous" }
 
     private var inFlight: Bool { model.installing[result.id] != nil }
     private var error: String? { model.installErrors[result.id] }
@@ -2809,6 +2941,37 @@ private struct ReleaseNotesPane: View {
 private enum DetailMode: Hashable {
     case releaseNotes
     case bundleDiff
+}
+
+/// The app pane's two lenses, each kept once shown for this app (the pane is
+/// rebuilt for another app, `.id(selected.id)`).
+///
+/// Switching between the Apps and Rollback tabs flips the lens (`tabChanged`), and
+/// building it afresh was the larger part of each switch: flipping the lens alone,
+/// with the picker, held the main thread for 53–77 ms a time on a 229-app Mac
+/// (Time Profiler, 2026-10-10). Kept, flipping back is showing it again — and a
+/// Bundle Diff still comparing carries on while Release Notes are shown, rather
+/// than starting over; it still stops when the selection moves on.
+private struct DetailLenses: View {
+    let result: UpdateResult
+    let model: AppListModel
+    let lens: DetailMode
+    @State private var built: Set<DetailMode> = []
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if lens == .releaseNotes || built.contains(.releaseNotes) {
+                ReleaseNotesPane(result: result, model: model)
+                    .keptLayer(isShown: lens == .releaseNotes)
+            }
+            if lens == .bundleDiff || built.contains(.bundleDiff) {
+                BundleDiffPane(result: result)
+                    .keptLayer(isShown: lens == .bundleDiff)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onChange(of: lens, initial: true) { _, shown in built.insert(shown) }
+    }
 }
 
 /// `duo diff` in the workbench: the backup taken before this app's last update

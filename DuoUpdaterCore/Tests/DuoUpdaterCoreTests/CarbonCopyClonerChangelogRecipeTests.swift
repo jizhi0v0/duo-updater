@@ -124,6 +124,11 @@ struct CarbonCopyClonerChangelogRecipeTests {
                 == "https://bombich.com/en/kb/ccc/6/release-notes")
         #expect(try recipe(.stable, "5.1.28").source.absoluteString
                 == "https://bombich.com/en/kb/ccc/5/release-notes")
+        // With no version every recipe is windowed, so the group stays whole and
+        // the channel picks: the current generation's page.
+        #expect(ChangelogRecipeRegistry.recipe(
+            forBundleID: "com.bombich.ccc", channel: .stable)?.source.absoluteString
+            == "https://bombich.com/software/updates/ccc7_rn.html")
     }
 
     @Test func ccc7StablePage() throws {

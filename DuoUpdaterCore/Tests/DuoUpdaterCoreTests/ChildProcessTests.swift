@@ -221,21 +221,36 @@ import Testing
     }
 
     /// The first rung: SIGTERM comes before SIGKILL, so a child that handles it
-    /// gets to exit on its own terms. Mutation: `ladder` returns `[]` (straight to
-    /// SIGKILL) → no "got-term", status 9 signaled.
+    /// gets to exit on its own terms.
+    ///
+    /// The child lasts until the test lets it go, not for a set time. Its loop of
+    /// 300 × `sleep 0.1` (≥ 30 s) still lost to SIGTERM on hosted-runner push run
+    /// 38024970744, but the test took 70 s there (release job). Holding every
+    /// `.medium` pool thread for 3 s reproduces the loss locally at a smaller
+    /// scale: SIGTERM lands after a 2 s loop has exited 7, no "got-term". (That CI
+    /// starves the pool the same way is inferred, not instrumented.) Held,
+    /// SIGTERM is the only way out however late it lands.
+    ///
+    /// Mutations: (a) `ladder` returns `[]` (straight to SIGKILL) → no
+    /// "got-term", status 9 signaled; (b) drop `group.cancelAll()` on
+    /// `.deadlinePassed` → no SIGTERM, the child gives up on its own after ~300 s
+    /// and exits 7.
     @Test func aChildHonouringSIGTERMExitsOnItsOwnTerms() async throws {
         let dir = try scratch()
         defer { try? FileManager.default.removeItem(at: dir) }
+        let hold = dir.appendingPathComponent("hold")
+        FileManager.default.createFile(atPath: hold.path, contents: nil)
         let script = try write(dir, "polite.sh", """
             trap 'echo got-term; exit 3' TERM
             i=0
-            while [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done
+            while [ -e '\(hold.path)' ] && [ $i -lt 3000 ]; do sleep 0.1; i=$((i+1)); done
             exit 7
             """)
         let outcome = try await ChildProcess.run(
             "/bin/sh", [script.path],
             deadline: .init(terminateAfter: .seconds(8), killAfter: .seconds(20)),
             onCancel: .runToCompletion)
+        try FileManager.default.removeItem(at: hold)
         #expect(outcome.timedOut)
         #expect(!outcome.uncaughtSignal)
         #expect(outcome.terminationStatus == 3)

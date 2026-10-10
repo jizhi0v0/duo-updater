@@ -70,7 +70,7 @@
   读不出 Intel 文件名（fixture 是上面 2026-09-14 的两个真实 `Location`）。
 
 ## 未审
-- Changelog（`https://www.dropbox.com/release_notes`，recipe 只挂了链接）。
+- Changelog 内容（recipe 只挂链接 `https://community.dropbox.com/en/categories/dropbox-desktop-client-builds`，没有 ChangelogRecipe；链接本身 2026-10-10 复核过，见「历史与实测」）。
 - beta 轨：Homebrew 有 `dropbox@beta` cask（2026-09-14：`270.3.3261`，url 带 `arch=arm64`），
   没查它的 bundle id 是否独立、我们是否需要接。
 - Mac App Store 是否有同 bundle id 的副本。
@@ -113,3 +113,11 @@ The target is a
 cask has no livecheck; its url/version confirm this host + build.)
 
 复测 2026-09-14（只读 GET `Homebrew/homebrew-cask` 的 `Casks/d/dropbox.rb`）：cask 有 `livecheck`，读的正是 `www.dropbox.com/download?plat=mac&full=1`，Apple silicon 上再加 `&arch=arm64`（`strategy :header_match`）；`url` 是 `edge.dropboxstatic.com/dbx-releng/client/Dropbox%20#{version}#{arch}.dmg`。#616 之后的代码提到 cask 的 livecheck 时说的是它给 `arm:` 加同一个 `arch` 参数，与这次复测一致。
+
+### changelogURL 改为重定向终点（2026-10-10）
+
+接入前 recipe 挂的是 `https://www.dropbox.com/release_notes`。2026-10-10 `curl -sIL`（Safari UA）：
+302 → `www.dropboxforum.com/t5/Desktop-client-builds/bd-p/101003016` → 301 → `community.dropbox.com/t5/…`
+→ 302 → `community.dropbox.com/en/t5/…` → 301 → `community.dropbox.com/en/categories/dropbox-desktop-client-builds` → 200，标题
+"Dropbox Desktop Client Builds - Dropbox Community"。页面是每个 build 一帖（当时最新：Beta 275.3.3537、
+Stable 274.4.4841），全平台共用，含 macOS 修复项。`changelogURL` 改为直接挂终点。

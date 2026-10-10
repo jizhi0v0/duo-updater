@@ -26,7 +26,12 @@
 - 生产验证: mounted DMG stable/up-to-date。
 
 ## Changelog
-- `https://windsurf.com/editor/releases/`。
+- **已接 `ChangelogRecipe`（2026-10-10）**，正则读 `https://docs.devin.ai/desktop/changelog`（Mintlify
+  `<Update>` 块：`update-label` 版本、`update-description` 日期、`update-content` 正文）。probe 的
+  `changelogURL` 同时改指这一页：旧的 `https://windsurf.com/editor/releases/` 先 308 到 `/editor/releases`，
+  再 308 到这里。条目版本是 label 去掉 `v`，与 `windsurfVersion` 同一方案（`3.10.48`）。只含 `<strong>`
+  的段落（「Devin Desktop」「Devin Cloud」）和老条目的 `<h1>`–`<h3>` 作为小标题，不当成条目行。
+- 接入前：`changelogURL` 是 `https://windsurf.com/editor/releases/`（跳转后内嵌网页）。
 
 ## 一键安装
 - 状态: **已启用**（2026-08-29），`.bodyPattern` 取同一份响应里的
@@ -75,3 +80,13 @@ ID", stapled, `lipo -archs` = arm64.
 实测（2026-10-07，生产 `VendorProbeSource.probeDiagnostic`）：`windsurfVersion` 3.10.48，`url`
 `…/darwin-arm64-dmg/stable/fcf7ba39…/Devin-darwin-arm64-3.10.48.dmg`；下载 353,160,198 B，`shasum -a 256` =
 `4b3c81ff…8791b`，等于 `sha256hash`；`VendorInstaller.verifySHA256` 通过，翻转一个字节的副本抛 `checksumMismatch`。
+
+### Recipes/com-exafunction-windsurf.swift — ChangelogRecipe（2026-10-10 接入）
+
+实测 2026-10-10：`curl -sIL https://windsurf.com/editor/releases/` → `308 location: /editor/releases` →
+`308 location: https://docs.devin.ai/desktop/changelog` → 200。目标页解码后 2,676,035 字节，113 个
+`update-label`。生产解析器（临时测试，`ChangelogService.loadDiagnostic`）：http=200，3.17 s，40 条
+（`maxEntries` 上限），最新 `3.10.48`（September 29, 2026，6 条，小标题「Sign in with ChatGPT」「Devin
+Desktop」）、`3.10.35`（September 24, 2026）、`3.10.31`（September 16, 2026）。最新条目 = baseline
+`vendor:com.exafunction.windsurf:stable` 的 `3.10.48`。
+

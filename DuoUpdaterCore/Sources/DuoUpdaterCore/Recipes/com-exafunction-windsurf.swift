@@ -30,11 +30,51 @@ enum com_exafunction_windsurf {
             mode: .responseBody,
             versionPattern: #"\"windsurfVersion\"\s*:\s*\"([0-9]+(?:\.[0-9]+)+)\""#,
             downloadURL: URL(string: "https://devin.ai/desktop"),
-            changelogURL: URL(string: "https://windsurf.com/editor/releases/"),
+            // The old `windsurf.com/editor/releases/` 308s to `/editor/releases`,
+            // which 308s here; point at the destination, as the recipe below does.
+            changelogURL: URL(string: "https://docs.devin.ai/desktop/changelog"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#"\"url\"\s*:\s*\"(https://[^\"]+\.dmg)\""#),
                 kind: .dmg,
                 checksumPattern: #""sha256hash"\s*:\s*"([0-9a-f]{64})""#,
                 checksumFormat: .sha256Hex)),
+        ],
+        changelogs: [
+        // History: docs/app-audits/com-exafunction-windsurf.md#历史与实测
+        // Devin Desktop's changelog at docs.devin.ai/desktop/changelog, a Mintlify
+        // page of `<Update>` blocks, newest first. Each block is a
+        // `data-component-part="update-label"` button ("v3.10.48"), an
+        // `update-description` div holding the date, and an `update-content` div
+        // with the notes, which ends at a "Download 3.10.48" `<details>`.
+        //
+        //   * The label is the bare version the update JSON's `windsurfVersion`
+        //     reports, behind a `v`.
+        //   * The gaps between label, date and content are tempered so they can't
+        //     cross into the next block's label: a block missing its date or
+        //     content does not match rather than borrowing the next one's.
+        //   * Notes are `<li>` lines and `<span data-as="p">` paragraphs (the
+        //     Markdown paragraphs), read by ONE pattern so they keep their order.
+        //     A paragraph that is nothing but `<strong>` ("Devin Desktop",
+        //     "Devin Cloud") is a section label, not a note: the item pattern
+        //     skips it and `headingPattern` keeps it as a heading, together with
+        //     the real `<h1>`–`<h3>` headings older blocks use. A heading's text is
+        //     the last text run before its close, after Mintlify's anchor icon and
+        //     its zero-width space.
+        //   * Image paragraphs (`<span data-as="p">` around a zoomable `<img>`)
+        //     strip to nothing and are dropped.
+        ChangelogRecipe(
+            bundleID: "com.exafunction.windsurf",
+            source: URL(string: "https://docs.devin.ai/desktop/changelog")!,
+            entryPattern:
+                #"data-component-part="update-label"[^>]*>\s*v?(?<version>\d+(?:\.\d+)+)\s*</button>"#
+                + #"(?:(?!update-label).)*?data-component-part="update-description"[^>]*>(?<date>[^<]*)</div>"#
+                + #"(?:(?!update-label).)*?data-component-part="update-content"[^>]*>"#
+                + #"(?<body>.*?)(?=<details|data-component-part="update-label"|</main>)"#,
+            itemPatterns: [
+                #"<(?:li|span data-as="p")(?![^>]*>\s*<strong>[^<]*</strong>\s*</span>)[^>]*>(?<item>.*?)</(?:li|span)>"#,
+            ],
+            headingPattern:
+                #"(?:<h[1-3][^>]*>(?:(?!</h[1-3]>).)*?|<span data-as="p"[^>]*>\s*<strong>)"#
+                + #"(?<heading>[^<>\x{200B}]+)(?:</span>\s*</h[1-3]>|</h[1-3]>|</strong>\s*</span>)"#),
         ])
 }

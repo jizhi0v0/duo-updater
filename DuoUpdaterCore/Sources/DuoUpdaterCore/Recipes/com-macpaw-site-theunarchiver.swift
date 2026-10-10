@@ -21,7 +21,7 @@ enum com_macpaw_site_theunarchiver {
             url: URL(string: "https://updates.devmate.com/com.macpaw.site.theunarchiver.xml")!,
             mode: .responseBody,
             versionPattern: #"sparkle:shortVersionString="([0-9.]+)""#,
-            changelogURL: URL(string: "https://updates.devmate.com/releasenotes/147/com.macpaw.site.theunarchiver.html"),
+            changelogURL: URL(string: "https://updateinfo.devmate.com/com.macpaw.site.theunarchiver/147/releasenotes.html"),
             // One-click: the archive from this same feed holds `The Unarchiver.app`,
             // bundle id com.macpaw.site.theunarchiver, Team S8EX82NJP6, notarized
             // Developer ID. The

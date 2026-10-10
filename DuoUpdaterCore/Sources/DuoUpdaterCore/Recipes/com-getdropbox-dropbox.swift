@@ -32,12 +32,16 @@ enum com_getdropbox_dropbox {
         // `Dropbox.app` — worth stating, since the 1Password download
         // (`Recipes/com-1password-1password.swift`) turned out to be a stub
         // installer, not the app.
+        //
+        // Changelog: the community's "Desktop Client Builds" category, one post
+        // per stable or beta build (all platforms). `www.dropbox.com/release_notes`
+        // still lands here, but through four redirects across two forum hosts.
         VendorProbeRecipe(
             bundleID: "com.getdropbox.dropbox",
             url: URL(string: "https://www.dropbox.com/download?plat=mac&full=1&arch=arm64")!,
             mode: .redirectFilename,
             versionPattern: #"Dropbox(?:%20| )([0-9]+\.[0-9]+\.[0-9]+)\.arm64\.dmg"#,
-            changelogURL: URL(string: "https://www.dropbox.com/release_notes")!,
+            changelogURL: URL(string: "https://community.dropbox.com/en/categories/dropbox-desktop-client-builds")!,
             install: VendorInstallSpec(
                 urlSource: .redirect(
                     URL(string: "https://www.dropbox.com/download?plat=mac&full=1&arch=arm64")!),

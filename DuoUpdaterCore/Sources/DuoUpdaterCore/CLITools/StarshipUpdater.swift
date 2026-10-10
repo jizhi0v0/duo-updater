@@ -19,6 +19,12 @@ import Foundation
 /// script's guard against non-POSIX bash passes. The script checks no hash:
 /// afterwards the file must read as a newer version and be byte for byte that
 /// version's published build (`StarshipVerifier`), or the outcome is a failure.
+///
+/// In root's `/usr/local/bin` (`CLIToolStatus.needsAdministrator`) the same
+/// gates are asked, the directory must still be root's, and then
+/// `StarshipCheck.rootCommand` runs as root through the administrator panel
+/// (`CLIToolAdministratorRun`), the script fetched by root's own `curl`. The
+/// same check of what it left follows.
 public struct StarshipUpdater: Sendable {
 
     static let scriptName = "starship-install.sh"
@@ -34,6 +40,7 @@ public struct StarshipUpdater: Sendable {
     let fetchScript: FetchScript
     let tools: [String: String]
     let deadline: ChildProcess.Deadline
+    let runAsRoot: CLIToolAdministratorRun.Runner
 
     static let defaultDeadline = ChildProcess.Deadline(terminateAfter: .seconds(10 * 60), killAfter: .seconds(10 * 60 + 30))
 
@@ -62,7 +69,8 @@ public struct StarshipUpdater: Sendable {
         environment: @escaping @Sendable () -> [String: String],
         fetchScript: @escaping FetchScript,
         tools: [String: String] = StarshipUpdater.defaultTools,
-        deadline: ChildProcess.Deadline = StarshipUpdater.defaultDeadline
+        deadline: ChildProcess.Deadline = StarshipUpdater.defaultDeadline,
+        runAsRoot: CLIToolAdministratorRun.Runner? = nil
     ) {
         self.busy = busy
         self.scanner = scanner
@@ -72,6 +80,7 @@ public struct StarshipUpdater: Sendable {
         self.fetchScript = fetchScript
         self.tools = tools
         self.deadline = deadline
+        self.runAsRoot = runAsRoot ?? CLIToolAdministratorRun.live(deadline: deadline)
     }
 
     public func update(
@@ -90,8 +99,17 @@ public struct StarshipUpdater: Sendable {
         else {
             return .failed(message: "not run: \(install.path) is no longer the starship that was checked", output: "")
         }
-        guard now.writable else {
-            return .failed(message: "not run: the script would need sudo to replace \(install.path)", output: "")
+        if status.needsAdministrator {
+            let check = self.check
+            guard status.oneClick == StarshipCheck.rootCommand, !now.writable,
+                  await offCooperativePool({ check.rootDirectory(now) })
+            else {
+                return .failed(message: "not run: \(install.directory) is no longer root’s directory", output: "")
+            }
+        } else {
+            guard now.writable else {
+                return .failed(message: "not run: the script would need sudo to replace \(install.path)", output: "")
+            }
         }
         let newest: String
         do {
@@ -113,6 +131,22 @@ public struct StarshipUpdater: Sendable {
         }
         if let running = await offCooperativePool({ busy() }) {
             return .busy(running.description)
+        }
+        if status.needsAdministrator {
+            switch await runAsRoot(StarshipCheck.rootCommand.display, progress) {
+            case .declined:
+                return .declined
+            case .refused(let reason):
+                return .failed(message: reason, output: reason)
+            case .ran(let run):
+                guard case .finished(let outcome) = run.result else {
+                    return .failed(message: "could not run the script as root", output: run.text)
+                }
+                guard outcome.succeeded else {
+                    return .failed(message: Self.failureMessage(run.lines, outcome, deadline: deadline), output: run.text)
+                }
+                return await settle(install, before: before, output: run.text)
+            }
         }
 
         let installer = StarshipCheck.installer
@@ -161,20 +195,25 @@ public struct StarshipUpdater: Sendable {
         guard outcome.succeeded else {
             return .failed(message: Self.failureMessage(run.lines, outcome, deadline: deadline), output: run.text)
         }
+        return await settle(install, before: before, output: run.text)
+    }
 
+    /// What the script left: a newer version, byte for byte its published build.
+    private func settle(_ install: StarshipInstall, before: String, output: String) async -> CLIToolUpdateOutcome {
+        let scanner = self.scanner
         guard let after = await offCooperativePool({ scanner.scan().first }), after.problem == nil,
               let version = after.version, let newBinary = after.binary, let newTarget = after.target
         else {
-            return .failed(message: "the script finished, but \(install.path) no longer reads as starship", output: run.text)
+            return .failed(message: "the script finished, but \(install.path) no longer reads as starship", output: output)
         }
         guard VersionComparator.compare(version, before) == .orderedDescending else {
-            return .failed(message: "the script finished, but \(install.path) is still starship \(version)", output: run.text)
+            return .failed(message: "the script finished, but \(install.path) is still starship \(version)", output: output)
         }
         switch await verifier.verify(binary: newBinary, version: version, target: newTarget) {
         case .matches:
             return .updated(version: version)
         case .differs(let reason), .couldNotVerify(let reason):
-            return .failed(message: "the script finished, but \(reason)", output: run.text)
+            return .failed(message: "the script finished, but \(reason)", output: output)
         }
     }
 

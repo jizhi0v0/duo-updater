@@ -910,10 +910,10 @@ private struct CommandLineRow: View {
         }
         if !tools.checked { return half([Text(String(localized: "Checking…"))], mark: spinner) }
         if !tools.outdated.isEmpty {
-            let button: (any View)? = tools.oneClickable.isEmpty ? nil : updateButton(
+            let button: (any View)? = tools.batchable.isEmpty ? nil : updateButton(
                 // Not while brew upgrades: npm packages can run on Homebrew's node.
                 disabled: model.brewUpgrading || !model.upgradingFormulae.isEmpty,
-                help: String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update are left alone.")
+                help: String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone.")
             ) { await tools.updateAll() }
             if let error = tools.outdated.lazy.compactMap({ tools.errors[$0.toolID] }).first {
                 return half([Text(error).foregroundStyle(.red)], button: button)

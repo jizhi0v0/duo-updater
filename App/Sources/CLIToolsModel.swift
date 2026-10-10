@@ -105,6 +105,15 @@ final class CLIToolsModel {
     /// The outdated installs no click will update: a gate held them back
     /// (`CLIToolStatus.withheld` says which).
     var heldBack: [CLIToolStatus] { outdated.filter { $0.oneClick == nil } }
+    /// The offered updates Update All runs: not one that needs an administrator
+    /// password (`CLIToolStatus.needsAdministrator`). Each of those asks on its
+    /// own row's click, so a batch never raises a panel, let alone a stack of
+    /// them; and one panel for the whole batch would run every such command as
+    /// root on a single answer about none of them in particular.
+    var batchOffered: [CLIToolStatus] { offered.filter { !$0.needsAdministrator } }
+    /// `batchOffered` less the copies already updating: what Update All would
+    /// start now.
+    var batchable: [CLIToolStatus] { oneClickable.filter { !$0.needsAdministrator } }
 
     /// Whether this Mac has anything for the CLI surface to show at all.
     var hasAnything: Bool { !statuses.isEmpty }
@@ -483,6 +492,11 @@ final class CLIToolsModel {
             // update started elsewhere, or the offer went away — so the re-check
             // lets the row say what is true now.
             break
+        case .declined:
+            // The user dismissed the administrator panel: a decision, not a
+            // failure, so no red line — the row goes back to its Update, as an
+            // app's declined panel leaves no error (`AppListModel`).
+            Log.app.notice("\(status.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): administrator panel dismissed, nothing ran")
         }
         if Self.needsRecheck(outcome) {
             awaitingCheck.insert(id)
@@ -493,11 +507,13 @@ final class CLIToolsModel {
         return outcome
     }
 
-    /// A failure is on the row already; anything else changed, or may have, what
-    /// the tool's check says.
+    /// A failure is on the row already, and a dismissed panel ran nothing;
+    /// anything else changed, or may have, what the tool's check says.
     nonisolated private static func needsRecheck(_ outcome: CLIToolUpdateOutcome) -> Bool {
-        if case .failed = outcome { return false }
-        return true
+        switch outcome {
+        case .failed, .declined: return false
+        case .updated, .busy, .notOffered: return true
+        }
     }
 
     /// What a finished update says, once its tool's re-check has landed.
@@ -537,7 +553,7 @@ final class CLIToolsModel {
         }
     }
 
-    /// Update every install in `oneClickable`, whatever its tool: the lanes
+    /// Update every install in `batchable`, whatever its tool: the lanes
     /// (`lane(of:)`) at once, the copies of one lane one after another, and each
     /// tool re-checked once, as soon as the last lane holding any of its copies
     /// is done.
@@ -547,7 +563,8 @@ final class CLIToolsModel {
     /// tool after each copy.
     func updateAll() async {
         guard !updatingAll else { return }
-        let batch = oneClickable.compactMap { status in provider(of: status).map { (status, $0) } }
+        // `batchable`, never `oneClickable`: no administrator panel from a batch.
+        let batch = batchable.compactMap { status in provider(of: status).map { (status, $0) } }
         guard !batch.isEmpty else { return }
         updatingAll = true
         defer { updatingAll = false }

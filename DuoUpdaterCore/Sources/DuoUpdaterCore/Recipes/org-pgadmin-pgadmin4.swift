@@ -48,5 +48,39 @@ enum org_pgadmin_pgadmin4 {
                     "https://ftp.postgresql.org/pub/pgadmin/pgadmin4/"
                     + "v{version}/macos/pgadmin4-{version}-arm64.dmg"),
                 kind: .dmg)),
+        ],
+        changelogs: [
+        // History: docs/app-audits/org-pgadmin-pgadmin4.md#历史与实测
+        // pgAdmin 4 — two-stage. `release_notes.html` (the probe's changelogURL)
+        // is only an index: a Sphinx toctree of `release_notes_X_Y.html` links,
+        // newest first, and the sidebar repeats the same list in the same order,
+        // so the first `release_notes_<digits>_<digits>` href in the document is
+        // the newest release. Anchoring on that shape skips `release_notes.html`
+        // itself and every other docs link. Following the href rather than
+        // templating the version avoids spelling `9.18` as `9_18`, which no
+        // `sourceTemplate` token does.
+        //
+        // The detail page is one version: `<h1>Version 9.18…</h1>`, then
+        // `<p>Release date: YYYY-MM-DD</p>`, then `<h2>` sections. Version is
+        // the same `X.Y` the probe reads from the ftp folder names. Items are the
+        // `<div class="line">` rows ("Issue #NNNN - …", and in Dependencies one
+        // row per bumped package). A section title becomes a heading only when
+        // its section holds such rows (New features / Housekeeping / Bug fixes /
+        // Dependencies), so "Supported Database Servers" and "Bundled PostgreSQL
+        // Utilities", which are plain paragraphs, add no empty heading. The body
+        // ends at Sphinx's `<div class="clearer">`, past the last section.
+        ChangelogRecipe(
+            bundleID: "org.pgadmin.pgadmin4",
+            source: URL(string: "https://www.pgadmin.org/docs/pgadmin4/latest/release_notes.html")!,
+            entryPattern:
+                #"<h1>Version (?<version>[0-9]+(?:\.[0-9]+){1,2})<a[^>]*>[^<]*</a></h1>\s*"#
+                + #"<p>Release date:\s*(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})</p>"#
+                + #"(?<body>.*?)<div class="clearer">"#,
+            itemPatterns: [#"<div class="line">(?<item>.*?)</div>"#],
+            maxEntries: 1,
+            indexLinkPattern: #"href="(?<link>release_notes_[0-9]+_[0-9]+(?:_[0-9]+)?\.html)""#,
+            headingPattern:
+                #"<h2>(?<heading>[^<]+)<a[^>]*>[^<]*</a></h2>"#
+                + #"(?=(?:(?!</section>).)*?<div class="line">)"#),
         ])
 }

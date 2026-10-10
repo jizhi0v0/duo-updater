@@ -100,6 +100,42 @@ enum com_microsoft_VSCode {
                 + #"<p>Happy Coding!</p>)"#,
             itemPatterns: [#"<li>\s*(?:<p>)?(?<item>.*?)(?:</p>)?\s*</li>"#],
             maxEntries: 1),
+
+        // History: docs/app-audits/com-microsoft-VSCode.md#历史与实测
+        // VS Code Insiders — two-stage. `/updates` (which redirects to the newest
+        // stable page) is the index: its side nav lists every notes page newest
+        // first, and the first item is `<a href="/updates/v1_N" >Insiders</a>`,
+        // the page for the minor the Insiders build is on. An Insiders version
+        // `1.N.0-insider` belongs to `/updates/v1_N`. The link is picked by its
+        // "Insiders" label, not its position, so a nav without an Insiders item
+        // yields no link (and the pane embeds the page) rather than the stable one.
+        //
+        // The Insiders page: `<h1>Visual Studio Code 1.N (Insiders)</h1>`,
+        // `<p><em>Last updated: <date></em></p>`, then one `<h2>` per day
+        // (newest first), each over a `<ul>` of one-line changes, ending at the
+        // first `<hr>`. All the days form one entry, with the dates as headings.
+        // The entry's version is the page's `1.N`, as the stable recipe's is,
+        // not the build's `1.N.0-insider`; the page names no build.
+        //
+        // Right after each stable release the nav's Insiders item moves to the
+        // next minor, whose page has no `<h2>` day yet. The body must start at an
+        // `<h2>` before `</main>`, so that page parses to nothing and the pane
+        // falls back to embedding it, until the first day's notes land.
+        // A change that names a setting carries the page's "Open in VS Code /
+        // Open in VS Code Insiders" menu text inline after the setting id; tag
+        // stripping cannot drop it, the stable page has the same.
+        ChangelogRecipe(
+            bundleID: "com.microsoft.VSCodeInsiders",
+            source: URL(string: "https://code.visualstudio.com/updates")!,
+            entryPattern:
+                #"<h1>Visual Studio Code (?<version>[0-9]+\.[0-9]+) \(Insiders\)</h1>"#
+                + #"(?:(?!</main>).)*?<p><em>Last updated:\s*(?<date>[^<]+)</em></p>"#
+                + #"(?:(?!</main>).)*?(?<body><h2[^>]*>(?:(?!</main>).)*?)<hr>"#,
+            itemPatterns: [#"<li>(?<item>.*?)</li>"#],
+            maxEntries: 1,
+            indexLinkPattern: #"href="(?<link>/updates/v1_[0-9]+)"\s*>\s*Insiders\s*</a>"#,
+            channel: .preview,
+            headingPattern: #"<h2[^>]*>(?<heading>[^<]+)</h2>"#),
         ],
         channelProofs: [
         ChannelProofKey("com.microsoft.VSCodeInsiders", .preview): .artifact(#"/download/insider/"#),

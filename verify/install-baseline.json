@@ -276,6 +276,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:egoist\/pulse-feedback:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:espanso\/espanso:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -739,10 +745,11 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop.tauri:stable" : {
-      "consecutiveActionable" : 0,
+      "consecutiveActionable" : 1,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
+      "lastSignature" : "bundleIDMismatch: the download is app.ge|identityChanged: bundle id app.getmoshi.",
+      "sweepsSinceComment" : 1
     },
     "install:vendor:app.getmoshi.desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -1676,5 +1683,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-10T03:07:50Z"
+  "updatedAt" : "2026-10-10T11:48:00Z"
 }

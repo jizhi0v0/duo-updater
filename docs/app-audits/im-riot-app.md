@@ -32,8 +32,15 @@
 - 仅检测（Element 自更新）
 
 ## Changelog
-- changelogURL: `https://github.com/element-hq/element-desktop/releases`（两 channel 共用）
-- 无 ChangelogRecipe
+- **stable**：changelogURL `https://github.com/element-hq/element-web/releases`；ChangelogRecipe ✓ ——
+  `.gitHubReleases` 读 `api.github.com/repos/element-hq/element-web/releases?per_page=40`，
+  `tagPattern: ^v([0-9]+\.[0-9]+\.[0-9]+)$`。`element-hq/element-desktop` 已归档（release 停在 1.12.13），
+  desktop 版本现在由 element-web 出，tag `v1.12.30` 去掉 `v` = `currentRelease`。tagPattern 必需：同一个
+  Releases 列表还发 `module/banner/v2.1.1` 等模块包，且它们**不是** prerelease，光靠 stable 过滤会混进来；
+  `-rc.N` 是 prerelease，被 stable 过滤掉，`$` 锚也拒。
+- **nightly**：changelogURL 同样改为 `https://github.com/element-hq/element-web/releases`（原 element-desktop 仓库已归档）；
+  不写 recipe —— 版本是 `YYYYMMDDNN` 构建戳，没有自己的 tag 或 release notes，没有任何条目能对上
+  （`ChangelogCoverage.acknowledged` 里那一行保留）。
 
 ## 一键安装
 - 状态: **已接入**。此前记为「仅检测」，是旧策略的残留。
@@ -56,3 +63,15 @@
 swift run --package-path application-test channel-verify "/tmp/Element.app"         --expect stable
 swift run --package-path application-test channel-verify "/tmp/Element Nightly.app" --expect nightly
 ```
+
+## 历史与实测
+
+### Changelog recipe（stable）接入，2026-10-10
+
+- `gh api repos/element-hq/element-desktop` → `archived: true`，`pushed_at` 2026-03-25；最新 release `v1.12.13`（2026-03-24）
+  （接入前 changelogURL 指向这里）。
+- `gh api "repos/element-hq/element-web/releases?per_page=40"`：前 40 条里 stable `v*` 12 条（v1.12.30 … v1.12.19），
+  其余是 `-rc.N` prerelease 和 10 条非 prerelease 的 `module/*` 包 release。`packages.element.io/desktop/update/macos/releases.json`
+  同时 `currentRelease: 1.12.30`，与最新 stable tag 一致。
+- `v1.12.29` 的正文只有一句 "Update modules in element-web modules Docker image"，照样渲染成一条。
+

@@ -33,7 +33,7 @@ enum org_mozilla_firefox {
             mode: .responseBody,
             versionPattern: #""LATEST_FIREFOX_VERSION"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/"),
-            changelogURL: URL(string: "https://www.mozilla.org/firefox/notes/"),
+            changelogURL: URL(string: "https://www.firefox.com/firefox/notes/"),
             install: VendorInstallSpec(
                 urlSource: .redirect(
                     URL(string: "https://download.mozilla.org/?product=firefox-latest&os=osx&lang=en-US")!),
@@ -123,7 +123,7 @@ enum org_mozilla_firefox {
             mode: .responseBody,
             versionPattern: #"buildID="([0-9]{14})""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/channel/desktop/"),
-            changelogURL: URL(string: "https://www.mozilla.org/firefox/beta/notes/"),
+            changelogURL: URL(string: "https://www.firefox.com/firefox/beta/notes/"),
             versionIsBuild: true,
             buildNamespace: .vendor,
             displayVersionPattern:
@@ -139,7 +139,7 @@ enum org_mozilla_firefox {
             mode: .responseBody,
             versionPattern: #""FIREFOX_ESR"\s*:\s*"([0-9]+(?:\.[0-9]+)+esr)""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/enterprise/"),
-            changelogURL: URL(string: "https://www.mozilla.org/firefox/organizations/notes/"),
+            changelogURL: URL(string: "https://www.firefox.com/firefox/organizations/notes/"),
             install: VendorInstallSpec(
                 urlSource: .redirect(
                     URL(string: "https://download.mozilla.org/?product=firefox-esr-latest&os=osx&lang=en-US")!),
@@ -151,7 +151,7 @@ enum org_mozilla_firefox {
             mode: .responseBody,
             versionPattern: #"buildID="([0-9]{14})""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/developer/"),
-            changelogURL: URL(string: "https://www.mozilla.org/firefox/beta/notes/"),
+            changelogURL: URL(string: "https://www.firefox.com/firefox/beta/notes/"),
             versionIsBuild: true,
             buildNamespace: .vendor,
             displayVersionPattern:
@@ -170,7 +170,7 @@ enum org_mozilla_firefox {
             mode: .responseBody,
             versionPattern: #"buildID="([0-9]{14})""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/channel/desktop/"),
-            changelogURL: URL(string: "https://www.mozilla.org/firefox/nightly/notes/"),
+            changelogURL: URL(string: "https://www.firefox.com/firefox/nightly/notes/"),
             versionIsBuild: true,
             buildNamespace: .vendor,
             displayVersionPattern: #"displayVersion="([^"]+)""#,
@@ -179,6 +179,95 @@ enum org_mozilla_firefox {
                     URL(string: "https://download.mozilla.org/?product=firefox-nightly-latest&os=osx&lang=en-US")!),
                 kind: .dmg),
             channel: .nightly),
+        ],
+        changelogs: [
+        // History: docs/app-audits/org-mozilla-firefox.md#历史与实测
+        // ── Firefox (Mozilla) — five channels, three bundle ids, one page per
+        // version on firefox.com (www.mozilla.org/…/releasenotes/ 301s there), the
+        // same model as Thunderbird's recipes: `sourceTemplate` takes the offered
+        // (else installed) version, so the notes always match the row, with no pin.
+        // Release, Beta and ESR share `org.mozilla.firefox` and are told apart by
+        // `channel` (RemotingName, see the probes above).
+        //
+        // Every channel's page has the same shape:
+        //   <h2 class="c-release-summary …">
+        //     <span class="c-release-version …">157.0.1</span>
+        //     <span class="c-release-product …">Firefox Release</span></h2>
+        //   <p class="c-release-date …">October 6, 2026</p>
+        //   … <li class="release-note" id="note-792283">
+        //       <div class="release-note-content"><p>change text…</p></div></li>
+        // The date is optional (a not-yet-released version's page has none). One
+        // page is one version, so maxEntries:1 and the body runs to the end of the
+        // document. Items are anchored on a NUMERIC note id: the page also lists
+        // `id="note-mdn"`, a bare "Developer Information" link, which is not a change.
+        //
+        // The `source` of each is the channel's "latest notes" alias, which
+        // redirects to the current version's page; it is only the fallback when no
+        // version is supplied.
+
+        // Release: the page is the plain version, `/157.0.1/`.
+        ChangelogRecipe(
+            bundleID: "org.mozilla.firefox",
+            source: URL(string: "https://www.firefox.com/en-US/firefox/notes/")!,
+            entryPattern: firefoxEntryPattern,
+            itemPatterns: firefoxItemPatterns,
+            maxEntries: 1,
+            channel: .stable,
+            sourceTemplate: "https://www.firefox.com/en-US/firefox/{version}/releasenotes/"),
+
+        // Beta: one cumulative page per cycle, `/158.0beta/`, exactly Thunderbird
+        // Beta's form, so `{version}` with `channel: .beta` already maps both the
+        // offered `158.0b5` and the installed `158.0` there (`urlVersionToken`).
+        // `/158.0b5/` is a 404. The entry's version is the page's own `158.0beta`.
+        ChangelogRecipe(
+            bundleID: "org.mozilla.firefox",
+            source: URL(string: "https://www.firefox.com/en-US/firefox/beta/notes/")!,
+            entryPattern: firefoxEntryPattern,
+            itemPatterns: firefoxItemPatterns,
+            maxEntries: 1,
+            channel: .beta,
+            sourceTemplate: "https://www.firefox.com/en-US/firefox/{version}/releasenotes/"),
+
+        // ESR: firefox.com drops the `esr` suffix once the ESR's minor is past 0
+        // (`/140.17.0/`, and `/140.17.0esr/` is a 404) but keeps it on `140.0esr`,
+        // whose number Release also has. Thunderbird keeps the suffix throughout,
+        // so this uses the `{firefoxVersion}` placeholder rather than `{version}`
+        // (see `ChangelogRecipe.firefoxVersionToken`).
+        ChangelogRecipe(
+            bundleID: "org.mozilla.firefox",
+            source: URL(string: "https://www.firefox.com/en-US/firefox/organizations/notes/")!,
+            entryPattern: firefoxEntryPattern,
+            itemPatterns: firefoxItemPatterns,
+            maxEntries: 1,
+            channel: .esr,
+            sourceTemplate: "https://www.firefox.com/en-US/firefox/{firefoxVersion}/releasenotes/"),
+
+        // Developer Edition is built from the Beta cycle and has no notes of its
+        // own: firefox.com's `/firefox/developer/notes/` redirects to the Beta
+        // page. Its channel is `.dev`, which `urlVersionToken` passes through
+        // unchanged (`158.0b5`), so the template builds the Beta form itself from
+        // the first two components: `{majorMinor}beta` → `158.0beta`.
+        ChangelogRecipe(
+            bundleID: "org.mozilla.firefoxdeveloperedition",
+            source: URL(string: "https://www.firefox.com/en-US/firefox/developer/notes/")!,
+            entryPattern: firefoxEntryPattern,
+            itemPatterns: firefoxItemPatterns,
+            maxEntries: 1,
+            channel: .dev,
+            sourceTemplate: "https://www.firefox.com/en-US/firefox/{majorMinor}beta/releasenotes/"),
+
+        // Nightly: one page per nightly version, `/160.0a1/`, which is both the
+        // probe's display version and the bundle's short version, so `{version}`
+        // as is. Every nightly build of a cycle shares the page; Mozilla updates it
+        // as features land.
+        ChangelogRecipe(
+            bundleID: "org.mozilla.nightly",
+            source: URL(string: "https://www.firefox.com/en-US/firefox/nightly/notes/")!,
+            entryPattern: firefoxEntryPattern,
+            itemPatterns: firefoxItemPatterns,
+            maxEntries: 1,
+            channel: .nightly,
+            sourceTemplate: "https://www.firefox.com/en-US/firefox/{version}/releasenotes/"),
         ],
         channelProofs: [
         // MARK: Mozilla
@@ -194,4 +283,15 @@ enum org_mozilla_firefox {
         ChannelProofKey("org.mozilla.firefoxdeveloperedition", .dev): .artifact(#"/devedition/releases/"#),
         ChannelProofKey("org.mozilla.nightly", .nightly): .artifact(#"/firefox/nightly/"#),
         ])
+
+    /// Shared by all five Firefox changelog recipes: every channel's notes page
+    /// is the same template (see the comment over `changelogs`).
+    private static let firefoxEntryPattern =
+        #"<span class="c-release-version[^"]*"[^>]*>\s*(?<version>[^<]+?)\s*</span>\s*"#
+        + #"<span class="c-release-product[^"]*"[^>]*>[^<]*</span>\s*</h2>\s*"#
+        + #"(?:<p class="c-release-date[^"]*"[^>]*>\s*(?<date>[^<]+?)\s*</p>)?"#
+        + #"(?<body>.*)"#
+    private static let firefoxItemPatterns = [
+        #"<li class="release-note" id="note-\d+">\s*<div class="release-note-content">\s*(?<item>.*?)\s*</div>\s*</li>"#,
+    ]
 }

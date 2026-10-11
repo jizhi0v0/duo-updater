@@ -135,14 +135,37 @@ import Testing
 
     // MARK: - Disk images
 
+    /// The mount tools a test can force on this Mac: `hdiutil` always, and
+    /// `diskutil image` where it exists (26.x has it; production only prefers it
+    /// from 27.2, see `DiskImageMount`).
+    static let mountTools: [DiskImageMount.Tool] = {
+        let probe = Process()
+        probe.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
+        probe.arguments = ["image", "attach", "--help"]
+        probe.standardOutput = FileHandle.nullDevice
+        probe.standardError = FileHandle.nullDevice
+        guard (try? probe.run()) != nil else { return [.hdiutil] }
+        probe.waitUntilExit()
+        return probe.terminationStatus == 0 ? [.hdiutil, .diskutil] : [.hdiutil]
+    }()
+
     /// A cancelled DMG extraction still unmounts the image, on the exit that
-    /// copied the app out and on the one that found none. The unmount sits in a
-    /// `defer { await … }`, which sees the task as cancelled (SE-0493) — so this
-    /// is also what pins `hdiutil detach` to `.runToCompletion` there.
+    /// copied the app out and on the one that found none, with either mount
+    /// tool. The unmount sits in a `defer { await … }`, which sees the task as
+    /// cancelled (SE-0493) — so this is also what pins the detach to
+    /// `.runToCompletion` there.
     ///
-    /// Mutation: drop the `defer { await detach(mountPoint) }` in `fromDMG` → both
-    /// mount points are still mounted when the call returns or throws.
-    @Test func aCancelledDMGExtractionUnmountsOnBothExits() async throws {
+    /// Mutation: drop the `defer { await DiskImageMount.detach(mountPoint) }` in
+    /// `fromDMG` → both mount points are still mounted when the call returns or
+    /// throws.
+    @Test(arguments: InstallChildProcessTests.mountTools)
+    func aCancelledDMGExtractionUnmountsOnBothExits(tool: DiskImageMount.Tool) async throws {
+        try await DiskImageMount.$toolOverride.withValue(tool) {
+            try await cancelledDMGExtractionUnmountsOnBothExits()
+        }
+    }
+
+    private func cancelledDMGExtractionUnmountsOnBothExits() async throws {
         let fm = FileManager.default
         let top = try scratch("dmg")
         let images = try await diskImages(in: top)
@@ -177,9 +200,16 @@ import Testing
 
     /// The package route's DMG, same two exits: a `.pkg` copied out, and none.
     ///
-    /// Mutation: drop the `defer { _ = await run("/usr/bin/hdiutil", ["detach", …]) }`
+    /// Mutation: drop the `defer { await DiskImageMount.detach(mountPoint) }`
     /// in `resolveInstaller` → both mount points are still mounted.
-    @Test func aCancelledPackageImageUnmountsOnBothExits() async throws {
+    @Test(arguments: InstallChildProcessTests.mountTools)
+    func aCancelledPackageImageUnmountsOnBothExits(tool: DiskImageMount.Tool) async throws {
+        try await DiskImageMount.$toolOverride.withValue(tool) {
+            try await cancelledPackageImageUnmountsOnBothExits()
+        }
+    }
+
+    private func cancelledPackageImageUnmountsOnBothExits() async throws {
         let fm = FileManager.default
         let top = try scratch("pkgdmg")
         let images = try await diskImages(in: top)
@@ -210,6 +240,71 @@ import Testing
             }
         }
         #expect(!isMountPoint(mounts[1]), "the image stayed mounted after no package was found")
+    }
+
+    /// `diskutil image attach --mountPoint` refuses an image with two mountable
+    /// volumes, where `hdiutil` mounts one; `DiskImageMount` must fall back
+    /// rather than fail the install, and still detach afterwards.
+    ///
+    /// Mutation: return `first` without the `hdiutil` retry in
+    /// `DiskImageMount.attach` → the extraction throws `toolFailed`.
+    @Test(.enabled(if: InstallChildProcessTests.mountTools.contains(.diskutil)))
+    func aTwoVolumeImageFallsBackToHdiutilUnderDiskutil() async throws {
+        let fm = FileManager.default
+        let top = try scratch("dmg2vol")
+        let work = top.appendingPathComponent("work", isDirectory: true)
+        let mount = work.appendingPathComponent("mnt-two.dmg")
+        defer {
+            await forceDetach(mount)
+            try? fm.removeItem(at: top)
+        }
+        try fm.createDirectory(at: work, withIntermediateDirectories: true)
+        let image = try await twoVolumeImage(in: top)
+        try fm.copyItem(at: image, to: work.appendingPathComponent("two.dmg"))
+
+        let app = try await DiskImageMount.$toolOverride.withValue(.diskutil) {
+            try await ArchiveExtractor.extractApp(
+                from: work.appendingPathComponent("two.dmg"), workDir: work)
+        }
+        #expect(app.lastPathComponent == "ZZFixture.app")
+        #expect(!isMountPoint(mount), "the image stayed mounted after the fallback attach")
+    }
+
+    /// A UDZO image whose GPT holds two HFS+ volumes, `ZZFixture.app` on each.
+    private func twoVolumeImage(in top: URL) async throws -> URL {
+        func sh(_ path: String, _ args: [String]) async throws -> ChildProcess.Outcome {
+            let r = try await ChildProcess.run(path, args, onCancel: .runToCompletion)
+            #expect(r.succeeded, "\((path as NSString).lastPathComponent) \(args.first ?? "") failed")
+            return r
+        }
+        let raw = top.appendingPathComponent("two-rw.dmg")
+        _ = try await sh("/usr/bin/hdiutil", [
+            "create", "-quiet", "-size", "40m", "-layout", "GPTSPUD", "-fs", "HFS+",
+            "-volname", "V1", raw.path])
+        let attached = try await sh("/usr/bin/hdiutil", ["attach", "-nomount", raw.path])
+        let device = String(decoding: attached.standardOutput, as: UTF8.self)
+            .split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
+        _ = try await sh("/usr/sbin/diskutil", [
+            "partitionDisk", device, "GPT", "HFS+", "V1", "20M", "HFS+", "V2", "R"])
+        // Mount both, drop the app on each, and detach.
+        _ = try await sh("/usr/sbin/diskutil", ["mountDisk", device])
+        let listing = try await sh("/usr/sbin/diskutil", ["list", "-plist", device])
+        let plist = try PropertyListSerialization.propertyList(
+            from: listing.standardOutput, format: nil) as? [String: Any]
+        let volumes = (plist?["AllDisksAndPartitions"] as? [[String: Any]])?
+            .flatMap { $0["Partitions"] as? [[String: Any]] ?? [] }
+            .compactMap { $0["MountPoint"] as? String } ?? []
+        #expect(volumes.count == 2, "expected two mounted volumes, got \(volumes)")
+        for volume in volumes {
+            _ = try bundle(
+                at: URL(fileURLWithPath: volume).appendingPathComponent("ZZFixture.app"),
+                mode: 0o755, marker: "payload")
+        }
+        _ = try await sh("/usr/bin/hdiutil", ["detach", device, "-force"])
+        let image = top.appendingPathComponent("two.dmg")
+        _ = try await sh("/usr/bin/hdiutil", [
+            "convert", "-quiet", raw.path, "-format", "UDZO", "-o", image.path])
+        return image
     }
 
     /// Two images: `full` holds `ZZFixture.app` and `ZZFixture.pkg` (a plain file

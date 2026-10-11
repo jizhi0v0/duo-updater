@@ -745,14 +745,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop.tauri:stable" : {
-      "consecutiveActionable" : 3,
+      "consecutiveActionable" : 4,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1167,
       "lastCommentedAt" : "2026-10-10T16:52:59Z",
       "lastSignature" : "bundleIDMismatch: the download is app.ge|identityChanged: bundle id app.getmoshi.",
       "previousSignature" : "bundleIDMismatch: the download is app.ge|identityChanged: bundle id app.getmoshi.",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 2
     },
     "install:vendor:app.getmoshi.desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -822,10 +822,9 @@
     },
     "install:vendor:com.baidu.BaiduNetdisk-mac:stable" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 1,
+      "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "infraSince" : "2026-10-10T21:11:11Z",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 0
     },
     "install:vendor:com.bjango.istatmenus:stable" : {
       "consecutiveActionable" : 0,
@@ -1687,5 +1686,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-10T21:11:15Z"
+  "updatedAt" : "2026-10-11T02:37:50Z"
 }

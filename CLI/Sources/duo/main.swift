@@ -278,7 +278,8 @@ verify-install options:
   --only <text>       Restrict to recipes whose bundle id or recipe id contains
                       <text>. Comma-separated for several. Without it every
                       vendor recipe and GitHub rule with an installer is
-                      downloaded — every one of them; meant for a hosted runner.
+                      resolved and, unless left out as unchanged (see
+                      --full), downloaded; meant for a hosted runner.
   --report <path>     Write the results as JSON.
   --markdown <path>   Write a summary as Markdown.
   --identities <path> Read and update what each installer was when first seen:
@@ -291,6 +292,11 @@ verify-install options:
                       different machines.
   --findings <path>   Write the results in verify's report format, for
                       `duo reconcile --report`. Ids are install:<recipe id>.
+  --full              Download every installer. Without it, when --identities
+                      and --baseline are both given, an installer whose
+                      resolved version and URL match the last one read, and
+                      whose last outcome was clean (no warning, failure or
+                      open issue), is not downloaded and reports as skipped.
   --max-concurrency N Hosts downloaded from in parallel (default 3). One
                       download at a time per host, each deleted once read.
   --allow-stale-binary
@@ -641,6 +647,7 @@ case "verify-install":
     options.identitiesPath = args.value("identities").map { URL(fileURLWithPath: $0) }
     options.baselinePath = args.value("baseline").map { URL(fileURLWithPath: $0) }
     options.findingsPath = args.value("findings").map { URL(fileURLWithPath: $0) }
+    options.full = args.has("full")
     let installVerifyOptions = options
     run = { await InstallVerify.run(installVerifyOptions) }
 

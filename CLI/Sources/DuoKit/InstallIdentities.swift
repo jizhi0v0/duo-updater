@@ -32,6 +32,12 @@ public struct InstallIdentities: Codable, Sendable, Equatable {
         public var firstSeenVersion: String?
         public var lastSeenAt: Date
         public var lastSeenVersion: String?
+        /// Where that version was downloaded from. With `lastSeenVersion`, what
+        /// lets `duo verify-install` skip a download it has already read
+        /// (`InstallVerify.skipsDownload`). Nil in an entry written before this
+        /// field existed, which matches no URL — so that entry downloads once
+        /// more and records it.
+        public var lastSeenURL: String? = nil
     }
 
     public var schemaVersion = 1
@@ -63,7 +69,7 @@ public struct InstallIdentities: Codable, Sendable, Equatable {
     /// nothing to record: a package inside a disk image was never opened.
     static func observed(
         identity: ArtifactInspection.Identity?, packageTeamIdentifier: String?,
-        version: String?, at date: Date
+        version: String?, url: String? = nil, at date: Date
     ) -> Recorded? {
         guard identity != nil || packageTeamIdentifier != nil else { return nil }
         return Recorded(
@@ -74,7 +80,7 @@ public struct InstallIdentities: Codable, Sendable, Equatable {
             sparklePublicKey: identity?.sparklePublicKey,
             architectures: identity?.architectures ?? [],
             firstSeenAt: date, firstSeenVersion: version,
-            lastSeenAt: date, lastSeenVersion: version)
+            lastSeenAt: date, lastSeenVersion: version, lastSeenURL: url)
     }
 
     /// How `now` differs from `recorded`, one line per field. Empty when it is
@@ -101,9 +107,10 @@ public struct InstallIdentities: Codable, Sendable, Equatable {
 
     /// Fold one download into the store and return what changed. A new recipe
     /// is recorded; a matching one has its last-seen stamp moved when its version
-    /// did; a changed one is left exactly as recorded (see the type's doc).
+    /// or download URL did; a changed one is left exactly as recorded (see the
+    /// type's doc).
     ///
-    /// Only when the version moved: the file is committed back after every run,
+    /// Only when the version or URL moved: the file is committed back after every run,
     /// four a day, and a stamp that moved every time would make each of those
     /// pull requests rewrite every entry — burying the one line that matters.
     mutating func record(_ recipeID: String, _ now: Recorded) -> [String] {
@@ -112,9 +119,11 @@ public struct InstallIdentities: Codable, Sendable, Equatable {
             return []
         }
         let changes = Self.changes(from: recorded, to: now)
-        if changes.isEmpty, recorded.lastSeenVersion != now.lastSeenVersion {
+        if changes.isEmpty,
+           recorded.lastSeenVersion != now.lastSeenVersion || recorded.lastSeenURL != now.lastSeenURL {
             entries[recipeID]?.lastSeenAt = now.lastSeenAt
             entries[recipeID]?.lastSeenVersion = now.lastSeenVersion
+            entries[recipeID]?.lastSeenURL = now.lastSeenURL
         }
         return changes
     }

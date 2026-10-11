@@ -31,6 +31,10 @@ public struct InstallVerifyOptions: Sendable {
     public var baselinePath: URL?
     /// Write the results as `duo verify --report` does, for `duo reconcile`.
     public var findingsPath: URL?
+    /// Download every installer, even one this run would skip as already read
+    /// (`InstallVerify.skipsDownload`). Without `identitiesPath` and
+    /// `baselinePath` there is nothing to skip against, and every run is full.
+    public var full = false
 }
 
 public enum InstallVerify {
@@ -90,6 +94,39 @@ public enum InstallVerify {
         let bundleID: String
         let probeHost: String
         let resolve: @Sendable () async -> ProbeOutcome
+        /// What the last runs left for this recipe; nil on a full pass, which
+        /// downloads whatever it resolves.
+        var previous: Previous? = nil
+    }
+
+    struct Previous: Sendable {
+        let recorded: InstallIdentities.Recorded?
+        let baseline: Baseline.Entry?
+    }
+
+    /// Whether an installer can go undownloaded this run: the probe resolved
+    /// the version and URL that the last download that was read had, and
+    /// nothing has gone wrong with this recipe since.
+    ///
+    /// - No recorded identity (a new recipe, a reset entry, a package with no
+    ///   identity to record): download.
+    /// - Version or URL differs from the last one read: download. A recorded
+    ///   identity that changed is never updated, so it keeps differing.
+    /// - The last outcome was not clean — a warning or failure streak, an
+    ///   unreachable streak, or an issue still open: download, or a fix would
+    ///   never register and the issue would never close.
+    /// - No baseline entry: nothing says the last outcome was clean, so
+    ///   download.
+    ///
+    /// The weekly full pass (`--full`) is what still catches an installer
+    /// replaced under an unchanged version and URL.
+    static func skipsDownload(version: String?, url: String, previous: Previous) -> Bool {
+        guard let recorded = previous.recorded, let entry = previous.baseline,
+              let version, recorded.lastSeenVersion == version,
+              recorded.lastSeenURL == url
+        else { return false }
+        let issueOpen = entry.issueNumber != nil && entry.closedAt == nil
+        return entry.consecutiveActionable == 0 && entry.consecutiveInfra == 0 && !issueOpen
     }
 
     public static func run(_ options: InstallVerifyOptions) async -> Int32 {
@@ -116,6 +153,17 @@ public enum InstallVerify {
             }
         }
 
+        // Loaded here, before anything is downloaded: what it says about each
+        // recipe's last outcome decides whether this run downloads it at all.
+        let priorBaseline = options.baselinePath.map(Baseline.load)
+        let incremental = !options.full && identities != nil && priorBaseline != nil
+        let previous: @Sendable (String) -> Previous? = { [identities] recipeID in
+            guard incremental else { return nil }
+            return Previous(
+                recorded: identities?.entries[recipeID],
+                baseline: priorBaseline?.entries[findingID(recipeID)])
+        }
+
         var targets: [Target] = []
         var skipped: [Item] = []
         var selector = VerifyOptions()
@@ -134,14 +182,16 @@ public enum InstallVerify {
             targets.append(Target(
                 recipeID: recipe.recipeID, registry: "vendor", bundleID: recipe.bundleID,
                 probeHost: host,
-                resolve: { await vendor.probeDiagnostic(recipe) }))
+                resolve: { await vendor.probeDiagnostic(recipe) },
+                previous: previous(recipe.recipeID)))
         }
         for rule in Verify.filtered(GitHubReleaseRegistry.rules, selector)
         where rule.installAssetPattern != nil {
             targets.append(Target(
                 recipeID: rule.recipeID, registry: "github", bundleID: rule.bundleID,
                 probeHost: "api.github.com",
-                resolve: { await github.resolveDiagnostic(rule) }))
+                resolve: { await github.resolveDiagnostic(rule) },
+                previous: previous(rule.recipeID)))
         }
         guard !targets.isEmpty else {
             die("nothing to verify — no recipe with an installer matches "
@@ -152,7 +202,8 @@ public enum InstallVerify {
 
           duo verify-install
           \(targets.count) installers  (\(skipped.count) skipped)  \
-        \(options.hostConcurrency) hosts at a time
+        \(options.hostConcurrency) hosts at a time  \
+        \(incremental ? "unchanged ones not downloaded" : "full pass")
           ─────────────────────────────────────────────
         """)
 
@@ -184,7 +235,7 @@ public enum InstallVerify {
             }
         }
         if options.baselinePath != nil || options.findingsPath != nil {
-            var baseline = options.baselinePath.map(Baseline.load) ?? Baseline()
+            var baseline = priorBaseline ?? Baseline()
             let findings = items.map(finding)
             for finding in findings { _ = baseline.reconcile(finding) }
             baseline.updatedAt = Date()
@@ -247,6 +298,14 @@ public enum InstallVerify {
             return item
         }
         item.url = url.absoluteString
+        if let previous = target.previous,
+           skipsDownload(version: item.version, url: url.absoluteString, previous: previous) {
+            item.status = .skipped
+            item.detail = "unchanged since "
+                + (previous.recorded?.lastSeenAt.formatted(.iso8601.year().month().day()) ?? "?")
+                + ": same version and URL, last outcome clean — not downloaded"
+            return item
+        }
 
         let workDir = FileManager.default.temporaryDirectory.appendingPathComponent(
             "duo-verify-install-\(UUID().uuidString)")
@@ -298,7 +357,7 @@ public enum InstallVerify {
         guard item.status == .ok || item.status == .warn,
               let observed = InstallIdentities.observed(
                   identity: item.identity, packageTeamIdentifier: item.packageTeamIdentifier,
-                  version: item.version, at: date)
+                  version: item.version, url: item.url, at: date)
         else { return }
         let changes = store.record(item.recipeID, observed)
         guard !changes.isEmpty else { return }
@@ -496,7 +555,11 @@ public enum InstallVerify {
         out += ", \(report.hostConcurrency) hosts at a time"
         if let free = report.minimumFreeBytes { out += ", lowest free disk \(megabytes(free))" }
         out += "\n\n"
-        let flagged = report.items.filter { $0.status != .ok }
+        // Not the installers left undownloaded because nothing changed — on most
+        // runs that is nearly all of them, and the tally above counts them.
+        let flagged = report.items.filter {
+            $0.status != .ok && !($0.status == .skipped && $0.url != nil)
+        }
         if !flagged.isEmpty {
             out += "| recipe | status | stage | detail |\n|---|---|---|---|\n"
             for item in flagged {

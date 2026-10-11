@@ -4,8 +4,11 @@
         <title>DuoUpdater</title>
         <!--
           The Sparkle feed. `scripts/publish-release.sh` regenerates this file on
-          every release and pushes it here; the app reads it from
+          every release and pushes it here. The app reads it through
+          https://updates.duoupdater.app/appcast.xml (workers/appcast relays this
+          file); builds before that read
           https://raw.githubusercontent.com/jizhi0v0/duo-updater/main/appcast.xml
+          directly, so this path must keep working.
 
           Deliberately empty rather than absent: an appcast with no items means
           "nothing newer available", which Sparkle handles as up-to-date, whereas

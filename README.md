@@ -222,12 +222,33 @@ the update chain to verify who signed the thing replacing your app.
 
 ## Privacy
 
-There is no telemetry, no analytics SDK, and no server of ours. Every network
-request goes straight to the vendor whose app is being checked (or to
-`api.github.com` / `formulae.brew.sh`, and for formula icons the sites named
-just below), and carries nothing about you beyond what
-that request needs: the app's own version, so a vendor feed can answer for the
-right channel.
+There is no telemetry and no analytics SDK. Every network request for the apps
+being checked goes straight to their vendor (or to `api.github.com` /
+`formulae.brew.sh`, and for formula icons the sites named just below), and
+carries nothing about you beyond what that request needs: the app's own
+version, so a vendor feed can answer for the right channel.
+
+**DuoUpdater's own update check.** The one server of ours is the one that
+serves DuoUpdater's own update feed, `updates.duoupdater.app/appcast.xml`, a
+Cloudflare Worker whose entire source is
+[`workers/appcast`](workers/appcast/src/index.ts). It counts roughly how many
+installs check for updates each day, so we know whether anyone is using
+DuoUpdater, and is built so that it cannot learn who:
+
+- The request is the one Sparkle always sends: no account, no device ID, no list
+  of your apps. The User-Agent is `DuoUpdater/<version> Sparkle/<version>`.
+- The Worker never stores or logs your IP address. It is used once, in memory, to pick
+  one of 65,536 buckets (an IPv6 address only by its /64 network); tens of thousands of addresses share every bucket, so
+  nothing stored can be turned back into an address. The bucket also changes
+  every day, so the same Mac cannot be followed from one day to the next.
+- Each night the day's buckets are reduced to one number per DuoUpdater version
+  and deleted. That number, *about N installs of version X on day D*, is all
+  that is kept. No country, no location, no logs of ours.
+
+Cloudflare, like GitHub before it, sees the request's IP while delivering it,
+and keeps its own request log for the domain, which the account owner can browse
+in Cloudflare's dashboard; it cannot be switched off on our plan. We do not
+export or query it, and the numbers above do not come from it.
 
 **Homebrew formula icons.** For a formula DuoUpdater bundles no logo for, the
 Homebrew group in the CLI tab shows the formula's own icon, fetched when its row

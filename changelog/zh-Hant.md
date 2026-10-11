@@ -2,6 +2,18 @@
 
 本文件是 CHANGELOG.md 的繁體中文翻譯，以英文版為準。本文件中未列出的版本會自動改以英文顯示。
 
+## 0.5.5
+
+**uv、bun 和 mise 的一鍵更新不會再因為 GitHub 的請求限額而失敗。** 它們現在和其他工具一樣使用你的 GitHub 權杖。以前可能會出現「rate limit exceeded」而停下來。
+
+**設定 › GitHub 會顯示整個網路共用的 GitHub 額度。** 你的權杖額度旁邊新增了一列，顯示這個網路還剩多少次匿名請求。zoxide、Atuin 這類無法使用權杖的工具更新失敗時，看的就是這個數字。
+
+**Homebrew 的「全部升級」中途出錯後，已經升級的 formula 不會再顯示為過期。** 結束後會重新讀取清單，工作台也會顯示 Homebrew 的錯誤訊息。
+
+**命令列工具自己的「更新」按鈕現在會等進行中的 Homebrew 升級結束**，和「全部更新」一樣。
+
+**DuoUpdater 現在從 updates.duoupdater.app 檢查自身更新。** 這台伺服器只粗略統計每天大約有多少台安裝在檢查更新，不保存任何能識別你或你的 Mac 的資訊。[具體保留哪些資料](https://github.com/jizhi0v0/duo-updater#privacy)。
+
 ## 0.5.4
 
 **Outlook 和 OneNote 又能看到新版本了。** 從 5 月起它們一直卡在 16.109，因為 DuoUpdater 讀取的那台 Microsoft 伺服器停止了更新。

@@ -19,6 +19,18 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.5
+
+**One-click updates for uv, bun and mise no longer fail on GitHub's rate limit.** They now use your GitHub token like the other tools do. Before, they could stop with "rate limit exceeded".
+
+**Settings › GitHub shows the GitHub budget your whole network shares.** A new row next to your token's budget shows how many anonymous requests this network has left. That is the number to check when a tool that can't use a token, such as the zoxide or Atuin updater, fails.
+
+**A Homebrew Upgrade All that ends in an error no longer leaves upgraded formulae listed as outdated.** The list is read again afterwards, and the workbench shows Homebrew's error.
+
+**A command-line tool's own Update button now waits for a running Homebrew upgrade**, the same way Update All already did.
+
+**DuoUpdater now checks for its own updates at updates.duoupdater.app.** That server counts roughly how many installs check each day, and stores nothing that identifies you or your Mac. [What is kept, exactly](https://github.com/jizhi0v0/duo-updater#privacy).
+
 ## 0.5.4
 
 **Outlook and OneNote see new versions again.** Since May they had been stuck on 16.109, because the Microsoft server DuoUpdater read from had stopped updating.

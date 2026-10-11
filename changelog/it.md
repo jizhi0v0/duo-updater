@@ -2,6 +2,18 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.5
+
+**Gli aggiornamenti con un clic di uv, bun e mise non falliscono più per il limite di richieste di GitHub.** Ora usano il tuo token GitHub, come gli altri strumenti. Prima potevano fermarsi con «rate limit exceeded».
+
+**Impostazioni › GitHub mostra la quota GitHub condivisa da tutta la tua rete.** Una nuova riga accanto alla quota del tuo token indica quante richieste anonime restano a questa rete. È il numero da controllare quando fallisce uno strumento che non può usare un token, come l’aggiornatore di zoxide o di Atuin.
+
+**Se «Aggiorna formule» di Homebrew termina con un errore, le formule già aggiornate non risultano più obsolete.** L’elenco viene riletto alla fine e il banco di lavoro mostra l’errore di Homebrew.
+
+**Il pulsante Aggiorna di ogni strumento da riga di comando ora attende la fine di un aggiornamento Homebrew in corso**, come già faceva «Aggiorna tutto».
+
+**DuoUpdater ora controlla i propri aggiornamenti su updates.duoupdater.app.** Quel server conta approssimativamente quante installazioni controllano ogni giorno e non conserva nulla che identifichi te o il tuo Mac. [Cosa viene conservato, esattamente](https://github.com/jizhi0v0/duo-updater#privacy).
+
 ## 0.5.4
 
 **Outlook e OneNote vedono di nuovo le nuove versioni.** Da maggio erano fermi alla 16.109, perché il server Microsoft da cui DuoUpdater leggeva aveva smesso di aggiornarsi.

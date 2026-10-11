@@ -2,6 +2,18 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.5.5
+
+**uv、bun 和 mise 的一键更新不会再因为 GitHub 的请求限额而失败。** 它们现在和其他工具一样使用你的 GitHub 令牌。以前可能会报“rate limit exceeded”停下来。
+
+**设置 › GitHub 会显示整个网络共享的 GitHub 额度。** 你的令牌额度旁边新增了一行，显示这个网络还剩多少次匿名请求。zoxide、Atuin 这类不能用令牌的工具更新失败时，看的就是这个数字。
+
+**Homebrew 的“全部升级”中途报错后，已经升级的 formula 不会再显示为过期。** 结束后会重新读取列表，工作台里也会显示 Homebrew 的报错。
+
+**命令行工具自己的“更新”按钮现在会等正在进行的 Homebrew 升级结束**，和“全部更新”一样。
+
+**DuoUpdater 现在从 updates.duoupdater.app 检查自身更新。** 这台服务器只粗略统计每天大约有多少台安装在检查更新，不保存任何能识别你或你的 Mac 的信息。[具体保留什么](https://github.com/jizhi0v0/duo-updater#privacy)。
+
 ## 0.5.4
 
 **Outlook 和 OneNote 又能看到新版本了。** 从 5 月起它们一直卡在 16.109，因为 DuoUpdater 读取的那台 Microsoft 服务器停止了更新。

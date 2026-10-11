@@ -2,6 +2,18 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.5
+
+**uv, bun ve mise için tek tıkla güncelleme artık GitHub'ın istek sınırı yüzünden başarısız olmuyor.** Bunlar artık diğer araçlar gibi GitHub belirtecinizi kullanıyor. Önceden “rate limit exceeded” hatasıyla durabiliyorlardı.
+
+**Ayarlar › GitHub, tüm ağınızın paylaştığı GitHub kotasını gösteriyor.** Belirtecinizin kotasının yanına eklenen yeni satır, bu ağın kaç anonim isteği kaldığını gösterir. zoxide veya Atuin güncelleyicisi gibi belirteç kullanamayan bir araç başarısız olduğunda bakılacak sayı budur.
+
+**Homebrew'un “Tümünü Yükselt” işlemi hatayla bittiğinde, yükseltilmiş formüller artık güncel değil olarak listelenmiyor.** Liste ardından yeniden okunur ve çalışma alanında Homebrew'un hatası gösterilir.
+
+**Bir komut satırı aracının kendi Güncelle düğmesi artık süren bir Homebrew yükseltmesinin bitmesini bekliyor**, tıpkı “Tümünü Güncelle”nin zaten yaptığı gibi.
+
+**DuoUpdater artık kendi güncellemelerini updates.duoupdater.app üzerinden denetliyor.** Bu sunucu her gün kabaca kaç kurulumun denetim yaptığını sayar ve sizi ya da Mac'inizi tanımlayan hiçbir şey saklamaz. [Tam olarak neyin saklandığı](https://github.com/jizhi0v0/duo-updater#privacy).
+
 ## 0.5.4
 
 **Outlook ve OneNote yeni sürümleri yeniden görüyor.** DuoUpdater’ın okuduğu Microsoft sunucusu güncellenmeyi bıraktığı için mayıstan beri 16.109’da takılı kalmışlardı.

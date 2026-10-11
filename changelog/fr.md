@@ -2,6 +2,18 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.5
+
+**Les mises à jour en un clic d’uv, bun et mise n’échouent plus à cause de la limite de requêtes de GitHub.** Elles utilisent désormais votre jeton GitHub, comme les autres outils. Auparavant, elles pouvaient s’arrêter sur « rate limit exceeded ».
+
+**Réglages › GitHub affiche le quota GitHub partagé par tout votre réseau.** Une nouvelle ligne, à côté du quota de votre jeton, indique combien de requêtes anonymes il reste à ce réseau. C’est le chiffre à regarder quand un outil qui ne peut pas utiliser de jeton, comme le programme de mise à jour de zoxide ou d’Atuin, échoue.
+
+**Quand « Tout mettre à niveau » de Homebrew se termine sur une erreur, les formules déjà mises à niveau ne sont plus affichées comme obsolètes.** La liste est relue ensuite, et l’atelier affiche l’erreur de Homebrew.
+
+**Le bouton Mettre à jour propre à un outil en ligne de commande attend désormais la fin d’une mise à niveau Homebrew en cours**, comme le faisait déjà « Tout mettre à jour ».
+
+**DuoUpdater vérifie désormais ses propres mises à jour sur updates.duoupdater.app.** Ce serveur compte approximativement combien d’installations vérifient chaque jour, et ne conserve rien qui permette de vous identifier, vous ou votre Mac. [Ce qui est conservé, précisément](https://github.com/jizhi0v0/duo-updater#privacy).
+
 ## 0.5.4
 
 **Outlook et OneNote voient de nouveau les nouvelles versions.** Depuis mai, ils restaient bloqués sur 16.109, car le serveur Microsoft que DuoUpdater consultait n’était plus mis à jour.

@@ -123,6 +123,30 @@ import DuoUpdaterCore
             entry: "157.0", probeVersionsByChannel: rows) != nil)
     }
 
+    /// A recipe scoped to one train is compared only with that train's probe
+    /// rows. Bartender 7's changelog (`7+`) shares a bundle id with a probe that
+    /// reads Bartender 6. Mutation: drop the `covers` filter — the 7.x recipe
+    /// is reported as leading the 6.x row.
+    @Test func aWindowedRecipeIgnoresTheOtherTrainsRows() throws {
+        let rows = ["stable": ["6.6.2"]]
+        let seven = try #require(ChangelogRecipeRegistry.recipe(
+            forBundleID: "com.surteesstudios.Bartender", version: "7.0.5"))
+        let six = try #require(ChangelogRecipeRegistry.recipe(
+            forBundleID: "com.surteesstudios.Bartender", version: "6.6.2"))
+        #expect(seven.minimumAppVersion == "7")
+        #expect(Verify.changelogLeadsProbeComplaint(
+            entry: "7.0.5", probeVersionsByChannel: rows,
+            covers: { seven.covers(appVersion: $0) }) == nil)
+        // Without the window the same reading complains…
+        #expect(Verify.changelogLeadsProbeComplaint(
+            entry: "7.0.5", probeVersionsByChannel: rows) != nil)
+        // …and a row inside the window still counts: a 6.x page a release ahead
+        // of the 6.x probe is reported.
+        #expect(Verify.changelogLeadsProbeComplaint(
+            entry: "6.8.0", probeVersionsByChannel: rows,
+            covers: { six.covers(appVersion: $0) }) != nil)
+    }
+
     @Test func nothingToCompareAgainstIsNotAComplaint() {
         // No probe ran (`duo verify --changelog`), or it broke and read nothing.
         #expect(Verify.changelogLeadsProbeComplaint(

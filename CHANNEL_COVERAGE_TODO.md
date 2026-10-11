@@ -461,7 +461,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 - ✗ **MS Teams — Public Preview** · 应用内开关，非独立构建
 - ✗ **Obsidian — Insider** · 付费 Catalyst 早鸟，无独立 macOS 自更新 feed
 - ✗ **Dropbox — Beta** · 论坛分发，口径混乱
-- ✗ **Bartender — Test Builds** · 同 feed
+- ✗ **Bartender — Test Builds** · 同 `com.surteesstudios.Bartender`；7.0.2 / 7.0.3 的测试版说明页在（`…/Bartender7/updates/7-0-2/rnotes.html`），但不在 AppcastB7 里，测试版 feed 地址与 app 内开关都没找到（2026-10-10）。详见 [审计](docs/app-audits/com-surteesstudios-Bartender.md)
 - ✗ **Plex — Beta** · Plex Pass 应用内，非独立下载
 - ✗ **Audacity 4 prerelease（alpha/beta）** · `org.audacityteam.Audacity`（与 3.x 只差大小写），版本 `4.0.0` 无后缀；4.x stable 另起 `org.audacityteam.audacity4`；`latest.test.json` 停在 beta 4，暂无可接构建（2026-10-08）
 - ✗ **Audacity 3 经旧 `audacity` cask 安装** · Caskroom 里是 `audacity`、`.app` 只对得上 `audacity@3`，Homebrew 不应答；现在落到 3.x GitHub rule，被推 3.7.9（≤3.7.8 一键被 Team 闸拒）（2026-10-08）

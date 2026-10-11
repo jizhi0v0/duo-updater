@@ -53,12 +53,16 @@ jobs:
     # nothing for a reviewer to say. Skipped at the job level so no runner and
     # no model time is spent on them at all. `verify/install-<stamp>` is the same
     # for install-verify.yml (verify/identities.json, verify/install-baseline.json),
-    # opened with the maintainer's token so its CI runs.
+    # opened with the maintainer's token so its CI runs. `recipe-autofix/` is
+    # recipe-autofix.yml's: what a reviewer here could judge, its gates already
+    # checked, and what they cannot (the vendor's page) this job cannot fetch;
+    # a second model that reads the page decides there instead.
     if: >-
       github.event.pull_request.user.login == 'jizhi0v0' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !startsWith(github.event.pull_request.head.ref, 'verify/baseline-') &&
-      !startsWith(github.event.pull_request.head.ref, 'verify/install-')
+      !startsWith(github.event.pull_request.head.ref, 'verify/install-') &&
+      !startsWith(github.event.pull_request.head.ref, 'recipe-autofix/')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

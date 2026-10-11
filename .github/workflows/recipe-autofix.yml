@@ -3,8 +3,10 @@
 # The recipe sweep on the mini files a `recipe-broken` issue; when that issue is a
 # changelog recipe whose entries vanished or collapsed, this asks Claude for new
 # values, runs every gate, and opens a DRAFT pull request that says `Refs #N`.
-# Nothing here merges anything. CLI/Sources/DuoKit/ChangelogAutofix.swift has the
-# gates and why the scope is this narrow.
+# A second model checks what the gates cannot; when it confirms everything, and
+# only while the repository variable RECIPE_AUTOFIX_AUTOMERGE is 1, the last step
+# marks the draft ready and turns on auto-merge. CLI/Sources/DuoKit/ChangelogAutofix.swift
+# has the gates, the check, and why the scope is this narrow.
 #
 # Three jobs, split by what each may hold:
 #
@@ -16,7 +18,8 @@
 #     nothing in it worth having. It ends by uploading the change as a patch.
 #   • publish (ubuntu): holds the pull-request token. It runs no model and no
 #     tests: it applies the patch to the commit propose started from, checks the
-#     paths again, pushes `recipe-autofix/issue-<N>` and opens the draft.
+#     paths again, pushes `recipe-autofix/issue-<N>`, opens the draft, and merges
+#     it only as above.
 #
 # The branch and the pull request use RECIPE_AUTOFIX_PR_TOKEN, a fine-grained
 # token for this repository (Contents + Pull requests write). A pull request
@@ -258,6 +261,7 @@ jobs:
           PY
 
       - name: Push the branch and open the draft
+        id: open
         if: env.HAS_PR_TOKEN == 'true'
         env:
           PR_TOKEN: ${{ secrets.RECIPE_AUTOFIX_PR_TOKEN }}
@@ -278,6 +282,41 @@ jobs:
           url="$(GH_TOKEN="$PR_TOKEN" gh pr create --draft --base main --head "$branch" \
             --title "$title" --body-file "$body")"
           echo "opened $url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
           gh label create recipe-autofix --color FBCA04 \
-            --description "Draft fix proposed by duo autofix; a person merges" 2>/dev/null || true
+            --description "Fix proposed by duo autofix" 2>/dev/null || true
           gh pr edit "$url" --add-label recipe-autofix
+
+      # `duo autofix` decided whether the change may merge with no person looking
+      # (every gate, a clean verify, and a second model's check of the page and
+      # the entries). The variable is the switch: unset, an eligible change stays
+      # a draft and its body says it would have merged.
+      - name: Merge an eligible change
+        if: env.HAS_PR_TOKEN == 'true'
+        env:
+          PR_TOKEN: ${{ secrets.RECIPE_AUTOFIX_PR_TOKEN }}
+          AUTOMERGE: ${{ vars.RECIPE_AUTOFIX_AUTOMERGE }}
+          URL: ${{ steps.open.outputs.url }}
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/autofix/pr.json"
+          eligible="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["autoMerge"])' "$plan")"
+          if [ "$eligible" != "True" ]; then
+            echo "not eligible; a person decides (reasons in the pull request)"; exit 0
+          fi
+          if [ "$AUTOMERGE" != "1" ]; then
+            echo "::notice::eligible, but RECIPE_AUTOFIX_AUTOMERGE is not 1: left as a draft"; exit 0
+          fi
+          # Two open changes to one family regenerate one golden each from a base
+          # without the other; main's required check does not ask for a current
+          # branch, so that pair could both merge green and leave main red.
+          family="$(python3 -c 'import json,sys,re; print(next(p for p in json.load(open(sys.argv[1]))["paths"] if re.fullmatch(r"DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/[^/]+\.swift", p)))' "$plan")"
+          self="${URL##*/}"
+          others="$(GH_TOKEN="$PR_TOKEN" gh pr list --state open --limit 100 --json number,files \
+            --jq "[.[] | select(.number != $self) | select(any(.files[]; .path == \"$family\" or .path == \"DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/Changelog.swift\"))] | map(.number | tostring) | join(\" \")")"
+          if [ -n "$others" ]; then
+            echo "::notice::open pull requests touch the same files ($others): left as a draft"; exit 0
+          fi
+          GH_TOKEN="$PR_TOKEN" gh pr ready "$URL"
+          GH_TOKEN="$PR_TOKEN" gh pr merge "$URL" --auto --squash
+          echo "auto-merge enabled on $URL"

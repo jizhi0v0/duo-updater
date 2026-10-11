@@ -34,7 +34,8 @@ public enum ClaudeCLI {
     }
 
     /// The arguments after `claude`, prompt excluded: it goes in on stdin.
-    static func arguments(model: String, systemPrompt: String) -> [String] {
+    /// `effort` nil leaves the model's own default.
+    static func arguments(model: String, effort: String? = nil, systemPrompt: String) -> [String] {
         [
             "-p",
             "--tools", "",
@@ -46,10 +47,12 @@ public enum ClaudeCLI {
             "--model", model,
             "--output-format", "json",
             "--system-prompt", systemPrompt,
-        ]
+        ] + (effort.map { ["--effort", $0] } ?? [])
     }
 
-    static func ask(prompt: String, systemPrompt: String, model: String) async throws -> String {
+    static func ask(
+        prompt: String, systemPrompt: String, model: String, effort: String? = nil
+    ) async throws -> String {
         let sandbox = FileManager.default.temporaryDirectory
             .appendingPathComponent("duo-claude-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: sandbox, withIntermediateDirectories: true)
@@ -60,9 +63,11 @@ public enum ClaudeCLI {
         var environment = ProcessInfo.processInfo.environment
         environment.removeValue(forKey: "GH_TOKEN")
         environment.removeValue(forKey: "GITHUB_TOKEN")
+        // The level is the caller's, or the model's default; never the runner's.
+        environment.removeValue(forKey: "CLAUDE_CODE_EFFORT_LEVEL")
         let seconds = Int64(timeout)
         let outcome = try await ChildProcess.run(
-            "/usr/bin/env", ["claude"] + arguments(model: model, systemPrompt: systemPrompt),
+            "/usr/bin/env", ["claude"] + arguments(model: model, effort: effort, systemPrompt: systemPrompt),
             environment: environment, workingDirectory: sandbox,
             standardInput: Data(prompt.utf8),
             deadline: .init(terminateAfter: .seconds(seconds), killAfter: .seconds(seconds + 10)),

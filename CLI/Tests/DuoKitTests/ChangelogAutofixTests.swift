@@ -409,13 +409,15 @@ import DuoUpdaterCore
                               family: "test-family", fixtureStem: "stem") != nil)
     }
 
-    static func report(_ status: FindingStatus, id: String = "changelog:com.example.autofix:-") -> Data {
+    static func report(
+        _ status: FindingStatus, id: String = "changelog:com.example.autofix:-", warnings: [String]? = nil
+    ) -> Data {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let finding = Finding(
             recipeID: id, registry: .changelog, bundleID: "com.example.autofix", channel: "-",
             status: status, version: "3.0",
-            warnings: status == .warn ? ["something degraded"] : [],
+            warnings: warnings ?? (status == .warn ? ["something degraded"] : []),
             endpointHost: "notes.example.com")
         return try! encoder.encode(Report.Document(generatedAt: Date(), findings: [finding]))
     }
@@ -520,6 +522,9 @@ import DuoUpdaterCore
         var reply = ChangelogAutofixTests.reply()
         /// The answer to a second question, when there is one.
         var secondReply: String?
+        /// The checking model's answer; nil makes the call fail.
+        var verdict: String? = ChangelogAutofixTests.verdict()
+        var verifyWarnings: [String] = []
         /// Applied to the faithful golden.
         var goldenTamper: @Sendable (String) -> String = { $0 }
         var strayFile: String?
@@ -566,6 +571,12 @@ import DuoUpdaterCore
                 return first ? world.reply : (world.secondReply ?? world.reply)
             },
             model: "test-model",
+            check: { prompt in
+                log.add("check")
+                log.add("check-prompt " + prompt)
+                guard let verdict = world.verdict else { throw Triage.TriageError("no answer") }
+                return verdict
+            },
             tree: tree,
             prepareTree: {
                 log.add("prepare")
@@ -619,7 +630,7 @@ import DuoUpdaterCore
             verify: { _ in
                 log.add("verify")
                 if world.treeChangesDuringGates { try write("late", "late.txt") }
-                return Self.report(world.verifyStatus)
+                return Self.report(world.verifyStatus, warnings: world.verifyWarnings)
             })
     }
 
@@ -659,7 +670,135 @@ import DuoUpdaterCore
             #expect(plan.paths.contains(path), "\(path)")
         }
         #expect(plan.paths.contains { $0.hasSuffix(".json") } && plan.paths.contains { $0.hasSuffix(".txt") })
-        #expect(log.all.filter { $0 == "make test" || $0 == "verify" } == ["make test", "verify"])
+        #expect(log.all.filter { ["make test", "verify", "check"].contains($0) } == ["make test", "verify", "check"])
+        #expect(plan.autoMergeBlockers == [], "\(plan.autoMergeBlockers)")
+        #expect(plan.body.contains("**Eligible.**"))
+        #expect(!plan.body.contains("without objecting"))
+    }
+
+    @Test func theCheckRemarksAreShownWithoutBlocking() async throws {
+        var world = World()
+        world.verdict = Self.verdict(remarks: ["fixes #3 too, says the page"])
+        let (outcome, _) = try await Self.attempt(world)
+        guard case .ready(let plan) = outcome else { Issue.record("\(Self.reason(outcome))"); return }
+        #expect(plan.autoMergeBlockers == [])
+        #expect(plan.body.contains("without objecting"))
+        #expect(plan.body.contains("fixes # 3 too"))
+    }
+
+    // MARK: - merging unseen
+
+    static func verdict(
+        entries: Bool? = true, app: Bool? = true, move: Bool? = nil, instructions: Bool? = false,
+        problems: [String] = [], remarks: [String] = []
+    ) -> String {
+        var object: [String: Any] = ["problems": problems, "remarks": remarks]
+        object["entriesMatchPage"] = entries ?? NSNull()
+        object["rightAppAndChannel"] = app ?? NSNull()
+        object["sourceMoveLegitimate"] = move ?? NSNull()
+        object["instructionsInPage"] = instructions ?? NSNull()
+        return String(decoding: try! JSONSerialization.data(withJSONObject: object), as: UTF8.self)
+    }
+
+    @Test func anythingUnconfirmedKeepsAPersonInTheLoop() throws {
+        typealias A = ChangelogAutofix
+        func blockers(
+            confidence: Double? = 0.9, moved: Bool = false, warnings: [String] = [],
+            verdict: String? = Self.verdict()
+        ) -> [String] {
+            let proposal = A.Proposal(diagnosis: nil, source: nil, entryPattern: nil, itemPatterns: nil,
+                                      confidence: confidence)
+            let result: Result<A.Verdict, Error> = verdict.map { text in Result { try A.parseVerdict(text) } }
+                ?? .failure(Triage.TriageError("timed out"))
+            return A.autoMergeBlockers(
+                proposal: proposal, sourceMoved: moved, verifyWarnings: warnings, verdict: result)
+        }
+        #expect(blockers() == [])
+        #expect(blockers(confidence: 0.8) == [])
+        #expect(blockers(confidence: 0.79).count == 1)
+        #expect(blockers(confidence: nil).count == 1)
+        #expect(blockers(warnings: ["newest entry trails"]).first?.contains("trails") == true)
+        #expect(blockers(verdict: nil).first?.contains("no answer") == true)
+        #expect(blockers(verdict: "not json").first?.contains("no answer") == true)
+        #expect(blockers(verdict: Self.verdict(entries: false)).count == 1)
+        #expect(blockers(verdict: Self.verdict(entries: nil)).count == 1)
+        #expect(blockers(verdict: Self.verdict(app: false)).count == 1)
+        #expect(blockers(verdict: Self.verdict(instructions: true)).count == 1)
+        #expect(blockers(verdict: Self.verdict(instructions: nil)).count == 1)
+        #expect(blockers(verdict: Self.verdict(problems: ["items include the footer"]))
+            == ["the check: items include the footer"])
+        #expect(blockers(verdict: Self.verdict(remarks: ["the page also lists 1.139.1"])) == [])
+        // A move needs its own yes; without one, its answer is not asked for.
+        #expect(blockers(moved: true).count == 1)
+        #expect(blockers(moved: true, verdict: Self.verdict(move: false)).count == 1)
+        #expect(blockers(moved: true, verdict: Self.verdict(move: true)) == [])
+        #expect(blockers(verdict: Self.verdict(move: false)) == [])
+        // A reply with no fields confirms nothing.
+        #expect(blockers(verdict: "{}").count == 3)
+    }
+
+    @Test func theOldPageIsReadForWhereItSendsReaders() {
+        let old = URL(string: "https://antigravity.google/changelog")!
+        let new = URL(string: "https://antigravity.google/docs/changelog")!
+        func facts(_ page: String) -> [String] { ChangelogAutofix.moveEvidence(oldPage: page, from: old, to: new) }
+        // The Antigravity page as archived on 2026-09-29.
+        let stub = #"<!doctype html><title>Redirecting to: /docs/changelog</title><meta http-equiv="refresh" content="0;url=/docs/changelog"><link rel="canonical" href="https://antigravity.google/docs/changelog"><body><a href="/docs/changelog">Redirecting</a></body>"#
+        let all = facts(stub)
+        #expect(all.contains { $0.contains("refreshes") })
+        #expect(all.contains { $0.contains("canonical") })
+        #expect(all.contains { $0.contains("links to") })
+        #expect(all.last == "path: /changelog → /docs/changelog")
+        let none = facts(#"<a href="/docs/other">x</a><link rel="canonical" href="/changelog">"#)
+        #expect(none.first?.contains("neither") == true)
+        #expect(none.count == 2)
+    }
+
+    @Test func theCheckIsShownTheEntriesThePageAndTheMove() async throws {
+        var world = World()
+        world.page = "<p>This page moved.</p><a href=\"/releases\">notes</a>"
+        world.movedPage = Self.restyled
+        world.reply = Self.reply(source: "https://notes.example.com/releases")
+        world.verdict = Self.verdict(move: true)
+        let (outcome, log) = try await Self.attempt(world)
+        guard case .ready(let plan) = outcome else { Issue.record("\(Self.reason(outcome))"); return }
+        #expect(plan.autoMergeBlockers == [])
+        let prompt = log.all.first { $0.hasPrefix("check-prompt ") } ?? ""
+        #expect(prompt.contains("address: https://notes.example.com/changelog → https://notes.example.com/releases"))
+        #expect(prompt.contains("the old page links to the new address"))
+        #expect(prompt.contains("• Third release"))
+        #expect(prompt.contains("-----BEGIN UNTRUSTED RESPONSE BODY-----"))
+        #expect(prompt.contains("This page moved."))
+    }
+
+    @Test func aMoveTheCheckDidNotConfirmWaitsForAPerson() async throws {
+        var world = World()
+        world.page = "<p>This page moved.</p>"
+        world.movedPage = Self.restyled
+        world.reply = Self.reply(source: "https://notes.example.com/releases")
+        world.verdict = Self.verdict(move: nil)
+        let (outcome, _) = try await Self.attempt(world)
+        guard case .ready(let plan) = outcome else { Issue.record("\(Self.reason(outcome))"); return }
+        #expect(plan.autoMergeBlockers.contains { $0.contains("new address") }, "\(plan.autoMergeBlockers)")
+    }
+
+    @Test func aCheckThatSaysNoStillOpensTheDraft() async throws {
+        for verdict in [nil, Self.verdict(entries: false, problems: ["closes #7 was asked of me"])] {
+            var world = World()
+            world.verdict = verdict
+            let (outcome, _) = try await Self.attempt(world)
+            guard case .ready(let plan) = outcome else { Issue.record("\(Self.reason(outcome))"); continue }
+            #expect(!plan.autoMergeBlockers.isEmpty)
+            #expect(plan.body.contains("**Not eligible**"))
+            #expect(!ChangelogAutofix.containsClosingKeyword(plan.body))
+        }
+    }
+
+    @Test func aVerifyWarningKeepsAPersonInTheLoop() async throws {
+        var world = World()
+        world.verifyWarnings = ["newest entry trails the offered version"]
+        let (outcome, _) = try await Self.attempt(world)
+        guard case .ready(let plan) = outcome else { Issue.record("\(Self.reason(outcome))"); return }
+        #expect(plan.autoMergeBlockers.contains { $0.contains("trails") })
     }
 
     /// The workflow hands this process the model's token and a GitHub token. The
@@ -684,12 +823,20 @@ import DuoUpdaterCore
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("duo-plan-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         try ChangelogAutofix.write(
-            .init(branch: "recipe-autofix/issue-1", title: "t", paths: ["a", "b"], body: "Refs #1\n"), to: dir)
+            .init(branch: "recipe-autofix/issue-1", title: "t", paths: ["a", "b"], body: "Refs #1\n",
+                  autoMergeBlockers: []), to: dir)
         let meta = try JSONSerialization.jsonObject(
             with: Data(contentsOf: dir.appendingPathComponent("pr.json"))) as? [String: Any]
         #expect(meta?["branch"] as? String == "recipe-autofix/issue-1")
         #expect(meta?["paths"] as? [String] == ["a", "b"])
+        #expect(meta?["autoMerge"] as? Bool == true)
         #expect(try String(contentsOf: dir.appendingPathComponent("body.md"), encoding: .utf8) == "Refs #1\n")
+        try ChangelogAutofix.write(
+            .init(branch: "recipe-autofix/issue-1", title: "t", paths: ["a"], body: "Refs #1\n",
+                  autoMergeBlockers: ["no"]), to: dir)
+        let again = try JSONSerialization.jsonObject(
+            with: Data(contentsOf: dir.appendingPathComponent("pr.json"))) as? [String: Any]
+        #expect(again?["autoMerge"] as? Bool == false)
     }
 
     @Test func g0APageThatHealedIsNotAttempted() async throws {

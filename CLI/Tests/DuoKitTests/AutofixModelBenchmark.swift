@@ -124,8 +124,8 @@ struct AutofixModelBenchmark {
         return String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
     }
 
-    /// `ClaudeCLI.ask` with the same arguments plus `--effort`, keeping the whole
-    /// JSON document for its cost, tokens and duration.
+    /// `ClaudeCLI.ask`, keeping the whole JSON document for its cost, tokens and
+    /// duration.
     static func ask(_ prompt: String, model spec: String, raw: inout Data) async throws -> String {
         let (model, effort) = split(spec)
         let system = try String(
@@ -137,12 +137,10 @@ struct AutofixModelBenchmark {
         var environment = ProcessInfo.processInfo.environment
         environment.removeValue(forKey: "GH_TOKEN")
         environment.removeValue(forKey: "GITHUB_TOKEN")
-        // The level comes from the flag alone.
         environment.removeValue(forKey: "CLAUDE_CODE_EFFORT_LEVEL")
         let seconds = Int64(ClaudeCLI.timeout)
         let outcome = try await ChildProcess.run(
-            "/usr/bin/env", ["claude"] + ClaudeCLI.arguments(model: model, systemPrompt: system)
-                + (effort.map { ["--effort", $0] } ?? []),
+            "/usr/bin/env", ["claude"] + ClaudeCLI.arguments(model: model, effort: effort, systemPrompt: system),
             environment: environment, workingDirectory: sandbox,
             standardInput: Data(prompt.utf8),
             deadline: .init(terminateAfter: .seconds(seconds), killAfter: .seconds(seconds + 10)),
@@ -194,7 +192,10 @@ struct AutofixModelBenchmark {
                 replies.value.append(text)
                 return text
             },
-            model: model, tree: tree,
+            model: model,
+            // Reached only after G7, which the benchmark never runs.
+            check: { _ in throw Stop() },
+            tree: tree,
             prepareTree: {
                 // The family file as it was when it broke, when it still lines up
                 // with this checkout's registry; otherwise this checkout's file with

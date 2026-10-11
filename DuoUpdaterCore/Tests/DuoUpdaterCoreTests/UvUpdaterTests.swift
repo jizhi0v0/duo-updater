@@ -148,9 +148,76 @@ import CryptoKit
 
     func updater(
         _ box: Sandbox, verifier: UvVerifier? = nil, busy: @escaping UvUpdater.BusyCheck = { nil },
-        environment: [String: String] = [:]
+        environment: [String: String] = [:], token: String? = nil
     ) -> UvUpdater {
-        UvUpdater(busy: busy, scanner: box.scanner, verifier: verifier ?? box.verifier(), environment: { environment })
+        UvUpdater(busy: busy, scanner: box.scanner, verifier: verifier ?? box.verifier(), environment: { environment },
+                  token: { token })
+    }
+
+    /// The app's GitHub token reaches uv as `UV_GITHUB_TOKEN`, uv's own name for
+    /// `--token`, so `self update` is not held to the anonymous 60 an hour. No
+    /// token, no variable; one the user already exported wins.
+    /// Kills: not setting it; setting it from a nil token; overwriting the
+    /// user's.
+    @Test func theAppsGitHubTokenReachesUvSelfUpdate() async throws {
+        for (token, exported, expected) in [
+            ("ZZFixture-token", nil, "ZZFixture-token"),
+            (nil, nil, nil),
+            ("ZZFixture-token", "ZZFixture-users-own", "ZZFixture-users-own"),
+        ] as [(String?, String?, String?)] {
+            let box = try Sandbox()
+            try box.install(version: "0.12.20", signer: "vendor", selfUpdate: box.installerBody(to: "0.12.21"))
+            let status = try await box.status()
+            var environment: [String: String] = [:]
+            environment["UV_GITHUB_TOKEN"] = exported
+            let outcome = await updater(box, environment: environment, token: token).update(status)
+            #expect(outcome == .updated(version: "0.12.21"))
+            let env = try #require(box.read("ENV"))
+            if let expected {
+                #expect(env.contains("UV_GITHUB_TOKEN=\(expected)\n"))
+            } else {
+                #expect(!env.contains("UV_GITHUB_TOKEN"))
+            }
+        }
+    }
+
+    /// A token GitHub already rejected this round is not handed on; until then
+    /// the resolved one is. Kills: dropping the rejection check; answering nil
+    /// always.
+    @Test func aTokenGitHubRejectedIsNotHandedOn() async {
+        #expect(await UvUpdater.unlessRejected(isRejected: { true }, resolve: { "ZZFixture-token" })() == nil)
+        #expect(await UvUpdater.unlessRejected(isRejected: { false }, resolve: { "ZZFixture-token" })() == "ZZFixture-token")
+    }
+
+    /// uv's lookup answered 401 for the token it was handed (uv 0.10.7's line,
+    /// 2026-10-11): run once more without it. Not for any other failure, and
+    /// not for a token the user exported, which is theirs to fix.
+    /// Kills: no retry; retrying every failure; retrying the user's token;
+    /// retrying with the token still set.
+    @Test func aRejectedTokenIsRetriedOnceWithout() async throws {
+        let unauthorized = "echo 'error: HTTP status client error (401 Unauthorized) for url (https://api.github.com/repos/astral-sh/uv/releases)' >&2; exit 2"
+        for (token, exported, failure, runs, updated) in [
+            ("ZZFixture-token", nil, unauthorized, 2, true),
+            ("ZZFixture-token", nil, "echo 'error: something else' >&2; exit 2", 1, false),
+            (nil, "ZZFixture-users-own", unauthorized, 1, false),
+        ] as [(String?, String?, String, Int, Bool)] {
+            let box = try Sandbox()
+            let body = "echo run >> \"\(box.root.path)/RUNS\"\n"
+                + "if [ -n \"$UV_GITHUB_TOKEN\" ]; then \(failure); fi\n"
+                + box.installerBody(to: "0.12.21")
+            try box.install(version: "0.12.20", signer: "vendor", selfUpdate: body)
+            let status = try await box.status()
+            var environment: [String: String] = [:]
+            environment["UV_GITHUB_TOKEN"] = exported
+            let outcome = await updater(box, environment: environment, token: token).update(status)
+            #expect(box.read("RUNS")?.split(separator: "\n").count == runs)
+            if updated {
+                #expect(outcome == .updated(version: "0.12.21"))
+                #expect(!(box.read("ENV") ?? "").contains("UV_GITHUB_TOKEN"))
+            } else {
+                #expect(outcome != .updated(version: "0.12.21"))
+            }
+        }
     }
 
     /// The child reads the receipt the check read: `HOME` is the scanner's, the

@@ -35,6 +35,7 @@ import Foundation
 public struct UvUpdater: Sendable {
 
     typealias BusyCheck = @Sendable () -> UvActivity.Busy?
+    typealias Token = @Sendable () async -> String?
 
     let busy: BusyCheck
     /// Re-reads the install before the run and after it.
@@ -42,6 +43,9 @@ public struct UvUpdater: Sendable {
     let verifier: UvVerifier
     /// The child's environment before `HOME` and `PATH` are set.
     let environment: @Sendable () -> [String: String]
+    /// The GitHub token the app's own API requests carry, if any. Handed to uv
+    /// as `UV_GITHUB_TOKEN` (see `update`).
+    let token: Token
     let deadline: ChildProcess.Deadline
 
     /// The archive is ~17 MB (0.12.21 arm64: 17,001,427 bytes) and the installer
@@ -57,7 +61,19 @@ public struct UvUpdater: Sendable {
             // uv and the installer's curl both read the proxy variables, which a
             // GUI app launched by launchd does not have. See
             // `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy })
+            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            token: UvUpdater.unlessRejected(
+                isRejected: { GitHubCredentials.shared.isRejected },
+                resolve: { await ChangelogService.gitHubToken() }))
+    }
+
+    /// The token to hand uv, or nil once GitHub has rejected it this round.
+    /// `ChangelogService.gitHubToken()` keeps answering a revoked token for its
+    /// cache's lifetime; the app's own requests then go out anonymously
+    /// (`GitHubCredentials`), and uv must too: a rejected token fails uv's
+    /// release lookup where an anonymous one would still be answered.
+    static func unlessRejected(isRejected: @escaping @Sendable () -> Bool, resolve: @escaping Token) -> Token {
+        { isRejected() ? nil : await resolve() }
     }
 
     init(
@@ -65,12 +81,14 @@ public struct UvUpdater: Sendable {
         scanner: UvScanner,
         verifier: UvVerifier,
         environment: @escaping @Sendable () -> [String: String],
+        token: @escaping Token,
         deadline: ChildProcess.Deadline = UvUpdater.defaultDeadline
     ) {
         self.busy = busy
         self.scanner = scanner
         self.verifier = verifier
         self.environment = environment
+        self.token = token
         self.deadline = deadline
     }
 
@@ -138,7 +156,31 @@ public struct UvUpdater: Sendable {
             environment.removeValue(forKey: key)
         }
         environment["PATH"] = CLIToolCommandRunner.path(prefix: command.pathPrefix)
-        let run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
+        // `uv self update` asks `api.github.com` with no token unless given one,
+        // and fails on the 60-an-hour budget every program behind this IP
+        // address shares: "error: GitHub API rate limit exceeded. Please provide
+        // a GitHub token via the `--token` option." Its `--token` reads
+        // `UV_GITHUB_TOKEN` too (`uv self update --help`; the variable is in every
+        // release from 0.6.0, read from the binaries), and an environment
+        // variable stays out of the argument list `ps` shows. One already set
+        // (a terminal-run `duo`) is the user's and is left alone.
+        var handedToken = false
+        if environment["UV_GITHUB_TOKEN"] == nil, let token = await token() {
+            environment["UV_GITHUB_TOKEN"] = token
+            handedToken = true
+        }
+        var run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
+        // The token is the first to reach GitHub this round and it was rejected
+        // (revoked, expired). uv 0.10.7 then stops at its release lookup,
+        // before it downloads anything (2026-10-11):
+        //
+        //     error: HTTP status client error (401 Unauthorized) for url (https://api.github.com/repos/astral-sh/uv/releases)
+        //
+        // Once more without it, as the app's own requests do after a 401.
+        if handedToken, Self.tokenWasRejected(run) {
+            environment.removeValue(forKey: "UV_GITHUB_TOKEN")
+            run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
+        }
         let outcome: ChildProcess.Outcome
         switch run.result {
         case .couldNotStart(let error):
@@ -166,6 +208,12 @@ public struct UvUpdater: Sendable {
                 output: run.text)
         }
         return .updated(version: version)
+    }
+
+    /// Whether uv failed because GitHub's API rejected the token it was given.
+    static func tokenWasRejected(_ run: CLIToolCommandRunner.Run) -> Bool {
+        guard case .finished(let outcome) = run.result, !outcome.succeeded else { return false }
+        return run.lines.contains { $0.hasPrefix("error: ") && $0.contains("401") && $0.contains("api.github.com") }
     }
 
     /// The line the row shows when the command failed.

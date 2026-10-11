@@ -149,8 +149,9 @@ import Testing
         let withApp = top.appendingPathComponent("work-app", isDirectory: true)
         let without = top.appendingPathComponent("work-none", isDirectory: true)
         let mounts = [withApp, without].map { $0.appendingPathComponent("mnt-ZZFixture.dmg") }
+        let copies = [withApp, without].map { $0.appendingPathComponent("ZZFixture.dmg") }
         defer {
-            for mount in mounts { await forceDetach(mount) }
+            for (mount, image) in zip(mounts, copies) { await forceDetach(mount, image: image) }
             try? fm.removeItem(at: top)
         }
 
@@ -163,6 +164,7 @@ import Testing
         #expect(app.lastPathComponent == "ZZFixture.app")
         #expect(fm.fileExists(atPath: app.appendingPathComponent("Contents/payload").path))
         #expect(!isMountPoint(mounts[0]), "the image stayed mounted after the app was copied out")
+        #expect(await !TestDiskImages.isAttached(copies[0]), "the image stayed attached after the app was copied out")
 
         try fm.createDirectory(at: without, withIntermediateDirectories: true)
         try fm.copyItem(at: images.empty, to: without.appendingPathComponent("ZZFixture.dmg"))
@@ -173,6 +175,7 @@ import Testing
             }
         }
         #expect(!isMountPoint(mounts[1]), "the image stayed mounted after no app was found")
+        #expect(await !TestDiskImages.isAttached(copies[1]), "the image stayed attached after no app was found")
     }
 
     /// The package route's DMG, same two exits: a `.pkg` copied out, and none.
@@ -187,7 +190,9 @@ import Testing
         let without = top.appendingPathComponent("work-none", isDirectory: true)
         let mounts = [withPkg, without].map { $0.appendingPathComponent("mnt") }
         defer {
-            for mount in mounts { await forceDetach(mount) }
+            for (mount, image) in zip(mounts, [images.full, images.empty]) {
+                await forceDetach(mount, image: image)
+            }
             try? fm.removeItem(at: top)
         }
         let installer = PackageInstaller(opener: { _ in })
@@ -201,6 +206,7 @@ import Testing
         #expect(copied == withPkg.appendingPathComponent("ZZFixture.pkg"))
         #expect(fm.fileExists(atPath: copied.path))
         #expect(!isMountPoint(mounts[0]), "the image stayed mounted after the package was copied out")
+        #expect(await !TestDiskImages.isAttached(images.full), "the image stayed attached after the package was copied out")
 
         try fm.createDirectory(at: without, withIntermediateDirectories: true)
         await #expect(throws: PackageInstaller.PackageError.self) {
@@ -210,6 +216,7 @@ import Testing
             }
         }
         #expect(!isMountPoint(mounts[1]), "the image stayed mounted after no package was found")
+        #expect(await !TestDiskImages.isAttached(images.empty), "the image stayed attached after no package was found")
     }
 
     /// Two images: `full` holds `ZZFixture.app` and `ZZFixture.pkg` (a plain file
@@ -217,6 +224,7 @@ import Testing
     /// rather than `create -srcfolder`: the same attachable HFS image in ~30 ms
     /// instead of ~5 s (measured on macOS 27).
     private func diskImages(in top: URL) async throws -> (full: URL, empty: URL) {
+        await TestDiskImages.sweepStaleOnce()
         let fm = FileManager.default
         let fullSource = top.appendingPathComponent("src-full", isDirectory: true)
         _ = try bundle(at: fullSource.appendingPathComponent("ZZFixture.app"), mode: 0o755, marker: "payload")
@@ -248,11 +256,14 @@ import Testing
         return mine.st_dev != parent.st_dev
     }
 
-    /// Test-side cleanup, so a red run does not leave an image attached.
-    private func forceDetach(_ mount: URL) async {
-        guard isMountPoint(mount) else { return }
-        _ = try? await ChildProcess.run(
-            "/usr/bin/hdiutil", ["detach", mount.path, "-force"], onCancel: .runToCompletion)
+    /// Test-side cleanup, so a red run does not leave an image attached — by its
+    /// mount point while it has one, then by device for one left attached unmounted.
+    private func forceDetach(_ mount: URL, image: URL) async {
+        if isMountPoint(mount) {
+            _ = try? await ChildProcess.run(
+                "/usr/bin/hdiutil", ["detach", mount.path, "-force"], onCancel: .runToCompletion)
+        }
+        await TestDiskImages.detach(image)
     }
 
     // MARK: - Delta

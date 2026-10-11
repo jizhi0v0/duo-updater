@@ -320,12 +320,12 @@ private struct HelperStatusRow: View {
                 .settingsRow()
             } else {
                 SettingsField(title: "App Store helper") {
-                    Button("Enable…") { helper.register() }
+                    Button("Enable…") { Task { await helper.register() } }
                         .settingsGlassButton()
                 }
             }
         }
-        .onAppear { helper.refreshStatus() }
+        .task { await helper.refreshStatusOffMain() }
         // Probe once on arrival rather than waiting to be asked: this page exists to
         // say whether things work, and "Enabled" alone cannot. It also means the
         // result line is populated from the start, so the first press of Check

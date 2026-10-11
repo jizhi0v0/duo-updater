@@ -7,7 +7,20 @@
 # (#1030). Downloading every installer is traffic that is free here and metered
 # on the mini — hence a hosted runner.
 #
-# Four times a day, between the mini's sweeps. Each run:
+# Four times a day. Most runs download only what changed: an installer whose
+# resolved version and URL match the last one read, and whose last outcome was
+# clean, is skipped (`InstallVerify.skipsDownload`). Downloading all ~280
+# (~60 GB) every run was nearly all repeat traffic: almost every version was
+# the previous run's (#1203).
+#
+# A full pass — every installer, which is what catches one replaced under an
+# unchanged version and URL — is owed, not scheduled: `duo verify-install` does
+# one by itself whenever `verify/identities.json` records none in the last 7
+# days (`InstallVerify.fullPassOwed`), and only a full run without `only`
+# records one. That record reaches `main` only through step 3's pull request,
+# so a full run whose state is dropped (the wait below gave up, or the commit
+# failed) leaves the next run still owing one. `full` forces one by hand.
+# Each run:
 #   1. holds the downloads against `verify/identities.json` (what each installer
 #      was when first seen) and `verify/install-baseline.json` (streaks, issue
 #      numbers — its own file, never the sweep's `verify/baseline.json`);
@@ -34,7 +47,9 @@ name: Install verify
 
 on:
   schedule:
-    # UTC. The mini sweeps at :17 past 02/08/14/20 UTC; these sit halfway between.
+    # UTC. Meant to sit between the mini's sweeps (:17 past 02/08/14/20), but
+    # scheduled runs have started 2.5–6 hours late (#1203), so in practice they
+    # land anywhere. Nothing depends on it: the two jobs share no state.
     - cron: "47 5,11,17,23 * * *"
   workflow_dispatch:
     inputs:
@@ -46,6 +61,11 @@ on:
         description: "Hosts downloaded from in parallel"
         required: false
         default: "3"
+      full:
+        description: "Download every installer, not only the ones that changed"
+        type: boolean
+        required: false
+        default: false
 
 # Issues through GITHUB_TOKEN; the branch and the pull request through the
 # secret above, which carries its own permissions.
@@ -124,6 +144,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ONLY: ${{ inputs.only }}
           CONCURRENCY: ${{ inputs.concurrency }}
+          FULL: ${{ inputs.full == true }}
         run: |
           args=(verify-install --allow-stale-binary
                 --max-concurrency "${CONCURRENCY:-3}"
@@ -132,6 +153,7 @@ jobs:
                 --baseline verify/install-baseline.json
                 --findings install-findings.json)
           if [ -n "$ONLY" ]; then args+=(--only "$ONLY"); fi
+          if [ "$FULL" = "true" ]; then args+=(--full); fi
           set +e
           scripts/run-with-hang-report.sh 19800 CLI/.build/debug/duo "${args[@]}"
           status=$?

@@ -90,6 +90,36 @@ import DuoUpdaterCore
         #expect(store == before)
     }
 
+    /// The URL is what an incremental run compares besides the version, so a
+    /// new one under the same version is recorded — or that installer would be
+    /// downloaded on every run from then on.
+    @Test func aNewURLMovesTheLastSeenStamp() {
+        var store = InstallIdentities()
+        var first = recorded()
+        first.lastSeenURL = "https://downloads.example.com/a.dmg"
+        _ = store.record("vendor:a", first)
+        var moved = recorded(at: day2)
+        moved.lastSeenURL = "https://cdn.example.com/a.dmg"
+        #expect(store.record("vendor:a", moved).isEmpty)
+        #expect(store.entries["vendor:a"]?.lastSeenURL == "https://cdn.example.com/a.dmg")
+        #expect(store.entries["vendor:a"]?.lastSeenAt == day2)
+    }
+
+    /// A file written before `lastSeenURL` existed still reads.
+    @Test func anEntryWithoutAURLStillReads() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("identities-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data("""
+            {"schemaVersion": 1, "entries": {"vendor:a": {"architectures": ["arm64"],
+             "firstSeenAt": "2026-09-01T00:00:00Z", "lastSeenAt": "2026-09-01T00:00:00Z",
+             "lastSeenVersion": "1.0"}}}
+            """.utf8).write(to: url)
+        let store = try InstallIdentities.load(from: url)
+        #expect(store.entries["vendor:a"]?.lastSeenVersion == "1.0")
+        #expect(store.entries["vendor:a"]?.lastSeenURL == nil)
+    }
+
     /// The whole point: a change is reported and NOT accepted, so it is
     /// reported again next run until someone edits the entry.
     @Test func aChangeLeavesTheRecordAsItWas() {

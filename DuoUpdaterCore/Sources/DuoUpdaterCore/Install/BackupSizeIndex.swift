@@ -205,7 +205,7 @@ final class BackupSizeIndex: @unchecked Sendable {
     /// Where a test process's default instance writes — always, whatever
     /// `DUO_STATE_DIR` says. Same shape, and the same reasoning, as
     /// ``TauriProofStore/testProcessScratchFileURL``.
-    static let testProcessScratchFileURL = FileManager.default.temporaryDirectory
+    static let testProcessScratchFileURL = DuoStateDirectory.testProcessScratchRoot
         .appendingPathComponent("duo-backup-sizes-tests-\(UUID().uuidString)", isDirectory: true)
         .appendingPathComponent("com.duoupdater.app", isDirectory: true)
         .appendingPathComponent("backup-sizes.json")

@@ -195,7 +195,7 @@ public final class UvVerifiedFiles: @unchecked Sendable {
     /// (`UvVerifiedFiles.vitePlus`).
     init(fileURL: URL? = nil, name: String = "uv-verified-files.json") {
         self.fileURL = fileURL ?? (DuoStateDirectory.isTestProcess
-            ? FileManager.default.temporaryDirectory
+            ? DuoStateDirectory.testProcessScratchRoot
                 .appendingPathComponent("duo-uv-verified-tests-\(UUID().uuidString)")
                 .appendingPathComponent(name)
             : DuoStateDirectory.base

@@ -265,7 +265,7 @@ public final class AtuinPublishedDigests: @unchecked Sendable {
 
     init(fileURL: URL? = nil) {
         self.fileURL = fileURL ?? (DuoStateDirectory.isTestProcess
-            ? FileManager.default.temporaryDirectory
+            ? DuoStateDirectory.testProcessScratchRoot
                 .appendingPathComponent("duo-atuin-digests-tests-\(UUID().uuidString)")
                 .appendingPathComponent("atuin-published-digests.json")
             : DuoStateDirectory.base

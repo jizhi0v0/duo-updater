@@ -85,13 +85,17 @@ public extension SparkleAppcastSource {
     /// counted as usable, which is correct for this question and worth knowing
     /// when reading a count back (Helium's feed publishes one).
     ///
+    /// A `ChannelBinding` feed is the exception: its address only ever reaches
+    /// an install the binding resolved, so `resolution` stands the probe app on
+    /// that channel the way `AppScanner` does, headers included.
+    ///
     /// Throws only on transport failure; a non-2xx comes back as
     /// `.failure(.badStatus)` so the caller can report the code instead of
     /// unwrapping a localized string.
     func readFeed(
-        _ feedURL: URL, bundleID: String
+        _ feedURL: URL, bundleID: String, resolution: ResolvedChannel? = nil
     ) async throws -> Result<SparkleFeedReading, SparkleFeedReadFailure> {
-        let request = Self.feedRequest(url: feedURL, headers: [:])
+        let request = Self.feedRequest(url: feedURL, headers: resolution?.feedHTTPHeaders ?? [:])
         let (data, response) = try await session.versionFeedData(
             for: request, label: "Sparkle verify \(bundleID)")
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
@@ -101,7 +105,8 @@ public extension SparkleAppcastSource {
         let items = SparkleAppcastParser.parse(data, relativeTo: feedURL)
         let osVersion = Self.numericSystemVersion()
         let usable = Self.probeUsableItems(
-            items, feedURL: feedURL, bundleID: bundleID, osVersion: osVersion)
+            items, feedURL: feedURL, bundleID: bundleID, osVersion: osVersion,
+            resolution: resolution)
         let head = usable.first
         return .success(SparkleFeedReading(
             itemCount: items.count,
@@ -130,10 +135,11 @@ public extension SparkleAppcastSource {
     }
 
     private static func probeUsableItems(
-        _ items: [SparkleAppcastItem], feedURL: URL, bundleID: String, osVersion: String
+        _ items: [SparkleAppcastItem], feedURL: URL, bundleID: String, osVersion: String,
+        resolution: ResolvedChannel? = nil
     ) -> [SparkleAppcastItem] {
         usableItems(
-            for: probeApp(bundleID: bundleID, feedURL: feedURL),
+            for: probeApp(bundleID: bundleID, feedURL: feedURL, resolution: resolution),
             from: items, osVersion: osVersion,
             // Pinned, not taken from the host. `usableItems` defaults these to
             // `HostArch.current` and `HostArch.canRunIntelBuilds`, and the
@@ -162,9 +168,12 @@ public extension SparkleAppcastSource {
     /// The one exception is an app whose fresh install is not on the default
     /// channel at all (OBS tags its stable releases `stable`): the stand-in then
     /// wears the vendor's own default, `ChannelBinding.freshInstallResolution`,
-    /// which is just as machine-independent.
-    private static func probeApp(bundleID: String, feedURL: URL) -> InstalledApp {
-        let fresh = ChannelBinding.freshInstallResolution(bundleID: bundleID)
+    /// which is just as machine-independent. A channel feed's own `resolution`
+    /// wins over both: it is the only install that address is handed to.
+    internal static func probeApp(
+        bundleID: String, feedURL: URL, resolution: ResolvedChannel? = nil
+    ) -> InstalledApp {
+        let fresh = resolution ?? ChannelBinding.freshInstallResolution(bundleID: bundleID)
         return InstalledApp(
             name: bundleID, bundleID: bundleID,
             shortVersion: nil, buildVersion: nil,
@@ -173,5 +182,67 @@ public extension SparkleAppcastSource {
             sparkleChannelNames: fresh?.sparkleChannelNames ?? [],
             releaseChannel: fresh?.channel ?? .stable,
             channelIsAuthoritative: fresh != nil)
+    }
+}
+
+/// What one capped GET of a feed's head enclosure saw — fetch only, no verdict.
+public enum SparkleEnclosureAnswer: Sendable, Equatable {
+    /// The server answered. `bytesRead` is how much of the body was read before
+    /// the transfer was stopped: never more than
+    /// `SparkleAppcastSource.enclosureReadCap`, whatever the server sent.
+    case answered(status: Int, bytesRead: Int)
+    /// The request never got an answer: DNS, TLS, a timeout, a reset.
+    case noAnswer(detail: String)
+}
+
+public extension SparkleAppcastSource {
+
+    /// The most of an enclosure's body `probeEnclosure` reads: the one byte
+    /// `Range: bytes=0-0` asks for.
+    ///
+    /// A cap and not just the header, because not every server honours the
+    /// range: in a read-only survey of Sparkle enclosures on 2026-10-11,
+    /// `morphing.cloud` and `su.airbuddy.app` answered it with a 200 and the
+    /// whole file (40 MB from the first).
+    static let enclosureReadCap = 1
+
+    /// Ask whether a feed's head enclosure is still served, without downloading
+    /// it. Sweep-only, like `VendorProbeSource.installURLReachability`, whose
+    /// request it mirrors — `Downloader`'s user agent and identity encoding,
+    /// plus `Range: bytes=0-0` — so it asks about the request a one-click
+    /// install would make. Sparkle installs send no other headers.
+    ///
+    /// One ranged GET, no HEAD first. A body is read only on a 2xx, at most
+    /// `enclosureReadCap` bytes, and the transfer is then cancelled
+    /// (`URLSession.CountedBytes` settles it, so the request is still recorded).
+    /// A 200 where 206 was asked for is still an answer that the file is there.
+    func probeEnclosure(_ url: URL, store: EventStore = .shared) async -> SparkleEnclosureAnswer {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue(Downloader.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+        request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
+        do {
+            let (stream, response) = try await session.countedBytes(
+                for: request, purpose: .versionCheck, store: store)
+            guard let http = response as? HTTPURLResponse else {
+                return .noAnswer(detail: "not an HTTP response")
+            }
+            var read = 0
+            if (200..<300).contains(http.statusCode) {
+                // A body cut short after the status line changes nothing: the
+                // status is the answer.
+                do {
+                    for try await _ in stream {
+                        read += 1
+                        if read >= Self.enclosureReadCap { break }
+                    }
+                } catch {}
+            }
+            return .answered(status: http.statusCode, bytesRead: read)
+        } catch {
+            return .noAnswer(detail: error.localizedDescription)
+        }
     }
 }

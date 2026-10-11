@@ -240,7 +240,10 @@ verify options:
   --github            Sweep only the GitHub release rules.
   --changelog         Sweep only the changelog recipes.
   --appstore          Sweep only the Mac App Store probe cases.
-  --feed              Sweep only the SparkleFeedCatalog addresses.
+  --feed              Sweep only the SparkleFeedCatalog addresses and the
+                      per-channel feeds of the channel bindings. Asks each
+                      feed's newest download for one byte (Range: bytes=0-0),
+                      reading at most that, to see that it is still served.
   --pkgarch           Sweep only the declared hostArchitectures of the packages
                       the pkg install route hands to macOS's installer. Reads
                       each package's xar table of contents by HTTP range rather

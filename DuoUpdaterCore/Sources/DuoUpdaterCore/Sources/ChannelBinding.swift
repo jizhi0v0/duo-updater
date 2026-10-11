@@ -640,4 +640,43 @@ public enum ChannelBinding {
         CindyChannel.globalBundleID.lowercased(),
         CindyChannel.chinaBundleID.lowercased(),
     ]
+
+    /// Every feed address a binding hands out as its `feedOverride`, one case per
+    /// app and channel, for `duo verify`'s feed sweep.
+    ///
+    /// Derived from `allResolutions` rather than listed: that is already the one
+    /// machine-independent enumeration of these resolvers, built by calling each
+    /// one's pure function, so the address is still written once — in its
+    /// channel file, which the runtime reads through the same function. A second
+    /// list here could be short by one, and a feed nothing sweeps is the state
+    /// this exists to end.
+    ///
+    /// Only exact duplicates fold — Fork's Develop feed comes back for both `2`
+    /// and an absent preference. Two addresses for one app and channel would
+    /// stay two cases sharing an id, which `ChannelFeedRegistryTests` refuses.
+    ///
+    /// iTerm2's addresses come from the bundle at runtime; `allResolutions`
+    /// enumerates them from a stable build's own
+    /// (`ITerm2Channel.stableBundleFeeds`), so those are what is swept.
+    public static var feedVerificationCases: [SparkleFeedCatalog.VerificationCase] {
+        var seen = Set<String>()
+        return allResolutions.compactMap { binding in
+            guard let feed = binding.resolved.feedOverride,
+                  !feedsNotSwept.contains(binding.bundleID.lowercased())
+            else { return nil }
+            let entry = SparkleFeedCatalog.VerificationCase(
+                bundleID: binding.bundleID, kind: .channel, feed: feed, declared: nil,
+                resolution: binding.resolved)
+            return seen.insert("\(entry.recipeID) \(feed.absoluteString)").inserted ? entry : nil
+        }
+        .sorted { $0.recipeID < $1.recipeID }
+    }
+
+    /// Bindings whose `feedOverride` is not swept, lower-cased.
+    ///
+    /// CleanShot's feed is built from the user's licence key. `allResolutions`
+    /// holds it with `CleanShotChannel.placeholderActivationKey`, which that
+    /// type says is never used to build a request, and a sweep has no real key
+    /// to send.
+    static let feedsNotSwept: Set<String> = [CleanShotChannel.bundleID.lowercased()]
 }

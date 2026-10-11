@@ -10,7 +10,7 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Per checkout, and the dead ones reclaimed — see scripts/derived_data_path.py.
 # Two runs in the SAME checkout still share it, which is the one collision left;
 # don't run this alongside itself. `APP_TESTS_DD` overrides.
-DD="${APP_TESTS_DD:-$(python3 "$REPO/scripts/derived_data_path.py" app-tests "$REPO")}"
+DD="${APP_TESTS_DD:-$("${PYTHON:-python3}" "$REPO/scripts/derived_data_path.py" app-tests "$REPO")}"
 
 # Exported before xcodegen for the reason install.sh and row-state-gallery.sh
 # state: the spec reads $DUO_TEAM_ID for DEVELOPMENT_TEAM, and regenerating
@@ -94,7 +94,7 @@ fi
 # console interleaving that produced a false red on 2026-09-20 (CI run
 # 35492361595). The log stays the argument because the gate falls back to it
 # whenever xcresulttool or its schema can't be read — see the script.
-GATE="$(python3 scripts/app_test_coverage.py --result-bundle "$RESULT_BUNDLE" "$LOG" App/Tests || true)"
+GATE="$("${PYTHON:-python3}" scripts/app_test_coverage.py --result-bundle "$RESULT_BUNDLE" "$LOG" App/Tests || true)"
 COUNTS="$(printf '%s\n' "$GATE" | sed -n 1p)"
 MISSING="$(printf '%s\n' "$GATE" | sed -n 2p)"
 SOURCE="$(printf '%s\n' "$GATE" | sed -n 3p)"

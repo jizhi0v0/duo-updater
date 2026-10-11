@@ -6,8 +6,13 @@ import Foundation
 ///
 /// **Read, never asked for.** Every `api.github.com` fetch goes through
 /// `countedData`, so `RequestMetricsRecorder` sees each one's metrics and hands
-/// them to ``Store/observe(_:)``. Nothing is fetched to refresh it: asking
-/// `/rate_limit` would be one more request, from the budget it reports.
+/// them to ``Store/observe(_:)``. Nothing is fetched to refresh it. Asking
+/// `/rate_limit` would cost nothing ("Accessing this endpoint does not count
+/// against your REST API rate limit", GitHub's documentation, read 2026-10-11),
+/// but with a token it answers from one of the windows below, while the app's
+/// own answers show each window its requests use. The anonymous budget, which
+/// those answers stop showing once a token is in use, is
+/// `GitHubAnonymousBudget`'s.
 ///
 /// **Only the answer that crossed the network counts.** `URLSession.updates`
 /// revalidates its memory cache, and a revalidated fetch reports two

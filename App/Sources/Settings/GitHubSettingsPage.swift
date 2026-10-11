@@ -26,6 +26,9 @@ struct GitHubSettingsPage: View {
     /// compact masked summary instead of a wall of characters.
     @State private var editing = false
     @FocusState private var tokenFocused: Bool
+    /// The anonymous budget of this Mac's address, asked of GitHub while the page
+    /// is open (`GitHubAnonymousBudget`); nil until the first answer.
+    @State private var anonymous: GitHubRateBudget?
 
     private static let tokenSettingsURL = URL(string: "https://github.com/settings/tokens")!
 
@@ -274,7 +277,9 @@ struct GitHubSettingsPage: View {
     /// once), never fetched for its own sake. Laid out as the Backups page's disk
     /// rows are: a name, then a full-width bar with its two figures under its two
     /// ends. Re-read every few seconds while the page is open: a check can land
-    /// meanwhile, and a window can end.
+    /// meanwhile, and a window can end. Under them, unless they already show it
+    /// (no token in use), the anonymous budget of this Mac's address, which is
+    /// asked for.
     private var budgetCard: some View {
         SettingsCard {
             TimelineView(.periodic(from: .now, by: 5)) { context in
@@ -295,9 +300,34 @@ struct GitHubSettingsPage: View {
                     }
                 }
                 .settingsRow()
+                // Left out while the bars above already show a window with its
+                // limit: without a token, the app's answers are this budget.
+                if let anonymous, anonymous.isCurrent(at: context.date),
+                   !windows.contains(where: { $0.limit == anonymous.limit }) {
+                    SettingsDivider()
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Without a token, on this network")
+                        budgetWindow(anonymous)
+                        Text("Shared by everything on this network that asks GitHub without a token, such as the zoxide and Atuin updaters.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .settingsRow()
+                }
             }
             // Drawn again the moment the credentials change, not at the next tick.
             .id(model.gitHubCredentialChanges)
+        }
+        // Asked when the page opens, then each minute while it stays open. The
+        // request is free (`GitHubAnonymousBudget`); a failed one keeps the last
+        // answer, which stops showing once its window ends.
+        .task {
+            let source = GitHubAnonymousBudget()
+            while !Task.isCancelled {
+                if let reading = try? await source.current() { anonymous = reading }
+                try? await Task.sleep(for: .seconds(60))
+            }
         }
     }
 

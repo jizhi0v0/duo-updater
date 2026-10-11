@@ -59066,6 +59066,71 @@
         }
       }
     },
+    "Shared by everything on this network that asks GitHub without a token, such as the zoxide and Atuin updaters.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geteilt mit allem in diesem Netzwerk, das GitHub ohne Token abfragt, etwa den Updatern von zoxide und Atuin."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compartido con todo lo que en esta red consulta GitHub sin token, como los actualizadores de zoxide y Atuin."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Partagé avec tout ce qui, sur ce réseau, interroge GitHub sans jeton, comme les outils de mise à jour de zoxide et d’Atuin."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Condiviso con tutto ciò che su questa rete interroga GitHub senza token, come gli strumenti di aggiornamento di zoxide e Atuin."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このネットワークでトークンなしに GitHub へ問い合わせるすべてのもの（zoxide や Atuin のアップデーターなど）と共有されます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compartilhado com tudo nesta rede que consulta o GitHub sem token, como os atualizadores do zoxide e do Atuin."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Общий для всего в этой сети, что обращается к GitHub без токена, например средств обновления zoxide и Atuin."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu ağda GitHub’a token olmadan istek gönderen her şeyle paylaşılır; örneğin zoxide ve Atuin güncelleyicileri."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本网络中所有不带令牌访问 GitHub 的程序共用这一额度，例如 zoxide 和 Atuin 的更新程序。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本網路中所有不帶權杖存取 GitHub 的程式共用這一額度，例如 zoxide 和 Atuin 的更新程式。"
+          }
+        }
+      }
+    },
     "Sign-in cancelled": {
       "extractionState": "manual",
       "localizations": {
@@ -67845,6 +67910,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 Node.js 上執行。"
+          }
+        }
+      }
+    },
+    "Without a token, on this network": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Token, in diesem Netzwerk"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin token, en esta red"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sans jeton, sur ce réseau"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Senza token, su questa rete"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トークンなし（このネットワーク）"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sem token, nesta rede"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без токена, в этой сети"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Token olmadan, bu ağda"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不带令牌（本网络）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不帶權杖（本網路）"
           }
         }
       }

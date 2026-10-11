@@ -11,9 +11,11 @@
 // says the same). Nothing that identifies a person or a Mac is stored:
 // - A request only counts when its User-Agent is the one Sparkle sends,
 //   "DuoUpdater/<version> Sparkle/<version>"; the app version is the only
-//   thing kept from it.
-// - The IP is used once, in memory, as input to HMAC(key, day + IP + UA), and
-//   only 16 bits of that are kept: a bucket number from 0 to 65535. Tens of
+//   thing kept from it, and only when the appcast lists that version (any
+//   other is counted as "older").
+// - The IP is used once, in memory, as input to HMAC(key, day + network), and
+//   only 16 bits of that are kept: a bucket number from 0 to 65535. The
+//   network is the IPv4 address, or an IPv6 address's /64 prefix. Tens of
 //   thousands of IPv4 addresses share every bucket, so a bucket cannot be
 //   turned back into an address, even by someone holding the key. The key is
 //   a Worker secret, which can be written but never read back.
@@ -24,6 +26,13 @@
 //   `daily (day, version, installs)` is kept.
 // - No country, no logs: Workers observability is off, and nothing is
 //   console.logged per request.
+//
+// Abuse: the counter is shaped so one machine cannot inflate it. The
+// User-Agent is not hashed, so one address fills at most one bucket per
+// version; an IPv6 /64, which one person can hold all of, counts as one
+// address; and versions the appcast does not list collapse into "older", so
+// invented version strings cannot multiply rows. Request flooding is left to
+// the zone's rate-limiting rule, which stops it before the Worker runs.
 
 export interface Env {
   DB: D1Database;
@@ -33,7 +42,7 @@ export interface Env {
 const UPSTREAM =
   "https://raw.githubusercontent.com/jizhi0v0/duo-updater/main/appcast.xml";
 
-const SPARKLE_UA = /^DuoUpdater\/([0-9A-Za-z.\-]{1,24}) Sparkle\//;
+const SPARKLE_UA = /^DuoUpdater\/(\d{1,4}(?:\.\d{1,4}){1,3}) Sparkle\//;
 
 const BUCKETS = 65536;
 
@@ -57,17 +66,23 @@ export default {
       return new Response("Feed unavailable\n", { status: 502 });
     }
 
+    const feed = await upstream.text();
+
     if (request.method === "GET") {
-      const ua = request.headers.get("user-agent") ?? "";
-      const match = SPARKLE_UA.exec(ua);
+      const match = SPARKLE_UA.exec(request.headers.get("user-agent") ?? "");
       const ip = request.headers.get("cf-connecting-ip");
       if (match && ip) {
+        const version = feed.includes(
+          `<sparkle:shortVersionString>${match[1]}</sparkle:shortVersionString>`,
+        )
+          ? match[1]
+          : "older";
         // Counting must never delay or fail the update check.
-        ctx.waitUntil(record(env, ip, ua, match[1]).catch(() => {}));
+        ctx.waitUntil(record(env, network(ip), version).catch(() => {}));
       }
     }
 
-    return new Response(request.method === "HEAD" ? null : upstream.body, {
+    return new Response(request.method === "HEAD" ? null : feed, {
       headers: {
         "content-type": "application/xml; charset=utf-8",
         "cache-control": "no-cache",
@@ -82,8 +97,7 @@ export default {
 
 async function record(
   env: Env,
-  ip: string,
-  ua: string,
+  network: string,
   version: string,
 ): Promise<void> {
   const day = utcDay(new Date());
@@ -98,7 +112,7 @@ async function record(
     await crypto.subtle.sign(
       "HMAC",
       key,
-      new TextEncoder().encode(`${day}\n${ip}\n${ua}`),
+      new TextEncoder().encode(`${day}\n${network}`),
     ),
   );
   const bucket = ((mac[0] << 8) | mac[1]) % BUCKETS;
@@ -136,6 +150,21 @@ export async function rollUp(db: D1Database, today: string): Promise<void> {
 export function estimate(filled: number): number {
   if (filled >= BUCKETS) return BUCKETS;
   return Math.round(-BUCKETS * Math.log(1 - filled / BUCKETS));
+}
+
+// An IPv4 address as is; an IPv6 address cut to its /64 prefix.
+export function network(ip: string): string {
+  if (!ip.includes(":")) return ip;
+  const [head, tail = ""] = ip.split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups = ip.includes("::")
+    ? [...left, ...Array(8 - left.length - right.length).fill("0"), ...right]
+    : left;
+  return groups
+    .slice(0, 4)
+    .map((g) => parseInt(g || "0", 16).toString(16))
+    .join(":");
 }
 
 function utcDay(date: Date): string {

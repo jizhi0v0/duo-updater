@@ -238,7 +238,7 @@ DuoUpdater, and is built so that it cannot learn who:
 - The request is the one Sparkle always sends: no account, no device ID, no list
   of your apps. The User-Agent is `DuoUpdater/<version> Sparkle/<version>`.
 - Your IP address is never stored or logged. It is used once, in memory, to pick
-  one of 65,536 buckets; tens of thousands of addresses share every bucket, so
+  one of 65,536 buckets (an IPv6 address only by its /64 network); tens of thousands of addresses share every bucket, so
   nothing stored can be turned back into an address. The bucket also changes
   every day, so the same Mac cannot be followed from one day to the next.
 - Each night the day's buckets are reduced to one number per DuoUpdater version

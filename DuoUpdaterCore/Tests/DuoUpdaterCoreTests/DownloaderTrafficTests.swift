@@ -247,7 +247,8 @@ struct DownloaderTrafficTests {
                         // empty, the next attempt re-requests from byte 0 and is
                         // truncated again: an extra request. A fixed delay (0.25 s) only
                         // narrowed the window — with it at 0, as a loaded runner can make
-                        // it, the event-store test failed 16/20 (#1213). (Real drops
+                        // it, every `.truncated` test here passed at most 5 of 20 runs
+                        // (#1215). (Real drops
                         // don't look like this — bytes have been flowing for seconds
                         // before a proxy resets — so the race was an artifact of the
                         // fixture, not a defect in `Downloader`.) Waiting on what the

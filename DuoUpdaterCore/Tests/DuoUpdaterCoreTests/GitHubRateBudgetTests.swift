@@ -360,6 +360,15 @@ struct GitHubRateBudgetTests {
         #expect(!GitHubRateBudget(limit: 60, remaining: 12, reset: reset).isRunningLow)
     }
 
+    /// GitHub's anonymous limit is 60; a token's is 5,000 or more. Mutation:
+    /// `<=` → `<`, or `limit < 5000`.
+    @Test func sixtyIsTheAnonymousLimit() {
+        let reset = Date(timeIntervalSince1970: Self.reset)
+        #expect(GitHubRateBudget(limit: 60, remaining: 0, reset: reset).isAnonymous)
+        #expect(!GitHubRateBudget(limit: 5000, remaining: 0, reset: reset).isAnonymous)
+        #expect(!GitHubRateBudget(limit: 15000, remaining: 0, reset: reset).isAnonymous)
+    }
+
     /// Past its reset a count is no longer what is left. Mutation: always true.
     @Test func aReadingEndsWithItsWindow() {
         let hour = Date(timeIntervalSince1970: Self.reset)

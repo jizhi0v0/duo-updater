@@ -12725,6 +12725,71 @@
         }
       }
     },
+    "GitHub counts some requests against a second hourly window of the same token, so two bars can appear.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub zählt manche Anfragen in einem zweiten stündlichen Kontingent desselben Tokens, daher können zwei Balken erscheinen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub cuenta algunas solicitudes en una segunda ventana horaria del mismo token, por lo que pueden aparecer dos barras."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub décompte certaines requêtes dans une deuxième fenêtre horaire du même jeton : deux barres peuvent donc apparaître."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub conteggia alcune richieste in una seconda finestra oraria dello stesso token, quindi possono comparire due barre."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub は一部のリクエストを同じトークンの別の 1 時間枠で数えるため、バーが 2 本表示されることがあります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O GitHub conta algumas solicitações em uma segunda janela horária do mesmo token, por isso podem aparecer duas barras."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub учитывает часть запросов во втором часовом окне того же токена, поэтому могут появиться две полосы."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub bazı istekleri aynı token’ın ikinci bir saatlik penceresinde sayar; bu yüzden iki çubuk görünebilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 会把部分请求计入同一令牌的第二个每小时额度，所以可能出现两条。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 會把部分請求計入同一權杖的第二個每小時額度，所以可能出現兩條。"
+          }
+        }
+      }
+    },
     "GitHub didn’t answer with a commit.": {
       "extractionState": "manual",
       "localizations": {
@@ -59066,6 +59131,71 @@
         }
       }
     },
+    "Shared by everything on this network that asks GitHub without a token, such as the zoxide and Atuin updaters.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geteilt mit allem in diesem Netzwerk, das GitHub ohne Token abfragt, etwa den Updatern von zoxide und Atuin."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compartido con todo lo que en esta red consulta GitHub sin token, como los actualizadores de zoxide y Atuin."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Partagé avec tout ce qui, sur ce réseau, interroge GitHub sans jeton, comme les outils de mise à jour de zoxide et d’Atuin."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Condiviso con tutto ciò che su questa rete interroga GitHub senza token, come gli strumenti di aggiornamento di zoxide e Atuin."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このネットワークでトークンなしに GitHub へ問い合わせるすべてのもの（zoxide や Atuin のアップデーターなど）と共有されます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compartilhado com tudo nesta rede que consulta o GitHub sem token, como os atualizadores do zoxide e do Atuin."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Общий для всего в этой сети, что обращается к GitHub без токена, например средств обновления zoxide и Atuin."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu ağda GitHub’a token olmadan istek gönderen her şeyle paylaşılır; örneğin zoxide ve Atuin güncelleyicileri."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本网络中所有不带令牌访问 GitHub 的程序共用这一额度，例如 zoxide 和 Atuin 的更新程序。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本網路中所有不帶權杖存取 GitHub 的程式共用這一額度，例如 zoxide 和 Atuin 的更新程式。"
+          }
+        }
+      }
+    },
     "Sign-in cancelled": {
       "extractionState": "manual",
       "localizations": {
@@ -61668,67 +61798,67 @@
         }
       }
     },
-    "Sign In & Install…": {
+    "Sign In & Install": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anmelden & installieren …"
+            "value": "Anmelden & installieren"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Iniciar sesión e instalar…"
+            "value": "Iniciar sesión e instalar"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se connecter et installer…"
+            "value": "Se connecter et installer"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Accedi e installa…"
+            "value": "Accedi e installa"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "サインインしてインストール…"
+            "value": "サインインしてインストール"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Iniciar Sessão e Instalar…"
+            "value": "Iniciar Sessão e Instalar"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Войти и установить…"
+            "value": "Войти и установить"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oturum Aç ve Yükle…"
+            "value": "Oturum Aç ve Yükle"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "登录并安装…"
+            "value": "登录并安装"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "登入並安裝…"
+            "value": "登入並安裝"
           }
         }
       }
@@ -62383,67 +62513,67 @@
         }
       }
     },
-    "Sign In & Download (.xip)…": {
+    "Sign In & Download (.xip)": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anmelden & laden (.xip) …"
+            "value": "Anmelden & laden (.xip)"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Iniciar sesión y descargar (.xip)…"
+            "value": "Iniciar sesión y descargar (.xip)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se connecter et télécharger (.xip)…"
+            "value": "Se connecter et télécharger (.xip)"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Accedi e scarica (.xip)…"
+            "value": "Accedi e scarica (.xip)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "サインインしてダウンロード（.xip）…"
+            "value": "サインインしてダウンロード（.xip）"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Iniciar Sessão e Baixar (.xip)…"
+            "value": "Iniciar Sessão e Baixar (.xip)"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Войти и загрузить (.xip)…"
+            "value": "Войти и загрузить (.xip)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oturum Aç ve İndir (.xip)…"
+            "value": "Oturum Aç ve İndir (.xip)"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "登录并下载（.xip）…"
+            "value": "登录并下载（.xip）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "登入並下載（.xip）…"
+            "value": "登入並下載（.xip）"
           }
         }
       }
@@ -67845,6 +67975,136 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 Node.js 上執行。"
+          }
+        }
+      }
+    },
+    "With your token": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit deinem Token"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con tu token"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avec votre jeton"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con il tuo token"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トークンあり"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Com seu token"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "С вашим токеном"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Token’ınızla"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用你的令牌"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用你的權杖"
+          }
+        }
+      }
+    },
+    "Without a token, on this network": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Token, in diesem Netzwerk"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin token, en esta red"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sans jeton, sur ce réseau"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Senza token, su questa rete"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トークンなし（このネットワーク）"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sem token, nesta rede"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без токена, в этой сети"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Token olmadan, bu ağda"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不带令牌（本网络）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不帶權杖（本網路）"
           }
         }
       }

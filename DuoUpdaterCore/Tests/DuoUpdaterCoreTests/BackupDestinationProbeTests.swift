@@ -197,6 +197,7 @@ import Testing
     private func withVolume(
         format: String, sizeMB: Int = 256, _ body: (URL) async throws -> Void
     ) async throws {
+        await TestDiskImages.sweepStaleOnce()
         let fm = FileManager.default
         let id = UUID().uuidString
         let image = fm.temporaryDirectory.appendingPathComponent("duo-\(id).sparseimage")
@@ -249,6 +250,11 @@ import Testing
         do { outcome = .success(try await body(mount)) } catch { outcome = .failure(error) }
         // A leaked mount poisons the next run, so a stuck one is forced.
         if await run(["detach", mount.path]).status != 0 { _ = await run(["detach", "-force", mount.path]) }
+        // The mount point is gone either way, but the disk need not be: a detach
+        // that unmounted and then failed to eject leaves the image attached where
+        // no path reaches it. Its device node still does.
+        let detached = await TestDiskImages.detach(image)
+        #expect(detached, "the \(format) image is still attached after detaching it")
         try? fm.removeItem(at: mount)
         try outcome.get()
     }

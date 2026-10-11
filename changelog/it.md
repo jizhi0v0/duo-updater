@@ -14,7 +14,7 @@ Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la vers
 
 **La scheda CLI mostra con cosa è creato ogni strumento, e la riga di aggiornamento di Homebrew elenca le novità delle versioni che porterebbe.** Queste etichette hanno un interruttore tutto loro, «Mostra con cosa è creato ogni strumento da riga di comando», in Impostazioni › Generali. Uno strumento che installi mentre il banco di lavoro è aperto ora compare quando torni alla finestra.
 
-**DuoUpdater ora si accorge, per più app, degli aggiornamenti che hanno già scaricato da sole, invece di installarci sopra.** Per le app come Tailscale che si aggiornano con i permessi di amministratore, la riga mostra la versione in attesa di installazione invece di «?», e Riapri non viene più proposto quando quell’aggiornamento in attesa è stato eliminato.
+**DuoUpdater ora si accorge, per più app, degli aggiornamenti che hanno già scaricato da sole, invece di installarci sopra.** Inoltre Riapri non viene più proposto per un’app come ChatGPT il cui aggiornamento scaricato è stato eliminato prima di poter essere installato.
 
 **Il passaggio del banco di lavoro tra App e Ripristino è più fluido, e la riga selezionata nelle sue barre laterali usa un’evidenziazione più tenue che mantiene i colori di etichette e pulsanti.**
 

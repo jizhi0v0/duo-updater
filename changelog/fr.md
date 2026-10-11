@@ -14,7 +14,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **L’onglet CLI indique avec quoi chaque outil est conçu, et la ligne de mise à jour de Homebrew liste les nouveautés des versions qu’elle apporterait.** Ces étiquettes ont leur propre interrupteur, « Afficher avec quoi chaque outil en ligne de commande est conçu », dans Réglages › Général. Un outil installé pendant que l’établi est ouvert apparaît désormais quand vous revenez à la fenêtre.
 
-**DuoUpdater repère désormais, pour davantage d’apps, les mises à jour qu’elles ont déjà téléchargées elles-mêmes, au lieu d’installer par-dessus.** Pour les apps comme Tailscale qui se mettent à jour avec les droits administrateur, la ligne affiche la version en attente d’installation au lieu de « ? », et Relancer n’est plus proposé quand cette mise à jour en attente a été supprimée.
+**DuoUpdater repère désormais, pour davantage d’apps, les mises à jour qu’elles ont déjà téléchargées elles-mêmes, au lieu d’installer par-dessus.** Relancer n’est plus proposé non plus pour une app comme ChatGPT dont la mise à jour téléchargée a été supprimée avant d’avoir pu s’installer.
 
 **Basculer l’établi entre Applications et Restauration est plus fluide, et la ligne sélectionnée dans ses barres latérales utilise une surbrillance plus douce qui conserve les couleurs des étiquettes et des boutons.**
 

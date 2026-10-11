@@ -14,7 +14,7 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **La pestaña CLI muestra con qué está hecha cada herramienta, y la fila de actualización de Homebrew enumera las novedades de las versiones que traería.** Estas etiquetas tienen su propio interruptor, «Mostrar con qué está hecha cada herramienta de línea de comandos», en Ajustes › General. Una herramienta que instalas con el workbench abierto ahora aparece cuando vuelves a la ventana.
 
-**DuoUpdater ahora detecta en más apps las actualizaciones que ya descargaron por su cuenta, en lugar de instalar encima.** En apps como Tailscale, que se actualizan con permisos de administrador, la fila muestra la versión que espera para instalarse en lugar de «?», y ya no se ofrece Reabrir cuando esa actualización pendiente se ha eliminado.
+**DuoUpdater ahora detecta en más apps las actualizaciones que ya descargaron por su cuenta, en lugar de instalar encima.** Además, ya no se ofrece Reabrir para una app como ChatGPT cuya actualización descargada se eliminó antes de poder instalarse.
 
 **Cambiar el workbench entre Apps y Reversión es más fluido, y la fila seleccionada en sus barras laterales usa un resaltado más suave que conserva los colores de las etiquetas y los botones.**
 

@@ -14,7 +14,7 @@ Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A vers
 
 **A aba CLI mostra com o que cada ferramenta é feita, e a linha de atualização do Homebrew lista as novidades das versões que ela traria.** Essas etiquetas têm um botão próprio, “Mostrar com o que cada ferramenta de linha de comando é feita”, em Ajustes › Geral. Uma ferramenta que você instala com a bancada aberta agora aparece quando você volta à janela.
 
-**O DuoUpdater agora percebe, em mais apps, as atualizações que eles já baixaram por conta própria, em vez de instalar por cima.** Em apps como o Tailscale, que se atualizam com direitos de administrador, a linha mostra a versão que espera para ser instalada em vez de “?”, e Reabrir não é mais oferecido quando essa atualização pendente foi apagada.
+**O DuoUpdater agora percebe, em mais apps, as atualizações que eles já baixaram por conta própria, em vez de instalar por cima.** Além disso, Reabrir não é mais oferecido para um app como o ChatGPT cuja atualização baixada foi apagada antes de ser instalada.
 
 **Alternar a bancada entre Apps e Reversão ficou mais suave, e a linha selecionada nas barras laterais usa um destaque mais leve que mantém as cores das etiquetas e dos botões.**
 

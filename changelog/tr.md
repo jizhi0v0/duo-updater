@@ -14,7 +14,7 @@ Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce 
 
 **CLI sekmesi her aracın neyle geliştirildiğini gösteriyor, Homebrew güncelleme satırı da getireceği sürümlerdeki yenilikleri listeliyor.** Bu etiketlerin Ayarlar › Genel’de kendi düğmesi var: “Her komut satırı aracının neyle geliştirildiğini göster”. Çalışma alanı açıkken kurduğunuz bir araç artık pencereye döndüğünüzde görünüyor.
 
-**DuoUpdater artık daha fazla uygulamanın kendi indirdiği güncellemeleri fark ediyor ve üzerine yükleme yapmıyor.** Tailscale gibi yönetici haklarıyla güncellenen uygulamalarda satır “?” yerine yüklenmeyi bekleyen sürümü gösteriyor; bekleyen güncelleme silindiyse de Yeniden Başlat artık sunulmuyor.
+**DuoUpdater artık daha fazla uygulamanın kendi indirdiği güncellemeleri fark ediyor ve üzerine yükleme yapmıyor.** Ayrıca ChatGPT gibi, indirdiği güncellemesi yüklenmeden önce silinmiş bir uygulama için Yeniden Başlat artık sunulmuyor.
 
 **Çalışma alanında Uygulamalar ile Geri Alma arasında geçiş daha akıcı; kenar çubuklarındaki seçili satır da etiket ve düğme renklerini koruyan daha yumuşak bir vurgu kullanıyor.**
 

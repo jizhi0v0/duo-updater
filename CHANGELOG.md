@@ -31,7 +31,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **The CLI tab shows what each tool is built with, and the Homebrew update row lists what's new in the versions it would bring.** The tags have their own switch, "Show what each command-line tool is built with", in Settings › General. A tool you install while the Workbench is open now appears when you come back to the window.
 
-**DuoUpdater now notices updates that more apps have already downloaded for themselves, instead of installing over them.** For apps such as Tailscale that update with administrator rights, the row shows the version waiting to install instead of "?", and Relaunch is no longer offered when that waiting update has been deleted.
+**DuoUpdater now notices updates that more apps have already downloaded for themselves, instead of installing over them.** Relaunch is also no longer offered for an app such as ChatGPT whose downloaded update was deleted before it could install.
 
 **Switching the Workbench between Apps and Rollback is smoother, and the selected row in its sidebars uses a softer highlight that keeps tag and button colours.**
 

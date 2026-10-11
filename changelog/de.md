@@ -14,7 +14,7 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 **Der Tab CLI zeigt, womit jedes Tool gebaut ist, und die Update-Zeile von Homebrew listet die Neuerungen der Versionen auf, die sie mitbringen würde.** Für diese Kennzeichnungen gibt es unter Einstellungen › Allgemein einen eigenen Schalter, „Anzeigen, womit jedes Befehlszeilenwerkzeug gebaut ist“. Ein Tool, das du installierst, während die Werkbank geöffnet ist, erscheint jetzt, wenn du zum Fenster zurückkehrst.
 
-**DuoUpdater bemerkt jetzt bei mehr Apps Updates, die sie bereits selbst geladen haben, statt darüber zu installieren.** Bei Apps wie Tailscale, die sich mit Administratorrechten aktualisieren, zeigt die Zeile statt „?“ die Version, die auf die Installation wartet, und „Neu starten“ wird nicht mehr angeboten, wenn dieses wartende Update gelöscht wurde.
+**DuoUpdater bemerkt jetzt bei mehr Apps Updates, die sie bereits selbst geladen haben, statt darüber zu installieren.** Außerdem wird „Neu starten“ nicht mehr angeboten, wenn bei einer App wie ChatGPT das geladene Update gelöscht wurde, bevor es installiert werden konnte.
 
 **Der Wechsel der Werkbank zwischen Apps und Wiederherstellen ist flüssiger, und die ausgewählte Zeile in ihren Seitenleisten hat eine dezentere Hervorhebung, bei der Kennzeichnungen und Schaltflächen ihre Farben behalten.**
 

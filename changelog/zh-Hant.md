@@ -2,6 +2,26 @@
 
 本文件是 CHANGELOG.md 的繁體中文翻譯，以英文版為準。本文件中未列出的版本會自動改以英文顯示。
 
+## 0.5.4
+
+**Outlook 和 OneNote 又能看到新版本了。** 從 5 月起它們一直卡在 16.109，因為 DuoUpdater 讀取的那台 Microsoft 伺服器停止了更新。
+
+**又多了九個命令列工具：Deno、mise、Atuin、GHCup、flyctl、Helm、Starship、zoxide 和 nvm。** 每個都依照開發者文件中的方式更新；裝在系統資料夾裡的 Helm 和 Starship，在你同意管理者授權提示後就會更新。
+
+**支援的 App 更多了。** Pulse 現在能檢查更新並一鍵更新。Moshi 的原版 App 現在會更新到取代它的 Moshi Go，方式和 Moshi 自己的更新程式一樣。TigerVNC 收到的是 1.16.2 而不是 1.16.0，豆包输入法 的更新也又能找到了。
+
+**更多 App 有了更新說明。** Firefox（所有管道）、Microsoft Office、OneDrive、Edge、Telegram、Signal、Element、Carbon Copy Cloner、Bartender、Alfred、Little Snitch、Zotero、Sublime Merge、Termius、Orion、TRAE、搜狗输入法 等現在都有結構化的更新說明。Chrome 的說明重新顯示了；以舊編碼提供的中文說明不再變成亂碼；WhatsApp、Emacs、Teams、Dropbox 和另外兩個 App 的更新說明連結也不再連到錯誤的頁面。
+
+**CLI 標籤頁會顯示每個工具以什麼技術建構，Homebrew 的更新那一列會列出這次更新帶來的各個版本有哪些新內容。** 這些標記有自己的開關「顯示每個命令列工具以什麼技術建構」，在 設定 › 一般 裡。工作台開著時安裝的工具，現在回到視窗時就會出現。
+
+**DuoUpdater 現在能發現更多 App 已經自己下載好的更新，不再在它們上面重複安裝。** 對 Tailscale 這類以管理者權限更新的 App，那一列會顯示等待安裝的版本，而不是「?」；如果等待安裝的更新已被刪除，也不會再提供「重新開啟」。
+
+**工作台在「App」和「還原」之間切換更流暢了，側邊欄中選取的那一列改用較柔和的醒目標示，標記和按鈕保留原本的顏色。**
+
+**`duo list`、`duo check` 和 `duo install` 現在也包含 CLI 標籤頁裡的命令列工具。**
+
+**底層改進。** 設定 › 診斷 開著時不會再拖慢 App。
+
 ## 0.5.3
 
 **還原備份現在由你決定要不要。** 新安裝時，歡迎視窗會問你是否在每次更新前保留一份 App 的副本，不打開就是關閉的。如果你已經在用 DuoUpdater，原來的設定維持不變。隨時可以在 設定 › 備份 裡修改。

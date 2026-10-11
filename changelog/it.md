@@ -2,6 +2,26 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.4
+
+**Outlook e OneNote vedono di nuovo le nuove versioni.** Da maggio erano fermi alla 16.109, perché il server Microsoft da cui DuoUpdater leggeva aveva smesso di aggiornarsi.
+
+**Altri nove strumenti da riga di comando: Deno, mise, Atuin, GHCup, flyctl, Helm, Starship, zoxide e nvm.** Ognuno viene aggiornato come indica il suo sviluppatore, e Helm e Starship installati in una cartella di sistema si aggiornano non appena approvi la richiesta di amministratore.
+
+**Più app supportate.** Pulse ora ha il controllo degli aggiornamenti e l’aggiornamento con un clic. L’app originale di Moshi ora si aggiorna a Moshi Go, che la sostituisce, nello stesso modo in cui lo fa il programma di aggiornamento di Moshi. A TigerVNC viene proposta la 1.16.2 invece della 1.16.0, e gli aggiornamenti di Doubao Input Method vengono di nuovo trovati.
+
+**Note di rilascio per molte più app.** Firefox (tutti i canali), Microsoft Office, OneDrive, Edge, Telegram, Signal, Element, Carbon Copy Cloner, Bartender, Alfred, Little Snitch, Zotero, Sublime Merge, Termius, Orion, TRAE, Sogou Input e altre ora hanno note strutturate. Le note di Chrome tornano a comparire, le note in cinese servite con codifiche più vecchie non diventano più caratteri illeggibili, e i link alle note di rilascio di WhatsApp, Emacs, Teams, Dropbox e di altre due app non portano più alla pagina sbagliata.
+
+**La scheda CLI mostra con cosa è creato ogni strumento, e la riga di aggiornamento di Homebrew elenca le novità delle versioni che porterebbe.** Queste etichette hanno un interruttore tutto loro, «Mostra con cosa è creato ogni strumento da riga di comando», in Impostazioni › Generali. Uno strumento che installi mentre il banco di lavoro è aperto ora compare quando torni alla finestra.
+
+**DuoUpdater ora si accorge, per più app, degli aggiornamenti che hanno già scaricato da sole, invece di installarci sopra.** Per le app come Tailscale che si aggiornano con i permessi di amministratore, la riga mostra la versione in attesa di installazione invece di «?», e Riapri non viene più proposto quando quell’aggiornamento in attesa è stato eliminato.
+
+**Il passaggio del banco di lavoro tra App e Ripristino è più fluido, e la riga selezionata nelle sue barre laterali usa un’evidenziazione più tenue che mantiene i colori di etichette e pulsanti.**
+
+**`duo list`, `duo check` e `duo install` ora includono gli strumenti da riga di comando della scheda CLI.**
+
+**Dietro le quinte.** Impostazioni › Diagnostica non rallenta più l’app mentre è aperta.
+
 ## 0.5.3
 
 **I backup di ripristino ora sono una tua scelta.** In una nuova installazione, la finestra di benvenuto chiede se conservare una copia di ogni app prima di aggiornarla, ed è disattivato finché non lo attivi. Se usi già DuoUpdater, la tua impostazione resta com’era. Puoi cambiarla quando vuoi in Impostazioni › Backup.

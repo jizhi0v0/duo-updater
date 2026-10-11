@@ -2,6 +2,26 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.4
+
+**Outlook et OneNote voient de nouveau les nouvelles versions.** Depuis mai, ils restaient bloqués sur 16.109, car le serveur Microsoft que DuoUpdater consultait n’était plus mis à jour.
+
+**Neuf outils en ligne de commande de plus : Deno, mise, Atuin, GHCup, flyctl, Helm, Starship, zoxide et nvm.** Chacun est mis à jour comme son développeur l’indique, et Helm et Starship installés dans un dossier système se mettent à jour dès que vous acceptez la demande d’autorisation administrateur.
+
+**Davantage d’apps sont prises en charge.** Pulse est désormais vérifié et se met à jour en un clic. L’app d’origine de Moshi se met désormais à jour vers Moshi Go, qui la remplace, de la même façon que le fait le programme de mise à jour de Moshi. TigerVNC se voit proposer la 1.16.2 au lieu de la 1.16.0, et les mises à jour de Doubao Input Method sont de nouveau trouvées.
+
+**Des notes de version pour beaucoup plus d’apps.** Firefox (tous les canaux), Microsoft Office, OneDrive, Edge, Telegram, Signal, Element, Carbon Copy Cloner, Bartender, Alfred, Little Snitch, Zotero, Sublime Merge, Termius, Orion, TRAE, Sogou Input et d’autres ont désormais des notes structurées. Les notes de Chrome s’affichent de nouveau, les notes en chinois servies dans d’anciens encodages ne se transforment plus en caractères illisibles, et les liens vers les notes de version de WhatsApp, Emacs, Teams, Dropbox et de deux autres apps ne mènent plus à la mauvaise page.
+
+**L’onglet CLI indique avec quoi chaque outil est conçu, et la ligne de mise à jour de Homebrew liste les nouveautés des versions qu’elle apporterait.** Ces étiquettes ont leur propre interrupteur, « Afficher avec quoi chaque outil en ligne de commande est conçu », dans Réglages › Général. Un outil installé pendant que l’établi est ouvert apparaît désormais quand vous revenez à la fenêtre.
+
+**DuoUpdater repère désormais, pour davantage d’apps, les mises à jour qu’elles ont déjà téléchargées elles-mêmes, au lieu d’installer par-dessus.** Pour les apps comme Tailscale qui se mettent à jour avec les droits administrateur, la ligne affiche la version en attente d’installation au lieu de « ? », et Relancer n’est plus proposé quand cette mise à jour en attente a été supprimée.
+
+**Basculer l’établi entre Applications et Restauration est plus fluide, et la ligne sélectionnée dans ses barres latérales utilise une surbrillance plus douce qui conserve les couleurs des étiquettes et des boutons.**
+
+**`duo list`, `duo check` et `duo install` incluent désormais les outils en ligne de commande de l’onglet CLI.**
+
+**Sous le capot.** Réglages › Diagnostic ne ralentit plus l’app tant qu’il est ouvert.
+
 ## 0.5.3
 
 **Les sauvegardes de restauration sont désormais votre choix.** Lors d’une nouvelle installation, la fenêtre de bienvenue demande s’il faut conserver une copie de chaque app avant de la mettre à jour ; c’est désactivé tant que vous ne l’activez pas. Si vous utilisez déjà DuoUpdater, votre réglage reste tel quel. Vous pouvez le modifier à tout moment dans Réglages › Sauvegardes.

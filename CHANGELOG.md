@@ -19,6 +19,26 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.4
+
+**Outlook and OneNote see new versions again.** Since May they had been stuck on 16.109, because the Microsoft server DuoUpdater read from had stopped updating.
+
+**Nine more command-line tools: Deno, mise, Atuin, GHCup, flyctl, Helm, Starship, zoxide and nvm.** Each one is updated the way its developer documents, and Helm and Starship in a system folder update once you approve the administrator prompt.
+
+**More apps are supported.** Pulse now gets update checks and one-click updates. Moshi's original app now updates to Moshi Go, its replacement, the same way Moshi's own updater does. TigerVNC is offered 1.16.2 instead of 1.16.0, and updates for Doubao Input Method are found again.
+
+**Release notes for many more apps.** Firefox (every channel), Microsoft Office, OneDrive, Edge, Telegram, Signal, Element, Carbon Copy Cloner, Bartender, Alfred, Little Snitch, Zotero, Sublime Merge, Termius, Orion, TRAE, Sogou Input and others now get structured notes. Chrome's notes show again, Chinese-language notes served in older encodings no longer turn into garbled characters, and the release-notes links for WhatsApp, Emacs, Teams, Dropbox and two other apps no longer go to the wrong page.
+
+**The CLI tab shows what each tool is built with, and the Homebrew update row lists what's new in the versions it would bring.** The tags have their own switch, "Show what each command-line tool is built with", in Settings › General. A tool you install while the Workbench is open now appears when you come back to the window.
+
+**DuoUpdater now notices updates that more apps have already downloaded for themselves, instead of installing over them.** For apps such as Tailscale that update with administrator rights, the row shows the version waiting to install instead of "?", and Relaunch is no longer offered when that waiting update has been deleted.
+
+**Switching the Workbench between Apps and Rollback is smoother, and the selected row in its sidebars uses a softer highlight that keeps tag and button colours.**
+
+**`duo list`, `duo check` and `duo install` now include the command-line tools from the CLI tab.**
+
+**Under the hood.** Settings › Diagnostics no longer slows the app down while it's open.
+
 ## 0.5.3
 
 **Rollback backups are now your choice.** On a new install, the welcome window asks whether to keep a copy of each app before updating it, and it's off unless you turn it on. If you already use DuoUpdater, your setting stays as it was. You can change it any time in Settings › Backups.

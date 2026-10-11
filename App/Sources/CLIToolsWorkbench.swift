@@ -173,6 +173,9 @@ struct CLIToolSidebarRow: View {
     /// Whether to show what the tool is built with — the CLI tab's own setting,
     /// `Preferences.showCLIRuntimeTags`.
     var showsRuntime = true
+    /// Homebrew is upgrading: Update waits, as Update All does — npm packages
+    /// can run on Homebrew's node.
+    var brewUpgrading = false
 
     private var id: CLIToolID { status.toolID }
     private var updating: Bool { cli.updating.contains(id) }
@@ -238,11 +241,13 @@ struct CLIToolSidebarRow: View {
             Button("Update") { Task { await cli.update(id) } }
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
+                .disabled(brewUpgrading)
                 .help(String(localized: "Asks for an administrator password"))
         } else if status.oneClick != nil {
             Button("Update") { Task { await cli.update(id) } }
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
+                .disabled(brewUpgrading)
         } else if let command = CLIToolPresentation.manualCommand(status) {
             // A glyph, like the Brew trust command's row button: a labelled button
             // would leave a 260 pt sidebar too little room for the title beside it.
@@ -345,6 +350,8 @@ struct ClaudeCodeDetailPane: View {
     let status: ClaudeCodeStatus
     let cli: CLIToolsModel
     var showsRuntime = true
+    /// Homebrew is upgrading: Update waits (`CLIToolSidebarRow.brewUpgrading`).
+    var brewUpgrading = false
 
     private var path: String { status.install.path }
     private var id: CLIToolID { CLIToolID(kind: .claudeCode, path: path) }
@@ -387,6 +394,7 @@ struct ClaudeCodeDetailPane: View {
                 Button("Update to \(latest)") { Task { await cli.update(id) } }
                     .controlSize(.large)
                     .buttonStyle(.borderedProminent)
+                    .disabled(brewUpgrading)
             }
         }
         .padding(16)
@@ -520,6 +528,8 @@ struct CLIToolDetailPane: View {
     let status: CLIToolStatus
     let cli: CLIToolsModel
     var showsRuntime = true
+    /// Homebrew is upgrading: Update waits (`CLIToolSidebarRow.brewUpgrading`).
+    var brewUpgrading = false
 
     private var id: CLIToolID { status.toolID }
     private var updating: Bool { cli.updating.contains(id) }
@@ -559,11 +569,13 @@ struct CLIToolDetailPane: View {
                 Button("Update to \(latest)") { Task { await cli.update(id) } }
                     .controlSize(.large)
                     .buttonStyle(.borderedProminent)
+                    .disabled(brewUpgrading)
                     .help(String(localized: "Asks for an administrator password"))
             } else if status.oneClick != nil, let latest = status.latestVersion {
                 Button("Update to \(latest)") { Task { await cli.update(id) } }
                     .controlSize(.large)
                     .buttonStyle(.borderedProminent)
+                    .disabled(brewUpgrading)
             }
         }
         .padding(16)

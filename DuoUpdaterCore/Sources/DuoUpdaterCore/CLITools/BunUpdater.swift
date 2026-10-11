@@ -27,6 +27,9 @@ public struct BunUpdater: Sendable {
     let check: BunCheck
     /// The child's environment before `HOME`, `PATH` and `TMPDIR` are set.
     let environment: @Sendable () -> [String: String]
+    /// The GitHub token the app's own API requests carry, if any. Handed to bun
+    /// as `GITHUB_ACCESS_TOKEN` (see `update`).
+    let token: CLIToolGitHubToken.Source
     let deadline: ChildProcess.Deadline
 
     /// The aarch64 zip of 1.4.2 is ~23 MB; ten minutes is ~300 kbit/s. The
@@ -45,7 +48,8 @@ public struct BunUpdater: Sendable {
             check: BunCheck(),
             // bun's HTTP client reads the proxy variables, which a GUI app
             // launched by launchd does not have. See `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy })
+            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            token: CLIToolGitHubToken.app)
     }
 
     init(
@@ -53,12 +57,14 @@ public struct BunUpdater: Sendable {
         scanner: BunScanner,
         check: BunCheck,
         environment: @escaping @Sendable () -> [String: String],
+        token: @escaping CLIToolGitHubToken.Source,
         deadline: ChildProcess.Deadline = BunUpdater.defaultDeadline
     ) {
         self.busy = busy
         self.scanner = scanner
         self.check = check
         self.environment = environment
+        self.token = token
         self.deadline = deadline
     }
 
@@ -108,7 +114,32 @@ public struct BunUpdater: Sendable {
         environment["PATH"] = CLIToolCommandRunner.path(prefix: command.pathPrefix)
         // Its download and unzip land here, and go with the directory.
         environment["TMPDIR"] = directory.path + "/"
-        let run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
+        // `bun upgrade` asks `api.github.com` for its release, with no token
+        // unless its environment has one, and fails on the 60-an-hour budget
+        // every program behind this IP address shares. It sends
+        // `GITHUB_ACCESS_TOKEN` as a bearer token on that one request (and
+        // nowhere else: the zip download carries no header). 1.0.0 reads only
+        // that one; 1.3.10 and 1.4.3 read `GITHUB_TOKEN` first
+        // (`upgrade_command.zig` at bun-v1.0.0 and bun-v1.3.10,
+        // `upgrade_command.rs` at bun-v1.4.3). Either one already set (a
+        // terminal-run `duo`) is the user's and is left alone.
+        var handedToken = false
+        if environment["GITHUB_TOKEN"] == nil, environment["GITHUB_ACCESS_TOKEN"] == nil, let token = await token() {
+            environment["GITHUB_ACCESS_TOKEN"] = token
+            handedToken = true
+        }
+        var run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
+        // The token was rejected (revoked, expired). bun names any status but
+        // 200, 403, 404, 429 and 5xx `HTTPError` and stops before it downloads
+        // (1.4.2 with a bogus token, 2026-10-11):
+        //
+        //     Bun upgrade failed with error: HTTPError
+        //
+        // Once more without it, as the app's own requests do after a 401.
+        if handedToken, Self.tokenWasRejected(run) {
+            environment.removeValue(forKey: "GITHUB_ACCESS_TOKEN")
+            run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
+        }
         let outcome: ChildProcess.Outcome
         switch run.result {
         case .couldNotStart(let error):
@@ -140,6 +171,13 @@ public struct BunUpdater: Sendable {
                 output: output)
         }
         return .updated(version: version)
+    }
+
+    /// Whether bun failed on an answer from GitHub it has no name for — a 401
+    /// for the token it was given.
+    static func tokenWasRejected(_ run: CLIToolCommandRunner.Run) -> Bool {
+        guard case .finished(let outcome) = run.result, !outcome.succeeded else { return false }
+        return run.lines.contains { $0.trimmingCharacters(in: .whitespaces) == "Bun upgrade failed with error: HTTPError" }
     }
 
     /// bun's own `error: <reason>` line when there is one (`Failed to download…`,

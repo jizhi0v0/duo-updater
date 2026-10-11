@@ -9,10 +9,11 @@ import Foundation
 /// mise.
 @Suite struct MiseUpdaterTests {
 
-    static func updating(to version: String = "2026.10.4", signer: String = "jdx") -> String {
+    static func updating(to version: String = "2026.10.4", signer: String = "jdx", extra: String = "") -> String {
         MiseSandbox.script(body: """
         env > "$HOME/ENV"
         echo "$@" > "$HOME/ARGS"
+        \(extra)
         if [ "$1" = self-update ]; then
           echo "Selected mise \(version) (minimum release age: 24h)"
           new="$TMPDIR/mise-new"
@@ -37,9 +38,50 @@ import Foundation
 
     static func updater(
         _ box: MiseSandbox, latest: String = "2026.10.4", busy: @escaping MiseUpdater.BusyCheck = { _ in nil },
-        environment: [String: String] = [:]
+        environment: [String: String] = [:], token: String? = nil
     ) -> MiseUpdater {
-        MiseUpdater(busy: busy, scanner: box.scanner, check: MiseTests.check(latest), environment: { environment })
+        MiseUpdater(busy: busy, scanner: box.scanner, check: MiseTests.check(latest), environment: { environment },
+                    token: { token })
+    }
+
+    /// The app's GitHub token is handed to mise only after mise said it found
+    /// none of its own and GitHub's API refused it — the two lines 2026.10.5
+    /// printed with the anonymous budget spent (2026-10-11) — and then for one
+    /// more run, as `MISE_GITHUB_TOKEN`. Up front it would outrank the user's
+    /// own `credential_command`, `gh` login or tokens file.
+    /// Kills: handing it on the first run; no retry; retrying a 403 mise met
+    /// with a token of its own; retrying with no token to give.
+    @Test func theAppsGitHubTokenIsHandedOnOnlyWhenMiseHadNone() async throws {
+        let noToken = """
+        echo "mise WARN  GitHub API returned a 403 Forbidden error. This is most commonly caused by exceeding the rate limit, though other causes (e.g. insufficient token permissions) are possible." >&2
+        echo "mise WARN  No GitHub token was found, so mise is making unauthenticated requests to GitHub which have a much lower rate limit." >&2
+        echo "mise ERROR HTTP status client error (403 Forbidden) for url (https://api.github.com/repos/jdx/mise/releases/tags/v2026.10.4)" >&2
+        exit 1
+        """
+        let ownToken = """
+        echo "mise WARN  GitHub API returned a 403 Forbidden error. This is most commonly caused by exceeding the rate limit, though other causes (e.g. insufficient token permissions) are possible." >&2
+        echo "mise ERROR HTTP status client error (403 Forbidden) for url (https://api.github.com/repos/jdx/mise/releases/tags/v2026.10.4)" >&2
+        exit 1
+        """
+        for (token, failure, runs, updated) in [
+            ("ZZFixture-token", nil, ["run:"], true),
+            ("ZZFixture-token", noToken, ["run:", "run:ZZFixture-token"], true),
+            ("ZZFixture-token", ownToken, ["run:"], false),
+            (nil, noToken, ["run:"], false),
+        ] as [(String?, String?, [String], Bool)] {
+            let box = try MiseSandbox()
+            var extra = "echo \"run:$MISE_GITHUB_TOKEN\" >> \"$HOME/RUNS\""
+            if let failure { extra += "\nif [ -z \"$MISE_GITHUB_TOKEN\" ]; then\n\(failure)\nfi" }
+            try box.install(Self.updating(extra: extra))
+            let outcome = await Self.updater(box, token: token).update(try await MiseTests.status(box))
+            let ran = try String(contentsOf: box.home.appendingPathComponent("RUNS"), encoding: .utf8)
+            #expect(ran.split(separator: "\n").map(String.init) == runs)
+            if updated {
+                #expect(outcome == .updated(version: "2026.10.4"))
+            } else {
+                #expect(outcome != .updated(version: "2026.10.4"))
+            }
+        }
     }
 
     @Test func updatesAndChecksWhatItLeft() async throws {

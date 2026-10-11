@@ -185,8 +185,8 @@ import CryptoKit
     /// the resolved one is. Kills: dropping the rejection check; answering nil
     /// always.
     @Test func aTokenGitHubRejectedIsNotHandedOn() async {
-        #expect(await UvUpdater.unlessRejected(isRejected: { true }, resolve: { "ZZFixture-token" })() == nil)
-        #expect(await UvUpdater.unlessRejected(isRejected: { false }, resolve: { "ZZFixture-token" })() == "ZZFixture-token")
+        #expect(await CLIToolGitHubToken.unlessRejected(isRejected: { true }, resolve: { "ZZFixture-token" })() == nil)
+        #expect(await CLIToolGitHubToken.unlessRejected(isRejected: { false }, resolve: { "ZZFixture-token" })() == "ZZFixture-token")
     }
 
     /// uv's lookup answered 401 for the token it was handed (uv 0.10.7's line,

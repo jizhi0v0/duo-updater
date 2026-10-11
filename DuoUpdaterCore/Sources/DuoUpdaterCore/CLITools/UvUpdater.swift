@@ -35,7 +35,6 @@ import Foundation
 public struct UvUpdater: Sendable {
 
     typealias BusyCheck = @Sendable () -> UvActivity.Busy?
-    typealias Token = @Sendable () async -> String?
 
     let busy: BusyCheck
     /// Re-reads the install before the run and after it.
@@ -45,7 +44,7 @@ public struct UvUpdater: Sendable {
     let environment: @Sendable () -> [String: String]
     /// The GitHub token the app's own API requests carry, if any. Handed to uv
     /// as `UV_GITHUB_TOKEN` (see `update`).
-    let token: Token
+    let token: CLIToolGitHubToken.Source
     let deadline: ChildProcess.Deadline
 
     /// The archive is ~17 MB (0.12.21 arm64: 17,001,427 bytes) and the installer
@@ -62,18 +61,7 @@ public struct UvUpdater: Sendable {
             // GUI app launched by launchd does not have. See
             // `SystemProxyEnvironment`.
             environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
-            token: UvUpdater.unlessRejected(
-                isRejected: { GitHubCredentials.shared.isRejected },
-                resolve: { await ChangelogService.gitHubToken() }))
-    }
-
-    /// The token to hand uv, or nil once GitHub has rejected it this round.
-    /// `ChangelogService.gitHubToken()` keeps answering a revoked token for its
-    /// cache's lifetime; the app's own requests then go out anonymously
-    /// (`GitHubCredentials`), and uv must too: a rejected token fails uv's
-    /// release lookup where an anonymous one would still be answered.
-    static func unlessRejected(isRejected: @escaping @Sendable () -> Bool, resolve: @escaping Token) -> Token {
-        { isRejected() ? nil : await resolve() }
+            token: CLIToolGitHubToken.app)
     }
 
     init(
@@ -81,7 +69,7 @@ public struct UvUpdater: Sendable {
         scanner: UvScanner,
         verifier: UvVerifier,
         environment: @escaping @Sendable () -> [String: String],
-        token: @escaping Token,
+        token: @escaping CLIToolGitHubToken.Source,
         deadline: ChildProcess.Deadline = UvUpdater.defaultDeadline
     ) {
         self.busy = busy

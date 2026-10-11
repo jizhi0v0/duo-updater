@@ -56,12 +56,67 @@ import Foundation
 
     static func updater(
         _ box: BunSandbox, latest: String = "1.4.2", busy: @escaping BunUpdater.BusyCheck = { _ in nil },
-        environment: [String: String] = [:]
+        environment: [String: String] = [:], token: String? = nil
     ) -> BunUpdater {
-        BunUpdater(busy: busy, scanner: box.scanner, check: BunTests.check(latest), environment: { environment })
+        BunUpdater(busy: busy, scanner: box.scanner, check: BunTests.check(latest), environment: { environment },
+                   token: { token })
     }
 
     // MARK: - bun upgrade
+
+    /// The app's GitHub token reaches `bun upgrade` as `GITHUB_ACCESS_TOKEN`, the
+    /// name every bun from 1.0.0 reads, so its release lookup is not held to the
+    /// anonymous 60 an hour. No token, no variable; a `GITHUB_TOKEN` or
+    /// `GITHUB_ACCESS_TOKEN` the user exported wins.
+    /// Kills: not setting it; setting it from a nil token; overwriting either of
+    /// the user's.
+    @Test func theAppsGitHubTokenReachesBunUpgrade() async throws {
+        for (token, exported, expected) in [
+            ("ZZFixture-token", [:], ["GITHUB_ACCESS_TOKEN": "ZZFixture-token"]),
+            (nil, [:], [:]),
+            ("ZZFixture-token", ["GITHUB_TOKEN": "ZZFixture-users-own"], ["GITHUB_TOKEN": "ZZFixture-users-own"]),
+            ("ZZFixture-token", ["GITHUB_ACCESS_TOKEN": "ZZFixture-users-own"], ["GITHUB_ACCESS_TOKEN": "ZZFixture-users-own"]),
+        ] as [(String?, [String: String], [String: String])] {
+            let box = try BunSandbox()
+            try box.installBun(body: Self.upgrading())
+            let status = try await BunTests.status(box)
+            #expect(await Self.updater(box, environment: exported, token: token).update(status) == .updated(version: "1.4.2"))
+            let env = Self.environment(box)
+            #expect(env.filter { $0.key == "GITHUB_TOKEN" || $0.key == "GITHUB_ACCESS_TOKEN" } == expected)
+        }
+    }
+
+    /// bun's lookup failed on the token it was handed — any status bun has no
+    /// name for, as 1.4.2 printed for a bogus token (2026-10-11): run once more
+    /// without it. Not for another failure (`HTTPForbidden` is the anonymous
+    /// rate limit), and not for a token the user exported, which is theirs to fix.
+    /// Kills: no retry; retrying every failure; retrying the user's token;
+    /// retrying with the token still set.
+    @Test func aRejectedTokenIsRetriedOnceWithout() async throws {
+        let rejected = "echo 'Bun upgrade failed with error: HTTPError'; exit 1"
+        for (token, exported, failure, runs, updated) in [
+            ("ZZFixture-token", nil, rejected, 2, true),
+            ("ZZFixture-token", nil, "echo 'Bun upgrade failed with error: HTTPForbidden'; exit 1", 1, false),
+            (nil, "ZZFixture-users-own", rejected, 1, false),
+        ] as [(String?, String?, String, Int, Bool)] {
+            let box = try BunSandbox()
+            let extra = "echo run >> \"$HOME/RUNS\"\n"
+                + "if [ -n \"$GITHUB_ACCESS_TOKEN\" ]; then \(failure); fi"
+            try box.installBun(body: Self.upgrading(extra: extra))
+            let status = try await BunTests.status(box)
+            var environment: [String: String] = [:]
+            environment["GITHUB_ACCESS_TOKEN"] = exported
+            let outcome = await Self.updater(box, environment: environment, token: token).update(status)
+            let ran = try String(contentsOf: box.home.appendingPathComponent("RUNS"), encoding: .utf8)
+            #expect(ran.split(separator: "\n").count == runs)
+            if updated {
+                #expect(outcome == .updated(version: "1.4.2"))
+                #expect(Self.environment(box)["GITHUB_ACCESS_TOKEN"] == nil)
+            } else {
+                #expect(outcome != .updated(version: "1.4.2"))
+            }
+        }
+    }
 
     @Test func upgradesAndChecksWhatItLeft() async throws {
         let box = try BunSandbox()

@@ -1015,7 +1015,7 @@ public enum ChangelogAutofix {
             do {
                 verdict = .success(try parseVerdict(try await steps.check(checkPrompt(
                     recipe: recipe, candidate: final, edit: edit, entries: entries, page: fixtureText ?? page,
-                    oldPage: edit.source == nil ? nil : before.bodySample,
+                    oldPage: edit.source == nil ? nil : before.bodySample, fetchedPage: page,
                     lastGoodVersion: entry.lastGoodVersion,
                     notes: try? String(
                         contentsOf: tree.appendingPathComponent("docs/app-audits/\(location.family).md"),
@@ -1187,20 +1187,23 @@ public enum ChangelogAutofix {
         }
         if facts.isEmpty {
             facts.append("the old page neither refreshes to, links to, nor names as canonical the new "
-                + "address, and the two addresses answered with different pages (an HTTP redirect "
-                + "is followed by the fetch and cannot be seen otherwise)")
+                + "address, and the two fetches did not return byte-identical pages; an HTTP "
+                + "redirect is followed by the fetch and cannot be seen, and one to a page with "
+                + "changing content would look the same")
         }
         facts.append("path: \(old.path) → \(new.path)"
             + (old.query == new.query ? "" : "; query: \(old.query ?? "none") → \(new.query ?? "none")"))
         return facts
     }
 
-    /// `notes`: the family's `docs/app-audits` file, which says which product
-    /// each bundle id is — on a page carrying several of a vendor's products,
-    /// the only thing that can.
+    /// `page` is what the check reads (the fixture slice when there is one);
+    /// `fetchedPage` is the whole page as fetched, which is what the old
+    /// address's page is compared with. `notes`: the family's `docs/app-audits`
+    /// file, which says which product each bundle id is — on a page carrying
+    /// several of a vendor's products, the only thing that can.
     static func checkPrompt(
         recipe: ChangelogRecipe, candidate: ChangelogRecipe, edit: RecipeLiteralEditor.Edit,
-        entries: [Changelog.Entry], page: String, oldPage: String?,
+        entries: [Changelog.Entry], page: String, oldPage: String?, fetchedPage: String? = nil,
         lastGoodVersion: String? = nil, notes: String? = nil
     ) -> String {
         var out = "A changelog recipe was repaired. Decide whether the repair may merge unseen.\n\n"
@@ -1213,7 +1216,7 @@ public enum ChangelogAutofix {
             out += "address: \(recipe.source.absoluteString) → \(new.absoluteString)\n"
             if let oldPage {
                 out += "Checked by a program, about the move:\n"
-                out += moveEvidence(oldPage: oldPage, newPage: page, from: recipe.source, to: new)
+                out += moveEvidence(oldPage: oldPage, newPage: fetchedPage ?? page, from: recipe.source, to: new)
                     .map { "- \($0)\n" }.joined()
             }
         } else {

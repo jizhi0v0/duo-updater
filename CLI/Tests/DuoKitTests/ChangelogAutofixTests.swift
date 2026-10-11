@@ -766,8 +766,10 @@ import DuoUpdaterCore
     @Test func aRedirectedOldAddressIsReportedToTheCheck() async throws {
         var world = World()
         world.verdict = Self.verdict(move: true)
-        // The fetch followed a redirect: the old address served the new page.
-        world.page = Self.restyled.replacingOccurrences(of: "h3 class=\"v\"", with: "h3 class=\"w\"")
+        // The fetch followed a redirect: the old address served the new page. Big
+        // enough that the fixture is a slice of it, as on any real page.
+        world.page = "<head>" + String(repeating: "<meta name=\"x\" content=\"y\">", count: 400) + "</head>"
+            + Self.restyled.replacingOccurrences(of: "h3 class=\"v\"", with: "h3 class=\"w\"")
         world.movedPage = world.page
         world.reply = Self.reply(
             source: "https://notes.example.com/releases",
@@ -776,6 +778,7 @@ import DuoUpdaterCore
         guard case .ready = outcome else { Issue.record("\(Self.reason(outcome))"); return }
         let prompt = log.all.first { $0.hasPrefix("check-prompt ") } ?? ""
         #expect(prompt.contains("exactly the page the new address serves"))
+        #expect(!prompt.contains("byte-identical"))
     }
 
     @Test func theCheckIsShownTheEntriesThePageAndTheMove() async throws {

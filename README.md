@@ -377,7 +377,10 @@ Two things it deliberately refuses rather than half-doing:
 `duo verify`, `duo triage` and `duo reconcile` are the maintenance side: they
 sweep every hand-written recipe — and every Sparkle feed address we hand out for
 an app whose own bundle does not state one — against its live endpoint, ask a
-model why a broken one broke, and turn the result into issues. That is what the nightly
+model why a broken one broke, and turn the result into issues. `duo autofix` goes one step
+further for a changelog recipe whose entries vanished or collapsed: it opens a draft pull
+request when the model's proposed values pass the production extractor, the goldens,
+`make test` and `duo verify`, and leaves the merge to a person. That is what the nightly
 check runs; they are not needed for ordinary use. `duo verify-install` is the half the
 sweep cannot see: it downloads every installer those recipes resolve and checks it the
 way an install would — published digests, unpacking, code signature, and the bundle id

@@ -94,6 +94,10 @@ public struct Baseline: Codable, Sendable {
         /// a suggestion is posted once per distinct problem rather than every
         /// sweep, and is never shown against a failure it doesn't describe.
         public var triagedSignature: String?
+        /// The failure signature `duo autofix` last attempted a fix for, whatever
+        /// came of it, so one failure costs at most one model call and one
+        /// `make test`. A new signature is a new failure and is tried again.
+        public var autofixSignature: String?
 
         /// Whether this endpoint has been unreachable long enough, and often
         /// enough, that the network has stopped being a plausible explanation.
@@ -177,6 +181,7 @@ public struct Baseline: Codable, Sendable {
                 try c.decodeIfPresent(Int.self, forKey: .consecutiveInstallTransient) ?? 0
             lastCommentedAt = try c.decodeIfPresent(Date.self, forKey: .lastCommentedAt)
             triagedSignature = try c.decodeIfPresent(String.self, forKey: .triagedSignature)
+            autofixSignature = try c.decodeIfPresent(String.self, forKey: .autofixSignature)
         }
     }
 
@@ -190,6 +195,10 @@ public struct Baseline: Codable, Sendable {
     /// maintenance window returning 5xx or 429) are classified `.infra`, not
     /// actionable, and are gated separately below.
     public static let actionableThreshold = 2
+
+    /// How the entry-count collapse complaint begins, for anything that has to
+    /// recognise it in a report (`ChangelogAutofix`).
+    public static let collapseComplaintPrefix = "entry count COLLAPSED to one"
 
     /// Consecutive *unreachable* sweeps before an endpoint is reported as gone.
     ///
@@ -499,7 +508,7 @@ public struct Baseline: Codable, Sendable {
         if let count = finding.entryCount, finding.status != .infra {
             if let previous = entry.lastGoodEntryCount, previous > 1, count == 1 {
                 if finding.entrySwallowsAnother != false {
-                    complaints.append("entry count COLLAPSED to one since the last sweep "
+                    complaints.append(Self.collapseComplaintPrefix + " since the last sweep "
                         + "(\(previous) → 1) — an entry pattern whose terminator stopped "
                         + "matching leaves the first entry carrying the whole page, with its "
                         + "version still parsing correctly off the heading")

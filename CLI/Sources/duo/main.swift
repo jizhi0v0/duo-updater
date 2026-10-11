@@ -47,6 +47,8 @@ commands:
                 against the captured response before anyone reads it.
   reconcile     Turn a verify report into GitHub issues — one per broken recipe,
                 closed automatically when it heals.
+  autofix       Open a draft pull request for a broken changelog recipe, when a
+                model's proposal passes every gate. Never merges.
   help          Show this message. So do --help and -h after any command.
 
 list / check options:
@@ -341,6 +343,25 @@ reconcile options:
 
   Uses the `gh` CLI, so it authenticates the same way you do locally and picks
   up GITHUB_TOKEN on a runner. Never opens more than 10 issues in one sweep.
+
+autofix options:
+  --report <path>     The JSON written by `duo verify --report`. Required.
+  --baseline <path>   The baseline `reconcile` updated. Required — it holds the
+                      issue numbers and the last good readings the gates use.
+  --worktree <path>   A git worktree to build and test in, created on first use
+                      and reset to origin/main on every attempt. Required.
+  --model <id>        Overrides the agent's model (default is declared in
+                      .opencode/agent/duo-changelog-fix.md).
+  --variant <effort>  Provider reasoning effort, e.g. max, high, minimal.
+  --max-attempts N    Findings attempted in one run (default 1).
+  --dry-run           Run every gate, print the diff and the pull request body,
+                      and push, open and record nothing.
+
+  Changelog findings only, and only "no entries extracted" or "entry count
+  collapsed". The model proposes values (source, entry and item patterns) and
+  this writes them; it refuses a new source on another host. A draft opens only
+  when the extractor reads the fresh page, the goldens change in those fields
+  alone, `make test` passes and `duo verify --only` is clean.
 
 exit codes:
   0  no recipe-level problems
@@ -648,6 +669,23 @@ case "reconcile":
         triagePath: args.value("triage").map { URL(fileURLWithPath: $0) },
         dryRun: args.has("dry-run"))
     run = { await Reconcile.run(reconcile) }
+
+case "autofix":
+    guard let report = args.value("report"), let baseline = args.value("baseline"),
+          let worktree = args.value("worktree") else {
+        die("autofix needs --report, --baseline and --worktree\n\n\(usage)", code: 2)
+    }
+    var autofix = AutofixOptions(
+        reportPath: URL(fileURLWithPath: report),
+        baselinePath: URL(fileURLWithPath: baseline),
+        projectDir: URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
+        worktreePath: URL(fileURLWithPath: worktree))
+    autofix.model = args.value("model")
+    if let variant = args.value("variant") { autofix.variant = variant }
+    if let cap = args.int("max-attempts") { autofix.maxAttempts = max(0, cap) }
+    autofix.dryRun = args.has("dry-run")
+    let autofixOptions = autofix
+    run = { await ChangelogAutofix.run(autofixOptions) }
 
 case "diff":
     // Operands only, so a stray flag is left for `unrecognised()` below to name.

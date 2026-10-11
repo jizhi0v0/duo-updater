@@ -104,6 +104,19 @@ class Main(unittest.TestCase):
         env = {"SAME_REPO_PR": "true", "GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "1"}
         self.assertEqual(self.run_main(env, error=RuntimeError("HTTP 502")), cr.MINI)
 
+    def test_an_autofix_branch_is_always_hosted(self):
+        env = {"SAME_REPO_PR": "true", "GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "1",
+               "HEAD_REF": "recipe-autofix/issue-821-0a1b2c3d"}
+        # An idle mini would win any other same-repository run.
+        self.assertEqual(self.run_main(env, jobs=[]), cr.HOSTED)
+        # And a failed queue read, which falls back to the mini otherwise, does not.
+        self.assertEqual(self.run_main(env, error=RuntimeError("HTTP 502")), cr.HOSTED)
+
+    def test_only_the_prefix_counts(self):
+        env = {"SAME_REPO_PR": "true", "GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "1"}
+        for ref in ["claude/recipe-autofix/x", "recipe-autofixes", "verify/baseline-1"]:
+            self.assertEqual(self.run_main({**env, "HEAD_REF": ref}, jobs=[]), cr.MINI, ref)
+
     def test_the_output_is_valid_for_runs_on(self):
         # fromJSON in the workflow needs a JSON array or a JSON string.
         env = {"SAME_REPO_PR": "true", "GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "1"}

@@ -12,7 +12,7 @@ Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce 
 
 **Bir komut satırı aracının kendi Güncelle düğmesi artık süren bir Homebrew yükseltmesinin bitmesini bekliyor**, tıpkı “Tümünü Güncelle”nin zaten yaptığı gibi.
 
-**DuoUpdater artık kendi güncellemelerini updates.duoupdater.app üzerinden denetliyor.** Bu sunucu her gün kabaca kaç kurulumun denetim yaptığını sayar ve sizi ya da Mac'inizi tanımlayan hiçbir şey saklamaz. Tam olarak neyin saklandığı README'nin Privacy bölümünde yazılıdır.
+**DuoUpdater artık kendi güncellemelerini updates.duoupdater.app üzerinden denetliyor.** Bu sunucu her gün kabaca kaç kurulumun denetim yaptığını sayar ve sizi ya da Mac'inizi tanımlayan hiçbir şey saklamaz. [Tam olarak neyin saklandığı](https://github.com/jizhi0v0/duo-updater#privacy).
 
 ## 0.5.4
 

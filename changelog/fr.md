@@ -12,7 +12,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Le bouton Mettre à jour propre à un outil en ligne de commande attend désormais la fin d’une mise à niveau Homebrew en cours**, comme le faisait déjà « Tout mettre à jour ».
 
-**DuoUpdater vérifie désormais ses propres mises à jour sur updates.duoupdater.app.** Ce serveur compte approximativement combien d’installations vérifient chaque jour, et ne conserve rien qui permette de vous identifier, vous ou votre Mac. La section Privacy du README indique exactement ce qui est conservé.
+**DuoUpdater vérifie désormais ses propres mises à jour sur updates.duoupdater.app.** Ce serveur compte approximativement combien d’installations vérifient chaque jour, et ne conserve rien qui permette de vous identifier, vous ou votre Mac. [Ce qui est conservé, précisément](https://github.com/jizhi0v0/duo-updater#privacy).
 
 ## 0.5.4
 

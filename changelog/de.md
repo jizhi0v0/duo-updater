@@ -12,7 +12,7 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 **Der eigene Aktualisieren-Knopf eines Befehlszeilen-Tools wartet jetzt auf ein laufendes Homebrew-Upgrade**, so wie es „Alle aktualisieren“ schon tat.
 
-**DuoUpdater sucht nach eigenen Updates jetzt bei updates.duoupdater.app.** Dieser Server zählt grob, wie viele Installationen pro Tag nachfragen, und speichert nichts, was dich oder deinen Mac identifiziert. Was genau gespeichert wird, steht im Abschnitt „Privacy“ der README.
+**DuoUpdater sucht nach eigenen Updates jetzt bei updates.duoupdater.app.** Dieser Server zählt grob, wie viele Installationen pro Tag nachfragen, und speichert nichts, was dich oder deinen Mac identifiziert. [Was genau gespeichert wird](https://github.com/jizhi0v0/duo-updater#privacy).
 
 ## 0.5.4
 

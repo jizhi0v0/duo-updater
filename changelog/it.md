@@ -12,7 +12,7 @@ Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la vers
 
 **Il pulsante Aggiorna di ogni strumento da riga di comando ora attende la fine di un aggiornamento Homebrew in corso**, come già faceva «Aggiorna tutto».
 
-**DuoUpdater ora controlla i propri aggiornamenti su updates.duoupdater.app.** Quel server conta approssimativamente quante installazioni controllano ogni giorno e non conserva nulla che identifichi te o il tuo Mac. La sezione Privacy del README elenca esattamente cosa viene conservato.
+**DuoUpdater ora controlla i propri aggiornamenti su updates.duoupdater.app.** Quel server conta approssimativamente quante installazioni controllano ogni giorno e non conserva nulla che identifichi te o il tuo Mac. [Cosa viene conservato, esattamente](https://github.com/jizhi0v0/duo-updater#privacy).
 
 ## 0.5.4
 

@@ -12,7 +12,7 @@
 
 **命令列工具自己的「更新」按鈕現在會等進行中的 Homebrew 升級結束**，和「全部更新」一樣。
 
-**DuoUpdater 現在從 updates.duoupdater.app 檢查自身更新。** 這台伺服器只粗略統計每天大約有多少台安裝在檢查更新，不保存任何能識別你或你的 Mac 的資訊。README 的「Privacy」部分寫明了具體保留哪些資料。
+**DuoUpdater 現在從 updates.duoupdater.app 檢查自身更新。** 這台伺服器只粗略統計每天大約有多少台安裝在檢查更新，不保存任何能識別你或你的 Mac 的資訊。[具體保留哪些資料](https://github.com/jizhi0v0/duo-updater#privacy)。
 
 ## 0.5.4
 

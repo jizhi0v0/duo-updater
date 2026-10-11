@@ -12,7 +12,7 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **El botón Actualizar propio de cada herramienta de línea de comandos ahora espera a que termine una actualización de Homebrew en curso**, igual que ya hacía «Actualizar todo».
 
-**DuoUpdater ahora busca sus propias actualizaciones en updates.duoupdater.app.** Ese servidor cuenta aproximadamente cuántas instalaciones consultan cada día y no guarda nada que te identifique a ti ni a tu Mac. La sección Privacy del README detalla exactamente qué se conserva.
+**DuoUpdater ahora busca sus propias actualizaciones en updates.duoupdater.app.** Ese servidor cuenta aproximadamente cuántas instalaciones consultan cada día y no guarda nada que te identifique a ti ni a tu Mac. [Qué se conserva exactamente](https://github.com/jizhi0v0/duo-updater#privacy).
 
 ## 0.5.4
 

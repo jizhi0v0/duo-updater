@@ -29,7 +29,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **A command-line tool's own Update button now waits for a running Homebrew upgrade**, the same way Update All already did.
 
-**DuoUpdater now checks for its own updates at updates.duoupdater.app.** That server counts roughly how many installs check each day, and stores nothing that identifies you or your Mac. The Privacy section of the README lists exactly what is kept.
+**DuoUpdater now checks for its own updates at updates.duoupdater.app.** That server counts roughly how many installs check each day, and stores nothing that identifies you or your Mac. [What is kept, exactly](https://github.com/jizhi0v0/duo-updater#privacy).
 
 ## 0.5.4
 

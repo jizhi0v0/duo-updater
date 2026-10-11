@@ -114,9 +114,11 @@ import CryptoKit
     /// Gatekeeper's first-launch scan of it is done. syspolicyd does those one at
     /// a time for the whole machine, about 0.35 s each (notarization lookup, then
     /// XProtect), so a full parallel run queues every suite's fresh scripts behind
-    /// one another. Measured on the mini 2026-10-11: these tests passed after
-    /// 22–37 s with the fake stuck in exec for most of it, and a 20 s deadline
-    /// killed it before its first line ran — no `ARGS`, "still running after 20 s".
+    /// one another. Observed on the mini 2026-10-11 (`sample`, and syspolicyd's
+    /// "GK performScan" in the log), not taken from Apple's documentation: across
+    /// five full runs, under a LaunchAgent and over SSH, these tests took 22–54 s
+    /// with the fake stuck in exec for most of it, and a 20 s deadline killed it
+    /// before its first line ran — no `ARGS`, "still running after 20 s".
     /// The deadline only keeps a hung child from hanging the run.
     func updater(
         _ box: Sandbox, busy: @escaping HerdrUpdater.BusyCheck = { _ in nil }, environment: [String: String] = [:]

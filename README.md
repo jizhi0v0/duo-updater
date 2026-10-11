@@ -237,16 +237,18 @@ DuoUpdater, and is built so that it cannot learn who:
 
 - The request is the one Sparkle always sends: no account, no device ID, no list
   of your apps. The User-Agent is `DuoUpdater/<version> Sparkle/<version>`.
-- Your IP address is never stored or logged. It is used once, in memory, to pick
+- The Worker never stores or logs your IP address. It is used once, in memory, to pick
   one of 65,536 buckets (an IPv6 address only by its /64 network); tens of thousands of addresses share every bucket, so
   nothing stored can be turned back into an address. The bucket also changes
   every day, so the same Mac cannot be followed from one day to the next.
 - Each night the day's buckets are reduced to one number per DuoUpdater version
   and deleted. That number, *about N installs of version X on day D*, is all
-  that is kept. No country, no location, no logs.
+  that is kept. No country, no location, no logs of ours.
 
-Cloudflare, like GitHub before it, sees the request's IP while delivering it;
-that is true of any download.
+Cloudflare, like GitHub before it, sees the request's IP while delivering it,
+and keeps its own request log for the domain, which the account owner can browse
+in Cloudflare's dashboard; it cannot be switched off on our plan. We do not
+export or query it, and the numbers above do not come from it.
 
 **Homebrew formula icons.** For a formula DuoUpdater bundles no logo for, the
 Homebrew group in the CLI tab shows the formula's own icon, fetched when its row

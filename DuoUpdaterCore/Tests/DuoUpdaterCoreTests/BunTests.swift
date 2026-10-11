@@ -203,6 +203,13 @@ final class BunSandbox {
         try! JSONSerialization.data(withJSONObject: ["tag_name": tag, "assets": assets.map { ["name": $0] }])
     }
 
+    /// The repository by its current name: the old one's 301 reaches URLSession,
+    /// which follows it without the token (`BunRelease`). Kills: the old name.
+    @Test func theChannelIsAskedByTheRepositorysCurrentName() {
+        #expect(BunRelease.channel.absoluteString
+            == "https://api.github.com/repos/oven-sh/bun-releases-for-updater/releases/latest")
+    }
+
     @Test func latestIsTheUpdaterChannelsTag() async throws {
         let release = BunRelease(fetch: { url in
             #expect(url == BunRelease.channel)

@@ -37,12 +37,16 @@ import Foundation
 /// on stdin. Some vendors still wrap their `.dmg` in one, and without an answer
 /// both tools print the license and cancel the attach (exit 1), so the update
 /// could never install. The user asked for the update, and the license is the
-/// one a manual install would show; Sparkle answers `yes\n` the same way, and
-/// Homebrew `qy\n`. Measured: `hdiutil` (26.7, 27.2) and `diskutil image`
-/// (27.2) read the answer from stdin and attach; `no` or an empty stdin
-/// cancels; an image without a license ignores the bytes. `diskutil image` on
-/// 26.7 ignores stdin and blocks on such an image until the watchdog — one more
-/// reason it is not used before 27.2.
+/// one a manual install would show. Sparkle answers `yes\n` the same way
+/// (sparkle-project/Sparkle#2930); Homebrew gets there by another road,
+/// answering `qn\n` and, when that attach fails, converting the image to UDTO
+/// (which drops the license) and mounting the copy.
+///
+/// Measured: `hdiutil` (26.7, 27.2) and `diskutil image` (27.2) read the answer
+/// from stdin and attach; `no` or an empty stdin cancels; an image without a
+/// license ignores the bytes. `diskutil image` on 26.7 ignores stdin and blocks
+/// on such an image until the watchdog — one more reason it is not used before
+/// 27.2.
 enum DiskImageMount {
 
     enum Tool: Sendable, Equatable {

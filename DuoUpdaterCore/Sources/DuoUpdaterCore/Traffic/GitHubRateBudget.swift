@@ -61,6 +61,13 @@ public struct GitHubRateBudget: Sendable, Equatable {
     /// Under a fifth of the limit left: Settings draws the window's bar orange.
     public var isRunningLow: Bool { remaining * 5 < limit }
 
+    /// A budget answered without a token. GitHub's documentation: "The primary
+    /// rate limit for unauthenticated requests is 60 requests per hour"; a
+    /// personal token's is 5,000, some Enterprise Cloud apps' 15,000
+    /// (docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api,
+    /// read 2026-10-11).
+    public var isAnonymous: Bool { limit <= 60 }
+
     /// The budget an answer states; nil without all three headers, or for a
     /// budget other than `core` — search and GraphQL count apart.
     init?(_ response: HTTPURLResponse) {

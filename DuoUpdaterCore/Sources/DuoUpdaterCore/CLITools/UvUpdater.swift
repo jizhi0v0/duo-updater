@@ -35,6 +35,7 @@ import Foundation
 public struct UvUpdater: Sendable {
 
     typealias BusyCheck = @Sendable () -> UvActivity.Busy?
+    typealias Token = @Sendable () async -> String?
 
     let busy: BusyCheck
     /// Re-reads the install before the run and after it.
@@ -42,6 +43,9 @@ public struct UvUpdater: Sendable {
     let verifier: UvVerifier
     /// The child's environment before `HOME` and `PATH` are set.
     let environment: @Sendable () -> [String: String]
+    /// The GitHub token the app's own API requests carry, if any. Handed to uv
+    /// as `UV_GITHUB_TOKEN` (see `update`).
+    let token: Token
     let deadline: ChildProcess.Deadline
 
     /// The archive is ~17 MB (0.12.21 arm64: 17,001,427 bytes) and the installer
@@ -57,7 +61,8 @@ public struct UvUpdater: Sendable {
             // uv and the installer's curl both read the proxy variables, which a
             // GUI app launched by launchd does not have. See
             // `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy })
+            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            token: { await ChangelogService.gitHubToken() })
     }
 
     init(
@@ -65,12 +70,14 @@ public struct UvUpdater: Sendable {
         scanner: UvScanner,
         verifier: UvVerifier,
         environment: @escaping @Sendable () -> [String: String],
+        token: @escaping Token,
         deadline: ChildProcess.Deadline = UvUpdater.defaultDeadline
     ) {
         self.busy = busy
         self.scanner = scanner
         self.verifier = verifier
         self.environment = environment
+        self.token = token
         self.deadline = deadline
     }
 
@@ -138,6 +145,17 @@ public struct UvUpdater: Sendable {
             environment.removeValue(forKey: key)
         }
         environment["PATH"] = CLIToolCommandRunner.path(prefix: command.pathPrefix)
+        // `uv self update` asks `api.github.com` with no token unless given one,
+        // and fails on the 60-an-hour budget every program behind this IP
+        // address shares: "error: GitHub API rate limit exceeded. Please provide
+        // a GitHub token via the `--token` option." Its `--token` reads
+        // `UV_GITHUB_TOKEN` too (`uv self update --help`; the variable is in every
+        // release from 0.6.0, read from the binaries), and an environment
+        // variable stays out of the argument list `ps` shows. One already set
+        // (a terminal-run `duo`) is the user's and is left alone.
+        if environment["UV_GITHUB_TOKEN"] == nil, let token = await token() {
+            environment["UV_GITHUB_TOKEN"] = token
+        }
         let run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
         let outcome: ChildProcess.Outcome
         switch run.result {

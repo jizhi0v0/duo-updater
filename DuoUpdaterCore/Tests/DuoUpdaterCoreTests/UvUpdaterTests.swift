@@ -148,9 +148,37 @@ import CryptoKit
 
     func updater(
         _ box: Sandbox, verifier: UvVerifier? = nil, busy: @escaping UvUpdater.BusyCheck = { nil },
-        environment: [String: String] = [:]
+        environment: [String: String] = [:], token: String? = nil
     ) -> UvUpdater {
-        UvUpdater(busy: busy, scanner: box.scanner, verifier: verifier ?? box.verifier(), environment: { environment })
+        UvUpdater(busy: busy, scanner: box.scanner, verifier: verifier ?? box.verifier(), environment: { environment },
+                  token: { token })
+    }
+
+    /// The app's GitHub token reaches uv as `UV_GITHUB_TOKEN`, uv's own name for
+    /// `--token`, so `self update` is not held to the anonymous 60 an hour. No
+    /// token, no variable; one the user already exported wins.
+    /// Kills: not setting it; setting it from a nil token; overwriting the
+    /// user's.
+    @Test func theAppsGitHubTokenReachesUvSelfUpdate() async throws {
+        for (token, exported, expected) in [
+            ("ZZFixture-token", nil, "ZZFixture-token"),
+            (nil, nil, nil),
+            ("ZZFixture-token", "ZZFixture-users-own", "ZZFixture-users-own"),
+        ] as [(String?, String?, String?)] {
+            let box = try Sandbox()
+            try box.install(version: "0.12.20", signer: "vendor", selfUpdate: box.installerBody(to: "0.12.21"))
+            let status = try await box.status()
+            var environment: [String: String] = [:]
+            environment["UV_GITHUB_TOKEN"] = exported
+            let outcome = await updater(box, environment: environment, token: token).update(status)
+            #expect(outcome == .updated(version: "0.12.21"))
+            let env = try #require(box.read("ENV"))
+            if let expected {
+                #expect(env.contains("UV_GITHUB_TOKEN=\(expected)\n"))
+            } else {
+                #expect(!env.contains("UV_GITHUB_TOKEN"))
+            }
+        }
     }
 
     /// The child reads the receipt the check read: `HOME` is the scanner's, the

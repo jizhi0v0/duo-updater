@@ -1662,11 +1662,9 @@ final class AppListModel {
     /// grant just landed. Cheap: `AXIsProcessTrusted()`, a `TCCAccessPreflight` call, and
     /// four file opens — measured 2026-09-10 at about 20–70 µs for the four, granted or
     /// refused. It also reads `SMAppService.status`, which the "Cheap" above used to
-    /// leave out — ONCE, via `helperClient.refreshStatus()`. It was twice until
-    /// 2026-09-13: `helperClient.isEnabled` is deliberately a live query, so asking
-    /// it right after `refreshStatus()` re-asked the same question, and the Welcome
-    /// and Settings panes poll this every 1.5 s. That query now runs off the main
-    /// thread and lands after this returns (`refreshHelperStatus()`).
+    /// leave out — once, and off the main thread: the query lands after this returns
+    /// (`refreshHelperStatus()`), and the Welcome and Settings panes poll this every
+    /// 1.5 s.
     ///
     /// Caveat we can't engineer around for *Accessibility*: TCC reflects a *grant* to a
     /// running process live, but a *revocation* is cached — `AXIsProcessTrusted()` keeps
@@ -5251,7 +5249,7 @@ final class AppListModel {
             // failure floats its authorize panel.
             Log.install.error("install blocked by helper approval: \(result.app.name, privacy: .public)")
             installErrors[id] = error.errorDescription
-            presentHelperApprovalFlowForInstallFailure()
+            await presentHelperApprovalFlowForInstallFailure()
         } catch {
             // A failed *App Store* install whose bundle is ALREADY at the target
             // version isn't a real failure — it's a no-op reinstall the store tooling
@@ -5364,9 +5362,11 @@ final class AppListModel {
     /// Rebuild the helper's registration and, if it still isn't enabled, open the
     /// Login Items pane. Same two steps as the dialog, minus the dialog.
     func enableAppStoreHelper() {
-        helperClient.reregister()
-        helperEnabled = helperClient.isEnabled
-        if !helperClient.isEnabled { helperClient.openLoginItems() }
+        Task {
+            await helperClient.reregister()
+            helperEnabled = helperClient.isEnabled
+            if !helperClient.isEnabled { helperClient.openLoginItems() }
+        }
     }
 
     /// Open the App Store's Updates list, where the user can finish an update mas
@@ -7027,12 +7027,12 @@ final class AppListModel {
     ///
     /// Shown at most once per batch, like the App Management flow — an "Update All"
     /// across three App Store apps must not stack three identical dialogs.
-    private func presentHelperApprovalFlowForInstallFailure() {
+    private func presentHelperApprovalFlowForInstallFailure() async {
         if isInstallingAll {
             guard !helperApprovalFlowPresentedInBatch else { return }
             helperApprovalFlowPresentedInBatch = true
         }
-        helperClient.reregister()
+        await helperClient.reregister()
         helperEnabled = helperClient.isEnabled
         // Repaired silently — the record was stale, not unapproved. Nothing to ask;
         // the row keeps its error and the retry is one click away.

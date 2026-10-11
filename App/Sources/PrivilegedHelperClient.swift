@@ -33,23 +33,34 @@ final class PrivilegedHelperClient: ObservableObject {
     /// and "macOS is refusing; here's what to do".
     @Published private(set) var lastRegisterError: String?
 
-    private var service: SMAppService { SMAppService.daemon(plistName: HelperConfig.plistName) }
+    /// One registration at a time. They used to block the main thread, which
+    /// queued a second press behind the first; now that they run off it, a second
+    /// press would interleave its `unregister()` with the first one's `register()`.
+    private var registering = false
 
     init() {
-        self.status = SMAppService.daemon(plistName: HelperConfig.plistName).status
+        // Not queried here: this runs on the main thread at launch, and the query is
+        // a synchronous XPC round trip to `smd`. "Not registered" stands in until the
+        // first off-main answer lands — a round trip later, long before any window
+        // that shows it can open.
+        self.status = .notRegistered
+        Task { await refreshStatusOffMain() }
     }
 
     /// True only once the user has approved the background item — the gate that
     /// decides whether App Store auto-update is offered (vs falling back to an
     /// "Update" button that just opens the store).
-    /// Queried live (not the cached `status`) so the gate is always current.
-    var isEnabled: Bool { service.status == .enabled }
+    ///
+    /// Reads the cached `status`, which every path that can change it refreshes
+    /// (`register()`, `reregister()`, `restartDaemon()`, and the window-appear and
+    /// 1.5 s permission polls for an approval given in System Settings). It used to
+    /// query `SMAppService` live, and the Diagnostics row read it from `body`: two
+    /// main-thread XPC round trips per redraw, which the permission poll causes
+    /// every 1.5 s. Measured 2026-10-11 on macOS 27.2 with the page open: 561 of
+    /// 42,416 main-thread samples in 60 s, stalls of 17–32 ms.
+    var isEnabled: Bool { status == .enabled }
 
-    func refreshStatus() {
-        apply(service.status)
-    }
-
-    /// `refreshStatus()` with the query off the main thread. `SMAppService.status` is a
+    /// Refresh `status` with the query off the main thread. `SMAppService.status` is a
     /// synchronous XPC round trip to `smd` — measured 16–40 ms per call on macOS 27 —
     /// and the window-appear and 1.5 s permission polls ran it on the main thread,
     /// inside a window's first layout.
@@ -69,33 +80,59 @@ final class PrivilegedHelperClient: ObservableObject {
         if current == .enabled { lastRegisterError = nil }
     }
 
+    /// `register()` and the status it leaves behind, off the main thread: both are
+    /// synchronous XPC round trips to `smd`.
+    private nonisolated static func registerOffMain() async -> (error: (any Error)?, status: SMAppService.Status) {
+        let plistName = HelperConfig.plistName
+        return await offCooperativePool {
+            let service = SMAppService.daemon(plistName: plistName)
+            do {
+                try service.register()
+                return (nil, service.status)
+            } catch {
+                return (error, service.status)
+            }
+        }
+    }
+
+    private nonisolated static func unregisterOffMain() async {
+        let plistName = HelperConfig.plistName
+        await offCooperativePool { try? SMAppService.daemon(plistName: plistName).unregister() }
+    }
+
     /// Register the daemon. First time, macOS surfaces it in Login Items as a
     /// pending background item the user must switch on; `register()` reports
     /// `.requiresApproval` in that case, and we send them to the pane.
-    func register() {
-        do {
-            try service.register()
+    func register() async {
+        guard !registering else { return }
+        registering = true
+        defer { registering = false }
+        await performRegister()
+    }
+
+    private func performRegister() async {
+        let (failure, current) = await Self.registerOffMain()
+        guard let error = failure else {
             lastRegisterError = nil
-            refreshStatus()
+            apply(current)
             log.notice("helper register() ok — status \(self.status.rawValue, privacy: .public)")
             if status == .requiresApproval { openLoginItems() }
             return
-        } catch {
-            refreshStatus()
-            // Only when it left the helper off. A refusal on an item that is
-            // already switched on changes nothing the user has to act on, and
-            // posting a message would put red type next to the green "Enabled" —
-            // the same contradiction `refreshStatus()` exists to clear.
-            lastRegisterError = status == .enabled ? nil : Self.explain(error, status: status)
-            log.error("helper register() failed: \(error.localizedDescription, privacy: .public) — status \(self.status.rawValue, privacy: .public)")
-            // A refusal is not proof of a damaged record. macOS also refuses while
-            // a background item exists but sits switched OFF, and there the switch
-            // — not a system-wide reset — is the whole cure: reported 2026-08-23,
-            // register() was refused and turning DuoUpdater on by hand in Login
-            // Items fixed it outright. `status` does not separate the two cases, so
-            // open the pane for both; on the damaged one that costs a window.
-            if Self.isRefusal(error) || status == .requiresApproval { openLoginItems() }
         }
+        apply(current)
+        // Only when it left the helper off. A refusal on an item that is
+        // already switched on changes nothing the user has to act on, and
+        // posting a message would put red type next to the green "Enabled" —
+        // the same contradiction `apply(_:)` exists to clear.
+        lastRegisterError = status == .enabled ? nil : Self.explain(error, status: status)
+        log.error("helper register() failed: \(error.localizedDescription, privacy: .public) — status \(self.status.rawValue, privacy: .public)")
+        // A refusal is not proof of a damaged record. macOS also refuses while
+        // a background item exists but sits switched OFF, and there the switch
+        // — not a system-wide reset — is the whole cure: reported 2026-08-23,
+        // register() was refused and turning DuoUpdater on by hand in Login
+        // Items fixed it outright. `status` does not separate the two cases, so
+        // open the pane for both; on the damaged one that costs a window.
+        if Self.isRefusal(error) || status == .requiresApproval { openLoginItems() }
     }
 
     /// Whether macOS refused the registration outright — `SMAppService` reports
@@ -123,16 +160,19 @@ final class PrivilegedHelperClient: ObservableObject {
         return String(localized: "macOS refused the registration. Switch DuoUpdater on under “Allow in the Background” in Login Items & Extensions — that alone usually fixes it. If it isn't listed there, or switching it on changes nothing, macOS's record of this background item is damaged and needs a system-level reset: run “sudo sfltool resetbtm” in Terminal and restart. That clears background-item approvals for every app, so you'll re-approve the others too.")
     }
 
-    func unregister() {
-        try? service.unregister()
-        refreshStatus()
+    func unregister() async {
+        await Self.unregisterOffMain()
+        await refreshStatusOffMain()
     }
 
     /// Unregister and register again, to rebuild a Background Task Management record
     /// that reads as approved but no longer resolves to the daemon (see
     /// `HelperShellRunner`'s repair path). Surfaced in Diagnostics so the user can
     /// clear it without first walking into a failed App Store update.
-    func reregister() {
+    func reregister() async {
+        guard !registering else { return }
+        registering = true
+        defer { registering = false }
         // Gentle first, for the reason spelled out in `HelperShellRunner`'s repair:
         // on a corrupt record `register()` is refused, and an unregister-first order
         // leaves the background item switched OFF with no way back from in-app.
@@ -145,17 +185,16 @@ final class PrivilegedHelperClient: ObservableObject {
         // back "Operation not permitted", leaving the item switched off with no way
         // back short of `sudo sfltool resetbtm` + a restart. The enabled-but-dead
         // case has no in-app cure; `MASError.helperUnresponsive` says so honestly.
-        do {
-            try service.register()
-            log.notice("helper re-registered — status \(self.service.status.rawValue, privacy: .public)")
-            refreshStatus()
+        let (failure, current) = await Self.registerOffMain()
+        guard let error = failure else {
+            log.notice("helper re-registered — status \(current.rawValue, privacy: .public)")
+            apply(current)
             if status == .requiresApproval { openLoginItems() }
             return
-        } catch {
-            log.notice("helper register() refused (\(error.localizedDescription, privacy: .public)) — retrying via unregister")
         }
-        try? service.unregister()
-        register()
+        log.notice("helper register() refused (\(error.localizedDescription, privacy: .public)) — retrying via unregister")
+        await Self.unregisterOffMain()
+        await performRegister()
     }
 
     func openLoginItems() {
@@ -210,7 +249,7 @@ final class PrivilegedHelperClient: ObservableObject {
         log.notice("helper kickstarted — launchd will start the copy in the current bundle")
         // The install path owns its own XPC connection and drops a dead one on the
         // first failure, so there is nothing to tear down from here.
-        refreshStatus()
+        await refreshStatusOffMain()
         return true
     }
 }

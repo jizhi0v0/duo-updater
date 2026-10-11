@@ -171,17 +171,28 @@ jobs:
       # the issues it did open before returning non-zero, and dropping them here
       # would file those again next run. Only a completed verification has state
       # worth keeping.
+      #
+      # The branch is cut from main as it is NOW, not from this run's checkout,
+      # which is half an hour old by here. Cut from the checkout, anything main
+      # gained meanwhile shows up in the pull request as reverted — and when that
+      # includes a workflow file, GitHub refuses the push outright, because the
+      # token has no `workflow` scope (#1202). `git checkout -b` carries the two
+      # modified files across, as the mini's sweep does for verify/baseline.json.
+      # If main changed one of them during the run too, it refuses instead of
+      # overwriting that change, and this step fails.
       - name: Commit the state back
         if: ${{ !cancelled() && steps.previous.outputs.clear == 'true' && steps.verify.outcome == 'success' }}
         env:
           PR_TOKEN: ${{ secrets.INSTALL_VERIFY_PR_TOKEN }}
         run: |
+          branch="verify/install-$(date -u +%Y%m%dT%H%M%SZ)"
+          git fetch -q --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+          git checkout -q -b "$branch" origin/main
           git add verify/identities.json verify/install-baseline.json
           if git diff --staged --quiet; then
             echo "state unchanged"
             exit 0
           fi
-          branch="verify/install-$(date -u +%Y%m%dT%H%M%SZ)"
           git -c user.name="duo-verify" -c user.email="duo-verify@users.noreply.github.com" \
             commit -q -m "verify-install: update identities and baseline"
           git push -q "https://x-access-token:${PR_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \

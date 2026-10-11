@@ -36,6 +36,15 @@
 # ours. Pushes to main, the public record that main is green, stay hosted — and
 # with them the 3-core runner, the only place #351's pool starvation reproduced.
 # If the mini is down, dispatch this workflow on the branch: dispatch is hosted.
+#
+# Which of the two a same-repository pull request gets is decided per run by the
+# `route` job (scripts/ci_route.py): it estimates when this run would finish on
+# each side, from the jobs already queued or running there and measured median
+# job times, and takes the earlier, the mini on a tie. An idle mini always wins;
+# a hosted Mac can win even with fewer than three free slots, or none, when the
+# mini's queue is longer still. Sending every one to the mini left the hosted
+# slots empty while PR jobs queued there for 17 minutes on average (the script
+# says when that was measured). GitHub has no "whichever runner is free" of its own.
 name: CI
 
 on:
@@ -53,6 +62,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Picks the runner for the three macOS jobs below; see the header and
+  # scripts/ci_route.py. Linux, so it takes none of the five macOS slots.
+  # `actions: read` to list the repository's queued and running jobs.
+  route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      runner: ${{ steps.pick.outputs.runner }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/ci_route.py
+          sparse-checkout-cone-mode: false
+
+      - name: Pick a runner
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SAME_REPO_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        run: python3 scripts/ci_route.py >> "$GITHUB_OUTPUT"
+
   # `make test` in its three parts plus Core's Release pass, each on its own
   # runner. One after another they took 22–28 minutes, more than half of it one
   # compile: run 37190107638 spent 8 minutes in `make test` and 14 in the Release
@@ -60,7 +94,8 @@ jobs:
   # the longest job instead of the sum. Standard runners on a public repository
   # cost nothing either way; the price is up to three macOS runners per push.
   swift:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted","duo-mini"]') || 'xcode-27' }}
+    needs: route
+    runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
     # Core's suite reaches vendor endpoints (the install gates download real
     # packages and verify sha512 + Team ID), so it is slower and less predictable
     # than a pure unit run. Generous, but far under the 6h job ceiling.
@@ -117,7 +152,8 @@ jobs:
         run: scripts/run-with-hang-report.sh 1800 make test-swift
 
   app:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted","duo-mini"]') || 'xcode-27' }}
+    needs: route
+    runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
     timeout-minutes: 30
     steps:
       - name: Check out
@@ -218,7 +254,8 @@ jobs:
             ${{ env.APP_TESTS_DD }}/Logs/Package/*.xcactivitylog
 
   release:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted","duo-mini"]') || 'xcode-27' }}
+    needs: route
+    runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
     timeout-minutes: 30
     steps:
       - name: Check out

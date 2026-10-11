@@ -96,7 +96,10 @@ public struct Baseline: Codable, Sendable {
         public var triagedSignature: String?
         /// The failure signature `duo autofix` last attempted a fix for, whatever
         /// came of it, so one failure costs at most one model call and one
-        /// `make test`. A new signature is a new failure and is tried again.
+        /// `make test`. Cleared by the first healthy sweep after it, which is what
+        /// makes it one attempt per break: the signatures it acts on are one
+        /// constant per kind (`noEntriesExtracted`, the collapse complaint's
+        /// prefix), so they cannot tell this break from the next.
         public var autofixSignature: String?
 
         /// Whether this endpoint has been unreachable long enough, and often
@@ -574,6 +577,11 @@ public struct Baseline: Codable, Sendable {
             entry.previousSignature = nil
             entry.sweepsSinceComment = 0
             entry.lastCommentedAt = nil
+            // A healthy reading ends the failure the attempt was about. Kept,
+            // it would outlive it: the signatures `duo autofix` acts on are one
+            // constant per kind, so the next, unrelated break would read as
+            // "already attempted" for the rest of the recipe's life.
+            entry.autofixSignature = nil
 
         case .broken, .warn:
             entry.consecutiveActionable += 1

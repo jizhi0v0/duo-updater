@@ -65,6 +65,15 @@ import DuoUpdaterCore
 
         """
 
+    static let changelogSwift = """
+        public struct Changelog {
+            /// Generations:
+            /// - 18: something earlier.
+            public static let parserGeneration = 18
+        }
+
+        """
+
     static let familyPath = "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/test-family.swift"
     static let goldenPath = "DuoUpdaterCore/Tests/RecipeGoldens/test-family.txt"
 
@@ -175,7 +184,7 @@ import DuoUpdaterCore
         #expect(chosen(baseline(), recipes: [ChangelogRecipe(
             bundleID: "com.example.autofix", source: Self.source,
             structuredFormat: .gitHubReleases)]) == 0)
-        #expect(chosen(baseline(), pulls: [(7, "recipe-autofix/issue-42-0000aaaa", "OPEN")]) == 0)
+        #expect(chosen(baseline(), pulls: [(7, "recipe-autofix/issue-42", "OPEN")]) == 0)
         let secret = RegistrySecurity.credentialBearingBundleIDs.first!
         var b = Baseline()
         var e = Baseline.Entry()
@@ -212,28 +221,35 @@ import DuoUpdaterCore
         #expect(!A.records(.dryRun("x"), dryRun: true))
     }
 
-    @Test func anOpenDraftOrAnAnsweredFailureBlocksAnotherPullRequest() {
+    @Test func anyPullRequestForTheIssueBlocksAnother() {
         typealias A = ChangelogAutofix
-        let sig = "noEntriesExtracted"
-        let exact = A.branchName(issue: 42, signature: sig)
-        #expect(exact.hasPrefix("recipe-autofix/issue-42-"))
-        #expect(A.branchName(issue: 42, signature: sig) == exact)
-        #expect(A.existingPullRequestRefusal(issue: 42, signature: sig, pullRequests: []) == nil)
+        let branch = A.branchName(issue: 42)
+        #expect(branch == "recipe-autofix/issue-42")
+        #expect(A.existingPullRequestRefusal(issue: 42, pullRequests: []) == nil)
+        for state in ["OPEN", "CLOSED", "MERGED"] {
+            #expect(A.existingPullRequestRefusal(issue: 42, pullRequests: [(1, branch, state)]) != nil, "\(state)")
+        }
+        // Issue 420's branch, or 4's, is not issue 42's.
         #expect(A.existingPullRequestRefusal(
-            issue: 42, signature: sig, pullRequests: [(1, exact, "CLOSED")]) != nil)
-        #expect(A.existingPullRequestRefusal(
-            issue: 42, signature: sig, pullRequests: [(1, exact, "MERGED")]) != nil)
-        #expect(A.existingPullRequestRefusal(
-            issue: 42, signature: sig,
-            pullRequests: [(1, A.branchName(issue: 42, signature: "other"), "OPEN")]) != nil)
-        // A closed draft for a different failure is history, not an answer.
-        #expect(A.existingPullRequestRefusal(
-            issue: 42, signature: sig,
-            pullRequests: [(1, A.branchName(issue: 42, signature: "other"), "CLOSED")]) == nil)
-        // Issue 420's branch is not issue 42's.
-        #expect(A.existingPullRequestRefusal(
-            issue: 42, signature: sig,
-            pullRequests: [(1, A.branchName(issue: 420, signature: sig), "OPEN")]) == nil)
+            issue: 42, pullRequests: [(1, A.branchName(issue: 420), "OPEN"), (2, A.branchName(issue: 4), "OPEN")]) == nil)
+    }
+
+    /// Review round 1 on #1194: the signatures this acts on are one constant per
+    /// kind, so an attempt recorded forever would make every later break of the
+    /// same kind "already attempted". A healthy sweep in between ends it.
+    @Test func aHealthySweepEndsTheAttemptSoTheNextBreakIsTriedAgain() {
+        var b = baseline(attempted: Self.finding().signature)
+        #expect(ChangelogAutofix.select(
+            [Self.finding()], baseline: b, recipes: [Self.recipe], pullRequests: []).chosen.isEmpty)
+        b.reconcile(Finding(
+            recipeID: Self.finding().recipeID, registry: .changelog, bundleID: "com.example.autofix",
+            channel: "-", status: .ok, version: "3.0", endpointHost: "notes.example.com",
+            entryCount: 3, entryVersions: ["3.0", "2.0", "1.0"]))
+        #expect(b.entries[Self.finding().recipeID]?.autofixSignature == nil)
+        // Broken again, and reported again (the streak restarts).
+        b.entries[Self.finding().recipeID]?.consecutiveActionable = Baseline.actionableThreshold
+        #expect(ChangelogAutofix.select(
+            [Self.finding()], baseline: b, recipes: [Self.recipe], pullRequests: []).chosen.count == 1)
     }
 
     // MARK: - empty vendor notes
@@ -374,10 +390,13 @@ import DuoUpdaterCore
     @Test func onlyTheFamilyItsGoldenAndTheFixtureMayChange() {
         typealias A = ChangelogAutofix
         let fixture = "\(A.fixtureDirectory)/stem"
-        let ok = [Self.familyPath, Self.goldenPath, fixture + ".txt", fixture + ".json"]
+        let ok = [Self.familyPath, Self.goldenPath, A.generationPath, fixture + ".txt", fixture + ".json"]
         #expect(A.pathRefusal(changed: ok, family: "test-family", fixtureStem: "stem") == nil)
-        #expect(A.pathRefusal(changed: [Self.familyPath, Self.goldenPath],
+        #expect(A.pathRefusal(changed: [Self.familyPath, Self.goldenPath, A.generationPath],
                               family: "test-family", fixtureStem: "stem") == nil)
+        // The bump is required, not just allowed.
+        #expect(A.pathRefusal(changed: [Self.familyPath, Self.goldenPath],
+                              family: "test-family", fixtureStem: "stem") != nil)
         for stray in [
             ".github/workflows/ci.yml", "scripts/ci_route.py", "Makefile",
             "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/other-family.swift",
@@ -389,7 +408,8 @@ import DuoUpdaterCore
             #expect(A.pathRefusal(changed: ok + [stray], family: "test-family", fixtureStem: "stem") != nil,
                     "\(stray)")
         }
-        #expect(A.pathRefusal(changed: [Self.goldenPath], family: "test-family", fixtureStem: "stem") != nil)
+        #expect(A.pathRefusal(changed: [Self.goldenPath, A.generationPath],
+                              family: "test-family", fixtureStem: "stem") != nil)
     }
 
     static func report(_ status: FindingStatus, id: String = "changelog:com.example.autofix:-") -> Data {
@@ -486,6 +506,8 @@ import DuoUpdaterCore
         /// Applied to the faithful golden.
         var goldenTamper: @Sendable (String) -> String = { $0 }
         var strayFile: String?
+        /// Applied to Changelog.swift after the harness bumped it.
+        var generationTamper: (@Sendable (String) -> String)?
         var testStatus: Int32 = 0
         var verifyStatus: FindingStatus = .ok
         var treeChangesDuringGates = false
@@ -522,7 +544,11 @@ import DuoUpdaterCore
             ask: { _ in log.add("ask"); return world.reply },
             model: "test-model",
             tree: tree,
-            prepareTree: { log.add("prepare"); try write(world.family, Self.familyPath) },
+            prepareTree: {
+                log.add("prepare")
+                try write(world.family, Self.familyPath)
+                try write(Self.changelogSwift, ChangelogAutofix.generationPath)
+            },
             recordGoldens: {
                 log.add("goldens")
                 let family = try String(contentsOf: tree.appendingPathComponent(Self.familyPath), encoding: .utf8)
@@ -544,8 +570,12 @@ import DuoUpdaterCore
                 }
                 try write(world.goldenTamper(golden), Self.goldenPath)
                 if let stray = world.strayFile { try write("x", stray) }
+                if let tamper = world.generationTamper {
+                    let url = tree.appendingPathComponent(ChangelogAutofix.generationPath)
+                    try write(tamper(try String(contentsOf: url, encoding: .utf8)), ChangelogAutofix.generationPath)
+                }
             },
-            committedFile: { _ in Self.golden },
+            committedFile: { path in path == ChangelogAutofix.generationPath ? Self.changelogSwift : Self.golden },
             changedPaths: { files() },
             makeTest: {
                 log.add("make test")
@@ -593,9 +623,10 @@ import DuoUpdaterCore
     @Test func everyGatePassedOpensOneDraft() async throws {
         let (outcome, log) = try await Self.attempt()
         #expect(Self.reason(outcome) == "opened: https://github.com/o/r/pull/1", "\(log.all)")
-        #expect(log.all.contains { $0.hasPrefix("publish recipe-autofix/issue-42-") })
+        #expect(log.did("publish recipe-autofix/issue-42"))
         #expect(log.all.contains("body Refs #42\n"))
         let paths = try #require(log.all.first { $0.hasPrefix("paths ") })
+        #expect(paths.contains(ChangelogAutofix.generationPath))
         #expect(paths.contains(Self.familyPath) && paths.contains(Self.goldenPath)
                 && paths.contains(".json") && paths.contains(".txt"))
         #expect(log.all.filter { $0 == "make test" || $0 == "verify" } == ["make test", "verify"])
@@ -682,6 +713,50 @@ import DuoUpdaterCore
         }
         let (outcome, log) = try await Self.attempt(world)
         #expect(Self.reason(outcome).hasPrefix("refused: G4"), "\(Self.reason(outcome))")
+        #expect(!log.did("make test"))
+    }
+
+    @Test func theGenerationIsBumpedWithItsBulletAndNothingElse() throws {
+        typealias A = ChangelogAutofix
+        let note = A.generationNote(
+            Self.recipe, trigger: .collapse, edit: .init(entryPattern: Self.newPattern), issue: 821)
+        let bumped = try A.bumpingGeneration(in: Self.changelogSwift, note: note)
+        #expect(bumped.contains("public static let parserGeneration = 19"))
+        #expect(bumped.contains("/// - 19: com.example.autofix's changelog recipe has a new `entryPattern`"))
+        #expect(bumped.components(separatedBy: "\n").allSatisfy { $0.count <= 100 })
+        #expect(A.generationRefusal(old: Self.changelogSwift, new: bumped) == nil)
+        // Not up by exactly one.
+        #expect(A.generationRefusal(old: Self.changelogSwift, new: Self.changelogSwift) != nil)
+        #expect(A.generationRefusal(
+            old: Self.changelogSwift,
+            new: bumped.replacingOccurrences(of: "= 19", with: "= 20")) != nil)
+        // A consistent jump: bullet and constant agree, but not on the next number.
+        #expect(A.generationRefusal(
+            old: Self.changelogSwift,
+            new: bumped.replacingOccurrences(of: "= 19", with: "= 25")
+                .replacingOccurrences(of: "/// - 19:", with: "/// - 25:")) != nil)
+        // A line of code slipped in under a well-formed bullet.
+        #expect(A.generationRefusal(
+            old: Self.changelogSwift,
+            new: bumped.replacingOccurrences(
+                of: "    public static let parserGeneration = 19",
+                with: "    static var x = 1\n    public static let parserGeneration = 19")) != nil)
+        // Anything else in the file.
+        #expect(A.generationRefusal(
+            old: Self.changelogSwift,
+            new: bumped.replacingOccurrences(of: "public struct Changelog", with: "public struct Changelog2")) != nil)
+        // Added lines that are not doc comment.
+        #expect(A.generationRefusal(
+            old: Self.changelogSwift,
+            new: bumped.replacingOccurrences(of: "/// - 19:", with: "static var x = 1 // - 19:")) != nil)
+        #expect(throws: (any Error).self) { try A.bumpingGeneration(in: "no constant here", note: note) }
+    }
+
+    @Test func g4AGenerationFileChangedElsewhereStopsBeforeTests() async throws {
+        var world = World()
+        world.generationTamper = { $0 + "\n// extra\n" }
+        let (outcome, log) = try await Self.attempt(world)
+        #expect(Self.reason(outcome).hasPrefix("refused: G4: Changelog.swift"), "\(Self.reason(outcome))")
         #expect(!log.did("make test"))
     }
 

@@ -149,31 +149,27 @@ public enum ChangelogAutofix {
         return nil
     }
 
-    /// The branch for one attempt. The signature goes in so a later, different
-    /// failure on the same issue is not mistaken for this one.
-    static func branchName(issue: Int, signature: String) -> String {
-        "\(branchPrefix)issue-\(issue)-\(shortHash(signature))"
+    /// The branch for an issue's draft. One per issue, so the branch name alone
+    /// says whether the issue already had one.
+    static func branchName(issue: Int) -> String {
+        "\(branchPrefix)issue-\(issue)"
     }
 
-    /// Why an existing pull request rules this attempt out, or nil.
-    ///
-    /// Any open one for the issue: two drafts for one recipe is a review nobody
-    /// wants. And any one at all — merged, closed — for this exact failure: a
-    /// draft a human closed was an answer, and asking again every six hours is
-    /// not respecting it.
+    /// Why an existing pull request rules this attempt out, or nil: any pull
+    /// request for the issue, in any state. Open, it is under review; merged or
+    /// closed, a human has answered this issue, and asking again every six hours
+    /// is not respecting that. A later break that files a new issue is a new
+    /// question. (Reconcile reopens an issue that breaks again within 14 days
+    /// instead, and that stays answered.)
     static func existingPullRequestRefusal(
-        issue: Int, signature: String, pullRequests: [(number: Int, head: String, state: String)]
+        issue: Int, pullRequests: [(number: Int, head: String, state: String)]
     ) -> String? {
-        let issuePrefix = "\(branchPrefix)issue-\(issue)-"
-        let exact = branchName(issue: issue, signature: signature)
-        for pr in pullRequests where pr.head.hasPrefix(issuePrefix) {
-            if pr.state == "OPEN" { return "pull request #\(pr.number) is already open for it" }
-            if pr.head == exact {
-                return "pull request #\(pr.number) (\(pr.state.lowercased())) already answered "
-                    + "this failure"
-            }
+        guard let pr = pullRequests.first(where: { $0.head == branchName(issue: issue) }) else {
+            return nil
         }
-        return nil
+        return pr.state == "OPEN"
+            ? "pull request #\(pr.number) is already open for it"
+            : "pull request #\(pr.number) (\(pr.state.lowercased())) already answered this issue"
     }
 
     // MARK: - the proposal
@@ -331,6 +327,7 @@ public enum ChangelogAutofix {
         [
             "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/\(family).swift",
             "DuoUpdaterCore/Tests/RecipeGoldens/\(family).txt",
+            generationPath,
             "\(fixtureDirectory)/\(fixtureStem).txt",
             "\(fixtureDirectory)/\(fixtureStem).json",
         ]
@@ -347,7 +344,101 @@ public enum ChangelogAutofix {
         guard changed.contains("DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/\(family).swift") else {
             return "G5: the family file did not change"
         }
+        guard changed.contains(generationPath) else {
+            return "G5: the parser generation was not bumped"
+        }
         return nil
+    }
+
+    // MARK: - the parser generation
+
+    static let generationPath = "DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/Changelog.swift"
+    private static let generationLine = #"^(\s*)public static let parserGeneration = ([0-9]+)$"#
+
+    /// `Changelog.swift` with `parserGeneration` raised by one and a bullet for it,
+    /// in the shape every earlier bump has.
+    ///
+    /// Not optional. `ChangelogRecipe`'s doc says an `entryPattern`, `itemPatterns`
+    /// or `source` edit needs the bump a parser change does, and a collapse is the
+    /// case that shows why: while the page read as one entry, the app filed that
+    /// entry for the user's version in a disk cache that never expires. Without a
+    /// new generation the fix never reaches anyone who opened the notes then.
+    static func bumpingGeneration(in text: String, note: String) throws -> String {
+        var lines = text.components(separatedBy: "\n")
+        let matches = lines.indices.filter { lines[$0].range(of: generationLine, options: .regularExpression) != nil }
+        guard matches.count == 1, let at = matches.first,
+              let current = Int(lines[at].split(separator: "=").last?
+                  .trimmingCharacters(in: .whitespaces) ?? "") else {
+            throw Triage.TriageError("cannot find `parserGeneration` in Changelog.swift")
+        }
+        let indent = String(lines[at].prefix { $0 == " " })
+        let next = current + 1
+        lines[at] = "\(indent)public static let parserGeneration = \(next)"
+        lines.insert(contentsOf: wrapped("- \(next): " + note, indent: indent + "/// ", hang: "  "), at: at)
+        return lines.joined(separator: "\n")
+    }
+
+    /// G4 for `Changelog.swift`: nil when `new` is `old` with `parserGeneration`
+    /// raised by exactly one and doc-comment lines added right above it, a bullet
+    /// for the new number first — and nothing else.
+    static func generationRefusal(old: String, new: String) -> String? {
+        let a = old.components(separatedBy: "\n"), b = new.components(separatedBy: "\n")
+        func constant(_ lines: [String]) -> (Int, Int)? {
+            let hits = lines.indices.filter { lines[$0].range(of: generationLine, options: .regularExpression) != nil }
+            guard hits.count == 1, let i = hits.first,
+                  let value = Int(lines[i].split(separator: "=").last?.trimmingCharacters(in: .whitespaces) ?? "")
+            else { return nil }
+            return (i, value)
+        }
+        guard let (i, before) = constant(a), let (j, after) = constant(b), j >= i else {
+            return "G4: Changelog.swift no longer declares `parserGeneration` once"
+        }
+        guard after == before + 1 else {
+            return "G4: parserGeneration went \(before) → \(after), not up by one"
+        }
+        let added = b[i..<j]
+        guard Array(b[..<i]) == Array(a[..<i]), Array(b[(j + 1)...]) == Array(a[(i + 1)...]),
+              let first = added.first, first.trimmingCharacters(in: .whitespaces).hasPrefix("/// - \(after): "),
+              added.allSatisfy({ $0.trimmingCharacters(in: .whitespaces).hasPrefix("///") })
+        else {
+            return "G4: Changelog.swift changed beyond the generation and its bullet"
+        }
+        return nil
+    }
+
+    /// `text` as doc-comment lines of at most 100 columns, continuation lines
+    /// hung under the bullet's text.
+    private static func wrapped(_ text: String, indent: String, hang: String) -> [String] {
+        var lines: [String] = []
+        var line = indent
+        for word in text.split(separator: " ") {
+            let lead = line == indent ? "" : (line == indent + hang ? "" : " ")
+            if line.count + lead.count + word.count > 92, line != indent, line != indent + hang {
+                lines.append(line)
+                line = indent + hang + word
+            } else {
+                line += lead + word
+            }
+        }
+        lines.append(line)
+        return lines
+    }
+
+    /// What the bullet says: which recipe changed, how, and what a cached copy
+    /// from the broken weeks may hold.
+    static func generationNote(
+        _ recipe: ChangelogRecipe, trigger: Trigger, edit: RecipeLiteralEditor.Edit, issue: Int
+    ) -> String {
+        let fields = [
+            edit.source != nil ? "`source`" : nil,
+            edit.entryPattern != nil ? "`entryPattern`" : nil,
+            edit.itemPatterns != nil ? "`itemPatterns`" : nil,
+        ].compactMap { $0 }.joined(separator: " and ")
+        let cached = trigger == .collapse
+            ? "Notes already cached while it was broken hold one entry carrying the whole page."
+            : "Notes already cached were read by the pattern that stopped matching."
+        return "\(recipe.bundleID)'s changelog recipe has a new \(fields) (`duo autofix`, "
+            + "#\(issue)). \(cached)"
     }
 
     /// G7: nil when `duo verify`'s report has this recipe at ✓ — `ok`, not `warn`.
@@ -441,12 +532,15 @@ public enum ChangelogAutofix {
         if let missing = await GitHub.unavailableReason() {
             die("cannot reach the GitHub CLI: \(missing)", code: 2)
         }
-        let pullRequests: [(number: Int, head: String, state: String)]
-        do {
-            pullRequests = try await GitHub.autofixPullRequests()
-        } catch {
-            // Not knowing which drafts exist is not a reason to open a duplicate.
-            die("could not list existing \(label) pull requests: \(error)", code: 1)
+        var pullRequests: [(number: Int, head: String, state: String)] = []
+        for (_, _, _, issue) in select(
+            document.findings, baseline: baseline, recipes: recipes, pullRequests: []).chosen {
+            do {
+                pullRequests += try await GitHub.pullRequests(head: branchName(issue: issue))
+            } catch {
+                // Not knowing which drafts exist is not a reason to open a duplicate.
+                die("could not list pull requests for issue #\(issue): \(error)", code: 1)
+            }
         }
         let selection = select(
             document.findings, baseline: baseline, recipes: recipes, pullRequests: pullRequests)
@@ -523,8 +617,7 @@ public enum ChangelogAutofix {
                 skipped.append((finding.recipeID, why))
                 continue
             }
-            if let why = existingPullRequestRefusal(
-                issue: issue, signature: finding.signature, pullRequests: pullRequests) {
+            if let why = existingPullRequestRefusal(issue: issue, pullRequests: pullRequests) {
                 skipped.append((finding.recipeID, why))
                 continue
             }
@@ -543,7 +636,7 @@ public enum ChangelogAutofix {
             return "no open issue to refer to"
         }
         if entry.autofixSignature == finding.signature {
-            return "already attempted for this failure"
+            return "already attempted since it broke"
         }
         return nil
     }
@@ -617,8 +710,8 @@ public enum ChangelogAutofix {
                 changedPaths: { try await ChangelogAutofix.changedPaths(in: tree) },
                 makeTest: {
                     // The same skip ci.yml gives the mini: that test downloads a
-                    // real 110 MB installer, and the sweep that runs this already
-                    // ran it.
+                    // real 110 MB installer, and the sweep that calls this runs
+                    // it on its own later in the same run.
                     try await run(
                         "/usr/bin/env", ["make", "test"], in: tree,
                         environment: ["CORE_TEST_FLAGS": "--skip installPipelineDryRun"],
@@ -733,6 +826,11 @@ public enum ChangelogAutofix {
                 return .refused("the family file cannot be edited mechanically: \(error)")
             }
             try Data(edited.utf8).write(to: familyURL)
+            let generationURL = tree.appendingPathComponent(generationPath)
+            try Data(try bumpingGeneration(
+                in: String(contentsOf: generationURL, encoding: .utf8),
+                note: generationNote(recipe, trigger: trigger, edit: edit, issue: issue)).utf8)
+                .write(to: generationURL)
             if let fixtureText {
                 let directory = tree.appendingPathComponent(fixtureDirectory)
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -751,6 +849,11 @@ public enum ChangelogAutofix {
             let oldGolden = try await steps.committedFile(goldenPath)
             let newGolden = try String(contentsOf: tree.appendingPathComponent(goldenPath), encoding: .utf8)
             if let why = goldenRefusal(old: oldGolden, new: newGolden, index: location.index, edit: edit) {
+                return .refused(why)
+            }
+            if let why = generationRefusal(
+                old: try await steps.committedFile(generationPath),
+                new: try String(contentsOf: tree.appendingPathComponent(generationPath), encoding: .utf8)) {
                 return .refused(why)
             }
             // G5.
@@ -785,8 +888,7 @@ public enum ChangelogAutofix {
             }
             let title = "Changelog autofix: \(recipe.bundleID) — "
                 + (trigger == .collapse ? "entries collapsed" : "no entries extracted")
-            return .opened(try await steps.publish(
-                branchName(issue: issue, signature: finding.signature), changed, title, body))
+            return .opened(try await steps.publish(branchName(issue: issue), changed, title, body))
         } catch {
             return .error("\(error)")
         }
@@ -891,7 +993,10 @@ public enum ChangelogAutofix {
         out += "| G2 count | ≥ \(trigger == .collapse ? "2 (collapse)" : "\(entry.lastGoodEntryCount ?? 1) (last good)") |\n"
         out += "| G3 newest | `\(versions.first ?? "?")` against last good `\(entry.lastGoodVersion ?? "none")` |\n"
         out += "| G4 goldens | only `changelogs[…]` fields named above changed, to exactly these values |\n"
-        out += "| G5 paths | family file, its golden\(fixtureIncluded ? ", the fixture" : "") |\n"
+        out += "| G4 generation | `Changelog.parserGeneration` up by one with its bullet, nothing else "
+            + "in that file |\n"
+        out += "| G5 paths | family file, its golden, `Changelog.swift`"
+            + "\(fixtureIncluded ? ", the fixture" : "") |\n"
         out += "| G6 | `make test` exit 0 |\n"
         out += "| G7 | `duo verify --only \(recipe.recipeID)` ✓ |\n\n"
         out += "Entries read: " + versions.prefix(10).map { "`\($0)`" }.joined(separator: ", ")
@@ -900,6 +1005,9 @@ public enum ChangelogAutofix {
             out += "**No fixture**: no slice of the page under \(fixtureCap / 1024) KB read the same "
                 + "entries, so the change is only covered by the live-page gates above.\n\n"
         }
+        out += "`Changelog.parserGeneration` is raised so notes cached while the recipe was broken "
+            + "are read again. Another pull request that raises it too will conflict on that line; "
+            + "whichever merges second takes the next number.\n\n"
         out += "## What a machine cannot check\n\n"
         out += "- Whether the new page is the vendor's own notes for this app and channel.\n"
         out += "- Whether the vendor changed the page on purpose in a way that needs a recipe "
@@ -1026,16 +1134,6 @@ public enum ChangelogAutofix {
         try? await git(["checkout", "--detach", "origin/main"], in: tree)
         try? await git(["branch", "-D", branch], in: tree)
         return url
-    }
-
-    private static func shortHash(_ text: String) -> String {
-        // FNV-1a: stable across runs and machines, unlike `hashValue`.
-        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
-        for byte in text.utf8 {
-            hash ^= UInt64(byte)
-            hash = hash &* 0x100_0000_01b3
-        }
-        return String(String(hash, radix: 16).suffix(8))
     }
 }
 

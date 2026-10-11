@@ -107,19 +107,20 @@ enum GitHub {
         }
     }
 
-    /// Every pull request, in any state, whose head is an autofix branch.
+    /// Every pull request, in any state, opened from exactly `branch`.
     ///
-    /// By branch, not by label: the label is applied by `gh pr create` and can be
-    /// removed by anyone, the branch name cannot change.
-    static func autofixPullRequests() async throws -> [(number: Int, head: String, state: String)] {
+    /// `--head`, an exact match that `gh` resolves through the pulls API, rather
+    /// than a `head:` search: it finds a merged pull request whose branch is long
+    /// deleted (measured 2026-10-11 on #1190), and does not wait on the search
+    /// index. The branch name is the record, not the label, which anyone can
+    /// remove.
+    static func pullRequests(head branch: String) async throws -> [(number: Int, head: String, state: String)] {
         let json = try await run([
-            "pr", "list", "--state", "all", "--limit", "1000",
-            "--search", "head:\(ChangelogAutofix.branchPrefix)",
+            "pr", "list", "--state", "all", "--head", branch,
             "--json", "number,headRefName,state",
         ])
         struct Row: Decodable { let number: Int; let headRefName: String; let state: String }
         return try JSONDecoder().decode([Row].self, from: Data(json.utf8))
-            .filter { $0.headRefName.hasPrefix(ChangelogAutofix.branchPrefix) }
             .map { ($0.number, $0.headRefName, $0.state) }
     }
 

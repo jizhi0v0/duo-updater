@@ -106,7 +106,7 @@ class Main(unittest.TestCase):
 
     def test_an_autofix_branch_is_always_hosted(self):
         env = {"SAME_REPO_PR": "true", "GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "1",
-               "HEAD_REF": "recipe-autofix/issue-821-0a1b2c3d"}
+               "HEAD_REF": "recipe-autofix/issue-821"}
         # An idle mini would win any other same-repository run.
         self.assertEqual(self.run_main(env, jobs=[]), cr.HOSTED)
         # And a failed queue read, which falls back to the mini otherwise, does not.

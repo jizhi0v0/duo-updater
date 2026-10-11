@@ -20,6 +20,17 @@ npx wrangler deploy
 
 `HASH_KEY` is never needed again and need not be saved anywhere.
 
+Then, in the dashboard for the `duoupdater.app` zone, add two WAF rules. They
+run before the Worker, so what they stop never counts against its daily
+request allowance:
+
+- **Custom rule, Block**: `http.host eq "updates.duoupdater.app" and
+  (http.request.uri.path ne "/appcast.xml" or not http.request.method in
+  {"GET" "HEAD"})`. A new hostname is crawled by vulnerability scanners within
+  minutes, and every request they send would otherwise invoke the Worker.
+- **Rate limiting rule, Block**: host `updates.duoupdater.app`, same IP, more
+  than 20 requests in 10 seconds. Sparkle checks once an hour.
+
 ## Reading the numbers
 
 ```sh

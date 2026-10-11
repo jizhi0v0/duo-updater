@@ -1,4 +1,5 @@
--- Today's occupied buckets: 16 bits of HMAC(key, day + IP + User-Agent).
+-- Today's occupied buckets: 16 bits of HMAC(key, day + network), where the
+-- network is the IPv4 address or an IPv6 address's /64 prefix.
 -- Deleted every night once the day is rolled up.
 CREATE TABLE buckets (
   day     TEXT NOT NULL,

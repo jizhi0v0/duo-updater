@@ -136,25 +136,23 @@ import Testing
     // MARK: - Disk images
 
     /// The mount tools a test can force on this Mac: `hdiutil` always, and
-    /// `diskutil image` where it exists (26.x has it; production only prefers it
-    /// from 27.2, see `DiskImageMount`).
-    static let mountTools: [DiskImageMount.Tool] = {
-        let probe = Process()
-        probe.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
-        probe.arguments = ["image", "attach", "--help"]
-        probe.standardOutput = FileHandle.nullDevice
-        probe.standardError = FileHandle.nullDevice
-        guard (try? probe.run()) != nil else { return [.hdiutil] }
-        probe.waitUntilExit()
-        return probe.terminationStatus == 0 ? [.hdiutil, .diskutil] : [.hdiutil]
-    }()
+    /// `diskutil image` from 26 (measured on 26.7; production only prefers it
+    /// from 27.2, see `DiskImageMount`). A version rather than a probe, so the
+    /// list can be a plain `static let`; `theDiskutilImageVerbExistsWhereTheTestsAssumeIt`
+    /// checks the assumption.
+    static let mountTools: [DiskImageMount.Tool] =
+        ProcessInfo.processInfo.isOperatingSystemAtLeast(
+            OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
+        ? [.hdiutil, .diskutil] : [.hdiutil]
 
-    /// Where production attaches with `diskutil` (27.2+), the probe above must
-    /// find it — otherwise every `diskutil` case here would drop out silently and
-    /// the route this Mac actually uses would go untested.
-    @Test func theDiskutilRouteIsTestedWhereProductionUsesIt() {
-        guard DiskImageMount.preferredTool == .diskutil else { return }
-        #expect(Self.mountTools.contains(.diskutil), "`diskutil image attach --help` probe failed")
+    /// Where `mountTools` lists `diskutil`, the verb must really be there —
+    /// otherwise every `diskutil` case here fails on an unknown verb rather than
+    /// testing the route 27.2 uses in production.
+    @Test(.enabled(if: InstallChildProcessTests.mountTools.contains(.diskutil)))
+    func theDiskutilImageVerbExistsWhereTheTestsAssumeIt() async throws {
+        let probe = try await ChildProcess.run(
+            "/usr/sbin/diskutil", ["image", "attach", "--help"], onCancel: .runToCompletion)
+        #expect(probe.succeeded, "`diskutil image attach --help` failed on this Mac")
     }
 
     /// A cancelled DMG extraction still unmounts the image, on the exit that

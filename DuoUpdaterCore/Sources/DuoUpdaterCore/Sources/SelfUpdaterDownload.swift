@@ -135,31 +135,34 @@ extension SelfUpdaterStaging {
         return newest
     }
 
+    /// `PersistentDownloads/` under every folder `sparkleCacheRoots` gives the id
+    /// — an affected id has both its raw and its `.sparkle` folder, and which one
+    /// the app's Sparkle uses is not known here — newest entry across all of them.
     private static func sparkleInFlight(
         bundleID: String, caches: URL, now: Date,
         window: TimeInterval, fileManager: FileManager
     ) -> InFlightSelfUpdateDownload? {
-        let root = caches
-            .appendingPathComponent(bundleID, isDirectory: true)
-            .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
-            .appendingPathComponent("PersistentDownloads", isDirectory: true)
-
-        // The directory itself outlives every download — it is created once and
-        // emptied after each install, so its existence says nothing and, like
-        // `Installation/`, its own mtime does not follow its children.
-        guard let entries = try? fileManager.contentsOfDirectory(
-            at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
-        else { return nil }
-
         var newest: InFlightSelfUpdateDownload?
-        for entry in entries {
-            guard let (bytes, lastWrite) = measure(entry, fileManager: fileManager),
-                  bytes > 0,
-                  now.timeIntervalSince(lastWrite) < window
+        for sparkleRoot in sparkleCacheRoots(bundleID: bundleID, caches: caches) {
+            let root = sparkleRoot
+                .appendingPathComponent("PersistentDownloads", isDirectory: true)
+
+            // The directory itself outlives every download — it is created once and
+            // emptied after each install, so its existence says nothing and, like
+            // `Installation/`, its own mtime does not follow its children.
+            guard let entries = try? fileManager.contentsOfDirectory(
+                at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
             else { continue }
-            if let current = newest, current.lastWrite >= lastWrite { continue }
-            newest = InFlightSelfUpdateDownload(
-                directory: entry, bytes: bytes, lastWrite: lastWrite)
+
+            for entry in entries {
+                guard let (bytes, lastWrite) = measure(entry, fileManager: fileManager),
+                      bytes > 0,
+                      now.timeIntervalSince(lastWrite) < window
+                else { continue }
+                if let current = newest, current.lastWrite >= lastWrite { continue }
+                newest = InFlightSelfUpdateDownload(
+                    directory: entry, bytes: bytes, lastWrite: lastWrite)
+            }
         }
         return newest
     }

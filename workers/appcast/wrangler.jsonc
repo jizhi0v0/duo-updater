@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "duoupdater-appcast",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "routes": [{ "pattern": "updates.duoupdater.app", "custom_domain": true }],
+  "workers_dev": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "duoupdater-appcast",
+      "database_id": "REPLACE_WITH_D1_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Rolls finished days up into `daily` and deletes their buckets. Shortly
+  // after UTC midnight.
+  "triggers": { "crons": ["15 0 * * *"] },
+  // Off on purpose: Workers Logs would record request metadata, IPs included.
+  "observability": { "enabled": false }
+}

@@ -361,11 +361,14 @@ stack (signature, Team, bundle id, architecture) then runs on the real
 
 - 根因：`_release` 和 `.zip` 之间多了 `_20261010_175807_23027789`，旧锚 `_release\.zip`
   两条 pattern（版本、一键 URL）都匹配不上。多出的 `release_date` 字段与此无关。
-- 号的对应关系没变：安装器壳 `DoubaoImeInstaller.app` 自己的 Info.plist 是
+- 号的对应关系没变。下载了这个 zip（193367502 字节，MD5 与 CDN 的 `content-md5` 一致），
+  只用 `unzip -p` 读 plist，没有挂载、没有运行。安装器壳 `DoubaoImeInstaller_v1000207.app`
+  和它 `Contents/Resources/DoubaoIme.zip` 里的真包 `DoubaoIme.app` 两份 Info.plist 都是
   `CFBundleShortVersionString = 1.0.2`、`Wave Build Version = 1.0.2.7`、
-  `Wave Build Version Number = 1000207`、`CFBundleVersion = 1`，与文件名里的 `v1000207`、
-  `version_name` `V1.0.2` 一致；`version_code` `1002012` 仍对不上任何本地键。
-  （壳的 plist 是对下载包用 HTTP Range 读中央目录取出来的，没有解压、没有运行。）
+  `Wave Build Version Number = 1000207`、`CFBundleVersion = 1`。真包另有
+  `CFBundleIdentifier = com.bytedance.inputmethod.doubaoime`、`CHANNEL_NAME = release`、
+  `WaveTeamId = 96L78H6LMH`。与文件名里的 `v1000207`、`version_name` `V1.0.2` 一致；
+  `version_code` `1002012` 仍对不上任何本地键。
 - 观测到的本机副本是 `1.0.0` / `Wave Build Version Number = 1000002`，`1000207 > 1000002`，
   判定为有更新；同一天 `version/list?channel=release` 推的是 `1.0.1` / `1000103`
   （`pkg_url` 同样带尾巴），也落在同一套编码里。

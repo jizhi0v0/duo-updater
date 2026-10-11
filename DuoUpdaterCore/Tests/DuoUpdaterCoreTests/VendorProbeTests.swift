@@ -2119,9 +2119,9 @@ private let doubaoImeSuffixedDownloadURLFixture = #"""
 
 /// #1178. The compared value is still the `v<code>` before `_release`; the tail
 /// after it is a date, a time and an id, all digits, and none of them may be read
-/// as the code. `1000207` is what the 1.0.2 installer stub's own Info.plist
-/// carries in `Wave Build Version Number` (read 2026-10-11), and `version_code`
-/// `1002012` is still the namespace that matches nothing local.
+/// as the code. `1000207` is what the 1.0.2 payload's `DoubaoIme.app` carries in
+/// `Wave Build Version Number`, and so does the installer stub around it (both
+/// read 2026-10-11). `version_code` `1002012` still matches nothing local.
 @Test func doubaoImeReadsTheCodeFromASuffixedInstallerName() throws {
     let recipe = try #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "com.bytedance.inputmethod.doubaoime" })

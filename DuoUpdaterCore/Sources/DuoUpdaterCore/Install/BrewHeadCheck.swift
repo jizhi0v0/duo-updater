@@ -219,8 +219,12 @@ public enum BrewHeadCheck {
     /// with a Keychain prompt, and `GIT_TERMINAL_PROMPT=0` stops git asking on a
     /// terminal it doesn't have. A public repository needs neither; a private one
     /// fails, which is the honest answer here.
+    ///
+    /// The deadline is a test seam: a freshly written stand-in git waits on
+    /// Gatekeeper's first-exec scan, which says nothing about the arguments.
     public static func lsRemote(
-        url: String, branch: String?, git: String? = gitPath()
+        url: String, branch: String?, git: String? = gitPath(),
+        deadline: ChildProcess.Deadline = .init(terminateAfter: .seconds(30), killAfter: .seconds(35))
     ) async -> Result<String, LsRemoteError> {
         guard let git else {
             return .failure(LsRemoteError(message: String(localized: "git isn’t installed, so its upstream can’t be checked here.")))
@@ -234,7 +238,7 @@ public enum BrewHeadCheck {
             let outcome = try await ChildProcess.run(
                 git, ["-c", "credential.helper=", "ls-remote", "--", url, ref],
                 environment: env, standardError: .capture,
-                deadline: .init(terminateAfter: .seconds(30), killAfter: .seconds(35)),
+                deadline: deadline,
                 onCancel: .terminateChild)
             guard outcome.succeeded, !outcome.timedOut else {
                 return .failure(LsRemoteError(message: outcome.timedOut

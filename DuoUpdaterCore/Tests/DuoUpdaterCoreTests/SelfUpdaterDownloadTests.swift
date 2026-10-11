@@ -14,9 +14,9 @@ struct SelfUpdaterDownloadTests {
 
     private let bundleID = "com.example.sparkle"
 
-    private func app(sparkle: Bool = true) -> InstalledApp {
+    private func app(sparkle: Bool = true, bundleID: String? = nil) -> InstalledApp {
         InstalledApp(
-            name: "Sparkly", bundleID: bundleID, shortVersion: "1.0", buildVersion: "100",
+            name: "Sparkly", bundleID: bundleID ?? self.bundleID, shortVersion: "1.0", buildVersion: "100",
             path: URL(fileURLWithPath: "/Applications/Sparkly.app"),
             isMASApp: false, sparkleFeedURL: nil,
             hasSelfUpdater: false, hasSparkleUpdater: sparkle)
@@ -25,11 +25,11 @@ struct SelfUpdaterDownloadTests {
     /// One download attempt, written `age` seconds ago.
     @discardableResult
     private func download(
-        in caches: URL, token: String, filename: String = "Sparkly-2.0.zip",
+        in caches: URL, folder: String? = nil, token: String, filename: String = "Sparkly-2.0.zip",
         bytes: Int, age: TimeInterval, now: Date
     ) throws -> URL {
         let dir = caches
-            .appendingPathComponent(bundleID)
+            .appendingPathComponent(folder ?? bundleID)
             .appendingPathComponent("org.sparkle-project.Sparkle")
             .appendingPathComponent("PersistentDownloads")
             .appendingPathComponent(token)
@@ -129,6 +129,46 @@ struct SelfUpdaterDownloadTests {
         // No Launcher/ directory anywhere, and no running Updater.app.
         #expect(SelfUpdaterStaging.inFlightDownload(
             for: app(), cachesDirectory: caches, now: now) != nil)
+    }
+
+    // MARK: - `.sparkle` cache folder
+
+    /// Sparkle 2.9.3+ keeps the cache of an id like this under `<id>.sparkle`
+    /// (`SelfUpdaterStaging.sparkleCacheFolderNames`), so a transfer there is the
+    /// app's own and must be seen.
+    ///
+    /// Mutation: look under the raw-id root only — goes red.
+    @Test func findsATransferUnderTheSparkleSuffixedFolderForAnAffectedID() throws {
+        let caches = try scratch()
+        defer { try? FileManager.default.removeItem(at: caches) }
+        let now = Date()
+        let id = "com.example.ZZFixture-Suffixed.app"
+        try download(
+            in: caches, folder: id + ".sparkle", token: "ZZFixture-token1",
+            bytes: 4096, age: 5, now: now)
+
+        let found = SelfUpdaterStaging.inFlightDownload(
+            for: app(bundleID: id), cachesDirectory: caches, now: now)
+        let inFlight = try #require(found)
+        #expect(inFlight.bytes == 4096)
+        #expect(inFlight.directory.lastPathComponent == "ZZFixture-token1")
+    }
+
+    /// No Sparkle release suffixes this id, so `<id>.sparkle` is not its cache —
+    /// whatever is in there belongs to something else.
+    ///
+    /// Mutation: always look under both names — goes red.
+    @Test func ignoresTheSparkleSuffixedFolderForAnUnaffectedID() throws {
+        let caches = try scratch()
+        defer { try? FileManager.default.removeItem(at: caches) }
+        let now = Date()
+        let id = "com.example.ZZFixture-Plain"
+        try download(
+            in: caches, folder: id + ".sparkle", token: "ZZFixture-token2",
+            bytes: 4096, age: 5, now: now)
+
+        #expect(SelfUpdaterStaging.inFlightDownload(
+            for: app(bundleID: id), cachesDirectory: caches, now: now) == nil)
     }
 
     // MARK: - Squirrel

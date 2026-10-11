@@ -1156,7 +1156,11 @@ public enum ChangelogAutofix {
 
     /// What the old page itself says about the new address, read by a program
     /// so the check does not have to take the page's word for it.
-    static func moveEvidence(oldPage: String, from old: URL, to new: URL) -> [String] {
+    ///
+    /// An HTTP redirect cannot be seen as such: the production fetch follows it
+    /// and reports only the address it was asked for. What can be seen is its
+    /// effect, the old address answering with the very page the new one serves.
+    static func moveEvidence(oldPage: String, newPage: String? = nil, from old: URL, to new: URL) -> [String] {
         func points(_ pattern: String) -> Bool {
             guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
             else { return false }
@@ -1168,6 +1172,10 @@ public enum ChangelogAutofix {
                 }
         }
         var facts: [String] = []
+        if let newPage, newPage == oldPage {
+            facts.append("the old address answered with exactly the page the new address serves "
+                + "(an HTTP redirect, or one page served at both)")
+        }
         if points(#"<meta[^>]*http-equiv\s*=\s*["']?refresh["']?[^>]*content\s*=\s*["'][^"']*?url\s*=\s*([^"'>\s;]+)"#) {
             facts.append("the old page refreshes to the new address (<meta http-equiv=refresh>)")
         }
@@ -1177,7 +1185,11 @@ public enum ChangelogAutofix {
         if points(#"href\s*=\s*["']([^"'<>\s]+)["']"#) {
             facts.append("the old page links to the new address")
         }
-        if facts.isEmpty { facts.append("the old page neither redirects, refreshes nor links to the new address") }
+        if facts.isEmpty {
+            facts.append("the old page neither refreshes to, links to, nor names as canonical the new "
+                + "address, and the two addresses answered with different pages (an HTTP redirect "
+                + "is followed by the fetch and cannot be seen otherwise)")
+        }
         facts.append("path: \(old.path) → \(new.path)"
             + (old.query == new.query ? "" : "; query: \(old.query ?? "none") → \(new.query ?? "none")"))
         return facts
@@ -1201,7 +1213,7 @@ public enum ChangelogAutofix {
             out += "address: \(recipe.source.absoluteString) → \(new.absoluteString)\n"
             if let oldPage {
                 out += "Checked by a program, about the move:\n"
-                out += moveEvidence(oldPage: oldPage, from: recipe.source, to: new)
+                out += moveEvidence(oldPage: oldPage, newPage: page, from: recipe.source, to: new)
                     .map { "- \($0)\n" }.joined()
             }
         } else {

@@ -751,6 +751,31 @@ import DuoUpdaterCore
         let none = facts(#"<a href="/docs/other">x</a><link rel="canonical" href="/changelog">"#)
         #expect(none.first?.contains("neither") == true)
         #expect(none.count == 2)
+        // A redirect is invisible to the fetch, so nothing may claim there was none…
+        #expect(!none.joined().contains("neither redirects"))
+        #expect(none.first?.contains("cannot be seen") == true)
+        // …and its effect is reported: the old address served the new page.
+        let page = "<h3>Release 2.0</h3>"
+        let redirected = ChangelogAutofix.moveEvidence(oldPage: page, newPage: page, from: old, to: new)
+        #expect(redirected.first?.contains("exactly the page the new address serves") == true)
+        #expect(redirected.count == 2)
+        #expect(ChangelogAutofix.moveEvidence(oldPage: page, newPage: page + " ", from: old, to: new)
+            .first?.contains("neither") == true)
+    }
+
+    @Test func aRedirectedOldAddressIsReportedToTheCheck() async throws {
+        var world = World()
+        world.verdict = Self.verdict(move: true)
+        // The fetch followed a redirect: the old address served the new page.
+        world.page = Self.restyled.replacingOccurrences(of: "h3 class=\"v\"", with: "h3 class=\"w\"")
+        world.movedPage = world.page
+        world.reply = Self.reply(
+            source: "https://notes.example.com/releases",
+            entryPattern: #"<h3 class="w">(?<version>[0-9.]+)</h3>(?<body>(?:(?!<h3).)*)"#)
+        let (outcome, log) = try await Self.attempt(world)
+        guard case .ready = outcome else { Issue.record("\(Self.reason(outcome))"); return }
+        let prompt = log.all.first { $0.hasPrefix("check-prompt ") } ?? ""
+        #expect(prompt.contains("exactly the page the new address serves"))
     }
 
     @Test func theCheckIsShownTheEntriesThePageAndTheMove() async throws {

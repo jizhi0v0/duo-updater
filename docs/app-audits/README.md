@@ -168,7 +168,6 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Orion** · `com.kagi.kagimacOS` — P · ✓ src=Vendor
 - [x] [**Dropbox**](com-getdropbox-dropbox.md) · `com.getdropbox.dropbox` — P (one-click dmg) · ✓ src=Vendor · **一键改取 `arch=arm64` 包**：不带参数的 dmg 是 x86_64-only，Apple silicon 上被架构闸拒 · 2026-09-14
 - [x] **Plex** · `tv.plex.desktop` — P · ✓ src=Vendor
-- [x] **Bartender** · `com.surteesstudios.Bartender` — P · ✓ src=Sparkle
 - [x] **ImageOptim** · `net.pornel.ImageOptim` — P · ✓ src=Sparkle
 - [x] [**LibreWolf**](net-librewolf-librewolf.md) · `net.librewolf.librewolf` — P · ✓ **修复 bundle id + 端点(GitLab→Codeberg)** · **detection-only（不可一键）**：dmg ad-hoc 签名/无 Developer ID/未公证，过不了签名闸（2026-07-03 实测）
 - [x] **MacUpdater** · `com.corecode.MacUpdater` — P C · ✓ src=Vendor (upstream discontinued)
@@ -287,6 +286,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**GotEmail**](com-voprex-gotemail.md) · `com.voprex.gotemail` — C (`releases.json`，新 decoder `.gotEmailReleases`) + Sparkle · 单轨 · appcast 只留最新一条、dmg 地址不带版本号 · EdDSA + 公证验证 ✓（Team `RQBC2CSG5T`）· 一键（Sparkle dmg）端到端未跑：拿不到上一版 · 2026-10-09
 - [x] [**Lorca**](app-lorca.md) · `app.lorca` — C (`Lorca-{version}.md` 模板) + Sparkle · 单轨 · Sparkle 增量包 ✓ · 一键（Sparkle）真机端到端 ✓（未运行 + 运行中）· changelog 结构化 ✓ · 2026-10-09
 - [x] [**magpie**](com-yetone-magpie.md) · `com.yetone.magpie` — C (GitHub releases `yetone/magpie-releases`) · 单轨 · install.sh 与 dmg 落地同一个 bundle（Team `LY7MVTUDZG`）· 一键 zip（按架构）· changelog recipe：正文的中文副本与下载说明已切掉 · 一键 zip 未运行时真机跑通 · 运行中一键：暂存的是最新 → Relaunch，暂存旧于最新 → 先清暂存再装（与 Sparkle 同规则，两种真机跑通）· 2026-10-06
+- [x] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — C + Sparkle · 6 与 7 同 id、各自声明 feed；7 是付费升级，6 的 probe 钉 `^6\.` · changelog recipe 6 / 7 按版本窗口分 ✓ · 真包 6.6.2 / 7.0.4 / 7.0.5 验证 ✓ · 一键（Sparkle zip）真机端到端 ✓（未运行 + 运行中）· Test Builds 未接 · 2026-10-10
 
 ## Electron-covered (auto-detected via the bundle's `app-update.yml`, no version recipe)
 
@@ -400,7 +400,6 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Spotify**](com-spotify-client.md) · `com.spotify.client` — 仅迁出历史：stub 安装器版本与 cask 的比较、changelog 的排查
 - [ ] [**Sublime Merge**](com-sublimemerge.md) · `com.sublimemerge` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正、changelog 段结构实测
 - [ ] [**Sublime Text**](com-sublimetext-4.md) · `com.sublimetext.4` — 仅迁出历史：一键 zip 的签名核对、「只检测」与 cask livecheck 说法的更正、changelog 版本改成 "Build NNNN" 的实测
-- [ ] [**Bartender**](com-surteesstudios-Bartender.md) · `com.surteesstudios.Bartender` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 zip 的签名核对、changelog `feedPagePattern` 实测
 - [ ] [**Telegram Desktop**](com-tdesktop-Telegram.md) · `com.tdesktop.Telegram` — 仅迁出历史：两次挂载 dmg 的核对、文件名改名的时间线
 - [ ] [**TigerVNC**](com-tigervnc-tigervnc.md) · `com.tigervnc.tigervnc` — 仅迁出历史：一键 dmg 的核对；changelog 为何用 JSON 正则；2026-10-10 改读 stable RSS（`best_release.json` 的 mac 默认停在 1.16.0）
 - [ ] [**Cursor**](com-todesktop-230313mzl4w4u92.md) · `com.todesktop.230313mzl4w4u92` — 仅迁出历史：changelog 页尾吞进页面框架的大小

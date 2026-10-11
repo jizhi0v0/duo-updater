@@ -33,16 +33,19 @@ final class PrivilegedHelperClient: ObservableObject {
     /// and "macOS is refusing; here's what to do".
     @Published private(set) var lastRegisterError: String?
 
-    /// One registration at a time. They used to block the main thread, which
-    /// queued a second press behind the first; now that they run off it, a second
-    /// press would interleave its `unregister()` with the first one's `register()`.
-    private var registering = false
+    /// The registration in flight, so the next one waits for it. They used to block
+    /// the main thread, which queued a second call behind the first; off the main
+    /// thread, a second call would interleave its `unregister()` with the first
+    /// one's `register()`. Waiting rather than dropping the second call matters to
+    /// its caller: it reads `isEnabled` straight after, and a dropped call would
+    /// leave that reading the status from before either registration ran.
+    private var registration: Task<Void, Never>?
 
     init() {
         // Not queried here: this runs on the main thread at launch, and the query is
         // a synchronous XPC round trip to `smd`. "Not registered" stands in until the
-        // first off-main answer lands — a round trip later, long before any window
-        // that shows it can open.
+        // first off-main answer lands; a Diagnostics page opened before that shows
+        // "Enable…" until then, and its own `.task` refresh corrects it as well.
         self.status = .notRegistered
         Task { await refreshStatusOffMain() }
     }
@@ -104,10 +107,19 @@ final class PrivilegedHelperClient: ObservableObject {
     /// pending background item the user must switch on; `register()` reports
     /// `.requiresApproval` in that case, and we send them to the pane.
     func register() async {
-        guard !registering else { return }
-        registering = true
-        defer { registering = false }
-        await performRegister()
+        await serialized { await self.performRegister() }
+    }
+
+    /// Run `body` after every registration already queued, the order the old
+    /// synchronous calls had.
+    private func serialized(_ body: @escaping @MainActor @Sendable () async -> Void) async {
+        let previous = registration
+        let next = Task {
+            await previous?.value
+            await body()
+        }
+        registration = next
+        await next.value
     }
 
     private func performRegister() async {
@@ -170,9 +182,10 @@ final class PrivilegedHelperClient: ObservableObject {
     /// `HelperShellRunner`'s repair path). Surfaced in Diagnostics so the user can
     /// clear it without first walking into a failed App Store update.
     func reregister() async {
-        guard !registering else { return }
-        registering = true
-        defer { registering = false }
+        await serialized { await self.performReregister() }
+    }
+
+    private func performReregister() async {
         // Gentle first, for the reason spelled out in `HelperShellRunner`'s repair:
         // on a corrupt record `register()` is refused, and an unregister-first order
         // leaves the background item switched OFF with no way back from in-app.

@@ -279,6 +279,13 @@ struct WorkbenchWindowView: View {
             || !model.cliTools.justUpdated.isEmpty
     }
 
+    /// Homebrew's Upgrade All or a formula's own upgrade is running. Every
+    /// "Other tools" Update waits for it, not only Update All: npm packages can
+    /// run on Homebrew's node.
+    private var brewUpgradeRunning: Bool {
+        model.brewUpgrading || !model.upgradingFormulae.isEmpty
+    }
+
     /// The app the detail pane shows — keyed off the debounced `detailSelection`,
     /// not the live `selection`, so fast arrow-key scrubbing doesn't rebuild it.
     private var selected: UpdateResult? {
@@ -353,10 +360,12 @@ struct WorkbenchWindowView: View {
                 Group {
                     if case .claudeCode(let claudeCode) = status.detail {
                         ClaudeCodeDetailPane(status: claudeCode, cli: model.cliTools,
-                                             showsRuntime: model.prefs.showCLIRuntimeTags)
+                                             showsRuntime: model.prefs.showCLIRuntimeTags,
+                                             brewUpgrading: brewUpgradeRunning)
                     } else {
                         CLIToolDetailPane(status: status, cli: model.cliTools,
-                                          showsRuntime: model.prefs.showCLIRuntimeTags)
+                                          showsRuntime: model.prefs.showCLIRuntimeTags,
+                                          brewUpgrading: brewUpgradeRunning)
                     }
                 }
                 .id(status.toolID.tag)
@@ -1260,7 +1269,8 @@ struct WorkbenchWindowView: View {
                     ForEach(group.statuses, id: \.toolID) { status in
                         CLIToolSidebarRow(
                             status: status, cli: model.cliTools,
-                            showsRuntime: model.prefs.showCLIRuntimeTags)
+                            showsRuntime: model.prefs.showCLIRuntimeTags,
+                            brewUpgrading: brewUpgradeRunning)
                             .sidebarRow(status.toolID.tag, selection: $selection)
                     }
                 }

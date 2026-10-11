@@ -2110,6 +2110,70 @@ private let doubaoImeDownloadURLFixture = #"""
         .hasSuffix("DoubaoImeInstaller_v90602_release.zip") == true)
 }
 
+// The same endpoint on 2026-10-11, verbatim (238 bytes): the filename gained a
+// `_<date>_<time>_<id>` tail after `_release`, and a `release_date` field appeared.
+// Issue #1178: the old `_release\.zip` anchor matched nothing in it.
+private let doubaoImeSuffixedDownloadURLFixture = #"""
+{"code":0,"data":{"release_date":"2026.10.10","url":"https://lf-wave.doubaocdn.com/obj/doubao-ime/app/macos/DoubaoImeInstaller_v1000207_release_20261010_175807_23027789.zip","version_code":1002012,"version_name":"V1.0.2"},"msg":"success"}
+"""#
+
+/// #1178. The compared value is still the `v<code>` before `_release`; the tail
+/// after it is a date, a time and an id, all digits, and none of them may be read
+/// as the code. `1000207` is what the 1.0.2 installer stub's own Info.plist
+/// carries in `Wave Build Version Number` (read 2026-10-11), and `version_code`
+/// `1002012` is still the namespace that matches nothing local.
+@Test func doubaoImeReadsTheCodeFromASuffixedInstallerName() throws {
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.bytedance.inputmethod.doubaoime" })
+    #expect(VendorProbeRecipe.extractVersion(
+        from: doubaoImeSuffixedDownloadURLFixture, pattern: recipe.versionPattern) == "1000207")
+    let display = try #require(recipe.displayVersionPattern)
+    #expect(VendorProbeRecipe.extractVersion(
+        from: doubaoImeSuffixedDownloadURLFixture, pattern: display) == "1.0.2")
+
+    let spec = try #require(recipe.install)
+    guard case .bodyPattern(let pattern) = spec.urlSource else {
+        Issue.record("DoubaoIme's install URL must come from the response body")
+        return
+    }
+    let matches = matchCount(of: pattern, in: doubaoImeSuffixedDownloadURLFixture)
+    #expect(matches == 1, "the install pattern must select exactly one URL, found \(matches)")
+    #expect(VendorProbeRecipe.extractVersion(from: doubaoImeSuffixedDownloadURLFixture, pattern: pattern)
+        == "https://lf-wave.doubaocdn.com/obj/doubao-ime/app/macos/"
+        + "DoubaoImeInstaller_v1000207_release_20261010_175807_23027789.zip")
+}
+
+/// #1178 through the production path: the real recipe, pointed at a loopback copy
+/// of the 2026-10-11 response, through `probeDiagnostic` and then `evaluate`.
+/// The installed 1.0.0 (`Wave Build Version Number` 1000002) is offered 1.0.2, a
+/// copy already on 1000207 is up to date, and the installer the probe hands over
+/// is the suffixed zip the response names, unwrapped through the same nested path.
+@Test func doubaoImeSuffixedResponseResolvesThroughTheProbe() async throws {
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.bytedance.inputmethod.doubaoime" })
+    let server = try RecipeVerificationTests.StubServer(body: doubaoImeSuffixedDownloadURLFixture)
+    defer { server.stop() }
+    let outcome = await VendorProbeSource().probeDiagnostic(recipe.with(url: server.url))
+    let remote = try #require(outcome.remote, "failure: \(String(describing: outcome.failure))")
+    #expect(remote.version == "1000207")
+    #expect(remote.shortVersion == "1.0.2")
+    #expect(remote.downloadURL?.absoluteString
+        == "https://lf-wave.doubaocdn.com/obj/doubao-ime/app/macos/"
+        + "DoubaoImeInstaller_v1000207_release_20261010_175807_23027789.zip")
+    #expect(remote.nestedArchivePath == "Contents/Resources/DoubaoIme.zip")
+
+    func app(_ short: String, _ build: String) -> InstalledApp {
+        InstalledApp(
+            name: "DoubaoIme", bundleID: "com.bytedance.inputmethod.doubaoime",
+            shortVersion: short, buildVersion: build,
+            path: URL(fileURLWithPath: "/Library/Input Methods/DoubaoIme.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+    }
+    #expect(UpdateChecker.evaluate(installed: app("1.0.0", "1000002"), remote: remote)
+        == .updateAvailable(latest: "1.0.2"))
+    #expect(UpdateChecker.evaluate(installed: app("1.0.2", "1000207"), remote: remote) == .upToDate)
+}
+
 /// Every recipe that declares a nested payload must name a path INSIDE a bundle's
 /// `Contents` — derived from the registry rather than from a list, so the next one
 /// inherits the check. A `..` or an absolute path here would be two steps upstream

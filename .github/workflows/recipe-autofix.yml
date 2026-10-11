@@ -83,11 +83,13 @@ jobs:
           set -euo pipefail
           [[ "$ISSUE" =~ ^[0-9]+$ ]] || { echo "not an issue number: $ISSUE"; exit 1; }
           gh api "repos/$REPO/issues/$ISSUE" > "$RUNNER_TEMP/issue.json"
-          gh api --paginate "repos/$REPO/issues/$ISSUE/comments" > "$RUNNER_TEMP/comments.json"
+          # `--slurp`: one array of pages whatever the gh version (older ones
+          # printed one array per page, which is not one JSON document).
+          gh api --paginate --slurp "repos/$REPO/issues/$ISSUE/comments" > "$RUNNER_TEMP/comments.json"
           python3 - "$RUNNER_TEMP/issue.json" "$RUNNER_TEMP/comments.json" <<'PY' >> "$GITHUB_OUTPUT"
           import json, os, re, sys
           issue = json.load(open(sys.argv[1]))
-          comments = json.load(open(sys.argv[2]))
+          comments = [c for page in json.load(open(sys.argv[2])) for c in page]
           texts = [issue.get("body") or ""] + [
               c.get("body") or "" for c in comments if c["user"]["login"] == "jizhi0v0"]
           labels = {label["name"] for label in issue.get("labels", [])}

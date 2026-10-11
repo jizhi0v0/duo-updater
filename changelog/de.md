@@ -2,6 +2,26 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.4
+
+**Outlook und OneNote sehen wieder neue Versionen.** Seit Mai hingen sie bei 16.109 fest, weil der Microsoft-Server, den DuoUpdater abgefragt hat, nicht mehr aktualisiert wurde.
+
+**Neun weitere Kommandozeilen-Tools: Deno, mise, Atuin, GHCup, flyctl, Helm, Starship, zoxide und nvm.** Jedes wird so aktualisiert, wie sein Entwickler es beschreibt; Helm und Starship in einem Systemordner werden aktualisiert, sobald du die Administratorabfrage bestätigst.
+
+**Mehr Apps werden unterstützt.** Pulse wird jetzt auf Updates geprüft und lässt sich mit einem Klick aktualisieren. Die ursprüngliche App von Moshi wird jetzt auf ihren Nachfolger Moshi Go aktualisiert, so wie es der eigene Updater von Moshi tut. TigerVNC bekommt 1.16.2 statt 1.16.0 angeboten, und Updates für Doubao Input Method werden wieder gefunden.
+
+**Release Notes für viele weitere Apps.** Firefox (alle Kanäle), Microsoft Office, OneDrive, Edge, Telegram, Signal, Element, Carbon Copy Cloner, Bartender, Alfred, Little Snitch, Zotero, Sublime Merge, Termius, Orion, TRAE, Sogou Input und weitere bekommen jetzt strukturierte Release Notes. Die Notes von Chrome erscheinen wieder, chinesische Notes in älteren Kodierungen werden nicht mehr zu Zeichensalat, und die Release-Notes-Links von WhatsApp, Emacs, Teams, Dropbox und zwei weiteren Apps führen nicht mehr auf die falsche Seite.
+
+**Der Tab CLI zeigt, womit jedes Tool gebaut ist, und die Update-Zeile von Homebrew listet die Neuerungen der Versionen auf, die sie mitbringen würde.** Für diese Kennzeichnungen gibt es unter Einstellungen › Allgemein einen eigenen Schalter, „Anzeigen, womit jedes Befehlszeilenwerkzeug gebaut ist“. Ein Tool, das du installierst, während die Werkbank geöffnet ist, erscheint jetzt, wenn du zum Fenster zurückkehrst.
+
+**DuoUpdater bemerkt jetzt bei mehr Apps Updates, die sie bereits selbst geladen haben, statt darüber zu installieren.** Außerdem wird „Neu starten“ nicht mehr angeboten, wenn bei einer App wie ChatGPT das geladene Update gelöscht wurde, bevor es installiert werden konnte.
+
+**Der Wechsel der Werkbank zwischen Apps und Wiederherstellen ist flüssiger, und die ausgewählte Zeile in ihren Seitenleisten hat eine dezentere Hervorhebung, bei der Kennzeichnungen und Schaltflächen ihre Farben behalten.**
+
+**`duo list`, `duo check` und `duo install` umfassen jetzt auch die Kommandozeilen-Tools aus dem Tab CLI.**
+
+**Unter der Haube.** Einstellungen › Diagnose bremst die App nicht mehr aus, solange die Seite geöffnet ist.
+
 ## 0.5.3
 
 **Backups zur Wiederherstellung sind jetzt deine Entscheidung.** Bei einer Neuinstallation fragt das Willkommensfenster, ob vor jedem Update eine Kopie der App aufbewahrt werden soll; das ist aus, solange du es nicht einschaltest. Wenn du DuoUpdater schon verwendest, bleibt deine Einstellung, wie sie war. Du kannst sie jederzeit unter Einstellungen › Backups ändern.

@@ -2,6 +2,26 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.4
+
+**Outlook ve OneNote yeni sürümleri yeniden görüyor.** DuoUpdater’ın okuduğu Microsoft sunucusu güncellenmeyi bıraktığı için mayıstan beri 16.109’da takılı kalmışlardı.
+
+**Dokuz komut satırı aracı daha: Deno, mise, Atuin, GHCup, flyctl, Helm, Starship, zoxide ve nvm.** Her biri geliştiricisinin belgelediği şekilde güncelleniyor; bir sistem klasöründeki Helm ve Starship ise yönetici iznini onayladığınızda güncelleniyor.
+
+**Daha fazla uygulama destekleniyor.** Pulse artık güncellemeler için denetleniyor ve tek tıkla güncelleniyor. Moshi’nin özgün uygulaması artık, Moshi’nin kendi güncelleyicisinin yaptığı gibi, yerini alan Moshi Go’ya güncelleniyor. TigerVNC’ye 1.16.0 yerine 1.16.2 sunuluyor, Doubao Input Method güncellemeleri de yeniden bulunuyor.
+
+**Çok daha fazla uygulama için sürüm notları.** Firefox (tüm kanallar), Microsoft Office, OneDrive, Edge, Telegram, Signal, Element, Carbon Copy Cloner, Bartender, Alfred, Little Snitch, Zotero, Sublime Merge, Termius, Orion, TRAE, Sogou Input ve diğerleri artık yapılandırılmış notlar alıyor. Chrome’un notları yeniden görünüyor, eski kodlamalarla sunulan Çince notlar artık bozuk karakterlere dönüşmüyor; WhatsApp, Emacs, Teams, Dropbox ve iki uygulamanın daha sürüm notu bağlantıları da artık yanlış sayfaya gitmiyor.
+
+**CLI sekmesi her aracın neyle geliştirildiğini gösteriyor, Homebrew güncelleme satırı da getireceği sürümlerdeki yenilikleri listeliyor.** Bu etiketlerin Ayarlar › Genel’de kendi düğmesi var: “Her komut satırı aracının neyle geliştirildiğini göster”. Çalışma alanı açıkken kurduğunuz bir araç artık pencereye döndüğünüzde görünüyor.
+
+**DuoUpdater artık daha fazla uygulamanın kendi indirdiği güncellemeleri fark ediyor ve üzerine yükleme yapmıyor.** Ayrıca ChatGPT gibi, indirdiği güncellemesi yüklenmeden önce silinmiş bir uygulama için Yeniden Başlat artık sunulmuyor.
+
+**Çalışma alanında Uygulamalar ile Geri Alma arasında geçiş daha akıcı; kenar çubuklarındaki seçili satır da etiket ve düğme renklerini koruyan daha yumuşak bir vurgu kullanıyor.**
+
+**`duo list`, `duo check` ve `duo install` artık CLI sekmesindeki komut satırı araçlarını da kapsıyor.**
+
+**Perde arkasında.** Ayarlar › Tanılama açıkken artık uygulamayı yavaşlatmıyor.
+
 ## 0.5.3
 
 **Geri alma yedekleri artık sizin tercihiniz.** Yeni bir kurulumda karşılama penceresi, her uygulamayı güncellemeden önce bir kopyasının tutulup tutulmayacağını soruyor; siz açmadıkça kapalı kalıyor. DuoUpdater’ı zaten kullanıyorsanız ayarınız olduğu gibi kalıyor. Bunu istediğiniz zaman Ayarlar › Yedekler’den değiştirebilirsiniz.

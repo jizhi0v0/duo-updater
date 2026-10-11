@@ -2,6 +2,26 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.4
+
+**O Outlook e o OneNote voltam a ver as versões novas.** Desde maio eles estavam parados na 16.109, porque o servidor da Microsoft que o DuoUpdater consultava tinha deixado de ser atualizado.
+
+**Mais nove ferramentas de linha de comando: Deno, mise, Atuin, GHCup, flyctl, Helm, Starship, zoxide e nvm.** Cada uma é atualizada do jeito que o desenvolvedor documenta, e o Helm e o Starship instalados numa pasta do sistema são atualizados assim que você aprova o pedido de administrador.
+
+**Mais apps são compatíveis.** O Pulse agora tem verificação de atualizações e atualização com um clique. O app original do Moshi agora é atualizado para o Moshi Go, seu substituto, do mesmo jeito que o próprio atualizador do Moshi faz. O TigerVNC recebe a oferta da 1.16.2 em vez da 1.16.0, e as atualizações do Doubao Input Method voltam a ser encontradas.
+
+**Notas de versão para muito mais apps.** Firefox (todos os canais), Microsoft Office, OneDrive, Edge, Telegram, Signal, Element, Carbon Copy Cloner, Bartender, Alfred, Little Snitch, Zotero, Sublime Merge, Termius, Orion, TRAE, Sogou Input e outros agora têm notas estruturadas. As notas do Chrome voltam a aparecer, notas em chinês servidas em codificações antigas não viram mais caracteres embaralhados, e os links das notas de versão do WhatsApp, Emacs, Teams, Dropbox e de outros dois apps não levam mais à página errada.
+
+**A aba CLI mostra com o que cada ferramenta é feita, e a linha de atualização do Homebrew lista as novidades das versões que ela traria.** Essas etiquetas têm um botão próprio, “Mostrar com o que cada ferramenta de linha de comando é feita”, em Ajustes › Geral. Uma ferramenta que você instala com a bancada aberta agora aparece quando você volta à janela.
+
+**O DuoUpdater agora percebe, em mais apps, as atualizações que eles já baixaram por conta própria, em vez de instalar por cima.** Além disso, Reabrir não é mais oferecido para um app como o ChatGPT cuja atualização baixada foi apagada antes de ser instalada.
+
+**Alternar a bancada entre Apps e Reversão ficou mais suave, e a linha selecionada nas barras laterais usa um destaque mais leve que mantém as cores das etiquetas e dos botões.**
+
+**`duo list`, `duo check` e `duo install` agora incluem as ferramentas de linha de comando da aba CLI.**
+
+**Nos bastidores.** Ajustes › Diagnóstico não deixa mais o app lento enquanto está aberto.
+
 ## 0.5.3
 
 **Backups para reversão agora são escolha sua.** Numa instalação nova, a janela de boas-vindas pergunta se você quer guardar uma cópia de cada app antes de atualizá-lo, e fica desligado a menos que você ligue. Se você já usa o DuoUpdater, seu ajuste continua como estava. Você pode mudá-lo quando quiser em Ajustes › Backups.

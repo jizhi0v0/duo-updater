@@ -1129,6 +1129,8 @@ struct WorkbenchWindowView: View {
                 + model.brewAppLessCaskLifecycles.count,
             outdated: casks.filter(\.hasUpdate).count + model.brewFormulae.filter(\.hasUpdate).count,
             unchecked: model.brewUnchecked.count,
+            // While Upgrade All is on offer, as the popover shows it.
+            upgradeError: model.brewOutdatedFormulae.isEmpty ? nil : model.brewUpgradeError,
             homebrewUpdate: model.homebrewSelfUpdate?.latest,
             toggleDisabled: homebrewSearchHits(lists),
             toggle: { inOneFrame { toggleHomebrewGroup() } })

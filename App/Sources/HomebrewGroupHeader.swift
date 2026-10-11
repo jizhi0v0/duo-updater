@@ -53,6 +53,8 @@ struct HomebrewGroupSummary: View {
     let packages: Int
     let outdated: Int
     let unchecked: Int
+    /// Why the last Upgrade All failed (`AppListModel.brewUpgradeError`), or nil.
+    let upgradeError: String?
     /// The Homebrew release on offer (`HomebrewSelfUpdate.latest`), or nil.
     let homebrewUpdate: String?
     let toggleDisabled: Bool
@@ -69,10 +71,19 @@ struct HomebrewGroupSummary: View {
     var body: some View {
         Button(action: toggle) {
             HStack(spacing: 8) {
-                Text(verbatim: counts)
-                    .foregroundStyle(outdated > 0 ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                // A failed Upgrade All takes the counts' place, as it takes the
+                // update count's in the popover; the whole of it on hover.
+                if let upgradeError {
+                    Text(verbatim: upgradeError)
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                        .help(upgradeError)
+                } else {
+                    Text(verbatim: counts)
+                        .foregroundStyle(outdated > 0 ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
                 // The marks are what a closed group hides that the counts do not say,
                 // so they keep their room and the counts give way.
                 marks.fixedSize()

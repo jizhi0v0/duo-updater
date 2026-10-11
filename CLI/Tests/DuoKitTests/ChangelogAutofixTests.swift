@@ -302,9 +302,10 @@ import DuoUpdaterCore
     @Test func extractionGates() {
         typealias A = ChangelogAutofix
         func refusal(_ versions: [String], _ trigger: A.Trigger = .noEntries,
-                     count: Int? = 3, last: String? = "2.0", lineage: Bool = false) -> String? {
+                     count: Int? = 3, last: String? = "2.0", moved: Bool = false,
+                     lineage: Bool = false) -> String? {
             A.extractionRefusal(versions: versions, trigger: trigger, lastGoodCount: count,
-                                lastGoodVersion: last, ordersByLineage: lineage)
+                                lastGoodVersion: last, sourceMoved: moved, ordersByLineage: lineage)
         }
         #expect(refusal(["3.0", "2.0", "1.0"]) == nil)
         #expect(refusal([])?.hasPrefix("G1") == true)
@@ -319,6 +320,28 @@ import DuoUpdaterCore
         #expect(refusal(["New AI", "Old AI", "Older"], last: "Old AI") == nil)
         #expect(refusal(["New AI", "Other", "Older"], last: "Old AI")?.hasPrefix("G3") == true)
         #expect(refusal(["abc123", "def456", "0aa"], last: "fff", lineage: true)?.hasPrefix("G3") == true)
+        // A count from another page is no floor; a collapse still needs two.
+        #expect(refusal(["3.0"], moved: true) == nil)
+        #expect(refusal(["3.0"], .collapse, moved: true)?.hasPrefix("G2") == true)
+        // A name in front of the version is not part of it.
+        #expect(refusal(["1.7.0", "1.6.1", "1.6.0"], last: "TypeWhisper 1.7.0 RC2") == nil)
+        #expect(refusal(["1.6.1", "1.6.0", "1.5.0"], last: "TypeWhisper 1.7.0 RC2")?.hasPrefix("G3") == true)
+        #expect(refusal(["1.7.0 RC2", "1.6.1", "1.6.0"], last: "TypeWhisper 1.7.0")?.hasPrefix("G3") == true)
+        #expect(refusal(["v2.18.1", "v2.17.0", "v2.16.0"], last: "2.15.1") == nil)
+        #expect(refusal(["v2.14.0", "v2.13.0", "v2.12.0"], last: "2.15.1")?.hasPrefix("G3") == true)
+        // A headline with a number in it is still a headline.
+        #expect(refusal(["Top 10 features", "Older", "Oldest"], last: "Our 2026 roadmap")?.hasPrefix("G3") == true)
+    }
+
+    @Test func aNameInFrontOfADottedVersionIsDropped() {
+        typealias A = ChangelogAutofix
+        #expect(A.orderable("1.7.0") == "1.7.0")
+        #expect(A.orderable("TypeWhisper 1.7.0 RC2") == "1.7.0 RC2")
+        #expect(A.orderable("Visual Studio Code 1.139") == "1.139")
+        #expect(A.orderable("v2.18.1") == "v2.18.1")
+        #expect(A.orderable("Build 4215") == nil)
+        #expect(A.orderable("Top 10 features") == nil)
+        #expect(A.orderable("The Figma agent is generally available") == nil)
     }
 
     @Test func theGoldenMayChangeOnlyInTheProposedFieldsOfThisRecipe() {
@@ -476,6 +499,8 @@ import DuoUpdaterCore
         var page = ChangelogAutofixTests.restyled
         var movedPage: String?
         var reply = ChangelogAutofixTests.reply()
+        /// The answer to a second question, when there is one.
+        var secondReply: String?
         /// Applied to the faithful golden.
         var goldenTamper: @Sendable (String) -> String = { $0 }
         var strayFile: String?
@@ -515,7 +540,12 @@ import DuoUpdaterCore
                     resolvedURL: recipe.source, httpStatus: 200, fetchFailed: false,
                     bodySample: body)
             },
-            ask: { _ in log.add("ask"); return world.reply },
+            ask: { prompt in
+                let first = !log.did("ask")
+                log.add("ask")
+                log.add("prompt " + prompt)
+                return first ? world.reply : (world.secondReply ?? world.reply)
+            },
             model: "test-model",
             tree: tree,
             prepareTree: {
@@ -684,6 +714,68 @@ import DuoUpdaterCore
         let (outcome, log) = try await Self.attempt(world)
         #expect(Self.reason(outcome) == "ready: recipe-autofix/issue-42", "\(Self.reason(outcome))")
         #expect(log.did("fetch /releases"))
+        // It read the new page, so there was nothing to ask again.
+        #expect(log.all.filter { $0 == "ask" }.count == 1)
+    }
+
+    @Test func aMovedAndRestyledPageIsShownToTheModelOnce() async throws {
+        var world = World()
+        world.page = "<p>This page moved.</p>"
+        world.movedPage = Self.restyled
+        world.reply = Self.reply(source: "https://notes.example.com/releases", entryPattern: nil)
+        world.secondReply = Self.reply(entryPattern: Self.newPattern)
+        let (outcome, log) = try await Self.attempt(world)
+        #expect(Self.reason(outcome) == "ready: recipe-autofix/issue-42", "\(Self.reason(outcome))")
+        #expect(log.all.filter { $0 == "ask" }.count == 2)
+        let second = log.all.filter { $0.hasPrefix("prompt ") }.last ?? ""
+        #expect(second.contains("moved here from https://notes.example.com/changelog"))
+        #expect(second.contains("current source: https://notes.example.com/releases"))
+        #expect(second.contains(#"<h3 class="v">3.0</h3>"#))
+    }
+
+    @Test func theSecondAnswerMayNotMoveTheSourceAgain() async throws {
+        var world = World()
+        world.page = "<p>This page moved.</p>"
+        world.movedPage = Self.restyled
+        world.reply = Self.reply(source: "https://notes.example.com/releases", entryPattern: nil)
+        world.secondReply = Self.reply(source: "https://notes.example.com/other", entryPattern: Self.newPattern)
+        let (outcome, log) = try await Self.attempt(world)
+        #expect(Self.reason(outcome).contains("moved the source again"), "\(Self.reason(outcome))")
+        #expect(!log.all.contains { $0.hasPrefix("fetch /other") })
+        #expect(!log.did("prepare"))
+    }
+
+    @Test func aSecondAnswerMayRepeatTheAddressItWasShown() async throws {
+        var world = World()
+        world.page = "<p>This page moved.</p>"
+        world.movedPage = Self.restyled
+        world.reply = Self.reply(source: "https://notes.example.com/releases", entryPattern: nil)
+        world.secondReply = Self.reply(source: "https://notes.example.com/releases", entryPattern: Self.newPattern)
+        let (outcome, _) = try await Self.attempt(world)
+        #expect(Self.reason(outcome) == "ready: recipe-autofix/issue-42", "\(Self.reason(outcome))")
+    }
+
+    @Test func aSecondAnswerThatStillReadsNothingStops() async throws {
+        var world = World()
+        world.page = "<p>This page moved.</p>"
+        world.movedPage = Self.restyled
+        world.reply = Self.reply(source: "https://notes.example.com/releases", entryPattern: nil)
+        world.secondReply = Self.reply(entryPattern: #"<h4>(?<version>[0-9.]+)</h4>(?<body>.*)"#)
+        let (outcome, log) = try await Self.attempt(world)
+        #expect(Self.reason(outcome).hasPrefix("refused: G1"), "\(Self.reason(outcome))")
+        #expect(log.all.filter { $0 == "ask" }.count == 2)
+        #expect(!log.did("prepare"))
+    }
+
+    @Test func aMovedSourceIsNotHeldToTheOldPagesCount() async throws {
+        var world = World()
+        world.page = "<p>This page moved.</p>"
+        world.movedPage = #"<h3 class="v">3.0</h3><ul><li>Only one per page here</li></ul>"#
+        world.reply = Self.reply(source: "https://notes.example.com/releases")
+        var entry = Baseline.Entry()
+        entry.lastGoodEntryCount = 3
+        let (outcome, _) = try await Self.attempt(world, entry: entry)
+        #expect(Self.reason(outcome) == "ready: recipe-autofix/issue-42", "\(Self.reason(outcome))")
     }
 
     @Test func g1APatternThatReadsNothingStopsBeforeTheWorktree() async throws {

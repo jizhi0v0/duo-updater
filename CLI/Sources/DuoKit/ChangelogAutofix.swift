@@ -245,23 +245,27 @@ public enum ChangelogAutofix {
     ///
     /// The count bar is the spec's: the last good count, or two after a collapse —
     /// a collapse is to one, and Chrome's page legitimately holds a varying
-    /// number, so "back above one" is the claim that can be made. The newest
-    /// entry may not be older than the last good one; when the two cannot be
-    /// ordered (headline-titled entries, hash builds) the last good one has to
-    /// still be on the page, and otherwise the gate fails.
+    /// number, so "back above one" is the claim that can be made. The last good
+    /// count is a yardstick for the page it was counted on only: when the edit
+    /// moves the source, the bar is one entry (Chrome, 2026-10-11: three posts on
+    /// the old label page, and the right new page lists one per page).
+    ///
+    /// The newest entry may not be older than the last good one. A word in front
+    /// of a dotted version is not part of it ("TypeWhisper 1.7.0 RC2", recorded
+    /// before the page redesign, against "1.7.0" after it). When the two still
+    /// cannot be ordered (headline-titled entries, hash builds) the last good one
+    /// has to still be on the page, and otherwise the gate fails.
     static func extractionRefusal(
         versions: [String], trigger: Trigger, lastGoodCount: Int?, lastGoodVersion: String?,
-        ordersByLineage: Bool
+        sourceMoved: Bool = false, ordersByLineage: Bool
     ) -> String? {
         guard let newest = versions.first else { return "G1: the extractor read no entries" }
-        let floor = trigger == .collapse ? 2 : (lastGoodCount ?? 1)
+        let floor = trigger == .collapse ? 2 : (sourceMoved ? 1 : (lastGoodCount ?? 1))
         guard versions.count >= floor else {
             return "G2: \(versions.count) entries, below the floor of \(floor)"
         }
         guard let lastGood = lastGoodVersion, newest != lastGood else { return nil }
-        let comparable = !ordersByLineage
-            && newest.first?.isNumber == true && lastGood.first?.isNumber == true
-        if comparable {
+        if !ordersByLineage, let newest = orderable(newest), let lastGood = orderable(lastGood) {
             return VersionComparator.isNewer(lastGood, than: newest)
                 ? "G3: newest entry \(newest) is older than the last good \(lastGood)"
                 : nil
@@ -271,6 +275,24 @@ public enum ChangelogAutofix {
             : "G3: newest entry \(newest) cannot be ordered against the last good "
                 + "\(lastGood), which is no longer on the page"
     }
+
+    /// The version as `VersionComparator` can order it: the string itself when it
+    /// starts with a digit, or with a `v` before one, which the comparator drops;
+    /// a dotted version after a leading name ("TypeWhisper 1.7.0 RC2" → "1.7.0
+    /// RC2"); nil otherwise. The dot is required after a name so that a headline
+    /// with a number in it ("Top 10 features") stays a headline.
+    static func orderable(_ version: String) -> String? {
+        let head = version.first == "v" || version.first == "V" ? version.dropFirst() : Substring(version)
+        if head.first?.isNumber == true { return version }
+        guard let match = orderablePattern.firstMatch(
+                in: version, range: NSRange(version.startIndex..., in: version)),
+              let range = Range(match.range(at: 1), in: version)
+        else { return nil }
+        return String(version[range])
+    }
+
+    private static let orderablePattern = try! NSRegularExpression(
+        pattern: #"^[^0-9]{1,40}?\s(\d+(?:\.\d+)+(?:[ .-]?[A-Za-z]+\.?\d*)?)$"#)
 
     /// G4: the regenerated golden differs from main's only in the fields the edit
     /// names, of this one changelog element, and holds exactly the edit's values.
@@ -785,9 +807,9 @@ public enum ChangelogAutofix {
         } catch {
             return .error("model call failed: \(error)")
         }
-        let proposal: Proposal
-        let candidate: ChangelogRecipe
-        let edit: RecipeLiteralEditor.Edit
+        var proposal: Proposal
+        var candidate: ChangelogRecipe
+        var edit: RecipeLiteralEditor.Edit
         do {
             proposal = try parse(reply)
             (candidate, edit) = try Self.candidate(recipe, applying: proposal)
@@ -809,18 +831,62 @@ public enum ChangelogAutofix {
             page = other
         }
         let readPage = page
-        guard let parsed = await bounded({ ChangelogExtractor.extract(from: readPage, using: candidate) })
+        let reading = candidate
+        guard var parsed = await bounded({ ChangelogExtractor.extract(from: readPage, using: reading) })
         else { return .refused("G1: the proposed patterns ran past the \(Int(extractionTimeout))s limit") }
+
+        // A page that moved AND changed its markup. The first answer could only
+        // name the new address, never having seen the page there (Antigravity
+        // and LM Studio, 2026-08 and 09: every model named the right page, and
+        // the old patterns read nothing on it). Shown that page, the model
+        // answers once more, for the patterns alone; the address stays the one
+        // already checked above, so this cannot walk anywhere else.
+        if let moved = edit.source, (parsed?.entries ?? []).isEmpty {
+            let second: String
+            do {
+                second = try await steps.ask(prompt(
+                    finding, trigger: trigger, recipe: candidate, entry: entry, body: page,
+                    movedFrom: recipe.source))
+            } catch {
+                return .error("model call failed: \(error)")
+            }
+            do {
+                let answer = try parse(second)
+                if let text = answer.source, !text.isEmpty, URL(string: text) != moved {
+                    throw Triage.TriageError("the second answer moved the source again")
+                }
+                let patterns = Proposal(
+                    diagnosis: nil, source: nil, entryPattern: answer.entryPattern,
+                    itemPatterns: answer.itemPatterns, confidence: nil)
+                let (patterned, patternEdit) = try Self.candidate(candidate, applying: patterns)
+                candidate = patterned
+                edit = RecipeLiteralEditor.Edit(
+                    source: moved, entryPattern: patternEdit.entryPattern ?? edit.entryPattern,
+                    itemPatterns: patternEdit.itemPatterns ?? edit.itemPatterns)
+                proposal = Proposal(
+                    diagnosis: [proposal.diagnosis, answer.diagnosis].compactMap { $0 }
+                        .joined(separator: " "),
+                    source: moved.absoluteString, entryPattern: edit.entryPattern,
+                    itemPatterns: edit.itemPatterns, confidence: answer.confidence)
+            } catch {
+                return .refused("second answer, on the moved page: \(error)")
+            }
+            let rereading = candidate
+            guard let reparsed = await bounded({ ChangelogExtractor.extract(from: readPage, using: rereading) })
+            else { return .refused("G1: the proposed patterns ran past the \(Int(extractionTimeout))s limit") }
+            parsed = reparsed
+        }
         let versions = parsed?.entries.map(\.version) ?? []
         if let why = extractionRefusal(
             versions: versions, trigger: trigger, lastGoodCount: entry.lastGoodEntryCount,
-            lastGoodVersion: entry.lastGoodVersion,
+            lastGoodVersion: entry.lastGoodVersion, sourceMoved: edit.source != nil,
             ordersByLineage: VendorProbeRegistry.ordersByLineage(bundleID: recipe.bundleID)) {
             return .refused(why)
         }
         let stem = fixtureStem(recipeID: recipe.recipeID)
-        let fixtureText = fixture(body: page, recipe: candidate, versions: versions) { text in
-            ChangelogExtractor.extract(from: text, using: candidate)?.entries.map(\.version)
+        let final = candidate
+        let fixtureText = fixture(body: page, recipe: final, versions: versions) { text in
+            ChangelogExtractor.extract(from: text, using: final)?.entries.map(\.version)
         }
 
         // G4–G7 in the worktree.
@@ -929,9 +995,11 @@ public enum ChangelogAutofix {
 
     static let promptBodyLimit = 60_000
 
+    /// `movedFrom`: the second question about a page that moved. `recipe` is
+    /// then the one at its new address, with the patterns that read nothing there.
     static func prompt(
         _ finding: Finding, trigger: Trigger, recipe: ChangelogRecipe, entry: Baseline.Entry,
-        body: String
+        body: String, movedFrom: URL? = nil
     ) -> String {
         var out = "A changelog recipe stopped extracting entries. Propose replacement values.\n\n"
         out += "app bundle id: \(recipe.bundleID)\n"
@@ -943,6 +1011,10 @@ public enum ChangelogAutofix {
         out += "mode: \(recipe.mode.rawValue), newestLast: \(recipe.newestLast), "
             + "maxEntries: \(recipe.maxEntries.map(String.init) ?? "none")\n"
         switch trigger {
+        case _ where movedFrom != nil:
+            out += "failure: the changelog moved here from \(movedFrom!.absoluteString), as you "
+                + "proposed, and the current patterns, written for the old page, match nothing "
+                + "on this one. Propose patterns for the page below; `source` must be null.\n"
         case .noEntries:
             out += "failure: the entry pattern matched nothing on the page below\n"
         case .collapse:

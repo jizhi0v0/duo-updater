@@ -161,73 +161,26 @@ import DuoUpdaterCore
             httpMethod: .post)) != nil)
     }
 
-    private func baseline(
-        issue: Int? = 42, closed: Bool = false, streak: Int = Baseline.actionableThreshold,
-        attempted: String? = nil
-    ) -> Baseline {
-        var entry = Baseline.Entry()
-        entry.issueNumber = issue
-        entry.closedAt = closed ? Date() : nil
-        entry.consecutiveActionable = streak
-        entry.autofixSignature = attempted
-        var b = Baseline()
-        b.entries[Self.finding().recipeID] = entry
-        return b
-    }
-
     @Test func selectAppliesEveryAttemptRule() {
         typealias A = ChangelogAutofix
-        let f = Self.finding()
-        func chosen(_ b: Baseline, _ findings: [Finding] = [Self.finding()],
+        func chosen(_ findings: [Finding] = [Self.finding()],
                     recipes: [ChangelogRecipe] = [Self.recipe],
                     pulls: [(number: Int, head: String, state: String)] = []) -> Int {
-            A.select(findings, baseline: b, recipes: recipes, pullRequests: pulls).chosen.count
+            A.select(findings, issue: 42, recipes: recipes, pullRequests: pulls).chosen.count
         }
-        #expect(chosen(baseline()) == 1)
-        #expect(chosen(baseline(), [Self.finding(failureKind: "httpStatus404")]) == 0)
-        #expect(chosen(baseline(streak: 1)) == 0)
-        #expect(chosen(baseline(issue: nil)) == 0)
-        #expect(chosen(baseline(closed: true)) == 0)
-        #expect(chosen(baseline(attempted: f.signature)) == 0)
-        #expect(chosen(baseline(attempted: "an older failure")) == 1)
-        #expect(chosen(baseline(), recipes: [ChangelogRecipe(
+        #expect(chosen() == 1)
+        #expect(chosen([Self.finding(failureKind: "httpStatus404")]) == 0)
+        #expect(chosen([Self.finding(status: .ok, failureKind: nil)]) == 0)
+        #expect(chosen(recipes: []) == 0)
+        #expect(chosen(recipes: [ChangelogRecipe(
             bundleID: "com.example.autofix", source: Self.source,
             structuredFormat: .gitHubReleases)]) == 0)
-        #expect(chosen(baseline(), pulls: [(7, "recipe-autofix/issue-42", "OPEN")]) == 0)
+        #expect(chosen(pulls: [(7, "recipe-autofix/issue-42", "CLOSED")]) == 0)
+        #expect(chosen(pulls: [(7, "recipe-autofix/issue-43", "OPEN")]) == 1)
         let secret = RegistrySecurity.credentialBearingBundleIDs.first!
-        var b = Baseline()
-        var e = Baseline.Entry()
-        e.issueNumber = 1
-        e.consecutiveActionable = Baseline.actionableThreshold
-        b.entries[Self.finding(bundleID: secret).recipeID] = e
-        #expect(A.select([Self.finding(bundleID: secret)], baseline: b, recipes: [ChangelogRecipe(
+        #expect(A.select([Self.finding(bundleID: secret)], issue: 42, recipes: [ChangelogRecipe(
             bundleID: secret, source: Self.source, entryPattern: "a", itemPatterns: ["b"])],
             pullRequests: []).chosen.isEmpty)
-    }
-
-    /// The one-attempt-per-failure rule rests on a field that crosses processes,
-    /// and `Baseline.Entry` decodes by hand: a field missing from its decoder is
-    /// written every sweep and read back as nil (`lastGoodEntryCount` once
-    /// shipped that way). Here that would mean a model call and a full test run
-    /// every six hours for the same failure.
-    @Test func anAttemptIsRememberedAcrossSweeps() throws {
-        let path = FileManager.default.temporaryDirectory
-            .appendingPathComponent("duo-autofix-\(UUID().uuidString)/baseline.json")
-        defer { try? FileManager.default.removeItem(at: path.deletingLastPathComponent()) }
-        try baseline(attempted: Self.finding().signature).save(to: path)
-        let reread = Baseline.load(from: path)
-        #expect(ChangelogAutofix.select(
-            [Self.finding()], baseline: reread, recipes: [Self.recipe], pullRequests: []).chosen.isEmpty)
-    }
-
-    @Test func onlyAnAttemptThatReachedTheModelIsRecorded() {
-        typealias A = ChangelogAutofix
-        #expect(!A.records(.notAttempted("page did not fetch"), dryRun: false))
-        #expect(A.records(.refused("G6"), dryRun: false))
-        #expect(A.records(.error("model call failed"), dryRun: false))
-        #expect(A.records(.opened("url"), dryRun: false))
-        #expect(!A.records(.refused("G6"), dryRun: true))
-        #expect(!A.records(.dryRun("x"), dryRun: true))
     }
 
     @Test func anyPullRequestForTheIssueBlocksAnother() {
@@ -241,24 +194,6 @@ import DuoUpdaterCore
         // Issue 420's branch, or 4's, is not issue 42's.
         #expect(A.existingPullRequestRefusal(
             issue: 42, pullRequests: [(1, A.branchName(issue: 420), "OPEN"), (2, A.branchName(issue: 4), "OPEN")]) == nil)
-    }
-
-    /// Review round 1 on #1194: the signatures this acts on are one constant per
-    /// kind, so an attempt recorded forever would make every later break of the
-    /// same kind "already attempted". A healthy sweep in between ends it.
-    @Test func aHealthySweepEndsTheAttemptSoTheNextBreakIsTriedAgain() {
-        var b = baseline(attempted: Self.finding().signature)
-        #expect(ChangelogAutofix.select(
-            [Self.finding()], baseline: b, recipes: [Self.recipe], pullRequests: []).chosen.isEmpty)
-        b.reconcile(Finding(
-            recipeID: Self.finding().recipeID, registry: .changelog, bundleID: "com.example.autofix",
-            channel: "-", status: .ok, version: "3.0", endpointHost: "notes.example.com",
-            entryCount: 3, entryVersions: ["3.0", "2.0", "1.0"]))
-        #expect(b.entries[Self.finding().recipeID]?.autofixSignature == nil)
-        // Broken again, and reported again (the streak restarts).
-        b.entries[Self.finding().recipeID]?.consecutiveActionable = Baseline.actionableThreshold
-        #expect(ChangelogAutofix.select(
-            [Self.finding()], baseline: b, recipes: [Self.recipe], pullRequests: []).chosen.count == 1)
     }
 
     // MARK: - empty vendor notes
@@ -500,7 +435,6 @@ import DuoUpdaterCore
         let (outcome, log) = try await Self.attempt(world)
         #expect(Self.reason(outcome) == "refused: the pull request body would close an issue",
                 "\(Self.reason(outcome))")
-        #expect(!log.all.contains { $0.hasPrefix("publish") })
     }
 
     // MARK: - the gates in place
@@ -612,27 +546,19 @@ import DuoUpdaterCore
                 log.add("verify")
                 if world.treeChangesDuringGates { try write("late", "late.txt") }
                 return Self.report(world.verifyStatus)
-            },
-            diffStat: { "stat" },
-            publish: { branch, paths, _, body in
-                log.add("publish \(branch)")
-                log.add("paths \(paths.joined(separator: ","))")
-                log.add("body \(body.prefix(9))")
-                return "https://github.com/o/r/pull/1"
             })
     }
 
     static func attempt(
         _ world: World = World(), trigger: ChangelogAutofix.Trigger = .noEntries,
-        entry: Baseline.Entry = { var e = Baseline.Entry(); e.lastGoodVersion = "2.0"; e.lastGoodEntryCount = 3; return e }(),
-        dryRun: Bool = false
+        entry: Baseline.Entry = { var e = Baseline.Entry(); e.lastGoodVersion = "2.0"; e.lastGoodEntryCount = 3; return e }()
     ) async throws -> (ChangelogAutofix.Outcome, Log) {
         let log = Log()
         let steps = try Self.steps(world, log: log)
         defer { try? FileManager.default.removeItem(at: steps.tree) }
         let outcome = await ChangelogAutofix.attempt(
             Self.finding(), trigger: trigger, recipe: Self.recipe, issue: 42, entry: entry,
-            location: ("test-family", 0, 1), dryRun: dryRun, steps: steps)
+            location: ("test-family", 0, 1), steps: steps)
         return (outcome, log)
     }
 
@@ -640,30 +566,56 @@ import DuoUpdaterCore
         switch outcome {
         case .notAttempted(let r): return "notAttempted: \(r)"
         case .refused(let r): return "refused: \(r)"
-        case .opened(let r): return "opened: \(r)"
-        case .dryRun: return "dryRun"
+        case .ready(let plan): return "ready: \(plan.branch)"
         case .error(let r): return "error: \(r)"
         }
     }
 
-    @Test func everyGatePassedOpensOneDraft() async throws {
+    @Test func everyGatePassedPreparesOneDraft() async throws {
         let (outcome, log) = try await Self.attempt()
-        #expect(Self.reason(outcome) == "opened: https://github.com/o/r/pull/1", "\(log.all)")
-        #expect(log.did("publish recipe-autofix/issue-42"))
-        #expect(log.all.contains("body Refs #42\n"))
-        let paths = try #require(log.all.first { $0.hasPrefix("paths ") })
-        #expect(paths.contains(ChangelogAutofix.generationPath))
-        #expect(paths.contains(ChangelogAutofix.generationPinPath))
-        #expect(paths.contains(Self.familyPath) && paths.contains(Self.goldenPath)
-                && paths.contains(".json") && paths.contains(".txt"))
+        guard case .ready(let plan) = outcome else {
+            Issue.record("\(Self.reason(outcome)) \(log.all)")
+            return
+        }
+        #expect(plan.branch == "recipe-autofix/issue-42")
+        #expect(plan.body.hasPrefix("Refs #42\n"))
+        #expect(plan.title.contains("com.example.autofix"))
+        for path in [ChangelogAutofix.generationPath, ChangelogAutofix.generationPinPath,
+                     Self.familyPath, Self.goldenPath] {
+            #expect(plan.paths.contains(path), "\(path)")
+        }
+        #expect(plan.paths.contains { $0.hasSuffix(".json") } && plan.paths.contains { $0.hasSuffix(".txt") })
         #expect(log.all.filter { $0 == "make test" || $0 == "verify" } == ["make test", "verify"])
     }
 
-    @Test func aDryRunRunsEveryGateAndPublishesNothing() async throws {
-        let (outcome, log) = try await Self.attempt(dryRun: true)
-        #expect(Self.reason(outcome) == "dryRun", "\(log.all)")
-        #expect(log.did("verify"))
-        #expect(!log.all.contains { $0.hasPrefix("publish") })
+    /// The workflow hands this process the model's token and a GitHub token. The
+    /// gates run the repository's code with model-chosen patterns as data, and
+    /// none of them is given either.
+    @Test func noGateChildSeesACredential() async throws {
+        let name = "CLAUDE_CODE_OAUTH_TOKEN"
+        let previous = ProcessInfo.processInfo.environment[name]
+        setenv(name, "secret-for-test", 1)
+        defer { if let previous { setenv(name, previous, 1) } else { unsetenv(name) } }
+        let ran = try await ChangelogAutofix.run(
+            "/usr/bin/env", [], in: FileManager.default.temporaryDirectory)
+        #expect(ran.status == 0)
+        for secret in ChangelogAutofix.secretNames {
+            #expect(!ran.output.contains("\(secret)="), "\(secret)")
+        }
+        #expect(ran.output.contains("PATH="), "the environment is otherwise passed on")
+    }
+
+    /// What the job that opens the draft reads.
+    @Test func thePlanIsWrittenForThePublishingJob() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("duo-plan-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try ChangelogAutofix.write(
+            .init(branch: "recipe-autofix/issue-1", title: "t", paths: ["a", "b"], body: "Refs #1\n"), to: dir)
+        let meta = try JSONSerialization.jsonObject(
+            with: Data(contentsOf: dir.appendingPathComponent("pr.json"))) as? [String: Any]
+        #expect(meta?["branch"] as? String == "recipe-autofix/issue-1")
+        #expect(meta?["paths"] as? [String] == ["a", "b"])
+        #expect(try String(contentsOf: dir.appendingPathComponent("body.md"), encoding: .utf8) == "Refs #1\n")
     }
 
     @Test func g0APageThatHealedIsNotAttempted() async throws {
@@ -704,8 +656,8 @@ import DuoUpdaterCore
         world.page = "<p>This page moved.</p>"
         world.movedPage = Self.restyled
         world.reply = Self.reply(source: "https://notes.example.com/releases")
-        let (outcome, log) = try await Self.attempt(world, dryRun: true)
-        #expect(Self.reason(outcome) == "dryRun", "\(Self.reason(outcome))")
+        let (outcome, log) = try await Self.attempt(world)
+        #expect(Self.reason(outcome) == "ready: recipe-autofix/issue-42", "\(Self.reason(outcome))")
         #expect(log.did("fetch /releases"))
     }
 
@@ -846,7 +798,6 @@ import DuoUpdaterCore
         // Why, without re-running it on the mini.
         #expect(Self.reason(outcome).contains("make: *** [test-scripts] Error 1"))
         #expect(!log.did("verify"))
-        #expect(!log.all.contains { $0.hasPrefix("publish") })
     }
 
     @Test func g7ADegradedVerifyStopsThePullRequest() async throws {
@@ -854,7 +805,6 @@ import DuoUpdaterCore
         world.verifyStatus = .warn
         let (outcome, log) = try await Self.attempt(world)
         #expect(Self.reason(outcome).hasPrefix("refused: G7"), "\(Self.reason(outcome))")
-        #expect(!log.all.contains { $0.hasPrefix("publish") })
     }
 
     @Test func aTreeThatChangedDuringTheGatesIsNotPublished() async throws {
@@ -862,7 +812,6 @@ import DuoUpdaterCore
         world.treeChangesDuringGates = true
         let (outcome, log) = try await Self.attempt(world)
         #expect(Self.reason(outcome).hasPrefix("refused: G5"), "\(Self.reason(outcome))")
-        #expect(!log.all.contains { $0.hasPrefix("publish") })
     }
 
     @Test func aSharedPatternIsRefusedAfterTheModelSoItIsNotAskedAgain() async throws {

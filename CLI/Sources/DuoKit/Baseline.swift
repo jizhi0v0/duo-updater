@@ -94,13 +94,6 @@ public struct Baseline: Codable, Sendable {
         /// a suggestion is posted once per distinct problem rather than every
         /// sweep, and is never shown against a failure it doesn't describe.
         public var triagedSignature: String?
-        /// The failure signature `duo autofix` last attempted a fix for, whatever
-        /// came of it, so one failure costs at most one model call and one
-        /// `make test`. Cleared by the first healthy sweep after it, which is what
-        /// makes it one attempt per break: the signatures it acts on are one
-        /// constant per kind (`noEntriesExtracted`, the collapse complaint's
-        /// prefix), so they cannot tell this break from the next.
-        public var autofixSignature: String?
 
         /// Whether this endpoint has been unreachable long enough, and often
         /// enough, that the network has stopped being a plausible explanation.
@@ -184,7 +177,6 @@ public struct Baseline: Codable, Sendable {
                 try c.decodeIfPresent(Int.self, forKey: .consecutiveInstallTransient) ?? 0
             lastCommentedAt = try c.decodeIfPresent(Date.self, forKey: .lastCommentedAt)
             triagedSignature = try c.decodeIfPresent(String.self, forKey: .triagedSignature)
-            autofixSignature = try c.decodeIfPresent(String.self, forKey: .autofixSignature)
         }
     }
 
@@ -577,11 +569,6 @@ public struct Baseline: Codable, Sendable {
             entry.previousSignature = nil
             entry.sweepsSinceComment = 0
             entry.lastCommentedAt = nil
-            // A healthy reading ends the failure the attempt was about. Kept,
-            // it would outlive it: the signatures `duo autofix` acts on are one
-            // constant per kind, so the next, unrelated break would read as
-            // "already attempted" for the rest of the recipe's life.
-            entry.autofixSignature = nil
 
         case .broken, .warn:
             entry.consecutiveActionable += 1

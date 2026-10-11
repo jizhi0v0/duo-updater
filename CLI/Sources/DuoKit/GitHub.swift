@@ -93,20 +93,6 @@ enum GitHub {
         try await self.comment(issue: issue, body: comment)
     }
 
-    /// Opens a DRAFT pull request and returns its URL. There is deliberately no
-    /// merge counterpart: `duo autofix` proposes, a human merges.
-    static func createDraftPullRequest(
-        head: String, title: String, body: String, label: String
-    ) async throws -> String {
-        _ = try? await run(["label", "create", label,
-                            "--description", "Draft fix proposed by duo autofix; a human merges",
-                            "--color", "FBCA04"])
-        return try await withBodyFile(body) { file in
-            try await run(["pr", "create", "--draft", "--base", "main", "--head", head,
-                           "--title", title, "--body-file", file.path, "--label", label])
-        }
-    }
-
     /// Every pull request, in any state, opened from exactly `branch`.
     ///
     /// `--head`, an exact match that `gh` resolves through the pulls API, rather

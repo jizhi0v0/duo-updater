@@ -17,59 +17,63 @@ import DuoUpdaterCore
 //
 // - **The model writes values, never code.** It answers with a URL and patterns;
 //   `RecipeLiteralEditor` writes them into the family file, and the fixture is
-//   written here. Nothing a model wrote is compiled, which matters because the
-//   gates run `make test` on the mini, next to its CI runners and `gh` token.
+//   written here. Nothing a model wrote is compiled. The model itself runs with
+//   no tools, in an empty directory (`ClaudeCLI`).
+// - **It runs where nothing is worth stealing.** `.github/workflows/recipe-autofix.yml`
+//   runs this on a hosted runner that holds the model's token and a read-only
+//   GitHub token, and nothing that can write. It ends by writing the change and
+//   the pull request's text to `--out`; a separate job, which runs no model and
+//   no tests, is the only one that can push.
 // - **Every claim is re-checked.** The proposal goes through the production
 //   extractor on a fresh, full fetch, then through the golden dump, the full test
 //   suite and `duo verify`. The pull request reports what those said.
 // - **A human merges.** Draft, labelled, `Refs` rather than a closing keyword,
-//   and no code path here can merge.
+//   and nothing here or in the workflow can merge.
 
 public struct AutofixOptions: Sendable {
     public var reportPath: URL
+    /// Read for the last good count and version the gates measure against.
+    /// Never written.
     public var baselinePath: URL
-    /// The checkout the sweep runs in. The agent file is read from here, and the
-    /// worktree below is added to its repository.
+    /// The issue the sweep filed, which is what this run answers.
+    public var issue: Int
+    /// The checkout. The prompt is read from here, and the worktree below is
+    /// added to its repository.
     public var projectDir: URL
-    /// A persistent `git worktree` the gates build in. Kept between runs so its
-    /// `.build` stays warm; reset to `origin/main` at the start of every attempt.
+    /// A `git worktree` the gates build in, reset to `origin/main` first.
     public var worktreePath: URL
-    public var model: String?
-    public var variant: String? = "max"
-    public var maxAttempts = 1
-    public var dryRun = false
+    /// Where a passing attempt leaves `pr.json` and `body.md` for the job that
+    /// opens the pull request. Nothing is written there otherwise.
+    public var outDir: URL
+    public var model: String = ClaudeCLI.defaultModel
 
     public init(
-        reportPath: URL, baselinePath: URL, projectDir: URL, worktreePath: URL,
-        model: String? = nil, variant: String? = "max", maxAttempts: Int = 1,
-        dryRun: Bool = false
+        reportPath: URL, baselinePath: URL, issue: Int, projectDir: URL, worktreePath: URL,
+        outDir: URL
     ) {
         self.reportPath = reportPath
         self.baselinePath = baselinePath
+        self.issue = issue
         self.projectDir = projectDir
         self.worktreePath = worktreePath
-        self.model = model
-        self.variant = variant
-        self.maxAttempts = maxAttempts
-        self.dryRun = dryRun
+        self.outDir = outDir
     }
 }
 
 public enum ChangelogAutofix {
 
-    static let agent = "duo-changelog-fix"
-    static let label = "recipe-autofix"
+    /// The model's instructions, relative to the checkout.
+    static let promptPath = "CLI/Prompts/changelog-fix.md"
     /// Also read by `scripts/ci_route.py`, which sends these branches to a
-    /// GitHub-hosted runner. Change both or neither.
+    /// GitHub-hosted runner, and by the workflow that pushes them. Change all
+    /// three or none.
     static let branchPrefix = "recipe-autofix/"
-    static let author = "duo-autofix"
-    static let authorEmail = "duo-autofix@users.noreply.github.com"
 
     /// A committed fixture past this is not reviewable, and the live-page gates
     /// have already run on the whole page.
     static let fixtureCap = 256 * 1024
     /// Bounds one evaluation of a proposed pattern. A pattern that backtracks
-    /// catastrophically never returns, and this runs inside the sweep.
+    /// catastrophically never returns.
     static let extractionTimeout: TimeInterval = 60
     static let goldenTimeout: TimeInterval = 40 * 60
     static let testTimeout: TimeInterval = 90 * 60
@@ -564,101 +568,74 @@ public enum ChangelogAutofix {
               let document = try? decoder.decode(Report.Document.self, from: data) else {
             die("cannot read a verify report at \(options.reportPath.path)", code: 2)
         }
-        var baseline = Baseline.load(from: options.baselinePath)
-        let recipes = ChangelogRecipeRegistry.recipes
-
-        // Selected twice: once to learn whether `gh` is needed at all, then
-        // against the pull requests that already exist.
-        guard !select(document.findings, baseline: baseline, recipes: recipes, pullRequests: [])
-            .chosen.isEmpty else {
-            for (id, why) in select(
-                document.findings, baseline: baseline, recipes: recipes, pullRequests: []).skipped {
-                print("  · \(id): skipped — \(why)")
-            }
-            print("  no changelog finding is in scope for an automatic fix")
-            return 0
-        }
+        let baseline = Baseline.load(from: options.baselinePath)
         if let missing = await GitHub.unavailableReason() {
             die("cannot reach the GitHub CLI: \(missing)", code: 2)
         }
-        var pullRequests: [(number: Int, head: String, state: String)] = []
-        for (_, _, _, issue) in select(
-            document.findings, baseline: baseline, recipes: recipes, pullRequests: []).chosen {
-            do {
-                pullRequests += try await GitHub.pullRequests(head: branchName(issue: issue))
-            } catch {
-                // Not knowing which drafts exist is not a reason to open a duplicate.
-                die("could not list pull requests for issue #\(issue): \(error)", code: 1)
-            }
+        let pullRequests: [(number: Int, head: String, state: String)]
+        do {
+            pullRequests = try await GitHub.pullRequests(head: branchName(issue: options.issue))
+        } catch {
+            // Not knowing which drafts exist is not a reason to open a duplicate.
+            die("could not list pull requests for issue #\(options.issue): \(error)", code: 1)
         }
         let selection = select(
-            document.findings, baseline: baseline, recipes: recipes, pullRequests: pullRequests)
+            document.findings, issue: options.issue, recipes: ChangelogRecipeRegistry.recipes,
+            pullRequests: pullRequests)
         for (id, why) in selection.skipped { print("  · \(id): skipped — \(why)") }
-
-        var attempts = 0
-        var recorded = false
-        var failures = 0
-        for (finding, trigger, recipe, issue) in selection.chosen {
-            guard attempts < options.maxAttempts else {
-                print("  · \(finding.recipeID): left for a later sweep (--max-attempts \(options.maxAttempts))")
-                continue
-            }
-            let entry = baseline.entries[finding.recipeID] ?? Baseline.Entry()
-            guard let location = location(of: recipe) else { continue }
-            let outcome = await attempt(
-                finding, trigger: trigger, recipe: recipe, issue: issue, entry: entry,
-                location: location, dryRun: options.dryRun, steps: .live(options))
-            switch outcome {
-            case .notAttempted(let why):
-                print("  · \(finding.recipeID): skipped — \(why)")
-            case .refused(let why):
-                print("  ✗ \(finding.recipeID): no pull request — \(why)")
-            case .opened(let url):
-                print("  ✓ \(finding.recipeID): opened draft \(url)")
-            case .dryRun(let summary):
-                print("  [dry-run] \(finding.recipeID): every gate passed\n\(summary)")
-            case .error(let why):
-                FileHandle.standardError.write(Data("  ✗ \(finding.recipeID): \(why)\n".utf8))
-                failures += 1
-            }
-            if case .notAttempted = outcome { continue }
-            attempts += 1
-            if records(outcome, dryRun: options.dryRun) {
-                baseline.entries[finding.recipeID, default: Baseline.Entry()].autofixSignature =
-                    finding.signature
-                recorded = true
-            }
+        guard let (finding, trigger, recipe) = selection.chosen.first,
+              let location = location(of: recipe) else {
+            print("  nothing to attempt for issue #\(options.issue)")
+            return 0
         }
-        if recorded {
-            do { try baseline.save(to: options.baselinePath) } catch {
-                FileHandle.standardError.write(Data("could not save the baseline: \(error)\n".utf8))
-                failures += 1
+        let outcome = await attempt(
+            finding, trigger: trigger, recipe: recipe, issue: options.issue,
+            entry: baseline.entries[finding.recipeID] ?? Baseline.Entry(),
+            location: location, steps: .live(options))
+        switch outcome {
+        case .notAttempted(let why):
+            print("  · \(finding.recipeID): skipped — \(why)")
+        case .refused(let why):
+            print("  ✗ \(finding.recipeID): no pull request — \(why)")
+        case .ready(let plan):
+            do {
+                try write(plan, to: options.outDir)
+            } catch {
+                FileHandle.standardError.write(Data("could not write \(options.outDir.path): \(error)\n".utf8))
+                return 1
             }
+            print("  ✓ \(finding.recipeID): every gate passed; the change is in \(options.worktreePath.path)")
+        case .error(let why):
+            FileHandle.standardError.write(Data("  ✗ \(finding.recipeID): \(why)\n".utf8))
+            return 1
         }
-        return failures == 0 ? 0 : 1
+        return 0
     }
 
-    /// The findings to attempt, in report order, and why each other actionable
-    /// changelog finding is not. Every rule that decides whether a finding is
-    /// attempted at all is applied here, so one test surface covers them.
+    /// The finding to attempt for `issue`, and why each other actionable
+    /// changelog finding in the report is not. Every rule that decides whether a
+    /// finding is attempted at all is applied here, so one test surface covers
+    /// them.
+    ///
+    /// No attempt bookkeeping: the workflow runs once per issue opened or
+    /// reopened, which is once per break, and any pull request already opened
+    /// for the issue stops it here.
     static func select(
-        _ findings: [Finding], baseline: Baseline, recipes: [ChangelogRecipe],
+        _ findings: [Finding], issue: Int, recipes: [ChangelogRecipe],
         pullRequests: [(number: Int, head: String, state: String)]
-    ) -> (chosen: [(Finding, Trigger, ChangelogRecipe, Int)], skipped: [(String, String)]) {
-        var chosen: [(Finding, Trigger, ChangelogRecipe, Int)] = []
+    ) -> (chosen: [(Finding, Trigger, ChangelogRecipe)], skipped: [(String, String)]) {
+        var chosen: [(Finding, Trigger, ChangelogRecipe)] = []
         var skipped: [(String, String)] = []
         for finding in findings where finding.registry == .changelog && finding.status.isActionable {
             guard let trigger = trigger(for: finding) else {
                 skipped.append((finding.recipeID, "not a kind this fixes (issue only)"))
                 continue
             }
-            let entry = baseline.entries[finding.recipeID]
-            if let why = refusal(finding, entry: entry, reportable: baseline.isReportable(finding.recipeID)) {
-                skipped.append((finding.recipeID, why))
+            if RegistrySecurity.isCredentialBearing(bundleID: finding.bundleID) {
+                skipped.append((finding.recipeID, "credential-bearing — its page is never sent anywhere"))
                 continue
             }
-            guard let recipe = recipes.first(where: { $0.recipeID == finding.recipeID }),
-                  let issue = entry?.issueNumber else {
+            guard let recipe = recipes.first(where: { $0.recipeID == finding.recipeID }) else {
                 skipped.append((finding.recipeID, "no such recipe in this build"))
                 continue
             }
@@ -670,43 +647,36 @@ public enum ChangelogAutofix {
                 skipped.append((finding.recipeID, why))
                 continue
             }
-            chosen.append((finding, trigger, recipe, issue))
+            chosen.append((finding, trigger, recipe))
         }
         return (chosen, skipped)
     }
 
-    /// Why a finding of the right kind is still not attempted, or nil.
-    static func refusal(_ finding: Finding, entry: Baseline.Entry?, reportable: Bool) -> String? {
-        if RegistrySecurity.isCredentialBearing(bundleID: finding.bundleID) {
-            return "credential-bearing — its page is never sent anywhere"
-        }
-        guard reportable else { return "not yet reportable" }
-        guard let entry, entry.issueNumber != nil, entry.closedAt == nil else {
-            return "no open issue to refer to"
-        }
-        if entry.autofixSignature == finding.signature {
-            return "already attempted since it broke"
-        }
-        return nil
+    /// What the job that opens the pull request needs. The change itself stays in
+    /// the worktree; the workflow carries it over as a patch.
+    struct Plan: Codable, Equatable {
+        let branch: String
+        let title: String
+        /// Every path the change touches, for that job to check again.
+        let paths: [String]
+        let body: String
     }
 
-    /// Whether an attempt is written to the baseline, so the same failure is not
-    /// attempted again. Every outcome that spent a model call is, whatever came
-    /// of it: asking again would cost the call and the test run again for the
-    /// same answer. A finding stopped before the model is not — those checks are
-    /// cheap and their answer can change by the next sweep. A dry run records
-    /// nothing, so it can be repeated.
-    static func records(_ outcome: Outcome, dryRun: Bool) -> Bool {
-        if dryRun { return false }
-        if case .notAttempted = outcome { return false }
-        return true
+    /// `pr.json` (branch, title, paths) and `body.md`, in `directory`.
+    static func write(_ plan: Plan, to directory: URL) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        struct Meta: Encodable { let branch: String; let title: String; let paths: [String] }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(Meta(branch: plan.branch, title: plan.title, paths: plan.paths))
+            .write(to: directory.appendingPathComponent("pr.json"))
+        try Data(plan.body.utf8).write(to: directory.appendingPathComponent("body.md"))
     }
 
     enum Outcome {
         case notAttempted(String)
         case refused(String)
-        case opened(String)
-        case dryRun(String)
+        case ready(Plan)
         case error(String)
     }
 
@@ -730,21 +700,20 @@ public enum ChangelogAutofix {
         var makeTest: @Sendable () async throws -> Ran
         /// `duo verify --only <id>`'s report.
         var verify: @Sendable (String) async throws -> Data
-        var diffStat: @Sendable () async throws -> String
-        var publish: @Sendable (_ branch: String, _ paths: [String], _ title: String, _ body: String)
-            async throws -> String
 
         static func live(_ options: AutofixOptions) -> Steps {
             let tree = options.worktreePath
             return Steps(
                 fetch: { await ChangelogService.loadDiagnostic($0, feedPage: nil) },
                 ask: { prompt in
-                    try await Triage.askSandboxed(
-                        agent: agent, prompt: prompt, projectDir: options.projectDir,
-                        model: options.model, variant: options.variant)
+                    try await ClaudeCLI.ask(
+                        prompt: prompt,
+                        systemPrompt: String(
+                            contentsOf: options.projectDir.appendingPathComponent(promptPath),
+                            encoding: .utf8),
+                        model: options.model)
                 },
-                model: Triage.resolvedModel(
-                    override: options.model, agent: agent, projectDir: options.projectDir),
+                model: options.model,
                 tree: tree,
                 prepareTree: { try await prepareWorktree(tree, repository: options.projectDir) },
                 recordGoldens: {
@@ -757,18 +726,10 @@ public enum ChangelogAutofix {
                 },
                 committedFile: { path in try await git(["show", "HEAD:\(path)"], in: tree) },
                 changedPaths: { try await ChangelogAutofix.changedPaths(in: tree) },
-                makeTest: {
-                    // The same skip ci.yml gives the mini: that test downloads a
-                    // real 110 MB installer, and the sweep that calls this runs
-                    // it on its own later in the same run.
-                    try await run(
-                        "/usr/bin/env", ["make", "test"], in: tree,
-                        environment: ["CORE_TEST_FLAGS": "--skip installPipelineDryRun"],
-                        timeout: testTimeout)
-                },
+                makeTest: { try await run("/usr/bin/env", ["make", "test"], in: tree, timeout: testTimeout) },
                 verify: { recipeID in
-                    // Through `swift run`, never `build-cli.sh`, which would repoint
-                    // the sweep's own installed binary at this worktree.
+                    // Through `swift run`, so it is the worktree's code — the
+                    // edited recipe — that answers, not this binary's.
                     let report = FileManager.default.temporaryDirectory
                         .appendingPathComponent("duo-autofix-verify-\(UUID().uuidString).json")
                     defer { try? FileManager.default.removeItem(at: report) }
@@ -778,23 +739,18 @@ public enum ChangelogAutofix {
                                          "--report", report.path],
                         in: tree, timeout: verifyTimeout)
                     return (try? Data(contentsOf: report)) ?? Data()
-                },
-                diffStat: { try await git(["diff", "--stat"], in: tree) },
-                publish: { branch, paths, title, body in
-                    try await ChangelogAutofix.publish(
-                        branch: branch, paths: paths, title: title, body: body, in: tree)
                 })
         }
     }
 
-    /// One finding, from a fresh fetch to an open draft. Each gate returns early;
-    /// nothing after a failed gate runs, and only the last step writes anywhere
-    /// but the worktree.
+    /// One finding, from a fresh fetch to a change ready to be opened as a draft.
+    /// Each gate returns early, nothing after a failed gate runs, and nothing is
+    /// written anywhere but the worktree.
     // swiftlint:disable:next function_body_length
     static func attempt(
         _ finding: Finding, trigger: Trigger, recipe: ChangelogRecipe, issue: Int,
         entry: Baseline.Entry, location: (family: String, index: Int, count: Int),
-        dryRun: Bool, steps: Steps
+        steps: Steps
     ) async -> Outcome {
         // G0. A fresh, whole page — the report's sample is condensed around the
         // old pattern, which is not what a new one would run on.
@@ -941,12 +897,9 @@ public enum ChangelogAutofix {
             guard !containsClosingKeyword(body) else {
                 return .refused("the pull request body would close an issue")
             }
-            if dryRun {
-                return .dryRun(try await steps.diffStat() + "\n" + body)
-            }
             let title = "Changelog autofix: \(recipe.bundleID) — "
                 + (trigger == .collapse ? "entries collapsed" : "no entries extracted")
-            return .opened(try await steps.publish(branchName(issue: issue), changed, title, body))
+            return .ready(Plan(branch: branchName(issue: issue), title: title, paths: changed, body: body))
         } catch {
             return .error("\(error)")
         }
@@ -1128,6 +1081,9 @@ public enum ChangelogAutofix {
         func set(_ value: T) { lock.withLock { stored = value } }
     }
 
+    /// Credentials the workflow may hand this process, which no gate is given.
+    static let secretNames = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "GH_TOKEN", "GITHUB_TOKEN"]
+
     struct Ran {
         let status: Int32
         let timedOut: Bool
@@ -1140,6 +1096,9 @@ public enum ChangelogAutofix {
         environment: [String: String] = [:], timeout: TimeInterval = 120
     ) async throws -> Ran {
         var env = ProcessInfo.processInfo.environment
+        // The gates run the repository's own code, with model-chosen patterns as
+        // data. None of it needs a credential, so none is in reach of it.
+        for name in secretNames { env.removeValue(forKey: name) }
         env.merge(environment) { _, new in new }
         let seconds = Int64(timeout.rounded(.up))
         let outcome = try await ChildProcess.run(
@@ -1160,8 +1119,9 @@ public enum ChangelogAutofix {
         return ran.output
     }
 
-    /// A clean `origin/main` in the persistent worktree, keeping SwiftPM's
-    /// builds. The sweep fetched just before this runs.
+    /// A clean `origin/main` in the worktree, keeping SwiftPM's builds when it is
+    /// reused. The workflow fetches `origin/main` first, and the job that opens
+    /// the pull request applies the change to the same commit.
     static func prepareWorktree(_ tree: URL, repository: URL) async throws {
         if !FileManager.default.fileExists(atPath: tree.appendingPathComponent(".git").path) {
             try await git(["worktree", "add", "--detach", tree.path, "origin/main"], in: repository)
@@ -1175,23 +1135,6 @@ public enum ChangelogAutofix {
     static func changedPaths(in tree: URL) async throws -> [String] {
         let status = try await git(["status", "--porcelain", "--untracked-files=all"], in: tree)
         return status.split(separator: "\n").map { String($0.dropFirst(3)) }.sorted()
-    }
-
-    static func publish(
-        branch: String, paths: [String], title: String, body: String, in tree: URL
-    ) async throws -> String {
-        try await git(["checkout", "-b", branch], in: tree)
-        try await git(["add", "--"] + paths, in: tree)
-        try await git(["-c", "user.name=\(author)", "-c", "user.email=\(authorEmail)",
-                       "commit", "-m", title], in: tree)
-        try await git(["push", "origin", branch], in: tree)
-        let url = try await GitHub.createDraftPullRequest(
-            head: branch, title: title, body: body, label: label)
-        // The branch lives on GitHub now; leaving it here would pile one local
-        // branch per draft into the sweep's own repository.
-        try? await git(["checkout", "--detach", "origin/main"], in: tree)
-        try? await git(["branch", "-D", branch], in: tree)
-        return url
     }
 }
 

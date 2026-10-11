@@ -465,6 +465,25 @@ import DuoUpdaterCore
         #expect(!ChangelogAutofix.containsClosingKeyword(body))
     }
 
+    @Test func thePullRequestQuotesTheCountBarTheGateUsed() {
+        func g2(_ trigger: ChangelogAutofix.Trigger, moved: Bool, count: Int?) -> String? {
+            var entry = Baseline.Entry()
+            entry.lastGoodEntryCount = count
+            let body = ChangelogAutofix.pullRequestBody(
+                Self.finding(), trigger: trigger, recipe: Self.recipe, issue: 42,
+                edit: .init(source: moved ? URL(string: "https://notes.example.com/releases") : nil,
+                            entryPattern: Self.newPattern),
+                proposal: .init(diagnosis: nil, source: nil, entryPattern: Self.newPattern,
+                                itemPatterns: nil, confidence: 0.5),
+                versions: ["3.0"], entry: entry, fixtureIncluded: false, model: "m")
+            return body.split(separator: "\n").first { $0.hasPrefix("| G2 count") }.map(String.init)
+        }
+        #expect(g2(.noEntries, moved: false, count: 3) == "| G2 count | ≥ 3 (last good) |")
+        #expect(g2(.noEntries, moved: true, count: 3)
+            == "| G2 count | ≥ 1 (source moved; the last good 3 was on the old page) |")
+        #expect(g2(.collapse, moved: true, count: 3) == "| G2 count | ≥ 2 (collapse) |")
+    }
+
     @Test func closingKeywordsAreRecognisedInEveryForm() {
         typealias A = ChangelogAutofix
         for text in ["Fixes #1", "closes: #22", "resolved jizhi0v0/duo-updater#3", "FIX #4", "close #5"] {

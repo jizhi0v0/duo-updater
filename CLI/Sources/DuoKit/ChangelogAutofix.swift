@@ -260,7 +260,7 @@ public enum ChangelogAutofix {
         sourceMoved: Bool = false, ordersByLineage: Bool
     ) -> String? {
         guard let newest = versions.first else { return "G1: the extractor read no entries" }
-        let floor = trigger == .collapse ? 2 : (sourceMoved ? 1 : (lastGoodCount ?? 1))
+        let floor = countFloor(trigger: trigger, lastGoodCount: lastGoodCount, sourceMoved: sourceMoved).count
         guard versions.count >= floor else {
             return "G2: \(versions.count) entries, below the floor of \(floor)"
         }
@@ -274,6 +274,18 @@ public enum ChangelogAutofix {
             ? nil
             : "G3: newest entry \(newest) cannot be ordered against the last good "
                 + "\(lastGood), which is no longer on the page"
+    }
+
+    /// G2's bar, and why it is that number — the pull request quotes the same one.
+    static func countFloor(
+        trigger: Trigger, lastGoodCount: Int?, sourceMoved: Bool
+    ) -> (count: Int, reason: String) {
+        if trigger == .collapse { return (2, "collapse") }
+        if sourceMoved {
+            return (1, lastGoodCount.map { "source moved; the last good \($0) was on the old page" }
+                ?? "source moved")
+        }
+        return (lastGoodCount ?? 1, "last good")
     }
 
     /// The version as `VersionComparator` can order it: the string itself when it
@@ -1083,7 +1095,9 @@ public enum ChangelogAutofix {
         out += "\n## Gates (all passed)\n\n"
         out += "| | |\n|---|---|\n"
         out += "| G1 entries | \(versions.count), production extractor on a fresh full fetch |\n"
-        out += "| G2 count | ≥ \(trigger == .collapse ? "2 (collapse)" : "\(entry.lastGoodEntryCount ?? 1) (last good)") |\n"
+        let floor = countFloor(
+            trigger: trigger, lastGoodCount: entry.lastGoodEntryCount, sourceMoved: edit.source != nil)
+        out += "| G2 count | ≥ \(floor.count) (\(floor.reason)) |\n"
         out += "| G3 newest | `\(versions.first ?? "?")` against last good `\(entry.lastGoodVersion ?? "none")` |\n"
         out += "| G4 goldens | only `changelogs[…]` fields named above changed, to exactly these values |\n"
         out += "| G4 generation | `Changelog.parserGeneration` up by one with its bullet, and its "

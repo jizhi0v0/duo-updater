@@ -24,7 +24,9 @@ enum TestDiskImages {
         let imagePath: String
         /// The image's own disk (`/dev/diskN`), the first whole-disk entry `hdiutil`
         /// lists for it. Detaching it ejects every disk the image carries, an APFS
-        /// image's synthesized container included.
+        /// image's synthesized container included: an APFS sparse image lists
+        /// disk4, disk4s1, disk5 (the container), disk5s1, and `detach disk4`
+        /// leaves none of them (macOS 26.7, 2026-10-12).
         let device: String?
     }
 

@@ -207,6 +207,12 @@ import Foundation
     /// Mutation: drop `-c credential.helper=` → a stored password for the host
     /// (and a Keychain prompt) is in play; drop `GIT_TERMINAL_PROMPT=0` → git may
     /// wait on a prompt nobody can answer.
+    ///
+    /// Under a generous deadline, not the production 30 s: the first exec of a
+    /// freshly written script waits on Gatekeeper's first-launch scan, serialized
+    /// machine-wide (mini, 2026-10-11), and in a busy parallel suite the stand-in
+    /// never ran its first line in time. The deadline only keeps a hung child from
+    /// hanging the run.
     @Test func lsRemoteNeverOffersCredentials() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ZZFixture-git-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -221,7 +227,9 @@ import Foundation
         """.write(to: git, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: git.path)
 
-        let result = await BrewHeadCheck.lsRemote(url: "https://x.invalid/r.git", branch: "main", git: git.path)
+        let generous = ChildProcess.Deadline(terminateAfter: .seconds(120), killAfter: .seconds(125))
+        let result = await BrewHeadCheck.lsRemote(
+            url: "https://x.invalid/r.git", branch: "main", git: git.path, deadline: generous)
         #expect(result == .success("1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d"))
         let lines = try String(contentsOf: log, encoding: .utf8).split(separator: "\n").map(String.init)
         #expect(lines == ["-c", "credential.helper=", "ls-remote", "--", "https://x.invalid/r.git", "refs/heads/main", "PROMPT=0"])

@@ -24,6 +24,10 @@ import Foundation
         #expect(value(after: "--model") == "claude-sonnet-5-5")
         #expect(value(after: "--output-format") == "json")
         #expect(value(after: "--system-prompt") == "SYSTEM")
+        #expect(!args.contains("--effort"))
+        let high = ClaudeCLI.arguments(model: "claude-opus-5-5", effort: "high", systemPrompt: "SYSTEM")
+        #expect(high.suffix(2) == ["--effort", "high"])
+        #expect(Array(high.dropLast(2)) == ClaudeCLI.arguments(model: "claude-opus-5-5", systemPrompt: "SYSTEM"))
     }
 
     @Test func theAnswerIsTheResult() throws {

@@ -381,7 +381,9 @@ model why a broken one broke, and turn the result into issues. For a changelog r
 entries vanished or collapsed, `duo autofix` goes one step further: run by
 `.github/workflows/recipe-autofix.yml` when the issue opens, it prepares a draft pull request
 when the model's proposed values pass the production extractor, the goldens, `make test` and
-`duo verify`, and leaves the merge to a person. That is what the nightly
+`duo verify`. A second model then reads the page and the entries those values produce; when
+it finds nothing wrong, the workflow merges the change without a person, but only while the
+repository variable `RECIPE_AUTOFIX_AUTOMERGE` is `1`. That is what the nightly
 check runs; they are not needed for ordinary use. `duo verify-install` is the half the
 sweep cannot see: it downloads every installer those recipes resolve and checks it the
 way an install would — published digests, unpacking, code signature, and the bundle id

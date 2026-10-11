@@ -1,0 +1,198 @@
+[
+ {
+  "name": "typewhisper",
+  "issue": 956,
+  "recipeID": "changelog:com.typewhisper.mac:-",
+  "fixCommit": "dd4386ec4d",
+  "lastGoodVersion": "TypeWhisper 1.7.0 RC2",
+  "lastGoodEntryCount": 20,
+  "trigger": "noEntries",
+  "broken": {
+   "source": "https://www.typewhisper.com/en/changelog/",
+   "entryPattern": ">macOS</span><h3[^>]*>v?(?<version>[^<]+)</h3>(?:(?!>macOS</span><h3|>Windows</span><h3).)*?<p class=\"mt-1 text-xs text-muted-foreground\">(?<date>[^<]*)</p><div class=\"prose[^\"]*\"[^>]*>(?<body>.*?)</div>",
+   "itemPatterns": [
+    "<li[^>]*>(?<item>.*?)</li>",
+    "<p[^>]*>(?<item>.*?)</p>"
+   ]
+  },
+  "human": {
+   "source": "https://www.typewhisper.com/en/changelog/",
+   "entryPattern": "<details[^>]*\\bid=\"mac-v?(?<version>[^\"]+)\"[^>]*>(?:(?!</details>).)*?<time[^>]*>(?<date>[^<]*)</time>(?:(?!</details>).)*?<div class=\"site-prose[^\"]*\">(?<body>.*?)</div>",
+   "itemPatterns": [
+    "<li[^>]*>(?<item>.*?)</li>",
+    "<p[^>]*>(?<item>.*?)</p>"
+   ]
+  },
+  "wayback": {
+   "https://www.typewhisper.com/en/changelog/": "20261003061403"
+  }
+ },
+ {
+  "name": "antigravity-hub",
+  "issue": 822,
+  "recipeID": "changelog:com.google.antigravity:-",
+  "fixCommit": "63506dd7bc",
+  "lastGoodVersion": "2.15.1",
+  "lastGoodEntryCount": 20,
+  "trigger": "noEntries",
+  "broken": {
+   "source": "https://antigravity.google/changelog",
+   "entryPattern": "href=\"/releases\\?tab=hub&amp;version=[^\"]*\"[^>]*>(?<version>[^<]+)</a><br[^>]*>(?<date>[^<]*)</p>(?:(?!section-row-wrapper|grid-body).)*?<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>(?<body>.*?)(?=<div class=\"section-row-wrapper|<div class=\"grid-body|</section>)",
+   "itemPatterns": [
+    "(?:<div class=\"changes[^\"]*\"[^>]*><p>|<li[^>]*class=\"caption[^\"]*\"[^>]*>)(?<item>.*?)(?:</p>|</li>)"
+   ]
+  },
+  "human": {
+   "source": "https://antigravity.google/docs/changelog",
+   "entryPattern": "<article[^>]*\\bid=\"rel-hub-(?<version>[^\"]+)\"[^>]*>(?:(?!</article>).)*?<time[^>]*>(?<date>[^<]*)</time>(?:(?!</article>).)*?<h3[^>]*class=\"rn-headline[^\"]*\"[^>]*>(?<title>.*?)</h3>(?<body>.*?)</article>",
+   "itemPatterns": [
+    "(?:<div class=\"rn-summary[^\"]*\"[^>]*><p>|<li[^>]*class=\"rn-item[^\"]*\"[^>]*>)(?<item>.*?)(?:</p>|</li>)"
+   ]
+  },
+  "wayback": {
+   "https://antigravity.google/changelog": "20260929180020",
+   "https://antigravity.google/docs/changelog": "20260929180020"
+  }
+ },
+ {
+  "name": "antigravity-ide",
+  "issue": 922,
+  "recipeID": "changelog:com.google.antigravity-ide:-",
+  "fixCommit": "63506dd7bc",
+  "lastGoodVersion": "2.5.5",
+  "lastGoodEntryCount": 20,
+  "trigger": "noEntries",
+  "broken": {
+   "source": "https://antigravity.google/changelog",
+   "entryPattern": "href=\"/releases\\?tab=ide&amp;version=[^\"]*\"[^>]*>(?<version>[^<]+)</a><br[^>]*>(?<date>[^<]*)</p>(?:(?!section-row-wrapper|grid-body).)*?<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>(?<body>.*?)(?=<div class=\"section-row-wrapper|<div class=\"grid-body|</section>)",
+   "itemPatterns": [
+    "(?:<div class=\"changes[^\"]*\"[^>]*><p>|<li[^>]*class=\"caption[^\"]*\"[^>]*>)(?<item>.*?)(?:</p>|</li>)"
+   ]
+  },
+  "human": {
+   "source": "https://antigravity.google/docs/changelog",
+   "entryPattern": "<article[^>]*\\bid=\"rel-ide-(?<version>[^\"]+)\"[^>]*>(?:(?!</article>).)*?<time[^>]*>(?<date>[^<]*)</time>(?:(?!</article>).)*?<h3[^>]*class=\"rn-headline[^\"]*\"[^>]*>(?<title>.*?)</h3>(?<body>.*?)</article>",
+   "itemPatterns": [
+    "(?:<div class=\"rn-summary[^\"]*\"[^>]*><p>|<li[^>]*class=\"rn-item[^\"]*\"[^>]*>)(?<item>.*?)(?:</p>|</li>)"
+   ]
+  },
+  "wayback": {
+   "https://antigravity.google/changelog": "20260929180020",
+   "https://antigravity.google/docs/changelog": "20260929180020"
+  }
+ },
+ {
+  "name": "vscode",
+  "issue": 697,
+  "recipeID": "changelog:com.microsoft.VSCode:-",
+  "fixCommit": "024355f56a",
+  "lastGoodVersion": "1.137",
+  "lastGoodEntryCount": 1,
+  "trigger": "noEntries",
+  "broken": {
+   "source": "https://code.visualstudio.com/updates",
+   "entryPattern": "<h1>Visual Studio Code (?<version>[0-9.]+)</h1>\\s*.*?<p><em>Release date:\\s*(?<date>[^<]+)</em></p>\\s*.*?<ul>(?<body>.*?)</ul>\\s*(?:<blockquote>.*?</blockquote>\\s*)?<p>Happy Coding!</p>",
+   "itemPatterns": [
+    "<li>\\s*(?:<p>)?(?<item>.*?)(?:</p>)?\\s*</li>"
+   ]
+  },
+  "human": {
+   "source": "https://code.visualstudio.com/updates",
+   "entryPattern": "<h1>Visual Studio Code (?<version>[0-9.]+)</h1>\\s*.*?<p><em>Release date:\\s*(?<date>[^<]+)</em></p>\\s*.*?<ul>(?<body>.*?)</ul>\\s*(?:(?:<blockquote>.*?</blockquote>|<p>(?:(?!</p>|<ul>).)*</p>)\\s*)*<p>Happy Coding!</p>",
+   "itemPatterns": [
+    "<li>\\s*(?:<p>)?(?<item>.*?)(?:</p>)?\\s*</li>"
+   ]
+  },
+  "wayback": {
+   "https://code.visualstudio.com/updates": "20260916221303"
+  }
+ },
+ {
+  "name": "chrome",
+  "issue": 821,
+  "recipeID": "changelog:com.google.Chrome:-",
+  "fixCommit": "7c6b8ec516",
+  "lastGoodVersion": "155.0.8059.39",
+  "lastGoodEntryCount": 3,
+  "trigger": "noEntries",
+  "broken": {
+   "source": "https://chromereleases.googleblog.com/search/label/Stable%20updates",
+   "entryPattern": "title='Stable Channel Update for Desktop'>(?>(?:(?!<span class='publishdate').)*?<span class='publishdate'[^>]*>\\s*(?<date>[^<]+?)\\s*</span>)(?>(?:(?!<script type='text/template'>).)*?<script type='text/template'>\\s*)(?=(?:(?!</script>).)*?(?<version>\\d+\\.\\d+\\.\\d+\\.\\d+))(?<body>(?:(?!</script>).)*?)</script>",
+   "itemPatterns": [
+    "(?<item>CVE-\\d{4}-\\d+:[^<]*)",
+    "<p[^>]*>(?<item>(?:(?!</p>).)*?(?:promotion of Chrome|been updated to)(?:(?!</p>).)*?)</p>"
+   ]
+  },
+  "human": {
+   "source": "https://chromereleases.googleblog.com/search/label/Desktop%20Update+Stable%20updates",
+   "entryPattern": "title='Stable Channel Update for Desktop'>(?>(?:(?!<span class='publishdate').)*?<span class='publishdate'[^>]*>\\s*(?<date>[^<]+?)\\s*</span>)(?>(?:(?!<script type='text/template'>).)*?<script type='text/template'>\\s*)(?=(?:(?!</script>).)*?(?<version>\\d+\\.\\d+\\.\\d+\\.\\d+))(?<body>(?:(?!</script>).)*?)</script>",
+   "itemPatterns": [
+    "(?<item>CVE-\\d{4}-\\d+:[^<]*)",
+    "<p[^>]*>(?<item>(?:(?!</p>).)*?(?:promotion of Chrome|been updated to)(?:(?!</p>).)*?)</p>"
+   ]
+  },
+  "wayback": {}
+ },
+ {
+  "name": "workbuddy-ai",
+  "issue": null,
+  "recipeID": "changelog:com.workbuddy.workbuddy-ai:-",
+  "fixCommit": "7be01deb1f",
+  "lastGoodVersion": "5.2.7",
+  "lastGoodEntryCount": 2,
+  "trigger": "noEntries",
+  "broken": {
+   "source": "https://www.workbuddy.ai/docs/workbuddy/Changelog",
+   "entryPattern": "<h2[^>]*>\\s*(?<version>\\d+(?:\\.\\d+)+)(?:[^<（(]*[（(](?<date>[^）)<]+)[）)])?(?:(?!</h2>).)*</h2>\\s*<ul[^>]*>(?<body>.*?)</ul>",
+   "itemPatterns": [
+    "<li[^>]*>(?<item>.*?)</li>"
+   ]
+  },
+  "human": null,
+  "wayback": {}
+ },
+ {
+  "name": "vscode-2",
+  "issue": null,
+  "recipeID": "changelog:com.microsoft.VSCode:-",
+  "fixCommit": "ca882dad6b",
+  "lastGoodVersion": "1.138",
+  "lastGoodEntryCount": 1,
+  "trigger": "noEntries",
+  "broken": {
+   "source": "https://code.visualstudio.com/updates",
+   "entryPattern": "<h1>Visual Studio Code (?<version>[0-9.]+)</h1>\\s*.*?<p><em>Release date:\\s*(?<date>[^<]+)</em></p>\\s*.*?<ul>(?<body>.*?)</ul>\\s*(?:(?:<blockquote>.*?</blockquote>|<p>(?:(?!</p>|<ul>).)*</p>)\\s*)*<p>Happy Coding!</p>",
+   "itemPatterns": [
+    "<li>\\s*(?:<p>)?(?<item>.*?)(?:</p>)?\\s*</li>"
+   ]
+  },
+  "human": {
+   "source": "https://code.visualstudio.com/updates",
+   "entryPattern": "<h1>Visual Studio Code (?<version>[0-9.]+)</h1>\\s*.*?(?:<p class=\"release-metadata\"><span>Released|<p><em>Release date:)\\s*(?<date>[^<]+)<.*?<ul>(?<body>.*?)</ul>\\s*(?:</section>|(?:(?:<blockquote>.*?</blockquote>|<p>(?:(?!</p>|<ul>).)*</p>)\\s*)*<p>Happy Coding!</p>)",
+   "itemPatterns": [
+    "<li>\\s*(?:<p>)?(?<item>.*?)(?:</p>)?\\s*</li>"
+   ]
+  },
+  "wayback": {
+   "https://code.visualstudio.com/updates": "20260926091135"
+  }
+ },
+ {
+  "name": "lmstudio",
+  "issue": null,
+  "recipeID": "changelog:ai.elementlabs.lmstudio:-",
+  "fixCommit": "e5937cf5a4",
+  "lastGoodVersion": null,
+  "lastGoodEntryCount": null,
+  "trigger": "noEntries",
+  "broken": {
+   "source": "https://lmstudio.ai/changelog",
+   "entryPattern": "href=\"/changelog/lmstudio-v[^\"]*\">\\s*<span class=\"sr-only\">LM Studio (?<version>[^<]+)</span></a>.*?<div class=\"markdown-body[^\"]*\"[^>]*>(?<body>.*?)</div>\\s*</div>\\s*</div>",
+   "itemPatterns": [
+    "<li[^>]*>(?<item>.*?)</li>"
+   ]
+  },
+  "human": null,
+  "wayback": {}
+ }
+]

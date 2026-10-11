@@ -97,6 +97,17 @@ stable rule 走 `/releases/latest`（GitHub 定义上排除 prerelease），所�
 - prerelease 不进列表（与共用解码器同策略）。这里不是理论问题：厂商会先把一个 build 标成
   prerelease 放一两天，appcast 才跟上（2026-09-03 的 `0.16.4.1` 就是），列出来等于给用户看
   一个他并没有被推送的版本的说明。
+- **2026-10-11：recipe 带 `acknowledgedStaleEntry: "0.18.3.1"`（#1123）。**正文的提交日志是
+  「since last build」，而 last build 把 prerelease 也算在内。stable `0.19.2.1` 的 tag 与它前一个
+  prerelease `0.19.1.2` 指向**同一个提交**，所以 `0.19.2.1` 的两个 fence 都是空的：entry pattern
+  照样命中它，只是一条 item 都没有，`ChangelogExtractor` 丢掉无 item 的 entry，最新条目于是停在
+  `0.18.3.1`，而 appcast 给的观测版本是 `0.19.2.1`。pattern 没坏，没有可修的东西；0.19 的提交
+  只列在 `0.19.1.2`（prerelease）上，被上面那条 prerelease 闸挡在外面。按字段约定写具体版本而
+  不是开关：下一个列出了提交的 stable 一出来，最新条目就会动，确认自然失效，届时删掉这个字段。
+  - 代价（未改）：这个厂商每个 prerelease 的提交都只记在 prerelease 自己身上，stable 用户永远
+    看不到它们（窗口内 `0.16.1.1` 23 条、`0.19.1.2` 15 条、`0.12.3.2` 2 条）。要补得让 extractor
+    能「收录已被更新 stable 取代的 prerelease、只挡住排在最前的那个」——正则做不到（要看文档里
+    前面有没有 stable），需要新的 recipe 字段，没做，待定。
 
 ## 一键安装
 - 状态: **支持**
@@ -195,3 +206,25 @@ the move would have silently emptied the notes pane, so the fallback
 points back at the releases the body lives on.
 
 复测 2026-09-14（11:48 UTC，只读 GET `updates.helium.computer/mac/appcast-arm64.xml`，18,686 B）：10 个 `<item>`，其中 1 个带 `<sparkle:channel>beta</sparkle:channel>`；`<description` 0 次、`releaseNotesLink` 0 次；`<sparkle:deltas>` 10 个（每个 item 一个）。
+
+### Recipes/net-imput-helium.swift — ChangelogRecipe（`acknowledgedStaleEntry`，#1123）
+
+实测 2026-10-11，三个独立来源，全部只读：
+
+- `gh api repos/imputnet/helium-macos/releases?per_page=40`（945,075 B，紧凑 JSON；issue 里
+  抓到的是 pretty-printed，同一份文档）：40 条，3 条 prerelease（`0.19.1.2`、`0.16.1.1`、
+  `0.12.3.2`）。现在每条都多了 `"immutable": true`，夹在 `draft` 与 `prerelease` 之间——entry
+  pattern 跨得过去，不是原因。`0.19.2.1` 的正文 711 字符，`### helium-macos` 与
+  `### helium-chromium` 两个 fence 都是空的；`0.19.1.2`（prerelease）的正文列了 15 个提交
+  （2 + 13），其中有 `merge: update to chromium 155.0.8059.39`。
+- 两个 tag 的提交：`gh api …/commits/0.19.2.1` 与 `…/commits/0.19.1.2` 都是 `f72c3d7`
+  （`update: helium 0.19.2.1 (#395)`）；`compare/0.19.1.2...0.19.2.1` 为 `identical`，
+  `compare/0.18.3.1...0.19.2.1` 领先 3 个提交（`17f9fcd`、`031c50a`、`f72c3d7`）。
+- `updates.helium.computer/mac/appcast-arm64.xml`：最新 `0.19.2.1`，其次 `0.19.1.2` 带
+  `<sparkle:channel>beta</sparkle:channel>`，再往下 `0.18.3.1`。
+
+生产 extractor（`ChangelogExtractor.extract`，跑在上面那份 releases 响应上）：20 条（`maxEntries`），
+最新 `0.18.3.1`（2026-10-03，14 条 item），每条的 item 与 `JSONSerialization` 解出的同一 release
+正文里的 `<hash> <subject>` 行逐条相等，20 条 0 处不符。给 recipe 多加一条读正文标题行的
+item pattern 后，`0.19.2.1` 就出现在最前、唯一的 item 是它自己的版本号——即 entry pattern
+命中了它，丢掉它的是「没有 item」。

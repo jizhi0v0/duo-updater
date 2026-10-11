@@ -12725,6 +12725,71 @@
         }
       }
     },
+    "GitHub counts some requests against a second hourly window of the same token, so two bars can appear.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub zählt manche Anfragen in einem zweiten stündlichen Kontingent desselben Tokens, daher können zwei Balken erscheinen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub cuenta algunas solicitudes en una segunda ventana horaria del mismo token, por lo que pueden aparecer dos barras."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub décompte certaines requêtes dans une deuxième fenêtre horaire du même jeton : deux barres peuvent donc apparaître."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub conteggia alcune richieste in una seconda finestra oraria dello stesso token, quindi possono comparire due barre."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub は一部のリクエストを同じトークンの別の 1 時間枠で数えるため、バーが 2 本表示されることがあります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O GitHub conta algumas solicitações em uma segunda janela horária do mesmo token, por isso podem aparecer duas barras."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub учитывает часть запросов во втором часовом окне того же токена, поэтому могут появиться две полосы."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub bazı istekleri aynı token’ın ikinci bir saatlik penceresinde sayar; bu yüzden iki çubuk görünebilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 会把部分请求计入同一令牌的第二个每小时额度，所以可能出现两条。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 會把部分請求計入同一權杖的第二個每小時額度，所以可能出現兩條。"
+          }
+        }
+      }
+    },
     "GitHub didn’t answer with a commit.": {
       "extractionState": "manual",
       "localizations": {
@@ -67910,6 +67975,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 Node.js 上執行。"
+          }
+        }
+      }
+    },
+    "With your token": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit deinem Token"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con tu token"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avec votre jeton"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con il tuo token"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トークンあり"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Com seu token"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "С вашим токеном"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Token’ınızla"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用你的令牌"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用你的權杖"
           }
         }
       }

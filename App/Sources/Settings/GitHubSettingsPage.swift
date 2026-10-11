@@ -286,7 +286,7 @@ struct GitHubSettingsPage: View {
                 let store = GitHubRateBudget.Store.shared
                 let windows = store.current(at: context.date)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("GitHub API requests")
+                    Text(Self.title(of: windows))
                     if windows.isEmpty {
                         Text(Self.emptyLine(lastReset: store.lastReset))
                             .font(.caption)
@@ -296,6 +296,12 @@ struct GitHubSettingsPage: View {
                             ForEach(windows, id: \.reset) { window in
                                 budgetWindow(window)
                             }
+                        }
+                        if windows.count > 1 {
+                            Text("GitHub counts some requests against a second hourly window of the same token, so two bars can appear.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
@@ -347,6 +353,15 @@ struct GitHubSettingsPage: View {
             .font(.caption)
             .monospacedDigit()
         }
+    }
+
+    /// Whose budget the bars are, by the limit GitHub stated: without a token
+    /// they are the same budget the row below would show.
+    private static func title(of windows: [GitHubRateBudget]) -> String {
+        guard let window = windows.first else { return String(localized: "GitHub API requests") }
+        return window.isAnonymous
+            ? String(localized: "Without a token, on this network")
+            : String(localized: "With your token")
     }
 
     private static func emptyLine(lastReset: Date?) -> String {

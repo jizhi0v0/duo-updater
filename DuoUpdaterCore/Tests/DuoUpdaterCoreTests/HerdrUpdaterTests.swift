@@ -109,11 +109,20 @@ import CryptoKit
         }
     }
 
+    /// Under a generous deadline, as `FxTests` runs its scripts: the clock starts
+    /// at launch, and a freshly written `herdr` then sits at `_dyld_start` until
+    /// Gatekeeper's first-launch scan of it is done. syspolicyd does those one at
+    /// a time for the whole machine, about 0.35 s each (notarization lookup, then
+    /// XProtect), so a full parallel run queues every suite's fresh scripts behind
+    /// one another. Measured on the mini 2026-10-11: these tests passed after
+    /// 22–37 s with the fake stuck in exec for most of it, and a 20 s deadline
+    /// killed it before its first line ran — no `ARGS`, "still running after 20 s".
+    /// The deadline only keeps a hung child from hanging the run.
     func updater(
         _ box: Sandbox, busy: @escaping HerdrUpdater.BusyCheck = { _ in nil }, environment: [String: String] = [:]
     ) -> HerdrUpdater {
         HerdrUpdater(busy: busy, scanner: box.scanner, check: box.check, environment: { environment },
-                     deadline: ChildProcess.Deadline(terminateAfter: .seconds(20), killAfter: .seconds(25)))
+                     deadline: ChildProcess.Deadline(terminateAfter: .seconds(120), killAfter: .seconds(125)))
     }
 
     /// The child reads the config the check read and sees every session: `HOME`

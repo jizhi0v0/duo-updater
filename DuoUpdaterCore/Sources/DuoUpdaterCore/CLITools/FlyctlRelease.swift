@@ -233,7 +233,7 @@ public final class FlyctlPublishedDigests: @unchecked Sendable {
 
     init(fileURL: URL? = nil) {
         self.fileURL = fileURL ?? (DuoStateDirectory.isTestProcess
-            ? FileManager.default.temporaryDirectory
+            ? DuoStateDirectory.testProcessScratchRoot
                 .appendingPathComponent("duo-flyctl-digests-tests-\(UUID().uuidString)")
                 .appendingPathComponent("flyctl-published-digests.json")
             : DuoStateDirectory.base

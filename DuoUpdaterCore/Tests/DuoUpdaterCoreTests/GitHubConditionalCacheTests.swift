@@ -97,7 +97,7 @@ struct GitHubConditionalCacheTests {
     }
 
     private static func tempCache() -> GitHubConditionalCache {
-        let dir = FileManager.default.temporaryDirectory
+        let dir = DuoStateDirectory.testProcessScratchRoot
             .appendingPathComponent("duo-conditional-cache-tests-\(UUID().uuidString)")
         return GitHubConditionalCache(fileURL: dir.appendingPathComponent("cache.json"))
     }
@@ -240,7 +240,7 @@ struct GitHubConditionalCacheTests {
     /// with nothing to notice it by. Mutation this pins: making `Entry.etag` /
     /// `lastModified` non-optional, or renaming a key.
     @Test func aStoreFileFromBeforeLastModifiedStillDecodes() async throws {
-        let dir = FileManager.default.temporaryDirectory
+        let dir = DuoStateDirectory.testProcessScratchRoot
             .appendingPathComponent("duo-conditional-cache-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let file = dir.appendingPathComponent("cache.json")
@@ -310,7 +310,7 @@ struct GitHubConditionalCacheTests {
     @Test func aStoredEntryOlderThanADayYieldsNoValidator() async throws {
         let clock = Clock()
         let cache = GitHubConditionalCache(
-            fileURL: FileManager.default.temporaryDirectory
+            fileURL: DuoStateDirectory.testProcessScratchRoot
                 .appendingPathComponent("duo-conditional-cache-tests-\(UUID().uuidString)/cache.json"),
             now: { clock.now })
         let endpoint = "https://api.github.com/repos/example/app/releases/latest"
@@ -336,7 +336,7 @@ struct GitHubConditionalCacheTests {
     /// write, and an entry that ages past `maxAge` in memory must be dropped by
     /// the next ordinary flush.
     @Test func flushDropsEntriesPastMaxAge() async throws {
-        let dir = FileManager.default.temporaryDirectory
+        let dir = DuoStateDirectory.testProcessScratchRoot
             .appendingPathComponent("duo-conditional-cache-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }

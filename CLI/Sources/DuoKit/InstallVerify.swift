@@ -34,6 +34,8 @@ public struct InstallVerifyOptions: Sendable {
     /// Download every installer, even one this run would skip as already read
     /// (`InstallVerify.skipsDownload`). Without `identitiesPath` and
     /// `baselinePath` there is nothing to skip against, and every run is full.
+    /// With them, a run is also full whenever one is owed
+    /// (`InstallVerify.fullPassOwed`).
     public var full = false
 }
 
@@ -118,8 +120,9 @@ public enum InstallVerify {
     /// - No baseline entry: nothing says the last outcome was clean, so
     ///   download.
     ///
-    /// The weekly full pass (`--full`) is what still catches an installer
-    /// replaced under an unchanged version and URL.
+    /// The full pass owed every `fullPassInterval` (or forced with `--full`) is
+    /// what still catches an installer replaced under an unchanged version and
+    /// URL.
     static func skipsDownload(version: String?, url: String, previous: Previous) -> Bool {
         guard let recorded = previous.recorded, let entry = previous.baseline,
               let version, recorded.lastSeenVersion == version,
@@ -127,6 +130,30 @@ public enum InstallVerify {
         else { return false }
         let issueOpen = entry.issueNumber != nil && entry.closedAt == nil
         return entry.consecutiveActionable == 0 && entry.consecutiveInfra == 0 && !issueOpen
+    }
+
+    /// How long incremental runs may go without a full pass.
+    static let fullPassInterval: TimeInterval = 7 * 24 * 60 * 60
+
+    /// Whether this run must download everything because the last full pass
+    /// that was kept (`InstallIdentities.lastFullPassAt`) is missing or older
+    /// than `fullPassInterval`. Owed rather than scheduled: a full run whose
+    /// state never reaches `main` — dropped, or not committed — leaves the stamp
+    /// where it was, so the next run owes one still.
+    static func fullPassOwed(lastFullPassAt: Date?, now: Date) -> Bool {
+        guard let lastFullPassAt else { return true }
+        return now.timeIntervalSince(lastFullPassAt) >= fullPassInterval
+    }
+
+    /// Record a full pass, but only one that looked at everything: a run that
+    /// skipped unchanged installers, or one narrowed by `--only`, did not.
+    /// Called only once every download is in, so a run that dies part-way
+    /// records nothing.
+    static func stampFullPass(
+        _ store: inout InstallIdentities, incremental: Bool, only: [String], at date: Date
+    ) {
+        guard !incremental, only.isEmpty else { return }
+        store.lastFullPassAt = date
     }
 
     public static func run(_ options: InstallVerifyOptions) async -> Int32 {
@@ -156,7 +183,22 @@ public enum InstallVerify {
         // Loaded here, before anything is downloaded: what it says about each
         // recipe's last outcome decides whether this run downloads it at all.
         let priorBaseline = options.baselinePath.map(Baseline.load)
-        let incremental = !options.full && identities != nil && priorBaseline != nil
+        let tracked = identities != nil && priorBaseline != nil
+        let owed = tracked
+            && fullPassOwed(lastFullPassAt: identities?.lastFullPassAt, now: Date())
+        let incremental = tracked && !options.full && !owed
+        let mode: String
+        if incremental {
+            mode = "unchanged ones not downloaded"
+        } else if options.full {
+            mode = "full pass (--full)"
+        } else if owed {
+            let last = identities?.lastFullPassAt
+                .map { $0.formatted(.iso8601.year().month().day()) } ?? "never"
+            mode = "full pass (owed: last one \(last))"
+        } else {
+            mode = "full pass"
+        }
         let previous: @Sendable (String) -> Previous? = { [identities] recipeID in
             guard incremental else { return nil }
             return Previous(
@@ -203,7 +245,7 @@ public enum InstallVerify {
           duo verify-install
           \(targets.count) installers  (\(skipped.count) skipped)  \
         \(options.hostConcurrency) hosts at a time  \
-        \(incremental ? "unchanged ones not downloaded" : "full pass")
+        \(mode)
           ─────────────────────────────────────────────
         """)
 
@@ -230,6 +272,7 @@ public enum InstallVerify {
                 for item in changed { print(line(item)) }
             }
             store.prune(keeping: liveRecipeIDs())
+            stampFullPass(&store, incremental: incremental, only: options.only, at: now)
             do { try store.save(to: path) } catch {
                 die("could not write \(path.path): \(error.localizedDescription)", code: 1)
             }

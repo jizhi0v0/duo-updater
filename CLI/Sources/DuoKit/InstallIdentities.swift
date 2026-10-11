@@ -42,6 +42,13 @@ public struct InstallIdentities: Codable, Sendable, Equatable {
 
     public var schemaVersion = 1
     public var entries: [String: Recorded] = [:]
+    /// When a run last downloaded every installer — full, unfiltered, and
+    /// finished (`InstallVerify.stampFullPass`). A run with nothing newer than
+    /// `InstallVerify.fullPassInterval` here owes one (`fullPassOwed`). It
+    /// reaches `main` only with the rest of this file, in a committed state pull
+    /// request, so a full run whose state is dropped leaves the next run still
+    /// owing one. Nil in a file written before this field existed.
+    public var lastFullPassAt: Date?
 
     public init() {}
 

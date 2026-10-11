@@ -296,7 +296,10 @@ verify-install options:
                       and --baseline are both given, an installer whose
                       resolved version and URL match the last one read, and
                       whose last outcome was clean (no warning, failure or
-                      open issue), is not downloaded and reports as skipped.
+                      open issue), is not downloaded and reports as skipped —
+                      unless the identities file records no full pass in the
+                      last 7 days, which makes the run full by itself. A full
+                      run without --only records itself there.
   --max-concurrency N Hosts downloaded from in parallel (default 3). One
                       download at a time per host, each deleted once read.
   --allow-stale-binary

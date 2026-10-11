@@ -252,6 +252,57 @@ import DuoUpdaterCore
             previous: previous(recorded: recorded()) { $0.issueNumber = 42; $0.closedAt = closed }))
     }
 
+    // MARK: the full pass that is owed
+
+    @Test func noFullPassOnRecordOwesOne() {
+        #expect(InstallVerify.fullPassOwed(lastFullPassAt: nil, now: day1))
+    }
+
+    @Test func aFullPassSixDaysAgoOwesNone() {
+        #expect(!InstallVerify.fullPassOwed(
+            lastFullPassAt: day1, now: day1.addingTimeInterval(6 * 86_400)))
+    }
+
+    @Test func aFullPassEightDaysAgoOwesOne() {
+        #expect(InstallVerify.fullPassOwed(
+            lastFullPassAt: day1, now: day1.addingTimeInterval(8 * 86_400)))
+    }
+
+    @Test func aFullUnfilteredRunRecordsItself() {
+        var store = InstallIdentities()
+        InstallVerify.stampFullPass(&store, incremental: false, only: [], at: day1)
+        #expect(store.lastFullPassAt == day1)
+    }
+
+    /// A narrowed run looked at only some installers.
+    @Test func aFullRunWithOnlyRecordsNothing() {
+        var store = InstallIdentities()
+        store.lastFullPassAt = day1
+        InstallVerify.stampFullPass(
+            &store, incremental: false, only: ["hidden"], at: day1.addingTimeInterval(86_400))
+        #expect(store.lastFullPassAt == day1)
+    }
+
+    @Test func anIncrementalRunRecordsNothing() {
+        var store = InstallIdentities()
+        InstallVerify.stampFullPass(&store, incremental: true, only: [], at: day1)
+        #expect(store.lastFullPassAt == nil)
+    }
+
+    /// The stamp lives in the identities file, the state that is committed; a
+    /// file from before it existed still reads, and owes a full pass.
+    @Test func theStampSurvivesTheFileAndAnOldFileStillReads() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("identities-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data(#"{"schemaVersion": 1, "entries": {}}"#.utf8).write(to: url)
+        var store = try InstallIdentities.load(from: url)
+        #expect(store.lastFullPassAt == nil)
+        store.lastFullPassAt = day1
+        try store.save(to: url)
+        #expect(try InstallIdentities.load(from: url).lastFullPassAt == day1)
+    }
+
     // MARK: a skipped installer disturbs nothing
 
     private func skippedItem() -> InstallVerify.Item {

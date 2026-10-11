@@ -9,7 +9,7 @@
     {
       "binding": "DB",
       "database_name": "duoupdater-appcast",
-      "database_id": "REPLACE_WITH_D1_ID",
+      "database_id": "077d1871-dd7c-4df9-a951-48e8bb528db5",
       "migrations_dir": "migrations"
     }
   ],

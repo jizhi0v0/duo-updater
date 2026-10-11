@@ -242,6 +242,81 @@ import Testing
         #expect(!isMountPoint(mounts[1]), "the image stayed mounted after no package was found")
     }
 
+    /// The tools that answer a license agreement from stdin on this Mac:
+    /// `hdiutil` always, `diskutil image` from 27.2 — on 26.7 it ignores stdin
+    /// and blocks on such an image (the reason `DiskImageMount` waits for 27.2).
+    static let licenseTools: [DiskImageMount.Tool] = mountTools.filter {
+        $0 == .hdiutil || ProcessInfo.processInfo.isOperatingSystemAtLeast(
+            OperatingSystemVersion(majorVersion: 27, minorVersion: 2, patchVersion: 0))
+    }
+
+    /// A vendor image wrapped in a license agreement installs: the attach
+    /// answers `yes`, where an unanswered prompt cancels it (exit 1) and the
+    /// update could never install.
+    ///
+    /// Mutation: drop `standardInput: licenseAnswer` from `DiskImageMount`'s
+    /// attach → `toolFailed(…, 1, "…canceled…")`.
+    @Test(arguments: InstallChildProcessTests.licenseTools)
+    func aLicenseAgreementImageIsAcceptedAndMounts(tool: DiskImageMount.Tool) async throws {
+        let fm = FileManager.default
+        let top = try scratch("dmgsla")
+        let work = top.appendingPathComponent("work", isDirectory: true)
+        let mount = work.appendingPathComponent("mnt-ZZFixture.dmg")
+        defer {
+            await forceDetach(mount)
+            try? fm.removeItem(at: top)
+        }
+        try fm.createDirectory(at: work, withIntermediateDirectories: true)
+        let image = try await licensedImage(in: top)
+        try fm.copyItem(at: image, to: work.appendingPathComponent("ZZFixture.dmg"))
+
+        let app = try await DiskImageMount.$toolOverride.withValue(tool) {
+            try await ArchiveExtractor.extractApp(
+                from: work.appendingPathComponent("ZZFixture.dmg"), workDir: work)
+        }
+        #expect(app.lastPathComponent == "ZZFixture.app")
+        #expect(fm.fileExists(atPath: app.appendingPathComponent("Contents/payload").path))
+        #expect(!isMountPoint(mount), "the image stayed mounted after the app was copied out")
+    }
+
+    /// `full.dmg` from `diskImages`, converted to UDIF (`udifrez` refuses
+    /// `makehybrid`'s output) and given an English license agreement — the
+    /// `LPic`/`STR#`/`TEXT` resources a vendor's image carries.
+    private func licensedImage(in top: URL) async throws -> URL {
+        let images = try await diskImages(in: top)
+        let image = top.appendingPathComponent("licensed.dmg")
+        let converted = try await ChildProcess.run(
+            "/usr/bin/hdiutil",
+            ["convert", "-quiet", images.full.path, "-format", "UDRO", "-o", image.path],
+            onCancel: .runToCompletion)
+        #expect(converted.succeeded, "hdiutil convert failed")
+        let resources = top.appendingPathComponent("sla.xml")
+        try Data(Self.licenseResources.utf8).write(to: resources)
+        let added = try await ChildProcess.run(
+            "/usr/bin/hdiutil", ["udifrez", "-xml", resources.path, "", "-quiet", image.path],
+            onCancel: .runToCompletion)
+        #expect(added.succeeded, "hdiutil udifrez failed")
+        return image
+    }
+
+    /// Region 0 (English) → `STR#` 5000 (button labels) and `TEXT` 5000
+    /// ("LICENSE TEXT").
+    private static let licenseResources = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0"><dict>
+        <key>LPic</key><array><dict><key>Attributes</key><string>0x0000</string>\
+        <key>Data</key><data>AAAAAQAAAAAAAAAA</data><key>ID</key><string>5000</string>\
+        <key>Name</key><string></string></dict></array>
+        <key>STR#</key><array><dict><key>Attributes</key><string>0x0000</string>\
+        <key>Data</key><data>AAYHRW5nbGlzaAVBZ3JlZQhEaXNhZ3JlZQVQcmludAdTYXZlLi4uDklmIHlvdSBhZ3JlZS4u</data>\
+        <key>ID</key><string>5000</string><key>Name</key><string>English</string></dict></array>
+        <key>TEXT</key><array><dict><key>Attributes</key><string>0x0000</string>\
+        <key>Data</key><data>TElDRU5TRSBURVhU</data><key>ID</key><string>5000</string>\
+        <key>Name</key><string>English SLA</string></dict></array>
+        </dict></plist>
+        """
+
     /// `diskutil image attach --mountPoint` refuses an image with two mountable
     /// volumes, where `hdiutil` mounts one; `DiskImageMount` must fall back
     /// rather than fail the install, and still detach afterwards.

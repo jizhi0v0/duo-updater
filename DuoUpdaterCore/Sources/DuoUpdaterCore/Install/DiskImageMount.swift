@@ -30,8 +30,19 @@ import Foundation
 /// - `diskutil eject force <mount point>` detaches the whole image (not only the
 ///   volume), whichever tool attached it, even with a file in it held open — as
 ///   `hdiutil detach -force` did. A plain `eject` is refused while busy.
-/// - Encrypted and license-agreement images fail on both tools alike with stdin
-///   at `/dev/null`; neither route has ever answered either prompt.
+/// - Encrypted images fail on both tools alike with stdin at `/dev/null`; no
+///   route has ever answered a passphrase prompt.
+///
+/// **A license agreement is accepted on the user's behalf**, by answering `yes`
+/// on stdin. Some vendors still wrap their `.dmg` in one, and without an answer
+/// both tools print the license and cancel the attach (exit 1), so the update
+/// could never install. The user asked for the update, and the license is the
+/// one a manual install would show; Sparkle answers `yes\n` the same way, and
+/// Homebrew `qy\n`. Measured: `hdiutil` (26.7, 27.2) and `diskutil image`
+/// (27.2) read the answer from stdin and attach; `no` or an empty stdin
+/// cancels; an image without a license ignores the bytes. `diskutil image` on
+/// 26.7 ignores stdin and blocks on such an image until the watchdog — one more
+/// reason it is not used before 27.2.
 enum DiskImageMount {
 
     enum Tool: Sendable, Equatable {
@@ -110,7 +121,7 @@ enum DiskImageMount {
               "-mountpoint", mountPoint.path],
              "hdiutil attach")
         }
-        let r = try await run(path, args)
+        let r = try await run(path, args, standardInput: licenseAnswer)
         return r.code == 0 ? .success(()) : .failure(AttachFailure(tool: label, code: r.code, stderr: r.err))
     }
 
@@ -122,6 +133,11 @@ enum DiskImageMount {
         return r?.code == 0
     }
 
+    /// What an attach reads from stdin: accept a license agreement, if the image
+    /// has one. Short enough for `ChildProcess` to hand over before the spawn, so
+    /// a tool that exits without reading it cannot SIGPIPE this process.
+    static let licenseAnswer = Data("yes\n".utf8)
+
     /// Watchdog: a wedged attach on a malformed or maliciously crafted image can
     /// block indefinitely, freezing the install with no way out. SIGTERM at
     /// 300 s, SIGKILL at 305 s if it ignores that — the same bound
@@ -129,11 +145,11 @@ enum DiskImageMount {
     ///
     /// `.runToCompletion`: these run inside a caller's `defer` on cancellation,
     /// and a killed detach is exactly the leaked mount this type must not have.
-    private static func run(_ launchPath: String, _ args: [String]) async throws
-        -> (code: Int32, err: String)
-    {
+    private static func run(
+        _ launchPath: String, _ args: [String], standardInput: Data? = nil
+    ) async throws -> (code: Int32, err: String) {
         let outcome = try await ChildProcess.run(
-            launchPath, args, standardOutput: .discard,
+            launchPath, args, standardInput: standardInput, standardOutput: .discard,
             deadline: .init(terminateAfter: .seconds(300), killAfter: .seconds(305)),
             onCancel: .runToCompletion)
         return (outcome.terminationStatus, String(data: outcome.standardError, encoding: .utf8) ?? "")

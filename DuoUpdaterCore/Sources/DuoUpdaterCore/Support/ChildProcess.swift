@@ -95,9 +95,14 @@ internal import SystemPackage
 ///
 /// ## Two things it does not protect against
 ///
-/// - **SIGPIPE in this process.** Bytes given as `standardInput` are written with
-///   `write(2)`; a child that exits without reading them raises SIGPIPE here, and
-///   nothing in this repository ignores it. No call site passes bytes today.
+/// - **SIGPIPE in this process, for stdin over `PIPE_BUF`.** Up to `PIPE_BUF`
+///   (512) bytes of `standardInput` are written into a pipe *before* the spawn and
+///   its write end closed, so nothing is written while the child runs and a child
+///   that exits without reading cannot raise SIGPIPE here — `DiskImageMount`'s
+///   license answer relies on this, since `hdiutil` exits unread on a bad image.
+///   Anything longer is written with `write(2)` while the child runs; a child
+///   that exits without reading it raises SIGPIPE here, and nothing in this
+///   repository ignores it. No call site passes that much today.
 /// - **A failed pipe read.** swift-subprocess answers an error thrown while
 ///   reading by tearing the child down, `.runToCompletion` or not.
 public enum ChildProcess {
@@ -185,6 +190,28 @@ public enum ChildProcess {
             standardOutput: standardOutput, standardError: standardError,
             deadline: deadline, onCancel: onCancel, onOutputChunk: onOutputChunk,
             onLaunch: onLaunch, beforeSpawn: nil)
+    }
+
+    /// The read end of a pipe already holding `bytes`, write end closed — or
+    /// nil when `bytes` is over `PIPE_BUF` (a write that size into an empty
+    /// pipe always completes without blocking) or the pipe cannot be made.
+    /// Both ends are close-on-exec, so a spawn running concurrently on another
+    /// thread inherits neither; the child gets the read end through the
+    /// spawn's own `dup2` onto fd 0.
+    static func prefilledPipe(_ bytes: Data) -> Int32? {
+        guard bytes.count <= Int(PIPE_BUF) else { return nil }
+        var ends: [Int32] = [-1, -1]
+        guard pipe(&ends) == 0 else { return nil }
+        for end in ends { _ = fcntl(end, F_SETFD, FD_CLOEXEC) }
+        let written = bytes.withUnsafeBytes { buffer in
+            buffer.isEmpty ? 0 : write(ends[1], buffer.baseAddress, buffer.count)
+        }
+        close(ends[1])
+        guard written == bytes.count else {
+            close(ends[0])
+            return nil
+        }
+        return ends[0]
     }
 
     /// Point this process's fd 0 at `/dev/null` if it has none. Call it at process
@@ -409,7 +436,12 @@ public enum ChildProcess {
                 ChildProcess.reportClosedStandardInput(executablePath)
             }
             let status: TerminationStatus
-            if let standardInput {
+            if let standardInput, let prefilled = ChildProcess.prefilledPipe(standardInput) {
+                status = try await spawn(
+                    configuration,
+                    input: .fileDescriptor(FileDescriptor(rawValue: prefilled), closeAfterSpawningProcess: true),
+                    sink: sink, started: started)
+            } else if let standardInput {
                 status = try await spawn(configuration, input: .data(standardInput), sink: sink, started: started)
             } else {
                 status = try await spawn(configuration, input: .currentStandardInput, sink: sink, started: started)

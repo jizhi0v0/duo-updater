@@ -50,7 +50,7 @@ struct XcodeSettingsPage: View {
         }
         .task { await refresh() }
         .task { await downloads.reload() }
-        // Signing in — here, from a row's "Sign In & Install…", or noticed by
+        // Signing in — here, from a row's "Sign In & Install", or noticed by
         // the hourly check — brings Apple's list in without pressing refresh.
         .onChange(of: session.signInNeed == nil) { _, signedIn in
             if signedIn { Task { await downloads.reload() } }
@@ -367,7 +367,7 @@ struct XcodeSettingsPage: View {
                 } label: {
                     Text(session.signInNeed == nil
                          ? String(localized: "Install")
-                         : String(localized: "Sign In & Install…"))
+                         : String(localized: "Sign In & Install"))
                 } primaryAction: {
                     downloads.install(item)
                 }
@@ -386,11 +386,11 @@ struct XcodeSettingsPage: View {
     }
 
     /// Says so up front when the click will open Apple's sign-in first, as
-    /// "Sign In & Install…" does.
+    /// "Sign In & Install" does.
     private var downloadOnlyTitle: String {
         session.signInNeed == nil
             ? String(localized: "Download Only (.xip)")
-            : String(localized: "Sign In & Download (.xip)…")
+            : String(localized: "Sign In & Download (.xip)")
     }
 
     /// Why a row offers Download Only — shown unless it is already installed or

@@ -328,6 +328,7 @@ public enum ChangelogAutofix {
             "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/\(family).swift",
             "DuoUpdaterCore/Tests/RecipeGoldens/\(family).txt",
             generationPath,
+            generationPinPath,
             "\(fixtureDirectory)/\(fixtureStem).txt",
             "\(fixtureDirectory)/\(fixtureStem).json",
         ]
@@ -344,8 +345,8 @@ public enum ChangelogAutofix {
         guard changed.contains("DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/\(family).swift") else {
             return "G5: the family file did not change"
         }
-        guard changed.contains(generationPath) else {
-            return "G5: the parser generation was not bumped"
+        guard changed.contains(generationPath), changed.contains(generationPinPath) else {
+            return "G5: the parser generation was not bumped in both places"
         }
         return nil
     }
@@ -353,6 +354,12 @@ public enum ChangelogAutofix {
     // MARK: - the parser generation
 
     static let generationPath = "DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/Changelog.swift"
+    /// The test that pins the generation's value. Its doc prescribes every bump as
+    /// a two-part edit — the constant and this pin — and `make test` fails on one
+    /// without the other, so G6 could never pass on the constant alone.
+    static let generationPinPath =
+        "DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ChangelogParserGenerationGuardTests.swift"
+    private static let pinPattern = #"#expect\(Changelog\.parserGeneration == ([0-9]+)\)"#
     private static let generationLine = #"^(\s*)public static let parserGeneration = ([0-9]+)$"#
 
     /// `Changelog.swift` with `parserGeneration` raised by one and a bullet for it,
@@ -422,6 +429,48 @@ public enum ChangelogAutofix {
         }
         lines.append(line)
         return lines
+    }
+
+    /// The pin test with its expected generation raised by one.
+    static func bumpingPin(in text: String) throws -> String {
+        guard let (range, value) = pin(in: text) else {
+            throw Triage.TriageError("cannot find the pinned parserGeneration in its guard test")
+        }
+        return text.replacingCharacters(
+            in: range, with: "#expect(Changelog.parserGeneration == \(value + 1))")
+    }
+
+    /// The pin's one occurrence and its value, or nil when there is not exactly one.
+    private static func pin(in text: String) -> (Range<String.Index>, Int)? {
+        guard let regex = try? NSRegularExpression(pattern: pinPattern) else { return nil }
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        guard matches.count == 1, let whole = Range(matches[0].range, in: text),
+              let digits = Range(matches[0].range(at: 1), in: text), let value = Int(text[digits])
+        else { return nil }
+        return (whole, value)
+    }
+
+    /// G4 for the pin: nil when `new` is `old` with only the pinned value changed,
+    /// and changed to `generation` — the number `Changelog.swift` now declares.
+    static func pinRefusal(old: String, new: String, generation: Int) -> String? {
+        guard let (oldRange, _) = pin(in: old) else {
+            return "G4: the guard test on main no longer pins parserGeneration once"
+        }
+        // Built from `generation`, so a pin that disagrees with the constant fails
+        // here as surely as any other edit to the file.
+        let expected = old.replacingCharacters(
+            in: oldRange, with: "#expect(Changelog.parserGeneration == \(generation))")
+        return new == expected
+            ? nil
+            : "G4: the guard test is not main's with only its pin moved to \(generation)"
+    }
+
+    /// The `parserGeneration` a `Changelog.swift` declares, when it declares one.
+    static func declaredGeneration(in text: String) -> Int? {
+        let lines = text.components(separatedBy: "\n")
+            .filter { $0.range(of: generationLine, options: .regularExpression) != nil }
+        guard lines.count == 1 else { return nil }
+        return Int(lines[0].split(separator: "=").last?.trimmingCharacters(in: .whitespaces) ?? "")
     }
 
     /// What the bullet says: which recipe changed, how, and what a cached copy
@@ -831,6 +880,8 @@ public enum ChangelogAutofix {
                 in: String(contentsOf: generationURL, encoding: .utf8),
                 note: generationNote(recipe, trigger: trigger, edit: edit, issue: issue)).utf8)
                 .write(to: generationURL)
+            let pinURL = tree.appendingPathComponent(generationPinPath)
+            try Data(try bumpingPin(in: String(contentsOf: pinURL, encoding: .utf8)).utf8).write(to: pinURL)
             if let fixtureText {
                 let directory = tree.appendingPathComponent(fixtureDirectory)
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -851,9 +902,16 @@ public enum ChangelogAutofix {
             if let why = goldenRefusal(old: oldGolden, new: newGolden, index: location.index, edit: edit) {
                 return .refused(why)
             }
+            let newGeneration = try String(
+                contentsOf: tree.appendingPathComponent(generationPath), encoding: .utf8)
             if let why = generationRefusal(
-                old: try await steps.committedFile(generationPath),
-                new: try String(contentsOf: tree.appendingPathComponent(generationPath), encoding: .utf8)) {
+                old: try await steps.committedFile(generationPath), new: newGeneration) {
+                return .refused(why)
+            }
+            if let why = pinRefusal(
+                old: try await steps.committedFile(generationPinPath),
+                new: try String(contentsOf: tree.appendingPathComponent(generationPinPath), encoding: .utf8),
+                generation: declaredGeneration(in: newGeneration) ?? -1) {
                 return .refused(why)
             }
             // G5.
@@ -993,9 +1051,9 @@ public enum ChangelogAutofix {
         out += "| G2 count | ≥ \(trigger == .collapse ? "2 (collapse)" : "\(entry.lastGoodEntryCount ?? 1) (last good)") |\n"
         out += "| G3 newest | `\(versions.first ?? "?")` against last good `\(entry.lastGoodVersion ?? "none")` |\n"
         out += "| G4 goldens | only `changelogs[…]` fields named above changed, to exactly these values |\n"
-        out += "| G4 generation | `Changelog.parserGeneration` up by one with its bullet, nothing else "
-            + "in that file |\n"
-        out += "| G5 paths | family file, its golden, `Changelog.swift`"
+        out += "| G4 generation | `Changelog.parserGeneration` up by one with its bullet, and its "
+            + "guard test's pin to the same number; nothing else in either file |\n"
+        out += "| G5 paths | family file, its golden, `Changelog.swift` and its guard test"
             + "\(fixtureIncluded ? ", the fixture" : "") |\n"
         out += "| G6 | `make test` exit 0 |\n"
         out += "| G7 | `duo verify --only \(recipe.recipeID)` ✓ |\n\n"

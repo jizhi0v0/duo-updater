@@ -74,6 +74,15 @@ import DuoUpdaterCore
 
         """
 
+    static let pinTest = """
+        struct ChangelogParserGenerationGuardTests {
+            @Test func pinnedGeneration() {
+                #expect(Changelog.parserGeneration == 18)
+            }
+        }
+
+        """
+
     static let familyPath = "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/test-family.swift"
     static let goldenPath = "DuoUpdaterCore/Tests/RecipeGoldens/test-family.txt"
 
@@ -390,12 +399,17 @@ import DuoUpdaterCore
     @Test func onlyTheFamilyItsGoldenAndTheFixtureMayChange() {
         typealias A = ChangelogAutofix
         let fixture = "\(A.fixtureDirectory)/stem"
-        let ok = [Self.familyPath, Self.goldenPath, A.generationPath, fixture + ".txt", fixture + ".json"]
+        let ok = [Self.familyPath, Self.goldenPath, A.generationPath, A.generationPinPath,
+                  fixture + ".txt", fixture + ".json"]
         #expect(A.pathRefusal(changed: ok, family: "test-family", fixtureStem: "stem") == nil)
-        #expect(A.pathRefusal(changed: [Self.familyPath, Self.goldenPath, A.generationPath],
+        #expect(A.pathRefusal(changed: [Self.familyPath, Self.goldenPath, A.generationPath, A.generationPinPath],
                               family: "test-family", fixtureStem: "stem") == nil)
-        // The bump is required, not just allowed.
+        // The bump is required, in both places, not just allowed.
         #expect(A.pathRefusal(changed: [Self.familyPath, Self.goldenPath],
+                              family: "test-family", fixtureStem: "stem") != nil)
+        #expect(A.pathRefusal(changed: [Self.familyPath, Self.goldenPath, A.generationPath],
+                              family: "test-family", fixtureStem: "stem") != nil)
+        #expect(A.pathRefusal(changed: [Self.familyPath, Self.goldenPath, A.generationPinPath],
                               family: "test-family", fixtureStem: "stem") != nil)
         for stray in [
             ".github/workflows/ci.yml", "scripts/ci_route.py", "Makefile",
@@ -408,7 +422,7 @@ import DuoUpdaterCore
             #expect(A.pathRefusal(changed: ok + [stray], family: "test-family", fixtureStem: "stem") != nil,
                     "\(stray)")
         }
-        #expect(A.pathRefusal(changed: [Self.goldenPath, A.generationPath],
+        #expect(A.pathRefusal(changed: [Self.goldenPath, A.generationPath, A.generationPinPath],
                               family: "test-family", fixtureStem: "stem") != nil)
     }
 
@@ -508,6 +522,7 @@ import DuoUpdaterCore
         var strayFile: String?
         /// Applied to Changelog.swift after the harness bumped it.
         var generationTamper: (@Sendable (String) -> String)?
+        var pinTamper: (@Sendable (String) -> String)?
         var testStatus: Int32 = 0
         var verifyStatus: FindingStatus = .ok
         var treeChangesDuringGates = false
@@ -548,6 +563,7 @@ import DuoUpdaterCore
                 log.add("prepare")
                 try write(world.family, Self.familyPath)
                 try write(Self.changelogSwift, ChangelogAutofix.generationPath)
+                try write(Self.pinTest, ChangelogAutofix.generationPinPath)
             },
             recordGoldens: {
                 log.add("goldens")
@@ -570,12 +586,22 @@ import DuoUpdaterCore
                 }
                 try write(world.goldenTamper(golden), Self.goldenPath)
                 if let stray = world.strayFile { try write("x", stray) }
+                if let tamper = world.pinTamper {
+                    let url = tree.appendingPathComponent(ChangelogAutofix.generationPinPath)
+                    try write(tamper(try String(contentsOf: url, encoding: .utf8)), ChangelogAutofix.generationPinPath)
+                }
                 if let tamper = world.generationTamper {
                     let url = tree.appendingPathComponent(ChangelogAutofix.generationPath)
                     try write(tamper(try String(contentsOf: url, encoding: .utf8)), ChangelogAutofix.generationPath)
                 }
             },
-            committedFile: { path in path == ChangelogAutofix.generationPath ? Self.changelogSwift : Self.golden },
+            committedFile: { path in
+                switch path {
+                case ChangelogAutofix.generationPath: return Self.changelogSwift
+                case ChangelogAutofix.generationPinPath: return Self.pinTest
+                default: return Self.golden
+                }
+            },
             changedPaths: { files() },
             makeTest: {
                 log.add("make test")
@@ -627,6 +653,7 @@ import DuoUpdaterCore
         #expect(log.all.contains("body Refs #42\n"))
         let paths = try #require(log.all.first { $0.hasPrefix("paths ") })
         #expect(paths.contains(ChangelogAutofix.generationPath))
+        #expect(paths.contains(ChangelogAutofix.generationPinPath))
         #expect(paths.contains(Self.familyPath) && paths.contains(Self.goldenPath)
                 && paths.contains(".json") && paths.contains(".txt"))
         #expect(log.all.filter { $0 == "make test" || $0 == "verify" } == ["make test", "verify"])
@@ -750,6 +777,49 @@ import DuoUpdaterCore
             old: Self.changelogSwift,
             new: bumped.replacingOccurrences(of: "/// - 19:", with: "static var x = 1 // - 19:")) != nil)
         #expect(throws: (any Error).self) { try A.bumpingGeneration(in: "no constant here", note: note) }
+    }
+
+    @Test func thePinMovesWithTheGenerationAndAlone() throws {
+        typealias A = ChangelogAutofix
+        let pinned = try A.bumpingPin(in: Self.pinTest)
+        #expect(pinned.contains("#expect(Changelog.parserGeneration == 19)"))
+        #expect(A.pinRefusal(old: Self.pinTest, new: pinned, generation: 19) == nil)
+        #expect(A.pinRefusal(old: Self.pinTest, new: Self.pinTest, generation: 19) != nil)
+        #expect(A.pinRefusal(old: Self.pinTest, new: pinned, generation: 20) != nil)
+        #expect(A.pinRefusal(
+            old: Self.pinTest, new: pinned.replacingOccurrences(of: "pinnedGeneration", with: "other"),
+            generation: 19) != nil)
+        #expect(throws: (any Error).self) { try A.bumpingPin(in: "nothing pinned") }
+    }
+
+    /// Review round 2 on #1194: the harness bumped the constant and not its pin,
+    /// so `make test` — stubbed everywhere above — failed every real attempt.
+    /// This bumps the repository's own two files and holds them to each other and
+    /// to the gates, so a change to either file's shape fails here first.
+    @Test func theRealGenerationAndItsPinBumpTogether() throws {
+        typealias A = ChangelogAutofix
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let changelog = try String(contentsOf: root.appendingPathComponent(A.generationPath), encoding: .utf8)
+        let pin = try String(contentsOf: root.appendingPathComponent(A.generationPinPath), encoding: .utf8)
+        let current = try #require(A.declaredGeneration(in: changelog))
+        #expect(pin.contains("#expect(Changelog.parserGeneration == \(current))"),
+                "the pin and the constant already disagree")
+        let note = A.generationNote(Self.recipe, trigger: .noEntries, edit: .init(entryPattern: "x"), issue: 1)
+        let newChangelog = try A.bumpingGeneration(in: changelog, note: note)
+        let newPin = try A.bumpingPin(in: pin)
+        #expect(A.declaredGeneration(in: newChangelog) == current + 1)
+        #expect(A.generationRefusal(old: changelog, new: newChangelog) == nil)
+        #expect(A.pinRefusal(old: pin, new: newPin, generation: current + 1) == nil)
+    }
+
+    @Test func g4APinOutOfStepStopsBeforeTests() async throws {
+        var world = World()
+        world.pinTamper = { $0.replacingOccurrences(of: "== 19", with: "== 18") }
+        let (outcome, log) = try await Self.attempt(world)
+        #expect(Self.reason(outcome).hasPrefix("refused: G4: the guard test"), "\(Self.reason(outcome))")
+        #expect(!log.did("make test"))
     }
 
     @Test func g4AGenerationFileChangedElsewhereStopsBeforeTests() async throws {

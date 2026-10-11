@@ -93,6 +93,23 @@ enum GitHub {
         try await self.comment(issue: issue, body: comment)
     }
 
+    /// Every pull request, in any state, opened from exactly `branch`.
+    ///
+    /// `--head`, an exact match that `gh` resolves through the pulls API, rather
+    /// than a `head:` search: it finds a merged pull request whose branch is long
+    /// deleted (measured 2026-10-11 on #1190), and does not wait on the search
+    /// index. The branch name is the record, not the label, which anyone can
+    /// remove.
+    static func pullRequests(head branch: String) async throws -> [(number: Int, head: String, state: String)] {
+        let json = try await run([
+            "pr", "list", "--state", "all", "--head", branch,
+            "--json", "number,headRefName,state",
+        ])
+        struct Row: Decodable { let number: Int; let headRefName: String; let state: String }
+        return try JSONDecoder().decode([Row].self, from: Data(json.utf8))
+            .map { ($0.number, $0.headRefName, $0.state) }
+    }
+
     /// Create the label if it isn't there yet. Failure is fine — the usual cause
     /// is that it already exists, and a missing label must never be the reason a
     /// breakage goes unreported.

@@ -47,6 +47,8 @@ commands:
                 against the captured response before anyone reads it.
   reconcile     Turn a verify report into GitHub issues — one per broken recipe,
                 closed automatically when it heals.
+  autofix       Prepare a draft pull request for a broken changelog recipe, when a
+                model's proposal passes every gate. Pushes and merges nothing.
   help          Show this message. So do --help and -h after any command.
 
 list / check options:
@@ -341,6 +343,28 @@ reconcile options:
 
   Uses the `gh` CLI, so it authenticates the same way you do locally and picks
   up GITHUB_TOKEN on a runner. Never opens more than 10 issues in one sweep.
+
+autofix options:
+  --issue N           The recipe-broken issue this answers. Required.
+  --recipe <id>       That issue's recipe id, exactly. Required: the report may
+                      hold others, since `verify --only` matches by substring.
+  --report <path>     The JSON written by `duo verify --report`, for that recipe.
+                      Required.
+  --baseline <path>   Read for the last good count and version. Required; never
+                      written.
+  --worktree <path>   A git worktree to build and test in, created on first use
+                      and reset to origin/main on every attempt. Required.
+  --out <path>        Where a passing attempt writes pr.json and body.md.
+                      Required; nothing is written there otherwise.
+  --model <id>        The model `claude -p` uses (default claude-sonnet-5-5).
+
+  Run by .github/workflows/recipe-autofix.yml, which opens the draft. Changelog
+  findings only, and only "no entries extracted" or "entry count collapsed". The
+  model, through `claude -p` with no tools, proposes values (source, entry and
+  item patterns) and this writes them; a new source must stay on its host. The
+  change passes only when the extractor reads the fresh page, the goldens change
+  in those fields alone, the parser generation moves with its pin, `make test`
+  passes and `duo verify --only` is clean.
 
 exit codes:
   0  no recipe-level problems
@@ -648,6 +672,24 @@ case "reconcile":
         triagePath: args.value("triage").map { URL(fileURLWithPath: $0) },
         dryRun: args.has("dry-run"))
     run = { await Reconcile.run(reconcile) }
+
+case "autofix":
+    guard let report = args.value("report"), let baseline = args.value("baseline"),
+          let worktree = args.value("worktree"), let out = args.value("out"),
+          let issue = args.int("issue"), let recipe = args.value("recipe") else {
+        die("autofix needs --issue, --recipe, --report, --baseline, --worktree and --out\n\n\(usage)", code: 2)
+    }
+    var autofix = AutofixOptions(
+        reportPath: URL(fileURLWithPath: report),
+        baselinePath: URL(fileURLWithPath: baseline),
+        issue: issue,
+        recipeID: recipe,
+        projectDir: URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
+        worktreePath: URL(fileURLWithPath: worktree),
+        outDir: URL(fileURLWithPath: out))
+    if let model = args.value("model") { autofix.model = model }
+    let autofixOptions = autofix
+    run = { await ChangelogAutofix.run(autofixOptions) }
 
 case "diff":
     // Operands only, so a stray flag is left for `unrecognised()` below to name.

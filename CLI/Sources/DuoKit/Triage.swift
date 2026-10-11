@@ -259,38 +259,49 @@ public enum Triage {
     static func ask(
         about finding: Finding, options: TriageOptions
     ) async -> Result<TriageSuggestion, Error> {
-        let sandbox = FileManager.default.temporaryDirectory
-            .appendingPathComponent("duo-triage-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: sandbox) }
-
         do {
-            // The agent definition is copied into an otherwise empty directory
-            // and opencode is pointed at *that*. It is the difference between
-            // "the model is told not to touch the repo" and "the model cannot
-            // see the repo" — and the input is attacker-influenced, so the
-            // second is the one worth having.
-            let agentDir = sandbox.appendingPathComponent(".opencode/agent")
-            try FileManager.default.createDirectory(
-                at: agentDir, withIntermediateDirectories: true)
-            let source = options.projectDir.appendingPathComponent(".opencode/agent/duo-triage.md")
-            try FileManager.default.copyItem(
-                at: source, to: agentDir.appendingPathComponent("duo-triage.md"))
-
-            var arguments = [
-                "opencode", "run", "--pure", "--agent", "duo-triage",
-                "--dir", sandbox.path, "--format", "json",
-            ]
-            if let model = options.model { arguments += ["-m", model] }
-            if let variant = options.variant { arguments += ["--variant", variant] }
-            arguments.append(prompt(for: finding))
-
-            let output = try await shell(arguments, cwd: sandbox, timeout: callTimeout)
-            let reply = try modelText(from: output)
+            let reply = try await askSandboxed(
+                agent: "duo-triage", prompt: prompt(for: finding), projectDir: options.projectDir,
+                model: options.model, variant: options.variant)
             let parsed = try parse(reply)
             return .success(verify(parsed, for: finding, model: resolvedModel(options)))
         } catch {
             return .failure(error)
         }
+    }
+
+    /// One call to the opencode agent `.opencode/agent/<agent>.md`, returning the
+    /// text of its answer. Shared with `ChangelogAutofix`, whose input is the same
+    /// kind of attacker-influenced page.
+    static func askSandboxed(
+        agent: String, prompt: String, projectDir: URL, model: String?, variant: String?
+    ) async throws -> String {
+        let sandbox = FileManager.default.temporaryDirectory
+            .appendingPathComponent("duo-triage-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: sandbox) }
+
+        // The agent definition is copied into an otherwise empty directory
+        // and opencode is pointed at *that*. It is the difference between
+        // "the model is told not to touch the repo" and "the model cannot
+        // see the repo" — and the input is attacker-influenced, so the
+        // second is the one worth having.
+        let agentDir = sandbox.appendingPathComponent(".opencode/agent")
+        try FileManager.default.createDirectory(
+            at: agentDir, withIntermediateDirectories: true)
+        let source = projectDir.appendingPathComponent(".opencode/agent/\(agent).md")
+        try FileManager.default.copyItem(
+            at: source, to: agentDir.appendingPathComponent("\(agent).md"))
+
+        var arguments = [
+            "opencode", "run", "--pure", "--agent", agent,
+            "--dir", sandbox.path, "--format", "json",
+        ]
+        if let model { arguments += ["-m", model] }
+        if let variant { arguments += ["--variant", variant] }
+        arguments.append(prompt)
+
+        let output = try await shell(arguments, cwd: sandbox, timeout: callTimeout)
+        return try modelText(from: output)
     }
 
     /// Which model actually answered.
@@ -301,8 +312,12 @@ public enum Triage {
     /// would make a suggestion unattributable a month later, which is exactly
     /// when someone would want to know how much weight to give it.
     static func resolvedModel(_ options: TriageOptions) -> String {
-        if let model = options.model { return model }
-        let agent = options.projectDir.appendingPathComponent(".opencode/agent/duo-triage.md")
+        resolvedModel(override: options.model, agent: "duo-triage", projectDir: options.projectDir)
+    }
+
+    static func resolvedModel(override: String?, agent name: String, projectDir: URL) -> String {
+        if let model = override { return model }
+        let agent = projectDir.appendingPathComponent(".opencode/agent/\(name).md")
         guard let text = try? String(contentsOf: agent, encoding: .utf8) else {
             return "unknown (agent default)"
         }
@@ -385,6 +400,14 @@ public enum Triage {
     }
 
     static func parse(_ reply: String) throws -> RawSuggestion {
+        guard let parsed = try? JSONDecoder().decode(
+            RawSuggestion.self, from: Data(try jsonObjectText(in: reply).utf8))
+        else { throw TriageError("could not decode the reply as the requested schema") }
+        return parsed
+    }
+
+    /// The JSON object in a model's reply, as text.
+    static func jsonObjectText(in reply: String) throws -> String {
         // Models fence JSON even when told not to; strip it rather than fail.
         var text = reply.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.hasPrefix("```") {
@@ -405,10 +428,7 @@ public enum Triage {
         guard start <= end else {
             throw TriageError("could not decode the reply as the requested schema")
         }
-        let slice = String(text[start...end])
-        guard let parsed = try? JSONDecoder().decode(RawSuggestion.self, from: Data(slice.utf8))
-        else { throw TriageError("could not decode the reply as the requested schema") }
-        return parsed
+        return String(text[start...end])
     }
 
     /// `--format json` emits one event object per line; the answer is the text

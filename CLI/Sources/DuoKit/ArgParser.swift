@@ -48,6 +48,7 @@ public struct Args {
         "triage", "budget",
         "only", "route", "max-concurrency", "source",
         "baseline", "report", "markdown", "out", "max-calls", "identities", "findings",
+        "worktree", "issue", "recipe",
         "model", "variant",
         "since", "limit", "kind", "host", "purpose", "client", "filter", "path",
     ]

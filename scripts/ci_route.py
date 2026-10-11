@@ -38,6 +38,13 @@ them did before this script.
 
 Also not counted: macOS jobs of the owner's other repositories, which share the
 five hosted slots (the limit is per account).
+
+One kind of same-repository pull request never goes to the mini: a branch under
+`recipe-autofix/`, opened by `duo autofix`. Its code was shaped by a model reading
+a vendor's web page, and the mini also holds the sweep's checkout and the `gh`
+login that files issues; a hosted runner is thrown away after the job. Decided by
+the branch name, before the queue is read, so a failed read cannot send one there
+either. The prefix is `ChangelogAutofix.branchPrefix` in the CLI.
 """
 
 import json
@@ -56,6 +63,8 @@ MINI_JOB, MINI_RUN = 4.3, 6.6       # average job; one run's wall clock alone
 HOSTED_JOB, HOSTED_RUN = 7.3, 10.9
 
 ACTIVE = {"queued", "in_progress", "waiting", "pending", "requested"}
+
+AUTOFIX_PREFIX = "recipe-autofix/"
 
 
 def is_mini(labels):
@@ -111,7 +120,9 @@ def active_jobs(repo, this_run):
 
 
 def main():
-    if os.environ.get("SAME_REPO_PR") != "true":
+    if os.environ.get("HEAD_REF", "").startswith(AUTOFIX_PREFIX):
+        runner, reason = HOSTED, "an autofix branch: model-written changes never run on the mini"
+    elif os.environ.get("SAME_REPO_PR") != "true":
         runner, reason = HOSTED, "not a pull request from this repository"
     else:
         try:

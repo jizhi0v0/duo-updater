@@ -1,4 +1,4 @@
-.PHONY: install cli build test test-scripts test-swift test-app test-release gallery notarize release
+.PHONY: install cli build test test-scripts test-swift test-app test-release gallery notarize release check-python
 
 # Build with a stable Developer ID signature and deploy the canonical copy to
 # /Applications. See scripts/install.sh for why the identity matters (TCC grants).
@@ -29,28 +29,47 @@ build:
 # versus app-tests' derived data). `make test` runs all three, cheapest first.
 test: test-scripts test-swift test-app
 
+# The Python every recipe here runs, and app-tests.sh through the export: the
+# first of python3, python3.15 … python3.10 that is at least 3.10. Picked here
+# rather than left to PATH because the machines disagree on what `python3` is:
+# the mini's duoupdater runners put uv's 3.12 first on PATH, the hosted image's
+# python3 passes the 3.10 floor below, and a Mac's /usr/bin/python3 is 3.9.6
+# with Homebrew's 3.14 only as python3.14 (2026-10-11). 3.10 is the floor because
+# test_app_test_coverage.py's encoding test needs `-X warn_default_encoding`, and
+# on 3.9 it passes without checking anything.
+PYTHON := $(shell for p in python3 python3.15 python3.14 python3.13 python3.12 python3.11 python3.10; do \
+	command -v $$p >/dev/null 2>&1 && $$p -c 'import sys; sys.exit(sys.version_info < (3, 10))' 2>/dev/null && { command -v $$p; exit 0; }; \
+	done)
+export PYTHON
+
+check-python:
+	@test -n "$(PYTHON)" || { \
+	  echo "✗ No Python 3.10 or newer on PATH (python3 is: $$(python3 --version 2>&1 || echo missing))." >&2; \
+	  echo "  Put one there as python3 or python3.1x, e.g. brew install python@3.14." >&2; \
+	  exit 1; }
+
 # The Python gates and their own tests. Seconds, and no build.
-test-scripts:
-	python3 scripts/test_appcast_edit.py
-	python3 scripts/test_publish_release.py
-	python3 scripts/test_site_floor.py
-	python3 scripts/test_ci_route.py
-	python3 scripts/test_check_prose_claims.py
-	python3 scripts/test_check_offpool.py
-	python3 scripts/test_check_recipe_snapshots.py
-	python3 scripts/test_check_swift_backdeploy.py
-	python3 scripts/test_claude_lag_probe.py
-	python3 scripts/test_app_test_coverage.py
-	python3 scripts/test_check_localizable_specifiers.py
-	python3 scripts/check_localizable_specifiers.py
-	python3 scripts/check_staged_version_use.py
-	python3 scripts/test_check_staged_version_use.py
-	python3 scripts/check_app_audits.py
-	python3 scripts/check_recipe_snapshots.py
-	python3 scripts/check_engine_notes.py
-	python3 scripts/check_skill_docs.py
-	python3 scripts/check_prose_claims.py
-	python3 scripts/check_offpool.py
+test-scripts: check-python
+	$(PYTHON) scripts/test_appcast_edit.py
+	$(PYTHON) scripts/test_publish_release.py
+	$(PYTHON) scripts/test_site_floor.py
+	$(PYTHON) scripts/test_ci_route.py
+	$(PYTHON) scripts/test_check_prose_claims.py
+	$(PYTHON) scripts/test_check_offpool.py
+	$(PYTHON) scripts/test_check_recipe_snapshots.py
+	$(PYTHON) scripts/test_check_swift_backdeploy.py
+	$(PYTHON) scripts/test_claude_lag_probe.py
+	$(PYTHON) scripts/test_app_test_coverage.py
+	$(PYTHON) scripts/test_check_localizable_specifiers.py
+	$(PYTHON) scripts/check_localizable_specifiers.py
+	$(PYTHON) scripts/check_staged_version_use.py
+	$(PYTHON) scripts/test_check_staged_version_use.py
+	$(PYTHON) scripts/check_app_audits.py
+	$(PYTHON) scripts/check_recipe_snapshots.py
+	$(PYTHON) scripts/check_engine_notes.py
+	$(PYTHON) scripts/check_skill_docs.py
+	$(PYTHON) scripts/check_prose_claims.py
+	$(PYTHON) scripts/check_offpool.py
 
 # Extra `swift test` arguments for Core's suite, here and in test-release. Empty by
 # default. ci.yml sets `--skip installPipelineDryRun` on the mini: that test
@@ -67,9 +86,9 @@ test-swift:
 
 # App/Sources through xcodebuild. check_localizable_keys.py builds the app again
 # with loc-string emission on, and reads the .xcodeproj app-tests.sh generates.
-test-app:
+test-app: check-python
 	@scripts/app-tests.sh
-	python3 scripts/check_localizable_keys.py
+	$(PYTHON) scripts/check_localizable_keys.py
 
 # Core's suite against an optimized DuoUpdaterCore — ci.yml's `release` job. Not
 # part of `make test`. The native build system is required, not a preference:

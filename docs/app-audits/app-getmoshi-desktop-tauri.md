@@ -64,7 +64,10 @@ Tauri 副本由 `BundleIDMigration`（`app.getmoshi.desktop.tauri → app.getmos
   这一个方向、Team `FL442366Y7`、副本版本 < 0.5.0；Team ID 闸和 MyGo 签名校验照旧。
 - 原地替换保留磁盘上的路径：一键后 `Moshi.app` 这个文件名里装的是 Moshi Go。厂商 Tauri feed 的包本身也叫 `Moshi.app`
   （里面的可执行文件是 `Moshi Go`），所以这和厂商更新器的结果一致；从 Moshi Go 官网 dmg 手装则得到 `Moshi Go.app`。
-- 端到端: **未验证**（2026-10-11）。没有在真机上从 Tauri 副本跑过 `duo install`。
+- 端到端（2026-10-11，`make cli` 后的 `duo`，不运行一轮）: 厂商 Tauri 0.4.23 aarch64 包解出的副本，
+  `duo install <path> --yes --json` → `installed`（下载 16.1 MB）。之后同一路径里是 `app.getmoshi.desktop`
+  0.5.13、可执行文件 `Moshi Go`、`TeamIdentifier=FL442366Y7`，`codesign --verify --deep --strict` 通过，`duo check` 报已是最新。
+  运行中一轮没跑：再起一个 Tauri 实例会读写与正式副本同一份设置。设置是否真被导入也没核（未启动 Moshi Go）。
 - 2026-10-07 的 Tauri→Tauri 端到端（0.4.18 → 0.4.19，不运行 / 运行中两轮）记在「历史与实测」。
 
 ## 已知问题
@@ -86,8 +89,8 @@ swift test --package-path DuoUpdaterCore --filter BundleIDMigrationTests
 ```
 
 ## 建议下一步
-1. 真机一键：Tauri 0.4.x 副本（不运行、运行中各一轮）`duo install` → 应变成 Moshi Go 0.5.13；核对设置是否被导入、
-   `duo restart` 能否找到仍以 Tauri id 运行的进程。
+1. 真机一键运行中一轮：Tauri 0.4.x 副本运行时 `duo install` / `duo restart`，核对设置是否被导入、
+   `duo restart` 能否找到仍以 Tauri id 运行的进程（不运行一轮 2026-10-11 已过）。
 
 ## 历史与实测
 - 2026-10-07 接入。官网 dmg 0.4.18，feed 0.4.19（当天 05:51 UTC 发布），manifest 20 个版本（0.4.0–0.4.19，2026-09-25 起）。

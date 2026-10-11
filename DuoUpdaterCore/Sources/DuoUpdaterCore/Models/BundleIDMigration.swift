@@ -59,7 +59,8 @@ public struct BundleIDMigration: Sendable, Equatable {
         // Moshi Go build (from 0.5.0) is `app.getmoshi.desktop`, the same Team.
         // The vendor's Tauri updater feed itself now serves Moshi Go ("Macs with
         // Apple silicon move to it with a normal update", its 0.4.23 notes), and
-        // Moshi Go imports the Tauri app's settings on first launch. So a Tauri
+        // Moshi Go carries a Tauri settings import (`MigrateFromTauri`, read from
+        // its binary; the import itself has not been run here). So a Tauri
         // copy is checked and one-click updated as Moshi Go, through Moshi Go's
         // feed and MyGo key; nothing is keyed by the Tauri id any more.
         // History: docs/app-audits/app-getmoshi-desktop-tauri.md#历史与实测

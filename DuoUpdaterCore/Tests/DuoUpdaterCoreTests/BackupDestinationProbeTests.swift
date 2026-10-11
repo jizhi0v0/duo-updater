@@ -239,9 +239,23 @@ import Testing
         defer { try? fm.removeItem(at: image) }
 
         try fm.createDirectory(at: mount, withIntermediateDirectories: true)
-        let attached = await run([
-            "attach", "-nobrowse", "-mountpoint", mount.path, image.path,
-        ])
+        // Under load, attaching a fresh FAT-family image sometimes answers "attach
+        // failed - no mountable file systems", and the same image attaches a second
+        // later. Seen on the mini in Release Core tests (runs 37875961124,
+        // 38159603414-attempt 1; 2 of ~2,150 CI runs 2026-09-04 → 10-11). On a dev
+        // Mac (macOS 27.2, 2026-10-12), sixteen at a time: MS-DOS 11 of 400, ExFAT
+        // 3 of 400, APFS 0 of 400, all 14 attached on the retry and left nothing
+        // attached; MS-DOS eight at a time 0 of 400, one at a time 0 of 120. Any
+        // other failure is reported as it is.
+        var attached = (status: Int32(-1), output: "")
+        for attempt in 1...4 {
+            if attempt > 1 { try await Task.sleep(for: .seconds(1)) }
+            attached = await run([
+                "attach", "-nobrowse", "-mountpoint", mount.path, image.path,
+            ])
+            guard attached.status != 0,
+                  attached.output.contains("no mountable file systems") else { break }
+        }
         try #require(attached.status == 0,
                      "could not attach the \(format) image (\(attached.status)): \(attached.output)")
         // Not a `defer`, which cannot await the detach: the body's outcome is held

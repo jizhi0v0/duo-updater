@@ -54,6 +54,19 @@ public struct BundleIDMigration: Sendable, Equatable {
         BundleIDMigration(
             from: "ai.storyteller.printcraft", to: "ai.storyteller.pdfcraft",
             teamID: "DJ6XS33FX8", lastFromVersion: "0.2.1", firstToVersion: "0.4.0"),
+        // Moshi's Tauri app hands over to its native rewrite, Moshi Go: every
+        // Tauri build (through 0.4.23) is `app.getmoshi.desktop.tauri`, every
+        // Moshi Go build (from 0.5.0) is `app.getmoshi.desktop`, the same Team.
+        // The vendor's Tauri updater feed itself now serves Moshi Go ("Macs with
+        // Apple silicon move to it with a normal update", its 0.4.23 notes), and
+        // Moshi Go carries a Tauri settings import (`MigrateFromTauri`, read from
+        // its binary; the import itself has not been run here). So a Tauri
+        // copy is checked and one-click updated as Moshi Go, through Moshi Go's
+        // feed and MyGo key; nothing is keyed by the Tauri id any more.
+        // History: docs/app-audits/app-getmoshi-desktop-tauri.md#历史与实测
+        BundleIDMigration(
+            from: "app.getmoshi.desktop.tauri", to: "app.getmoshi.desktop",
+            teamID: "FL442366Y7", lastFromVersion: "0.4.23", firstToVersion: "0.5.0"),
     ]
 
     /// Whether an installed copy signed as `from` at `version` is this rename.

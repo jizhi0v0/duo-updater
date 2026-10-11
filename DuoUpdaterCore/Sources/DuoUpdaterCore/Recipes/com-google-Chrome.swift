@@ -80,15 +80,27 @@ enum com_google_Chrome {
         changelogs: [
         // Google Chrome — Chrome has no single consumer changelog page; the
         // canonical "what changed" surface is the Chrome Releases blog (Blogger).
-        // We fetch the *Stable updates* label page, which is server-rendered and
-        // carries each post's full body inline inside a
+        // We fetch the label page for posts carrying BOTH *Desktop Update* and
+        // *Stable updates* (`search/label/Desktop%20Update+Stable%20updates` —
+        // Blogger's own "Older Posts" link on that page spells it with `%2B`). It
+        // is server-rendered and carries each post's full body inline inside a
         // `<script type='text/template'>` block (Blogger hydrates it client-side,
-        // but the raw markup is complete). The label page mixes platforms
-        // (Android / iOS / ChromeOS / Desktop), so the entryPattern requires the
-        // exact post title `Stable Channel Update for Desktop` — that one literal
-        // both selects the desktop posts AND excludes the Beta/Dev/Early/Extended
-        // channels (whose titles differ: "Chrome Beta for Desktop Update",
-        // "Early Stable Update for Desktop", etc.). Structure per post, e.g.:
+        // but the raw markup is complete).
+        //
+        // Why not the plain *Stable updates* label: a Blogger label page stops at
+        // a size budget rather than a post count (observed, not documented —
+        // `max-results=20` doesn't lift it), and that label is shared with ChromeOS / Android / iOS posts. One big
+        // ChromeOS security post is enough to push every desktop post off the
+        // page, and the recipe then parses nothing. Intersecting with
+        // *Desktop Update* leaves only desktop stable posts on the page, so its
+        // first post is always the newest one; how many more fit depends on
+        // their size (often just the one).
+        //
+        // The entryPattern still requires the exact post title
+        // `Stable Channel Update for Desktop` — that one literal keeps the
+        // Beta/Dev/Early/Extended desktop posts out (their titles differ:
+        // "Chrome Beta for Desktop Update", "Early Stable Update for Desktop",
+        // etc.) should either label ever land on one. Structure per post, e.g.:
         //   <a ... title='Stable Channel Update for Desktop'>…</a>
         //   <span class='publishdate' itemprop='datePublished'>Wednesday, May 27, 2026</span>
         //   <script type='text/template'>…post HTML…</script>
@@ -111,7 +123,7 @@ enum com_google_Chrome {
         // them; promotion posts fall through to lead. A parse miss just embeds the page.
         ChangelogRecipe(
             bundleID: "com.google.Chrome",
-            source: URL(string: "https://chromereleases.googleblog.com/search/label/Stable%20updates")!,
+            source: URL(string: "https://chromereleases.googleblog.com/search/label/Desktop%20Update+Stable%20updates")!,
             // Every gap here is written so that a FAILING match costs one pass, not
             // a combinatorial search. This pattern used to be four unbounded lazy
             // gaps (`.*?`) in a row, which is fine while the page still matches and

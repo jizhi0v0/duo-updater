@@ -3,12 +3,14 @@
 > 审计于 2026-08-21。ByteDance 的输入法，官网 `shurufa.doubao.com` 下载。
 > 结论：**检测 + changelog + 一键全部已接入**。一键 2026-08-28 接入，走
 > 输入法专用的 Contents 轮换（原「输入法整类闸」已按安装动作的形状重写）。
+> 2026-10-11（#1178）：下载文件名在 `_release` 后面多了 `_<日期>_<时间>_<id>`，
+> 两条 pattern 放宽为允许这段尾巴，比较的号不变。见「历史与实测」。
 
 ## 基本信息
 - Bundle ID: `com.bytedance.inputmethod.doubaoime`
 - Team ID: `96L78H6LMH`（Developer ID Application: Beijing Chuntian Zhiyun Technology Co., Ltd.）
-- 观测版本: `0.9.6`（`CFBundleShortVersionString`）
-- 已安装 build: `90602`（自定义键 `Wave Build Version Number`；`CFBundleVersion` 是废号 `1`）
+- 观测版本: `1.0.0`（`CFBundleShortVersionString`；2026-10-11。初审 2026-08-21 时是 `0.9.6`）
+- 观测 build: `1000002`（自定义键 `Wave Build Version Number`；`CFBundleVersion` 是废号 `1`；初审时 `90602`）
 - 安装路径: `/Library/Input Methods/DoubaoIme.app`
 - Info.plist 关键位: `CHANNEL_NAME = release`、无 `SUFeedURL`、无 `KSChannelID`、无 `_MASReceipt`
 - 自更新机制: 自研 in-app 更新器（读 `ime.doubao.com/api/v1/version/list`），无 Sparkle
@@ -45,24 +47,31 @@
 - 源: `VendorProbe`（`mode: .responseBody`）
 - 端点: `https://ime.doubao.com/api/v1/app/download_url?platform=macos`
   （官网下载按钮读的同一个接口，`platform` ∈ `android|ios|macos|windows`）
-- 真实响应（2026-08-21，183 字节）:
+- 真实响应（2026-10-11，238 字节）:
   ```json
-  {"code":0,"data":{"url":"https://lf-wave.doubaocdn.com/obj/doubao-ime/app/macos/DoubaoImeInstaller_v90602_release.zip","version_code":1002007,"version_name":"V0.9.6"},"msg":"success"}
+  {"code":0,"data":{"release_date":"2026.10.10","url":"https://lf-wave.doubaocdn.com/obj/doubao-ime/app/macos/DoubaoImeInstaller_v1000207_release_20261010_175807_23027789.zip","version_code":1002012,"version_name":"V1.0.2"},"msg":"success"}
   ```
-- `versionPattern`: `DoubaoImeInstaller_v([0-9]+)_release\.zip` → `90602`（`versionIsBuild: true`）
-- `displayVersionPattern`: `"version_name"\s*:\s*"[Vv]?([0-9]+(?:\.[0-9]+)+)"` → `0.9.6`（行上显示的）
+  （2026-08-21 时是 183 字节，没有 `release_date`，文件名没有尾巴：
+  `…/DoubaoImeInstaller_v90602_release.zip`、`version_code` `1002007`、`version_name` `V0.9.6`。）
+- `versionPattern`: `DoubaoImeInstaller_v([0-9]+)_release(?:_[0-9A-Za-z]+)*\.zip` → `1000207`（`versionIsBuild: true`）
+- `displayVersionPattern`: `"version_name"\s*:\s*"[Vv]?([0-9]+(?:\.[0-9]+)+)"` → `1.0.2`（行上显示的）
+- 一键的 URL pattern 同样放宽，取到的是响应里那个带尾巴的完整 URL。
 
 ### ⚠️ 版本方案：一个响应里三个数字，只有一个有本地对应物
 
 | 数字 | 来自 | 装机侧对应物 |
 |------|------|-------------|
-| 文件名里的 `v90602` | 厂商 version code | **Info.plist `Wave Build Version Number` = `90602`** ✓ 比这个 |
+| 文件名里的 `v90602` / `v1000207` | 厂商 version code | **Info.plist `Wave Build Version Number` = `90602` / `1000207`** ✓ 比这个 |
 | `version_name` `"V0.9.6"` | 营销版本 | `CFBundleShortVersionString` = `0.9.6` → 只用来**显示** |
-| `version_code` `1002007` | 第三套命名空间 | 无。永远不要比 |
+| `version_code` `1002007` / `1002012` | 第三套命名空间 | 无。永远不要比 |
 
 `CFBundleVersion` 是**每个 build 都恒等于 `1`** 的废号——厂商把真号放进了自定义键
 `Wave Build Version Number`（另有点分形式 `Wave Build Version = 0.9.6.2`，主 bundle 和
 `DoubaoImeSettings.app` 子 bundle 里都有一份）。
+
+这个号是 `主·次(2位)·补丁(2位)·build(2位)` 拼成的一个整数：`90602` = `0.9.6.2`，
+`90703` = `0.9.7.3`，`1000002` = `1.0.0.2`，`1000207` = `1.0.2.7`，和 `Wave Build Version`
+逐位对得上。所以跨 0.9 → 1.0 仍按整数比大小，顺序不乱。
 
 所以 `AppScanner.buildVersionIsOverridden` 把这个 bundle id 也纳进来了（此前只有 Xcode），
 `buildVersion` 用 `Wave Build Version Number` 顶掉 `CFBundleVersion`；recipe 走
@@ -104,6 +113,11 @@ no-fallback 的设计不靠这个预测撑——它零成本、且严格更安�
 `DoubaoImeInstaller_v90601_release_20260814_120854_64003a2e.zip`（push feed）
 ——是同一形状 `_v<code>_release`。两个样本不足以证明"稳定"，但没有任何变更证据。
 真变了 probe 会报「resolved no version」，`duo verify` 夜扫会响——失败方向是响的那边。
+
+> **2026-10-11 更正**：上面说两个样本「同一形状」，只对 `_v<code>_release` 这一段成立。
+> push feed 那个样本在 `_release` 后面本来就多一段 `_<日期>_<时间>_<id>`，
+> 当时的 `_release\.zip` 锚只覆盖官网那种。2026-10-10 官网接口也换成了带尾巴的文件名，
+> 夜扫按上面预测的方向报了出来（`versionPatternNoMatch`，#1178）。
 
 安装器做了什么（两代 `install.sh` 基本一致）：`unzip` → 杀 `OceanIme`/`DoubaoIme` 进程 →
 `rm -rf "$INPUT_METHODS_DIR"/DoubaoIme*.app` → `mv` → 去 quarantine →
@@ -298,10 +312,10 @@ duo install com.bytedance.inputmethod.doubaoime --yes
 2. 盯着 `Wave Build Version Number` 这个键会不会消失。它一没，检测自动降级成比营销版本
    （安全，但重发又看不见了）；`duo verify` 不会因此报错，因为端点那边没变。
    真要监控，判据是本机 `installedBuild` 从 `90602` 变回 `<nil>`。
-3. `versionPattern` 锚在 `DoubaoImeInstaller_v<数字>_release.zip` 上。已知的两个公开样本
-   同形，无变更证据（0.5.7 那个不同的命名是内测期的，不算）。真变了 probe 会报
-   「resolved no version」，夜扫能抓到；届时要么跟新命名，要么退回只比 `version_name`
-   （代价是丢掉同营销版本内的重发检测）。
+3. `versionPattern` 锚在 `DoubaoImeInstaller_v<数字>_release` 上，后面允许任意段
+   `_<字母数字>` 再接 `.zip`（2026-10-11 起，#1178）。只从 `_v` 和 `_release` 之间取号，
+   尾巴里的日期和 id 取不到。前缀再变，probe 会报 `versionPatternNoMatch`，夜扫能抓到；
+   届时要么跟新命名，要么退回只比 `version_name`（代价是丢掉同营销版本内的重发检测）。
 
 ## 历史与实测
 
@@ -334,3 +348,31 @@ The endpoint hands over
 it runs — so `nestedArchivePath` unwraps one level, and the whole gate
 stack (signature, Team, bundle id, architecture) then runs on the real
 `DoubaoIme.app`.
+
+### 2026-10-11 — #1178：文件名多了尾巴（`versionPatternNoMatch`）
+
+夜扫报 `vendor:com.bytedance.inputmethod.doubaoime:stable` 连续 `versionPatternNoMatch`，
+最后一次成功是 2026-10-10 08:27Z（当时显示 `1.0.2`）。同日复取
+`ime.doubao.com/api/v1/app/download_url?platform=macos`（HTTP 200，238 字节）：
+
+```json
+{"code":0,"data":{"release_date":"2026.10.10","url":"https://lf-wave.doubaocdn.com/obj/doubao-ime/app/macos/DoubaoImeInstaller_v1000207_release_20261010_175807_23027789.zip","version_code":1002012,"version_name":"V1.0.2"},"msg":"success"}
+```
+
+- 根因：`_release` 和 `.zip` 之间多了 `_20261010_175807_23027789`，旧锚 `_release\.zip`
+  两条 pattern（版本、一键 URL）都匹配不上。多出的 `release_date` 字段与此无关。
+- 号的对应关系没变。下载了这个 zip（193367502 字节，MD5 与 CDN 的 `content-md5` 一致），
+  只用 `unzip -p` 读 plist，没有挂载、没有运行。安装器壳 `DoubaoImeInstaller_v1000207.app`
+  和它 `Contents/Resources/DoubaoIme.zip` 里的真包 `DoubaoIme.app` 两份 Info.plist 都是
+  `CFBundleShortVersionString = 1.0.2`、`Wave Build Version = 1.0.2.7`、
+  `Wave Build Version Number = 1000207`、`CFBundleVersion = 1`。真包另有
+  `CFBundleIdentifier = com.bytedance.inputmethod.doubaoime`、`CHANNEL_NAME = release`、
+  `WaveTeamId = 96L78H6LMH`。与文件名里的 `v1000207`、`version_name` `V1.0.2` 一致；
+  `version_code` `1002012` 仍对不上任何本地键。
+- 观测到的本机副本是 `1.0.0` / `Wave Build Version Number = 1000002`，`1000207 > 1000002`，
+  判定为有更新；同一天 `version/list?channel=release` 推的是 `1.0.1` / `1000103`
+  （`pkg_url` 同样带尾巴），也落在同一套编码里。
+- 修法：两条 pattern 在 `_release` 后加 `(?:_[0-9A-Za-z]+)*`，捕获组位置不变。
+  生产路径（`probeDiagnostic` 打本地回环上的这份响应）解析出 `version = 1000207`、
+  `shortVersion = 1.0.2`、下载 URL 为上面带尾巴的完整 URL、`nestedArchivePath` 不变。
+  把 pattern 改回旧值，同一测试报 `versionPatternNoMatch(sampleBytes: 238)`，与夜扫一致。

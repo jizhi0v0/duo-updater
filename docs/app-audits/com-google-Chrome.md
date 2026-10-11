@@ -56,8 +56,8 @@
 
 ## Changelog
 - 来源: ChangelogRecipe（`com.google.Chrome`，**仅 stable**）
-- 源页: `https://chromereleases.googleblog.com/search/label/Stable%20updates`（Chrome Releases blog / Blogger，server-rendered，正文内联在 `<script type='text/template'>`）
-- entryPattern 用标题字面量 `Stable Channel Update for Desktop` 同时选中桌面 stable 帖、排除 Beta/Dev/Early/Extended（标题不同）。
+- 源页: `https://chromereleases.googleblog.com/search/label/Desktop%20Update+Stable%20updates`（Chrome Releases blog / Blogger，server-rendered，正文内联在 `<script type='text/template'>`）。2026-10-11 起是 *Desktop Update* 与 *Stable updates* 两个 label 的交集页；之前是单独的 *Stable updates* label 页，那一页和 ChromeOS / Android / iOS 帖共用一个按体积截断的窗口，一篇大的 ChromeOS 帖就能把所有桌面帖挤出去（#821，实测见「历史与实测」）。
+- entryPattern 用标题字面量 `Stable Channel Update for Desktop` 同时选中桌面 stable 帖、排除 Beta/Dev/Early/Extended（标题不同）。entryPattern / itemPatterns 本次未改。
 - itemPatterns 两形态按序：① 安全帖的 `CVE-YYYY-N:` 内联 span；② 推广帖的 `promotion of Chrome…/been updated to…` 整段 `<p>`（tempered dot 防越界）。
 - 跟随 channel: **否**——只覆盖 stable。beta/dev/canary 的 `changelogURL` 指向 `https://developer.chrome.com/release-notes`（按 channel 无独立 recipe，UI 内嵌网页）。
 - Recipe 状态: stable 已有；beta/dev/canary 无 recipe，也写不出来，登记在 `ChangelogCoverage.acknowledged`（#1149，理由转引，本次未复测）：`developer.chrome.com/release-notes` 是个 stub；Chrome Releases blog 的 beta/dev 帖只有一行版本说明；Canary 没有发布过 notes（blog 的对应 label 是空的）。所以这三个渠道一直是 inline 网页兜底。
@@ -109,3 +109,22 @@ nothing anywhere saying so.
 复测 2026-10-09（只读 GET，生产 `ChangelogExtractor` + 注册的 recipe，临时 Swift 测试）：622,955 字节的页面里只有 1 个桌面帖（另一个是 Chrome for Android），解析出 1 条 `155.0.8059.39`（Tuesday, October 6, 2026），正文停在它自己的 `</script>`，后面还有约 336k 字符没被吞。正文占了页面四成左右，所以「正文占页面比例」当不了判据。
 
 修法（同一 PR）：只剩 1 条时，sweep 再问一次页面——这条的正文里是否还有另一条 entry 的开头（`ChangelogExtractor.anEntrySwallowsAnother`，记在 `Finding.entrySwallowsAnother`）。明确「没有」才不报；真塌缩（终止符失配、后面各条都被吞进第一条）照报。这个 1 仍不写进 baseline。
+
+### #821 第二种形态：`noEntriesExtracted`（源页换成 label 交集，2026-10-11）
+
+2026-10-10 夜扫报的已经不是塌缩，而是一条都没解析出来。这回是真缺口：pattern 没坏，是 *Stable updates* label 页上根本没有桌面帖。
+
+复测 2026-10-11（只读 GET，生产 `ChangelogExtractor` + 注册的 recipe，临时 Swift 测试，未提交）：
+
+- `search/label/Stable%20updates`：503,349 字节，只有 1 篇帖子，标题 `Stable Channel Update for ChromeOS / ChromeOS Flex`（Friday, October 9, 2026，正文 192,768 字符）。整页没有 `title='Stable Channel Update for Desktop'`，解析 0 条。加 `?max-results=20` 结果一样（503,546 字节，同一篇）。所以 Blogger 的 label 页是按体积截断、不是按篇数（观测所得，Blogger 文档里没找到这条）。
+- 最新的桌面 stable 帖（Tuesday, October 6, 2026，观测版本 `155.0.8059.39`）还在，只是被这篇更新、更大的 ChromeOS 帖挤出了窗口。
+- 换源：`search/label/Desktop%20Update+Stable%20updates`。`+` 在 label 路径里是交集：页面只剩桌面 stable 帖，按日期倒序，Blogger 自己的「Older Posts」链接写成 `Desktop%20Update%2BStable%20updates`。这是观测到的行为，没在 Google 的 Blogger 文档里找到对应说明。feed 的 `/feeds/posts/default/-/Desktop%20Update/Stable%20updates` 也是交集（同样是观测所得）。
+  - 第 1 页：618,499 字节，连续取 3 次都一样，只有 1 篇（2026-10-06，正文 250,211 字符），解析 1 条 `155.0.8059.39`，247 个 CVE 项。正文停在它自己的 `</script>`，位置 281,801 / 618,496，里面没有第二个标题或 publishdate；`anEntrySwallowsAnother` = false。
+  - 第 2 页（「Older Posts」）：3 篇，解析 3 条：`154.0.8037.97`（Oct 1）、`154.0.8037.92`（Sep 29）、`154.0.8037.57`（Sep 22），各自正文都停在自己的 `</script>`。
+- 两个 label 是否一直一起打：feed `-/Stable updates` 最近 46 篇（2026-07-29 至 10-09）里标题为 `Stable Channel Update for Desktop` 的 16 篇，交集 feed 里同期正好也是这 16 篇，一篇不多一篇不少，且都带 `Desktop Update` label；交集 feed 23 篇全是这个标题。
+
+所以交集页的第一篇永远是最新的桌面 stable 帖，至少能解析 1 条；能放下几条取决于帖子大小（这次 1 条，之前见过 3 条）。只剩 1 条时的塌缩警告，由上面 `anEntrySwallowsAnother` 那条规则处理。
+
+没改 `Changelog.parserGeneration`：同一篇帖子在两个源页上是同一段 markup，解析结果相同，已经缓存的 notes 没有错。
+
+没选 Atom feed：feed 能一次给多篇，但正文是转义过的 HTML，entryPattern、itemPatterns 和 `ChromeChangelogPatternTests` 的性能边界都得重写。这次只修「一条都没有」。

@@ -2294,6 +2294,97 @@ Wednesday, May 27, 2026
     #expect(cl.entries[1].items[1] == "CVE-2026-9873: Heap buffer overflow in Media & Audio.")
 }
 
+// #821. The plain *Stable updates* label page is a size-capped window shared with
+// ChromeOS / Android / iOS posts: fetched 2026-10-11 it held exactly one post, a
+// 190 KB ChromeOS one, so the recipe parsed nothing. Trimmed real markup of that
+// page's only post — the failure mode the source move below exists to avoid.
+private let chromeStableLabelChromeOSOnlyFixture = """
+<div class='post' data-id='52083795167364607' itemscope='' itemtype='http://schema.org/BlogPosting'>
+<h2 class='title' itemprop='name'>
+<a href='https://chromereleases.googleblog.com/2026/10/stable-channel-update-for-chromeos.html' itemprop='url' title='Stable Channel Update for ChromeOS / ChromeOS Flex'>
+Stable Channel Update for ChromeOS / ChromeOS Flex
+</a>
+</h2>
+<div class='post-header'>
+<div class='published'>
+<span class='publishdate' itemprop='datePublished'>
+Friday, October 9, 2026
+</span>
+</div>
+</div>
+<div class='post-body'>
+<div class='post-content' itemprop='articleBody'>
+<script type='text/template'>
+                          <p>&nbsp;<span>The Stable channel is being updated to OS version 16805.33.0 (Browser version 154.0.8037.151) for most ChromeOS devices.&nbsp;</span></p><p><span>[N/A][</span><a href="https://issues.chromium.org/issues/1"><span>1</span></a><span>] High CVE-2026-100001: Use after free in Ash.</span></p>
+                        </script>
+</div></div></div>
+<span id='blog-pager-older-link'>
+<a class='blog-pager-older-link' href='https://chromereleases.googleblog.com/search/label/Stable%20updates?updated-max=2026-10-09T16:46:00-07:00&max-results=20&start=1&by-date=false' id='Blog1_blog-pager-older-link' title='Older Posts'>
+"""
+
+// Trimmed real markup of the page the recipe fetches now,
+// `search/label/Desktop%20Update+Stable%20updates` (2026-10-11): only posts that
+// carry both labels, newest first, so its first post is the newest desktop stable
+// one however big the posts around it are. The body is cut to two of its 247 CVE
+// lines; the `<noscript>` copy of the body and the pager follow it as on the page.
+private let chromeDesktopStableLabelFixture = """
+<div class='post' data-id='5682388230109762021' itemscope='' itemtype='http://schema.org/BlogPosting'>
+<h2 class='title' itemprop='name'>
+<a href='https://chromereleases.googleblog.com/2026/10/stable-channel-update-for-desktop_086471744.html' itemprop='url' title='Stable Channel Update for Desktop'>
+Stable Channel Update for Desktop
+</a>
+</h2>
+<div class='post-header'>
+<div class='published'>
+<span class='publishdate' itemprop='datePublished'>
+Tuesday, October 6, 2026
+</span>
+</div>
+</div>
+<div class='post-body'>
+<div class='post-content' itemprop='articleBody'>
+<script type='text/template'>
+                          <p><span style="font-size: large;"><span style="font-family: arial;">The Stable channel has been updated to 155.0.8059.39/.40 for Windows and</span><span style="font-family: arial;"> Mac and </span></span><span style="color: #666666; font-family: arial;">155.0.8059.39 to </span><span>Linux which will roll out over the coming days/weeks. A full list of changes in this build is available in the <a href="https://chromium.googlesource.com/chromium/src/+log/154.0.8037.99..155.0.8059.40?pretty=fuller&amp;n=10000">Log</a></span></p><p dir="ltr"><span>[N/A][</span><a href="https://issues.chromium.org/issues/534994449"><span>534994449</span></a><span>] Critical CVE-2026-106382: Use after free in Chromecast. </span><span style="font-style: italic;">Reported by Google on 2026-07-15</span></p><br /><p dir="ltr"><span>[TBD][</span><a href="https://issues.chromium.org/issues/534994450"><span>534994450</span></a><span>] High CVE-2026-106269: Use after free in CSS. </span></p>
+                          <span itemprop='author' itemscope='itemscope' itemtype='http://schema.org/Person'>
+                            <meta content='https://plus.google.com/116899029375914044550' itemprop='url'/>
+                          </span>
+                        </script>
+<noscript>
+<p><span>The Stable channel has been updated to 155.0.8059.39/.40 for Windows and Mac. CVE-2026-106382: Use after free in Chromecast.</span></p>
+</noscript>
+</div></div></div>
+<span id='blog-pager-older-link'>
+<a class='blog-pager-older-link' href='https://chromereleases.googleblog.com/search/label/Desktop%20Update%2BStable%20updates?updated-max=2026-10-06T10:17:00-07:00&max-results=20&start=1&by-date=false' id='Blog1_blog-pager-older-link' title='Older Posts'>
+"""
+
+@Test func chromeChangelogReadsTheDesktopAndStableIntersectionLabel() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.google.Chrome"))
+
+    // The source must select by BOTH labels. `+` in a Blogger label path is the
+    // intersection (Blogger's own pager link on that page spells it `%2B`); the
+    // plain *Stable updates* label alone is the window that lost every desktop post.
+    #expect(recipe.source.host == "chromereleases.googleblog.com")
+    let labelPath = recipe.source.path   // decoded: "/search/label/Desktop Update+Stable updates"
+    #expect(labelPath.hasPrefix("/search/label/"))
+    let labels = Set(labelPath.dropFirst("/search/label/".count).split(separator: "+").map(String.init))
+    #expect(labels == ["Desktop Update", "Stable updates"])
+
+    // What the old source served on 2026-10-11: nothing for the pattern to match.
+    #expect(ChangelogExtractor.extract(from: chromeStableLabelChromeOSOnlyFixture, using: recipe) == nil)
+
+    // What the new source serves: the newest desktop stable post, and its body
+    // stops at its own `</script>` — not the `<noscript>` copy, not the pager.
+    let cl = try #require(ChangelogExtractor.extract(from: chromeDesktopStableLabelFixture, using: recipe))
+    #expect(cl.entries.count == 1)
+    #expect(cl.entries[0].version == "155.0.8059.39")
+    #expect(cl.entries[0].date == "Tuesday, October 6, 2026")
+    #expect(cl.entries[0].items == [
+        "CVE-2026-106382: Use after free in Chromecast.",
+        "CVE-2026-106269: Use after free in CSS.",
+    ])
+    #expect(ChangelogExtractor.anEntrySwallowsAnother(in: chromeDesktopStableLabelFixture, using: recipe) == false)
+}
+
 // TablePro deliberately has no recipe any more — the app's Sparkle appcast carries
 // the notes inline, so the pane reads them from the feed we already fetch. Pin that
 // absence: a future "add a changelog for TablePro" would silently preempt the feed.

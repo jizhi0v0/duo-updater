@@ -1,13 +1,14 @@
 # Moshi Go
 
 Moshi 桌面端的原生重写（Go + Metal，终端用 libghostty-vt）。它接手了 bundle id
-`app.getmoshi.desktop`；它取代的 Tauri 版是另一个 bundle id、另一条 feed，见
-[Moshi（Tauri）](app-getmoshi-desktop-tauri.md)。
+`app.getmoshi.desktop`；它取代的 Tauri 版是另一个 bundle id（`app.getmoshi.desktop.tauri`），见
+[Moshi（Tauri）](app-getmoshi-desktop-tauri.md)。2026-10-10 起厂商经 Tauri 自己的 feed 把 Tauri 用户迁到 Moshi Go，
+Tauri 副本由 `BundleIDMigration` 归到这个 bundle id 名下，用这里的 recipe 检查与一键更新。
 
 ## 基本信息
 - Bundle ID: `app.getmoshi.desktop`
 - Team ID: `FL442366Y7`（`Developer ID Application: Moshi Tech Limited`）
-- 观测版本: `0.5.2`（官网 dmg）、`0.5.3`（feed 与 tar.gz），short == build；2026-10-07
+- 观测版本: `0.5.2`（官网 dmg）、`0.5.3`（feed 与 tar.gz），short == build；2026-10-07。feed `0.5.13`；2026-10-11
 - 自更新机制: 自研（MyGo 框架的 `update` 包），读 `desktop-go/update-darwin-arm64.json`
 - 开源: 否（官网无源码链接）
 
@@ -36,9 +37,13 @@ Moshi 桌面端的原生重写（Go + Metal，终端用 libghostty-vt）。它�
 自己的 bundle id、自己的 feed，feed 里没有第二条轨道。所以对这个 bundle id 来说渠道就是 stable；
 `ReleaseChannel.detect()` 在真包上也得出 stable（无 `KSChannelID`、id 无后缀、显示名无渠道词）。
 
-**会不会推给 Tauri 版的安装？** 不会。Tauri 版从 0.1.0 起就是 `app.getmoshi.desktop.tauri`
-（下载 0.1.0 / 0.2.0 / 0.3.0 / 0.4.0 / 0.4.10 / 0.4.17 / 0.4.18 的 `.app.tar.gz` 逐个读 Info.plist 核对），
-Moshi Go 从 0.5.0 起是 `app.getmoshi.desktop`。两个 id 从没共用过。
+**会不会推给 Tauri 版的安装？** 会，而且是有意的（2026-10-11 起）。两个 id 从没共用过：Tauri 版从 0.1.0 到最后一版
+0.4.23 都是 `app.getmoshi.desktop.tauri`（下载 0.1.0 / 0.2.0 / 0.3.0 / 0.4.0 / 0.4.10 / 0.4.17 / 0.4.18 / 0.4.23 的
+`.app.tar.gz` 逐个读 Info.plist 核对），Moshi Go 从 0.5.0 起是 `app.getmoshi.desktop`。但厂商已经让 Tauri 的
+`desktop/latest.json` 改发 Moshi Go（0.5.12，与本 feed 的 0.5.12 包 `diff -r` 一致），所以 `BundleIDMigration`
+登记了 `app.getmoshi.desktop.tauri → app.getmoshi.desktop`（Team `FL442366Y7`，lastFrom 0.4.23，firstTo 0.5.0）：
+版本低于 0.5.0 的 Tauri 副本拿这里的 recipe，闸 4 只放行这一个方向、这个 Team。证据与理由见
+[Moshi（Tauri）](app-getmoshi-desktop-tauri.md) 的「一键安装」和「历史与实测」。
 
 ## 更新检测
 - 源: `https://cdn.getmoshi.app/desktop-go/update-darwin-arm64.json`，app 二进制里写死的就是这个地址
@@ -162,7 +167,11 @@ swift run --package-path application-test feed-discover "Moshi Go 0.5.2.dmg"
 ```
 
 ## 建议下一步
-1. 厂商若把 Moshi Go 转正、让 Tauri 版的 feed 指向它，回来看 Tauri recipe 是否该退役。
+1. Tauri 副本经 `BundleIDMigration` 一键换成 Moshi Go 还没在真机上跑过（2026-10-11），见 Tauri 那份的「建议下一步」。
 
 ## 历史与实测
 - 2026-10-07 接入。官网 dmg 0.5.2，feed 0.5.3（当天 10:16 UTC 发布），manifest 共 4 个版本（0.5.0–0.5.3，全在同一天）。
+- 2026-10-11: feed 0.5.13（`date` `2026-10-11T03:00:14Z`），`deltas[]` 的 `from` 是 0.5.12 / 0.5.11 / 0.5.10；manifest 10 个版本
+  （0.5.4–0.5.13），每条都有 `date`。Tauri 的 feed 开始发 Moshi Go，Tauri recipe 退役，Tauri 副本改由本 recipe 接住
+  （`BundleIDMigration`）。0.5.0 / 0.5.12 / 0.5.13 的二进制里都有 `MigrateFromTauri` 和
+  `settings: migrated %d keys from the Tauri app`（读字符串，没实跑）。

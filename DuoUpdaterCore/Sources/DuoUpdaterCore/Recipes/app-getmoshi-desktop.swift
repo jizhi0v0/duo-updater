@@ -7,11 +7,13 @@ enum app_getmoshi_desktop {
         // History: docs/app-audits/app-getmoshi-desktop.md#历史与实测
         // Moshi Go — the native (Go + Metal) rewrite of the Moshi desktop app. It
         // took over the bundle id `app.getmoshi.desktop`; the Tauri app it replaces
-        // is `app.getmoshi.desktop.tauri` (`Recipes/app-getmoshi-desktop-tauri.swift`)
-        // and has carried that id since its first build, so this recipe never
-        // matches a Tauri install. The vendor's page labels Moshi Go "Alpha", but
-        // it is its own product with its own feed and no second track: the
-        // channel is stable for this bundle id.
+        // is `app.getmoshi.desktop.tauri`, which the vendor now moves to Moshi Go
+        // through the Tauri updater feed. A Tauri copy is filed under this id by
+        // `BundleIDMigration`, so these recipes (this feed, this MyGo key, this
+        // changelog) are the ones it is checked and one-click updated with; there
+        // are no recipes keyed by the Tauri id. The vendor's page labels Moshi Go
+        // "Alpha", but it has its own feed and no second track: the channel is
+        // stable for this bundle id.
         //
         // No Sparkle, no electron-builder config. The address is the one the app's
         // own updater reads (`desktop-go/update-darwin-<arch>.json`); only arm64

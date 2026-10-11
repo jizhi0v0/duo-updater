@@ -201,4 +201,63 @@ struct BundleIDMigrationTests {
         let recipe = try #require(ChangelogRecipeSelection.recipe(for: result))
         #expect(recipe.bundleID == "com.tencent.workbuddy.mac")
     }
+
+    // MARK: - the real Moshi entry: the Tauri app hands over to Moshi Go
+
+    private static func moshi(id: String, version: String) -> InstalledApp {
+        InstalledApp(
+            name: "Moshi", bundleID: id, shortVersion: version, buildVersion: version,
+            path: URL(fileURLWithPath: "/Applications/ZZFixture-Moshi.app"),
+            isMASApp: false, sparkleFeedURL: nil, releaseChannel: .stable)
+    }
+
+    /// Every Tauri build (0.1.0–0.4.23) is `app.getmoshi.desktop.tauri`; the
+    /// vendor's Tauri feed now ships Moshi Go (`app.getmoshi.desktop`) to them.
+    @Test func aTauriMoshiCopyIsFiledUnderMoshiGo() {
+        for version in ["0.1.0", "0.4.19", "0.4.23"] {
+            #expect(Self.moshi(id: "app.getmoshi.desktop.tauri", version: version).recipeBundleID
+                    == "app.getmoshi.desktop")
+        }
+        // A `.tauri` copy at or past Moshi Go's first release is not the hand-over
+        // that was measured.
+        #expect(Self.moshi(id: "app.getmoshi.desktop.tauri", version: "0.5.0").recipeBundleID
+                == "app.getmoshi.desktop.tauri")
+        #expect(Self.moshi(id: "app.getmoshi.desktop", version: "0.5.13").recipeBundleID
+                == "app.getmoshi.desktop")
+    }
+
+    /// The recipes a Tauri copy lands on are Moshi Go's: its own feed, and its
+    /// MyGo key, so the archive's signature is checked as for any Moshi Go copy.
+    /// Nothing is keyed by the Tauri id any more.
+    @Test func aTauriMoshiCopyReachesMoshiGosRecipes() throws {
+        let tauri = Self.moshi(id: "app.getmoshi.desktop.tauri", version: "0.4.23")
+        #expect(VendorProbeRegistry.recipes.filter { $0.bundleID == "app.getmoshi.desktop.tauri" }
+            .isEmpty)
+        let probes = VendorProbeRegistry.recipes.filter { $0.bundleID == tauri.recipeBundleID }
+        #expect(probes.count == 1)
+        let probe = try #require(probes.first)
+        #expect(probe.url.absoluteString == "https://cdn.getmoshi.app/desktop-go/update-darwin-arm64.json")
+        #expect(probe.install?.myGoPublicKey != nil)
+
+        let result = UpdateResult(app: tauri, remote: nil, status: .upToDate)
+        let changelog = try #require(ChangelogRecipeSelection.recipe(for: result))
+        #expect(changelog.bundleID == "app.getmoshi.desktop")
+        #expect(changelog.source.absoluteString
+                == "https://cdn.getmoshi.app/desktop-go/latest/manifest.json")
+    }
+
+    /// Gate 4 with the real table: the Tauri → Moshi Go direction passes for the
+    /// vendor's Team only; the reverse and any other Team are refused.
+    @Test func theMoshiHandOverPassesOnlyOneWayForTheVendorsTeam() {
+        let tauri = "app.getmoshi.desktop.tauri", go = "app.getmoshi.desktop", team = "FL442366Y7"
+        #expect(BundleIDMigration.migration(
+            installed: tauri, downloaded: go, installedVersion: "0.4.23",
+            installedTeam: team, downloadedTeam: team) != nil)
+        #expect(BundleIDMigration.migration(
+            installed: go, downloaded: tauri, installedVersion: "0.5.13",
+            installedTeam: team, downloadedTeam: team) == nil)
+        #expect(BundleIDMigration.migration(
+            installed: tauri, downloaded: go, installedVersion: "0.4.23",
+            installedTeam: team, downloadedTeam: "OTHERTEAM1") == nil)
+    }
 }

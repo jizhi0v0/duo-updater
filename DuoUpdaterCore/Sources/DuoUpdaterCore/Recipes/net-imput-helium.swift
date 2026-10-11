@@ -51,6 +51,18 @@ enum net_imput_helium {
         // because it cannot see whitespace at all; Headlamp's
         // (`Recipes/com-microsoft-Headlamp.swift`) is also a regex and carries the
         // same `\s*`.
+        //
+        // `acknowledgedStaleEntry`: the VENDOR is the one behind, not the pattern.
+        // Each body's commit log is "changes since last build", and the last build
+        // includes prereleases. When a prerelease is followed by a stable cut from
+        // the very same commit, the stable's two fences are empty — the pattern
+        // matches that release and finds nothing in it, and an entry with no items
+        // is dropped, so the newest entry is the stable before it. 0.19.2.1 is that
+        // case (when checked 2026-10-11, History has the tags and the commit): its
+        // changes are listed only on the 0.19.1.2 prerelease, which the gate above
+        // keeps out. Named at 0.18.3.1 rather than switched off, per the field's
+        // contract: the next stable that lists any commit moves the newest entry
+        // and the acknowledgement stops applying.
         ChangelogRecipe(
             bundleID: "net.imput.helium",
             source: URL(
@@ -63,7 +75,8 @@ enum net_imput_helium {
                 + #"(?:(?!"tag_name"\s*:).)*?"body"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
             itemPatterns: [#"\\(?:r\\)?n[0-9a-f]{7,10} (?<item>(?:\\[^rn]|[^"\\]){3,})"#],
             mode: .json,
-            maxEntries: 20),
+            maxEntries: 20,
+            acknowledgedStaleEntry: "0.18.3.1"),
         ],
         githubRules: [
         // Helium — Chromium-based AI browser (imputnet/helium-macos). Bare tags

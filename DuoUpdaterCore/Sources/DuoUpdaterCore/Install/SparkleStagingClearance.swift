@@ -129,17 +129,20 @@ public enum SparkleStagingClearance {
               let caches = cachesDirectory
                 ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
         else { return .notCleared(reason: "not a Sparkle staging this can locate", touchedInstaller: false) }
-        let sparkleRoot = caches
-            .appendingPathComponent(bundleID, isDirectory: true)
-            .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
-        let installation = sparkleRoot.appendingPathComponent("Installation", isDirectory: true)
-        guard let stagingDirectory = topLevelEntry(of: staged.stagedBundlePath, under: installation)
+        // Either folder name Sparkle may have given this app's cache — and only
+        // those: what gets deleted is one staging run below one of them.
+        let sparkleRoots = SelfUpdaterStaging.sparkleCacheRoots(bundleID: bundleID, caches: caches)
+        guard let stagingDirectory = sparkleRoots.lazy.compactMap({
+            topLevelEntry(
+                of: staged.stagedBundlePath,
+                under: $0.appendingPathComponent("Installation", isDirectory: true))
+        }).first
         else { return .notCleared(reason: "staged bundle is outside this app's Sparkle cache", touchedInstaller: false) }
 
         guard let jobs = await system.listJobs()
         else { return .notCleared(reason: "could not list launchd jobs", touchedInstaller: false) }
         let installerJobs = installerJobs(
-            in: jobs, for: app, sparkleRoot: sparkleRoot, system: system)
+            in: jobs, for: app, sparkleRoots: sparkleRoots, system: system)
         guard !installerJobs.isEmpty
         else { return .notCleared(reason: "no installer job found for \(bundleID)", touchedInstaller: false) }
 
@@ -210,16 +213,14 @@ public enum SparkleStagingClearance {
               let caches = cachesDirectory
                 ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
         else { return .notCleared(reason: "no Sparkle cache this can locate", touchedInstaller: false) }
-        let sparkleRoot = caches
-            .appendingPathComponent(bundleID, isDirectory: true)
-            .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
-        guard SelfUpdaterStaging.sparkleStagingIsGone(sparkleRoot: sparkleRoot, fileManager: fileManager)
+        let sparkleRoots = SelfUpdaterStaging.sparkleCacheRoots(bundleID: bundleID, caches: caches)
+        guard SelfUpdaterStaging.sparkleStagingIsGone(sparkleRoots: sparkleRoots, fileManager: fileManager)
         else { return .notCleared(reason: "its staging is not gone", touchedInstaller: false) }
 
         guard let jobs = await system.listJobs()
         else { return .notCleared(reason: "could not list launchd jobs", touchedInstaller: false) }
         let installerJobs = installerJobs(
-            in: jobs, for: app, sparkleRoot: sparkleRoot, system: system)
+            in: jobs, for: app, sparkleRoots: sparkleRoots, system: system)
         let isAgent: (Job) -> Bool = { job in
             system.bundleIdentifier(job.pid).map(SelfUpdaterStaging.sparkleInstallerBundleIDs.contains) ?? false
         }
@@ -282,10 +283,8 @@ public enum SparkleStagingClearance {
                 ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first,
               let jobs = await system.listJobs()
         else { return [] }
-        let sparkleRoot = caches
-            .appendingPathComponent(bundleID, isDirectory: true)
-            .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
-        return installerJobs(in: jobs, for: app, sparkleRoot: sparkleRoot, system: system)
+        let sparkleRoots = SelfUpdaterStaging.sparkleCacheRoots(bundleID: bundleID, caches: caches)
+        return installerJobs(in: jobs, for: app, sparkleRoots: sparkleRoots, system: system)
             .filter { job in
                 !(system.bundleIdentifier(job.pid).map(SelfUpdaterStaging.sparkleInstallerBundleIDs.contains) ?? false)
             }
@@ -301,9 +300,9 @@ public enum SparkleStagingClearance {
     /// The framework, not all of `Frameworks/`: an app's own helpers live there
     /// too, and removing one of those is not ours to do.
     private static func installerJobs(
-        in jobs: [Job], for app: InstalledApp, sparkleRoot: URL, system: System
+        in jobs: [Job], for app: InstalledApp, sparkleRoots: [URL], system: System
     ) -> [Job] {
-        let homes = [sparkleRoot, app.path.appendingPathComponent("Contents/Frameworks/Sparkle.framework", isDirectory: true)]
+        let homes = (sparkleRoots + [app.path.appendingPathComponent("Contents/Frameworks/Sparkle.framework", isDirectory: true)])
             .map { $0.resolvingSymlinksInPath().path }
         return jobs.filter { job in
             guard let path = system.executablePath(job.pid) else { return false }

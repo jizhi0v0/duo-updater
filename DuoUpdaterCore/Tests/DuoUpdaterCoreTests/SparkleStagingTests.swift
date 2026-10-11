@@ -664,7 +664,7 @@ struct SparkleStagingTests {
                     at: sparkleRoot.appendingPathComponent(name), withIntermediateDirectories: true)
             }
             #expect(SelfUpdaterStaging.sparkleStagingIsGone(
-                sparkleRoot: sparkleRoot, fileManager: .default))
+                sparkleRoots: [sparkleRoot], fileManager: .default))
         }
     }
 

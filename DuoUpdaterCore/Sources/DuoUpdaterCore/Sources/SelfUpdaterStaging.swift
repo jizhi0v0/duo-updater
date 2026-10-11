@@ -444,28 +444,30 @@ public enum SelfUpdaterStaging {
         fileManager: FileManager = .default
     ) -> StagedSelfUpdate? {
         guard let bundleID = app.bundleID,
-              let sparkleRoot = sparkleCacheRoot(
+              let sparkleRoots = sparkleCacheRoots(
                 for: app, cachesDirectory: cachesDirectory, fileManager: fileManager)
         else { return nil }
 
         // Cheapest discriminator first: no parked installer, nothing to avoid.
         let parked = parkedInstallerBundleURLs ?? liveParkedSparkleInstallers()
-        guard hasParkedSparkleInstaller(for: app, sparkleRoot: sparkleRoot, parked: parked)
+        guard hasParkedSparkleInstaller(for: app, sparkleRoots: sparkleRoots, parked: parked)
         else { return nil }
 
         // Where the installer stages is the cache of the user it RUNS AS, which is
         // not always this one — see `sparkleInstallerArmedWithUnreadableStaging`.
         // This walk can only ever see a same-user install.
-        let root = sparkleRoot.appendingPathComponent("Installation", isDirectory: true)
-
+        //
         // The directory itself survives every install — it is empty when nothing
         // is staged, which is why its existence proves nothing and its mtime
         // (which does not follow its children) proves less.
-        guard let walker = fileManager.enumerator(
-            at: root, includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return nil }
+        let walkers = sparkleRoots.compactMap { sparkleRoot in
+            fileManager.enumerator(
+                at: sparkleRoot.appendingPathComponent("Installation", isDirectory: true),
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles, .skipsPackageDescendants])
+        }
 
-        for case let url as URL in walker where url.pathExtension == "app" {
+        for case let url as URL in walkers.joined() where url.pathExtension == "app" {
             let info = url.appendingPathComponent("Contents/Info.plist", isDirectory: false)
             guard let data = try? Data(contentsOf: info),
                   let dict = dictionary(from: data),
@@ -525,12 +527,12 @@ public enum SelfUpdaterStaging {
         installerRunsAsThisUser: Bool? = nil,
         fileManager: FileManager = .default
     ) -> Bool {
-        guard let sparkleRoot = parkedWithNothingReadable(
+        guard let sparkleRoots = parkedWithNothingReadable(
             app, cachesDirectory: cachesDirectory,
             parkedInstallerBundleURLs: parkedInstallerBundleURLs, fileManager: fileManager)
         else { return false }
         return !stagingGoneUnderSameUserInstaller(
-            app, sparkleRoot: sparkleRoot,
+            app, sparkleRoots: sparkleRoots,
             installerRunsAsThisUser: installerRunsAsThisUser, fileManager: fileManager)
     }
 
@@ -567,52 +569,58 @@ public enum SelfUpdaterStaging {
         installerRunsAsThisUser: Bool? = nil,
         fileManager: FileManager = .default
     ) -> Bool {
-        guard let sparkleRoot = parkedWithNothingReadable(
+        guard let sparkleRoots = parkedWithNothingReadable(
             app, cachesDirectory: cachesDirectory,
             parkedInstallerBundleURLs: parkedInstallerBundleURLs, fileManager: fileManager)
         else { return false }
         return stagingGoneUnderSameUserInstaller(
-            app, sparkleRoot: sparkleRoot,
+            app, sparkleRoots: sparkleRoots,
             installerRunsAsThisUser: installerRunsAsThisUser, fileManager: fileManager)
     }
 
-    /// The app's Sparkle cache root when an installer is parked on its quit and
+    /// The app's Sparkle cache roots when an installer is parked on its quit and
     /// no staged build of it can be read; nil otherwise.
     private static func parkedWithNothingReadable(
         _ app: InstalledApp, cachesDirectory: URL?,
         parkedInstallerBundleURLs: [URL]?, fileManager: FileManager
-    ) -> URL? {
+    ) -> [URL]? {
         // Same admission as `staged(for:)`'s Sparkle branch.
         guard !app.hasSelfUpdater, app.hasSparkleUpdater,
               app.bundleID != spotifyBundleID,
-              let sparkleRoot = sparkleCacheRoot(
+              let sparkleRoots = sparkleCacheRoots(
                 for: app, cachesDirectory: cachesDirectory, fileManager: fileManager)
         else { return nil }
         let parked = parkedInstallerBundleURLs ?? liveParkedSparkleInstallers()
-        guard hasParkedSparkleInstaller(for: app, sparkleRoot: sparkleRoot, parked: parked),
+        guard hasParkedSparkleInstaller(for: app, sparkleRoots: sparkleRoots, parked: parked),
               sparkleStagedBundle(
                 for: app, cachesDirectory: cachesDirectory,
                 parkedInstallerBundleURLs: parked, fileManager: fileManager) == nil
         else { return nil }
-        return sparkleRoot
+        return sparkleRoots
     }
 
     /// Cheapest first: the process walk only runs once the cache is found empty.
     private static func stagingGoneUnderSameUserInstaller(
-        _ app: InstalledApp, sparkleRoot: URL,
+        _ app: InstalledApp, sparkleRoots: [URL],
         installerRunsAsThisUser: Bool?, fileManager: FileManager
     ) -> Bool {
-        sparkleStagingIsGone(sparkleRoot: sparkleRoot, fileManager: fileManager)
+        sparkleStagingIsGone(sparkleRoots: sparkleRoots, fileManager: fileManager)
             && (installerRunsAsThisUser
-                ?? sameUserSparkleInstallerRunning(for: app, sparkleRoot: sparkleRoot))
+                ?? sameUserSparkleInstallerRunning(for: app, sparkleRoots: sparkleRoots))
     }
 
     /// Nothing (hidden files aside) in `Installation/` or `PersistentDownloads/`,
     /// either of which may be missing altogether — the 2026-10-11 deletion took
     /// the whole cache. Any other read failure answers `false`: unsure is not gone.
-    static func sparkleStagingIsGone(sparkleRoot: URL, fileManager: FileManager) -> Bool {
-        for name in ["Installation", "PersistentDownloads"] {
-            let directory = sparkleRoot.appendingPathComponent(name, isDirectory: true)
+    /// Under every root in `sparkleRoots` (`sparkleCacheFolderNames`): staging under
+    /// either folder name is staging.
+    static func sparkleStagingIsGone(sparkleRoots: [URL], fileManager: FileManager) -> Bool {
+        let directories = sparkleRoots.flatMap { sparkleRoot in
+            ["Installation", "PersistentDownloads"].map {
+                sparkleRoot.appendingPathComponent($0, isDirectory: true)
+            }
+        }
+        for directory in directories {
             do {
                 let entries = try fileManager.contentsOfDirectory(
                     at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
@@ -633,9 +641,9 @@ public enum SelfUpdaterStaging {
     /// for Tailscale's on 2026-09-13, issue #588) — it is skipped, which is the
     /// answer wanted for it.
     private static func sameUserSparkleInstallerRunning(
-        for app: InstalledApp, sparkleRoot: URL
+        for app: InstalledApp, sparkleRoots: [URL]
     ) -> Bool {
-        let homes = [sparkleRoot, app.path.appendingPathComponent("Contents/Frameworks/Sparkle.framework", isDirectory: true)]
+        let homes = (sparkleRoots + [app.path.appendingPathComponent("Contents/Frameworks/Sparkle.framework", isDirectory: true)])
             .map { $0.resolvingSymlinksInPath().path }
         let capacity = Int(proc_listallpids(nil, 0)) + 64
         guard capacity > 64 else { return false }
@@ -662,18 +670,120 @@ public enum SelfUpdaterStaging {
         return false
     }
 
-    /// `<Caches>/<bundleID>/org.sparkle-project.Sparkle`, in this user's domain.
-    private static func sparkleCacheRoot(
+    /// What the privileged helper read from root's Sparkle cache for one bundle
+    /// identifier (`MASHelperProtocol.stagedSparkleBundleVersions`): the staged
+    /// bundle's `CFBundleIdentifier`, `CFBundleShortVersionString` and
+    /// `CFBundleVersion`, as the helper returned them.
+    public struct RootStagedVersions: Sendable, Equatable {
+        public let identifier: String?
+        public let shortVersion: String?
+        public let buildVersion: String?
+
+        public init(identifier: String?, shortVersion: String?, buildVersion: String?) {
+            self.identifier = identifier
+            self.shortVersion = shortVersion
+            self.buildVersion = buildVersion
+        }
+    }
+
+    /// The versioned staged update to show for a row whose installer is armed with
+    /// staging this user cannot read, now that the helper has read it as root —
+    /// or nil, which leaves the row exactly where
+    /// `sparkleInstallerArmedWithUnreadableStaging` put it (Relaunch, "→ ?").
+    ///
+    /// Non-nil only when all of these hold:
+    ///   - the row IS armed — a read never creates a staged update on its own;
+    ///   - the helper answered, for this exact bundle identifier, with a usable
+    ///     marketing version;
+    ///   - the build is one Relaunch should apply: newer than what is installed
+    ///     and not behind the latest on offer (`UpdatePolicy.actionableStaged`).
+    ///     A known but trailing or older staged build stays version-unknown
+    ///     rather than becoming a row that offers an Update the install gate
+    ///     (below) refuses on every click.
+    ///
+    /// **This only ever changes what the row says, never what installs.** The
+    /// install gates in the app and in `duo` re-read the armed state from disk
+    /// (`UpdatePolicy.armedInstallerBlocksInstall` over a fresh
+    /// `sparkleInstallerArmedWithUnreadableStaging`) and take no input from the
+    /// helper, so they refuse exactly as before; the restart standoff likewise
+    /// re-reads and still holds back version-unknown. The returned value carries
+    /// no path anyone may act on: `stagedBundlePath` names root's `Installation`
+    /// directory for the log, and every clearance path works from its own fresh
+    /// read of this user's cache, which never contains it.
+    public static func rootStagedUpdate(
+        for result: UpdateResult, armed: Bool, read: RootStagedVersions?
+    ) -> StagedSelfUpdate? {
+        guard armed, let read, let bundleID = result.app.bundleID,
+              read.identifier == bundleID,
+              let short = VersionSide.plistVersionField(read.shortVersion)
+        else { return nil }
+        let staged = StagedSelfUpdate(
+            version: short,
+            buildVersion: VersionSide.plistVersionField(read.buildVersion),
+            stagedBundlePath: URL(fileURLWithPath: "/var/root/Library/Caches", isDirectory: true)
+                .appendingPathComponent(bundleID, isDirectory: true)
+                .appendingPathComponent("org.sparkle-project.Sparkle/Installation", isDirectory: true),
+            appliesOn: .quit, updater: .sparkle)
+        return UpdatePolicy.actionableStaged(result, staged: staged)
+    }
+
+    /// `<Caches>/<folder>/org.sparkle-project.Sparkle` for each folder name
+    /// `sparkleCacheFolderNames` gives the app's bundle identifier, in this
+    /// user's domain. Never empty when non-nil.
+    private static func sparkleCacheRoots(
         for app: InstalledApp, cachesDirectory: URL?, fileManager: FileManager
-    ) -> URL? {
+    ) -> [URL]? {
         guard let bundleID = app.bundleID,
               let caches = cachesDirectory
                 ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
         else { return nil }
-        return caches
-            .appendingPathComponent(bundleID, isDirectory: true)
-            .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
+        return sparkleCacheRoots(bundleID: bundleID, caches: caches)
     }
+
+    /// `<caches>/<folder>/org.sparkle-project.Sparkle` for each of
+    /// `sparkleCacheFolderNames(for: bundleID)`. Shared with
+    /// `SparkleStagingClearance`, which may delete only below one of these.
+    static func sparkleCacheRoots(bundleID: String, caches: URL) -> [URL] {
+        sparkleCacheFolderNames(for: bundleID).map {
+            caches
+                .appendingPathComponent($0, isDirectory: true)
+                .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
+        }
+    }
+
+    /// The folder names under `<Caches>/` that some Sparkle 2 release gives
+    /// `bundleID`'s cache. Sparkle appends `.sparkle` to an identifier that
+    /// looks like a bundle directory, and which ones has changed
+    /// (`SPULocalCacheDirectory.m`, `_cachePathForCacheDirectory:bundleIdentifier:`,
+    /// read at each tag on 2026-10-11):
+    ///
+    ///   - **≤ 2.9.2**: the identifier as is.
+    ///   - **2.9.3 – 2.9.6**: `.sparkle` appended when it ends in `.app` or `.APP`
+    ///     (case-sensitive `hasSuffix`; `.App` is left alone).
+    ///   - **2.10.0-beta.1 on**: appended when the LOWERCASED identifier ends in
+    ///     any of `problematicBundleIdentifierExtensions` below.
+    ///
+    /// Which Sparkle an app embeds is not known here, so an identifier any release
+    /// suffixes gets both names — the raw one first — and every other gets only
+    /// the raw one. Every release's set of suffixed identifiers is inside the
+    /// 2.10 one, so this is the 2.10 test. `Launcher/`, `Installation/` and
+    /// `PersistentDownloads/` all sit below the one folder Sparkle picks
+    /// (`SUInstallerLauncher.m`, `AppInstaller.m`, `SPUDownloader.m`).
+    ///
+    /// Observed 2026-10-11: DuoUpdater itself (`com.duoupdater.app`, Sparkle
+    /// 2.10.0) keeps all three under `Caches/com.duoupdater.app.sparkle/`, and
+    /// `Caches/com.duoupdater.app/` has no `org.sparkle-project.Sparkle` at all.
+    static func sparkleCacheFolderNames(for bundleID: String) -> [String] {
+        let lowercased = bundleID.lowercased()
+        guard problematicBundleIdentifierExtensions.contains(where: lowercased.hasSuffix)
+        else { return [bundleID] }
+        return [bundleID, bundleID + ".sparkle"]
+    }
+
+    /// Sparkle 2.10's list, verbatim.
+    static let problematicBundleIdentifierExtensions = [
+        ".app", ".service", ".xpc", ".appex", ".bundle", ".plugin", ".saver", ".kext",
+    ]
 
     /// Whether one of `parked` is waiting on THIS app's quit.
     ///
@@ -681,7 +791,8 @@ public enum SelfUpdaterStaging {
     /// changed across releases (`InstallerLauncher/SUInstallerLauncher.m`, read at
     /// each tag on 2026-09-13):
     ///
-    ///   - **≤ 2.9.5**: always copied into `<Caches>/<bundleID>/…/Launcher/<random>/`,
+    ///   - **≤ 2.9.5**: always copied into `<Caches>/<folder>/…/Launcher/<random>/`
+    ///     (`<folder>` per `sparkleCacheFolderNames`),
     ///     including for an install needing administrator authorisation (whose
     ///     INSTALLER then runs as root). Observed on Tailscale's Sparkle 2.8.0.
     ///   - **2.9.6**: `BOOL copyProgressTool = !rootUser`, `rootUser` being the
@@ -695,9 +806,9 @@ public enum SelfUpdaterStaging {
     /// found means `.proceed` — so a location we cannot see is not a missing
     /// warning, it is the overwrite bug back again.
     private static func hasParkedSparkleInstaller(
-        for app: InstalledApp, sparkleRoot: URL, parked: [URL]
+        for app: InstalledApp, sparkleRoots: [URL], parked: [URL]
     ) -> Bool {
-        let homes = [sparkleRoot, app.path].map { normalizedPath($0) + "/" }
+        let homes = (sparkleRoots + [app.path]).map { normalizedPath($0) + "/" }
         return parked.contains(where: { installer in
             let path = normalizedPath(installer)
             return homes.contains(where: path.hasPrefix)

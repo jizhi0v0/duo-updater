@@ -37,6 +37,9 @@ public struct AutofixOptions: Sendable {
     public var baselinePath: URL
     /// The issue the sweep filed, which is what this run answers.
     public var issue: Int
+    /// The recipe that issue is about, exactly. The report may hold others: `duo
+    /// verify --only` matches by substring.
+    public var recipeID: String
     /// The checkout. The prompt is read from here, and the worktree below is
     /// added to its repository.
     public var projectDir: URL
@@ -48,12 +51,13 @@ public struct AutofixOptions: Sendable {
     public var model: String = ClaudeCLI.defaultModel
 
     public init(
-        reportPath: URL, baselinePath: URL, issue: Int, projectDir: URL, worktreePath: URL,
-        outDir: URL
+        reportPath: URL, baselinePath: URL, issue: Int, recipeID: String, projectDir: URL,
+        worktreePath: URL, outDir: URL
     ) {
         self.reportPath = reportPath
         self.baselinePath = baselinePath
         self.issue = issue
+        self.recipeID = recipeID
         self.projectDir = projectDir
         self.worktreePath = worktreePath
         self.outDir = outDir
@@ -580,8 +584,8 @@ public enum ChangelogAutofix {
             die("could not list pull requests for issue #\(options.issue): \(error)", code: 1)
         }
         let selection = select(
-            document.findings, issue: options.issue, recipes: ChangelogRecipeRegistry.recipes,
-            pullRequests: pullRequests)
+            document.findings, issue: options.issue, recipeID: options.recipeID,
+            recipes: ChangelogRecipeRegistry.recipes, pullRequests: pullRequests)
         for (id, why) in selection.skipped { print("  · \(id): skipped — \(why)") }
         guard let (finding, trigger, recipe) = selection.chosen.first,
               let location = location(of: recipe) else {
@@ -612,8 +616,8 @@ public enum ChangelogAutofix {
         return 0
     }
 
-    /// The finding to attempt for `issue`, and why each other actionable
-    /// changelog finding in the report is not. Every rule that decides whether a
+    /// The finding to attempt for `issue`, which is about `recipeID`, and why
+    /// each other actionable changelog finding in the report is not. Every rule that decides whether a
     /// finding is attempted at all is applied here, so one test surface covers
     /// them.
     ///
@@ -621,12 +625,18 @@ public enum ChangelogAutofix {
     /// reopened, which is once per break, and any pull request already opened
     /// for the issue stops it here.
     static func select(
-        _ findings: [Finding], issue: Int, recipes: [ChangelogRecipe],
+        _ findings: [Finding], issue: Int, recipeID: String, recipes: [ChangelogRecipe],
         pullRequests: [(number: Int, head: String, state: String)]
     ) -> (chosen: [(Finding, Trigger, ChangelogRecipe)], skipped: [(String, String)]) {
         var chosen: [(Finding, Trigger, ChangelogRecipe)] = []
         var skipped: [(String, String)] = []
         for finding in findings where finding.registry == .changelog && finding.status.isActionable {
+            // A fix opened as `Refs #<issue>` must be for that issue's recipe; a
+            // sibling the sweep's substring match brought along has its own.
+            guard finding.recipeID == recipeID else {
+                skipped.append((finding.recipeID, "not issue #\(issue)'s recipe (\(recipeID))"))
+                continue
+            }
             guard let trigger = trigger(for: finding) else {
                 skipped.append((finding.recipeID, "not a kind this fixes (issue only)"))
                 continue

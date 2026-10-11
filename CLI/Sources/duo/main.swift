@@ -346,6 +346,8 @@ reconcile options:
 
 autofix options:
   --issue N           The recipe-broken issue this answers. Required.
+  --recipe <id>       That issue's recipe id, exactly. Required: the report may
+                      hold others, since `verify --only` matches by substring.
   --report <path>     The JSON written by `duo verify --report`, for that recipe.
                       Required.
   --baseline <path>   Read for the last good count and version. Required; never
@@ -674,13 +676,14 @@ case "reconcile":
 case "autofix":
     guard let report = args.value("report"), let baseline = args.value("baseline"),
           let worktree = args.value("worktree"), let out = args.value("out"),
-          let issue = args.int("issue") else {
-        die("autofix needs --issue, --report, --baseline, --worktree and --out\n\n\(usage)", code: 2)
+          let issue = args.int("issue"), let recipe = args.value("recipe") else {
+        die("autofix needs --issue, --recipe, --report, --baseline, --worktree and --out\n\n\(usage)", code: 2)
     }
     var autofix = AutofixOptions(
         reportPath: URL(fileURLWithPath: report),
         baselinePath: URL(fileURLWithPath: baseline),
         issue: issue,
+        recipeID: recipe,
         projectDir: URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
         worktreePath: URL(fileURLWithPath: worktree),
         outDir: URL(fileURLWithPath: out))

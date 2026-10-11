@@ -166,7 +166,8 @@ import DuoUpdaterCore
         func chosen(_ findings: [Finding] = [Self.finding()],
                     recipes: [ChangelogRecipe] = [Self.recipe],
                     pulls: [(number: Int, head: String, state: String)] = []) -> Int {
-            A.select(findings, issue: 42, recipes: recipes, pullRequests: pulls).chosen.count
+            A.select(findings, issue: 42, recipeID: Self.finding().recipeID, recipes: recipes,
+                     pullRequests: pulls).chosen.count
         }
         #expect(chosen() == 1)
         #expect(chosen([Self.finding(failureKind: "httpStatus404")]) == 0)
@@ -178,9 +179,33 @@ import DuoUpdaterCore
         #expect(chosen(pulls: [(7, "recipe-autofix/issue-42", "CLOSED")]) == 0)
         #expect(chosen(pulls: [(7, "recipe-autofix/issue-43", "OPEN")]) == 1)
         let secret = RegistrySecurity.credentialBearingBundleIDs.first!
-        #expect(A.select([Self.finding(bundleID: secret)], issue: 42, recipes: [ChangelogRecipe(
+        #expect(A.select([Self.finding(bundleID: secret)], issue: 42,
+                         recipeID: Self.finding(bundleID: secret).recipeID, recipes: [ChangelogRecipe(
             bundleID: secret, source: Self.source, entryPattern: "a", itemPatterns: ["b"])],
             pullRequests: []).chosen.isEmpty)
+    }
+
+    /// Review round 4 on #1194: `verify --only` matches by substring, so the
+    /// report can hold a sibling (Raycast's `…:-` and `…:-:1-2`). Only the
+    /// issue's own recipe may be fixed under its number.
+    @Test func onlyTheIssuesOwnRecipeIsChosen() {
+        let sibling = ChangelogRecipe(
+            bundleID: "com.example.autofix", source: Self.source, entryPattern: Self.oldPattern,
+            itemPatterns: [Self.itemPattern], minimumAppVersion: "1", belowAppVersion: "2")
+        #expect(sibling.recipeID != Self.recipe.recipeID)
+        #expect(sibling.recipeID.contains(Self.recipe.recipeID))
+        let siblingFinding = Finding(
+            recipeID: sibling.recipeID, registry: .changelog, bundleID: "com.example.autofix",
+            channel: "-", status: .broken, failureKind: "noEntriesExtracted",
+            endpointHost: "notes.example.com")
+        let selection = ChangelogAutofix.select(
+            [siblingFinding, Self.finding()], issue: 42, recipeID: Self.recipe.recipeID,
+            recipes: [sibling, Self.recipe], pullRequests: [])
+        #expect(selection.chosen.map(\.0.recipeID) == [Self.recipe.recipeID])
+        // The issue's recipe healed, the sibling still broken: nothing to do here.
+        #expect(ChangelogAutofix.select(
+            [siblingFinding], issue: 42, recipeID: Self.recipe.recipeID,
+            recipes: [sibling, Self.recipe], pullRequests: []).chosen.isEmpty)
     }
 
     @Test func anyPullRequestForTheIssueBlocksAnother() {

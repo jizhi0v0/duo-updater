@@ -149,6 +149,14 @@ import Testing
         return probe.terminationStatus == 0 ? [.hdiutil, .diskutil] : [.hdiutil]
     }()
 
+    /// Where production attaches with `diskutil` (27.2+), the probe above must
+    /// find it — otherwise every `diskutil` case here would drop out silently and
+    /// the route this Mac actually uses would go untested.
+    @Test func theDiskutilRouteIsTestedWhereProductionUsesIt() {
+        guard DiskImageMount.preferredTool == .diskutil else { return }
+        #expect(Self.mountTools.contains(.diskutil), "`diskutil image attach --help` probe failed")
+    }
+
     /// A cancelled DMG extraction still unmounts the image, on the exit that
     /// copied the app out and on the one that found none, with either mount
     /// tool. The unmount sits in a `defer { await … }`, which sees the task as

@@ -191,6 +191,10 @@ public struct Baseline: Codable, Sendable {
     /// actionable, and are gated separately below.
     public static let actionableThreshold = 2
 
+    /// How the entry-count collapse complaint begins, for anything that has to
+    /// recognise it in a report (`ChangelogAutofix`).
+    public static let collapseComplaintPrefix = "entry count COLLAPSED to one"
+
     /// Consecutive *unreachable* sweeps before an endpoint is reported as gone.
     ///
     /// Much higher than `actionableThreshold` on purpose. Unreachability is the
@@ -499,7 +503,7 @@ public struct Baseline: Codable, Sendable {
         if let count = finding.entryCount, finding.status != .infra {
             if let previous = entry.lastGoodEntryCount, previous > 1, count == 1 {
                 if finding.entrySwallowsAnother != false {
-                    complaints.append("entry count COLLAPSED to one since the last sweep "
+                    complaints.append(Self.collapseComplaintPrefix + " since the last sweep "
                         + "(\(previous) → 1) — an entry pattern whose terminator stopped "
                         + "matching leaves the first entry carrying the whole page, with its "
                         + "version still parsing correctly off the heading")

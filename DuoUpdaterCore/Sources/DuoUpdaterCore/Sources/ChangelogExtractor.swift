@@ -153,6 +153,58 @@ public enum ChangelogExtractor {
         return false
     }
 
+    /// One match of a recipe's entry pattern, before `extract` decides whether to
+    /// keep it.
+    public struct MatchedEntry: Equatable, Sendable {
+        public let version: String
+        public let title: String?
+        /// Whether any item pattern found a note in the entry's body. `extract`
+        /// drops the entries for which this is false.
+        public let hasItems: Bool
+        /// The whole match, in UTF-16 offsets of the text it was read from.
+        public let range: NSRange
+
+        public init(version: String, title: String?, hasItems: Bool, range: NSRange) {
+            self.version = version
+            self.title = title
+            self.hasItems = hasItems
+            self.range = range
+        }
+    }
+
+    /// Every entry the entry pattern matches on `text`, newest first, including the
+    /// ones `extract` drops for having no items.
+    ///
+    /// For telling a vendor that published a release with nothing in it from a
+    /// pattern that broke. Helium 0.19.2.1 (#1123) is the case: the entry pattern
+    /// matched it, its notes were empty, `extract` dropped it, and the newest entry
+    /// shown was the release before. Nothing about the recipe was wrong, and a fix
+    /// written against that page would have been wrong.
+    ///
+    /// Same per-match reading as `extract`: matches with neither a version nor a
+    /// title are skipped, and no `maxEntries` cap applies. `versionFromTemplate`
+    /// recipes are not handled; their version is not on the page.
+    public static func matchedEntries(
+        in text: String, using recipe: ChangelogRecipe
+    ) -> [MatchedEntry] {
+        guard let entryRegex = compile(recipe.entryPattern) else { return [] }
+        let itemRegexes = recipe.itemPatterns.compactMap(compile)
+        var out: [MatchedEntry] = []
+        for match in entryRegex.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+            let title = group(match, "title", in: text)
+                .map { clean($0, recipe) }
+                .flatMap { $0.isEmpty ? nil : $0 }
+            let version = group(match, "version", in: text).map { clean($0, recipe) } ?? ""
+            guard title != nil || !version.isEmpty else { continue }
+            let bodyText = group(match, "body", in: text) ?? wholeMatch(match, in: text) ?? ""
+            let hasItems = !firstNonEmptyItemHits(
+                in: bodyText, regexes: itemRegexes, recipe: recipe).isEmpty
+            out.append(MatchedEntry(
+                version: version, title: title, hasItems: hasItems, range: match.range))
+        }
+        return recipe.newestLast ? out.reversed() : out
+    }
+
     // MARK: - Internals
 
     private static func compile(_ pattern: String) -> NSRegularExpression? {

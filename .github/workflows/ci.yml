@@ -45,6 +45,8 @@
 # mini's queue is longer still. Sending every one to the mini left the hosted
 # slots empty while PR jobs queued there for 17 minutes on average (the script
 # says when that was measured). GitHub has no "whichever runner is free" of its own.
+# The exception is a `recipe-autofix/` branch from `duo autofix`, whose change a
+# model wrote from a vendor's page: always hosted, whatever the queues say.
 name: CI
 
 on:
@@ -85,6 +87,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SAME_REPO_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+          # `recipe-autofix/` branches always go hosted; see the script.
+          HEAD_REF: ${{ github.head_ref }}
         run: python3 scripts/ci_route.py >> "$GITHUB_OUTPUT"
 
   # `make test` in its three parts plus Core's Release pass, each on its own

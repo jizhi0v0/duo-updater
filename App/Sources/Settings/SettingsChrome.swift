@@ -5,9 +5,10 @@ import DuoUpdaterCore
 /// row/control styling every pane is built from.
 ///
 /// Cards sit on material rather than Liquid Glass — see `settingsCardBackground()`
-/// for the opaque-window rendering bug that forces it. Glass survives where it
-/// works: `.glassProminent` buttons. Every such decision lives in this file, so the
-/// panes stay declarative — they say `SettingsCard { … }` and never mention it.
+/// for the opaque-window rendering bug that forces it — and buttons are the
+/// standard bordered styles (`settingsGlassButton`). Every such decision lives in
+/// this file, so the panes stay declarative — they say `SettingsCard { … }` and
+/// never mention it.
 
 // MARK: - Metrics
 
@@ -341,7 +342,7 @@ extension View {
     ///
     /// It's also the right call independently: Apple reserves Liquid Glass for
     /// floating/navigation layers, and System Settings uses material for grouped
-    /// content. Glass stays where it works: `.glassProminent` buttons.
+    /// content.
     ///
     /// If Apple fixes opaque-window compositing, come back via
     /// `Color.clear.glassEffect(.regular, in: shape)` — never `self.glassEffect(…)`.
@@ -367,20 +368,21 @@ extension View {
 // MARK: - Buttons
 
 extension View {
-    /// A card's action button.
+    /// A card's action button: `.borderedProminent` or `.bordered`, on every
+    /// macOS.
     ///
-    /// Prominent gets Liquid Glass; non-prominent is always `.bordered` — not taste,
-    /// but the same opaque-window bug as `settingsCardBackground()`: on macOS 27.0
-    /// beta (26A5378n) `.buttonStyle(.glass)` swallows the label and leaves an empty
-    /// grey capsule. `.glassProminent` is unaffected. Revert both together once the
-    /// platform composites glass correctly in opaque windows — the same RC probe
-    /// noted on `settingsCardBackground()` drew `.glass` with its label, so that
-    /// condition may already hold; confirm it on this window before reverting.
+    /// Not Liquid Glass, in either form. `.glass`: on macOS 27.0 beta (26A5378n)
+    /// it swallowed the label and left an empty grey capsule in this opaque
+    /// window — the bug `settingsCardBackground()` describes. `.glassProminent`:
+    /// on macOS 26 (a mini on 26.7, reported 2026-10-11) "Check for Updates…" and
+    /// Xcode's "Sign In…" animated while every other control sat still; a frame of
+    /// it shows the solid fill gone to a pale outline with cyan text. (On 27 here
+    /// the same button held still over 12 frames, window in the background.)
+    /// Coming back to glass has to be judged on the real Settings window, on 26
+    /// and 27.
     @ViewBuilder
     func settingsGlassButton(prominent: Bool = false) -> some View {
-        if #available(macOS 26.0, *), prominent {
-            self.buttonStyle(.glassProminent)
-        } else if prominent {
+        if prominent {
             self.buttonStyle(.borderedProminent)
         } else {
             self.buttonStyle(.bordered)

@@ -61733,67 +61733,67 @@
         }
       }
     },
-    "Sign In & Install…": {
+    "Sign In & Install": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anmelden & installieren …"
+            "value": "Anmelden & installieren"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Iniciar sesión e instalar…"
+            "value": "Iniciar sesión e instalar"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se connecter et installer…"
+            "value": "Se connecter et installer"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Accedi e installa…"
+            "value": "Accedi e installa"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "サインインしてインストール…"
+            "value": "サインインしてインストール"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Iniciar Sessão e Instalar…"
+            "value": "Iniciar Sessão e Instalar"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Войти и установить…"
+            "value": "Войти и установить"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oturum Aç ve Yükle…"
+            "value": "Oturum Aç ve Yükle"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "登录并安装…"
+            "value": "登录并安装"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "登入並安裝…"
+            "value": "登入並安裝"
           }
         }
       }
@@ -62448,67 +62448,67 @@
         }
       }
     },
-    "Sign In & Download (.xip)…": {
+    "Sign In & Download (.xip)": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anmelden & laden (.xip) …"
+            "value": "Anmelden & laden (.xip)"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Iniciar sesión y descargar (.xip)…"
+            "value": "Iniciar sesión y descargar (.xip)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se connecter et télécharger (.xip)…"
+            "value": "Se connecter et télécharger (.xip)"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Accedi e scarica (.xip)…"
+            "value": "Accedi e scarica (.xip)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "サインインしてダウンロード（.xip）…"
+            "value": "サインインしてダウンロード（.xip）"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Iniciar Sessão e Baixar (.xip)…"
+            "value": "Iniciar Sessão e Baixar (.xip)"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Войти и загрузить (.xip)…"
+            "value": "Войти и загрузить (.xip)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oturum Aç ve İndir (.xip)…"
+            "value": "Oturum Aç ve İndir (.xip)"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "登录并下载（.xip）…"
+            "value": "登录并下载（.xip）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "登入並下載（.xip）…"
+            "value": "登入並下載（.xip）"
           }
         }
       }

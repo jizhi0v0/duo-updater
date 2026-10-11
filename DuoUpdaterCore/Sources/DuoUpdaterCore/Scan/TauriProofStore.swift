@@ -197,14 +197,12 @@ final class TauriProofStore: @unchecked Sendable {
     /// runs sharing a fixed test path, that file held 40 entries across
     /// 5.9 KB.
     ///
-    /// This does NOT mean nothing is left on disk — an earlier version of
-    /// this comment overclaimed that. Each run's small file stays in
-    /// `TMPDIR` until the operating system's own periodic cleanup removes it,
-    /// same as any other scratch file this package writes there; nothing here
-    /// deletes it. What the UUID actually buys is narrower: no run ever reads
-    /// a PREVIOUS run's entries, and two worktrees testing at once never
-    /// share one.
-    static let testProcessScratchFileURL = FileManager.default.temporaryDirectory
+    /// What the UUID buys is that no run ever reads a PREVIOUS run's entries,
+    /// and two worktrees testing at once never share one. Removing the file is
+    /// not its job: it sits under ``DuoStateDirectory/testProcessScratchRoot``,
+    /// which goes when the process exits normally. A killed run leaves that
+    /// root behind until the operating system's own `$TMPDIR` cleanup.
+    static let testProcessScratchFileURL = DuoStateDirectory.testProcessScratchRoot
         .appendingPathComponent("duo-tauri-proofs-tests-\(UUID().uuidString)", isDirectory: true)
         .appendingPathComponent("com.duoupdater.app", isDirectory: true)
         .appendingPathComponent("tauri-proofs.json")

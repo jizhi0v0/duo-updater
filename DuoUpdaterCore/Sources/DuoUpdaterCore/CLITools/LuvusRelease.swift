@@ -226,7 +226,7 @@ public final class LuvusPublishedDigests: @unchecked Sendable {
 
     init(fileURL: URL? = nil) {
         self.fileURL = fileURL ?? (DuoStateDirectory.isTestProcess
-            ? FileManager.default.temporaryDirectory
+            ? DuoStateDirectory.testProcessScratchRoot
                 .appendingPathComponent("duo-luvus-digests-tests-\(UUID().uuidString)")
                 .appendingPathComponent("luvus-published-digests.json")
             : DuoStateDirectory.base

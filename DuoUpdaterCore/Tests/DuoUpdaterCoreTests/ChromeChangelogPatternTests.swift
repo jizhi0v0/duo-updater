@@ -44,20 +44,65 @@ struct ChromeChangelogPatternTests {
         ChangelogRecipeRegistry.recipe(forBundleID: "com.google.Chrome")!
     }
 
-    /// Run `extract` off-thread so a regression is a failed expectation rather
-    /// than a test run that never returns.
-    static func extract(from text: String, within budget: TimeInterval) -> (Changelog?, TimeInterval)? {
-        final class Box: @unchecked Sendable { var value: Changelog?? }
+    /// Run `extract` on its own thread and charge it by the CPU time that thread
+    /// has used, not by the clock. Returns `nil` as soon as that passes `budget`, so
+    /// a regression is a failed expectation rather than a run that never returns;
+    /// otherwise the result and the CPU seconds it cost.
+    ///
+    /// Not wall time: this suite runs in parallel, and a 2 s wall bound failed on
+    /// 2026-10-11 in a run from a LaunchAgent on the Mac mini, which it shares
+    /// with two Actions runners; the mini's sweep agent, which runs `make test`,
+    /// is `ProcessType` Background. The no-build-numbers page, measured on a
+    /// 14-core M-series Mac (thread CPU / wall):
+    ///
+    ///                                   current pattern    old pattern
+    ///     idle                          0.047 / 0.047 s    7.68 / 7.70 s
+    ///     42 busy `yes`                 0.051 / 0.056 s    7.98 / 27.6 s
+    ///     `taskpolicy -b` (E-cores)     0.156 / 0.67 s     21.2 / 54.8 s
+    ///     `taskpolicy -b`, 14 bg `yes`  0.134 / 1.45 s     —
+    ///
+    /// Wall time stretches with load, for both patterns. CPU time barely moves
+    /// with load; what moves it is the core class the thread lands on, about 3×
+    /// slower on an efficiency core — for both patterns alike, so the gap between
+    /// them holds wherever the test runs.
+    static func extract(from text: String, cpuBudget budget: TimeInterval) -> (Changelog?, TimeInterval)? {
+        final class Box: @unchecked Sendable {
+            var value: Changelog??
+            var cpu: TimeInterval = 0
+            var port: thread_act_t = 0
+        }
         let box = Box()
+        let started = DispatchSemaphore(value: 0)
         let done = DispatchSemaphore(value: 0)
-        let started = Date()
         let recipe = Self.recipe
         Thread.detachNewThread {
+            box.port = pthread_mach_thread_np(pthread_self())
+            started.signal()
+            let start = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID)
             box.value = .some(ChangelogExtractor.extract(from: text, using: recipe))
+            box.cpu = TimeInterval(clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - start) / 1e9
             done.signal()
         }
-        guard done.wait(timeout: .now() + budget) == .success else { return nil }
-        return (box.value!, Date().timeIntervalSince(started))
+        started.wait()
+        // Waits as long as the thread needs; only the CPU it has burned can fail it.
+        while done.wait(timeout: .now() + .milliseconds(10)) == .timedOut {
+            if let used = Self.cpuSeconds(of: box.port), used > budget { return nil }
+        }
+        return (box.value!, box.cpu)
+    }
+
+    /// User + system CPU time of a running thread; `nil` once it has exited.
+    static func cpuSeconds(of thread: thread_act_t) -> TimeInterval? {
+        var info = thread_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<thread_basic_info>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                thread_info(thread, thread_flavor_t(THREAD_BASIC_INFO), $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return nil }
+        func seconds(_ t: time_value_t) -> TimeInterval { TimeInterval(t.seconds) + TimeInterval(t.microseconds) / 1e6 }
+        return seconds(info.user_time) + seconds(info.system_time)
     }
 
     /// The guard against this test quietly becoming decoration: the generated page
@@ -67,7 +112,7 @@ struct ChromeChangelogPatternTests {
     @Test func theGeneratedPageIsBigEnoughAndTheRecipeParsesIt() throws {
         let page = Self.generatedPage()
         #expect(page.utf8.count > 100_000, "smaller than this did not reproduce the blowup")
-        let (changelog, _) = try #require(Self.extract(from: page, within: 30))
+        let (changelog, _) = try #require(Self.extract(from: page, cpuBudget: 30))
         let entries = try #require(changelog?.entries)
         #expect(entries.count == 3)
         #expect(entries.map(\.version) == ["152.0.7977.64", "152.0.7976.65", "152.0.7975.66"])
@@ -83,9 +128,11 @@ struct ChromeChangelogPatternTests {
     /// this page can stop matching, and the next edit to the pattern should not be
     /// able to turn one of them into the first one without a test saying so.
     ///
-    /// The budget is deliberately loose. The measured worst case is 0.06 s, so a
-    /// two-second bar cannot be tripped by a slow machine — only by the shape
-    /// coming back.
+    /// The budget is one second of CPU on the extracting thread. The first case
+    /// measured at most 0.034 s of CPU (efficiency core, under load) against 49 s
+    /// under the old pattern, and all three together take under 0.1 s on an idle
+    /// machine, page generation included — so neither a busy machine nor a slow
+    /// core can trip it, only the shape coming back.
     @Test(arguments: [
         ("the closing </script> renamed", "</script>", "</tmpl-script>"),
         ("the template wrapper dropped", "<script type='text/template'>", "<div class='post-body'>"),
@@ -95,10 +142,10 @@ struct ChromeChangelogPatternTests {
         let page = Self.generatedPage().replacingOccurrences(of: find, with: replace)
         // Vacuity guard: the mutation has to have changed something.
         #expect(!page.contains(find), "\(name): nothing was mutated")
-        let (changelog, elapsed) = try #require(
-            Self.extract(from: page, within: 2), "\(name): did not finish within 2s")
+        let (changelog, cpu) = try #require(
+            Self.extract(from: page, cpuBudget: 1), "\(name): used more than 1s of CPU")
         #expect(changelog == nil, "\(name): a restyled page should not parse")
-        #expect(elapsed < 2, "\(name) took \(elapsed)s")
+        #expect(cpu < 1, "\(name) took \(cpu)s of CPU")
     }
 
     /// The other half of the old blowup, and the one a healthy page can reach on
@@ -108,15 +155,19 @@ struct ChromeChangelogPatternTests {
     /// 0.09 s and ten posts is 7.6 s, against 0.047 s now. (The live 852 KB page,
     /// six posts, took 20.6 s.) Ten posts is what makes this test red rather than
     /// decorative.
+    ///
+    /// The bound is one second of the extracting thread's CPU, not of the clock:
+    /// the current pattern's worst is 0.156 s and the old pattern's best 7.68 s
+    /// (table on `extract`), so one second sits about 6× clear of each.
     @Test func aPageWithNoBuildNumbersFailsFast() throws {
         let page = Self.generatedPage(posts: 10, bodyKB: 100).replacingOccurrences(
             of: #"\d+\.\d+\.\d+\.\d+"#, with: "X", options: .regularExpression)
         #expect(page.utf8.count > 900_000, "fewer posts than this did not reproduce the blowup")
         #expect(page.range(of: #"\d+\.\d+\.\d+\.\d+"#, options: .regularExpression) == nil)
-        let (changelog, elapsed) = try #require(Self.extract(from: page, within: 2),
-                                                "did not finish within 2s")
+        let (changelog, cpu) = try #require(Self.extract(from: page, cpuBudget: 1),
+                                            "used more than 1s of CPU")
         #expect(changelog == nil)
-        #expect(elapsed < 2, "took \(elapsed)s")
+        #expect(cpu < 1, "took \(cpu)s of CPU")
     }
 
     /// Why the body gap is a plain lazy tempered dot and not `*+` or `(?>…)`:

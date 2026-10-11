@@ -76,6 +76,36 @@ import Testing
         #expect(String(decoding: outcome.standardOutput, as: UTF8.self) == "payload\n")
     }
 
+    /// Stdin over `PIPE_BUF` takes the other path (written while the child
+    /// runs) and still arrives whole.
+    @Test func standardInputOverPipeBufReachesTheChild() async throws {
+        let payload = String(repeating: "0123456789abcdef", count: 4096)
+        let outcome = try await ChildProcess.run(
+            "/bin/cat", [], standardInput: Data(payload.utf8), onCancel: .terminateChild)
+        #expect(String(decoding: outcome.standardOutput, as: UTF8.self) == payload)
+    }
+
+    /// Short stdin is handed over already in the pipe, write end closed, so a
+    /// child that exits without reading it cannot SIGPIPE this process —
+    /// `hdiutil` on a bad image does exactly that with `DiskImageMount`'s license
+    /// answer. Pinned on the pipe itself: the race it removes (our `write(2)`
+    /// against the child's exit) is lost too rarely to catch from a spawn.
+    ///
+    /// Mutation: write after returning, or leave the write end open → the read
+    /// below blocks instead of meeting EOF; drop the `PIPE_BUF` guard → the
+    /// oversized case returns a descriptor.
+    @Test func shortStdinIsPrefilledAndClosedBeforeTheSpawn() throws {
+        let fd = try #require(ChildProcess.prefilledPipe(Data("yes\n".utf8)))
+        defer { close(fd) }
+        #expect(fcntl(fd, F_GETFD) & FD_CLOEXEC != 0)
+        var buffer = [UInt8](repeating: 0, count: 64)
+        let first = read(fd, &buffer, buffer.count)
+        #expect(Array(buffer.prefix(max(first, 0))) == Array("yes\n".utf8))
+        #expect(read(fd, &buffer, buffer.count) == 0, "expected EOF after the bytes")
+
+        #expect(ChildProcess.prefilledPipe(Data(count: Int(PIPE_BUF) + 1)) == nil)
+    }
+
     /// Chunks are delivered as they arrive — before the child exits — which is
     /// what `brew`'s streamed log needs. The child waits for a file the callback
     /// creates, so it can only finish if the chunk was delivered while it ran.

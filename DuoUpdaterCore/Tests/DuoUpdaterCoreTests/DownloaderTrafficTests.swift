@@ -370,14 +370,21 @@ struct DownloaderTrafficTests {
             _ = try await downloader.download(url)
         }
 
-        // Both attempts, since both really crossed the network.
+        // Every attempt, since every one really crossed the network. That is
+        // two when the fixture's truncated bytes land before its drop, but on a
+        // loaded runner they can be lost with the connection: the partial is then
+        // empty, the second attempt re-requests without a Range, is truncated in
+        // turn, and a third resumes (CI run 38152211492). The Downloader is
+        // right to do that, so the count to match is what the server saw.
+        let attempts = server.requests.count
+        #expect(attempts >= 2, "the transfer was meant to be truncated and resumed")
         for _ in 0..<100 {
-            if await store.appendedCount >= 2 { break }
+            if await store.appendedCount >= attempts { break }
             try? await Task.sleep(for: .milliseconds(20))
         }
         await store.flush()
         let events = await store.events(EventQuery(limit: 100)).compactMap(\.request)
-        #expect(events.count == 2)
+        #expect(events.count == attempts)
         #expect(events.allSatisfy { $0.purpose == .install })
         #expect(events.allSatisfy { $0.host == "127.0.0.1" })
         #expect(events.allSatisfy { $0.appID == "/Applications/Amp.app" },

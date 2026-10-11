@@ -4108,10 +4108,14 @@ final class AppListModel {
                 try await brewFormulaService.upgrade(casks: caskTokens, onOutput: onOutput)
                 brewUpgradeDone = min(brewUpgradeDone + caskTokens.count, brewUpgradeTotal)
             }
-            await refreshBrewFormulae()
         } catch {
             brewUpgradeError = error.localizedDescription
         }
+        // Re-read even when brew failed: a failed run still upgrades what it can.
+        // brew carries on past a formula that fails, and a post-install failure
+        // fails the run after the new keg is poured — skipping this left every
+        // upgraded formula counted as outdated (2026-10-11).
+        await refreshBrewFormulae()
     }
 
     /// Upgrade a single formula (`brew upgrade --formula <name>`) — the per-row

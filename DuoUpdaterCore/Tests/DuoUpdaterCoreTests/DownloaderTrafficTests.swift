@@ -137,11 +137,27 @@ struct DownloaderTrafficTests {
             func record(_ request: String) { lock.withLock { _requests.append(request) } }
         }
 
-        /// How long to let the truncated body sit on the wire before killing the
-        /// connection — see the send site below. Generous for loopback (delivery
-        /// takes single-digit milliseconds) so a loaded CI box doesn't reintroduce
-        /// the race, and paid only once per run.
-        static let dropDelay: TimeInterval = 0.25
+        /// How many body bytes the client has written so far. A `.truncated`
+        /// answer holds the connection open until this reaches `at` — see the send
+        /// site below. Set it right after creating the `Downloader`:
+        /// `server.clientBytes = { downloader.bytesDownloaded }`.
+        var clientBytes: (@Sendable () -> Int64)? {
+            get { gate.lock.withLock { gate.clientBytes } }
+            set { gate.lock.withLock { gate.clientBytes = newValue } }
+        }
+        private let gate: Gate
+
+        /// Holds `clientBytes` for the connection handler, which `init` sets up
+        /// before `self` exists — the same reason `RequestLog` is its own object.
+        final class Gate: @unchecked Sendable {
+            let lock = NSLock()
+            var clientBytes: (@Sendable () -> Int64)?
+            var current: (@Sendable () -> Int64)? { lock.withLock { clientBytes } }
+        }
+
+        /// Upper bound on waiting for the client to take the truncated bytes, so a
+        /// Downloader that never writes them fails the test instead of hanging it.
+        static let deliveryTimeout: TimeInterval = 10
 
         init(
             body: Data,
@@ -153,6 +169,8 @@ struct DownloaderTrafficTests {
             self.listener = listener
             let log = RequestLog()
             self.log = log
+            let gate = Gate()
+            self.gate = gate
             let queue = self.queue
             let total = body.count
 
@@ -162,15 +180,23 @@ struct DownloaderTrafficTests {
                     let request = String(data: reqData ?? Data(), encoding: .utf8) ?? ""
                     log.record(request)
 
-                    func send(_ head: [String], _ payload: Data, dropAfter: TimeInterval? = nil) {
+                    func send(_ head: [String], _ payload: Data, dropOnceClientHas: Int? = nil) {
                         var response = Data((head.joined(separator: "\r\n") + "\r\n\r\n").utf8)
                         response.append(payload)
                         conn.send(content: response, completion: .contentProcessed { _ in
-                            if let dropAfter {
-                                queue.asyncAfter(deadline: .now() + dropAfter) { conn.cancel() }
-                            } else {
-                                conn.cancel()
+                            guard let want = dropOnceClientHas else { conn.cancel(); return }
+                            guard let clientBytes = gate.current else {
+                                preconditionFailure("RangeResumeServer: set clientBytes before downloading")
                             }
+                            let deadline = Date().addingTimeInterval(Self.deliveryTimeout)
+                            func dropWhenDelivered() {
+                                if clientBytes() >= Int64(want) || Date() >= deadline {
+                                    conn.cancel()
+                                } else {
+                                    queue.asyncAfter(deadline: .now() + 0.005, execute: dropWhenDelivered)
+                                }
+                            }
+                            dropWhenDelivered()
                         })
                     }
                     func partial(_ chunk: Data, from start: Int, contentRange: Bool = true) {
@@ -212,19 +238,22 @@ struct DownloaderTrafficTests {
                         // Drop the connection mid-body: the client has received fewer
                         // bytes than Content-Length → a transient failure it resumes from.
                         //
-                        // The teardown is deliberately NOT immediate. `.contentProcessed`
-                        // only means Network.framework accepted the bytes for
-                        // transmission — not that the peer consumed them — so cancelling
-                        // straight from that callback raced URLSession's delivery of the
-                        // partial body to its delegate. Losing that race means
-                        // `didReceive data:` never fires, the partial file stays empty,
-                        // every resume re-requests from byte 0, and the test fails: it did
-                        // so ~7 times out of 8. (Real drops don't look like this — bytes
-                        // have been flowing for seconds before a proxy resets — so the
-                        // race was an artifact of the fixture, not a defect in
-                        // `Downloader`.) Letting the bytes land first reproduces the real
-                        // shape: data delivered, *then* the connection dies.
-                        send(head, body.subdata(in: 0..<at), dropAfter: Self.dropDelay)
+                        // The teardown waits until the client has written all `at` bytes.
+                        // `.contentProcessed` only means Network.framework accepted the
+                        // bytes for transmission — not that the peer consumed them — so
+                        // cancelling straight from that callback raced URLSession's
+                        // delivery of the partial body to its delegate. Losing that race
+                        // means `didReceive data:` never fires, the partial file stays
+                        // empty, the next attempt re-requests from byte 0 and is
+                        // truncated again: an extra request. A fixed delay (0.25 s) only
+                        // narrowed the window — with it at 0, as a loaded runner can make
+                        // it, the event-store test failed 16/20 (#1213). (Real drops
+                        // don't look like this — bytes have been flowing for seconds
+                        // before a proxy resets — so the race was an artifact of the
+                        // fixture, not a defect in `Downloader`.) Waiting on what the
+                        // client wrote reproduces the real shape every time: data
+                        // delivered, *then* the connection dies.
+                        send(head, body.subdata(in: 0..<at), dropOnceClientHas: at)
                     }
                 }
             }
@@ -289,6 +318,7 @@ struct DownloaderTrafficTests {
 
         let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
         let downloader = Downloader(destinationDir: workDir) { _ in }
+        server.clientBytes = { downloader.bytesDownloaded }
         let file = try await downloader.download(url)
 
         // The reassembled file is byte-for-byte the original.
@@ -328,6 +358,7 @@ struct DownloaderTrafficTests {
 
         let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
         let downloader = Downloader(destinationDir: workDir, store: store) { _ in }
+        server.clientBytes = { downloader.bytesDownloaded }
         // Inside an attribution scope, because the installers are the biggest
         // rows in the log and this class is the one path that does NOT go
         // through `countedData`: it is its own session delegate, and the metrics
@@ -411,6 +442,7 @@ struct DownloaderTrafficTests {
         let progress = ProgressLog()
         let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
         let downloader = Downloader(destinationDir: workDir) { progress.record($0) }
+        server.clientBytes = { downloader.bytesDownloaded }
         let file = try await downloader.download(url)
 
         #expect((try? Data(contentsOf: file)) == body)
@@ -439,6 +471,7 @@ struct DownloaderTrafficTests {
         let progress = ProgressLog()
         let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
         let downloader = Downloader(destinationDir: workDir) { progress.record($0) }
+        server.clientBytes = { downloader.bytesDownloaded }
         let file = try await downloader.download(url)
 
         #expect((try? Data(contentsOf: file)) == body)
@@ -464,6 +497,7 @@ struct DownloaderTrafficTests {
 
         let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
         let downloader = Downloader(destinationDir: workDir) { _ in }
+        server.clientBytes = { downloader.bytesDownloaded }
         do {
             _ = try await downloader.download(url)
             Issue.record("a 206 without Content-Range was finalized as a complete download")
@@ -496,6 +530,7 @@ struct DownloaderTrafficTests {
         let progress = ProgressLog()
         let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
         let downloader = Downloader(destinationDir: workDir) { progress.record($0) }
+        server.clientBytes = { downloader.bytesDownloaded }
         let file = try await downloader.download(url)
 
         #expect((try? Data(contentsOf: file)) == body)
@@ -523,6 +558,7 @@ struct DownloaderTrafficTests {
 
         let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
         let downloader = Downloader(destinationDir: workDir) { _ in }
+        server.clientBytes = { downloader.bytesDownloaded }
         do {
             _ = try await downloader.download(url)
             Issue.record("a short download was finalized as success")
@@ -555,6 +591,7 @@ struct DownloaderTrafficTests {
 
         let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
         let downloader = Downloader(destinationDir: workDir) { _ in }
+        server.clientBytes = { downloader.bytesDownloaded }
         do {
             _ = try await downloader.download(url)
             Issue.record("an 80 KB partial was finalized as the 200 KB download")
@@ -623,6 +660,7 @@ struct DownloaderTrafficTests {
 
             let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
             let downloader = Downloader(destinationDir: workDir) { _ in }
+            server.clientBytes = { downloader.bytesDownloaded }
             let file = try await downloader.download(url)
 
             #expect((try? Data(contentsOf: file)) == body, "\(c.why)")

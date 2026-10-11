@@ -136,6 +136,9 @@ public enum SparkleFeedCatalog {
             /// From ``supersededFeeds``: an address that overrides one the
             /// bundle does state.
             case superseded
+            /// Not from this table: a `ChannelBinding` resolution's
+            /// `feedOverride` — see ``ChannelBinding/feedVerificationCases``.
+            case channel
         }
         public let bundleID: String
         public let kind: Kind
@@ -145,10 +148,21 @@ public enum SparkleFeedCatalog {
         /// whose being dead is the entry's whole justification. Nil for a
         /// fill-in, which overrides nothing.
         public let declared: URL?
+        /// Channel entries only: the resolution that hands `feed` out, so the
+        /// sweep reads the feed as the bound install reads it (`AppScanner`
+        /// makes that channel authoritative). Nil for this table's own entries.
+        public var resolution: ResolvedChannel? = nil
 
         /// Stable sweep key, same shape as every other registry's, so the
         /// baseline and the issue history key on it the same way.
-        public var recipeID: String { "feed:\(bundleID)" }
+        ///
+        /// A channel entry carries its channel — `feed:<bundle id>:<channel>`,
+        /// the shape `Reconcile.qualifier` reads — because one app can hand out
+        /// one address per channel. This table's ids never have that third
+        /// part, so the two kinds cannot share an id.
+        public var recipeID: String {
+            resolution.map { "feed:\(bundleID):\($0.channel.rawValue)" } ?? "feed:\(bundleID)"
+        }
     }
 
     /// Every entry, both halves, sorted so a run's output and the baseline it

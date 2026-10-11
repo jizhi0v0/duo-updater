@@ -100,7 +100,7 @@ public enum Verify {
         let github = filtered(GitHubReleaseRegistry.rules, options)
         let changelog = filtered(ChangelogRecipeRegistry.recipes, options)
         let appStore = filtered(MacAppStoreProbeRegistry.cases, options)
-        let feeds = filtered(SparkleFeedCatalog.verificationCases, options)
+        let feeds = filtered(feedCases, options)
 
         // The pkg install specs the pkgarch sweep reads. Counted here like every
         // other registry: without it `duo verify --pkgarch` computes a total of
@@ -633,7 +633,7 @@ public enum Verify {
                 + GitHubReleaseRegistry.rules.map(\.recipeID)
                 + MacAppStoreProbeRegistry.cases.map(\.recipeID)
                 + [MacAppStoreProbeRegistry.batchRecipeID]
-                + SparkleFeedCatalog.verificationCases.map(\.recipeID)
+                + feedCases.map(\.recipeID)
                 + VendorProbeRegistry.recipes
                     .filter { $0.install?.kind == .pkg }
                     .map { pkgArchID($0) }

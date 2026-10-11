@@ -2,7 +2,10 @@ import Foundation
 import DuoUpdaterCore
 
 // `duo verify`'s sweep of `SparkleFeedCatalog` — the addresses we hand out for
-// apps whose own bundle does not give us a usable one.
+// apps whose own bundle does not give us a usable one — and of the feeds a
+// `ChannelBinding` swaps in per channel (`ChannelBinding.feedVerificationCases`).
+// Those are hard-coded in their channel files for the same reason a fill-in
+// is: the bundle does not state them, so nothing else would notice them move.
 //
 // Why it is a registry at all (#324). The other four sweeps check recipes: a
 // pattern that has to keep matching a page. This one checks an ADDRESS, and an
@@ -31,12 +34,21 @@ import DuoUpdaterCore
 // (`classifyFeed`), the same split `AppStoreVerify` uses, so every judgement
 // here can be exercised offline against fixtures.
 //
-// Never downloads an enclosure: the head item's download URL is checked for
-// SHAPE only. Whether that artifact is still SERVED is a separate question with
-// a separate cost, and the vendor sweep's `installURLNotFound` — a `Range:
-// bytes=0-0` GET, raised only by the sweep and never by a check — is the
-// precedent for how it would be answered if it is ever worth the request.
+// Never downloads an enclosure. The head item's download URL is checked for
+// shape, and then asked whether it is still SERVED with one `Range: bytes=0-0`
+// GET that reads at most `SparkleAppcastSource.enclosureReadCap` bytes and
+// stops — some servers ignore the range and start sending the whole file. Its
+// verdicts are the vendor sweep's own (`installURLNotFound` for a refusal, the
+// non-actionable `installURLTransient` for 5xx/408/429 or no answer), so
+// `Baseline` and `Reconcile` age and file them the way they already do there.
 extension Verify {
+
+    /// What `--feed` sweeps and what `Baseline` keeps for it: the catalog's
+    /// entries, then every channel feed. One list, so the sweep and the prune
+    /// cannot disagree about which ids exist.
+    static var feedCases: [SparkleFeedCatalog.VerificationCase] {
+        SparkleFeedCatalog.verificationCases + ChannelBinding.feedVerificationCases
+    }
 
     static func sweepFeeds(
         _ cases: [SparkleFeedCatalog.VerificationCase], options: VerifyOptions
@@ -47,10 +59,9 @@ extension Verify {
         // Sequential with the same inter-request delay every other sweep uses,
         // applied the same way the other flat loops do (the App Store batch
         // sweep, the GitHub-rule sweep): between successive top-level items,
-        // not inside one item's own requests. Today's two entries — the one
-        // fill-in feed and the one superseding feed — sit on a different host
-        // each, so the delay buys nothing between them; a table this small has
-        // no parallelism worth having either.
+        // not inside one item's own requests. The channel feeds come in pairs on
+        // one host (a stable and a beta address), which is what the delay is for;
+        // a list this small has no parallelism worth having either.
         //
         // It does NOT cover a superseding entry's own live→declared pair
         // (`probe` below): that reads the same host twice back to back with
@@ -99,7 +110,8 @@ extension Verify {
         requestsAlready: Int
     ) async -> Finding {
         let started = Date()
-        let live = await read(entry.feed, bundleID: entry.bundleID, source: source)
+        let live = await read(
+            entry.feed, bundleID: entry.bundleID, resolution: entry.resolution, source: source)
         // Two requests for a superseding entry, one for a fill-in. The second is
         // what makes the entry's own expiry condition mechanical rather than a
         // note in a comment: it is only justified for as long as the address it
@@ -115,11 +127,20 @@ extension Verify {
             declared = await read(deadAddress, bundleID: entry.bundleID, source: source)
             requestsSpent += 1
         }
+        // One more for the head enclosure, when there is a fetchable one to ask
+        // about — the same condition `classifyFeed` reads it under.
+        var enclosure: SparkleEnclosureAnswer?
+        if case .read(let reading) = live, let url = fetchableEnclosure(reading) {
+            enclosure = await source.probeEnclosure(url)
+            requestsSpent += 1
+        }
 
-        let verdict = classifyFeed(entry, FeedObservation(live: live, declared: declared))
+        let verdict = classifyFeed(
+            entry, FeedObservation(live: live, declared: declared, enclosure: enclosure))
         return Finding(
             recipeID: entry.recipeID, registry: .feed, bundleID: entry.bundleID,
-            channel: entry.kind.rawValue, status: verdict.status, version: verdict.version,
+            channel: entry.resolution?.channel.rawValue ?? entry.kind.rawValue,
+            status: verdict.status, version: verdict.version,
             // The LIVE address's host: it is the one an app is pointed at, and
             // the one a nightly triage should route by. The dead address is
             // named in full inside the warning that complains about it, which
@@ -130,10 +151,11 @@ extension Verify {
     }
 
     private static func read(
-        _ url: URL, bundleID: String, source: SparkleAppcastSource
+        _ url: URL, bundleID: String, resolution: ResolvedChannel? = nil,
+        source: SparkleAppcastSource
     ) async -> FeedObservation.Fetch {
         do {
-            switch try await source.readFeed(url, bundleID: bundleID) {
+            switch try await source.readFeed(url, bundleID: bundleID, resolution: resolution) {
             case .success(let reading): return .read(reading)
             case .failure(.badStatus(let code)):
                 return .unreachable(httpStatus: code, detail: "HTTP \(code)")
@@ -206,7 +228,14 @@ extension Verify {
         // the baseline nothing it may record without changing namespaces
         // mid-history, so the version goes nil rather than silently becoming a
         // build number.
-        guard let marketing = live.headShortVersion, !marketing.isEmpty else {
+        //
+        // A channel feed is exempt from the warning, not from the nil. Its
+        // address is the vendor's own updater's, read at runtime as it is, and
+        // Fork's and iTerm2's have never named a marketing string (see
+        // `SparkleAppcastSource.isMarketingDowngrade`), so "no longer" would be
+        // false and it would warn every night about the format, not a change.
+        let marketing = live.headShortVersion.flatMap { $0.isEmpty ? nil : $0 }
+        if marketing == nil, entry.kind != .channel {
             warnings.append(
                 "headItemNamesNoMarketingVersion — the newest usable item declares no "
                     + "sparkle:shortVersionString, so this feed can no longer be compared "
@@ -219,7 +248,12 @@ extension Verify {
         // Same call as the vendor sweep's `installURLUnresolved`, which is a
         // warning for the same reason.
         if let enclosure = live.headEnclosure {
-            if enclosure.scheme?.hasPrefix("http") != true || enclosure.host == nil {
+            if let url = fetchableEnclosure(live) {
+                if let answer = observation.enclosure,
+                   let warning = enclosureWarning(answer, host: url.host) {
+                    warnings.append(warning)
+                }
+            } else {
                 warnings.append(
                     "headEnclosureIsNotAbsolute — the newest usable item's download URL did "
                         + "not resolve to an absolute http(s) address, so the update can be "
@@ -269,7 +303,44 @@ extension Verify {
             }
         }
 
-        return (warnings.isEmpty ? .ok : .warn, marketing, warnings)
+        // A transient enclosure answer accuses nobody, so it does not make the
+        // finding actionable — the vendor sweep's rule (`classify`), and the
+        // reason `Baseline` ages it on a counter of its own.
+        let transientKind = ProbeWarning.installURLTransient(status: nil).kind
+        let actionable = warnings.filter { !$0.hasPrefix(transientKind) }
+        return (actionable.isEmpty ? .ok : .warn, marketing, warnings)
+    }
+
+    /// The head enclosure, when it is an address a download could be asked of:
+    /// absolute, http(s), with a host. Shared by the network half, which only
+    /// spends a request on such an address, and the decision half, which warns
+    /// about any other.
+    static func fetchableEnclosure(_ reading: SparkleFeedReading) -> URL? {
+        guard let url = reading.headEnclosure,
+              url.scheme?.hasPrefix("http") == true, url.host != nil else { return nil }
+        return url
+    }
+
+    /// What one enclosure answer says, as the vendor sweep would say it, or nil
+    /// when the file is served.
+    ///
+    /// Any 2xx or 3xx is served — a 200 to a ranged request included: the
+    /// server ignored the range, and the file is there. 5xx, 408, 429 and no
+    /// answer are the moment, not the vendor (`InstallVerify` draws the same
+    /// line). 416 refuses the RANGE, not the file, so it cannot show it is gone
+    /// either (`VendorProbeSource.installURLReachability` reads it, and 501, the
+    /// same way; 501 is a 5xx here already). Anything else in 4xx is a refusal.
+    static func enclosureWarning(_ answer: SparkleEnclosureAnswer, host: String?) -> String? {
+        switch answer {
+        case .noAnswer:
+            return ProbeWarning.installURLTransient(status: nil).display
+        case .answered(let status, _):
+            if (200..<400).contains(status) { return nil }
+            if status >= 500 || [408, 416, 429].contains(status) {
+                return ProbeWarning.installURLTransient(status: status).display
+            }
+            return ProbeWarning.installURLNotFound(status: status, host: host).display
+        }
     }
 }
 
@@ -288,4 +359,7 @@ struct FeedObservation: Sendable {
     /// The dead address a superseding entry matches on. Nil for a fill-in,
     /// which overrides nothing and so has no second address to read.
     let declared: Fetch?
+    /// The live head item's enclosure. Nil when it was not asked: the live read
+    /// failed, or the head item has no fetchable enclosure.
+    var enclosure: SparkleEnclosureAnswer? = nil
 }

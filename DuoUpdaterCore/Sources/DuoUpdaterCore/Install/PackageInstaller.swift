@@ -249,7 +249,7 @@ public actor PackageInstaller {
         }
 
         onStage(.installing)
-        // The DMG route mounts with `hdiutil` and copies with `ditto`, awaited
+        // The DMG route mounts with `DiskImageMount` and copies with `ditto`, awaited
         // through `ChildProcess` rather than parked on a thread.
         let toOpen = try await resolveInstaller(
             from: file, workDir: workDir, installedApp: installedApp)
@@ -1196,13 +1196,11 @@ public actor PackageInstaller {
 
         let mountPoint = workDir.appendingPathComponent("mnt")
         try? FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
-        let attach = await run("/usr/bin/hdiutil", [
-            "attach", file.path, "-nobrowse", "-readonly", "-noverify",
-            "-mountpoint", mountPoint.path
-        ])
-        guard attach == 0 else { throw PackageError.noInstallablePackage }
+        guard case .success = try? await DiskImageMount.attach(file, at: mountPoint) else {
+            throw PackageError.noInstallablePackage
+        }
         // Detached on every path out.
-        defer { _ = await run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"]) }
+        defer { await DiskImageMount.detach(mountPoint) }
         return try await copyPackage(
             outOf: mountPoint, into: workDir, installedApp: installedApp)
     }
@@ -1369,8 +1367,7 @@ public actor PackageInstaller {
     }
 
     /// Exit status only; both streams are drained and dropped. Not killed on
-    /// cancellation — see `runCapturing` (and a mount left behind by a killed
-    /// `hdiutil detach` is exactly the leak this route must not have).
+    /// cancellation — see `runCapturing`.
     @discardableResult
     private nonisolated func run(_ launchPath: String, _ args: [String]) async -> Int32 {
         guard let outcome = try? await ChildProcess.run(

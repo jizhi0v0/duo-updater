@@ -1,7 +1,7 @@
 import Foundation
 
 /// Extracts a downloaded Sparkle archive and returns the `.app` bundle inside.
-/// Supports the common formats: `.dmg` (hdiutil), `.zip` (ditto), and tarballs.
+/// Supports the common formats: `.dmg` (`DiskImageMount`), `.zip` (ditto), and tarballs.
 ///
 /// Public for `duo diff`, which unpacks two releases the same way an install would.
 public enum ArchiveExtractor {
@@ -48,8 +48,8 @@ public enum ArchiveExtractor {
     /// `workDir` is the caller-owned scratch directory to clean up afterward.
     ///
     /// Runs to completion once started, whatever happens to the calling task:
-    /// every tool here writes (`hdiutil attach` mounts, `ditto`/`tar` fill the
-    /// scratch directory, `hdiutil detach` unmounts), and none of it checks for
+    /// every tool here writes (`DiskImageMount` mounts, `ditto`/`tar` fill the
+    /// scratch directory, `DiskImageMount` unmounts), and none of it checks for
     /// cancellation — a DMG left mounted because a cancel landed between attach and
     /// detach is exactly what must not happen. That is also what the
     /// `offCooperativePool` hop its callers used to make guaranteed.
@@ -104,18 +104,13 @@ public enum ArchiveExtractor {
         let mountPoint = workDir.appendingPathComponent("mnt-\(dmg.lastPathComponent)")
         try? FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
 
-        let attach = try await run("/usr/bin/hdiutil", [
-            "attach", dmg.path,
-            "-nobrowse", "-readonly", "-noverify",
-            "-mountpoint", mountPoint.path
-        ])
-        guard attach.code == 0 else {
-            throw ExtractError.toolFailed("hdiutil attach", attach.code, attach.err)
+        if case .failure(let failure) = try await DiskImageMount.attach(dmg, at: mountPoint) {
+            throw ExtractError.toolFailed(failure.tool, failure.code, failure.stderr)
         }
         // Detached on every path out. The `defer` sees a cancelled task as
-        // cancelled (SE-0493), which is why `detach` takes its retry pause in a
-        // detached task rather than trusting `Task.sleep` here.
-        defer { await detach(mountPoint) }
+        // cancelled (SE-0493), which is why `DiskImageMount.detach` takes its
+        // retry pause in a detached task rather than trusting `Task.sleep` here.
+        defer { await DiskImageMount.detach(mountPoint) }
         return try await copyApp(outOf: mountPoint, into: workDir)
     }
 
@@ -204,25 +199,9 @@ public enum ArchiveExtractor {
         return nil
     }
 
-    /// Detach a mounted image, retrying once after a short pause: a `ditto` that
-    /// just finished copying can leave the volume momentarily busy, and a single
-    /// `-force` detach then fails, leaking the mount and blocking workDir cleanup.
-    ///
-    /// The pause is taken in a detached task so a cancelled caller cannot cut it
-    /// short — `Task.sleep` in this task would return at once and turn the retry
-    /// into a second attempt on a volume that is still busy.
-    private static func detach(_ mountPoint: URL) async {
-        if (try? await run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"]))?.code == 0 {
-            return
-        }
-        await Task.detached { try? await Task.sleep(for: .milliseconds(500)) }.value
-        _ = try? await run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"])
-    }
-
     /// Run one extraction tool, capturing both streams, and wait for it.
     ///
-    /// Watchdog: a wedged `hdiutil attach` on a malformed/maliciously-crafted dmg
-    /// (or a pathological `ditto`/`tar`) can block indefinitely, freezing the
+    /// Watchdog: a pathological `ditto`/`tar` can block indefinitely, freezing the
     /// install actor with no way out. SIGTERM at 300 s, SIGKILL at 305 s if it
     /// ignores that — generous enough that a large Electron-bundle extraction on a
     /// slow disk finishes well within it, short enough that a true hang doesn't
@@ -230,8 +209,8 @@ public enum ArchiveExtractor {
     /// that, as `Process.terminationStatus` reported it, so the "failed (15)" in
     /// `ExtractError.toolFailed` reads the same.
     ///
-    /// Both pipes drain concurrently (`ChildProcess` always does): tar/hdiutil/
-    /// ditto on a corrupt or pathological archive can emit more than a pipe
+    /// Both pipes drain concurrently (`ChildProcess` always does): tar/ditto
+    /// on a corrupt or pathological archive can emit more than a pipe
     /// buffer of stderr while stdout is still open.
     ///
     /// Never torn down on the caller's account — see `extractApp`.

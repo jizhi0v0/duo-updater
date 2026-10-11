@@ -13,10 +13,18 @@ import Foundation
 /// It is GitHub's API, so each check costs one of 60 anonymous calls an hour;
 /// the token `ChangelogService` keeps is sent when there is one, and the
 /// version-feed cache policy revalidates with the `ETag`.
+///
+/// That repository is now `oven-sh/bun-releases-for-updater` (bun 1.4.3 still
+/// asks the old name, and its client keeps the token across GitHub's 301). This
+/// asks the new name: URLSession follows the 301 to `/repositories/422048141/…`
+/// without the `Authorization` header, so with a token the old name was
+/// answered anonymously — 403, `x-ratelimit-limit: 60` once this address's
+/// anonymous budget was spent, where the new name answered 200 with 5000
+/// (2026-10-11).
 public struct BunRelease: Sendable {
 
     public static let channel =
-        URL(string: "https://api.github.com/repos/Jarred-Sumner/bun-releases-for-updater/releases/latest")!
+        URL(string: "https://api.github.com/repos/oven-sh/bun-releases-for-updater/releases/latest")!
 
     public enum Failure: Error, Equatable, CustomStringConvertible {
         case http(Int)

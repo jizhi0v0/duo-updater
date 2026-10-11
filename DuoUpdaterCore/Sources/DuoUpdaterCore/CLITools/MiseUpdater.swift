@@ -30,6 +30,9 @@ public struct MiseUpdater: Sendable {
     let check: MiseCheck
     /// The child's environment before `HOME`, `PATH` and `TMPDIR` are set.
     let environment: @Sendable () -> [String: String]
+    /// The GitHub token the app's own API requests carry, if any. Handed to mise
+    /// as `MISE_GITHUB_TOKEN`, only for a second run (see `update`).
+    let token: CLIToolGitHubToken.Source
     let deadline: ChildProcess.Deadline
 
     /// The arm64 tar.gz of 2026.10.5 is ~43 MB; ten minutes is ~600 kbit/s.
@@ -48,7 +51,8 @@ public struct MiseUpdater: Sendable {
             check: MiseCheck(),
             // mise's HTTP client reads the proxy variables, which a GUI app
             // launched by launchd does not have. See `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy })
+            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            token: CLIToolGitHubToken.app)
     }
 
     init(
@@ -56,12 +60,14 @@ public struct MiseUpdater: Sendable {
         scanner: MiseScanner,
         check: MiseCheck,
         environment: @escaping @Sendable () -> [String: String],
+        token: @escaping CLIToolGitHubToken.Source,
         deadline: ChildProcess.Deadline = MiseUpdater.defaultDeadline
     ) {
         self.busy = busy
         self.scanner = scanner
         self.check = check
         self.environment = environment
+        self.token = token
         self.deadline = deadline
     }
 
@@ -112,7 +118,27 @@ public struct MiseUpdater: Sendable {
         environment["NO_COLOR"] = "1"
         // Its download and staging land here, and go with the directory.
         environment["TMPDIR"] = directory.path + "/"
-        let run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
+        var run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
+        // mise reads the release from `api.github.com` with whatever token it
+        // finds itself: `MISE_GITHUB_TOKEN`, `GITHUB_API_TOKEN`, `GITHUB_TOKEN`,
+        // then the user's `credential_command`, its OAuth login,
+        // `github_tokens.toml`, `gh`'s hosts.yml and `git credential fill`
+        // (`resolve_token`, crates/mise-util/src/github.rs, v2026.10.5). A
+        // variable would outrank every one of the user's own, so the app's token
+        // is not handed on up front. With none of them, the lookup shares the
+        // 60-an-hour anonymous budget of every program behind this IP address,
+        // and when that is spent mise says so (2026.10.5, 2026-10-11):
+        //
+        //     mise WARN  No GitHub token was found, so mise is making unauthenticated requests to GitHub which have a much lower rate limit.
+        //     mise ERROR HTTP status client error (403 Forbidden) for url (https://api.github.com/repos/jdx/mise/releases/tags/v2026.10.7)
+        //
+        // It prints that warning only for a 403 from `api.github.com` when
+        // `resolve_token` found nothing (`show_github_rate_limit_err`,
+        // src/main.rs). Then, and only then, once more with the app's token.
+        if Self.foundNoToken(run), let token = await token() {
+            environment["MISE_GITHUB_TOKEN"] = token
+            run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
+        }
         let outcome: ChildProcess.Outcome
         switch run.result {
         case .couldNotStart(let error):
@@ -147,6 +173,12 @@ public struct MiseUpdater: Sendable {
             return .failed(message: "mise self-update finished, but mise \(what)\(selected)", output: output)
         }
         return .updated(version: version)
+    }
+
+    /// Whether mise failed on a 403 from GitHub's API with no token of its own.
+    static func foundNoToken(_ run: CLIToolCommandRunner.Run) -> Bool {
+        guard case .finished(let outcome) = run.result, !outcome.succeeded else { return false }
+        return run.lines.contains { $0.contains("No GitHub token was found") }
     }
 
     /// mise's own reason with the exit status: the first `mise ERROR <reason>`

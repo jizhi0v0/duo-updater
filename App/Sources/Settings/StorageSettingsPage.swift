@@ -163,9 +163,15 @@ struct StorageSettingsPage: View {
                 } else if let freedNote {
                     Label(freedNote, systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                } else if let total = cacheTotal {
-                    Text("\(Self.format(total)) can be cleared")
-                        .foregroundStyle(.secondary)
+                } else if let clearable {
+                    Group {
+                        if clearable == 0 {
+                            Text("Nothing to clear")
+                        } else {
+                            Text("\(Self.format(clearable)) can be cleared")
+                        }
+                    }
+                    .foregroundStyle(.secondary)
                 }
             }
             .font(.callout)
@@ -173,13 +179,16 @@ struct StorageSettingsPage: View {
             if showsClearSpinner { ProgressView().controlSize(.small) }
             Button("Clear Caches") { Task { await clearCaches() } }
                 .settingsGlassButton(prominent: true)
-                .disabled(measurements == nil || cacheTotal == 0)
+                .disabled(measurements == nil || clearable == 0)
         }
         .settingsRow()
     }
 
-    private var cacheTotal: Int64? {
-        measurements.map { m in Self.caches.reduce(0) { $0 + (m[$1]?.bytes ?? 0) } }
+    /// What Clear Caches would remove — not the caches' whole size, which
+    /// includes what a clear leaves behind (see
+    /// `StorageInventory.networkCacheClearableBytes`).
+    private var clearable: Int64? {
+        measurements.map { m in Self.caches.reduce(0) { $0 + (m[$1]?.clearableBytes ?? 0) } }
     }
 
     // MARK: - Work
@@ -228,7 +237,7 @@ struct StorageSettingsPage: View {
     }
 
     private func clearCaches() async {
-        guard !clearing, !refreshing, let before = cacheTotal else { return }
+        guard !clearing, !refreshing, let before = clearable else { return }
         noteReset?.cancel()
         clearing = true
         // The previous result stays up until this one replaces it. Cleared first,
@@ -260,7 +269,7 @@ struct StorageSettingsPage: View {
         clearing = false
         clearError = failure
         if failure == nil {
-            let freed = max(0, before - (cacheTotal ?? 0))
+            let freed = max(0, before - (clearable ?? 0))
             freedNote = String(localized: "Cleared \(Self.format(freed))")
             noteReset = Task {
                 try? await Task.sleep(for: .seconds(4))

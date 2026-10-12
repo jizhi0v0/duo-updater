@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SQLite3
 @testable import DuoUpdaterCore
 
 struct StorageInventoryTests {
@@ -98,5 +99,51 @@ struct StorageInventoryTests {
         try FileManager.default.linkItem(at: blob, to: record.appendingPathComponent("b-blob"))
         #expect(single > 0)
         #expect(StorageInventory.allocatedSize(of: root) == single)
+    }
+    /// What a clear leaves in `Caches/com.duoupdater.app` (2026-10-12, this Mac):
+    /// WebKit's alternative-services database and HSTS list, its `salt` files, and
+    /// `Cache.db` as an empty database. None of that is something Clear Caches
+    /// removes, so none of it may be offered as clearable.
+    @Test func whatAClearLeavesBehindIsNotClearable() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("storage-inventory-net-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        func write(_ path: String, _ count: Int = 8192) throws {
+            let url = root.appendingPathComponent(path)
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 1, count: count).write(to: url)
+        }
+        try write("WebKit/AlternativeServices/AlternativeService.sqlite-wal", 64 * 1024)
+        try write("WebKit/HSTS/HSTS.plist")
+        try write("WebKit/CacheStorage/salt")
+        try write("WebKit/NetworkCache/Version 17/salt")
+        let database = root.appendingPathComponent("Cache.db")
+        try makeURLCacheDatabase(at: database, rows: 0)
+
+        #expect(StorageInventory.allocatedSize(of: root) > 0)
+        #expect(StorageInventory.networkCacheClearableBytes(in: root) == 0)
+
+        // A response cached afterwards is clearable again: its body, its record,
+        // and the database now that it holds a row.
+        try write("fsCachedData/0CFDA485")
+        try write("WebKit/NetworkCache/Version 17/Records/R1/Resource/blob")
+        try makeURLCacheDatabase(at: database, rows: 1)
+        let clearable = StorageInventory.networkCacheClearableBytes(in: root)
+        let bodies = StorageInventory.allocatedSize(of: root.appendingPathComponent("fsCachedData"))
+            + StorageInventory.allocatedSize(of: root.appendingPathComponent("WebKit/NetworkCache/Version 17/Records"))
+        #expect(clearable > bodies, "the database counts once it holds a response")
+    }
+
+    /// The table `URLCache` keeps responses in, with `rows` of them.
+    private func makeURLCacheDatabase(at url: URL, rows: Int) throws {
+        try? FileManager.default.removeItem(at: url)
+        var db: OpaquePointer?
+        defer { sqlite3_close(db) }
+        #expect(sqlite3_open(url.path, &db) == SQLITE_OK)
+        #expect(sqlite3_exec(db, "CREATE TABLE cfurl_cache_response (entry_ID INTEGER PRIMARY KEY, request_key TEXT)", nil, nil, nil) == SQLITE_OK)
+        for row in 0..<rows {
+            #expect(sqlite3_exec(db, "INSERT INTO cfurl_cache_response (request_key) VALUES ('https://example.com/\(row)')", nil, nil, nil) == SQLITE_OK)
+        }
     }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import SQLite3
 
 /// Everywhere DuoUpdater writes on this Mac, sorted into what it is for, measured,
 /// and — for the parts that are only caches — emptied.
@@ -77,6 +78,10 @@ public enum StorageInventory {
         public let item: Item
         public let bytes: Int64
         public let paths: [URL]
+        /// The part of ``bytes`` that clearing removes. Zero for an item that is
+        /// not ``Item/isClearable``; for ``Item/networkCache`` it is less than
+        /// `bytes` — see ``networkCacheClearableBytes(in:fileManager:)``.
+        public let clearableBytes: Int64
     }
 
     /// Which item a top-level entry of `com.duoupdater.app` belongs to.
@@ -154,8 +159,66 @@ public enum StorageInventory {
                 if item == .backups { return sum + BackupStore.storeSize(of: url) }
                 return sum + allocatedSize(of: url, fileManager: fileManager)
             }
-            return Measurement(item: item, bytes: bytes, paths: existing)
+            let clearable: Int64 = switch item {
+            case .networkCache:
+                existing.reduce(0) { $0 + networkCacheClearableBytes(in: $1, fileManager: fileManager) }
+            case _ where item.isClearable: bytes
+            default: 0
+            }
+            return Measurement(item: item, bytes: bytes, paths: existing, clearableBytes: clearable)
         }
+    }
+
+    /// What clearing `Caches/com.duoupdater.app` actually removes: the cached
+    /// responses, not the directory.
+    ///
+    /// Clearing goes through `URLCache.removeAllCachedResponses()` and WebKit's
+    /// cache data types, and after it the directory is not empty. Measured on the
+    /// Mac this was written on (2026-10-12), 2.2 MB stayed behind: WebKit's
+    /// `AlternativeServices` database and `HSTS.plist` (what a site said about
+    /// how to reach it, not a cached response), the `salt` WebKit keys its caches
+    /// with, and `Cache.db` as an empty database with its write-ahead log. Counted
+    /// as clearable, that remainder kept "2.2 MB can be cleared" on the page and
+    /// the button enabled for a click that freed 0 bytes.
+    ///
+    /// So the count is: `fsCachedData` (response bodies `URLCache` keeps as
+    /// files), WebKit's `NetworkCache` and `CacheStorage` without their `salt`,
+    /// and the `Cache.db` files only while the database holds a cached response
+    /// — its log is where a fresh response's bytes are, and empty it is the
+    /// shell that clearing leaves.
+    static func networkCacheClearableBytes(in root: URL, fileManager: FileManager = .default) -> Int64 {
+        let webKit = root.appendingPathComponent("WebKit", isDirectory: true)
+        var total = allocatedSize(of: root.appendingPathComponent("fsCachedData"), fileManager: fileManager)
+        for name in ["NetworkCache", "CacheStorage"] {
+            total += allocatedSize(of: webKit.appendingPathComponent(name), fileManager: fileManager) {
+                $0.lastPathComponent != "salt"
+            }
+        }
+        let database = root.appendingPathComponent("Cache.db")
+        if cachedResponseCount(in: database) > 0 {
+            for suffix in ["", "-wal", "-shm"] {
+                total += allocatedSize(
+                    of: URL(fileURLWithPath: database.path + suffix), fileManager: fileManager)
+            }
+        }
+        return total
+    }
+
+    /// Rows in a `URLCache` database. Opened read-only and through its log, so a
+    /// response `URLCache` has not checkpointed yet still counts. Zero when the
+    /// file is missing or is not a `URLCache` database.
+    static func cachedResponseCount(in database: URL) -> Int {
+        guard FileManager.default.fileExists(atPath: database.path) else { return 0 }
+        var db: OpaquePointer?
+        defer { sqlite3_close(db) }
+        guard sqlite3_open_v2(database.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return 0 }
+        sqlite3_busy_timeout(db, 200)
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(db, "SELECT count(*) FROM cfurl_cache_response", -1, &statement, nil) == SQLITE_OK,
+              sqlite3_step(statement) == SQLITE_ROW
+        else { return 0 }
+        return Int(sqlite3_column_int64(statement, 0))
     }
 
     /// Empties a clearable item's files on disk. Leaves the directories in place
@@ -192,7 +255,9 @@ public enum StorageInventory {
     /// network cache links every blob from two places (`Blobs/` and the record
     /// that uses it): summed per path, `Caches/com.duoupdater.app` read 143 MB
     /// where `du` read 70 MB on the Mac this was written on (2026-10-12).
-    static func allocatedSize(of url: URL, fileManager: FileManager = .default) -> Int64 {
+    static func allocatedSize(
+        of url: URL, fileManager: FileManager = .default, including include: (URL) -> Bool = { _ in true }
+    ) -> Int64 {
         let keys: Set<URLResourceKey> = [
             .totalFileAllocatedSizeKey, .isRegularFileKey, .linkCountKey, .fileResourceIdentifierKey,
         ]
@@ -200,7 +265,7 @@ public enum StorageInventory {
         guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return 0 }
         var seenLinked = Set<AnyHashable>()
         func size(_ file: URL) -> Int64 {
-            guard let values = try? file.resourceValues(forKeys: keys), values.isRegularFile == true
+            guard include(file), let values = try? file.resourceValues(forKeys: keys), values.isRegularFile == true
             else { return 0 }
             if (values.linkCount ?? 1) > 1, let identity = values.fileResourceIdentifier as? AnyHashable,
                !seenLinked.insert(identity).inserted {

@@ -19,6 +19,13 @@ struct StorageSettingsPage: View {
     @State private var measurements = StorageMeasurementMemo.last
     @State private var clearing = false
     @State private var refreshing = false
+    /// Which measurement is the latest to have started. Only that one may write
+    /// its result: the walk `.task` starts on a return visit runs with the
+    /// buttons live (the page is showing the remembered numbers), and if it read
+    /// the caches before a Clear Caches and finished after the clear's own
+    /// re-measure, its sizes from before the clear would land last — "N can be
+    /// cleared" again, for a click that frees nothing.
+    @State private var measureGeneration = 0
     /// The busy look, shown only once the work has run past ``busyThreshold``.
     /// Shown at once, a clear or a measurement that finishes in one or two frames
     /// — the usual case — flashed a spinner and a dimmed button for a single
@@ -228,9 +235,13 @@ struct StorageSettingsPage: View {
     }
 
     private func measure() async {
+        measureGeneration += 1
+        let generation = measureGeneration
         let result = await Task.detached(priority: .userInitiated) {
             StorageInventory.measure()
         }.value
+        // A later measurement started while this one walked; its answer is newer.
+        guard generation == measureGeneration else { return }
         let fresh = Dictionary(uniqueKeysWithValues: result.map { ($0.item, $0) })
         measurements = fresh
         StorageMeasurementMemo.last = fresh

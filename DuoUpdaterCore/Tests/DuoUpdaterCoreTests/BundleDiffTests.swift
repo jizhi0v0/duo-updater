@@ -591,6 +591,63 @@ import CryptoKit
         #expect(BundleFactsReader.hashes(of: [file], stop: stop).map { $0?.digest } == [nil])
     }
 
+    /// The Mach-O are read at once, and their printable runs still go into the
+    /// index in walk order: the blob is what reading them one after another in
+    /// the enumerator's order gives, byte for byte. A file over the index limit is
+    /// still read for its facts and listed as not indexed.
+    @Test func machORunsAreIndexedInWalkOrder() throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let app = try minimalApp(in: directory)
+        for index in 0..<40 {
+            var machO = Data()
+            for word: UInt32 in [0xfeed_facf, 0x0100_000c, 0, 2, 0, 0, 0, 0] {
+                withUnsafeBytes(of: word.littleEndian) { machO.append(contentsOf: $0) }
+            }
+            for line in 0..<(index * 50 % 700) { machO.append(Data("\0ZZFixture.\(index).key.\(line)\u{1}".utf8)) }
+            try write(machO, to: app.appendingPathComponent("Contents/Frameworks/zz\(index % 3)/zzlib\(index).dylib"))
+        }
+
+        let facts = try BundleFactsReader.scan(root: app)
+        var expected = Data()
+        let walker = FileManager.default.enumerator(
+            at: app.resolvingSymlinksInPath().standardizedFileURL,
+            includingPropertiesForKeys: [.isSymbolicLinkKey, .isRegularFileKey, .fileSizeKey],
+            options: [], errorHandler: { _, _ in true })!
+        for case let url as URL in walker where url.pathExtension == "dylib" {
+            try Data(contentsOf: url).withUnsafeBytes { PrintableRuns.append(from: $0, to: &expected) }
+        }
+        #expect(facts.machO.count == 40)
+        #expect(expected.count > 100_000)
+        #expect(facts.stringsBlob == expected)
+        #expect(facts.timings.entries.map(\.phase).contains(BundleFactsReader.machOPhase))
+        #expect(!facts.timings.entries.map(\.phase).contains("strings index"))
+        // The report pads phase names to 28 columns and cuts what does not fit.
+        #expect(BundleFactsReader.machOPhase.count < 28)
+
+        let big = BundleFactsReader.readMachO(
+            at: app.appendingPathComponent("Contents/Frameworks/zz1/zzlib1.dylib"),
+            size: BundleFactsReader.stringsIndexLimit + 1)
+        #expect(big.fact != nil && !big.indexed && big.runs.isEmpty)
+    }
+
+    /// A Mach-O that cannot be read leaves no fact; stopped before the reads, none
+    /// is made.
+    @Test func machOReadsLeaveNothingForAFailedOrStoppedRead() throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let app = try minimalApp(in: directory)
+        let file = app.appendingPathComponent("Contents/Resources/zz.txt")
+        let missing = app.appendingPathComponent("Contents/Resources/zz-missing.dylib")
+        let stop = BundleDiff.StopFlag()
+        let reads = BundleFactsReader.machOReads(of: [(file, 2), (missing, 0), nil], stop: stop)
+        #expect(reads[0]?.fact != nil && reads[0]?.indexed == true)
+        #expect(reads[1] != nil && reads[1]?.fact == nil && reads[1]?.runs.isEmpty == true)
+        #expect(reads[2] == nil)
+        stop.set()
+        #expect(BundleFactsReader.machOReads(of: [(file, 2)], stop: stop)[0] == nil)
+    }
+
     // MARK: A backup that lives on another disk
 
     /// Comparing an app with its backup is what this is for, and a backup on

@@ -73,6 +73,27 @@ import Testing
         #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [agent]).isEmpty)
     }
 
+    /// The Backdrop shape: the `BundleProgram` of one of the bundle's own
+    /// LaunchAgents plists, started by launchd, plus a second process running
+    /// the same executable (its `--wallpaper-renderer`). The app's next launch
+    /// re-registers the agent, so neither blocks. A nested app that is not an
+    /// agent still does. Mutation: drop the `launchAgentPrograms` check → red.
+    @Test func aLaunchAgentProgramNeverBlocks() {
+        let program = "Contents/Resources/ZZFixtureWallpaper.app/Contents/MacOS/ZZFixtureWallpaper"
+        let agent = Self.process(714, program)
+        let renderer = Self.process(715, program)
+        let machine = Self.process(
+            716, "Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine")
+        let programs: Set<String> = ["\(Self.bundle)/\(program)"]
+        #expect(NestedAppGuard.blockers(
+            bundlePath: Self.bundle, processes: [agent, renderer], launchAgentPrograms: programs).isEmpty)
+        #expect(NestedAppGuard.blockers(
+            bundlePath: Self.bundle, processes: [agent, renderer, machine], launchAgentPrograms: programs)
+            == [.init(name: "ZZFixtureMachine", pid: 716)])
+        // Without the plist it is an ordinary nested app and blocks.
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [agent]).count == 1)
+    }
+
     /// A bare executable that is not part of any nested `.app` (an XPC service,
     /// a command-line helper) is out of scope.
     @Test func codeOutsideANestedAppNeverBlocks() {
@@ -116,6 +137,63 @@ import Testing
         let b = Self.process(720, "Contents/Helpers/B.app/Contents/MacOS/B")
         let a = Self.process(712, "Contents/Helpers/A.app/Contents/MacOS/A")
         #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [b, a]).map(\.pid) == [712, 720])
+    }
+
+    // MARK: - LaunchAgents plists on disk
+
+    /// Reads `BundleProgram` from every plist in `Contents/Library/LaunchAgents`
+    /// and resolves symlinks as `proc_pidpath` does. A `Program`-only plist, a
+    /// `BundleProgram` that leaves the bundle and a non-plist file add nothing.
+    /// Mutations: read `Program` too → red; drop the inside-the-bundle check →
+    /// red; drop `resolvingSymlinksInPath` → red.
+    @Test func launchAgentProgramsReadsBundleProgramFromTheBundlesOwnPlists() throws {
+        let bundle = try Self.fixtureBundle()
+        defer { try? FileManager.default.removeItem(atPath: bundle) }
+        let agents = bundle + "/Contents/Library/LaunchAgents"
+        try Self.writePlist(["BundleProgram": Self.agentProgram, "Label": "zz.agent"],
+                            to: agents + "/zz.agent.plist")
+        try Self.writePlist(["BundleProgram": "Contents/Resources/Linked.app/Contents/MacOS/ZZFixtureLinked"],
+                            to: agents + "/zz.linked.plist")
+        try Self.writePlist(["Program": bundle + "/Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine"],
+                            to: agents + "/zz.program.plist")
+        try Self.writePlist(["BundleProgram": "../ZZFixtureOutside/tool"], to: agents + "/zz.outside.plist")
+        try "not a plist".write(toFile: agents + "/README", atomically: true, encoding: .utf8)
+        // `Linked.app` is a symlink to `Real.app`, as `Versions/Current` would be.
+        let resources = bundle + "/Contents/Resources"
+        try Self.makeExecutable(resources + "/Real.app/Contents/MacOS/ZZFixtureLinked")
+        try FileManager.default.createSymbolicLink(
+            atPath: resources + "/Linked.app", withDestinationPath: resources + "/Real.app")
+
+        #expect(NestedAppGuard.launchAgentPrograms(inBundle: bundle) == [
+            bundle + "/" + Self.agentProgram,
+            resources + "/Real.app/Contents/MacOS/ZZFixtureLinked",
+        ])
+    }
+
+    @Test func launchAgentProgramsIsEmptyWithoutTheDirectory() throws {
+        let bundle = try Self.fixtureBundle()
+        defer { try? FileManager.default.removeItem(atPath: bundle) }
+        try FileManager.default.removeItem(atPath: bundle + "/Contents/Library")
+        #expect(NestedAppGuard.launchAgentPrograms(inBundle: bundle).isEmpty)
+    }
+
+    /// `refusal` reads the installed bundle's plists itself. Mutation: stop
+    /// passing `launchAgentPrograms` from `refusal` → red.
+    @Test func theRefusalLetsTheBundlesOwnLaunchAgentThrough() throws {
+        let bundle = try Self.fixtureBundle()
+        defer { try? FileManager.default.removeItem(atPath: bundle) }
+        try Self.writePlist(["BundleProgram": Self.agentProgram],
+                            to: bundle + "/Contents/Library/LaunchAgents/zz.agent.plist")
+        let url = URL(fileURLWithPath: bundle)
+        let agent = NestedAppGuard.RunningProcess(
+            pid: 730, parentPID: 1, executablePath: bundle + "/" + Self.agentProgram, isRegularApp: false)
+        #expect(NestedAppGuard.refusal(url, appName: "ZZFixtureVM", processes: { [agent] }) == nil)
+        let machine = NestedAppGuard.RunningProcess(
+            pid: 731, parentPID: 1,
+            executablePath: bundle + "/Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine",
+            isRegularApp: false)
+        #expect(NestedAppGuard.refusal(url, appName: "ZZFixtureVM", processes: { [agent, machine] })
+            == NestedAppRunningError(appName: "ZZFixtureVM", blockers: [.init(name: "ZZFixtureMachine", pid: 731)]))
     }
 
     // MARK: - The message
@@ -232,6 +310,34 @@ import Testing
     }
 
     // MARK: - Fixtures
+
+    private static let agentProgram =
+        "Contents/Resources/ZZFixtureWallpaper.app/Contents/MacOS/ZZFixtureWallpaper"
+
+    /// A real `ZZFixtureVM.app` in a fresh temporary directory, holding the
+    /// agent's executable and an empty `Contents/Library/LaunchAgents`. The path
+    /// comes back with symlinks resolved, as `refusal` resolves it.
+    private static func fixtureBundle() throws -> String {
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-agents-\(UUID().uuidString)", isDirectory: true)
+        let bundle = parent.appendingPathComponent("ZZFixtureVM.app", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: bundle.appendingPathComponent("Contents/Library/LaunchAgents"),
+            withIntermediateDirectories: true)
+        try makeExecutable(bundle.path + "/" + agentProgram)
+        return bundle.resolvingSymlinksInPath().path
+    }
+
+    private static func makeExecutable(_ path: String) throws {
+        try FileManager.default.createDirectory(
+            atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        try Data().write(to: URL(fileURLWithPath: path))
+    }
+
+    private static func writePlist(_ plist: [String: Any], to path: String) throws {
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+            .write(to: URL(fileURLWithPath: path))
+    }
 
     private static func blockingMachine() -> NestedAppGuard.RunningProcess {
         process(700, "Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine")

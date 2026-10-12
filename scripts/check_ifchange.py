@@ -50,10 +50,11 @@ the new side, so it works before a commit as well as in CI):
 ## When the other side really needs nothing
 
 Write `NO_IFTTT=<reason>` in a commit message on the branch or in the pull
-request's description. The violations are then printed as warnings and the
-check passes. CI only sees the latest commit's message (the checkout is two
-deep) and the description as it was when the run started, so after editing the
-description, re-run the job.
+request's description, with the reason on the same line. The violations are
+then printed as warnings and the check passes. CI only sees the latest commit's
+message (the checkout is two deep) and the description as it was at the push
+that started the run: a re-run reuses that push's event, and editing the
+description starts no run, so the commit message is the place that always works.
 
 ## What it cannot do
 
@@ -84,7 +85,10 @@ MARKER = re.compile(
     r"^\s*(?://+|#+|<!--|/?\*+|--)\s*LINT\.(IfChange|ThenChange)"
     r"(?:\(([^)]*)\))?\s*(?:-->|\*/)?\s*$")
 LABEL_RE = re.compile(rf"^{LABEL}$")
-OVERRIDE = re.compile(r"\bNO_IFTTT=\s*\S")
+# `[ \t]`, not `\s`: the reason must be on the same line. `\s` would cross into
+# whatever follows a bare `NO_IFTTT=` — the Co-Authored-By trailer, the next
+# commit's message, the PR description — and read that as the reason.
+OVERRIDE = re.compile(r"\bNO_IFTTT=[ \t]*\S")
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
 

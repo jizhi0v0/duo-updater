@@ -291,6 +291,18 @@ class Override(Repo):
         self.commit("Reformat\n\nNO_IFTTT=")
         self.assertEqual(self.run_check("--base", "main")[0], 1)
 
+    def test_empty_override_does_not_borrow_the_next_line(self):
+        """`NO_IFTTT=` followed by this repository's standard trailer, then an
+        older commit and a PR description: none of those is the reason."""
+        self.edit("core.swift", "x > 1", "x  > 1")
+        self.commit("Older commit")
+        self.edit("core.swift", "x  > 1", "x   > 1")
+        self.commit("Reformat\n\nNO_IFTTT=\n\nCo-Authored-By: Someone <a@b.c>")
+        event = self.root / "event.json"
+        event.write_text(json.dumps({"pull_request": {"body": "Some description"}}))
+        with mock_env(GITHUB_EVENT_PATH=str(event)):
+            self.assertEqual(self.run_check("--base", "main")[0], 1)
+
     def test_pull_request_description_override(self):
         self.edit("core.swift", "x > 1", "x  > 1")
         self.commit("Reformat")

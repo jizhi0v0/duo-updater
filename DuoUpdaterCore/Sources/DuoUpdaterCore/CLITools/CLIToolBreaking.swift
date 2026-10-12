@@ -20,8 +20,9 @@ import Foundation
 ///   `**Breaking — Node runtime:** …` (openclaw), or one whose bold title ends
 ///   `(breaking)**` (Vite+).
 ///
-/// The word anywhere else in a line is not a marker: Claude Code's notes say
-/// "Fixed … breaking …" of a bug 28 times, and bub's "No breaking changes".
+/// The word anywhere else in a line is not a marker: 26 lines of Claude Code's
+/// notes use it otherwise ("Fixed … breaking …" of a bug), and bub's say "No
+/// breaking changes".
 /// Rust's "Compatibility Notes" heading is in 90 of 155 releases, so it marks
 /// nothing; "Removed" and "Deprecated" headings are not claims of breakage.
 extension CLIToolChangelog {

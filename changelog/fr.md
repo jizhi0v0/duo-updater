@@ -6,7 +6,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Les mises à jour livrées dans une image disque avec un contrat de licence s’installent désormais en un clic.** Auparavant, l’installation s’arrêtait au contrat. Sous macOS 27.2 et ultérieur, les apps fournies dans de grandes images disque s’installent aussi plus vite.
 
-**Plus d’apps prises en charge.** Trim Enabler bénéficie désormais de la vérification des mises à jour et des mises à jour en un clic, et les versions bêta de SwiftVM reçoivent désormais les mises à jour bêta. Plexo et Kitten Preview bénéficient désormais de la vérification des mises à jour et des notes de version. disktree bénéficie de la vérification des mises à jour, et des mises à jour en un clic une fois « Autoriser les mises à jour en un clic des apps sans signature de développeur » activé dans Réglages › Général. Sensei et Backdrop ont désormais des notes de version structurées.
+**Plus d’apps prises en charge.** Trim Enabler bénéficie désormais de la vérification des mises à jour et des mises à jour en un clic, et les versions bêta de SwiftVM reçoivent désormais les mises à jour bêta. Plexo et Kitten Preview bénéficient désormais de la vérification des mises à jour et des notes de version. disktree bénéficie de la vérification des mises à jour, et des mises à jour en un clic une fois « Autoriser les mises à jour en un clic des apps sans signature de développeur » activé dans Réglages › Général.
 
 **Backdrop se met à jour en un clic même pendant qu’il affiche son fond d’écran.** Auparavant, la mise à jour était ignorée tant que le fond d’écran de Backdrop tournait, c’est-à-dire presque toujours.
 

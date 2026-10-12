@@ -6,7 +6,7 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 **Updates, die in einem Disk-Image mit Lizenzvereinbarung kommen, lassen sich jetzt mit einem Klick installieren.** Vorher blieb die Installation an der Vereinbarung hängen. Ab macOS 27.2 installieren sich Apps aus großen Disk-Images außerdem schneller.
 
-**Mehr Apps werden unterstützt.** Trim Enabler bekommt jetzt Update-Prüfungen und Ein-Klick-Updates, und die Beta-Builds von SwiftVM erhalten jetzt Beta-Updates. Plexo und Kitten Preview bekommen jetzt Update-Prüfungen und Versionshinweise. disktree bekommt Update-Prüfungen und Ein-Klick-Updates, sobald „Ein-Klick-Updates für Apps ohne Entwicklersignatur erlauben“ in Einstellungen › Allgemein eingeschaltet ist. Sensei und Backdrop bekommen jetzt strukturierte Versionshinweise.
+**Mehr Apps werden unterstützt.** Trim Enabler bekommt jetzt Update-Prüfungen und Ein-Klick-Updates, und die Beta-Builds von SwiftVM erhalten jetzt Beta-Updates. Plexo und Kitten Preview bekommen jetzt Update-Prüfungen und Versionshinweise. disktree bekommt Update-Prüfungen und Ein-Klick-Updates, sobald „Ein-Klick-Updates für Apps ohne Entwicklersignatur erlauben“ in Einstellungen › Allgemein eingeschaltet ist.
 
 **Backdrop lässt sich jetzt mit einem Klick aktualisieren, während sein Hintergrundbild angezeigt wird.** Vorher wurde das Update übersprungen, solange das Hintergrundbild von Backdrop lief – also fast immer.
 

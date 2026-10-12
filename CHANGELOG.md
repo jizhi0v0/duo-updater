@@ -23,7 +23,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Updates that come in a disk image with a license agreement now install with one click.** Before, the install stopped at the agreement. On macOS 27.2 and later, apps in large disk images also install faster.
 
-**More apps are supported.** Trim Enabler now gets update checks and one-click updates, and SwiftVM's beta builds now get beta updates. Plexo and Kitten Preview now get update checks and release notes. disktree gets update checks, plus one-click updates once "Allow one-click updates for apps without a developer signature" is on in Settings › General. Sensei and Backdrop now get structured release notes.
+**More apps are supported.** Trim Enabler now gets update checks and one-click updates, and SwiftVM's beta builds now get beta updates. Plexo and Kitten Preview now get update checks and release notes. disktree gets update checks, plus one-click updates once "Allow one-click updates for apps without a developer signature" is on in Settings › General.
 
 **Backdrop updates with one click while its wallpaper is showing.** Before, the update was skipped whenever Backdrop's wallpaper was running, which is nearly always.
 

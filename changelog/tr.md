@@ -6,7 +6,7 @@ Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce 
 
 **Lisans sözleşmesi içeren bir disk görüntüsüyle gelen güncellemeler artık tek tıkla yükleniyor.** Önceden yükleme sözleşme adımında duruyordu. macOS 27.2 ve sonrasında büyük disk görüntülerindeki uygulamalar da daha hızlı yükleniyor.
 
-**Daha fazla uygulama destekleniyor.** Trim Enabler artık güncelleme denetimi ve tek tıkla güncelleme alıyor; SwiftVM'in beta derlemeleri de artık beta güncellemeleri alıyor. Plexo ve Kitten Preview artık güncelleme denetimi ve sürüm notları alıyor. disktree güncelleme denetimi alıyor; Ayarlar › Genel'de “Geliştirici imzası olmayan uygulamalarda tek tıkla güncellemeye izin ver” açıksa tek tıkla da güncelleniyor. Sensei ve Backdrop artık yapılandırılmış sürüm notları alıyor.
+**Daha fazla uygulama destekleniyor.** Trim Enabler artık güncelleme denetimi ve tek tıkla güncelleme alıyor; SwiftVM'in beta derlemeleri de artık beta güncellemeleri alıyor. Plexo ve Kitten Preview artık güncelleme denetimi ve sürüm notları alıyor. disktree güncelleme denetimi alıyor; Ayarlar › Genel'de “Geliştirici imzası olmayan uygulamalarda tek tıkla güncellemeye izin ver” açıksa tek tıkla da güncelleniyor.
 
 **Backdrop, duvar kâğıdını gösterirken de tek tıkla güncelleniyor.** Önceden Backdrop'un duvar kâğıdı çalıştığı sürece, yani neredeyse her zaman, güncelleme atlanıyordu.
 

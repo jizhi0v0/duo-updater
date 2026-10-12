@@ -6,7 +6,7 @@
 
 **装在带许可协议的磁盘映像里的更新，现在可以一键安装了。** 以前安装会停在许可协议这一步。在 macOS 27.2 及更新版本上，大型磁盘映像里的 App 安装也更快了。
 
-**支持更多 App。** Trim Enabler 现在可以检查更新和一键更新，SwiftVM 的 beta 版现在会收到 beta 更新。Plexo 和 Kitten Preview 现在可以检查更新、查看更新说明。disktree 可以检查更新；在设置 › 通用里打开“允许一键更新没有开发者签名的 App”后，还能一键更新。Sensei 和 Backdrop 现在有结构化的更新说明。
+**支持更多 App。** Trim Enabler 现在可以检查更新和一键更新，SwiftVM 的 beta 版现在会收到 beta 更新。Plexo 和 Kitten Preview 现在可以检查更新、查看更新说明。disktree 可以检查更新；在设置 › 通用里打开“允许一键更新没有开发者签名的 App”后，还能一键更新。
 
 **Backdrop 在显示壁纸时也能一键更新了。** 以前只要 Backdrop 的壁纸在运行（几乎总是如此），更新就会被跳过。
 

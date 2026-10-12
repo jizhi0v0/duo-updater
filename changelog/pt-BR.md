@@ -6,7 +6,7 @@ Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A vers
 
 **Atualizações distribuídas em uma imagem de disco com contrato de licença agora são instaladas com um clique.** Antes, a instalação parava no contrato. No macOS 27.2 e posteriores, apps em imagens de disco grandes também são instalados mais rápido.
 
-**Mais apps são compatíveis.** O Trim Enabler agora tem verificação de atualizações e atualização com um clique, e as versões beta do SwiftVM agora recebem atualizações beta. Plexo e Kitten Preview agora têm verificação de atualizações e notas de versão. O disktree tem verificação de atualizações, e atualização com um clique quando “Permitir atualizações com um clique para apps sem assinatura de desenvolvedor” estiver ativado em Ajustes › Geral. Sensei e Backdrop agora têm notas de versão estruturadas.
+**Mais apps são compatíveis.** O Trim Enabler agora tem verificação de atualizações e atualização com um clique, e as versões beta do SwiftVM agora recebem atualizações beta. Plexo e Kitten Preview agora têm verificação de atualizações e notas de versão. O disktree tem verificação de atualizações, e atualização com um clique quando “Permitir atualizações com um clique para apps sem assinatura de desenvolvedor” estiver ativado em Ajustes › Geral.
 
 **O Backdrop é atualizado com um clique mesmo enquanto mostra seu papel de parede.** Antes, a atualização era pulada enquanto o papel de parede do Backdrop estivesse em execução, ou seja, quase sempre.
 

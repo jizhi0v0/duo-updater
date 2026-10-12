@@ -165,13 +165,14 @@ import Foundation
     /// way to reflect over a switch's cases.
     @Test func everyBindingIsEnumerated() {
         let enumerated = Set(ChannelBinding.allResolutions.map { $0.bundleID.lowercased() })
-        // Ghostty, CodeEdit and Osaurus are deliberately outside `boundBundleIDs`
-        // (no user-settable preference to watch) but are still real bindings, so
-        // they are enumerated.
+        // Ghostty, CodeEdit, Osaurus and SwiftVM are deliberately outside
+        // `boundBundleIDs` (no user-settable preference to watch) but are still
+        // real bindings, so they are enumerated.
         let expected = ChannelBinding.boundBundleIDs
             .union([GhosttyChannel.bundleID.lowercased(),
                     CodeEditChannel.bundleID.lowercased(),
-                    OsaurusChannel.bundleID.lowercased()])
+                    OsaurusChannel.bundleID.lowercased(),
+                    SwiftVMChannel.bundleID.lowercased()])
             .subtracting(ChannelBinding.vendorProbeBackedBindings)
         #expect(enumerated == expected,
                 "allResolutions drifted from the resolvers: missing \(expected.subtracting(enumerated).sorted()), extra \(enumerated.subtracting(expected).sorted())")

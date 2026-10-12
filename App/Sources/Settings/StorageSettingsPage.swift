@@ -229,8 +229,13 @@ struct StorageSettingsPage: View {
 
     // MARK: - Presentation
 
+    /// "0 KB" rather than the formatter's default "Zero KB", which is what every
+    /// cache row reads right after a clear.
     private static func format(_ bytes: Int64) -> String {
-        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowsNonnumericFormatting = false
+        return formatter.string(fromByteCount: bytes)
     }
 
     /// The folder to print under a row: the path itself when there is one, the

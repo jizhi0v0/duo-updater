@@ -130,11 +130,18 @@ jobs:
       # scripts/ci_build_cache.py says why the directory alone would not be warm.
       # Restored on every hosted run (a pull request reads main's), saved only by
       # a push to main or a dispatch, so a pull request cannot write what main
-      # reads. The key names the compiler: another Swift's build is not reusable.
+      # reads. The key names the toolchain (Xcode and Swift): another
+      # toolchain's build is not reusable.
+      #
+      # Measured on 2026-10-12 (runs 38281525757, 38283220484, 38283958913):
+      # this job took 9.2 min cold (365 s of it compiling Core), 4.9 with no
+      # Swift change since the cache (32 s), 6.3 after an edit to one Core
+      # source and one test file (128 s). Restoring ~300 MB took 14–17 s, and
+      # saving it 15–21 s.
       - name: Name SwiftPM's build cache
         id: spm-key
         if: runner.environment == 'github-hosted'
-        run: echo "key=spm-${{ github.job }}-$(swift --version 2>&1 | shasum | cut -c1-12)" >> "$GITHUB_OUTPUT"
+        run: echo "key=spm-${{ github.job }}-$({ xcodebuild -version; swift --version; } 2>&1 | shasum | cut -c1-12)" >> "$GITHUB_OUTPUT"
 
       - name: Restore SwiftPM's build
         id: spm-cache
@@ -319,16 +326,16 @@ jobs:
           swift --version
           echo "arch: $(uname -m)"
 
-      # A GitHub-hosted runner starts with no build at all, so it compiles the
-      # whole package every run. SwiftPM's build is cached between hosted runs;
-      # scripts/ci_build_cache.py says why the directory alone would not be warm.
-      # Restored on every hosted run (a pull request reads main's), saved only by
-      # a push to main or a dispatch, so a pull request cannot write what main
-      # reads. The key names the compiler: another Swift's build is not reusable.
+      # Cached on hosted runners the same way as `swift` (see there). The gain
+      # here depends on the change: the library is one whole-module -O compile,
+      # and any edit under Sources/ rebuilds it and the whole test target after
+      # it. Measured on 2026-10-12 (same runs as `swift`): 14.2 min cold (685 s
+      # compiling), 2.9 with no Swift change since the cache (1 s), 12.2 after
+      # an edit to one Core source and one test file (556 s).
       - name: Name SwiftPM's build cache
         id: spm-key
         if: runner.environment == 'github-hosted'
-        run: echo "key=spm-${{ github.job }}-$(swift --version 2>&1 | shasum | cut -c1-12)" >> "$GITHUB_OUTPUT"
+        run: echo "key=spm-${{ github.job }}-$({ xcodebuild -version; swift --version; } 2>&1 | shasum | cut -c1-12)" >> "$GITHUB_OUTPUT"
 
       - name: Restore SwiftPM's build
         id: spm-cache

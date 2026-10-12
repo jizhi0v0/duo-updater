@@ -18,6 +18,12 @@ struct StorageSettingsPage: View {
     /// a column of spinners that turn into text a second later.
     @State private var measurements = StorageMeasurementMemo.last
     @State private var clearing = false
+    @State private var measuring = false
+    /// Set for a moment after a Refresh the user asked for, so the button says
+    /// it worked even when nothing changed — which is the usual answer, and the
+    /// one a silent button can't be told apart from a click that missed.
+    @State private var refreshed = false
+    @State private var refreshedReset: Task<Void, Never>?
     /// What the last clear freed, shown in place of the button's caption for a
     /// few seconds so the click visibly landed.
     @State private var freedNote: String?
@@ -58,7 +64,7 @@ struct StorageSettingsPage: View {
             }
         }
         .task { await measure() }
-        .onDisappear { noteReset?.cancel() }
+        .onDisappear { noteReset?.cancel(); refreshedReset?.cancel() }
     }
 
     // MARK: - Rows
@@ -75,9 +81,16 @@ struct StorageSettingsPage: View {
                     .redacted(reason: measurements == nil ? .placeholder : [])
             }
             Spacer(minLength: 8)
-            Button("Refresh") { Task { await measure() } }
-                .settingsGlassButton()
-                .disabled(measurements == nil || clearing)
+            Button { Task { await refresh() } } label: {
+                // All three laid out, one shown, so the button keeps its width.
+                ZStack {
+                    Text("Refresh").opacity(!measuring && !refreshed ? 1 : 0)
+                    ProgressView().controlSize(.small).opacity(measuring ? 1 : 0)
+                    Label("Refreshed", systemImage: "checkmark").opacity(refreshed && !measuring ? 1 : 0)
+                }
+            }
+            .settingsGlassButton()
+            .disabled(measuring || clearing)
         }
         .settingsRow()
     }
@@ -110,16 +123,20 @@ struct StorageSettingsPage: View {
                         .textSelection(.enabled)
                         .redacted(reason: measurement == nil ? .placeholder : [])
                 }
+                // Under the text rather than beside the size: there it pushed this
+                // one size left of the column every other row's size lines up in.
+                if item == .backups {
+                    Button("Manage…") { model.requestedSettingsSection = .backups }
+                        .controlSize(.small)
+                        .settingsGlassButton()
+                        .padding(.top, 4)
+                }
             }
             Spacer(minLength: 8)
             Text(measurement.map { $0.paths.isEmpty ? String(localized: "None") : Self.format($0.bytes) } ?? "00.0 MB")
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .redacted(reason: measurement == nil ? .placeholder : [])
-            if item == .backups {
-                Button("Manage…") { model.requestedSettingsSection = .backups }
-                    .settingsGlassButton()
-            }
             Button {
                 Self.reveal(paths)
             } label: {
@@ -161,7 +178,21 @@ struct StorageSettingsPage: View {
 
     // MARK: - Work
 
+    private func refresh() async {
+        refreshedReset?.cancel()
+        refreshed = false
+        await measure()
+        refreshed = true
+        refreshedReset = Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            refreshed = false
+        }
+    }
+
     private func measure() async {
+        measuring = true
+        defer { measuring = false }
         let result = await Task.detached(priority: .userInitiated) {
             StorageInventory.measure()
         }.value

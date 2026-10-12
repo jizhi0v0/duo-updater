@@ -429,6 +429,37 @@ import CryptoKit
         #expect(removed.isEmpty)
     }
 
+    /// Every marker is still found where it sits, deep in a path or at its start,
+    /// once the byte search has ruled out the paths that cannot hold one; and a
+    /// path whose bytes hold a marker but whose Characters do not — a combining
+    /// accent on the marker's last `/` — still goes by `range(of:)`.
+    @Test func everyPrivilegedMarkerIsFoundPastTheByteSearch() {
+        var old = BundleFacts(), new = BundleFacts()
+        old.files = ["Contents/MacOS/zzfixture": FileFact(size: 1, digest: "a")]
+        let paths = [
+            "Payload/Library/LaunchDaemons/zz.daemon.plist",
+            "Library/LaunchAgents/zz.agent.plist",
+            "Contents/Library/LaunchServices/zz.helper",
+            "Contents/Library/LoginItems/ZZLogin.app/Contents/Info.plist",
+            "Contents/Library/SystemExtensions/zz.systemextension/Contents/Info.plist",
+            "Contents/Frameworks/ZZKit.framework/Versions/A/Contents/XPCServices/zz.xpc/Contents/Info.plist",
+            "Contents/Resources/Library/LaunchDaemon/zz-not-a-marker.plist",
+            "Contents/XPCServices/\u{301}zz-accented.xpc/Contents/Info.plist",
+        ]
+        for path in paths { new.files[path] = FileFact(size: 1, digest: "b") }
+        let (added, removed) = BundleDiff.privilegedComponents(old: old, new: new)
+        let accented = "Contents/XPCServices/\u{301}zz-accented.xpc/Contents/Info.plist"
+        #expect(Set(added) == Set([
+            "Payload/Library/LaunchDaemons/zz.daemon.plist",
+            "Library/LaunchAgents/zz.agent.plist",
+            "Contents/Library/LaunchServices/zz.helper",
+            "Contents/Library/LoginItems/ZZLogin.app",
+            "Contents/Library/SystemExtensions/zz.systemextension",
+            "Contents/Frameworks/ZZKit.framework/Versions/A/Contents/XPCServices/zz.xpc",
+        ]).union(accented.range(of: "Contents/XPCServices/") == nil ? [] : ["Contents/XPCServices/\u{301}zz-accented.xpc"]))
+        #expect(removed.isEmpty)
+    }
+
     /// Re-review of #705: counting `Character("\n")` saw a CRLF `\r\n` as one
     /// grapheme that is not a newline, so a two-line script read as one.
     @Test func lineCountsMatchWcForCRLFAndAMissingFinalNewline() {

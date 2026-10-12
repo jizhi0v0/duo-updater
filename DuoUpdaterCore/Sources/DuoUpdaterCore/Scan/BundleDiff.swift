@@ -507,9 +507,29 @@ public enum BundleDiff {
             "Library/LaunchDaemons/", "Library/LaunchAgents/", "Contents/Library/LaunchServices/",
             "Contents/Library/LoginItems/", "Contents/Library/SystemExtensions/", "Contents/XPCServices/",
         ]
+        // A byte search first. `range(of:)` compares Characters, and run for every
+        // marker over every path it was this whole section: 0.45–0.47 s on
+        // Microsoft OneNote (~20,000 paths a side), 1.1 s on Outlook. A path it
+        // matches holds the marker's bytes — the markers are ASCII, and none of
+        // their characters has a canonical equivalent outside ASCII (only U+037E,
+        // U+1FEF and U+212A map to ASCII at all) — so the bytes only rule out paths
+        // it could not match; the rest go to it as before. Nor does it skip an
+        // ignorable character: every scalar from U+0080 up, inserted into each
+        // marker at three places or put in place of one of its characters, made
+        // `range(of:)` find nothing (40 million paths, macOS 27.2).
+        let markerBytes = markers.map { Array($0.utf8) }
+        func mayHoldMarker(_ path: String) -> Bool {
+            path.utf8.withContiguousStorageIfAvailable { hay in
+                markerBytes.contains { needle in
+                    needle.withUnsafeBytes {
+                        memmem(hay.baseAddress, hay.count, $0.baseAddress, $0.count) != nil
+                    }
+                }
+            } ?? true
+        }
         func items(_ facts: BundleFacts) -> Set<String> {
             var found = Set<String>()
-            for path in facts.files.keys {
+            for path in facts.files.keys where mayHoldMarker(path) {
                 for marker in markers {
                     guard let range = path.range(of: marker) else { continue }
                     let rest = path[range.upperBound...]

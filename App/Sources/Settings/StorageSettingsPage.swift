@@ -18,7 +18,14 @@ struct StorageSettingsPage: View {
     /// a column of spinners that turn into text a second later.
     @State private var measurements = StorageMeasurementMemo.last
     @State private var clearing = false
-    @State private var measuring = false
+    @State private var refreshing = false
+    /// The busy look, shown only once the work has run past ``busyThreshold``.
+    /// Shown at once, a clear or a measurement that finishes in one or two frames
+    /// — the usual case — flashed a spinner and a dimmed button for a single
+    /// frame, which read as a flicker rather than as progress (recorded
+    /// 2026-10-12: the spinner and the dim lasted exactly one frame at 30 fps).
+    @State private var showsRefreshSpinner = false
+    @State private var showsClearSpinner = false
     /// Set for a moment after a Refresh the user asked for, so the button says
     /// it worked even when nothing changed — which is the usual answer, and the
     /// one a silent button can't be told apart from a click that missed.
@@ -84,13 +91,12 @@ struct StorageSettingsPage: View {
             Button { Task { await refresh() } } label: {
                 // All three laid out, one shown, so the button keeps its width.
                 ZStack {
-                    Text("Refresh").opacity(!measuring && !refreshed ? 1 : 0)
-                    ProgressView().controlSize(.small).opacity(measuring ? 1 : 0)
-                    Label("Refreshed", systemImage: "checkmark").opacity(refreshed && !measuring ? 1 : 0)
+                    Text("Refresh").opacity(!showsRefreshSpinner && !refreshed ? 1 : 0)
+                    ProgressView().controlSize(.small).opacity(showsRefreshSpinner ? 1 : 0)
+                    Label("Refreshed", systemImage: "checkmark").opacity(refreshed && !showsRefreshSpinner ? 1 : 0)
                 }
             }
             .settingsGlassButton()
-            .disabled(measuring || clearing)
         }
         .settingsRow()
     }
@@ -164,10 +170,10 @@ struct StorageSettingsPage: View {
             }
             .font(.callout)
             Spacer(minLength: 8)
-            if clearing { ProgressView().controlSize(.small) }
+            if showsClearSpinner { ProgressView().controlSize(.small) }
             Button("Clear Caches") { Task { await clearCaches() } }
                 .settingsGlassButton(prominent: true)
-                .disabled(clearing || measurements == nil || cacheTotal == 0)
+                .disabled(measurements == nil || cacheTotal == 0)
         }
         .settingsRow()
     }
@@ -178,10 +184,32 @@ struct StorageSettingsPage: View {
 
     // MARK: - Work
 
+    private static let busyThreshold: Duration = .milliseconds(300)
+
+    /// Sets a busy flag once ``busyThreshold`` has passed, unless cancelled
+    /// first by the work finishing.
+    private func busyAfterThreshold(_ set: @escaping @MainActor () -> Void) -> Task<Void, Never> {
+        Task { @MainActor in
+            try? await Task.sleep(for: Self.busyThreshold)
+            guard !Task.isCancelled else { return }
+            set()
+        }
+    }
+
+    /// A second click while one runs is ignored here rather than by disabling
+    /// the button: a button that greys out for one frame is the flicker this
+    /// page is avoiding.
     private func refresh() async {
+        guard !refreshing, !clearing else { return }
+        refreshing = true
         refreshedReset?.cancel()
-        refreshed = false
+        let busy = busyAfterThreshold { showsRefreshSpinner = true }
         await measure()
+        busy.cancel()
+        showsRefreshSpinner = false
+        refreshing = false
+        // Left on if it already was: flipping it off and on again is one more
+        // frame of the plain label between two of the checkmark.
         refreshed = true
         refreshedReset = Task {
             try? await Task.sleep(for: .seconds(1.5))
@@ -191,8 +219,6 @@ struct StorageSettingsPage: View {
     }
 
     private func measure() async {
-        measuring = true
-        defer { measuring = false }
         let result = await Task.detached(priority: .userInitiated) {
             StorageInventory.measure()
         }.value
@@ -202,11 +228,12 @@ struct StorageSettingsPage: View {
     }
 
     private func clearCaches() async {
-        guard let before = cacheTotal else { return }
+        guard !clearing, !refreshing, let before = cacheTotal else { return }
         noteReset?.cancel()
         clearing = true
-        freedNote = nil
-        clearError = nil
+        // The previous result stays up until this one replaces it. Cleared first,
+        // it gave way to "… can be cleared" for a frame before the new result.
+        let busy = busyAfterThreshold { showsClearSpinner = true }
 
         // Each cache is emptied by whoever holds it open: the image store resets
         // its running size with the files, `URLCache` and WebKit keep databases
@@ -228,6 +255,8 @@ struct StorageSettingsPage: View {
         }.value
 
         await measure()
+        busy.cancel()
+        showsClearSpinner = false
         clearing = false
         clearError = failure
         if failure == nil {

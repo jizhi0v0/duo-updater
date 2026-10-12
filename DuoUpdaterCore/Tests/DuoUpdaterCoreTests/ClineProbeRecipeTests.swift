@@ -227,3 +227,4 @@ private let clineStableManifestWindowsFirst = """
     #expect(beta != stable)
     #expect(beta == "https://github.com/cline/cline/releases")
 }
+// exp

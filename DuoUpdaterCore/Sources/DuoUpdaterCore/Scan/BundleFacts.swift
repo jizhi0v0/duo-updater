@@ -642,19 +642,24 @@ enum PrintableRuns {
         }
     }
 
-    /// Each run as its own string, for exact lookups.
-    static func wholeRuns(_ blob: Data) -> Set<String> {
+    /// Which of `needles` are a run of `blob` on their own. Only a run as long as
+    /// some needle is made into a string. Building every run of both indexes into
+    /// sets was most of the 3.9 s the localization section still took on OneDrive
+    /// 26.153 → 26.173 after ``delimitedMatches(_:_:)``; 0.2 s without.
+    static func wholeRunMatches(_ blob: Data, _ needles: [String]) -> [Bool] {
+        guard !needles.isEmpty else { return [] }
+        let lengths = Set(needles.map(\.utf8.count))
         var runs = Set<String>()
         blob.withUnsafeBytes { bytes in
             var start = 0
             for i in 0..<bytes.count where bytes[i] == 0x0A {
-                if i > start {
+                if i > start, lengths.contains(i - start) {
                     runs.insert(String(decoding: UnsafeRawBufferPointer(rebasing: bytes[start..<i]), as: UTF8.self))
                 }
                 start = i + 1
             }
         }
-        return runs
+        return needles.map(runs.contains)
     }
 
     /// Whether `needle` occurs in `blob` as a word of its own: not preceded or
@@ -682,6 +687,88 @@ enum PrintableRuns {
                 return false
             }
         }
+    }
+
+    /// ``containsDelimited(_:_:)`` for many needles in one pass over `blob`, rather
+    /// than one pass per needle. OneDrive 26.153 → 26.173 adds 2,294 keys, most of
+    /// them not a whole run, and with one `memmem` over the whole index for each
+    /// the localization section took 67 s of a 73 s comparison.
+    ///
+    /// A needle that starts with a word byte can only start where a word does, and
+    /// that word is exactly the needle's leading word bytes: a longer word would
+    /// fail the boundary after the needle, or its next byte. So needles are
+    /// grouped by that leading word, each word of the blob is looked up once, and
+    /// a hit is checked byte for byte. A needle that starts with any other byte
+    /// is rare and searched on its own.
+    static func delimitedMatches(_ blob: Data, _ needles: [String]) -> [Bool] {
+        var found = [Bool](repeating: false, count: needles.count)
+        let bytes = needles.map { Array($0.utf8) }
+        var byLeadingWord: [UInt64: [Int]] = [:]
+        var leadingLengths = Set<Int>()
+        var alone: [Int] = []
+        for (index, needle) in bytes.enumerated() where !needle.isEmpty && needle.count <= blob.count {
+            let word = needle.prefix(while: isWordByte)
+            guard !word.isEmpty else { alone.append(index); continue }
+            byLeadingWord[fnv1a(word), default: []].append(index)
+            leadingLengths.insert(word.count)
+        }
+        if !alone.isEmpty {
+            let alone = alone
+            let results = UnsafeMutableBufferPointer<Bool>.allocate(capacity: alone.count)
+            defer { results.deallocate() }
+            DispatchQueue.concurrentPerform(iterations: alone.count) { i in
+                (results.baseAddress! + i).initialize(to: containsDelimited(blob, needles[alone[i]]))
+            }
+            for (i, index) in alone.enumerated() where results[i] { found[index] = true }
+        }
+        guard !byLeadingWord.isEmpty else { return found }
+        let groups = byLeadingWord, lengths = leadingLengths
+
+        let chunks = max(1, min(blob.count / 65_536, ProcessInfo.processInfo.activeProcessorCount * 4))
+        let hits = UnsafeMutableBufferPointer<[Int]>.allocate(capacity: chunks)
+        defer { hits.deinitialize(); hits.deallocate() }
+        blob.withUnsafeBytes { hay in
+            let count = hay.count
+            DispatchQueue.concurrentPerform(iterations: chunks) { chunk in
+                // Words that start in this chunk; one that starts before it is the
+                // previous chunk's, however far it runs.
+                let end = count * (chunk + 1) / chunks
+                var i = count * chunk / chunks
+                if i > 0 { while i < end, isWordByte(hay[i - 1]) && isWordByte(hay[i]) { i += 1 } }
+                var local: [Int] = []
+                while i < end {
+                    guard isWordByte(hay[i]) else { i += 1; continue }
+                    let start = i
+                    while i < count, isWordByte(hay[i]) { i += 1 }
+                    guard lengths.contains(i - start),
+                          let candidates = groups[fnv1a(UnsafeRawBufferPointer(rebasing: hay[start..<i]))]
+                    else { continue }
+                    for index in candidates {
+                        let needle = bytes[index]
+                        let after = start + needle.count
+                        guard after <= count, after == count || !isWordByte(hay[after]),
+                              needle.withUnsafeBytes({ memcmp(hay.baseAddress! + start, $0.baseAddress!, needle.count) }) == 0
+                        else { continue }
+                        local.append(index)
+                    }
+                }
+                (hits.baseAddress! + chunk).initialize(to: local)
+            }
+        }
+        for chunk in hits { for index in chunk { found[index] = true } }
+        return found
+    }
+
+    private static func isWordByte(_ byte: UInt8) -> Bool {
+        (byte >= 0x30 && byte <= 0x39) || (byte >= 0x41 && byte <= 0x5A) || (byte >= 0x61 && byte <= 0x7A) || byte == 0x5F
+    }
+
+    /// Only buckets candidates: every hit is compared byte for byte, so a
+    /// collision costs a comparison and nothing else.
+    private static func fnv1a<S: Sequence>(_ bytes: S) -> UInt64 where S.Element == UInt8 {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in bytes { hash = (hash ^ UInt64(byte)) &* 0x100_0000_01b3 }
+        return hash
     }
 }
 

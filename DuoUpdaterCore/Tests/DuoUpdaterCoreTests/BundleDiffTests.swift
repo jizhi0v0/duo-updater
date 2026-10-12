@@ -127,8 +127,8 @@ import Foundation
     }
 
     /// A backup read from ``BackupFactsLibrary`` has no strings index, and both
-    /// searches against it fail for that reason alone — `wholeRuns` is empty, and
-    /// `containsDelimited` cannot fit the key into a shorter blob. Left to run, the
+    /// searches against it fail for that reason alone — an empty blob has no runs,
+    /// and `containsDelimited` cannot fit the key into it. Left to run, the
     /// old side then reads as not carrying a single key, and every key found in the
     /// new binaries is reported as being in the new binaries *only*: a claim about
     /// the old ones, made from no evidence at all, in the exact reading a reader
@@ -159,10 +159,59 @@ import Foundation
     /// substring search finds those two bytes inside unrelated strings.
     @Test func aShortKeyIsNotFoundInsideLongerStrings() {
         let old = facts(runs: ["SOK_STATE_ZZFIXTURE"])
-        let new = facts(runs: ["SOK_STATE_ZZFIXTURE", "zz.Cancellation.reason"])
-        let found = BundleDiff.evidence(for: ["OK", "Cancel"], old: old, new: new)
+        let new = facts(runs: ["SOK_STATE_ZZFIXTURE", "zz.Cancellation.reason", "Done", "Ready."])
+        let found = BundleDiff.evidence(for: ["OK", "Cancel", "Done", "Ready"], old: old, new: new)
         #expect(found["OK"] == .notFound)
         #expect(found["Cancel"] == .notFound)
+        // A short key is still found where it is a whole string of its own.
+        #expect(found["Done"] == .referencedByNewBinaries)
+        #expect(found["Ready"] == .notFound)
+    }
+
+    /// The one-pass search answers what a `containsDelimited` per key answers:
+    /// over a blob of a small alphabet, where most hits sit inside a longer word
+    /// or run on past the key, and large enough to be split into chunks, so words
+    /// cross chunk boundaries.
+    @Test func delimitedMatchesAgreesWithSearchingEachKey() {
+        var state: UInt64 = 0x2545_F491_4F6C_DD1D
+        func next(_ bound: Int) -> Int {
+            state ^= state << 13; state ^= state >> 7; state ^= state << 17
+            return Int(state % UInt64(bound))
+        }
+        let alphabet = Array("abAB_1.:%@ \n".utf8)
+        let blob = Data((0..<400_000).map { _ in alphabet[next(alphabet.count)] })
+        var needles = (0..<3_000).map { _ in String(decoding: (0..<(2 + next(6))).map { _ in alphabet[next(10)] }, as: UTF8.self) }
+        needles += ["", String(decoding: blob.prefix(5), as: UTF8.self), String(decoding: blob.suffix(5), as: UTF8.self)]
+        let oneByOne = needles.map { PrintableRuns.containsDelimited(blob, $0) }
+        #expect(PrintableRuns.delimitedMatches(blob, needles) == oneByOne)
+        // Not vacuous: both answers occur, for keys that start with a word byte
+        // and for keys that do not.
+        let leadsWithWord = needles.map { $0.first.map { $0.isLetter || $0.isNumber || $0 == "_" } ?? false }
+        for leads in [true, false] {
+            let picked = zip(oneByOne, leadsWithWord).filter { $0.1 == leads }.map(\.0)
+            #expect(picked.contains(true) && picked.contains(false))
+        }
+    }
+
+    /// A blob of two chunks, split at 65,536 bytes, inside `zzzzTailKey`: the
+    /// second chunk must not read the word's tail as a word of its own, and the
+    /// first must still find the word that runs across the split.
+    @Test func aWordAcrossAChunkBoundaryIsReadOnce() {
+        var text = String(repeating: "-", count: 65_536 - 4) + "zzzzTailKey\n"
+        text += String(repeating: "-", count: 131_072 - text.utf8.count)
+        let blob = Data(text.utf8)
+        #expect(PrintableRuns.delimitedMatches(blob, ["TailKey", "zzzzTailKey"]) == [false, true])
+    }
+
+    /// The leading word of the key is the whole word of the blob: a key followed by
+    /// punctuation is found, one inside a longer word on either side is not. A key
+    /// that starts with punctuation still needs no word byte before it.
+    @Test func delimitedMatchesNeedsTheKeyToStandAsAWord() {
+        let blob = Data("x NucleusListsConflict:%@,%@ y\nPreferencesTitleX\nzSwiftStatus\nTail".utf8)
+        let keys = ["NucleusListsConflict:%@", "PreferencesTitle", "SwiftStatus", "Tail", ":%@,%@ y", "%@,%@"]
+        let expected = [true, false, false, true, false, true]
+        #expect(PrintableRuns.delimitedMatches(blob, keys) == expected)
+        #expect(keys.map { PrintableRuns.containsDelimited(blob, $0) } == expected)
     }
 
     /// Review of #705: a nib's strings file is full of empty titles and repeated

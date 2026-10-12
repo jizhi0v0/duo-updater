@@ -56,16 +56,35 @@ enum TestDiskImages {
 
     /// Detach `image` by its device node if it is still attached. True when it is
     /// gone afterwards (or was never attached).
+    ///
+    /// Retried for up to a minute, a second apart: on the hosted xcode-27 runner
+    /// (macOS 27.0.1) the disk can stay busy for a moment after its volume is
+    /// unmounted. In 60 full Release runs of the Core tests there (diag run
+    /// 38251826792, 2026-10-12), `detach /dev/diskN` and then `detach -force`
+    /// both failed "couldn't eject "diskN" - Resource busy" (exit 49168) 12
+    /// times, and every one ejected on the first retry, 3–25 s later (the delay was
+    /// the diagnostic's own `sudo lsof`). That `lsof`, on the disk's /dev and /dev/r
+    /// nodes, found no open file, and `mount` no longer listed the disk, so what
+    /// held it is unknown.
     @discardableResult
     static func detach(_ image: URL) async -> Bool {
         let path = canonical(image.path)
-        for attachment in await attachments() where canonical(attachment.imagePath) == path {
-            guard let device = attachment.device else { continue }
-            if await hdiutil(["detach", device]) != 0 {
-                await hdiutil(["detach", device, "-force"])
+        let deadline = ContinuousClock.now + .seconds(60)
+        while true {
+            let devices = await attachments()
+                .filter { canonical($0.imagePath) == path }
+                .compactMap(\.device)
+            if devices.isEmpty { return await !isAttached(image) }
+            for device in devices {
+                if await hdiutil(["detach", device]) != 0 {
+                    await hdiutil(["detach", device, "-force"])
+                }
             }
+            if await !isAttached(image) { return true }
+            guard ContinuousClock.now < deadline,
+                  (try? await Task.sleep(for: .seconds(1))) != nil
+            else { return false }
         }
-        return await !isAttached(image)
     }
 
     /// Once per test process: detach what earlier, killed runs left attached, and

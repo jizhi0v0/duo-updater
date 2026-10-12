@@ -37,6 +37,7 @@
 | **Tinycast** | beta `com.tinycast.app.beta`（显示名 "Tinycast Beta"，版本串带 `-beta.N`；仅检测，自签名无 Team ID，2026-09-17）| GitHub |
 | **SuperCmd** | beta `com.supercmd.SuperCmd.beta`（显示名 "SuperCmd Beta"，独立 feed `appcast-beta.xml` 由包的 `SUFeedURL` 声明，零 recipe，2026-09-17）| Sparkle |
 | **Capy** | nightly `ai.capy.desktop.nightly`（显示名 "Capy Nightly"，版本串带 `-nightly.<date>.<n>`；独立 `nightly/latest-mac.yml` 由包的 `app-update.yml` 声明，零 recipe，2026-10-04）| Electron |
+| **Kitten** | preview `dev.kitten.Kitten-Preview`（Zed 式：`releases/preview/latest/asset`；仅检测，ad-hoc 签名无 Team ID；stable `dev.kitten.Kitten` 轨未开放，端点 404 `release channel "stable" is not available`，2026-10-12）| VendorProbe |
 
 ### Pattern A\* — 共享 bundle id，但 Mozilla `RemotingName` 可检测
 

@@ -240,11 +240,10 @@ enum DiskImageMount {
 
     /// `hdiutil info` reports the path as it was passed to the attach, `/var/…`
     /// or `/private/var/…` for the same `$TMPDIR` file (measured on 27.2, either
-    /// tool): compare real paths, while the file is there.
+    /// tool). Standardizing drops the `/private` while the file exists, which it
+    /// does until the caller's `defer` has run.
     private static func canonicalPath(_ path: String) -> String {
-        guard let real = realpath(path, nil) else { return URL(fileURLWithPath: path).standardizedFileURL.path }
-        defer { free(real) }
-        return String(cString: real)
+        URL(fileURLWithPath: path).standardizedFileURL.path
     }
 
     /// What an attach reads from stdin: accept a license agreement, if the image

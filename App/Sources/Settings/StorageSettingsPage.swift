@@ -37,9 +37,9 @@ struct StorageSettingsPage: View {
     @State private var clearError: String?
     @State private var noteReset: Task<Void, Never>?
 
-    private static let caches: [StorageInventory.Item] = [.changelogImages, .networkCache, .formulaIcons, .cliCache]
-    private static let appData: [StorageInventory.Item] = [.backups, .backupIndex, .history, .releaseNotes, .checkState, .otherData]
-    private static let system: [StorageInventory.Item] = [.appleDeveloperSession, .httpStorage, .preferences]
+    private static let caches = StorageInventory.Group.caches.items
+    private static let appData = StorageInventory.Group.appData.items
+    private static let system = StorageInventory.Group.system.items
 
     var body: some View {
         SettingsPage(section: .storage) {

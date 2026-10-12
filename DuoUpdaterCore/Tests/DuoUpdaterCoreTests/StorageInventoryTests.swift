@@ -56,6 +56,17 @@ struct StorageInventoryTests {
         #expect(names(.otherData) == ["something-new.json"])
     }
 
+    /// The Settings page and `duo storage` both lay their sections out from
+    /// these, in this order.
+    @Test func groupsListTheirItemsInPageOrder() {
+        #expect(StorageInventory.Group.caches.items == [.changelogImages, .networkCache, .formulaIcons, .cliCache])
+        #expect(StorageInventory.Group.appData.items
+            == [.backups, .backupIndex, .history, .releaseNotes, .checkState, .otherData])
+        #expect(StorageInventory.Group.system.items == [.appleDeveloperSession, .httpStorage, .preferences])
+        let notClearable = StorageInventory.Group.caches.items.filter { !$0.isClearable }
+        #expect(notClearable.isEmpty)
+    }
+
     @Test func onlyRedownloadableCachesAreClearable() {
         #expect(StorageInventory.Item.allCases.filter(\.isClearable)
             == [.changelogImages, .networkCache, .formulaIcons, .cliCache])

@@ -45,6 +45,28 @@ public enum StorageInventory {
             default: false
             }
         }
+
+        /// The section it is shown under, by the Settings page and `duo storage`
+        /// alike. Items within a group keep `allCases` order.
+        public var group: Group {
+            switch self {
+            case .changelogImages, .networkCache, .formulaIcons, .cliCache: .caches
+            case .appleDeveloperSession, .httpStorage, .preferences: .system
+            default: .appData
+            }
+        }
+    }
+
+    public enum Group: String, CaseIterable, Sendable {
+        /// Re-downloaded on demand: the only group that is cleared.
+        case caches
+        /// DuoUpdater's own state, backups included.
+        case appData
+        /// Written by macOS on DuoUpdater's behalf: WebKit, HTTP storage,
+        /// preferences.
+        case system
+
+        public var items: [Item] { Item.allCases.filter { $0.group == self } }
     }
 
     /// The two roots everything hangs off. Separate because they move separately:

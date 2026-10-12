@@ -140,6 +140,8 @@ enum AppcastHTMLChangelogParser {
                 // it into `items` would just duplicate the date the header already
                 // shows. Skipped without disturbing any heading already pending.
                 guard !looksLikeDateOnly(cleaned) else { continue }
+                // Same for a heading that only restates the entry's version.
+                guard !restatesVersion(cleaned, version: version) else { continue }
                 pieces.append(.heading(cleaned))
                 continue
             }
@@ -290,6 +292,23 @@ enum AppcastHTMLChangelogParser {
     /// than shown as a change line.
     private static func looksLikeDateOnly(_ cleaned: String) -> Bool {
         cleaned.range(of: #"^release date\b"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    /// A heading that is the entry's own version plus nothing but a build number
+    /// or a date: Backdrop's `<h2>2.9.0 (135)</h2>`, Sensei's
+    /// `<h2>2.1.3 (141) (2026-09-24)</h2>`. The entry header already shows both,
+    /// and when a list follows directly the heading would otherwise land as the
+    /// first item. Only when no letter is left once the version is removed, so
+    /// `Version 3.1` and `OpenClaw 2026.9.9` stay lines as before, and the version
+    /// must stand as its own number: `2.1` does not match inside `2.1.3`.
+    private static func restatesVersion(_ cleaned: String, version: String) -> Bool {
+        let escaped = NSRegularExpression.escapedPattern(for: version)
+        guard let range = cleaned.range(
+            of: #"(?<![0-9.])"# + escaped + #"(?![0-9]|\.[0-9])"#, options: .regularExpression)
+        else { return false }
+        var rest = cleaned
+        rest.removeSubrange(range)
+        return !rest.contains { $0.isLetter }
     }
 
     /// Compiled once: `cleanInline` runs per `<li>`, and a long appcast

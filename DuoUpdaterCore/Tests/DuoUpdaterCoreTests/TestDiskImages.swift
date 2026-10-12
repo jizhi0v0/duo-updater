@@ -62,10 +62,13 @@ enum TestDiskImages {
     /// unmounted. In 60 full Release runs of the Core tests there (diag run
     /// 38251826792, 2026-10-12), `detach /dev/diskN` and then `detach -force`
     /// both failed "couldn't eject "diskN" - Resource busy" (exit 49168) 12
-    /// times, and every one ejected on the first retry, 3–25 s later (the delay was
-    /// the diagnostic's own `sudo lsof`). That `lsof`, on the disk's /dev and /dev/r
-    /// nodes, found no open file, and `mount` no longer listed the disk, so what
-    /// held it is unknown.
+    /// times, and every one ejected on a later try. `sudo lsof` on the disk's /dev
+    /// and /dev/r nodes found no open file, and `mount` no longer listed the disk,
+    /// so what held it is unknown. Retrying every second with nothing in between
+    /// (diag run 38264772681), the 5 busy disks in 330 detaches ejected 7.9–10.6 s
+    /// after the first try. `diskutil eject` did no better: 7 in 330 after an
+    /// `hdiutil` attach, 6 in 330 after a `diskutil image attach`, ejected
+    /// 7.1–18.6 s after the first try.
     @discardableResult
     static func detach(_ image: URL) async -> Bool {
         let path = canonical(image.path)

@@ -371,9 +371,12 @@ import Testing
         // after `partitionDisk`, something can still hold it for seconds — on the
         // hosted xcode-27 runner (macOS 27.0.1) `storagekitd` had /dev/rdiskN open
         // and `detach -force` failed "Resource busy" (exit 16) twice, then
-        // succeeded 4 s later; `partitionDisk` once failed "-69877: Couldn't open
-        // device". In the full suite on that runner this fixture failed in every
-        // main run from #1211 to 2026-10-12. Not reproduced on a 27.2 dev Mac.
+        // succeeded 5 s after the first try (run 38239351399); `partitionDisk`
+        // once failed "-69877: Couldn't open device" (run 38204609229). In the
+        // full suite on that runner this fixture failed in every main run from
+        // #1211 to 2026-10-12 (38160281041 … 38233464165). Not reproduced on a
+        // 27.2 dev Mac. A retried `partitionDisk` that left a partial map would
+        // show as `volumes.count != 2` below.
         func retrying(_ path: String, _ args: [String]) async throws {
             let deadline = ContinuousClock.now + .seconds(60)
             while true {

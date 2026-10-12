@@ -4,13 +4,21 @@ A macOS menu-bar app that finds updates for the apps you already have, and
 installs them the way each app expects to be updated.
 
 **[duoupdater.app](https://duoupdater.app)** — the download, the release notes,
-and what it checks before replacing an app.
+and what it checks before replacing an app. Or install it with Homebrew:
+
+```sh
+brew install --cask jizhi0v0/tap/duoupdater
+```
+
+DuoUpdater updates itself after that, so `brew upgrade` leaves it alone. It needs
+macOS 15 or later.
 
 Most updaters pick one mechanism and push every app through it. This one reads
 each app's own release channel — its Sparkle appcast, its App Store listing, its
 Homebrew cask, its vendor's release feed — and uses that. When an app ships its
 own updater, it hands over instead of fighting it; when it can't do something
-safely, it says so rather than guessing. Pure Swift, no telemetry, no server.
+safely, it says so rather than guessing. Pure Swift, no telemetry, and the only
+server is the one that serves its own update feed ([Privacy](#privacy)).
 
 <p align="center">
   <img src="assets/menu-bar.png" alt="The DuoUpdater menu bar popover, headed 89 updates available with an Update All button and a search field. Each row shows the installed version, the new version, a small badge for what the app is built with, and an Update button; Anki's row reads 26.9.2 to 26.09.3. A hover card over BetterDisplay's badge reads: Native — a native Mac app, built straight on Apple's frameworks, not a cross-platform runtime. Links AppKit and SwiftUI. Built with the macOS 27.0 SDK. Two rows at the bottom: Homebrew, 9 updates and 3 not checked; Other tools, 1 update and 1 held back." width="420">

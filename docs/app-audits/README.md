@@ -274,6 +274,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Pulse**](com-egoist-pulse.md) · `com.egoist.pulse` — G (one-click arm64 dmg) · 真包 0.1.4/0.1.5 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中）· changelog 结构化 ✓ · `install.sh` 只装 Linux，无 macOS CLI · 2026-10-10
 - [x] [**disktree**](io-github-tobi-disktree.md) · `io.github.tobi.disktree` — G (**digest-only**，ad-hoc 签名，arm64/x86_64 分 arch zip) · 4 个真包核对封印/标识/版本/digest ✓ · 一键端到端 ✓（设置关闭→拒绝；打开→installed） · changelog 结构化 ✓（GitHub 自动生成的 PR 列表，无厂商小节） · 2026-10-12
 - [x] [**Plexo**](com-plexo-app.md) · `com.plexo.app` — G (one-click arm64/x64 dmg，`v1.0.0-rc.N` 保留后缀) · 真包 rc.14/rc.15 挂载验证 ✓ · 一键端到端：rc.14（未签名）→ 拒绝 ✓，**rc.15 → 下一签名版未跑**（只有一个签名版） · changelog 结构化 ✓ · 单轨（settled from source） · 2026-10-12
+- [x] [**RustGIS**](org-rustgis-RustGIS.md) · `org.rustgis.RustGIS` — G (one-click arm64/x86_64 dmg) · 真包 0.1.0 两个架构挂载验证 ✓ · **一键端到端未跑**（只有 v0.1.0 一个 release） · changelog 结构化 ✓ · 单轨（settled from source） · 2026-10-13
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

@@ -163,6 +163,17 @@ struct GitHubAssetSelectionTests {
           "plexo-1.0.0-rc.15-arm64.dmg", "plexo-1.0.0-rc.15-arm64.dmg.blockmap",
           "plexo-1.0.0-rc.15-x64-mac.zip", "plexo-1.0.0-rc.15-x64-mac.zip.blockmap",
           "plexo-1.0.0-rc.15-x64.dmg", "plexo-1.0.0-rc.15-x64.dmg.blockmap"]),
+        // RustGIS: one dmg per architecture beside the Linux/Windows packages
+        // and the CLI tarballs (v0.1.0's assets, in the order GitHub listed them).
+        (#"^RustGIS-[0-9][0-9A-Za-z.-]*-macos-(?:aarch64|x86_64)\.dmg$"#,
+         ["rustgis-0.1.0-1.aarch64.rpm", "rustgis-0.1.0-1.x86_64.rpm",
+          "RustGIS-0.1.0-linux-aarch64.AppImage", "RustGIS-0.1.0-linux-aarch64.tar.gz",
+          "RustGIS-0.1.0-linux-x86_64.AppImage", "RustGIS-0.1.0-linux-x86_64.tar.gz",
+          "RustGIS-0.1.0-macos-aarch64.dmg", "RustGIS-0.1.0-macos-x86_64.dmg",
+          "RustGIS-0.1.0-windows-x86_64-portable.zip", "RustGIS-0.1.0-windows-x86_64-setup.exe",
+          "RustGIS-0.1.0-windows-x86_64.msi", "RustGIS-0.1.0-windows-x86_64.msix",
+          "rustgis-cli-0.1.0-macos-aarch64.tar.gz", "rustgis-cli-0.1.0-macos-x86_64.tar.gz",
+          "rustgis_0.1.0_amd64.deb", "rustgis_0.1.0_arm64.deb", "SHA256SUMS"]),
     ]
 
     /// Registry patterns whose alternation chooses between TAGS rather than

@@ -165,6 +165,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Alfred** · `com.runningwithcrayons.Alfred` — P · ✓ src=Vendor
 - [x] **Shottr** · `cc.ffitch.shottr` — P · ✓ src=Vendor
 - [x] **The Unarchiver** · `com.macpaw.site.theunarchiver` — P · ✓ src=Vendor
+- [x] [**Trim Enabler**](org-cindori-TrimEnabler4.md) · `org.cindori.TrimEnabler4` — P (one-click zip) · ✓ src=Vendor · DevMate feed，产品冻结在 4.3.6，x86_64 only · changelog 网页（无法结构化）· 2026-10-12
 - [x] **Orion** · `com.kagi.kagimacOS` — P · ✓ src=Vendor
 - [x] [**Dropbox**](com-getdropbox-dropbox.md) · `com.getdropbox.dropbox` — P (one-click dmg) · ✓ src=Vendor · **一键改取 `arch=arm64` 包**：不带参数的 dmg 是 x86_64-only，Apple silicon 上被架构闸拒 · 2026-09-14
 - [x] **Plex** · `tv.plex.desktop` — P · ✓ src=Vendor
@@ -337,6 +338,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**SuperCmd**](com-supercmd-SuperCmd.md) · `com.supercmd.SuperCmd` — S(v2 stable) S(v2 beta，独立 id `com.supercmd.SuperCmd.beta`、独立 feed) G(v1 `com.supercmd.app`，**detection-only**) · 同名两个 app：v2 闭源原生 Sparkle、v1 开源 Electron 已停更，版本号 1.0.0–1.0.7 两边重叠 · 三个真包验证 ✓ · 2026-09-17
 - [x] [**ShiftBar**](com-superoutman-ShiftBar-prototype.md) · `com.superoutman.ShiftBar.prototype` — S · 单轨道（发布 workflow 断言 build 单调递增，无 prerelease 分支）· feed 内联 `sparkle:format="markdown"` notes —— **借此修了通用缺口：该属性此前从未被解析**，Markdown notes 一律落到原始文本回落 · feed 只留 1 个 item，releaseHistory 恒为 1 · arm64 + macOS 27 下限由 feed 现读 · 真包 0.1.13 验证 ✓ · 2026-09-20
 - [x] [**SwiftVM**](com-swiftvm-app.md) · `com.swiftvm.app` — S+B · stable/beta 各自的 feed，beta 由构建定死（`SwiftVMChannel`）· 真包 1.0.0 / beta.12 / beta.16 验证 ✓ · 一键端到端 ✓（beta.12→beta.16；stable 只有一版，无旧版可测） · ✗ changelog：厂商 release 正文为空 · 2026-10-12
+- [x] [**Sensei**](org-cindori-Sensei.md) · `org.cindori.Sensei` — S · 一键 ✓ · changelog 结构化（Fixed/Improved 分节）· 2026-10-12
+- [x] [**Backdrop**](com-cindori-Backdrop.md) · `com.cindori.Backdrop` — S · 一键（delta）仅在壁纸 agent 不运行时，运行时 `NestedAppGuard` 拒绝 · changelog 结构化（无分节）· 2026-10-12
 
 ## Investigated — blocked safely
 

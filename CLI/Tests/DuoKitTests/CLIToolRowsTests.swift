@@ -309,6 +309,59 @@ import DuoUpdaterCore
         func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog { Changelog(entries: []) }
     }
 
+    // MARK: - Breaking changes
+
+    /// An update row whose notes mark a version in its range carries it, says
+    /// so under itself and in `--json`; a current row's notes are not fetched.
+    @Test func anUpdateRowCarriesTheVersionsItsNotesMarkBreaking() async throws {
+        let notes = Changelog(entries: [
+            Changelog.Entry(version: "1.1.0", date: nil, items: ["Breaking change: the flag is gone"]),
+            Changelog.Entry(version: "1.0.5", date: nil, items: ["Fix"], content: [.heading("Breaking Changes")]),
+            Changelog.Entry(version: "1.0.0", date: nil, items: ["**BREAKING**: the install's own"]),
+        ])
+        let fetches = Calls()
+        let provider = NotesProvider(statuses: [
+            Self.status(.fx, "/ZZFixture-a/fx"),
+            Self.status(.fx, "/ZZFixture-b/fx", installed: "1.1.0", state: .upToDate),
+        ], notes: { _ in notes }, fetches: fetches)
+        let rows = await CLIToolRows.checkedRows([provider])
+        #expect(rows.map(\.breakingIn) == [["1.0.5", "1.1.0"], nil])
+        #expect(fetches.paths == ["/ZZFixture-a/fx"])
+        #expect(CLIToolRows.details(rows[0]).first == "The release notes mark breaking changes in 1.0.5, 1.1.0")
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(rows[0])) as? [String: Any]
+        #expect(json?["breakingIn"] as? [String] == ["1.0.5", "1.1.0"])
+    }
+
+    /// Notes that fail to load give no hint, and one document is asked once
+    /// for every copy that reads it.
+    @Test func notesThatFailGiveNoHintAndAreAskedOnce() async {
+        struct Down: Error {}
+        let fetches = Calls()
+        let provider = NotesProvider(statuses: [
+            Self.status(.fx, "/ZZFixture-a/fx"), Self.status(.fx, "/ZZFixture-b/fx"),
+        ], notes: { _ in throw Down() }, fetches: fetches)
+        let rows = await CLIToolRows.checkedRows([provider])
+        #expect(rows.map(\.breakingIn) == [nil, nil])
+        #expect(fetches.paths.count == 1)
+        #expect(CLIToolRows.details(rows[0]).isEmpty)
+    }
+
+    struct NotesProvider: CLIToolProvider {
+        let kind = CLIToolKind.fx
+        let statuses: [CLIToolStatus]
+        let notes: @Sendable (CLIToolStatus) throws -> Changelog
+        let fetches: Calls
+        func scan() async -> [CLIToolSighting] { [] }
+        func check() async -> CLIToolReport { CLIToolReport(kind: kind, statuses: statuses, context: .fx(FxSettings())) }
+        func update(_ status: CLIToolStatus, progress: @escaping @Sendable (String) -> Void) async -> CLIToolUpdateOutcome {
+            .notOffered
+        }
+        func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog {
+            fetches.add(status)
+            return try notes(status)
+        }
+    }
+
     // MARK: - Fixtures
 
     struct ScriptedProvider: CLIToolProvider {

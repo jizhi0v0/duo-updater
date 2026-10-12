@@ -1461,6 +1461,58 @@ struct CLIToolsModelTests {
         #expect(await fxNotes.fetches == 1)
     }
 
+    // MARK: breaking changes
+
+    /// An update whose notes mark a version in its range carries the hint once
+    /// its check lands. A check that finds the same range reads nothing again —
+    /// these notes lack the latest's section, so `releaseNotes` alone would
+    /// fetch them every time — and one that finds the copy current drops it.
+    ///
+    /// Mutation: drop the `breakingRead[status.toolID] != range(status)` filter in
+    /// `loadBreaking`; drop the `breakingRead[id] != ranges[id]` clearing loop.
+    @Test func anUpdateCarriesTheVersionsItsNotesMarkBreaking() async throws {
+        let notes = FakeNotes(Changelog(entries: [
+            .init(version: "2.1.280", date: nil, items: ["Breaking change: the flag is gone"]),
+            .init(version: "2.1.274", date: nil, items: ["Breaking change: the install's own"]),
+        ]))
+        let outdated = Self.report(Self.status("/c"))
+        let current = Self.report(Self.status("/c", version: "2.1.285", state: .upToDate))
+        let check = FakeCheck([(outdated, nil), (outdated, nil), (current, nil)])
+        let model = Self.model([FakeProvider(kind: .claudeCode, checker: check, notes: notes)])
+        let id = CLIToolID(kind: .claudeCode, path: "/c")
+
+        await model.refresh()
+        await until { model.breaking[id] != nil }
+        #expect(model.breaking[id] == ["2.1.280"])
+
+        await model.refresh()
+        await model.loadBreaking()
+        #expect(await notes.fetches == 1)
+        #expect(model.breaking[id] == ["2.1.280"])
+
+        await model.refresh()
+        await model.loadBreaking()
+        #expect(model.breaking[id] == nil)
+    }
+
+    /// Notes that mark nothing in the range give no hint. The pass the check
+    /// started and this one overlap, and still read the notes once.
+    ///
+    /// Mutation: in `loadBreaking`, run `readBreaking` without awaiting `previous`.
+    @Test func noMarkInRangeGivesNoHint() async throws {
+        let notes = FakeNotes(Changelog(entries: [
+            .init(version: "2.1.285", date: nil, items: ["Fixed tabs breaking the title"]),
+            .init(version: "2.1.274", date: nil, items: ["Breaking change: the install's own"]),
+        ]))
+        let check = FakeCheck([(Self.report(Self.status("/c")), nil)])
+        let model = Self.model([FakeProvider(kind: .claudeCode, checker: check, notes: notes)])
+
+        await model.refresh()
+        await model.loadBreaking()
+        #expect(await notes.fetches == 1)
+        #expect(model.breaking.isEmpty)
+    }
+
     // MARK: wording
 
     /// The summary names each copy by its installer, and an nvm prefix by its

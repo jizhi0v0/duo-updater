@@ -89,6 +89,18 @@ final class CLIToolsModel {
     /// pinned "Claude Code updated to 2.1.285" on the popover for good — the first
     /// thing the user saw after a real update on 2026-10-01.
     private(set) var justUpdated: [CLIToolID: String] = [:]
+    /// Update rows whose release notes mark breaking changes in the versions the
+    /// update brings → those versions, oldest first
+    /// (`CLIToolChangelog.breakingVersions`). A hint beside the version, never a
+    /// gate. Filled after a check lands (`loadBreaking`).
+    private(set) var breaking: [CLIToolID: [String]] = [:]
+    /// The range, "installed|latest", each row's `breaking` was read for, so a
+    /// check that finds the same update fetches nothing again — even where the
+    /// notes have no section for the latest yet, which `releaseNotes` would
+    /// otherwise fetch again every time.
+    @ObservationIgnored private var breakingRead: [CLIToolID: String] = [:]
+    /// The latest `loadBreaking` pass; the next one waits for it.
+    @ObservationIgnored private var breakingPass: Task<Void, Never>?
 
     /// Installs with an update on their own channel.
     var outdated: [CLIToolStatus] { statuses.filter { $0.state == .updateAvailable } }
@@ -406,6 +418,51 @@ final class CLIToolsModel {
             if byID[id]?.installedVersion != version { justUpdated[id] = nil }
         }
         onReport?()
+        Task { await loadBreaking() }
+    }
+
+    /// Read the release notes of every update row whose range is new, and keep
+    /// the versions they mark breaking. A pass waits for the one before it, so
+    /// two checks landing together read each document once: the later pass
+    /// finds the range already read.
+    func loadBreaking() async {
+        let previous = breakingPass
+        let pass = Task { await previous?.value; await self.readBreaking() }
+        breakingPass = pass
+        await pass.value
+    }
+
+    /// One pass of `loadBreaking`. Rows one after another; a document that fails
+    /// is not asked again in the same pass and the row gets no hint — the next
+    /// check tries again. A row whose range moved while its notes loaded is left
+    /// to the pass that check started.
+    private func readBreaking() async {
+        let range = { (status: CLIToolStatus) in "\(status.installedVersion ?? "")|\(status.latestVersion ?? "")" }
+        let reading = statuses.filter(CLIToolChangelog.readsForBreaking)
+        // A hint read for another range — the copy was updated, or the channel
+        // moved on — says nothing about this one.
+        let ranges = Dictionary(reading.map { ($0.toolID, range($0)) }, uniquingKeysWith: { a, _ in a })
+        for id in Set(breaking.keys).union(breakingRead.keys) where breakingRead[id] != ranges[id] {
+            breaking[id] = nil
+            breakingRead[id] = nil
+        }
+        var failed: Set<String> = []
+        for status in reading where breakingRead[status.toolID] != range(status) {
+            guard !failed.contains(status.releaseNotesKey) else { continue }
+            let notes: Changelog
+            do { notes = try await releaseNotes(for: status, force: false) } catch {
+                failed.insert(status.releaseNotesKey)
+                continue
+            }
+            let id = status.toolID
+            guard let now = statuses.first(where: { $0.toolID == id }), range(now) == range(status),
+                  CLIToolChangelog.readsForBreaking(now)
+            else { continue }
+            let versions = CLIToolChangelog.breakingVersions(
+                in: notes, installed: status.installedVersion, latest: status.latestVersion)
+            breaking[id] = versions.isEmpty ? nil : versions
+            breakingRead[id] = range(status)
+        }
     }
 
     /// Run the one-click update of the install `id` names, with its own tool's

@@ -9,6 +9,8 @@ struct UpdatesSettingsPage: View {
     /// stored value, so this state is only ever a view of it.
     @State private var installsAutomatically = false
 
+    private static let sourceURL = URL(string: "https://github.com/jizhi0v0/duo-updater")!
+
     private var currentVersionLine: String {
         let info = Bundle.main.infoDictionary ?? [:]
         let shortVersion = (info["CFBundleShortVersionString"] as? String)?
@@ -60,6 +62,16 @@ struct UpdatesSettingsPage: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
+                // The only pointer to the repository inside the app, and a quiet
+                // one: a plain link under the version, never a prompt. NSWorkspace
+                // rather than SwiftUI `openURL`, which errors -50 in this window.
+                Button("Source code on GitHub") {
+                    NSWorkspace.shared.open(Self.sourceURL)
+                }
+                .buttonStyle(.plain)
+                .font(.callout)
+                .foregroundStyle(Color.accentColor)
+                .pointerStyle(.link)
             }
             Spacer(minLength: 12)
             Button("Check for Updates…") {

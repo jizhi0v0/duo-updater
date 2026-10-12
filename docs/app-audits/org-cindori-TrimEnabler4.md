@@ -9,7 +9,10 @@
 - 观测版本: `4.3.6` (build `26`，最新，2021-01-02) / `4.3.5` (build `25`，上一版)
 - 自更新机制: DevMate（`DevMateKit.framework` 内的 Sparkle），Info.plist **没有** `SUFeedURL`
 - 架构: **x86_64 only**（Apple silicon 上走 Rosetta）；`LSMinimumSystemVersion` = `10.9`
-- 内嵌: `Contents/Library/LaunchServices/org.cindori.TEHelper`（SMJobBless 特权 helper，用户开启功能时才安装）
+- 内嵌: `Contents/Library/LaunchServices/org.cindori.TEHelper`（SMJobBless 特权 helper）。**首次启动就会安装**：2026-10-12 启动 4.3.5 的同一分钟里，
+  `/Library/PrivilegedHelperTools/org.cindori.TEHelper` 和 `/Library/LaunchDaemons/org.cindori.TEHelper.plist` 出现
+  （`sfltool dumpbtm` 列为 `16.org.cindori.TEHelper`）。一键只换 app，不动这个 root helper；app 新版启动时是否升级它，没有验证。
+  端到端测试后要清掉它（需要 root）：`launchctl bootout system/org.cindori.TEHelper`，再删上面两个文件
 - **已停止开发**：4.3.6 的 release notes 写明 Big Sur 是它支持的最后一个 macOS，建议改用 Sensei。官网仍提供下载。
   在 macOS 27 上启动时系统弹通知：这个版本在 macOS 28 将无法打开（Intel 应用）。
 

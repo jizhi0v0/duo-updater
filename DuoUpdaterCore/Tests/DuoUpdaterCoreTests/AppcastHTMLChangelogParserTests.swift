@@ -30,6 +30,44 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
         XCTAssertFalse(AppcastHTMLChangelogParser.isStructured(""))
     }
 
+    // MARK: - A heading that only restates the version
+
+    /// Backdrop 2.9.0 (`cdn.cindori.com/apps/backdrop/updates/update.xml`,
+    /// fetched 2026-10-12, entity-decoded, first two items): `<h2>2.9.0 (135)</h2>`
+    /// straight above the list landed as the entry's first item.
+    func testVersionAndBuildHeadingIsNotAnItem() throws {
+        let html = """
+        <h2>2.9.0 (135)</h2>
+        <ul>
+        <li>New: Smoother, more reliable wallpaper playback that now reaches
+        your desktop, Lock Screen, login window and screen saver.</li>
+        <li>New: Give your Lock Screen its own wallpaper, animated or
+        still.</li>
+        </ul>
+        """
+        let entry = try XCTUnwrap(AppcastHTMLChangelogParser.entry(html: html, version: "2.9.0", date: nil))
+        XCTAssertEqual(entry.items, [
+            "New: Smoother, more reliable wallpaper playback that now reaches your desktop, Lock Screen, login window and screen saver.",
+            "New: Give your Lock Screen its own wallpaper, animated or still.",
+        ])
+    }
+
+    /// Sensei 2.1.3 (`cdn.cindori.com/apps/sensei/updates/update.xml`, same
+    /// fetch) adds the date: `<h2>2.1.3 (141) (2026-09-24)</h2>`.
+    func testVersionBuildAndDateHeadingIsNotAnItem() throws {
+        let html = "<h2>2.1.3 (141) (2026-09-24)</h2><ul><li>Fixed stale GPU readings.</li></ul>"
+        let entry = try XCTUnwrap(AppcastHTMLChangelogParser.entry(html: html, version: "2.1.3", date: nil))
+        XCTAssertEqual(entry.items, ["Fixed stale GPU readings."])
+    }
+
+    /// The version has to stand as its own number: an entry for `2.1` keeps a
+    /// `2.1.3 (141)` heading, which names another release.
+    func testHeadingNamingALongerVersionStaysALine() throws {
+        let html = "<h2>2.1.3 (141)</h2><ul><li>Fixed stale GPU readings.</li></ul>"
+        let entry = try XCTUnwrap(AppcastHTMLChangelogParser.entry(html: html, version: "2.1", date: nil))
+        XCTAssertEqual(entry.items, ["2.1.3 (141)", "Fixed stale GPU readings."])
+    }
+
     // MARK: - TablePro (h3 sections, backticks, literal **)
 
     func testTableProSectionHeadingsLandInOrderWithItemsAttached() throws {

@@ -8,7 +8,7 @@ import Foundation
 @Suite struct InstallLockTests {
 
     private func scratch() -> URL {
-        FileManager.default.temporaryDirectory
+        DuoStateDirectory.testProcessScratchRoot
             .appendingPathComponent("duo-lock-\(UUID().uuidString)")
             .appendingPathComponent("install.lock")
     }

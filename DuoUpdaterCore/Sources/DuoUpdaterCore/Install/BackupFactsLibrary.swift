@@ -53,7 +53,7 @@ public enum BackupFactsLibrary {
     /// ``rootOverride`` cannot reach the developer's own library — the same
     /// protection, and for the same reason, as ``TauriProofStore``'s. `save`
     /// records an entry now, and every existing backup test goes through it.
-    static let testProcessRoot = FileManager.default.temporaryDirectory
+    static let testProcessRoot = DuoStateDirectory.testProcessScratchRoot
         .appendingPathComponent("duo-backup-facts-tests-\(UUID().uuidString)", isDirectory: true)
 
     public static var root: URL {

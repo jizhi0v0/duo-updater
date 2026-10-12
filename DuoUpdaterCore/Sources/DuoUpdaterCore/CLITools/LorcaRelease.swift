@@ -278,7 +278,7 @@ public final class LorcaPublishedDigests: @unchecked Sendable {
 
     init(fileURL: URL? = nil) {
         self.fileURL = fileURL ?? (DuoStateDirectory.isTestProcess
-            ? FileManager.default.temporaryDirectory
+            ? DuoStateDirectory.testProcessScratchRoot
                 .appendingPathComponent("duo-lorca-digests-tests-\(UUID().uuidString)")
                 .appendingPathComponent("lorca-published-digests.json")
             : DuoStateDirectory.base

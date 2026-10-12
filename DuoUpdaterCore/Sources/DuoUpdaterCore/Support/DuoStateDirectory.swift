@@ -48,6 +48,24 @@ public enum DuoStateDirectory {
     /// Both runners are named because they differ: SwiftPM runs the suite as
     /// `swiftpm-testing-helper` with no XCTest environment at all (measured),
     /// while Xcode uses `xctest` and an `.xctest` bundle.
+    /// The one directory a test process's stores write their scratch state under,
+    /// removed when the process exits.
+    ///
+    /// Each store used to mint its own `duo-<store>-tests-<UUID>` directly in
+    /// `$TMPDIR` and leave it there: one per test process for the shared stores,
+    /// one per *instance* for the CLI tools' digest files. Measured 2026-10-12 on
+    /// the mini, which also hosts the CI runner: ~2,300 such directories, nothing
+    /// ever removing them. They now nest under this root instead, keeping the
+    /// per-process and per-instance UUIDs they had, and an `atexit` handler takes
+    /// the whole root with it. A test process that is killed skips `atexit` and
+    /// leaves its root behind — one directory, not dozens.
+    static let testProcessScratchRoot: URL = {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("duo-test-process-\(UUID().uuidString)", isDirectory: true)
+        atexit { try? FileManager.default.removeItem(at: DuoStateDirectory.testProcessScratchRoot) }
+        return root
+    }()
+
     static var isTestProcess: Bool {
         let name = ProcessInfo.processInfo.processName
         return name == "swiftpm-testing-helper" || name == "xctest"

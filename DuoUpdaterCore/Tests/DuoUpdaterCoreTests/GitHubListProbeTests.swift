@@ -88,7 +88,7 @@ struct GitHubListProbeTests {
     }
 
     private static func tempCache() -> GitHubConditionalCache {
-        let dir = FileManager.default.temporaryDirectory
+        let dir = DuoStateDirectory.testProcessScratchRoot
             .appendingPathComponent("duo-list-probe-tests-\(UUID().uuidString)")
         return GitHubConditionalCache(fileURL: dir.appendingPathComponent("cache.json"))
     }

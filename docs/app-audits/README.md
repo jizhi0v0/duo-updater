@@ -340,6 +340,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**SwiftVM**](com-swiftvm-app.md) · `com.swiftvm.app` — S+B · stable/beta 各自的 feed，beta 由构建定死（`SwiftVMChannel`）· 真包 1.0.0 / beta.12 / beta.16 验证 ✓ · 一键端到端 ✓（beta.12→beta.16；stable 只有一版，无旧版可测） · ✗ changelog：厂商 release 正文为空 · 2026-10-12
 - [x] [**Sensei**](org-cindori-Sensei.md) · `org.cindori.Sensei` — S · 一键 ✓ · changelog 结构化（Fixed/Improved 分节）· 2026-10-12
 - [x] [**Backdrop**](com-cindori-Backdrop.md) · `com.cindori.Backdrop` — S · 一键（delta，壁纸 agent 在跑也可） · changelog 结构化（无分节）· 2026-10-12
+- [x] [**Kuvo**](run-kuvo-app.md) · `run.kuvo.app` — S · 一键 ✓ · ✗ changelog：厂商 release 正文为空、无 CHANGELOG · 2026-10-12
 
 ## Investigated — blocked safely
 

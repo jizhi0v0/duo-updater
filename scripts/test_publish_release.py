@@ -265,5 +265,77 @@ class DsymGate(unittest.TestCase):
         self.assertIn("no dSYM", run.stderr)
 
 
+TAP_DRIVER = """
+set -euo pipefail
+REPO_ROOT="{repo_root}"
+version="0.5.6"
+checksum="{sha}"
+publishes_appcast="{publishes}"
+{function}
+bump_homebrew_tap
+printf 'AFTER\\n'
+"""
+
+
+class HomebrewTapGate(unittest.TestCase):
+    """`bump_homebrew_tap`, with scripts/homebrew_tap.py replaced by a stub.
+
+    The cask must follow the appcast and never run ahead of it. A draft's
+    assets 404 for everyone but the author, so bumping the cask to a draft
+    breaks every `brew install`. A prerelease would put a beta in front of brew
+    users that the stable feed never offered.
+    """
+
+    SHA = "0" * 63 + "1"
+
+    def setUp(self):
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="duo-tap-"))
+        self.addCleanup(shutil.rmtree, self.root, True)
+        (self.root / "scripts").mkdir()
+        self.calls = self.root / "calls"
+        self.stub(exit_code=0)
+
+    def stub(self, exit_code):
+        (self.root / "scripts" / "homebrew_tap.py").write_text(
+            "import sys, pathlib\n"
+            f"pathlib.Path({str(self.calls)!r}).open('a').write(' '.join(sys.argv[1:]) + '\\n')\n"
+            f"sys.exit({exit_code})\n")
+
+    def run_gate(self, publishes, env=None):
+        script = TAP_DRIVER.format(repo_root=self.root, sha=self.SHA, publishes=publishes,
+                                   function=extract_function("bump_homebrew_tap"))
+        return subprocess.run(["bash", "-c", script], capture_output=True, text=True,
+                              env={**os.environ, **(env or {})})
+
+    def called_with(self):
+        return self.calls.read_text().splitlines() if self.calls.exists() else []
+
+    def test_a_published_release_bumps_the_tap(self):
+        run = self.run_gate(publishes="1")
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(self.called_with(), [f"0.5.6 {self.SHA}"])
+
+    # Mutation: drop the publishes_appcast check and the draft bumps the cask.
+    def test_a_draft_or_prerelease_leaves_the_tap_alone(self):
+        run = self.run_gate(publishes="0")
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(self.called_with(), [])
+        self.assertIn("not bumped", run.stdout)
+
+    def test_the_skip_variable_leaves_the_tap_alone(self):
+        run = self.run_gate(publishes="1", env={"DUO_SKIP_HOMEBREW_TAP": "1"})
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(self.called_with(), [])
+
+    # Mutation: let the failure propagate and `set -e` ends the script after a
+    # live release, skipping the site and translation notes printed below it.
+    def test_a_failed_bump_only_warns(self):
+        self.stub(exit_code=1)
+        run = self.run_gate(publishes="1")
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("was not bumped", run.stdout)
+        self.assertIn("AFTER", run.stdout)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

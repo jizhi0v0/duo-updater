@@ -3,7 +3,10 @@
 
     python3 scripts/homebrew_tap.py <version> <sha256> [--repo owner/homebrew-tap]
 
-Called by publish-release.sh once the GitHub Release and the appcast are live.
+Called by publish-release.sh once the GitHub Release and the appcast are live,
+and only for a release that publishes the appcast: never for a draft (its
+assets 404 for everyone but the author) or a prerelease (the stable feed does
+not offer it, so the cask must not either).
 It clones the tap, rewrites `version` and `sha256` in Casks/duoupdater.rb, and
 pushes the commit to the tap's main. The tap is jizhi0v0/homebrew-tap, which
 installs with `brew install --cask jizhi0v0/tap/duoupdater`.

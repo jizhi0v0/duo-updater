@@ -37,6 +37,12 @@ import Darwin
 /// - It is not under `Contents/Library/LoginItems/`. A login item runs for as
 ///   long as the user is logged in, so refusing on one would block its app's
 ///   updates for good. A stale login item is replaced at the next login.
+/// - Its executable is not the `BundleProgram` of a plist in the bundle's own
+///   `Contents/Library/LaunchAgents/`, the agents `SMAppService` registers.
+///   Those also outlive the app. `SMAppService.h` tells the app to re-register
+///   one after an update, unregistering first when the executable changed,
+///   which kills the running agent. So the app's own next launch replaces a
+///   stale one: Backdrop's `BackdropWallpaper` (below).
 /// - Its parent is not a process running from the same bundle. A helper the app
 ///   spawned goes away with the app.
 /// - It is not a `.regular` app. That one already has a path: `AppRestarter`
@@ -58,6 +64,25 @@ import Darwin
 /// VMPal was not in that list only because no VM was running at the time.
 /// The two `Contents/Helpers` apps stay refused for as long as they run. That is
 /// the agreed cost.
+///
+/// The LaunchAgents exclusion came on 2026-10-12, for Backdrop. Its
+/// `Contents/Resources/BackdropWallpaper.app` is the `BundleProgram` of
+/// `com.cindori.Backdrop.Wallpaper.agent.plist` (`KeepAlive` and `RunAtLoad`
+/// false, started through its MachService). Once Backdrop has been used, it and
+/// a `--wallpaper-renderer` sibling keep running after Backdrop quits, so
+/// one-click was refused nearly always. Measured with 2.8.0 (build 134): quit
+/// Backdrop, swap in 2.9.0 with the old agent still running. The agent went on
+/// running the old code for the 60 s watched, so it stays stale until Backdrop
+/// is next opened. Opening 2.9.0 replaced it within 3 s: a new pid from the new
+/// bundle, and `launchctl print` showed `parent bundle version` 134 → 135.
+/// Over the live process list that day (833 processes, 35 bundles with
+/// something running inside), these rules refused two bundles. The exclusion
+/// lets Backdrop through. Gemini, refused by
+/// `Contents/Helpers/GeminiAppLauncher.app`, has no LaunchAgents plist and
+/// stays refused. Of the nine installed bundles that ship
+/// `Contents/Library/LaunchAgents/`, Backdrop's was the only agent the other
+/// rules did not already pass (the rest run from `LoginItems`, `Frameworks`,
+/// `Contents/MacOS` or outside any nested `.app`).
 public enum NestedAppGuard {
 
     /// One process, as much as this guard needs to know about it.
@@ -90,8 +115,11 @@ public enum NestedAppGuard {
     ///
     /// `bundlePath` is the installed bundle as the kernel reports paths, so
     /// symlinks are resolved. Containment is checked by path component, so
-    /// `Foo.app` never claims `Foo.app.old/…`.
-    public static func blockers(bundlePath: String, processes: [RunningProcess]) -> [Blocker] {
+    /// `Foo.app` never claims `Foo.app.old/…`. `launchAgentPrograms` is what
+    /// `launchAgentPrograms(inBundle:)` read from that bundle.
+    public static func blockers(
+        bundlePath: String, processes: [RunningProcess], launchAgentPrograms: Set<String> = []
+    ) -> [Blocker] {
         let root = bundlePath.hasSuffix("/") ? String(bundlePath.dropLast()) : bundlePath
         let prefix = root + "/"
         let fromThisBundle = Set(processes.lazy
@@ -100,6 +128,7 @@ public enum NestedAppGuard {
         return processes
             .compactMap { process -> Blocker? in
                 guard !process.isRegularApp, !fromThisBundle.contains(process.parentPID),
+                      !launchAgentPrograms.contains(process.executablePath),
                       let name = nestedAppName(executablePath: process.executablePath, insideBundle: prefix)
                 else { return nil }
                 return Blocker(name: name, pid: process.pid)
@@ -130,6 +159,27 @@ public enum NestedAppGuard {
             }
         }
         return nil
+    }
+
+    /// The executables the bundle's own `Contents/Library/LaunchAgents/*.plist`
+    /// name as `BundleProgram`, symlinks resolved as `proc_pidpath` resolves
+    /// them. Only those that stay inside the bundle count. Unreadable plists are
+    /// skipped, which leaves their agents refused.
+    public static func launchAgentPrograms(inBundle bundlePath: String) -> Set<String> {
+        let root = bundlePath.hasSuffix("/") ? String(bundlePath.dropLast()) : bundlePath
+        let directory = root + "/Contents/Library/LaunchAgents"
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: directory) else { return [] }
+        var programs: Set<String> = []
+        for name in names where name.hasSuffix(".plist") {
+            guard let data = FileManager.default.contents(atPath: directory + "/" + name),
+                  let plist = try? PropertyListSerialization.propertyList(from: data, format: nil)
+                    as? [String: Any],
+                  let program = plist["BundleProgram"] as? String
+            else { continue }
+            let path = URL(fileURLWithPath: root + "/" + program).resolvingSymlinksInPath().path
+            if path.hasPrefix(root + "/") { programs.insert(path) }
+        }
+        return programs
     }
 
     /// Every process this user can see, read fresh from the kernel. The
@@ -168,8 +218,10 @@ public enum NestedAppGuard {
     public static func refusal(
         _ bundle: URL, appName: String, processes: () -> [RunningProcess]
     ) -> NestedAppRunningError? {
+        let path = bundle.resolvingSymlinksInPath().path
         let found = blockers(
-            bundlePath: bundle.resolvingSymlinksInPath().path, processes: processes())
+            bundlePath: path, processes: processes(),
+            launchAgentPrograms: launchAgentPrograms(inBundle: path))
         return found.isEmpty ? nil : NestedAppRunningError(appName: appName, blockers: found)
     }
 

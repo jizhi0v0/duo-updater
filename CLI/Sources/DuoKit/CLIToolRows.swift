@@ -45,6 +45,10 @@ enum CLIToolRows {
         /// The command for the user to run themselves, as the app's row hands
         /// it out to copy.
         var command: String? = nil
+        /// The versions the update brings whose release notes mark breaking
+        /// changes (`CLIToolChangelog.breakingVersions`), oldest first; nil
+        /// when none do, or the notes could not be read.
+        var breakingIn: [String]? = nil
         /// What the install is built with, `CLIRuntime`'s raw value ("go",
         /// "rust", "bun"), as the app's CLI tab marks it; nil where its file
         /// proves nothing (`CLIRuntimeDetector`). For an npm package whose
@@ -62,7 +66,7 @@ enum CLIToolRows {
 
         enum CodingKeys: String, CodingKey {
             case tool, name, path, installedVersion, latestVersion, channel, state, hasUpdate, oneClick,
-                 needsAdministrator, withheld, reason, note, command, runtime
+                 needsAdministrator, withheld, reason, note, command, runtime, breakingIn
         }
 
         init(_ status: CLIToolStatus) {
@@ -125,9 +129,41 @@ enum CLIToolRows {
             .flatMap { $0.1 }.map(Row.init)
     }
 
-    /// `check`'s verdicts as rows, with what each install is built with.
+    /// `check`'s verdicts as rows, with what each install is built with and
+    /// which versions of its update its release notes mark breaking.
     static func checkedRows(_ providers: [any CLIToolProvider] = CLITools.providers()) async -> [Row] {
-        await withRuntimes(await check(providers).map(Row.init))
+        let statuses = await check(providers)
+        let breaking = await breakingVersions(of: statuses, providers: providers)
+        return await withRuntimes(statuses.map { status in
+            var row = Row(status)
+            row.breakingIn = breaking[status.kind.rawValue + ":" + status.path]
+            return row
+        })
+    }
+
+    /// Per update row, the versions its notes mark breaking — the app's hint
+    /// (`CLIToolsModel.loadBreaking`). Each document is fetched once, one after
+    /// another; a row whose notes fail to load gets no hint.
+    static func breakingVersions(
+        of statuses: [CLIToolStatus], providers: [any CLIToolProvider]
+    ) async -> [String: [String]] {
+        // Nil for a document that failed, so it is not asked again for the next copy.
+        var documents: [String: Changelog?] = [:]
+        var found: [String: [String]] = [:]
+        for status in statuses where CLIToolChangelog.readsForBreaking(status) {
+            guard let provider = providers.first(where: { $0.kind == status.kind }) else { continue }
+            let key = status.releaseNotesKey
+            if documents[key] == nil {
+                documents[key] = .some(try? await RequestAttribution.withApp(CLITools.attributionID(status)) {
+                    try await provider.releaseNotes(for: status, force: false)
+                })
+            }
+            guard let notes = documents[key] ?? nil else { continue }
+            let versions = CLIToolChangelog.breakingVersions(
+                in: notes, installed: status.installedVersion, latest: status.latestVersion)
+            if !versions.isEmpty { found[status.kind.rawValue + ":" + status.path] = versions }
+        }
+        return found
     }
 
     /// `scan`'s rows, with what each install is built with: `list`'s.
@@ -171,11 +207,13 @@ enum CLIToolRows {
         }
     }
 
-    /// What an update row adds under itself: why it is not offered, and the
-    /// command the app hands out instead.
+    /// What an update row adds under itself: that its notes mark breaking
+    /// changes, why it is not offered, and the command the app hands out
+    /// instead.
     static func details(_ row: Row) -> [String] {
         guard row.hasUpdate else { return [] }
         var lines: [String] = []
+        if let breaking = row.breakingIn, !breaking.isEmpty { lines.append(CLIToolWording.breaking(breaking)) }
         if row.needsAdministrator == true {
             lines.append(administratorReason)
         } else if row.oneClick == nil {

@@ -304,4 +304,12 @@ public enum CLIToolWording {
         if let npm = gap.npm { return String(localized: "\(label) needs npm \(npm)") }
         return String(localized: "\(label) needs a newer Node")
     }
+
+    /// "The release notes mark breaking changes in 0.13.0": the hint an update
+    /// row carries when its notes say so (`CLIToolChangelog.breakingVersions`).
+    /// The versions as the notes print them, oldest first.
+    public static func breaking(_ versions: [String]) -> String {
+        let list = versions.joined(separator: ", ")
+        return String(localized: "The release notes mark breaking changes in \(list)")
+    }
 }

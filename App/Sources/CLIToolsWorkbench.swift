@@ -223,11 +223,21 @@ struct CLIToolSidebarRow: View {
         } else if let warning = CLIToolPresentation.rowWarning(status) {
             Text(verbatim: warning).font(.caption).foregroundStyle(.orange).lineLimit(1)
         } else {
-            // Tinted when it is an update, like a formula row's `a → b`.
-            Text(verbatim: CLIToolPresentation.versionCaption(status))
-                .font(.caption)
-                .foregroundStyle(status.state == .updateAvailable ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                .lineLimit(1)
+            HStack(spacing: 4) {
+                // Tinted when it is an update, like a formula row's `a → b`.
+                Text(verbatim: CLIToolPresentation.versionCaption(status))
+                    .foregroundStyle(status.state == .updateAvailable ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .lineLimit(1)
+                // The notes mark breaking changes on the way: a hint, the
+                // Update button is offered as ever. The detail pane says which.
+                if let versions = cli.breaking[id] {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .help(CLIToolWording.breaking(versions))
+                        .accessibilityLabel(CLIToolWording.breaking(versions))
+                }
+            }
+            .font(.caption)
         }
     }
 
@@ -340,6 +350,23 @@ private struct FailedUpdateLogRow: View {
     }
 }
 
+/// The facts grid's row for an update whose release notes mark breaking changes
+/// (`CLIToolsModel.breaking`): which versions, in words. Both detail panes'.
+private struct BreakingChangesRow: View {
+    let versions: [String]
+
+    var body: some View {
+        GridRow {
+            Text("Compatibility").foregroundStyle(.secondary).gridColumnAlignment(.trailing)
+            Label {
+                Text(verbatim: CLIToolWording.breaking(versions))
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            }
+        }
+    }
+}
+
 // MARK: - Claude Code's detail pane
 
 /// A selected Claude Code install: where it is and what runs, the facts the
@@ -429,6 +456,11 @@ struct ClaudeCodeDetailPane: View {
             GridRow {
                 label("Update")
                 updateValue
+            }
+            // What the sidebar row's ⚠ says, in words: the notes below carry the
+            // sections themselves.
+            if let versions = cli.breaking[id] {
+                BreakingChangesRow(versions: versions)
             }
             if let log = cli.errorLogs[id] {
                 FailedUpdateLogRow(log: log)
@@ -614,6 +646,11 @@ struct CLIToolDetailPane: View {
                 label("Update")
                 updateValue
             }
+            // What the sidebar row's ⚠ says, in words: the notes below carry the
+            // sections themselves.
+            if let versions = cli.breaking[id] {
+                BreakingChangesRow(versions: versions)
+            }
             if let log = cli.errorLogs[id] {
                 FailedUpdateLogRow(log: log)
             }
@@ -720,7 +757,8 @@ private struct CLIToolReleaseNotesView: View {
         case .loading:
             ProgressView().controlSize(.small)
         case .loaded(let changelog?):
-            ChangelogEntriesView(changelog: changelog, runningVersion: installed)
+            ChangelogEntriesView(changelog: changelog, runningVersion: installed,
+                                 breakingVersions: cli.breaking[status.toolID] ?? [])
         case .loaded(nil):
             ContentUnavailableView {
                 Label("No release notes", systemImage: "doc.text.magnifyingglass")

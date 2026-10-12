@@ -3203,6 +3203,10 @@ struct ChangelogEntriesView: View {
     /// The version the reader is on, marked in the rail. Nil for a vendor
     /// changelog, where the row itself is already about the app they have.
     var runningVersion: String?
+    /// Versions whose notes mark breaking changes, flagged in the rail. Only a
+    /// command-line tool's pane passes any (`CLIToolsModel.breaking`): the
+    /// versions its update brings.
+    var breakingVersions: [String] = []
     /// DuoUpdater's own history uses compact version + date rows. Vendor
     /// changelogs retain the two-line treatment because their titles can be long.
     var showsDatesInline: Bool = false
@@ -3229,7 +3233,9 @@ struct ChangelogEntriesView: View {
     /// 85th percentile fits the great majority; the upper clamp caps a lone runaway
     /// title (and the lower clamp keeps a terse changelog from getting cramped).
     /// Measured with AppKit since the labels are known up front — no GeometryReader.
-    private static func railWidth(for changelog: Changelog, showsDatesInline: Bool) -> CGFloat {
+    private static func railWidth(
+        for changelog: Changelog, showsDatesInline: Bool, flagsBreaking: Bool = false
+    ) -> CGFloat {
         let labelFont = NSFont.preferredFont(forTextStyle: .callout)
         let dateFont = NSFont.preferredFont(forTextStyle: .caption2)
         let rowWidths = changelog.entries
@@ -3252,8 +3258,11 @@ struct ChangelogEntriesView: View {
         // date, which makes the rail look inconsistently sized.
         let chrome: CGFloat = 20 + 16
         let inlineAccessory: CGFloat = showsDatesInline ? 16 : 0
+        // The ⚠ beside a flagged version, budgeted for the same reason: without
+        // it only the flagged rows would truncate their labels.
+        let breakingAccessory: CGFloat = flagsBreaking ? 18 : 0
         let minimum: CGFloat = showsDatesInline ? 156 : 140
-        return min(max(pick + chrome + inlineAccessory, minimum), 360)
+        return min(max(pick + chrome + inlineAccessory + breakingAccessory, minimum), 360)
     }
 
     var body: some View {
@@ -3303,12 +3312,22 @@ struct ChangelogEntriesView: View {
             // re-measure the rail (its width depends only on the changelog).
             .onChange(of: changelog) {
                 selection = 0
-                cachedRailWidth = Self.railWidth(for: changelog, showsDatesInline: showsDatesInline)
+                cachedRailWidth = measuredRailWidth
+            }
+            // The flags can land after the notes: they come from the tool's check.
+            .onChange(of: breakingVersions) {
+                cachedRailWidth = measuredRailWidth
             }
             .onAppear {
-                cachedRailWidth = Self.railWidth(for: changelog, showsDatesInline: showsDatesInline)
+                cachedRailWidth = measuredRailWidth
             }
         }
+    }
+
+    private var measuredRailWidth: CGFloat {
+        let shown = Set(changelog.entries.map(\.version))
+        return Self.railWidth(for: changelog, showsDatesInline: showsDatesInline,
+                              flagsBreaking: breakingVersions.contains(where: shown.contains))
     }
 
     /// Stable anchor for the detail pane's scroll-to-top. Constant on purpose —
@@ -3324,6 +3343,7 @@ struct ChangelogEntriesView: View {
             ChangelogVersionList(
                 entries: changelog.entries, selection: $selection,
                 runningVersion: runningVersion,
+                breakingVersions: Set(breakingVersions),
                 showsDatesInline: showsDatesInline)
                 .frame(width: cachedRailWidth)
             Divider()
@@ -3381,6 +3401,8 @@ private struct ChangelogVersionList: View {
     /// says where they stand in it. Nil for a vendor changelog, where "the version
     /// you have" is already the row's own subject and the rail is just navigation.
     var runningVersion: String?
+    /// Versions whose notes mark breaking changes (`ChangelogEntriesView.breakingVersions`).
+    var breakingVersions: Set<String> = []
     var showsDatesInline = false
 
     var body: some View {
@@ -3409,6 +3431,13 @@ private struct ChangelogVersionList: View {
                                         .fill(Color.accentColor)
                                         .frame(width: 6, height: 6)
                                         .help("The version you're running")
+                                }
+                                if breakingVersions.contains(entry.version) {
+                                    // The sidebar row's ⚠, on the version it is about.
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                        .help("This version’s notes mark breaking changes")
                                 }
                             }
                             if !showsDatesInline, let date = entry.date, !date.isEmpty {

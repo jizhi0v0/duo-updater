@@ -344,6 +344,8 @@ import Testing
         let mount = work.appendingPathComponent("mnt-two.dmg")
         defer {
             await forceDetach(mount, image: work.appendingPathComponent("two.dmg"))
+            // The fixture's own disk, should it have failed before detaching it.
+            await TestDiskImages.detach(top.appendingPathComponent("two-rw.dmg"))
             try? fm.removeItem(at: top)
         }
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
@@ -365,6 +367,31 @@ import Testing
             #expect(r.succeeded, "\((path as NSString).lastPathComponent) \(args.first ?? "") failed")
             return r
         }
+        // The two steps that need the disk to themselves. Right after `attach` and
+        // after `partitionDisk`, something can still hold it for seconds — on the
+        // hosted xcode-27 runner (macOS 27.0.1) `storagekitd` had /dev/rdiskN open
+        // and `detach -force` failed "Resource busy" (exit 16) twice, then
+        // succeeded 5 s after the first try (run 38239351399); `partitionDisk`
+        // once failed "-69877: Couldn't open device" (run 38204609229). In the
+        // full suite on that runner this fixture failed in every main run from
+        // #1211 to 2026-10-12 (38160281041 … 38233464165). Not reproduced on a
+        // 27.2 dev Mac. A retried `partitionDisk` that left a partial map would
+        // show as `volumes.count != 2` below.
+        func retrying(_ path: String, _ args: [String]) async throws {
+            let deadline = ContinuousClock.now + .seconds(60)
+            while true {
+                let r = try await ChildProcess.run(path, args, onCancel: .runToCompletion)
+                if r.succeeded { return }
+                guard ContinuousClock.now < deadline else {
+                    Issue.record("""
+                        \((path as NSString).lastPathComponent) \(args.first ?? "") still \
+                        failing after 60 s: \(String(decoding: r.standardError, as: UTF8.self))
+                        """)
+                    return
+                }
+                try await Task.sleep(for: .seconds(1))
+            }
+        }
         let raw = top.appendingPathComponent("two-rw.dmg")
         _ = try await sh("/usr/bin/hdiutil", [
             "create", "-quiet", "-size", "40m", "-layout", "GPTSPUD", "-fs", "HFS+",
@@ -372,7 +399,7 @@ import Testing
         let attached = try await sh("/usr/bin/hdiutil", ["attach", "-nomount", raw.path])
         let device = String(decoding: attached.standardOutput, as: UTF8.self)
             .split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
-        _ = try await sh("/usr/sbin/diskutil", [
+        try await retrying("/usr/sbin/diskutil", [
             "partitionDisk", device, "GPT", "HFS+", "V1", "20M", "HFS+", "V2", "R"])
         // Mount both, drop the app on each, and detach.
         _ = try await sh("/usr/sbin/diskutil", ["mountDisk", device])
@@ -388,7 +415,7 @@ import Testing
                 at: URL(fileURLWithPath: volume).appendingPathComponent("ZZFixture.app"),
                 mode: 0o755, marker: "payload")
         }
-        _ = try await sh("/usr/bin/hdiutil", ["detach", device, "-force"])
+        try await retrying("/usr/bin/hdiutil", ["detach", device, "-force"])
         let image = top.appendingPathComponent("two.dmg")
         _ = try await sh("/usr/bin/hdiutil", [
             "convert", "-quiet", raw.path, "-format", "UDZO", "-o", image.path])

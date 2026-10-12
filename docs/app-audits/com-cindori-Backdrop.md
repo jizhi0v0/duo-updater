@@ -58,7 +58,8 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **仅在 BackdropWallpaper 不运行时可装**；运行时被 `NestedAppGuard` 拒绝（见「已知问题」）
+- 状态: **可用**。BackdropWallpaper 在跑也照装：它是 bundle 自己 `Contents/Library/LaunchAgents/` 里 plist 的 `BundleProgram`，
+  `NestedAppGuard` 2026-10-12 起像登录项一样放行这类 agent（旧 agent 要等 Backdrop 下次启动才换掉，见「已知问题」）
 - 读的是: 人人可手动下载的 GA（feed 最新 item）
 - 格式: dmg，带 Sparkle delta
 - 校验: feed 带 `sparkle:edSignature`，无独立摘要字段；装前 Team ID 闸
@@ -67,21 +68,31 @@
      `{"applied":true,"bytesDownloaded":9169866,"outcome":"installed","route":"sparkle"}`，6 s，走 delta；
      结果 2.9.0 (135)，`codesign --verify --deep --strict` 通过，`spctl` = Notarized Developer ID，Team `ZQK6SX26CE`，
      `diff -r` 与厂商 dmg 里的 bundle 一致，`duo backups` 有 2.8.0 备份。
-  2. **运行中**：启动 2.8.0，主程序拉起 `BackdropWallpaper --wallpaper-agent`（父进程 launchd）→ `duo install` 返回
-     `{"outcome":"skipped","reason":"BackdropWallpaper is running from inside Backdrop and would keep running the old version. Quit it, then update again. Backdrop was not updated."}`，磁盘保持 2.8.0。
+  2. **运行中**：启动 2.8.0，主程序拉起 `BackdropWallpaper --wallpaper-agent`（父进程 launchd，`parent bundle version` 134）。
+     放行之前 `duo install` 返回 `skipped`（"BackdropWallpaper is running from inside Backdrop…"），磁盘保持 2.8.0。
+     放行之后：`duo install` → `{"applied":true,"bytesDownloaded":9169866,"outcome":"installed","route":"sparkle"}`，8 s，走 delta；
+     `duo restart Backdrop` → `restarted`，主程序和 agent 都换了新 pid、都从新 bundle 跑，`parent bundle version` 135；
+     之后 10 s 磁盘一直是 135。`codesign --verify --deep --strict` 通过，`spctl` = Notarized Developer ID，Team `ZQK6SX26CE`，
+     `diff -r` 与厂商 2.9.0 一致，`duo backups` 有 2.8.0 备份。
+  3. **主程序已退出、agent 还在**（最常见的状态）：`duo install` → `installed`；`duo restart` → `not running — nothing to restart`，
+     旧 agent（134）照旧在跑；打开 Backdrop 后换成新 agent（135）。
 
 ## 已知问题
-- **BackdropWallpaper 一旦启动就一直在，一键因此基本总是被拒**。实测主程序退出后 agent 30 s 仍在；
-  系统壁纸扩展还会再拉起 `--wallpaper-renderer` 进程。它在 `Contents/Resources/` 下、父进程是 launchd、不是 `.regular`，
-  正好命中 `NestedAppGuard` 的拒绝条件（VMPal 那条规则）。用户没有界面可以单独退出它。
-- **厂商自己的启动会换掉旧 agent**：模拟 Sparkle 自更新（主程序退出、旧 agent 134 仍在跑时把 2.9.0 放到位），
-  启动 2.9.0 后旧 agent 消失，新 agent 起来，`launchctl print` 的 `parent bundle version` 从 134 变成 135。
-  也就是说 VMPal 那种「替换后无法恢复」的情况在这里不成立：主程序下次启动就会接上新代码。
-  要不要为这类 SMAppService LaunchAgent 放宽 guard 是个策略决定，尚未做。
+- **BackdropWallpaper 一旦启动就一直在**。实测主程序退出后 agent 60 s 仍在；系统壁纸扩展还会再拉起
+  `--wallpaper-renderer` 进程。它在 `Contents/Resources/` 下、父进程是 launchd、不是 `.regular`，原本命中
+  `NestedAppGuard` 的拒绝条件（VMPal 那条规则），一键因此基本总是被拒。用户没有界面可以单独退出它。
+  已解决：`NestedAppGuard` 现在放行 bundle 自己 LaunchAgents plist 的 `BundleProgram`（renderer 是同一个可执行文件，一并放行）。
+- **装完到下次打开 Backdrop 之间，旧 agent 跑的是旧代码**。厂商自己的启动会换掉它：主程序退出、旧 agent 134 仍在跑时
+  把 2.9.0 放到位，60 s 内旧 agent 一直在（从被挪走的旧 bundle 里跑）；启动 2.9.0 后 3 s 内旧 agent 消失、新 agent 起来，
+  `launchctl print gui/<uid>/com.cindori.Backdrop.Wallpaper.agent` 的 `parent bundle version` 从 134 变成 135。
+  这是 `SMAppService.h` 要求 app 自己做的事（更新后重新 register，换了可执行文件就先 unregister，unregister 会杀掉在跑的 agent），
+  不是 launchd 自动做的。主程序装前在跑时 `duo restart` 会把它拉起来，没在跑就等用户下次打开。
+- **启动后会把自己设成系统壁纸**。`~/Library/Application Support/com.apple.wallpaper/Store/Index.plist` 里 Desktop 与 Idle 的
+  `Provider` 变成 `com.cindori.Backdrop.WallpaperExtension`，`LastSet` 与一次 2.9.0 启动只差 2 s；原来的壁纸选择被覆盖，
+  Backdrop 不留备份，删掉 Backdrop 也不会恢复，要去「系统设置 › 墙纸」重新选。真机验证前先记下当前壁纸。
 
 ## 建议下一步
-1. 决定 `NestedAppGuard` 对「bundle 里 `Contents/Library/LaunchAgents/` 声明的 SMAppService agent」是否像登录项一样放行；
-   放行后 Backdrop 一键才在常见状态下可用。
+无。
 
 ## 如何复验
 
@@ -90,4 +101,5 @@ swift run --package-path application-test feed-discover <Backdrop.app>   # → d
 swift run --package-path application-test channel-verify <Backdrop.dmg>  # → winning source Sparkle, latest 2.9.0, deltas 5
 curl -sS https://cdn.cindori.com/apps/backdrop/updates/2.8.0-134/Backdrop.dmg -o Backdrop-2.8.0.dmg  # 上一版
 plutil -p /Applications/Backdrop.app/Contents/Library/LaunchAgents/com.cindori.Backdrop.Wallpaper.agent.plist
+launchctl print gui/$(id -u)/com.cindori.Backdrop.Wallpaper.agent | grep -E 'pid =|parent bundle version'   # agent 跑的是哪一版
 ```

@@ -188,6 +188,25 @@ enum BundleFactsReader {
             of: entries.map { $0.values?.isSymbolicLink != true && $0.values?.isRegularFile == true ? $0.url : nil },
             stop: stop)
         if stop.isSet { throw CancellationError() }
+        timings.add("walk + hash", ContinuousClock.now - walkStart)
+
+        // Each Mach-O is read on its own for its headers, source paths and printable
+        // runs, so those fan out too; each file's runs are appended in walk order
+        // below, so the index holds the same bytes in the same order. Measured on
+        // Microsoft OneNote (123 Mach-O, 409 MB) with the files already read into
+        // memory: 0.92 s for the runs one file after another, 0.13 s fanned out;
+        // in `duo diff`, source paths + strings index went from 1.1–1.2 s a side
+        // to 0.2–0.4 s for this phase.
+        let machO = timings.time(Self.machOPhase) {
+            machOReads(
+                of: entries.indices.map { index in
+                    guard let head = digests[index]?.head, looksLikeMachO(head) else { return nil }
+                    return (entries[index].url, Int64(entries[index].values?.fileSize ?? 0))
+                },
+                stop: stop)
+        }
+        if stop.isSet { throw CancellationError() }
+        walkStart = ContinuousClock.now
 
         for (index, (rel, url, values)) in entries.enumerated() {
             if stop.isSet { throw CancellationError() }
@@ -233,45 +252,12 @@ enum BundleFactsReader {
                     if let asar = try? readAsar(at: url) { facts.asars[rel] = asar }
                 }
             }
-            if let head = hashed?.head, looksLikeMachO(head) {
-                let architectures = timings.time("Mach-O headers") { MachOImports.architectures(at: url) }
-                let commands = timings.time("Mach-O headers") { MachOImports.loadCommands(at: url) }
-                // Read, never mapped: a hardened process that maps an executable
-                // whose signature no longer validates is killed when it touches a
-                // bad page (`ExecutableBytes`), and any app on disk can be one.
-                // What the copy costs is measured on `forEachChunk`: nothing that shows.
-                let indexed = size <= stringsIndexLimit
-                var paths = SourcePathScanner.Stream()
-                var runs = PrintableRuns.Stream()
-                let blobCount = blob.count
-                var indexing = Duration.zero
-                let readStart = ContinuousClock.now
-                let read = ExecutableBytes.forEachChunk(
-                    of: url, overlap: max(SourcePathScanner.Stream.overlap, PrintableRuns.Stream.overlap)
-                ) { buffer, carried, isLast in
-                    paths.feed(buffer, carried: carried, isLast: isLast)
-                    if indexed {
-                        let start = ContinuousClock.now
-                        runs.feed(buffer, carried: carried, isLast: isLast, to: &blob)
-                        indexing += ContinuousClock.now - start
-                    }
-                    return true
-                }
-                // The read itself counts as source paths, where the page-ins of
-                // the mapped file it replaces were counted.
-                timings.add("source paths", ContinuousClock.now - readStart - indexing)
-                if indexed { timings.add("strings index", indexing) }
-                if read {
-                    if !indexed { facts.unindexedMachO.append(rel) }
-                    facts.machO[rel] = MachOFact(
-                        size: size, architectures: architectures ?? [],
-                        dylibs: commands?.dylibs ?? [:],
-                        buildSDK: commands?.buildSDK.map { "\($0.platform.displayName) \($0.version)" },
-                        sourcePaths: paths.found.sorted())
-                } else {
-                    // Failed partway: nothing of this file, as when it could not be mapped.
-                    blob.removeSubrange(blobCount..<blob.count)
-                }
+            // A Mach-O whose read failed partway leaves nothing, as when it could
+            // not be mapped.
+            if let read = machO[index], let fact = read.fact {
+                blob.append(read.runs)
+                if !read.indexed { facts.unindexedMachO.append(rel) }
+                facts.machO[rel] = fact
             }
             walkStart = ContinuousClock.now
         }
@@ -299,6 +285,60 @@ enum BundleFactsReader {
         let resolvedBase = base.resolvingSymlinksInPath().path
         if resolved.hasPrefix(resolvedBase + "/") { return String(resolved.dropFirst(resolvedBase.count + 1)) }
         return path
+    }
+
+    /// One phase in the timings for the headers, source paths and strings index:
+    /// they run at once, file by file, and only their wall time together means
+    /// anything. Short enough for the report's 28-column label.
+    static let machOPhase = "Mach-O + strings index"
+
+    /// What reading one Mach-O yields. `fact` is nil when the read failed partway;
+    /// `runs` is empty then, and for a file over ``stringsIndexLimit``.
+    struct MachORead {
+        var fact: MachOFact?
+        var runs = Data()
+        var indexed: Bool
+    }
+
+    /// ``readMachO(at:size:)`` of each file given, all at once; nil where none is
+    /// given, and for any file not yet started when `stop` is set.
+    static func machOReads(of files: [(url: URL, size: Int64)?], stop: BundleDiff.StopFlag) -> [MachORead?] {
+        let results = UnsafeMutableBufferPointer<MachORead?>.allocate(capacity: files.count)
+        results.initialize(repeating: nil)
+        defer { results.deinitialize(); results.deallocate() }
+        DispatchQueue.concurrentPerform(iterations: files.count) { index in
+            guard let file = files[index], !stop.isSet else { return }
+            results[index] = readMachO(at: file.url, size: file.size)
+        }
+        return Array(results)
+    }
+
+    static func readMachO(at url: URL, size: Int64) -> MachORead {
+        let architectures = MachOImports.architectures(at: url)
+        let commands = MachOImports.loadCommands(at: url)
+        // Read, never mapped: a hardened process that maps an executable
+        // whose signature no longer validates is killed when it touches a
+        // bad page (`ExecutableBytes`), and any app on disk can be one.
+        // What the copy costs is measured on `forEachChunk`: nothing that shows.
+        let indexed = size <= stringsIndexLimit
+        var paths = SourcePathScanner.Stream()
+        var runs = PrintableRuns.Stream()
+        var blob = Data()
+        let read = ExecutableBytes.forEachChunk(
+            of: url, overlap: max(SourcePathScanner.Stream.overlap, PrintableRuns.Stream.overlap)
+        ) { buffer, carried, isLast in
+            paths.feed(buffer, carried: carried, isLast: isLast)
+            if indexed { runs.feed(buffer, carried: carried, isLast: isLast, to: &blob) }
+            return true
+        }
+        guard read else { return MachORead(fact: nil, indexed: indexed) }
+        return MachORead(
+            fact: MachOFact(
+                size: size, architectures: architectures ?? [],
+                dylibs: commands?.dylibs ?? [:],
+                buildSDK: commands?.buildSDK.map { "\($0.platform.displayName) \($0.version)" },
+                sourcePaths: paths.found.sorted()),
+            runs: blob, indexed: indexed)
     }
 
     /// `realpath(3)`: unlike `resolvingSymlinksInPath`, it keeps `/private`. Apple

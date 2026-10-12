@@ -352,18 +352,43 @@ private struct FailedUpdateLogRow: View {
 
 /// The facts grid's row for an update whose release notes mark breaking changes
 /// (`CLIToolsModel.breaking`): which versions, in words. Both detail panes'.
+/// Each version is a link: a long run of skipped releases puts the one that
+/// matters far down the notes below, and a click takes them there (`show`).
 private struct BreakingChangesRow: View {
     let versions: [String]
+    /// Show a version's breaking changes in the release notes below.
+    let show: (String) -> Void
 
     var body: some View {
         GridRow {
             Text("Compatibility").foregroundStyle(.secondary).gridColumnAlignment(.trailing)
             Label {
-                Text(verbatim: CLIToolWording.breaking(versions))
+                Text(sentence)
+                    // Out of the grid's text selection, so a click on a version
+                    // is a click on its link, never the start of a selection.
+                    .textSelection(.disabled)
+                    .environment(\.openURL, OpenURLAction { url in
+                        guard let version = CLIToolPresentation.breakingVersion(at: url, in: versions) else {
+                            return .discarded
+                        }
+                        show(version)
+                        return .handled
+                    })
             } icon: {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
             }
         }
+    }
+
+    /// The links underlined as well as tinted, like the app's other inline
+    /// links ("Homebrew docs: Tap Trust"): a version number alone in the
+    /// accent colour reads as emphasis, not as something to click.
+    private var sentence: AttributedString {
+        var sentence = CLIToolPresentation.breakingSentence(versions)
+        for run in sentence.runs where run.link != nil {
+            sentence[run.range].underlineStyle = .single
+        }
+        return sentence
     }
 }
 
@@ -380,6 +405,9 @@ struct ClaudeCodeDetailPane: View {
     /// Homebrew is upgrading: Update waits (`CLIToolSidebarRow.brewUpgrading`).
     var brewUpgrading = false
 
+    /// The latest click on a version in the Compatibility row, for the notes.
+    @State private var breakingJump: BreakingChangesJump?
+
     private var path: String { status.install.path }
     private var id: CLIToolID { CLIToolID(kind: .claudeCode, path: path) }
     private var updating: Bool { cli.updating.contains(id) }
@@ -395,10 +423,12 @@ struct ClaudeCodeDetailPane: View {
             // The shared status of the same install: the release notes are asked
             // for by it, like every other tool's.
             if let shared = cli.status(CLIToolID(kind: .claudeCode, path: status.install.path)) {
-                CLIToolReleaseNotesView(status: shared, cli: cli)
+                CLIToolReleaseNotesView(status: shared, cli: cli, breakingJump: breakingJump)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // A click on another install's versions says nothing about this one's notes.
+        .onChange(of: id) { breakingJump = nil }
     }
 
     private var header: some View {
@@ -460,7 +490,7 @@ struct ClaudeCodeDetailPane: View {
             // What the sidebar row's ⚠ says, in words: the notes below carry the
             // sections themselves.
             if let versions = cli.breaking[id] {
-                BreakingChangesRow(versions: versions)
+                BreakingChangesRow(versions: versions) { breakingJump = BreakingChangesJump(version: $0) }
             }
             if let log = cli.errorLogs[id] {
                 FailedUpdateLogRow(log: log)
@@ -562,6 +592,8 @@ struct CLIToolDetailPane: View {
     var showsRuntime = true
     /// Homebrew is upgrading: Update waits (`CLIToolSidebarRow.brewUpgrading`).
     var brewUpgrading = false
+    /// The latest click on a version in the Compatibility row, for the notes.
+    @State private var breakingJump: BreakingChangesJump?
 
     private var id: CLIToolID { status.toolID }
     private var updating: Bool { cli.updating.contains(id) }
@@ -574,9 +606,11 @@ struct CLIToolDetailPane: View {
                 .padding(16)
                 .frame(maxWidth: 640, alignment: .topLeading)
             Divider()
-            CLIToolReleaseNotesView(status: status, cli: cli)
+            CLIToolReleaseNotesView(status: status, cli: cli, breakingJump: breakingJump)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // A click on another install's versions says nothing about this one's notes.
+        .onChange(of: id) { breakingJump = nil }
     }
 
     private var header: some View {
@@ -649,7 +683,7 @@ struct CLIToolDetailPane: View {
             // What the sidebar row's ⚠ says, in words: the notes below carry the
             // sections themselves.
             if let versions = cli.breaking[id] {
-                BreakingChangesRow(versions: versions)
+                BreakingChangesRow(versions: versions) { breakingJump = BreakingChangesJump(version: $0) }
             }
             if let log = cli.errorLogs[id] {
                 FailedUpdateLogRow(log: log)
@@ -731,6 +765,9 @@ struct CLIToolDetailPane: View {
 private struct CLIToolReleaseNotesView: View {
     let status: CLIToolStatus
     let cli: CLIToolsModel
+    /// A version clicked in the pane's Compatibility row
+    /// (`ChangelogEntriesView.breakingJump`).
+    var breakingJump: BreakingChangesJump?
 
     private var kind: CLIToolKind { status.kind }
     private var installed: String? { status.installedVersion }
@@ -758,7 +795,8 @@ private struct CLIToolReleaseNotesView: View {
             ProgressView().controlSize(.small)
         case .loaded(let changelog?):
             ChangelogEntriesView(changelog: changelog, runningVersion: installed,
-                                 breakingVersions: cli.breaking[status.toolID] ?? [])
+                                 breakingVersions: cli.breaking[status.toolID] ?? [],
+                                 breakingJump: breakingJump)
         case .loaded(nil):
             ContentUnavailableView {
                 Label("No release notes", systemImage: "doc.text.magnifyingglass")

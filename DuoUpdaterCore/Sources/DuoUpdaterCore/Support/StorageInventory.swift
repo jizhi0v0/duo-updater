@@ -177,10 +177,9 @@ public enum StorageInventory {
             guard let entries = try? fileManager.contentsOfDirectory(
                 at: root, includingPropertiesForKeys: nil, options: [])
             else { continue }
-            for entry in entries {
-                freed += allocatedSize(of: entry, fileManager: fileManager)
-                try fileManager.removeItem(at: entry)
-            }
+            let before = allocatedSize(of: root, fileManager: fileManager)
+            for entry in entries { try fileManager.removeItem(at: entry) }
+            freed += before - allocatedSize(of: root, fileManager: fileManager)
         }
         return freed
     }
@@ -188,13 +187,25 @@ public enum StorageInventory {
     /// Bytes on disk under `url` — allocated, so a 4 KB block holding a 10-byte
     /// JSON counts as 4 KB, the same answer `du` and Finder give. A file is
     /// measured directly; a directory is walked, symlinks not followed.
+    ///
+    /// A file with several hard links counts once, as `du` counts it. WebKit's
+    /// network cache links every blob from two places (`Blobs/` and the record
+    /// that uses it): summed per path, `Caches/com.duoupdater.app` read 143 MB
+    /// where `du` read 70 MB on the Mac this was written on (2026-10-12).
     static func allocatedSize(of url: URL, fileManager: FileManager = .default) -> Int64 {
-        let keys: Set<URLResourceKey> = [.totalFileAllocatedSizeKey, .isRegularFileKey]
+        let keys: Set<URLResourceKey> = [
+            .totalFileAllocatedSizeKey, .isRegularFileKey, .linkCountKey, .fileResourceIdentifierKey,
+        ]
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return 0 }
+        var seenLinked = Set<AnyHashable>()
         func size(_ file: URL) -> Int64 {
             guard let values = try? file.resourceValues(forKeys: keys), values.isRegularFile == true
             else { return 0 }
+            if (values.linkCount ?? 1) > 1, let identity = values.fileResourceIdentifier as? AnyHashable,
+               !seenLinked.insert(identity).inserted {
+                return 0
+            }
             return Int64(values.totalFileAllocatedSize ?? 0)
         }
         guard isDirectory.boolValue else { return size(url) }

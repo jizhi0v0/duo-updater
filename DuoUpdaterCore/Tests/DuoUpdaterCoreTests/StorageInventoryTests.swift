@@ -82,4 +82,21 @@ struct StorageInventoryTests {
             #expect(after[item] == before[item], "\(item) must not change")
         }
     }
+    /// WebKit's network cache links each blob from two directories. Summed per
+    /// path, the real one read twice what `du` does.
+    @Test func aHardLinkedFileCountsOnce() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("storage-inventory-links-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let blobs = root.appendingPathComponent("Blobs", isDirectory: true)
+        let record = root.appendingPathComponent("Records/r1", isDirectory: true)
+        try FileManager.default.createDirectory(at: blobs, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: record, withIntermediateDirectories: true)
+        let blob = blobs.appendingPathComponent("b")
+        try Data(repeating: 7, count: 64 * 1024).write(to: blob)
+        let single = StorageInventory.allocatedSize(of: root)
+        try FileManager.default.linkItem(at: blob, to: record.appendingPathComponent("b-blob"))
+        #expect(single > 0)
+        #expect(StorageInventory.allocatedSize(of: root) == single)
+    }
 }

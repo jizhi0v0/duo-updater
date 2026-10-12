@@ -5,7 +5,8 @@ import Testing
 /// The three rules this route was opened for, against the asset names their
 /// repositories actually published (every stable release with a digest, read
 /// from the GitHub API 2026-10-02 — see `docs/app-audits/org-alacritty.md`),
-/// and Lokii, added since (both releases, 2026-10-07 — `docs/app-audits/com-lokii-app.md`).
+/// and Lokii, added since (both releases, 2026-10-07 — `docs/app-audits/com-lokii-app.md`),
+/// and disktree (its two newest releases, 2026-10-12 — `docs/app-audits/io-github-tobi-disktree.md`).
 @Suite struct DigestOnlyRecipeTests {
 
     private static let expected: [String: [[String]]] = [
@@ -27,6 +28,20 @@ import Testing
         "com.lokii.app": [
             ["Lokii-arm64.dmg", "Lokii-x86_64.dmg"],
             ["Lokii-arm64.dmg", "Lokii-x86_64.dmg"],
+        ],
+        "io.github.tobi.disktree": [
+            ["disktree-0.11.0-aarch64-linux.tar.gz", "disktree-0.11.0-aarch64-linux.tar.gz.sha256",
+             "disktree-0.11.0-aarch64-macos.zip", "disktree-0.11.0-aarch64-macos.zip.sha256",
+             "disktree-0.11.0-aarch64-windows.zip", "disktree-0.11.0-aarch64-windows.zip.sha256",
+             "disktree-0.11.0-x86_64-linux.tar.gz", "disktree-0.11.0-x86_64-linux.tar.gz.sha256",
+             "disktree-0.11.0-x86_64-macos.zip", "disktree-0.11.0-x86_64-macos.zip.sha256",
+             "disktree-0.11.0-x86_64-windows.zip", "disktree-0.11.0-x86_64-windows.zip.sha256"],
+            ["disktree-0.10.1-aarch64-linux.tar.gz", "disktree-0.10.1-aarch64-linux.tar.gz.sha256",
+             "disktree-0.10.1-aarch64-macos.zip", "disktree-0.10.1-aarch64-macos.zip.sha256",
+             "disktree-0.10.1-aarch64-windows.zip", "disktree-0.10.1-aarch64-windows.zip.sha256",
+             "disktree-0.10.1-x86_64-linux.tar.gz", "disktree-0.10.1-x86_64-linux.tar.gz.sha256",
+             "disktree-0.10.1-x86_64-macos.zip", "disktree-0.10.1-x86_64-macos.zip.sha256",
+             "disktree-0.10.1-x86_64-windows.zip", "disktree-0.10.1-x86_64-windows.zip.sha256"],
         ],
     ]
 
@@ -54,6 +69,7 @@ import Testing
             "org.flameshot.Flameshot": ["Flameshot-14.0-macos-arm64.dmg", "Flameshot-13.3.0-artifact-macos-arm64.dmg"],
             "org.darktable": ["darktable-5.6.1-arm64.dmg", "darktable-5.2.1-arm64.dmg", "darktable-5.4.0-arm64.dmg"],
             "com.lokii.app": ["Lokii-arm64.dmg", "Lokii-arm64.dmg"],
+            "io.github.tobi.disktree": ["disktree-0.11.0-aarch64-macos.zip", "disktree-0.10.1-aarch64-macos.zip"],
         ]
         for (bundleID, releases) in Self.expected {
             let pattern = try #require(rule(bundleID)?.installAssetPattern, "\(bundleID)")
@@ -63,8 +79,9 @@ import Testing
                     from: assets, matching: pattern, preferring: .arm64, allowingIntelTranslation: false)
                 #expect(picked?.url.lastPathComponent == picks[bundleID]?[index], "\(bundleID) release \(index)")
                 // The rc asset ships under a prerelease tag, which `/releases/latest`
-                // never returns; the pattern must still not prefer it.
-                #expect(!(picked?.url.lastPathComponent.contains("rc") ?? false))
+                // never returns; the pattern must still not prefer it. `-rc`, not
+                // `rc`: disktree's `aarch64` spells it too.
+                #expect(!(picked?.url.lastPathComponent.contains("-rc") ?? false))
             }
         }
     }

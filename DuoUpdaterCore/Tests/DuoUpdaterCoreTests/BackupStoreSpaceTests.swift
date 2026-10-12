@@ -315,11 +315,9 @@ struct BackupStoreSpaceTests {
 /// choice existed keeps them on.
 @Suite(.serialized) struct KeepBackupsDefaultTests {
     private func withDefaults(_ body: (UserDefaults) -> Void) {
-        let suite = "com.duoupdater.tests.keepbackups"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        defer { defaults.removePersistentDomain(forName: suite) }
-        body(defaults)
+        let scratch = ScratchDefaults("keepbackups")
+        defer { scratch.clear() }
+        body(scratch.defaults)
     }
 
     @Test func offForANewUser() {

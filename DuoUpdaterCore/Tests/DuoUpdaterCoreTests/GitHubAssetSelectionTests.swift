@@ -156,6 +156,13 @@ struct GitHubAssetSelectionTests {
         (#"^audacity-macOS-4\.[0-9]+\.[0-9]+-(?:arm64|x86_64|universal)\.dmg$"#,
          ["audacity-macOS-4.0.1-arm64.dmg", "audacity-macOS-4.0.1-universal.dmg",
           "audacity-macOS-4.0.1-x86_64.dmg"]),
+        // Plexo: one dmg per architecture beside the updater's zips and the
+        // blockmaps (v1.0.0-rc.15's macOS assets, in the order GitHub listed them).
+        (#"^plexo-[0-9][0-9A-Za-z.-]*-(?:arm64|x64)\.dmg$"#,
+         ["plexo-1.0.0-rc.15-arm64-mac.zip", "plexo-1.0.0-rc.15-arm64-mac.zip.blockmap",
+          "plexo-1.0.0-rc.15-arm64.dmg", "plexo-1.0.0-rc.15-arm64.dmg.blockmap",
+          "plexo-1.0.0-rc.15-x64-mac.zip", "plexo-1.0.0-rc.15-x64-mac.zip.blockmap",
+          "plexo-1.0.0-rc.15-x64.dmg", "plexo-1.0.0-rc.15-x64.dmg.blockmap"]),
     ]
 
     /// Registry patterns whose alternation chooses between TAGS rather than

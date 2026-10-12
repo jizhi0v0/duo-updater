@@ -180,6 +180,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Longbridge Desktop（长桥桌面版）**](com-longbridge-app-desktop.md) · `com.longbridge.app.desktop` — P+C (stable + preview, one-click arm64 dmg) · changelog 读英文逐版本页 · stable + preview real DMGs verified ✓（preview 不是退役轨：独立 bundle `…desktop.preview`，recipe 活着，2026-09-14 复测 `1.0.0-preview.1`）· 2026-08-25
 - [x] [**Aside**](at-studio-AsideBrowser.md) · `at.studio.AsideBrowser` — P (detection-only) C · Chromium/Omaha 自更新,无 Sparkle · 版本读 `version_info.json` 的 mac 对象(按平台分轨) · changelog 读 `.md`、跨平台共用 · 真实 DMG 核对 ✓ · 2026-09-14
 - [x] [**Muse**](com-meta-endo.md) · `com.meta.endo` — P (one-click, Sparkle 放行时) · Sparkle feed 被 facebook 登录墙（多数 302→/login），撞墙时由 Homebrew cask API 的版本号接手（只检测；`muse.ai` latest 链接 09-25 起需登录）· 真包 ✓ · 2026-09-25
+- [x] [**Kitten Preview**](dev-kitten-Kitten-Preview.md) · `dev.kitten.Kitten-Preview` — P (detection-only) C · Zed 式 release service `releases/preview/latest/asset` · ad-hoc 签名无 Team ID，一键不可行 · stable 轨未开放 · 2026-10-12
 - [x] [**AirCard**](com-mak5er-aircard.md) · `com.mak5er.aircard` — G (detection-only) · ad-hoc 签名无 Team ID，一键过不了 Team 闸 · 2026-09-24
 - [x] [**Comet**](ai-perplexity-comet.md) · `ai.perplexity.comet` — P · 一键 ✓（2026-08-29，`.fixed` 指向网关）· redirect version avoids stale rollout API · real DMG + live probe ✓ · 2026-08-17
 - [x] [**Devin Desktop**](com-exafunction-windsurf.md) · `com.exafunction.windsurf` — P (one-click dmg via `.bodyPattern`) · former Windsurf bundle · real DMG + live probe ✓ · 2026-08-17
@@ -271,6 +272,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Search**](com-officecommun-search.md) · `com.officecommun.search` — G (one-click arm64 dmg，1.0.5 起另有 `Search-Intel.dmg`) · 真包 1.0.3/1.0.4 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中；自研更新器启动即换 bundle）· changelog 结构化 ✓ · 2026-10-09
 - [x] [**Pulse**](com-egoist-pulse.md) · `com.egoist.pulse` — G (one-click arm64 dmg) · 真包 0.1.4/0.1.5 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中）· changelog 结构化 ✓ · `install.sh` 只装 Linux，无 macOS CLI · 2026-10-10
 - [x] [**disktree**](io-github-tobi-disktree.md) · `io.github.tobi.disktree` — G (**digest-only**，ad-hoc 签名，arm64/x86_64 分 arch zip) · 4 个真包核对封印/标识/版本/digest ✓ · 一键端到端 ✓（设置关闭→拒绝；打开→installed） · changelog 结构化 ✓（GitHub 自动生成的 PR 列表，无厂商小节） · 2026-10-12
+- [x] [**Plexo**](com-plexo-app.md) · `com.plexo.app` — G (one-click arm64/x64 dmg，`v1.0.0-rc.N` 保留后缀) · 真包 rc.14/rc.15 挂载验证 ✓ · 一键端到端：rc.14（未签名）→ 拒绝 ✓，**rc.15 → 下一签名版未跑**（只有一个签名版） · changelog 结构化 ✓ · 单轨（settled from source） · 2026-10-12
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

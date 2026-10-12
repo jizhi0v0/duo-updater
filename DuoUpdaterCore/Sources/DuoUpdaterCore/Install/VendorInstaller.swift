@@ -458,7 +458,11 @@ public actor VendorInstaller {
     /// containment check `ArchiveExtractor` makes about the bundle it returns: a
     /// registry string is not user input, but a `..` in one would otherwise reach
     /// anywhere on disk, and this is two steps upstream of a privileged swap.
-    private static func unwrapNestedPayload(
+    ///
+    /// Internal, not `private`, for `NestedPayloadUnwrapTests`: the route reaches
+    /// it only after the stub's signature verifies, which an unsigned fixture
+    /// never does (`LocalStashInstallWiringTests` says why).
+    static func unwrapNestedPayload(
         at relativePath: String, inside stub: URL, workDir: URL
     ) async throws -> URL {
         let nested = stub.appendingPathComponent(relativePath).standardizedFileURL

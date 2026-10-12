@@ -204,7 +204,7 @@ public final class HelmPublishedDigests: @unchecked Sendable {
 
     init(fileURL: URL? = nil) {
         self.fileURL = fileURL ?? (DuoStateDirectory.isTestProcess
-            ? FileManager.default.temporaryDirectory
+            ? DuoStateDirectory.testProcessScratchRoot
                 .appendingPathComponent("duo-helm-digests-tests-\(UUID().uuidString)")
                 .appendingPathComponent("helm-published-digests.json")
             : DuoStateDirectory.base

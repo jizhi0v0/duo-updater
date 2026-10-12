@@ -33,6 +33,26 @@ public enum DuoStateDirectory {
             ?? FileManager.default.temporaryDirectory
     }
 
+    /// The one directory a test process's stores write their scratch state under,
+    /// removed when the process exits.
+    ///
+    /// Each store used to mint its own `duo-<store>-tests-<UUID>` directly in
+    /// `$TMPDIR` and leave it there: one per test process for the shared stores,
+    /// one per *instance* for the CLI tools' digest files. Measured 2026-10-12 on
+    /// the mini, which also hosts the CI runner: ~1,900 such directories, nothing
+    /// ever removing them. They now nest under this root instead, keeping the
+    /// per-process and per-instance UUIDs they had, and an `atexit` handler takes
+    /// the whole root with it — a full `swift test` of this package left no root
+    /// behind (2026-10-12), so the runner does leave through `exit`. A test
+    /// process that is killed skips `atexit` and leaves its root behind — one
+    /// directory, not dozens.
+    static let testProcessScratchRoot: URL = {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("duo-test-process-\(UUID().uuidString)", isDirectory: true)
+        atexit { try? FileManager.default.removeItem(at: DuoStateDirectory.testProcessScratchRoot) }
+        return root
+    }()
+
     /// Whether this process is a test host, for the stores that must never
     /// write into the developer's own state even when `DUO_STATE_DIR` is unset.
     ///

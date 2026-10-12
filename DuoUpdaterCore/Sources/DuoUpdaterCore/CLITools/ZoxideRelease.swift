@@ -286,7 +286,7 @@ public final class ZoxidePublishedDigests: @unchecked Sendable {
 
     init(fileURL: URL? = nil) {
         self.fileURL = fileURL ?? (DuoStateDirectory.isTestProcess
-            ? FileManager.default.temporaryDirectory
+            ? DuoStateDirectory.testProcessScratchRoot
                 .appendingPathComponent("duo-zoxide-digests-tests-\(UUID().uuidString)")
                 .appendingPathComponent("zoxide-published-digests.json")
             : DuoStateDirectory.base

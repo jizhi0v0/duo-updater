@@ -25760,67 +25760,67 @@
         }
       }
     },
-    "DuoUpdater checks for its own updates every hour. A quiet moment means nothing is being checked or installed, no DuoUpdater window is open, and you’re working in another app. Until one comes it waits — and installs when you quit DuoUpdater anyway.": {
+    "DuoUpdater checks for its own updates every hour. A quiet moment means nothing is being checked or installed, and you’re either working in another app or haven’t touched the keyboard or mouse for a minute. Open DuoUpdater windows come back after the relaunch. Until a quiet moment comes it waits — and installs when you quit DuoUpdater anyway.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater prüft stündlich auf eigene Updates. Ein ruhiger Moment bedeutet: Es wird nichts geprüft oder installiert, kein Fenster von DuoUpdater ist geöffnet, und du arbeitest in einer anderen App. Bis dahin wartet es – und installiert ohnehin, wenn du DuoUpdater beendest."
+            "value": "DuoUpdater prüft stündlich auf eigene Updates. Ein ruhiger Moment bedeutet: Es wird nichts geprüft oder installiert, und du arbeitest entweder in einer anderen App oder hast Tastatur und Maus seit einer Minute nicht berührt. Geöffnete Fenster von DuoUpdater sind nach dem Neustart wieder da. Bis dahin wartet es – und installiert ohnehin, wenn du DuoUpdater beendest."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater comprueba sus propias actualizaciones cada hora. Un momento tranquilo significa que no se está comprobando ni instalando nada, que no hay ninguna ventana de DuoUpdater abierta y que estás trabajando en otra app. Hasta que llegue, espera, e instala de todos modos cuando cierras DuoUpdater."
+            "value": "DuoUpdater comprueba sus propias actualizaciones cada hora. Un momento tranquilo significa que no se está comprobando ni instalando nada y que estás trabajando en otra app o no has tocado el teclado ni el ratón durante un minuto. Las ventanas de DuoUpdater abiertas vuelven tras el reinicio. Hasta que llegue, espera, e instala de todos modos cuando cierras DuoUpdater."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater vérifie ses propres mises à jour toutes les heures. Un moment calme signifie que rien n'est en cours de vérification ni d'installation, qu'aucune fenêtre de DuoUpdater n'est ouverte, et que vous travaillez dans une autre application. En attendant, il patiente — et s'installe de toute façon quand vous quittez DuoUpdater."
+            "value": "DuoUpdater recherche ses propres mises à jour toutes les heures. Un moment calme signifie que rien n’est en cours de vérification ni d’installation, et que vous travaillez dans une autre app ou n’avez pas touché au clavier ni à la souris depuis une minute. Les fenêtres de DuoUpdater ouvertes réapparaissent après la relance. En attendant, il patiente — et installe de toute façon quand vous quittez DuoUpdater."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater controlla i propri aggiornamenti ogni ora. Un momento tranquillo significa che non si sta controllando né installando nulla, nessuna finestra di DuoUpdater è aperta e stai lavorando in un’altra app. Finché non arriva resta in attesa, e comunque installa quando chiudi DuoUpdater."
+            "value": "DuoUpdater controlla i propri aggiornamenti ogni ora. Un momento tranquillo significa che non si sta controllando né installando nulla e che stai lavorando in un’altra app oppure non tocchi tastiera e mouse da un minuto. Le finestre di DuoUpdater aperte tornano dopo il riavvio. Fino ad allora attende, e installa comunque quando chiudi DuoUpdater."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdaterは1時間ごとに自身の更新を確認します。静かなタイミングとは、確認やインストールが行われておらず、DuoUpdaterのウインドウが開いておらず、あなたが他のアプリで作業している状態です。そのタイミングが来るまでは待機し、いずれにせよDuoUpdaterを終了したときにインストールされます。"
+            "value": "DuoUpdaterは1時間ごとに自身の更新を確認します。静かなタイミングとは、確認やインストールが行われておらず、あなたが他のアプリで作業しているか、1分間キーボードやマウスに触れていない状態です。開いていたDuoUpdaterのウインドウは再起動後に元に戻ります。そのタイミングが来るまでは待機し、いずれにせよDuoUpdaterを終了したときにインストールされます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O DuoUpdater busca as próprias atualizações a cada hora. Um momento tranquilo significa que nada está sendo verificado ou instalado, nenhuma janela do DuoUpdater está aberta e você está trabalhando em outro app. Até que chegue um, ele espera — e instala de qualquer forma quando você encerra o DuoUpdater."
+            "value": "O DuoUpdater procura as próprias atualizações a cada hora. Um momento tranquilo é quando nada está sendo verificado ou instalado e você está trabalhando em outro app ou não toca no teclado nem no mouse há um minuto. As janelas do DuoUpdater que estavam abertas voltam depois de reabrir. Até lá, ele espera — e instala de qualquer forma quando você encerra o DuoUpdater."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater проверяет собственные обновления каждый час. Тихий момент означает, что ничего не проверяется и не устанавливается, ни одно окно DuoUpdater не открыто, а вы работаете в другом приложении. Пока он не наступит, обновление ждёт — и устанавливается, когда вы всё равно закрываете DuoUpdater."
+            "value": "DuoUpdater проверяет собственные обновления каждый час. Спокойный момент — это когда ничего не проверяется и не устанавливается, а вы работаете в другом приложении или минуту не касались клавиатуры и мыши. Открытые окна DuoUpdater вернутся после перезапуска. До тех пор он ждёт — и в любом случае установит обновление, когда вы закроете DuoUpdater."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater kendi güncellemelerini her saat denetler. Sakin bir an; hiçbir şeyin denetlenmediği veya yüklenmediği, hiçbir DuoUpdater penceresinin açık olmadığı ve sizin başka bir uygulamada çalıştığınız andır. Böyle bir an gelene kadar bekler — DuoUpdater’dan çıktığınızda ise yine de yükler."
+            "value": "DuoUpdater kendi güncellemelerini saatte bir denetler. Sakin an, hiçbir şeyin denetlenmediği ya da yüklenmediği ve sizin başka bir uygulamada çalıştığınız ya da bir dakikadır klavyeye ve fareye dokunmadığınız andır. Açık DuoUpdater pencereleri yeniden başlatmadan sonra geri gelir. O ana kadar bekler — ve DuoUpdater'dan çıktığınızda her durumda yükler."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater 每小时检查一次自身的更新。安静的时刻是指没有正在进行的检查或安装、没有打开任何 DuoUpdater 窗口，并且你正在其他应用中工作。在那之前它会等待——并在你退出 DuoUpdater 时顺便安装。"
+            "value": "DuoUpdater 每小时检查一次自身的更新。安静的时刻是指没有正在进行的检查或安装，并且你正在其他应用中工作，或者已经一分钟没有碰键盘和鼠标。打开的 DuoUpdater 窗口会在重新启动后恢复。在那之前它会等待——并在你退出 DuoUpdater 时顺便安装。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater 每小時檢查一次自身的更新。空檔是指沒有任何檢查或安裝正在進行、沒有打開 DuoUpdater 視窗，且你正在其他 App 中工作。在那之前它會等待——而你結束 DuoUpdater 時也會順便安裝。"
+            "value": "DuoUpdater 每小時檢查一次自身的更新。空檔是指沒有任何檢查或安裝正在進行，且你正在其他 App 中工作，或已經一分鐘沒有碰鍵盤和滑鼠。開著的 DuoUpdater 視窗會在重新開啟後恢復。在那之前它會等待——而你結束 DuoUpdater 時也會順便安裝。"
           }
         }
       }

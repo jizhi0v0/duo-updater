@@ -193,7 +193,7 @@ public final class StarshipPublishedDigests: @unchecked Sendable {
 
     init(fileURL: URL? = nil) {
         self.fileURL = fileURL ?? (DuoStateDirectory.isTestProcess
-            ? FileManager.default.temporaryDirectory
+            ? DuoStateDirectory.testProcessScratchRoot
                 .appendingPathComponent("duo-starship-digests-tests-\(UUID().uuidString)")
                 .appendingPathComponent("starship-published-digests.json")
             : DuoStateDirectory.base

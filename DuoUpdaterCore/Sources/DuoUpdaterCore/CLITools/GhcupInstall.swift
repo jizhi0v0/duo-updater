@@ -195,7 +195,7 @@ public final class GhcupFileFacts: @unchecked Sendable {
 
     init(fileURL: URL? = nil) {
         self.fileURL = fileURL ?? (DuoStateDirectory.isTestProcess
-            ? FileManager.default.temporaryDirectory
+            ? DuoStateDirectory.testProcessScratchRoot
                 .appendingPathComponent("duo-ghcup-facts-tests-\(UUID().uuidString)")
                 .appendingPathComponent("ghcup-file-facts.json")
             : DuoStateDirectory.base

@@ -276,7 +276,7 @@ import Testing
         let work = top.appendingPathComponent("work", isDirectory: true)
         let mount = work.appendingPathComponent("mnt-ZZFixture.dmg")
         defer {
-            await forceDetach(mount)
+            await forceDetach(mount, image: work.appendingPathComponent("ZZFixture.dmg"))
             try? fm.removeItem(at: top)
         }
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
@@ -343,7 +343,7 @@ import Testing
         let work = top.appendingPathComponent("work", isDirectory: true)
         let mount = work.appendingPathComponent("mnt-two.dmg")
         defer {
-            await forceDetach(mount)
+            await forceDetach(mount, image: work.appendingPathComponent("two.dmg"))
             try? fm.removeItem(at: top)
         }
         try fm.createDirectory(at: work, withIntermediateDirectories: true)

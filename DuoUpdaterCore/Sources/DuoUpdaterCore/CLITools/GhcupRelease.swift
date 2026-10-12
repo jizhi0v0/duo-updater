@@ -249,7 +249,7 @@ public final class GhcupPublishedDigests: @unchecked Sendable {
 
     init(fileURL: URL? = nil) {
         self.fileURL = fileURL ?? (DuoStateDirectory.isTestProcess
-            ? FileManager.default.temporaryDirectory
+            ? DuoStateDirectory.testProcessScratchRoot
                 .appendingPathComponent("duo-ghcup-digests-tests-\(UUID().uuidString)")
                 .appendingPathComponent("ghcup-published-digests.json")
             : DuoStateDirectory.base

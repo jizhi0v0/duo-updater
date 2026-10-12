@@ -87,8 +87,10 @@ def classify(value):
     `x86_64,arm64` 6 times (measured 2026-09-07), so a comparison against either
     spelling calls the other single-architecture.
     """
+    # LINT.IfChange(classify)
     names = {n.strip().lower() for n in re.split(r"[,\s]+", value) if n.strip()}
     return "SINGLE" if len(names) <= 1 else "UNIVERSAL"
+    # LINT.ThenChange(CLI/Sources/DuoKit/PackageArchitectureProbe.swift:classify)
 
 
 def host_architectures(url, fetch):

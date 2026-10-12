@@ -13,7 +13,10 @@ import DuoUpdaterCore
 struct StorageSettingsPage: View {
     let model: AppListModel
 
-    @State private var measurements: [StorageInventory.Item: StorageInventory.Measurement]?
+    /// Seeded from the last measurement this session, so coming back to the page
+    /// paints the numbers it showed last time while a fresh walk runs, instead of
+    /// a column of spinners that turn into text a second later.
+    @State private var measurements = StorageMeasurementMemo.last
     @State private var clearing = false
     /// What the last clear freed, shown in place of the button's caption for a
     /// few seconds so the click visibly landed.
@@ -64,13 +67,12 @@ struct StorageSettingsPage: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Used by DuoUpdater")
-                if let measurements {
-                    Text(Self.format(measurements.values.reduce(0) { $0 + $1.bytes }))
-                        .font(.system(.title2, weight: .semibold))
-                        .monospacedDigit()
-                } else {
-                    ProgressView().controlSize(.small)
-                }
+                // A placeholder in the same font while the first walk runs, so
+                // the card is the height it will be and nothing below it moves.
+                Text(measurements.map { Self.format($0.values.reduce(0) { $0 + $1.bytes }) } ?? "00.0 GB")
+                    .font(.system(.title2, weight: .semibold))
+                    .monospacedDigit()
+                    .redacted(reason: measurements == nil ? .placeholder : [])
             }
             Spacer(minLength: 8)
             Button("Refresh") { Task { await measure() } }
@@ -99,23 +101,21 @@ struct StorageSettingsPage: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                if let location = Self.location(of: paths) {
+                if let location = Self.location(of: paths) ?? (measurement == nil ? "~/Library/Application Support" : nil) {
                     Text(location)
                         .font(.caption.monospaced())
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
+                        .redacted(reason: measurement == nil ? .placeholder : [])
                 }
             }
             Spacer(minLength: 8)
-            if let measurement {
-                Text(measurement.paths.isEmpty ? String(localized: "None") : Self.format(measurement.bytes))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-            } else {
-                ProgressView().controlSize(.mini)
-            }
+            Text(measurement.map { $0.paths.isEmpty ? String(localized: "None") : Self.format($0.bytes) } ?? "00.0 MB")
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .redacted(reason: measurement == nil ? .placeholder : [])
             if item == .backups {
                 Button("Manage…") { model.requestedSettingsSection = .backups }
                     .settingsGlassButton()
@@ -165,7 +165,9 @@ struct StorageSettingsPage: View {
         let result = await Task.detached(priority: .userInitiated) {
             StorageInventory.measure()
         }.value
-        measurements = Dictionary(uniqueKeysWithValues: result.map { ($0.item, $0) })
+        let fresh = Dictionary(uniqueKeysWithValues: result.map { ($0.item, $0) })
+        measurements = fresh
+        StorageMeasurementMemo.last = fresh
     }
 
     private func clearCaches() async {
@@ -305,4 +307,11 @@ struct StorageSettingsPage: View {
             String(localized: "Self-update downloads, window state and anything not listed above.")
         }
     }
+}
+
+/// The page's last measurement, kept for as long as the app runs. The page is
+/// rebuilt every time it is selected, and its `@State` with it.
+@MainActor
+private enum StorageMeasurementMemo {
+    static var last: [StorageInventory.Item: StorageInventory.Measurement]?
 }

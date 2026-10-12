@@ -161,11 +161,36 @@ enum BundleFactsReader {
             bundleURLs["."] = base
         }
 
+        // The walk, then every digest, then the rest in walk order. Hashing is most
+        // of a large bundle's time and each file's is independent, so it fans out;
+        // the strings index is appended to in walk order, so what feeds it does not.
+        // Measured with `duo diff` on DSH Desktop 2.0.17 (26,174 files, 1.3 GB),
+        // walk + hash before this, the prefix cut and the hex below → with them:
+        // 3.0 s → 1.0 s with the files in the cache, 6.1–6.3 s → 2.6–2.9 s after
+        // `purge`.
         var walkStart = ContinuousClock.now
+        // Each path the enumerator yields starts with `base`, or with its real path
+        // where `base` is under a link — a scratch copy in `/var/folders` comes back
+        // as `/private/var/folders/…`. Cutting either prefix off spares
+        // re-standardizing every path, which was a fifth of the walk;
+        // `relativePath` stays for anything else.
+        let prefixes = Set([base.path, realPath(base.path)].compactMap { $0 }).map { $0 + "/" }
+        var entries: [(rel: String, url: URL, values: URLResourceValues?)] = []
         for case let url as URL in walker {
             if stop.isSet { throw CancellationError() }
-            let rel = relativePath(of: url, under: base)
-            let values = try? url.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey, .fileSizeKey])
+            let path = url.path
+            let rel = prefixes.first(where: path.hasPrefix).map { String(path.dropFirst($0.count)) }
+                ?? relativePath(of: url, under: base)
+            entries.append(
+                (rel, url, try? url.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey, .fileSizeKey])))
+        }
+        let digests = hashes(
+            of: entries.map { $0.values?.isSymbolicLink != true && $0.values?.isRegularFile == true ? $0.url : nil },
+            stop: stop)
+        if stop.isSet { throw CancellationError() }
+
+        for (index, (rel, url, values)) in entries.enumerated() {
+            if stop.isSet { throw CancellationError() }
             if values?.isSymbolicLink == true {
                 // Recorded, never followed — the enumerator does not descend into a
                 // link. No `skipDescendants()` here: called on a link it skips the
@@ -182,7 +207,7 @@ enum BundleFactsReader {
             guard values?.isRegularFile == true else { continue }
             let size = Int64(values?.fileSize ?? 0)
             // One read of the contents serves both the digest and the Mach-O test.
-            let hashed = try? hash(url)
+            let hashed = digests[index]
             facts.files[rel] = FileFact(size: size, digest: hashed?.digest ?? "unreadable")
             facts.bytesHashed += size
             timings.add("walk + hash", ContinuousClock.now - walkStart)
@@ -276,10 +301,32 @@ enum BundleFactsReader {
         return path
     }
 
+    /// `realpath(3)`: unlike `resolvingSymlinksInPath`, it keeps `/private`.
+    static func realPath(_ path: String) -> String? {
+        guard let resolved = realpath(path, nil) else { return nil }
+        defer { free(resolved) }
+        return String(cString: resolved)
+    }
+
     static func isIndexedLocalization(_ rel: String) -> Bool {
         let path = "/" + rel
         return path.contains("/en.lproj/") || path.contains("/Base.lproj/") || path.contains("/zh-Hans.lproj/")
     }
+
+    /// ``hash(_:)`` of each URL given, all at once; nil where none is given, where
+    /// the file could not be read, and for any file not yet started when `stop` is set.
+    static func hashes(of urls: [URL?], stop: BundleDiff.StopFlag) -> [(digest: String, head: Data)?] {
+        let results = UnsafeMutableBufferPointer<(digest: String, head: Data)?>.allocate(capacity: urls.count)
+        results.initialize(repeating: nil)
+        defer { results.deinitialize(); results.deallocate() }
+        DispatchQueue.concurrentPerform(iterations: urls.count) { index in
+            guard let url = urls[index], !stop.isSet else { return }
+            results[index] = try? hash(url)
+        }
+        return Array(results)
+    }
+
+    private static let hexDigits = Array("0123456789abcdef".utf8)
 
     /// SHA-256 of the file, and its first eight bytes.
     static func hash(_ url: URL) throws -> (digest: String, head: Data) {
@@ -291,7 +338,15 @@ enum BundleFactsReader {
             if head.isEmpty { head = chunk.prefix(8) }
             hasher.update(data: chunk)
         }
-        return (hasher.finalize().map { String(format: "%02x", $0) }.joined(), head)
+        // Not `String(format: "%02x")` per byte: 32 Foundation format calls a file
+        // were a quarter of the walk.
+        var hex: [UInt8] = []
+        hex.reserveCapacity(64)
+        for byte in hasher.finalize() {
+            hex.append(hexDigits[Int(byte >> 4)])
+            hex.append(hexDigits[Int(byte & 0x0F)])
+        }
+        return (String(decoding: hex, as: UTF8.self), head)
     }
 
     /// Thin or fat Mach-O, by magic. `MachOImports` does the real parsing; this

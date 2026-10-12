@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import CryptoKit
 @testable import DuoUpdaterCore
 
 /// `duo diff`'s rules, each against bytes the test wrote. Every noise class here was
@@ -549,6 +550,45 @@ import Foundation
         #expect(facts.strings["Contents/Resources/en.lproj/Localizable.strings"] == ["ZZ.greeting": "Hello"])
         #expect(facts.machO["Contents/MacOS/zzfixture"]?.architectures == ["arm64"])
         #expect(facts.machO["Contents/MacOS/zzfixture"]?.sourcePaths == ["/ZZBuild/zzfixture/App/Main.swift"])
+    }
+
+    /// The digests are taken all at once and handed back by position: each file
+    /// gets its own, in the hex every recorded backup was written with, and an
+    /// empty or unreadable file is told apart the same way as before.
+    @Test func eachFileGetsItsOwnDigest() throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let app = try minimalApp(in: directory)
+        var expected: [String: String] = [:]
+        for index in 0..<300 {
+            let rel = "Contents/Resources/zz\(index % 7)/zz-\(index).bin"
+            let data = Data((0..<(index * 37 % 5_000)).map { UInt8(truncatingIfNeeded: $0 &* 31 &+ index) })
+            try write(data, to: app.appendingPathComponent(rel))
+            expected[rel] = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        }
+        let unreadable = app.appendingPathComponent("Contents/Resources/zz-unreadable.bin")
+        try write(Data("zz".utf8), to: unreadable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: unreadable.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: unreadable.path) }
+
+        let facts = try BundleFactsReader.scan(root: app)
+        for (rel, digest) in expected { #expect(facts.files[rel]?.digest == digest, "\(rel)") }
+        #expect(facts.files["Contents/Resources/zz0/zz-0.bin"]?.digest
+            == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+        #expect(facts.files["Contents/Resources/zz-unreadable.bin"]?.digest == "unreadable")
+    }
+
+    /// Stopped before the digests are taken, none of them is.
+    @Test func aStoppedHashingTakesNoDigest() throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let app = try minimalApp(in: directory)
+        let file = app.appendingPathComponent("Contents/Resources/zz.txt")
+        let stop = BundleDiff.StopFlag()
+        #expect(BundleFactsReader.hashes(of: [file, nil], stop: stop).map { $0?.digest }
+            == [SHA256.hash(data: Data("zz".utf8)).map { String(format: "%02x", $0) }.joined(), nil])
+        stop.set()
+        #expect(BundleFactsReader.hashes(of: [file], stop: stop).map { $0?.digest } == [nil])
     }
 
     // MARK: A backup that lives on another disk

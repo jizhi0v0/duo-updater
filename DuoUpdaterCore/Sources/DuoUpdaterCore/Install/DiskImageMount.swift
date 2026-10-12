@@ -208,7 +208,9 @@ enum DiskImageMount {
         return r?.code == 0
     }
 
-    /// Both take a disk whose volume is already unmounted (measured on 27.2).
+    /// Both take a disk whose volume is already unmounted, whichever tool attached
+    /// it (measured on 27.2: each tool on its own attach, `diskutil` on an
+    /// `hdiutil` attach, `hdiutil` on a `diskutil` one).
     private static func detachDevice(_ device: String, using tool: Tool) async -> Bool {
         let r = switch tool {
         case .diskutil: try? await run("/usr/sbin/diskutil", ["eject", "force", device])
@@ -219,7 +221,9 @@ enum DiskImageMount {
 
     /// `image`'s entry in `hdiutil info`, which lists what either tool attached.
     /// The device is the image's first whole disk: detaching it takes every disk
-    /// the image carries, an APFS image's synthesized container included.
+    /// the image carries, an APFS image's synthesized container included
+    /// (measured on 27.2 with either tool: disk17 and its container disk18 both
+    /// gone after detaching disk17).
     static func attachment(of image: URL) async -> Attachment {
         guard let r = try? await run("/usr/bin/hdiutil", ["info", "-plist"], capturingOutput: true),
               r.code == 0,

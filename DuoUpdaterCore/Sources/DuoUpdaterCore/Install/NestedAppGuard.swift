@@ -41,8 +41,11 @@ import Darwin
 ///   `Contents/Library/LaunchAgents/`, the agents `SMAppService` registers.
 ///   Those also outlive the app. `SMAppService.h` tells the app to re-register
 ///   one after an update, unregistering first when the executable changed,
-///   which kills the running agent. So the app's own next launch replaces a
-///   stale one: Backdrop's `BackdropWallpaper` (below).
+///   which kills the running agent. An app that does so replaces a stale agent
+///   on its next launch. That is a contract on the vendor, not something
+///   launchd does: it was measured for Backdrop's `BackdropWallpaper` only
+///   (below), and an app that skips it keeps running the old agent. The bet is
+///   the same one the login-item exclusion makes.
 /// - Its parent is not a process running from the same bundle. A helper the app
 ///   spawned goes away with the app.
 /// - It is not a `.regular` app. That one already has a path: `AppRestarter`
@@ -75,6 +78,10 @@ import Darwin
 /// running the old code for the 60 s watched, so it stays stale until Backdrop
 /// is next opened. Opening 2.9.0 replaced it within 3 s: a new pid from the new
 /// bundle, and `launchctl print` showed `parent bundle version` 134 → 135.
+/// Backdrop keeps the bundle each agent was registered from in its defaults
+/// (`com.cindori.Backdrop.Wallpaper.agent.registration` = the bundle path, its
+/// inode and hashes). That is presumably how it notices the swap; its code was
+/// not traced.
 /// Over the live process list that day (833 processes, 35 bundles with
 /// something running inside), these rules refused two bundles. The exclusion
 /// lets Backdrop through. Gemini, refused by

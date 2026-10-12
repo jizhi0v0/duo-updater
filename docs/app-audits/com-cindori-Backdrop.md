@@ -85,11 +85,13 @@
 - **装完到下次打开 Backdrop 之间，旧 agent 跑的是旧代码**。厂商自己的启动会换掉它：主程序退出、旧 agent 134 仍在跑时
   把 2.9.0 放到位，60 s 内旧 agent 一直在（从被挪走的旧 bundle 里跑）；启动 2.9.0 后 3 s 内旧 agent 消失、新 agent 起来，
   `launchctl print gui/<uid>/com.cindori.Backdrop.Wallpaper.agent` 的 `parent bundle version` 从 134 变成 135。
+  Backdrop 在偏好里按 agent 记着注册时的 bundle（`com.cindori.Backdrop.Wallpaper.agent.registration` = bundle 路径、inode 和哈希），
+  大概就是靠它发现 bundle 换了（推测，没追进代码）。
   这是 `SMAppService.h` 要求 app 自己做的事（更新后重新 register，换了可执行文件就先 unregister，unregister 会杀掉在跑的 agent），
   不是 launchd 自动做的。主程序装前在跑时 `duo restart` 会把它拉起来，没在跑就等用户下次打开。
 - **启动后会把自己设成系统壁纸**。`~/Library/Application Support/com.apple.wallpaper/Store/Index.plist` 里 Desktop 与 Idle 的
   `Provider` 变成 `com.cindori.Backdrop.WallpaperExtension`，`LastSet` 与一次 2.9.0 启动只差 2 s；原来的壁纸选择被覆盖，
-  Backdrop 不留备份，删掉 Backdrop 也不会恢复，要去「系统设置 › 墙纸」重新选。真机验证前先记下当前壁纸。
+  Backdrop 的偏好和 Application Support 里没找到原设置的副本，删掉 Backdrop 也不会恢复，要去「系统设置 › 墙纸」重新选。真机验证前先记下当前壁纸。
 
 ## 建议下一步
 无。

@@ -33,6 +33,7 @@ struct BackupDiskAppearance {
 /// bundle id across channels (Thunderbird Stable/ESR/Beta), and templated
 /// recipes fetch per-version pages, so bundle id alone is not enough.
 struct ChangelogCacheKey: Hashable {
+    // LINT.IfChange(changelog-key)
     let bundleID: String
     let channel: ReleaseChannel
     let version: String?
@@ -40,6 +41,7 @@ struct ChangelogCacheKey: Hashable {
     /// a fixed source. A feed-resolved page carries the reader's language, so the
     /// same version can be two different sets of notes (#557).
     let feedPage: URL?
+    // LINT.ThenChange(DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChangelogDiskCache.swift:changelog-key)
 }
 
 /// Owns the scanned app list, their update status, and in-flight installs.

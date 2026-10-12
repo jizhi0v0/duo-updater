@@ -301,13 +301,37 @@ jobs:
           CORE_TEST_FLAGS: ${{ runner.environment != 'github-hosted' && '--skip installPipelineDryRun' || '' }}
         run: scripts/run-with-hang-report.sh 1200 make test-release
 
+  # LINT.IfChange / LINT.ThenChange links (scripts/check_ifchange.py): a pull
+  # request that changes one side of a link must change the other, or say why
+  # with NO_IFTTT=<reason>. `make test-scripts` checks the markers on every run;
+  # only this job has the pull request's diff. Two commits deep because the
+  # checkout is the merge commit and its first parent is the base it is diffed
+  # against. Runs on every event so `test` below never sees it skipped. Linux,
+  # so it takes none of the five macOS slots.
+  ifchange:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      - name: Linked changes
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            python3 scripts/check_ifchange.py --base HEAD^1
+          else
+            python3 scripts/check_ifchange.py
+          fi
+
   # The one check the `main` ruleset requires is named `test`, which was this
   # workflow's only job. Rather than editing the ruleset, `test` is now the gate
   # over the jobs above. `always()`, not `!cancelled()`: a required check that is
   # SKIPPED counts as passing, so this must run — and fail — whenever any of
   # them failed, was cancelled or did not run.
   test:
-    needs: [swift, app, release]
+    needs: [swift, app, release, ifchange]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -316,5 +340,5 @@ jobs:
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          echo "swift / app / release: $RESULTS"
+          echo "swift / app / release / ifchange: $RESULTS"
           for r in $RESULTS; do [ "$r" = success ] || exit 1; done

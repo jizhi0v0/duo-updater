@@ -55,6 +55,7 @@ public actor ChangelogDiskCache {
     /// Identity of one cached changelog: the app, its channel, and the version the
     /// notes describe. Mirrors the workbench's in-memory `ChangelogCacheKey`.
     public struct Key: Hashable, Sendable {
+        // LINT.IfChange(changelog-key)
         public let bundleID: String
         public let channel: String
         public let version: String
@@ -67,6 +68,7 @@ public actor ChangelogDiskCache {
         /// served the old language's notes from disk on every launch, because
         /// released notes are treated as immutable and never expire.
         public let page: URL?
+        // LINT.ThenChange(App/Sources/AppListModel.swift:changelog-key)
         public init(bundleID: String, channel: String, version: String, page: URL? = nil) {
             self.bundleID = bundleID
             self.channel = channel

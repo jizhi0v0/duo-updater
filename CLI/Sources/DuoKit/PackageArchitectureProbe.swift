@@ -174,10 +174,12 @@ public enum PackageArchitectureProbe {
     /// single and warns. That is deliberate — a vendor publishing an empty
     /// architecture list is worth a human look — but it has never been seen.
     static func classify(_ value: String) -> Declaration {
+        // LINT.IfChange(classify)
         let names = value.split(whereSeparator: { $0 == "," || $0 == " " })
             .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
             .filter { !$0.isEmpty }
         return Set(names).count <= 1 ? .single(value) : .universal(value)
+        // LINT.ThenChange(scripts/pkg_host_architectures.py:classify)
     }
 
     /// Whitespace around `=` is allowed because the attribute is XML, not a fixed

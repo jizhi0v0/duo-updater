@@ -301,7 +301,12 @@ enum BundleFactsReader {
         return path
     }
 
-    /// `realpath(3)`: unlike `resolvingSymlinksInPath`, it keeps `/private`.
+    /// `realpath(3)`: unlike `resolvingSymlinksInPath`, it keeps `/private`. Apple
+    /// documents that `NSURL.resolvingSymlinksInPath` "strips off the /private
+    /// designator, provided the result is the name of an existing file", and
+    /// `standardizingPath` likewise removes an initial `/private`; so `base` reads
+    /// `/var/folders/…` while the enumerator yields `/private/var/folders/…`
+    /// (seen on macOS 27.2 for `/var/folders` and `/tmp`).
     static func realPath(_ path: String) -> String? {
         guard let resolved = realpath(path, nil) else { return nil }
         defer { free(resolved) }

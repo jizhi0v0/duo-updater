@@ -125,6 +125,30 @@ jobs:
           swift --version
           echo "arch: $(uname -m)"
 
+      # A GitHub-hosted runner starts with no build at all, so it compiles the
+      # whole package every run. SwiftPM's build is cached between hosted runs;
+      # scripts/ci_build_cache.py says why the directory alone would not be warm.
+      # Restored on every hosted run (a pull request reads main's), saved only by
+      # a push to main or a dispatch, so a pull request cannot write what main
+      # reads. The key names the compiler: another Swift's build is not reusable.
+      - name: Name SwiftPM's build cache
+        id: spm-key
+        if: runner.environment == 'github-hosted'
+        run: echo "key=spm-${{ github.job }}-$(swift --version 2>&1 | shasum | cut -c1-12)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore SwiftPM's build
+        id: spm-cache
+        if: runner.environment == 'github-hosted'
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: DuoUpdaterCore/.build
+          key: ${{ steps.spm-key.outputs.key }}-${{ github.sha }}
+          restore-keys: ${{ steps.spm-key.outputs.key }}-
+
+      - name: Put back the cached build's file times
+        if: steps.spm-cache.outputs.cache-matched-key != ''
+        run: python3 scripts/ci_build_cache.py restore DuoUpdaterCore/.build
+
       - name: make test-swift
         # DUO_DOWNLOAD_GATE moves the one test that fetches real vendor builds off
         # a metered connection onto this runner, where egress is free. Measured on
@@ -154,6 +178,19 @@ jobs:
           DUO_DOWNLOAD_GATE: ${{ runner.environment == 'github-hosted' && '1' || '' }}
           CORE_TEST_FLAGS: ${{ runner.environment != 'github-hosted' && '--skip installPipelineDryRun' || '' }}
         run: scripts/run-with-hang-report.sh 1800 make test-swift
+
+      # After a failed test too: the build itself is sound, and main's failures
+      # are mostly tests. Not after a cancel, which can stop a build halfway.
+      - name: Record the build's file times
+        if: runner.environment == 'github-hosted' && !cancelled() && github.event_name != 'pull_request' && steps.spm-cache.outputs.cache-hit != 'true'
+        run: python3 scripts/ci_build_cache.py stamp DuoUpdaterCore/.build
+
+      - name: Save SwiftPM's build
+        if: runner.environment == 'github-hosted' && !cancelled() && github.event_name != 'pull_request' && steps.spm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: DuoUpdaterCore/.build
+          key: ${{ steps.spm-key.outputs.key }}-${{ github.sha }}
 
   app:
     needs: route
@@ -282,6 +319,30 @@ jobs:
           swift --version
           echo "arch: $(uname -m)"
 
+      # A GitHub-hosted runner starts with no build at all, so it compiles the
+      # whole package every run. SwiftPM's build is cached between hosted runs;
+      # scripts/ci_build_cache.py says why the directory alone would not be warm.
+      # Restored on every hosted run (a pull request reads main's), saved only by
+      # a push to main or a dispatch, so a pull request cannot write what main
+      # reads. The key names the compiler: another Swift's build is not reusable.
+      - name: Name SwiftPM's build cache
+        id: spm-key
+        if: runner.environment == 'github-hosted'
+        run: echo "key=spm-${{ github.job }}-$(swift --version 2>&1 | shasum | cut -c1-12)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore SwiftPM's build
+        id: spm-cache
+        if: runner.environment == 'github-hosted'
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: DuoUpdaterCore/.build
+          key: ${{ steps.spm-key.outputs.key }}-${{ github.sha }}
+          restore-keys: ${{ steps.spm-key.outputs.key }}-
+
+      - name: Put back the cached build's file times
+        if: steps.spm-cache.outputs.cache-matched-key != ''
+        run: python3 scripts/ci_build_cache.py restore DuoUpdaterCore/.build
+
       # Core's tests once more, optimized — the configuration the app ships in.
       # `make test` builds them in debug only, and on 2026-10-02 that let a
       # crash through: Junie's release-notes task group returned nothing and
@@ -300,6 +361,19 @@ jobs:
         env:
           CORE_TEST_FLAGS: ${{ runner.environment != 'github-hosted' && '--skip installPipelineDryRun' || '' }}
         run: scripts/run-with-hang-report.sh 1200 make test-release
+
+      # After a failed test too: the build itself is sound, and main's failures
+      # are mostly tests. Not after a cancel, which can stop a build halfway.
+      - name: Record the build's file times
+        if: runner.environment == 'github-hosted' && !cancelled() && github.event_name != 'pull_request' && steps.spm-cache.outputs.cache-hit != 'true'
+        run: python3 scripts/ci_build_cache.py stamp DuoUpdaterCore/.build
+
+      - name: Save SwiftPM's build
+        if: runner.environment == 'github-hosted' && !cancelled() && github.event_name != 'pull_request' && steps.spm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: DuoUpdaterCore/.build
+          key: ${{ steps.spm-key.outputs.key }}-${{ github.sha }}
 
   # LINT.IfChange / LINT.ThenChange links (scripts/check_ifchange.py): a pull
   # request that changes one side of a link must change the other, or say why

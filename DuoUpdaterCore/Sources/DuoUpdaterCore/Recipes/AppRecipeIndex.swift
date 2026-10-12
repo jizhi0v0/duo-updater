@@ -214,6 +214,7 @@ public enum AppRecipeIndex {
         io_dcloud_HBuilderX.set,
         io_ganeshrvel_openmtp.set,
         io_github_clash_verge_rev_clash_verge_rev.set,
+        io_github_tobi_disktree.set,
         io_github_wickenico_wailbrew.set,
         io_podmandesktop_PodmanDesktop.set,
         io_rancherdesktop_app.set,

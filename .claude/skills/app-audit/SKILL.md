@@ -398,6 +398,7 @@ are NOT CFPreferences.
 | OBS `com.obsproject.obs-studio` | INI `~/Library/Application Support/obs-studio/global.ini` `[General]` | `UpdateBranch` = `beta`; `stable` → stable with the `stable` tag named; absent → nil (a prerelease build writes `beta` on first run) | Sparkle channel tag |
 | iTerm2 `com.googlecode.iterm2` | CFPrefs | `CheckTestRelease` true → the bundle's own `SUFeedURLForTesting` (nil on a nightly build, whose feed keys are all the nightly feed) | feed swap, address from Info.plist (`ChannelBinding.bundleFeeds`) |
 | MonitorControl `app.monitorcontrol.MonitorControl` | CFPrefs (no UI yet) | `isBetaChannel` true → beta; else nil | Sparkle channel tag |
+| SwiftVM `com.swiftvm.app` | — (no preference: fixed per build; the bundle's own `SUFeedURL` via `bundleFeeds`) | `SUFeedURL` = `…/releases/download/beta-channel/appcast-beta.xml` → beta; else nil (the app itself keys on `-beta.` in its version) | Sparkle channel tag |
 | Ghostty, CodeEdit, Osaurus | — (constant, no user preference) | — | fixed feed / fixed Sparkle tag |
 
 **Confirm the write on the real app.** Have the toggle flipped in the real app (or flip it yourself if no

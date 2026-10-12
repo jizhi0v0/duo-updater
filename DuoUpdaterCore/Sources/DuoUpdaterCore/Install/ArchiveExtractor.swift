@@ -110,7 +110,7 @@ public enum ArchiveExtractor {
         // Detached on every path out. The `defer` sees a cancelled task as
         // cancelled (SE-0493), which is why `DiskImageMount.detach` takes its
         // retry pause in a detached task rather than trusting `Task.sleep` here.
-        defer { await DiskImageMount.detach(mountPoint) }
+        defer { await DiskImageMount.detach(mountPoint, image: dmg) }
         return try await copyApp(outOf: mountPoint, into: workDir)
     }
 

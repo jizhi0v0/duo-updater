@@ -9,7 +9,7 @@ import SwiftUI
 /// sidebar search beyond the visible label, so "token" finds GitHub and
 /// "rollback" finds General.
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, notifications, backups, folders, updates
+    case general, notifications, backups, storage, folders, updates
     case github, alcove, xcode
     case ignored, diagnostics
 
@@ -35,7 +35,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     var group: Group {
         switch self {
-        case .general, .notifications, .backups, .folders, .updates: return .app
+        case .general, .notifications, .backups, .storage, .folders, .updates: return .app
         case .github, .alcove, .xcode:      return .accounts
         case .ignored, .diagnostics:       return .library
         }
@@ -46,6 +46,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general:     return String(localized: "General")
         case .notifications: return String(localized: "Notifications")
         case .backups:     return String(localized: "Backups")
+        case .storage:     return String(localized: "Storage")
         case .folders:     return String(localized: "Folders")
         case .updates:     return String(localized: "Updates")
         case .github:      return String(localized: "GitHub")
@@ -61,6 +62,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general:     return "gearshape.fill"
         case .notifications: return "bell.badge.fill"
         case .backups:     return "clock.arrow.circlepath"
+        case .storage:     return "internaldrive.fill"
         case .folders:     return "folder.fill"
         case .updates:     return "arrow.triangle.2.circlepath"
         case .github:      return "key.fill"
@@ -76,6 +78,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general:     return .gray
         case .notifications: return .red
         case .backups:     return .indigo
+        case .storage:     return .brown
         case .folders:     return .blue
         case .updates:     return .green
         case .github:      return .purple
@@ -92,6 +95,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general:     return String(localized: "How often DuoUpdater checks, and what it does when it finds something.")
         case .notifications: return String(localized: "What DuoUpdater tells you about, and what its icon counts.")
         case .backups:     return String(localized: "Keep a copy of the previous version so an update can be undone — here or on another disk.")
+        case .storage:     return String(localized: "Where DuoUpdater keeps its data on this Mac, and how much space each part takes.")
         case .folders:     return String(localized: "Where DuoUpdater looks for installed apps.")
         case .updates:     return String(localized: "DuoUpdater's own version.")
         case .github:      return String(localized: "Raise GitHub's rate limit for apps tracked through Releases.")
@@ -121,6 +125,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general:     list = String(localized: "launch, login, frequency, relaunch, restart, concurrency, app store, self-updating, vendor", comment: "Comma-separated extra search terms for the General settings page")
         case .notifications: list = String(localized: "notify, notification, banner, alert, badge, dock, menu bar, command-line tools, homebrew", comment: "Comma-separated extra search terms for the Notifications settings page")
         case .backups:     list = String(localized: "backup, rollback, roll back, undo, restore, previous version, external disk, drive, nas, archive, storage, space", comment: "Comma-separated extra search terms for the Backups settings page")
+        case .storage:     list = String(localized: "disk, space, cache, clear, size, folder, files, data, uninstall", comment: "Comma-separated extra search terms for the Storage settings page")
         case .folders:     list = String(localized: "scan, locations, applications, path, directory", comment: "Comma-separated extra search terms for the Folders settings page")
         case .updates:     list = String(localized: "version, about, self", comment: "Comma-separated extra search terms for the Updates settings page")
         case .github:      list = String(localized: "token, personal access token, rate limit", comment: "Comma-separated extra search terms for the GitHub settings page")
@@ -154,6 +159,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general:     return ["launch", "login", "frequency", "relaunch", "restart", "concurrency", "app store", "mas", "self-updating", "vendor"]
         case .notifications: return ["notify", "notification", "banner", "alert", "badge", "dock", "menu bar", "command-line tools", "cli", "homebrew", "brew"]
         case .backups:     return ["backup", "rollback", "roll back", "undo", "restore", "previous version", "external disk", "drive", "nas", "archive", "storage", "space"]
+        case .storage:     return ["disk", "space", "cache", "clear", "size", "folder", "files", "data", "uninstall", "zap"]
         case .folders:     return ["scan", "locations", "applications", "path", "directory"]
         case .updates:     return ["version", "sparkle", "about", "self"]
         case .github:      return ["token", "personal access token", "pat", "gh", "cli", "rate limit"]

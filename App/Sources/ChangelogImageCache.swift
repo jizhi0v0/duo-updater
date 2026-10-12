@@ -133,6 +133,19 @@ actor ImageStore {
         }
     }
 
+    /// Empty the disk cache (Settings → Storage). Through the actor rather than
+    /// a bare file removal so the running estimate restarts from zero with it —
+    /// left alone it would read as still near the cap and sweep on the next write.
+    /// An in-flight download still lands afterwards; that is one image, re-fetched
+    /// because something on screen asked for it.
+    func removeAll() {
+        let fm = FileManager.default
+        for entry in (try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [] {
+            try? fm.removeItem(at: entry)
+        }
+        estimatedDiskBytes = 0
+    }
+
     private func fileURL(for url: URL) -> URL {
         directory.appendingPathComponent(Self.filename(for: url))
     }

@@ -49,6 +49,9 @@ struct SettingsView: View {
             model.windowAppeared(); model.beginTrustPolling()
             applyRequestedSection(); applyRequestedAnchor()
         }
+        // Ready the Backups card while General is on screen, so its first visit
+        // doesn't assemble itself (see `BackupsSettingsPage.prepareFirstVisit`).
+        .task { await BackupsSettingsPage.prepareFirstVisit(model: model, prefs: prefs) }
         // Deep-link set before the window opened (onAppear) or while it's already
         // open (onChange) — e.g. onboarding asking for the GitHub page.
         .onChange(of: model.requestedSettingsSection) { applyRequestedSection() }
@@ -81,6 +84,7 @@ struct SettingsView: View {
         case .general:     GeneralSettingsPage(prefs: prefs, model: model)
         case .notifications: NotificationsSettingsPage(prefs: prefs)
         case .backups:     BackupsSettingsPage(prefs: prefs, model: model)
+        case .storage:     StorageSettingsPage(model: model)
         case .folders:     FoldersSettingsPage(prefs: prefs, model: model)
         case .updates:     UpdatesSettingsPage()
         case .github:      GitHubSettingsPage(prefs: prefs, model: model)

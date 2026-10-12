@@ -109,7 +109,20 @@ struct BackupsSettingsPage: View {
         // the settled one. Every value here is replaced by a fresh reading a
         // moment later; what it buys is that none of them *arrive*, which is
         // what was being seen as the card assembling itself on every visit.
-        guard let last = model.lastBackupCardSnapshot else { return }
+        guard let last = model.lastBackupCardSnapshot else {
+            // Opened before `prepareFirstVisit` could finish — a link straight to
+            // this page. What each disk's row will say is a stat or two, the same
+            // calls `gather()` makes on this actor, so it is known for the first
+            // frame: a disk that is not plugged in must not be drawn with room
+            // for a capacity bar it will never have.
+            _availability = State(initialValue: model.backupAvailability())
+            var known: [String: BackupStore.Availability] = [:]
+            for destination in prefs.knownBackupDestinations {
+                known[destinationKey(destination)] = model.backupAvailability(for: destination)
+            }
+            _knownAvailability = State(initialValue: known)
+            return
+        }
         _availability = State(initialValue: last.availability)
         _stores = State(initialValue: last.stores)
         _volumeSpace = State(initialValue: last.volumeSpace)
@@ -362,7 +375,7 @@ struct BackupsSettingsPage: View {
                     // not there at all — and answers the two questions the
                     // word never did: how much is free, and how much of what
                     // is used is ours.
-                    if space(for: option) == nil, !hasGathered {
+                    if space(for: option) == nil, !hasGathered, expectsCapacity(option) {
                         // Nothing read yet. The bar and its figures are drawn as
                         // the space they will occupy rather than left out, so
                         // that the first frame of the first visit is the same
@@ -977,7 +990,18 @@ struct BackupsSettingsPage: View {
         // Before anything has been read, the placeholder is standing in for the
         // figures — so the caption beneath has nothing to add then either, and
         // "Always connected" does not appear for one frame and leave.
-        space(for: option) != nil || !hasGathered
+        space(for: option) != nil || (!hasGathered && expectsCapacity(option))
+    }
+
+    /// Whether this row will have a capacity bar once it is read. A known disk
+    /// whose state is already known and is not `.ready` will not — it says
+    /// "Isn't connected" instead — so it gets no placeholder for one.
+    private func expectsCapacity(_ option: DestinationOption) -> Bool {
+        guard case .known(let destination) = option,
+              let state = availability(for: destination)
+        else { return true }
+        if case .ready = state { return true }
+        return false
     }
 
     /// Room on the volume this row stands for. A store's measurement where there
@@ -1240,6 +1264,19 @@ struct BackupsSettingsPage: View {
     /// "…" that occupies the space its number will — a value arriving late is
     /// fine, a line arriving late is not.
     private func gather() async -> BackupCardSnapshot {
+        await Self.gather(
+            model: model, prefs: prefs, discoveredStores: discoveredStores,
+            candidateVolumes: candidateVolumes, candidateWritable: candidateWritable)
+    }
+
+    /// `gather()` for a caller with no page: the Settings window, readying the
+    /// card before anyone has opened it (see ``prepareFirstVisit(model:prefs:)``).
+    static func gather(
+        model: AppListModel, prefs: Preferences,
+        discoveredStores: [BackupStoreDiscovery.Found],
+        candidateVolumes: [BackupStoreDiscovery.Candidate],
+        candidateWritable: [String: Bool]
+    ) async -> BackupCardSnapshot {
         let stores = await model.backupStores()
         var space: [String: BackupVolumeSpace] = [:]
         for store in stores { space[store.id] = await model.backupVolumeSpace(of: store) }
@@ -1261,6 +1298,27 @@ struct BackupsSettingsPage: View {
             discoveredStores: discoveredStores,
             candidateVolumes: candidateVolumes,
             candidateWritable: candidateWritable)
+    }
+
+    /// Reads the card's shape before the page is first opened, so the first visit
+    /// after a launch draws the settled card like every later one does.
+    ///
+    /// The snapshot `init` draws from was only ever written by the page itself,
+    /// so the first visit had nothing: every disk row held a capacity bar's
+    /// worth of space and a "…", and a disk that turned out to be unplugged then
+    /// shrank to "Isn't connected"; the footer arrived as two new lines; "Waiting
+    /// to be copied" appeared. Recorded on this Mac 2026-10-12, a frame of it
+    /// sent by the user. The Settings window opens on General, so there is time.
+    ///
+    /// Attached disks that aren't set up are left for the page's own scan: asking
+    /// whether one can be written to is a write on someone's disk, which opening
+    /// Settings should not do. They are the one row that can still arrive late.
+    static func prepareFirstVisit(model: AppListModel, prefs: Preferences) async {
+        guard model.lastBackupCardSnapshot == nil else { return }
+        let snapshot = await gather(
+            model: model, prefs: prefs, discoveredStores: [], candidateVolumes: [], candidateWritable: [:])
+        // The page may have opened and written its own meanwhile, which is newer.
+        if model.lastBackupCardSnapshot == nil { model.lastBackupCardSnapshot = snapshot }
     }
 
     private func apply(_ snapshot: BackupCardSnapshot) {

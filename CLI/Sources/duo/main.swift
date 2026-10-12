@@ -26,6 +26,8 @@ commands:
   skip          Hide the version currently offered. unskip undoes it.
   backups       List the rollback points, put one back, move them to the
                 backup disk, or check that they are still intact.
+  storage       Where DuoUpdater keeps things on this Mac and how big each part
+                is; clear the caches.
   doctor        Whether this machine can actually install anything, and what
                 is missing if not.
   claude-code   Every Claude Code install (native, npm, pnpm, bun), whether it
@@ -192,6 +194,16 @@ doctor options:
 
   Exits 3 when App Management is not granted, since that is the permission the
   in-place install routes need and the one nobody guesses.
+
+storage options:
+  [list]              Every place DuoUpdater writes on this Mac, grouped as in
+                      Settings › Storage, with its size and path. The default.
+  clear               Empty the caches: release note images, Homebrew formula
+                      icons and duo's own cache. Not the menu-bar app's web and
+                      download cache, which the app holds open — clear that in
+                      Settings › Storage. Backups, history, release notes and
+                      settings are never touched.
+  --json              Machine-readable form: one row per item, every path.
 
 requests options:
   [summary]           Totals by purpose and by host. The default.
@@ -506,6 +518,27 @@ case "backups":
         options.json = json
         options.assumeYes = assumeYes
         return await Backups.run(options)
+    }
+
+case "storage":
+    let operands = args.operands
+    let json = args.has("json")
+    run = {
+        let operation: Storage.Options.Operation
+        switch operands.first {
+        case "list", nil:
+            operation = .list
+        case "clear":
+            operation = .clear
+        case let other?:
+            die("unknown storage operation '\(other)'; expected list or clear", code: 2)
+        }
+        guard operands.count <= 1 else {
+            die("storage takes one operation, list or clear\n\n\(usage)", code: 2)
+        }
+        var options = Storage.Options(operation: operation)
+        options.json = json
+        return await Storage.run(options)
     }
 
 case "requests":

@@ -270,7 +270,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Herdr**](so-pen-herdr-gpui.md) · `so.pen.herdr-gpui` — G (one-click universal dmg) · 日期版本 `vYYYYMMDD.N` · 真包 20261007.1/.2 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中）· changelog 结构化 ✓ · 2026-10-07
 - [x] [**Search**](com-officecommun-search.md) · `com.officecommun.search` — G (one-click arm64 dmg，1.0.5 起另有 `Search-Intel.dmg`) · 真包 1.0.3/1.0.4 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中；自研更新器启动即换 bundle）· changelog 结构化 ✓ · 2026-10-09
 - [x] [**Pulse**](com-egoist-pulse.md) · `com.egoist.pulse` — G (one-click arm64 dmg) · 真包 0.1.4/0.1.5 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中）· changelog 结构化 ✓ · `install.sh` 只装 Linux，无 macOS CLI · 2026-10-10
-- [x] [**disktree**](io-github-tobi-disktree.md) · `io.github.tobi.disktree` — G (**digest-only**，ad-hoc 签名，arm64/x86_64 分 arch zip) · 4 个真包核对封印/标识/版本/digest ✓ · 一键端到端待跑 · changelog 结构化 ✓（GitHub 自动生成的 PR 列表，无厂商小节） · 2026-10-12
+- [x] [**disktree**](io-github-tobi-disktree.md) · `io.github.tobi.disktree` — G (**digest-only**，ad-hoc 签名，arm64/x86_64 分 arch zip) · 4 个真包核对封印/标识/版本/digest ✓ · 一键端到端 ✓（设置关闭→拒绝；打开→installed） · changelog 结构化 ✓（GitHub 自动生成的 PR 列表，无厂商小节） · 2026-10-12
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 
@@ -334,7 +334,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**DaisyDisk**](com-daisydiskapp-DaisyDiskStandAlone.md) · `com.daisydiskapp.DaisyDiskStandAlone` — S · MAS 副本 `com.daisydiskapp.DaisyDisk` 由 App Store 通用覆盖 · cask `auto_updates` 不影响，Sparkle 先应答 · 无 EdDSA（只有 DSA），通用一键 ✓（code signature + Team 闸）· 真包 4.34.2 验证 ✓ · 2026-09-14 复核
 - [x] [**SuperCmd**](com-supercmd-SuperCmd.md) · `com.supercmd.SuperCmd` — S(v2 stable) S(v2 beta，独立 id `com.supercmd.SuperCmd.beta`、独立 feed) G(v1 `com.supercmd.app`，**detection-only**) · 同名两个 app：v2 闭源原生 Sparkle、v1 开源 Electron 已停更，版本号 1.0.0–1.0.7 两边重叠 · 三个真包验证 ✓ · 2026-09-17
 - [x] [**ShiftBar**](com-superoutman-ShiftBar-prototype.md) · `com.superoutman.ShiftBar.prototype` — S · 单轨道（发布 workflow 断言 build 单调递增，无 prerelease 分支）· feed 内联 `sparkle:format="markdown"` notes —— **借此修了通用缺口：该属性此前从未被解析**，Markdown notes 一律落到原始文本回落 · feed 只留 1 个 item，releaseHistory 恒为 1 · arm64 + macOS 27 下限由 feed 现读 · 真包 0.1.13 验证 ✓ · 2026-09-20
-- [x] [**SwiftVM**](com-swiftvm-app.md) · `com.swiftvm.app` — S+B · stable/beta 各自的 feed，beta 由构建定死（`SwiftVMChannel`）· 真包 1.0.0 / beta.12 / beta.16 验证 ✓ · 一键端到端未跑 · ✗ changelog：厂商 release 正文为空 · 2026-10-12
+- [x] [**SwiftVM**](com-swiftvm-app.md) · `com.swiftvm.app` — S+B · stable/beta 各自的 feed，beta 由构建定死（`SwiftVMChannel`）· 真包 1.0.0 / beta.12 / beta.16 验证 ✓ · 一键端到端 ✓（beta.12→beta.16；stable 只有一版，无旧版可测） · ✗ changelog：厂商 release 正文为空 · 2026-10-12
 
 ## Investigated — blocked safely
 

@@ -101,7 +101,13 @@
   `SignatureVerifier.verifyPublishedDigest` 对真 zip 通过；`verifyInstallArtifact`（0.10.1 → 0.11.0，digest 路线）
   通过；翻转一个字节的 zip → `publishedDigestMismatch`；把 0.10.1 的 bundle 当 0.11.0 → `infoPlistVersionMismatch`
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`，README 叫用户从这里下载）
-- 端到端: **未跑**——真机 `duo install` 由维护者在本 agent 之后串行进行（并行 agent 不碰 `/Applications` 与 CLI）
+- 端到端（2026-10-12，真机，arm64）:
+  - 不运行、设置关闭: 0.10.1 放进 `/Applications` → `duo check` `0.10.1 → 0.11.0 [GitHub]` → `duo install --yes --json`
+    `skipped`，原因「no developer signature — turn on one-click updates for such apps …」；bundle 原样（版本、inode 不变）
+  - 不运行、设置打开（`AllowDigestOnlyInstalls`，测完改回关闭）: `installed`（`route` vendor，3995990 字节 = arm64 zip，4 s）
+    → 0.11.0 / `0.11.0`、inode 变、签名标识 `io.github.tobi.disktree`（adhoc）、`--deep --strict` 0、`spctl` rejected（预期）、
+    与厂商 zip 解出的 bundle `diff -r` 一致、`duo backups` 有 0.10.1；之后 `duo check` up to date
+  - 运行中一轮没跑: app 没有自更新器，不存在碰撞面；启动它会去扫磁盘、可能弹系统授权框
 - 阻塞: 无
 
 ## 已知问题
@@ -114,8 +120,7 @@
   `~/.local/bin/disktree` 链到 bundle 里的可执行文件）bundle id 与签名标识都相同，有更新时一键会换成 release 构建；链接指向的路径不变，仍然有效。
 
 ## 建议下一步
-1. 真机端到端（维护者）: 0.10.1 arm64 → `duo install`，设置关闭时应被拒、打开后 `installed`。
-2. 厂商仓库若出现 Developer ID 签名的 release（`codesign -dvvv` 有 TeamIdentifier），把 rule 改为默认 `installTrust`。
+1. 厂商仓库若出现 Developer ID 签名的 release（`codesign -dvvv` 有 TeamIdentifier），把 rule 改为默认 `installTrust`。
 
 ## 如何复验
 ```

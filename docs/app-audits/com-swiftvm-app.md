@@ -117,8 +117,16 @@ stable 副本只读 stable feed，那里没有 beta item，不存在跨轨。
   `Contents/Helpers/` 有两个可执行文件：`swiftvm`（命令行，厂商 tap 的 cask 把它链到 `binary`）和
   `swiftvm-agent`（`Packages/SwiftVMKit/Sources/GuestAgentMac`，装进 macOS 客体里的代理）。两者都不是
   宿主上常驻的 login item / LaunchAgent。
-- 端到端: **未跑**——真机端到端由维护者在本审计之后串行执行（需要先装旧版再 `duo install`）。
-  可用的旧版：beta 轨 1.0.0-beta.12 → 1.0.0-beta.16；stable 轨只有 1.0.0 一个 release，暂无旧版可降。
+- 端到端（2026-10-12，真机，beta 轨；stable 轨只有 1.0.0 一个 release，没有旧版可测）:
+  - 不运行: 1.0.0-beta.12 放进 `/Applications` → `duo check` `1.0.0-beta.12 → 1.0.0-beta.16 [Sparkle, in-place]` →
+    `duo install --yes --json` `installed`（`route` sparkle，4914698 字节，7 s）→ 1.0.0-beta.16 / `16`、inode 变、
+    Team `NYSXATY4AA`、`--deep --strict` 0、`spctl` Notarized Developer ID、与厂商 dmg 里的 bundle `diff -r` 一致、
+    `duo backups` 有 beta.12；之后 `duo check` up to date
+  - 运行中: 重装 beta.12 并启动。约一分钟内它自己的 Sparkle 就把 beta.16 暂存好了（`SUAutomaticallyUpdate`）。
+    `duo install` 不动它：`skipped`，「its own updater already has 1.0.0-beta.16 staged — quit it to apply, or `duo restart`」，
+    磁盘仍是 beta.12；`duo restart SwiftVM` → 退出时 Sparkle 装上 beta.16、新进程起来，之后 10 s 磁盘保持 beta.16，
+    Team 与 `--deep --strict` 同上
+  - 没造出「app 暂存的比 duo 要装的更旧」：两者都是 beta 轨最新，同一个版本
 - 格式: dmg（arm64 only）
 - 校验: Sparkle EdDSA（`sparkle:edSignature`）+ Team ID 闸。feed 的 `length` 与下载字节数一致
   （1.0.0：4914007；beta.16：4914698；beta.12：4914440）。
@@ -128,9 +136,9 @@ stable 副本只读 stable feed，那里没有 beta item，不存在跨轨。
 
 ## 已知问题
 - **自更新器可能抢先**：`SUAutomaticallyUpdate` 与 `SUEnableAutomaticChecks` 都是 true，app 自己的
-  Sparkle 会静默下载并安装。端到端第二轮（运行中、自更新器已暂存）要看 duo 换完后是否被它换回。
+  Sparkle 会静默下载并安装。实测它启动后约一分钟就暂存好最新版，duo 此时让路（见「一键安装」端到端）。
 - **运行中的虚拟机**：厂商文档说自更新会「照常退出 app，并对正在运行的机器提问」。duo 在 app 运行、
-  有虚拟机在跑时 install / restart 的表现没测过，端到端时一并看。
+  有虚拟机在跑时 install / restart 的表现**没测过**（端到端时没有虚拟机在运行）。
 - channel-verify 把 SwiftVM 的 binding 描述为「read from this app's own preference」——那是 harness 对所有
   binding 的通用措辞；这里读的是 bundle 的 `SUFeedURL`，没有偏好。
 
@@ -169,8 +177,7 @@ swift test --package-path DuoUpdaterCore --filter SwiftVMChannelTests
   让它与 `theBetaFeedResolvesTheDerivedBetaTag` 变红。
 
 ## 建议下一步
-1. 一键端到端（维护者串行）：beta 轨装 1.0.0-beta.12 → `duo install`，两轮（不运行 / 运行中且自更新器已暂存）。
-2. changelog 重开条件：任一版本 release 正文非空。届时照 `Recipes/com-robinebers-openusage.swift`
+1. changelog 重开条件：任一版本 release 正文非空。届时照 `Recipes/com-robinebers-openusage.swift`
    加两条 `.gitHubReleases` recipe（stable / beta），**都要** `tagPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[0-9]+)?)$"#`，
    否则 beta recipe 会把 `beta-channel` 那个 prerelease 的一句话当成一个版本；beta recipe **不要**
    `includesPromotedStable`（beta 副本不会被推 stable）。先看真实正文的标题结构再定。

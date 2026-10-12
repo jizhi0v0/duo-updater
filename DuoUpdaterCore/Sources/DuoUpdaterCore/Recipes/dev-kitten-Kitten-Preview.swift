@@ -21,8 +21,9 @@ enum dev_kitten_Kitten_Preview {
         // `version` is the marketing string, equal to the bundle's
         // `CFBundleShortVersionString` (and `CFBundleVersion`). No device id is
         // sent, so this is the newest build on the track — the same one the
-        // download page links. The arm64 query is fine for an Intel copy too: the
-        // service versions a release, not an asset.
+        // download page links. An Intel copy is asked the arm64 question too: the
+        // x86_64 query answers the same `version`, only the asset URL differs
+        // (checked 2026-10-12).
         //
         // DETECTION ONLY, no install spec, and none is possible today: the macOS
         // builds are ad-hoc linker-signed (no Team ID, signed identifier `kitten`,

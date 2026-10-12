@@ -46,7 +46,7 @@ Pattern A，与 Zed 相同。
 - stable：`/releases/stable/latest/asset?…` 与 `/releases/latest` 都回 `404 {"error":"release channel \"stable\" is not available"}`。
 - 读的是**轨道最新**：请求不带设备 id，答的就是下载页链接的那个构建（`www.kittenapi.com/download` 指向同一 `preview/0.1.0`）。
 - 按 OS 分轨：应答不含任何系统版本字段；包内 `LSMinimumSystemVersion` = `10.15.7`。
-- 按架构：arm64 查询与 Intel 查询答同一个 `version`；recipe 固定 arm64 查询，只取版本号。
+- 按架构：arm64 查询与 x86_64 查询答同一个 `version`（`0.1.0`），只有 asset URL 不同（2026-10-12）；recipe 固定 arm64 查询，只取版本号。
 
 ## 增量更新（delta / binary patch）
 

@@ -139,4 +139,48 @@ struct BrewFormulaReleaseServiceTests {
             #expect(json["parserGeneration"] as? Int == Changelog.parserGeneration)
         }
     }
+
+    // MARK: - deriveGitHub: the release a formula's stable URL names
+
+    /// The two GitHub forms Homebrew's stable URLs take, and the tag read off
+    /// the URL rather than the formula version.
+    ///
+    /// Mutations: drop `(?:refs/tags/)?` (the bare `/archive/` rows); drop the
+    /// `.git` strip (the `.git` row); drop one extension from the second
+    /// pattern (its row).
+    @Test(arguments: [
+        ("https://github.com/cli/cli/releases/download/v2.60.0/gh_2.60.0_macOS_arm64.zip",
+         "cli", "cli", "v2.60.0"),
+        ("https://github.com/Azure/azure-cli/archive/refs/tags/azure-cli-2.87.0.tar.gz",
+         "Azure", "azure-cli", "azure-cli-2.87.0"),
+        ("https://github.com/zzfixture/alpha/archive/v1.2.3.tar.gz",
+         "zzfixture", "alpha", "v1.2.3"),
+        ("https://github.com/zzfixture/alpha/archive/refs/tags/1.0.tar.xz",
+         "zzfixture", "alpha", "1.0"),
+        ("https://github.com/zzfixture/alpha/archive/refs/tags/1.0.tar.bz2",
+         "zzfixture", "alpha", "1.0"),
+        ("https://github.com/zzfixture/alpha/archive/refs/tags/1.0.zip",
+         "zzfixture", "alpha", "1.0"),
+        ("https://github.com/zzfixture/alpha/archive/1.0.tgz",
+         "zzfixture", "alpha", "1.0"),
+        ("https://github.com/zzfixture/alpha.git/releases/download/v1.0/alpha.tar.gz",
+         "zzfixture", "alpha", "v1.0"),
+    ])
+    func deriveGitHubReadsOwnerRepoAndTag(
+        url: String, owner: String, repo: String, tag: String
+    ) {
+        #expect(BrewFormulaReleaseService.deriveGitHub(fromStableURL: url)
+            == .init(owner: owner, repo: repo, tag: tag))
+    }
+
+    /// Anything that is not one of those two forms names no release.
+    @Test(arguments: [
+        nil,
+        "https://zzfixture.invalid/alpha-1.0.tar.gz",
+        "https://github.com/zzfixture/alpha",
+        "https://github.com/zzfixture/alpha/archive/refs/tags/1.0.7z",
+    ] as [String?])
+    func deriveGitHubNamesNoReleaseForOtherURLs(url: String?) {
+        #expect(BrewFormulaReleaseService.deriveGitHub(fromStableURL: url) == nil)
+    }
 }

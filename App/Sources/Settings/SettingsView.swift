@@ -81,6 +81,7 @@ struct SettingsView: View {
         case .general:     GeneralSettingsPage(prefs: prefs, model: model)
         case .notifications: NotificationsSettingsPage(prefs: prefs)
         case .backups:     BackupsSettingsPage(prefs: prefs, model: model)
+        case .storage:     StorageSettingsPage(model: model)
         case .folders:     FoldersSettingsPage(prefs: prefs, model: model)
         case .updates:     UpdatesSettingsPage()
         case .github:      GitHubSettingsPage(prefs: prefs, model: model)

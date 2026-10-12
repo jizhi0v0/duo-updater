@@ -1,0 +1,284 @@
+import SwiftUI
+import AppKit
+import WebKit
+import DuoUpdaterCore
+
+/// Where DuoUpdater keeps things on this Mac and how big each part is, with the
+/// caches — and only the caches — clearable.
+///
+/// A Homebrew install is told these paths by the cask's `zap` stanza; a GitHub
+/// download is told nothing, so this page is that list for everyone. The map
+/// itself (which path is which item, which items may be emptied) lives in
+/// `StorageInventory` in Core; this page only names and lays out the items.
+struct StorageSettingsPage: View {
+    let model: AppListModel
+
+    @State private var measurements: [StorageInventory.Item: StorageInventory.Measurement]?
+    @State private var clearing = false
+    /// What the last clear freed, shown in place of the button's caption for a
+    /// few seconds so the click visibly landed.
+    @State private var freedNote: String?
+    @State private var clearError: String?
+    @State private var noteReset: Task<Void, Never>?
+
+    private static let caches: [StorageInventory.Item] = [.changelogImages, .networkCache, .formulaIcons, .cliCache]
+    private static let appData: [StorageInventory.Item] = [.backups, .backupIndex, .history, .releaseNotes, .checkState, .otherData]
+    private static let system: [StorageInventory.Item] = [.appleDeveloperSession, .httpStorage, .preferences]
+
+    var body: some View {
+        SettingsPage(section: .storage) {
+            SettingsCard {
+                totalRow
+            }
+
+            SettingsCard(
+                header: "Caches",
+                footer: "Caches are downloaded again the next time they are needed. Clearing them doesn’t touch your settings, history, release notes or backups."
+            ) {
+                rows(Self.caches)
+                SettingsDivider()
+                clearRow
+            }
+
+            SettingsCard(
+                header: "App data",
+                footer: "DuoUpdater needs these to undo updates, keep its history, show release notes it has already read, and stay within GitHub’s rate limit, so they can’t be cleared here."
+            ) {
+                rows(Self.appData)
+            }
+
+            SettingsCard(
+                header: "Kept by macOS for DuoUpdater",
+                footer: "To remove everything, quit DuoUpdater and move these folders and files to the Trash, along with the app."
+            ) {
+                rows(Self.system)
+            }
+        }
+        .task { await measure() }
+        .onDisappear { noteReset?.cancel() }
+    }
+
+    // MARK: - Rows
+
+    private var totalRow: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Used by DuoUpdater")
+                if let measurements {
+                    Text(Self.format(measurements.values.reduce(0) { $0 + $1.bytes }))
+                        .font(.system(.title2, weight: .semibold))
+                        .monospacedDigit()
+                } else {
+                    ProgressView().controlSize(.small)
+                }
+            }
+            Spacer(minLength: 8)
+            Button("Refresh") { Task { await measure() } }
+                .settingsGlassButton()
+                .disabled(measurements == nil || clearing)
+        }
+        .settingsRow()
+    }
+
+    @ViewBuilder
+    private func rows(_ items: [StorageInventory.Item]) -> some View {
+        let shown = items.filter { $0 != .otherData || (measurements?[$0]?.bytes ?? 0) > 0 }
+        ForEach(Array(shown.enumerated()), id: \.element) { index, item in
+            if index > 0 { SettingsDivider() }
+            row(item)
+        }
+    }
+
+    private func row(_ item: StorageInventory.Item) -> some View {
+        let measurement = measurements?[item]
+        let paths = measurement?.paths ?? []
+        return HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Self.title(item))
+                Text(Self.detail(item))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let location = Self.location(of: paths) {
+                    Text(location)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+            }
+            Spacer(minLength: 8)
+            if let measurement {
+                Text(measurement.paths.isEmpty ? String(localized: "None") : Self.format(measurement.bytes))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            } else {
+                ProgressView().controlSize(.mini)
+            }
+            if item == .backups {
+                Button("Manage…") { model.requestedSettingsSection = .backups }
+                    .settingsGlassButton()
+            }
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting(paths)
+            } label: {
+                Image(systemName: "magnifyingglass")
+            }
+            .buttonStyle(.borderless)
+            .help(String(localized: "Show in Finder"))
+            .disabled(paths.isEmpty)
+        }
+        .settingsRow()
+    }
+
+    private var clearRow: some View {
+        HStack(spacing: 12) {
+            Group {
+                if let clearError {
+                    Label(clearError, systemImage: "exclamationmark.triangle")
+                } else if let freedNote {
+                    Label(freedNote, systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                } else if let total = cacheTotal {
+                    Text("\(Self.format(total)) can be cleared")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.callout)
+            Spacer(minLength: 8)
+            if clearing { ProgressView().controlSize(.small) }
+            Button("Clear Caches") { Task { await clearCaches() } }
+                .settingsGlassButton(prominent: true)
+                .disabled(clearing || measurements == nil || cacheTotal == 0)
+        }
+        .settingsRow()
+    }
+
+    private var cacheTotal: Int64? {
+        measurements.map { m in Self.caches.reduce(0) { $0 + (m[$1]?.bytes ?? 0) } }
+    }
+
+    // MARK: - Work
+
+    private func measure() async {
+        let result = await Task.detached(priority: .userInitiated) {
+            StorageInventory.measure()
+        }.value
+        measurements = Dictionary(uniqueKeysWithValues: result.map { ($0.item, $0) })
+    }
+
+    private func clearCaches() async {
+        guard let before = cacheTotal else { return }
+        noteReset?.cancel()
+        clearing = true
+        freedNote = nil
+        clearError = nil
+
+        // Each cache is emptied by whoever holds it open: the image store resets
+        // its running size with the files, `URLCache` and WebKit keep databases
+        // open in this process. Only the two nobody here holds are plain file
+        // removals.
+        await ImageStore.shared.removeAll()
+        URLCache.shared.removeAllCachedResponses()
+        await WKWebsiteDataStore.default().removeData(
+            ofTypes: [WKWebsiteDataTypeDiskCache, WKWebsiteDataTypeMemoryCache, WKWebsiteDataTypeFetchCache],
+            modifiedSince: .distantPast)
+        let failure = await Task.detached(priority: .userInitiated) { () -> String? in
+            do {
+                try StorageInventory.removeContents(of: .formulaIcons)
+                try StorageInventory.removeContents(of: .cliCache)
+                return nil
+            } catch {
+                return error.localizedDescription
+            }
+        }.value
+
+        await measure()
+        clearing = false
+        clearError = failure
+        if failure == nil {
+            let freed = max(0, before - (cacheTotal ?? 0))
+            freedNote = String(localized: "Cleared \(Self.format(freed))")
+            noteReset = Task {
+                try? await Task.sleep(for: .seconds(4))
+                guard !Task.isCancelled else { return }
+                freedNote = nil
+            }
+        }
+    }
+
+    // MARK: - Presentation
+
+    private static func format(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    /// The folder to print under a row: the path itself when there is one, the
+    /// directory they share when there are several. `~` for the home folder,
+    /// which is how anyone would type it into Finder's Go to Folder.
+    private static func location(of paths: [URL]) -> String? {
+        guard let first = paths.first else { return nil }
+        let path: String
+        if paths.count == 1 {
+            path = first.path
+        } else {
+            var common = first.deletingLastPathComponent().pathComponents
+            for url in paths.dropFirst() {
+                let parts = url.deletingLastPathComponent().pathComponents
+                common = Array(zip(common, parts).prefix { $0 == $1 }.map(\.0))
+            }
+            path = NSString.path(withComponents: common)
+        }
+        return (path as NSString).abbreviatingWithTildeInPath
+    }
+
+    private static func title(_ item: StorageInventory.Item) -> String {
+        switch item {
+        case .changelogImages: String(localized: "Release note images")
+        case .networkCache: String(localized: "Web and download cache")
+        case .formulaIcons: String(localized: "Homebrew formula icons")
+        case .cliCache: String(localized: "duo command-line cache")
+        case .backups: String(localized: "Backups on this Mac")
+        case .backupIndex: String(localized: "Backup index")
+        case .history: String(localized: "History and network log")
+        case .releaseNotes: String(localized: "Release notes")
+        case .checkState: String(localized: "Update check state")
+        case .appleDeveloperSession: String(localized: "Apple Developer sign-in")
+        case .httpStorage: String(localized: "Cookies")
+        case .preferences: String(localized: "Settings")
+        case .otherData: String(localized: "Other")
+        }
+    }
+
+    private static func detail(_ item: StorageInventory.Item) -> String {
+        switch item {
+        case .changelogImages:
+            String(localized: "Screenshots from vendors’ release notes.")
+        case .networkCache:
+            String(localized: "Responses kept by macOS’s networking and web views.")
+        case .formulaIcons:
+            String(localized: "Icons fetched from each formula’s homepage.")
+        case .cliCache:
+            String(localized: "Responses kept for the duo command.")
+        case .backups:
+            String(localized: "The previous version of each updated app, for undoing an update. Backups on another disk are not counted here.")
+        case .backupIndex:
+            String(localized: "Sizes and details of each backup, so the backup list opens quickly.")
+        case .history:
+            String(localized: "What DuoUpdater did, the versions it has seen, and the requests it made.")
+        case .releaseNotes:
+            String(localized: "Notes as each vendor published them when DuoUpdater read them.")
+        case .checkState:
+            String(localized: "What GitHub and other sources last answered, chosen channels, and verified checksums.")
+        case .appleDeveloperSession:
+            String(localized: "Signing out on the Xcode page removes it.")
+        case .httpStorage:
+            String(localized: "Cookies and connection details macOS remembers for the sites DuoUpdater checks.")
+        case .preferences:
+            String(localized: "Your settings.")
+        case .otherData:
+            String(localized: "Self-update downloads, window state and anything not listed above.")
+        }
+    }
+}

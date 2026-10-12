@@ -141,6 +141,7 @@ public enum AppRecipeIndex {
         com_oray_sunlogin_macclient.set,
         com_pais_handy.set,
         com_philandro_anydesk.set,
+        com_plexo_app.set,
         com_postmanlabs_mac.set,
         com_proxyman_NSProxy.set,
         com_puremac_app.set,

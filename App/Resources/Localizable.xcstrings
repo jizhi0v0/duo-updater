@@ -12464,67 +12464,67 @@
         }
       }
     },
-    "For apps whose GitHub releases are only ad-hoc signed: Alacritty, Flameshot and darktable. An app installed with a developer signature is never replaced by one without, whatever this says.": {
+    "For apps whose GitHub releases are only ad-hoc signed: Alacritty, Flameshot, darktable, disktree and Lokii. An app installed with a developer signature is never replaced by one without, whatever this says.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Für Apps, deren GitHub-Releases nur ad-hoc signiert sind: Alacritty, Flameshot und darktable. Eine mit Entwicklersignatur installierte App wird nie durch eine ohne ersetzt, ganz gleich, was hier eingestellt ist."
+            "value": "Für Apps, deren GitHub-Releases nur ad-hoc signiert sind: Alacritty, Flameshot, darktable, disktree und Lokii. Eine mit Entwicklersignatur installierte App wird nie durch eine ohne ersetzt, ganz gleich, was hier eingestellt ist."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Para apps cuyas versiones en GitHub solo tienen firma ad hoc: Alacritty, Flameshot y darktable. Una app instalada con firma de desarrollador nunca se sustituye por una sin ella, sea cual sea este ajuste."
+            "value": "Para apps cuyas versiones en GitHub solo tienen firma ad hoc: Alacritty, Flameshot, darktable, disktree y Lokii. Una app instalada con firma de desarrollador nunca se sustituye por una sin ella, sea cual sea este ajuste."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pour les apps dont les versions GitHub ne sont signées qu’ad hoc : Alacritty, Flameshot et darktable. Une app installée avec une signature de développeur n’est jamais remplacée par une version sans, quel que soit ce réglage."
+            "value": "Pour les apps dont les versions GitHub ne sont signées qu’ad hoc : Alacritty, Flameshot, darktable, disktree et Lokii. Une app installée avec une signature de développeur n’est jamais remplacée par une version sans, quel que soit ce réglage."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Per le app le cui release su GitHub hanno solo una firma ad hoc: Alacritty, Flameshot e darktable. Un’app installata con la firma dello sviluppatore non viene mai sostituita da una senza, qualunque sia questa impostazione."
+            "value": "Per le app le cui release su GitHub hanno solo una firma ad hoc: Alacritty, Flameshot, darktable, disktree e Lokii. Un’app installata con la firma dello sviluppatore non viene mai sostituita da una senza, qualunque sia questa impostazione."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub のリリースがアドホック署名だけの App が対象です：Alacritty、Flameshot、darktable。開発元の署名付きでインストールされている App が、署名のないものに置き換えられることは、この設定にかかわらずありません。"
+            "value": "GitHub のリリースがアドホック署名だけの App が対象です：Alacritty、Flameshot、darktable、disktree、Lokii。開発元の署名付きでインストールされている App が、署名のないものに置き換えられることは、この設定にかかわらずありません。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Para apps cujas versões no GitHub têm apenas assinatura ad hoc: Alacritty, Flameshot e darktable. Um app instalado com assinatura de desenvolvedor nunca é substituído por um sem, seja qual for este ajuste."
+            "value": "Para apps cujas versões no GitHub têm apenas assinatura ad hoc: Alacritty, Flameshot, darktable, disktree e Lokii. Um app instalado com assinatura de desenvolvedor nunca é substituído por um sem, seja qual for este ajuste."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Для приложений, релизы которых на GitHub подписаны только ad hoc: Alacritty, Flameshot и darktable. Приложение, установленное с подписью разработчика, никогда не заменяется версией без неё, что бы ни было выбрано здесь."
+            "value": "Для приложений, релизы которых на GitHub подписаны только ad hoc: Alacritty, Flameshot, darktable, disktree и Lokii. Приложение, установленное с подписью разработчика, никогда не заменяется версией без неё, что бы ни было выбрано здесь."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub sürümleri yalnızca ad hoc imzalı olan uygulamalar için: Alacritty, Flameshot ve darktable. Geliştirici imzasıyla yüklenmiş bir uygulama, bu ayar ne olursa olsun, imzasız bir sürümle asla değiştirilmez."
+            "value": "GitHub sürümleri yalnızca ad hoc imzalı olan uygulamalar için: Alacritty, Flameshot, darktable, disktree ve Lokii. Geliştirici imzasıyla yüklenmiş bir uygulama, bu ayar ne olursa olsun, imzasız bir sürümle asla değiştirilmez."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "适用于 GitHub 发布版只有 ad hoc 签名的 App：Alacritty、Flameshot 和 darktable。已装的 App 如果带开发者签名，无论这里怎么设，都不会被没有签名的版本替换。"
+            "value": "适用于 GitHub 发布版只有 ad hoc 签名的 App：Alacritty、Flameshot、darktable、disktree 和 Lokii。已装的 App 如果带开发者签名，无论这里怎么设，都不会被没有签名的版本替换。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "適用於 GitHub 發布版只有 ad hoc 簽署的 App：Alacritty、Flameshot 和 darktable。已安裝的 App 如果帶開發者簽署，無論這裡怎麼設，都不會被未簽署的版本替換。"
+            "value": "適用於 GitHub 發布版只有 ad hoc 簽署的 App：Alacritty、Flameshot、darktable、disktree 和 Lokii。已安裝的 App 如果帶開發者簽署，無論這裡怎麼設，都不會被未簽署的版本替換。"
           }
         }
       }

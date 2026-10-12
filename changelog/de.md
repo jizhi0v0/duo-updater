@@ -2,6 +2,22 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.6
+
+**Updates, die in einem Disk-Image mit Lizenzvereinbarung kommen, lassen sich jetzt mit einem Klick installieren.** Vorher blieb die Installation an der Vereinbarung hängen. Ab macOS 27.2 installieren sich Apps aus großen Disk-Images außerdem schneller.
+
+**Mehr Apps werden unterstützt.** Trim Enabler bekommt jetzt Update-Prüfungen und Ein-Klick-Updates, und die Beta-Builds von SwiftVM erhalten jetzt Beta-Updates. Plexo und Kitten Preview bekommen jetzt Update-Prüfungen und Versionshinweise. disktree bekommt Update-Prüfungen und Ein-Klick-Updates, sobald „Ein-Klick-Updates für Apps ohne Entwicklersignatur erlauben“ in Einstellungen › Allgemein eingeschaltet ist.
+
+**Backdrop lässt sich jetzt mit einem Klick aktualisieren, während sein Hintergrundbild angezeigt wird.** Vorher wurde das Update übersprungen, solange das Hintergrundbild von Backdrop lief – also fast immer.
+
+**Einstellungen › Speicherplatz zeigt, wo DuoUpdater seine Dateien ablegt und wie viel Platz sie jeweils belegen.** Dort kannst du die Caches leeren, und `duo storage` zeigt dieselbe Liste in der Befehlszeile.
+
+**Updates für Befehlszeilen-Tools weisen jetzt darauf hin, wenn die Versionshinweise inkompatible Änderungen nennen.** Neben dem Update erscheint ein Warnsymbol, und die Details nennen die betreffende Version. Blockiert wird nichts.
+
+**Der Bundle-Vergleich unter Wiederherstellen ist bei großen Apps wie Microsoft Office und OneDrive deutlich schneller.**
+
+**Unter der Haube.** Die Beschreibung der stillen Selbst-Updates in Einstellungen › Updates passt jetzt dazu, wann sie tatsächlich stattfinden, und dieselbe Seite verlinkt den Quellcode von DuoUpdater.
+
 ## 0.5.5
 
 **Ein-Klick-Updates für uv, bun und mise scheitern nicht mehr am GitHub-Ratenlimit.** Sie verwenden jetzt wie die anderen Tools dein GitHub-Token. Vorher konnten sie mit „rate limit exceeded“ abbrechen.

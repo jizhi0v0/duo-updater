@@ -2,6 +2,22 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.6
+
+**Gli aggiornamenti distribuiti in un’immagine disco con un contratto di licenza ora si installano con un clic.** Prima l’installazione si fermava al contratto. Su macOS 27.2 e versioni successive, anche le app in immagini disco grandi si installano più in fretta.
+
+**Più app supportate.** Trim Enabler ora ha il controllo degli aggiornamenti e gli aggiornamenti con un clic, e le build beta di SwiftVM ora ricevono gli aggiornamenti beta. Plexo e Kitten Preview ora hanno il controllo degli aggiornamenti e le note di rilascio. disktree ha il controllo degli aggiornamenti, e gli aggiornamenti con un clic quando attivi «Consenti aggiornamenti con un clic per le app senza firma dello sviluppatore» in Impostazioni › Generali.
+
+**Backdrop si aggiorna con un clic anche mentre mostra il suo sfondo.** Prima l’aggiornamento veniva saltato finché lo sfondo di Backdrop era in esecuzione, cioè quasi sempre.
+
+**Impostazioni › Archiviazione mostra dove DuoUpdater tiene i suoi file e quanto spazio occupa ciascuno.** Da lì puoi svuotare le cache, e `duo storage` mostra lo stesso elenco dalla riga di comando.
+
+**Gli aggiornamenti degli strumenti da riga di comando ora segnalano quando le note di rilascio indicano modifiche incompatibili.** Accanto all’aggiornamento compare un simbolo di avviso, e i dettagli indicano quale versione le introduce. Non viene bloccato nulla.
+
+**Confronto bundle, in Ripristino, è molto più veloce con le app grandi** come Microsoft Office e OneDrive.
+
+**Dietro le quinte.** La descrizione degli aggiornamenti silenziosi di DuoUpdater in Impostazioni › Aggiornamenti ora corrisponde al momento in cui avvengono davvero, e la stessa pagina rimanda al codice sorgente di DuoUpdater.
+
 ## 0.5.5
 
 **Gli aggiornamenti con un clic di uv, bun e mise non falliscono più per il limite di richieste di GitHub.** Ora usano il tuo token GitHub, come gli altri strumenti. Prima potevano fermarsi con «rate limit exceeded».

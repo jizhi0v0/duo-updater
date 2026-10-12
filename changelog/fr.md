@@ -2,6 +2,22 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.6
+
+**Les mises à jour livrées dans une image disque avec un contrat de licence s’installent désormais en un clic.** Auparavant, l’installation s’arrêtait au contrat. Sous macOS 27.2 et ultérieur, les apps fournies dans de grandes images disque s’installent aussi plus vite.
+
+**Plus d’apps prises en charge.** Trim Enabler bénéficie désormais de la vérification des mises à jour et des mises à jour en un clic, et les versions bêta de SwiftVM reçoivent désormais les mises à jour bêta. Plexo et Kitten Preview bénéficient désormais de la vérification des mises à jour et des notes de version. disktree bénéficie de la vérification des mises à jour, et des mises à jour en un clic une fois « Autoriser les mises à jour en un clic des apps sans signature de développeur » activé dans Réglages › Général.
+
+**Backdrop se met à jour en un clic même pendant qu’il affiche son fond d’écran.** Auparavant, la mise à jour était ignorée tant que le fond d’écran de Backdrop tournait, c’est-à-dire presque toujours.
+
+**Réglages › Stockage montre où DuoUpdater range ses fichiers et la place que chacun occupe.** Vous pouvez y vider les caches, et `duo storage` affiche la même liste en ligne de commande.
+
+**Les mises à jour des outils en ligne de commande signalent désormais quand les notes de version annoncent des changements incompatibles.** Un symbole d’avertissement apparaît à côté de la mise à jour, et le détail indique la version concernée. Rien n’est bloqué.
+
+**Différences du bundle, dans Restauration, est beaucoup plus rapide sur les grosses apps** comme Microsoft Office et OneDrive.
+
+**Sous le capot.** La description des mises à jour silencieuses de DuoUpdater dans Réglages › Mises à jour correspond désormais au moment où elles ont vraiment lieu, et la même page renvoie vers le code source de DuoUpdater.
+
 ## 0.5.5
 
 **Les mises à jour en un clic d’uv, bun et mise n’échouent plus à cause de la limite de requêtes de GitHub.** Elles utilisent désormais votre jeton GitHub, comme les autres outils. Auparavant, elles pouvaient s’arrêter sur « rate limit exceeded ».

@@ -2,6 +2,22 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.6
+
+**Atualizações distribuídas em uma imagem de disco com contrato de licença agora são instaladas com um clique.** Antes, a instalação parava no contrato. No macOS 27.2 e posteriores, apps em imagens de disco grandes também são instalados mais rápido.
+
+**Mais apps são compatíveis.** O Trim Enabler agora tem verificação de atualizações e atualização com um clique, e as versões beta do SwiftVM agora recebem atualizações beta. Plexo e Kitten Preview agora têm verificação de atualizações e notas de versão. O disktree tem verificação de atualizações, e atualização com um clique quando “Permitir atualizações com um clique para apps sem assinatura de desenvolvedor” estiver ativado em Ajustes › Geral.
+
+**O Backdrop é atualizado com um clique mesmo enquanto mostra seu papel de parede.** Antes, a atualização era pulada enquanto o papel de parede do Backdrop estivesse em execução, ou seja, quase sempre.
+
+**Ajustes › Armazenamento mostra onde o DuoUpdater guarda seus arquivos e quanto espaço cada um ocupa.** Lá você pode limpar os caches, e `duo storage` mostra a mesma lista na linha de comando.
+
+**Atualizações de ferramentas de linha de comando agora avisam quando as notas de versão apontam mudanças incompatíveis.** Um sinal de aviso aparece ao lado da atualização, e os detalhes dizem qual versão as traz. Nada é bloqueado.
+
+**Diferenças do Pacote, em Reversão, ficou muito mais rápido em apps grandes** como Microsoft Office e OneDrive.
+
+**Nos bastidores.** A descrição das atualizações silenciosas do próprio DuoUpdater em Ajustes › Atualizações agora corresponde a quando elas de fato acontecem, e a mesma página traz um link para o código-fonte do DuoUpdater.
+
 ## 0.5.5
 
 **As atualizações com um clique do uv, bun e mise não falham mais por causa do limite de requisições do GitHub.** Agora elas usam o seu token do GitHub, como as outras ferramentas. Antes, podiam parar com “rate limit exceeded”.

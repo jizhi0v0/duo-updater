@@ -2,6 +2,22 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.6
+
+**Lisans sözleşmesi içeren bir disk görüntüsüyle gelen güncellemeler artık tek tıkla yükleniyor.** Önceden yükleme sözleşme adımında duruyordu. macOS 27.2 ve sonrasında büyük disk görüntülerindeki uygulamalar da daha hızlı yükleniyor.
+
+**Daha fazla uygulama destekleniyor.** Trim Enabler artık güncelleme denetimi ve tek tıkla güncelleme alıyor; SwiftVM'in beta derlemeleri de artık beta güncellemeleri alıyor. Plexo ve Kitten Preview artık güncelleme denetimi ve sürüm notları alıyor. disktree güncelleme denetimi alıyor; Ayarlar › Genel'de “Geliştirici imzası olmayan uygulamalarda tek tıkla güncellemeye izin ver” açıksa tek tıkla da güncelleniyor.
+
+**Backdrop, duvar kâğıdını gösterirken de tek tıkla güncelleniyor.** Önceden Backdrop'un duvar kâğıdı çalıştığı sürece, yani neredeyse her zaman, güncelleme atlanıyordu.
+
+**Ayarlar › Depolama, DuoUpdater'ın dosyalarını nerede tuttuğunu ve her birinin ne kadar yer kapladığını gösteriyor.** Önbellekleri oradan temizleyebilirsiniz; `duo storage` da aynı listeyi komut satırında gösteriyor.
+
+**Komut satırı araçlarının güncellemeleri artık sürüm notlarında uyumsuz değişiklikler belirtildiğinde bunu söylüyor.** Güncellemenin yanında bir uyarı işareti çıkıyor ve ayrıntılarda bunun hangi sürümle geldiği yazıyor. Hiçbir şey engellenmiyor.
+
+**Geri Alma'daki Paket Farkı, Microsoft Office ve OneDrive gibi büyük uygulamalarda çok daha hızlı.**
+
+**Perde arkasında.** Ayarlar › Güncellemeler'deki sessiz kendi kendini güncelleme açıklaması artık bunun gerçekte ne zaman olduğuyla örtüşüyor; aynı sayfada DuoUpdater'ın kaynak koduna bir bağlantı da var.
+
 ## 0.5.5
 
 **uv, bun ve mise için tek tıkla güncelleme artık GitHub'ın istek sınırı yüzünden başarısız olmuyor.** Bunlar artık diğer araçlar gibi GitHub belirtecinizi kullanıyor. Önceden “rate limit exceeded” hatasıyla durabiliyorlardı.

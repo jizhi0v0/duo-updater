@@ -19,6 +19,22 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.6
+
+**Updates that come in a disk image with a license agreement now install with one click.** Before, the install stopped at the agreement. On macOS 27.2 and later, apps in large disk images also install faster.
+
+**More apps are supported.** Trim Enabler now gets update checks and one-click updates, and SwiftVM's beta builds now get beta updates. Plexo and Kitten Preview now get update checks and release notes. disktree gets update checks, plus one-click updates once "Allow one-click updates for apps without a developer signature" is on in Settings › General.
+
+**Backdrop updates with one click while its wallpaper is showing.** Before, the update was skipped whenever Backdrop's wallpaper was running, which is nearly always.
+
+**Settings › Storage shows where DuoUpdater keeps its files and how much space each takes.** You can clear the caches there, and `duo storage` shows the same list on the command line.
+
+**Updates for command-line tools now say when the release notes mark breaking changes.** A warning sign appears next to the update, and the details say which version brings them. Nothing is blocked.
+
+**Bundle Diff in Rollback is much faster on large apps** such as Microsoft Office and OneDrive.
+
+**Under the hood.** The description of silent self-updates in Settings › Updates now matches when they actually happen, and the same page links to DuoUpdater's source code.
+
 ## 0.5.5
 
 **One-click updates for uv, bun and mise no longer fail on GitHub's rate limit.** They now use your GitHub token like the other tools do. Before, they could stop with "rate limit exceeded".

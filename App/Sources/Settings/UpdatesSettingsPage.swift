@@ -40,7 +40,7 @@ struct UpdatesSettingsPage: View {
                 SettingsToggle(
                     "Install DuoUpdater's own updates silently",
                     detail: "Installs at a quiet moment and relaunches DuoUpdater — no prompt. Off, a new version shows a prompt and waits for you.",
-                    info: "DuoUpdater checks for its own updates every hour. A quiet moment means nothing is being checked or installed, no DuoUpdater window is open, and you’re working in another app. Until one comes it waits — and installs when you quit DuoUpdater anyway.",
+                    info: "DuoUpdater checks for its own updates every hour. A quiet moment means nothing is being checked or installed, and you’re either working in another app or haven’t touched the keyboard or mouse for a minute. Open DuoUpdater windows come back after the relaunch. Until a quiet moment comes it waits — and installs when you quit DuoUpdater anyway.",
                     isOn: $installsAutomatically)
             }
         }

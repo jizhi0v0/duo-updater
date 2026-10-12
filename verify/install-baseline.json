@@ -132,6 +132,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:anmolkapil\/plexo:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:anomalyco\/opencode:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -625,6 +631,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:ther0n\/UnnaturalScrollWheels:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:tobi\/disktree:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1546,6 +1558,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:org.cindori.TrimEnabler4:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:org.gimp.gimp:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -1686,5 +1704,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-12T02:42:04Z"
+  "updatedAt" : "2026-10-12T13:37:35Z"
 }

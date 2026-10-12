@@ -58,7 +58,7 @@ struct DuoStateDirectoryTests {
     /// Every store's test-process scratch sits under the one root `atexit`
     /// removes. A store that went back to `$TMPDIR` directly would leave a
     /// directory per test run — or, for the digest files, per instance — that
-    /// nothing deletes: ~2,300 of them on the mini by 2026-10-12.
+    /// nothing deletes: ~1,900 of them on the mini by 2026-10-12.
     ///
     /// Mutation: point any of these back at `FileManager.default.temporaryDirectory`
     /// → its path no longer starts with the root.

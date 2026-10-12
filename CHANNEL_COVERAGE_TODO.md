@@ -158,6 +158,15 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
   **重开条件**：第一个 `-beta` tag 或第一条 `<sparkle:channel>beta</sparkle:channel>` item 出现 →
   binding 改读 `betaUpdatesEnabled`、加 beta resolution，并以那个真实构建为锚登记 binding proof。见
   [审计](docs/app-audits/com-dinoki-osaurus.md)。
+- **SwiftVM** `com.swiftvm.app`（2026-10-12 接）— 渠道**在构建时定死**，app 里没有开关：beta 构建
+  （`X.Y.Z-beta.N`）的 `SUFeedURL` 是 `beta-channel` release 上的 `appcast-beta.xml`（item 全打
+  `beta`），stable 构建读 `releases/latest/download/appcast.xml`（item 无 tag）；app 的
+  `allowedChannels` 看自己版本串里有没有 `-beta.`。没有 binding 时两轨今天也都对，但 beta 副本
+  只能靠「自己的 build 还在 beta feed 里」被认成 beta，厂商 workflow 拿不到旧 feed 时会从零重建。
+  `SwiftVMChannel` 读 bundle 自己的 `SUFeedURL`：beta feed → `.beta`（tag 由 `.beta` 推导），其余
+  nil；不进 `boundBundleIDs`。beta 副本永远留在 beta 轨（每个 stable 都是某个 beta 原样重建、
+  build 号相同），与 app 自己的行为一致，不算缺口。见
+  [审计](docs/app-audits/com-swiftvm-app.md)。
 
 ### 版本后缀分流 续 — Yaak（2026-09-06 接）
 

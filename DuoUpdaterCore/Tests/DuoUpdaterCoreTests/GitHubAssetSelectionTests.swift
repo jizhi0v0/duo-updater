@@ -133,6 +133,11 @@ struct GitHubAssetSelectionTests {
         // Lokii: one dmg per architecture, no version in the name (v0.1.1).
         (#"^Lokii-(?:arm64|x86_64)\.dmg$"#,
          ["Lokii-arm64.dmg", "Lokii-x86_64.dmg"]),
+        // disktree: one zip per architecture under every tag with a macOS build
+        // (v0.11.0's macOS zips, beside Windows zips the pattern must not take).
+        (#"^disktree-[0-9]+\.[0-9]+\.[0-9]+-(?:aarch64|x86_64)-macos\.zip$"#,
+         ["disktree-0.11.0-aarch64-macos.zip", "disktree-0.11.0-aarch64-windows.zip",
+          "disktree-0.11.0-x86_64-macos.zip", "disktree-0.11.0-x86_64-windows.zip"]),
         // Cindy: four macOS dmgs per release, two editions × two arches
         // (v0.1.97, in the order GitHub listed them); each rule admits its own
         // edition's two.

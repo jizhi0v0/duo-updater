@@ -709,7 +709,8 @@ public enum BundleDiff {
     ///
     /// A key is usually a whole string of its own in the binary, so an exact lookup
     /// settles most of them; only a key that is not a whole run anywhere falls back
-    /// to a substring search of the index, and those run in parallel. Keys are
+    /// to a substring search of the index, made for all of them in one pass over
+    /// each side's index (``PrintableRuns/delimitedMatches(_:_:)``). Keys are
     /// deduplicated first — `en` and `zh-Hans` carry the same ones. Measured on UU
     /// Remote 4.35 → 4.39 (207 new keys per file): 5.6 s searching every key in
     /// every file serially.
@@ -729,26 +730,26 @@ public enum BundleDiff {
         }
         // An empty index and no index are the same bytes and opposite meanings, so
         // the old side is searched only when it has one. Without this the searches
-        // below both fail — `wholeRuns` is empty and `containsDelimited` cannot fit
-        // the key into a shorter blob — and every key found in the new binaries
+        // below both fail — an empty blob has no runs, and `containsDelimited`
+        // cannot fit the key into it — and every key found in the new binaries
         // would be reported as being in the new binaries *only*.
         let searchOld = old.stringsIndexed
-        let oldRuns = searchOld ? PrintableRuns.wholeRuns(old.stringsBlob) : []
-        let newRuns = PrintableRuns.wholeRuns(new.stringsBlob)
-        let results = UnsafeMutableBufferPointer<KeyEvidence>.allocate(capacity: ordered.count)
-        defer { results.deallocate() }
-        DispatchQueue.concurrentPerform(iterations: ordered.count) { index in
-            let key = ordered[index]
-            let searchable = key.utf8.count >= minimumSubstringKeyBytes
-            let inNew = newRuns.contains(key) || (searchable && PrintableRuns.containsDelimited(new.stringsBlob, key))
-            let inOld = searchOld && inNew
-                && (oldRuns.contains(key) || (searchable && PrintableRuns.containsDelimited(old.stringsBlob, key)))
-            (results.baseAddress! + index).initialize(
-                to: !inNew ? .notFound
-                    : inOld ? .referencedByBoth
-                    : searchOld ? .referencedByNewBinaries : .oldNotIndexed)
+        // A whole run is newline on both sides, so a key long enough for the
+        // substring search is found by it whenever it is a whole run; only the
+        // shorter keys need the exact lookup.
+        func found(in blob: Data, among keys: [String]) -> Set<String> {
+            let short = keys.filter { $0.utf8.count < minimumSubstringKeyBytes }
+            let long = keys.filter { $0.utf8.count >= minimumSubstringKeyBytes }
+            return Set(zip(short, PrintableRuns.wholeRunMatches(blob, short)).filter(\.1).map(\.0))
+                .union(zip(long, PrintableRuns.delimitedMatches(blob, long)).filter(\.1).map(\.0))
         }
-        return Dictionary(uniqueKeysWithValues: zip(ordered, results))
+        let inNew = found(in: new.stringsBlob, among: ordered)
+        let inOld = searchOld ? found(in: old.stringsBlob, among: ordered.filter(inNew.contains)) : []
+        return Dictionary(uniqueKeysWithValues: ordered.map { key in
+            (key, !inNew.contains(key) ? .notFound
+                : inOld.contains(key) ? .referencedByBoth
+                : searchOld ? .referencedByNewBinaries : .oldNotIndexed)
+        })
     }
 
     static func localizationSection(old: BundleFacts, new: BundleFacts) -> [String] {

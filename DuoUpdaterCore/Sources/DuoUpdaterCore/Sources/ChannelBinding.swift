@@ -164,7 +164,8 @@ public enum ChannelBinding {
     ///
     /// Deliberately excludes Ghostty, CodeEdit and Osaurus: each binding is a
     /// constant (a fixed stable-only feed override; a fixed `<sparkle:channel>` tag) with no
-    /// user-settable preference behind it, so there is nothing to watch.
+    /// user-settable preference behind it, so there is nothing to watch. SwiftVM
+    /// likewise: its answer comes from the bundle's own feed, fixed at build time.
     public static let boundBundleIDs: Set<String> = [
         DuoPasteChannel.bundleID.lowercased(),
         ForkChannel.bundleID.lowercased(),
@@ -488,6 +489,7 @@ public enum ChannelBinding {
             return { ITerm2Channel.resolveCurrent(bundleFeeds: $0) }
         case MonitorControlChannel.bundleID.lowercased():
             return { _ in MonitorControlChannel.resolveCurrent() }
+        case SwiftVMChannel.bundleID.lowercased(): return { SwiftVMChannel.resolve(bundleFeeds: $0) }
         default:                       return nil
         }
     }
@@ -582,6 +584,12 @@ public enum ChannelBinding {
     + [true, false].compactMap { flag in
         MonitorControlChannel.resolve(isBetaChannel: flag)
             .map { (bundleID: MonitorControlChannel.bundleID, resolved: $0) }
+    }
+    // SwiftVM's channel is the feed its build declares (see the type); the two
+    // kinds of build stand in for the bundle. The stable one answers nil.
+    + [SwiftVMChannel.betaBundleFeeds, SwiftVMChannel.stableBundleFeeds].compactMap { feeds in
+        SwiftVMChannel.resolve(bundleFeeds: feeds)
+            .map { (bundleID: SwiftVMChannel.bundleID, resolved: $0) }
     }
 
     // Windscribe is deliberately NOT enumerated here, which is the same choice

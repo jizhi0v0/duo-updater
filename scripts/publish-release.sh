@@ -1005,6 +1005,36 @@ $(printf '\033[1;32m✓ Published successfully.\033[0m')
    sha256   : $checksum
 EOF
 
+# The Homebrew cask (jizhi0v0/homebrew-tap, `brew install --cask
+# jizhi0v0/tap/duoupdater`) pins a version and a sha256, so each release bumps it.
+# Warn-only: the cask is `auto_updates`, so a tap one release behind installs a
+# build that Sparkle updates within the hour. Failing the script here, after the
+# release is live, would only hide the steps printed below.
+# Gated on `publishes_appcast`, exactly like the feed: a draft's assets 404 for
+# everyone but the author, so every `brew install` would fail, and a prerelease
+# would hand brew users a build the stable feed never offered. The cask follows
+# the appcast, never ahead of it.
+# DUO_SKIP_HOMEBREW_TAP=1 skips it, for a release published from a fork.
+# A function so scripts/test_publish_release.py can run it against a stub.
+bump_homebrew_tap() {
+    if [ "$publishes_appcast" != "1" ]; then
+        printf '   tap      : not bumped — a draft or prerelease stays off the Homebrew cask\n'
+        return 0
+    fi
+    [ "${DUO_SKIP_HOMEBREW_TAP:-}" = "1" ] && return 0
+    if ! python3 "$REPO_ROOT/scripts/homebrew_tap.py" "$version" "$checksum"; then
+        cat <<EOF
+
+$(printf '\033[1;33m! The Homebrew tap was not bumped.\033[0m') New brew installs get the previous
+  version until it is; Sparkle then updates them. To retry by hand:
+
+    python3 "$REPO_ROOT/scripts/homebrew_tap.py" $version $checksum
+EOF
+    fi
+    return 0
+}
+bump_homebrew_tap
+
 # The "What's New" window reads CHANGELOG.md in English and, for anyone running
 # DuoUpdater in another language, substitutes `changelog/<lang>.md` version by
 # version (see SelfChangelogLocalization). A version those files don't cover falls

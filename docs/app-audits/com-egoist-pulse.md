@@ -94,8 +94,8 @@
 - 格式: `.tar.gz`（manifest 顶层 `url`）；解出的 `Pulse.app` 只有一个主可执行文件，没有嵌套 app、helper 或 LaunchAgent
   （与 dmg 内的 bundle 只差一个 `Contents/CodeResources`）
 - 校验: manifest 不发摘要，没有 `checksumPattern`。整包和补丁都验 MyGo 签名（Ed25519，签文件的 SHA-256），
-  `myGoPublicKey` = `WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ=`。0.1.12 整包和 0.1.11→0.1.12 补丁的签名都用它验过，
-  用 Moshi 的 key 验不过（对照）。声明了 key 就必须有能验过的签名：补丁验不过就退回全量，整包验不过就终止安装
+  `myGoPublicKey` = `WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ=`。0.1.12 manifest 里全部 6 个签名（3 个补丁 + 0.1.12 / 0.1.11 / 0.1.10
+  三个整包）都用它验过（2026-10-13，`openssl pkeyutl -verify -rawin`，输入是文件的 SHA-256）；换 Moshi 的 key、或改成签原文，都验不过（对照）。声明了 key 就必须有能验过的签名：补丁验不过就退回全量，整包验不过就终止安装
   （`VendorInstaller`，与 Moshi Go 同一条路径）
 - **读的是**: 人人可手动下载的 GA。manifest 无灰度字段，每个副本读同一个文件；`.tar.gz` 和 dmg 挂在同一个公开 release 上
 - 端到端（2026-10-13，`make cli` 后；0.1.11 → 0.1.12）:
@@ -142,6 +142,8 @@ sh install.sh                                                                   
 # 补丁（生产代码 MyGoDelta.apply，临时测试，跑完删除）:
 #   tar.gz 解出的 0.1.11 + pulse-0.1.11-to-0.1.12-darwin-arm64.delta → 成功，diff -r 厂商 0.1.12 一致
 #   dmg 挂载出的 0.1.11 + 同一补丁 → madeWrong("Contents/CodeResources")
+# 签名: manifest 每条 {url, signature}，对文件 SHA-256 做 Ed25519 验证（DER = 302a300506032b6570032100 + key）:
+#   openssl pkeyutl -verify -pubin -inkey pub.der -keyform DER -rawin -in <sha256 原始字节> -sigfile <sig> → 6/6 Verified
 # 端到端: ditto <0.1.11 bundle> /Applications/ → duo install pulse --yes --json
 #   dmg 布局 → bytesDownloaded 7645563；tar.gz 布局 → bytesDownloaded 1301845
 ```

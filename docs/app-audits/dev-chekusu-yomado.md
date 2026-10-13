@@ -83,8 +83,10 @@
 - Team 闸: 0.3.1/0.3.2 是 ad-hoc 签名，`SignatureVerifier.verifyTeamIdentifierMatch` 读不到已装副本的 Team，
   拒绝（`noTeamIdentifier(installed)`），磁盘上的旧副本不动。这些副本要手动更新一次到 0.3.3。
   也不适合 `.publishedDigestOnly`：那条路只给两边都没有 Team 的 app，而 0.3.3 起有 Team
-- 端到端: **未跑**（本次是并行审计，`duo install` 的串行实跑留给协调者）。可跑的路径: 0.3.2 → 0.3.3 应得到
-  Team 闸拒绝；0.3.3 → 下一版要等下一个签名 release
+- 端到端（2026-10-13）: 0.3.2（ad-hoc）→ 0.3.3 的拒绝路径跑过。`duo check` 给出 0.3.2 → 0.3.3，`duo install`
+  走到 `verifyingCodeSignature` 后失败，原因 `Could not read a Team Identifier from the installed app.`；旧副本
+  仍是 0.3.2，主二进制 sha256 前后一致。没有启动 app。**接受路径未跑**：0.3.3 是第一个签名版，要等下一个签名
+  release 才有「旧签名版 → 新版」可跑
 - 阻塞: 0.3.1/0.3.2 的副本要手动更新一次
 
 ## 已知问题
@@ -96,8 +98,7 @@
 - 从 ad-hoc 版换成签名版时，厂商说明可能要重新授予辅助功能权限。0.3.3 起签名身份不变就不再有这个问题
 
 ## 建议下一步
-1. 协调者串行跑端到端: 0.3.2 → `duo install --yes` 应被 Team 闸拒绝且旧副本不动；下一个签名版发布后跑 0.3.3 → 新版
-   （不运行；运行中 + `duo restart`），补进本文件
+1. 下一个签名版发布后跑 0.3.3 → 新版的端到端（不运行；运行中 + `duo restart`），补进本文件
 2. 厂商第一次发带后缀的 tag 或第一次发非 prerelease 的 release 时复查: 前者决定是否放宽 `versionPattern`，后者不影响
    本规则（列表接口两种都读）
 

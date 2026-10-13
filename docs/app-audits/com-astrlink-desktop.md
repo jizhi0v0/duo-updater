@@ -76,7 +76,7 @@ Settled from source: `apps/desktop/src-tauri/src/updates.rs` 和 `apps/desktop/s
 - Recipe 状态: 不需要。要去掉重复，得挑一种语言（`ChangelogRecipe` 加 `skipSections`），这是产品决定，没做
 
 ## 一键安装
-- 状态: **支持**（按 Team 闸；端到端未跑，见下）
+- 状态: **支持**（按 Team 闸；端到端两轮都过，见下）
 - 格式: dmg（公证、staple），按架构选；bundle 里没有嵌套 app、LoginItems 或 helper
 - Pattern: `^AstrLink_[0-9][0-9A-Za-z.-]*_(?:aarch64|x64)\.dmg$`, kind `.dmg`。不匹配 Tauri 更新器的
   `AstrLink-macOS-<arch>.app.tar.gz`、Linux/Windows 包和 `latest.json`
@@ -87,7 +87,16 @@ Settled from source: `apps/desktop/src-tauri/src/updates.rs` 和 `apps/desktop/s
 - **读的是**: 人人可手动下载的 GA（GitHub `/releases/latest` 上的 dmg，就是 README 下载链接指向的那份）
 - 自更新器: 默认开着自动检查（每 3 小时）和自动下载，验签后放进缓存，进入 `ready`；**只有用户在界面上点安装
   （`install_app_update`）才替换并重启**，不会自己悄悄装。duo 装完新版后，app 下一次检查判定 up_to_date
-- 端到端: **未跑**（审计时不跑，由协调方之后串行执行 coverage-discovery Phase 5）
+- 端到端（2026-10-13，0.2.5 arm64 → 0.2.7，审计期间 0.2.7 刚发布）:
+  - 不运行: `duo install` 走 `backed up → verifyingSignature（GitHub digest）→ verifyingCodeSignature → installed`。
+    装好的副本 0.2.7，Team `7XWQYGN832`，`codesign --verify --deep --strict` 退 0，`spctl` accepted
+    （Notarized Developer ID），之后 `duo check` 报 up to date
+  - 运行中且 app 自己的更新器已下载好（启动约 30 s 后 `~/Library/Caches/com.astrlink.desktop/updates/<sha>.update`
+    出现，46 MB）: `duo install` 换包成功并提示 `Still running the old code`；`duo restart` 后 app 和
+    `astrlink-core --parent-pid <新 pid>` 都是新进程，旧 core 随旧 app 退出
+  - 启动不装登录项、LaunchAgent 或 helper（前后 `sfltool dumpbtm` 无新增），不写 `~/.claude/skills`、
+    `~/.agents/skills`。会写 `~/Library/Application Support/com.astrlink.desktop`、上面的更新缓存，以及钥匙串里的
+    `com.astrlink.desktop.local-key`、`com.astrlink.desktop.raw-key-pin`
 - 阻塞: 无
 
 ## 已知问题
@@ -95,10 +104,9 @@ Settled from source: `apps/desktop/src-tauri/src/updates.rs` 和 `apps/desktop/s
 - 厂商偶尔不发 x86_64 包（v0.2.5）。Intel Mac 在那一版上没有可提供的更新，下一版补上后恢复。
 
 ## 建议下一步
-1. 跑一键端到端：0.2.5（arm64）→ 0.2.6，不运行一轮，运行中（app 自己的更新器已 ready）+ `duo restart` 一轮。
-2. 第一个 pre-release 出来后：下载真包读 `CFBundleShortVersionString`，在真 app 上确认 `updates.channel` 落盘，
+1. 第一个 pre-release 出来后：下载真包读 `CFBundleShortVersionString`，在真 app 上确认 `updates.channel` 落盘，
    再接 `ChannelBinding` + preview GitHub 规则（见 Channel 详情）。
-3. 决定 changelog 显示哪种语言（或者保持两种都显示）。
+2. 决定 changelog 显示哪种语言（或者保持两种都显示）。
 
 ## 如何复验
 ```

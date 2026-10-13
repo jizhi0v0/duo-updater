@@ -43,7 +43,7 @@ enum TestDiskImages {
     /// each with only the system's own images, and a 7 KB listing among 11–21 KB
     /// ones on the hosted xcode-27 runner (27.0.1, diag run 38376650037). Taken at
     /// its word, `detach` reports a still-attached image gone and it leaks into
-    /// later runs. The same rule as `DiskImageMount.attachment(of:)`.
+    /// later runs.
     static let absentListings = 3
 
     /// What `hdiutil info` lists for `image`; empty only after `absentListings`

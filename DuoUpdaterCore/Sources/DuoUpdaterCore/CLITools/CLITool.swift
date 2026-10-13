@@ -118,6 +118,11 @@ public enum CLIToolState: String, Sendable, Codable {
     case ahead
     /// No comparison possible; the status's `withheld` and `note` say why.
     case unknown
+    /// A newer version exists, but the user pinned this one: a package whose
+    /// specifier in its package manager's global `package.json` is an exact
+    /// version, which that manager's own `update -g` holds where it is. Reported,
+    /// never offered, and not counted as an update (agreed 2026-10-13).
+    case pinned
 }
 
 /// The gate that stopped a verdict short, as a value the app words in the user's

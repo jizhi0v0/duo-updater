@@ -2536,6 +2536,71 @@
         }
       }
     },
+    "%@ · pinned": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · fixiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · fijada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · épinglée"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · bloccata"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · 固定"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · fixada"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · закреплена"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · sabitlendi"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · 已锁定"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · 已鎖定"
+          }
+        }
+      }
+    },
     "%@ — click for details": {
       "extractionState": "manual",
       "localizations": {
@@ -11750,6 +11815,71 @@
         }
       }
     },
+    "Pinned to %@ in %@’s global packages, so it doesn’t follow new releases": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In den globalen Paketen von %2$@ auf %1$@ festgelegt, folgt daher keinen neuen Versionen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fijada en %1$@ en los paquetes globales de %2$@, así que no sigue las nuevas versiones"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Épinglée à %1$@ dans les paquets globaux de %2$@, elle ne suit donc pas les nouvelles versions"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloccata su %1$@ nei pacchetti globali di %2$@, quindi non segue le nuove versioni"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ のグローバルパッケージで %1$@ に固定されているため、新しいリリースには追従しません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fixada em %1$@ nos pacotes globais do %2$@, então não acompanha novas versões"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закреплена на %1$@ в глобальных пакетах %2$@, поэтому не следует за новыми выпусками"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ genel paketlerinde %1$@ sürümüne sabitlendi, bu yüzden yeni sürümleri izlemiyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 %2$@ 的全局包里锁定为 %1$@，因此不会跟随新版本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 %2$@ 的全域套件中鎖定為 %1$@，因此不會跟隨新版本"
+          }
+        }
+      }
+    },
     "Source code on GitHub": {
       "localizations": {
         "de": {
@@ -19545,6 +19675,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "這個 App 沒有開發者簽署，所以只核對 GitHub 公布的檔案雜湊。每次更新後，macOS 可能會要求你重新授予它的隱私權限（如螢幕錄製或輔助使用）。"
+          }
+        }
+      }
+    },
+    "To follow new releases again, run:": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Damit es wieder neuen Versionen folgt, führe aus:"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para que vuelva a seguir las nuevas versiones, ejecuta:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pour qu’elle suive à nouveau les nouvelles versions, lancez :"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Per farle seguire di nuovo le nuove versioni, esegui:"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再び新しいリリースに追従させるには、次を実行します:"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para voltar a acompanhar novas versões, execute:"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чтобы снова следовать за новыми выпусками, выполните:"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni sürümleri yeniden izlemesi için şunu çalıştırın:"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要重新跟随新版本，请运行："
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "若要重新跟隨新版本，請執行："
           }
         }
       }

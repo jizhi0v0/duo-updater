@@ -37,6 +37,15 @@ public enum CLIToolWording {
         }
     }
 
+    /// What a pinned package's row says (`CLIToolState.pinned`): the specifier
+    /// that holds it and whose list it is in. nil for any other status.
+    public static func pinned(_ status: CLIToolStatus) -> String? {
+        guard status.state == .pinned, case .npm(let package) = status.detail,
+              let specifier = package.install.specifier else { return nil }
+        let manager = status.kind.displayName
+        return String(localized: "Pinned to \(specifier) in \(manager)’s global packages, so it doesn’t follow new releases")
+    }
+
     /// Why an install has no one-click, in the user's terms rather than the gate's.
     public static func reason(_ withheld: CLIToolWithheld, of kind: CLIToolKind) -> String {
         let tool = kind.displayName

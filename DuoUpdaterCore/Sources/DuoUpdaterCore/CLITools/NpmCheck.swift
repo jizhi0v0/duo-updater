@@ -149,6 +149,11 @@ public struct NpmCheck: Sendable {
         guard current < newest else {
             return verdict(current == newest ? .upToDate : .ahead, pick: pick)
         }
+        if let specifier = install.specifier, Self.isPinned(specifier), let manual = Self.unpinCommand(for: install) {
+            return verdict(.pinned, pick: pick,
+                           note: "pinned to \(specifier) in its package manager's global package.json, which its own update -g keeps: reported only",
+                           manual: manual)
+        }
         guard let offered = pick.offered else {
             if let gap = pick.gap {
                 return verdict(.updateAvailable, pick: pick,
@@ -200,6 +205,24 @@ public struct NpmCheck: Sendable {
                            withheld: .versionUnreadable)
         }
         return await finish(install, pick: pick, offered: offered, busy: busy, openclaw: openclaw, verdict: verdict)
+    }
+
+    /// Whether `specifier` pins one version: an exact version (`1.5.0`,
+    /// `=1.5.0`, `v1.5.0`), which bun's, pnpm's and yarn's own `update -g` hold
+    /// where it is (measured 2026-10-13: bun 1.4.3, pnpm 10.33.2, 11.28.4 and
+    /// 12.9.1, yarn 1.22.22). A range, a dist-tag or anything unreadable is not.
+    static func isPinned(_ specifier: String) -> Bool {
+        NpmVersion(specifier) != nil
+    }
+
+    /// What the user runs to let the package follow releases again: the
+    /// manager's own add without a version, which installs the newest and
+    /// writes a `^` range (measured 2026-10-13, bun 1.4.3: `"6.0.0"` became
+    /// `"^7.0.0"`). nil for npm's packages, which have no specifier to pin.
+    static func unpinCommand(for install: NpmInstall) -> CLIToolCommand? {
+        guard let bun = install.bun else { return nil }
+        return CLIToolCommand(executable: bun.path, arguments: ["add", "-g", install.name],
+                              pathPrefix: URL(fileURLWithPath: bun.path).deletingLastPathComponent().path)
     }
 
     /// Why a package of bun's global install gets no click, or nil: no node to

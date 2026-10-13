@@ -59,8 +59,11 @@ final class BunSandbox {
 
     /// `bun add -g` of each `(name, version)`: the global `package.json`, and each
     /// package's own under `node_modules`, with a `bin`.
-    func add(_ packages: [(String, String)], extra: [String: Any] = [:]) throws {
-        let dependencies = Dictionary(uniqueKeysWithValues: packages)
+    /// Each package as `bun add -g <name>` leaves it: a `^` range in the global
+    /// `package.json` (bun 1.4.3, measured 2026-10-13) — unless `pinned`, as
+    /// `bun add -g <name>@<version>` leaves it.
+    func add(_ packages: [(String, String)], extra: [String: Any] = [:], pinned: Bool = false) throws {
+        let dependencies = Dictionary(uniqueKeysWithValues: packages.map { ($0.0, pinned ? $0.1 : "^" + $0.1) })
         try JSONSerialization.data(withJSONObject: ["dependencies": dependencies]).write(to: {
             try? FileManager.default.createDirectory(at: global, withIntermediateDirectories: true)
             return global.appendingPathComponent("package.json")
@@ -316,6 +319,58 @@ final class BunSandbox {
         try box.add([("cowsay", version)])
         let bun = try #require(box.scanner.scan().map(box.scanner.withSignature))
         return try #require(box.packages.scan(bun: bun).first)
+    }
+
+    /// An exact version in bun's global `package.json` is the user's pin: a newer
+    /// release is reported, never offered, and not counted as an update; the
+    /// command to copy is the one that lets it follow releases again. Its range
+    /// twin is offered as before. Mutations: drop the pin check (offered); read
+    /// a `^` range as a pin (the twin is held back too).
+    @Test func anExactSpecifierIsAPin() async throws {
+        let packument = NpmPackument(distTags: ["latest": "1.6.0"], versions: ["1.5.0": .init(), "1.6.0": .init()])
+        let box = try BunSandbox()
+        try box.installBun()
+        try box.homebrewNode()
+        try box.add([("cowsay", "1.5.0")], pinned: true)
+        let bun = try #require(box.scanner.scan().map(box.scanner.withSignature))
+        let install = try #require(box.packages.scan(bun: bun).first)
+        #expect(install.specifier == "1.5.0")
+        let status = await Self.packageStatus(install, packument: packument)
+        #expect(status.state == .pinned)
+        #expect(status.oneClick == nil)
+        #expect(status.latestVersion == "1.6.0")
+        let unpin = CLIToolCommand(executable: box.bun.path, arguments: ["add", "-g", "cowsay"],
+                                   pathPrefix: box.bun.deletingLastPathComponent().path)
+        #expect(status.commandToCopy == unpin)
+        #expect(CLIToolWording.pinned(status)?.contains("1.5.0") == true)
+
+        let ranged = try Self.cowsay(BunSandbox())
+        #expect(ranged.specifier == "^1.5.0")
+        let offered = await Self.packageStatus(ranged, packument: packument)
+        #expect(offered.state == .updateAvailable)
+        #expect(offered.oneClick != nil)
+        #expect(offered.commandToCopy == nil)
+    }
+
+    /// A pin with nothing newer is simply current. Mutation: test the pin before
+    /// the version comparison (`.pinned` with no newer release).
+    @Test func aPinWithNothingNewerIsUpToDate() async throws {
+        let box = try BunSandbox()
+        try box.installBun()
+        try box.homebrewNode()
+        try box.add([("cowsay", "1.6.0")], pinned: true)
+        let bun = try #require(box.scanner.scan().map(box.scanner.withSignature))
+        let install = try #require(box.packages.scan(bun: bun).first)
+        let status = await Self.packageStatus(install, packument: NpmPackument(
+            distTags: ["latest": "1.6.0"], versions: ["1.5.0": .init(), "1.6.0": .init()]))
+        #expect(status.state == .upToDate)
+    }
+
+    @Test(arguments: [("1.5.0", true), ("=1.5.0", true), ("v1.5.0", true), ("1.5.0-beta.1", true),
+                      ("^1.5.0", false), ("~1.5.0", false), ("*", false), ("latest", false), ("", false),
+                      (">=1.5.0", false), ("1.x", false)])
+    func whatPins(specifier: String, pinned: Bool) {
+        #expect(NpmCheck.isPinned(specifier) == pinned)
     }
 
     /// Mutations: build the npm command for a bun package; report it under `.npm`.

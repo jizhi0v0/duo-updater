@@ -42,6 +42,11 @@ public struct NpmInstall: Sendable, Equatable, Codable {
     /// The bun that installed it, for a package of bun's global install; nil for
     /// npm's.
     public let bun: BunManager?
+    /// What the package manager's global `package.json` asks for it (`^1.5.0`,
+    /// `1.5.0`), for the managers that keep one — bun's; nil for npm's, which
+    /// records none (npm's `update` docs: a global package's `wanted` is
+    /// `latest`). An exact version is the user's pin (`NpmPin`).
+    public let specifier: String?
 
     /// The `registry` (or `@scope:registry`) an npmrc sets, and in which file.
     /// Only that key is read — never an auth token.
@@ -54,7 +59,7 @@ public struct NpmInstall: Sendable, Equatable, Codable {
         path: String, name: String, version: String?, manifestName: String?, prefix: NodePrefix,
         runtime: NpmRuntime, linkTarget: String? = nil, repository: String? = nil,
         customRegistry: CustomRegistry? = nil, ownUpdate: NpmOwnUpdate? = nil, npmrcPrefixElsewhere: String? = nil,
-        bun: BunManager? = nil
+        bun: BunManager? = nil, specifier: String? = nil
     ) {
         self.path = path
         self.name = name
@@ -68,13 +73,14 @@ public struct NpmInstall: Sendable, Equatable, Codable {
         self.ownUpdate = ownUpdate
         self.npmrcPrefixElsewhere = npmrcPrefixElsewhere
         self.bun = bun
+        self.specifier = specifier
     }
 
     func with(runtime: NpmRuntime) -> NpmInstall {
         NpmInstall(
             path: path, name: name, version: version, manifestName: manifestName, prefix: prefix, runtime: runtime,
             linkTarget: linkTarget, repository: repository, customRegistry: customRegistry, ownUpdate: ownUpdate,
-            npmrcPrefixElsewhere: npmrcPrefixElsewhere, bun: bun)
+            npmrcPrefixElsewhere: npmrcPrefixElsewhere, bun: bun, specifier: specifier)
     }
 }
 
@@ -293,7 +299,7 @@ public struct NpmScanner: Sendable {
     func package(
         _ name: String, in modules: URL, prefix: NodePrefix, runtime: NpmRuntime,
         registries: [(key: String, value: String, file: String)], npmrcPrefixElsewhere: String?,
-        bun: BunManager? = nil
+        bun: BunManager? = nil, specifier: String? = nil
     ) -> NpmInstall? {
         guard !Self.excluded.contains(name) else { return nil }
         let directory = modules.appendingPathComponent(name)
@@ -318,7 +324,7 @@ public struct NpmScanner: Sendable {
             linkTarget: link.map { URL(fileURLWithPath: $0, relativeTo: directory.deletingLastPathComponent()).standardizedFileURL.path },
             repository: repository,
             customRegistry: Self.customRegistry(for: manifestName ?? name, in: registries),
-            ownUpdate: ownUpdate, npmrcPrefixElsewhere: npmrcPrefixElsewhere, bun: bun)
+            ownUpdate: ownUpdate, npmrcPrefixElsewhere: npmrcPrefixElsewhere, bun: bun, specifier: specifier)
     }
 
     /// A command on `PATH`: `bin` as a path or a non-empty map, or the older

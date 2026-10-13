@@ -732,7 +732,11 @@ struct CLIToolDetailPane: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(verbatim: explanation)
                 if let command = CLIToolPresentation.manualCommand(status) {
-                    Text("To update it yourself, run:")
+                    if status.state == .pinned {
+                        Text("To follow new releases again, run:")
+                    } else {
+                        Text("To update it yourself, run:")
+                    }
                     manualCommandBox(command)
                 }
             }

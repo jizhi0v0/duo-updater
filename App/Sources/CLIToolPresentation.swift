@@ -143,6 +143,9 @@ enum CLIToolPresentation {
            let latest = status.latestVersion {
             return "\(installed) → \(latest)"
         }
+        if status.state == .pinned, let installed = status.installedVersion {
+            return String(localized: "\(installed) · pinned")
+        }
         return status.installedVersion ?? String(localized: "Version can’t be read")
     }
 
@@ -195,6 +198,7 @@ enum CLIToolPresentation {
         if case .claudeCode(let claudeCode) = status.detail {
             return ClaudeCodePresentation.explanation(claudeCode)
         }
+        if let pinned = CLIToolWording.pinned(status) { return pinned }
         guard status.oneClick == nil, let withheld = status.withheld else { return nil }
         return CLIToolsModel.reason(withheld, of: status)
     }

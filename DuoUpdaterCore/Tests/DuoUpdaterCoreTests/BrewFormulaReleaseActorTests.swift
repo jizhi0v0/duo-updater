@@ -67,24 +67,15 @@ struct BrewFormulaReleaseActorTests {
     ///     instrumentation, but that queueing is the only way the instrumented runs
     ///     show a healthy read waiting at all, and pool waits there reached seconds.
     ///
-    /// So the read is issued only once every batch member is either inside `brew info`
-    /// or done with `release(...)` altogether, and at least two are inside. A live
-    /// subprocess means its member has made its actor entry and hopped off, and hasn't
-    /// come back yet; a finished member has nothing left to do on the actor. So the
-    /// actor has nothing queued for the read to wait behind — nothing except the actor
-    /// being held, which is the one thing this is here to catch. The verdict is then an
-    /// ordering: at least one of those subprocesses must still be running when
-    /// `cached()` returns. With the hop reverted that gate can never be met — each
-    /// subprocess holds the actor, so at most one is ever alive (at most 1 of 4 in all
-    /// 3 hop-reverted samples, run in their own job on a 3-core runner) — and the test
-    /// fails and says so.
-    ///
-    /// The gate used to be all four inside at once. Under the full suite the members
-    /// can start so far apart that the first has exited before the last starts: one
-    /// sample in 60 (diag run 38376650037, 2026-10-13) never saw all four together in
-    /// any of its three batches — at most 3, 2 and 1 — against 0 in 706 passes on
-    /// main's CI since 2026-09-13. Counting finished members drops that requirement; two
-    /// alive at once still shows a batch the actor isn't serializing.
+    /// So the read is issued only once every batch member is inside `brew info` at the
+    /// same time. A live subprocess means its member has made its actor entry and hopped
+    /// off, and none has come back yet, so the actor has nothing queued for the read to
+    /// wait behind — nothing except the actor being held, which is the one thing this
+    /// is here to catch. The verdict is then an ordering: at least one of those
+    /// subprocesses must still be running when `cached()` returns. With the hop
+    /// reverted that gate can never be met — each subprocess holds the actor, so at
+    /// most one is ever alive (at most 1 of 4 in all 3 hop-reverted samples, run in
+    /// their own job on a 3-core runner) — and the test fails and says so.
     ///
     /// Only this process's own children, under names made up here, are looked at, so
     /// the answer doesn't depend on what else the host is running.
@@ -111,15 +102,20 @@ struct BrewFormulaReleaseActorTests {
                 "seeded entry must be readable before timing it")
 
         // A prewarm-sized batch of uncached formulae, each paying a full `brew info`.
-        // Up to three batches: the poll below sleeps on the same saturated pool, and one
-        // that oversleeps a whole batch must not decide the verdict. A pass needs the
-        // gate met once; with the hop reverted it is never met, and that costs three
-        // serialized batches before the failure.
+        // Up to six batches: the poll below sleeps on the same saturated pool, and one
+        // that oversleeps a whole batch must not decide the verdict. Nor must one whose
+        // members start so far apart that the first exits before the last starts. Three
+        // were not enough: one full-suite run in 60 on the 3-core runner never saw all
+        // four alive in any of them (most at once: 3, 2, 1; diag run 38376650037).
+        // Instrumented there (diag run 38382344975, 2026-10-13), 18 of 120 batches after
+        // the first missed the gate, twice two in a row. A looser gate — one or two
+        // alive and the rest finished — would have rescued none of the 18.
+        // A pass needs the gate met once; with the hop reverted it is never met, and
+        // that costs six serialized batches before the failure.
         let batch = 4
-        let rounds = 3
+        let rounds = 6
         var peaks: [Int] = []
         var stillRunningAfterRead: Set<String>?
-        var issuedBeside = 0
         var elapsed: TimeInterval = 0
         for round in 0..<rounds {
             let names = (0..<batch).map { "duo-uncached-formula-r\(round)-\($0)" }
@@ -132,15 +128,11 @@ struct BrewFormulaReleaseActorTests {
             }
             var peak = 0
             while finished.value < batch {
-                // Count before the snapshot: a member counted done stays done, so the
-                // two can't overlap, and together they account for every member.
-                let done = finished.value
                 let running = Self.runningBrewInfo(named: names)
                 peak = max(peak, running.count)
-                if running.count >= 2, done + running.count == batch {
+                if running.count == batch {
                     // Nothing suspends between the snapshot and the read, so the
                     // snapshot still describes the actor the read meets.
-                    issuedBeside = running.count
                     let start = Date()
                     let hit = await service.cached(for: cachedName, version: cachedVersion)
                     elapsed = Date().timeIntervalSince(start)
@@ -171,15 +163,14 @@ struct BrewFormulaReleaseActorTests {
                 """
             default: """
                 the batch overlapped (so the actor is not serializing it) but was never \
-                seen with two or more in `brew info` and the rest finished, so `cached()` \
-                was never checked against it.
+                seen all \(batch) at once, so `cached()` was never checked against it.
                 """
             }
             Issue.record("\(why) Most seen running at once per round: \(peaks).")
             return
         }
         #expect(!stillRunningAfterRead.isEmpty, """
-            cached() returned only after all \(issuedBeside) `brew info` subprocesses it was \
+            cached() returned only after all \(batch) `brew info` subprocesses it was \
             issued beside had exited (\(elapsed)s): something held the actor while they ran
             """)
     }

@@ -223,13 +223,13 @@ import Testing
         // busy" when several run at once, and a later try works. Retried for up to
         // a minute, a second apart, like `TestDiskImages.detach`; a fixed count of
         // tries is not a bound on time, since under load each try itself takes
-        // 1–41 s (median 7.6 s in the run below). First seen 11 of 1,920 creates eight at a time, none one at a
-        // time, all created on the second try (diag runs 37427083362, 37428672097,
-        // 2026-10-06). In 60 full Release suites (diag run 38376650037, macOS
-        // 27.0.1, 2026-10-13) 8 of 671 creates answered busy: seven were created
-        // on the second or third try, the last 20.9 s after the first try began;
-        // the eighth was still busy on its fourth try 38.6 s in. Any other failure
-        // is reported as it is.
+        // 1–41 s (median 7.6 s in the second run below). First seen 11 of 1,920
+        // creates eight at a time, none one at a time, all created on the second
+        // try (diag runs 37427083362, 37428672097, 2026-10-06). In 60 full Release
+        // suites (diag run 38376650037, macOS 27.0.1, 2026-10-13) 8 of 671 creates
+        // answered busy: seven were created on the second or third try, the last
+        // 20.9 s after the first try began; the eighth was still busy on its
+        // fourth try 38.6 s in. Any other failure is reported as it is.
         let deadline = ContinuousClock.now + .seconds(60)
         var created = (status: Int32(-1), output: "")
         while true {

@@ -88,7 +88,7 @@ grep -rni '<bundle id>' DuoUpdaterCore/Sources docs/app-audits
 | `declared` / `ADOPT`, or the bundle id is already in the repo | Covered. **Don't drop it silently**: run `channel-verify` on it and report its three counts, because "covered" can still mean a flattened changelog |
 | `NEEDS BINDING` | A `ChannelBinding` job, not a recipe (the Osaurus route; `/app-audit` §1a-0) |
 | `noKnownUpdater`, Developer ID + notarized | Dispatch (Phase 3) |
-| No Team ID / not notarized | Detection-only at best. Dispatch only if detection alone is worth it |
+| No Team ID / not notarized | Detection-only at best — except a MyGo app (`declared`, MyGo), whose vendor signature carries one-click behind the user's setting. Dispatch only if detection alone is worth it |
 | `check-bundle.sh` lists a `nested` app with `LSUIElement=true` | Flag it in the brief: a resident helper that keeps running after a bundle swap. `LSBackgroundOnly` launchers that exit are fine (OpenInTerminal) |
 
 `check-bundle.sh` is used again in Phase 4. It mounts dmgs read-only, reads

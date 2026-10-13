@@ -137,6 +137,12 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// about it. See `ElectronUpdateConfig`.
     public let electronUpdate: ElectronUpdateConfig?
 
+    /// The MyGo update feed and key linked into the executable, for an app
+    /// built with MyGo that publishes signed updates. The MyGo counterpart of
+    /// ``electronUpdate``, read out of the binary because MyGo writes neither
+    /// value to a file. See `MyGoUpdateConfig`.
+    public let myGoUpdate: MyGoUpdateConfig?
+
     /// Extra HTTP headers to send when fetching `sparkleFeedURL`. Non-empty only
     /// for "header-keyed" apps (TablePlus) where the appcast URL is shared across
     /// channels and a request header selects which builds the server returns. Set
@@ -300,6 +306,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         isTestFlightApp: Bool = false,
         sparkleFeedURL: URL?,
         electronUpdate: ElectronUpdateConfig? = nil,
+        myGoUpdate: MyGoUpdateConfig? = nil,
         sparkleFeedHeaders: [String: String] = [:],
         sparkleChannelNames: Set<String> = [],
         sparkleEdPublicKey: String? = nil,
@@ -326,6 +333,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.isTestFlightApp = isTestFlightApp
         self.sparkleFeedURL = sparkleFeedURL
         self.electronUpdate = electronUpdate
+        self.myGoUpdate = myGoUpdate
         self.sparkleFeedHeaders = sparkleFeedHeaders
         self.sparkleChannelNames = sparkleChannelNames
         self.sparkleEdPublicKey = sparkleEdPublicKey

@@ -55,6 +55,8 @@ public enum FeedDiscovery {
     public enum Family: String, Sendable, Hashable {
         case sparkle
         case electron
+        /// A MyGo app whose binary links a feed and key (`MyGoUpdateConfig`).
+        case myGo
     }
 
     /// The electron-builder config type lives in `ElectronManifest.swift`: it is
@@ -219,6 +221,16 @@ public enum FeedDiscovery {
         /// Docker Desktop publishes a perfectly good Sparkle appcast and lands
         /// here, because its own updater reads it and nothing in the bundle does.
         case noKnownUpdater
+        /// A MyGo app: its binary links a feed and key (`MyGoUpdateConfig`), and
+        /// `MyGoUpdateSource` resolved them through production code. Nothing to
+        /// propose — like `.declared`, the app speaks for itself. Carries the feed
+        /// as linked (a tagged feed keeps its `{version}`).
+        case declaredMyGo(String)
+        /// A MyGo app whose linked feed did not resolve: the manifest (or, for a
+        /// tagged feed, the GitHub release list) did not answer with a complete
+        /// release. Kept apart from `.declaredMyGo` for the reason
+        /// `.declaredUnreadable` is kept apart from `.declared`.
+        case declaredMyGoUnreadable(String)
     }
 
     /// Everything read off one bundle, before any network call.
@@ -235,17 +247,20 @@ public enum FeedDiscovery {
         public let candidates: [Candidate]
         public let shipsSparkle: Bool
         public let electron: ElectronUpdateConfig?
+        public let myGo: MyGoUpdateConfig?
 
         /// Sparkle wins a bundle that somehow has both: it is the one whose feed
         /// we can resolve through a shipping source today.
         public var family: Family? {
             if shipsSparkle { return .sparkle }
+            if myGo != nil { return .myGo }
             return electron == nil ? nil : .electron
         }
 
         public init(
             bundleID: String?, installed: VersionSide, declaredFeed: URL?,
-            candidates: [Candidate], shipsSparkle: Bool, electron: ElectronUpdateConfig? = nil
+            candidates: [Candidate], shipsSparkle: Bool, electron: ElectronUpdateConfig? = nil,
+            myGo: MyGoUpdateConfig? = nil
         ) {
             self.bundleID = bundleID
             self.installed = installed
@@ -253,6 +268,7 @@ public enum FeedDiscovery {
             self.candidates = candidates
             self.shipsSparkle = shipsSparkle
             self.electron = electron
+            self.myGo = myGo
         }
     }
 
@@ -309,7 +325,8 @@ public enum FeedDiscovery {
 
         return BundleProbe(
             bundleID: bundleID, installed: installed, declaredFeed: declared,
-            candidates: deduped, shipsSparkle: shipsSparkle, electron: electron)
+            candidates: deduped, shipsSparkle: shipsSparkle, electron: electron,
+            myGo: MyGoUpdateConfig.read(bundleAt: bundleURL))
     }
 
     // MARK: - Phase 2: the gates
@@ -453,6 +470,17 @@ public enum FeedDiscovery {
             // bundle reads. electron-updater does not probe an architecture
             // sibling on Darwin, so discovery must not invent that request either.
             verdict = decideElectron(probe, manifest: manifest, body: body)
+        case .myGo:
+            // Through the production source, so a discovery run and a check read
+            // the same manifest the same way — a tagged feed included.
+            guard let config = probe.myGo else { verdict = .noKnownUpdater; break }
+            let app = InstalledApp(
+                name: bundleURL.deletingPathExtension().lastPathComponent,
+                bundleID: probe.bundleID, shortVersion: probe.installed.marketing ?? "",
+                buildVersion: probe.installed.build ?? "", path: bundleURL,
+                isMASApp: false, sparkleFeedURL: nil, myGoUpdate: config)
+            let resolved = (try? await MyGoUpdateSource(session: session).latestVersion(for: app)) != nil
+            verdict = resolved ? .declaredMyGo(config.feed) : .declaredMyGoUnreadable(config.feed)
         }
         return Finding(bundlePath: bundleURL, probe: probe, verdict: verdict)
     }

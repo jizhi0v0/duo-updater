@@ -212,6 +212,16 @@ public enum InstallTrust: Sendable, Hashable, CaseIterable {
     /// `UpdateSettings.allowsDigestOnlyInstalls`, and the installer re-checks
     /// that at click time (`VendorInstaller`).
     case publishedDigestOnly
+    /// No Team ID on either side (ad-hoc signed), for an app built with MyGo
+    /// (`MyGoUpdateSource`): the download's proof of origin is its MyGo Ed25519
+    /// signature (`myGoSignature`), checked with the key linked into the
+    /// INSTALLED binary — exactly what the app's own updater checks it with, and
+    /// a key only the vendor's build step holds the private half of. Patches
+    /// carry their own signature under the same key, so unlike the digest route
+    /// this one may take a delta. Gated by the same setting as
+    /// `publishedDigestOnly` (`UpdateSettings.allowsDigestOnlyInstalls`), re-checked
+    /// at click time, and followed by the same ad-hoc identity gates.
+    case myGoSignatureOnly
 }
 
 /// What a single update source reports as the newest available release.

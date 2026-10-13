@@ -249,8 +249,10 @@ doesn't say? Fall through to the rest of this phase as written.
 
 **1a-0. Then: ask whether a generic source already covers it. Often it does.**
 
-Two families need no per-app entry at all, because a generic source reads the
-address out of the bundle itself:
+Three families need no per-app entry at all, because a generic source reads the
+address out of the bundle itself — Sparkle (`SUFeedURL`), electron-builder
+(`app-update.yml`) and MyGo (feed and key linked into the executable, read by
+`MyGoUpdateConfig`):
 
 ```bash
 swift run --package-path application-test feed-discover <path-to-.app/.dmg/.zip>
@@ -262,9 +264,11 @@ swift run --package-path application-test feed-discover <path-to-.app/.dmg/.zip>
 | `NEEDS BINDING` | Bundle names its own `SUFeedURL`, but **every** item in it carries `<sparkle:channel>` and no `ChannelBinding` exists. The address resolves; the channel filter then admits nothing for an install the feed no longer lists | **Do not stop.** No recipe either: write a `ChannelBinding` whose resolver names the tag(s) in `sparkleChannelNames` (the `BetterDisplayChannel` route) |
 | `UNREADABLE` | Bundle names its own `SUFeedURL`, but the feed answered with no appcast item (fetch failed, non-2xx, or nothing parsed) — nothing about it was checked. Reported even when a `ChannelBinding` exists: a tag-only binding (CodeEdit's) still reads exactly this address | **Do not stop.** Re-run; if it persists, `curl` the feed. A dead declared feed means `SparkleAppcastSource` resolves nothing for this app — unless its binding swaps in a different feed (Fork), in which case check that one instead |
 | `ADOPT` (electron) | `app-update.yml` names a fetchable `*-mac.yml`; `ElectronManifestSource` covers it | **STOP**, unless you need a page/changelog link — the generic source carries neither |
+| `declared` (MyGo) | The executable links a MyGo feed and key, and `MyGoUpdateSource` resolved them — detection, one-click (`.tar.gz`, vendor signature, deltas) and the newest release's notes | **STOP.** No probe, no GitHub rule. Only a changelog *history* may need a recipe (the manifest carries one release's notes). An ad-hoc signed app installs only with "Allow one-click updates for apps without a developer signature" on (`InstallTrust.myGoSignatureOnly`) |
+| `UNREADABLE` (MyGo) | The executable links a MyGo feed, but it did not resolve to a complete release | **Do not stop.** `curl` the feed; for a `{version}` feed, the GitHub release list first |
 | `ADOPT` (sparkle) | Address found in code and proved against the bundle | Propose a `SparkleFeedCatalog` entry, not a recipe |
 | `review <blocker>` | The blocker names the reason | Continue the audit; the blocker tells you what to investigate |
-| `noKnownUpdater` | No Sparkle, no electron-builder config | Continue the audit |
+| `noKnownUpdater` | No Sparkle, no electron-builder config, no MyGo feed | Continue the audit |
 
 **Skipping this step produces a dead recipe that looks alive.**
 `SparkleAppcastSource` sits ahead of `VendorProbeSource`, so a `VendorProbeRecipe`
@@ -736,7 +740,9 @@ An audit that does not know a field exists will report the situation it covers a
 | `install.checksumPattern` + `checksumFormat` | the body publishes a digest of the download (hex SHA-256 or base64 SHA-512) and a real download matched it (Phase 4, "Published digest") |
 
 Adjacent machinery an audit should also weigh: `DeltaApplier` (applies Sparkle
-binary patches), `VendorAppcastDeltas` (pulls them out of an appcast),
+binary patches, and MyGo's through `MyGoDelta`), `VendorAppcastDeltas` (pulls
+them out of an appcast), `MyGoUpdateSource` (any MyGo app, from the feed and key
+in its binary — a MyGo app never needs a probe; see `MyGoUpdateConfig`),
 `RecipeSanity` (flags a version that appears verbatim in the request URL, a
 feed that reads behind the installed copy, and — via `duo verify` — a `*-mac.yml`
 recipe whose bare address answers a different version than the same address with

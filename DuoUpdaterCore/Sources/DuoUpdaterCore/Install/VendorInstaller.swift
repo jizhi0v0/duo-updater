@@ -105,14 +105,16 @@ public actor VendorInstaller {
         // Accept any source whose RemoteVersion carries a resolved installer
         // archive we vet ourselves: the vendor-probe registry ("Vendor") and
         // GitHub release rules with an asset pattern ("GitHub"), and
-        // electron-builder manifests ("Electron"). All three download a notarized
-        // build and gate on a Team-ID match below, so the swap stays
+        // electron-builder manifests ("Electron"), and MyGo manifests ("MyGo"). All
+        // download a build we gate on a Team-ID match below — or, for an ad-hoc
+        // signed app, on the route its `installTrust` names — so the swap stays
         // same-channel — adding a source name here widens what may flow through
         // the gates, never which gates run. Sparkle/Homebrew install through their
         // own pipelines.
         guard let remote = result.remote,
               remote.sourceName == "Vendor" || remote.sourceName == "GitHub"
-                || remote.sourceName == "Electron" else {
+                || remote.sourceName == "Electron"
+                || remote.sourceName == MyGoUpdateSource.sourceName else {
             throw InstallError.notVendorUpdate
         }
         guard let downloadURL = remote.downloadURL else {
@@ -272,6 +274,38 @@ public actor VendorInstaller {
                 try SignatureVerifier.verifyPublishedDigest(of: archive, expected: expected)
             }
             trust = .publishedDigest(
+                proof, bundleID: result.app.bundleID ?? "",
+                version: remote.shortVersion ?? "")
+        }
+        // MyGo ad-hoc (`InstallTrust.myGoSignatureOnly`): the vendor's signature
+        // over exactly the bytes about to be used is the proof of origin — the
+        // patch's own when a patch was downloaded, else the archive's. Checked
+        // here, before anything is unpacked or reconstructed, so the identity
+        // gates below cannot run without it; the archive and patch paths check
+        // it again on their own, which costs one more hash of a few megabytes.
+        if remote.installTrust == .myGoSignatureOnly {
+            guard digestOnlyAllowed else { throw InstallError.digestOnlyNotAllowed }
+            guard download.localStash == nil else { throw InstallError.digestOnlyNeedsTheAsset }
+            let signed: (signature: String?, key: String)
+            if let patch = download.appliedPatch {
+                guard patch.format == .myGo, let key = patch.publicKey else {
+                    throw SignatureVerifier.VerifyError.myGoSignatureMissing
+                }
+                signed = (patch.edSignature, key)
+            } else {
+                guard let myGo = remote.myGoSignature else {
+                    throw SignatureVerifier.VerifyError.myGoSignatureMissing
+                }
+                signed = (myGo.signature, myGo.publicKey)
+            }
+            onStage(.verifyingSignature)
+            let file = download.archiveURL
+            let proof = try await offCooperativePool {
+                try SignatureVerifier.verifyMyGoSignature(
+                    fileData: try Data(contentsOf: file, options: .mappedIfSafe),
+                    signatureBase64: signed.signature, publicKeyBase64: signed.key)
+            }
+            trust = .myGoSignature(
                 proof, bundleID: result.app.bundleID ?? "",
                 version: remote.shortVersion ?? "")
         }

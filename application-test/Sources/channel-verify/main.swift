@@ -489,6 +489,9 @@ let chainApp = InstalledApp(
     // the last source in the stack — has no manifest to fetch, and an app it
     // alone covers (Ducoro) printed "no source answered".
     electronUpdate: ElectronUpdateConfig.read(fromBundleAt: appPath),
+    // The MyGo feed and key, read out of the binary as `AppScanner` reads them;
+    // without it `MyGoUpdateSource` has nothing to fetch.
+    myGoUpdate: MyGoUpdateConfig.read(bundleAt: appPath),
     sparkleFeedHeaders: bound?.feedHTTPHeaders ?? [:],
     sparkleChannelNames: bound?.sparkleChannelNames ?? [],
     sparkleEdPublicKey: (info["SUPublicEDKey"] as? String)?

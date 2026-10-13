@@ -63,6 +63,9 @@ struct SourceStorePolicyTests {
             "cross-distribution installs — the WhatsApp case above"),
         "ElectronManifestSource": (false,
             "an electron-builder feed is the vendor's own distribution, not the store's"),
+        "MyGoUpdateSource": (false,
+            "a MyGo feed linked into the binary is the vendor's own distribution: its archive "
+            + "would replace a store copy, receipt and sandbox entitlements included"),
     ]
 
     /// The full stack, with Alcove present — it is omitted unless credentials

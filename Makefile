@@ -55,6 +55,7 @@ test-scripts: check-python
 	$(PYTHON) scripts/test_homebrew_tap.py
 	$(PYTHON) scripts/test_site_floor.py
 	$(PYTHON) scripts/test_ci_route.py
+	$(PYTHON) scripts/test_ci_build_cache.py
 	$(PYTHON) scripts/test_check_prose_claims.py
 	$(PYTHON) scripts/test_check_offpool.py
 	$(PYTHON) scripts/test_check_recipe_snapshots.py

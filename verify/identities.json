@@ -26,6 +26,19 @@
       "signedIdentifier" : "com.BlueBubbles.BlueBubbles-Server",
       "teamIdentifier" : "WPV275H8W7"
     },
+    "github:Calcium-Ion\/AstrLink:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.astrlink.desktop",
+      "firstSeenAt" : "2026-10-13T13:02:05Z",
+      "firstSeenVersion" : "0.2.9",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/github.com\/Calcium-Ion\/AstrLink\/releases\/download\/v0.2.9\/AstrLink_0.2.9_aarch64.dmg",
+      "lastSeenVersion" : "0.2.9",
+      "signedIdentifier" : "com.astrlink.desktop",
+      "teamIdentifier" : "7XWQYGN832"
+    },
     "github:CherryHQ\/cherry-studio:stable" : {
       "architectures" : [
         "arm64"
@@ -412,6 +425,19 @@
       "signedIdentifier" : "com.bitwarden.desktop",
       "teamIdentifier" : "LTZ2PFU5D6"
     },
+    "github:chekusu\/yomado:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "dev.chekusu.yomado",
+      "firstSeenAt" : "2026-10-13T13:02:05Z",
+      "firstSeenVersion" : "0.3.3",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/github.com\/chekusu\/yomado\/releases\/download\/v0.3.3\/Yomado-v0.3.3.zip",
+      "lastSeenVersion" : "0.3.3",
+      "signedIdentifier" : "dev.chekusu.yomado",
+      "teamIdentifier" : "FKSR2JD63B"
+    },
     "github:cjpais\/Handy:stable" : {
       "architectures" : [
         "arm64"
@@ -543,9 +569,9 @@
       "bundleIdentifier" : "uk.whatcable.whatcable",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.5.0-beta.8",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURL" : "https:\/\/github.com\/darrylmorley\/whatcable\/releases\/download\/v1.5.0-beta.10\/WhatCable.zip",
-      "lastSeenVersion" : "1.5.0-beta.10",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/github.com\/darrylmorley\/whatcable\/releases\/download\/v1.5.0\/WhatCable.zip",
+      "lastSeenVersion" : "1.5.0",
       "signedIdentifier" : "uk.whatcable.whatcable",
       "teamIdentifier" : "M4RUJ7W6MP"
     },
@@ -557,9 +583,9 @@
       "bundleIdentifier" : "uk.whatcable.whatcable",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.4.0",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURL" : "https:\/\/github.com\/darrylmorley\/whatcable\/releases\/download\/v1.4.0\/WhatCable.zip",
-      "lastSeenVersion" : "1.4.0",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/github.com\/darrylmorley\/whatcable\/releases\/download\/v1.5.0\/WhatCable.zip",
+      "lastSeenVersion" : "1.5.0",
       "signedIdentifier" : "uk.whatcable.whatcable",
       "teamIdentifier" : "M4RUJ7W6MP"
     },
@@ -583,9 +609,9 @@
       "bundleIdentifier" : "com.github.GitHubClient",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "3.6.7-beta3",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURL" : "https:\/\/github.com\/desktop\/desktop\/releases\/download\/release-3.6.7-beta3\/GitHub.Desktop-arm64.zip",
-      "lastSeenVersion" : "3.6.7-beta3",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/github.com\/desktop\/desktop\/releases\/download\/release-3.6.8-beta1\/GitHub.Desktop-arm64.zip",
+      "lastSeenVersion" : "3.6.8-beta1",
       "signedIdentifier" : "com.github.GitHubClient",
       "teamIdentifier" : "VEKTX9H2N7"
     },
@@ -628,19 +654,6 @@
       "lastSeenVersion" : "1.11.1",
       "signedIdentifier" : "com.dwarvesv.minimalbar",
       "teamIdentifier" : "W777S7V8TN"
-    },
-    "github:egoist\/pulse-feedback:stable" : {
-      "architectures" : [
-        "arm64"
-      ],
-      "bundleIdentifier" : "com.egoist.pulse",
-      "firstSeenAt" : "2026-10-10T11:47:55Z",
-      "firstSeenVersion" : "0.1.5",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURL" : "https:\/\/github.com\/egoist\/pulse-feedback\/releases\/download\/v0.1.12\/Pulse.0.1.12.arm64.dmg",
-      "lastSeenVersion" : "0.1.12",
-      "signedIdentifier" : "com.egoist.pulse",
-      "teamIdentifier" : "GJE9R5VE87"
     },
     "github:espanso\/espanso:stable" : {
       "architectures" : [
@@ -1124,6 +1137,19 @@
       "signedIdentifier" : "dev.openchamber.desktop",
       "teamIdentifier" : "5J7WJGPA2Q"
     },
+    "github:opengeos\/RustGIS:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "org.rustgis.RustGIS",
+      "firstSeenAt" : "2026-10-13T13:02:05Z",
+      "firstSeenVersion" : "0.2.0",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/github.com\/opengeos\/RustGIS\/releases\/download\/v0.2.0\/RustGIS-0.2.0-macos-aarch64.dmg",
+      "lastSeenVersion" : "0.2.0",
+      "signedIdentifier" : "org.rustgis.RustGIS",
+      "teamIdentifier" : "Z6ABKZWLA7"
+    },
     "github:penso\/herdr-gpui:stable" : {
       "architectures" : [
         "arm64",
@@ -1132,9 +1158,9 @@
       "bundleIdentifier" : "so.pen.herdr-gpui",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "20261008.1",
-      "lastSeenAt" : "2026-10-12T13:37:29Z",
-      "lastSeenURL" : "https:\/\/github.com\/penso\/herdr-gpui\/releases\/download\/v20261012.1\/Herdr-20261012.1-universal-apple-darwin.dmg",
-      "lastSeenVersion" : "20261012.1",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/github.com\/penso\/herdr-gpui\/releases\/download\/v20261013.1\/Herdr-20261013.1-universal-apple-darwin.dmg",
+      "lastSeenVersion" : "20261013.1",
       "signedIdentifier" : "so.pen.herdr-gpui",
       "teamIdentifier" : "VJAHQVZ96V"
     },
@@ -1158,9 +1184,9 @@
       "bundleIdentifier" : "com.t3tools.t3code",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.0.46-nightly.20261008.2849",
-      "lastSeenAt" : "2026-10-13T03:57:04Z",
-      "lastSeenURL" : "https:\/\/github.com\/pingdotgg\/t3code\/releases\/download\/v0.0.46-nightly.20261013.3042\/T3-Code-0.0.46-nightly.20261013.3042-arm64.dmg",
-      "lastSeenVersion" : "0.0.46-nightly.20261013.3042",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/github.com\/pingdotgg\/t3code\/releases\/download\/v0.0.46-nightly.20261013.3053\/T3-Code-0.0.46-nightly.20261013.3053-arm64.dmg",
+      "lastSeenVersion" : "0.0.46-nightly.20261013.3053",
       "signedIdentifier" : "com.t3tools.t3code",
       "teamIdentifier" : "ARK85ZXQ4Z"
     },
@@ -1579,9 +1605,9 @@
       "bundleIdentifier" : "com.yetone.magpie",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.1133",
-      "lastSeenAt" : "2026-10-13T03:57:04Z",
-      "lastSeenURL" : "https:\/\/github.com\/yetone\/magpie-releases\/releases\/download\/v0.1.1221\/magpie-darwin-arm64.zip",
-      "lastSeenVersion" : "0.1.1221",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/github.com\/yetone\/magpie-releases\/releases\/download\/v0.1.1226\/magpie-darwin-arm64.zip",
+      "lastSeenVersion" : "0.1.1226",
       "signedIdentifier" : "com.yetone.magpie",
       "teamIdentifier" : "LY7MVTUDZG"
     },
@@ -2046,9 +2072,9 @@
       "bundleIdentifier" : "com.google.Chrome.canary",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "157.0.8093.0",
-      "lastSeenAt" : "2026-10-12T23:51:09Z",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
       "lastSeenURL" : "https:\/\/dl.google.com\/chrome\/mac\/universal\/canary\/googlechromecanary.dmg",
-      "lastSeenVersion" : "157.0.8101.0",
+      "lastSeenVersion" : "157.0.8103.0",
       "signedIdentifier" : "com.google.Chrome.canary",
       "teamIdentifier" : "EQHXZ8M8AV"
     },
@@ -2390,8 +2416,8 @@
       "bundleIdentifier" : "com.microsoft.VSCodeInsiders",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.142.0-insider",
-      "lastSeenAt" : "2026-10-12T23:51:09Z",
-      "lastSeenURL" : "https:\/\/vscode.download.prss.microsoft.com\/dbazure\/download\/insider\/363a43fb9eb3551f66ff60d5d12d14d9daa02300\/VSCode-darwin-arm64.zip",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/vscode.download.prss.microsoft.com\/dbazure\/download\/insider\/e9eaf94e8bb01badde47d2518e16d3e1cdab1dd9\/VSCode-darwin-arm64.zip",
       "lastSeenVersion" : "1.142.0-insider",
       "signedIdentifier" : "com.microsoft.VSCodeInsiders",
       "teamIdentifier" : "UBF8T346G9"
@@ -2480,9 +2506,9 @@
       "bundleIdentifier" : "com.mongodb.compass",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.52.0",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURL" : "https:\/\/downloads.mongodb.com\/compass\/mongodb-compass-1.52.0-darwin-arm64.dmg",
-      "lastSeenVersion" : "1.52.0",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/downloads.mongodb.com\/compass\/mongodb-compass-1.53.0-darwin-arm64.dmg",
+      "lastSeenVersion" : "1.53.0",
       "signedIdentifier" : "com.mongodb.compass",
       "teamIdentifier" : "4XWMY46275"
     },
@@ -2492,8 +2518,8 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.42.0",
-      "lastSeenAt" : "2026-10-13T03:57:04Z",
-      "lastSeenURL" : "https:\/\/a56.gdl.netease.com\/uuyc_4.42.0.pkg?key1=df055d3723c5b4b357bf06c72a89b6d3&key2=6ace5468",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/a56.gdl.netease.com\/uuyc_4.42.0.pkg?key1=ca86ecfaa31e50db090cd62ccc48fe03&key2=6aced3df",
       "lastSeenVersion" : "4.42.0",
       "packageTeamIdentifier" : "PU9BNSBJW7"
     },
@@ -2532,9 +2558,9 @@
       "bundleIdentifier" : "com.postmanlabs.mac",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "12.31.6",
-      "lastSeenAt" : "2026-10-12T13:37:29Z",
-      "lastSeenURL" : "https:\/\/dl.pstmn.io\/download\/version\/12.32.0\/osx_arm64",
-      "lastSeenVersion" : "12.32.0",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/dl.pstmn.io\/download\/version\/12.32.1\/osx_arm64",
+      "lastSeenVersion" : "12.32.1",
       "signedIdentifier" : "com.postmanlabs.mac",
       "teamIdentifier" : "H7H8Q7M5CK"
     },
@@ -2586,8 +2612,8 @@
       "bundleIdentifier" : "com.raycast.macos",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.104.31",
-      "lastSeenAt" : "2026-10-13T03:57:04Z",
-      "lastSeenURL" : "https:\/\/worker.raycast-releases.com\/?url=https%3A%2F%2Fraycast-releases.9a8adc978cc22e82f2df4dd5f45c4ef2.r2.cloudflarestorage.com%2FRaycast_v1.104.31_573af210bd29804bc886c7bbbc28ec65772198da_universal.dmg%3Fresponse-content-disposition%3Dattachment%253B%2520filename%253D%2522Raycast.dmg%2522%26X-Amz-Algorithm%3DAWS4-HMAC-SHA256%26X-Amz-Credential%3Db3c053179dd07241f8271dbe9002b57e%252F20261013%252Fauto%252Fs3%252Faws4_request%26X-Amz-Date%3D20261013T035620Z%26X-Amz-Expires%3D3600%26X-Amz-SignedHeaders%3Dhost%26X-Amz-Signature%3Dba6e7091b6f186b0438672e26299b98bb8dd09ea9bef634bf217c3bd23de0a8d",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/worker.raycast-releases.com\/?url=https%3A%2F%2Fraycast-releases.9a8adc978cc22e82f2df4dd5f45c4ef2.r2.cloudflarestorage.com%2FRaycast_v1.104.31_573af210bd29804bc886c7bbbc28ec65772198da_universal.dmg%3Fresponse-content-disposition%3Dattachment%253B%2520filename%253D%2522Raycast.dmg%2522%26X-Amz-Algorithm%3DAWS4-HMAC-SHA256%26X-Amz-Credential%3Db3c053179dd07241f8271dbe9002b57e%252F20261013%252Fauto%252Fs3%252Faws4_request%26X-Amz-Date%3D20261013T130045Z%26X-Amz-Expires%3D3600%26X-Amz-SignedHeaders%3Dhost%26X-Amz-Signature%3Da7d73d58a825161aca4f8084d46e19f65d50eb3a6fed9a2255b3420b30eff1a1",
       "lastSeenVersion" : "1.104.31",
       "signedIdentifier" : "com.raycast.macos",
       "teamIdentifier" : "SY64MV22J9"
@@ -2736,9 +2762,9 @@
       "bundleIdentifier" : "com.tencent.QQMusicMac",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "11.10.0",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURL" : "https:\/\/c.y.qq.com\/cgi-bin\/file_redirect.fcg?bid=dldir&file=ecosfile%2Fmusic_clntupate%2Fmac%2Fother%2FQQMusicMac11.10.0Build01.dmg&sign=1-12c3f22ff33538c2a0946aef6959854685ff6af1b9b938c4dcfb005181b2f1d6-6ab380bb",
-      "lastSeenVersion" : "11.10.0",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/c.y.qq.com\/cgi-bin\/file_redirect.fcg?bid=dldir&file=ecosfile%2Fmusic_clntupate%2Fmac%2Fother%2FQQMusicMac11.10.5Build00.dmg&sign=1-1f755e1bbd3d5b44b81b293d872b6602ee0dffbe84a6ea22f4cca93c1607c06a-6acdb9ca",
+      "lastSeenVersion" : "11.10.5",
       "signedIdentifier" : "com.tencent.QQMusicMac",
       "teamIdentifier" : "FN2V63AD2J"
     },
@@ -3013,9 +3039,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop.canary",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b292",
-      "lastSeenAt" : "2026-10-13T03:57:04Z",
-      "lastSeenURL" : "https:\/\/static.heygen.ai\/hyperframes-oss\/desktop\/canary\/HyperFrames-b322-b718b1057.zip",
-      "lastSeenVersion" : "b322",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/static.heygen.ai\/hyperframes-oss\/desktop\/canary\/HyperFrames-b328-190bef921.zip",
+      "lastSeenVersion" : "b328",
       "signedIdentifier" : "dev.hyperframes.desktop.canary",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -3027,9 +3053,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b290",
-      "lastSeenAt" : "2026-10-13T03:57:04Z",
-      "lastSeenURL" : "https:\/\/static.heygen.ai\/hyperframes-oss\/desktop\/HyperFrames-b322-b718b1057.zip",
-      "lastSeenVersion" : "b322",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/static.heygen.ai\/hyperframes-oss\/desktop\/HyperFrames-b327-01fa1dd25.zip",
+      "lastSeenVersion" : "b327",
       "signedIdentifier" : "dev.hyperframes.desktop",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -3138,9 +3164,9 @@
       "bundleIdentifier" : "im.riot.nightly",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2026100801",
-      "lastSeenAt" : "2026-10-12T13:37:29Z",
-      "lastSeenURL" : "https:\/\/packages.element.io\/nightly\/update\/macos\/Element%20Nightly-2026101201-universal-mac.zip",
-      "lastSeenVersion" : "2026101201",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/packages.element.io\/nightly\/update\/macos\/Element%20Nightly-2026101301-universal-mac.zip",
+      "lastSeenVersion" : "2026101301",
       "signedIdentifier" : "im.riot.nightly",
       "teamIdentifier" : "7J4U792NQT"
     },
@@ -3296,8 +3322,8 @@
       "bundleIdentifier" : "net.whatsapp.WhatsApp",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "26.40.20",
-      "lastSeenAt" : "2026-10-13T03:57:04Z",
-      "lastSeenURL" : "https:\/\/scontent.xx.fbcdn.net\/v\/t39.16592-6\/10000000_1082924221275080_8499126373934913751_n.dmg\/WhatsApp-2.26.41.14.dmg?_nc_cat=110&ccb=1-7&_nc_sid=8f3826&_nc_ohc=20DN5PsudCkQ7kNvwGV3423&_nc_oc=Ado6L9FTlqvJng5nKczvjMcDjawHx6qu2rQxgsh0gySsbeZ549pbqPrVqauldV2f1rw&_nc_zt=14&_nc_ht=scontent.xx&_nc_gid=qalLFcgeTb0SZMa2smKsWg&_nc_ss=7b20f&oh=00_AQNt-hD3T7yNlCITDLl0u8ieKaLK1FP5R8JJ1HKP1Ez1eQ&oe=6AD38986",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/scontent.xx.fbcdn.net\/v\/t39.16592-6\/10000000_1082924221275080_8499126373934913751_n.dmg\/WhatsApp-2.26.41.14.dmg?_nc_cat=110&ccb=1-7&_nc_sid=8f3826&_nc_ohc=20DN5PsudCkQ7kNvwGV3423&_nc_oc=Ado6L9FTlqvJng5nKczvjMcDjawHx6qu2rQxgsh0gySsbeZ549pbqPrVqauldV2f1rw&_nc_zt=14&_nc_ht=scontent.xx&_nc_gid=6BMC6HOPxrEpZm2BYesGmg&_nc_ss=7b20f&oh=00_AQPPR3IBfq1K4vjprelFbda-3p9yvQE4KSORO3U32ovCbw&oe=6AD3FA06",
       "lastSeenVersion" : "26.41.14",
       "signedIdentifier" : "net.whatsapp.WhatsApp",
       "sparklePublicKey" : "2jE1ZmLwrfk0yprKc8DTdt5YlKRGI7lGmnf3EJqBA5A=",
@@ -3324,9 +3350,9 @@
       "bundleIdentifier" : "now.typeless.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2.8.1",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURL" : "https:\/\/typeless-static.com\/desktop-release\/Typeless-2.8.1-arm64.dmg",
-      "lastSeenVersion" : "2.8.1",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/typeless-static.com\/desktop-release\/Typeless-2.8.2-arm64.dmg",
+      "lastSeenVersion" : "2.8.2",
       "signedIdentifier" : "now.typeless.desktop",
       "teamIdentifier" : "947QKAND4W"
     },
@@ -3470,9 +3496,9 @@
       "bundleIdentifier" : "org.mozilla.firefox",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "158.0b5",
-      "lastSeenAt" : "2026-10-13T03:57:04Z",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
       "lastSeenURL" : "https:\/\/download-installer.cdn.mozilla.net\/pub\/firefox\/releases\/159.0b1\/mac\/en-US\/Firefox%20159.0b1.dmg",
-      "lastSeenVersion" : "159.0b1",
+      "lastSeenVersion" : "158.0b5",
       "signedIdentifier" : "org.mozilla.firefox",
       "teamIdentifier" : "43AQ936H96"
     },
@@ -3484,8 +3510,8 @@
       "bundleIdentifier" : "org.mozilla.firefox",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "140.17.0esr",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURL" : "https:\/\/download-installer.cdn.mozilla.net\/pub\/firefox\/releases\/140.17.0esr\/mac\/en-US\/Firefox%20140.17.0esr.dmg",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/download-installer.cdn.mozilla.net\/pub\/firefox\/releases\/153.5.0esr\/mac\/en-US\/Firefox%20153.5.0esr.dmg",
       "lastSeenVersion" : "140.17.0esr",
       "signedIdentifier" : "org.mozilla.firefox",
       "teamIdentifier" : "43AQ936H96"
@@ -3498,9 +3524,9 @@
       "bundleIdentifier" : "org.mozilla.firefox",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "157.0.1",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURL" : "https:\/\/download-installer.cdn.mozilla.net\/pub\/firefox\/releases\/157.0.1\/mac\/en-US\/Firefox%20157.0.1.dmg",
-      "lastSeenVersion" : "157.0.1",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/download-installer.cdn.mozilla.net\/pub\/firefox\/releases\/158.0\/mac\/en-US\/Firefox%20158.0.dmg",
+      "lastSeenVersion" : "158.0",
       "signedIdentifier" : "org.mozilla.firefox",
       "teamIdentifier" : "43AQ936H96"
     },
@@ -3609,9 +3635,9 @@
       "bundleIdentifier" : "org.torproject.torbrowser",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "15.0.24",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURL" : "https:\/\/dist.torproject.org\/torbrowser\/15.0.24\/tor-browser-macos-15.0.24.dmg",
-      "lastSeenVersion" : "15.0.24",
+      "lastSeenAt" : "2026-10-13T13:02:05Z",
+      "lastSeenURL" : "https:\/\/dist.torproject.org\/torbrowser\/15.0.25\/tor-browser-macos-15.0.25.dmg",
+      "lastSeenVersion" : "15.0.25",
       "signedIdentifier" : "org.torproject.torbrowser",
       "teamIdentifier" : "MADPSAYN6T"
     },

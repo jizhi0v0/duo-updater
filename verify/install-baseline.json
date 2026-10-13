@@ -12,6 +12,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:Calcium-Ion\/AstrLink:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:CherryHQ\/cherry-studio:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -186,6 +192,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:chekusu\/yomado:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:cjpais\/Handy:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -277,12 +289,6 @@
       "sweepsSinceComment" : 0
     },
     "install:github:dwarvesf\/hidden:stable" : {
-      "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
-      "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
-    },
-    "install:github:egoist\/pulse-feedback:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -499,6 +505,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:openchamber\/openchamber:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:opengeos\/RustGIS:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1439,10 +1451,11 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:im.riot.app:stable" : {
-      "consecutiveActionable" : 0,
+      "consecutiveActionable" : 1,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
+      "lastSignature" : "install.download",
+      "sweepsSinceComment" : 1
     },
     "install:vendor:im.riot.nightly:nightly" : {
       "consecutiveActionable" : 0,
@@ -1704,5 +1717,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-13T03:57:05Z"
+  "updatedAt" : "2026-10-13T13:02:09Z"
 }

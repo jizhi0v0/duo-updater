@@ -224,10 +224,46 @@ enum DiskImageMount {
     /// the image carries, an APFS image's synthesized container included
     /// (measured on 27.2 with either tool: disk17 and its container disk18 both
     /// gone after detaching disk17).
+    ///
+    /// **Not listed is only believed after `absentListings` listings in a row.**
+    /// While other images attach and detach, `hdiutil info -plist` now and then
+    /// exits 0, with nothing on stderr, leaving out images that are attached, and
+    /// the next listing has them again. On a 27.2 dev Mac, with an image held
+    /// attached while eight others attached and detached in a loop: 9 such
+    /// listings in 2,900, each with only the system's own images, and the 30
+    /// listings read straight after 6 of them all had the image. On the hosted
+    /// xcode-27 runner (27.0.1) a 7 KB listing among 11–21 KB ones left out an
+    /// image a test held attached, while ten other detaches finished; the six
+    /// listings over the next 5 s all had it (diag run 38376650037). Taken at its
+    /// word, that is `.none`, which `detach` reports as detached while the disk
+    /// stays attached.
     static func attachment(of image: URL) async -> Attachment {
-        guard let r = try? await run("/usr/bin/hdiutil", ["info", "-plist"], capturingOutput: true),
-              r.code == 0,
-              let plist = try? PropertyListSerialization.propertyList(from: r.out, format: nil)
+        await attachment(of: image) {
+            guard let r = try? await run("/usr/bin/hdiutil", ["info", "-plist"], capturingOutput: true),
+                  r.code == 0
+            else { return nil }
+            return r.out
+        }
+    }
+
+    /// How many `hdiutil info` listings in a row must leave an image out before
+    /// `attachment(of:)` reports it `.none`.
+    static let absentListings = 3
+
+    /// `attachment(of:)` over `listing`, which returns `hdiutil info -plist`'s
+    /// output, or nil when it could not be run — a test seam.
+    static func attachment(of image: URL, listing: () async -> Data?) async -> Attachment {
+        var found = Attachment.none
+        for _ in 0..<absentListings {
+            found = attachment(of: image, in: await listing())
+            guard found == .none else { break }
+        }
+        return found
+    }
+
+    private static func attachment(of image: URL, in listing: Data?) -> Attachment {
+        guard let listing,
+              let plist = try? PropertyListSerialization.propertyList(from: listing, format: nil)
                 as? [String: Any]
         else { return .unknown }
         let wanted = canonicalPath(image.path)

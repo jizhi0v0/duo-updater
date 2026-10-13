@@ -20,6 +20,35 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.5.7</title>
+            <pubDate>Tue, 13 Oct 2026 13:45:29 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.7</link>
+            <sparkle:version>125</sparkle:version>
+            <sparkle:shortVersionString>0.5.7</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**pnpm's and Yarn's global packages are now supported.** Packages installed with `pnpm add -g` or `yarn global add` appear in the CLI tab with update checks, release notes and one-click updates, which keep the version range you chose.
+
+**A package pinned to an exact version now shows as pinned instead of offering an update.** This covers bun's, pnpm's and Yarn's global packages, and the details give the command that lets it follow new releases again.
+
+**RustGIS is now supported.** It gets update checks and release notes.
+
+**One-click updates no longer stop bun from updating the packages it installed globally.** Before, the update replaced the package's version range in bun's list (such as `^5.46.0`) with the exact version, so `bun update -g` left the package alone afterwards. Running `bun add -g <name>` once puts a range back for a package that was already updated this way.
+
+**In a command-line tool's details, each version with breaking changes now leads to them.** Click it under Compatibility, or click the warning sign next to its release notes, and the notes scroll to the breaking part and highlight it.
+
+**Under the hood.** In rare cases a disk image stayed mounted after an update; it is now ejected.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.7/DuoUpdater-0.5.7-macos.zip" length="13614044" type="application/octet-stream" sparkle:edSignature="uIDU5yoYVPkB7rYkKJTb+ZtnT4q4utVISZotggUz4IiZ0ydEHbNfSCcntmV+HHQ54U3IClsCB/1l5oGQFayhDA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.7/DuoUpdater125-124.delta" sparkle:deltaFrom="124" length="1231498" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="sCivRf0meQplNO/zkW6UZQTqCq+ASSOPxrFQqXedSCBVGqE5hnZu3a+OmB075j5PIEwZXzgHvbMDvguz4zweDg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.7/DuoUpdater125-123.delta" sparkle:deltaFrom="123" length="1466842" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="IEImrjFAitqTA2odrzakmyThM8mWqSMf6gThasl3e2V141+LxDfTlELbZv/eBSzJ7vBcVWCRbLbTXi5GPZN8CA=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.7/DuoUpdater125-122.delta" sparkle:deltaFrom="122" length="1536894" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="F0/Cf5822r/UB09OV6KcF30I8EcA/9UXIK5h22101s82kqQ99v+Tv/hmkexZhmvCZ+ABNZJ561tb6cqLD/X1Bw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.7/DuoUpdater125-121.delta" sparkle:deltaFrom="121" length="2253546" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="LvAVU25SvlReLl5+xWxxtUWNplavJXGodgVflgbtvPi5tWAYDIV2xHVAZb9pFXgypGyA/WNFsVZpx+nK1L2pBw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.7/DuoUpdater125-120.delta" sparkle:deltaFrom="120" length="2441466" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="976432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="8i0u4NAG0xseaetBO+Yd/6fPd5mJl2z33FPzWsg08rbRZ6gCDSJBOH83q40Nhp4j+eusZ8bN5aCe9RhsakTFAw=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.5.6</title>
             <pubDate>Tue, 13 Oct 2026 00:50:09 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.6</link>
@@ -27,20 +56,6 @@
             <sparkle:shortVersionString>0.5.6</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Updates that come in a disk image with a license agreement now install with one click.** Before, the install stopped at the agreement. On macOS 27.2 and later, apps in large disk images also install faster.
-
-**More apps are supported.** Trim Enabler now gets update checks and one-click updates, and SwiftVM's beta builds now get beta updates. Plexo and Kitten Preview now get update checks and release notes. disktree gets update checks, plus one-click updates once "Allow one-click updates for apps without a developer signature" is on in Settings › General.
-
-**Backdrop updates with one click while its wallpaper is showing.** Before, the update was skipped whenever Backdrop's wallpaper was running, which is nearly always.
-
-**Settings › Storage shows where DuoUpdater keeps its files and how much space each takes.** You can clear the caches there, and `duo storage` shows the same list on the command line.
-
-**Updates for command-line tools now say when the release notes mark breaking changes.** A warning sign appears next to the update, and the details say which version brings them. Nothing is blocked.
-
-**Bundle Diff in Rollback is much faster on large apps** such as Microsoft Office and OneDrive.
-
-**Under the hood.** The description of silent self-updates in Settings › Updates now matches when they actually happen, and the same page links to DuoUpdater's source code.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.6/DuoUpdater-0.5.6-macos.zip" length="13486936" type="application/octet-stream" sparkle:edSignature="17iIO+kBRhVQJz6IaG7WQBYcyAZgxzbuLSJTWEkGgsBd2hPyM53QmX/YwCGqHQ4D9m8QYGAgZ3EjORDeLE8EAA=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.6/DuoUpdater124-123.delta" sparkle:deltaFrom="123" length="1111086" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Jz0AtLQ/V7k6FmmaoR0P2JctBtI3hUnLHw9zmpSSsP8httj/aySKLMBt9+zWVfk3NEr+esBulBciHHY/iUT2BA=="/>
@@ -99,23 +114,6 @@
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.3/DuoUpdater121-118.delta" sparkle:deltaFrom="118" length="2076090" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="976432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="XWQokqn9VeQtZXadZjDo1LN3NIgJz2+A5Lw16oNT/DUWlJmb6RoLyNTEvtoQ0zQNsDaDJML+UA0UrwiBJnO7Dw=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.3/DuoUpdater121-117.delta" sparkle:deltaFrom="117" length="3198946" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="7XDtl4ozBV6KqSkWlCeMzNg24/zBwGgDPgZCUocVG7zGPA0plbm3NkkcUwc7of1Hb1RPvfzEjFZT+FQMMGnvBg=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.3/DuoUpdater121-116.delta" sparkle:deltaFrom="116" length="4361386" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="FBf66XrIPCK2euVcd2SXh2OK5Kyey6DouJBXQc5CydId+H/Za7Y1Z0Q9/GHq6dXRBRvoA9ZJq7eiEEK1iJg0Cw=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>0.5.2</title>
-            <pubDate>Fri, 09 Oct 2026 01:06:07 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.2</link>
-            <sparkle:version>120</sparkle:version>
-            <sparkle:shortVersionString>0.5.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.2/DuoUpdater-0.5.2-macos.zip" length="19282887" type="application/octet-stream" sparkle:edSignature="4EwXbxP6UQL516uOQdKMczBE3GURN/pVP9KE28mBHcEUH1MkNHZzBKkM06bIQJMYTqqOTxTrQxg5xY9hD50/Cg=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.2/DuoUpdater120-119.delta" sparkle:deltaFrom="119" length="2593902" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="976432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="wKduEBVroj2MM7G49COAJTX8yuHKmvG+Kn5vAmRdS/HpfuJxJM1kcm1KXBG2lGAjlx4oFjaKIFaJl07SNK8ECg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.2/DuoUpdater120-118.delta" sparkle:deltaFrom="118" length="2690650" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="976432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="/fhsi58j2MI8fWjRL2AByZZ7+tBiCnqE8+Ag+rxKjcAEPDzFaT/pVITsq5wmxG7Jihm7qUL+RBXSDshmGWarBQ=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.2/DuoUpdater120-117.delta" sparkle:deltaFrom="117" length="4478438" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="F7Zb9yrbQM5VWcub9aILLoX/Y/ElyVJvpRCcIe0r2co+DPRzj0DSbdvRf9Cc7QfwpHc1Svx5vU4q112jCUFzBQ=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.2/DuoUpdater120-116.delta" sparkle:deltaFrom="116" length="5633934" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Qn+xUnFSdc8u87PhnRa8EwutOy6BmYFZq1esuY54orA/6QM7yA68JS8a87XF47gB7Un2YsUsNK0WdHJrYz1jCg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.2/DuoUpdater120-115.delta" sparkle:deltaFrom="115" length="5767758" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="98kvQrSB0Yl90GNY5vtKy2pzzepI/LxDm5/NCXKW6E7ZvRkbSdrSomgu/WI8gMdgeMV2V2eXflJq0lKYmBTpAw=="/>
             </sparkle:deltas>
         </item>
         <item>

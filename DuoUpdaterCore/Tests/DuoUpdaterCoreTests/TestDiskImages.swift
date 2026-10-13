@@ -31,13 +31,53 @@ enum TestDiskImages {
     }
 
     static func attachments() async -> [Attachment] {
+        attachments(in: await listing())
+    }
+
+    /// How many `hdiutil info` listings in a row must leave an image out before
+    /// `isAttached` and `detach` take it as not attached.
+    ///
+    /// While other images attach and detach, `hdiutil info -plist` now and then
+    /// exits 0, with nothing on stderr, leaving out images that are attached, and
+    /// the next listing has them again: 9 listings in 2,900 on a 27.2 dev Mac,
+    /// each with only the system's own images, and a 7 KB listing among 11–21 KB
+    /// ones on the hosted xcode-27 runner (27.0.1, diag run 38376650037). Taken at
+    /// its word, `detach` reports a still-attached image gone and it leaks into
+    /// later runs. The same rule as `DiskImageMount.attachment(of:)`.
+    static let absentListings = 3
+
+    /// What `hdiutil info` lists for `image`; empty only after `absentListings`
+    /// listings in a row left it out.
+    static func attachments(of image: URL) async -> [Attachment] {
+        await attachments(of: image) { await listing() }
+    }
+
+    /// `attachments(of:)` over `listing`, which returns `hdiutil info -plist`'s
+    /// output, or nil when it could not be run — a test seam.
+    static func attachments(of image: URL, listing: () async -> Data?) async -> [Attachment] {
+        let path = canonical(image.path)
+        var found: [Attachment] = []
+        for _ in 0..<absentListings {
+            found = attachments(in: await listing()).filter { canonical($0.imagePath) == path }
+            guard found.isEmpty else { break }
+        }
+        return found
+    }
+
+    private static func listing() async -> Data? {
         guard let outcome = try? await ChildProcess.run(
             "/usr/bin/hdiutil", ["info", "-plist"], standardError: .discard,
             onCancel: .runToCompletion),
-            outcome.terminationStatus == 0,
-            let plist = try? PropertyListSerialization.propertyList(
-                from: outcome.standardOutput, format: nil) as? [String: Any],
-            let images = plist["images"] as? [[String: Any]]
+            outcome.terminationStatus == 0
+        else { return nil }
+        return outcome.standardOutput
+    }
+
+    private static func attachments(in listing: Data?) -> [Attachment] {
+        guard let listing,
+              let plist = try? PropertyListSerialization.propertyList(
+                from: listing, format: nil) as? [String: Any],
+              let images = plist["images"] as? [[String: Any]]
         else { return [] }
         return images.compactMap { image in
             guard let path = image["image-path"] as? String else { return nil }
@@ -50,8 +90,7 @@ enum TestDiskImages {
     }
 
     static func isAttached(_ image: URL) async -> Bool {
-        let path = canonical(image.path)
-        return await attachments().contains { canonical($0.imagePath) == path }
+        await !attachments(of: image).isEmpty
     }
 
     /// Detach `image` by its device node if it is still attached. True when it is
@@ -71,13 +110,11 @@ enum TestDiskImages {
     /// 7.1–18.6 s after the first try.
     @discardableResult
     static func detach(_ image: URL) async -> Bool {
-        let path = canonical(image.path)
         let deadline = ContinuousClock.now + .seconds(60)
         while true {
-            let devices = await attachments()
-                .filter { canonical($0.imagePath) == path }
-                .compactMap(\.device)
-            if devices.isEmpty { return await !isAttached(image) }
+            let attached = await attachments(of: image)
+            let devices = attached.compactMap(\.device)
+            if devices.isEmpty { return attached.isEmpty }
             for device in devices {
                 if await hdiutil(["detach", device]) != 0 {
                     await hdiutil(["detach", device, "-force"])

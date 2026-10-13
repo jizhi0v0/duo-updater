@@ -1200,7 +1200,7 @@ public actor PackageInstaller {
             throw PackageError.noInstallablePackage
         }
         // Detached on every path out.
-        defer { await DiskImageMount.detach(mountPoint) }
+        defer { await DiskImageMount.detach(mountPoint, image: file) }
         return try await copyPackage(
             outOf: mountPoint, into: workDir, installedApp: installedApp)
     }

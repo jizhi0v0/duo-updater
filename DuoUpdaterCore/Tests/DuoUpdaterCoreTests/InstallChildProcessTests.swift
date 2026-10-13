@@ -161,7 +161,7 @@ import Testing
     /// cancelled (SE-0493) — so this is also what pins the detach to
     /// `.runToCompletion` there.
     ///
-    /// Mutation: drop the `defer { await DiskImageMount.detach(mountPoint) }` in
+    /// Mutation: drop the `defer { await DiskImageMount.detach(mountPoint, image: …) }` in
     /// `fromDMG` → both mount points are still mounted when the call returns or
     /// throws.
     @Test(arguments: InstallChildProcessTests.mountTools)
@@ -209,7 +209,7 @@ import Testing
 
     /// The package route's DMG, same two exits: a `.pkg` copied out, and none.
     ///
-    /// Mutation: drop the `defer { await DiskImageMount.detach(mountPoint) }`
+    /// Mutation: drop the `defer { await DiskImageMount.detach(mountPoint, image: …) }`
     /// in `resolveInstaller` → both mount points are still mounted.
     @Test(arguments: InstallChildProcessTests.mountTools)
     func aCancelledPackageImageUnmountsOnBothExits(tool: DiskImageMount.Tool) async throws {

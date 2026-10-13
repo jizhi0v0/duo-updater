@@ -89,23 +89,94 @@ enum DiskImageMount {
         return first
     }
 
-    /// Detach whatever is mounted at `mountPoint`, forcibly. Returns whether it
-    /// came off.
+    /// Detach `image`, mounted at `mountPoint`, forcibly. Returns whether it came
+    /// off.
     ///
     /// Retried once after a short pause: a `ditto` that just finished copying
     /// can leave the volume momentarily busy, and a single forced detach then
     /// fails, leaking the mount and blocking workDir cleanup. The retry uses the
     /// other tool, which can detach an image either one attached.
     ///
-    /// The pause is taken in a detached task so a cancelled caller cannot cut it
-    /// short — `Task.sleep` in this task would return at once and turn the retry
-    /// into a second attempt on a volume that is still busy.
+    /// **When both fail, by the image's own disk.** A detach can unmount the
+    /// volume and then fail on the disk, "Resource busy". The mount point is a
+    /// plain directory from then on, so the second try by path fails "Failed to
+    /// find disk" — and the image stayed attached, with nothing reported. Measured
+    /// 2026-10-12 on the hosted xcode-27 runner (macOS 27.0.1), replaying this
+    /// extraction on vendor images: once in 2640, with six at once; still attached
+    /// 20 s later, gone at the first detach by device (runs 38272974218 and
+    /// 38275499974). Not seen in 840 on a macOS 27.2 dev Mac. So the image is
+    /// looked up in `hdiutil info` by its path and detached by device every
+    /// second, for up to `deviceRetryBound`: on that runner a test image's disk
+    /// stayed busy 8–19 s (#1244). The caller waits for it rather than leaving it
+    /// to a background task, which `duo` could exit before.
+    ///
+    /// The pauses are taken in a detached task so a cancelled caller cannot cut
+    /// them short — `Task.sleep` in this task would return at once and turn the
+    /// retry into a second attempt on a volume that is still busy.
     @discardableResult
-    static func detach(_ mountPoint: URL) async -> Bool {
+    static func detach(_ mountPoint: URL, image: URL) async -> Bool {
+        await detach(mountPoint, image: image, steps: .live)
+    }
+
+    /// How long `detach` keeps trying by device once both tries by path failed.
+    static let deviceRetryBound: Duration = .seconds(30)
+
+    /// Where `hdiutil info` has an image: not attached, attached as a disk, or
+    /// unknown — the table could not be read, or the entry has no whole disk.
+    enum Attachment: Equatable {
+        case none
+        case disk(String)
+        case unknown
+    }
+
+    /// What `detach` runs, so a test can replay a disk that stays busy without
+    /// waiting on a real one. Production uses `live`.
+    struct DetachSteps: Sendable {
+        var byMountPoint: @Sendable (URL, Tool) async -> Bool
+        var attachment: @Sendable (URL) async -> Attachment
+        var byDevice: @Sendable (String, Tool) async -> Bool
+        var pause: @Sendable (Duration) async -> Void
+        var now: @Sendable () -> ContinuousClock.Instant
+
+        static let live = DetachSteps(
+            byMountPoint: { await DiskImageMount.detach($0, using: $1) },
+            attachment: { await DiskImageMount.attachment(of: $0) },
+            byDevice: { await DiskImageMount.detachDevice($0, using: $1) },
+            pause: { duration in await Task.detached { try? await Task.sleep(for: duration) }.value },
+            now: { ContinuousClock.now })
+    }
+
+    static func detach(_ mountPoint: URL, image: URL, steps: DetachSteps) async -> Bool {
         let tools: [Tool] = preferredTool == .diskutil ? [.diskutil, .hdiutil] : [.hdiutil, .diskutil]
-        if await detach(mountPoint, using: tools[0]) { return true }
-        await Task.detached { try? await Task.sleep(for: .milliseconds(500)) }.value
-        return await detach(mountPoint, using: tools[1])
+        if await steps.byMountPoint(mountPoint, tools[0]) { return true }
+        await steps.pause(.milliseconds(500))
+        if await steps.byMountPoint(mountPoint, tools[1]) { return true }
+
+        let deadline = steps.now() + deviceRetryBound
+        var tries = 0
+        while true {
+            switch await steps.attachment(image) {
+            case .none:
+                return true
+            case .unknown:
+                Log.install.error(
+                    "dmg: could not detach \(mountPoint.path, privacy: .public), and could not tell whether the image is still attached")
+                return false
+            case .disk(let device):
+                tries += 1
+                if await steps.byDevice(device, tools[0]) {
+                    Log.install.notice(
+                        "dmg: \(device, privacy: .public) stayed attached after its volume was unmounted; detached by device, try \(tries)")
+                    return true
+                }
+                guard steps.now() < deadline else {
+                    Log.install.error(
+                        "dmg: \(device, privacy: .public) still attached after \(tries) tries by device; left attached")
+                    return false
+                }
+            }
+            await steps.pause(.seconds(1))
+        }
     }
 
     // MARK: - One tool
@@ -137,6 +208,48 @@ enum DiskImageMount {
         return r?.code == 0
     }
 
+    /// Both take a disk whose volume is already unmounted, whichever tool attached
+    /// it (measured on 27.2: each tool on its own attach, `diskutil` on an
+    /// `hdiutil` attach, `hdiutil` on a `diskutil` one).
+    private static func detachDevice(_ device: String, using tool: Tool) async -> Bool {
+        let r = switch tool {
+        case .diskutil: try? await run("/usr/sbin/diskutil", ["eject", "force", device])
+        case .hdiutil: try? await run("/usr/bin/hdiutil", ["detach", device, "-force"])
+        }
+        return r?.code == 0
+    }
+
+    /// `image`'s entry in `hdiutil info`, which lists what either tool attached.
+    /// The device is the image's first whole disk: detaching it takes every disk
+    /// the image carries, an APFS image's synthesized container included
+    /// (measured on 27.2 with either tool: disk17 and its container disk18 both
+    /// gone after detaching disk17).
+    static func attachment(of image: URL) async -> Attachment {
+        guard let r = try? await run("/usr/bin/hdiutil", ["info", "-plist"], capturingOutput: true),
+              r.code == 0,
+              let plist = try? PropertyListSerialization.propertyList(from: r.out, format: nil)
+                as? [String: Any]
+        else { return .unknown }
+        let wanted = canonicalPath(image.path)
+        let images = plist["images"] as? [[String: Any]] ?? []
+        guard let entry = images.first(where: {
+            ($0["image-path"] as? String).map(canonicalPath) == wanted
+        }) else { return .none }
+        let entities = entry["system-entities"] as? [[String: Any]] ?? []
+        let device = entities.lazy
+            .compactMap { $0["dev-entry"] as? String }
+            .first { $0.range(of: #"^/dev/disk\d+$"#, options: .regularExpression) != nil }
+        return device.map(Attachment.disk) ?? .unknown
+    }
+
+    /// `hdiutil info` reports the path as it was passed to the attach, `/var/…`
+    /// or `/private/var/…` for the same `$TMPDIR` file (measured on 27.2, either
+    /// tool). Standardizing drops the `/private` while the file exists, which it
+    /// does until the caller's `defer` has run.
+    private static func canonicalPath(_ path: String) -> String {
+        URL(fileURLWithPath: path).standardizedFileURL.path
+    }
+
     /// What an attach reads from stdin: accept a license agreement, if the image
     /// has one. Short enough for `ChildProcess` to hand over before the spawn, so
     /// a tool that exits without reading it cannot SIGPIPE this process.
@@ -150,12 +263,15 @@ enum DiskImageMount {
     /// `.runToCompletion`: these run inside a caller's `defer` on cancellation,
     /// and a killed detach is exactly the leaked mount this type must not have.
     private static func run(
-        _ launchPath: String, _ args: [String], standardInput: Data? = nil
-    ) async throws -> (code: Int32, err: String) {
+        _ launchPath: String, _ args: [String], standardInput: Data? = nil,
+        capturingOutput: Bool = false
+    ) async throws -> (code: Int32, err: String, out: Data) {
         let outcome = try await ChildProcess.run(
-            launchPath, args, standardInput: standardInput, standardOutput: .discard,
+            launchPath, args, standardInput: standardInput,
+            standardOutput: capturingOutput ? .capture : .discard,
             deadline: .init(terminateAfter: .seconds(300), killAfter: .seconds(305)),
             onCancel: .runToCompletion)
-        return (outcome.terminationStatus, String(data: outcome.standardError, encoding: .utf8) ?? "")
+        return (outcome.terminationStatus, String(data: outcome.standardError, encoding: .utf8) ?? "",
+                outcome.standardOutput)
     }
 }

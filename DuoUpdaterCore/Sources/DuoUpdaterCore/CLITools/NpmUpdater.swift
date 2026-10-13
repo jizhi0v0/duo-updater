@@ -224,7 +224,8 @@ public struct NpmUpdater: Sendable {
     /// `specifier` from before; nil to leave bun's.
     ///
     /// - `^` and `~` move to the new version (`^6.0.0` → `^7.0.0`), as bun's own
-    ///   `update --latest` rewrites them.
+    ///   `update --latest` rewrites them (`^6.0.0` → `^7.0.0`, `~2.0.0` → `~3.0.1`;
+    ///   bun 1.4.3, measured 2026-10-13).
     /// - An exact version was the user's pin: the new exact one stays.
     /// - Any other range the new version satisfies (`*`, `>=1`, `1.x`) goes back
     ///   as written; one it does not satisfy would make bun's next install

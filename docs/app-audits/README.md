@@ -275,8 +275,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**disktree**](io-github-tobi-disktree.md) · `io.github.tobi.disktree` — G (**digest-only**，ad-hoc 签名，arm64/x86_64 分 arch zip) · 4 个真包核对封印/标识/版本/digest ✓ · 一键端到端 ✓（设置关闭→拒绝；打开→installed） · changelog 结构化 ✓（GitHub 自动生成的 PR 列表，无厂商小节） · 2026-10-12
 - [x] [**Plexo**](com-plexo-app.md) · `com.plexo.app` — G (one-click arm64/x64 dmg，`v1.0.0-rc.N` 保留后缀) · 真包 rc.14/rc.15 挂载验证 ✓ · 一键端到端：rc.14（未签名）→ 拒绝 ✓，**rc.15 → 下一签名版未跑**（只有一个签名版） · changelog 结构化 ✓ · 单轨（settled from source） · 2026-10-12
 - [x] [**RustGIS**](org-rustgis-RustGIS.md) · `org.rustgis.RustGIS` — G (one-click arm64/x86_64 dmg) · 真包 0.1.0 两个架构挂载验证 ✓ · **一键端到端未跑**（只有 v0.1.0 一个 release） · changelog 结构化 ✓ · 单轨（settled from source） · 2026-10-13
-- [x] [**AstrLink**](com-astrlink-desktop.md) · `com.astrlink.desktop` — G (one-click aarch64/x64 dmg) · 真包 0.2.4 x64 / 0.2.5 / 0.2.6 两个架构挂载验证 ✓ · **一键端到端未跑** · changelog 结构化 ⚠（`中文` / `English` 两节，每条出现两次） · **preview 轨未接**（app 内开关，尚无 pre-release） · 2026-10-13
-- [x] [**yomado**](dev-chekusu-yomado.md) · `dev.chekusu.yomado` — G (one-click arm64 zip，**每个 release 都标 prerelease**，`usePrereleases` 读列表) · 真包 0.3.1/0.3.2/0.3.3 验证 ✓（0.3.2 → 0.3.3、0.3.3 up to date） · **一键只对 0.3.3 起的副本**（0.3.1/0.3.2 ad-hoc 签名，Team 闸拒绝） · **一键端到端未跑** · changelog 结构化 ✓（厂商无小标题；0.3.1/0.3.2 正文无条目） · 单轨（settled from source） · 2026-10-13
+- [x] [**AstrLink**](com-astrlink-desktop.md) · `com.astrlink.desktop` — G (one-click aarch64/x64 dmg) · 真包 0.2.4 x64 / 0.2.5 / 0.2.6 两个架构挂载验证 ✓ · 一键端到端：0.2.5 → 0.2.7 ✓（不运行、运行中 + `duo restart` 两轮） · changelog 结构化 ⚠（`中文` / `English` 两节，每条出现两次） · **preview 轨未接**（app 内开关，尚无 pre-release） · 2026-10-13
+- [x] [**yomado**](dev-chekusu-yomado.md) · `dev.chekusu.yomado` — G (one-click arm64 zip，**每个 release 都标 prerelease**，`usePrereleases` 读列表) · 真包 0.3.1/0.3.2/0.3.3 验证 ✓（0.3.2 → 0.3.3、0.3.3 up to date） · **一键只对 0.3.3 起的副本**（0.3.1/0.3.2 ad-hoc 签名，Team 闸拒绝） · 一键端到端：0.3.2（ad-hoc）→ 拒绝 ✓，**0.3.3 → 下一签名版未跑**（只有一个签名版） · changelog 结构化 ✓（厂商无小标题；0.3.1/0.3.2 正文无条目） · 单轨（settled from source） · 2026-10-13
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

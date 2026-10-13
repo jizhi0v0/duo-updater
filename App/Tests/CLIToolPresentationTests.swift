@@ -97,6 +97,25 @@ struct CLIToolPresentationTests {
         #expect(CLIToolPresentation.rowWarning(unchecked) == "Not signed by Vercel")
     }
 
+    /// The Compatibility row's sentence reads as the wording does, and each
+    /// version in it — only the versions — is its own link back to that version,
+    /// even where one version's text sits inside another's.
+    ///
+    /// Mutation: link the whole list as one run; read the link's index off by one.
+    @Test func eachBreakingVersionIsItsOwnLink() throws {
+        let versions = ["2026.9.3", "2026.9.30", "2026.10.0"]
+        let sentence = CLIToolPresentation.breakingSentence(versions)
+        #expect(String(sentence.characters) == CLIToolWording.breaking(versions))
+        let links = sentence.runs.compactMap { run -> (String, URL)? in
+            guard let url = run.link else { return nil }
+            return (String(sentence[run.range].characters), url)
+        }
+        #expect(links.map(\.0) == versions)
+        #expect(links.map { CLIToolPresentation.breakingVersion(at: $0.1, in: versions) } == versions)
+        #expect(CLIToolPresentation.breakingVersion(at: try #require(URL(string: "https://example.com/0")),
+                                                    in: versions) == nil)
+    }
+
     /// The group header names a channel once however many copies are on it, and
     /// each when they differ.
     ///

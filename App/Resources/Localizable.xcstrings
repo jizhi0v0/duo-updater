@@ -68823,67 +68823,67 @@
         }
       }
     },
-    "This version’s notes mark breaking changes": {
+    "This version’s notes mark breaking changes. Click to show them.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Hinweise dieser Version nennen inkompatible Änderungen"
+            "value": "Die Hinweise dieser Version nennen inkompatible Änderungen. Zum Anzeigen klicken."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Las notas de esta versión señalan cambios incompatibles"
+            "value": "Las notas de esta versión señalan cambios incompatibles. Haz clic para verlos."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les notes de cette version signalent des changements incompatibles"
+            "value": "Les notes de cette version signalent des changements incompatibles. Cliquez pour les afficher."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le note di questa versione segnalano modifiche incompatibili"
+            "value": "Le note di questa versione segnalano modifiche incompatibili. Fai clic per mostrarle."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "このバージョンのノートに互換性のない変更が記載されています"
+            "value": "このバージョンのノートに互換性のない変更が記載されています。クリックで表示します。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "As notas desta versão indicam mudanças incompatíveis"
+            "value": "As notas desta versão indicam mudanças incompatíveis. Clique para mostrá-las."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "В заметках к этой версии отмечены несовместимые изменения"
+            "value": "В заметках к этой версии отмечены несовместимые изменения. Нажмите, чтобы показать их."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bu sürümün notları uyumsuz değişiklikler bildiriyor"
+            "value": "Bu sürümün notları uyumsuz değişiklikler bildiriyor. Göstermek için tıklayın."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此版本的说明标注了不兼容的变更"
+            "value": "此版本的说明标注了不兼容的变更。点击即可查看。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "此版本的說明標示了不相容的變更"
+            "value": "此版本的說明標示了不相容的變更。按一下即可查看。"
           }
         }
       }

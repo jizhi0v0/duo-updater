@@ -92,4 +92,51 @@ import Foundation
         #expect(CLIToolWording.breaking(["0.12.5", "0.13.0"])
                 == "The release notes mark breaking changes in 0.12.5, 0.13.0")
     }
+
+    // MARK: - Where in the notes
+
+    /// A breaking heading takes the blocks under it up to the next heading; a
+    /// line that marks itself counts on its own, wherever it sits.
+    ///
+    /// Mutation: keep `inSection` open past the next heading; drop the
+    /// `isBreakingLine` test on a note outside a section.
+    @Test func contentBlocksAreTheSectionAndTheMarkedLines() {
+        let image = URL(string: "https://example.com/a.png")!
+        let content: [Changelog.Entry.Block] = [
+            .heading("New Features"), .note("A"),                                          // 0, 1
+            .heading("Breaking Changes"), .note("B"), .image(image), .note("C"),          // 2…5
+            .heading("Bug Fixes"), .note("D"), .note("**Breaking:** prefix key moved"),   // 6, 7, 8
+        ]
+        #expect(CLIToolChangelog.breakingBlocks(in: content) == IndexSet([2, 3, 4, 5, 8]))
+    }
+
+    @Test func itemsAreTheLinesThatMarkThemselves() {
+        let items = ["Fixed tabs breaking the title", "Breaking change: --print JSON is nested", "Added X"]
+        #expect(CLIToolChangelog.breakingItems(items) == IndexSet([1]))
+    }
+
+    /// In Markdown a breaking heading's section runs to the next heading of its
+    /// level or higher, so its own subheadings stay in it; a bold title ending
+    /// "(breaking)" is found though parsing took its `**` off the characters.
+    ///
+    /// Mutation: close the section on any heading (`level <= open` → `true`);
+    /// drop `opensWithBreakingTitle`.
+    @Test func markdownBlocksFollowHeadingLevels() {
+        let blocks = ChangelogMarkdown.blocks(from: """
+            ## Features
+            - one
+            ## Breaking changes
+            ### CLI
+            - two
+            ## Fixes
+            - three
+            - **`vp test` now runs upstream Vitest directly (breaking)**: Vite+ used to ship
+            - **BREAKING**: remove total_history
+            - not **(breaking)** at the start
+            """)
+        // 0 Features, 1 one, 2 Breaking changes, 3 CLI, 4 two, 5 Fixes, 6 three,
+        // 7 vp test, 8 BREAKING, 9 not … at the start.
+        #expect(blocks.count == 10)
+        #expect(CLIToolChangelog.breakingBlocks(in: blocks) == IndexSet([2, 3, 4, 7, 8]))
+    }
 }

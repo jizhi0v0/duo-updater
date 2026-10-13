@@ -156,6 +156,39 @@ enum CLIToolPresentation {
         return CLIToolsModel.reason(withheld, of: status)
     }
 
+    /// `CLIToolWording.breaking`'s sentence with each version in it a link
+    /// (`breakingVersion(at:in:)` reads it back): the detail pane's Compatibility
+    /// row, where a click takes the notes below to that version's breaking
+    /// changes. Found as the list the sentence was built from, so every language
+    /// links the same versions; plain should a translation ever not carry it.
+    static func breakingSentence(_ versions: [String]) -> AttributedString {
+        let sentence = CLIToolWording.breaking(versions)
+        guard !versions.isEmpty, let list = sentence.range(of: versions.joined(separator: ", ")) else {
+            return AttributedString(sentence)
+        }
+        var linked = AttributedString(sentence[..<list.lowerBound])
+        for (index, version) in versions.enumerated() {
+            if index > 0 { linked += AttributedString(", ") }
+            var link = AttributedString(version)
+            link.link = URL(string: "\(breakingScheme):\(index)")
+            linked += link
+        }
+        linked += AttributedString(sentence[list.upperBound...])
+        return linked
+    }
+
+    /// The version a `breakingSentence` link stands for; nil for any other URL.
+    static func breakingVersion(at url: URL, in versions: [String]) -> String? {
+        guard url.scheme == breakingScheme,
+              let index = URLComponents(url: url, resolvingAgainstBaseURL: false).flatMap({ Int($0.path) }),
+              versions.indices.contains(index)
+        else { return nil }
+        return versions[index]
+    }
+
+    /// Never opened: the pane's own `openURL` handles these links.
+    private static let breakingScheme = "x-duoupdater-breaking"
+
     /// Why no update is offered — for the detail pane and the row's tooltip. nil
     /// when one is offered, or when there is nothing to offer (up to date, ahead).
     static func explanation(_ status: CLIToolStatus) -> String? {

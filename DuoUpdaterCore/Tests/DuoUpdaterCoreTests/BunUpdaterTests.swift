@@ -207,8 +207,8 @@ import Foundation
             environment: { environment })
     }
 
-    static func cowsayStatus(_ box: BunSandbox) async throws -> CLIToolStatus {
-        try box.installBun(body: upgrading())
+    static func cowsayStatus(_ box: BunSandbox, body: String = upgrading()) async throws -> CLIToolStatus {
+        try box.installBun(body: body)
         try box.homebrewNode()
         try box.add([("cowsay", "1.5.0")])
         let bun = try #require(box.scanner.scan().map(box.scanner.withSignature))
@@ -232,6 +232,63 @@ import Foundation
         let env = Self.environment(box)
         #expect(env["BUN_INSTALL"] == box.home.appendingPathComponent(".bun").path)
         #expect(env["PATH"] == box.bun.deletingLastPathComponent().path + ":" + CLIToolCommandRunner.systemPath)
+    }
+
+    /// What bun 1.4.3's `add -g <name>@<version>` does to the global
+    /// `package.json` (measured 2026-10-13): the user's specifier becomes the
+    /// exact version.
+    static let bunWritesExactSpecifier = #"""
+        if [ "$1" = add ]; then
+          spec="$3"; name="${spec%@*}"; version="${spec##*@}"
+          sed -i '' -E "s|(\"$name\": )\"[^\"]*\"|\\1\"$version\"|" "$BUN_INSTALL/install/global/package.json"
+        fi
+        """#
+
+    static func manifest(_ cowsay: String) -> String {
+        "{\n  \"dependencies\": {\n    \"cowsay\": \"\(cowsay)\",\n    \"terser\": \"~5.46.0\"\n  }\n}\n"
+    }
+
+    /// One click must not pin the package against the user's own `bun update -g`,
+    /// which holds an exact specifier where it is: their `^` comes back on the new
+    /// version, and the rest of the file stays as bun left it. Mutation: dropping
+    /// the restore leaves `"1.6.0"`.
+    @Test func aCaretSpecifierSurvivesTheUpdate() async throws {
+        let box = try BunSandbox()
+        let status = try await Self.cowsayStatus(box, body: Self.upgrading(extra: Self.bunWritesExactSpecifier))
+        let manifest = try box.write(box.global.appendingPathComponent("package.json"), Self.manifest("^1.5.0"))
+        #expect(await Self.packageUpdater(box).update(status) == .updated(version: "1.6.0"))
+        #expect(try String(contentsOf: manifest, encoding: .utf8) == Self.manifest("^1.6.0"))
+    }
+
+    /// An exact specifier was the user's own pin: it stays exact, at the new version.
+    @Test func anExactSpecifierStaysExact() async throws {
+        let box = try BunSandbox()
+        let status = try await Self.cowsayStatus(box, body: Self.upgrading(extra: Self.bunWritesExactSpecifier))
+        let manifest = try box.write(box.global.appendingPathComponent("package.json"), Self.manifest("1.5.0"))
+        #expect(await Self.packageUpdater(box).update(status) == .updated(version: "1.6.0"))
+        #expect(try String(contentsOf: manifest, encoding: .utf8) == Self.manifest("1.6.0"))
+    }
+
+    /// A `dependencies` entry that does not read the version just installed is
+    /// not bun's rewrite, and nothing is touched — not even the one other place
+    /// the file names that version. Mutation: dropping that guard rewrites the
+    /// `overrides` entry.
+    @Test func anEntryBunDidNotRewriteIsLeftAlone() async throws {
+        let box = try BunSandbox()
+        let status = try await Self.cowsayStatus(box)
+        let text = "{\n  \"dependencies\": {\n    \"cowsay\": \"^1.5.0\"\n  },\n  \"overrides\": {\n    \"cowsay\": \"1.6.0\"\n  }\n}\n"
+        let manifest = try box.write(box.global.appendingPathComponent("package.json"), text)
+        #expect(await Self.packageUpdater(box).update(status) == .updated(version: "1.6.0"))
+        #expect(try String(contentsOf: manifest, encoding: .utf8) == text)
+    }
+
+    @Test(arguments: [
+        ("^6.0.0", "7.0.0", "^7.0.0"), ("~6.1.0", "6.2.0", "~6.2.0"), ("^7", "7.1.0", "^7.1.0"),
+        ("6.0.0", "7.0.0", nil), ("7.0.0", "7.0.0", nil),
+        ("*", "7.0.0", "*"), (">=6", "7.0.0", ">=6"), ("6.x", "7.0.0", nil), ("latest", "7.0.0", nil),
+    ] as [(String, String, String?)])
+    func restoredSpecifier(specifier: String, version: String, expected: String?) {
+        #expect(NpmUpdater.restoredSpecifier(specifier, at: version) == expected)
     }
 
     /// Mutation: dropping the click-time bun check runs it.

@@ -102,6 +102,10 @@ struct GitHubListPageSizeTests {
         // shape as CotEditor and WhatCable.
         "com.xd.cindy/beta": 1,
         "com.xd.cindycn/beta": 1,
+        // yomado: every release is flagged prerelease, so its stable rule reads
+        // the list. All 3 releases on 2026-10-13 match (v0.3.3, v0.3.2, v0.3.1),
+        // first hit at index 0, gap 0, so 1. The rule keeps the default 20.
+        "dev.chekusu.yomado/stable": 1,
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {

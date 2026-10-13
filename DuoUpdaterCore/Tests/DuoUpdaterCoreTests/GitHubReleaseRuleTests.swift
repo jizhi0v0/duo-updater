@@ -1119,6 +1119,20 @@ private func matches(
     #expect(!matches("wailbrew-v0.10.4.zip.blockmap", "io.github.wickenico.wailbrew"))
 }
 
+/// yomado flags every release prerelease, so `/releases/latest` is a 404 and the
+/// rule has to read the list. Its release also carries a source zip (whose case
+/// has varied: `Yomado-source-` on v0.3.3, `yomado-source-` before) and a
+/// checksum text beside the app zip (v0.3.1–v0.3.3's assets).
+@Test func yomadoRuleReadsTheListAndTakesTheAppZip() {
+    #expect(rule("dev.chekusu.yomado").usePrereleases)
+    #expect(extract("v0.3.3", "dev.chekusu.yomado") == "0.3.3")
+    #expect(extract("v0.4.0-beta.1", "dev.chekusu.yomado") == nil)
+    #expect(matches("Yomado-v0.3.3.zip", "dev.chekusu.yomado"))
+    #expect(!matches("Yomado-source-v0.3.3.zip", "dev.chekusu.yomado"))
+    #expect(!matches("yomado-source-v0.3.2.zip", "dev.chekusu.yomado"))
+    #expect(!matches("yomado-v0.3.3-SHA256SUMS.txt", "dev.chekusu.yomado"))
+}
+
 /// Every rule added in this pass installs — none of them is detection-only —
 /// and each one's kind matches the artifact that was actually verified.
 @Test func secondPassRulesAllInstall() {

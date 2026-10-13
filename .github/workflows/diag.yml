@@ -1,0 +1,82 @@
+# THROWAWAY diag workflow — branch diag/unmounted-image-lookup only. Never merged.
+# Repeats Core's Release suite to catch
+# anImageWhoseVolumeIsAlreadyUnmountedIsDetached failing its hdiutil info lookup,
+# FIX check: the fix commit, no instrumentation. Shard 5 also runs diag/probe.py.
+name: diag-unmounted-image-lookup-fix
+
+on:
+  push:
+    branches: [diag/unmounted-image-lookup-fix]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diag-${{ github.run_id }}
+
+jobs:
+  repeat:
+    runs-on: xcode-27
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        shard: [1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          sw_vers
+
+      - name: Name SwiftPM's build cache
+        id: spm-key
+        run: echo "key=spm-release-$({ xcodebuild -version; swift --version; } 2>&1 | shasum | cut -c1-12)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore SwiftPM's build
+        id: spm-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: DuoUpdaterCore/.build
+          key: ${{ steps.spm-key.outputs.key }}-none
+          restore-keys: ${{ steps.spm-key.outputs.key }}-
+
+      - name: Put back the cached build's file times
+        if: steps.spm-cache.outputs.cache-matched-key != ''
+        run: python3 scripts/ci_build_cache.py restore DuoUpdaterCore/.build
+
+      - name: Repeat
+        run: |
+          set +e
+          out="$RUNNER_TEMP/diag"
+          mkdir -p "$out"
+          export DUO_DIAG_DISK_LOG="$out/disk.log"
+          if [ "${{ matrix.shard }}" = 5 ]; then
+            python3 -I diag/probe.py "$RUNNER_TEMP/probe" "$RUNNER_TEMP/probe-stop" "$out/probe.txt" &
+          fi
+          cd DuoUpdaterCore
+          for i in $(seq 1 12); do
+            echo "=== iter $i start $(date +%H:%M:%S)" >> "$DUO_DIAG_DISK_LOG"
+            if [ "$i" = 1 ]; then skip=""; else skip="--skip-build"; fi
+            start=$(date +%s)
+            swift test -c release --build-system native $skip > "$out/iter$i.log" 2>&1
+            rc=$?
+            dur=$(( $(date +%s) - start ))
+            res=$(grep -E "anImageWhoseVolumeIsAlreadyUnmountedIsDetached\(tool:\) (with 2 test cases (passed|failed)|recorded an issue)" "$out/iter$i.log" | sed -E 's/^.*(passed after [0-9.]+ seconds|failed after [0-9.]+ seconds|at DiskImageMountDetachTests.swift:[0-9]+:[0-9]+).*$/\1/' | paste -sd';' -)
+            echo "SAMPLE shard=${{ matrix.shard }} iter=$i rc=$rc dur=${dur}s result=[$res]" | tee -a "$out/summary.txt"
+            echo "=== iter $i end $(date +%H:%M:%S) rc=$rc" >> "$DUO_DIAG_DISK_LOG"
+          done
+          touch "$RUNNER_TEMP/probe-stop"; sleep 20
+          cat "$out/summary.txt"; tail -3 "$out/probe.txt" 2>/dev/null
+          exit 0
+
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: diag-shard-${{ matrix.shard }}
+          path: ${{ runner.temp }}/diag/

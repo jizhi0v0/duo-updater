@@ -3240,6 +3240,13 @@ struct ChangelogEntriesView: View {
     /// The version whose breaking changes are tinted, and scrolled to when it
     /// was set: until the reader picks another version or another click lands.
     @State private var shownBreaking: BreakingChangesJump?
+    /// The list layout's entries on screen. Only those have their rows laid
+    /// out, so only in those can `scrollToBreaking` find the tinted row without
+    /// first going to the entry. Not observed: scrolling must not re-run this body.
+    private final class EntriesOnScreen {
+        var indexes: Set<Int> = []
+    }
+    @State private var listEntriesOnScreen = EntriesOnScreen()
 
     /// Content-driven rail width. For each row take the wider of its two lines — the
     /// title/version (callout) and the date subtitle (caption2) — since a short
@@ -3328,7 +3335,10 @@ struct ChangelogEntriesView: View {
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .id(Self.scrollTopAnchor)
             }
-            .onChange(of: shownBreaking) { scrollToBreaking(proxy, entryAnchor: Self.scrollTopAnchor) }
+            .onChange(of: shownBreaking) { previous, _ in
+                scrollToBreaking(proxy, entryAnchor: Self.scrollTopAnchor,
+                                 laidOut: previous?.version == shownBreaking?.version)
+            }
         }
     }
 
@@ -3388,11 +3398,20 @@ struct ChangelogEntriesView: View {
     /// `entryAnchor`, the top of the entry, then — once the newly selected
     /// entry is laid out — to its first tinted row (`ChangelogEntryView.breakingAnchor`).
     /// When that row opens the entry, or nothing in it could be tinted but its
-    /// title, the top is where the tint is.
-    private func scrollToBreaking(_ proxy: ScrollViewProxy, entryAnchor: AnyHashable) {
+    /// title, the top is where the tint is. When the tint is already `laidOut`
+    /// (a click again on the version shown, its entry on screen) there is no hop
+    /// to the top: it made every repeat click scroll down from the entry's start.
+    private func scrollToBreaking(_ proxy: ScrollViewProxy, entryAnchor: AnyHashable, laidOut: Bool) {
         guard let shownBreaking, let index = entry(shownBreaking.version) else { return }
+        let opensEntry = (ChangelogEntryView.breakingRows(of: changelog.entries[index]).first ?? 0) == 0
+        if laidOut {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                proxy.scrollTo(opensEntry ? entryAnchor : ChangelogEntryView.breakingAnchor, anchor: .top)
+            }
+            return
+        }
         proxy.scrollTo(entryAnchor, anchor: .top)
-        guard (ChangelogEntryView.breakingRows(of: changelog.entries[index]).first ?? 0) > 0 else { return }
+        guard !opensEntry else { return }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(80))
             withAnimation(.easeInOut(duration: 0.3)) {
@@ -3449,7 +3468,10 @@ struct ChangelogEntriesView: View {
                 .onChange(of: changelog) {
                     proxy.scrollTo(Self.scrollTopAnchor, anchor: .top)
                 }
-                .onChange(of: shownBreaking) { scrollToBreaking(proxy, entryAnchor: Self.scrollTopAnchor) }
+                .onChange(of: shownBreaking) { previous, _ in
+                    scrollToBreaking(proxy, entryAnchor: Self.scrollTopAnchor,
+                                     laidOut: previous?.version == shownBreaking?.version)
+                }
             }
         }
     }
@@ -3464,14 +3486,18 @@ struct ChangelogEntriesView: View {
                         ChangelogEntryView(entry: entry, itemStyle: itemStyle, syntax: changelog.itemSyntax,
                                            tintsBreaking: shownBreaking?.version == entry.version)
                             .id(Self.entryAnchor(index))
+                            .onAppear { listEntriesOnScreen.indexes.insert(index) }
+                            .onDisappear { listEntriesOnScreen.indexes.remove(index) }
                     }
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .onChange(of: shownBreaking) {
+            .onChange(of: shownBreaking) { previous, _ in
                 guard let shownBreaking, let index = entry(shownBreaking.version) else { return }
-                scrollToBreaking(proxy, entryAnchor: Self.entryAnchor(index))
+                let laidOut = previous?.version == shownBreaking.version
+                    && listEntriesOnScreen.indexes.contains(index)
+                scrollToBreaking(proxy, entryAnchor: Self.entryAnchor(index), laidOut: laidOut)
             }
         }
     }

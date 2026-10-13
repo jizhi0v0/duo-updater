@@ -1451,11 +1451,10 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:im.riot.app:stable" : {
-      "consecutiveActionable" : 1,
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastSignature" : "install.download",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 0
     },
     "install:vendor:im.riot.nightly:nightly" : {
       "consecutiveActionable" : 0,
@@ -1717,5 +1716,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-13T13:02:09Z"
+  "updatedAt" : "2026-10-13T22:04:29Z"
 }

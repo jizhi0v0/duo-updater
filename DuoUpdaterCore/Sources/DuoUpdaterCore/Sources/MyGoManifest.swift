@@ -25,6 +25,26 @@ enum MyGoManifest {
         let deltas: [Delta]?
     }
 
+    /// The release a manifest describes, as `MyGoUpdateSource` offers it. The
+    /// fields of MyGo's `update.Manifest` that are not `deltas`/`previous`.
+    struct Release: Decodable, Equatable {
+        let version: String
+        /// Release notes, Markdown: the `## <version>` section of the app's
+        /// changelog at build time (`cmd/mygo/updates.go`, `releaseNotes`),
+        /// empty when it keeps none.
+        let notes: String?
+        /// RFC 3339, when the version was built.
+        let date: String?
+        let url: String?
+        let size: Int64?
+        let signature: String?
+    }
+
+    /// The top-level release of a manifest body, or nil when it is not one.
+    static func release(inBody body: String) -> Release? {
+        try? JSONDecoder().decode(Release.self, from: Data(body.utf8))
+    }
+
     private struct Delta: Decodable {
         let from: String
         let url: String

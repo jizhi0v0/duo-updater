@@ -3,45 +3,7 @@
 
 family = "com-egoist-pulse"
 
-probes = Array(count: 1)
-probes[0] = struct VendorProbeRecipe
-probes[0].bundleID = "com.egoist.pulse"
-probes[0].channel = .stable
-probes[0].variant = nil
-probes[0].hostRequirement = nil
-probes[0].installedVersionPattern = nil
-probes[0].buildLineage = nil
-probes[0].headBuildPattern = nil
-probes[0].url = URL("https://github.com/egoist/pulse-feedback/releases/latest/download/update-darwin-arm64.json")
-probes[0].identities = Array(count: 0)
-probes[0].track = nil
-probes[0].mode = .responseBody
-probes[0].versionPattern = "\\A(?:(?!\"deltas\"|\"previous\")[\\s\\S])*?\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+){1,3})\""
-probes[0].transientBodyPattern = nil
-probes[0].trackClosedPattern = nil
-probes[0].downloadURL? = URL("https://github.com/egoist/pulse-feedback/releases/latest")
-probes[0].changelogURL = nil
-probes[0].selectHighest = false
-probes[0].versionIsBuild = false
-probes[0].buildNamespace = .bundle
-probes[0].displayVersionPattern = nil
-probes[0].publishedAtPattern? = "\\A(?:(?!\"deltas\"|\"previous\")[\\s\\S])*?\"date\"\\s*:\\s*\"([^\"]+)\""
-probes[0].minimumSystemVersionPattern = nil
-probes[0].maximumSystemVersionPattern = nil
-probes[0].entryStartPattern = nil
-probes[0].install? = struct VendorInstallSpec
-probes[0].install?.urlSource = .bodyPattern(_:)
-probes[0].install?.urlSource.0 = "\\A(?:(?!\"deltas\"|\"previous\")[\\s\\S])*?\"url\"\\s*:\\s*\"(https://[^\"]+\\.tar\\.gz)\""
-probes[0].install?.kind = .tarGz
-probes[0].install?.checksumPattern = nil
-probes[0].install?.checksumFormat = .sha512Base64
-probes[0].install?.requestHeaders = Dictionary(count: 0)
-probes[0].install?.nestedArchivePath = nil
-probes[0].install?.contentsArchivePattern = nil
-probes[0].install?.myGoPublicKey? = "WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ="
-probes[0].requestBody = nil
-probes[0].followRedirects = true
-probes[0].requestHeaders = Dictionary(count: 0)
+probes = Array(count: 0)
 
 changelogs = Array(count: 1)
 changelogs[0] = struct ChangelogRecipe

@@ -36,6 +36,11 @@ public enum SourceStack {
             // brew did not install — so everything else still reaches Sparkle.
             HomebrewCaskSource(),
             SparkleAppcastSource(),
+            // MyGo apps, by the feed and key linked into their binary — the address
+            // their own updater reads, so it stands where a `SUFeedURL` does, ahead
+            // of anything hand-written. Answers only for apps whose binary links a
+            // feed (`InstalledApp.myGoUpdate`); see `MyGoUpdateSource`.
+            MyGoUpdateSource(githubToken: githubToken),
             // GitHub Releases for apps distributed that way (detection only unless
             // a rule names an installable asset).
             GitHubReleasesSource(

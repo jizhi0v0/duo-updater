@@ -75,7 +75,7 @@ public enum SignatureVerifier {
             case .myGoSignatureMissing:
                 return String(localized: "The update feed gave no signature for this download, but the vendor signs this app’s updates. Refusing to install it unverified.")
             case .myGoSignatureInvalid:
-                return String(localized: "The download’s signature doesn’t match the vendor’s update key that DuoUpdater keeps for this app. The file may be damaged or replaced, or the vendor may have changed its key. Refusing to install.")
+                return String(localized: "The download’s signature doesn’t match the app’s update key. The file may be damaged or replaced, or the vendor may have changed its key. Refusing to install.")
             case .codeSignatureInvalid(let status):
                 return "The downloaded app's code signature is invalid (OSStatus \(status))."
             case .noTeamIdentifier(let which):
@@ -115,12 +115,21 @@ public enum SignatureVerifier {
         fileprivate init() {}
     }
 
+    /// Proof that `verifyMyGoSignature` passed. Only that function can make one,
+    /// so the MyGo ad-hoc route (`InstallTrust.myGoSignatureOnly`) cannot reach
+    /// its identity gates without the signature having been checked first.
+    public struct VerifiedMyGoSignature: Sendable {
+        fileprivate init() {}
+    }
+
     /// Which identity gates a swap runs. `.developerID` is gates 3 and 4 as they
-    /// have always been. `.publishedDigest` is the ad-hoc route — see
-    /// `verifyDigestOnlyIdentity`.
+    /// have always been. `.publishedDigest` and `.myGoSignature` are the two
+    /// ad-hoc routes, which differ only in their proof of origin and share the
+    /// identity gates — see `verifyDigestOnlyIdentity`.
     enum ArtifactTrust: Sendable {
         case developerID
         case publishedDigest(VerifiedDigest, bundleID: String, version: String)
+        case myGoSignature(VerifiedMyGoSignature, bundleID: String, version: String)
     }
 
     /// The digest-only route's whole proof of origin: the SHA-256 of `file` — the
@@ -167,7 +176,8 @@ public enum SignatureVerifier {
                     installedApp: installedApp, downloadedApp: downloadedApp)
                 try verifyBundleIdentifierMatch(
                     installedApp: installedApp, downloadedApp: downloadedApp)
-            case .publishedDigest(_, let bundleID, let version):
+            case .publishedDigest(_, let bundleID, let version),
+                 .myGoSignature(_, let bundleID, let version):
                 try verifyDigestOnlyIdentity(
                     installedApp: installedApp, downloadedApp: downloadedApp,
                     bundleID: bundleID, version: version)
@@ -287,11 +297,12 @@ public enum SignatureVerifier {
     /// (`VendorInstallSpec.myGoPublicKey`). Same primitive as
     /// `verifyEdSignature`; its own errors, because that one's text names the
     /// app's public key and this key comes from the recipe.
+    @discardableResult
     public static func verifyMyGoSignature(
         fileData: Data,
         signatureBase64: String?,
         publicKeyBase64: String
-    ) throws {
+    ) throws -> VerifiedMyGoSignature {
         do {
             try verifyEdSignature(
                 fileData: Data(SHA256.hash(data: fileData)),
@@ -302,6 +313,7 @@ public enum SignatureVerifier {
         } catch VerifyError.edSignatureInvalid {
             throw VerifyError.myGoSignatureInvalid
         }
+        return VerifiedMyGoSignature()
     }
 
     // MARK: Gate 1b — vendor rotated its Sparkle signing key

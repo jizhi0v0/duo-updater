@@ -27,6 +27,10 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
     /// settles on `.unknown`, not `.upToDate` — the quiet half this registry
     /// exists to catch. See `FeedVerify.swift`.
     case feed
+    /// Not a recipe registry either: the feeds and keys of audited MyGo apps
+    /// (`MyGoFeedCatalog`), which `MyGoUpdateSource` reads out of installed
+    /// binaries and a nightly runner has none of. See `MyGoVerify.swift`.
+    case myGo = "mygo"
     /// Not a recipe registry either — this sweeps the `hostArchitectures`
     /// DECLARATION of every package the pkg install route hands to macOS's
     /// installer. That route runs neither architecture gate (#205, #400), and
@@ -52,6 +56,7 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
         case .changelog: return "changelog"
         case .appStore: return "App Store probe"
         case .feed: return "Sparkle feed"
+        case .myGo: return "MyGo feed"
         // Eight characters: `Report` pads labels to 14 and `padding(toLength:)`
         // TRUNCATES anything longer, so a descriptive name would print as
         // "pkg architectu" in the per-registry summary.

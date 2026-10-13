@@ -101,6 +101,7 @@ public enum Verify {
         let changelog = filtered(ChangelogRecipeRegistry.recipes, options)
         let appStore = filtered(MacAppStoreProbeRegistry.cases, options)
         let feeds = filtered(feedCases, options)
+        let myGo = filtered(myGoCases, options)
 
         // The pkg install specs the pkgarch sweep reads. Counted here like every
         // other registry: without it `duo verify --pkgarch` computes a total of
@@ -118,7 +119,7 @@ public enum Verify {
         let counts: [(Registry, Int)] = [
             (.vendor, vendor.count), (.github, github.count),
             (.changelog, changelog.count), (.appStore, appStore.count),
-            (.feed, feeds.count), (.pkgArch, pkgs.count),
+            (.feed, feeds.count), (.myGo, myGo.count), (.pkgArch, pkgs.count),
             (.changelogCoverage, coverage.count),
         ]
         let total = counts.reduce(0) { sum, entry in
@@ -138,6 +139,7 @@ public enum Verify {
         \(options.registries.contains(.changelog) ? "\(changelog.count) changelogs  " : "")\
         \(options.registries.contains(.appStore) ? "\(appStore.count) App Store probes  " : "")\
         \(options.registries.contains(.feed) ? "\(feeds.count) Sparkle feeds  " : "")\
+        \(options.registries.contains(.myGo) ? "\(myGo.count) MyGo feeds  " : "")\
         \(options.registries.contains(.pkgArch) ? "\(pkgs.count) pkg architectures  " : "")\
         \(options.registries.contains(.changelogCoverage) ? "\(coverage.count) changelog pages" : "")
           ─────────────────────────────────────────────
@@ -209,6 +211,9 @@ public enum Verify {
         }
         if options.registries.contains(.feed) {
             findings += await sweepFeeds(feeds, options: options)
+        }
+        if options.registries.contains(.myGo) {
+            findings += await sweepMyGo(myGo, options: options)
         }
         // After the vendor sweep, always: it reads the install URLs that sweep
         // resolved. Selecting `--pkgarch` without `--vendor` therefore resolves
@@ -634,6 +639,7 @@ public enum Verify {
                 + MacAppStoreProbeRegistry.cases.map(\.recipeID)
                 + [MacAppStoreProbeRegistry.batchRecipeID]
                 + feedCases.map(\.recipeID)
+                + myGoCases.map(\.recipeID)
                 + VendorProbeRegistry.recipes
                     .filter { $0.install?.kind == .pkg }
                     .map { pkgArchID($0) }

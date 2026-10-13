@@ -208,8 +208,9 @@ struct MyGoArchiveSignatureTests {
     }
 
     /// The MyGo refusals say whose key it is. The Sparkle text ("the app's public
-    /// key") would be wrong here: the key is the vendor's MyGo update key, kept in
-    /// DuoUpdater's recipe, and the likely benign cause is the vendor changing it.
+    /// key") would be wrong here: the key is the vendor's MyGo update key, linked
+    /// into the app's binary (or stated by a recipe), and the likely benign cause
+    /// is the vendor changing it.
     /// Both are trust failures, so the delta route retries with the full archive.
     @Test func theRefusalsNameTheVendorsKey() {
         for error in [SignatureVerifier.VerifyError.myGoSignatureMissing, .myGoSignatureInvalid] {
@@ -219,7 +220,7 @@ struct MyGoArchiveSignatureTests {
             #expect(deltaRouteFailureIsWorthRetrying(error))
         }
         #expect(SignatureVerifier.VerifyError.myGoSignatureInvalid.errorDescription?
-            .contains("vendor’s update key that DuoUpdater keeps for this app") == true)
+            .contains("doesn’t match the app’s update key") == true)
         #expect(SignatureVerifier.VerifyError.myGoSignatureMissing.errorDescription?
             .hasPrefix("The update feed gave no signature for this download") == true)
     }

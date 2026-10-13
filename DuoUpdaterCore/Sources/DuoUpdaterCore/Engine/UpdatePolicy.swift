@@ -227,7 +227,7 @@ public enum UpdatePolicy {
         case "Homebrew":
             return result.remote?.sourceIdentifier != nil
                 && result.remote?.requiresManualInstaller == false
-        case "Vendor", "GitHub", "Electron":
+        case "Vendor", "GitHub", "Electron", MyGoUpdateSource.sourceName:
             // A vendor-website or GitHub-release app with a resolved installer
             // archive (zip/dmg/tar.gz), or an electron-builder manifest resolved
             // the same way — `VendorInstaller.download()` already vets all three
@@ -249,6 +249,13 @@ public enum UpdatePolicy {
             if result.remote?.installTrust == .publishedDigestOnly {
                 guard settings.allowsDigestOnlyInstalls,
                       result.remote?.expectedSHA256 != nil,
+                      result.remote?.vendorInstallerKind != .pkg else { return false }
+            }
+            // The MyGo ad-hoc route: the same setting, and a vendor signature
+            // published for the archive to check it against.
+            if result.remote?.installTrust == .myGoSignatureOnly {
+                guard settings.allowsDigestOnlyInstalls,
+                      result.remote?.myGoSignature?.signature != nil,
                       result.remote?.vendorInstallerKind != .pkg else { return false }
             }
             return result.remote?.vendorInstallerKind != nil
@@ -309,24 +316,34 @@ public enum UpdatePolicy {
         }
     }
 
-    /// What a digest-only update's row should say about its one-click, or nil for
-    /// any other row and while nothing is on offer. The detail pane words these;
-    /// the decision is here so it cannot drift from `canAutoInstall`'s.
+    /// What an ad-hoc update's row should say about its one-click, or nil for
+    /// any other row and while nothing is on offer — both ad-hoc routes, the
+    /// GitHub digest (`publishedDigestOnly`) and the MyGo signature
+    /// (`myGoSignatureOnly`), which share the setting. The detail pane words
+    /// these per route; the decision is here so it cannot drift from
+    /// `canAutoInstall`'s.
     public enum DigestOnlyOffer: Sendable, Equatable {
-        /// The user has not allowed digest-only installs.
+        /// The user has not allowed installs of apps without a developer signature.
         case turnedOff
-        /// Allowed, but GitHub published no digest for this asset.
+        /// Allowed, but the proof this route checks was not published for this
+        /// download: GitHub's digest, or the MyGo manifest's signature.
         case noPublishedDigest
-        /// Offered, checked against the published digest only.
+        /// Offered, checked against that proof only.
         case offered
     }
 
     public static func digestOnlyOffer(
         _ result: UpdateResult, settings: UpdateSettings
     ) -> DigestOnlyOffer? {
-        guard result.hasUpdate, result.remote?.installTrust == .publishedDigestOnly else { return nil }
+        guard result.hasUpdate, let remote = result.remote else { return nil }
+        let published: Bool
+        switch remote.installTrust {
+        case .developerID: return nil
+        case .publishedDigestOnly: published = remote.expectedSHA256 != nil
+        case .myGoSignatureOnly: published = remote.myGoSignature?.signature != nil
+        }
         guard settings.allowsDigestOnlyInstalls else { return .turnedOff }
-        guard result.remote?.expectedSHA256 != nil else { return .noPublishedDigest }
+        guard published else { return .noPublishedDigest }
         return .offered
     }
 
@@ -434,14 +451,14 @@ public enum UpdatePolicy {
             // .detectionOnly`) and stays detection-only.
             return result.remote?.requiresManualInstaller == true
                 && result.remote?.downloadURL != nil
-        case "Vendor", "GitHub", "Electron":
+        case "Vendor", "GitHub", "Electron", MyGoUpdateSource.sourceName:
             // electron-builder can publish a `.pkg` alongside (or instead of) the
             // Squirrel `.zip` — `ElectronManifestSource.kind(of:)` recognises it —
             // so this needs the same route as Vendor/GitHub: system installer, not
             // an in-place swap. Never for a digest-only rule: a package has no
             // bundle for the installer's bundle-id and version gates to read.
             return result.remote?.vendorInstallerKind == .pkg
-                && result.remote?.installTrust != .publishedDigestOnly
+                && result.remote?.installTrust == .developerID
         case "Sparkle":
             // Sparkle permits signed package enclosures. They must retain Gate 1
             // (EdDSA over the exact enclosure bytes) before PackageInstaller applies
@@ -479,7 +496,8 @@ public enum UpdatePolicy {
     /// instead of silently offering nothing.
     public static func isRecognizedInstallSource(_ sourceName: String?) -> Bool {
         switch sourceName {
-        case "Sparkle", "Homebrew", "Vendor", "GitHub", "Electron", "App Store", "Xcode Releases":
+        case "Sparkle", "Homebrew", "Vendor", "GitHub", "Electron", MyGoUpdateSource.sourceName,
+             "App Store", "Xcode Releases":
             return true
         default:
             return false
@@ -531,6 +549,11 @@ public enum UpdatePolicy {
             // ever removed: the bundle gets swapped out from under a running app
             // while the user explicitly asked us not to touch self-updating apps
             // that are open (see #192).
+            return true
+        case MyGoUpdateSource.sourceName:
+            // A MyGo app's feed is the one its own updater reads — the source
+            // answers only for apps whose binary links a feed — so it updates
+            // itself from the same release, exactly like the Electron case above.
             return true
         default:
             // Homebrew (auto_updates casks are excluded upstream), App Store and
@@ -830,7 +853,7 @@ public enum UpdatePolicy {
     /// them.
     private static func routeCollidesWithSelfUpdater(_ result: UpdateResult) -> Bool {
         switch result.remote?.sourceName {
-        case "Vendor", "GitHub", "Sparkle", "Electron": return true
+        case "Vendor", "GitHub", "Sparkle", "Electron", MyGoUpdateSource.sourceName: return true
         // Electron belongs on the protected side, not the excluded one: an
         // electron-builder app's own self-updater (electron-updater / Squirrel
         // .Mac, see `defersToSelfUpdater`) parks its staged build the same way

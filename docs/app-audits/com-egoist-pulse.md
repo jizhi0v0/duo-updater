@@ -21,13 +21,13 @@
 
 > ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
 
-|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
-|------------|---------|----------|-----|--------|-------------|
-| **stable** | —       | —        | —   | ✗（已换掉，见下） | ✓ |
+|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe | MyGo（通用） |
+|------------|---------|----------|-----|--------|-------------|-------------|
+| **stable** | —       | —        | —   | ✗（已换掉） | ✗（已换掉） | ✓ |
 
-当前生效源: **Vendor**（channel-verify 实测，2026-10-13）。2026-10-10 接入时走 GitHub（`Pulse.<v>.arm64.dmg`），
-2026-10-13 换成 app 自己的 MyGo manifest，与 Moshi Go 同一套机制（原因见「更新检测」）。`GitHubReleasesSource` 在
-`SourceStack` 里排在 `VendorProbeSource` 前面，两者不能并存，所以 GitHub 规则删掉了。
+当前生效源: **MyGo**（`MyGoUpdateSource`，channel-verify 实测 2026-10-13）。它从 Pulse 的可执行文件里读出 MyGo 链进去的
+feed 和 key，不需要任何按 app 写的 recipe。演变（都在「历史与实测」）: 2026-10-10 GitHub 规则读 dmg → 2026-10-13
+VendorProbe 读同一个 manifest（#1263）→ 同日换成通用的 `MyGoUpdateSource`，probe 删掉，只留 changelog recipe。
 
 ## Channel 详情
 
@@ -35,23 +35,27 @@
 `update-darwin-arm64.json` 地址。没有源码可读，单轨结论来自 release 列表与 manifest，不是 settled from source。
 
 ## 更新检测
-- 源: VendorProbe，`https://github.com/egoist/pulse-feedback/releases/latest/download/update-darwin-arm64.json`
-  （app 自己更新器读的同一个地址；`releases/latest/download/` 是 GitHub 的「最新 release」别名，302 到当前 release 的资产）
-- 版本 / 日期 / 下载地址都取 manifest 顶层那一条；pattern 与 Moshi Go 相同，带 `(?!"deltas"|"previous")` 防越界，
-  因为 `previous[]` 也有 `version` / `url`。顶层 `url` 是绝对地址且带版本 tag
+- 源: `MyGoUpdateSource`（通用，`Sources/MyGoUpdateSource.swift`），读
+  `https://github.com/egoist/pulse-feedback/releases/latest/download/update-darwin-arm64.json`。这个地址和公钥都不在
+  Info.plist 里：`mygo build` 用 `-ldflags -X` 把 `packageUpdateFeed` / `packageUpdateKey` 链进二进制，扫描时
+  `MyGoUpdateConfig` 从 `__TEXT,__rodata` 读出（Go 链接器把 `-X` 字符串写成以 NUL 结尾的独立符号；settled from source:
+  `egoist/mygo` `cmd/mygo/updates.go` `updateFlags`，Go `cmd/link/internal/ld/data.go` `addstrdata`）。
+  `releases/latest/download/` 是 GitHub 的「最新 release」别名，302 到当前 release 的资产
+- 版本 / 日期 / 下载地址 / 大小 / 签名取 manifest 顶层那一条（`MyGoManifest.release`，JSON 解码，不碰
+  `deltas[]` / `previous[]`）。顶层 `url` 是绝对地址且带版本 tag
   （`…/releases/download/v0.1.12/pulse-0.1.12-darwin-arm64.tar.gz`），不是会移动的 `latest` 别名，所以探测时读到的版本
   和安装时下的文件不会错位
 - `version` 等于 `CFBundleShortVersionString` 也等于 `CFBundleVersion`（0.1.11、0.1.12 实测）
 - 为什么从 GitHub dmg 换过来（2026-10-13）:
   1. **增量**: manifest 的 `deltas[]` 现在能吃（#1039 的 `MyGoManifest` / `MyGoDelta`）；0.1.11→0.1.12 补丁 1.3 MB，全量 6.3 MB
-  2. **厂商签名**: 整包和补丁都验 MyGo 的 Ed25519 签名（`myGoPublicKey`），在 Team ID 闸之外再加一道。GitHub 资产
+  2. **厂商签名**: 整包和补丁都验 MyGo 的 Ed25519 签名（key 取自已装 app 的二进制），在 Team ID 闸之外再加一道。GitHub 资产
      `digest` 只证明和 GitHub 上的文件一样，不证明出自厂商的 key
   3. **和 app 自己的更新器装同一种包**（`.tar.gz`）。由此推断一键装过的副本以后 app 自己更新也能走 delta——**未验证**
      （没让 Pulse 自己的更新器跑过一次补丁）
 - 代价:
   - 从官网 dmg 装的副本第一次一键要下补丁 + 全量（7.6 MB，GitHub dmg 路线是 4.8 MB），原因见「增量更新」；之后就是 tar.gz 布局
   - **Release Log 不再回填历史**: `GitHubReleasesSource` 会把整个 release 列表交给 Release Log（`releaseHistory`），
-    VendorProbe 只给最新一条（带 manifest 的精确 `date`）。Pulse 一天能发好几版（2026-10-10 一天 0.1.4→0.1.11），
+    MyGo manifest 只给最新一条（带精确 `date`）。Pulse 一天能发好几版（2026-10-10 一天 0.1.4→0.1.11），
     两次检查之间的中间版本不会进 Release Log。changelog 不受影响（下面的 ChangelogRecipe 读整个 release 列表）
   - 探测不走 GitHub API，不吃匿名 API 限流（这一条是好处）
 
@@ -82,7 +86,8 @@
 ## Changelog
 - 来源: `ChangelogRecipe`，`api.github.com/repos/egoist/pulse-feedback/releases?per_page=40`，`structuredFormat: .gitHubReleases`。
   release 正文是 `- ` 列表，与 manifest 的 `notes` 同文；manifest 只带最新一版的 notes，所以历史从 release 列表读。
-  换源前 changelog 由 `GitHubReleasesSource` 顺带给出；换成 VendorProbe 后它不再跑，所以要单独的 recipe
+  换源前 changelog 由 `GitHubReleasesSource` 顺带给出；换源后它不再跑，所以要单独的 recipe。`MyGoUpdateSource` 自己
+  也把 manifest 的 `notes` 交给 changelog pane（只有最新一版），recipe 优先于它，pane 显示的是 recipe 的 9 条
 - 结构化（2026-10-13，channel-verify `changelog pane`，从 0.1.11 起）: `recipe changelog:com.egoist.pulse:stable: 9 entries;
   newest 0.1.12: 3 items, headings []; first items ["An Apps page, on a Mac, lists what is in", "About This Mac moves to ⌘0, as Apps take",
   "The processes table's columns no longer "]`（9 条 = 当时全部 9 个 release）
@@ -94,11 +99,16 @@
 - 格式: `.tar.gz`（manifest 顶层 `url`）；解出的 `Pulse.app` 只有一个主可执行文件，没有嵌套 app、helper 或 LaunchAgent
   （与 dmg 内的 bundle 只差一个 `Contents/CodeResources`）
 - 校验: manifest 不发摘要，没有 `checksumPattern`。整包和补丁都验 MyGo 签名（Ed25519，签文件的 SHA-256），
-  `myGoPublicKey` = `WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ=`。0.1.12 manifest 里全部 6 个签名（3 个补丁 + 0.1.12 / 0.1.11 / 0.1.10
+  key = `WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ=`（`MyGoUpdateConfig` 从已装 app 的二进制读出；0.1.11 / 0.1.12 的
+  `__TEXT,__rodata` 里以 NUL 结尾、解码为 32 字节的 44 字符 base64 串只有这一个，同形不带 NUL 的有 7 个）。0.1.12 manifest 里全部 6 个签名（3 个补丁 + 0.1.12 / 0.1.11 / 0.1.10
   三个整包）都用它验过（2026-10-13，`openssl pkeyutl -verify -rawin`，输入是文件的 SHA-256）；换 Moshi 的 key、或改成签原文，都验不过（对照）。声明了 key 就必须有能验过的签名：补丁验不过就退回全量，整包验不过就终止安装
-  （`VendorInstaller`，与 Moshi Go 同一条路径）
+  （`VendorInstaller`，与 Moshi Go 同一条路径）。Pulse 是 Developer ID，走 Team ID 闸 + 签名，不受「无开发者签名」开关影响
 - **读的是**: 人人可手动下载的 GA。manifest 无灰度字段，每个副本读同一个文件；`.tar.gz` 和 dmg 挂在同一个公开 release 上
-- 端到端（2026-10-13，`make cli` 后；0.1.11 → 0.1.12）:
+- 端到端，通用源（2026-10-13，`MyGoUpdateSource` 落地后 `make cli`；0.1.11 → 0.1.12）:
+  - 不运行，dmg 装的 0.1.11: `duo check` `0.1.11 → 0.1.12 [MyGo, in-place]` → `duo install --yes --json` `installed`，
+    `bytesDownloaded: 7645563`（与下面 recipe 路线逐字节相同：补丁失败、退回全量），9.1 s → 0.1.12、inode 变、
+    `--deep --strict` 通过、`spctl` Notarized Developer ID、Team `GJE9R5VE87`、与厂商 0.1.12 `diff -r` 一致、`duo backups` 有 0.1.11
+- 端到端，VendorProbe recipe（2026-10-13，#1263；同一安装路径，留作对照）:
   - 不运行，dmg 装的 0.1.11: `duo check` `0.1.11 → 0.1.12 [Vendor, in-place]` → `duo install --yes --json` `installed`，
     `bytesDownloaded: 7645563`（= 补丁 1301845 + 全量 6343718：补丁在 `Contents/CodeResources` 上失败、退回全量），11.3 s
     → 0.1.12 / `0.1.12`、inode 变、`--deep --strict` 通过、`spctl` Notarized Developer ID、Team `GJE9R5VE87`、
@@ -126,17 +136,20 @@
 - `install.sh` 不是 macOS 的 CLI，见「基本信息」。若以后 mygo 给 macOS 加命令行入口，需要重新审计。
 
 ## 建议下一步
-1. 出现 Intel 包（`update-darwin-amd64.json`）时，加第二个 probe 并用 `hostRequirement` 分架构。
-2. （可选，未做）安装前若已装 bundle 缺 `Contents/CodeResources` 就跳过 MyGo 补丁，省掉 dmg 副本那次必败的补丁下载。
-   会影响 Moshi Go 与 Pulse 两个 recipe，属于 `DeltaApplier` 的改动，不在本次范围。
+1. 出现 Intel 包时不用动：Intel 构建自己链着 `update-darwin-amd64.json`，`MyGoUpdateSource` 读的就是它。
+2. dmg 副本第一次必败的补丁是 MyGo 的 bug，已报上游 egoist/mygo#300（2026-10-13；MyGo 自己的 `update.ApplyDelta` 在 dmg 的
+   0.1.11 上同样报 `openat Contents/CodeResources: no such file or directory`）。duo 不做规避：浪费一次补丁的流量可以接受，
+   上游修好后自然消失。修复发布后复测 dmg 副本能否直接吃补丁。
 
 ## 如何复验
 ```
 # GET https://github.com/egoist/pulse-feedback/releases/latest/download/update-darwin-arm64.json → version 0.1.12（2026-10-13）
 swift run --package-path application-test channel-verify <Pulse.0.1.11.arm64.dmg>
-#   detected channel → stable；VendorProbe latest 0.1.12，download …/v0.1.12/pulse-0.1.12-darwin-arm64.tar.gz
-#   winning source Vendor；deltas 3；changelog pane → recipe …: 9 entries; newest 0.1.12: 3 items
-swift run --package-path application-test feed-discover <Pulse.0.1.5.arm64.dmg>    # → no Sparkle and no electron-builder update config（2026-10-10）
+#   winning source MyGo；latest 0.1.12，download …/v0.1.12/pulse-0.1.12-darwin-arm64.tar.gz；deltas 3
+#   changelog pane → recipe …: 9 entries; newest 0.1.12: 3 items
+swift run --package-path application-test feed-discover <Pulse.0.1.11.arm64.dmg>
+#   declared  https://github.com/egoist/pulse-feedback/releases/latest/download/update-darwin-arm64.json
+#   (MyGo: the binary links this feed and key WzJsOGNI…; MyGoUpdateSource already resolves this app — no recipe)
 sh install.sh                                                                        # macOS 上 → install.sh: Pulse installs on Linux
 # tar.gz vs dmg（0.1.11、0.1.12 各一次）: diff -rq → 只有 tar.gz 有 Contents/CodeResources
 # 补丁（生产代码 MyGoDelta.apply，临时测试，跑完删除）:
@@ -144,12 +157,14 @@ sh install.sh                                                                   
 #   dmg 挂载出的 0.1.11 + 同一补丁 → madeWrong("Contents/CodeResources")
 # 签名: manifest 每条 {url, signature}，对文件 SHA-256 做 Ed25519 验证（DER = 302a300506032b6570032100 + key）:
 #   openssl pkeyutl -verify -pubin -inkey pub.der -keyform DER -rawin -in <sha256 原始字节> -sigfile <sig> → 6/6 Verified
-# 端到端: ditto <0.1.11 bundle> /Applications/ → duo install pulse --yes --json
+# 端到端: ditto <0.1.11 bundle> /Applications/ → duo check pulse（[MyGo, in-place]）→ duo install pulse --yes --json
 #   dmg 布局 → bytesDownloaded 7645563；tar.gz 布局 → bytesDownloaded 1301845
 ```
 
 ## 历史与实测
 - 2026-10-10 接入，GitHubReleaseRule 读 `Pulse.<v>.arm64.dmg`（#1148）。当时审计把增量写成「不能消费，`DeltaApplier`
   只吃 Sparkle `BinaryDelta`」——写的时候已经过时：#1039（2026-10-07）已经为 Moshi Go 加了原生 MyGo 补丁与签名校验。
-- 2026-10-13 换成 MyGo manifest 的 VendorProbe（本审计）。manifest 0.1.12（`date` `2026-10-11T10:12:38Z`），
+- 2026-10-13 换成 MyGo manifest 的 VendorProbe（#1263）。manifest 0.1.12（`date` `2026-10-11T10:12:38Z`），
   `deltas[]` from 0.1.11 / 0.1.10 / 0.1.8，`previous[]` 0.1.11 / 0.1.10；release 共 9 个（0.1.4–0.1.12，0.1.4–0.1.11 同在 2026-10-10）。
+- 2026-10-13 同日：通用的 `MyGoUpdateSource` 落地（从二进制读 feed 与 key，排在 `SparkleAppcastSource` 之后、所有 recipe
+  之前），Pulse 的 probe 删掉，只留 changelog recipe。`Contents/CodeResources` 查明是钉进 app 的公证票据（见「增量更新」）。

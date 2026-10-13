@@ -16,11 +16,15 @@ Tauri 副本由 `BundleIDMigration` 归到这个 bundle id 名下，用这里的
 
 > ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
 
-|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
-|------------|---------|----------|-----|--------|-------------|
-| **stable** | —       | —        | —   | —      | ✓ 一键      |
+|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe | MyGo（通用） |
+|------------|---------|----------|-----|--------|-------------|-------------|
+| **stable** | —       | —        | —   | —      | ✓ 一键（只接 Tauri 副本） | ✓ 一键 |
 
-当前生效源（`UpdateChecker` 优先链中第一个应答的）: **VendorProbe**。
+当前生效源（`UpdateChecker` 优先链中第一个应答的）: Moshi Go 副本是 **MyGo**（`MyGoUpdateSource`，2026-10-13 起；
+channel-verify 与 feed-discover 实测，见「历史与实测」）。它从 Moshi Go 的二进制里读出 MyGo 链进去的 feed
+（`https://cdn.getmoshi.app/desktop-go/update-darwin-arm64.json`）和 key，与下面 recipe 里写的一字不差，所以对 Moshi Go
+副本结果不变。recipe 的 VendorProbe 仍然保留，因为它是 **Tauri 副本**（`BundleIDMigration` 归到本 id）唯一的源：Tauri
+二进制不是 MyGo，链接不出 feed。随那条迁移一起退役，不能早。
 
 - Sparkle / electron-builder: 都没有，`feed-discover` 结论 `no Sparkle and no electron-builder update config`。
 - Homebrew: 厂商的 tap `rjyo/homebrew-moshi` 只有 `moshi-hook`（CLI daemon）一个 formula，没有桌面 app 的 cask；
@@ -78,7 +82,10 @@ Tauri 副本由 `BundleIDMigration` 归到这个 bundle id 名下，用这里的
   bundle `diff -r` 一致、权限一致，`codesign --verify --deep --strict` 通过，`spctl` `accepted` /
   `Notarized Developer ID`，Team `FL442366Y7`（2026-10-07）。
 - **只有从 `.tar.gz` 装的副本能吃 delta。** 厂商的 `.tar.gz` 里多一个 `Contents/CodeResources`（1674 B，
-  与 `_CodeSignature/CodeResources` 内容不同），`.dmg` 里的同版本 bundle 没有它；而每个 delta 都从已装 bundle 的
+  与 `_CodeSignature/CodeResources` 内容不同），`.dmg` 里的同版本 bundle 没有它。它是钉进 app 的公证票据（文件头 `s8ch`，
+  `stapler validate` 对 tar.gz 的 bundle 通过、对 dmg 里的报 "does not have a ticket stapled"；settled from source:
+  `egoist/mygo` `cmd/mygo/dmg.go`，先用未钉票据的 app 做 dmg，公证后再 `xcrun stapler staple` app「for updates, which
+  install the bare app」，tar.gz 和 delta 都由钉过票据的 app 切出），所以每个公证过的 MyGo app 都是这样；而每个 delta 都从已装 bundle 的
   `Contents/CodeResources` 打补丁重建这个文件。所以从官网 dmg 装的副本应用 delta 会在这个文件上失败
   （`made Contents/CodeResources wrong`），安装随即退回全量包。一键装过一次（装的是 `.tar.gz`）或 app 自己更新过的副本，
   下次就能走 delta。
@@ -170,6 +177,9 @@ swift run --package-path application-test feed-discover "Moshi Go 0.5.2.dmg"
 1. Tauri 副本经 `BundleIDMigration` 一键换成 Moshi Go 还没在真机上跑过（2026-10-11），见 Tauri 那份的「建议下一步」。
 
 ## 历史与实测
+- 2026-10-13: 通用的 `MyGoUpdateSource` 落地（排在 `SparkleAppcastSource` 之后、所有 recipe 之前），Moshi Go 副本改由它应答。
+  0.5.16 的二进制里，以 NUL 结尾、解码为 32 字节的 44 字符 base64 串只有一个，就是 recipe 的 key（同形但不以 NUL
+  结尾的串有 31 个）；以 NUL 结尾的 `update-darwin-*.json` 地址也只有一个，就是 recipe 的地址。
 - 2026-10-07 接入。官网 dmg 0.5.2，feed 0.5.3（当天 10:16 UTC 发布），manifest 共 4 个版本（0.5.0–0.5.3，全在同一天）。
 - 2026-10-11: feed 0.5.13（`date` `2026-10-11T03:00:14Z`），`deltas[]` 的 `from` 是 0.5.12 / 0.5.11 / 0.5.10；manifest 10 个版本
   （0.5.4–0.5.13），每条都有 `date`。Tauri 的 feed 开始发 Moshi Go，Tauri recipe 退役，Tauri 副本改由本 recipe 接住

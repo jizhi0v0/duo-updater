@@ -636,6 +636,7 @@ extension InstallTrust: Codable {
         switch self {
         case .developerID: return "developerID"
         case .publishedDigestOnly: return "publishedDigestOnly"
+        case .myGoSignatureOnly: return "myGoSignatureOnly"
         }
     }
 

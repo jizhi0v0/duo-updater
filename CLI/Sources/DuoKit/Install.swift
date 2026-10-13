@@ -380,6 +380,16 @@ public enum Install {
                         + "in DuoUpdater's Settings → General to install it checked by file hash only",
                     nil)
             }
+            // The MyGo ad-hoc route, stopped by the same setting or by a manifest
+            // that signed nothing for this download.
+            if result.remote?.installTrust == .myGoSignatureOnly {
+                return .refuse(settings.updateSettings.allowsDigestOnlyInstalls
+                    ? "no developer signature, and its update manifest signs no file for this release"
+                    : "no developer signature — turn on one-click updates for such apps "
+                        + "in DuoUpdater's Settings → General to install it checked by its "
+                        + "developer's update signature",
+                    nil)
+            }
             return .refuse("detection only — this source publishes no installable artefact", nil)
         }
         if UpdatePolicy.defersToSelfUpdater(

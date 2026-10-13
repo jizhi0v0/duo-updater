@@ -15,6 +15,14 @@ enum app_getmoshi_desktop {
         // "Alpha", but it has its own feed and no second track: the channel is
         // stable for this bundle id.
         //
+        // WHO THIS PROBE ANSWERS FOR: a Moshi Go copy is answered earlier in the
+        // stack by `MyGoUpdateSource`, from the feed and key linked into its own
+        // binary — the same address and key as below. What reaches this probe is
+        // a Tauri copy filed under this id by `BundleIDMigration`: its binary is
+        // not MyGo and links neither, so this recipe is the only thing that
+        // checks it and moves it to Moshi Go. Retire it with that migration, not
+        // before.
+        //
         // No Sparkle, no electron-builder config. The address is the one the app's
         // own updater reads (`desktop-go/update-darwin-<arch>.json`); only arm64
         // is published (the amd64 name 404s) and the build is arm64-only.

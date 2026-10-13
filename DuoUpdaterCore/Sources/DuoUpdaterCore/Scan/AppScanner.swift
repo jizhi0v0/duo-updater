@@ -322,6 +322,7 @@ public struct AppScanner: Sendable {
                 isTestFlightApp: true,
                 sparkleFeedURL: app.sparkleFeedURL,
                 electronUpdate: app.electronUpdate,
+                myGoUpdate: app.myGoUpdate,
                 sparkleFeedHeaders: app.sparkleFeedHeaders,
                 sparkleChannelNames: app.sparkleChannelNames,
                 sparkleEdPublicKey: app.sparkleEdPublicKey,
@@ -798,6 +799,12 @@ public struct AppScanner: Sendable {
             linkedLibraries: loadCommands.linkedLibraries,
             goBuildInfo: loadCommands.goBuildInfo)
         let buildSDK = runtimeReading.binary.flatMap(loadCommands.buildSDK)
+        // A MyGo app's update feed and key live in its binary, not in a file
+        // (`MyGoUpdateConfig`), so they are read from the binary the detector
+        // just proved to be MyGo, and only from that one: one section, located by
+        // the load commands already parsed.
+        let myGoUpdate = runtimeReading.runtime == .mygo
+            ? runtimeReading.binary.flatMap(loadCommands.myGoUpdate) : nil
 
         return InstalledApp(
             name: displayName,
@@ -813,6 +820,7 @@ public struct AppScanner: Sendable {
             isTestFlightApp: isTestFlight,
             sparkleFeedURL: feedURL,
             electronUpdate: electronUpdate,
+            myGoUpdate: myGoUpdate,
             sparkleFeedHeaders: feedHeaders,
             sparkleChannelNames: feedChannelNames,
             sparkleEdPublicKey: (plist["SUPublicEDKey"] as? String)?
@@ -861,6 +869,11 @@ public struct AppScanner: Sendable {
 
         func goBuildInfo(at url: URL) -> GoBuildInfo? {
             commands(at: url)?.goBuildInfo.flatMap { GoBuildInfo.read(at: url, section: $0) }
+        }
+
+        func myGoUpdate(at url: URL) -> MyGoUpdateConfig? {
+            commands(at: url)?.section("__TEXT", "__rodata")
+                .flatMap { MyGoUpdateConfig.read(binaryAt: url, rodata: $0.range) }
         }
     }
 

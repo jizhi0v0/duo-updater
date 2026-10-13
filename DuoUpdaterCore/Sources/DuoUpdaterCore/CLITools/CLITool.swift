@@ -26,6 +26,11 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     /// bun at `~/.bun/bin/bun`, and the packages `bun add -g` installed: one
     /// group, a row each.
     case bun
+    /// The packages `pnpm add -g` installed (`PnpmPackages`): one group, a row
+    /// each. pnpm itself is wherever its installer put it, and not a row.
+    case pnpm
+    /// The packages `yarn global add` installed — Yarn 1's (`YarnPackages`).
+    case yarn
     /// OpenCode as its installer leaves it, `~/.opencode/bin/opencode`.
     case opencode
     /// Cursor's command-line agent, `~/.local/bin/agent`.
@@ -89,6 +94,8 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .starship: return "Starship"
         case .deno: return "Deno"
         case .mise: return "mise"
+        case .pnpm: return "pnpm"
+        case .yarn: return "Yarn"
         }
     }
 }
@@ -313,6 +320,8 @@ public struct CLIToolReport: Sendable, Equatable {
         case starship
         case deno
         case mise
+        case pnpm
+        case yarn
     }
 
     public init(

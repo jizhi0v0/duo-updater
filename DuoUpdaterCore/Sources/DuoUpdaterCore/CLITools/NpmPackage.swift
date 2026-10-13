@@ -51,6 +51,11 @@ public struct NpmPackage: Sendable, Equatable {
         case openclaw
         /// `<bun> add -g <name>@<version>`, for a package of bun's global install.
         case bun
+        /// pnpm's `update -g` or `add -g`, for a package of its global install
+        /// (`NpmCheck.globalUpdateCommand`).
+        case pnpm
+        /// `yarn global add <name>@<version>`, for a package of Yarn 1's.
+        case yarn
     }
 
     public let install: NpmInstall

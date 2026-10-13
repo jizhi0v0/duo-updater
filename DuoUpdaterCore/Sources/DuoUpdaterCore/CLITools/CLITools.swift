@@ -16,7 +16,7 @@ public enum CLITools {
             VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), ZoxideProvider(), NvmProvider(),
             AtuinProvider(), GhcupProvider(),
             FlyctlProvider(), HelmProvider(), StarshipProvider(),
-            DenoProvider(), MiseProvider(),
+            DenoProvider(), MiseProvider(), GlobalPackagesProvider(.pnpm), GlobalPackagesProvider(.yarn),
         ])
     }
 

@@ -413,6 +413,18 @@ enum CLIToolPresentation {
         if let registry = install.customRegistry {
             facts.append(Fact(label: String(localized: "Registry"), value: registry.url))
         }
+        // bun's, pnpm's and Yarn's global installs keep what the user asked for;
+        // an exact version is a pin (`NpmCheck.isPinned`).
+        if let specifier = install.specifier, !specifier.isEmpty {
+            facts.append(Fact(label: String(localized: "Version range"), value: specifier))
+        }
+        if let manager = install.global?.manager {
+            // Tool and source names and a path: the same in every language.
+            let source = manager.source == .homebrew ? "Homebrew" : manager.source.rawValue
+            let value = "\(manager.tool == .pnpm ? "pnpm" : "Yarn") \(manager.version ?? "?") (\(source)) · "
+                + ClaudeCodePresentation.abbreviate(manager.path, home: home)
+            facts.append(Fact(label: String(localized: "Updated with"), value: value))
+        }
         return facts
     }
 
@@ -494,6 +506,22 @@ enum CLIToolPresentation {
             }
             // A tool name and version numbers: the same in every language.
             return nodes.isEmpty ? nil : "node " + nodes.joined(separator: ", ")
+        case (.pnpm, _), (.yarn, _):
+            // Which copy of the tool would run the updates, and the node their
+            // `engines` are held against: tool names and version numbers.
+            var managers: [String] = []
+            var nodes: [String] = []
+            for case .npm(let package) in mine.map(\.detail) {
+                if let manager = package.install.global?.manager {
+                    let name = "\(kind.displayName) \(manager.version ?? "?")"
+                    if !managers.contains(name) { managers.append(name) }
+                }
+                if let node = nodeVersion(of: package), !nodes.contains(node) { nodes.append(node) }
+            }
+            let parts = [managers.isEmpty ? nil : managers.joined(separator: ", "),
+                         nodes.isEmpty ? nil : "node " + nodes.joined(separator: ", ")]
+            let summary = parts.compactMap { $0 }.joined(separator: " · ")
+            return summary.isEmpty ? nil : summary
         default:
             return nil
         }

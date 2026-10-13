@@ -42,8 +42,11 @@ public struct NpmInstall: Sendable, Equatable, Codable {
     /// The bun that installed it, for a package of bun's global install; nil for
     /// npm's.
     public let bun: BunManager?
+    /// For a package of pnpm's or Yarn's global install: which copy changes it,
+    /// and where its specifier is kept. nil for npm's and bun's.
+    public let global: GlobalInstall?
     /// What the package manager's global `package.json` asks for it (`^1.5.0`,
-    /// `1.5.0`), for the managers that keep one — bun's; nil for npm's, which
+    /// `1.5.0`), for the managers that keep one — bun's, pnpm's, Yarn's; nil for npm's, which
     /// records none (npm's `update` docs: a global package's `wanted` is
     /// `latest`). An exact version is the user's pin (`NpmPin`).
     public let specifier: String?
@@ -59,7 +62,7 @@ public struct NpmInstall: Sendable, Equatable, Codable {
         path: String, name: String, version: String?, manifestName: String?, prefix: NodePrefix,
         runtime: NpmRuntime, linkTarget: String? = nil, repository: String? = nil,
         customRegistry: CustomRegistry? = nil, ownUpdate: NpmOwnUpdate? = nil, npmrcPrefixElsewhere: String? = nil,
-        bun: BunManager? = nil, specifier: String? = nil
+        bun: BunManager? = nil, global: GlobalInstall? = nil, specifier: String? = nil
     ) {
         self.path = path
         self.name = name
@@ -73,6 +76,7 @@ public struct NpmInstall: Sendable, Equatable, Codable {
         self.ownUpdate = ownUpdate
         self.npmrcPrefixElsewhere = npmrcPrefixElsewhere
         self.bun = bun
+        self.global = global
         self.specifier = specifier
     }
 
@@ -80,7 +84,34 @@ public struct NpmInstall: Sendable, Equatable, Codable {
         NpmInstall(
             path: path, name: name, version: version, manifestName: manifestName, prefix: prefix, runtime: runtime,
             linkTarget: linkTarget, repository: repository, customRegistry: customRegistry, ownUpdate: ownUpdate,
-            npmrcPrefixElsewhere: npmrcPrefixElsewhere, bun: bun, specifier: specifier)
+            npmrcPrefixElsewhere: npmrcPrefixElsewhere, bun: bun, global: global, specifier: specifier)
+    }
+}
+
+/// Where a package of pnpm's or Yarn's global install lives, and the copy of the
+/// tool that changes it (`GlobalPackageManager`).
+public struct GlobalInstall: Sendable, Equatable, Codable {
+    public let tool: GlobalPackageManager.Tool
+    /// The copy that would run the update; nil when none on disk fits this
+    /// install (`GlobalPackageManagers.pick`).
+    public let manager: GlobalPackageManager?
+    /// pnpm's home (its `PNPM_HOME`), or Yarn's global folder.
+    public let home: String
+    /// The `package.json` whose `dependencies` name the package: pnpm's global
+    /// project, Yarn's global folder's.
+    public let manifest: String
+    /// pnpm 11 and later: a project per package (`global/v11/<hash>`), which
+    /// `pnpm add -g` replaces and `pnpm update -g <name>@<version>` leaves as it
+    /// is (measured 2026-10-13, 11.28.4 and 12.9.1). pnpm 10's one shared
+    /// project (`global/5`) is updated in place.
+    public let isolated: Bool
+
+    public init(tool: GlobalPackageManager.Tool, manager: GlobalPackageManager?, home: String, manifest: String, isolated: Bool) {
+        self.tool = tool
+        self.manager = manager
+        self.home = home
+        self.manifest = manifest
+        self.isolated = isolated
     }
 }
 
@@ -299,11 +330,15 @@ public struct NpmScanner: Sendable {
     func package(
         _ name: String, in modules: URL, prefix: NodePrefix, runtime: NpmRuntime,
         registries: [(key: String, value: String, file: String)], npmrcPrefixElsewhere: String?,
-        bun: BunManager? = nil, specifier: String? = nil
+        bun: BunManager? = nil, global: GlobalInstall? = nil, specifier: String? = nil, ownLinks: [URL] = []
     ) -> NpmInstall? {
         guard !Self.excluded.contains(name) else { return nil }
         let directory = modules.appendingPathComponent(name)
-        let link = try? FileManager.default.destinationOfSymbolicLink(atPath: directory.path)
+        // pnpm links every package into its own store: those links are how it
+        // installs, not `npm link` (`ownLinks`, the store roots).
+        let resolved = directory.resolvingSymlinksInPath().path
+        let ownLink = ownLinks.contains { resolved.hasPrefix($0.resolvingSymlinksInPath().path + "/") }
+        let link = ownLink ? nil : try? FileManager.default.destinationOfSymbolicLink(atPath: directory.path)
         guard let data = try? Data(contentsOf: directory.appendingPathComponent("package.json")),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               Self.hasBin(json)
@@ -324,7 +359,8 @@ public struct NpmScanner: Sendable {
             linkTarget: link.map { URL(fileURLWithPath: $0, relativeTo: directory.deletingLastPathComponent()).standardizedFileURL.path },
             repository: repository,
             customRegistry: Self.customRegistry(for: manifestName ?? name, in: registries),
-            ownUpdate: ownUpdate, npmrcPrefixElsewhere: npmrcPrefixElsewhere, bun: bun, specifier: specifier)
+            ownUpdate: ownUpdate, npmrcPrefixElsewhere: npmrcPrefixElsewhere, bun: bun, global: global,
+            specifier: specifier)
     }
 
     /// A command on `PATH`: `bin` as a path or a non-empty map, or the older

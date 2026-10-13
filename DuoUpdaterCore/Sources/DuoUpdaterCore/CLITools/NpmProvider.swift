@@ -37,7 +37,10 @@ public struct NpmProvider: CLIToolProvider {
             kind: .npm, path: install.path, version: install.version,
             state: [install.linkTarget, install.manifestName, install.customRegistry?.url,
                     install.runtime.nodeSignature?.rawValue, install.runtime.nodeQuarantined ? "quarantined" : nil,
-                    install.runtime.nodeVersion, install.runtime.npm, install.runtime.npmVersion, own]
+                    install.runtime.nodeVersion, install.runtime.npm, install.runtime.npmVersion, own,
+                    // A pin set or lifted (`NpmCheck.isPinned`); the copy of pnpm
+                    // or Yarn that would run.
+                    install.specifier, install.global?.manager.map { "\($0.source.rawValue):\($0.path):\($0.version ?? "-")" }]
                 .map { $0 ?? "-" }.joined(separator: "|"))
     }
 

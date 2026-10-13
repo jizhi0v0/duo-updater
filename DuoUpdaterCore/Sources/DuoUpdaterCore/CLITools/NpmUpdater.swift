@@ -42,6 +42,10 @@ public struct NpmUpdater: Sendable {
     let trustsNode: @Sendable (NpmInstall) -> Bool
     /// Whether the package's bun may still be run, asked again at the click.
     let trustsBun: @Sendable (BunManager) -> Bool
+    /// Whether the pnpm or Yarn that runs the update may still be run, asked
+    /// again at the click (`GlobalPackageManager.isTrusted`); its node, when it
+    /// runs on one, is `trustsNode`'s.
+    let trustsManager: @Sendable (GlobalPackageManager) -> Bool
     /// The child's environment before `PATH` is set.
     let environment: @Sendable () -> [String: String]
     let deadline: ChildProcess.Deadline
@@ -57,6 +61,7 @@ public struct NpmUpdater: Sendable {
             busy: { NpmActivity.busy($0, processes: NpmActivity.runningProcesses()) },
             trustsNode: { NpmUpdater.nodeIsTrustedNow($0) },
             trustsBun: { NpmUpdater.bunIsTrustedNow($0) },
+            trustsManager: { NpmUpdater.managerIsTrustedNow($0) },
             // A GUI app launched by launchd has no proxy variables; npm honours
             // `https_proxy` & co. when its own `https-proxy` is unset (npm 11's
             // `config.md`). See `SystemProxyEnvironment`.
@@ -67,12 +72,14 @@ public struct NpmUpdater: Sendable {
         busy: @escaping BusyCheck,
         trustsNode: @escaping @Sendable (NpmInstall) -> Bool = { _ in true },
         trustsBun: @escaping @Sendable (BunManager) -> Bool = { _ in true },
+        trustsManager: @escaping @Sendable (GlobalPackageManager) -> Bool = { _ in true },
         environment: @escaping @Sendable () -> [String: String],
         deadline: ChildProcess.Deadline = NpmUpdater.defaultDeadline
     ) {
         self.busy = busy
         self.trustsNode = trustsNode
         self.trustsBun = trustsBun
+        self.trustsManager = trustsManager
         self.environment = environment
         self.deadline = deadline
     }
@@ -94,8 +101,17 @@ public struct NpmUpdater: Sendable {
                 return .failed(message: "not run: \(bun.path) is no longer a bun DuoUpdater may run", output: "")
             }
         }
-        // npm's commands run the prefix's node; of bun's, only openclaw's does.
-        if install.bun == nil || command.executable == install.runtime.node {
+        if let global = install.global {
+            let trustsManager = self.trustsManager
+            guard let manager = global.manager, await offCooperativePool({ trustsManager(manager) }) else {
+                return .failed(
+                    message: "not run: \(global.manager?.path ?? global.tool.rawValue) is no longer a \(global.tool.rawValue) DuoUpdater may run",
+                    output: "")
+            }
+        }
+        // npm's commands run the prefix's node; of bun's, only openclaw's does;
+        // pnpm's and Yarn's when they are JavaScript.
+        if (install.bun == nil && install.global == nil) || command.executable == install.runtime.node {
             let trustsNode = self.trustsNode
             guard await offCooperativePool({ trustsNode(install) }) else {
                 return .failed(
@@ -104,13 +120,14 @@ public struct NpmUpdater: Sendable {
             }
         }
 
-        let manifest = install.bun.map { _ in
+        let manifest = install.global.map { URL(fileURLWithPath: $0.manifest) } ?? install.bun.map { _ in
             URL(fileURLWithPath: install.prefix.path).appendingPathComponent("package.json")
         }
         let specifier = await offCooperativePool { manifest.flatMap { Self.specifier(of: install.name, in: $0) } }
 
         let run = await Self.run(
-            command, environment: Self.childEnvironment(self.environment(), command: command, bun: install.bun),
+            command,
+            environment: Self.childEnvironment(self.environment(), command: command, bun: install.bun, global: install.global),
             deadline: deadline, progress: progress)
         let outcome: ChildProcess.Outcome
         switch run.result {
@@ -122,14 +139,20 @@ public struct NpmUpdater: Sendable {
         guard outcome.succeeded else {
             return .failed(message: Self.failureMessage(run.lines, outcome, deadline: deadline), output: run.text)
         }
-        let after = await offCooperativePool { Self.installedVersion(at: install.path) }
+        // pnpm's packages are links into its store, which an update moves.
+        let followsLinks = install.global?.tool == .pnpm
+        let after = await offCooperativePool { Self.installedVersion(at: install.path, followingLinks: followsLinks) }
         guard after == target else {
             return .failed(
                 message: "the update finished, but \(install.name) is \(after ?? "unreadable"), not \(target)",
                 output: run.text)
         }
         if let manifest, let specifier {
-            _ = await offCooperativePool { Self.restoreSpecifier(specifier, of: install.name, at: target, in: manifest) }
+            let lockfile = install.global?.tool == .yarn
+                ? manifest.deletingLastPathComponent().appendingPathComponent("yarn.lock") : nil
+            _ = await offCooperativePool {
+                Self.restoreSpecifier(specifier, of: install.name, at: target, in: manifest, yarnLock: lockfile)
+            }
         }
         return .updated(version: after)
     }
@@ -162,17 +185,53 @@ public struct NpmUpdater: Sendable {
     /// For a package of bun's global install, `BUN_INSTALL` is the directory the
     /// bun lives in (`~/.bun`), so `bun add -g` writes where the scan read.
     static func childEnvironment(
-        _ base: [String: String], command: CLIToolCommand, bun: BunManager? = nil
+        _ base: [String: String], command: CLIToolCommand, bun: BunManager? = nil, global: GlobalInstall? = nil
     ) -> [String: String] {
         var environment = base.filter {
             $0.key.lowercased() != "npm_config_prefix" && $0.key != "OPENCLAW_UPDATE_PACKAGE_SPEC"
+                && !(global != nil && Self.globalRedirects.contains($0.key.lowercased()))
         }
         environment["PATH"] = CLIToolCommandRunner.path(prefix: command.pathPrefix)
+        switch global?.tool {
+        case .pnpm?:
+            // pnpm refuses a global install without its home: pnpm 10 asks for
+            // `PNPM_HOME` (ERR_PNPM_NO_GLOBAL_BIN_DIR), 11 and 12 for its `bin` on
+            // `PATH` (measured 2026-10-13). A GUI app has neither.
+            let home = global!.home
+            environment["PNPM_HOME"] = home
+            environment["PATH"] = CLIToolCommandRunner.path(
+                prefix: ([command.pathPrefix, home, home + "/bin"].compactMap { $0 }).joined(separator: ":"))
+        case .yarn?:
+            // Homebrew's Yarn runs with `PREFIX` set to Homebrew's root (its
+            // formula's env script), which is where its global bins go.
+            if let root = global?.manager?.homebrewRoot { environment["PREFIX"] = root }
+        case nil:
+            break
+        }
         if let bun {
             environment["BUN_INSTALL"] = URL(fileURLWithPath: bun.path)
                 .deletingLastPathComponent().deletingLastPathComponent().path
         }
         return environment
+    }
+
+    /// A pnpm or Yarn read again from disk: the files it runs still there, and
+    /// Homebrew's still inside its keg, beside its receipt. Its node, if any, is
+    /// `nodeIsTrustedNow`'s.
+    static func managerIsTrustedNow(_ manager: GlobalPackageManager) -> Bool {
+        let fm = FileManager.default
+        switch manager.source {
+        case .standalone:
+            return false
+        case .npm, .corepack:
+            return manager.script.map { fm.fileExists(atPath: $0) } == true
+        case .homebrew:
+            guard let keg = manager.homebrewKeg,
+                  fm.fileExists(atPath: URL(fileURLWithPath: keg).appendingPathComponent("INSTALL_RECEIPT.json").path)
+            else { return false }
+            let ran = URL(fileURLWithPath: manager.script ?? manager.executable).resolvingSymlinksInPath().path
+            return ran.hasPrefix(URL(fileURLWithPath: keg).resolvingSymlinksInPath().path + "/") && fm.fileExists(atPath: ran)
+        }
     }
 
     /// The bun read again from disk: Oven's Team ID, no quarantine.
@@ -208,6 +267,13 @@ public struct NpmUpdater: Sendable {
         return CLIToolCommandRunner.Run(result: result, lines: log.lines)
     }
 
+    /// Settings that would send pnpm's or Yarn's global install somewhere other
+    /// than the one checked, lowercased: a shell `duo` runs in can carry them.
+    static let globalRedirects: Set<String> = [
+        "pnpm_home", "xdg_data_home", "npm_config_global_dir", "npm_config_global_bin_dir",
+        "pnpm_config_global_dir", "pnpm_config_global_bin_dir", "yarn_global_folder", "xdg_config_home",
+    ]
+
     // MARK: - Afterwards
 
     /// The specifier the global `package.json`'s `dependencies` gives `name`;
@@ -239,46 +305,96 @@ public struct NpmUpdater: Sendable {
     }
 
     /// Puts the user's style of specifier back for `name`, only where the entry
-    /// reads exactly the `version` bun wrote, and only by editing that one value
-    /// in place — the rest of the file stays byte for byte as bun left it. bun's
-    /// `bun.lock` still names the exact version; its next install brings the lock
-    /// in line without moving the package (measured, bun 1.4.3). A failure here
-    /// leaves bun's exact version, which is the state before this existed.
+    /// reads exactly the `version` the update wrote, and only by editing that one
+    /// value in place — the rest of the file stays byte for byte as it was left.
+    /// bun's `bun.lock` still names the exact version; its next install brings
+    /// the lock in line without moving the package (measured, bun 1.4.3), and
+    /// pnpm's next `update -g` reads the edited range alike (10.33.2, 11.28.4,
+    /// 12.9.1).
+    ///
+    /// Yarn 1 refuses to run on a `package.json` its `yarn.lock` does not match
+    /// ("Outdated lockfile"), so with `yarnLock` the lock's key for the entry —
+    /// `<name>@<version>:` — is rewritten too, and nothing is written unless both
+    /// can be: one key line alone, not one shared with another package's range.
+    /// With both rewritten, `yarn global add` of another package keeps this one
+    /// and `yarn global upgrade` moves it within the range (1.22.22, measured
+    /// 2026-10-13). A failure leaves the exact version, which is the state
+    /// before this existed.
     @discardableResult
-    static func restoreSpecifier(_ specifier: String, of name: String, at version: String, in manifest: URL) -> Bool {
-        guard let replacement = restoredSpecifier(specifier, at: version) else { return false }
-        func json(_ string: String) -> String? {
-            (try? JSONSerialization.data(withJSONObject: string, options: [.fragmentsAllowed, .withoutEscapingSlashes]))
-                .flatMap { String(data: $0, encoding: .utf8) }
-        }
-        guard self.specifier(of: name, in: manifest) == version,
+    static func restoreSpecifier(
+        _ specifier: String, of name: String, at version: String, in manifest: URL, yarnLock: URL? = nil
+    ) -> Bool {
+        guard let replacement = restoredSpecifier(specifier, at: version),
+              self.specifier(of: name, in: manifest) == version,
               let text = try? String(contentsOf: manifest, encoding: .utf8),
-              let key = json(name), let value = json(version), let newValue = json(replacement),
-              let regex = try? NSRegularExpression(
-                pattern: "(" + NSRegularExpression.escapedPattern(for: key) + #"\s*:\s*)"#
-                    + NSRegularExpression.escapedPattern(for: value))
+              let restored = rewritten(text, name: name, version: version, to: replacement)
         else { return false }
-        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-        guard matches.count == 1, let range = Range(matches[0].range, in: text) else {
-            Log.install.error("bun specifier: \(matches.count) matches for \(name, privacy: .public) in package.json, left as \(version, privacy: .public)")
-            return false
+        var lock: (url: URL, old: String, new: String)?
+        if let yarnLock {
+            guard let old = try? String(contentsOf: yarnLock, encoding: .utf8),
+                  let new = rewrittenYarnLockKey(old, name: name, version: version, to: replacement)
+            else {
+                Log.install.error("yarn specifier: no single yarn.lock key \(name, privacy: .public)@\(version, privacy: .public), left as \(version, privacy: .public)")
+                return false
+            }
+            lock = (yarnLock, old, new)
         }
-        let restored = text.replacingCharacters(
-            in: range, with: regex.replacementString(
-                for: matches[0], in: text, offset: 0, template: "$1" + NSRegularExpression.escapedTemplate(for: newValue)))
         do {
-            try Data(restored.utf8).write(to: manifest, options: .atomic)
+            if let lock { try Data(lock.new.utf8).write(to: lock.url, options: .atomic) }
+            do {
+                try Data(restored.utf8).write(to: manifest, options: .atomic)
+            } catch {
+                // The lock must not run ahead of package.json: put it back.
+                if let lock { try? Data(lock.old.utf8).write(to: lock.url, options: .atomic) }
+                throw error
+            }
         } catch {
-            Log.install.error("bun specifier: could not write \(manifest.path, privacy: .public): \(error)")
+            Log.install.error("specifier: could not write \(manifest.path, privacy: .public): \(error)")
             return false
         }
         return self.specifier(of: name, in: manifest) == replacement
     }
 
+    /// `text` with the one `"<name>": "<version>"` entry's value replaced, or nil
+    /// unless exactly one such entry is there.
+    static func rewritten(_ text: String, name: String, version: String, to replacement: String) -> String? {
+        func json(_ string: String) -> String? {
+            (try? JSONSerialization.data(withJSONObject: string, options: [.fragmentsAllowed, .withoutEscapingSlashes]))
+                .flatMap { String(data: $0, encoding: .utf8) }
+        }
+        guard let key = json(name), let value = json(version), let newValue = json(replacement),
+              let regex = try? NSRegularExpression(
+                pattern: "(" + NSRegularExpression.escapedPattern(for: key) + #"\s*:\s*)"#
+                    + NSRegularExpression.escapedPattern(for: value))
+        else { return nil }
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        guard matches.count == 1, let range = Range(matches[0].range, in: text) else {
+            Log.install.error("specifier: \(matches.count) matches for \(name, privacy: .public) in package.json, left as \(version, privacy: .public)")
+            return nil
+        }
+        return text.replacingCharacters(
+            in: range, with: regex.replacementString(
+                for: matches[0], in: text, offset: 0, template: "$1" + NSRegularExpression.escapedTemplate(for: newValue)))
+    }
+
+    /// `yarn.lock` with the key line `<name>@<version>:` (quoted when Yarn quotes
+    /// it, as it does a scoped name) rewritten to the new specifier, or nil
+    /// unless exactly one line is that key alone.
+    static func rewrittenYarnLockKey(_ text: String, name: String, version: String, to replacement: String) -> String? {
+        var lines = text.components(separatedBy: "\n")
+        let bare = "\(name)@\(version):"
+        let quoted = "\"\(name)@\(version)\":"
+        let hits = lines.indices.filter { lines[$0] == bare || lines[$0] == quoted }
+        guard hits.count == 1, let index = hits.first else { return nil }
+        lines[index] = lines[index] == quoted ? "\"\(name)@\(replacement)\":" : "\(name)@\(replacement):"
+        return lines.joined(separator: "\n")
+    }
+
     /// The version `package.json` at `path` reads as — nil when it cannot be
-    /// read, or when the directory is now a link (not what npm installs).
-    static func installedVersion(at path: String) -> String? {
-        guard (try? FileManager.default.destinationOfSymbolicLink(atPath: path)) == nil,
+    /// read, or when the directory is now a link (not what npm installs) and
+    /// `followingLinks` is not set (pnpm's, which link into its store).
+    static func installedVersion(at path: String, followingLinks: Bool = false) -> String? {
+        guard followingLinks || (try? FileManager.default.destinationOfSymbolicLink(atPath: path)) == nil,
               let data = try? Data(contentsOf: URL(fileURLWithPath: path).appendingPathComponent("package.json")),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return nil }

@@ -296,6 +296,7 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
 
 - [ ] **OpenClaw** · `ai.openclaw.mac` — 渠道来自 Gateway `update.channel`（运行中 Gateway 优先，兜底 `~/.openclaw/openclaw.json`）：beta/dev → 标签 `beta`；extended-stable → 只认该标签。2026-10-08 appcast 近 100 版 0 条带标签；出现带标签条目即接 ChannelBinding（否则 extended-stable 会被 duo 跨轨推）。详见 [审计](docs/app-audits/ai-openclaw-mac.md)
 - [ ] **Superwhisper** · `com.superduper.superwhisper` — 二进制有 `includeBetaUpdates` 键、无 UI 文案；feed 233 条 0 标签，猜的 4 个 beta feed 都 404。需真 app 确认键与机制（agent 类 app）后再定 binding。详见 [审计](docs/app-audits/com-superduper-superwhisper.md)
+- [ ] **AstrLink — preview** · `com.astrlink.desktop` — app 内 `UpdateChannel { Stable, Preview }`，存于 Tauri `app_config_dir` 的 `desktop-preferences.json` → `updates.channel`（源码 `apps/desktop/src-tauri/src/updates.rs` / `preferences.rs`）；preview 读 `/releases` 取 SemVer 最高（含 pre-release）。2026-10-13 共 17 个 release、0 个 pre-release，所以 preview 与 stable 现在给同一版。第一个 pre-release 出来后：真包读版本串、真 app 确认落盘，再接 `ChannelBinding` + `usePrereleases` 规则。详见 [审计](docs/app-audits/com-astrlink-desktop.md)
 - [x] **OpenChamber — v2-preview** · 同 `dev.openchamber.desktop`，版本 `2.0.0-preview.N` → `detect()` 判 preview；`.preview` GitHub rule 只读 stable，preview 拷贝被推 stable（与 app 自己的更新器一致，用户 2026-10-08 定）。详见 [审计](docs/app-audits/dev-openchamber-desktop.md)
 
 ---

@@ -174,6 +174,16 @@ struct GitHubAssetSelectionTests {
           "RustGIS-0.1.0-windows-x86_64.msi", "RustGIS-0.1.0-windows-x86_64.msix",
           "rustgis-cli-0.1.0-macos-aarch64.tar.gz", "rustgis-cli-0.1.0-macos-x86_64.tar.gz",
           "rustgis_0.1.0_amd64.deb", "rustgis_0.1.0_arm64.deb", "SHA256SUMS"]),
+        // AstrLink: one dmg per architecture beside the Tauri updater's
+        // `.app.tar.gz` archives and the Linux/Windows packages (v0.2.6's
+        // assets, in the order GitHub listed them).
+        (#"^AstrLink_[0-9][0-9A-Za-z.-]*_(?:aarch64|x64)\.dmg$"#,
+         ["AstrLink-macOS-arm64.app.tar.gz", "AstrLink-macOS-arm64.app.tar.gz.sig",
+          "AstrLink-macOS-x86_64.app.tar.gz", "AstrLink-macOS-x86_64.app.tar.gz.sig",
+          "AstrLink_0.2.6_aarch64.dmg", "AstrLink_0.2.6_amd64.AppImage",
+          "AstrLink_0.2.6_amd64.AppImage.sig", "AstrLink_0.2.6_amd64.deb",
+          "AstrLink_0.2.6_x64-setup.exe", "AstrLink_0.2.6_x64-setup.exe.sig",
+          "AstrLink_0.2.6_x64.dmg", "latest.json", "SHA256SUMS"]),
     ]
 
     /// Registry patterns whose alternation chooses between TAGS rather than

@@ -19,6 +19,14 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.7
+
+**One-click updates no longer stop bun from updating the packages it installed globally.** Before, the update replaced the package's version range in bun's list (such as `^5.46.0`) with the exact version, so `bun update -g` left the package alone afterwards. Running `bun add -g <name>` once puts a range back for a package that was already updated this way.
+
+**In a command-line tool's details, each version with breaking changes now leads to them.** Click it under Compatibility, or click the warning sign next to its release notes, and the notes scroll to the breaking part and highlight it.
+
+**Under the hood.** In rare cases a disk image stayed mounted after an update; it is now ejected.
+
 ## 0.5.6
 
 **Updates that come in a disk image with a license agreement now install with one click.** Before, the install stopped at the agreement. On macOS 27.2 and later, apps in large disk images also install faster.

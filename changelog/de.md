@@ -2,6 +2,14 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.7
+
+**Ein Update mit einem Klick hindert bun nicht mehr daran, global installierte Pakete zu aktualisieren.** Bisher ersetzte das Update den Versionsbereich des Pakets in bun's Liste (etwa `^5.46.0`) durch die genaue Version, sodass `bun update -g` das Paket danach nicht mehr anfasste. Für ein Paket, das schon so aktualisiert wurde, stellt ein einmaliges `bun add -g <Name>` wieder einen Bereich her.
+
+**In den Details eines Befehlszeilen-Tools führt jede Version mit inkompatiblen Änderungen jetzt direkt zu ihnen.** Ein Klick auf die Version unter Kompatibilität oder auf das Warnsymbol neben ihren Versionshinweisen scrollt die Hinweise zur betreffenden Stelle und hebt sie hervor.
+
+**Unter der Haube.** In seltenen Fällen blieb ein Disk-Image nach einem Update eingebunden; es wird jetzt ausgeworfen.
+
 ## 0.5.6
 
 **Updates, die in einem Disk-Image mit Lizenzvereinbarung kommen, lassen sich jetzt mit einem Klick installieren.** Vorher blieb die Installation an der Vereinbarung hängen. Ab macOS 27.2 installieren sich Apps aus großen Disk-Images außerdem schneller.

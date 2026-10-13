@@ -2,6 +2,14 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.7
+
+**Tek tıkla güncelleme artık bun'ın genel olarak kurduğu paketleri güncellemesini engellemiyor.** Önceden güncelleme, paketin bun listesindeki sürüm aralığını (`^5.46.0` gibi) tam sürümle değiştiriyordu; bu yüzden `bun update -g` paketi sonrasında güncellemiyordu. Bu şekilde güncellenmiş bir paket için `bun add -g <ad>` komutunu bir kez çalıştırmak aralığı geri getirir.
+
+**Bir komut satırı aracının ayrıntılarında, uyumsuz değişiklikler içeren her sürüm artık doğrudan bunlara götürüyor.** Uyumluluk altındaki sürüme ya da sürüm notlarının yanındaki uyarı işaretine tıklayınca notlar uyumsuz kısma kayar ve orayı vurgular.
+
+**Perde arkasında.** Nadiren bir disk görüntüsü güncellemeden sonra bağlı kalıyordu; artık çıkarılıyor.
+
 ## 0.5.6
 
 **Lisans sözleşmesi içeren bir disk görüntüsüyle gelen güncellemeler artık tek tıkla yükleniyor.** Önceden yükleme sözleşme adımında duruyordu. macOS 27.2 ve sonrasında büyük disk görüntülerindeki uygulamalar da daha hızlı yükleniyor.

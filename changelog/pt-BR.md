@@ -2,6 +2,14 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.7
+
+**Atualizações com um clique não impedem mais o bun de atualizar os pacotes que ele instalou globalmente.** Antes, a atualização trocava a faixa de versões do pacote na lista do bun (como `^5.46.0`) pela versão exata, e depois disso `bun update -g` deixava o pacote de lado. Para um pacote que já foi atualizado assim, rodar `bun add -g <nome>` uma vez devolve uma faixa.
+
+**Nos detalhes de uma ferramenta de linha de comando, cada versão com mudanças incompatíveis agora leva direto a elas.** Clique na versão em Compatibilidade, ou no sinal de aviso ao lado das notas de versão, e as notas rolam até a parte incompatível e a destacam.
+
+**Nos bastidores.** Em casos raros, uma imagem de disco continuava montada depois de uma atualização; agora ela é ejetada.
+
 ## 0.5.6
 
 **Atualizações distribuídas em uma imagem de disco com contrato de licença agora são instaladas com um clique.** Antes, a instalação parava no contrato. No macOS 27.2 e posteriores, apps em imagens de disco grandes também são instalados mais rápido.

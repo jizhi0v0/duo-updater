@@ -102,12 +102,18 @@ struct BrewFormulaReleaseActorTests {
                 "seeded entry must be readable before timing it")
 
         // A prewarm-sized batch of uncached formulae, each paying a full `brew info`.
-        // Up to three batches: the poll below sleeps on the same saturated pool, and one
-        // that oversleeps a whole batch must not decide the verdict. A pass needs the
-        // gate met once; with the hop reverted it is never met, and that costs three
-        // serialized batches before the failure.
+        // Up to six batches: the poll below sleeps on the same saturated pool, and one
+        // that oversleeps a whole batch must not decide the verdict. Nor must one whose
+        // members start so far apart that the first exits before the last starts. Three
+        // were not enough: one full-suite run in 60 on the 3-core runner never saw all
+        // four alive in any of them (most at once: 3, 2, 1; diag run 38376650037).
+        // Instrumented there (diag run 38382344975, 2026-10-13), 18 of 120 batches after
+        // the first missed the gate, twice two in a row. A looser gate — one or two
+        // alive and the rest finished — would have rescued none of the 18.
+        // A pass needs the gate met once; with the hop reverted it is never met, and
+        // that costs six serialized batches before the failure.
         let batch = 4
-        let rounds = 3
+        let rounds = 6
         var peaks: [Int] = []
         var stillRunningAfterRead: Set<String>?
         var elapsed: TimeInterval = 0

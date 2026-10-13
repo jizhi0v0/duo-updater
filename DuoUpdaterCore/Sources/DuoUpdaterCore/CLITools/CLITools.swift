@@ -16,7 +16,7 @@ public enum CLITools {
             VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), ZoxideProvider(), NvmProvider(),
             AtuinProvider(), GhcupProvider(),
             FlyctlProvider(), HelmProvider(), StarshipProvider(),
-            DenoProvider(), MiseProvider(),
+            DenoProvider(), MiseProvider(), GlobalPackagesProvider(.pnpm), GlobalPackagesProvider(.yarn),
         ])
     }
 
@@ -98,7 +98,11 @@ extension CLIToolStatus {
     ///
     /// Beside an update that asks for an administrator password: the same
     /// command, for a terminal, as the way to take it without DuoUpdater.
+    ///
+    /// Beside a pinned package (`.pinned`): what lets it follow releases again
+    /// (`NpmCheck.unpinCommand`) — the user's call, never run here.
     public var commandToCopy: CLIToolCommand? {
+        if state == .pinned { return manualCommand }
         guard state == .updateAvailable else { return nil }
         if needsAdministrator { return manualCommand }
         guard let withheld, [.autoUpdateOff, .unsupportedInstaller, .unverified].contains(withheld)

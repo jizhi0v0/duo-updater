@@ -83,7 +83,7 @@ public struct NpmCheck: Sendable {
         ) -> CLIToolStatus {
             let pending = pick.map { $0.pending.isEmpty ? [install.version].compactMap { $0 } : $0.pending } ?? []
             return CLIToolStatus(
-                kind: install.bun == nil ? .npm : .bun, path: install.path, installedVersion: install.version,
+                kind: Self.kind(of: install), path: install.path, installedVersion: install.version,
                 latestVersion: pick.map { $0.offered ?? $0.tagVersion }, channel: pick?.tag, state: state,
                 oneClick: oneClick, withheld: withheld, note: note, manualCommand: manual,
                 name: install.name, releaseNotesKey: NpmChangelog.releaseNotesKey(name: install.name, installed: install.version),
@@ -149,6 +149,11 @@ public struct NpmCheck: Sendable {
         guard current < newest else {
             return verdict(current == newest ? .upToDate : .ahead, pick: pick)
         }
+        if let specifier = install.specifier, Self.isPinned(specifier), let manual = Self.unpinCommand(for: install) {
+            return verdict(.pinned, pick: pick,
+                           note: "pinned to \(specifier) in its package manager's global package.json, which its own update -g keeps: reported only",
+                           manual: manual)
+        }
         guard let offered = pick.offered else {
             if let gap = pick.gap {
                 return verdict(.updateAvailable, pick: pick,
@@ -170,6 +175,16 @@ public struct NpmCheck: Sendable {
                 return verdict(.updateAvailable, pick: pick, note: withheld.note, withheld: withheld.withheld)
             }
             return await finish(install, pick: pick, offered: offered, busy: busy, openclaw: openclaw, verdict: verdict)
+        }
+        if let global = install.global {
+            if let withheld = Self.globalGate(install, global: global, node: node, alongside: alongside) {
+                let manual = withheld.withheld == .unverified
+                    ? global.manager.map { Self.globalUpdateCommand(for: install, global: global, manager: $0, version: offered, typed: true) }
+                    : nil
+                return verdict(.updateAvailable, pick: pick, note: withheld.note, withheld: withheld.withheld,
+                               manual: manual)
+            }
+            return await finish(install, pick: pick, offered: offered, busy: busy, openclaw: nil, verdict: verdict)
         }
 
         // The command, then the gates in the order a user can act on them.
@@ -200,6 +215,68 @@ public struct NpmCheck: Sendable {
                            withheld: .versionUnreadable)
         }
         return await finish(install, pick: pick, offered: offered, busy: busy, openclaw: openclaw, verdict: verdict)
+    }
+
+    /// Whether `specifier` pins one version: an exact version (`1.5.0`,
+    /// `=1.5.0`, `v1.5.0`), which bun's, pnpm's and yarn's own `update -g` hold
+    /// where it is (measured 2026-10-13: bun 1.4.3, pnpm 10.33.2, 11.28.4 and
+    /// 12.9.1, yarn 1.22.22). A range, a dist-tag or anything unreadable is not.
+    static func isPinned(_ specifier: String) -> Bool {
+        NpmVersion(specifier) != nil
+    }
+
+    /// What the user runs to let the package follow releases again: the
+    /// manager's own add without a version, which installs the newest and
+    /// writes a `^` range (measured 2026-10-13, bun 1.4.3: `"6.0.0"` became
+    /// `"^7.0.0"`). nil for npm's packages, which have no specifier to pin.
+    static func unpinCommand(for install: NpmInstall) -> CLIToolCommand? {
+        if let global = install.global {
+            // The copy that reads this install, as a user would run it; the
+            // tool's bare name when none was found.
+            let arguments = global.tool == .yarn ? ["global", "add", install.name] : ["add", "-g", install.name]
+            return CLIToolCommand(executable: global.manager?.path ?? global.tool.rawValue, arguments: arguments,
+                                  pathPrefix: nil)
+        }
+        guard let bun = install.bun else { return nil }
+        return CLIToolCommand(executable: bun.path, arguments: ["add", "-g", install.name],
+                              pathPrefix: URL(fileURLWithPath: bun.path).deletingLastPathComponent().path)
+    }
+
+    /// The group a package's row is in: its package manager's.
+    static func kind(of install: NpmInstall) -> CLIToolKind {
+        if install.bun != nil { return .bun }
+        switch install.global?.tool {
+        case .pnpm?: return .pnpm
+        case .yarn?: return .yarn
+        case nil: return .npm
+        }
+    }
+
+    /// Why a package of pnpm's or Yarn's global install gets no click, or nil:
+    /// no copy of the tool that reads this install, one that may not be run
+    /// (pnpm's standalone binary, or a node that is neither Node.js's nor
+    /// Homebrew's), or no node to hold its `engines` against.
+    static func globalGate(
+        _ install: NpmInstall, global: GlobalInstall, node: NpmVersion?, alongside: String
+    ) -> (withheld: CLIToolWithheld, note: String)? {
+        let tool = global.tool == .pnpm ? "pnpm" : "Yarn"
+        guard let manager = global.manager else {
+            let needs = global.tool == .yarn ? "a Yarn 1" : global.isolated ? "a pnpm 11 or later" : "a pnpm 10 or earlier"
+            return (.updaterMissing, "no \(needs) found on disk to change \(global.manifest): reported only\(alongside)")
+        }
+        if manager.source == .standalone {
+            return (.unverified, "\(manager.path) is \(tool)'s standalone binary, ad hoc signed with no Team ID, so it is not run\(alongside)")
+        }
+        if let runtime = manager.runtime, manager.script != nil, !runtime.nodeIsTrusted {
+            return (.unverified, "\(runtime.node ?? "its node"), which runs \(manager.path), is neither signed by the Node.js Foundation nor a Homebrew keg, so it is not run\(alongside)")
+        }
+        guard manager.isTrusted else {
+            return (.unverified, "\(manager.path) is not a Homebrew keg DuoUpdater can confirm, so it is not run\(alongside)")
+        }
+        guard install.runtime.node != nil, node != nil else {
+            return (.versionUnreadable, "no node to hold its engines against: reported only\(alongside)")
+        }
+        return nil
     }
 
     /// Why a package of bun's global install gets no click, or nil: no node to
@@ -276,6 +353,11 @@ public struct NpmCheck: Sendable {
         for install: NpmInstall, version: String
     ) -> (CLIToolCommand?, NpmPackage.Updater?, String?) {
         if let bun = install.bun { return bunUpdateCommand(for: install, bun: bun, version: version) }
+        if let global = install.global {
+            guard let manager = global.manager else { return (nil, nil, nil) }
+            return (globalUpdateCommand(for: install, global: global, manager: manager, version: version),
+                    global.tool == .pnpm ? .pnpm : .yarn, nil)
+        }
         guard let node = install.runtime.node, let npm = install.runtime.npm else { return (nil, nil, nil) }
         let bin = URL(fileURLWithPath: install.prefix.path).appendingPathComponent("bin").path
         var why: String?
@@ -299,6 +381,33 @@ public struct NpmCheck: Sendable {
             executable: node,
             arguments: [npm, "install", "-g", "--prefix", install.prefix.path, "--engine-strict", "\(install.name)@\(version)"],
             pathPrefix: bin), .npm, why)
+    }
+
+    /// The command that installs exactly `version` with pnpm or Yarn, each the
+    /// way that keeps the user's specifier, or comes closest (measured
+    /// 2026-10-13):
+    /// - pnpm 10's shared project: `pnpm update -g <name>@<version>`, which
+    ///   writes `^7.8.0` over `^7.6.0` itself. `add -g` would write the exact
+    ///   version.
+    /// - pnpm 11's project per package: `pnpm add -g <name>@<version>`.
+    ///   `update -g <name>@<version>` exits 0 there having changed nothing.
+    ///   `add` writes the exact version, which `NpmUpdater` puts back in the
+    ///   user's style.
+    /// - Yarn 1: `yarn global add <name>@<version>`, which writes the exact
+    ///   version into `package.json` and `yarn.lock` alike — `global upgrade
+    ///   <name>@<version>` does too — and `NpmUpdater` puts both back.
+    ///
+    /// `typed` spells it with the tool's own name, as a user would run it.
+    static func globalUpdateCommand(
+        for install: NpmInstall, global: GlobalInstall, manager: GlobalPackageManager, version: String, typed: Bool = false
+    ) -> CLIToolCommand {
+        let spec = "\(install.name)@\(version)"
+        let arguments: [String]
+        switch global.tool {
+        case .pnpm: arguments = [global.isolated ? "add" : "update", "-g", spec]
+        case .yarn: arguments = ["global", "add", spec]
+        }
+        return typed ? manager.typed(arguments) : manager.command(arguments)
     }
 
     static func bunUpdateCommand(

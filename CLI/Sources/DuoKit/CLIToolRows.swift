@@ -202,6 +202,9 @@ enum CLIToolRows {
             if let builtWith = row.builtWith { line += "  [\(builtWith)]" }
             line += "  \(row.path)"
             if row.unchecked { line += "  — not checked: \(row.reason ?? row.note ?? "no verdict")" }
+            if row.state == CLIToolState.pinned.rawValue, let status = row.status, let pinned = CLIToolWording.pinned(status) {
+                line += "  — \(pinned)"
+            }
             print(line)
             for detail in details(row) { print("      \(detail)") }
         }
@@ -211,6 +214,9 @@ enum CLIToolRows {
     /// changes, why it is not offered, and the command the app hands out
     /// instead.
     static func details(_ row: Row) -> [String] {
+        if row.state == CLIToolState.pinned.rawValue {
+            return row.command.map { ["to follow new releases again: \($0)"] } ?? []
+        }
         guard row.hasUpdate else { return [] }
         var lines: [String] = []
         if let breaking = row.breakingIn, !breaking.isEmpty { lines.append(CLIToolWording.breaking(breaking)) }

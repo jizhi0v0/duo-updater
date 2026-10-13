@@ -260,6 +260,23 @@ import Foundation
         #expect(try String(contentsOf: manifest, encoding: .utf8) == Self.manifest("^1.6.0"))
     }
 
+    /// A range the new version is outside of is not left exact: the next check
+    /// would read that as the user's pin and offer nothing again. Mutation:
+    /// leave bun's exact version for an unsatisfied range (the row reads pinned).
+    @Test func aRangeTheUpdateLeftIsNotReadAsAPin() async throws {
+        let box = try BunSandbox()
+        let status = try await Self.cowsayStatus(box, body: Self.upgrading(extra: Self.bunWritesExactSpecifier))
+        let manifest = try box.write(box.global.appendingPathComponent("package.json"), Self.manifest("1.5.x"))
+        #expect(await Self.packageUpdater(box).update(status) == .updated(version: "1.6.0"))
+        #expect(try String(contentsOf: manifest, encoding: .utf8) == Self.manifest("^1.6.0"))
+        let bun = try #require(box.scanner.scan().map(box.scanner.withSignature))
+        let after = try #require(box.packages.scan(bun: bun).first { $0.name == "cowsay" })
+        let recheck = await NpmCheck(packument: { _ in
+            NpmPackument(distTags: ["latest": "1.7.0"], versions: ["1.5.0": .init(), "1.6.0": .init(), "1.7.0": .init()])
+        }).status(of: after, busy: nil)
+        #expect(recheck.state == .updateAvailable)
+    }
+
     /// An exact specifier was the user's own pin: it stays exact, at the new version.
     @Test func anExactSpecifierStaysExact() async throws {
         let box = try BunSandbox()
@@ -284,8 +301,10 @@ import Foundation
 
     @Test(arguments: [
         ("^6.0.0", "7.0.0", "^7.0.0"), ("~6.1.0", "6.2.0", "~6.2.0"), ("^7", "7.1.0", "^7.1.0"),
-        ("6.0.0", "7.0.0", nil), ("7.0.0", "7.0.0", nil),
-        ("*", "7.0.0", "*"), (">=6", "7.0.0", ">=6"), ("6.x", "7.0.0", nil), ("latest", "7.0.0", nil),
+        ("6.0.0", "7.0.0", nil), ("=6.0.0", "7.0.0", nil), ("7.0.0", "7.0.0", nil),
+        ("*", "7.0.0", "*"), (">=6", "7.0.0", ">=6"),
+        // Outside the range, or a dist-tag: never left exact, which would read as a pin.
+        ("6.x", "7.0.0", "^7.0.0"), ("latest", "7.0.0", "^7.0.0"), ("1.5.x", "1.6.0", "^1.6.0"),
     ] as [(String, String, String?)])
     func restoredSpecifier(specifier: String, version: String, expected: String?) {
         #expect(NpmUpdater.restoredSpecifier(specifier, at: version) == expected)

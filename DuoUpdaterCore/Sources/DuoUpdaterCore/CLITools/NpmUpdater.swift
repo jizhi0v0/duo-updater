@@ -286,22 +286,29 @@ public struct NpmUpdater: Sendable {
         return dependencies[name] as? String
     }
 
-    /// What goes back over the exact `version` bun wrote, given the user's
-    /// `specifier` from before; nil to leave bun's.
+    /// What goes back over the exact `version` the update wrote, given the
+    /// user's `specifier` from before; nil to leave the exact version.
     ///
+    /// An exact version left behind reads as the user's pin (`NpmCheck.isPinned`),
+    /// so it stays only where the user had pinned one:
+    /// - An exact version was the user's pin: the new exact one stays.
     /// - `^` and `~` move to the new version (`^6.0.0` → `^7.0.0`), as bun's own
     ///   `update --latest` rewrites them (`^6.0.0` → `^7.0.0`, `~2.0.0` → `~3.0.1`;
     ///   bun 1.4.3, measured 2026-10-13).
-    /// - An exact version was the user's pin: the new exact one stays.
     /// - Any other range the new version satisfies (`*`, `>=1`, `1.x`) goes back
-    ///   as written; one it does not satisfy would make bun's next install
-    ///   resolve the package again, so bun's exact version stays.
+    ///   as written.
+    /// - Anything else — a range the new version is outside of (`7.x` at 8.0.0),
+    ///   a dist-tag (`latest`) — becomes `^<version>`: as written it would make
+    ///   the next install resolve the package again, and exact it would read as
+    ///   a pin.
     static func restoredSpecifier(_ specifier: String, at version: String) -> String? {
         let trimmed = specifier.trimmingCharacters(in: .whitespaces)
-        guard trimmed != version, let installed = NpmVersion(version), let range = NpmRange(trimmed) else { return nil }
-        if let first = trimmed.first, first == "^" || first == "~" { return "\(first)\(version)" }
-        if NpmVersion(trimmed) != nil { return nil }
-        return range.satisfies(installed) ? specifier : nil
+        guard trimmed != version, NpmVersion(trimmed) == nil, let installed = NpmVersion(version) else { return nil }
+        if let first = trimmed.first, first == "^" || first == "~", NpmRange(trimmed) != nil {
+            return "\(first)\(version)"
+        }
+        if let range = NpmRange(trimmed), range.satisfies(installed) { return specifier }
+        return "^\(version)"
     }
 
     /// Puts the user's style of specifier back for `name`, only where the entry
@@ -313,13 +320,18 @@ public struct NpmUpdater: Sendable {
     /// 12.9.1).
     ///
     /// Yarn 1 refuses to run on a `package.json` its `yarn.lock` does not match
-    /// ("Outdated lockfile"), so with `yarnLock` the lock's key for the entry —
-    /// `<name>@<version>:` — is rewritten too, and nothing is written unless both
-    /// can be: one key line alone, not one shared with another package's range.
-    /// With both rewritten, `yarn global add` of another package keeps this one
-    /// and `yarn global upgrade` moves it within the range (1.22.22, measured
-    /// 2026-10-13). A failure leaves the exact version, which is the state
-    /// before this existed.
+    /// ("Outdated lockfile"), so with `yarnLock` the new specifier is added to
+    /// the lock's key line that names `<name>@<version>` — beside it, not over
+    /// it, since the line can be shared with another package's range of the same
+    /// resolution (`semver@7.8.5, semver@^7.5.4:`) — and nothing is written
+    /// unless both files can be. Yarn 1.22.22 took the added pattern alone and on
+    /// a shared line alike: `global upgrade <name>@<version>`, an unrelated
+    /// `global add` and a bare `global upgrade` all ran, and Yarn dropped the
+    /// pattern nothing asked for (measured 2026-10-13).
+    ///
+    /// A failure — a file that names the entry other than once, or that cannot
+    /// be written — leaves the exact version, which the next check reads as a
+    /// pin; it is logged.
     @discardableResult
     static func restoreSpecifier(
         _ specifier: String, of name: String, at version: String, in manifest: URL, yarnLock: URL? = nil
@@ -377,16 +389,22 @@ public struct NpmUpdater: Sendable {
                 for: matches[0], in: text, offset: 0, template: "$1" + NSRegularExpression.escapedTemplate(for: newValue)))
     }
 
-    /// `yarn.lock` with the key line `<name>@<version>:` (quoted when Yarn quotes
-    /// it, as it does a scoped name) rewritten to the new specifier, or nil
-    /// unless exactly one line is that key alone.
+    /// `yarn.lock` with `<name>@<replacement>` added to the one key line whose
+    /// patterns include `<name>@<version>` (quoted when Yarn quotes it, as it
+    /// does a scoped name or a range with a space), or nil unless exactly one
+    /// line does.
     static func rewrittenYarnLockKey(_ text: String, name: String, version: String, to replacement: String) -> String? {
         var lines = text.components(separatedBy: "\n")
-        let bare = "\(name)@\(version):"
-        let quoted = "\"\(name)@\(version)\":"
-        let hits = lines.indices.filter { lines[$0] == bare || lines[$0] == quoted }
+        let wanted = "\(name)@\(version)"
+        func patterns(_ line: String) -> [String]? {
+            guard !line.hasPrefix(" "), !line.hasPrefix("#"), line.hasSuffix(":") else { return nil }
+            return line.dropLast().components(separatedBy: ", ").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\"")) }
+        }
+        let hits = lines.indices.filter { patterns(lines[$0])?.contains(wanted) == true }
         guard hits.count == 1, let index = hits.first else { return nil }
-        lines[index] = lines[index] == quoted ? "\"\(name)@\(replacement)\":" : "\(name)@\(replacement):"
+        let added = "\(name)@\(replacement)"
+        let needsQuotes = name.hasPrefix("@") || replacement.contains(" ") || lines[index].hasPrefix("\"")
+        lines[index] = String(lines[index].dropLast()) + ", " + (needsQuotes ? "\"\(added)\"" : added) + ":"
         return lines.joined(separator: "\n")
     }
 

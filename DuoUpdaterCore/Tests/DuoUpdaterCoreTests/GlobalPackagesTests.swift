@@ -381,18 +381,24 @@ final class GlobalSandbox {
         #expect(NpmUpdater.childEnvironment([:], command: command, global: yarn)["PREFIX"] == "/h")
     }
 
-    /// Yarn refuses a `package.json` its lock does not match: the key is
-    /// rewritten with it, quoted as Yarn quotes a scoped name, and nothing is
-    /// written when the key is shared with another range.
+    /// Yarn refuses a `package.json` its lock does not match: the new range is
+    /// added to the key line beside the exact one — quoted as Yarn quotes a
+    /// scoped name — on a line of its own and on one shared with another
+    /// package's range alike. A lock that does not name it once: nothing.
+    /// Mutation: replace the exact pattern (a shared line loses the other
+    /// package's pattern too, if it was the same).
     @Test func yarnLockKeys() {
         let lock = GlobalSandbox.yarnLock("cowsay", key: "1.6.0", version: "1.6.0")
         #expect(NpmUpdater.rewrittenYarnLockKey(lock, name: "cowsay", version: "1.6.0", to: "^1.6.0")
-            == GlobalSandbox.yarnLock("cowsay", key: "^1.6.0", version: "1.6.0"))
+            == GlobalSandbox.yarnLock("cowsay", key: "1.6.0, cowsay@^1.6.0", version: "1.6.0"))
         let scoped = "\"@scope/tool@2.0.0\":\n  version \"2.0.0\"\n"
         #expect(NpmUpdater.rewrittenYarnLockKey(scoped, name: "@scope/tool", version: "2.0.0", to: "~2.0.0")
-            == "\"@scope/tool@~2.0.0\":\n  version \"2.0.0\"\n")
+            == "\"@scope/tool@2.0.0\", \"@scope/tool@~2.0.0\":\n  version \"2.0.0\"\n")
         let shared = "cowsay@1.6.0, cowsay@^1.0.0:\n  version \"1.6.0\"\n"
-        #expect(NpmUpdater.rewrittenYarnLockKey(shared, name: "cowsay", version: "1.6.0", to: "^1.6.0") == nil)
+        #expect(NpmUpdater.rewrittenYarnLockKey(shared, name: "cowsay", version: "1.6.0", to: "^1.6.0")
+            == "cowsay@1.6.0, cowsay@^1.0.0, cowsay@^1.6.0:\n  version \"1.6.0\"\n")
+        let other = "cowsay@^1.0.0:\n  version \"1.6.0\"\n"
+        #expect(NpmUpdater.rewrittenYarnLockKey(other, name: "cowsay", version: "1.6.0", to: "^1.6.0") == nil)
     }
 
     /// End to end with a fake Yarn that does what `yarn global add <name>@<version>`
@@ -417,7 +423,7 @@ final class GlobalSandbox {
         let manifest = try String(contentsOf: box.yarnGlobal.appendingPathComponent("package.json"), encoding: .utf8)
         #expect(manifest.contains(#""cowsay": "^1.6.0""#))
         let lock = try String(contentsOf: box.yarnGlobal.appendingPathComponent("yarn.lock"), encoding: .utf8)
-        #expect(lock.contains("\ncowsay@^1.6.0:\n"))
+        #expect(lock.contains("\ncowsay@1.6.0, cowsay@^1.6.0:\n"))
     }
 
     /// End to end with a fake pnpm 11: `add -g` makes a new project with the

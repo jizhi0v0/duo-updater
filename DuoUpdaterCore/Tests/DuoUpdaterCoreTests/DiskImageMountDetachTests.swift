@@ -167,6 +167,17 @@ import Testing
 
     // MARK: - Real tools
 
+    static func diagPoll(_ label: String, _ image: URL) async {
+        for i in 0..<6 {
+            let table = await TestDiskImages.attachments()
+                .map { "\($0.imagePath)→\($0.device ?? "nil")" }.joined(separator: " | ")
+            let raw = try? await ChildProcess.run("/usr/bin/hdiutil", ["info", "-plist"], onCancel: .runToCompletion)
+            let lookup = await DiskImageMount.attachment(of: image)
+            DiagDisk.line("POLL \(DiagDisk.stamp()) \(label) #\(i) lookup=\(lookup) rc=\(raw?.terminationStatus ?? -99) bytes=\(raw?.standardOutput.count ?? -1) table=\(table)")
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+    }
+
     /// The leaked state made on purpose with real tools: attach, then unmount the
     /// volume with `diskutil unmount`, which leaves the disk attached. Both tries
     /// by path then fail ("No such file or directory", "Failed to find disk" —
@@ -207,13 +218,20 @@ import Testing
                 "/usr/sbin/diskutil", ["unmount", mount.path], onCancel: .runToCompletion)
             try #require(unmounted.succeeded, "diskutil unmount failed")
 
-            guard case .disk(let device) = await DiskImageMount.attachment(of: image) else {
+            DiagDisk.line("TEST \(DiagDisk.stamp()) \(tool) unmounted image=\(image.path)")
+            let first = await DiskImageMount.attachment(of: image)
+            DiagDisk.line("TEST \(DiagDisk.stamp()) \(tool) lookup1=\(first)")
+            guard case .disk(let device) = first else {
+                await Self.diagPoll("lookup1-miss \(tool)", image)
                 Issue.record("the unmounted image is not listed as attached")
                 return
             }
             let otherSpelling = image.path.hasPrefix("/private/")
                 ? String(image.path.dropFirst("/private".count)) : "/private" + image.path
-            #expect(await DiskImageMount.attachment(of: URL(fileURLWithPath: otherSpelling)) == .disk(device))
+            let second = await DiskImageMount.attachment(of: URL(fileURLWithPath: otherSpelling))
+            DiagDisk.line("TEST \(DiagDisk.stamp()) \(tool) lookup2(\(otherSpelling))=\(second)")
+            if second != .disk(device) { await Self.diagPoll("lookup2-miss \(tool) \(device)", image) }
+            #expect(second == .disk(device))
 
             #expect(await DiskImageMount.detach(mount, image: image))
             #expect(await !TestDiskImages.isAttached(image), "the image is still attached")

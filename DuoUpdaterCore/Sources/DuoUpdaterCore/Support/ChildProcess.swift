@@ -251,6 +251,48 @@ public enum ChildProcess {
         beforeSpawn: (@Sendable () async -> Void)?,
         deadlineSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) async throws -> Outcome {
+        // DIAG: log every hdiutil/diskutil call.
+        guard DiagDisk.watched(executablePath) else {
+            return try await runCore(
+                executablePath, arguments, environment: environment,
+                workingDirectory: workingDirectory, standardInput: standardInput,
+                standardOutput: standardOutput, standardError: standardError,
+                deadline: deadline, onCancel: onCancel, onOutputChunk: onOutputChunk,
+                onLaunch: onLaunch, beforeSpawn: beforeSpawn, deadlineSleep: deadlineSleep)
+        }
+        let started = DiagDisk.stamp()
+        let errPolicy: ErrorPolicy = { if case .discard = standardError { return .capture }; return standardError }()
+        do {
+            let o = try await runCore(
+                executablePath, arguments, environment: environment,
+                workingDirectory: workingDirectory, standardInput: standardInput,
+                standardOutput: .capture, standardError: errPolicy,
+                deadline: deadline, onCancel: onCancel, onOutputChunk: onOutputChunk,
+                onLaunch: onLaunch, beforeSpawn: beforeSpawn, deadlineSleep: deadlineSleep)
+            let showOut = !(arguments.first == "info")
+            DiagDisk.line("RUN \(started)→\(DiagDisk.stamp()) \((executablePath as NSString).lastPathComponent) \(arguments.joined(separator: " ")) rc=\(o.terminationStatus) out=\(showOut ? DiagDisk.flat(o.standardOutput) : "<\(o.standardOutput.count)B>") err=\(DiagDisk.flat(o.standardError))")
+            return o
+        } catch {
+            DiagDisk.line("RUN \(started)→\(DiagDisk.stamp()) \((executablePath as NSString).lastPathComponent) \(arguments.joined(separator: " ")) threw \(error)")
+            throw error
+        }
+    }
+
+    static func runCore(
+        _ executablePath: String,
+        _ arguments: [String] = [],
+        environment: [String: String]? = nil,
+        workingDirectory: URL? = nil,
+        standardInput: Data? = nil,
+        standardOutput: OutputPolicy = .capture,
+        standardError: ErrorPolicy = .capture,
+        deadline: Deadline? = nil,
+        onCancel: Cancellation,
+        onOutputChunk: (@Sendable (Data) -> Void)? = nil,
+        onLaunch: (@Sendable (pid_t) -> Void)? = nil,
+        beforeSpawn: (@Sendable () async -> Void)?,
+        deadlineSleep: @escaping @Sendable (Duration) async throws -> Void
+    ) async throws -> Outcome {
         let request = Request(
             executablePath: executablePath, arguments: arguments,
             environment: environment, workingDirectory: workingDirectory,

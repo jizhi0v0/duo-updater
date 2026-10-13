@@ -226,10 +226,13 @@ import Testing
         // 1–41 s (median 7.6 s in run 38376650037). First seen 11 of 1,920
         // creates eight at a time, none one at a time, all created on the second
         // try (diag runs 37427083362, 37428672097, 2026-10-06). In 60 full Release
-        // suites (diag run 38376650037, macOS 27.0.1, 2026-10-13) 8 of 671 creates
+        // suites (diag run 38376650037, macOS 27.0.1, 2026-10-13) 8 of 660 images
         // answered busy: seven were created on the second or third try, the last
         // 20.9 s after the first try began; the eighth was still busy on its
-        // fourth try 38.6 s in. Any other failure is reported as it is.
+        // fourth try 38.6 s in. With this bound, 60 more suites (diag run
+        // 38382272237, same day) had 19 of 660 images answer busy, and all 19
+        // were created: four only on the fifth try, the latest 50.4 s after its
+        // first try began. Any other failure is reported as it is.
         let deadline = ContinuousClock.now + .seconds(60)
         var created = (status: Int32(-1), output: "")
         while true {

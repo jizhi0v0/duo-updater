@@ -678,10 +678,11 @@ final class CLIToolsModel {
     /// - bub is uv's lane: `bub update` runs uv, which `uv self update` replaces.
     /// - Every other tool is a lane of its own: its copies share its updater's
     ///   files (rustup and its toolchains, bun and the packages `bun add -g`
-    ///   installed, `claude update` and the versions it keeps).
+    ///   installed, pnpm's and Yarn's global packages, `claude update` and the
+    ///   versions it keeps).
     nonisolated static func lane(of status: CLIToolStatus) -> String {
         switch status.detail {
-        case .npm(let package) where package.install.bun == nil:
+        case .npm(let package) where package.install.bun == nil && package.install.global == nil:
             return "node:" + Self.canonical(package.install.prefix.path)
         case .claudeCode(let claude) where claude.install.method == .npm:
             if let prefix = claude.install.nodePrefix { return "node:" + Self.canonical(prefix) }

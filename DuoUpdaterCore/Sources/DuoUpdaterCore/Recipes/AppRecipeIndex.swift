@@ -263,6 +263,7 @@ public enum AppRecipeIndex {
         org_pgadmin_pgadmin4.set,
         org_qbittorrent_qBittorrent.set,
         org_RedisLabs_RedisInsight_V2.set,
+        org_rustgis_RustGIS.set,
         org_tabby.set,
         org_torproject_torbrowser.set,
         org_upscayl_Upscayl.set,

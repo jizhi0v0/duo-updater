@@ -77,6 +77,8 @@ struct CLIToolIcon: View {
         case .claudeCode: "cli-claudecode"
         case .npm: "cli-npm"
         case .bun: "cli-bun"
+        case .pnpm: "cli-pnpm"
+        case .yarn: "cli-yarn"
         case .uv: "cli-uv"
         case .cursorAgent: "cli-cursor"
         case .opencode: "cli-opencode"
@@ -128,6 +130,9 @@ struct CLIToolIcon: View {
         })
         case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr, .lorca, .zoxide, .nvm, .deno, .mise: Color(nsColor: .labelColor)
         case .starship: Color(red: 0xDD / 255, green: 0x0B / 255, blue: 0x78 / 255)
+        // Simple Icons' brand colours: pnpm's orange, Yarn's blue.
+        case .pnpm: Color(red: 0xF6 / 255, green: 0x92 / 255, blue: 0x20 / 255)
+        case .yarn: Color(red: 0x2C / 255, green: 0x8E / 255, blue: 0xBB / 255)
         // GHCup's page heads itself with the Haskell logo: Haskell's purple,
         // and in the dark the lightest purple of haskell.org's own logo, as
         // #5D4F85 all but vanished on a dark sidebar.
@@ -732,7 +737,11 @@ struct CLIToolDetailPane: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(verbatim: explanation)
                 if let command = CLIToolPresentation.manualCommand(status) {
-                    Text("To update it yourself, run:")
+                    if status.state == .pinned {
+                        Text("To follow new releases again, run:")
+                    } else {
+                        Text("To update it yourself, run:")
+                    }
                     manualCommandBox(command)
                 }
             }
@@ -811,6 +820,9 @@ private struct CLIToolReleaseNotesView: View {
                 } else if case .bun = status.detail {
                     // bun's releases carry install commands; its notes are blog posts.
                     Text("Bun publishes its release notes on its blog, not with its releases.")
+                } else if case .npm(let package) = status.detail {
+                    // An npm, bun, pnpm or Yarn package's notes are its own, not its group's.
+                    Text("\(package.install.name)’s release notes have no section for these versions yet.")
                 } else {
                     Text("\(kind.displayName)’s release notes have no section for these versions yet.")
                 }

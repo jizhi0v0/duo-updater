@@ -26,6 +26,11 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     /// bun at `~/.bun/bin/bun`, and the packages `bun add -g` installed: one
     /// group, a row each.
     case bun
+    /// The packages `pnpm add -g` installed (`PnpmPackages`): one group, a row
+    /// each. pnpm itself is wherever its installer put it, and not a row.
+    case pnpm
+    /// The packages `yarn global add` installed — Yarn 1's (`YarnPackages`).
+    case yarn
     /// OpenCode as its installer leaves it, `~/.opencode/bin/opencode`.
     case opencode
     /// Cursor's command-line agent, `~/.local/bin/agent`.
@@ -89,6 +94,8 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .starship: return "Starship"
         case .deno: return "Deno"
         case .mise: return "mise"
+        case .pnpm: return "pnpm"
+        case .yarn: return "Yarn"
         }
     }
 }
@@ -118,6 +125,11 @@ public enum CLIToolState: String, Sendable, Codable {
     case ahead
     /// No comparison possible; the status's `withheld` and `note` say why.
     case unknown
+    /// A newer version exists, but the user pinned this one: a package whose
+    /// specifier in its package manager's global `package.json` is an exact
+    /// version, which that manager's own `update -g` holds where it is. Reported,
+    /// never offered, and not counted as an update (agreed 2026-10-13).
+    case pinned
 }
 
 /// The gate that stopped a verdict short, as a value the app words in the user's
@@ -308,6 +320,8 @@ public struct CLIToolReport: Sendable, Equatable {
         case starship
         case deno
         case mise
+        case pnpm
+        case yarn
     }
 
     public init(

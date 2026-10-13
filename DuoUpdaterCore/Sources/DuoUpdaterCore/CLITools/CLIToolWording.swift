@@ -33,8 +33,18 @@ public enum CLIToolWording {
         case .amp: return "Amp Frontier"
         case .deno: return "Deno Land"
         case .mise: return "Jeffrey Dickey"
-        case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship: return nil
+        case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship,
+             .pnpm, .yarn: return nil
         }
+    }
+
+    /// What a pinned package's row says (`CLIToolState.pinned`): the specifier
+    /// that holds it and whose list it is in. nil for any other status.
+    public static func pinned(_ status: CLIToolStatus) -> String? {
+        guard status.state == .pinned, case .npm(let package) = status.detail,
+              let specifier = package.install.specifier else { return nil }
+        let manager = status.kind.displayName
+        return String(localized: "Pinned to \(specifier) in \(manager)’s global packages, so it doesn’t follow new releases")
     }
 
     /// Why an install has no one-click, in the user's terms rather than the gate's.
@@ -70,7 +80,7 @@ public enum CLIToolWording {
             case .rust:
                 // The rustup row's; a toolchain's is worded from its status.
                 return String(localized: "Not a published rustup build")
-            case .npm:
+            case .npm, .pnpm, .yarn:
                 // What is run is the prefix's node: trusted when the Node.js
                 // Foundation signed it or a Homebrew keg installed it
                 // (`NpmRuntime.nodeIsTrusted`). A quarantined one is worded from
@@ -126,6 +136,16 @@ public enum CLIToolWording {
             // the rustup row says which.
             case .toolchain: return String(localized: "Its rustup isn’t verified")
             }
+        // A package of pnpm's or Yarn's global install (`NpmCheck.globalGate`).
+        case (.unverified, .npm(let package)) where package.install.global?.manager?.source == .standalone:
+            let pnpm = "pnpm"
+            return String(localized: "\(pnpm)’s standalone binary isn’t signed by its developer, so it isn’t run")
+        case (.updaterMissing, .npm(let package)) where package.install.global != nil:
+            return String(localized: "No \(status.kind.displayName) found that can update it")
+        case (.busy, .npm(let package)) where package.install.global != nil:
+            return String(localized: "\(status.kind.displayName) is already changing its global packages")
+        case (.versionUnreadable, .npm(let package)) where package.install.global != nil && package.install.runtime.node == nil:
+            return String(localized: "No node found to check its engines against")
         // A package of bun's global install: bun installs it, and its node is the
         // one found on disk (`NpmCheck.bunGate`).
         case (.unverified, .npm(let package)) where package.install.bun?.quarantined == true:

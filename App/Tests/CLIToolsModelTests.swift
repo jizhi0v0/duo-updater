@@ -50,7 +50,7 @@ struct CLIToolsModelTests {
         case .uv: detail = .uv(UvInstall(path: path, version: version))
         case .junie: detail = .junie(JunieInstall(path: path, version: version))
         case .rust: detail = .rust(RustItem(path: path, version: version))
-        case .npm: detail = .npm(NpmPackage(path: path, version: version))
+        case .npm, .pnpm, .yarn: detail = .npm(NpmPackage(path: path, version: version))
         case .boat: detail = .boat(BoatInstall(path: path, version: version))
         case .codex: detail = .codex(CodexInstall(path: path, version: version))
         case .bun: detail = .bun(BunInstall(path: path, version: version))
@@ -111,6 +111,8 @@ struct CLIToolsModelTests {
         case .starship: context = .starship
         case .deno: context = .deno
         case .mise: context = .mise
+        case .pnpm: context = .pnpm
+        case .yarn: context = .yarn
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }

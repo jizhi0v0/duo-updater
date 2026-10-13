@@ -27,6 +27,11 @@ public struct NodePrefix: Sendable, Equatable, Codable {
         /// builds it, and its `layoutNodeVersion` is the node its packages are
         /// held against (`BunPackages`).
         case bun
+        /// A project of pnpm's global install (`PnpmPackages`): laid out by pnpm,
+        /// never listed by discovery, like bun's.
+        case pnpm
+        /// Yarn's global folder, `~/.config/yarn/global` (`YarnPackages`).
+        case yarn
     }
 
     public let path: String
@@ -107,7 +112,7 @@ public struct NodePrefixes: Sendable {
             guard let prefix = Self.npmrcPrefix(in: home.appendingPathComponent(".npmrc"), home: home)
             else { return [] }
             return [NodePrefix(path: prefix, source: .npmrc, layoutNodeVersion: nil)]
-        case .bun:
+        case .bun, .pnpm, .yarn:
             return []
         }
     }

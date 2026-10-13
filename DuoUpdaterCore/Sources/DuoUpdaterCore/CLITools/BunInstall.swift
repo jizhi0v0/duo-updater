@@ -197,7 +197,8 @@ public struct BunPackages: Sendable {
 
     /// The packages of the global install, each managed by `bun`. Blocking.
     public func scan(bun: BunInstall) -> [NpmInstall] {
-        let names = Self.dependencies(in: global.appendingPathComponent("package.json"))
+        let specifiers = Self.specifiers(in: global.appendingPathComponent("package.json"))
+        let names = specifiers.keys.sorted()
         guard !names.isEmpty else { return [] }
         let node = knownNode()
         let prefix = NodePrefix(path: global.path, source: .bun, layoutNodeVersion: node?.version)
@@ -208,17 +209,18 @@ public struct BunPackages: Sendable {
         let registries = Self.registryConfig(home: home)
         return names.compactMap {
             scanner.package($0, in: modules, prefix: prefix, runtime: runtime, registries: registries,
-                            npmrcPrefixElsewhere: nil, bun: bun.manager)
+                            npmrcPrefixElsewhere: nil, bun: bun.manager, specifier: specifiers[$0])
         }
     }
 
-    /// The names under `dependencies`, sorted; an unreadable file has none.
-    static func dependencies(in manifest: URL) -> [String] {
+    /// `dependencies`, each name with its specifier (empty when it is not a
+    /// string); an unreadable file has none.
+    static func specifiers(in manifest: URL) -> [String: String] {
         guard let data = try? Data(contentsOf: manifest),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let dependencies = json["dependencies"] as? [String: Any]
-        else { return [] }
-        return dependencies.keys.filter { !$0.isEmpty && !$0.contains("..") }.sorted()
+        else { return [:] }
+        return dependencies.filter { !$0.key.isEmpty && !$0.key.contains("..") }.mapValues { $0 as? String ?? "" }
     }
 
     /// The first system prefix with an executable `bin/node`: its runtime, without

@@ -12,8 +12,10 @@ import Foundation
 ///
 /// **Placed right after `SparkleAppcastSource`.** The address is the one the app
 /// itself reads, which is the same standing a `SUFeedURL` has, so a hand-written
-/// recipe for a MyGo app would only restate it (Pulse and Moshi Go had such
-/// recipes, retired when this source landed).
+/// recipe for a MyGo app would only restate it. Pulse's was retired when this
+/// source landed. Moshi Go's probe stays, and not as a restatement: a Tauri-era
+/// copy filed under its id by `BundleIDMigration` links no MyGo feed, so that
+/// probe is the only source for it (see `app-getmoshi-desktop.swift`).
 ///
 /// What the manifest gives (MyGo's `update.Manifest`): `version`, `notes`
 /// (Markdown), `date`, the archive's `url`, `size` and `signature`, and
@@ -246,12 +248,19 @@ public struct MyGoUpdateSource: UpdateSource {
 
     // MARK: - Tagged GitHub feeds
 
-    /// The manifest a feed of tagged releases names now: MyGo's
-    /// `update.ResolveFeed` — the newest release whose tag has the feed's
-    /// prefix and that is neither a draft nor a prerelease, in the GitHub API's
-    /// order, at most 10 pages of 100.
+    /// The manifest a feed of tagged releases names now: the release with the
+    /// HIGHEST version among those whose tag has the feed's prefix and that are
+    /// neither a draft nor a prerelease, over at most 10 pages of 100.
+    ///
+    /// Where this parts company with MyGo's own `update.ResolveFeed`, which takes
+    /// the first such release in the list: the list's order is not a release
+    /// order (a backport published after a newer release would come first), and
+    /// an offer of an older version as "latest" is the one wrong answer a
+    /// version source must not give. So every page is read, up to MyGo's own
+    /// bound; a repository with under 100 releases still costs one request.
     private func resolveTagged(_ feed: String) async throws -> URL {
         guard let tagged = TaggedFeed(feed) else { throw Failure.taggedFeedMalformed }
+        var eligible: [TaggedFeed.Release] = []
         for page in 1...10 {
             guard let url = URL(string:
                 "https://api.github.com/repos/\(tagged.repo)/releases?per_page=100&page=\(page)")
@@ -272,12 +281,13 @@ public struct MyGoUpdateSource: UpdateSource {
             guard let releases = try? JSONDecoder().decode([TaggedFeed.Release].self, from: data) else {
                 throw Failure.manifestUnreadable
             }
-            if let tag = tagged.newestTag(in: releases), let manifest = tagged.manifestURL(tag: tag) {
-                return manifest
-            }
+            eligible += releases
             if releases.count < 100 { break }
         }
-        throw Failure.noTaggedRelease(prefix: tagged.prefix)
+        guard let tag = tagged.newestTag(in: eligible), let manifest = tagged.manifestURL(tag: tag) else {
+            throw Failure.noTaggedRelease(prefix: tagged.prefix)
+        }
+        return manifest
     }
 
     /// `https://github.com/<owner>/<repo>/releases/download/<prefix>{version}/<name>`
@@ -314,16 +324,31 @@ public struct MyGoUpdateSource: UpdateSource {
             }
         }
 
+        /// The tag of the highest-versioned published release with the prefix,
+        /// whatever order the list is in. Compared on what follows the prefix.
         func newestTag(in releases: [Release]) -> String? {
-            releases.first { !$0.draft && !$0.prerelease && $0.tagName.hasPrefix(prefix) }?.tagName
+            releases
+                .filter { !$0.draft && !$0.prerelease && $0.tagName.hasPrefix(prefix) }
+                .max {
+                    VersionComparator.compare(
+                        String($0.tagName.dropFirst(prefix.count)),
+                        String($1.tagName.dropFirst(prefix.count))) == .orderedAscending
+                }?
+                .tagName
         }
+
+        /// What Go's `url.PathEscape` leaves unescaped, measured with go1.27.2 over
+        /// every printable ASCII character: unreserved characters plus `$&+:=@`.
+        /// (`CharacterSet.urlPathAllowed` would also keep `;` and `,`, which Go
+        /// escapes.)
+        static let pathSegmentAllowed = CharacterSet(
+            charactersIn: "$&+-.0123456789:=@ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~")
 
         /// The feed with its tag filled in, escaped as Go's `url.PathEscape`
         /// escapes a path segment.
         func manifestURL(tag: String) -> URL? {
-            var allowed = CharacterSet.urlPathAllowed
-            allowed.remove("/")
-            guard let escaped = tag.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
+            guard let escaped = tag.addingPercentEncoding(withAllowedCharacters: Self.pathSegmentAllowed)
+            else { return nil }
             return URL(string: "https://github.com/\(repo)/releases/download/\(escaped)/\(name)")
         }
     }

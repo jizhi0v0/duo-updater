@@ -233,16 +233,18 @@ struct MyGoUpdateSourceTests {
         "https://github.com/acme/app/releases/download/desktop-v{version}/update-darwin-arm64.json"
     static let releasesPage1 = "https://api.github.com/repos/acme/app/releases?per_page=100&page=1"
 
-    /// MyGo's `update.ResolveFeed`: the first release in the API's order whose
-    /// tag has the prefix and that is neither a draft nor a prerelease.
-    /// Mutations: drop the draft or prerelease test, or the prefix test → the
-    /// manifest of another release is read.
+    /// The highest published release with the prefix — neither a draft nor a
+    /// prerelease — whatever order the list is in. Mutations: drop the draft or
+    /// prerelease test, or the prefix test → another release's manifest is read;
+    /// take the first match instead of the highest → the backport listed ahead
+    /// of 1.2.0 is offered as the latest.
     @Test func aTaggedFeedResolvesToTheNewestPublishedReleaseWithItsPrefix() async throws {
         let releases = """
             [
               {"tag_name": "desktop-v2.0.0", "draft": true, "prerelease": false},
               {"tag_name": "desktop-v1.9.0-beta.1", "draft": false, "prerelease": true},
               {"tag_name": "cli-v5.0.0", "draft": false, "prerelease": false},
+              {"tag_name": "desktop-v1.1.1", "draft": false, "prerelease": false},
               {"tag_name": "desktop-v1.2.0", "draft": false, "prerelease": false},
               {"tag_name": "desktop-v1.1.0", "draft": false, "prerelease": false}
             ]
@@ -276,9 +278,10 @@ struct MyGoUpdateSourceTests {
         #expect(feed?.repo == "acme/app")
         #expect(feed?.prefix == "desktop-v")
         #expect(feed?.name == "update-darwin-arm64.json")
-        // `url.PathEscape` escapes a slash in a tag; so does the fill-in.
-        #expect(feed?.manifestURL(tag: "desktop-v1.2.0+a/b")?.absoluteString
-            == "https://github.com/acme/app/releases/download/desktop-v1.2.0+a%2Fb/update-darwin-arm64.json")
+        // What `url.PathEscape` escapes in a tag (measured with go1.27.2): a
+        // slash, `;` and `,` among others; `+` and `@` it keeps.
+        #expect(feed?.manifestURL(tag: "desktop-v1.2.0+a/b;c,d@e")?.absoluteString
+            == "https://github.com/acme/app/releases/download/desktop-v1.2.0+a%2Fb%3Bc%2Cd@e/update-darwin-arm64.json")
         #expect(MyGoUpdateSource.TaggedFeed(
             "https://cdn.example.com/releases/download/v{version}/update-darwin-arm64.json") == nil)
         #expect(MyGoUpdateSource.TaggedFeed(Self.feed) == nil)

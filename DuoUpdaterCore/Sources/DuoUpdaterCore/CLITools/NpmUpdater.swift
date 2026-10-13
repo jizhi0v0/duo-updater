@@ -23,6 +23,13 @@ import Foundation
 /// bun is read again at the click and must still carry Oven's Team ID, the node
 /// is asked only when the command runs it (`openclaw update`), and the child gets
 /// `BUN_INSTALL` set to the install that was checked.
+///
+/// `bun add -g <name>@<version>` also writes `<version>` over the user's own
+/// specifier in the global `package.json` — `^6.0.0` becomes `7.0.0` (bun
+/// 1.4.3, measured 2026-10-13) — and `bun update -g` holds an exact specifier
+/// where it is, so one click would quietly pin the package against the user's
+/// own updates. The specifier is read before the command and put back in the
+/// user's style after it (`restoredSpecifier`).
 public struct NpmUpdater: Sendable {
 
     /// Is something already changing this prefix? Injected so tests never read
@@ -97,6 +104,11 @@ public struct NpmUpdater: Sendable {
             }
         }
 
+        let manifest = install.bun.map { _ in
+            URL(fileURLWithPath: install.prefix.path).appendingPathComponent("package.json")
+        }
+        let specifier = await offCooperativePool { manifest.flatMap { Self.specifier(of: install.name, in: $0) } }
+
         let run = await Self.run(
             command, environment: Self.childEnvironment(self.environment(), command: command, bun: install.bun),
             deadline: deadline, progress: progress)
@@ -115,6 +127,9 @@ public struct NpmUpdater: Sendable {
             return .failed(
                 message: "the update finished, but \(install.name) is \(after ?? "unreadable"), not \(target)",
                 output: run.text)
+        }
+        if let manifest, let specifier {
+            _ = await offCooperativePool { Self.restoreSpecifier(specifier, of: install.name, at: target, in: manifest) }
         }
         return .updated(version: after)
     }
@@ -194,6 +209,70 @@ public struct NpmUpdater: Sendable {
     }
 
     // MARK: - Afterwards
+
+    /// The specifier the global `package.json`'s `dependencies` gives `name`;
+    /// nil when it cannot be read or names none.
+    static func specifier(of name: String, in manifest: URL) -> String? {
+        guard let data = try? Data(contentsOf: manifest),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let dependencies = json["dependencies"] as? [String: Any]
+        else { return nil }
+        return dependencies[name] as? String
+    }
+
+    /// What goes back over the exact `version` bun wrote, given the user's
+    /// `specifier` from before; nil to leave bun's.
+    ///
+    /// - `^` and `~` move to the new version (`^6.0.0` → `^7.0.0`), as bun's own
+    ///   `update --latest` rewrites them.
+    /// - An exact version was the user's pin: the new exact one stays.
+    /// - Any other range the new version satisfies (`*`, `>=1`, `1.x`) goes back
+    ///   as written; one it does not satisfy would make bun's next install
+    ///   resolve the package again, so bun's exact version stays.
+    static func restoredSpecifier(_ specifier: String, at version: String) -> String? {
+        let trimmed = specifier.trimmingCharacters(in: .whitespaces)
+        guard trimmed != version, let installed = NpmVersion(version), let range = NpmRange(trimmed) else { return nil }
+        if let first = trimmed.first, first == "^" || first == "~" { return "\(first)\(version)" }
+        if NpmVersion(trimmed) != nil { return nil }
+        return range.satisfies(installed) ? specifier : nil
+    }
+
+    /// Puts the user's style of specifier back for `name`, only where the entry
+    /// reads exactly the `version` bun wrote, and only by editing that one value
+    /// in place — the rest of the file stays byte for byte as bun left it. bun's
+    /// `bun.lock` still names the exact version; its next install brings the lock
+    /// in line without moving the package (measured, bun 1.4.3). A failure here
+    /// leaves bun's exact version, which is the state before this existed.
+    @discardableResult
+    static func restoreSpecifier(_ specifier: String, of name: String, at version: String, in manifest: URL) -> Bool {
+        guard let replacement = restoredSpecifier(specifier, at: version) else { return false }
+        func json(_ string: String) -> String? {
+            (try? JSONSerialization.data(withJSONObject: string, options: [.fragmentsAllowed, .withoutEscapingSlashes]))
+                .flatMap { String(data: $0, encoding: .utf8) }
+        }
+        guard self.specifier(of: name, in: manifest) == version,
+              let text = try? String(contentsOf: manifest, encoding: .utf8),
+              let key = json(name), let value = json(version), let newValue = json(replacement),
+              let regex = try? NSRegularExpression(
+                pattern: "(" + NSRegularExpression.escapedPattern(for: key) + #"\s*:\s*)"#
+                    + NSRegularExpression.escapedPattern(for: value))
+        else { return false }
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        guard matches.count == 1, let range = Range(matches[0].range, in: text) else {
+            Log.install.error("bun specifier: \(matches.count) matches for \(name, privacy: .public) in package.json, left as \(version, privacy: .public)")
+            return false
+        }
+        let restored = text.replacingCharacters(
+            in: range, with: regex.replacementString(
+                for: matches[0], in: text, offset: 0, template: "$1" + NSRegularExpression.escapedTemplate(for: newValue)))
+        do {
+            try Data(restored.utf8).write(to: manifest, options: .atomic)
+        } catch {
+            Log.install.error("bun specifier: could not write \(manifest.path, privacy: .public): \(error)")
+            return false
+        }
+        return self.specifier(of: name, in: manifest) == replacement
+    }
 
     /// The version `package.json` at `path` reads as — nil when it cannot be
     /// read, or when the directory is now a link (not what npm installs).

@@ -8,6 +8,8 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Un paquet épinglé à une version exacte s’affiche désormais comme épinglé au lieu de proposer une mise à jour.** Cela concerne les paquets globaux de bun, pnpm et Yarn, et le détail donne la commande qui lui fait suivre à nouveau les nouvelles versions.
 
+**RustGIS est désormais pris en charge.** Il bénéficie de la vérification des mises à jour et des notes de version.
+
 **Les mises à jour en un clic n’empêchent plus bun de mettre à jour les paquets qu’il a installés globalement.** Avant, la mise à jour remplaçait la plage de versions du paquet dans la liste de bun (comme `^5.46.0`) par la version exacte, si bien que `bun update -g` n’y touchait plus ensuite. Pour un paquet déjà mis à jour ainsi, lancer une fois `bun add -g <nom>` rétablit une plage.
 
 **Dans le détail d’un outil en ligne de commande, chaque version avec des changements incompatibles mène désormais directement à ceux-ci.** Un clic sur la version sous Compatibilité, ou sur le symbole d’avertissement à côté de ses notes de version, fait défiler les notes jusqu’au passage concerné et le met en évidence.

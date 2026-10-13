@@ -8,6 +8,8 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 **Ein auf eine genaue Version festgelegtes Paket wird jetzt als fixiert angezeigt, statt ein Update anzubieten.** Das gilt für globale Pakete von bun, pnpm und Yarn; die Details nennen den Befehl, mit dem es wieder neuen Versionen folgt.
 
+**RustGIS wird jetzt unterstützt.** Es bekommt Update-Prüfungen und Versionshinweise.
+
 **Ein Update mit einem Klick hindert bun nicht mehr daran, global installierte Pakete zu aktualisieren.** Bisher ersetzte das Update den Versionsbereich des Pakets in bun's Liste (etwa `^5.46.0`) durch die genaue Version, sodass `bun update -g` das Paket danach nicht mehr anfasste. Für ein Paket, das schon so aktualisiert wurde, stellt ein einmaliges `bun add -g <Name>` wieder einen Bereich her.
 
 **In den Details eines Befehlszeilen-Tools führt jede Version mit inkompatiblen Änderungen jetzt direkt zu ihnen.** Ein Klick auf die Version unter Kompatibilität oder auf das Warnsymbol neben ihren Versionshinweisen scrollt die Hinweise zur betreffenden Stelle und hebt sie hervor.

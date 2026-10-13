@@ -25,6 +25,8 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **A package pinned to an exact version now shows as pinned instead of offering an update.** This covers bun's, pnpm's and Yarn's global packages, and the details give the command that lets it follow new releases again.
 
+**RustGIS is now supported.** It gets update checks and release notes.
+
 **One-click updates no longer stop bun from updating the packages it installed globally.** Before, the update replaced the package's version range in bun's list (such as `^5.46.0`) with the exact version, so `bun update -g` left the package alone afterwards. Running `bun add -g <name>` once puts a range back for a package that was already updated this way.
 
 **In a command-line tool's details, each version with breaking changes now leads to them.** Click it under Compatibility, or click the warning sign next to its release notes, and the notes scroll to the breaking part and highlight it.

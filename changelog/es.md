@@ -8,6 +8,8 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **Un paquete fijado a una versión exacta ahora se muestra como fijado en lugar de ofrecer una actualización.** Se aplica a los paquetes globales de bun, pnpm y Yarn, y los detalles indican el comando para que vuelva a seguir las nuevas versiones.
 
+**Ahora se admite RustGIS.** Recibe comprobación de actualizaciones y notas de la versión.
+
 **Las actualizaciones con un clic ya no impiden que bun actualice los paquetes que instaló de forma global.** Antes, la actualización sustituía el rango de versiones del paquete en la lista de bun (como `^5.46.0`) por la versión exacta, así que `bun update -g` dejaba de tocarlo. Para un paquete que ya se actualizó así, ejecutar una vez `bun add -g <nombre>` vuelve a poner un rango.
 
 **En los detalles de una herramienta de línea de comandos, cada versión con cambios incompatibles ahora lleva directamente a ellos.** Haz clic en ella en Compatibilidad, o en el aviso junto a sus notas de la versión, y las notas se desplazan hasta la parte incompatible y la resaltan.

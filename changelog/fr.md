@@ -2,6 +2,20 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.7
+
+**Les paquets globaux de pnpm et de Yarn sont désormais pris en charge.** Les paquets installés avec `pnpm add -g` ou `yarn global add` apparaissent dans l’onglet CLI avec la vérification des mises à jour, les notes de version et les mises à jour en un clic, qui conservent la plage de versions que vous avez choisie.
+
+**Un paquet épinglé à une version exacte s’affiche désormais comme épinglé au lieu de proposer une mise à jour.** Cela concerne les paquets globaux de bun, pnpm et Yarn, et le détail donne la commande qui lui fait suivre à nouveau les nouvelles versions.
+
+**RustGIS est désormais pris en charge.** Il bénéficie de la vérification des mises à jour et des notes de version.
+
+**Les mises à jour en un clic n’empêchent plus bun de mettre à jour les paquets qu’il a installés globalement.** Avant, la mise à jour remplaçait la plage de versions du paquet dans la liste de bun (comme `^5.46.0`) par la version exacte, si bien que `bun update -g` n’y touchait plus ensuite. Pour un paquet déjà mis à jour ainsi, lancer une fois `bun add -g <nom>` rétablit une plage.
+
+**Dans le détail d’un outil en ligne de commande, chaque version avec des changements incompatibles mène désormais directement à ceux-ci.** Un clic sur la version sous Compatibilité, ou sur le symbole d’avertissement à côté de ses notes de version, fait défiler les notes jusqu’au passage concerné et le met en évidence.
+
+**Sous le capot.** Dans de rares cas, une image disque restait montée après une mise à jour ; elle est désormais éjectée.
+
 ## 0.5.6
 
 **Les mises à jour livrées dans une image disque avec un contrat de licence s’installent désormais en un clic.** Auparavant, l’installation s’arrêtait au contrat. Sous macOS 27.2 et ultérieur, les apps fournies dans de grandes images disque s’installent aussi plus vite.

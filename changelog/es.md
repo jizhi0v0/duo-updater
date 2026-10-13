@@ -2,6 +2,20 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.7
+
+**Ahora se admiten los paquetes globales de pnpm y Yarn.** Los paquetes instalados con `pnpm add -g` o `yarn global add` aparecen en la pestaña CLI con comprobación de actualizaciones, notas de la versión y actualizaciones con un clic, que conservan el rango de versiones que elegiste.
+
+**Un paquete fijado a una versión exacta ahora se muestra como fijado en lugar de ofrecer una actualización.** Se aplica a los paquetes globales de bun, pnpm y Yarn, y los detalles indican el comando para que vuelva a seguir las nuevas versiones.
+
+**Ahora se admite RustGIS.** Recibe comprobación de actualizaciones y notas de la versión.
+
+**Las actualizaciones con un clic ya no impiden que bun actualice los paquetes que instaló de forma global.** Antes, la actualización sustituía el rango de versiones del paquete en la lista de bun (como `^5.46.0`) por la versión exacta, así que `bun update -g` dejaba de tocarlo. Para un paquete que ya se actualizó así, ejecutar una vez `bun add -g <nombre>` vuelve a poner un rango.
+
+**En los detalles de una herramienta de línea de comandos, cada versión con cambios incompatibles ahora lleva directamente a ellos.** Haz clic en ella en Compatibilidad, o en el aviso junto a sus notas de la versión, y las notas se desplazan hasta la parte incompatible y la resaltan.
+
+**Por dentro.** En casos raros, una imagen de disco quedaba montada después de una actualización; ahora se expulsa.
+
 ## 0.5.6
 
 **Las actualizaciones que vienen en una imagen de disco con acuerdo de licencia ahora se instalan con un clic.** Antes, la instalación se detenía en el acuerdo. En macOS 27.2 y posteriores, las apps en imágenes de disco grandes también se instalan más rápido.

@@ -4,6 +4,10 @@ Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce 
 
 ## 0.5.7
 
+**pnpm ve Yarn'ın genel paketleri artık destekleniyor.** `pnpm add -g` veya `yarn global add` ile kurulan paketler CLI sekmesinde güncelleme denetimi, sürüm notları ve tek tıkla güncellemeyle görünüyor; tek tıkla güncelleme seçtiğiniz sürüm aralığını koruyor.
+
+**Tam bir sürüme sabitlenmiş bir paket artık güncelleme önermek yerine sabitlenmiş olarak gösteriliyor.** Bu bun, pnpm ve Yarn'ın genel paketleri için geçerli; ayrıntılarda paketin yeni sürümleri yeniden izlemesini sağlayan komut yer alıyor.
+
 **Tek tıkla güncelleme artık bun'ın genel olarak kurduğu paketleri güncellemesini engellemiyor.** Önceden güncelleme, paketin bun listesindeki sürüm aralığını (`^5.46.0` gibi) tam sürümle değiştiriyordu; bu yüzden `bun update -g` paketi sonrasında güncellemiyordu. Bu şekilde güncellenmiş bir paket için `bun add -g <ad>` komutunu bir kez çalıştırmak aralığı geri getirir.
 
 **Bir komut satırı aracının ayrıntılarında, uyumsuz değişiklikler içeren her sürüm artık doğrudan bunlara götürüyor.** Uyumluluk altındaki sürüme ya da sürüm notlarının yanındaki uyarı işaretine tıklayınca notlar uyumsuz kısma kayar ve orayı vurgular.

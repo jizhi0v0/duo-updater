@@ -137,8 +137,9 @@ VendorProbe 读同一个 manifest（#1263）→ 同日换成通用的 `MyGoUpdat
 
 ## 建议下一步
 1. 出现 Intel 包时不用动：Intel 构建自己链着 `update-darwin-amd64.json`，`MyGoUpdateSource` 读的就是它。
-2. （可选，未做）安装前若已装 bundle 缺 `Contents/CodeResources`（公证票据）就跳过 MyGo 补丁，省掉 dmg 副本那次必败的
-   补丁下载。对所有公证过的 MyGo app 都成立（见「增量更新」），属于 `DeltaApplier` 的改动，不在本次范围。
+2. dmg 副本第一次必败的补丁是 MyGo 的 bug，已报上游 egoist/mygo#300（2026-10-13；MyGo 自己的 `update.ApplyDelta` 在 dmg 的
+   0.1.11 上同样报 `openat Contents/CodeResources: no such file or directory`）。duo 不做规避：浪费一次补丁的流量可以接受，
+   上游修好后自然消失。修复发布后复测 dmg 副本能否直接吃补丁。
 
 ## 如何复验
 ```

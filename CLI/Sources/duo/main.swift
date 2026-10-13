@@ -256,6 +256,11 @@ verify options:
                       per-channel feeds of the channel bindings. Asks each
                       feed's newest download for one byte (Range: bytes=0-0),
                       reading at most that, to see that it is still served.
+  --mygo              Sweep only the MyGo apps' feeds (MyGoFeedCatalog): each
+                      resolves to a complete release, its archive is still served
+                      (one byte, as --feed asks), and the smallest signed file —
+                      usually a patch of a few hundred KB — still verifies against
+                      the key the installed app carries.
   --pkgarch           Sweep only the declared hostArchitectures of the packages
                       the pkg install route hands to macOS's installer. Reads
                       each package's xar table of contents by HTTP range rather

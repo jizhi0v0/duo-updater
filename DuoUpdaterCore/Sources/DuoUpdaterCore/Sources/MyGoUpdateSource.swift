@@ -353,3 +353,65 @@ public struct MyGoUpdateSource: UpdateSource {
         }
     }
 }
+
+// MARK: - The nightly key check
+
+/// What `MyGoUpdateSource.checkKey` saw: whether the vendor still signs with the
+/// key recorded for the app.
+public enum MyGoKeyCheck: Sendable, Equatable {
+    /// The smallest signed file of the release verified against the key.
+    case verified(file: URL, bytes: Int)
+    /// It did not: the vendor signs with another key, or the file is not the one
+    /// the manifest describes. Either way every one-click of this release fails.
+    case invalid(file: URL)
+    /// Neither the archive nor any patch carries a signature.
+    case noSignedFile
+    /// The smallest signed file is larger than the sweep will download.
+    case tooLarge(file: URL, bytes: Int64)
+    /// The file could not be fetched; says nothing about the key.
+    case unreachable(file: URL, detail: String)
+}
+
+extension MyGoUpdateSource {
+
+    /// The most `checkKey` downloads. Patches run 0.16–1.3 MB and archives
+    /// 6–33 MB in the apps measured; a release with no patch and a larger
+    /// archive is reported rather than fetched.
+    public static let keyCheckByteCap: Int64 = 64 * 1024 * 1024
+
+    /// Download the smallest file `remote` publishes a signature for — a patch
+    /// when there is one, else the archive — and verify it against `publicKey`.
+    /// For `duo verify`, which has no installed binary to take the key from.
+    public func checkKey(_ remote: RemoteVersion, publicKey: String) async -> MyGoKeyCheck {
+        var signed: [(url: URL, size: Int64, signature: String)] = remote.deltas.compactMap {
+            guard $0.format == .myGo, let signature = $0.edSignature else { return nil }
+            return ($0.url, $0.size ?? .max, signature)
+        }
+        if let url = remote.downloadURL, let signature = remote.myGoSignature?.signature {
+            signed.append((url, remote.downloadSize ?? .max, signature))
+        }
+        guard let smallest = signed.min(by: { $0.size < $1.size }) else { return .noSignedFile }
+        guard smallest.size <= Self.keyCheckByteCap else {
+            return .tooLarge(file: smallest.url, bytes: smallest.size)
+        }
+        var request = URLRequest(url: smallest.url)
+        request.timeoutInterval = 60
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
+        do {
+            let (data, response) = try await session.countedData(for: request, purpose: .versionCheck)
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                return .unreachable(file: smallest.url, detail: "HTTP \(http.statusCode)")
+            }
+            do {
+                try SignatureVerifier.verifyMyGoSignature(
+                    fileData: data, signatureBase64: smallest.signature, publicKeyBase64: publicKey)
+                return .verified(file: smallest.url, bytes: data.count)
+            } catch {
+                return .invalid(file: smallest.url)
+            }
+        } catch {
+            return .unreachable(file: smallest.url, detail: error.localizedDescription)
+        }
+    }
+}

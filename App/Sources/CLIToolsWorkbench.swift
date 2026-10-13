@@ -820,6 +820,9 @@ private struct CLIToolReleaseNotesView: View {
                 } else if case .bun = status.detail {
                     // bun's releases carry install commands; its notes are blog posts.
                     Text("Bun publishes its release notes on its blog, not with its releases.")
+                } else if case .npm(let package) = status.detail {
+                    // An npm, bun, pnpm or Yarn package's notes are its own, not its group's.
+                    Text("\(package.install.name)’s release notes have no section for these versions yet.")
                 } else {
                     Text("\(kind.displayName)’s release notes have no section for these versions yet.")
                 }

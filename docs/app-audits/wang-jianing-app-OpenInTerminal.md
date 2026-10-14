@@ -74,13 +74,21 @@ short `1.2.8` == tag，universal，Team `C8VX3ZLX5U`，`spctl` Notarized Develop
   - 走得通：表只拿已装副本与下载的 Team 跟条目比（`BundleIDMigration.migration`、Gate 3 都只比这两个），
     2.0.5 与今天的 2.3.9 都是 `C8VX3ZLX5U`；2.1.1–2.3.8 的 `Q33U8R4U57` 不参与比较；Gate 3 也不要求
     已装副本是 Developer ID。登记后检测走主规则，Lite 的资产名回退照样生效。
-  - 不登记的理由是设置：改名同时换了 App Group。真包 entitlements 里，2.0.5 主 app 与 Finder 扩展是
-    `group.wang.jianing.OpenInTerminal`，2.1.1 是 `group.wang.jianing.app.OpenInTerminal`（设置存在
-    `UserDefaults(suiteName:)` 这个 group 里，见上游 `OpenInTerminalCore/Defaults.swift`）。2.1.1 与
-    v2.3.9 的源码里没有读旧 group 的迁移代码（旧 id 只出现在 helper 判断主 app 是否在跑的那一行）。
-    所以换成新 id 的包大概率从空设置起步——读源码与 entitlements 得出，没实跑。登记会连一键一起
-    打开（表的四处读取不分检测与一键），而这跟 Spotifast 不登记的理由相同：会丢设置的跨 id 替换，
-    指向 release 页让用户自己装才是诚实的做法。
+    2026-10-14 用临时 Swift 测试在真包上跑过（已装 = 2.0.5 解压包，下载 = v2.3.9 解压包；测试未提交）：
+    不登记时 Gate 4 拒绝（`Bundle identifier mismatch: installed “wang.jianing.OpenInTerminal” vs
+    downloaded “wang.jianing.app.OpenInTerminal”`）；传入上面那条假设条目后 Gate 2、3、4、5、5b、6
+    全部通过，`recipeBundleID` 把旧副本归到新 id。
+  - 不登记的理由是设置：新版读不到旧版的设置。
+    - 2.0.5 把设置写在 `UserDefaults.standard`，即旧 bundle id 的域 `wang.jianing.OpenInTerminal`
+      （上游 2.0.5 `OpenInTerminalCore/Defaults.swift`：`let Defaults = UserDefaults.standard`）。
+    - v2.3.9 主 app 读 `UserDefaults(suiteName: "group.wang.jianing.app.OpenInTerminal")`，取不到时
+      回落到自己的 `UserDefaults.standard`（新 id 的域）（上游 v2.3.9 同一文件）。两个域都不是旧域。
+    - v2.3.9 真包里每个 Mach-O 的 `strings`：旧 id 只出现在 login-item helper（判断主 app 是否在跑），
+      没有旧 group，也没有 `persistentDomain` / `addSuiteNamed`，即发布的二进制里没有读旧域的代码。
+    - 所以换成新 id 的包从空设置起步，旧设置留在旧域里不会被读。以上读源码与真包二进制得出，
+      没有实际运行 app。
+    登记会连一键一起打开（表的四处读取不分检测与一键），而这跟 Spotifast 不登记的理由相同：
+    会丢设置的跨 id 替换，指向 release 页让用户自己装才是诚实的做法。
 - **Spotifast 式的只检测规则在这里不安全**：只检测规则不设 `installAssetPattern`，`settle()` 就不做
   缺资产回退，也就挡不住同仓库 Lite 的 `v1.x` release（见上一节，主规则正是靠资产名挡它）。
   GitHub 的 `/releases/latest` 按 `created_at`（release 所指 commit 的日期，不是发布时间）排序
@@ -150,7 +158,9 @@ swift run --package-path application-test channel-verify <v2.3.8>/OpenInTerminal
 # 改名前旧 id（2.0.5 → wang.jianing.OpenInTerminal，2.1.1 起 wang.jianing.app.OpenInTerminal）
 gh api 'repos/Ji4n1ng/OpenInTerminal/contents/OpenInTerminal.xcodeproj/project.pbxproj?ref=2.0.5' --jq .content | base64 -d | grep PRODUCT_BUNDLE_IDENTIFIER
 gh release download 2.0.5 -R Ji4n1ng/OpenInTerminal -p OpenInTerminal.app.zip   # 解压后只读，不运行
-codesign -d --entitlements :- <2.0.5>/OpenInTerminal.app   # → group.wang.jianing.OpenInTerminal（2.1.1 → group.wang.jianing.app.OpenInTerminal）
+gh api 'repos/Ji4n1ng/OpenInTerminal/contents/OpenInTerminalCore/Defaults.swift?ref=2.0.5' --jq .content | base64 -d | grep 'UserDefaults'   # → UserDefaults.standard
+gh api 'repos/Ji4n1ng/OpenInTerminal/contents/OpenInTerminalCore/Defaults.swift?ref=v2.3.9' --jq .content | base64 -d | grep -n 'Defaults'   # → GroupDefaults ?? .standard
+find <v2.3.9>/OpenInTerminal.app -type f -exec sh -c 'file -b "$1" | grep -q Mach-O && strings -a "$1" | grep -i jianing' _ {} \;   # 旧 id 只在 helper
 # Lite 与主 app 的 created_at 是否仍相同（决定 /releases/latest 能否落到 Lite）
 gh api 'repos/Ji4n1ng/OpenInTerminal/releases?per_page=4' --jq '.[]|[.tag_name,.created_at]|@tsv'
 ```

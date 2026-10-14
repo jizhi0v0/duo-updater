@@ -43,6 +43,7 @@ and `cindycn` the Cindy cn edition. Neither has a job of its own.
 | 3 | Haiku xhigh on 21 past onboardings | 7 fell short of main, all omissions (no wrong installs) that `make test`, the probe and the grader can't see. |
 | 4 | Those 7 hard apps: Opus/Sonnet xhigh, Haiku xhigh with a fuller brief | Same brief: Opus > Sonnet > Haiku. The fuller brief let Haiku close 5 gaps but overreach on 2. |
 | 5 | Those 7: Opus medium single agent, and two multi-agent pipelines (twice for A) | Below. |
+| 6 | 6 past onboardings no prompt was written from: Opus medium with and without the app-audit coverage checklist | Below. |
 
 The seven hard apps, rounds 4 and 5 (`results/hard7-coverage.yml`):
 
@@ -88,6 +89,32 @@ no check for it. At high, 2 of 7 reviews had the write to `review.md` refused an
 the review only as text. Both had `cd`'d into a subdirectory first, and the workflow's
 `Edit(./.claude-review/review.md)` is relative to the current directory; the same failure
 then hit the workflow itself on #1301. The rule is absolute now (`claude-review.yml`).
+
+### The app-audit coverage checklist, held out (`results/holdout6-skill-ab.yml`)
+
+Gaps like round 3's can be prevented while the onboarding is written instead of hoped for in
+review. `harness/skill/coverage-checklist.md` lists the groups of installed copies to settle
+first; it names no app. Because it (like `brief2.md`) came from the seven hard apps, it was
+tested on six other past onboardings, each covering one hard category on main. Opus 5.5
+medium, `brief.md`, the clone's own `app-audit` with and without the checklist
+(`SKILL=1 run.sh single …`), two runs per arm:
+
+| App | Hard item main covers | Without | With |
+|---|---|---|---|
+| SwiftVM | beta track | 2/2 | 2/2 |
+| PdfCraft | copies on the pre-rename id | 1/2 | 2/2 |
+| Tinycast | beta under its own bundle id | 2/2 | 2/2 |
+| Cua Driver | nightly track | 0/2 | 0/2 |
+| WhatCable | beta track | 1/2 | 2/2 |
+| T3 Code | nightly track | 0/2 | 2/2 |
+| **Total** | | **6/12** | **10/12** |
+| WhatCable | pre-rename id `com.bitmoor.whatcable`, which main lacks | 0/2 | 2/2 |
+
+No overreach in either arm; $4.92 → $5.69 and 17 → 19 min a run. Both arms missed Cua
+Driver's nightly track, whose signal is a file outside the bundle while the checklist's
+examples are all inside it; rewording it from this answer would need a new held-out set.
+The checklist went into `.claude/skills/app-audit/SKILL.md` (#1308), with one line changed
+after the test (keeping a sibling out, now as `REVIEW.md` says).
 
 Every run, with its configuration and cost per stage: `results/runs.yml`.
 
@@ -167,8 +194,8 @@ Commit `results/runs.yml`, the classification and the run's evidence (`diff.patc
   the vendor released.
 - **The brief is part of the result.** Omissions mostly came from facts the brief didn't
   state; a better brief moves every configuration.
-- **Evidence is kept for the seven hard apps only.** Transcripts and the other runs' diffs
-  stay in the work directory (vendor content, size).
+- **Evidence is kept for the seven hard apps and the six held-out ones only.** Transcripts and
+  the other runs' diffs stay in the work directory (vendor content, size).
 
 ## In this repository
 

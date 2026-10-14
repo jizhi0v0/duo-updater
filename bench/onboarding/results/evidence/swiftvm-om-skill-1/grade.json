@@ -1,0 +1,83 @@
+{
+  "changelogRecipes" : [
+    "changelog:com.swiftvm.app:stable",
+    "changelog:com.swiftvm.app:beta"
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 3,
+      "headings" : [
+
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 1,
+      "newestVersion" : "1.3.0",
+      "recipeID" : "changelog:com.swiftvm.app:stable"
+    },
+    "download" : "<nil>",
+    "installTrust" : "<nil>",
+    "latest" : "<none>",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "<none>",
+    "status" : "unknown"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 3,
+      "headings" : [
+
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 1,
+      "newestVersion" : "1.3.0",
+      "recipeID" : "changelog:com.swiftvm.app:stable"
+    },
+    "download" : "<nil>",
+    "installTrust" : "<nil>",
+    "latest" : "<none>",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "<none>",
+    "status" : "unknown"
+  },
+  "perRelease" : [
+    {
+      "prerelease" : true,
+      "tag" : "v1.4.0-beta.37"
+    },
+    {
+      "prerelease" : true,
+      "tag" : "v1.4.0-beta.35"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v1.3.0"
+    },
+    {
+      "prerelease" : true,
+      "tag" : "v1.3.0-beta.30"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v1.2.0"
+    },
+    {
+      "prerelease" : true,
+      "tag" : "v1.2.0-beta.27"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v1.1.0"
+    },
+    {
+      "prerelease" : true,
+      "tag" : "v1.1.0-beta.25"
+    }
+  ],
+  "rules" : [
+
+  ]
+}

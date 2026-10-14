@@ -1,0 +1,3 @@
+53ad37f PdfCraft: follow PrintCraft's rename to storytold/pdfcraft and ai.storyteller.pdfcraft
+6f2478d app-audit: coverage checklist
+2372cfa verify: ask the page before calling a single changelog entry a collapse (#1102)

@@ -1,0 +1,241 @@
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index 904aa04..57f5df3 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -17,6 +17,7 @@ public enum AppRecipeIndex {
+         ai_storyteller_effectcraft.set,
+         ai_storyteller_filmcraft.set,
+         ai_storyteller_lightcraft.set,
++        ai_storyteller_pdfcraft.set,
+         ai_storyteller_photocraft.set,
+         ai_storyteller_printcraft.set,
+         ai_storyteller_vectorcraft.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/ai-storyteller-pdfcraft.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/ai-storyteller-pdfcraft.swift
+new file mode 100644
+index 0000000..61d6c35
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/ai-storyteller-pdfcraft.swift
+@@ -0,0 +1,22 @@
++import Foundation
++
++enum ai_storyteller_pdfcraft {
++    static let set = AppRecipeSet(
++        family: "ai-storyteller-pdfcraft",
++        githubRules: [
++        // Shared rationale for storytold's "-craft" apps: Recipes/ai-storyteller-photocraft.swift.
++
++        // PdfCraft — PrintCraft renamed (storytold/pdfcraft#174, first shipped in v0.4.0).
++        // The rename changed the bundle id too, so this is a separate app from
++        // `ai.storyteller.printcraft`, whose rule still reads the redirected repo and
++        // stops at v0.2.1, the last release with a `printcraft-…` dmg. Same pipeline,
++        // same anchors (they keep `-rc.N` tags and the `pdfcraft-cli-…` zip out).
++        // One-click: ai.storyteller.pdfcraft, Team DJ6XS33FX8, notarized (0.6.0, 0.7.1).
++        GitHubReleaseRule(
++            bundleID: "ai.storyteller.pdfcraft",
++            owner: "storytold", repo: "pdfcraft",
++            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#,
++            installAssetPattern: #"^pdfcraft-[0-9]+\.[0-9]+\.[0-9]+-macos-universal\.dmg$"#,
++            installerKind: .dmg),
++        ])
++}
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/ai-storyteller-photocraft.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/ai-storyteller-photocraft.swift
+index 8c249df..fb0c28a 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/ai-storyteller-photocraft.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/ai-storyteller-photocraft.swift
+@@ -7,7 +7,7 @@ enum ai_storyteller_photocraft {
+         // PhotoCraft — the first of storytold's seven "-craft" apps (Rust/egui
+         // reimplementations of Adobe's suite). All seven share one release
+         // pipeline, so this comment is the shared rationale; the other six
+-        // families point here.
++        // families (and PdfCraft, PrintCraft's renamed successor) point here.
+         //
+         // No SUFeedURL and no Sparkle framework: the apps have no in-app installer
+         // (PrintCraft's Help ▸ Check for updates only reads this same
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/StorytoldCraftGitHubRuleTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/StorytoldCraftGitHubRuleTests.swift
+index 93d23f5..4df955f 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/StorytoldCraftGitHubRuleTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/StorytoldCraftGitHubRuleTests.swift
+@@ -3,7 +3,8 @@ import Testing
+ 
+ @testable import DuoUpdaterCore
+ 
+-/// storytold's seven "-craft" apps (`Recipes/ai-storyteller-*.swift`).
++/// storytold's seven "-craft" apps, plus PdfCraft (PrintCraft renamed, new bundle id)
++/// (`Recipes/ai-storyteller-*.swift`).
+ ///
+ /// The anchors on both patterns are the release-candidate guard: PhotoCraft's
+ /// v0.1.1-rc.4 / rc.5 were published with `prerelease: false`, so
+@@ -14,7 +15,7 @@ import Testing
+ 
+     static let apps = [
+         "designcraft", "effectcraft", "filmcraft", "lightcraft",
+-        "photocraft", "printcraft", "vectorcraft",
++        "pdfcraft", "photocraft", "printcraft", "vectorcraft",
+     ]
+ 
+     private static func rule(_ app: String) -> GitHubReleaseRule? {
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-pdfcraft.txt b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-pdfcraft.txt
+new file mode 100644
+index 0000000..5a4c0a1
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-pdfcraft.txt
+@@ -0,0 +1,43 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "ai-storyteller-pdfcraft"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 0)
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "ai.storyteller.pdfcraft"
++githubRules[0].owner = "storytold"
++githubRules[0].repo = "pdfcraft"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^pdfcraft-[0-9]+\\.[0-9]+\\.[0-9]+-macos-universal\\.dmg$"
++githubRules[0].installerKind? = .dmg
++githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
++githubRules[0].architectureRequirement = nil
++githubRules[0].tagRefPrefix = nil
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index e00f6df..649feb8 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -263,6 +263,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**FilmCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.filmcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
+ - [x] [**LightCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.lightcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
+ - [x] [**PrintCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.printcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
++- [x] [**PdfCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.pdfcraft` — G (one-click universal dmg；PrintCraft 改名、新 bundle id) · 真包 v0.6.0/v0.7.1 挂载验证 ✓ · 一键端到端未跑 · changelog 结构化 ✓（rc 轨未接入）· 2026-10-14
+ - [x] [**EffectCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.effectcraft` — G (one-click universal dmg) · 真包 v0.3.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
+ - [x] [**DesignCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.designcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
+ - [x] [**Spotifast**](rocks-spotifast-Spotifast.md) · `rocks.spotifast.Spotifast` — G (one-click universal dmg) · 真包 0.10.0/0.11.2/0.12.0 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中）· 改名前旧 id `me.paolino.fastpotify` 只检测 · changelog 结构化 ✓ · 2026-10-07
+diff --git a/docs/app-audits/ai-storyteller-photocraft.md b/docs/app-audits/ai-storyteller-photocraft.md
+index 214924c..a2b0e9c 100644
+--- a/docs/app-audits/ai-storyteller-photocraft.md
++++ b/docs/app-audits/ai-storyteller-photocraft.md
+@@ -2,7 +2,8 @@
+ 
+ 七个 app 同一个厂商、同一条发版流水线、同一种产物命名，所以合成一份审计。每个 app 的 recipe
+ 各自一个 family 文件（`Recipes/ai-storyteller-<app>.swift`），共享理由写在
+-`ai-storyteller-photocraft.swift`。
++`ai-storyteller-photocraft.swift`。PrintCraft 在 v0.4.0 改名 PdfCraft、换了 bundle id，按新 app
++另开一个 family（`ai-storyteller-pdfcraft.swift`），也记在这份审计里（见「PrintCraft → PdfCraft」）。
+ 
+ ## 基本信息
+ 
+@@ -12,7 +13,8 @@
+ | VectorCraft | Illustrator | `ai.storyteller.vectorcraft` | `storytold/vectorcraft` | 0.3.1 |
+ | FilmCraft | Premiere Pro | `ai.storyteller.filmcraft` | `storytold/filmcraft` | 0.2.1 |
+ | LightCraft | Lightroom | `ai.storyteller.lightcraft` | `storytold/lightcraft` | 0.2.1 |
+-| PrintCraft | Acrobat | `ai.storyteller.printcraft` | `storytold/printcraft` | 0.2.1 |
++| PrintCraft | Acrobat | `ai.storyteller.printcraft` | `storytold/printcraft`（已改名，重定向到 `pdfcraft`） | 0.2.1（此名最后一版） |
++| PdfCraft | Acrobat | `ai.storyteller.pdfcraft` | `storytold/pdfcraft` | 0.7.1（2026-10-14） |
+ | EffectCraft | After Effects | `ai.storyteller.effectcraft` | `storytold/effectcraft` | 0.3.1 |
+ | DesignCraft | InDesign | `ai.storyteller.designcraft` | `storytold/designcraft` | 0.2.1 |
+ 
+@@ -24,6 +26,25 @@
+ - 分发: 只有 GitHub Releases（另有 Linux / Windows / FreeBSD 产物与 web 版 zip）
+ - 开源: 是（MIT OR Apache-2.0）。版本方案、渠道、产物命名都读自仓库源码
+ 
++## PrintCraft → PdfCraft
++- settled from source: `storytold/pdfcraft` 的提交 `d3db9981`「Rename PrintCraft to PdfCraft (#174)」
++  （2026-10-07）——app、二进制、**bundle id**、打包、仓库一起改名；`packaging/macos/Info.plist.in`
++  现在写 `ai.storyteller.pdfcraft`，自定义完整版本键改叫 `PdfCraftVersion`。
++- 真包实测（2026-10-14）: `printcraft-0.2.1-macos-universal.dmg` → `ai.storyteller.printcraft` 0.2.1；
++  `pdfcraft-0.6.0-macos-universal.dmg` / `pdfcraft-0.7.1-macos-universal.dmg` → `ai.storyteller.pdfcraft`。
++  三个都是 Team `DJ6XS33FX8`、Notarized Developer ID、universal、`LSMinimumSystemVersion` 11.0。
++- release 列表（2026-10-14）: v0.1.0 – v0.2.1 资产前缀 `printcraft-`，v0.4.0 起 `pdfcraft-`（没有 v0.3.x）；
++  8 个 release 全部 `prerelease: false`，没有 rc tag。
++- 后果: bundle id 不同，所以 PdfCraft 是另一个 app，不是 PrintCraft 的下一版。`ai.storyteller.pdfcraft`
++  走新 rule；`ai.storyteller.printcraft` 的 rule 原样保留——仓库名重定向后它仍能读到列表，但 v0.4.0 起
++  没有 `printcraft-` dmg，所以它停在 0.2.1，并带 `installAssetRenamed` 警告（`GitHubAssetWalkBackTests`
++  用的就是这个形状）。**没有把 PrintCraft 副本引向 PdfCraft**：一键会换成另一个 bundle id 的 app，
++  那是迁移，不是更新。
++- 已装 PrintCraft 的副本: `ai.storyteller.printcraft` 0.2.1 显示为最新，实际厂商已改名续发。
++  （厂商说 PdfCraft 首次启动会迁走 PrintCraft 的设置。）
++- PrintCraft 0.2.1 dmg 里的 .app `codesign --verify --strict` 退出 1（与上文所说厂商 dmg 带 FinderInfo
++  的问题同形，未单独查原因）；PdfCraft 0.6.0 / 0.7.1 退出 0。
++
+ ## 覆盖矩阵
+ 
+ > ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
+@@ -42,6 +63,9 @@
+ | stable  | 见上表 | 共享 | — | `/releases/latest` + tag 锚 `^vX.Y.Z$` + dmg 名锚 | ✓ |
+ | rc（`X.Y.Z-rc.N`）| 同 stable | 共享 | `Info.plist` 自定义键 `<App>Version`（未读） | — | ✗ 未接入 |
+ 
++- PdfCraft 的 `.github/workflows/release.yml` 现在只调用 `storytold/craft-common-actions` 的共享
++  `release.yml`：`resolve-version` 算出 `prerelease`，`draft-release` 据此加 `--prerelease`，仍是建草稿、
++  人工发布（2026-10-14 读 `main`）。所以同一组锚照样适用。
+ - settled from source: `.github/workflows/release.yml`（photocraft，`main`）——版本必须形如
+   `1.2.3` 或 `1.2.3-rc.1`；带 `-` 的本意是标 prerelease，`gh release create --draft --generate-notes`
+   建草稿、人工发布。
+@@ -83,6 +107,9 @@
+ ## Changelog
+ - 来源: GitHub Release body（GitHub 自动生成的 "What's Changed"，PhotoCraft 0.2.0 另有手写的
+   "Upgrade notes"），经 `GitHubMarkdownParser` 结构化
++- PdfCraft（2026-10-14，channel-verify）: `source structured: 1 entries; newest 0.7.1: 219 items, headings [];
++  first items ["Adopt shared panel docking with document", …]`。正文 "What's Changed" 下正好 219 条，
++  "New Contributors" 的 70 行不计入，小节标题没有混进条目——与下面六个同形
+ - 结构化（2026-10-07，channel-verify 的 `changelog pane` 行）: ✓ 七个全部 `source structured`。
+   PhotoCraft 0.2.0 保留两个小节 `Upgrade notes` / `What's Changed`（54 条）；其余六个只有
+   "What's Changed" 一节，解析为无小节的条目列表（6–33 条），"New Contributors" 不计入条目
+@@ -101,6 +128,9 @@
+   `resource fork, Finder information, or similar detritus not allowed`——包里每个文件都带
+   `com.apple.FinderInfo` xattr。不带 `--strict` 通过，Gatekeeper 接受，安装闸通过。这是厂商打包的问题，
+   不是安装过程带进来的。
++- PdfCraft（2026-10-14）: `pdfcraft-0.7.1-macos-universal.dmg` 的 `shasum -a 256` = `cafa51b2…92bf`，
++  与 GitHub 资产 `digest` 相同。0.6.0 与 0.7.1 同 Team，没有嵌套 app / helper（`check-bundle.sh`）。
++  **端到端未跑**：本次只做到 channel-verify，`duo install` 从 0.6.0 到 0.7.1 留待串行执行。
+ - 端到端（2026-10-07）: 七个上一版装进 `/Applications`（PhotoCraft 0.1.1 并启动）→ `duo check` 七条
+   `[GitHub, in-place]` → `duo install … --yes`：backup / download / verifyingSignature / extract /
+   verifyingCodeSignature / install，`7 installed, 0 failed` → 装好的版本即上表观测版本、Team 不变、
+@@ -111,6 +141,7 @@
+ - rc 轨未接入：`Info.plist` 只写数字版本，装着 rc 的副本会被当成同号 stable（rc `0.2.1` 面前，
+   正式 0.2.1 显示为已是最新）。唯一可分辨的信号是自定义键 `<App>Version`，扫描端目前不读。
+ - 厂商 dmg 带 FinderInfo，严格签名校验失败（见上）。
++- PrintCraft（`ai.storyteller.printcraft`）停在 0.2.1：改名后厂商只发 PdfCraft（新 bundle id），旧副本不会被提示（见「PrintCraft → PdfCraft」）。
+ 
+ ## 如何复验
+ ```
+@@ -122,9 +153,15 @@ swift run --package-path application-test channel-verify photocraft-0.2.0-macos-
+ #   → detected stable, winning source GitHub, latest 0.2.0, status up to date
+ swift run --package-path application-test channel-verify photocraft-0.1.1-macos-universal.dmg --expect stable
+ #   → detected stable, winning source GitHub, latest 0.2.0, status UPDATE → 0.2.0
++swift run --package-path application-test channel-verify pdfcraft-0.6.0-macos-universal.dmg --expect stable
++#   → detected stable, winning source GitHub, latest 0.7.1, status UPDATE → 0.7.1（2026-10-14）
++swift run --package-path application-test channel-verify pdfcraft-0.7.1-macos-universal.dmg --expect stable
++#   → detected stable, winning source GitHub, latest 0.7.1, status up to date
+ # 其余六个同形：最新版 up to date；上一版（vectorcraft/effectcraft 0.3.0，其余 0.2.0）UPDATE → 最新版
+ ```
+ 
+ ## 建议下一步
++0. PdfCraft: 串行跑一键端到端（0.6.0 → 0.7.1），结果替换「一键安装」里的「端到端未跑」。
++   PrintCraft 副本要不要提示改名（以及用什么方式）待定，见「PrintCraft → PdfCraft」。
+ 1. rc 轨：`<App>Version` 带 `-rc.N` 已在 PhotoCraft rc 真包上确认；要接的话需扫描端支持读这个自定义键。
+ 2. 帖子说一个月内要追平 Adobe，发版会很密；`duo verify` 夜扫会盯住 pattern 是否还匹配。

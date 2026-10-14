@@ -1,0 +1,123 @@
+{
+  "changelogRecipes" : [
+
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 1,
+      "headings" : [
+
+      ],
+      "kind" : "sourceStructured",
+      "markdown" : false,
+      "newestItems" : 219,
+      "newestVersion" : "0.7.1"
+    },
+    "download" : "pdfcraft-0.7.1-macos-universal.dmg",
+    "installTrust" : "developerID",
+    "latest" : "0.7.1",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "GitHub",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 1,
+      "headings" : [
+
+      ],
+      "kind" : "sourceStructured",
+      "markdown" : false,
+      "newestItems" : 219,
+      "newestVersion" : "0.7.1"
+    },
+    "download" : "pdfcraft-0.7.1-macos-universal.dmg",
+    "installTrust" : "developerID",
+    "latest" : "0.7.1",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "GitHub",
+    "status" : "update→0.7.1"
+  },
+  "perRelease" : [
+    {
+      "arm64" : "pdfcraft-0.7.1-macos-universal.dmg",
+      "prerelease" : false,
+      "tag" : "v0.7.1",
+      "version" : "0.7.1",
+      "x86_64" : "pdfcraft-0.7.1-macos-universal.dmg"
+    },
+    {
+      "arm64" : "pdfcraft-0.6.0-macos-universal.dmg",
+      "prerelease" : false,
+      "tag" : "v0.6.0",
+      "version" : "0.6.0",
+      "x86_64" : "pdfcraft-0.6.0-macos-universal.dmg"
+    },
+    {
+      "arm64" : "pdfcraft-0.5.0-macos-universal.dmg",
+      "prerelease" : false,
+      "tag" : "v0.5.0",
+      "version" : "0.5.0",
+      "x86_64" : "pdfcraft-0.5.0-macos-universal.dmg"
+    },
+    {
+      "arm64" : "pdfcraft-0.4.0-macos-universal.dmg",
+      "prerelease" : false,
+      "tag" : "v0.4.0",
+      "version" : "0.4.0",
+      "x86_64" : "pdfcraft-0.4.0-macos-universal.dmg"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.2.1",
+      "version" : "0.2.1",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.2.0",
+      "version" : "0.2.0",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.1.1",
+      "version" : "0.1.1",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.1.0",
+      "version" : "0.1.0",
+      "x86_64" : "<none>"
+    }
+  ],
+  "rules" : [
+    {
+      "bundleID" : "ai.storyteller.pdfcraft",
+      "channel" : "stable",
+      "installAssetPattern" : "^pdfcraft-[0-9]+\\.[0-9]+\\.[0-9]+-macos-universal\\.dmg$",
+      "installerKind" : "dmg",
+      "installTrust" : "developerID",
+      "slug" : "storytold\/pdfcraft",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
+    },
+    {
+      "bundleID" : "ai.storyteller.printcraft",
+      "channel" : "stable",
+      "installAssetPattern" : "<nil>",
+      "installerKind" : "<nil>",
+      "installTrust" : "developerID",
+      "slug" : "storytold\/pdfcraft",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
+    }
+  ]
+}

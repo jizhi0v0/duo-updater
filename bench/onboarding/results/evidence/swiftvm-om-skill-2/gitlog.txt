@@ -1,0 +1,3 @@
+82da090 SwiftVM: Sparkle stable, a binding for its beta feed, GitHub release notes for both
+b00941a app-audit: coverage checklist
+90f8415 Add check_ifchange.py: links between code that must change together (#1222)

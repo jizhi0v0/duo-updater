@@ -1,0 +1,552 @@
+diff --git a/.claude/skills/app-audit/SKILL.md b/.claude/skills/app-audit/SKILL.md
+index 2a0c650..3aa0630 100644
+--- a/.claude/skills/app-audit/SKILL.md
++++ b/.claude/skills/app-audit/SKILL.md
+@@ -432,6 +432,7 @@ are NOT CFPreferences.
+ | OBS `com.obsproject.obs-studio` | INI `~/Library/Application Support/obs-studio/global.ini` `[General]` | `UpdateBranch` = `beta`; `stable` → stable with the `stable` tag named; absent → nil (a prerelease build writes `beta` on first run) | Sparkle channel tag |
+ | iTerm2 `com.googlecode.iterm2` | CFPrefs | `CheckTestRelease` true → the bundle's own `SUFeedURLForTesting` (nil on a nightly build, whose feed keys are all the nightly feed) | feed swap, address from Info.plist (`ChannelBinding.bundleFeeds`) |
+ | MonitorControl `app.monitorcontrol.MonitorControl` | CFPrefs (no UI yet) | `isBetaChannel` true → beta; else nil | Sparkle channel tag |
++| SwiftVM `com.swiftvm.app` | — (the bundle's own `SUFeedURL`, stamped per train at build time) | beta feed declared → beta | Sparkle channel tag |
+ | Ghostty, CodeEdit, Osaurus | — (constant, no user preference) | — | fixed feed / fixed Sparkle tag |
+ 
+ **Confirm the write on the real app.** Have the toggle flipped in the real app (or flip it yourself if no
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index d6fdb79..1e4a181 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -162,6 +162,7 @@ public enum AppRecipeIndex {
+         com_sublimetext_4.set,
+         com_supercmd_app.set,
+         com_surteesstudios_Bartender.set,
++        com_swiftvm_app.set,
+         com_t3tools_t3code.set,
+         com_tableplus_VMPal.set,
+         com_tclementdev_timemachineeditor_application.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-swiftvm-app.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-swiftvm-app.swift
+new file mode 100644
+index 0000000..13298bf
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-swiftvm-app.swift
+@@ -0,0 +1,42 @@
++import Foundation
++
++enum com_swiftvm_app {
++    static let set = AppRecipeSet(
++        family: "com-swiftvm-app",
++        changelogs: [
++        // SwiftVM (Team NYSXATY4AA) — detected through the generic Sparkle
++        // source: a stable build declares `releases/latest/download/appcast.xml`,
++        // a beta build `releases/download/beta-channel/appcast-beta.xml` (see
++        // `SwiftVMChannel`). Neither appcast carries notes, only a
++        // `sparkle:fullReleaseNotesLink` to the GitHub release, whose body the
++        // vendor's release workflows fill with GitHub's generated notes.
++        //
++        // One repo, two trains, split by GitHub's `prerelease` bit: `v<x.y.z>`
++        // stable and `v<x.y.z>-beta.N` prereleases (settled from source:
++        // `.github/workflows/release.yml` / `release-beta.yml`). Tag minus `v`
++        // is the appcast's `sparkle:shortVersionString` and the bundle's
++        // CFBundleShortVersionString on both trains.
++        //
++        // `tagPattern` on the beta recipe keeps out `beta-channel`, a rolling
++        // prerelease that only hosts the beta appcast. `includesPromotedStable`
++        // stays false: the beta appcast lists beta items only, so a beta copy is
++        // never offered a stable release (Yaak's choice, not UTM's).
++        ChangelogRecipe(
++            bundleID: "com.swiftvm.app",
++            source: URL(string: "https://api.github.com/repos/swiftvm-app/swiftvm/releases?per_page=40")!,
++            mode: .json,
++            maxEntries: 20,
++            channel: .stable,
++            structuredFormat: .gitHubReleases,
++            tagPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#),
++
++        ChangelogRecipe(
++            bundleID: "com.swiftvm.app",
++            source: URL(string: "https://api.github.com/repos/swiftvm-app/swiftvm/releases?per_page=40")!,
++            mode: .json,
++            maxEntries: 20,
++            channel: .beta,
++            structuredFormat: .gitHubReleases,
++            tagPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+)$"#),
++        ])
++}
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelBinding.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelBinding.swift
+index f39ceab..eba8007 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelBinding.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelBinding.swift
+@@ -162,9 +162,10 @@ public enum ChannelBinding {
+     /// "did the user just flip a channel toggle in the vendor app itself" recheck
+     /// to only these apps, instead of polling every installed app's prefs.
+     ///
+-    /// Deliberately excludes Ghostty, CodeEdit and Osaurus: each binding is a
+-    /// constant (a fixed stable-only feed override; a fixed `<sparkle:channel>` tag) with no
+-    /// user-settable preference behind it, so there is nothing to watch.
++    /// Deliberately excludes Ghostty, CodeEdit, Osaurus and SwiftVM: each binding
++    /// is a constant (a fixed stable-only feed override; a fixed `<sparkle:channel>` tag;
++    /// a channel read off the bundle's own feed) with no user-settable preference
++    /// behind it, so there is nothing to watch.
+     public static let boundBundleIDs: Set<String> = [
+         DuoPasteChannel.bundleID.lowercased(),
+         ForkChannel.bundleID.lowercased(),
+@@ -488,6 +489,8 @@ public enum ChannelBinding {
+             return { ITerm2Channel.resolveCurrent(bundleFeeds: $0) }
+         case MonitorControlChannel.bundleID.lowercased():
+             return { _ in MonitorControlChannel.resolveCurrent() }
++        case SwiftVMChannel.bundleID.lowercased():
++            return { SwiftVMChannel.resolve(bundleFeeds: $0) }
+         default:                       return nil
+         }
+     }
+@@ -583,6 +586,12 @@ public enum ChannelBinding {
+         MonitorControlChannel.resolve(isBetaChannel: flag)
+             .map { (bundleID: MonitorControlChannel.bundleID, resolved: $0) }
+     }
++    // SwiftVM's channel comes from the feed its bundle declares; the two real
++    // bundles' feed keys stand in for it (the stable one answers nil).
++    + [SwiftVMChannel.betaBundleFeeds, SwiftVMChannel.stableBundleFeeds].compactMap { feeds in
++        SwiftVMChannel.resolve(bundleFeeds: feeds)
++            .map { (bundleID: SwiftVMChannel.bundleID, resolved: $0) }
++    }
+ 
+     // Windscribe is deliberately NOT enumerated here, which is the same choice
+     // OrbStack, Alfred, Tailscale and CapCut already made: this list feeds
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/SwiftVMChannel.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/SwiftVMChannel.swift
+new file mode 100644
+index 0000000..3e5e532
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/SwiftVMChannel.swift
+@@ -0,0 +1,47 @@
++import Foundation
++
++/// SwiftVM (`com.swiftvm.app`) — a Sparkle app whose beta builds declare their
++/// own feed, in which EVERY item is tagged `<sparkle:channel>beta</sparkle:channel>`.
++///
++/// What SwiftVM does (read from `swiftvm-app/swiftvm`): the channel is a property
++/// of the build, not a setting. `App/Updates/UpdateService.swift`'s
++/// `allowedChannels` returns `["beta"]` when the copy's
++/// CFBundleShortVersionString contains `-beta.`, otherwise nothing; and the
++/// release workflows bake the feed in per train — `release.yml` builds with
++/// `releases/latest/download/appcast.xml` (untagged items), `release-beta.yml`
++/// with `releases/download/beta-channel/appcast-beta.xml` (all tagged `beta` by
++/// `scripts/generate-appcast.sh`).
++///
++/// Why a binding is needed at all: without one, `SparkleAppcastSource` infers
++/// the channel from the installed build's own feed item. That works while the
++/// beta appcast lists the build — it accumulates today (7 items, 2026-10-14) —
++/// but the workflows write a fresh one-item appcast whenever fetching the
++/// previous one fails. A beta copy absent from it falls back to the default
++/// channel, matches nothing in an all-tagged feed, and reads unknown: CodeEdit's
++/// failure.
++///
++/// The declared feed stands in for the version check the app makes: both are
++/// stamped by the same workflow, and the resolver is handed the feed keys, not
++/// the version. Beta feed → `.beta`, whose tag is derived
++/// (`ReleaseChannel.beta.rawValue`, the spelling the vendor's script writes), so
++/// no tag is declared by hand. Anything else → nil: a stable copy stays on the
++/// untagged items by inference, which is all SwiftVM's own updater allows.
++///
++/// Not in `boundBundleIDs`, same as CodeEdit: nothing a user sets changes the answer.
++enum SwiftVMChannel {
++    static let bundleID = "com.swiftvm.app"
++
++    static let betaFeed = URL(
++        string: "https://github.com/swiftvm-app/swiftvm/releases/download/beta-channel/appcast-beta.xml")!
++
++    /// The feed keys of the real 1.3.0 and 1.4.0-beta.37 bundles (2026-10-14),
++    /// for `ChannelBinding.allResolutions`, which enumerates without a bundle.
++    static let stableBundleFeeds: [String: URL] = [
++        "SUFeedURL": URL(string: "https://github.com/swiftvm-app/swiftvm/releases/latest/download/appcast.xml")!,
++    ]
++    static let betaBundleFeeds: [String: URL] = ["SUFeedURL": betaFeed]
++
++    static func resolve(bundleFeeds: [String: URL]) -> ResolvedChannel? {
++        bundleFeeds["SUFeedURL"] == betaFeed ? ResolvedChannel(channel: .beta) : nil
++    }
++}
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/BindingChannelProofTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/BindingChannelProofTests.swift
+index 71cbad3..20f6ad7 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/BindingChannelProofTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/BindingChannelProofTests.swift
+@@ -165,13 +165,14 @@ import Foundation
+     /// way to reflect over a switch's cases.
+     @Test func everyBindingIsEnumerated() {
+         let enumerated = Set(ChannelBinding.allResolutions.map { $0.bundleID.lowercased() })
+-        // Ghostty, CodeEdit and Osaurus are deliberately outside `boundBundleIDs`
+-        // (no user-settable preference to watch) but are still real bindings, so
+-        // they are enumerated.
++        // Ghostty, CodeEdit, Osaurus and SwiftVM are deliberately outside
++        // `boundBundleIDs` (no user-settable preference to watch) but are still
++        // real bindings, so they are enumerated.
+         let expected = ChannelBinding.boundBundleIDs
+             .union([GhosttyChannel.bundleID.lowercased(),
+                     CodeEditChannel.bundleID.lowercased(),
+-                    OsaurusChannel.bundleID.lowercased()])
++                    OsaurusChannel.bundleID.lowercased(),
++                    SwiftVMChannel.bundleID.lowercased()])
+             .subtracting(ChannelBinding.vendorProbeBackedBindings)
+         #expect(enumerated == expected,
+                 "allResolutions drifted from the resolvers: missing \(expected.subtracting(enumerated).sorted()), extra \(enumerated.subtracting(expected).sorted())")
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/SwiftVMTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/SwiftVMTests.swift
+new file mode 100644
+index 0000000..4e45bb7
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/SwiftVMTests.swift
+@@ -0,0 +1,134 @@
++import Foundation
++import Testing
++
++@testable import DuoUpdaterCore
++
++/// The first two items of
++/// `https://github.com/swiftvm-app/swiftvm/releases/download/beta-channel/appcast-beta.xml`
++/// as read on 2026-10-14, verbatim. All 7 items carry `<sparkle:channel>beta`.
++private let swiftVMBetaFeedFixture = #"""
++<?xml version="1.0" encoding="utf-8"?>
++<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
++  <channel>
++    <title>SwiftVM Updates (beta)</title>
++    <item>
++      <title>Version 1.4.0-beta.37</title>
++      <pubDate>Wed, 14 Oct 2026 10:55:52 +0000</pubDate>
++      <sparkle:channel>beta</sparkle:channel>
++      <sparkle:version>37</sparkle:version>
++      <sparkle:shortVersionString>1.4.0-beta.37</sparkle:shortVersionString>
++      <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
++      <sparkle:fullReleaseNotesLink>https://github.com/swiftvm-app/swiftvm/releases/tag/v1.4.0-beta.37</sparkle:fullReleaseNotesLink>
++      <enclosure url="https://github.com/swiftvm-app/swiftvm/releases/download/v1.4.0-beta.37/SwiftVM-1.4.0-beta.37.dmg" sparkle:edSignature="WofvqvFJz+jkXpBOAYpjSZQ1FWTUoONR/yZEeVl91ph0dorstki7xSOfGlJ7bfto3IzD6Srvp1jBEY26MIw5Cg==" length="6096786" type="application/octet-stream" />
++    </item>
++    <item>
++      <title>Version 1.4.0-beta.35</title>
++      <pubDate>Tue, 13 Oct 2026 16:40:12 +0000</pubDate>
++      <sparkle:channel>beta</sparkle:channel>
++      <sparkle:version>35</sparkle:version>
++      <sparkle:shortVersionString>1.4.0-beta.35</sparkle:shortVersionString>
++      <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
++      <sparkle:fullReleaseNotesLink>https://github.com/swiftvm-app/swiftvm/releases/tag/v1.4.0-beta.35</sparkle:fullReleaseNotesLink>
++      <enclosure url="https://github.com/swiftvm-app/swiftvm/releases/download/v1.4.0-beta.35/SwiftVM-1.4.0-beta.35.dmg" sparkle:edSignature="I+8YsLs4FRMlvfXL7yWKJX1g5i92mi3TC47a2AvOo36qX7G1ln5/KN/QNhatoc6BnUpftq+HgFGuscxKzEAyCw==" length="6005437" type="application/octet-stream" />
++    </item>
++  </channel>
++</rss>
++"""#
++
++/// Four releases from `api.github.com/repos/swiftvm-app/swiftvm/releases`
++/// (fetched 2026-10-14), verbatim in the decoder's fields. `beta-channel` is the
++/// rolling prerelease that only hosts the beta appcast.
++private let swiftVMReleasesFixture = #"""
++[
++ {
++  "tag_name": "v1.4.0-beta.37",
++  "prerelease": true,
++  "draft": false,
++  "published_at": "2026-10-14T10:55:58Z",
++  "body": "## What's Changed\n* Add optional disk compression for Linux virtual machines"
++ },
++ {
++  "tag_name": "v1.3.0",
++  "prerelease": false,
++  "draft": false,
++  "published_at": "2026-10-13T11:24:47Z",
++  "body": "## What's Changed\n* Keep machines on any disk, and open up settings that were fixed"
++ },
++ {
++  "tag_name": "v1.3.0-beta.30",
++  "prerelease": true,
++  "draft": false,
++  "published_at": "2026-10-13T11:07:29Z",
++  "body": "## What's Changed\n* Keep machines on any disk, and open up settings that were fixed"
++ },
++ {
++  "tag_name": "beta-channel",
++  "prerelease": true,
++  "draft": false,
++  "published_at": "2026-10-11T15:05:52Z",
++  "body": "Rolling Sparkle appcast for the beta channel. Do not delete."
++ }
++]
++"""#
++
++@Suite struct SwiftVMTests {
++    /// What the real bundles report (`CFBundleIdentifier` and `SUFeedURL` of the
++    /// 1.3.0 and 1.4.0-beta.37 dmgs), spelled out rather than taken from the binding.
++    private static let bundleID = "com.swiftvm.app"
++    private static let betaFeed = URL(string: "https://github.com/swiftvm-app/swiftvm/releases/download/beta-channel/appcast-beta.xml")!
++    private static let stableFeed = URL(string: "https://github.com/swiftvm-app/swiftvm/releases/latest/download/appcast.xml")!
++
++    /// A beta copy as `AppScanner` builds it: the binding resolved from the
++    /// bundle's own feed key.
++    private func offered(betaVersion version: String, build: String) -> String? {
++        let bound = ChannelBinding.resolve(bundleID: Self.bundleID, bundleFeeds: ["SUFeedURL": Self.betaFeed])
++        let app = InstalledApp(
++            name: "SwiftVM", bundleID: Self.bundleID,
++            shortVersion: version, buildVersion: build,
++            path: URL(fileURLWithPath: "/Applications/ZZFixture-SwiftVM.app"),
++            isMASApp: false,
++            sparkleFeedURL: Self.betaFeed,
++            sparkleChannelNames: bound?.sparkleChannelNames ?? [],
++            sparkleEdPublicKey: "key",
++            releaseChannel: bound?.channel ?? .stable,
++            channelIsAuthoritative: bound != nil)
++        return SparkleAppcastSource.bestItem(
++            for: app, from: SparkleAppcastParser.parse(Data(swiftVMBetaFeedFixture.utf8)),
++            osVersion: "27.0", hostArch: .arm64, allowingIntelTranslation: true
++        )?.shortVersionString
++    }
++
++    /// The case the binding exists for: a beta copy the feed no longer lists.
++    /// Mutation that turns this red: removing SwiftVM's case from the switch.
++    @Test func aBetaCopyAbsentFromTheFeedIsOfferedTheNewestBeta() {
++        #expect(offered(betaVersion: "1.0.0-beta.12", build: "12") == "1.4.0-beta.37")
++    }
++
++    @Test func theBetaFeedResolvesBetaAndTheStableFeedNothing() {
++        #expect(SwiftVMChannel.resolve(bundleFeeds: ["SUFeedURL": Self.betaFeed]) == ResolvedChannel(channel: .beta))
++        #expect(SwiftVMChannel.resolve(bundleFeeds: ["SUFeedURL": Self.stableFeed]) == nil)
++        #expect(SwiftVMChannel.resolve(bundleFeeds: [:]) == nil)
++        #expect(ChannelBinding.hasResolver(bundleID: Self.bundleID))
++    }
++
++    private func parsed(_ channel: ReleaseChannel) throws -> Changelog {
++        let recipe = try #require(
++            ChangelogRecipeRegistry.recipe(forBundleID: Self.bundleID, channel: channel))
++        #expect(recipe.channel == channel)
++        return try #require(ChangelogService.parse(recipe, body: swiftVMReleasesFixture))
++    }
++
++    @Test func stableReadsStableReleasesOnly() throws {
++        let entries = try parsed(.stable).entries
++        #expect(entries.map(\.version) == ["1.3.0"])
++        #expect(entries.first?.date == "2026-10-13")
++        #expect(entries.first?.items == ["Keep machines on any disk, and open up settings that were fixed"])
++    }
++
++    /// The beta appcast offers betas only, and `beta-channel` is not a release.
++    @Test func betaReadsBetasOnly() throws {
++        let entries = try parsed(.beta).entries
++        #expect(entries.map(\.version) == ["1.4.0-beta.37", "1.3.0-beta.30"])
++        #expect(entries.first?.items == ["Add optional disk compression for Linux virtual machines"])
++    }
++}
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-swiftvm-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-swiftvm-app.txt
+new file mode 100644
+index 0000000..d611f06
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-swiftvm-app.txt
+@@ -0,0 +1,88 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "com-swiftvm-app"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 2)
++changelogs[0] = struct ChangelogRecipe
++changelogs[0].bundleID = "com.swiftvm.app"
++changelogs[0].source = URL("https://api.github.com/repos/swiftvm-app/swiftvm/releases?per_page=40")
++changelogs[0].sourceTemplate = nil
++changelogs[0].versionFromTemplate = false
++changelogs[0].mode = .json
++changelogs[0].entryPattern = ""
++changelogs[0].itemPatterns = Array(count: 0)
++changelogs[0].stripTags = true
++changelogs[0].decodeEntities = true
++changelogs[0].escapedMarkup = false
++changelogs[0].markdownSource = false
++changelogs[0].maxEntries? = 20
++changelogs[0].minItemLength = 1
++changelogs[0].newestLast = false
++changelogs[0].indexLinkPattern = nil
++changelogs[0].feedPagePattern = nil
++changelogs[0].channel? = .stable
++changelogs[0].includesPromotedStable = false
++changelogs[0].excludedChannels = Array(count: 0)
++changelogs[0].imagePattern = nil
++changelogs[0].headingPattern = nil
++changelogs[0].minimumAppVersion = nil
++changelogs[0].belowAppVersion = nil
++changelogs[0].carriesOtherTrainEntries = false
++changelogs[0].acknowledgedStaleEntry = nil
++changelogs[0].structuredFormat? = .gitHubReleases
++changelogs[0].httpMethod = .get
++changelogs[0].requestBody = nil
++changelogs[0].skipSections = Array(count: 0)
++changelogs[0].tagPattern? = "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
++changelogs[1] = struct ChangelogRecipe
++changelogs[1].bundleID = "com.swiftvm.app"
++changelogs[1].source = URL("https://api.github.com/repos/swiftvm-app/swiftvm/releases?per_page=40")
++changelogs[1].sourceTemplate = nil
++changelogs[1].versionFromTemplate = false
++changelogs[1].mode = .json
++changelogs[1].entryPattern = ""
++changelogs[1].itemPatterns = Array(count: 0)
++changelogs[1].stripTags = true
++changelogs[1].decodeEntities = true
++changelogs[1].escapedMarkup = false
++changelogs[1].markdownSource = false
++changelogs[1].maxEntries? = 20
++changelogs[1].minItemLength = 1
++changelogs[1].newestLast = false
++changelogs[1].indexLinkPattern = nil
++changelogs[1].feedPagePattern = nil
++changelogs[1].channel? = .beta
++changelogs[1].includesPromotedStable = false
++changelogs[1].excludedChannels = Array(count: 0)
++changelogs[1].imagePattern = nil
++changelogs[1].headingPattern = nil
++changelogs[1].minimumAppVersion = nil
++changelogs[1].belowAppVersion = nil
++changelogs[1].carriesOtherTrainEntries = false
++changelogs[1].acknowledgedStaleEntry = nil
++changelogs[1].structuredFormat? = .gitHubReleases
++changelogs[1].httpMethod = .get
++changelogs[1].requestBody = nil
++changelogs[1].skipSections = Array(count: 0)
++changelogs[1].tagPattern? = "^v([0-9]+\\.[0-9]+\\.[0-9]+-beta\\.[0-9]+)$"
++
++githubRules = Array(count: 0)
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index a14e3fb..f5149ef 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -333,6 +333,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**DaisyDisk**](com-daisydiskapp-DaisyDiskStandAlone.md) · `com.daisydiskapp.DaisyDiskStandAlone` — S · MAS 副本 `com.daisydiskapp.DaisyDisk` 由 App Store 通用覆盖 · cask `auto_updates` 不影响，Sparkle 先应答 · 无 EdDSA（只有 DSA），通用一键 ✓（code signature + Team 闸）· 真包 4.34.2 验证 ✓ · 2026-09-14 复核
+ - [x] [**SuperCmd**](com-supercmd-SuperCmd.md) · `com.supercmd.SuperCmd` — S(v2 stable) S(v2 beta，独立 id `com.supercmd.SuperCmd.beta`、独立 feed) G(v1 `com.supercmd.app`，**detection-only**) · 同名两个 app：v2 闭源原生 Sparkle、v1 开源 Electron 已停更，版本号 1.0.0–1.0.7 两边重叠 · 三个真包验证 ✓ · 2026-09-17
+ - [x] [**ShiftBar**](com-superoutman-ShiftBar-prototype.md) · `com.superoutman.ShiftBar.prototype` — S · 单轨道（发布 workflow 断言 build 单调递增，无 prerelease 分支）· feed 内联 `sparkle:format="markdown"` notes —— **借此修了通用缺口：该属性此前从未被解析**，Markdown notes 一律落到原始文本回落 · feed 只留 1 个 item，releaseHistory 恒为 1 · arm64 + macOS 27 下限由 feed 现读 · 真包 0.1.13 验证 ✓ · 2026-09-20
++- [x] [**SwiftVM**](com-swiftvm-app.md) · `com.swiftvm.app` — S+B C · stable/beta 各自的 feed 写在包里，beta feed 全打 `beta` tag（`SwiftVMChannel` 按包声明的 feed 判定）· 真包 1.2.0/1.3.0/1.4.0-beta.35/37 验证 ✓ · changelog 读 GitHub releases（两轨）· 一键未跑 · 2026-10-14
+ 
+ ## Investigated — blocked safely
+ 
+diff --git a/docs/app-audits/com-swiftvm-app.md b/docs/app-audits/com-swiftvm-app.md
+new file mode 100644
+index 0000000..7ad4818
+--- /dev/null
++++ b/docs/app-audits/com-swiftvm-app.md
+@@ -0,0 +1,112 @@
++# SwiftVM
++
++## 基本信息
++- Bundle ID: `com.swiftvm.app`
++- Team ID: `NYSXATY4AA`
++- 观测版本: stable `1.3.0` (build `30`) / `1.2.0` (build `27`)；beta `1.4.0-beta.37` (build `37`) / `1.4.0-beta.35` (build `35`)；最早的 `1.0.0-beta.12`、`1.0.0` 也挂载核过（2026-10-14）
++- 自更新机制: **Sparkle**（2.10.0，`SUPublicEDKey` 在包里，`SUAutomaticallyUpdate = true`）
++- 分发: GitHub Releases（`swiftvm-app/swiftvm`，开源）/ 厂商自己的 tap `swiftvm-app/homebrew-tap`（cask `auto_updates true`，不在 homebrew/cask）
++
++## 覆盖清单（coverage checklist）
++
++| 组 | 结论 |
++|---|---|
++| 所有 bundle id | 只有 `com.swiftvm.app`。`1.0.0-beta.12`（最早的 release）到 `1.4.0-beta.37` 共 6 个真包都是这个 id，没有改名，也没有别的版本 |
++| 所有轨道 | stable（`vX.Y.Z`）和 beta（`vX.Y.Z-beta.N`，GitHub prerelease）。两轨共享 bundle id，各自的 feed 在构建时写进包里。都已接入 |
++| 所有版本区间 | 每个 release 都声明了自己轨道的 `SUFeedURL`（从 1.0.0-beta.12 起）；Team 全程是 `NYSXATY4AA` |
++| 宿主下限 | SwiftVM `LSMinimumSystemVersion = 27.0`、只有 arm64；DuoUpdater 自己是 arm64、macOS 15.0 起。低于 27 的宿主由 feed 的 `minimumSystemVersion` 挡住（泛化 Sparkle 源会读它），不需要单独的 rule |
++| 一键 | 已接入的每个副本都能走（同一 Team、公证、dmg）。没有被拒的副本组 |
++| 版本 pattern | changelog 的 `tagPattern` 在全部 12 个 tag 上跑过：stable 读 `v1.0.0…v1.3.0`，beta 读全部 `-beta.N`，`beta-channel` 两边都不匹配；`v2.0.0` → stable，`v1.5.0-rc.1` 和两段式的 `v1.4` 两边都不匹配（厂商的 `release.yml` 只接受 `X.Y.Z`） |
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|------------|---------|----------|-----|--------|-------------|
++| **stable** | ✓       | — (厂商 tap，`auto_updates`) | — | —（只用来取 changelog） | — |
++| **beta**   | ✓（+ `SwiftVMChannel`） | — | — | —（只用来取 changelog） | — |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **Sparkle**（泛化 `SparkleAppcastSource`；不需要版本 recipe）。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `com.swiftvm.app` | 共享 | 包声明 `releases/latest/download/appcast.xml` | feed 里的 item 都不打 tag | ✓ |
++| beta    | `com.swiftvm.app` | 共享 | 包声明 `releases/download/beta-channel/appcast-beta.xml`（`SwiftVMChannel`） | 独立的 feed，每条都是 `<sparkle:channel>beta` | ✓ |
++
++由源码确定（`swiftvm-app/swiftvm`，`main` 分支）：
++- `App/Updates/UpdateService.swift`：`allowedChannels` 在 `CFBundleShortVersionString` 含 `-beta.` 时返回 `["beta"]`，否则返回空。channel 是构建本身的属性，没有用户设置。
++- `.github/workflows/release.yml` 用 `feed_url = …/releases/latest/download/appcast.xml` 构建 stable；`release-beta.yml` 用 `…/releases/download/beta-channel/appcast-beta.xml` 构建 beta。
++- `scripts/generate-appcast.sh`：`CHANNEL=beta` 时给 item 加 `<sparkle:channel>beta</sparkle:channel>`，stable 不加；新 item 插到上一份 appcast 前面。**上一份下载失败时会重写出只有一条的 appcast。**
++
++为什么要加 binding：不加 binding 时，beta 副本的 channel 靠"自己的 build 能在 feed 里找到"推断出来。2026-10-14 那天 beta feed 有 7 条，所有 beta 都在里面，所以那时就能工作；但只要 feed 被重写成一条，没被收录的 beta 副本就会落回默认 channel，在全部打了 tag 的 feed 里什么都匹配不到，显示为 unknown（和 CodeEdit 同一种问题）。`SwiftVMChannel` 按包声明的 feed 判定为 `.beta`（tag 由 `ReleaseChannel.beta` 推出，不是手写的），对 stable 包返回 nil。它不在 `boundBundleIDs` 里：没有用户可设的偏好。也不需要 `bindingProofs`：没有 feedOverride、header 或手写的 tag，`channelBindingsNeedingProof` 不会把它算进去。
++
++## 更新检测
++- 源: 泛化 Sparkle。
++- stable 端点: `https://github.com/swiftvm-app/swiftvm/releases/latest/download/appcast.xml`（2026-10-14 有 4 条，最新 `1.3.0` / build `30`，都不打 tag）。
++- beta 端点: `https://github.com/swiftvm-app/swiftvm/releases/download/beta-channel/appcast-beta.xml`（7 条，全部 `beta`，最新 `1.4.0-beta.37` / build `37`）。
++- 版本方案: short 是 `X.Y.Z` 或 `X.Y.Z-beta.N`，build 是 `git rev-list --count`。stable 由某个 beta 转正，build 号相同（`1.3.0-beta.30` 和 `1.3.0` 都是 `30`），但两者在不同的 feed 里，不会相互错配。
++- 注意: `feed-discover` 对 beta 包在 binding 之前给的是 `NEEDS BINDING`，之后是 `declared`。
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 有（Sparkle 2.10.0 自带） | 无 | 不适用 |
++| 证据 | 包内有 `Sparkle.framework` 2.10.0 | 两份 appcast 都没有 `<sparkle:deltas>`（2026-10-14） | — |
++
++- 格式: 无
++- 阻塞项: 无
++
++## Changelog
++- 来源: **`ChangelogRecipe` ×2**，`.gitHubReleases` 格式，读 `api.github.com/repos/swiftvm-app/swiftvm/releases?per_page=40`，每轨最多 20 条。appcast 不带 inline 说明，只有 `sparkle:fullReleaseNotesLink`，Sparkle 源不读它（channel-verify 给出 `changelogURL <nil>`）。
++- 结构化: 加 recipe 之前 `changelog pane  none — the pane says there are no release notes`。之后：
++  - stable: `recipe changelog:com.swiftvm.app:stable: 3 entries; newest 1.3.0: 1 items, headings []; first items ["Keep machines on any disk, and open up s"]`
++  - beta: `recipe changelog:com.swiftvm.app:beta: 5 entries; newest 1.4.0-beta.37: 1 items, headings []; first items ["Add optional disk compression for Linux "]`
++  - `headings []` 不是被压平：正文是 GitHub 自动生成的 `## What's Changed` 加条目，厂商没有分节；那个样板标题被丢掉了，没有混进条目里。`v1.0.0` 的 body 是 null，所以 stable 是 3 条。
++- 跟随 channel: 是。stable recipe 只读 `vX.Y.Z`（非 prerelease）；beta recipe 只读 `vX.Y.Z-beta.N`。`tagPattern` 用来排除 `beta-channel`（一个只用来存放 beta appcast 的滚动 prerelease）。`includesPromotedStable` 保持 false：beta feed 只有 beta，beta 副本永远不会被推 stable。
++- 兜底: 无。没有加 `changelogPages`：`ChangelogRecipeSelectionTests.catalogAndRecipeOverlapIsWhatTheCommentSays` 要求每个同时有 catalog 页和 recipe 的 id 都单独论证过；recipe 解析不出内容时，面板显示「没有更新说明」。
++- Recipe 状态: 已有。
++
++## 一键安装
++- 状态: **支持**（泛化 Sparkle 路径：enclosure 带 EdDSA 签名，再过 Team/bundle id 闸；不需要加代码）
++- 端到端: **未跑**。这次审计由并行 agent 完成，不允许用 `duo` CLI，也不允许写 `/Applications`；由协调方之后串行跑（coverage-discovery Phase 5）。
++- 格式: dmg（`SwiftVM-<version>.dmg`，arm64）
++- 校验: GitHub 资产有 `digest`（如 `SwiftVM-1.3.0.dmg` 是 `sha256:0f523cf1…2fcaba`，和下载文件的 `shasum -a 256` 一致）；但走的是 Sparkle 路径，它用的是 EdDSA 签名，GitHub digest 不参与。
++- **读的是**: 人人可手动下载的 GA / beta（feed 里公开的条目，和 GitHub release 资产是同一个文件；没有分阶段推送）
++- 签名（2026-10-14，`check-bundle.sh`）: 1.0.0-beta.12、1.0.0、1.2.0、1.3.0、1.4.0-beta.35、1.4.0-beta.37 全部 `TeamIdentifier=NYSXATY4AA`、`codesign-verify-exit=0`、`spctl source=Notarized Developer ID`。
++- 嵌套: 没有嵌套 `.app`。`Contents/Helpers/` 下有两个裸可执行文件（同一 Team）：`swiftvm`（命令行工具，设置里可以在 `/usr/local/bin` 建一个指向包内的软链，换包后路径不变）；`swiftvm-agent`（客户机 agent，打进 guest tools 安装到 macOS 客户机里，宿主机上不常驻）。没有 login item 或 LaunchAgent。
++- 正在运行的情况: app 本身就是虚拟机的宿主进程（`LSUIElement`，菜单栏常驻）。`AppRestarter` 只用 `terminate()`，SwiftVM 的 `applicationShouldTerminate` 会在有虚拟机运行时弹窗询问挂起/关机；没人回答时 duo 记为 `.stillRunning`，不会强杀虚拟机。
++- 阻塞: 无
++
++## 已知问题
++- `SUAutomaticallyUpdate = true`：app 自己的 Sparkle 也会静默下载、在退出时安装。和 duo 同时换包是否会冲突，没有做过「运行中」那一轮测试（见上面的端到端）。
++- beta 的 GitHub release 正文是相对上一个 beta 生成的，所以 beta 的 changelog 里会重复出现即将转正 stable 的同一句话。这是厂商的正文，不是解析问题。
++
++## 如何复验
++```
++# feed（2026-10-14）
++curl -sSL https://github.com/swiftvm-app/swiftvm/releases/latest/download/appcast.xml         → 4 items, head 1.3.0/30, 无 tag
++curl -sSL https://github.com/swiftvm-app/swiftvm/releases/download/beta-channel/appcast-beta.xml → 7 items, head 1.4.0-beta.37/37, 全部 <sparkle:channel>beta
++
++# 真包（https://github.com/swiftvm-app/swiftvm/releases/download/<tag>/SwiftVM-<ver>.dmg）
++swift run --package-path application-test channel-verify SwiftVM-1.2.0.dmg
++  detected channel → stable · winning Sparkle · latest 1.3.0 · status UPDATE → 1.3.0
++swift run --package-path application-test channel-verify SwiftVM-1.3.0.dmg
++  detected channel → stable · status up to date
++swift run --package-path application-test channel-verify SwiftVM-1.4.0-beta.35.dmg
++  ChannelBinding beta · detected channel → beta · latest 1.4.0-beta.37 · status UPDATE → 1.4.0-beta.37
++swift run --package-path application-test channel-verify SwiftVM-1.4.0-beta.37.dmg
++  ChannelBinding beta · detected channel → beta · status up to date
++swift run --package-path application-test feed-discover SwiftVM-1.4.0-beta.37.dmg → declared
++
++# 单测
++swift test --package-path DuoUpdaterCore --filter SwiftVMTests
++  aBetaCopyAbsentFromTheFeedIsOfferedTheNewestBeta：去掉 ChannelBinding 里的 case 后变红，恢复后变绿
++```
++
++## 建议下一步
++1. 串行跑一键安装的端到端（1.2.0 → 1.3.0；1.4.0-beta.35 → 1.4.0-beta.37），把结果写进「一键安装」。
++2. 厂商发出第一个 `-rc` 或其他非 `-beta.N` 的预发布 tag 时，复查 changelog 的 `tagPattern` 和 `SwiftVMChannel`。

@@ -1,0 +1,3 @@
+84bfb1a PdfCraft: GitHub Releases detection and one-click (PrintCraft renamed, new bundle id)
+2372cfa verify: ask the page before calling a single changelog entry a collapse (#1102)
+7f4feed Cua Driver nightly: find releases by tag, not by list depth (#947) (#1103)

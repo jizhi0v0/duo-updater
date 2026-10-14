@@ -1,0 +1,76 @@
+# Round 6 (2026-10-14): does the app-audit coverage checklist (harness/skill/coverage-checklist.md)
+# prevent onboarding gaps on apps it was not written from?
+#
+# The checklist (like brief2.md) was distilled from the seven hard apps' gaps, so re-testing on them
+# would grade against the answer key. These six are past onboardings that were never benchmark cases,
+# each a single onboarding commit whose main version covers one hard category.
+#
+# Opus 5.5 medium, brief.md, the clone at the commit before main's onboarding. Arm "base": the clone's
+# own app-audit. Arm "skill": the same, with the checklist committed in (run-one-b.sh SKILL=1). Two
+# runs per arm per app, interleaved (rounds/round6-holdout6-skill-ab.txt). Judged by hand against
+# main's onboarding commit (cases/<case>.json refCommit), from each run's diff (evidence/<run>/).
+#
+# Verdicts: covered | missed (recorded) = the audit names the group and leaves it out | missed = not
+# named at all. "beyond main" marks a group main does not cover either.
+
+summary:
+  main_items_covered: {base: 6, skill: 10, of: 12}
+  beyond_main: "WhatCable's pre-rename id com.bitmoor.whatcable: base 0/2, skill 2/2"
+  overreach: {base: 0, skill: 0}
+  usd_mean: {base: 4.92, skill: 5.69}
+  minutes_mean: {base: 17.3, skill: 18.8}
+  make_test: >-
+    rc=2 in all eight tinycast and cuadriver runs, both arms, from vendorResolvesInstallPlans with
+    the same message ("com.zarifpour.superconductor [nightly] resolved no installer"). A clean clone
+    of Tinycast's base fails it the same way (Cua Driver's base was not rerun clean), so it is the
+    bases', not the runs'. All other runs rc=0.
+  rule_attempts: >-
+    Three runs tried `git stash`, which the harness denies (t3code om-base-1 and om-base-2,
+    whatcable om-skill-1); score.py reports it as viol. No run read another run or main's answer
+    (contam=0 in every run).
+  grader: >-
+    The whatcable and t3code bases (2026-09-06, 2026-08-30) predate the APIs both graders use
+    (ChangelogRecipeSelection, Changelog.Entry.Block.heading), so those eight runs have no grade.json
+    and are judged by hand only, like every run here.
+
+apps:
+  swiftvm:
+    item: "beta track (Sparkle feed declared in the bundle; main binds it with SwiftVMChannel)"
+    om-base-1: covered
+    om-base-2: covered
+    om-skill-1: covered
+    om-skill-2: covered
+  pdfcraft:
+    item: "copies on the pre-rename id ai.storyteller.printcraft (main: BundleIDMigration)"
+    om-base-1: "covered (repoints the printcraft rule to storytold/pdfcraft)"
+    om-base-2: "missed (recorded): notes the printcraft rule 'stops at v0.2.1' and leaves it"
+    om-skill-1: "covered (repoints the printcraft rule)"
+    om-skill-2: "covered (repoints the printcraft rule)"
+  tinycast:
+    item: "beta under its own bundle id com.tinycast.app.beta"
+    om-base-1: covered
+    om-base-2: covered
+    om-skill-1: "covered; the stable pattern also reads two-part tags"
+    om-skill-2: covered
+  cuadriver:
+    item: "nightly track on the same bundle id (main reads ~/.cua-driver/release-channel)"
+    om-base-1: "missed (recorded): names the release-channel file, not verified on a real nightly"
+    om-base-2: "missed (recorded): 'same id, can't be told apart'; lists the file as a next step"
+    om-skill-1: "missed (recorded): 'no local signal'"
+    om-skill-2: "missed (recorded): the channel is in the file, 'not in the bundle'"
+    note: >-
+      The checklist's examples of how an app tells tracks apart are all in the bundle. Rewording it
+      after seeing this answer would fit it to this set; a change needs a new held-out set.
+  whatcable:
+    item: "beta track on the same bundle id"
+    beyond_main: "pre-rename id com.bitmoor.whatcable, v0.2.0-v0.5.14 (Info.plist of the real v0.5.14 and v0.6.0 zips, read 2026-10-14)"
+    om-base-1: "beta covered; old id missed"
+    om-base-2: "beta missed (recorded, 'conservative'); old id missed"
+    om-skill-1: "beta covered; old id covered, detection-only"
+    om-skill-2: "beta covered; old id covered, detection-only"
+  t3code:
+    item: "nightly track on the same bundle id"
+    om-base-1: "missed (recorded): writes the nightly rule in the audit's next steps only"
+    om-base-2: "missed (recorded): same"
+    om-skill-1: covered
+    om-skill-2: covered

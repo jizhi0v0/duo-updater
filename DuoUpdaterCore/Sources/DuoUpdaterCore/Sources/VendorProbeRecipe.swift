@@ -1311,23 +1311,33 @@ public enum VendorProbeRegistry {
     /// identical, so the host is the only thing in a resolved URL that says which
     /// site it came from, and it is pinned rather than matched with `[^"]+`.
     ///
-    /// One-click installs the `.dmg` beside the `.zip` the body's `url` names
-    /// (same path, same name), because `sha256hash` is that dmg's digest, not the
-    /// zip's (measured 2026-10-07 on all four host×arch pairs). The endpoint
-    /// never names the dmg, so its URL is the body's own `url` with the extension
-    /// swapped — still pinned to this host and arch, and still paired with the
-    /// digest from the same response. A vendor that drops the dmg still resolves
-    /// a URL, which then 404s (the nightly `duo verify` HEADs it and reports
-    /// `installURLNotFound`); one that starts hashing the zip instead fails as
-    /// `checksumMismatch`.
-    /// Neither installs anything unchecked.
+    /// One-click installs an artifact beside the `.zip` the body's `url` names
+    /// (same path, same name, extension swapped), and checks it against
+    /// `sha256hash` from the same response. Which artifact depends on what that
+    /// digest describes, and the vendor has changed it:
+    ///
+    /// - `installsZip: false` (the dmg): the digest was the dmg's, not the zip's,
+    ///   on all four host×arch pairs on 2026-10-07. The international site still
+    ///   matches that on 2026-10-14.
+    /// - `installsZip: true` (the zip itself): on 2026-10-14 the China site's
+    ///   `sha256hash` is the zip's digest, and the dmg at the same path has a
+    ///   different one, so the dmg check fails as `checksumMismatch`. Installing
+    ///   the zip the body names, against the digest it names, is the only pairing
+    ///   the response itself states.
+    ///
+    /// The dmg URL is still pinned to this host and arch, and the zip URL is the
+    /// body's own. A vendor that drops the dmg still resolves a URL, which then
+    /// 404s (the nightly `duo verify` HEADs it and reports `installURLNotFound`).
+    /// Nothing is installed unchecked either way: a digest that matches neither
+    /// file is `checksumMismatch`, and the recipe never falls back to another file.
     static func workBuddyRecipe(
         bundleID: String,
         host: String,
         assetHost: String,
         arch: HostArch,
         downloadURL: URL,
-        changelogURL: URL
+        changelogURL: URL,
+        installsZip: Bool = false
     ) -> VendorProbeRecipe {
         let slug = arch == .arm64 ? "arm64" : "x64"
         let assetHostPattern = assetHost.replacingOccurrences(of: ".", with: #"\."#)
@@ -1341,10 +1351,10 @@ public enum VendorProbeRegistry {
             changelogURL: changelogURL,
             publishedAtPattern: #""timestamp"\s*:\s*([0-9]{9,})"#,
             install: VendorInstallSpec(
-                urlSource: .bodyTemplate("{0}.dmg", fields: [
+                urlSource: .bodyTemplate(installsZip ? "{0}.zip" : "{0}.dmg", fields: [
                     #""url"\s*:\s*"(https://\#(assetHostPattern)/workbuddy/saas/darwin-\#(slug)/WorkBuddy-darwin-\#(slug)-[^"]+)\.zip""#,
                 ]),
-                kind: .dmg,
+                kind: installsZip ? .zip : .dmg,
                 checksumPattern: #""sha256hash"\s*:\s*"([0-9a-f]{64})""#,
                 checksumFormat: .sha256Hex),
             variant: slug,

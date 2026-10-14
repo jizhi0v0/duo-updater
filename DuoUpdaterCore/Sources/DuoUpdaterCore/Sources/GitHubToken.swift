@@ -122,9 +122,12 @@ public enum GitHubToken {
     /// signed in to add a token. It was 2 seconds, and that is what happened
     /// on 2026-10-14, a few minutes after a reboot: the app launched under
     /// login load, `gh` was spawned at 10:16:41.27, the round gave up at
-    /// 10:16:43.21, and `gh`'s keychain read (`security`) ran at 10:16:44.6 —
-    /// about 3.4 s for a call that takes 40 ms warm. Every GitHub row after the
-    /// sixtieth then came back 403 with `X-RateLimit-Remaining: 0`.
+    /// 10:16:43.21, and a `security` process ran at 10:16:44.6 — `gh`'s keychain
+    /// read by its timing (matched by timestamp, not by pid), so about 3.4 s for
+    /// a call that takes 40 ms warm. Every GitHub row after the sixtieth then
+    /// came back 403 with `X-RateLimit-Remaining: 0`. All of this is one Mac's
+    /// unified log, observed once. Replayed with a `gh` that sleeps 4 s, the
+    /// 15 s deadline got the token and the round had no 403s.
     public static let cliDeadline: Duration = .seconds(15)
 
     /// Ask the `gh` CLI for its stored token.

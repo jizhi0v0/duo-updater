@@ -105,6 +105,9 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     ///   0.98. A ninth bundle-id-scoped rule — calibre, whose preview builds are
     ///      numbered `<maj>.<min>.<N>` with N ≥ 100, a bound the vendor's release
     ///      tooling enforces. See the block comment on the check.
+    ///   0.99. A tenth bundle-id-scoped rule — Secretive, whose nightly stamps
+    ///      `0.0.0_nightly-<date>` (underscore, so step 4 misses it). See the
+    ///      block comment on the check.
     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
     ///      authoritative).
@@ -334,6 +337,24 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
            let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
            isCalibrePreviewVersion(version) {
             return .preview
+        }
+
+        // 0.99 Secretive — its nightly is a GitHub Actions artifact, not a release,
+        //     built with the stable bundle id `com.maxgoedjen.Secretive.Host`, the
+        //     name "Secretive" and the Team. `.github/workflows/nightly.yml` stamps
+        //     `CFBundleShortVersionString` as `0.0.0_nightly-<YYYY-MM-DD>` (read off
+        //     the real 2026-10-13 artifact: `0.0.0_nightly-2026-10-13`). The
+        //     separator is an UNDERSCORE, so step 4's dash-tail pattern misses it
+        //     and the copy read as stable 0.0.0 — and was offered the stable
+        //     release as an update.
+        //
+        //     Scoped to this bundle id rather than widening step 4: that rule was
+        //     landed only after replaying it over the whole corpus, and one
+        //     vendor's underscore is not evidence that the shape generalizes.
+        if bundleID == "com.maxgoedjen.Secretive.Host",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           fullyMatches(#"[0-9]+(\.[0-9]+)+_nightly(-[0-9]+)*"#, version.lowercased()) {
+            return .nightly
         }
 
         // 1. Keystone's own channel id — authoritative when present.

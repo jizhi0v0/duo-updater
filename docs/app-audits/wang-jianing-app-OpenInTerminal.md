@@ -70,8 +70,17 @@ short `1.2.8` == tag，universal，Team `C8VX3ZLX5U`，`spctl` Notarized Develop
   | zip SHA-256 | `ecc02de4…18df22` | `9267950f…c999b1` |
 
 不接入的理由：
-- **`BundleIDMigration` 不适用**：改名同时换了 Team（2.0.5 `C8VX3ZLX5U` → 2.1.1 `Q33U8R4U57`），
-  而该表要求两个 id 同一 Team；旧包也不是 Developer ID 签名。
+- **`BundleIDMigration` 闸门上走得通，但不登记**：
+  - 走得通：表只拿已装副本与下载的 Team 跟条目比（`BundleIDMigration.migration`、Gate 3 都只比这两个），
+    2.0.5 与今天的 2.3.9 都是 `C8VX3ZLX5U`；2.1.1–2.3.8 的 `Q33U8R4U57` 不参与比较；Gate 3 也不要求
+    已装副本是 Developer ID。登记后检测走主规则，Lite 的资产名回退照样生效。
+  - 不登记的理由是设置：改名同时换了 App Group。真包 entitlements 里，2.0.5 主 app 与 Finder 扩展是
+    `group.wang.jianing.OpenInTerminal`，2.1.1 是 `group.wang.jianing.app.OpenInTerminal`（设置存在
+    `UserDefaults(suiteName:)` 这个 group 里，见上游 `OpenInTerminalCore/Defaults.swift`）。2.1.1 与
+    v2.3.9 的源码里没有读旧 group 的迁移代码（旧 id 只出现在 helper 判断主 app 是否在跑的那一行）。
+    所以换成新 id 的包大概率从空设置起步——读源码与 entitlements 得出，没实跑。登记会连一键一起
+    打开（表的四处读取不分检测与一键），而这跟 Spotifast 不登记的理由相同：会丢设置的跨 id 替换，
+    指向 release 页让用户自己装才是诚实的做法。
 - **Spotifast 式的只检测规则在这里不安全**：只检测规则不设 `installAssetPattern`，`settle()` 就不做
   缺资产回退，也就挡不住同仓库 Lite 的 `v1.x` release（见上一节，主规则正是靠资产名挡它）。
   GitHub 的 `/releases/latest` 按 `created_at`（release 所指 commit 的日期，不是发布时间）排序
@@ -81,7 +90,8 @@ short `1.2.8` == tag，universal，Team `C8VX3ZLX5U`，`spctl` Notarized Develop
   会混入 Lite 的版本——比不检测更糟。把 tag 锚到 `^v(2\.…)$` 能挡住 Lite，但主 app 到 v3 或 Lite
   到 v2 时就要重改，为 2019 年的未公证开发签名包不值得。
 - 版本比较本身没问题：旧包 short == tag，按主规则的 tag 方案 2.0.5 < 2.3.9。将来若改主意接入，
-  阻碍只在上面的 Lite 歧义，不在版本方案。
+  可走的路是登记 `BundleIDMigration`（`teamID: "C8VX3ZLX5U"`、`lastFromVersion: "2.0.5"`、
+  `firstToVersion: "2.1.1"`），前提是接受或先实测上面的设置丢失；单独按旧 id 写规则则卡在 Lite 歧义。
 
 ## 更新检测
 - 源: `Ji4n1ng/OpenInTerminal` GitHub Releases，`/releases/latest`（资产不匹配时回落列表）
@@ -140,6 +150,7 @@ swift run --package-path application-test channel-verify <v2.3.8>/OpenInTerminal
 # 改名前旧 id（2.0.5 → wang.jianing.OpenInTerminal，2.1.1 起 wang.jianing.app.OpenInTerminal）
 gh api 'repos/Ji4n1ng/OpenInTerminal/contents/OpenInTerminal.xcodeproj/project.pbxproj?ref=2.0.5' --jq .content | base64 -d | grep PRODUCT_BUNDLE_IDENTIFIER
 gh release download 2.0.5 -R Ji4n1ng/OpenInTerminal -p OpenInTerminal.app.zip   # 解压后只读，不运行
+codesign -d --entitlements :- <2.0.5>/OpenInTerminal.app   # → group.wang.jianing.OpenInTerminal（2.1.1 → group.wang.jianing.app.OpenInTerminal）
 # Lite 与主 app 的 created_at 是否仍相同（决定 /releases/latest 能否落到 Lite）
 gh api 'repos/Ji4n1ng/OpenInTerminal/releases?per_page=4' --jq '.[]|[.tag_name,.created_at]|@tsv'
 ```

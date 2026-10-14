@@ -3777,7 +3777,10 @@ private struct ChangelogEntryView: View {
 
     /// The id of `entry`'s first tinted row, for `ChangelogEntriesView.scrollToBreaking`.
     /// Per entry, so moving the tint to another version changes the row's
-    /// identity and the old row's `onDisappear` runs (`ChangelogEntriesView.builtRows`).
+    /// identity, which should run the old row's `onDisappear` and drop its id
+    /// from `ChangelogEntriesView.builtRows` — expected, not observed: openclaw,
+    /// the one long changelog tried, flags a single version. Should the id linger,
+    /// a later jump to that same row from far away would animate rather than jump.
     static func breakingAnchor(_ entry: Int) -> String { "changelog-breaking-\(entry)" }
 
     var body: some View {

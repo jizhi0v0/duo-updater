@@ -79,8 +79,8 @@ The workflow's own review (`.github/claude-review/full.md` and `REVIEW.md` at ma
 
 | Review effort | Expected problems caught | Other true findings | False positives | Cost (7 reviews) | Mean time |
 |---|---|---|---|---|---|
-| high (the workflow's setting) | 1 of 4 | 2 | 0 | $8.85 | 2.9 min |
-| xhigh | 2 of 4 | 3 | 0 | $17.43 | 6.3 min |
+| high (the workflow's setting until #1301) | 1 of 4 | 2 | 0 | $8.85 | 2.9 min |
+| xhigh (the workflow's setting since #1301) | 2 of 4 | 3 | 0 | $17.43 | 6.3 min |
 
 xhigh added Secretive's nightly downgrade and a wrong SHA-256 in an audit, at twice the cost.
 Neither effort caught the Settings text that names the digest-only apps; `REVIEW.md` has

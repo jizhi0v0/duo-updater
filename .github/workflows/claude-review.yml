@@ -152,11 +152,16 @@ jobs:
           # The reviewer's model is the repository variable CLAUDE_REVIEW_MODEL
           # (Settings → Secrets and variables → Actions → Variables), so it can
           # change without a pull request. Unset means the action's default.
-          # Effort is set explicitly: claude-opus-5-5 defaults to medium, which is
-          # what day-to-day authoring runs at, and the reviewer sits one above it.
+          # Effort is set explicitly: claude-opus-5-5 defaults to medium. Authoring
+          # runs at medium or high, and the reviewer sits above both. xhigh over
+          # high, measured on seven onboardings (bench/onboarding/results/
+          # review-replay.yml): 2 of 4 expected problems caught against 1 (it saw
+          # that one-click turns a recorded nightly gap into a downgrade), one more
+          # true finding, no false positives, about twice the cost and time
+          # ($2.5 and 6 min a review).
           claude_args: >-
             ${{ vars.CLAUDE_REVIEW_MODEL && format('--model {0}', vars.CLAUDE_REVIEW_MODEL) || '' }}
-            --effort high
+            --effort xhigh
             --allowedTools "Edit(/${{ github.workspace }}/.claude-review/review.md),Bash(${{ github.workspace }}/.github/claude-review/gh-get *)"
 
       - name: Check the review was written

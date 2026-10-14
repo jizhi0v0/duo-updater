@@ -418,8 +418,12 @@ dmg 的摘要配在 zip 的 `url` 旁边。要用它，得把一键改成装那�
 - 国际站对照（`https://www.workbuddy.ai/v2/update?platform=workbuddy-darwin-<arch>`，5.7.6.40488862，2026-10-14）：
   `sha256hash` arm64 `d7c7651c…`、x64 `6fae926e…`；它们分别等于两架构 dmg 的 `shasum -a 256`（`d7c7651c…`、`6fae926e…`），不等于 zip（`3e35600e…`、`172865eb…`）。
   所以国际站目前仍对，recipe 不改。这是 **未来可能同样变** 的同一风险：它哪天也把摘要挪到 zip，一键会以 `checksumMismatch` 失败，不会装错。
-- 未验证：真机一键（CN 5.8.x 装 zip 的完整安装路径，`duo install` 之后的 Team/inode/`spctl`）**没做**，需要你在真机跑；
-  为什么厂商改了字段，没有可查的说明；5.8.2 的 dmg 内容没检查（只读 hdiutil 也没跑，按要求不挂载）；多个 CDN 节点的一致性只在同一 host 上比过两次。
+- 真机（国内站，`make cli` 构建的 duo，437ed0c3）：`duo verify-install --only com.tencent.workbuddy.mac` 两架构都 ✓
+  （arm64 439.0 MB、x64 463.3 MB，`com.tencent.workbuddy.mac` / `FN2V63AD2J`）；`/Applications/WorkBuddy.app` 5.7.6，未运行，
+  `duo install /Applications/WorkBuddy.app --yes --json` → `installed`，`bytesDownloaded` 438,985,018（即 arm64 zip）；
+  之后 5.8.2、inode 变了、`codesign --verify --deep --strict` 通过、`spctl` accepted（Notarized Developer ID）、Team `FN2V63AD2J`、无 quarantine。
+  只跑了「不运行」这一轮，没在 Intel 机器上跑 x64 一键。
+- 未验证：为什么厂商改了字段，没有可查的说明；5.8.2 的 dmg 内容没检查（只读 hdiutil 也没跑，按要求不挂载）；多个 CDN 节点的一致性只在同一 host 上比过两次。
 
 ### Bundle ID 迁移：`com.workbuddy.workbuddy` → `com.tencent.workbuddy.mac`（2026-10-07）
 

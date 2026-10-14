@@ -18,6 +18,7 @@
 |            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |------------|---------|----------|-----|--------|-------------|
 | **stable** | —       | 未验证   | —   | ✓      | —           |
+| **nightly**| —       | —        | —   | ✗（只有 Actions artifact） | — |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**（对不在 Caskroom 里的真包跑
 `channel-verify` 的结果；经 brew 安装的副本由哪个源应答未验证）。
@@ -27,10 +28,29 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `com.maxgoedjen.Secretive.Host` | 单一渠道 | — | tag 锚 `^vX.Y.Z$` | ✓ |
+| nightly | `com.maxgoedjen.Secretive.Host` | 共享 bundle id | 版本 `0.0.0_nightly-<date>`（`ReleaseChannel.detect` 0.99） | 无 rule，不提供更新 | — |
 
 单渠道对外分发。仓库里的 prerelease 只有 2020 年的 `v0.1.1`–`v0.5.1`，此后全部是正式版。
-`.github/workflows/nightly.yml` 每天出一个 `0.0.0_nightly-<date>` 的构建，只作为 Actions
-artifact 上传、不建 release，不是可订阅的轨道。
+
+nightly 不是可订阅的轨道，但装上了必须认得出来:
+- `.github/workflows/nightly.yml` 每天 08:00 UTC 出一个构建，只作为 Actions artifact 上传，
+  不建 release。用的是**同一个** bundle id、名字、Team。2026-10-13 那个 artifact 的
+  `expires_at` 是 2027-01-11，即 90 天后过期（artifacts API 实读）。匿名能否下载**未验证**:
+  匿名请求被限流挡住，官方文档也没写。
+- 版本由 `sed s/GITHUB_CI_VERSION/0.0.0_nightly-$DATE/` 写进 `Config.xcconfig` 的 `CI_VERSION`。
+  2026-10-14 下载 run 38367930469 的 artifact 实读 Info.plist:
+  `CFBundleShortVersionString = 0.0.0_nightly-2026-10-13`、`CFBundleVersion = 1.38367930469`、
+  Team `Z72PRUAWF6`。
+- 分隔符是下划线，通用的版本尾词规则（只认 `-nightly`）读不到，修复前这个副本被判成 stable
+  0.0.0。修复前 `channel-verify` 实跑结果: `detected channel → stable`、`status UPDATE → 4.0.0`，
+  也就是会把 stable 4.0.0 当更新推给 nightly 副本。
+- 现在 `ReleaseChannel.detect` 有一条只对这个 bundle id 生效的规则（0.99），把
+  `<数字>_nightly[-<数字>…]` 判为 `.nightly`。GitHub 源没有 nightly rule，于是直接跳过、不发请求。
+  修复后 `channel-verify --expect nightly` 结果: `detected channel → nightly`、
+  `status unknown (no source answered)`。测试见 `SecretiveChannelTests`。
+- `.github/workflows/oneoff.yml`（手动触发，截至 2026-09-16 共 19 次）以同样的方式写入
+  `0.0.0_oneoff-<date>`，这个副本**仍判为 stable 0.0.0**，会被推 4.0.0。没有修，因为这类构建算哪个渠道
+  缺证据；实际装到它的人应该很少。
 
 ## 更新检测
 - 源: `maxgoedjen/secretive` GitHub Releases，`/releases/latest`（2026-09-29 为 `v4.0.0`）

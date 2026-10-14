@@ -1,0 +1,5 @@
+8180752 Lokii: name it in the digest-only Settings copy; audit FDA, tap and v0.1.0
+7e6ed0e Lokii: detection and digest-only one-click from GitHub releases
+7bccb0b Update Sparkle appcast for v0.5.0 (#1033)
+f196600 chore: bump to 0.5.0 (118) (#1032)
+21047ba Track storytold's seven -craft apps (GitHub releases, one-click) (#1031)

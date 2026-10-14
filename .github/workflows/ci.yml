@@ -67,14 +67,20 @@ jobs:
   # Picks the runner for the three macOS jobs below; see the header and
   # scripts/ci_route.py. Linux, so it takes none of the five macOS slots.
   # `actions: read` to list the repository's queued and running jobs.
+  # Also decides whether a pull request touches only `bench/` (the onboarding
+  # benchmark's harness and results, which no build or test reads); then the
+  # three macOS jobs are skipped and `test` below accepts that. `pull-requests:
+  # read` to list the pull request's files.
   route:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       actions: read
       contents: read
+      pull-requests: read
     outputs:
       runner: ${{ steps.pick.outputs.runner }}
+      bench_only: ${{ steps.bench.outputs.bench_only }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -91,6 +97,26 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
         run: python3 scripts/ci_route.py >> "$GITHUB_OUTPUT"
 
+      # Not `paths-ignore`: a workflow skipped by a path filter leaves the
+      # required `test` check pending, which blocks the merge. Pull requests
+      # only; a push to main always runs everything.
+      - name: Only bench/ changed?
+        id: bench
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          only=false
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename')
+            # The files endpoint lists at most 3000; with more, some went unseen.
+            total=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .changed_files)
+            if [ -n "$files" ] && [ "$(wc -l <<<"$files")" -eq "$total" ] &&
+               ! grep -qv '^bench/' <<<"$files"; then only=true; fi
+          fi
+          echo "bench_only=$only" >> "$GITHUB_OUTPUT"
+          echo "bench_only=$only"
+
   # `make test` in its three parts plus Core's Release pass, each on its own
   # runner. One after another they took 22–28 minutes, more than half of it one
   # compile: run 37190107638 spent 8 minutes in `make test` and 14 in the Release
@@ -99,6 +125,7 @@ jobs:
   # cost nothing either way; the price is up to three macOS runners per push.
   swift:
     needs: route
+    if: needs.route.outputs.bench_only != 'true'
     runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
     # Core's suite reaches vendor endpoints (the install gates download real
     # packages and verify sha512 + Team ID), so it is slower and less predictable
@@ -201,6 +228,7 @@ jobs:
 
   app:
     needs: route
+    if: needs.route.outputs.bench_only != 'true'
     runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
     timeout-minutes: 30
     steps:
@@ -303,6 +331,7 @@ jobs:
 
   release:
     needs: route
+    if: needs.route.outputs.bench_only != 'true'
     runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
     timeout-minutes: 30
     steps:
@@ -410,9 +439,11 @@ jobs:
   # workflow's only job. Rather than editing the ruleset, `test` is now the gate
   # over the jobs above. `always()`, not `!cancelled()`: a required check that is
   # SKIPPED counts as passing, so this must run — and fail — whenever any of
-  # them failed, was cancelled or did not run.
+  # them failed, was cancelled or did not run. The one exception is a pull
+  # request that only touches `bench/` (see `route`): there the three macOS
+  # jobs are skipped on purpose, and only `route` and `ifchange` must pass.
   test:
-    needs: [swift, app, release, ifchange]
+    needs: [route, swift, app, release, ifchange]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -420,6 +451,11 @@ jobs:
       - name: All jobs passed
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
+          BENCH_ONLY: ${{ needs.route.outputs.bench_only }}
         run: |
-          echo "swift / app / release / ifchange: $RESULTS"
-          for r in $RESULTS; do [ "$r" = success ] || exit 1; done
+          echo "route / swift / app / release / ifchange: $RESULTS (bench_only=$BENCH_ONLY)"
+          for r in $RESULTS; do
+            [ "$r" = success ] && continue
+            [ "$BENCH_ONLY" = true ] && [ "$r" = skipped ] && continue
+            exit 1
+          done

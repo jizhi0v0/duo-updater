@@ -1,0 +1,5 @@
+3bb0ceb disktree: review fixes (make install copy, v0.10.0, CI signing switch, fixtures)
+9ab087c disktree: GitHub Releases detection and digest-only one-click
+90f8415 Add check_ifchange.py: links between code that must change together (#1222)
+8430015 verify-install: update identities and baseline (#1224)
+6e66c03 verify: update recipe baseline (#1223)

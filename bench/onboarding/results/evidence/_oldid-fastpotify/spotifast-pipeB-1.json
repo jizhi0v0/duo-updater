@@ -1,0 +1,84 @@
+{
+  "changelogRecipes" : [
+
+  ],
+  "new" : {
+    "changelogPane" : {
+      "kind" : "webOrNone"
+    },
+    "download" : "<nil>",
+    "installTrust" : "<nil>",
+    "latest" : "<none>",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "<none>",
+    "status" : "unknown"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 19,
+      "headings" : [
+        "New",
+        "Fixed"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 42,
+      "newestVersion" : "0.13.0",
+      "recipeID" : "changelog:rocks.spotifast.Spotifast:stable"
+    },
+    "download" : "<nil>",
+    "installTrust" : "<nil>",
+    "latest" : "<none>",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "<none>",
+    "status" : "unknown"
+  },
+  "perRelease" : [
+    {
+      "prerelease" : false,
+      "tag" : "v0.13.0"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.12.0"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.11.2"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.11.1"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.11.0"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.10.2"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.10.1"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.10.0"
+    }
+  ],
+  "rules" : [
+    {
+      "bundleID" : "rocks.spotifast.Spotifast",
+      "channel" : "stable",
+      "installAssetPattern" : "^spotifast-v[0-9]+\\.[0-9]+\\.[0-9]+-macos-universal\\.dmg$",
+      "installerKind" : "dmg",
+      "installTrust" : "developerID",
+      "slug" : "crmne\/spotifast",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
+    }
+  ]
+}

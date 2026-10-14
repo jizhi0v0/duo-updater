@@ -1,0 +1,7 @@
+pipe secretive A pipeA-2
+pipe obelisk A pipeA-2
+pipe openinterminal A pipeA-2
+pipe lokii A pipeA-2
+pipe disktree A pipeA-2
+pipe spotifast A pipeA-2
+pipe cindy A pipeA-2

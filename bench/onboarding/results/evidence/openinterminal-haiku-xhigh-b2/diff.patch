@@ -1,0 +1,473 @@
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index b3b6fbb..5c7bcc2 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -242,6 +242,7 @@ public enum AppRecipeIndex {
+         tv_plex_desktop.set,
+         uk_co_bzwrd_macperfmonitor.set,
+         uk_whatcable_whatcable.set,
++        wang_jianing_app_OpenInTerminal.set,
+         xyz_chatboxapp_app.set,
+     ]
+ }
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/wang-jianing-app-OpenInTerminal.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/wang-jianing-app-OpenInTerminal.swift
+new file mode 100644
+index 0000000..45e963a
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/wang-jianing-app-OpenInTerminal.swift
+@@ -0,0 +1,93 @@
++import Foundation
++
++enum wang_jianing_app_OpenInTerminal {
++    static let set = AppRecipeSet(
++        family: "wang-jianing-app-OpenInTerminal",
++        probes: [
++        // History: docs/app-audits/wang-jianing-app-OpenInTerminal.md#历史与实测
++        // OpenInTerminal-Lite and OpenInEditor-Lite ship from the same repo and the
++        // same release list as the main edition, so they are probes rather than
++        // GitHub rules: a GitHub rule is keyed by repo and channel, and the main
++        // rule already holds that key. Each probe takes the newest release that
++        // carries its own asset. The tempered token keeps the match inside one
++        // release, so a release without the asset cannot lend its version to it.
++        // One-click: the download URL is built from the version that won, so the
++        // file installed is the release that was compared. The asset name is exact
++        // for that reason: an unlisted name is a detection miss, not a broken URL.
++        // The Team gate applies as it does for the main edition.
++        VendorProbeRecipe(
++            bundleID: "wang.jianing.app.OpenInTerminal-Lite",
++            url: URL(string: "https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases?per_page=20")!,
++            mode: .responseBody,
++            versionPattern: #""tag_name": ?"v([0-9]+(?:\.[0-9]+)+)"(?:(?!"tag_name")[\s\S])*?"name": ?"OpenInTerminal-Lite\.zip""#,
++            downloadURL: URL(string: "https://github.com/Ji4n1ng/OpenInTerminal/releases")!,
++            changelogURL: URL(string: "https://github.com/Ji4n1ng/OpenInTerminal/releases")!,
++            selectHighest: true,
++            install: VendorInstallSpec(
++                urlSource: .versionTemplate(
++                    "https://github.com/Ji4n1ng/OpenInTerminal/releases/download/v{version}/OpenInTerminal-Lite.zip"),
++                kind: .zip)),
++
++        // OpenInEditor-Lite — same repo, release list and asset naming as the Lite
++        // terminal above.
++        VendorProbeRecipe(
++            bundleID: "wang.jianing.app.OpenInEditor-Lite",
++            url: URL(string: "https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases?per_page=20")!,
++            mode: .responseBody,
++            versionPattern: #""tag_name": ?"v([0-9]+(?:\.[0-9]+)+)"(?:(?!"tag_name")[\s\S])*?"name": ?"OpenInEditor-Lite\.zip""#,
++            downloadURL: URL(string: "https://github.com/Ji4n1ng/OpenInTerminal/releases")!,
++            changelogURL: URL(string: "https://github.com/Ji4n1ng/OpenInTerminal/releases")!,
++            selectHighest: true,
++            install: VendorInstallSpec(
++                urlSource: .versionTemplate(
++                    "https://github.com/Ji4n1ng/OpenInTerminal/releases/download/v{version}/OpenInEditor-Lite.zip"),
++                kind: .zip)),
++
++        // Copies under the bundle ids the three editions shipped before they were
++        // renamed. Detection only: the install gate refuses every such copy, since
++        // the downloaded build's signing identifier is `wang.jianing.app.*`, not the
++        // installed one. The same release list carries every edition, so each probe
++        // still anchors its version to its own asset.
++        VendorProbeRecipe(
++            bundleID: "wang.jianing.OpenInTerminal",
++            url: URL(string: "https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases?per_page=20")!,
++            mode: .responseBody,
++            versionPattern: #""tag_name": ?"v?([0-9]+(?:\.[0-9]+)+)"(?:(?!"tag_name")[\s\S])*?"name": ?"OpenInTerminal\.zip""#,
++            downloadURL: URL(string: "https://github.com/Ji4n1ng/OpenInTerminal/releases")!,
++            changelogURL: URL(string: "https://github.com/Ji4n1ng/OpenInTerminal/releases")!,
++            selectHighest: true),
++        VendorProbeRecipe(
++            bundleID: "wang.jianing.OpenInTerminal-Lite",
++            url: URL(string: "https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases?per_page=20")!,
++            mode: .responseBody,
++            versionPattern: #""tag_name": ?"v?([0-9]+(?:\.[0-9]+)+)"(?:(?!"tag_name")[\s\S])*?"name": ?"OpenInTerminal-Lite\.zip""#,
++            downloadURL: URL(string: "https://github.com/Ji4n1ng/OpenInTerminal/releases")!,
++            changelogURL: URL(string: "https://github.com/Ji4n1ng/OpenInTerminal/releases")!,
++            selectHighest: true),
++        VendorProbeRecipe(
++            bundleID: "wang.jianing.OpenInEditor-Lite",
++            url: URL(string: "https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases?per_page=20")!,
++            mode: .responseBody,
++            versionPattern: #""tag_name": ?"v?([0-9]+(?:\.[0-9]+)+)"(?:(?!"tag_name")[\s\S])*?"name": ?"OpenInEditor-Lite\.zip""#,
++            downloadURL: URL(string: "https://github.com/Ji4n1ng/OpenInTerminal/releases")!,
++            changelogURL: URL(string: "https://github.com/Ji4n1ng/OpenInTerminal/releases")!,
++            selectHighest: true),
++        ],
++        githubRules: [
++        // OpenInTerminal (main) — Ji4n1ng/OpenInTerminal. Tags are `vX.Y.Z`, or
++        // `X.Y.Z` on older releases; the optional `v` is the only shape difference,
++        // so the pattern is anchored and accepts both. `/releases/latest` answers
++        // with the main edition, and the asset filter keeps a Lite-only release from
++        // being read as the main version.
++        // One-click: `OpenInTerminal.zip` carries `OpenInTerminal.app`, signed
++        // Developer ID by Team C8VX3ZLX5U and notarized. The install gate also
++        // needs the installed copy to carry the same Team and the signing
++        // identifier `wang.jianing.app.OpenInTerminal`; any other copy is refused.
++        GitHubReleaseRule(
++            bundleID: "wang.jianing.app.OpenInTerminal",
++            owner: "Ji4n1ng", repo: "OpenInTerminal",
++            versionPattern: #"^v?([0-9]+(?:\.[0-9]+)+)$"#,
++            installAssetPattern: #"^OpenInTerminal(?:\.app)?\.zip$"#,
++            installerKind: .zip),
++        ])
++}
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/wang-jianing-app-OpenInTerminal.txt b/DuoUpdaterCore/Tests/RecipeGoldens/wang-jianing-app-OpenInTerminal.txt
+new file mode 100644
+index 0000000..4ca4379
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/wang-jianing-app-OpenInTerminal.txt
+@@ -0,0 +1,198 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "wang-jianing-app-OpenInTerminal"
++
++probes = Array(count: 5)
++probes[0] = struct VendorProbeRecipe
++probes[0].bundleID = "wang.jianing.app.OpenInTerminal-Lite"
++probes[0].channel = .stable
++probes[0].variant = nil
++probes[0].hostRequirement = nil
++probes[0].installedVersionPattern = nil
++probes[0].buildLineage = nil
++probes[0].headBuildPattern = nil
++probes[0].url = URL("https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases?per_page=20")
++probes[0].identities = Array(count: 0)
++probes[0].track = nil
++probes[0].mode = .responseBody
++probes[0].versionPattern = "\"tag_name\": ?\"v([0-9]+(?:\\.[0-9]+)+)\"(?:(?!\"tag_name\")[\\s\\S])*?\"name\": ?\"OpenInTerminal-Lite\\.zip\""
++probes[0].transientBodyPattern = nil
++probes[0].trackClosedPattern = nil
++probes[0].downloadURL? = URL("https://github.com/Ji4n1ng/OpenInTerminal/releases")
++probes[0].changelogURL? = URL("https://github.com/Ji4n1ng/OpenInTerminal/releases")
++probes[0].selectHighest = true
++probes[0].versionIsBuild = false
++probes[0].buildNamespace = .bundle
++probes[0].displayVersionPattern = nil
++probes[0].publishedAtPattern = nil
++probes[0].minimumSystemVersionPattern = nil
++probes[0].maximumSystemVersionPattern = nil
++probes[0].entryStartPattern = nil
++probes[0].install? = struct VendorInstallSpec
++probes[0].install?.urlSource = .versionTemplate(_:)
++probes[0].install?.urlSource.0 = "https://github.com/Ji4n1ng/OpenInTerminal/releases/download/v{version}/OpenInTerminal-Lite.zip"
++probes[0].install?.kind = .zip
++probes[0].install?.checksumPattern = nil
++probes[0].install?.requestHeaders = Dictionary(count: 0)
++probes[0].install?.nestedArchivePath = nil
++probes[0].install?.contentsArchivePattern = nil
++probes[0].requestBody = nil
++probes[0].followRedirects = true
++probes[0].requestHeaders = Dictionary(count: 0)
++probes[1] = struct VendorProbeRecipe
++probes[1].bundleID = "wang.jianing.app.OpenInEditor-Lite"
++probes[1].channel = .stable
++probes[1].variant = nil
++probes[1].hostRequirement = nil
++probes[1].installedVersionPattern = nil
++probes[1].buildLineage = nil
++probes[1].headBuildPattern = nil
++probes[1].url = URL("https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases?per_page=20")
++probes[1].identities = Array(count: 0)
++probes[1].track = nil
++probes[1].mode = .responseBody
++probes[1].versionPattern = "\"tag_name\": ?\"v([0-9]+(?:\\.[0-9]+)+)\"(?:(?!\"tag_name\")[\\s\\S])*?\"name\": ?\"OpenInEditor-Lite\\.zip\""
++probes[1].transientBodyPattern = nil
++probes[1].trackClosedPattern = nil
++probes[1].downloadURL? = URL("https://github.com/Ji4n1ng/OpenInTerminal/releases")
++probes[1].changelogURL? = URL("https://github.com/Ji4n1ng/OpenInTerminal/releases")
++probes[1].selectHighest = true
++probes[1].versionIsBuild = false
++probes[1].buildNamespace = .bundle
++probes[1].displayVersionPattern = nil
++probes[1].publishedAtPattern = nil
++probes[1].minimumSystemVersionPattern = nil
++probes[1].maximumSystemVersionPattern = nil
++probes[1].entryStartPattern = nil
++probes[1].install? = struct VendorInstallSpec
++probes[1].install?.urlSource = .versionTemplate(_:)
++probes[1].install?.urlSource.0 = "https://github.com/Ji4n1ng/OpenInTerminal/releases/download/v{version}/OpenInEditor-Lite.zip"
++probes[1].install?.kind = .zip
++probes[1].install?.checksumPattern = nil
++probes[1].install?.requestHeaders = Dictionary(count: 0)
++probes[1].install?.nestedArchivePath = nil
++probes[1].install?.contentsArchivePattern = nil
++probes[1].requestBody = nil
++probes[1].followRedirects = true
++probes[1].requestHeaders = Dictionary(count: 0)
++probes[2] = struct VendorProbeRecipe
++probes[2].bundleID = "wang.jianing.OpenInTerminal"
++probes[2].channel = .stable
++probes[2].variant = nil
++probes[2].hostRequirement = nil
++probes[2].installedVersionPattern = nil
++probes[2].buildLineage = nil
++probes[2].headBuildPattern = nil
++probes[2].url = URL("https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases?per_page=20")
++probes[2].identities = Array(count: 0)
++probes[2].track = nil
++probes[2].mode = .responseBody
++probes[2].versionPattern = "\"tag_name\": ?\"v?([0-9]+(?:\\.[0-9]+)+)\"(?:(?!\"tag_name\")[\\s\\S])*?\"name\": ?\"OpenInTerminal\\.zip\""
++probes[2].transientBodyPattern = nil
++probes[2].trackClosedPattern = nil
++probes[2].downloadURL? = URL("https://github.com/Ji4n1ng/OpenInTerminal/releases")
++probes[2].changelogURL? = URL("https://github.com/Ji4n1ng/OpenInTerminal/releases")
++probes[2].selectHighest = true
++probes[2].versionIsBuild = false
++probes[2].buildNamespace = .bundle
++probes[2].displayVersionPattern = nil
++probes[2].publishedAtPattern = nil
++probes[2].minimumSystemVersionPattern = nil
++probes[2].maximumSystemVersionPattern = nil
++probes[2].entryStartPattern = nil
++probes[2].install = nil
++probes[2].requestBody = nil
++probes[2].followRedirects = true
++probes[2].requestHeaders = Dictionary(count: 0)
++probes[3] = struct VendorProbeRecipe
++probes[3].bundleID = "wang.jianing.OpenInTerminal-Lite"
++probes[3].channel = .stable
++probes[3].variant = nil
++probes[3].hostRequirement = nil
++probes[3].installedVersionPattern = nil
++probes[3].buildLineage = nil
++probes[3].headBuildPattern = nil
++probes[3].url = URL("https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases?per_page=20")
++probes[3].identities = Array(count: 0)
++probes[3].track = nil
++probes[3].mode = .responseBody
++probes[3].versionPattern = "\"tag_name\": ?\"v?([0-9]+(?:\\.[0-9]+)+)\"(?:(?!\"tag_name\")[\\s\\S])*?\"name\": ?\"OpenInTerminal-Lite\\.zip\""
++probes[3].transientBodyPattern = nil
++probes[3].trackClosedPattern = nil
++probes[3].downloadURL? = URL("https://github.com/Ji4n1ng/OpenInTerminal/releases")
++probes[3].changelogURL? = URL("https://github.com/Ji4n1ng/OpenInTerminal/releases")
++probes[3].selectHighest = true
++probes[3].versionIsBuild = false
++probes[3].buildNamespace = .bundle
++probes[3].displayVersionPattern = nil
++probes[3].publishedAtPattern = nil
++probes[3].minimumSystemVersionPattern = nil
++probes[3].maximumSystemVersionPattern = nil
++probes[3].entryStartPattern = nil
++probes[3].install = nil
++probes[3].requestBody = nil
++probes[3].followRedirects = true
++probes[3].requestHeaders = Dictionary(count: 0)
++probes[4] = struct VendorProbeRecipe
++probes[4].bundleID = "wang.jianing.OpenInEditor-Lite"
++probes[4].channel = .stable
++probes[4].variant = nil
++probes[4].hostRequirement = nil
++probes[4].installedVersionPattern = nil
++probes[4].buildLineage = nil
++probes[4].headBuildPattern = nil
++probes[4].url = URL("https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases?per_page=20")
++probes[4].identities = Array(count: 0)
++probes[4].track = nil
++probes[4].mode = .responseBody
++probes[4].versionPattern = "\"tag_name\": ?\"v?([0-9]+(?:\\.[0-9]+)+)\"(?:(?!\"tag_name\")[\\s\\S])*?\"name\": ?\"OpenInEditor-Lite\\.zip\""
++probes[4].transientBodyPattern = nil
++probes[4].trackClosedPattern = nil
++probes[4].downloadURL? = URL("https://github.com/Ji4n1ng/OpenInTerminal/releases")
++probes[4].changelogURL? = URL("https://github.com/Ji4n1ng/OpenInTerminal/releases")
++probes[4].selectHighest = true
++probes[4].versionIsBuild = false
++probes[4].buildNamespace = .bundle
++probes[4].displayVersionPattern = nil
++probes[4].publishedAtPattern = nil
++probes[4].minimumSystemVersionPattern = nil
++probes[4].maximumSystemVersionPattern = nil
++probes[4].entryStartPattern = nil
++probes[4].install = nil
++probes[4].requestBody = nil
++probes[4].followRedirects = true
++probes[4].requestHeaders = Dictionary(count: 0)
++
++changelogs = Array(count: 0)
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "wang.jianing.app.OpenInTerminal"
++githubRules[0].owner = "Ji4n1ng"
++githubRules[0].repo = "OpenInTerminal"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v?([0-9]+(?:\\.[0-9]+)+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^OpenInTerminal(?:\\.app)?\\.zip$"
++githubRules[0].installerKind? = .zip
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index c857d50..7ba4ed2 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -231,6 +231,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**T3 Code**](com-t3tools-t3code.md) · `com.t3tools.t3code` — G(alpha/nightly) · 2 channels，共享 bundle id，app 名渠道词 + GitHub 双 rule · **两轨一键 ✓**（Team ARK85ZXQ4Z，真包挂载验证）· 2026-08-30 · 仓库出现了未覆盖的 `-preview.` 发布系列（tag 自 2026-09-12、release 自 2026-09-13；2026-09-14 复测）
+ - [x] [**Kun**](com-xingyuzhong-deepseekgui.md) · `com.xingyuzhong.deepseekgui` — G (one-click arm64 dmg) · 真包 v0.3.7 挂载验证 ✓ · 2026-08-30
+ - [x] [**Reviu**](com-jorisgallot-reviu.md) · `com.jorisgallot.reviu` — G (one-click arm64 dmg) · 真包 v1.4.0 挂载验证 ✓ · 一键 1.3.0→1.4.0 端到端 ✓ · 2026-09-29
++- [x] [**OpenInTerminal**](wang-jianing-app-OpenInTerminal.md) · `wang.jianing.app.OpenInTerminal` — G+P (one-click zip, 3 editions) · 2026-10-13
+ - [x] [**DSH Desktop**](ai-deepseek-dsh-desktop.md) · `ai.deepseek.dsh.desktop` — G (one-click universal dmg) · 真包 v2.0.4 挂载验证 ✓ · 2026-08-30
+ - [x] [**Meetily**](com-meetily-ai.md) · `com.meetily.ai` — G (one-click arm64 dmg) · 真包 v0.4.0 挂载验证 ✓ · 2026-08-30
+ - [x] [**Paseo**](sh-paseo-desktop.md) · `sh.paseo.desktop` — G (one-click arm64 dmg) · 真包 v0.6.1 挂载验证 ✓（beta 是 prerelease 轨，未接入）· 2026-08-30
+diff --git a/docs/app-audits/wang-jianing-app-OpenInTerminal.md b/docs/app-audits/wang-jianing-app-OpenInTerminal.md
+new file mode 100644
+index 0000000..a403f88
+--- /dev/null
++++ b/docs/app-audits/wang-jianing-app-OpenInTerminal.md
+@@ -0,0 +1,140 @@
++# OpenInTerminal
++
++## 基本信息
++- Bundle ID: `wang.jianing.app.OpenInTerminal`（主版）。同仓库另有 `wang.jianing.app.OpenInTerminal-Lite`、`wang.jianing.app.OpenInEditor-Lite`，以及改名前的 `wang.jianing.OpenInTerminal`、`wang.jianing.OpenInTerminal-Lite`、`wang.jianing.OpenInEditor-Lite`（见「Channel 详情」）。
++- Team ID: `C8VX3ZLX5U`（观测于主版 `2.3.9` 与 Lite `1.2.8`）。正式包的 Team 曾在 `Q33U8R4U57` 与 `C8VX3ZLX5U` 之间变化，见「历史与实测」。
++- 观测版本: 主版 `2.3.9`；`OpenInTerminal-Lite` 与 `OpenInEditor-Lite` 为 `1.2.8`。所有观测包的 `CFBundleVersion` 都是 `1`，不参与比较。
++- 自更新机制: 无。源码中没有更新检查；所有观测包都不含 Sparkle，`SUFeedURL` 缺失。
++- 分发: GitHub Releases（`Ji4n1ng/OpenInTerminal`）；Homebrew cask `openinterminal`、`openinterminal-lite`、`openineditor-lite`。三个 cask 的 `url` 与 `sha256` 与 GitHub 资产一致。
++- 开源: 是。签名、公证与发布流程读自仓库：settled from source: `build-signed.sh` 与 `.claude/skills/release/SKILL.md` on `master`。
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|------------|---------|----------|-----|--------|-------------|
++| **stable** | —       | 通用源（未单独验证） | — | ✓ | —（主版不用；Lite 两款与改名前的副本见「Channel 详情」） |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: 主版直装副本为 **GitHub**；Lite 两款与改名前的副本为 **VendorProbe**。Homebrew 源排在两者之前，只对 brew 安装的副本应答；这一路径未在真机验证。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable | `wang.jianing.app.OpenInTerminal` | 独立 | — | GitHub 规则 `/releases/latest`；asset `^OpenInTerminal(?:\.app)?\.zip$` | ✓ 检测 + 一键 + changelog |
++| stable | `wang.jianing.app.OpenInTerminal-Lite` | 独立 | — | VendorProbe；版本锚定在含 `OpenInTerminal-Lite.zip` 的 release 上 | ✓ 检测 + 一键；changelog ✗ |
++| stable | `wang.jianing.app.OpenInEditor-Lite` | 独立 | — | VendorProbe；版本锚定在含 `OpenInEditor-Lite.zip` 的 release 上 | ✓ 检测 + 一键；changelog ✗ |
++| 改名前 | `wang.jianing.OpenInTerminal` | 独立（旧 ID） | — | VendorProbe；`OpenInTerminal.zip` | ✓ 仅检测 |
++| 改名前 | `wang.jianing.OpenInTerminal-Lite` | 独立（旧 ID） | — | VendorProbe；`OpenInTerminal-Lite.zip` | ✓ 仅检测 |
++| 改名前 | `wang.jianing.OpenInEditor-Lite` | 独立（旧 ID） | — | VendorProbe；`OpenInEditor-Lite.zip` | ✓ 仅检测 |
++
++单渠道。仓库与 app 内都没有 beta / preview 轨。`0.9.0` 是 GitHub 上的一个 prerelease，不是对外提供的轨道；stable 规则经 `/releases/latest` 或 `stableOnly` 不读取它。
++
++## 更新检测
++- 主版：GitHub Releases 规则，读 `/releases/latest`。该 release 带主版 asset，因此不需要列表回退。
++- Lite 两款与改名前的副本：VendorProbe，读同一个 release 列表 `https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases?per_page=20`。每个探针的版本正则要求 release 的 `tag_name` 与它自己的 asset 名出现在同一个 release 里（`(?:(?!"tag_name")[\s\S])*?` 把匹配限制在单个 release 内）。`selectHighest` 取其中最高的版本。
++- 为什么 Lite 不是 GitHub 规则：GitHub 规则的健康记录与验证基线都按 `github:<repo>:<channel>` 计键，同一仓库、同一渠道只能有一条规则。`RecipeHealthKeyTests.rulesSharingASlugRecordSeparateHealthEntries` 强制这一点。主版已占用该键，所以 Lite 与改名前的副本改走 VendorProbe（按 bundle id 计键）。
++- 版本方案: settled from source: `.claude/skills/release/SKILL.md` on `master` —— tag 为 `vX.Y.Z`，主版与 Lite 同格式。观测：非 prerelease tag 共 58 个，全部被 `^v?([0-9]+(?:\.[0-9]+)+)$` 接受；没有后缀 tag，也没有两段版本号。81 个 app zip 的 tag 与其 `CFBundleShortVersionString` 全部一致。
++- 响应格式：VendorProbe 不带 `Accept` 头请求，GitHub 返回的是带缩进的 JSON（`"tag_name": "v2.3.9"`，冒号后有空格）。探针正则为此允许冒号后的可选空格；同一份 release 列表的紧凑形式也能匹配（2026-10-13 两种形式都已核对）。
++- 注意事项:
++  - 三款 app 共用一个 tag 空间。最新 release 是主版 `v2.3.9`；Lite 的 `v1.2.8` 与它同日发布（发布时间相差 14 秒）。主版的 `/releases/latest` 不含 Lite 的 asset，所以规则必须按 asset 名过滤。
++  - 探针的 asset 名是精确匹配：一键的下载 URL 由版本拼出（`versionTemplate`），名字不符的新格式只会表现为检测不到，不会得到 404 的下载地址。
++  - 每次检查，五个 VendorProbe 各自对同一个 URL 发一次未认证请求，每次约 119 KB。这与 GitHub 规则共用同一 IP 的未认证额度（60 次/小时）。这是已知成本，见「已知问题」。
++
++## 增量更新（delta / binary patch）
++> 三栏分开写，每栏标证据来源。
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | 不需要 |
++| 证据 | 源码中没有更新器；`v2.3.9` 与 `v1.2.8` 的 zip 内只有 `libswift*.dylib`，没有 Sparkle.framework（zip 目录列表，2026-10-13） | 每个 release 只附整包 zip（GitHub API `assets`，81 个 app zip，无 delta 资产，2026-10-13） | — |
++
++- 格式: 整包 zip，没有增量格式。
++- 阻塞项: 无。
++
++## 按 OS 分轨
++- 所有观测包 `LSMinimumSystemVersion` 为 `10.13`。每个 release 只有一个 zip，没有按 OS 分桶。10.13 低于本项目的 macOS 15 下限，不需要 `hostRequirement`。
++
++## Changelog
++- 主版：GitHub Release body，经 `GitHubMarkdownParser` 结构化（`Changes:` 下的项目符号列表）。已验证：`channel-verify` 对主版夹具的输出为 `release notes 0 chars inline`，即未回退为原始 body，结构化成功。用生产解析器直接解析真实 body（2026-10-13）得到：`2.3.9` 8 条、`2.3.8` 5 条（首行 `Happy New Year!` 不计入）、`1.2.8` 4 条、`1.2.7` 2 条。
++- Lite 两款：✗ 不提供结构化 changelog。原因：`.gitHubReleases` 解码器只按 prerelease 与 tag 正则筛选，而同一个列表里三款 app 的 release 交错出现；Lite 的 changelog 源只能读到主版的 notes，或靠版本号范围硬切（会随下一个版本号失效）。两者都不正确，所以不写。changelog 链接指向 release 页面。
++- 跟随 channel: 否（单渠道）。
++
++## 一键安装
++- 状态: 支持。主版（GitHub 规则）与两款 Lite（VendorProbe）都有一键；门控只放行 Team 为 `C8VX3ZLX5U` 的副本（见下）。
++- 格式: zip。`OpenInTerminal.zip`、`OpenInTerminal-Lite.zip`、`OpenInEditor-Lite.zip`，各含一个同名 `.app`。
++- 主版 Pattern: `^OpenInTerminal(?:\.app)?\.zip$`（GitHub 规则，下载地址取自该 release 的 asset）；Lite 下载地址由 `https://github.com/Ji4n1ng/OpenInTerminal/releases/download/v{version}/<名字>.zip` 拼出，名字精确为 `OpenInTerminal-Lite.zip` 与 `OpenInEditor-Lite.zip`；kind 均为 `.zip`。
++- **读的是**: 人人可手动下载的 GA。`/releases/latest` 与 release 列表上的公开资产；同一文件即 Homebrew cask 的 `url`，sha256 一致。不是轨道上未分配给某台机器的构建。
++- 门控（`SignatureVerifier.verifyInstallArtifact`）对已安装副本的结果：
++  - 放行：Team `C8VX3ZLX5U`，签名标识为 `wang.jianing.app.*` 的副本，即 `2.3.9` 与 Lite `1.2.8` 及以后。
++  - 拒绝（Team 不同）：`wang.jianing.app.OpenInTerminal` 的 `2.1.1`–`2.3.8`，以及 `wang.jianing.app.OpenInTerminal-Lite`、`wang.jianing.app.OpenInEditor-Lite` 的 `1.0.3`–`1.2.7`，Team 均为 `Q33U8R4U57`。门控报 `Team Identifier mismatch`。这些副本需要先手动安装一次 `2.3.9` 或 `1.2.8`，之后一键可用。
++  - 拒绝（签名标识不同）：改名前的旧 ID 副本。这些规则只做检测，不提供一键。
++  - 拒绝（无 Team）：未签名或 ad-hoc 构建会报 `noTeamIdentifier`。观测的发布包都带 Team；未见 ad-hoc 发布包。
++- 阻塞: 无（对放行的副本）。
++- 端到端: 未在真机执行（留给 coordinator）。
++
++## 已知问题
++- 2.3.8 及更早的 Q33 Developer ID 副本无法一键升级到 2.3.9。这是门控的设计结果，不是 recipe 错误，recipe 不绕过它。
++- 改名前的副本只能检测，不能一键升级。
++- 未认证请求成本：五个 VendorProbe 每次检查各发一次约 119 KB 的未认证 `api.github.com` 请求。若 60 次/小时的额度成为瓶颈，需要共享一次抓取（这属于引擎层改动，未做）。
++- Lite 的 changelog 缺失（见上）。
++
++## 历史与实测
++（2026-10-13 观测，依据 GitHub Releases API、各 zip 的 Info.plist、`codesign`、`xcrun stapler validate`。）
++
++- 发布与资产：55 个 release（2019-04-12 至 2026-07-13），其中 1 个 prerelease（`0.9.0`）。app zip 共 81 个；`Icons.zip` 不是 app，未计入。GitHub API 只为 `v2.3.9` 与 `v1.2.8` 的资产返回 `digest`，其余 release 的资产都没有。`.claude/skills/release/SKILL.md` 记载：`v2.3.9` 与 `v1.2.8` 最初以 ad-hoc 签名上传，被 Homebrew 拒绝后，改为公证版原地重传（clobber）。
++- 资产名的变化（主版）：`OpenInTerminal.zip`（`0.1.0`、`0.2.0`、`2.3.7`–`2.3.9`）；`OpenInTerminal.app.zip`（`0.9.0`–`0.10.3`、`2.0.1`–`2.0.5`、`2.1.1`–`2.3.6`）；`0.1.1` 另有 `All.zip` 与 `Open_in_*.zip`。Lite：`OpenInTerminal-Lite.zip`（`0.3.0`–`0.4.1`、`1.2.6`–`1.2.8`），`.app.zip`（`0.4.2`–`0.4.5`、`1.0.0`–`1.2.5`）。Editor-Lite 同理（自 `0.4.4` 起）。
++- 包的 bundle id、签名与公证（每个 zip 的 `Info.plist` 与 `codesign -dvvv`，`stapled` 为 `xcrun stapler validate` 结果）：
++
++  | 版本段 | Bundle ID | 签名 | stapled |
++  |---|---|---|---|
++  | 主版 `0.1.0`–`0.10.3`、`2.0.1`–`2.0.5` | `wang.jianing.OpenInTerminal` | Mac/Apple Development，Team `C8VX3ZLX5U` | 否 |
++  | Lite `0.3.0`–`1.0.2`，Editor-Lite `0.4.4`–`1.0.2` | `wang.jianing.OpenInTerminal-Lite` / `wang.jianing.OpenInEditor-Lite` | Mac/Apple Development，Team `C8VX3ZLX5U` | 否 |
++  | 主版 `2.1.1`–`2.3.8` | `wang.jianing.app.OpenInTerminal` | Developer ID，Team `Q33U8R4U57` | 是 |
++  | Lite `1.0.3`–`1.2.7` | `wang.jianing.app.OpenInTerminal-Lite` / `…OpenInEditor-Lite` | Developer ID，Team `Q33U8R4U57`；例外：`OpenInEditor-Lite` `1.1.4` 为 Apple Development 签名、Team 仍为 `Q33U8R4U57` | 是；例外为否 |
++  | 主版 `2.3.9` | `wang.jianing.app.OpenInTerminal` | Developer ID，Team `C8VX3ZLX5U` | 是 |
++  | Lite `1.2.8` | `wang.jianing.app.OpenInTerminal-Lite` / `…OpenInEditor-Lite` | Developer ID，Team `C8VX3ZLX5U` | 是 |
++
++  所有观测包的 `codesign --verify --deep --strict` 都通过。`2.3.9`、`2.3.8`、`1.2.8`、`1.2.7` 的 Developer ID 签名都带 `flags=0x10000(runtime)` 与安全时间戳。
++- Team 与 bundle id 的同时变化：主版在 `2.1.1`（发布于 2020-01-08）、Lite 在 `1.0.3`（发布于 2019-12-31）同时改为 `wang.jianing.app.*` 并换用 Q33 Developer ID。`Q33U8R4U57` 的 Developer ID 签名一直持续到 `2.3.8` 与 `1.2.7`。`C8VX3ZLX5U` 的 Developer ID 公证签名首次出现于 `2.3.9` 与 `1.2.8`（均发布于 2026-07-13）。
++- Homebrew cask 的 `sha256` 与 GitHub 资产一致：`openinterminal` 2.3.9 `14df8720…`，`openinterminal-lite` 1.2.8 `18984243…`，`openineditor-lite` 1.2.8 `40db3a78…`。
++- 改名前的旧 ID 副本：`0.1.0` 的 `All.zip` 内含 iTerm 与 Terminal 两个变体，二者的 bundle id 都是 `wang.jianing.OpenInTerminal`，都不含 `SUFeedURL`。
++
++## 如何复验
++```
++# 最新主版 release 与资产 digest（应与 Homebrew cask 的 sha256 相同）
++gh api repos/Ji4n1ng/OpenInTerminal/releases/latest -q .tag_name                 # → v2.3.9
++gh api repos/Ji4n1ng/OpenInTerminal/releases/tags/v2.3.9 -q '.assets[] | [.name, .digest]'
++
++# 解压后只读检查（不启动、不安装）
++ditto -x -k OpenInTerminal.zip ./x
++codesign --verify --deep --strict --verbose=2 ./x/OpenInTerminal.app
++codesign -dvvv ./x/OpenInTerminal.app 2>&1 | grep -E '^(Identifier|TeamIdentifier)='
++#   → Identifier=wang.jianing.app.OpenInTerminal / TeamIdentifier=C8VX3ZLX5U
++xcrun stapler validate ./x/OpenInTerminal.app                                    # → The validate action worked!
++
++# 检测：production 的 UpdateChecker 链，对只含 Contents/Info.plist 的夹具运行
++swift run --package-path application-test channel-verify fixtures/main-2.3.8.app --expect stable
++```
++
++夹具：每个夹具只含 `Contents/Info.plist`，bundle id 与版本取自上表的真实包，不含代码。检测路径只读这两个字段。对这些夹具的验证结果（2026-10-13）：
++
++| 夹具（bundle id, 版本） | 应答源 | 结论 |
++|---|---|---|
++| `wang.jianing.app.OpenInTerminal` 2.3.8 | GitHub | UPDATE → 2.3.9 |
++| `wang.jianing.app.OpenInTerminal` 2.3.9 | GitHub | up to date |
++| `wang.jianing.app.OpenInTerminal-Lite` 1.2.7 | VendorProbe | UPDATE → 1.2.8 |
++| `wang.jianing.app.OpenInTerminal-Lite` 1.2.8 | VendorProbe | up to date |
++| `wang.jianing.app.OpenInEditor-Lite` 1.1.4 | VendorProbe | UPDATE → 1.2.8 |
++| `wang.jianing.app.OpenInEditor-Lite` 1.2.8 | VendorProbe | up to date |
++| `wang.jianing.OpenInTerminal` 2.0.5 | VendorProbe | UPDATE → 2.3.9 |
++| `wang.jianing.OpenInTerminal-Lite` 1.0.2 | VendorProbe | UPDATE → 1.2.8 |
++| `wang.jianing.OpenInEditor-Lite` 1.0.2 | VendorProbe | UPDATE → 1.2.8 |
++
++未验证的部分：一键安装的实际下载与门控（留给 coordinator 的端到端），以及对真实解压 bundle 的 `channel-verify`。
++
++## 建议下一步
++1. 对解压后的真实 `.app`（主版 `2.3.9`、`2.3.8`；Lite `1.2.8`、`1.2.7`）运行 `channel-verify`，并在端到端中确认 Q33 副本被门控拒绝、C8 副本放行。
++2. 若要为 Lite 提供 changelog：需要引擎支持按 asset 选择 release 的 changelog 源。这属于引擎层改动，不在本 recipe 范围内。
++3. 若未认证请求成本成为问题：在引擎层为同一 URL 的多个探针共享一次抓取。

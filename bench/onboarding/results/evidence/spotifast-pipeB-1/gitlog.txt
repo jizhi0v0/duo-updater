@@ -1,0 +1,5 @@
+94b0acd Spotifast audit: correct release counts, measure the rename bound, spell out the old-id gap
+c58b996 Spotifast: detection, one-click and What's New for the current bundle id
+7bccb0b Update Sparkle appcast for v0.5.0 (#1033)
+f196600 chore: bump to 0.5.0 (118) (#1032)
+21047ba Track storytold's seven -craft apps (GitHub releases, one-click) (#1031)

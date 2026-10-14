@@ -1,0 +1,82 @@
+{
+  "changelogRecipes" : [
+    "changelog:com.obelisk.app:-"
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 6,
+      "headings" : [
+        "Highlights",
+        "Complete session browsing",
+        "Copilot history from Stable and Insiders",
+        "Kiro CLI history",
+        "Documentation and contribution guidance"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 23,
+      "newestVersion" : "0.2.5",
+      "recipeID" : "changelog:com.obelisk.app:-"
+    },
+    "download" : "<nil>",
+    "installTrust" : "<nil>",
+    "latest" : "<none>",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "<none>",
+    "status" : "unknown"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 6,
+      "headings" : [
+        "Highlights",
+        "Complete session browsing",
+        "Copilot history from Stable and Insiders",
+        "Kiro CLI history",
+        "Documentation and contribution guidance"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 23,
+      "newestVersion" : "0.2.5",
+      "recipeID" : "changelog:com.obelisk.app:-"
+    },
+    "download" : "<nil>",
+    "installTrust" : "<nil>",
+    "latest" : "<none>",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "<none>",
+    "status" : "unknown"
+  },
+  "perRelease" : [
+    {
+      "prerelease" : false,
+      "tag" : "v0.2.5"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.2.4"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.2.2"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.2.1"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.2.0"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.1.0"
+    }
+  ],
+  "rules" : [
+
+  ]
+}

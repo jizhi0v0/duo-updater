@@ -1,0 +1,568 @@
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index b3b6fbb..5c7bcc2 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -242,6 +242,7 @@ public enum AppRecipeIndex {
+         tv_plex_desktop.set,
+         uk_co_bzwrd_macperfmonitor.set,
+         uk_whatcable_whatcable.set,
++        wang_jianing_app_OpenInTerminal.set,
+         xyz_chatboxapp_app.set,
+     ]
+ }
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/wang-jianing-app-OpenInTerminal.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/wang-jianing-app-OpenInTerminal.swift
+new file mode 100644
+index 0000000..5ac4658
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/wang-jianing-app-OpenInTerminal.swift
+@@ -0,0 +1,50 @@
++import Foundation
++
++enum wang_jianing_app_OpenInTerminal {
++    static let set = AppRecipeSet(
++        family: "wang-jianing-app-OpenInTerminal",
++        githubRules: [
++        // History: docs/app-audits/wang-jianing-app-OpenInTerminal.md#历史与实测
++        // OpenInTerminal — open source (`Ji4n1ng/OpenInTerminal`), a Finder Sync
++        // toolbar app. No updater of its own (no Sparkle, no update URL anywhere
++        // in the source) and no Mac App Store listing. Homebrew's `openinterminal`
++        // cask is not `auto_updates`, so a brew-installed copy is answered by
++        // `HomebrewCaskSource` ahead of this rule and a direct download lands here.
++        //
++        // ⚠️ ONE REPO, THREE APPS, TWO TAG LINES. The main app is `v2.x` with
++        // `OpenInTerminal.zip`; `OpenInTerminal-Lite` and `OpenInEditor-Lite`
++        // (their own bundle ids, not covered here) ride a single `v1.x` release
++        // carrying two other zips. The maintainer's own release procedure says
++        // the Latest mark has to be moved back to the main app by hand after the
++        // Lite release goes out, so `/releases/latest` is this app's release only
++        // while that step is done. Two anchors make the rule independent of it:
++        //   - `versionPattern` takes the main line only (major 2 and up) and
++        //     rejects the Lite line, so a Lite tag is never read as this app's
++        //     version and never lands in its release history;
++        //   - `installAssetPattern` is anchored at both ends, so it matches
++        //     neither `OpenInTerminal-Lite.zip` nor the pre-v2.3.7 name
++        //     `OpenInTerminal.app.zip`. A Lite release therefore carries no
++        //     asset, and `settle()` falls back to the releases list and walks to
++        //     the main app's newest one. `OpenInTerminalGitHubRuleTests` pins it.
++        // The lower bound is 2 because that is where the main line starts and
++        // Lite's is 1.x; a future `v3.x` of the main app still matches.
++        //
++        // Tags are `vX.Y.Z` and equal `CFBundleShortVersionString`;
++        // `CFBundleVersion` is a constant `1` and must not be compared.
++        //
++        // One-click: the zip holds `OpenInTerminal.app`, a universal build of
++        // `wang.jianing.app.OpenInTerminal`, Developer ID signed, notarized and
++        // stapled. ⚠️ The signing Team changed at v2.3.9 (`Q33U8R4U57` before,
++        // `C8VX3ZLX5U` since — History has the packages), so `SignatureVerifier`'s
++        // same-Team gate refuses the swap from any copy older than v2.3.9. That
++        // is the gate working, not the rule failing: those copies update through
++        // `brew upgrade` or by hand once, and every release after that is
++        // same-Team.
++        GitHubReleaseRule(
++            bundleID: "wang.jianing.app.OpenInTerminal",
++            owner: "Ji4n1ng", repo: "OpenInTerminal",
++            versionPattern: #"^v([2-9]\.[0-9]+\.[0-9]+)$"#,
++            installAssetPattern: #"^OpenInTerminal\.zip$"#,
++            installerKind: .zip),
++        ])
++}
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/OpenInTerminalGitHubRuleTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/OpenInTerminalGitHubRuleTests.swift
+new file mode 100644
+index 0000000..b39c887
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/OpenInTerminalGitHubRuleTests.swift
+@@ -0,0 +1,238 @@
++import Testing
++import Foundation
++@testable import DuoUpdaterCore
++
++/// OpenInTerminal (`wang.jianing.app.OpenInTerminal`, `Ji4n1ng/OpenInTerminal`)
++/// shares its repository with two other apps. The main app is the `v2.x` tag
++/// line with `OpenInTerminal.zip`; `OpenInTerminal-Lite` and `OpenInEditor-Lite`
++/// ride one `v1.x` release carrying two other zips. The maintainer's release
++/// procedure says the Latest mark must be moved back to the main app by hand
++/// after the Lite release — so `/releases/latest` is this app's release only
++/// while that step is done.
++///
++/// These pin that the rule does not depend on the convention, against the tag
++/// shapes, asset names and release body the repository really publishes.
++///
++/// See `docs/app-audits/wang-jianing-app-OpenInTerminal.md` for the measurements.
++@Suite(.serialized) struct OpenInTerminalGitHubRuleTests {
++
++    private static let bundleID = "wang.jianing.app.OpenInTerminal"
++
++    /// EVERY rule this bundle id carries, and non-empty: a lookup that stops
++    /// finding anything (bundle id typo'd, family unregistered) must fail loudly
++    /// rather than leave the suite green over a rule nobody runs.
++    private static var rules: [GitHubReleaseRule] {
++        get throws {
++            let found = GitHubReleaseRegistry.rules.filter { $0.bundleID == bundleID }
++            try #require(!found.isEmpty, "\(bundleID) is no longer in GitHubReleaseRegistry")
++            return found
++        }
++    }
++
++    private static var rule: GitHubReleaseRule {
++        get throws {
++            try #require(
++                rules.first { $0.channel == .stable },
++                "\(bundleID) has no stable rule any more")
++        }
++    }
++
++    // MARK: - Tags and assets, as published
++
++    /// Main-line tags resolve to the version the bundle itself reports
++    /// (`CFBundleShortVersionString` is the tag minus its `v`), and every other
++    /// tag shape the repo has carried does not: the Lite line, and the
++    /// pre-2021 tags that have no `v`. A Lite tag read as this app's version
++    /// would be a real, newer-looking, never-installable "update".
++    @Test(arguments: [
++        ("v2.3.9", "2.3.9"), ("v2.3.8", "2.3.8"), ("v2.3.7", "2.3.7"),
++        ("v1.2.8", nil), ("v1.2.7", nil), ("v1.2.0", nil),
++        ("1.1.5", nil), ("2.2.3", nil),
++    ] as [(String, String?)])
++    func tagsResolveToTheMainLineOnly(tag: String, expected: String?) throws {
++        let rule = try Self.rule
++        #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: rule.versionPattern) == expected,
++                "\(tag)")
++    }
++
++    /// The asset names of the main release, the Lite release and the pre-v2.3.7
++    /// main release. Only the first is this app's install: matching
++    /// `OpenInTerminal-Lite.zip` would hand the installer a different app, and
++    /// the legacy `.app.zip` spelling is a release that predates the name.
++    @Test(arguments: [
++        ("OpenInTerminal.zip", true),
++        ("OpenInTerminal-Lite.zip", false),
++        ("OpenInEditor-Lite.zip", false),
++        ("Icons.zip", false),
++        ("OpenInTerminal.app.zip", false),
++    ] as [(String, Bool)])
++    func onlyTheMainZipIsTheInstallAsset(name: String, installs: Bool) throws {
++        let pattern = try #require(try Self.rule.installAssetPattern)
++        #expect((name.range(of: pattern, options: .regularExpression) != nil) == installs, "\(name)")
++    }
++
++    @Test func theRuleIsOneClickAsAZip() throws {
++        for rule in try Self.rules {
++            #expect(rule.installAssetPattern != nil && rule.installerKind == .zip,
++                    "\(rule.bundleID): the package is a notarized zip, so the rule installs it")
++            #expect(!rule.usePrereleases,
++                    "\(rule.bundleID): the repo has no prerelease track, and a list-reading rule would take a Lite tag's neighbours")
++        }
++    }
++
++    // MARK: - Which release answers
++
++    /// Real asset names and sizes, real tags and publish times, newest first —
++    /// the interleaved order the list endpoint returns them in.
++    private static let mainBody = """
++        Changes:
++
++        - Security: Fixed an AppleScript/command injection vulnerability that allowed arbitrary command execution via a crafted folder name when opening it in a non-default terminal or an editor. Thanks to Paul Gerste ([Sonar](https://www.sonarsource.com)) for the responsible disclosure.
++        - Added support for Zed, Emacs, Kakoune, GitKraken, and cmux.
++        - Added an option to limit global keyboard shortcuts to Finder-only shortcuts. (#251, #243)
++        - Introduced a new default app icon with automatic light/dark mode support.
++        - Added an option to display the Finder context menu items in a submenu.
++        - Fixed the Finder extension icon being rendered as a template icon.
++        - Improved startup responsiveness by fetching installed applications on a background thread.
++        - Fixed the keyboard shortcut overlapping the "Open in ..." title in the status bar menu.
++        """
++
++    private struct Fixture {
++        let tag: String
++        let publishedAt: String
++        let assets: [(name: String, size: Int)]
++        let body: String
++    }
++
++    private static let releases: [Fixture] = [
++        Fixture(tag: "v1.2.8", publishedAt: "2026-07-13T12:08:48Z",
++                assets: [("OpenInEditor-Lite.zip", 9_678_900), ("OpenInTerminal-Lite.zip", 9_652_162)],
++                body: "Changes:\n\n- Added support for Zed, Emacs, Kakoune, GitKraken, and cmux.\n"),
++        Fixture(tag: "v2.3.9", publishedAt: "2026-07-13T12:08:34Z",
++                assets: [("OpenInTerminal.zip", 24_842_104)], body: mainBody),
++        Fixture(tag: "v1.2.7", publishedAt: "2025-01-07T08:30:28Z",
++                assets: [("Icons.zip", 882_027), ("OpenInEditor-Lite.zip", 5_042_235),
++                         ("OpenInTerminal-Lite.zip", 5_022_717)],
++                body: "Changes:\n\n- Support fork.\n"),
++        Fixture(tag: "v2.3.8", publishedAt: "2025-01-07T08:43:08Z",
++                assets: [("OpenInTerminal.zip", 14_683_040)],
++                body: "Happy New Year!\r\n\r\nChanges:\r\n\r\n- Support Ghostty.\r\n"),
++        Fixture(tag: "v1.2.6", publishedAt: "2023-12-27T08:21:36Z",
++                assets: [("Icons.zip", 882_027), ("OpenInEditor-Lite.zip", 4_782_358),
++                         ("OpenInTerminal-Lite.zip", 4_755_541)],
++                body: "Changes:\n\n- Support Cursor.\n"),
++        Fixture(tag: "v2.3.7", publishedAt: "2023-12-27T08:23:55Z",
++                assets: [("OpenInTerminal.zip", 14_298_586)],
++                body: "Changes:\n\n- Support Korean\n"),
++    ]
++
++    private static func json(_ release: Fixture) -> String {
++        let assets = release.assets.map {
++            #"{"name": "\#($0.name)", "size": \#($0.size), "browser_download_url": "https://github.com/Ji4n1ng/OpenInTerminal/releases/download/\#(release.tag)/\#($0.name)"}"#
++        }.joined(separator: ",")
++        // `JSONEncoder` so the body's newlines, quotes and `\r\n` are escaped the
++        // way the API sends them.
++        let body = String(data: try! JSONEncoder().encode(release.body), encoding: .utf8)!
++        return #"{"tag_name": "\#(release.tag)", "draft": false, "prerelease": false, "published_at": "\#(release.publishedAt)", "html_url": "https://github.com/Ji4n1ng/OpenInTerminal/releases/tag/\#(release.tag)", "body": \#(body), "assets": [\#(assets)]}"#
++    }
++
++    /// `/releases/latest` answers `latestTag`'s release; the list endpoint answers
++    /// all of them. Records the order the URLs were asked in.
++    private final class Repo: URLProtocol, @unchecked Sendable {
++        nonisolated(unsafe) static var latestTag = "v2.3.9"
++        nonisolated(unsafe) static var requested: [String] = []
++        private static let lock = NSLock()
++
++        static func reset(latest: String) {
++            lock.lock(); defer { lock.unlock() }
++            latestTag = latest; requested = []
++        }
++        static var urls: [String] { lock.lock(); defer { lock.unlock() }; return requested }
++
++        override class func canInit(with request: URLRequest) -> Bool { true }
++        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
++        override func startLoading() {
++            let url = request.url!.absoluteString
++            Self.lock.lock()
++            Self.requested.append(url)
++            let latest = Self.latestTag
++            Self.lock.unlock()
++            let body: String
++            if url.hasSuffix("/releases/latest") {
++                let release = OpenInTerminalGitHubRuleTests.releases.first { $0.tag == latest }!
++                body = OpenInTerminalGitHubRuleTests.json(release)
++            } else {
++                body = "[" + OpenInTerminalGitHubRuleTests.releases
++                    .map(OpenInTerminalGitHubRuleTests.json).joined(separator: ",") + "]"
++            }
++            let response = HTTPURLResponse(
++                url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
++                headerFields: ["Content-Type": "application/json"])!
++            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
++            client?.urlProtocol(self, didLoad: Data(body.utf8))
++            client?.urlProtocolDidFinishLoading(self)
++        }
++        override func stopLoading() {}
++    }
++
++    private static func resolve(latest: String) async throws -> ProbeOutcome {
++        Repo.reset(latest: latest)
++        let configuration = URLSessionConfiguration.ephemeral
++        configuration.protocolClasses = [Repo.self]
++        configuration.urlCache = nil
++        let rule = try Self.rule
++        let source = GitHubReleasesSource(rules: [rule], session: URLSession(configuration: configuration))
++        // The host is pinned: the asset is a universal zip with no arch marker,
++        // so this holds on either architecture, but a pinned host keeps it so.
++        return await source.resolveDiagnostic(
++            rule, preferring: .arm64, allowingIntelTranslation: false)
++    }
++
++    /// The healthy round: Latest is the main app's release, one request answers.
++    @Test func whenLatestIsTheMainReleaseOneRequestAnswers() async throws {
++        let outcome = try await Self.resolve(latest: "v2.3.9")
++        let remote = try #require(outcome.remote)
++        #expect(remote.shortVersion == "2.3.9")
++        #expect(remote.downloadURL?.absoluteString
++                == "https://github.com/Ji4n1ng/OpenInTerminal/releases/download/v2.3.9/OpenInTerminal.zip")
++        #expect(remote.vendorInstallerKind == .zip)
++        #expect(!remote.requiresManualInstaller)
++        #expect(Repo.urls == ["https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases/latest"])
++    }
++
++    /// The mutation this suite exists for: the Lite release was published last
++    /// and nobody moved the Latest mark, so `/releases/latest` is `v1.2.8`. It
++    /// carries no `OpenInTerminal.zip`, so the source must go to the list and
++    /// answer the main app's newest release — not "no answer", and not 1.2.8.
++    /// Neither may the Lite tags reach the release history it backfills.
++    @Test func whenLatestIsALiteReleaseTheListAnswersTheMainApp() async throws {
++        let outcome = try await Self.resolve(latest: "v1.2.8")
++        let remote = try #require(outcome.remote)
++        #expect(remote.shortVersion == "2.3.9")
++        #expect(remote.downloadURL?.lastPathComponent == "OpenInTerminal.zip")
++        #expect(remote.downloadURL?.absoluteString.contains("/v2.3.9/") == true)
++        #expect(remote.vendorInstallerKind == .zip)
++        #expect(remote.releaseHistory.map(\.version) == ["2.3.9", "2.3.8", "2.3.7"])
++        #expect(Repo.urls.count == 2 && Repo.urls[0].hasSuffix("/releases/latest")
++                && Repo.urls[1].contains("/releases?per_page="))
++    }
++
++    // MARK: - The changelog
++
++    /// The release body is a plain `Changes:` bullet list; `GitHubMarkdownParser`
++    /// turns it into native entries and the rule needs no changelog recipe. Parsed
++    /// from the body the repository really carries for v2.3.9, through the source.
++    @Test func theReleaseBodyBecomesAStructuredChangelog() async throws {
++        let outcome = try await Self.resolve(latest: "v2.3.9")
++        let changelog = try #require(outcome.remote?.structuredChangelog)
++        #expect(changelog.itemSyntax == .markdown)
++        let entry = try #require(changelog.entries.first)
++        #expect(changelog.entries.count == 1)
++        #expect(entry.version == "2.3.9")
++        #expect(entry.items.count == 8)
++        #expect(entry.items.first?.hasPrefix("Security: Fixed an AppleScript/command injection") == true)
++        #expect(entry.items.contains("Added support for Zed, Emacs, Kakoune, GitKraken, and cmux."))
++        // `Changes:` is a lead-in line, not a note.
++        #expect(!entry.items.contains { $0.hasPrefix("Changes") })
++    }
++}
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/wang-jianing-app-OpenInTerminal.txt b/DuoUpdaterCore/Tests/RecipeGoldens/wang-jianing-app-OpenInTerminal.txt
+new file mode 100644
+index 0000000..ae47761
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/wang-jianing-app-OpenInTerminal.txt
+@@ -0,0 +1,39 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "wang-jianing-app-OpenInTerminal"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 0)
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "wang.jianing.app.OpenInTerminal"
++githubRules[0].owner = "Ji4n1ng"
++githubRules[0].repo = "OpenInTerminal"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([2-9]\\.[0-9]+\\.[0-9]+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^OpenInTerminal\\.zip$"
++githubRules[0].installerKind? = .zip
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index c857d50..faff41b 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -231,6 +231,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**T3 Code**](com-t3tools-t3code.md) · `com.t3tools.t3code` — G(alpha/nightly) · 2 channels，共享 bundle id，app 名渠道词 + GitHub 双 rule · **两轨一键 ✓**（Team ARK85ZXQ4Z，真包挂载验证）· 2026-08-30 · 仓库出现了未覆盖的 `-preview.` 发布系列（tag 自 2026-09-12、release 自 2026-09-13；2026-09-14 复测）
+ - [x] [**Kun**](com-xingyuzhong-deepseekgui.md) · `com.xingyuzhong.deepseekgui` — G (one-click arm64 dmg) · 真包 v0.3.7 挂载验证 ✓ · 2026-08-30
+ - [x] [**Reviu**](com-jorisgallot-reviu.md) · `com.jorisgallot.reviu` — G (one-click arm64 dmg) · 真包 v1.4.0 挂载验证 ✓ · 一键 1.3.0→1.4.0 端到端 ✓ · 2026-09-29
++- [x] [**OpenInTerminal**](wang-jianing-app-OpenInTerminal.md) · `wang.jianing.app.OpenInTerminal` — G (one-click universal zip) · 真包 v2.3.9 + v2.3.8 解包验证 ✓，安装闸门对真包跑过 ✓ · 单仓三个 app、两条 tag 线（Lite 是 `v1.x`），tag 与资产名两头锚死，Latest 落在 Lite 也答对 · ⚠️ v2.3.9 换了签名 Team（`Q33U8R4U57`→`C8VX3ZLX5U`），≤ 2.3.8 的拷贝一键会被同 Team 闸拒 · 端到端未跑 · changelog 走 GitHub release body · 2026-10-14
+ - [x] [**DSH Desktop**](ai-deepseek-dsh-desktop.md) · `ai.deepseek.dsh.desktop` — G (one-click universal dmg) · 真包 v2.0.4 挂载验证 ✓ · 2026-08-30
+ - [x] [**Meetily**](com-meetily-ai.md) · `com.meetily.ai` — G (one-click arm64 dmg) · 真包 v0.4.0 挂载验证 ✓ · 2026-08-30
+ - [x] [**Paseo**](sh-paseo-desktop.md) · `sh.paseo.desktop` — G (one-click arm64 dmg) · 真包 v0.6.1 挂载验证 ✓（beta 是 prerelease 轨，未接入）· 2026-08-30
+diff --git a/docs/app-audits/wang-jianing-app-OpenInTerminal.md b/docs/app-audits/wang-jianing-app-OpenInTerminal.md
+new file mode 100644
+index 0000000..53f542c
+--- /dev/null
++++ b/docs/app-audits/wang-jianing-app-OpenInTerminal.md
+@@ -0,0 +1,193 @@
++# OpenInTerminal
++
++## 基本信息
++- Bundle ID: `wang.jianing.app.OpenInTerminal`
++- Team ID: `C8VX3ZLX5U`（v2.3.9，最新）。上一版 v2.3.8 及更早（v2.3.6、v2.3.7）是 `Q33U8R4U57`——
++  **v2.3.9 换了签名 Team**，见「一键安装」与「历史与实测」
++- 观测版本: `2.3.9`（`CFBundleVersion` 恒为 `1`，不参与比较）；上一版 `2.3.8`
++- 自更新机制: 无。三个 target 的源码里没有 Sparkle、更新 URL、GitHub API 调用；包内没有
++  Sparkle.framework，`Info.plist` 没有 `SUFeedURL`；`feed-discover` 判 `no Sparkle and no
++  electron-builder update config`
++- 分发: GitHub Releases（`Ji4n1ng/OpenInTerminal`）/ Homebrew cask `openinterminal`
++  （无 `auto_updates`）。MAS 无：`mas search OpenInTerminal` 没有同名条目
++- 开源: 是（MIT）。以下版本方案、发布流程、签名方式均读自仓库 `master` 的
++  `.claude/skills/release/SKILL.md`、`build-signed.sh`、各 target 的 `project.pbxproj` 与
++  `Info.plist`
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|------------|---------|----------|-----|--------|-------------|
++| **stable** | —       | ✓（通用 `HomebrewCaskSource`，仅 brew 装的拷贝） | — | ✓ | — |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**；brew 装的拷贝由
++`HomebrewCaskSource` 先应答（cask 是否 `auto_updates` 决定它答不答，这个 cask 不是）。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `wang.jianing.app.OpenInTerminal` | 单渠道 | — | tag 锚 `^v([2-9]\.\d+\.\d+)$` + 资产锚 `^OpenInTerminal\.zip$` | ✓ |
++
++单渠道。app 没有更新器，也就没有渠道开关；仓库最近 30 个 release 全部 `prerelease=false`（2026-10-14）。
++
++## 同仓库三个 app，两条 tag 线
++
++一个 release 页面混着三个产品，`/releases/latest` 指到谁取决于谁最后发布：
++
++| 产品 | Bundle ID | tag 线 | 资产 | 本 rule |
++|------|-----------|--------|------|---------|
++| OpenInTerminal | `wang.jianing.app.OpenInTerminal` | `v2.x` | `OpenInTerminal.zip` | ✓ |
++| OpenInTerminal-Lite | `wang.jianing.app.OpenInTerminal-Lite`（读自 pbxproj，未验真包） | `v1.x` | `OpenInTerminal-Lite.zip` | — 未审计 |
++| OpenInEditor-Lite | `wang.jianing.app.OpenInEditor-Lite`（读自 pbxproj，未验真包） | `v1.x`（与上一行同一个 release） | `OpenInEditor-Lite.zip` | — 未审计 |
++
++settled from source: 仓库自己的发布流程（`.claude/skills/release/SKILL.md`）写明「两个 GitHub
++release，不是三个」，并说 GitHub 会把最后发布的那个标成 Latest，所以发完之后要用
++`gh release edit vX.Y.Z --latest` 把 Latest 手动挪回主 app。分开写三件事：
++- 官方文档（<https://docs.github.com/en/rest/releases/releases>，2026-10-14 读）: 「latest release
++  是最近的非 prerelease、非 draft release，按 `created_at` 排序，`created_at` 是该 release 所用
++  commit 的日期，不是发布日期」；创建 release 的 `make_latest` 默认 `true`（「Defaults to true for
++  newly published releases」），`legacy` 则按创建日期再按语义版本高低决定；
++- 实测（2026-10-14 API）: v2.3.9 发布于 `2026-07-13T12:08:34Z`，v1.2.8（Lite）发布于
++  `2026-07-13T12:08:48Z`，晚 14 秒，两者 `target_commitish` 是同一个 commit；此刻
++  `/releases/latest` 返回 v2.3.9；
++- 没有证实的: 不挪的话 GitHub 会把 Latest 放在哪边。官方文档的两种说法（默认 `true` 与 `legacy`）
++  在这两个同 commit 的 release 上给出的答案不一定一致，没有在这个仓库上试过。
++
++所以 `/releases/latest` 是主 app 的 release **取决于发布者的操作**，不是仓库结构保证的。rule 不依赖它，
++靠两个锚：
++- `versionPattern` 只收主线（主版本 ≥ 2），拒 Lite 的 `v1.x`：Lite tag 不会被读成本 app 的版本，
++  也不会进它的发布历史；
++- `installAssetPattern` 两头锚死 `^OpenInTerminal\.zip$`：不收 `OpenInTerminal-Lite.zip`，
++  也不收 v2.3.6 及更早的旧名 `OpenInTerminal.app.zip`。Lite release 因此「没有可装资产」，
++  `GitHubReleasesSource` 就改读 releases 列表，走到主 app 最新的那个。
++
++两个锚各自被变异验证过（2026-10-14）：把资产 pattern 放宽成 `^OpenInTerminal.*\.zip$`，
++`OpenInTerminalGitHubRuleTests` 的资产用例与「Latest 是 Lite」用例变红；把 tag pattern 放宽成
++`^v([0-9]+\.[0-9]+\.[0-9]+)$`，tag 用例变红，且「Latest 是 Lite」用例里发布历史多出 1.x 版本。
++还原后全绿。
++
++## 更新检测
++- 源: GitHub Releases，`/releases/latest`；该 release 没有可装资产时回退 `/releases?per_page=20`
++- 端点: `https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases/latest`
++- 版本方案: tag `v2.3.9` → `2.3.9` == 包的 `CFBundleShortVersionString`（v2.3.9 与 v2.3.8 两个真包都
++  核对过）；`CFBundleVersion` 恒为 `1`，不用 `versionIsBuild`
++- 真包上跑生产源链（`channel-verify`，2026-10-14，实时 GitHub API）:
++  - v2.3.9 的 `.app` → `winning source GitHub`、`latest 2.3.9`、`status up to date`
++  - v2.3.8 的 `.app` → `winning source GitHub`、`latest 2.3.9`、`status UPDATE → 2.3.9`
++  - 两个都 `detected channel → stable`
++- Homebrew 对照: `brew info --json=v2 --cask openinterminal` → version `2.3.9`、sha256
++  `14df8720…7765`，与 GitHub 资产的 digest 相同（同一个 zip）；`auto_updates` 为空。cask 与 GitHub
++  之间有没有滞后，没量过
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | 不能 |
++| 证据 | 源码无任何更新代码；包内无 Sparkle.framework（`find` 无 sparkle/updater/autoupdate） | release 资产只有整包 zip（2026-10-14，30 个 release 的资产清单） | — |
++
++## 按 OS / 架构分轨
++- 包的 `LSMinimumSystemVersion` = `10.13`（v2.3.9 与 v2.3.8 相同）；没有 feed，所以没有 per-release 的
++  min/max 系统版本字段。静态下限远低于现行 macOS，不进 `hostRequirement`
++- 架构: v2.3.9 与 v2.3.8 主程序都是 `x86_64 arm64` universal；资产名不带架构标记，只有一个 zip，
++  不存在分桶
++- 按设备灰度: 无。没有更新器就没有设备标识，GitHub 公开 release 对所有人是同一份
++
++## Changelog
++- 来源: GitHub Release body。正文是 `Changes:` 引导行加 `- ` 列表，`GitHubMarkdownParser`
++  结构化成原生条目（v2.3.9 的真实正文解出 8 条，引导行不算条目，行内 Markdown 链接保留）。
++  由 `OpenInTerminalGitHubRuleTests.theReleaseBodyBecomesAStructuredChangelog` 钉住
++- 跟随 channel: 单渠道
++- Recipe 状态: 不需要。仓库 README 的 `## Changes` 是同一份内容的 HTML 版，不是另一个源
++- 发布历史: 健康路径（Latest 是主 app）只带回 1 条；Latest 落在 Lite 时回退到列表，历史是主线的
++  `2.3.9 / 2.3.8 / 2.3.7`，不含 Lite 版本
++
++## 一键安装
++- 状态: **支持**（包本身满足条件）；⚠️ **从 ≤ v2.3.8 升到 v2.3.9 会被同 Team 闸拒绝**，见下
++- 格式: zip，顶层即 `OpenInTerminal.app`（zip 里带 `__MACOSX/` AppleDouble 条目；安装器用
++  `ditto -x -k` 解包，会把它并回扩展属性，不会留下 `__MACOSX` 目录）
++- Pattern: `^OpenInTerminal\.zip$`, kind `.zip`
++- **读的是**: 人人可手动下载的 GA。release 页面的下载按钮和 Homebrew cask 指向同一个 zip；
++  厂商没有更新器，所以不存在「分配给某台机器」的构建，也没有分档灰度
++- 包验（2026-10-14，下载 `OpenInTerminal.zip` 解包）:
++
++  | | v2.3.9（最新） | v2.3.8（上一版） |
++  |---|---|---|
++  | 资产 URL | `https://github.com/Ji4n1ng/OpenInTerminal/releases/download/v2.3.9/OpenInTerminal.zip` | `https://github.com/Ji4n1ng/OpenInTerminal/releases/download/v2.3.8/OpenInTerminal.zip` |
++  | sha256 | `14df8720783492fb430237e221604ac332f1025b1d51019e230b796daa387765`（== API digest） | `da9eeb6cdd5db3de963e6f6a49d9d3cbff11f72cd3d56eeb6a657c88fae0aa6f` |
++  | Bundle ID / short / build | `wang.jianing.app.OpenInTerminal` / `2.3.9` / `1` | 同 / `2.3.8` / `1` |
++  | Team ID | `C8VX3ZLX5U` | `Q33U8R4U57` |
++  | Authority | `Developer ID Application: Jianing Wang (C8VX3ZLX5U)` | `Developer ID Application: Jianing Wang (Q33U8R4U57)` |
++  | 公证 | `spctl`: accepted / `source=Notarized Developer ID`；`stapler validate` 通过 | 同 |
++  | `codesign --verify --deep --strict` | 通过 | 通过 |
++  | 架构 | `x86_64 arm64` | `x86_64 arm64` |
++  | 内嵌 Finder 扩展与登录项 helper | Team 与外层一致 | 与外层一致 |
++
++  v2.3.7、v2.3.6 同样是 `Q33U8R4U57`、公证通过。
++- 安装闸门在真包上跑过（`SignatureVerifier.verifyInstallArtifact`，两个安装器共用的入口；
++  用一次性的临时测试对解包出的 `.app` 调用，测试已删除、未入库）:
++
++  | 被替换的（installed） | 下载的（downloaded） | 结果 |
++  |---|---|---|
++  | v2.3.9 | v2.3.9 | 通过（闸 2、3、4、5、5b、6） |
++  | v2.3.8 | v2.3.9 | **拒绝**：`Team Identifier mismatch: installed “Q33U8R4U57” vs downloaded “C8VX3ZLX5U”` |
++  | v2.3.7 | v2.3.8 | 通过 |
++  | v2.3.8 | v2.3.7 | 通过（同 Team，闸不管版本方向） |
++
++- ⚠️ Team 边界: 同 Team 闸（闸 3）没有放行例外，所以现存的 ≤ v2.3.8 拷贝用 duo 一键升级会在下载
++  之后被拒（这是闸在工作，不是 rule 坏了）。这些拷贝只能手动装一次 v2.3.9，或走
++  `brew upgrade --cask openinterminal`（不经过这个闸）；v2.3.9 之后只要厂商继续用
++  `C8VX3ZLX5U`，后续版本都是同 Team。**没有比 v2.3.9 更旧的 `C8VX3ZLX5U` 包**，所以在厂商发出下一个
++  版本之前，没有办法做一次真实的「旧 → 新」端到端升级
++- 端到端一键安装: **未跑**（本次审计不做真机安装）
++- 仓库 README 的 Installation 一节写着「Signed builds are no longer provided」，与实测不符：
++  v2.3.9 的 zip 是 Developer ID 签名 + 公证 + staple（上表）。以包为准；那句话的来由和时效没查
++
++## 已知问题
++- v2.3.9 换 Team（见上）。跨 Team 的 TCC 授权（Automation / Apple Events）通常按指定要求绑定，
++  这里是否随之失效没验过，**未验证**
++- v2.3.9 的包没有内嵌 `embedded.provisionprofile` 与 `com.apple.application-identifier` /
++  `com.apple.developer.team-identifier` 两条 entitlement（v2.3.8 有）；`application-groups` 仍在。
++  运行时是否受影响没验过，**未验证**，只记录观测
++- 同仓库两个 Lite app 没有接入（见上表），它们的 rule 需要镜像锚（`v1.x` 与各自的 zip 名）
++
++## 如何复验
++```
++# GET https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases/latest → v2.3.9
++curl -sSL -o OpenInTerminal-2.3.9.zip \
++  https://github.com/Ji4n1ng/OpenInTerminal/releases/download/v2.3.9/OpenInTerminal.zip
++shasum -a 256 OpenInTerminal-2.3.9.zip      # → 14df8720…7765
++mkdir v2.3.9 && unzip -q OpenInTerminal-2.3.9.zip -d v2.3.9   # unzip 会留下 __MACOSX/，ditto -x -k 不会
++codesign -dvvv v2.3.9/OpenInTerminal.app 2>&1 | grep -E 'Identifier|TeamIdentifier|Notarization'
++spctl -a -t exec -vv v2.3.9/OpenInTerminal.app    # → accepted, Notarized Developer ID
++swift run --package-path application-test feed-discover v2.3.9/OpenInTerminal.app
++#   → no Sparkle and no electron-builder update config
++swift run --package-path application-test channel-verify v2.3.9/OpenInTerminal.app --expect stable
++#   → winning source GitHub, latest 2.3.9, status up to date
++swift run --package-path application-test channel-verify v2.3.8/OpenInTerminal.app --expect stable
++#   → winning source GitHub, latest 2.3.9, status UPDATE → 2.3.9
++```
++
++## 建议下一步
++1. 厂商发下一个版本后，用 N-1 → N 做一次真机端到端一键安装（此前做不了，见「一键安装」）。
++2. Lite 两个 app（`v1.x`）如要接入，各加一条镜像 rule：tag 锚 `^v(1\.\d+\.\d+)$`，资产锚
++   `^OpenInTerminal-Lite\.zip$` / `^OpenInEditor-Lite\.zip$`，并先下载真包核 Bundle ID 与 Team。
++3. 无 channel 缺口，不动 `CHANNEL_COVERAGE_TODO.md`。
++
++## 历史与实测
++
++- Team 变迁（2026-10-14 下载各版 zip 实测）: v2.3.6（时间戳 2022-05-14）、v2.3.7（2023-12-28）、
++  v2.3.8（2025-01-07）均为 `Q33U8R4U57`；v2.3.9（2026-07-14）为 `C8VX3ZLX5U`。两个都署名
++  `Jianing Wang`，仓库的 `build-signed.sh` 自动挑 Keychain 里的 Developer ID，发布流程文档点名
++  `C8VX3ZLX5U`；主 app 的 `project.pbxproj` 里 `DEVELOPMENT_TEAM` 绝大多数是 `C8VX3ZLX5U`，
++  还留着 1 处 `Q33U8R4U57`。为什么换 Team，仓库没写
++- v2.3.9 的资产被替换过: release 发布于 `2026-07-13T12:08:34Z`，现存资产的 `created_at` 是
++  `2026-07-14T13:41:08Z`、`updated_at` 是 `13:47:49Z`，晚于发布。仓库的发布流程文档写着
++  v2.3.9 / v1.2.8 最初以 ad-hoc 签名发出、被 Homebrew 拒收，之后用 `gh release upload --clobber`
++  原地换成公证版本（转引自该文档，未独立复测）。我量到的只有现存资产: sha256 与 API digest、
++  Homebrew cask 一致，签名与公证见上表。ad-hoc 签名的拷贝没有 Team ID，同 Team 闸对它报
++  `noTeamIdentifier`（读自 `SignatureVerifier`，未对真包跑）
++- Latest 标记: 见「同仓库三个 app，两条 tag 线」——v1.2.8 比 v2.3.9 晚发布 14 秒，同一个 commit

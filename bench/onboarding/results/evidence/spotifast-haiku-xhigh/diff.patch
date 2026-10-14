@@ -1,0 +1,268 @@
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index f692b68..c80fff9 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -255,6 +255,7 @@ public enum AppRecipeIndex {
+         org_zotero_zotero.set,
+         pl_maketheweb_cleanshotx.set,
+         pro_betterdisplay_BetterDisplay.set,
++        rocks_spotifast_Spotifast.set,
+         ru_starmel_OpenSuperWhisper.set,
+         se_johnste_finicky.set,
+         sh_brew_app.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/rocks-spotifast-Spotifast.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/rocks-spotifast-Spotifast.swift
+new file mode 100644
+index 0000000..e7094bb
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/rocks-spotifast-Spotifast.swift
+@@ -0,0 +1,40 @@
++import Foundation
++
++enum rocks_spotifast_Spotifast {
++    static let set = AppRecipeSet(
++        family: "rocks-spotifast-Spotifast",
++        changelogs: [
++        // Spotifast — release bodies from the releases API. The GitHub rule below
++        // carries only the newest body. Bodies are Markdown: a download line, then
++        // `## New` / `## Fixed` / `## Changed` / `## Thanks` sections, and a
++        // `Full changelog` compare link at the end. The download line and the
++        // compare link are not entries. The v0.5.0-rc and v0.4.0-rc prereleases
++        // are dropped by the decoder (stable only), so they never appear here.
++        ChangelogRecipe(
++            bundleID: "rocks.spotifast.Spotifast",
++            source: URL(string: "https://api.github.com/repos/crmne/spotifast/releases?per_page=40")!,
++            mode: .json,
++            maxEntries: 20,
++            structuredFormat: .gitHubReleases),
++        ],
++        githubRules: [
++        // Spotifast — Rust app (crmne/spotifast), a Spotify client for Linux, macOS
++        // and Windows. It does not use Sparkle: no `SUFeedURL`. Its own updater
++        // (`fastframe-update`, `src/updates.rs`) reads GitHub's `releases/latest`
++        // and installs `spotifast-v<ver>-macos-universal.dmg`, the same asset this
++        // rule names. Every stable release is non-prerelease; `/releases/latest`
++        // skips the `-rc` tags on its own, and the anchored pattern refuses them
++        // too. short == tag without the `v`.
++        //
++        // One-click: the dmg is Developer ID signed, notarized and stapled,
++        // Team JPL7999US3 on both 0.11.2 and 0.12.0. The bundle has one executable
++        // and no nested helper apps or login items, so the swap leaves no resident
++        // process running replaced code beyond the app itself.
++        GitHubReleaseRule(
++            bundleID: "rocks.spotifast.Spotifast",
++            owner: "crmne", repo: "spotifast",
++            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
++            installAssetPattern: #"^spotifast-v[0-9.]+-macos-universal\.dmg$"#,
++            installerKind: .dmg),
++        ])
++}
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/rocks-spotifast-Spotifast.txt b/DuoUpdaterCore/Tests/RecipeGoldens/rocks-spotifast-Spotifast.txt
+new file mode 100644
+index 0000000..59c8a26
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/rocks-spotifast-Spotifast.txt
+@@ -0,0 +1,70 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "rocks-spotifast-Spotifast"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 1)
++changelogs[0] = struct ChangelogRecipe
++changelogs[0].bundleID = "rocks.spotifast.Spotifast"
++changelogs[0].source = URL("https://api.github.com/repos/crmne/spotifast/releases?per_page=40")
++changelogs[0].sourceTemplate = nil
++changelogs[0].versionFromTemplate = false
++changelogs[0].mode = .json
++changelogs[0].entryPattern = ""
++changelogs[0].itemPatterns = Array(count: 0)
++changelogs[0].stripTags = true
++changelogs[0].decodeEntities = true
++changelogs[0].escapedMarkup = false
++changelogs[0].markdownSource = false
++changelogs[0].maxEntries? = 20
++changelogs[0].minItemLength = 1
++changelogs[0].newestLast = false
++changelogs[0].indexLinkPattern = nil
++changelogs[0].feedPagePattern = nil
++changelogs[0].channel = nil
++changelogs[0].includesPromotedStable = false
++changelogs[0].imagePattern = nil
++changelogs[0].headingPattern = nil
++changelogs[0].minimumAppVersion = nil
++changelogs[0].belowAppVersion = nil
++changelogs[0].carriesOtherTrainEntries = false
++changelogs[0].acknowledgedStaleEntry = nil
++changelogs[0].structuredFormat? = .gitHubReleases
++changelogs[0].httpMethod = .get
++changelogs[0].requestBody = nil
++changelogs[0].skipSections = Array(count: 0)
++changelogs[0].tagPattern = nil
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "rocks.spotifast.Spotifast"
++githubRules[0].owner = "crmne"
++githubRules[0].repo = "spotifast"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^spotifast-v[0-9.]+-macos-universal\\.dmg$"
++githubRules[0].installerKind? = .dmg
++githubRules[0].installTrust = .developerID
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index e6a2d87..3a00a55 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -263,6 +263,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**PrintCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.printcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
+ - [x] [**EffectCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.effectcraft` — G (one-click universal dmg) · 真包 v0.3.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
+ - [x] [**DesignCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.designcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
++- [x] [**Spotifast**](rocks-spotifast-Spotifast.md) · `rocks.spotifast.Spotifast` — G (one-click universal dmg) · 真包 v0.11.2 → v0.12.0 挂载验证 ✓（channel-verify UPDATE → 0.12.0 / up to date）· 一键端到端未跑（协调者串行执行）· changelog 结构化 ✓（18 条）· 2026-10-13
+ 
+ ## Changelog-only (detection via Sparkle or Homebrew)
+ 
+diff --git a/docs/app-audits/rocks-spotifast-Spotifast.md b/docs/app-audits/rocks-spotifast-Spotifast.md
+new file mode 100644
+index 0000000..e28d8ab
+--- /dev/null
++++ b/docs/app-audits/rocks-spotifast-Spotifast.md
+@@ -0,0 +1,116 @@
++# Spotifast
++
++## 基本信息
++- Bundle ID: `rocks.spotifast.Spotifast`
++- Team ID: `JPL7999US3`（Developer ID，公证并 staple；0.11.2 与 0.12.0 相同）
++- 观测版本: `0.12.0`（`CFBundleShortVersionString` 与 `CFBundleVersion` 都是 `0.12.0`；tag `v0.12.0`）
++- 自更新机制: 自研（`fastframe-update` v0.4.1，Rust），**不是 Sparkle**：包内无 `SUFeedURL`。源码 `src/updates.rs` 指向 `crmne/spotifast` 的 GitHub Releases，装的是 `spotifast-v<ver>-macos-universal.dmg`，校验来自 release 的 `checksums.txt`
++- 分发: GitHub Releases（`crmne/spotifast`）。`brew search --cask spotifast` 只返回 `spotify`，没有 cask。无 MAS
++- 开源: 是。以下更新器、一键路径与变更日志结构读自 tag `v0.12.0` 的源码与 release 正文
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|------------|---------|----------|-----|--------|-------------|
++| **stable** | —（无 `SUFeedURL`） | —（无 cask） | — | ✓（一键 dmg，端到端待跑） | — |
++| **beta / rc** | — | — | — | ✗（`v0.4.0-rc*`、`v0.5.0-rc*` 是 GitHub prerelease，不接；源码无渠道开关） | — |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**（唯一应答源；无 cask，无 Sparkle feed）
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `rocks.spotifast.Spotifast` | 单一渠道 | — | `/releases/latest`（GitHub 已排除 prerelease）+ 锚定 `^v(数字.点分)$` | ✓ |
++| rc（`v0.4.0-rc1…rc5`、`v0.5.0-rc1…rc2`） | 未验证 | 未验证 | 无 | GitHub prerelease，rule 不读取 | ✗ 不接 |
++
++stable 是唯一渠道。app 源码里没有 prerelease 或 beta 开关（对 `src/` 搜 `prerelease` / `beta channel` / `update channel` 无结果）；rc 包没有取回，`bundle id` 与版本方案未验证，所以只写「不接」，不写「同 bundle 不可检测」。
++
++## 更新检测
++- 源: `crmne/spotifast` GitHub Releases，`/releases/latest`
++- 端点: `https://api.github.com/repos/crmne/spotifast/releases/latest`。app 自带 updater 读的是同一个仓库（`UpdateConfig::new("crmne/spotifast", …)`）
++- 版本方案: tag `v0.12.0` ↔ `CFBundleShortVersionString` `0.12.0` ↔ `CFBundleVersion` `0.12.0`，三者一致，不存在 build 号分叉
++- 注意事项:
++  - `release.yml` 的 `prerelease: ${{ contains(github.ref_name, '-') }}`：带 `-` 的 tag 是 prerelease，`/releases/latest` 不会答出它们；锚定 pattern 也不收它们
++  - release 资产是公开的静态文件，没有设备标识、没有灰度
++
++## 按 OS 分轨
++- 每个版本只有一个 macOS 包：`spotifast-v<ver>-macos-universal.dmg`（`x86_64` + `arm64`）。release 资产列表里没有按 OS 分桶的 macOS 包
++- `LSMinimumSystemVersion` 0.11.2 与 0.12.0 都是 `11.0`
++- GitHub 源不携带 OS 底线（`DuoUpdaterCore/Sources/DuoUpdaterCore/Install/SignatureVerifier.swift` 的注释写明 `GitHubReleasesSource` 不发布 OS 信息）。今后某版抬高 floor 时，这条规则不会挡住低版本 macOS（未验证，只看了源码）
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | 不适用 |
++| 证据 | `fastframe-update` v0.4.1（`crates/fastframe-update/src`）里没有 delta / bspatch / binary patch 代码；app 的 `src/updates.rs` 只调用 `Updater` 的检查、安装、交接 | 0.12.0 与 0.11.2 的全部 release 资产（`gh api repos/crmne/spotifast/releases`）只有整包（dmg、zip、tar.gz、AppImage、flatpak、deb、rpm、exe）以及 `checksums.txt` / `packaging-checksums.txt` / `.sig` / `packaging.tar.xz`，没有 delta 或 patch 文件 | — |
++
++- 格式: 整包 dmg
++- 阻塞项: 无
++
++## Changelog
++- 来源: `ChangelogRecipe`，`api.github.com/repos/crmne/spotifast/releases?per_page=40`，`.gitHubReleases`，`maxEntries: 20`
++- 为什么要 recipe: GitHub 源只带最新一条正文；落后几版的副本需要中间版本的说明
++- 正文形状: 每版一段 `## New` / `## Fixed` / `## Changed` / `## Known limitations` / `## Thanks`（各版取其子集）。v0.4.1 用 `New in 0.4.1` / `New in 0.4.0`。开头一行是下载链接，结尾是 `Full changelog` 对比链接
++- 结构化（2026-10-13，`channel-verify` 的 `changelog pane` 行原文，对 0.11.2 的 `UPDATE` 判定时输出）:
++  `recipe changelog:rocks.spotifast.Spotifast:-: 18 entries; newest 0.12.0: 15 items, headings ["New", "Fixed", "Changed"]; first items ["**A paused Spotifast costs nothing.** Pa", "**Turkish.** Spotifast is now available ", "**Drop skins on the window on Wayland ag"]`
++- 逐条核对（`gh api` 取 40 条 release 正文，逐条解析标题与顶层列表）:
++  - 22 个 stable release 都有正文；18 个产生条目。v0.1.0–v0.1.3 的正文没有 `##` 也没有列表，解析为空，被跳过（丢弃，不是压平）
++  - 7 个 prerelease（`v0.4.0-rc1…rc5`、`v0.5.0-rc1…rc2`）被 decoder 按 stable-only 排除，不出现在条目里
++  - 最新版 15 条 = 正文顶层列表项数（New 5 / Fixed 7 / Changed 3）；`Changed` 下的子列表被并入父条目，没有压平成条目
++  - `## Thanks` 是一段署名文字，没有列表，不产生条目，因此不出现在 `headings` 里。这是丢弃，不是压平。结尾的 `Full changelog` 与开头的下载行都是段落、不是列表项，也不产生条目
++  - **未验证**：v0.4.1 的 `New in 0.4.1` / `New in 0.4.0` 含数字，按 `GitHubMarkdownParser.isVersionLikeHeading` 不会作为分节标题呈现。影响仅限 0.4.0 及更早的副本。未对该条目跑 `channel-verify`
++- 跟随 channel: 单渠道（stable）
++- Recipe 状态: 已有（本次新增，`rocks-spotifast-Spotifast.swift`）
++
++## 一键安装
++- 状态: 需要验证（配方已接，门控已逐项核对；端到端未跑）
++- 端到端: 未跑。原因：本次约定由协调者串行执行，且不把旧版装进 `/Applications`
++- 格式: dmg（`installerKind: .dmg`，`installAssetPattern` `^spotifast-v[0-9.]+-macos-universal\.dmg$`）
++- 校验: GitHub API 对该资产给出的 `digest`，与真实下载的 `shasum -a 256` 一致（0.12.0 `805704658ce48c7109b6914d1dd1a503fbd4c354f983096559dd45b8654daab6`；0.11.2 `dddc87349adf41371120b27243c1b619a164a45902606745ab86bce581df745d`）。release 的 `checksums.txt` 也列出这两条。`checksums.txt.sig` 由发布工作流签名，但 app 的 `UpdateConfig` 里 `publisher_key: None`，app 目前只靠 `checksums.txt` 校验（源码注释：「Releases are verified against checksums.txt alone until they are signed」）
++- **读的是**: 人人可手动下载的 GA（`/releases/latest` 的公开资产，与 release 页面上的 Mac 下载链接是同一个文件）
++- 签名与公证: 0.12.0 与 0.11.2 都是 `TeamIdentifier=JPL7999US3`，`codesign --verify --deep --strict` 退出 0，`spctl -a -vv -t exec` 为 `Notarized Developer ID`，`xcrun stapler validate` 通过
++- 包内结构: 只有一个可执行文件 `Contents/MacOS/Spotifast`；`Contents/Resources` 只有 `spotifast.icns`；无 nested app、无 LoginItems、无 Helpers（`check-bundle.sh` 没有列出 nested 项）
++- 常驻进程: 主程序本身就是常驻 GUI。一键换包后，正在运行的副本继续跑旧代码，直到重启（未验证，需端到端）
++- 阻塞: 无（待端到端）
++
++## 已知问题
++- app 自带 updater（`fastframe-update`）：设置里 `check_for_updates` 默认开启（`src/settings.rs`），检查间隔 24 小时（`CHECK_INTERVAL`），下载需要用户点击（`Action::DownloadUpdate`）。duo 与它都会替换同一个 bundle；碰撞的实际结果未验证，需端到端
++- v0.4.0 及更早的变更日志标题含数字，见 Changelog（未验证）
++- GitHub 源不携带 OS 底线；今后抬高 `LSMinimumSystemVersion` 的版本，可能被提示给更低版本的 macOS（未验证）
++- 只检查了 0.11.2 与 0.12.0 两个包的 Team ID。更早版本（0.10.x 及以前，含改名前的 Fastpotify）未查，不能推断它们的 Team 与 bundle id
++
++## 如何复验
++```
++# 最新 tag（GitHub API）
++gh api repos/crmne/spotifast/releases/latest -q .tag_name          → v0.12.0
++
++# 两个 macOS 包（GitHub release 资产）
++https://github.com/crmne/spotifast/releases/download/v0.12.0/spotifast-v0.12.0-macos-universal.dmg
++  size 30390590   sha256 805704658ce48c7109b6914d1dd1a503fbd4c354f983096559dd45b8654daab6
++https://github.com/crmne/spotifast/releases/download/v0.11.2/spotifast-v0.11.2-macos-universal.dmg
++  size 30187965   sha256 dddc87349adf41371120b27243c1b619a164a45902606745ab86bce581df745d
++
++# 只读挂载后读 Info.plist（coverage-discovery/scripts/check-bundle.sh）
++rocks.spotifast.Spotifast；0.12.0 / 0.12.0；0.11.2 / 0.11.2；LSMinimumSystemVersion 11.0；无 SUFeedURL
++archs x86_64 arm64；TeamIdentifier=JPL7999US3（两版）；codesign --verify --deep --strict 退出 0（两版）；spctl Notarized Developer ID（两版）
++
++swift run --package-path application-test feed-discover <0.12.0 dmg>
++  → no Sparkle and no electron-builder update config
++
++swift run --package-path application-test channel-verify <0.11.2 dmg> --expect stable
++  → detected channel stable；winning source GitHub；latest 0.12.0；status UPDATE → 0.12.0
++swift run --package-path application-test channel-verify <0.12.0 dmg> --expect stable
++  → detected channel stable；winning source GitHub；latest 0.12.0；status up to date
++
++DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests   （按文档故意失败，写出 golden）
++swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests                              （通过）
++```
++
++## 建议下一步
++1. 端到端：由协调者串行跑 coverage-discovery Phase 5（0.11.2 → `duo install rocks.spotifast.Spotifast --yes` → 0.12.0），记录 `duo install` 输出、Team、`codesign` 与 `spctl`，回填「一键安装」
++2. rc 轨：不接。若要接，先确认 app 内是否有渠道开关（当前源码没有），再决定是否为 prerelease 单独建规则
++3. 今后新版抬高 `LSMinimumSystemVersion` 时，复核 GitHub 源对低版本 macOS 的提示行为

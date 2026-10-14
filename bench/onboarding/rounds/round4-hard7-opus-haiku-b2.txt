@@ -1,0 +1,14 @@
+single secretive claude-haiku-5-5 xhigh haiku-xhigh-b2 brief2.md
+single secretive claude-opus-5-5 xhigh opus-xhigh brief.md
+single obelisk claude-haiku-5-5 xhigh haiku-xhigh-b2 brief2.md
+single obelisk claude-opus-5-5 xhigh opus-xhigh brief.md
+single openinterminal claude-haiku-5-5 xhigh haiku-xhigh-b2 brief2.md
+single openinterminal claude-opus-5-5 xhigh opus-xhigh brief.md
+single lokii claude-haiku-5-5 xhigh haiku-xhigh-b2 brief2.md
+single lokii claude-opus-5-5 xhigh opus-xhigh brief.md
+single disktree claude-haiku-5-5 xhigh haiku-xhigh-b2 brief2.md
+single disktree claude-opus-5-5 xhigh opus-xhigh brief.md
+single spotifast claude-haiku-5-5 xhigh haiku-xhigh-b2 brief2.md
+single spotifast claude-opus-5-5 xhigh opus-xhigh brief.md
+single cindy claude-haiku-5-5 xhigh haiku-xhigh-b2 brief2.md
+single cindy claude-opus-5-5 xhigh opus-xhigh brief.md

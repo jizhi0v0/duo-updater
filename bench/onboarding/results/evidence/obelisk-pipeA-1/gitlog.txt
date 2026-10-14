@@ -1,0 +1,5 @@
+228bf04 Obelisk: detect 0.1.0-0.2.2 through GitHub releases, add a changelog fixture test
+ca756e2 Obelisk: structured changelog from GitHub releases (detection is the bundle's own Sparkle feed)
+2c49ab0 One-click updates for ad-hoc signed GitHub apps, checked by GitHub's file hash (opt-in) (#952)
+7587537 verify: update recipe baseline (#951)
+c8c4787 CLI tools: uv, Junie, Rust and global npm packages (#949)

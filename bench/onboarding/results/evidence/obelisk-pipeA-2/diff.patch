@@ -1,0 +1,282 @@
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index 2da1a4a..6662ac9 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -114,6 +114,7 @@ public enum AppRecipeIndex {
+         com_netease_uuremote.set,
+         com_nssurge_surge_mac.set,
+         com_nuebling_mac_mouse_fix.set,
++        com_obelisk_app.set,
+         com_objective_see_lulu_app.set,
+         com_openai_chat.set,
+         com_openai_codex.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-obelisk-app.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-obelisk-app.swift
+new file mode 100644
+index 0000000..dddb7c0
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-obelisk-app.swift
+@@ -0,0 +1,50 @@
++import Foundation
++
++enum com_obelisk_app {
++    static let set = AppRecipeSet(
++        family: "com-obelisk-app",
++        changelogs: [
++        // Obelisk — GitHub releases, because the appcast keeps only the newest.
++        //
++        // The bundle names its own `SUFeedURL` (`releases/latest/download/
++        // appcast-<arch>.xml`), so `SparkleAppcastSource` answers for the app and
++        // needs no recipe. What it cannot do is structure the notes: the item's
++        // `<description>` is the release body as bare Markdown, with no
++        // `sparkle:format="markdown"`, so it is neither HTML nor recognised
++        // Markdown and the pane shows it raw. The feed also holds exactly one
++        // item, so there is no history behind it.
++        //
++        // github.com/tommy0103/obelisk/releases carries that same body (byte-
++        // identical to the appcast `<description>` for v0.2.5) for every release,
++        // each with its published date, and goes through the decoder every other
++        // GitHub-sourced app uses. `skipSections` drops three headings the decoder
++        // would otherwise turn into change notes: "Included work" (merged PRs and
++        // their authors: credit, not a change), "Downloads" (v0.2.0-v0.2.2 list
++        // the asset file names as bullets) and "Installation" (v0.2.4/v0.2.5; plain
++        // paragraphs today, so it only guards a future bulleted one). The decoder's
++        // own skip list is just contributors / full changelog.
++        ChangelogRecipe(
++            bundleID: "com.obelisk.app",
++            source: URL(string: "https://api.github.com/repos/tommy0103/obelisk/releases?per_page=40")!,
++            mode: .json,
++            maxEntries: 20,
++            structuredFormat: .gitHubReleases,
++            skipSections: ["Included work", "Downloads", "Installation"]),
++        ],
++        githubRules: [
++        // Obelisk — detection for the copies that predate the updater. v0.2.4 is
++        // the first release whose bundle names a `SUFeedURL`; the published
++        // v0.1.0, v0.2.0, v0.2.1 and v0.2.2 bundles have none (v0.2.2 also has no
++        // `app-update.yml`) and are ad-hoc signed, all under the same bundle id, so
++        // nothing else resolves them. From 0.2.4 on Sparkle answers first and this
++        // rule is never reached. Detection only: those old copies carry no Team ID, and the Team
++        // ID check refuses to replace an install without one on either route
++        // (`noTeamIdentifier` on the default route, `teamIdentifierAppeared` on the
++        // hash-only route). v-tags equal `CFBundleShortVersionString`; one stable
++        // track.
++        GitHubReleaseRule(
++            bundleID: "com.obelisk.app",
++            owner: "tommy0103", repo: "obelisk",
++            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#),
++        ])
++}
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-obelisk-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-obelisk-app.txt
+new file mode 100644
+index 0000000..c6570c9
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-obelisk-app.txt
+@@ -0,0 +1,73 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "com-obelisk-app"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 1)
++changelogs[0] = struct ChangelogRecipe
++changelogs[0].bundleID = "com.obelisk.app"
++changelogs[0].source = URL("https://api.github.com/repos/tommy0103/obelisk/releases?per_page=40")
++changelogs[0].sourceTemplate = nil
++changelogs[0].versionFromTemplate = false
++changelogs[0].mode = .json
++changelogs[0].entryPattern = ""
++changelogs[0].itemPatterns = Array(count: 0)
++changelogs[0].stripTags = true
++changelogs[0].decodeEntities = true
++changelogs[0].escapedMarkup = false
++changelogs[0].markdownSource = false
++changelogs[0].maxEntries? = 20
++changelogs[0].minItemLength = 1
++changelogs[0].newestLast = false
++changelogs[0].indexLinkPattern = nil
++changelogs[0].feedPagePattern = nil
++changelogs[0].channel = nil
++changelogs[0].includesPromotedStable = false
++changelogs[0].imagePattern = nil
++changelogs[0].headingPattern = nil
++changelogs[0].minimumAppVersion = nil
++changelogs[0].belowAppVersion = nil
++changelogs[0].carriesOtherTrainEntries = false
++changelogs[0].acknowledgedStaleEntry = nil
++changelogs[0].structuredFormat? = .gitHubReleases
++changelogs[0].httpMethod = .get
++changelogs[0].requestBody = nil
++changelogs[0].skipSections = Array(count: 3)
++changelogs[0].skipSections[0] = "Included work"
++changelogs[0].skipSections[1] = "Downloads"
++changelogs[0].skipSections[2] = "Installation"
++changelogs[0].tagPattern = nil
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "com.obelisk.app"
++githubRules[0].owner = "tommy0103"
++githubRules[0].repo = "obelisk"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern = nil
++githubRules[0].installerKind = nil
++githubRules[0].installTrust = .developerID
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index b8c6c0c..0153f26 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -308,6 +308,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**DaisyDisk**](com-daisydiskapp-DaisyDiskStandAlone.md) · `com.daisydiskapp.DaisyDiskStandAlone` — S · MAS 副本 `com.daisydiskapp.DaisyDisk` 由 App Store 通用覆盖 · cask `auto_updates` 不影响，Sparkle 先应答 · 无 EdDSA（只有 DSA），通用一键 ✓（code signature + Team 闸）· 真包 4.34.2 验证 ✓ · 2026-09-14 复核
+ - [x] [**SuperCmd**](com-supercmd-SuperCmd.md) · `com.supercmd.SuperCmd` — S(v2 stable) S(v2 beta，独立 id `com.supercmd.SuperCmd.beta`、独立 feed) G(v1 `com.supercmd.app`，**detection-only**) · 同名两个 app：v2 闭源原生 Sparkle、v1 开源 Electron 已停更，版本号 1.0.0–1.0.7 两边重叠 · 三个真包验证 ✓ · 2026-09-17
+ - [x] [**ShiftBar**](com-superoutman-ShiftBar-prototype.md) · `com.superoutman.ShiftBar.prototype` — S · 单轨道（发布 workflow 断言 build 单调递增，无 prerelease 分支）· feed 内联 `sparkle:format="markdown"` notes —— **借此修了通用缺口：该属性此前从未被解析**，Markdown notes 一律落到原始文本回落 · feed 只留 1 个 item，releaseHistory 恒为 1 · arm64 + macOS 27 下限由 feed 现读 · 真包 0.1.13 验证 ✓ · 2026-09-20
++- [x] [**Obelisk**](com-obelisk-app.md) · `com.obelisk.app` — S C G(0.2.2 及更早，**仅检测**) · 0.2.4 起 bundle 自带 `SUFeedURL`（每个架构一份 feed，单 item），Sparkle 先应答 · changelog 走 GitHub releases（appcast 里是裸 Markdown，不被识别）· 真包 0.2.2 / 0.2.4 / 0.2.5 挂载验证 ✓（0.1.0 / 0.2.0 / 0.2.1 只读 Info.plist，同 bundle id、无 `SUFeedURL`）· 一键端到端未跑 · 2026-10-14
+ 
+ ## Investigated — blocked safely
+ 
+diff --git a/docs/app-audits/com-obelisk-app.md b/docs/app-audits/com-obelisk-app.md
+new file mode 100644
+index 0000000..74468ef
+--- /dev/null
++++ b/docs/app-audits/com-obelisk-app.md
+@@ -0,0 +1,117 @@
++# Obelisk
++
++## 基本信息
++- Bundle ID: `com.obelisk.app`
++- Team ID: `433DLLA855`（Developer ID Application: MOERU AI LTD），0.2.4 起；0.2.2 及更早是 ad-hoc 签名，无 Team ID
++- 观测版本: 0.2.5（`CFBundleVersion` 0.2.5），取自官方 v0.2.5 release 资产 `Obelisk-0.2.5-mac-arm64.dmg`，只读挂载读取；另取 0.2.4 dmg 作落后一版的对照、0.2.2 dmg 作更老的无 updater 版本、0.2.5 x64 dmg 看另一架构
++- 自更新机制: Sparkle 2.9.4（`electron-sparkle-updater`，Info.plist 带 `SUFeedURL`）；Sparkle 桥加载失败时回退 `electron-updater`（`app-update.yml`）
++- 架构 / OS: arm64 与 x64 各一个包，不是 universal；`LSMinimumSystemVersion` 12.0
++- 开源: `tommy0103/obelisk`（AGPL-3.0）。下面的渠道、版本方案、feed 结构都 settled from source：`docs/adr/0015-desktop-sparkle-and-electron-updater.md`、`app/src/main/update-backends.ts`、`.github/workflows/release-app.yml` on `main`
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|              | Sparkle | Homebrew | MAS  | GitHub | VendorProbe |
++|--------------|---------|----------|------|--------|-------------|
++| **stable**   | ✓（0.2.4 起） | —（无 cask） | —  | ✓（仅检测，覆盖 0.2.2 及更早） | — |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **Sparkle**（0.2.4 及以后）；0.2.2 及更早没有 `SUFeedURL`，由 **GitHub** 规则应答（仅检测）。
++
++- Sparkle：bundle 自带 `SUFeedURL`，`feed-discover` 判 `declared`，通用 `SparkleAppcastSource` 直接读，不需要版本 recipe、不需要 `ChannelBinding`。
++- ElectronManifestSource —：包里有 `app-update.yml`（`provider: github`），但 Sparkle 在链里排在它前面先应答；没有单独验证它对这个包会不会也应答。
++- Homebrew —：2026-10-14 `brew info --cask obelisk` 报 `Cask 'obelisk' is unavailable: No Cask with this name exists.`，`brew search obelisk` 只列出 `bazelisk` 与 `blisk`，没有 cask。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `com.obelisk.app` | 单一渠道 | — | — | ✓ |
++
++单渠道。settled from source：`release-app.yml` 里 tag 必须是 `vX.Y.Z` 或 `vX.Y.Z-rc.N` 这类；带 `-` 的 tag 以 `--prerelease` 发布，而 `releases/latest/download/…`（feed 地址）与 `/releases/latest` 都不返回 prerelease。截至 2026-10-14 仓库 6 个 release（v0.1.0、v0.2.0、v0.2.1、v0.2.2、v0.2.4、v0.2.5）全部非 prerelease。tag `v0.2.3` 存在，但没有对应的 GitHub release；检测读的是 release 不是 tag，不受影响。ADR 写明「The initial channel is stable」。所以没有第二条轨可接，也没有 `<sparkle:channel>` tag（feed 里没有）。
++
++## 更新检测
++- 源: `SparkleAppcastSource`（0.2.4 起）；`GitHubReleasesSource`（0.2.2 及更早，`Recipes/com-obelisk-app.swift` 的 `githubRules`）
++- 端点: `https://github.com/tommy0103/obelisk/releases/latest/download/appcast-arm64.xml`（arm64）/ `appcast-x64.xml`（x64），Info.plist 声明，每个架构的包自带自己那份地址
++- 版本方案: tag `v0.2.5` == `sparkle:version` == `sparkle:shortVersionString` == `CFBundleShortVersionString` == `CFBundleVersion`（0.2.5），不需要 `versionIsBuild`
++- OS / 架构: item 带 `<sparkle:minimumSystemVersion>12.0`，与 `LSMinimumSystemVersion` 一致；没有 `maximumSystemVersion`，没有 `hardwareRequirements`——架构靠两份 feed 分开，arm64 副本读不到 x64 的 zip
++- feed 形状（2026-10-14）：每份 appcast 只有 **1 个 `<item>`**（v0.2.5 与 v0.2.4 的资产都是），`/latest/download/` 总指向最新发布，所以 feed 里没有历史
++- 0.2.2 为什么要另一条源：v0.2.2 及更早的包没有 `SUFeedURL`、没有 `app-update.yml`、没有 Sparkle.framework，ad-hoc 签名；`channel-verify` 加规则前 0.2.2 是 `unknown (no source answered)`。release 正文也写明 0.2.2 需要手动升一次
++- 更早的版本共用同一个 bundle id（2026-10-14 读真包 Info.plist）：v0.1.0 zip（sha256 `847e056b…df47`，与 GitHub 资产 `digest` 一致）、v0.2.0 dmg（`3306cd62…03ee`）、v0.2.1 dmg（`74724c9c…d2d4`）都是 `com.obelisk.app`，`SUFeedURL` 不存在，`codesign -dvv` 为 `adhoc,linker-signed`、`TeamIdentifier=not set`，三个 sha256 都与 `gh api …/releases/tags/<tag>` 里的 `digest` 一致。0.2.0 / 0.2.1 / 0.2.2 的 `app/package.json` `appId` 也是 `com.obelisk.app`（v0.1.0 那个 tag 下没有 `app/package.json`，靠真包 Info.plist）。所以 GitHub 规则覆盖 0.1.0 到 0.2.2 全部已发布的副本
++- 没有对 0.1.0 / 0.2.0 / 0.2.1 跑 `channel-verify`：它们走 GitHub 规则应答是由「同 bundle id + `v0.1.0` 之类的 tag 满足 `versionPattern`」推出来的，只有 0.2.2 实测过（`UPDATE → 0.2.5`）
++- 注意事项: GitHub 规则的 `versionPattern` 锚成 `^v(\d+(\.\d+)+)$`，带 `-rc.N` 的 tag 不收
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 框架带（没查 applier 本身） | 无 | 不适用 |
++| 证据 | `Sparkle.framework` 2.9.4；`Autoupdate` 里 `strings` 只看到 `deltaFromSparkleExecutableSize` 等 selector 名，是栏 1 的弱证据；plist 带 `SUDeltaChainHistory = 0` | 2026-10-14 v0.2.5 的 `appcast-arm64.xml` 单个 item，只有一个 `<enclosure>`，没有 `<sparkle:deltas>`；`channel-verify` 报 `deltas 0` | — |
++
++- 格式: 未知（服务端不发）
++- 阻塞项: 无
++
++## Changelog
++- 来源: Sparkle inline `<description>`（6385 字符）+ recipe（GitHub releases）
++- 为什么 inline 不够：`<description>` 是 release 正文的**裸 Markdown**（与 GitHub release body 逐字相同，v0.2.5 比对为相同），没有 `sparkle:format="markdown"` 也不是 HTML，`SparkleAppcastSource.structuredChangelog` 解析不出来。加 recipe 前 `channel-verify` 的 `changelog pane` 行是 `raw inline notes, 6385 chars, no structure`。feed 只有 1 个 item，也没有历史
++- recipe：`ChangelogRecipe`，`api.github.com/repos/tommy0103/obelisk/releases?per_page=40`，`structuredFormat: .gitHubReleases`，`skipSections: ["Included work", "Downloads", "Installation"]`：`Included work` 是合入的 PR 与作者名单，是致谢不是改动；`Downloads` 在 v0.2.0 / v0.2.1 / v0.2.2 里是资产文件名的列表（`` `Obelisk-0.2.2-mac-arm64.dmg` `` 这类），不跳过会被当成改动条目；`Installation` 在 v0.2.4 / v0.2.5 里是纯段落、没有 bullet，今天跳不跳结果一样，只是防以后写成列表。解码器自带的跳过列表只有 `new contributors` / `contributors` / `full changelog`，并不会丢这三节
++- 加 `Downloads` 前后对比（2026-10-14，用仓库自己的 `GitHubMarkdownParser.parse` 跑真实 release 正文，临时探针已删）：只跳 `Included work` 时，0.2.2 / 0.2.1 / 0.2.0 的条目末尾是资产文件名（46 / 26 / 29 条）；加跳 `Downloads`、`Installation` 后是 43 / 24 / 27 条，末尾是真正的改动说明；0.2.5 / 0.2.4 / 0.1.0 条数不变（23 / 52 / 11）
++- 结构化（2026-10-14，`channel-verify` 的 `changelog pane` 行，0.2.4 / 0.2.5 / 0.2.2 三个包读到同一行）: `recipe changelog:com.obelisk.app:-: 6 entries; newest 0.2.5: 23 items, headings ["Highlights", "Complete session browsing", "Copilot history from Stable and Insiders", "Kiro CLI history", "Documentation and contribution guidance"]` — 小标题保留为标题，未被压平
++- 条目文本里 `**粗体**` 记号作为原样字符保留在条目开头（`**All your indexed sessions within reach`），这是 `GitHubMarkdownParser` 对所有 GitHub 源 app 的通用行为，不是本 app 的问题
++- 跟随 channel: 不适用（单渠道）
++- Recipe 状态: 已有（本次加）
++
++## 一键安装
++- 状态: **支持**，走 Sparkle 通用一键路径：enclosure 是 `Obelisk-<v>-mac-<arch>.zip`（带 `sparkle:edSignature`，包内 `SUPublicEDKey` 同时存在，`SUVerifyUpdateBeforeExtraction = true`）。仅 0.2.4 及以后的副本；0.2.2 及更早**仅检测**（见下）
++- 端到端: **未跑**。这份提交由不允许做真机安装的 agent 产出，端到端由协调者随后串行执行；本文所有安装结论只来自包的静态检查，没有 `duo install` 的结果
++- 格式: zip（feed enclosure）；同一 release 还带 dmg，dmg 挂载后是单个 `Obelisk.app` + `Applications` 链接
++- 包验（2026-10-14，均为只读挂载）:
++
++  | 包 | 版本 | Team | 公证 | codesign --verify | 架构 |
++  |---|---|---|---|---|---|
++  | `Obelisk-0.2.5-mac-arm64.dmg`（最新） | 0.2.5 | `433DLLA855` | spctl accepted / Notarized Developer ID，stapler validate 通过 | exit 0 | arm64 |
++  | `Obelisk-0.2.4-mac-arm64.dmg`（上一版） | 0.2.4 | `433DLLA855` | 同上 | exit 0 | arm64 |
++  | `Obelisk-0.2.5-mac-x64.dmg` | 0.2.5 | `433DLLA855` | 同上 | exit 0 | x86_64 |
++  | `Obelisk-0.2.2-mac-arm64.dmg`（更早） | 0.2.2 | 无（ad-hoc，linker-signed） | stapler 无票据；codesign --verify exit 1 | exit 1 | arm64 |
++
++  0.2.4 → 0.2.5 Team 一致，`SignatureVerifier` 的 Team 门会放行。上述 sha256 与 GitHub 资产 `digest` 一致。
++- **0.2.2 及更早（无 Team ID 的 ad-hoc 副本）**：Team ID 检查对没有 Team ID 的已装副本一律不放行：默认路线（本规则走的）是 `verifyTeamIdentifierMatch` 的 `noTeamIdentifier(which: "installed")`；#952 加的、仅哈希校验的路线是 `teamIdentifierAppeared`。两条路线都不会替换，要用户手动装一次。所以 GitHub 规则不设 `installAssetPattern`，只检测。这与 release 正文「0.2.2 installations require one manual upgrade」一致
++- 嵌套 app: `Contents/Frameworks` 下 4 个 Electron helper（`LSUIElement=true`，无 `LSBackgroundOnly`）与 Sparkle 的 `Updater.app`（`LSUIElement=1`）。没有 `Contents/Library/LoginItems` 或 `Contents/Helpers`；Electron helper 是主进程的子进程，不是独立常驻的登录项。没有读过 app 是否另起常驻后台服务，见「已知问题」
++- **读的是**: 人人可手动下载的 GA——enclosure 就是 GitHub Releases 页上公开的 zip，`/releases/latest/download/` 只指向最新的已发布、非 prerelease 版本，请求不带设备标识，不存在按设备灰度
++- 阻塞: 无
++
++## 已知问题
++- 端到端未跑（见上）。
++- feed 只有单个 item、无历史：`channel-verify` 的 `release history` 是 1 条；changelog 面板的多版本历史来自 recipe，不来自 feed。
++- tag `v0.2.3` 存在但没有 GitHub release；0.2.4 之前的 GitHub release 只有 arm64 dmg（v0.2.0、v0.2.1、v0.2.2）或 dmg + zip（v0.1.0），没有 appcast，也没有 x64 包。
++- 旧副本的系统下限和新包不同：v0.1.0 / v0.2.0 / v0.2.1 的 `LSMinimumSystemVersion` 是 11.0，v0.2.2 起（实测 0.2.2 / 0.2.4 / 0.2.5）是 12.0，v0.2.2 的 release 正文也写「macOS now requires macOS 12」。`GitHubReleaseRule` 无法表达最低系统版本，所以一台 macOS 11 上的 0.1.0 / 0.2.0 / 0.2.1 会被告知升到跑不了的 0.2.5。规则只检测、不安装，影响只是提示不准，没有东西会被装上
++- 没有检查 app 是否有 helper 之外的常驻后台进程（比如索引 worker 在退出后继续运行）。
++
++## 如何复验
++
++```sh
++swift run --package-path application-test feed-discover <Obelisk-0.2.4-mac-arm64.dmg>
++swift run --package-path application-test channel-verify <Obelisk-0.2.4-mac-arm64.dmg> --expect stable
++swift run --package-path application-test channel-verify <Obelisk-0.2.5-mac-arm64.dmg> --expect stable
++swift run --package-path application-test channel-verify <Obelisk-0.2.2-mac-arm64.dmg> --expect stable
++.claude/skills/coverage-discovery/scripts/check-bundle.sh <Obelisk-0.2.5-mac-arm64.dmg>
++```
++
++2026-10-14 实测：
++- `feed-discover`（0.2.4 dmg）：`declared  https://github.com/tommy0103/obelisk/releases/latest/download/appcast-arm64.xml`，`SparkleAppcastSource already resolves this app`。
++- `channel-verify --expect stable`：
++  - 0.2.4：detected stable、winning source Sparkle、latest 0.2.5、download `https://github.com/tommy0103/obelisk/releases/download/v0.2.5/Obelisk-0.2.5-mac-arm64.zip`、`status UPDATE → 0.2.5`
++  - 0.2.5：winning source Sparkle、latest 0.2.5、`status up to date`
++  - 0.2.2：`SUFeedURL <none>`；加 GitHub 规则前 `winning source <none>`、`status unknown (no source answered)`；加后 winning source GitHub、latest 0.2.5、`status UPDATE → 0.2.5`
++- 加 changelog recipe 前，0.2.4 的 `changelog pane  raw inline notes, 6385 chars, no structure`；加后见上面「结构化」。
++- 包的 sha256 与 `gh api repos/tommy0103/obelisk/releases/tags/<tag>` 里资产的 `digest` 四个都一致（0.2.5 arm64 `a54f0349…e6110f`、0.2.4 arm64 `10574ea0…7ea2c`、0.2.2 arm64 `fb23f68c…43ee`、0.2.5 x64 `fcf8b6c6…63c7`）。
++
++检查过的资产地址：
++- `https://github.com/tommy0103/obelisk/releases/download/v0.2.5/Obelisk-0.2.5-mac-arm64.dmg`（与同 release 的 `.zip`、`appcast-arm64.xml`、`appcast-x64.xml`）
++- `https://github.com/tommy0103/obelisk/releases/download/v0.2.4/Obelisk-0.2.4-mac-arm64.dmg`
++- `https://github.com/tommy0103/obelisk/releases/download/v0.2.2/Obelisk-0.2.2-mac-arm64.dmg`
++- `https://github.com/tommy0103/obelisk/releases/download/v0.2.5/Obelisk-0.2.5-mac-x64.dmg`
++
++## 建议下一步
++1. 协调者串行跑端到端：装 0.2.4 → `duo check` → `duo install --yes` → 核 0.2.5、Team `433DLLA855`、`codesign --verify`、`spctl`，把结果写进「一键安装」并替换「未跑」。
++2. 厂商若发 `-rc` / `-beta` tag（带 `-` 的 tag 会成 prerelease），再看是否出现第二条轨；目前没有。

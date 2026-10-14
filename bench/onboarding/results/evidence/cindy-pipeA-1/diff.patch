@@ -1,0 +1,1157 @@
+diff --git a/CHANNEL_COVERAGE_TODO.md b/CHANNEL_COVERAGE_TODO.md
+index 9865b03..53b58c0 100644
+--- a/CHANNEL_COVERAGE_TODO.md
++++ b/CHANNEL_COVERAGE_TODO.md
+@@ -226,6 +226,14 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
+ > 以下 app 有明确 in-app channel toggle，但切换后是否留下可读的本地信号（defaults/plist）
+ > 仍需真机 diff 确认。不要直接标为 detectable。
+ 
++- [ ] **Cindy — Beta**（canary 另记） · `com.xd.cindy`（cn 版 `com.xd.cindycn`）— 设置页的 beta 开关是
++      **设备级本地偏好**，落盘 `userData/update-channel-settings.json`（global 目录 `CindyGlobal`，cn 目录 `Cindy`）：
++      有效值 = `enableBeta` 在 `customizedKeys` 里则取它，否则取 `orgDefaultEnableBeta`（xd 组织登录后默认开）。
++      源码确认（`updateChannelStore.ts`），**磁盘上真实 JSON 形状没见过**，待真机确认后写 `CindyChannel`。
++      包本身读不出 beta（0.1.108-beta 的 plist 与 stable 相同）。beta 来源已就绪：GitHub `-beta` prerelease、
++      `manifest-darwin-<arch>-beta.json`（两区域，0.1.108）。canary（`manifest-…-canary.json`，账号级服务端 flag，
++      无 GitHub tag）只在 CDN，未接入。见 `docs/app-audits/com-xd-cindy.md`。
++
+ - [x] **IINA** · `com.colliderli.iina` — Preferences → General → **"Receive beta updates"**
+       checkbox。源码确认 UserDefaults key 为 `receiveBetaUpdate`（Bool，默认 false）。
+       真机验证：切换后 `defaults read com.colliderli.iina receiveBetaUpdate` 返回 `1`。
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index f692b68..308dfae 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -178,6 +178,7 @@ public enum AppRecipeIndex {
+         com_vscodium.set,
+         com_windscribe_client.set,
+         com_workbuddy_workbuddy_ai.set,
++        com_xd_cindy.set,
+         com_xingyuzhong_deepseekgui.set,
+         com_yetone_magpie.set,
+         com_youqu_todesk_mac.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-xd-cindy.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-xd-cindy.swift
+new file mode 100644
+index 0000000..97f8659
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-xd-cindy.swift
+@@ -0,0 +1,137 @@
++import Foundation
++
++enum com_xd_cindy {
++    static let set = AppRecipeSet(
++        family: "com-xd-cindy",
++        probes: [
++        // Cindy cn (`com.xd.cindycn`, Team NTC4BJ542G) — the app's own update
++        // manifest. The cn edition cannot be a second GitHub rule: the rule's
++        // `recipeID` is `github:<owner>/<repo>:<channel>`, so it would share a health
++        // row with the global rule. A vendor probe's id carries the bundle id.
++        //
++        // The base URL is in the package: the build bakes
++        // `ENDPOINT_MANIFEST_BASE_URL` (`shared/endpoints.ts`), and the app reads
++        // `<base>/endpoint.json`, whose `cdnBaseUrl` for cn is
++        // `https://hotfix.cindy.com.cn/cindy`. The stable manifests are public and
++        // take no device or account id (`manifestService.ts` appends only a
++        // cache-busting `?t=`): `manifest-darwin-<arch>.json`. The track is the
++        // GitHub stable release: its `app.installer.sha256` equals the GitHub asset
++        // digest of `cindy-<ver>-darwin-<arch>-cn.dmg`, and the file is a public
++        // download. The beta and canary tracks are other files (`-beta`, `-canary`),
++        // never read here.
++        //
++        // The body also carries `codex`, `claudeCode`, `pi` and `codexPackage` blocks
++        // with their own `"version"` keys, so every pattern is anchored inside
++        // `"app"` / `"installer"`. `app.version` is the marketing string
++        // (== CFBundleShortVersionString == CFBundleVersion on 0.1.103 and 0.1.104).
++        // arm64 and x64 are separate manifests and separate dmgs, hence one recipe
++        // per architecture, told apart by `variant` and `hostRequirement`.
++        // One-click: Developer ID, notarized, the same Team on 0.1.103 and 0.1.104;
++        // the digest is hex SHA-256 and was checked against the downloaded dmg.
++        VendorProbeRecipe(
++            bundleID: "com.xd.cindycn",
++            url: URL(string: "https://hotfix.cindy.com.cn/cindy/manifest-darwin-arm64.json")!,
++            mode: .responseBody,
++            versionPattern: #""app"\s*:\s*\{\s*"version"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
++            downloadURL: URL(string: "https://cindy.com.cn/download/"),
++            changelogURL: URL(string: "https://github.com/makecindy/cindy/releases"),
++            install: VendorInstallSpec(
++                urlSource: .bodyPatternRelative(
++                    #""installer"\s*:\s*\{\s*"file"\s*:\s*"(app/darwin-arm64/cindy-[0-9.]+-arm64\.dmg)""#,
++                    base: URL(string: "https://hotfix.cindy.com.cn/cindy/")!),
++                kind: .dmg,
++                checksumPattern:
++                    #""installer"\s*:\s*\{\s*"file"\s*:\s*"app/darwin-arm64/cindy-[0-9.]+-arm64\.dmg"\s*,\s*"sha256"\s*:\s*"([0-9a-f]{64})""#,
++                checksumFormat: .sha256Hex),
++            variant: "arm64",
++            hostRequirement: VendorHostRequirement(architectures: [.arm64])),
++        VendorProbeRecipe(
++            bundleID: "com.xd.cindycn",
++            url: URL(string: "https://hotfix.cindy.com.cn/cindy/manifest-darwin-x64.json")!,
++            mode: .responseBody,
++            versionPattern: #""app"\s*:\s*\{\s*"version"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
++            downloadURL: URL(string: "https://cindy.com.cn/download/"),
++            changelogURL: URL(string: "https://github.com/makecindy/cindy/releases"),
++            install: VendorInstallSpec(
++                urlSource: .bodyPatternRelative(
++                    #""installer"\s*:\s*\{\s*"file"\s*:\s*"(app/darwin-x64/cindy-[0-9.]+-x64\.dmg)""#,
++                    base: URL(string: "https://hotfix.cindy.com.cn/cindy/")!),
++                kind: .dmg,
++                checksumPattern:
++                    #""installer"\s*:\s*\{\s*"file"\s*:\s*"app/darwin-x64/cindy-[0-9.]+-x64\.dmg"\s*,\s*"sha256"\s*:\s*"([0-9a-f]{64})""#,
++                checksumFormat: .sha256Hex),
++            variant: "x64",
++            hostRequirement: VendorHostRequirement(architectures: [.x86_64])),
++        ],
++        changelogs: [
++        // Cindy — release bodies from the releases API. Bodies are Markdown:
++        // a `## 更新说明` heading over `###` sections, then a `## PRs` list of pull
++        // request links and a `---` block of build metadata (commit, source tag,
++        // mobile build numbers). Neither tail is release notes, so `PRs` is skipped.
++        // `.gitHubReleases` with no channel keeps stable releases only, which is
++        // the split this rule makes too: the `-beta` releases are prereleases.
++        // One release carries both regions' dmgs, so `com.xd.cindycn` reads the same
++        // list. The releases API orders by creation date, not version (v0.1.85 sits
++        // above v0.1.86), and the decoder keeps that order.
++        ChangelogRecipe(
++            bundleID: "com.xd.cindy",
++            source: URL(string: "https://api.github.com/repos/makecindy/cindy/releases?per_page=40")!,
++            mode: .json,
++            maxEntries: 20,
++            structuredFormat: .gitHubReleases,
++            skipSections: ["PRs"]),
++        ChangelogRecipe(
++            bundleID: "com.xd.cindycn",
++            source: URL(string: "https://api.github.com/repos/makecindy/cindy/releases?per_page=40")!,
++            mode: .json,
++            maxEntries: 20,
++            structuredFormat: .gitHubReleases,
++            skipSections: ["PRs"]),
++        ],
++        githubRules: [
++        // Cindy (makecindy/cindy) — an Electron app (Electron Forge, not
++        // electron-builder: no `app-update.yml`, no Sparkle, no `SUFeedURL`). Its own
++        // updater reads `manifest-<platform>-<arch>[-beta|-canary].json` from a vendor
++        // CDN (`manifestService.ts`) and downloads a hot-fix zip from there; the
++        // public GitHub release is the source for the global edition, and the cn
++        // edition's manifest is the probe above.
++        //
++        // Two regions, two identities (`forge.config.ts`: appId derives from the
++        // region): global `com.xd.cindy` (Team SX9RG894L5) and mainland-China
++        // `com.xd.cindycn` (Team NTC4BJ542G). Each release has four macOS dmgs,
++        // `cindy-<ver>-darwin-<arm64|x64>-<global|cn>.dmg`, arm64 and x64 apart
++        // (`lipo` says single-arch), so the pattern admits both arches and
++        // `installableAsset` picks the host's. The region is in the file name, so
++        // this pattern pins `global`; a global install is never offered the cn dmg
++        // (different Team, the gate would refuse it anyway).
++        //
++        // Only the global bundle id is a GitHub rule: a cn rule would be a second
++        // stable rule on the same repo, and `GitHubReleaseRule.recipeID` is
++        // `github:<owner>/<repo>:<channel>`, so both would write one health row
++        // (`rulesSharingASlugRecordSeparateHealthEntries` fails).
++        //
++        // Stable only. `vX.Y.Z` tags are stable releases; `vX.Y.Z-beta` tags are
++        // `prerelease: true` and `/releases/latest` skips them. The beta track is a
++        // per-device switch inside the app, and the beta bundle is the same
++        // `com.xd.cindy` / same Team / same plist keys as stable, so a beta install
++        // cannot be told apart from the bundle — beta is not tracked (the switch is a
++        // device-local file, `userData/update-channel-settings.json`; see the audit).
++        // A beta copy is offered a stable release only when that is newer than it,
++        // which the next graduation (beta numbers run ahead of stable) will be.
++        // The anchored tag is the backstop for the same split: `-beta` is refused
++        // even if a beta were ever published without the prerelease flag.
++        //
++        // `v1.0.0` is a source-snapshot release (stable flag, no assets). The asset
++        // pattern leaves it nothing to match, and it sits last in the list.
++        //
++        // short == build == tag without the `v` on every package measured.
++        // One-click: Developer ID, notarized, the same Team on 0.1.103 and 0.1.104
++        // in both regions. GitHub publishes a sha256 digest for every asset.
++        GitHubReleaseRule(
++            bundleID: "com.xd.cindy",
++            owner: "makecindy", repo: "cindy",
++            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#,
++            installAssetPattern: #"^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-global\.dmg$"#,
++            installerKind: .dmg),
++        ])
++}
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CindyGitHubRuleTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CindyGitHubRuleTests.swift
+new file mode 100644
+index 0000000..89f4a94
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CindyGitHubRuleTests.swift
+@@ -0,0 +1,415 @@
++import Foundation
++import Testing
++
++@testable import DuoUpdaterCore
++
++/// Cindy (`Recipes/com-xd-cindy.swift`): the global region's bundle id through the
++/// GitHub release, and the cn region (`com.xd.cindycn`) through the vendor's own
++/// update manifest (a second GitHub rule would share the global rule's health row).
++///
++/// The release list below is the shape makecindy/cindy really publishes
++/// (2026-10-14): `-beta` releases flagged `prerelease: true` interleaved with
++/// stable ones, four macOS dmgs per release (`arm64`/`x64` × `global`/`cn`), and
++/// an assetless stable `v1.0.0` source snapshot at the far end.
++@Suite struct CindyGitHubRuleTests {
++
++    static let bundleIDs = ["com.xd.cindy"]
++
++    private static func region(_ bundleID: String) -> String { "global" }
++
++    private static func rule(_ bundleID: String) -> GitHubReleaseRule? {
++        GitHubReleaseRegistry.rules.first { $0.bundleID == bundleID }
++    }
++
++    @Test(arguments: bundleIDs)
++    func ruleReadsTheStableTagAndTheGlobalDmgsOnly(_ bundleID: String) throws {
++        let rule = try #require(Self.rule(bundleID), "no GitHubReleaseRule for \(bundleID)")
++        let region = Self.region(bundleID)
++        #expect(rule.owner == "makecindy" && rule.repo == "cindy")
++        #expect(rule.channel == .stable && !rule.usePrereleases)
++        #expect(rule.installerKind == .dmg)
++        let pattern = try #require(rule.installAssetPattern)
++        func extract(_ tag: String) -> String? {
++            VendorProbeRecipe.extractVersion(from: tag, pattern: rule.versionPattern)
++        }
++        func matches(_ name: String) -> Bool {
++            name.range(of: pattern, options: .regularExpression) != nil
++        }
++
++        #expect(extract("v0.1.104") == "0.1.104")
++        #expect(extract("v0.1.108-beta") == nil)
++
++        #expect(matches("cindy-0.1.104-darwin-arm64-\(region).dmg"))
++        #expect(matches("cindy-0.1.104-darwin-x64-\(region).dmg"))
++        #expect(!matches("cindy-0.1.104-darwin-arm64-cn.dmg"))
++        #expect(!matches("cindy-0.1.104-darwin-x64-cn.dmg"))
++        #expect(!matches("cindy-0.1.104-linux-x64-\(region).deb"))
++        #expect(!matches("cindy-0.1.104-win32-x64-\(region).exe"))
++    }
++
++    // MARK: - The real list through the source
++
++    /// Newest first: `(tag, prerelease, assetNames)`.
++    private static let releases: [(String, Bool, [String])] = [
++        ("v0.1.108-beta", true, dmgs("0.1.108")),
++        ("v0.1.106-beta", true, dmgs("0.1.106")),
++        ("v0.1.104", false, dmgs("0.1.104")),
++        ("v0.1.103", false, dmgs("0.1.103")),
++        ("v1.0.0", false, []),
++    ]
++
++    private static func dmgs(_ version: String) -> [String] {
++        ["arm64", "x64"].flatMap { arch in
++            ["cn", "global"].map { "cindy-\(version)-darwin-\(arch)-\($0).dmg" }
++        } + ["cindy-\(version)-linux-x64-global.deb", "cindy-\(version)-win32-x64-global.exe"]
++    }
++
++    final class StubReleases: URLProtocol, @unchecked Sendable {
++        override class func canInit(with request: URLRequest) -> Bool { true }
++        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
++
++        override func startLoading() {
++            let url = request.url?.absoluteString ?? ""
++            let all = CindyGitHubRuleTests.releases
++            if url.contains("/releases/latest") {
++                // GitHub's `latest` skips prereleases.
++                respond(Data("{\(Self.fields(all.first { !$0.1 }!))}".utf8))
++                return
++            }
++            let perPage = URLComponents(string: url)?.queryItems?
++                .first { $0.name == "per_page" }?.value.flatMap(Int.init) ?? all.count
++            let page = all.prefix(perPage).map { "{\(Self.fields($0))}" }
++            respond(Data("[\(page.joined(separator: ","))]".utf8))
++        }
++
++        private static func fields(_ release: (String, Bool, [String])) -> String {
++            let assets = release.2.map {
++                """
++                {"name":"\($0)","browser_download_url":\
++                "https://github.com/makecindy/cindy/releases/download/\(release.0)/\($0)",\
++                "size":1000}
++                """
++            }
++            return """
++            "tag_name":"\(release.0)","name":"\(release.0)","draft":false,\
++            "prerelease":\(release.1),"published_at":"2026-10-12T00:00:00Z",\
++            "html_url":"https://github.com/makecindy/cindy/releases/tag/\(release.0)",\
++            "body":"notes","assets":[\(assets.joined(separator: ","))]
++            """
++        }
++
++        private func respond(_ data: Data) {
++            let response = HTTPURLResponse(
++                url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
++                headerFields: ["Content-Type": "application/json"])!
++            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
++            client?.urlProtocol(self, didLoad: data)
++            client?.urlProtocolDidFinishLoading(self)
++        }
++
++        override func stopLoading() {}
++    }
++
++    private func resolve(
++        _ bundleID: String, arch: HostArch
++    ) async throws -> ProbeOutcome {
++        let rule = try #require(Self.rule(bundleID))
++        let config = URLSessionConfiguration.ephemeral
++        config.protocolClasses = [StubReleases.self]
++        let source = GitHubReleasesSource(
++            rules: [rule], session: URLSession(configuration: config))
++        return await source.resolveDiagnostic(
++            rule, preferring: arch, allowingIntelTranslation: false)
++    }
++
++    @Test(arguments: bundleIDs)
++    func appleSiliconGetsItsRegionsArm64Dmg(_ bundleID: String) async throws {
++        let outcome = try await resolve(bundleID, arch: .arm64)
++        #expect(outcome.failure == nil)
++        #expect(outcome.remote?.shortVersion == "0.1.104")
++        #expect(outcome.remote?.downloadURL?.lastPathComponent
++                == "cindy-0.1.104-darwin-arm64-\(Self.region(bundleID)).dmg")
++    }
++
++    @Test(arguments: bundleIDs)
++    func intelGetsItsRegionsX64Dmg(_ bundleID: String) async throws {
++        let outcome = try await resolve(bundleID, arch: .x86_64)
++        #expect(outcome.failure == nil)
++        #expect(outcome.remote?.shortVersion == "0.1.104")
++        #expect(outcome.remote?.downloadURL?.lastPathComponent
++                == "cindy-0.1.104-darwin-x64-\(Self.region(bundleID)).dmg")
++    }
++
++    // MARK: - Release notes
++
++    /// The shape of a real body (v0.1.104, shortened): a title line, `###` sections
++    /// under `## 更新说明`, then a `## PRs` link list and a `---` metadata block.
++    private static let releaseBody = """
++        Desktop release 0.1.104
++
++        ## 更新说明
++        ### 🧩 供应商组自动换机
++        供应商组现在会自己挑一台能用的电脑运行任务。 @MagicLizi
++
++        ### ⬆️ 让 Agent 帮你更新 Cindy
++        现在可以在对话里让 Cindy 自己升级。 @dashhuang
++
++
++        ## PRs
++        [#5506](https://github.com/makecindy/cindy/pull/5506) [#5690](https://github.com/makecindy/cindy/pull/5690)
++
++        ---
++        - commit: `ebf092dc3fb9dfa3ad25b10258979c0bcd396634`
++        - source tag: `beta2026-10-12_12-43-52`
++        - regions: cn global
++        """
++
++    private static func listJSON() throws -> String {
++        let rows: [[String: Any]] = [
++            ["tag_name": "v0.1.108-beta", "prerelease": true, "draft": false,
++             "published_at": "2026-10-14T04:10:00Z", "body": "## 更新说明\n### 🧪 beta only\nbeta note"],
++            ["tag_name": "v0.1.104", "prerelease": false, "draft": false,
++             "published_at": "2026-10-12T04:56:47Z", "body": releaseBody],
++        ]
++        return String(decoding: try JSONSerialization.data(withJSONObject: rows), as: UTF8.self)
++    }
++
++    @Test(arguments: bundleIDs)
++    func recipeKeepsTheSectionHeadingsAndDropsTheBetaAndTheLinkList(_ bundleID: String) throws {
++        let recipe = try #require(
++            ChangelogRecipeRegistry.recipes.first { $0.bundleID == bundleID })
++        #expect(recipe.structuredFormat == .gitHubReleases)
++        let log = try #require(StructuredChangelogDecoder.decode(
++            try Self.listJSON(), format: .gitHubReleases, channel: nil,
++            maxEntries: recipe.maxEntries, skipSections: recipe.skipSections))
++
++        // The prerelease's notes describe a build a stable install was never shown.
++        #expect(log.entries.map(\.version) == ["0.1.104"])
++        let entry = log.entries[0]
++        let headings = entry.content.compactMap { block -> String? in
++            if case .heading(let text) = block { return text }
++            return nil
++        }
++        #expect(headings == ["🧩 供应商组自动换机", "⬆️ 让 Agent 帮你更新 Cindy"])
++        let text = entry.items.joined(separator: "\n")
++        #expect(!text.contains("pull/5506"))
++        #expect(!text.contains("source tag"))
++    }
++
++    // MARK: - cn: the vendor manifest
++
++    /// `https://hotfix.cindy.com.cn/cindy/manifest-darwin-<arch>.json`, fetched
++    /// 2026-10-14. The `codex`, `claudeCode`, `pi` and `codexPackage` blocks carry
++    /// their own `"version"` keys ahead of `app`.
++    private static let armManifest = #"""
++{
++  "codex": {
++    "version": "0.145.0",
++    "file": "codex/0.145.0/darwin-arm64/codex.gz",
++    "sha256": "c879b85129dac1b1199a0833da572fa2c42de878ee96ff03b344e458c8e9cbc1",
++    "size": 105756863,
++    "binarySha256": "1da3f4e0e96028b8a771814293c3033dafd1971f943f6c7e79b0897fe705f590"
++  },
++  "claudeCode": {
++    "version": "2.1.296",
++    "file": "claude-code/2.1.296/darwin-arm64/claude.gz",
++    "sha256": "55d0a80f327670eb52fdce8b304ae89cc6d6b88f1834ece242a94cf81bf2a075",
++    "size": 105099541,
++    "binarySha256": "c9b5341637becbd423ddffc5b254afb645682a3868cb708bbc6cc0e7bb419937"
++  },
++  "app": {
++    "version": "0.1.104",
++    "installer": {
++      "file": "app/darwin-arm64/cindy-0.1.104-arm64.dmg",
++      "sha256": "8f0704e311a4c960a202cb632cf1b8d164f095d9354eee62d9c8475d9cf46331",
++      "size": 305173888
++    },
++    "hotfix": {
++      "file": "hotfix/darwin-arm64/cindy-0.1.104-arm64-hotfix.zip",
++      "sha256": "ef719de4bc6fe2eb9ee9f14cf703ae4b96ef91440f1660cb876af725d1e73939",
++      "size": 278776768
++    }
++  },
++  "pi": {
++    "version": "1.0.2",
++    "file": "pi/1.0.2/darwin-arm64/pi.dist.tar.gz",
++    "sha256": "33408a2f5cf2f51661b59fc3faa9eaaeebfde1bf110bb30cb56cd314e481e7d2",
++    "size": 31694994
++  },
++  "codexPackage": {
++    "version": "0.159.2",
++    "file": "codex-package/0.159.2/darwin-arm64/codex-package.dist.tar.gz",
++    "sha256": "a1e58a10ac3c7e5345342f93504a7628e98283d91a91bddab747c40b1c1981bc",
++    "size": 133851150
++  }
++}
++"""#
++
++    private static let x64Manifest = #"""
++{
++  "codex": {
++    "version": "0.145.0",
++    "file": "codex/0.145.0/darwin-x64/codex.gz",
++    "sha256": "b4c4cb41dd89359aad5ccd5772498146509955e4176c2760ad82b10685dff330",
++    "size": 113308865,
++    "binarySha256": "6db9193ce2c9a8cef2b5482612cde24202a4329dfc34f4687a036d5d7da619af"
++  },
++  "claudeCode": {
++    "version": "2.1.296",
++    "file": "claude-code/2.1.296/darwin-x64/claude.gz",
++    "sha256": "1492fb847a6847049c26ca10d1a4c5000da1b0fd748f48ee43c85a9dc5fe1ca3",
++    "size": 109247645,
++    "binarySha256": "a6bf4f30be241053a923f3820ad23c5991d2f5ac2935b3a8dd64da218d9cc603"
++  },
++  "app": {
++    "version": "0.1.104",
++    "installer": {
++      "file": "app/darwin-x64/cindy-0.1.104-x64.dmg",
++      "sha256": "565f86c74382d22b5a2423053b58224915f904c80aa04da173ea032f2d71f1a5",
++      "size": 318329560
++    },
++    "hotfix": {
++      "file": "hotfix/darwin-x64/cindy-0.1.104-x64-hotfix.zip",
++      "sha256": "6b939d9435c0a1ceba77b913145839902eac7a7f49b0b4139a1deb88d48cfb91",
++      "size": 290150355
++    }
++  },
++  "pi": {
++    "version": "1.0.2",
++    "file": "pi/1.0.2/darwin-x64/pi.dist.tar.gz",
++    "sha256": "2489a68bda60bbd8bc77e00fed1468d1264de265458cfc5e15a9d7cd6ec9e218",
++    "size": 33738228
++  },
++  "codexPackage": {
++    "version": "0.159.2",
++    "file": "codex-package/0.159.2/darwin-x64/codex-package.dist.tar.gz",
++    "sha256": "3efacaf10c241fd218ded18a3557a463e00b0f22554bebd587ee648a5fb2282f",
++    "size": 142921576
++  }
++}
++"""#
++
++    /// The beta manifest (`manifest-darwin-arm64-beta.json`): same shape, other
++    /// version. No recipe reads it; kept to show the stable pattern would read its
++    /// number if it were ever pointed there.
++    private static let betaManifest = #"""
++{
++  "codex": {
++    "version": "0.145.0",
++    "file": "codex/0.145.0/darwin-arm64/codex.gz",
++    "sha256": "c879b85129dac1b1199a0833da572fa2c42de878ee96ff03b344e458c8e9cbc1",
++    "size": 105756863,
++    "binarySha256": "1da3f4e0e96028b8a771814293c3033dafd1971f943f6c7e79b0897fe705f590"
++  },
++  "claudeCode": {
++    "version": "2.1.296",
++    "file": "claude-code/2.1.296/darwin-arm64/claude.gz",
++    "sha256": "55d0a80f327670eb52fdce8b304ae89cc6d6b88f1834ece242a94cf81bf2a075",
++    "size": 105099541,
++    "binarySha256": "c9b5341637becbd423ddffc5b254afb645682a3868cb708bbc6cc0e7bb419937"
++  },
++  "app": {
++    "version": "0.1.108",
++    "installer": {
++      "file": "app/darwin-arm64/cindy-0.1.108-arm64.dmg",
++      "sha256": "62f20149e0683e5c9d98efc9cdc4701f187c4e555f4271acd2958915f66689d4",
++      "size": 311505569
++    },
++    "hotfix": {
++      "file": "hotfix/darwin-arm64/cindy-0.1.108-arm64-hotfix.zip",
++      "sha256": "196f944e236d83ee9e11f7f7b75c6cc5adf569d9b16a8d3a8854039d0e6c6264",
++      "size": 284596354
++    }
++  },
++  "pi": {
++    "version": "1.0.2",
++    "file": "pi/1.0.2/darwin-arm64/pi.dist.tar.gz",
++    "sha256": "33408a2f5cf2f51661b59fc3faa9eaaeebfde1bf110bb30cb56cd314e481e7d2",
++    "size": 31694994
++  },
++  "codexPackage": {
++    "version": "0.159.2",
++    "file": "codex-package/0.159.2/darwin-arm64/codex-package.dist.tar.gz",
++    "sha256": "a1e58a10ac3c7e5345342f93504a7628e98283d91a91bddab747c40b1c1981bc",
++    "size": 133851150
++  }
++}
++"""#
++
++    private static func cnProbe(_ variant: String) throws -> VendorProbeRecipe {
++        try #require(VendorProbeRegistry.recipes.first {
++            $0.bundleID == "com.xd.cindycn" && $0.variant == variant
++        })
++    }
++
++    @Test func cnIsOneStableProbePerArchitecture() throws {
++        let arm = try Self.cnProbe("arm64")
++        let x64 = try Self.cnProbe("x64")
++        #expect(arm.channel == .stable && x64.channel == .stable)
++        #expect(arm.recipeID == "vendor:com.xd.cindycn:stable:arm64")
++        #expect(x64.recipeID == "vendor:com.xd.cindycn:stable:x64")
++        #expect(arm.url.absoluteString == "https://hotfix.cindy.com.cn/cindy/manifest-darwin-arm64.json")
++        #expect(x64.url.absoluteString == "https://hotfix.cindy.com.cn/cindy/manifest-darwin-x64.json")
++        #expect(arm.runs(onOS: "14.0.0", arch: .arm64) && !arm.runs(onOS: "14.0.0", arch: .x86_64))
++        #expect(x64.runs(onOS: "14.0.0", arch: .x86_64) && !x64.runs(onOS: "14.0.0", arch: .arm64))
++        #expect(arm.install?.kind == .dmg && x64.install?.kind == .dmg)
++        #expect(arm.install?.checksumFormat == .sha256Hex)
++        #expect(x64.install?.checksumFormat == .sha256Hex)
++    }
++
++    @Test(arguments: ["arm64", "x64"])
++    func cnPatternsReadTheAppBlockNotTheBundledToolsOnes(_ variant: String) throws {
++        let recipe = try Self.cnProbe(variant)
++        let body = variant == "arm64" ? Self.armManifest : Self.x64Manifest
++        // `codex` (0.145.0) and `claudeCode` (2.1.296) come first in the body.
++        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern) == "0.1.104")
++
++        let spec = try #require(recipe.install)
++        guard case let .bodyPatternRelative(filePattern, base) = spec.urlSource else {
++            Issue.record("expected a bodyPatternRelative install source"); return
++        }
++        #expect(base.absoluteString == "https://hotfix.cindy.com.cn/cindy/")
++        let file = try #require(VendorProbeRecipe.extractVersion(from: body, pattern: filePattern))
++        #expect(file == "app/darwin-\(variant)/cindy-0.1.104-\(variant).dmg")
++
++        // The digests the GitHub assets of the same two dmgs publish, and that the
++        // downloaded files hash to.
++        let checksumPattern = try #require(spec.checksumPattern)
++        let digest = try #require(VendorProbeRecipe.extractVersion(from: body, pattern: checksumPattern))
++        #expect(digest == (variant == "arm64"
++            ? "8f0704e311a4c960a202cb632cf1b8d164f095d9354eee62d9c8475d9cf46331"
++            : "565f86c74382d22b5a2423053b58224915f904c80aa04da173ea032f2d71f1a5"))
++    }
++
++    /// Each architecture's patterns are pinned to its own directory, so a body
++    /// served for the other architecture reads no install URL and no digest rather
++    /// than the wrong one.
++    @Test func cnInstallPatternsDoNotReadTheOtherArchitecturesBody() throws {
++        for (variant, foreign) in [("arm64", Self.x64Manifest), ("x64", Self.armManifest)] {
++            let probe = try Self.cnProbe(variant)
++            let spec = try #require(probe.install)
++            let checksumPattern = try #require(spec.checksumPattern)
++            guard case let .bodyPatternRelative(filePattern, _) = spec.urlSource else {
++                Issue.record("expected a bodyPatternRelative install source"); return
++            }
++            #expect(VendorProbeRecipe.extractVersion(from: foreign, pattern: filePattern) == nil)
++            #expect(VendorProbeRecipe.extractVersion(from: foreign, pattern: checksumPattern) == nil)
++        }
++    }
++
++    @Test func cnVersionPatternIsAnchoredInsideTheAppBlock() throws {
++        let pattern = try Self.cnProbe("arm64").versionPattern
++        // Without the anchor the first `"version"` in the body is codex's.
++        #expect(VendorProbeRecipe.extractVersion(from: Self.betaManifest, pattern: pattern) == "0.1.108")
++        #expect(VendorProbeRecipe.extractVersion(
++            from: Self.armManifest, pattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#) == "0.145.0")
++    }
++
++    @Test func cnReadsTheReleaseNotesTheGlobalRecipeDoes() throws {
++        let cn = try #require(ChangelogRecipeRegistry.recipes.first { $0.bundleID == "com.xd.cindycn" })
++        let global = try #require(ChangelogRecipeRegistry.recipes.first { $0.bundleID == "com.xd.cindy" })
++        #expect(cn.source == global.source && cn.structuredFormat == .gitHubReleases)
++        #expect(cn.skipSections == ["PRs"])
++    }
++}
++
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift
+index 47f3704..67fffca 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift
+@@ -130,6 +130,9 @@ struct GitHubAssetSelectionTests {
+         // magpie: one zip per architecture under every tag (v0.1.1084).
+         (#"^magpie-darwin-(?:arm64|amd64)\.zip$"#,
+          ["magpie-darwin-amd64.zip", "magpie-darwin-arm64.zip"]),
++        // Cindy: one dmg per architecture under one tag (v0.1.104), per region.
++        (#"^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-global\.dmg$"#,
++         ["cindy-0.1.104-darwin-arm64-global.dmg", "cindy-0.1.104-darwin-x64-global.dmg"]),
+     ]
+ 
+     /// Registry patterns whose alternation chooses between TAGS rather than
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/RaycastReleasesTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/RaycastReleasesTests.swift
+index e81a0c3..ab9ff76 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/RaycastReleasesTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/RaycastReleasesTests.swift
+@@ -122,6 +122,9 @@ private let raycastChangelogFixture = #"""
+             "vendor:com.workbuddy.workbuddy-ai:stable:x64",
+             "vendor:com.tencent.workbuddy.mac:stable:arm64",
+             "vendor:com.tencent.workbuddy.mac:stable:x64",
++            // Cindy cn: one manifest and one dmg per architecture.
++            "vendor:com.xd.cindycn:stable:arm64",
++            "vendor:com.xd.cindycn:stable:x64",
+             // CapCut: the vendor publishes ONE dmg per track and it is arm64-only
+             // (`lipo -archs` on the shipped build reports `arm64` for the launcher,
+             // `libVECreator.dylib` and the helper app). Unlike Raycast there is no
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-xd-cindy.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-xd-cindy.txt
+new file mode 100644
+index 0000000..a64375c
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-xd-cindy.txt
+@@ -0,0 +1,184 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "com-xd-cindy"
++
++probes = Array(count: 2)
++probes[0] = struct VendorProbeRecipe
++probes[0].bundleID = "com.xd.cindycn"
++probes[0].channel = .stable
++probes[0].variant? = "arm64"
++probes[0].hostRequirement? = struct VendorHostRequirement
++probes[0].hostRequirement?.minimumSystemVersion = nil
++probes[0].hostRequirement?.architectures = Array(count: 1)
++probes[0].hostRequirement?.architectures[0] = .arm64
++probes[0].installedVersionPattern = nil
++probes[0].buildLineage = nil
++probes[0].headBuildPattern = nil
++probes[0].url = URL("https://hotfix.cindy.com.cn/cindy/manifest-darwin-arm64.json")
++probes[0].identities = Array(count: 0)
++probes[0].track = nil
++probes[0].mode = .responseBody
++probes[0].versionPattern = "\"app\"\\s*:\\s*\\{\\s*\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+)+)\""
++probes[0].transientBodyPattern = nil
++probes[0].trackClosedPattern = nil
++probes[0].downloadURL? = URL("https://cindy.com.cn/download/")
++probes[0].changelogURL? = URL("https://github.com/makecindy/cindy/releases")
++probes[0].selectHighest = false
++probes[0].versionIsBuild = false
++probes[0].buildNamespace = .bundle
++probes[0].displayVersionPattern = nil
++probes[0].publishedAtPattern = nil
++probes[0].minimumSystemVersionPattern = nil
++probes[0].maximumSystemVersionPattern = nil
++probes[0].entryStartPattern = nil
++probes[0].install? = struct VendorInstallSpec
++probes[0].install?.urlSource = .bodyPatternRelative(_:base:)
++probes[0].install?.urlSource.0 = "\"installer\"\\s*:\\s*\\{\\s*\"file\"\\s*:\\s*\"(app/darwin-arm64/cindy-[0-9.]+-arm64\\.dmg)\""
++probes[0].install?.urlSource.base = URL("https://hotfix.cindy.com.cn/cindy/")
++probes[0].install?.kind = .dmg
++probes[0].install?.checksumPattern? = "\"installer\"\\s*:\\s*\\{\\s*\"file\"\\s*:\\s*\"app/darwin-arm64/cindy-[0-9.]+-arm64\\.dmg\"\\s*,\\s*\"sha256\"\\s*:\\s*\"([0-9a-f]{64})\""
++probes[0].install?.checksumFormat = .sha256Hex
++probes[0].install?.requestHeaders = Dictionary(count: 0)
++probes[0].install?.nestedArchivePath = nil
++probes[0].install?.contentsArchivePattern = nil
++probes[0].requestBody = nil
++probes[0].followRedirects = true
++probes[0].requestHeaders = Dictionary(count: 0)
++probes[1] = struct VendorProbeRecipe
++probes[1].bundleID = "com.xd.cindycn"
++probes[1].channel = .stable
++probes[1].variant? = "x64"
++probes[1].hostRequirement? = struct VendorHostRequirement
++probes[1].hostRequirement?.minimumSystemVersion = nil
++probes[1].hostRequirement?.architectures = Array(count: 1)
++probes[1].hostRequirement?.architectures[0] = .x86_64
++probes[1].installedVersionPattern = nil
++probes[1].buildLineage = nil
++probes[1].headBuildPattern = nil
++probes[1].url = URL("https://hotfix.cindy.com.cn/cindy/manifest-darwin-x64.json")
++probes[1].identities = Array(count: 0)
++probes[1].track = nil
++probes[1].mode = .responseBody
++probes[1].versionPattern = "\"app\"\\s*:\\s*\\{\\s*\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+)+)\""
++probes[1].transientBodyPattern = nil
++probes[1].trackClosedPattern = nil
++probes[1].downloadURL? = URL("https://cindy.com.cn/download/")
++probes[1].changelogURL? = URL("https://github.com/makecindy/cindy/releases")
++probes[1].selectHighest = false
++probes[1].versionIsBuild = false
++probes[1].buildNamespace = .bundle
++probes[1].displayVersionPattern = nil
++probes[1].publishedAtPattern = nil
++probes[1].minimumSystemVersionPattern = nil
++probes[1].maximumSystemVersionPattern = nil
++probes[1].entryStartPattern = nil
++probes[1].install? = struct VendorInstallSpec
++probes[1].install?.urlSource = .bodyPatternRelative(_:base:)
++probes[1].install?.urlSource.0 = "\"installer\"\\s*:\\s*\\{\\s*\"file\"\\s*:\\s*\"(app/darwin-x64/cindy-[0-9.]+-x64\\.dmg)\""
++probes[1].install?.urlSource.base = URL("https://hotfix.cindy.com.cn/cindy/")
++probes[1].install?.kind = .dmg
++probes[1].install?.checksumPattern? = "\"installer\"\\s*:\\s*\\{\\s*\"file\"\\s*:\\s*\"app/darwin-x64/cindy-[0-9.]+-x64\\.dmg\"\\s*,\\s*\"sha256\"\\s*:\\s*\"([0-9a-f]{64})\""
++probes[1].install?.checksumFormat = .sha256Hex
++probes[1].install?.requestHeaders = Dictionary(count: 0)
++probes[1].install?.nestedArchivePath = nil
++probes[1].install?.contentsArchivePattern = nil
++probes[1].requestBody = nil
++probes[1].followRedirects = true
++probes[1].requestHeaders = Dictionary(count: 0)
++
++changelogs = Array(count: 2)
++changelogs[0] = struct ChangelogRecipe
++changelogs[0].bundleID = "com.xd.cindy"
++changelogs[0].source = URL("https://api.github.com/repos/makecindy/cindy/releases?per_page=40")
++changelogs[0].sourceTemplate = nil
++changelogs[0].versionFromTemplate = false
++changelogs[0].mode = .json
++changelogs[0].entryPattern = ""
++changelogs[0].itemPatterns = Array(count: 0)
++changelogs[0].stripTags = true
++changelogs[0].decodeEntities = true
++changelogs[0].escapedMarkup = false
++changelogs[0].markdownSource = false
++changelogs[0].maxEntries? = 20
++changelogs[0].minItemLength = 1
++changelogs[0].newestLast = false
++changelogs[0].indexLinkPattern = nil
++changelogs[0].feedPagePattern = nil
++changelogs[0].channel = nil
++changelogs[0].includesPromotedStable = false
++changelogs[0].imagePattern = nil
++changelogs[0].headingPattern = nil
++changelogs[0].minimumAppVersion = nil
++changelogs[0].belowAppVersion = nil
++changelogs[0].carriesOtherTrainEntries = false
++changelogs[0].acknowledgedStaleEntry = nil
++changelogs[0].structuredFormat? = .gitHubReleases
++changelogs[0].httpMethod = .get
++changelogs[0].requestBody = nil
++changelogs[0].skipSections = Array(count: 1)
++changelogs[0].skipSections[0] = "PRs"
++changelogs[0].tagPattern = nil
++changelogs[1] = struct ChangelogRecipe
++changelogs[1].bundleID = "com.xd.cindycn"
++changelogs[1].source = URL("https://api.github.com/repos/makecindy/cindy/releases?per_page=40")
++changelogs[1].sourceTemplate = nil
++changelogs[1].versionFromTemplate = false
++changelogs[1].mode = .json
++changelogs[1].entryPattern = ""
++changelogs[1].itemPatterns = Array(count: 0)
++changelogs[1].stripTags = true
++changelogs[1].decodeEntities = true
++changelogs[1].escapedMarkup = false
++changelogs[1].markdownSource = false
++changelogs[1].maxEntries? = 20
++changelogs[1].minItemLength = 1
++changelogs[1].newestLast = false
++changelogs[1].indexLinkPattern = nil
++changelogs[1].feedPagePattern = nil
++changelogs[1].channel = nil
++changelogs[1].includesPromotedStable = false
++changelogs[1].imagePattern = nil
++changelogs[1].headingPattern = nil
++changelogs[1].minimumAppVersion = nil
++changelogs[1].belowAppVersion = nil
++changelogs[1].carriesOtherTrainEntries = false
++changelogs[1].acknowledgedStaleEntry = nil
++changelogs[1].structuredFormat? = .gitHubReleases
++changelogs[1].httpMethod = .get
++changelogs[1].requestBody = nil
++changelogs[1].skipSections = Array(count: 1)
++changelogs[1].skipSections[0] = "PRs"
++changelogs[1].tagPattern = nil
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "com.xd.cindy"
++githubRules[0].owner = "makecindy"
++githubRules[0].repo = "cindy"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^cindy-[0-9]+\\.[0-9]+\\.[0-9]+-darwin-(?:arm64|x64)-global\\.dmg$"
++githubRules[0].installerKind? = .dmg
++githubRules[0].installTrust = .developerID
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index e6a2d87..b551a62 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -143,6 +143,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ > gitignored) — per-app conclusions live in each app's audit instead.
+ 
+ - [x] **VS Code** · `com.microsoft.VSCode` — P C (one-click) · ✓ src=Vendor
++- [x] [**Cindy（中国大陆版）**](com-xd-cindycn.md) · `com.xd.cindycn` — P C (one-click arm64/x64 dmg, 厂商清单 + sha256) · 真包 v0.1.104 / v0.1.103 挂载验证 ✓ · channel-verify 0.1.103→0.1.104 ✓（端到端未跑；beta / canary 轨未接入）· 2026-10-14
+ - [x] **Claude Desktop** · `com.anthropic.claudefordesktop` — P (one-click) · ✓ src=Vendor
+ - [x] [**super.engineering**](com-zarifpour-superconductor.md) · `com.zarifpour.superconductor` — P C B (one-click) · ✓ src=Vendor · 版本是 commit hash，按 `changelog.json` 的发布顺序比较 · 审计 2026-09-11
+ - [x] **Codex → ChatGPT** · `com.openai.codex` — P C (one-click) · ✓ src=Vendor · 独立 Codex 桌面端 2026-07 并入 ChatGPT app（cask `codex-app` 已 `deprecate! … replacement_cask: "chatgpt"`），**bundle id 未变**——真包核实 ChatGPT.app 仍登记 `com.openai.codex` / `26.825.51511`，既有 recipe 全链 ✓（2026-08-30 复验）
+@@ -263,6 +264,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**PrintCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.printcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
+ - [x] [**EffectCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.effectcraft` — G (one-click universal dmg) · 真包 v0.3.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
+ - [x] [**DesignCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.designcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
++- [x] [**Cindy**](com-xd-cindy.md) · `com.xd.cindy` — G (one-click arm64/x64 dmg) C (GitHub releases) · 真包 v0.1.104 / v0.1.103 挂载验证 ✓ · channel-verify 0.1.103→0.1.104 ✓（端到端未跑；beta / canary 轨未接入）· 2026-10-14
+ 
+ ## Changelog-only (detection via Sparkle or Homebrew)
+ 
+diff --git a/docs/app-audits/com-xd-cindy.md b/docs/app-audits/com-xd-cindy.md
+new file mode 100644
+index 0000000..84c821b
+--- /dev/null
++++ b/docs/app-audits/com-xd-cindy.md
+@@ -0,0 +1,208 @@
++# Cindy
++
++两个区域版共用一个仓库、一条发版流水线，合成一份审计。`Recipes/com-xd-cindy.swift` 里：
++global（`com.xd.cindy`）一条 GitHub rule 加一条 changelog recipe；中国大陆版（`com.xd.cindycn`）
++两条 VendorProbe（读厂商自己的更新清单，arm64 / x64 各一）加一条 changelog recipe。cn 不能走第二条
++GitHub rule，原因见「更新检测」。
++
++## 基本信息
++- Bundle ID: `com.xd.cindy`（global）· `com.xd.cindycn`（中国大陆版）
++- Team ID: global `SX9RG894L5` · cn `NTC4BJ542G`。两个区域 Team 不同，各自在 0.1.103 与 0.1.104 上不变；
++  都是 Developer ID、公证、`stapler validate` 通过（dmg 本身没有 staple，.app 有）
++- 观测版本: 稳定 0.1.104（上一版 0.1.103）；最新 prerelease 0.1.108（`v0.1.108-beta`）。观测日期 2026-10-14
++- 自更新机制: 自研（Electron Forge 打包，不是 electron-builder）。bundle 里没有 `SUFeedURL`，没有
++  `app-update.yml`；`Frameworks/` 里有 Squirrel.framework（它是否参与更新没查）。应用的热更流程见源码：从厂商 CDN 取
++  `manifest-<platform>-<arch>[-beta|-canary].json`，下 hotfix zip，再用 shell 脚本 `ditto`+`mv` 换包并重启
++  （开源：`apps/desktop/src/main/manifestService.ts`、`updateService.ts`）
++- 分发: GitHub Releases（每个 release 有 macOS / Windows / Linux 产物）；官网与厂商 CDN 也分发。CDN 基址在包里：
++  `app.asar` 含 `https://hotfix.cindy.app/cindy` 和 `https://hotfix.cindy.com.cn/cindy`（global、cn 两个包里都有，
++  2026-10-14 `strings -a` 实测；构建期注入 `ENDPOINT_MANIFEST_BASE_URL`，应用读 `<base>/endpoint.json`，
++  cn 的 `cdnBaseUrl` 即 `https://hotfix.cindy.com.cn/cindy`）。清单公开、不带设备或账号 id
++- 开源: 是。`v1.0.0` 是一个无资产的源码快照 release，不是安装包
++- 旧身份 `xdt-maker`: 2026-07-17 身份翻转（`packages/maker-shared/src/brandIdentity.ts`）后，旧 `xdt-maker`
++  渠道冻结、不再发版，存量用户留在旧渠道直到将来的迁移。本仓所有带 macOS 包的公开 release 都在翻转之后，
++  所以这里的 rule 不会服务旧身份的副本（旧身份的 bundle id 没查）。
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|--------------|---------|----------|-----|--------|-------------|
++| **stable**   | —       | —        | —   | ✓      | —           |
++| **beta**     | —       | —        | —   | ○      | ○           |
++| **canary**   | —       | —        | —   | —      | ○（账号级）  |
++
++本矩阵只写 `com.xd.cindy`（global）。中国大陆版 `com.xd.cindycn` 是独立 bundle id，矩阵和一键安装的结论在
++[com-xd-cindycn.md](com-xd-cindycn.md)（stable：VendorProbe ✓ 一键）；它不能是第二条 GitHub rule，原因见「更新检测」。
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: global **GitHub**（`channel-verify` 实测，见「如何复验」）。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable（global）| `com.xd.cindy` | 共享 | — | `/releases/latest` + tag 锚 `^vX.Y.Z$` + `-global` dmg 名锚 | ✓ |
++| stable（cn）| `com.xd.cindycn` | 独立 bundle id | — | 厂商清单 `manifest-darwin-<arch>.json` | ✓（见 [com-xd-cindycn.md](com-xd-cindycn.md)）|
++| beta（`vX.Y.Z-beta`）| 同 stable | 共享 | 设备级偏好文件 `update-channel-settings.json`（见下）| `-beta` prerelease，或 `manifest-darwin-<arch>-beta.json` | ○ 未接入（Pattern B，缺读文件的 `CindyChannel`）|
++| canary | 同 stable | 共享 | 服务端按账号下发的 flag（`canaryFlagStore`），无本地可读的稳定信号（没查文件形状）| `manifest-darwin-<arch>-canary.json`；无 GitHub tag | ✗ 仅 CDN、账号级，未接入 |
++
++- settled from source: `apps/desktop/src/main/manifestService.ts` + `updateChannelStore.ts`——更新轨
++  按 `resolveUpdateChannel` 取 canary > beta > release，只改拼哪个 manifest（`manifest-…-beta.json` /
++  `-canary.json`），不换 bundle id、不换 App。
++  - **beta 是设备级本地偏好，落在磁盘上**: `userData/update-channel-settings.json`（`createOverrideSettingsFile`：
++    默认值 + 用户 override）。有效值 = `enableBeta` 在 `customizedKeys` 里则取 `enableBeta`，否则取
++    `orgDefaultEnableBeta`（xd 组织登录后，用户没拨过开关时默认打开）。默认关。
++  - userData 目录名按区域（`brandIdentity.ts`）：global `CindyGlobal`，cn 为 Electron 默认的 `Cindy`。
++  - **磁盘上真实写出的 JSON 形状没见过**（`override-settings-file.js` 没读，也没装过真实副本）。
++- beta 真包实测（2026-10-14，挂载 `cindy-0.1.108-darwin-arm64-global.dmg`）: bundle id `com.xd.cindy`，
++  `CFBundleShortVersionString` = `CFBundleVersion` = `0.1.108`（无 `-beta` 后缀），Team `SX9RG894L5`，
++  Info.plist 没有 channel 相关键；`channel-verify` 检出 `stable`。**包本身**读不出 beta——但渠道不在包里，
++  在上面那个偏好文件里，所以这是 Pattern B（共享 bundle id + app 内开关写的本地信号），不是 Pattern D。
++  仓库里已有同类读法：`SuperconductorChannel` 读 `~/.superconductor/settings.json`，`MacMouseFixChannel`
++  读 Application Support 里的 plist。
++- 三处服务 beta 的来源，彼此一致（2026-10-14）: GitHub `v0.1.108-beta`（prerelease）、global 的
++  `manifest-darwin-arm64-beta.json`（0.1.108）、cn 的 `manifest-darwin-arm64-beta.json`（0.1.108，
++  sha256 `62f20149…89d4` == GitHub `cindy-0.1.108-darwin-arm64-cn.dmg` 的 digest）。
++- canary 的 manifest（`manifest-darwin-arm64-canary.json`）此刻与 beta 的相同（0.1.108）；canary 由服务端按账号
++  标记，不是本机偏好，没有 GitHub tag。
++- 版本号同一条线：beta 号码跑在 stable 前面（`0.1.105-beta`、`0.1.106-beta`、`0.1.108-beta` 都在
++  `0.1.104` 之后），下一次 stable 会是更高的号。beta 副本现在只会在 stable 追上它时被提示，不会被降级
++  （`channel-verify` 对 0.1.108 的结论是 up to date，latest 0.1.104）。
++- 区域：`com.xd.cindy` 与 `com.xd.cindycn` 是两个并存的系统身份（`forge.config.ts` 的 appId 随区域派生），
++  文件名里的 `global` / `cn` 对应它们。global 的 rule 只认 `-global` dmg。
++
++## 更新检测
++- 源（global，`com.xd.cindy`）: `makecindy/cindy` GitHub Releases，`/releases/latest`
++- 源（cn，`com.xd.cindycn`）: 厂商清单 `https://hotfix.cindy.com.cn/cindy/manifest-darwin-arm64.json` /
++  `manifest-darwin-x64.json`，两个 VendorProbe（`variant` `arm64` / `x64`，`hostRequirement` 各自的架构）。
++  **为什么不是第二条 GitHub rule**: `GitHubReleaseRule.recipeID` = `github:<owner>/<repo>:<channel>`，同仓库同
++  channel 的两条 rule 共用一行健康记录，`RecipeHealthKeyTests.rulesSharingASlugRecordSeparateHealthEntries`
++  失败。VendorProbe 的 recipeID 带 bundle id（`vendor:com.xd.cindycn:stable:arm64`），不撞。
++  - 清单形状（2026-10-14）：`codex`、`claudeCode`、`pi`、`codexPackage` 各有自己的 `"version"`，排在 `app` 前面，
++    所以版本 pattern 锚在 `"app":{"version"`；`app.installer` = `{file, sha256, size}`，`app.hotfix` 是应用自己的
++    热更 zip（不读）。`app.version` == `CFBundleShortVersionString` == `CFBundleVersion`。
++  - 读的是稳定轨清单（无 `-beta` / `-canary` 后缀），请求不带设备或账号 id；cn 的 `app.installer.sha256`
++    与同版本 GitHub `-cn` 资产的 digest 相等（arm64 `8f0704e3…6331`、x64 `565f86c7…f1a5`），dmg 本身也是
++    公开下载（AliyunOSS，HEAD 200，`content-length` 与清单 size 一致）。
++  - global 也有同形清单（`hotfix.cindy.app`，`app.installer.sha256` `9e8ac572…eaeb` == GitHub arm64-global
++    digest），但 global 已有 GitHub rule，不再另写 probe。
++- 版本方案: tag `vX.Y.Z` == `CFBundleShortVersionString` == `CFBundleVersion`（六个真包全部一致）
++- 注意事项 —— **prerelease 位是 stable / beta 的分界**: 观测到的 `-beta` release 都是
++  `prerelease: true`（2026-10-14，`/releases?per_page=100` 返回的全部 66 条），`/releases/latest` 因此略过它们。tag 锚
++  `^v([0-9]+\.[0-9]+\.[0-9]+)$` 是后备，即使某个 beta 漏标了 prerelease 也不会被当作稳定版推出。
++- 注意事项 —— **`v1.0.0`**: stable 位、没有任何资产的源码快照，版本号比所有 `0.1.x` 都大。
++  asset pattern 对它无匹配，`GitHubReleasesSource` 回退走列表时会把它当作「没有 macOS 资产」跳过；
++  它在列表最末。`CindyGitHubRuleTests` 的列表里带着它。
++- 注意事项 —— **`v0.1.52`** 只有一个 darwin 资产（arm64 global），其余 darwin 资产缺失，历史版本，不影响最新。
++- 注意事项 —— **架构**: arm64 与 x64 是分开的 dmg（`lipo -archs` 各为单一架构），pattern 两者都收，
++  由 `installableAsset` 按主机架构挑。`channel-verify` 在 arm64 主机上跑 x64 包，下载 URL 仍是 arm64
++  （harness 以运行它的主机为准）；x64 选择由 `CindyGitHubRuleTests.intelGetsItsRegionsX64Dmg` 覆盖。
++- 注意事项 —— GitHub 的 `latest` 与列表都是未鉴权请求，沿用其它 GitHub rule 的限额。
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 binary delta | 无 | 不能 |
++| 证据 | 热更下的是 hotfix zip（整包，源码 `updateService.ts` 的 `resolveUpdateAsset`）；没找到 binary delta 的代码路径 | 清单 `app` 块只有 `installer`（整包 dmg）和 `hotfix`（整包 zip），无 diff/delta/patch 键（2026-10-14 整份 arm64 / x64 清单） | 清单与 GitHub release 都只有整包 |
++
++- 格式: 厂商自有 hotfix zip；GitHub 侧只有整包
++- 阻塞项: 无（不需要）
++
++## 按 OS 分轨
++- `LSMinimumSystemVersion` = `12.0`（六个真包一致）。release 不声明逐版本的 min/max，没有 OS 分轨。
++- 架构分轨: arm64 / x64 分开发，见上。
++
++## Changelog
++- 来源（`com.xd.cindy` 与 `com.xd.cindycn`，同一份）: GitHub Release body，经 `ChangelogRecipe`（`.gitHubReleases`，`skipSections: ["PRs"]`）和
++  `GitHubMarkdownParser` 结构化。release body 的形状：`Desktop release <ver>` 标题行，`## 更新说明` 下面
++  若干 `### <emoji> <标题>` 小节，然后 `## PRs`（PR 链接列表）和 `---` 后的构建元数据（commit、source
++  tag、各端构建号）。
++- 结构化（2026-10-14，`channel-verify` 的 `changelog pane` 行；global 的 0.1.103 / 0.1.104 / 0.1.108 / x64 包相同，
++  cn 的 0.1.103 / 0.1.104 arm64 与 x64 包相同，只是 id 换成 `changelog:com.xd.cindycn:-`）:
++  `recipe changelog:com.xd.cindy:-: 20 entries; newest 0.1.104: 11 items, headings ["🧩 供应商组自动换机", "🖧 协同 Worker 跑在另一台电脑", "⬆️ 让 Agent 帮你更新 Cindy", "🤖 伙伴的待办与群聊反馈", "💬 IM 渠道的音视频附件", "⚡ 回复速度看得见", "👥 共享任务的文件与权限", "📱 手机端一批改进", "🎚️ 模型与能力", "🧹 稳定性修复"]; first items ["Desktop release 0.1.104", "供应商组现在会自己挑一台能用的电脑运行任务：…", …]`
++  —— 小节标题保留为标题（10 个），每节正文是一条。
++- 小瑕疵: 第一条是标题行 `Desktop release 0.1.104`（小节之前的那一行），11 条 = 1 + 10。没有能只去掉它的
++  现成字段（`skipSections` 按小节标题跳）；它不是错误信息，不处理。
++- `PRs` 跳过的实证: 去掉 `skipSections` 后 `CindyGitHubRuleTests.recipeKeepsTheSectionHeadingsAndDropsTheBetaAndTheLinkList`
++  失败（标题断言与「source tag」断言），恢复后通过。
++- beta 的 notes 不出现：`.gitHubReleases` 不带 channel 时只取 stable 的 release，和这条 rule 同一个分界。
++- 一页 40 条里 stable 够 20 条；`v1.0.0` 在最末，取满 20 条之前不会到它。
++- 顺序: Releases API 按创建时间排，不按版本（`v0.1.85` 排在 `v0.1.86` 前面），解码器保持 API 顺序，
++  所以通知列表里 0.1.85 可能排在 0.1.86 上面。只是展示顺序，不影响检测。
++- 跟随 channel: 否（只读 stable 轨的 release）
++- Recipe 状态: 已有
++
++## 一键安装
++- 状态: **global、cn 都支持**
++- 端到端: **未跑**——本次是并行流程中的审计，按分工由协调者串行跑 `duo install`（`/Applications` 与 `duo`
++  是共享的）。下面是已经做过的部分：真包、签名、Team、摘要、`channel-verify` 的 UPDATE 判定。
++- 格式: dmg — `cindy-<ver>-darwin-<arm64|x64>-<global|cn>.dmg`，dmg 里是 `Cindy.app`、
++  `Applications` 符号链接、`.DS_Store` 和 `.background.pdf`
++- global: GitHub 资产，pattern `^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-global\.dmg$`，kind `.dmg`
++- cn: 清单里 `app.installer.file`（`app/darwin-<arch>/cindy-<ver>-<arch>.dmg`），`bodyPatternRelative`，基址
++  `https://hotfix.cindy.com.cn/cindy/`，kind `.dmg`；URL 与摘要出自同一份清单
++- 校验: 摘要来自 GitHub 资产的 `digest`（自 #1019 起每条 GitHub rule 自动检查，无需 per-rule 字段）。
++  七个真下载的 `shasum -a 256` 都等于 GitHub 发布的 digest（0.1.104 arm64 global `9e8ac572…eaeb`、
++  0.1.104 arm64 cn `8f0704e3…6331`、0.1.104 x64 cn `565f86c7…f1a5`、0.1.103 arm64 global `8807cf8f…225a`、
++  0.1.103 arm64 cn `a75a4c72…f861a`、0.1.108-beta arm64 global `81a09b2d…70e6`、0.1.104 x64 global
++  `826a807d…2909`），大小也与 API 一致。
++- cn 摘要: 清单 `app.installer.sha256` 是十六进制 SHA-256，recipe 用 `checksumPattern` + `checksumFormat: .sha256Hex`
++  读它（模式锚在 `installer` 对象里、同一个 `file` 后面）。**下载的真文件与它相等**：arm64
++  `8f0704e3…6331`、x64 `565f86c7…f1a5`（2026-10-14 `shasum -a 256`），与 GitHub digest 也相等；
++  OSS 响应头 `x-oss-meta-sha256` 同值。pattern 在对侧架构的清单上读不到东西（`CindyGitHubRuleTests`）。
++- Team ID 闸: 上一版与最新版 Team 相同 —— global 0.1.103 与 0.1.104 都是 `SX9RG894L5`，cn 0.1.103 与
++  0.1.104 都是 `NTC4BJ542G`，所以两个区域的旧副本都能过这道闸。**两个区域之间 Team 不同**：
++  把 cn 的 dmg 装到 global 上会被闸拒绝，所以 global 的 rule 只认 `-global` 文件名。
++- 包验（2026-10-14）: `codesign --verify` 退出 0；`spctl` Notarized Developer ID；`stapler validate` 对
++  .app 通过。
++- cn 的 x64 包（`com.xd.cindycn`，0.1.104）也实测：`archs=x86_64`、Team `NTC4BJ542G`、Notarized Developer ID。
++- 嵌套 app: `Contents/Frameworks/` 下是 Electron 的四个 `Cindy Helper*.app`（`LSUIElement=true`，
++  `com.xd.cindy.helper` / `com.xd.cindycn.helper`），没有 `Library/LoginItems` 或 `Helpers`。它们是主进程的
++  子进程，随主 app 退出，不是常驻登录项。
++- **读的是**: 人人可手动下载的 GA。global 读官方 repo 的 `/releases/latest`；cn 读稳定轨清单，指向的 dmg 与
++  GitHub 上同版本 `-cn` 资产逐字节相同（digest 相等），不分设备灰度，beta / canary 轨不读
++- 阻塞: 无
++- 应用自带的热更（`executeUpdateMacOS`：下载 hotfix zip，`ditto`+`mv` 换包后重启）和我们同时存在：
++  两边装的是同一个版本号；谁先装都无害，但**同时跑、且应用已 stage 了更旧 hotfix 的情形没有实测**。
++
++## 已知问题
++- **beta 轨未接入**（○，不是不可行）：渠道在设备级偏好文件里（见 Channel 详情），需要一个读它的 `CindyChannel`
++  再加 beta rule（`usePrereleases`、`^v(…)-beta$`、`channel: .beta`）或对 beta 清单的 probe；真实文件形状
++  要先在真机上见到。在此之前，beta 副本只在 stable 追上它之后才会被提示，不会被降级。
++- **canary 轨**: 账号级、服务端下发，只在 CDN 上（无 GitHub tag），未接入。
++- cn 的 VendorProbe 读 CDN 上的清单：厂商改清单形状（`app` / `installer` 键）会让 pattern 读不到，
++  `duo verify` 会报；同版本 GitHub 的 `-cn` 资产（digest 相等）可作对照。
++- changelog 第一条是标题行 `Desktop release <ver>`（见 Changelog）。
++- 一键安装的端到端、以及应用自更新器与 `duo install` 的碰撞，都没有跑过。
++
++## 如何复验
++```
++# GET https://api.github.com/repos/makecindy/cindy/releases/latest → v0.1.104（prerelease:false）
++# 列表：v0.1.108-beta / v0.1.106-beta / v0.1.105-beta 是 prerelease:true；v1.0.0 无资产
++# 挂载 cindy-0.1.104-darwin-arm64-global.dmg → com.xd.cindy / 0.1.104 / SX9RG894L5 / Notarized Developer ID
++# 挂载 cindy-0.1.104-darwin-arm64-cn.dmg     → com.xd.cindycn / 0.1.104 / NTC4BJ542G / Notarized Developer ID
++# 挂载 cindy-0.1.103-darwin-arm64-global.dmg → com.xd.cindy / 0.1.103 / SX9RG894L5
++# 挂载 cindy-0.1.103-darwin-arm64-cn.dmg     → com.xd.cindycn / 0.1.103 / NTC4BJ542G
++# 挂载 cindy-0.1.108-darwin-arm64-global.dmg → com.xd.cindy / 0.1.108 / SX9RG894L5（beta，无 channel 键）
++swift run --package-path application-test feed-discover cindy-0.1.104-darwin-arm64-global.dmg
++#   → Cindy [com.xd.cindy] 0.1.104 — no Sparkle and no electron-builder update config
++swift run --package-path application-test channel-verify cindy-0.1.103-darwin-arm64-global.dmg --expect stable
++#   → detected channel stable, winning source GitHub, latest 0.1.104,
++#     download …/v0.1.104/cindy-0.1.104-darwin-arm64-global.dmg, status UPDATE → 0.1.104
++swift run --package-path application-test channel-verify cindy-0.1.103-darwin-arm64-cn.dmg --expect stable
++#   → com.xd.cindycn 0.1.103, winning source Vendor, latest 0.1.104,
++#     download https://hotfix.cindy.com.cn/cindy/app/darwin-arm64/cindy-0.1.104-arm64.dmg, status UPDATE → 0.1.104
++# 0.1.104 的 global / cn arm64 / cn x64 包、0.1.108 beta 包 → status up to date（latest 0.1.104）
++#   （channel-verify 以运行它的主机架构为准：在 arm64 主机上验 x64 包也会给出 arm64 的下载地址）
++# GET https://hotfix.cindy.com.cn/cindy/manifest-darwin-arm64.json → app.version 0.1.104,
++#   app.installer.sha256 8f0704e3…6331 == shasum -a 256 of cindy-0.1.104-darwin-arm64-cn.dmg
++# GET …/manifest-darwin-x64.json → 565f86c7…f1a5 == shasum -a 256 of cindy-0.1.104-darwin-x64-cn.dmg
++```
++
++## 建议下一步
++1. 协调者串行跑端到端：global 与 cn 各装上一版（0.1.103）→ `duo install --yes` → 0.1.104，
++   核对 Team 不变、`codesign --verify --deep --strict`、`spctl`。再看应用在运行并已 stage 更旧 hotfix 时的碰撞。
++2. beta 轨：真机看一次 `update-channel-settings.json` 的实际形状 → `CindyChannel` 读它 → beta rule 或对
++   `manifest-darwin-<arch>-beta.json` 的 probe（`CHANNEL_COVERAGE_TODO.md` §2b）。
+diff --git a/docs/app-audits/com-xd-cindycn.md b/docs/app-audits/com-xd-cindycn.md
+new file mode 100644
+index 0000000..b59207b
+--- /dev/null
++++ b/docs/app-audits/com-xd-cindycn.md
+@@ -0,0 +1,104 @@
++# Cindy（中国大陆版）
++
++`com.xd.cindycn` 与 global 版（`com.xd.cindy`）同一个仓库、同一条发版流水线；共享的调查（构建方式、更新
++流程、beta / canary、旧身份、changelog 形状）写在 [com-xd-cindy.md](com-xd-cindy.md)，这里只记 cn 自己的
++结论和证据。recipe 在同一个 family 文件 `Recipes/com-xd-cindy.swift`。
++
++## 基本信息
++- Bundle ID: `com.xd.cindycn`
++- Team ID: `NTC4BJ542G`（Developer ID，公证；0.1.103 与 0.1.104 相同）。global 版是另一个 Team（`SX9RG894L5`），
++  两个区域的包互相装不上（Team 闸会拒绝）
++- 观测版本: 稳定 0.1.104（上一版 0.1.103）；观测日期 2026-10-14
++- 自更新机制: 自研（同 global）：厂商 CDN 清单 + hotfix zip
++- 分发: GitHub Releases 的 `-cn` dmg，以及厂商 CDN `https://hotfix.cindy.com.cn/cindy`（基址在 `app.asar` 里）
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|--------------|---------|----------|-----|--------|-------------|
++| **stable**   | —       | —        | —   | ✗      | ✓ 一键      |
++| **beta**     | —       | —        | —   | ○      | ○           |
++| **canary**   | —       | —        | —   | —      | ○（账号级）  |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **VendorProbe**（`channel-verify` 实测，见「如何复验」）。
++
++GitHub 记 ✗ 的原因: 第二条 stable GitHub rule 与 global 的共用 recipeID `github:makecindy/cindy:stable`，
++`RecipeHealthKeyTests.rulesSharingASlugRecordSeparateHealthEntries` 失败；VendorProbe 的 recipeID 带 bundle id，不撞。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `com.xd.cindycn` | 独立 bundle id | — | `manifest-darwin-<arch>.json`（无后缀）| ✓ |
++| beta    | 同 stable | 共享 | 设备级偏好文件 `update-channel-settings.json`（userData 目录 `Cindy`）| `manifest-darwin-<arch>-beta.json` | ○ 未接入（Pattern B）|
++| canary  | 同 stable | 共享 | 账号级服务端 flag | `manifest-darwin-<arch>-canary.json` | ✗ 仅 CDN，未接入 |
++
++## 更新检测
++- 源: 两个 VendorProbe（`variant` `arm64` / `x64`，`hostRequirement` 各自的架构）：
++  `https://hotfix.cindy.com.cn/cindy/manifest-darwin-arm64.json` / `manifest-darwin-x64.json`
++- 清单形状与版本方案、为什么锚在 `"app"` 块里: 见 [com-xd-cindy.md](com-xd-cindy.md)「更新检测」。
++  `app.version` == `CFBundleShortVersionString` == `CFBundleVersion`（0.1.103、0.1.104 的 cn 真包全部一致）
++- 读的是稳定轨清单，请求不带设备或账号 id（`manifestService.ts` 只拼缓存破坏参数 `?t=`）。
++  beta 与 canary 清单此刻都是 0.1.108，不读
++- 缓存头（2026-10-14）: 清单 `cache-control: no-cache`
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 binary delta | 无 | 不能 |
++| 证据 | 热更下整包 hotfix zip（`updateService.ts`） | 整份 arm64 / x64 清单没有 diff/delta/patch 键（2026-10-14） | 只有整包 |
++
++## Changelog
++- 来源: 与 global 同一份 GitHub Release body（`ChangelogRecipe`，`.gitHubReleases`，`skipSections: ["PRs"]`）
++- 结构化（2026-10-14，`channel-verify` 的 `changelog pane` 行，cn 0.1.103 / 0.1.104 arm64 与 0.1.104 x64 包相同）:
++  `recipe changelog:com.xd.cindycn:-: 20 entries; newest 0.1.104: 11 items, headings ["🧩 供应商组自动换机", "🖧 协同 Worker 跑在另一台电脑", "⬆️ 让 Agent 帮你更新 Cindy", "🤖 伙伴的待办与群聊反馈", "💬 IM 渠道的音视频附件", "⚡ 回复速度看得见", "👥 共享任务的文件与权限", "📱 手机端一批改进", "🎚️ 模型与能力", "🧹 稳定性修复"]; first items ["Desktop release 0.1.104", "供应商组现在会自己挑一台能用的电脑运行任务：撞上用量上限、登录失效或连不上时，自", "协同里的每个 Worker（含第一个）都可以选一台同账号电脑运行，Lead 和团"]`
++  —— 小节标题保留为标题，第一条是标题行（见 global 文档）
++- 跟随 channel: 否
++- Recipe 状态: 已有
++
++## 一键安装
++- 状态: **支持**（arm64 与 x64）
++- 端到端: **未跑**——并行流程中的审计，按分工由协调者串行跑 `duo install`
++- 格式: dmg，`Cindy.app` + `Applications` 链接；URL 来自清单的 `app.installer.file`
++  （`app/darwin-<arch>/cindy-<ver>-<arch>.dmg`，`bodyPatternRelative`，基址 `https://hotfix.cindy.com.cn/cindy/`）
++- 校验: 清单 `app.installer.sha256`（十六进制 SHA-256），`checksumPattern` 锚在 `installer` 对象里同一个 `file`
++  后面，`checksumFormat: .sha256Hex`。真下载的 `shasum -a 256` 与它相等：arm64
++  `8f0704e311a4c960a202cb632cf1b8d164f095d9354eee62d9c8475d9cf46331`（305173888 字节）、x64
++  `565f86c74382d22b5a2423053b58224915f904c80aa04da173ea032f2d71f1a5`（318329560 字节）；也都等于同版本 GitHub
++  `-cn` 资产的 digest，OSS 响应头 `x-oss-meta-sha256` 同值。对侧架构的清单读不到 URL 或摘要
++  （`CindyGitHubRuleTests.cnInstallPatternsDoNotReadTheOtherArchitecturesBody`）
++- Team ID 闸: `NTC4BJ542G` 在 0.1.103（arm64）与 0.1.104（arm64、x64）相同，旧副本可过闸
++- 包验（2026-10-14）: `codesign --verify` 退出 0，`spctl` Notarized Developer ID，`stapler validate` 对 .app 通过；
++  x64 包 `archs=x86_64`，arm64 包 `archs=arm64`；`LSMinimumSystemVersion` 12.0
++- 嵌套 app: 只有 `Contents/Frameworks/` 下 Electron 的 `Cindy Helper*.app`（`com.xd.cindycn.helper`，
++  `LSUIElement=true`），随主进程退出
++- **读的是**: 人人可手动下载的 GA（稳定轨清单，指向的 dmg 与 GitHub 上同版本 `-cn` 资产的 digest 相等；
++  不是 beta / canary 轨，不分设备灰度）
++- 阻塞: 无
++
++## 已知问题
++- 清单形状由厂商控制：`app` / `installer` 键改了，pattern 读不到，`duo verify` 会报；同版本 GitHub 的 `-cn` 资产可作对照
++- beta / canary 未接入，见 [com-xd-cindy.md](com-xd-cindy.md)
++- 一键端到端未跑；应用自带热更与 `duo install` 的碰撞未测
++
++## 如何复验
++```
++# GET https://hotfix.cindy.com.cn/cindy/manifest-darwin-arm64.json → app.version 0.1.104,
++#   app.installer {file app/darwin-arm64/cindy-0.1.104-arm64.dmg, sha256 8f0704e3…6331, size 305173888}
++# GET …/manifest-darwin-x64.json → app.installer.sha256 565f86c7…f1a5
++# 挂载 cindy-0.1.104-darwin-arm64-cn.dmg → com.xd.cindycn / 0.1.104 / NTC4BJ542G / Notarized Developer ID
++# 挂载 cindy-0.1.104-darwin-x64-cn.dmg   → com.xd.cindycn / 0.1.104 / NTC4BJ542G / archs=x86_64
++swift run --package-path application-test channel-verify cindy-0.1.103-darwin-arm64-cn.dmg --expect stable
++#   → winning source Vendor, latest 0.1.104,
++#     download https://hotfix.cindy.com.cn/cindy/app/darwin-arm64/cindy-0.1.104-arm64.dmg, status UPDATE → 0.1.104
++swift run --package-path application-test channel-verify cindy-0.1.104-darwin-arm64-cn.dmg --expect stable
++#   → winning source Vendor, status up to date
++#   （channel-verify 以运行它的主机架构为准：在 arm64 主机上验 x64 包也会给出 arm64 的下载地址）
++```
++
++## 建议下一步
++1. 协调者串行跑端到端：装 cn 0.1.103 → `duo install --yes` → 0.1.104，核对 Team 不变、`codesign --verify --deep --strict`、`spctl`。
++2. beta 轨：见 [com-xd-cindy.md](com-xd-cindy.md)。

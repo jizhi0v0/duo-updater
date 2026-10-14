@@ -1,0 +1,213 @@
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index b3b6fbb..4131a37 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -91,6 +91,7 @@ public enum AppRecipeIndex {
+         com_longbridge_app_desktop.set,
+         com_macpaw_site_theunarchiver.set,
+         com_mak5er_aircard.set,
++        com_maxgoedjen_Secretive_Host.set,
+         com_meetily_ai.set,
+         com_meta_endo.set,
+         com_microsoft_edgemac.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-maxgoedjen-Secretive-Host.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-maxgoedjen-Secretive-Host.swift
+new file mode 100644
+index 0000000..6b3886a
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-maxgoedjen-Secretive-Host.swift
+@@ -0,0 +1,23 @@
++import Foundation
++
++enum com_maxgoedjen_Secretive_Host {
++    static let set = AppRecipeSet(
++        family: "com-maxgoedjen-Secretive-Host",
++        githubRules: [
++        // Secretive — keeps SSH keys in the Secure Enclave. No SUFeedURL and no
++        // MAS. Its own updater only lists api.github.com/…/releases and shows a
++        // notice; it never downloads or swaps the bundle. v-tags, and
++        // CFBundleShortVersionString == tag on every release that is not v0.1.1
++        // (its bundle reads 1.0). Stable track only: the 0.x releases are
++        // prerelease-flagged, nightlies are Actions artifacts and are never
++        // published. One universal `Secretive.zip`; Developer ID, Team
++        // Z72PRUAWF6, notarized on all 27 published zips (v0.1.1..v4.0.0).
++        // LoginItems/SecretAgent.app is a resident helper (see the audit doc).
++        GitHubReleaseRule(
++            bundleID: "com.maxgoedjen.Secretive.Host",
++            owner: "maxgoedjen", repo: "secretive",
++            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
++            installAssetPattern: #"^Secretive\.zip$"#,
++            installerKind: .zip),
++        ])
++}
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-maxgoedjen-Secretive-Host.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-maxgoedjen-Secretive-Host.txt
+new file mode 100644
+index 0000000..b8f68de
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-maxgoedjen-Secretive-Host.txt
+@@ -0,0 +1,39 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "com-maxgoedjen-Secretive-Host"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 0)
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "com.maxgoedjen.Secretive.Host"
++githubRules[0].owner = "maxgoedjen"
++githubRules[0].repo = "secretive"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^Secretive\\.zip$"
++githubRules[0].installerKind? = .zip
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index c857d50..db646db 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -245,6 +245,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**Petex**](ad-neko-petex.md) · `ad.neko.petex` — G (**detection-only**) · 真包 v1.0.10 arm64 dmg 挂载验证 ✓ · 产物 ad-hoc 签名、无 Team ID、`--deep --strict` 与 `spctl` 各退 1 → **一键永久不可** · 厂商不写发布说明（release 正文只有一行 `Full Changelog`），**changelog 结构化无从做起**，不加 recipe · patch 位是 commit height（每次推 master 发一版）· 2026-09-16
+ - [x] [**Cua Driver**](com-trycua-driver.md) · `com.trycua.driver` — G (one-click `darwin-universal.tar.gz`) · **本机装了真包、钉旧版 0.28.1 → `duo install` 升回 0.28.2 走通**（inode 变、Team YCK386LBJ7 不变、`--deep --strict` 与 `spctl` 各退 0、厂商自己的 `cua-driver doctor` 六项全绿）· ⚠️ **stable tag 全部被厂商标成 prerelease**（monorepo 的 "Latest" 指针之争，厂商在 release 正文里写明），`/releases/latest` 会答成 `sandbox-v0.8.0` —— **必须 `usePrereleases`** · ⚠️ nightly tag **内含**一个完整 stable tag，不锚就每夜读出一个没发布的版本 · changelog 走内联解析（`.gitHubReleases` recipe 在这里恒得 0 条目，prerelease 闸）· `listPageSize: 25`（下限 19 实测）· **nightly 轨也已接**：轨道在磁盘上不可分辨（三份真包的 short/build 全是裸 base），唯一信号是 `~/.cua-driver/release-channel`，`CuaDriverChannel` 是本 registry 第一个读普通文本文件的 binding；nightly rule 只能捕 base 版本，**同 base 内的后续 nightly 看不见（实测 52% 的 nightly 才会提示）**；分叉态（意图 nightly / 装的 stable）端到端验过，duo 把它带回 nightly 轨 ✓ · 2026-09-16
+ - [x] [**Tinycast**](com-tinycast-app.md) · `com.tinycast.app` — G(stable/beta，**detection-only**) · beta 是独立 bundle id `com.tinycast.app.beta`，tag `-beta.N` 锚死、不收 stable tag · 真包 0.10.23 + 0.11.1-beta.96 zip 解包验证 ✓ · 两轨自签名、无 Team ID、`spctl` 拒 → **一键不可** · changelog 走 GitHub release body · 2026-09-17
++- [x] [**Secretive**](com-maxgoedjen-Secretive-Host.md) · `com.maxgoedjen.Secretive.Host` — G (one-click zip) · 真包 4.0.0 / 3.0.4 解包验证 ✓ · 27 个发布包 Team `Z72PRUAWF6` 一致，全部公证 · 嵌套的 `SecretAgent` 常驻 helper 见 audit · 2026-10-13
+ 
+ ## Changelog-only (detection via Sparkle or Homebrew)
+ 
+diff --git a/docs/app-audits/com-maxgoedjen-Secretive-Host.md b/docs/app-audits/com-maxgoedjen-Secretive-Host.md
+new file mode 100644
+index 0000000..a26a58f
+--- /dev/null
++++ b/docs/app-audits/com-maxgoedjen-Secretive-Host.md
+@@ -0,0 +1,109 @@
++# Secretive
++
++## 基本信息
++- Bundle ID: `com.maxgoedjen.Secretive.Host`
++- Team ID: `Z72PRUAWF6`（27 个发布包全部相同，见「如何复验」）
++- 观测版本: `4.0.0`（`CFBundleVersion` 为 `1.35554366823`，不参与比较）；上一版 `3.0.4`
++- 自更新机制: 自研，但只查不装。`SecretiveUpdater.xpc` 读 `api.github.com/repos/maxgoedjen/secretive/releases`，在 app 内显示提示并链接到发布页；不下载，不替换 bundle。
++- 分发: GitHub Releases（`Secretive.zip`，universal）；Homebrew cask `secretive`（cask 写入的 sha256 与 zip 一致，无 `auto_updates`）
++- 嵌入的 helper: `Contents/Library/LoginItems/SecretAgent.app`，bundle id `com.maxgoedjen.Secretive.SecretAgent`，`LSUIElement=true`，常驻的 SSH agent；不单独分发
++- 开源: 是（MIT）。版本、渠道与打包方式读自仓库 `main` 的 `.github/workflows/release.yml` 与 `nightly.yml`
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|------------|---------|----------|-----|--------|-------------|
++| **stable** | —       | ✓ ¹      | —   | ✓      | —           |
++
++¹ 通用源，不是本 audit 新增的：`HomebrewCaskSource` 只答 brew 装的副本（cask 无 `auto_updates`）；直接下载的副本不走这里。
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**（直接下载的副本）；brew 装的副本由 **Homebrew** 先答。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `com.maxgoedjen.Secretive.Host` | 单一渠道 | — | tag 锚 `^vX.Y.Z$`，`/releases/latest` | ✓ |
++
++- 单渠道。settled from source: `.github/workflows/release.yml` on `main`——推 tag 后构建、公证、attest，`gh release create -d` 先建草稿，再上传 `Secretive.zip`。
++- 0.x 的 `v0.1.1`–`v0.5.1` 在 GitHub 上标为 prerelease，`/releases/latest` 不会取到。
++- nightly: `.github/workflows/nightly.yml` 每天构建并公证，但只上传 Actions artifact，不发 release，用户拿不到。
++- 不是 release 的 tag：`v3.0.1-skipped`、`v0.0.0_test`、`v0.0.0_beta1`。锚定的 pattern 不收它们。
++- app 自身没有 channel 切换（没有偏好项，也没有 feed）。
++
++## 更新检测
++- 源: `maxgoedjen/secretive` GitHub Releases，`/releases/latest`
++- 端点: `GET https://api.github.com/repos/maxgoedjen/secretive/releases/latest` → `tag_name: v4.0.0`
++- 版本方案: tag `v<version>` 与包的 `CFBundleShortVersionString` 一致（27 个包中 26 个）。pattern `^v([0-9]+(?:\.[0-9]+)+)$`，不锁主版本；对全部 27 个 release tag 验过，三个非 release tag 被拒。
++- 注意事项: `v0.1.1` 的 tag 是 `0.1.1`，包里的 `CFBundleShortVersionString` 是 `1.0`（`CFBundleVersion` 为 `1`）。它不是最新，不影响现行检测。
++
++## 按 OS 分轨
++- 包的 `LSMinimumSystemVersion`: v4.0.0 为 `15.0`，v3.0.x 为 `14.0`，v2.x 为 `11.0`/`12.0`，v1.0.x 与 v0.x 为 `10.15`。
++- release body 的 `## Minimum macOS Version` 段与之一致（v4.0.0 为 `15.0.0`，v3.0.4 为 `14.0.0`）；app 自己的 `Release.swift` 据此过滤。
++- DuoUpdater 只跑在 macOS 15 及以上（`App/project.yml`），v4.0.0 对所有可能的 DuoUpdater 机器都能装，所以不需要按 OS 分轨，也不需要 `hostRequirement`。
++- Homebrew cask 的 `on_*` 分支也是按 OS 分的（sonoma 为 3.0.4，sequoia 及以上为 4.0.0），与上表一致。
++
++## 增量更新（delta / binary patch）
++> 三栏分开写，每栏标证据来源。
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | 不能 |
++| 证据 | 两个包的 `Contents` 下都没有 `Frameworks`，也没有 Sparkle 或 patch applier；`SecretiveUpdater.xpc` 只查不装（解包检查，v4.0.0、v3.0.4） | 每个 release 只有一个 `Secretive.zip`，27 个 release 全部查过 | — |
++
++- 格式: 无
++- 阻塞项: 没有 patch 资产可读。
++
++## Changelog
++- 来源: GitHub Release body，经 `GitHubMarkdownParser` 结构化（`GitHubReleasesSource` 的 `structuredChangelog`）
++- 结构（生产 parser 解析真实 body，2026-10-13）: v4.0.0 得 19 条，`Features`、`Fixes` 两个小标题保留为 heading；v3.0.4 得 21 条，`Fixes`、`Features`、`Special Thanks` 保留为 heading。`Minimum macOS Version`、`Build`、`Attestation` 段没有条目，不进入结构化内容。
++- 跟随 channel: 单渠道
++- Recipe 状态: 不需要
++
++## 一键安装
++- 状态: **支持**
++- 格式: zip。`Secretive.zip`，universal（`x86_64 arm64 arm64e`），kind `.zip`
++- Pattern: `^Secretive\.zip$`
++- **读的是**: 人人可手动下载的 GA。公开发布资产，同一个 URL 也是 Homebrew cask 的下载源；没有设备标识，也没有分阶段灰度。
++- 包验（2026-10-13，解压到临时目录后检查）:
++  - v4.0.0: `com.maxgoedjen.Secretive.Host` / `4.0.0` / Team `Z72PRUAWF6` / `codesign --verify --deep --strict` 退出 0 / `spctl` `accepted`，`source=Notarized Developer ID`
++  - v3.0.4: `com.maxgoedjen.Secretive.Host` / `3.0.4` / Team `Z72PRUAWF6` / 同上的结果
++  - 两个包都没有 staple 的公证票（`stapler validate` 报无 ticket），公证靠在线查询
++- 旧副本门控: 27 个包（v0.1.1–v4.0.0）全部是 Team `Z72PRUAWF6`，门控对所有旧副本都通过，没有会被拒绝的旧副本。
++- 驻留 helper `SecretAgent.app`（`LSUIElement=true`）:
++  - 安装不会退出它。`duo install` 只会列出「仍在跑旧代码」的父 app，并提示 `duo restart`；判断依据是父 bundle 路径是否出现在运行中 app 的 bundleURL 里（`CLI/Sources/DuoKit/Install.swift` 约 926–936 行）。只有 `SecretAgent` 在跑、主 app 没开时，父 app 不会被列出（据读码推断，未实机验证）。
++  - `duo restart` 经 `AppRestarter.restart` 会把嵌套在 bundle 里仍在运行的 app 当作同一实例退出，再重新拉起（同一文件，据读码）。
++- 端到端: **未执行**。本次按任务要求跳过真机安装，由协调者串行执行。
++- 阻塞: 无
++
++## 已知问题
++- 驻留 helper 换包后仍跑旧代码，直到用户重启或执行 `duo restart`。「仍在跑旧代码」的列表对「只有 `SecretAgent` 在跑」的情形不会点名（据读码推断，未实机验证）。
++- v4.0.0 的 release notes 写了 OpenSSH 协议整理、SocketController 竞态修复、`Secure settings storage`。旧 agent 与新 host 混跑是否兼容，未验证。
++- 包未 staple 公证票，公证靠在线查询（见「一键安装」）。
++- `v0.1.1` 的 `CFBundleShortVersionString` 与 tag 不一致（见「更新检测」）。
++
++## 如何复验
++```
++# GET https://api.github.com/repos/maxgoedjen/secretive/releases/latest → tag v4.0.0
++# https://github.com/maxgoedjen/secretive/releases/download/v4.0.0/Secretive.zip
++#   sha256 877517e212938ffb7048bc7b6811e992194ba4b3eaa4dae36405b6303d1ac1fa（与 API digest 相同）
++# https://github.com/maxgoedjen/secretive/releases/download/v3.0.4/Secretive.zip
++#   sha256 696d07812e4431075234a900a0136dbad3131a91086e535fc2b07d69a1d084ba（与 API digest 相同）
++# 解压 → Secretive.app：com.maxgoedjen.Secretive.Host / 4.0.0 / Team Z72PRUAWF6
++swift run --package-path application-test channel-verify <解压后的 4.0.0 Secretive.app> --expect stable
++#   → winning source GitHub, latest 4.0.0, status up to date
++swift run --package-path application-test channel-verify <解压后的 3.0.4 Secretive.app> --expect stable
++#   → winning source GitHub, latest 4.0.0, status UPDATE → 4.0.0
++swift run --package-path application-test feed-discover <解压后的 4.0.0 Secretive.app>
++#   → no Sparkle and no electron-builder update config
++# 27 个 release zip：Bundle ID 全为 com.maxgoedjen.Secretive.Host，Team 全为 Z72PRUAWF6，
++#   codesign --verify --deep --strict 全部退出 0，spctl 全部 Notarized Developer ID
++# changelog：对 v4.0.0 的 release body 调用 GitHubMarkdownParser.parse(body:version:date:)，得 19 条，heading 为 Features、Fixes
++```
++
++## 建议下一步
++1. 协调者串行跑端到端（coverage-discovery Phase 5）：装 3.0.4，用 `duo install` 升到 4.0.0，核对 Team、`codesign --verify`，并确认 `SecretAgent` 是否仍跑旧代码、`duo restart` 之后是否正常。
++2. 若不接受驻留 helper 换包的风险：删去 `installAssetPattern` 与 `installerKind`，即回退为检测-only，然后重录 goldens。
++3. 后续改进（不在本 audit 内）：`duo install` 的「仍在跑旧代码」列表应当按嵌套的 login item 匹配父 app。

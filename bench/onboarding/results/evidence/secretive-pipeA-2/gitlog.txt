@@ -1,0 +1,5 @@
+a9b6dc5 Secretive: read nightly and one-off builds as non-stable
+7b6307a Track Secretive via GitHub releases, with one-click install
+57e6ce0 Track Reviu via GitHub releases, with one-click install (#924)
+11a1072 verify: update recipe baseline (#923)
+91e7928 verify: update recipe baseline (#921)

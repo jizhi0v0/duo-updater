@@ -1,0 +1,5 @@
+f6db30c Obelisk changelog: skip the Downloads list, record 0.2.4 x64 and source builds
+d0f246f Track Obelisk: GitHub detection for pre-Sparkle copies + GitHub-releases changelog
+2c49ab0 One-click updates for ad-hoc signed GitHub apps, checked by GitHub's file hash (opt-in) (#952)
+7587537 verify: update recipe baseline (#951)
+c8c4787 CLI tools: uv, Junie, Rust and global npm packages (#949)

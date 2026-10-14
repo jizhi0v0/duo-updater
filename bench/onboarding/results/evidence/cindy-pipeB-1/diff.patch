@@ -1,0 +1,2556 @@
+diff --git a/CHANNEL_COVERAGE_TODO.md b/CHANNEL_COVERAGE_TODO.md
+index 9865b03..191805c 100644
+--- a/CHANNEL_COVERAGE_TODO.md
++++ b/CHANNEL_COVERAGE_TODO.md
+@@ -282,6 +282,14 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
+       `Docker Desktop.app` 的 Squirrel 推断渠道：实际更新器是外层
+       `com.docker.backend.updater`（见 `docs/app-audits/com-docker-docker.md`）。
+ 
++- [ ] **Cindy** · `com.xd.cindy` / `com.xd.cindycn` — 应用内「测试版」开关，落盘在
++      `<userData>/update-channel-settings.json`（`enableBeta`，用户没拨过时看 `orgDefaultEnableBeta`；
++      读自源码 `apps/desktop/src/main/updateChannelStore.ts`，**未做真机 diff 确认**）。beta 包的
++      `Info.plist` 是裸 `X.Y.Z`（0.1.108 实测），bundle id、显示名与 stable 相同，所以只有这个文件是信号。
++      GitHub 上有 `vX.Y.Z-beta` prerelease，将来可配一条 `.beta` 的 `GitHubReleaseRule`。canary 是账号级服务端
++      flag（`<userData>/canary-flag.json`），只出现在 CDN 的 `manifest-…-canary.json`，没有 GitHub release，
++      不接。现状见 `docs/app-audits/com-xd-cindy.md`。
++
+ ---
+ 
+ ## §2c 扫描 2026-08-27（CapCut 落地后复扫）
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index f692b68..087bb97 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -178,6 +178,8 @@ public enum AppRecipeIndex {
+         com_vscodium.set,
+         com_windscribe_client.set,
+         com_workbuddy_workbuddy_ai.set,
++        com_xd_cindy.set,
++        com_xd_cindycn.set,
+         com_xingyuzhong_deepseekgui.set,
+         com_yetone_magpie.set,
+         com_youqu_todesk_mac.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-xd-cindy.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-xd-cindy.swift
+new file mode 100644
+index 0000000..b00e8d4
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-xd-cindy.swift
+@@ -0,0 +1,76 @@
++import Foundation
++
++enum com_xd_cindy {
++    static let set = AppRecipeSet(
++        family: "com-xd-cindy",
++        changelogs: [
++        // History: docs/app-audits/com-xd-cindy.md#历史与实测
++        // Cindy (global edition) — notes from the CDN notice the app's own "what's
++        // new" reads, not from the GitHub release body. The body ends in a `---`
++        // footer of build ids and branch names (`commit:`, `source tag:`, iOS and
++        // Android build numbers) that the Markdown parser reads as bullets, and
++        // about half the releases have no `## PRs` heading to skip before it.
++        //
++        // `<cdn>/notice/darwin-arm64/<version>.json` is one file per release, no
++        // "latest" alias (`index.json` lists the versions only), so the version comes
++        // from the offered update through `sourceTemplate`. The file carries every
++        // locale: top-level `topics` is zh-CN and `contentByLocale.en.topics` the
++        // English copy. English, like `com-kimi-code-desktop`. The pattern descends
++        // into `contentByLocale` → `en` before it reads `topics`, so no zh-CN text
++        // can leak in. The darwin-x64 notice is the same file.
++        //
++        // Each topic is `{id, emoji, title, text, contributors}`: the title is the
++        // heading and the text its one note. Plain-text pane, so tags stay
++        // (`stripTags: false`); `decodeEntities` stays on because it gates the JSON
++        // unescape (`\"` in a text).
++        ChangelogRecipe(
++            bundleID: "com.xd.cindy",
++            source: URL(string: "https://hotfix.cindy.app/cindy/notice/darwin-arm64/index.json")!,
++            entryPattern: #""version"\s*:\s*"(?<version>[0-9]+\.[0-9]+\.[0-9]+)"\s*,\s*"date"\s*:\s*"(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})".*?"contentByLocale"\s*:\s*\{.*?"en"\s*:\s*\{[^{}]*?"topics"\s*:\s*\[(?<body>(?:[^\[\]]|\[[^\[\]]*\])*)\]"#,
++            itemPatterns: [#""text"\s*:\s*"(?<item>(?:[^"\\]|\\.)*)""#],
++            mode: .json,
++            stripTags: false,
++            maxEntries: 1,
++            sourceTemplate: "https://hotfix.cindy.app/cindy/notice/darwin-arm64/{version}.json",
++            headingPattern: #""title"\s*:\s*"(?<heading>(?:[^"\\]|\\.)*)""#),
++        ],
++        githubRules: [
++        // Cindy — Electron Forge app from XD Entertainment, two editions built from
++        // one repo: global (`com.xd.cindy`, this family) and cn (`com.xd.cindycn`,
++        // `Recipes/com-xd-cindycn.swift`). They are signed by different Teams and
++        // ship as separate dmgs in every release.
++        //
++        // No Sparkle and no electron-builder `app-update.yml`: the app has its own
++        // updater, which reads a manifest on `hotfix.cindy.app` and swaps in a full
++        // `.app` zip. For the stable track that manifest names the same bytes as the
++        // GitHub release's dmg, so `/releases/latest` is what the app's own stable
++        // track installs. v-tags; `CFBundleShortVersionString` and `CFBundleVersion`
++        // are both the numeric X.Y.Z, so short == build == tag.
++        //
++        // The anchors: `vX.Y.Z-beta` tags are prereleases whose Info.plist reads the
++        // bare X.Y.Z, so an unanchored pattern would offer a beta as the stable
++        // version. The `v1.0.0` release is a source snapshot with no assets; the
++        // asset pattern is what keeps `/releases/latest` from ever answering it
++        // should it become the newest. A release can carry fewer dmgs than usual
++        // (one shipped only arm64 global); the source walks back past a release with
++        // no matching asset, which is right: that edition has no such build.
++        //
++        // Assets: `cindy-<ver>-darwin-{arm64,x64}-{global,cn}.dmg`, no universal
++        // build; the arch-aware picker takes the host's. `-win32-` and `-linux-`
++        // assets are excluded by the pattern. GitHub publishes a sha256 digest for
++        // every asset. One-click: com.xd.cindy, Team SX9RG894L5, notarized.
++        //
++        // `variant` keeps the two editions' rules apart: same repo and channel would
++        // otherwise give both the id `github:makecindy/cindy:stable`, one health row.
++        //
++        // The beta and canary tracks are not tracked: the switch is a device setting
++        // the bundle does not show.
++        GitHubReleaseRule(
++            bundleID: "com.xd.cindy",
++            owner: "makecindy", repo: "cindy",
++            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#,
++            installAssetPattern: #"^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-global\.dmg$"#,
++            installerKind: .dmg,
++            variant: "global"),
++        ])
++}
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-xd-cindycn.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-xd-cindycn.swift
+new file mode 100644
+index 0000000..1eb2b84
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-xd-cindycn.swift
+@@ -0,0 +1,34 @@
++import Foundation
++
++enum com_xd_cindycn {
++    static let set = AppRecipeSet(
++        family: "com-xd-cindycn",
++        changelogs: [
++        // Cindy CN — same release pipeline and notice format as the global edition;
++        // shared rationale: Recipes/com-xd-cindy.swift. The notice lives on the cn
++        // CDN host and is worded separately from the global one.
++        ChangelogRecipe(
++            bundleID: "com.xd.cindycn",
++            source: URL(string: "https://hotfix.cindy.com.cn/cindy/notice/darwin-arm64/index.json")!,
++            entryPattern: #""version"\s*:\s*"(?<version>[0-9]+\.[0-9]+\.[0-9]+)"\s*,\s*"date"\s*:\s*"(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})".*?"contentByLocale"\s*:\s*\{.*?"en"\s*:\s*\{[^{}]*?"topics"\s*:\s*\[(?<body>(?:[^\[\]]|\[[^\[\]]*\])*)\]"#,
++            itemPatterns: [#""text"\s*:\s*"(?<item>(?:[^"\\]|\\.)*)""#],
++            mode: .json,
++            stripTags: false,
++            maxEntries: 1,
++            sourceTemplate: "https://hotfix.cindy.com.cn/cindy/notice/darwin-arm64/{version}.json",
++            headingPattern: #""title"\s*:\s*"(?<heading>(?:[^"\\]|\\.)*)""#),
++        ],
++        githubRules: [
++        // Cindy CN — `com.xd.cindycn`, Team NTC4BJ542G (the global edition is signed
++        // by a different Team), notarized. Same repo and tags as the global edition;
++        // the pattern takes only the `-cn` dmgs, so neither edition is offered the
++        // other's build. Rationale: Recipes/com-xd-cindy.swift.
++        GitHubReleaseRule(
++            bundleID: "com.xd.cindycn",
++            owner: "makecindy", repo: "cindy",
++            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#,
++            installAssetPattern: #"^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-cn\.dmg$"#,
++            installerKind: .dmg,
++            variant: "cn"),
++        ])
++}
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift
+index b463f16..be24b34 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift
+@@ -172,6 +172,15 @@ public struct GitHubReleaseRule: Sendable {
+     /// GitHub `digest` (see `InstallTrust`). Never with `.pkg`.
+     public let installTrust: InstallTrust
+ 
++    /// Names one of several rules that read the same repo on the same channel,
++    /// so each keeps its own `recipeID` (and with it its own `RecipeHealth` row
++    /// and baseline entry). Cindy's global and cn editions are separate apps
++    /// with separate bundle ids and Teams, cut from one repo's one tag stream:
++    /// without this, both rules are `github:makecindy/cindy:stable` and whichever
++    /// ran last decides the verdict for both. nil for every rule that is alone
++    /// on its repo and channel, which keeps its id as it was.
++    public let variant: String?
++
+     public init(
+         bundleID: String,
+         owner: String,
+@@ -185,7 +194,8 @@ public struct GitHubReleaseRule: Sendable {
+         installerKind: VendorInstallerKind? = nil,
+         installTrust: InstallTrust = .developerID,
+         channel: ReleaseChannel = .stable,
+-        probesNewestFirst: Bool = true
++        probesNewestFirst: Bool = true,
++        variant: String? = nil
+     ) {
+         self.bundleID = bundleID
+         self.channel = channel
+@@ -200,6 +210,7 @@ public struct GitHubReleaseRule: Sendable {
+         self.installAssetPattern = installAssetPattern
+         self.installerKind = installerKind
+         self.installTrust = installTrust
++        self.variant = variant
+     }
+ 
+     /// Field labels deliberately kept OUT of `channelAnchorSurface` — the ones
+@@ -217,9 +228,9 @@ public struct GitHubReleaseRule: Sendable {
+     /// `probesNewestFirst` is the same kind of knob: it changes how many rows
+     /// the first request asks for, never which release or asset is accepted.
+     /// `installTrust` says which gate the chosen asset must pass, never which
+-    /// asset is chosen.
++    /// asset is chosen. `variant` only names the rule's health row.
+     static let nonAnchorFields: Set<String> = [
+-        "bundleID", "channel", "listPageSize", "probesNewestFirst", "installTrust"]
++        "bundleID", "channel", "listPageSize", "probesNewestFirst", "installTrust", "variant"]
+ 
+     /// Everything this rule says about WHICH repository it reads and WHICH
+     /// releases and assets it will accept — the text a
+@@ -423,7 +434,9 @@ public extension GitHubReleaseRule {
+     /// decides a row is orphaned when no rule produces its key. A second,
+     /// separately-maintained spelling of this string would make the prune delete
+     /// live rows the first time the two drifted.
+-    var recipeID: String { "github:\(slug):\(channel.rawValue)" }
++    var recipeID: String {
++        "github:\(slug):\(channel.rawValue)" + (variant.map { ":\($0)" } ?? "")
++    }
+ }
+ 
+ /// Resolves updates for apps distributed through GitHub Releases. Kept separate
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/RecipeCodableConformances.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/RecipeCodableConformances.swift
+index 88adcdb..42db471 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/RecipeCodableConformances.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/RecipeCodableConformances.swift
+@@ -540,7 +540,7 @@ extension GitHubReleaseRule: Codable {
+     enum CodingKeys: String, CodingKey, CaseIterable {
+         case bundleID, owner, repo, usePrereleases, listPageSize, versionPattern
+         case candidateScope, probesNewestFirst, installedTagPrefix, channel
+-        case installAssetPattern, installerKind, installTrust
++        case installAssetPattern, installerKind, installTrust, variant
+     }
+ 
+     private static var codingDefaults: GitHubReleaseRule {
+@@ -572,7 +572,8 @@ extension GitHubReleaseRule: Codable {
+                 InstallTrust.self, forKey: .installTrust, default: d.installTrust),
+             channel: try c.decode(ReleaseChannel.self, forKey: .channel, default: d.channel),
+             probesNewestFirst: try c.decode(
+-                Bool.self, forKey: .probesNewestFirst, default: d.probesNewestFirst))
++                Bool.self, forKey: .probesNewestFirst, default: d.probesNewestFirst),
++            variant: try c.decodeOptional(String.self, forKey: .variant, default: d.variant))
+     }
+ 
+     public func encode(to encoder: Encoder) throws {
+@@ -594,6 +595,7 @@ extension GitHubReleaseRule: Codable {
+             defaultIsNil: d.installAssetPattern == nil)
+         try c.encodeOptional(installerKind, forKey: .installerKind, defaultIsNil: d.installerKind == nil)
+         try c.encode(installTrust, forKey: .installTrust)
++        try c.encodeOptional(variant, forKey: .variant, defaultIsNil: d.variant == nil)
+     }
+ }
+ 
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CindyChangelogRecipeTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CindyChangelogRecipeTests.swift
+new file mode 100644
+index 0000000..65c8290
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CindyChangelogRecipeTests.swift
+@@ -0,0 +1,227 @@
++import Foundation
++import Testing
++
++@testable import DuoUpdaterCore
++
++/// `hotfix.cindy.app/cindy/notice/darwin-arm64/0.1.104.json` as served, cut to two
++/// topics (and three locales, three contributors). `topics` at the top level is the
++/// zh-CN copy; the English copy sits under `contentByLocale.en`. The first English
++/// text carries an escaped `\"Provider Group\"`.
++private let cindyGlobalNoticeFixture = #"""
++{
++  "version": "0.1.104",
++  "date": "2026-10-12",
++  "githash": "86a212a234c9d88c23f478bd7474d7354df53161",
++  "contributors": [
++    "Lizi",
++    "Dash",
++    "DavidShen"
++  ],
++  "intro": "本次更新共 172 项功能与修复，带来供应商组第二期（同账号直连与分享中转）、协同 Worker 可放到另一台电脑运行、Agent 自助更新 Cindy 等能力。",
++  "topics": [
++    {
++      "id": "provider-group-phase2",
++      "emoji": "🗂️",
++      "title": "供应商组第二期：同账号直连与分享中转",
++      "text": "供应商组现在覆盖同账号的其他电脑和别人分享给你的电脑。模型列表把组内供应商收成「供应商组」一项并标出台数，用量跟着任务实际运行的那台走。组内电脑临时连不上时先退避重试，恢复了留在原机继续，实在不行才换下一台。",
++      "contributors": [
++        "Lizi"
++      ]
++    },
++    {
++      "id": "orca-cross-device-worker",
++      "emoji": "🖥️",
++      "title": "协同 Worker 可以放到另一台电脑运行",
++      "text": "开协同或新建 Worker 时可选「运行设备」，把某个 Worker 放到同账号另一台电脑上跑，Lead 和团队留在原机；手机端能看到它跑在哪台并直接打开那台上的任务。协同任务现在和普通任务一样归供应商组分配，撞上限或那台出问题会自动换电脑，结果不丢。",
++      "contributors": [
++        "DavidShen",
++        "Lizi"
++      ]
++    }
++  ],
++  "contentByLocale": {
++    "zh-CN": {
++      "intro": "本次更新共 172 项功能与修复，带来供应商组第二期（同账号直连与分享中转）、协同 Worker 可放到另一台电脑运行、Agent 自助更新 Cindy 等能力。",
++      "topics": [
++        {
++          "id": "provider-group-phase2",
++          "emoji": "🗂️",
++          "title": "供应商组第二期：同账号直连与分享中转",
++          "text": "供应商组现在覆盖同账号的其他电脑和别人分享给你的电脑。模型列表把组内供应商收成「供应商组」一项并标出台数，用量跟着任务实际运行的那台走。组内电脑临时连不上时先退避重试，恢复了留在原机继续，实在不行才换下一台。",
++          "contributors": [
++            "Lizi"
++          ]
++        },
++        {
++          "id": "orca-cross-device-worker",
++          "emoji": "🖥️",
++          "title": "协同 Worker 可以放到另一台电脑运行",
++          "text": "开协同或新建 Worker 时可选「运行设备」，把某个 Worker 放到同账号另一台电脑上跑，Lead 和团队留在原机；手机端能看到它跑在哪台并直接打开那台上的任务。协同任务现在和普通任务一样归供应商组分配，撞上限或那台出问题会自动换电脑，结果不丢。",
++          "contributors": [
++            "DavidShen",
++            "Lizi"
++          ]
++        }
++      ]
++    },
++    "en": {
++      "intro": "This update includes 172 features and fixes, bringing provider groups phase 2 (same-account direct connection and sharing relay), running Orca workers on another computer, and letting the Agent update Cindy for you.",
++      "topics": [
++        {
++          "id": "provider-group-phase2",
++          "emoji": "🗂️",
++          "title": "Provider Groups Phase 2: Same-Account Direct and Sharing Relay",
++          "text": "Provider groups now cover your other computers on the same account and computers shared with you. The model list collapses grouped providers into a single \"Provider Group\" entry showing the machine count, and usage follows whichever computer the task actually runs on. If a group computer briefly goes unreachable, Cindy retries with backoff and keeps running on the same machine once it recovers, switching only as a last resort.",
++          "contributors": [
++            "Lizi"
++          ]
++        },
++        {
++          "id": "orca-cross-device-worker",
++          "emoji": "🖥️",
++          "title": "Run Orca Workers on Another Computer",
++          "text": "When starting collaboration or creating a worker, you can now pick a \"run device\" to put that worker on another computer on the same account, while the lead and the rest of the team stay where they are; on mobile you can see which computer it runs on and open the real task there. Collaborative tasks now follow provider-group assignment like regular tasks, switching computers automatically when limits are hit or a machine fails, without losing results.",
++          "contributors": [
++            "DavidShen",
++            "Lizi"
++          ]
++        }
++      ]
++    },
++    "ja": {
++      "intro": "今回のアップデートには 172 件の機能追加と修正が含まれます。プロバイダーグループ第 2 期（同一アカウントの直接接続と共有の中継）、協調 Worker を別の PC で実行、Agent による Cindy の自己更新などに対応しました。",
++      "topics": [
++        {
++          "id": "provider-group-phase2",
++          "emoji": "🗂️",
++          "title": "プロバイダーグループ第 2 期：同一アカウントの直接接続と共有の中継",
++          "text": "プロバイダーグループが、同一アカウントの別の PC や共有された PC にも対応しました。モデル一覧ではグループ内のプロバイダーが「プロバイダーグループ」の 1 項目にまとまり、台数が表示されます。使用量はタスクが実際に動作している PC に追随します。グループ内の PC に一時的につながらない場合はバックオフしながら再試行し、復旧すればその PC で続行、どうしてもだめな場合のみ別の PC に切り替えます。",
++          "contributors": [
++            "Lizi"
++          ]
++        },
++        {
++          "id": "orca-cross-device-worker",
++          "emoji": "🖥️",
++          "title": "協調 Worker を別の PC で実行可能に",
++          "text": "協調の開始時や Worker 作成時に「実行デバイス」を選べるようになり、特定の Worker を同一アカウントの別の PC で実行できます。Lead とチームは元の PC に残ります。モバイルではどの PC で動いているかを確認し、その PC 上の実際のタスクを直接開けます。協調タスクも通常のタスクと同じくプロバイダーグループの割り当て対象となり、上限に達したり PC に問題が起きた場合は自動で PC を切り替え、結果も失われません。",
++          "contributors": [
++            "DavidShen",
++            "Lizi"
++          ]
++        }
++      ]
++    }
++  }
++}
++"""#
++
++/// The cn edition's `0.1.106.json`, whole but for the locales: it has no `intro`
++/// key, which the other notices do.
++private let cindyCNNoticeFixture = #"""
++{
++  "version": "0.1.106",
++  "date": "2026-10-13",
++  "githash": "69abf48d3bc167b0ea16ce064ae6b8fc6811276b",
++  "contributors": [
++    "DavidShen"
++  ],
++  "topics": [
++    {
++      "id": "plugin-list-lag",
++      "emoji": "🧩",
++      "title": "插件变多后界面不再卡顿",
++      "text": "修复了安装插件越多、界面越卡的问题：插件列表刷新不再随已装插件数量急剧变慢，装十几个插件时也从要等上几秒变成几乎瞬间完成。",
++      "contributors": [
++        "DavidShen"
++      ]
++    }
++  ],
++  "contentByLocale": {
++    "zh-CN": {
++      "topics": [
++        {
++          "id": "plugin-list-lag",
++          "emoji": "🧩",
++          "title": "插件变多后界面不再卡顿",
++          "text": "修复了安装插件越多、界面越卡的问题：插件列表刷新不再随已装插件数量急剧变慢，装十几个插件时也从要等上几秒变成几乎瞬间完成。",
++          "contributors": [
++            "DavidShen"
++          ]
++        }
++      ]
++    },
++    "en": {
++      "topics": [
++        {
++          "id": "plugin-list-lag",
++          "emoji": "🧩",
++          "title": "No More Lag with Many Plugins",
++          "text": "Fixed the slowdown that grew worse with every plugin you installed: refreshing the plugin list no longer becomes dramatically slower as more plugins are added, so with a dozen or so plugins it now finishes almost instantly instead of taking several seconds.",
++          "contributors": [
++            "DavidShen"
++          ]
++        }
++      ]
++    }
++  }
++}
++"""#
++
++@Suite struct CindyChangelogRecipeTests {
++    private func recipe(_ bundleID: String) throws -> ChangelogRecipe {
++        try #require(ChangelogRecipeRegistry.recipes.first { $0.bundleID == bundleID })
++    }
++
++    private func headings(_ entry: Changelog.Entry) -> [String] {
++        entry.content.compactMap { block -> String? in
++            if case .heading(let text) = block { return text }
++            return nil
++        }
++    }
++
++    @Test func theNoticeIsRequestedByVersion() throws {
++        #expect(try recipe("com.xd.cindy").resolvedSource(forVersion: "0.1.104").absoluteString
++            == "https://hotfix.cindy.app/cindy/notice/darwin-arm64/0.1.104.json")
++        #expect(try recipe("com.xd.cindycn").resolvedSource(forVersion: "0.1.104").absoluteString
++            == "https://hotfix.cindy.com.cn/cindy/notice/darwin-arm64/0.1.104.json")
++    }
++
++    @Test func englishTopicsBecomeHeadingsWithTheirNotes() throws {
++        let log = try #require(ChangelogService.parse(
++            try recipe("com.xd.cindy"), body: cindyGlobalNoticeFixture, version: "0.1.104"))
++        #expect(log.entries.count == 1)
++        let entry = try #require(log.entries.first)
++        #expect(entry.version == "0.1.104")
++        #expect(entry.date == "2026-10-12")
++        #expect(headings(entry) == [
++            "Provider Groups Phase 2: Same-Account Direct and Sharing Relay",
++            "Run Orca Workers on Another Computer",
++        ])
++        #expect(entry.items.count == 2)
++        // The JSON-escaped quotes come out as quotes.
++        #expect(entry.items[0].hasPrefix("Provider groups now cover your other computers"))
++        #expect(entry.items[0].contains("a single \"Provider Group\" entry"))
++        #expect(entry.items[1].hasPrefix("When starting collaboration or creating a worker"))
++        // heading, note, heading, note — in document order.
++        guard case .heading = entry.content[0], case .heading = entry.content[2] else {
++            Issue.record("expected a heading before each note: \(entry.content)")
++            return
++        }
++        // No zh-CN (top-level `topics`) or ja text leaks in.
++        let everything = entry.content.map { "\($0)" }.joined()
++        #expect(!everything.contains("供应商组"))
++        #expect(!everything.contains("プロバイダ"))
++    }
++
++    @Test func aNoticeWithoutIntroIsStillRead() throws {
++        let log = try #require(ChangelogService.parse(
++            try recipe("com.xd.cindycn"), body: cindyCNNoticeFixture, version: "0.1.106"))
++        let entry = try #require(log.entries.first)
++        #expect(entry.version == "0.1.106")
++        #expect(entry.date == "2026-10-13")
++        #expect(headings(entry) == ["No More Lag with Many Plugins"])
++        #expect(entry.items.count == 1)
++        #expect(entry.items[0].hasPrefix("Fixed the slowdown that grew worse with every plugin"))
++    }
++}
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CindyGitHubRuleTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CindyGitHubRuleTests.swift
+new file mode 100644
+index 0000000..7246109
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CindyGitHubRuleTests.swift
+@@ -0,0 +1,207 @@
++import Foundation
++import Testing
++
++@testable import DuoUpdaterCore
++
++/// Cindy's two editions (`Recipes/com-xd-cindy.swift`, `Recipes/com-xd-cindycn.swift`):
++/// one repo, one tag stream, separate `-global` / `-cn` dmgs per arch signed by
++/// different Teams. Each rule must take its own edition's dmg and refuse the other's,
++/// without leaning on the Team gate to catch a cross-edition pick. Asset names are the
++/// ones the real v0.1.104 release lists.
++@Suite struct CindyGitHubRuleTests {
++
++    private static let editions: [(bundleID: String, suffix: String)] = [
++        ("com.xd.cindy", "global"), ("com.xd.cindycn", "cn"),
++    ]
++
++    private static func rule(_ bundleID: String) -> GitHubReleaseRule? {
++        GitHubReleaseRegistry.rules.first { $0.bundleID == bundleID }
++    }
++
++    /// The eight assets of a full release, in the order the API lists them.
++    private static func assetNames(_ version: String) -> [String] {
++        ["cindy-\(version)-darwin-arm64-cn.dmg", "cindy-\(version)-darwin-arm64-global.dmg",
++         "cindy-\(version)-darwin-x64-cn.dmg", "cindy-\(version)-darwin-x64-global.dmg",
++         "cindy-\(version)-linux-x64-cn.deb", "cindy-\(version)-linux-x64-global.deb",
++         "cindy-\(version)-win32-x64-cn.exe", "cindy-\(version)-win32-x64-global.exe"]
++    }
++
++    @Test(arguments: editions)
++    func ruleReadsTheBareTagAndItsOwnEditionsDmgOnly(
++        _ edition: (bundleID: String, suffix: String)
++    ) throws {
++        let rule = try #require(Self.rule(edition.bundleID), "no GitHubReleaseRule for \(edition.bundleID)")
++        #expect(rule.owner == "makecindy" && rule.repo == "cindy")
++        #expect(rule.channel == .stable && !rule.usePrereleases)
++        #expect(rule.installerKind == .dmg)
++        let pattern = try #require(rule.installAssetPattern)
++        func extract(_ tag: String) -> String? {
++            VendorProbeRecipe.extractVersion(from: tag, pattern: rule.versionPattern)
++        }
++        func matches(_ name: String) -> Bool {
++            name.range(of: pattern, options: .regularExpression) != nil
++        }
++
++        #expect(extract("v0.1.104") == "0.1.104")
++        // A beta's Info.plist reads the bare X.Y.Z, so the tag is what keeps it out.
++        #expect(extract("v0.1.108-beta") == nil)
++
++        let other = edition.suffix == "global" ? "cn" : "global"
++        for arch in ["arm64", "x64"] {
++            #expect(matches("cindy-0.1.104-darwin-\(arch)-\(edition.suffix).dmg"))
++            #expect(!matches("cindy-0.1.104-darwin-\(arch)-\(other).dmg"))
++        }
++        #expect(!matches("cindy-0.1.104-linux-x64-\(edition.suffix).deb"))
++        #expect(!matches("cindy-0.1.104-win32-x64-\(edition.suffix).exe"))
++        #expect(!matches("cindy-0.1.108-beta-darwin-arm64-\(edition.suffix).dmg"))
++    }
++
++    @Test(arguments: editions)
++    func theHostsArchitectureChoosesTheDmg(_ edition: (bundleID: String, suffix: String)) throws {
++        let rule = try #require(Self.rule(edition.bundleID))
++        let pattern = try #require(rule.installAssetPattern)
++        let assets = Self.assetNames("0.1.104").map {
++            (name: $0, url: URL(string: "https://github.com/makecindy/cindy/releases/download/v0.1.104/\($0)")!,
++             size: Int64?.some(1000))
++        }
++        let arm = GitHubReleaseRule.installableAsset(
++            from: assets, matching: pattern, preferring: .arm64, allowingIntelTranslation: false)
++        #expect(arm?.url.lastPathComponent == "cindy-0.1.104-darwin-arm64-\(edition.suffix).dmg")
++        let intel = GitHubReleaseRule.installableAsset(
++            from: assets, matching: pattern, preferring: .x86_64, allowingIntelTranslation: false)
++        #expect(intel?.url.lastPathComponent == "cindy-0.1.104-darwin-x64-\(edition.suffix).dmg")
++    }
++
++    /// Same repo, same channel: only `variant` keeps the two editions' health rows
++    /// and baseline entries apart.
++    @Test func theTwoEditionsKeepSeparateRecipeIDs() throws {
++        let global = try #require(Self.rule("com.xd.cindy"))
++        let cn = try #require(Self.rule("com.xd.cindycn"))
++        #expect(global.slug == cn.slug && global.channel == cn.channel)
++        #expect(global.recipeID == "github:makecindy/cindy:stable:global")
++        #expect(cn.recipeID == "github:makecindy/cindy:stable:cn")
++    }
++
++    // MARK: - Replaying real release-list shapes through the source
++
++    struct Release {
++        let tag: String
++        let prerelease: Bool
++        let assets: [String]
++    }
++
++    /// Serves `releases` (newest first) as the list endpoint, and as
++    /// `/releases/latest` the first one that is not a prerelease, as GitHub does.
++    class StubReleases: URLProtocol, @unchecked Sendable {
++        class var releases: [Release] { [] }
++
++        override class func canInit(with request: URLRequest) -> Bool { true }
++        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
++
++        override func startLoading() {
++            let all = Self.releases
++            let url = request.url?.absoluteString ?? ""
++            if url.contains("/releases/latest") {
++                let latest = all.first { !$0.prerelease }!
++                respond(Data("{\(Self.fields(latest))}".utf8))
++                return
++            }
++            let perPage = URLComponents(string: url)?.queryItems?
++                .first { $0.name == "per_page" }?.value.flatMap(Int.init) ?? all.count
++            let page = all.prefix(perPage).map { "{\(Self.fields($0))}" }
++            respond(Data("[\(page.joined(separator: ","))]".utf8))
++        }
++
++        private static func fields(_ release: Release) -> String {
++            let assets = release.assets.map {
++                """
++                {"name":"\($0)","browser_download_url":\
++                "https://github.com/makecindy/cindy/releases/download/\(release.tag)/\($0)",\
++                "size":300000000}
++                """
++            }
++            return """
++            "tag_name":"\(release.tag)","name":"Cindy \(release.tag)","draft":false,\
++            "prerelease":\(release.prerelease),"published_at":"2026-10-12T04:56:47Z",\
++            "html_url":"https://github.com/makecindy/cindy/releases/tag/\(release.tag)",\
++            "body":"notes","assets":[\(assets.joined(separator: ","))]
++            """
++        }
++
++        private func respond(_ data: Data) {
++            let response = HTTPURLResponse(
++                url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
++                headerFields: ["Content-Type": "application/json"])!
++            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
++            client?.urlProtocol(self, didLoad: data)
++            client?.urlProtocolDidFinishLoading(self)
++        }
++
++        override func stopLoading() {}
++    }
++
++    /// The real shape: a beta prerelease newer than the stable one.
++    final class BetaAhead: StubReleases, @unchecked Sendable {
++        override class var releases: [Release] {
++            [Release(tag: "v0.1.108-beta", prerelease: true, assets: CindyGitHubRuleTests.assetNames("0.1.108")),
++             Release(tag: "v0.1.104", prerelease: false, assets: CindyGitHubRuleTests.assetNames("0.1.104")),
++             Release(tag: "v0.1.103", prerelease: false, assets: CindyGitHubRuleTests.assetNames("0.1.103"))]
++        }
++    }
++
++    /// `v1.0.0` is a source-snapshot release with no assets. It matches the tag
++    /// pattern, so were it ever the newest the asset pattern is what refuses it.
++    final class AssetlessSnapshotNewest: StubReleases, @unchecked Sendable {
++        override class var releases: [Release] {
++            [Release(tag: "v1.0.0", prerelease: false, assets: []),
++             Release(tag: "v0.1.104", prerelease: false, assets: CindyGitHubRuleTests.assetNames("0.1.104")),
++             Release(tag: "v0.1.103", prerelease: false, assets: CindyGitHubRuleTests.assetNames("0.1.103"))]
++        }
++    }
++
++    /// A release that shipped one dmg only (v0.1.52 had `arm64-global` alone).
++    final class PartialNewest: StubReleases, @unchecked Sendable {
++        override class var releases: [Release] {
++            [Release(tag: "v0.1.52", prerelease: false, assets: ["cindy-0.1.52-darwin-arm64-global.dmg"]),
++             Release(tag: "v0.1.51", prerelease: false, assets: CindyGitHubRuleTests.assetNames("0.1.51"))]
++        }
++    }
++
++    private func answer(
++        _ bundleID: String, stub: URLProtocol.Type, arch: HostArch = .arm64
++    ) async throws -> (version: String?, asset: String?) {
++        let rule = try #require(Self.rule(bundleID))
++        let config = URLSessionConfiguration.ephemeral
++        config.protocolClasses = [stub]
++        let source = GitHubReleasesSource(rules: [rule], session: URLSession(configuration: config))
++        let outcome = await source.resolveDiagnostic(
++            rule, preferring: arch, allowingIntelTranslation: false)
++        #expect(outcome.failure == nil)
++        return (outcome.remote?.shortVersion, outcome.remote?.downloadURL?.lastPathComponent)
++    }
++
++    @Test(arguments: editions)
++    func aNewerBetaPrereleaseIsNotOffered(_ edition: (bundleID: String, suffix: String)) async throws {
++        let got = try await answer(edition.bundleID, stub: BetaAhead.self)
++        #expect(got.version == "0.1.104")
++        #expect(got.asset == "cindy-0.1.104-darwin-arm64-\(edition.suffix).dmg")
++    }
++
++    @Test(arguments: editions)
++    func theAssetlessSnapshotReleaseIsWalkedPast(_ edition: (bundleID: String, suffix: String)) async throws {
++        let got = try await answer(edition.bundleID, stub: AssetlessSnapshotNewest.self)
++        #expect(got.version == "0.1.104")
++        #expect(got.asset == "cindy-0.1.104-darwin-arm64-\(edition.suffix).dmg")
++    }
++
++    /// The edition without a build in the newest release is offered the previous
++    /// release: there was no such build to offer.
++    @Test func anEditionMissingFromTheNewestReleaseWalksBack() async throws {
++        let cn = try await answer("com.xd.cindycn", stub: PartialNewest.self)
++        #expect(cn.version == "0.1.51")
++        #expect(cn.asset == "cindy-0.1.51-darwin-arm64-cn.dmg")
++        let global = try await answer("com.xd.cindy", stub: PartialNewest.self)
++        #expect(global.version == "0.1.52")
++        #expect(global.asset == "cindy-0.1.52-darwin-arm64-global.dmg")
++    }
++}
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift
+index 47f3704..aafc61c 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift
+@@ -130,6 +130,14 @@ struct GitHubAssetSelectionTests {
+         // magpie: one zip per architecture under every tag (v0.1.1084).
+         (#"^magpie-darwin-(?:arm64|amd64)\.zip$"#,
+          ["magpie-darwin-amd64.zip", "magpie-darwin-arm64.zip"]),
++        // Cindy: one dmg per architecture and per edition under one tag; each
++        // edition's pattern must take only its own.
++        (#"^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-global\.dmg$"#,
++         ["cindy-0.1.104-darwin-arm64-cn.dmg", "cindy-0.1.104-darwin-arm64-global.dmg",
++          "cindy-0.1.104-darwin-x64-cn.dmg", "cindy-0.1.104-darwin-x64-global.dmg"]),
++        (#"^cindy-[0-9]+\.[0-9]+\.[0-9]+-darwin-(?:arm64|x64)-cn\.dmg$"#,
++         ["cindy-0.1.104-darwin-arm64-cn.dmg", "cindy-0.1.104-darwin-arm64-global.dmg",
++          "cindy-0.1.104-darwin-x64-cn.dmg", "cindy-0.1.104-darwin-x64-global.dmg"]),
+     ]
+ 
+     /// Registry patterns whose alternation chooses between TAGS rather than
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubChannelProofTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubChannelProofTests.swift
+index ce1b123..b054402 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubChannelProofTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubChannelProofTests.swift
+@@ -263,7 +263,7 @@ struct GitHubChannelProofTests {
+     @Test func channelAnchorSurfaceCoversEveryGitHubRuleField() {
+         let rule = GitHubReleaseRegistry.rules[0]
+         let labels = Mirror(reflecting: rule).children.compactMap(\.label)
+-        #expect(labels.count == 13,
++        #expect(labels.count == 14,
+                 "GitHubReleaseRule gained or lost a field (now \(labels.count): \(labels.sorted())) — decide whether it belongs in the .recipeAnchor surface or in nonAnchorFields, then update this count")
+         for excluded in GitHubReleaseRule.nonAnchorFields {
+             #expect(labels.contains(excluded),
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/ad-neko-petex.txt b/DuoUpdaterCore/Tests/RecipeGoldens/ad-neko-petex.txt
+index 5f23c10..ecb69ea 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/ad-neko-petex.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/ad-neko-petex.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern = nil
+ githubRules[0].installerKind = nil
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/ai-deepseek-dsh-desktop.txt b/DuoUpdaterCore/Tests/RecipeGoldens/ai-deepseek-dsh-desktop.txt
+index 719d8c9..475ecd3 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/ai-deepseek-dsh-desktop.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/ai-deepseek-dsh-desktop.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^DSH\\.Desktop-[0-9.]+-universal\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/ai-opencode-desktop.txt b/DuoUpdaterCore/Tests/RecipeGoldens/ai-opencode-desktop.txt
+index 98af538..ee9214f 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/ai-opencode-desktop.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/ai-opencode-desktop.txt
+@@ -53,6 +53,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^opencode-desktop-mac-(?:arm64|x64)\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-designcraft.txt b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-designcraft.txt
+index ccceca7..8a538e6 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-designcraft.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-designcraft.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^designcraft-[0-9]+\\.[0-9]+\\.[0-9]+-macos-universal\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-effectcraft.txt b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-effectcraft.txt
+index 633bbd0..a7577cb 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-effectcraft.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-effectcraft.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^effectcraft-[0-9]+\\.[0-9]+\\.[0-9]+-macos-universal\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-filmcraft.txt b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-filmcraft.txt
+index b734287..8f74cd1 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-filmcraft.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-filmcraft.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^filmcraft-[0-9]+\\.[0-9]+\\.[0-9]+-macos-universal\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-lightcraft.txt b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-lightcraft.txt
+index d5cc054..47fafcb 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-lightcraft.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-lightcraft.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^lightcraft-[0-9]+\\.[0-9]+\\.[0-9]+-macos-universal\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-photocraft.txt b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-photocraft.txt
+index 6cefd91..d1d2ec5 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-photocraft.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-photocraft.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^photocraft-[0-9]+\\.[0-9]+\\.[0-9]+-macos-universal\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-printcraft.txt b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-printcraft.txt
+index 4900674..8f9fe28 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-printcraft.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-printcraft.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^printcraft-[0-9]+\\.[0-9]+\\.[0-9]+-macos-universal\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-vectorcraft.txt b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-vectorcraft.txt
+index 96c4385..d4ad48b 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-vectorcraft.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/ai-storyteller-vectorcraft.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^vectorcraft-[0-9]+\\.[0-9]+\\.[0-9]+-macos-universal\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/app-cyan-markedit.txt b/DuoUpdaterCore/Tests/RecipeGoldens/app-cyan-markedit.txt
+index 6b90bc3..072fff4 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/app-cyan-markedit.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/app-cyan-markedit.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^MarkEdit-[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/app-freelens-Freelens.txt b/DuoUpdaterCore/Tests/RecipeGoldens/app-freelens-Freelens.txt
+index 00b3ff1..6100aad 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/app-freelens-Freelens.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/app-freelens-Freelens.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Freelens-[0-9.]+-macos-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/app-macdown-macdown3000.txt b/DuoUpdaterCore/Tests/RecipeGoldens/app-macdown-macdown3000.txt
+index 45baa07..399bf2c 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/app-macdown-macdown3000.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/app-macdown-macdown3000.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^MacDown-[0-9]+(?:\\.[0-9]+)+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/app-yaak-desktop.txt b/DuoUpdaterCore/Tests/RecipeGoldens/app-yaak-desktop.txt
+index 7b97922..cdbb0a1 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/app-yaak-desktop.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/app-yaak-desktop.txt
+@@ -82,6 +82,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Yaak_[0-9.]+_aarch64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ githubRules[1] = struct GitHubReleaseRule
+ githubRules[1].bundleID = "app.yaak.desktop"
+ githubRules[1].owner = "mountain-loop"
+@@ -96,6 +97,7 @@ githubRules[1].channel = .beta
+ githubRules[1].installAssetPattern? = "^Yaak_[0-9.]+-beta\\.[0-9]+_aarch64\\.dmg$"
+ githubRules[1].installerKind? = .dmg
+ githubRules[1].installTrust = .developerID
++githubRules[1].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/app-zen-browser-zen.txt b/DuoUpdaterCore/Tests/RecipeGoldens/app-zen-browser-zen.txt
+index 8fc2d36..5488746 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/app-zen-browser-zen.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/app-zen-browser-zen.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^zen\\.macos-universal\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/art-ginzburg-MiddleClick.txt b/DuoUpdaterCore/Tests/RecipeGoldens/art-ginzburg-MiddleClick.txt
+index b0c8625..a3aabb2 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/art-ginzburg-MiddleClick.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/art-ginzburg-MiddleClick.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^MiddleClick\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/co-palokaj-battery.txt b/DuoUpdaterCore/Tests/RecipeGoldens/co-palokaj-battery.txt
+index 2e73ff4..2b1130a 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/co-palokaj-battery.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/co-palokaj-battery.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^battery-[0-9.]+-mac-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-BlueBubbles-BlueBubbles-Server.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-BlueBubbles-BlueBubbles-Server.txt
+index a853c82..4e709a8 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-BlueBubbles-BlueBubbles-Server.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-BlueBubbles-BlueBubbles-Server.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^BlueBubbles-[0-9.]+-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-FluidApp-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-FluidApp-app.txt
+index 646e64f..082f0d5 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-FluidApp-app.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-FluidApp-app.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Fluid-oss-[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-alienator88-Pearcleaner.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-alienator88-Pearcleaner.txt
+index 6e3cdde..dffd1b5 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-alienator88-Pearcleaner.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-alienator88-Pearcleaner.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Pearcleaner\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-ameba-SwiftBar.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-ameba-SwiftBar.txt
+index e262219..d942235 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-ameba-SwiftBar.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-ameba-SwiftBar.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^SwiftBar\\.v[0-9.]+\\.b[0-9]+\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-bitwarden-desktop.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-bitwarden-desktop.txt
+index 1a72f8f..cf536d9 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-bitwarden-desktop.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-bitwarden-desktop.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Bitwarden-[0-9.]+-universal\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-carriez-rustdesk.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-carriez-rustdesk.txt
+index 46792a8..36873ce 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-carriez-rustdesk.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-carriez-rustdesk.txt
+@@ -53,6 +53,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^rustdesk-[0-9.]+-aarch64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-ccswitch-desktop.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-ccswitch-desktop.txt
+index 518072e..5509f49 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-ccswitch-desktop.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-ccswitch-desktop.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^CC-Switch-v[0-9.]+-macOS\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-claudecode-context.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-claudecode-context.txt
+index 0fe1f1a..00c7086 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-claudecode-context.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-claudecode-context.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^claude-devtools-[0-9.]+-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-coteditor-CotEditor.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-coteditor-CotEditor.txt
+index 43f654d..b71b3e3 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-coteditor-CotEditor.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-coteditor-CotEditor.txt
+@@ -82,6 +82,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^CotEditor_[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ githubRules[1] = struct GitHubReleaseRule
+ githubRules[1].bundleID = "com.coteditor.CotEditor"
+ githubRules[1].owner = "coteditor"
+@@ -96,6 +97,7 @@ githubRules[1].channel = .beta
+ githubRules[1].installAssetPattern? = "^CotEditor_[0-9.]+(?:-beta(?:\\.[0-9]+)?|-rc(?:\\.[0-9]+)?)?\\.dmg$"
+ githubRules[1].installerKind? = .dmg
+ githubRules[1].installTrust = .developerID
++githubRules[1].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-crystalidea-macsfancontrol.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-crystalidea-macsfancontrol.txt
+index dddf451..c1e0541 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-crystalidea-macsfancontrol.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-crystalidea-macsfancontrol.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^macsfancontrol\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-dirijor-diri.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-dirijor-diri.txt
+index 10378a4..244be50 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-dirijor-diri.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-dirijor-diri.txt
+@@ -52,6 +52,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^diri-[0-9.]+-universal\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-dwarvesv-minimalbar.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-dwarvesv-minimalbar.txt
+index cf3a38d..f40f3df 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-dwarvesv-minimalbar.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-dwarvesv-minimalbar.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Hidden-Bar-v[0-9.]+-macos\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-electron-goose.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-electron-goose.txt
+index 75143ef..ed94ce0 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-electron-goose.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-electron-goose.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Goose(_intel_mac)?\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-electron-ollama.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-electron-ollama.txt
+index ac0c1cf..530008c 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-electron-ollama.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-electron-ollama.txt
+@@ -54,6 +54,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Ollama-darwin\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-electron-open-lens.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-electron-open-lens.txt
+index d3e3281..14e3912 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-electron-open-lens.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-electron-open-lens.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^OpenLens-[0-9.\\-]+-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-federicoterzi-espanso.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-federicoterzi-espanso.txt
+index ef3953c..7bab979 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-federicoterzi-espanso.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-federicoterzi-espanso.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Espanso-Mac-Universal\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-github-GitHubClient.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-github-GitHubClient.txt
+index 4dbe0b6..fb60214 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-github-GitHubClient.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-github-GitHubClient.txt
+@@ -82,6 +82,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^GitHub\\.Desktop-arm64\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ githubRules[1] = struct GitHubReleaseRule
+ githubRules[1].bundleID = "com.github.GitHubClient"
+ githubRules[1].owner = "desktop"
+@@ -96,6 +97,7 @@ githubRules[1].channel = .beta
+ githubRules[1].installAssetPattern? = "^GitHub\\.Desktop-arm64\\.zip$"
+ githubRules[1].installerKind? = .zip
+ githubRules[1].installTrust = .developerID
++githubRules[1].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-github-githubapp.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-github-githubapp.txt
+index b4a3004..75c240c 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-github-githubapp.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-github-githubapp.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^GitHub-Copilot-darwin-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-github-marktext-marktext.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-github-marktext-marktext.txt
+index 1039ff9..6ed8bff 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-github-marktext-marktext.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-github-marktext-marktext.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern = nil
+ githubRules[0].installerKind = nil
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-insomnia-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-insomnia-app.txt
+index 101f0e9..83047d5 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-insomnia-app.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-insomnia-app.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Insomnia\\.Core-[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-intelliscapesolutions-caffeine.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-intelliscapesolutions-caffeine.txt
+index a441a28..c95983c 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-intelliscapesolutions-caffeine.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-intelliscapesolutions-caffeine.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Caffeine\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-jgraph-drawio-desktop.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-jgraph-drawio-desktop.txt
+index b6f142d..51f44c6 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-jgraph-drawio-desktop.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-jgraph-drawio-desktop.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^draw\\.io-arm64-[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-jorisgallot-reviu.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-jorisgallot-reviu.txt
+index b80cb73..e59f702 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-jorisgallot-reviu.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-jorisgallot-reviu.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Reviu-[0-9.]+-macos-aarch64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-kangfenmao-CherryStudio.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-kangfenmao-CherryStudio.txt
+index 9ecf5e0..482771e 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-kangfenmao-CherryStudio.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-kangfenmao-CherryStudio.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Cherry-Studio-[0-9.]+-(?:mac-)?arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-local-claudestatusbar.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-local-claudestatusbar.txt
+index ef427f8..72c8806 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-local-claudestatusbar.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-local-claudestatusbar.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^ClaudeStatusBar\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-mak5er-aircard.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-mak5er-aircard.txt
+index b3bf95c..26f132b 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-mak5er-aircard.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-mak5er-aircard.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern = nil
+ githubRules[0].installerKind = nil
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-maxgoedjen-Secretive-Host.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-maxgoedjen-Secretive-Host.txt
+index 3bb67c9..85fd31f 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-maxgoedjen-Secretive-Host.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-maxgoedjen-Secretive-Host.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern = nil
+ githubRules[0].installerKind = nil
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-meetily-ai.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-meetily-ai.txt
+index 5916ccc..d87d08f 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-meetily-ai.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-meetily-ai.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^meetily_[0-9.]+_aarch64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-microsoft-Headlamp.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-microsoft-Headlamp.txt
+index ac03ed3..35cefae 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-microsoft-Headlamp.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-microsoft-Headlamp.txt
+@@ -54,6 +54,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Headlamp-[0-9.]+-mac-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-moonlight-stream-Moonlight.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-moonlight-stream-Moonlight.txt
+index 6d6d762..77da5e9 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-moonlight-stream-Moonlight.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-moonlight-stream-Moonlight.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Moonlight-[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-neovide-neovide.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-neovide-neovide.txt
+index 23ac985..5dc266f 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-neovide-neovide.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-neovide-neovide.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Neovide-aarch64-apple-darwin\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-obelisk-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-obelisk-app.txt
+index 9898fcb..f4e0750 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-obelisk-app.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-obelisk-app.txt
+@@ -54,6 +54,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern = nil
+ githubRules[0].installerKind = nil
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-objective-see-lulu-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-objective-see-lulu-app.txt
+index 2f2c023..ee6a934 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-objective-see-lulu-app.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-objective-see-lulu-app.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^LuLu_[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-pais-handy.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-pais-handy.txt
+index 51400cd..6895c99 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-pais-handy.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-pais-handy.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Handy_[0-9.]+_aarch64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-puremac-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-puremac-app.txt
+index e629f08..ed64015 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-puremac-app.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-puremac-app.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^PureMac-[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-raspberrypi-rpi-imager.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-raspberrypi-rpi-imager.txt
+index d0bcd73..daf99e0 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-raspberrypi-rpi-imager.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-raspberrypi-rpi-imager.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^rpi-imager-v[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-sequel-ace-sequel-ace.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-sequel-ace-sequel-ace.txt
+index 7bf46e7..5957ad3 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-sequel-ace-sequel-ace.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-sequel-ace-sequel-ace.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Sequel-Ace-[0-9.]+\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-supercmd-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-supercmd-app.txt
+index 0802efe..38813ee 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-supercmd-app.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-supercmd-app.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern = nil
+ githubRules[0].installerKind = nil
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-t3tools-t3code.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-t3tools-t3code.txt
+index 7ea9c2d..ac4419b 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-t3tools-t3code.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-t3tools-t3code.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .alpha
+ githubRules[0].installAssetPattern? = "^T3-Code-[0-9.]+-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ githubRules[1] = struct GitHubReleaseRule
+ githubRules[1].bundleID = "com.t3tools.t3code"
+ githubRules[1].owner = "pingdotgg"
+@@ -36,6 +37,7 @@ githubRules[1].channel = .nightly
+ githubRules[1].installAssetPattern? = "^T3-Code-[0-9.]+-nightly\\.[0-9.]+-arm64\\.dmg$"
+ githubRules[1].installerKind? = .dmg
+ githubRules[1].installTrust = .developerID
++githubRules[1].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-theron-UnnaturalScrollWheels.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-theron-UnnaturalScrollWheels.txt
+index 945d6cb..6324943 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-theron-UnnaturalScrollWheels.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-theron-UnnaturalScrollWheels.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^UnnaturalScrollWheels-[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-tinycast-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-tinycast-app.txt
+index e6d4c41..0b9fe8d 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-tinycast-app.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-tinycast-app.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern = nil
+ githubRules[0].installerKind = nil
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ githubRules[1] = struct GitHubReleaseRule
+ githubRules[1].bundleID = "com.tinycast.app.beta"
+ githubRules[1].owner = "abue-ammar"
+@@ -36,6 +37,7 @@ githubRules[1].channel = .beta
+ githubRules[1].installAssetPattern = nil
+ githubRules[1].installerKind = nil
+ githubRules[1].installTrust = .developerID
++githubRules[1].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-trycua-driver.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-trycua-driver.txt
+index d860384..53244bc 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-trycua-driver.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-trycua-driver.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^cua-driver-rs-[0-9]+\\.[0-9]+\\.[0-9]+-darwin-universal\\.tar\\.gz$"
+ githubRules[0].installerKind? = .tarGz
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ githubRules[1] = struct GitHubReleaseRule
+ githubRules[1].bundleID = "com.trycua.driver"
+ githubRules[1].owner = "trycua"
+@@ -36,6 +37,7 @@ githubRules[1].channel = .nightly
+ githubRules[1].installAssetPattern? = "^cua-driver-rs-[0-9]+\\.[0-9]+\\.[0-9]+-nightly\\.[0-9]{8}\\.[1-9][0-9]*-darwin-universal\\.tar\\.gz$"
+ githubRules[1].installerKind? = .tarGz
+ githubRules[1].installTrust = .developerID
++githubRules[1].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-usebruno-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-usebruno-app.txt
+index a034543..1e5400c 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-usebruno-app.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-usebruno-app.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^bruno_[0-9.]+_arm64_mac\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-utmapp-UTM.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-utmapp-UTM.txt
+index ee50665..97144d7 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-utmapp-UTM.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-utmapp-UTM.txt
+@@ -82,6 +82,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^UTM\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ githubRules[1] = struct GitHubReleaseRule
+ githubRules[1].bundleID = "com.utmapp.UTM"
+ githubRules[1].owner = "utmapp"
+@@ -96,6 +97,7 @@ githubRules[1].channel = .beta
+ githubRules[1].installAssetPattern? = "^UTM\\.dmg$"
+ githubRules[1].installerKind? = .dmg
+ githubRules[1].installTrust = .developerID
++githubRules[1].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-vorssaint-utils.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-vorssaint-utils.txt
+index f123920..3ea91da 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-vorssaint-utils.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-vorssaint-utils.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Vorssaint-[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ githubRules[1] = struct GitHubReleaseRule
+ githubRules[1].bundleID = "com.vorssaint.utils"
+ githubRules[1].owner = "vorssaint"
+@@ -36,6 +37,7 @@ githubRules[1].channel = .beta
+ githubRules[1].installAssetPattern? = "^Vorssaint-[0-9.]+-beta\\.[0-9]+\\.dmg$"
+ githubRules[1].installerKind? = .dmg
+ githubRules[1].installTrust = .developerID
++githubRules[1].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-vscodium.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-vscodium.txt
+index 4232c61..2ccc248 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-vscodium.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-vscodium.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^VSCodium-darwin-arm64-[0-9.]+\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ githubRules[1] = struct GitHubReleaseRule
+ githubRules[1].bundleID = "com.vscodium.VSCodiumInsiders"
+ githubRules[1].owner = "VSCodium"
+@@ -36,6 +37,7 @@ githubRules[1].channel = .preview
+ githubRules[1].installAssetPattern? = "^VSCodium-darwin-arm64-[0-9.]+-insider\\.zip$"
+ githubRules[1].installerKind? = .zip
+ githubRules[1].installTrust = .developerID
++githubRules[1].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-xd-cindy.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-xd-cindy.txt
+new file mode 100644
+index 0000000..ffcea98
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-xd-cindy.txt
+@@ -0,0 +1,72 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "com-xd-cindy"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 1)
++changelogs[0] = struct ChangelogRecipe
++changelogs[0].bundleID = "com.xd.cindy"
++changelogs[0].source = URL("https://hotfix.cindy.app/cindy/notice/darwin-arm64/index.json")
++changelogs[0].sourceTemplate? = "https://hotfix.cindy.app/cindy/notice/darwin-arm64/{version}.json"
++changelogs[0].versionFromTemplate = false
++changelogs[0].mode = .json
++changelogs[0].entryPattern = "\"version\"\\s*:\\s*\"(?<version>[0-9]+\\.[0-9]+\\.[0-9]+)\"\\s*,\\s*\"date\"\\s*:\\s*\"(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\".*?\"contentByLocale\"\\s*:\\s*\\{.*?\"en\"\\s*:\\s*\\{[^{}]*?\"topics\"\\s*:\\s*\\[(?<body>(?:[^\\[\\]]|\\[[^\\[\\]]*\\])*)\\]"
++changelogs[0].itemPatterns = Array(count: 1)
++changelogs[0].itemPatterns[0] = "\"text\"\\s*:\\s*\"(?<item>(?:[^\"\\\\]|\\\\.)*)\""
++changelogs[0].stripTags = false
++changelogs[0].decodeEntities = true
++changelogs[0].escapedMarkup = false
++changelogs[0].markdownSource = false
++changelogs[0].maxEntries? = 1
++changelogs[0].minItemLength = 1
++changelogs[0].newestLast = false
++changelogs[0].indexLinkPattern = nil
++changelogs[0].feedPagePattern = nil
++changelogs[0].channel = nil
++changelogs[0].includesPromotedStable = false
++changelogs[0].imagePattern = nil
++changelogs[0].headingPattern? = "\"title\"\\s*:\\s*\"(?<heading>(?:[^\"\\\\]|\\\\.)*)\""
++changelogs[0].minimumAppVersion = nil
++changelogs[0].belowAppVersion = nil
++changelogs[0].carriesOtherTrainEntries = false
++changelogs[0].acknowledgedStaleEntry = nil
++changelogs[0].structuredFormat = nil
++changelogs[0].httpMethod = .get
++changelogs[0].requestBody = nil
++changelogs[0].skipSections = Array(count: 0)
++changelogs[0].tagPattern = nil
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "com.xd.cindy"
++githubRules[0].owner = "makecindy"
++githubRules[0].repo = "cindy"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^cindy-[0-9]+\\.[0-9]+\\.[0-9]+-darwin-(?:arm64|x64)-global\\.dmg$"
++githubRules[0].installerKind? = .dmg
++githubRules[0].installTrust = .developerID
++githubRules[0].variant? = "global"
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-xd-cindycn.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-xd-cindycn.txt
+new file mode 100644
+index 0000000..85cd1a5
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-xd-cindycn.txt
+@@ -0,0 +1,72 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "com-xd-cindycn"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 1)
++changelogs[0] = struct ChangelogRecipe
++changelogs[0].bundleID = "com.xd.cindycn"
++changelogs[0].source = URL("https://hotfix.cindy.com.cn/cindy/notice/darwin-arm64/index.json")
++changelogs[0].sourceTemplate? = "https://hotfix.cindy.com.cn/cindy/notice/darwin-arm64/{version}.json"
++changelogs[0].versionFromTemplate = false
++changelogs[0].mode = .json
++changelogs[0].entryPattern = "\"version\"\\s*:\\s*\"(?<version>[0-9]+\\.[0-9]+\\.[0-9]+)\"\\s*,\\s*\"date\"\\s*:\\s*\"(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\".*?\"contentByLocale\"\\s*:\\s*\\{.*?\"en\"\\s*:\\s*\\{[^{}]*?\"topics\"\\s*:\\s*\\[(?<body>(?:[^\\[\\]]|\\[[^\\[\\]]*\\])*)\\]"
++changelogs[0].itemPatterns = Array(count: 1)
++changelogs[0].itemPatterns[0] = "\"text\"\\s*:\\s*\"(?<item>(?:[^\"\\\\]|\\\\.)*)\""
++changelogs[0].stripTags = false
++changelogs[0].decodeEntities = true
++changelogs[0].escapedMarkup = false
++changelogs[0].markdownSource = false
++changelogs[0].maxEntries? = 1
++changelogs[0].minItemLength = 1
++changelogs[0].newestLast = false
++changelogs[0].indexLinkPattern = nil
++changelogs[0].feedPagePattern = nil
++changelogs[0].channel = nil
++changelogs[0].includesPromotedStable = false
++changelogs[0].imagePattern = nil
++changelogs[0].headingPattern? = "\"title\"\\s*:\\s*\"(?<heading>(?:[^\"\\\\]|\\\\.)*)\""
++changelogs[0].minimumAppVersion = nil
++changelogs[0].belowAppVersion = nil
++changelogs[0].carriesOtherTrainEntries = false
++changelogs[0].acknowledgedStaleEntry = nil
++changelogs[0].structuredFormat = nil
++changelogs[0].httpMethod = .get
++changelogs[0].requestBody = nil
++changelogs[0].skipSections = Array(count: 0)
++changelogs[0].tagPattern = nil
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "com.xd.cindycn"
++githubRules[0].owner = "makecindy"
++githubRules[0].repo = "cindy"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^cindy-[0-9]+\\.[0-9]+\\.[0-9]+-darwin-(?:arm64|x64)-cn\\.dmg$"
++githubRules[0].installerKind? = .dmg
++githubRules[0].installTrust = .developerID
++githubRules[0].variant? = "cn"
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-xingyuzhong-deepseekgui.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-xingyuzhong-deepseekgui.txt
+index 4d44ef4..fd652a8 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-xingyuzhong-deepseekgui.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-xingyuzhong-deepseekgui.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Kun-[0-9.]+-mac-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-yetone-magpie.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-yetone-magpie.txt
+index 6d77bf2..6be9593 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/com-yetone-magpie.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-yetone-magpie.txt
+@@ -53,6 +53,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^magpie-darwin-(?:arm64|amd64)\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/dev-openchamber-desktop.txt b/DuoUpdaterCore/Tests/RecipeGoldens/dev-openchamber-desktop.txt
+index d3a7a62..ed98f9b 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/dev-openchamber-desktop.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/dev-openchamber-desktop.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^OpenChamber-[0-9.]+-mac-(?:arm64|x64)\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/dev-zed-Zed.txt b/DuoUpdaterCore/Tests/RecipeGoldens/dev-zed-Zed.txt
+index f5dfe07..2bffa70 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/dev-zed-Zed.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/dev-zed-Zed.txt
+@@ -82,6 +82,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Zed-aarch64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ githubRules[1] = struct GitHubReleaseRule
+ githubRules[1].bundleID = "dev.zed.Zed-Preview"
+ githubRules[1].owner = "zed-industries"
+@@ -96,6 +97,7 @@ githubRules[1].channel = .preview
+ githubRules[1].installAssetPattern? = "^Zed-aarch64\\.dmg$"
+ githubRules[1].installerKind? = .dmg
+ githubRules[1].installTrust = .developerID
++githubRules[1].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/digital-twisted-noTunes.txt b/DuoUpdaterCore/Tests/RecipeGoldens/digital-twisted-noTunes.txt
+index ab0e328..576b74b 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/digital-twisted-noTunes.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/digital-twisted-noTunes.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^noTunes-[0-9.]+\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/eu-exelban-Stats.txt b/DuoUpdaterCore/Tests/RecipeGoldens/eu-exelban-Stats.txt
+index c9b6f29..a442a99 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/eu-exelban-Stats.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/eu-exelban-Stats.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Stats\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/info-marcel-dierkes-KeepingYouAwake.txt b/DuoUpdaterCore/Tests/RecipeGoldens/info-marcel-dierkes-KeepingYouAwake.txt
+index 8eaa49c..8a8c10b 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/info-marcel-dierkes-KeepingYouAwake.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/info-marcel-dierkes-KeepingYouAwake.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^KeepingYouAwake-[0-9.]+\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/io-agentsview-desktop.txt b/DuoUpdaterCore/Tests/RecipeGoldens/io-agentsview-desktop.txt
+index e6c293c..d2b392e 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/io-agentsview-desktop.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/io-agentsview-desktop.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^AgentsView_[0-9.]+_aarch64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/io-balena-etcher.txt b/DuoUpdaterCore/Tests/RecipeGoldens/io-balena-etcher.txt
+index 1e1a91c..378e2a9 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/io-balena-etcher.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/io-balena-etcher.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^balenaEtcher-[0-9.]+-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/io-beekeeperstudio-desktop.txt b/DuoUpdaterCore/Tests/RecipeGoldens/io-beekeeperstudio-desktop.txt
+index e05dbd0..9767851 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/io-beekeeperstudio-desktop.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/io-beekeeperstudio-desktop.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Beekeeper-Studio-[0-9.]+-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/io-ganeshrvel-openmtp.txt b/DuoUpdaterCore/Tests/RecipeGoldens/io-ganeshrvel-openmtp.txt
+index f198e94..9b713e7 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/io-ganeshrvel-openmtp.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/io-ganeshrvel-openmtp.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^openmtp-[0-9.]+-mac-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/io-github-clash-verge-rev-clash-verge-rev.txt b/DuoUpdaterCore/Tests/RecipeGoldens/io-github-clash-verge-rev-clash-verge-rev.txt
+index 8711599..fbd1439 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/io-github-clash-verge-rev-clash-verge-rev.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/io-github-clash-verge-rev-clash-verge-rev.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Clash\\.Verge_[0-9.]+_aarch64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/io-github-wickenico-wailbrew.txt b/DuoUpdaterCore/Tests/RecipeGoldens/io-github-wickenico-wailbrew.txt
+index 456ec4a..da5d6cc 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/io-github-wickenico-wailbrew.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/io-github-wickenico-wailbrew.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^wailbrew-v[0-9.]+\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/io-podmandesktop-PodmanDesktop.txt b/DuoUpdaterCore/Tests/RecipeGoldens/io-podmandesktop-PodmanDesktop.txt
+index fe16c31..552fe90 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/io-podmandesktop-PodmanDesktop.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/io-podmandesktop-PodmanDesktop.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^podman-desktop-[0-9.]+-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/io-rancherdesktop-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/io-rancherdesktop-app.txt
+index ec47eb8..7124616 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/io-rancherdesktop-app.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/io-rancherdesktop-app.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Rancher\\.Desktop-[0-9.]+\\.aarch64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/jan-ai-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/jan-ai-app.txt
+index 37f6618..837b58c 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/jan-ai-app.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/jan-ai-app.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^jan-mac-universal-[0-9.]+\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/leits-MeetingBar.txt b/DuoUpdaterCore/Tests/RecipeGoldens/leits-MeetingBar.txt
+index 11ca1b9..99e0705 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/leits-MeetingBar.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/leits-MeetingBar.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^MeetingBar\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/llc-turing-CrystalFetch.txt b/DuoUpdaterCore/Tests/RecipeGoldens/llc-turing-CrystalFetch.txt
+index e6a11b7..57b6d09 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/llc-turing-CrystalFetch.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/llc-turing-CrystalFetch.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^CrystalFetch\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/me-qii404-another-redis-desktop-manager.txt b/DuoUpdaterCore/Tests/RecipeGoldens/me-qii404-another-redis-desktop-manager.txt
+index a22cbea..eb6a04d 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/me-qii404-another-redis-desktop-manager.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/me-qii404-another-redis-desktop-manager.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Another-Redis-Desktop-Manager-mac-[0-9.]+-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/net-ankiweb-anki.txt b/DuoUpdaterCore/Tests/RecipeGoldens/net-ankiweb-anki.txt
+index 26f7bdb..e938e14 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/net-ankiweb-anki.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/net-ankiweb-anki.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^anki-[0-9.]+-mac-(apple|intel)\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/net-imput-helium.txt b/DuoUpdaterCore/Tests/RecipeGoldens/net-imput-helium.txt
+index 0010371..36c9b97 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/net-imput-helium.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/net-imput-helium.txt
+@@ -53,6 +53,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^helium_[0-9.]+_arm64-macos\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/net-kovidgoyal-kitty.txt b/DuoUpdaterCore/Tests/RecipeGoldens/net-kovidgoyal-kitty.txt
+index f6ca724..eece7b5 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/net-kovidgoyal-kitty.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/net-kovidgoyal-kitty.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^kitty-[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/net-sourceforge-sqlitebrowser.txt b/DuoUpdaterCore/Tests/RecipeGoldens/net-sourceforge-sqlitebrowser.txt
+index c32a3a0..c4748ea 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/net-sourceforge-sqlitebrowser.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/net-sourceforge-sqlitebrowser.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^DB\\.Browser\\.for\\.SQLite-v[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-RedisLabs-RedisInsight-V2.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-RedisLabs-RedisInsight-V2.txt
+index d5b770d..f370bdd 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-RedisLabs-RedisInsight-V2.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-RedisLabs-RedisInsight-V2.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Redis-Insight-mac-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-alacritty.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-alacritty.txt
+index de2a342..00a0bb8 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-alacritty.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-alacritty.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Alacritty-v[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .publishedDigestOnly
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-cryptomator.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-cryptomator.txt
+index 3ff4a7a..7aa6a88 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-cryptomator.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-cryptomator.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Cryptomator-[0-9.]+-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-darktable.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-darktable.txt
+index 4dd4689..951749b 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-darktable.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-darktable.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^darktable-[0-9.]+-(arm64|x86_64)\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .publishedDigestOnly
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-flameshot-Flameshot.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-flameshot-Flameshot.txt
+index 7d76fc2..f75f696 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-flameshot-Flameshot.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-flameshot-Flameshot.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Flameshot-.+-macos-(arm64|intel)\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .publishedDigestOnly
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-godotengine-godot.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-godotengine-godot.txt
+index 9b28b52..755a3f0 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-godotengine-godot.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-godotengine-godot.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Godot_v[0-9.]+-stable_macos\\.universal\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-jkiss-dbeaver-core-product.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-jkiss-dbeaver-core-product.txt
+index 8c3ceac..ceb1fe2 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-jkiss-dbeaver-core-product.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-jkiss-dbeaver-core-product.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^dbeaver-ce-[0-9.]+-macos-aarch64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-keepassxc-keepassxc.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-keepassxc-keepassxc.txt
+index b1b1c33..68ed6b0 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-keepassxc-keepassxc.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-keepassxc-keepassxc.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^KeePassXC-[0-9.\\-]+-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-localsend-localsendApp.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-localsend-localsendApp.txt
+index ab4750e..1ab0a3c 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-localsend-localsendApp.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-localsend-localsendApp.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^LocalSend-[0-9.]+\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-openlogi-openlogi.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-openlogi-openlogi.txt
+index 2b38af4..6d1d8bc 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-openlogi-openlogi.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-openlogi-openlogi.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^OpenLogi-v[0-9.]+-macos-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-qbittorrent-qBittorrent.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-qbittorrent-qBittorrent.txt
+index aaa8b4e..caa1f04 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-qbittorrent-qBittorrent.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-qbittorrent-qBittorrent.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern = nil
+ githubRules[0].installerKind = nil
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-tabby.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-tabby.txt
+index 23329c3..bee53eb 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-tabby.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-tabby.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^tabby-[0-9.]+-macos-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-upscayl-Upscayl.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-upscayl-Upscayl.txt
+index 0a132b8..4b850db 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-upscayl-Upscayl.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-upscayl-Upscayl.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^upscayl-[0-9.]+-mac\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-winehq-wine-staging-wine.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-winehq-wine-staging-wine.txt
+index df70313..b85c728 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-winehq-wine-staging-wine.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-winehq-wine-staging-wine.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern = nil
+ githubRules[0].installerKind = nil
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-xquartz-X11.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-xquartz-X11.txt
+index 2523d16..df73d72 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-xquartz-X11.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-xquartz-X11.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^XQuartz-[0-9.]+\\.pkg$"
+ githubRules[0].installerKind? = .pkg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/org-zaproxy-zap-ZAP.txt b/DuoUpdaterCore/Tests/RecipeGoldens/org-zaproxy-zap-ZAP.txt
+index b8a4543..773c150 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/org-zaproxy-zap-ZAP.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/org-zaproxy-zap-ZAP.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern = nil
+ githubRules[0].installerKind = nil
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/ru-starmel-OpenSuperWhisper.txt b/DuoUpdaterCore/Tests/RecipeGoldens/ru-starmel-OpenSuperWhisper.txt
+index b88ae5d..c696b29 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/ru-starmel-OpenSuperWhisper.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/ru-starmel-OpenSuperWhisper.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^OpenSuperWhisper\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/se-johnste-finicky.txt b/DuoUpdaterCore/Tests/RecipeGoldens/se-johnste-finicky.txt
+index 6ad8fda..8587343 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/se-johnste-finicky.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/se-johnste-finicky.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Finicky\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/sh-paseo-desktop.txt b/DuoUpdaterCore/Tests/RecipeGoldens/sh-paseo-desktop.txt
+index c5af713..b2d5c4f 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/sh-paseo-desktop.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/sh-paseo-desktop.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^Paseo-[0-9.]+-arm64\\.dmg$"
+ githubRules[0].installerKind? = .dmg
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/uk-whatcable-whatcable.txt b/DuoUpdaterCore/Tests/RecipeGoldens/uk-whatcable-whatcable.txt
+index 8b7bbe4..1f52832 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/uk-whatcable-whatcable.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/uk-whatcable-whatcable.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^WhatCable\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ githubRules[1] = struct GitHubReleaseRule
+ githubRules[1].bundleID = "uk.whatcable.whatcable"
+ githubRules[1].owner = "darrylmorley"
+@@ -36,6 +37,7 @@ githubRules[1].channel = .beta
+ githubRules[1].installAssetPattern? = "^WhatCable\\.zip$"
+ githubRules[1].installerKind? = .zip
+ githubRules[1].installTrust = .developerID
++githubRules[1].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/wang-jianing-app-OpenInTerminal.txt b/DuoUpdaterCore/Tests/RecipeGoldens/wang-jianing-app-OpenInTerminal.txt
+index a930088..3f90727 100644
+--- a/DuoUpdaterCore/Tests/RecipeGoldens/wang-jianing-app-OpenInTerminal.txt
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/wang-jianing-app-OpenInTerminal.txt
+@@ -22,6 +22,7 @@ githubRules[0].channel = .stable
+ githubRules[0].installAssetPattern? = "^OpenInTerminal\\.zip$"
+ githubRules[0].installerKind? = .zip
+ githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
+ 
+ appStoreCases = Array(count: 0)
+ 
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index e6a2d87..513801c 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -263,6 +263,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**PrintCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.printcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
+ - [x] [**EffectCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.effectcraft` — G (one-click universal dmg) · 真包 v0.3.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
+ - [x] [**DesignCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.designcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
++- [x] [**Cindy**](com-xd-cindy.md) · `com.xd.cindy` — G (one-click dmg, 需要验证) · changelog: CDN notice recipe (en) · beta/canary 未接入 · 2026-10-14
++- [x] [**Cindy CN**](com-xd-cindy.md) · `com.xd.cindycn` — G (one-click dmg, 需要验证) · changelog: CDN notice recipe (en) · beta/canary 未接入 · 2026-10-14
+ 
+ ## Changelog-only (detection via Sparkle or Homebrew)
+ 
+diff --git a/docs/app-audits/com-xd-cindy.md b/docs/app-audits/com-xd-cindy.md
+new file mode 100644
+index 0000000..2bee95f
+--- /dev/null
++++ b/docs/app-audits/com-xd-cindy.md
+@@ -0,0 +1,285 @@
++# Cindy（global 与 CN 两个版本）
++
++同一个仓库（`makecindy/cindy`）、同一条发版流水线、同一个 tag 流，产出两个并存的版本：
++global（`com.xd.cindy`）和 cn（`com.xd.cindycn`）。两者 Team 不同、dmg 分开，所以一份审计，
++两个 family 文件（`Recipes/com-xd-cindy.swift` 写共享理由，`Recipes/com-xd-cindycn.swift` 只写差异）。
++
++## 基本信息
++
++| 版本 | Bundle ID | Team ID | 签名 | 观测版本 |
++|------|-----------|---------|------|---------|
++| global | `com.xd.cindy` | `SX9RG894L5` | Developer ID Application: XD Entertainment Pte Ltd | 0.1.104（stable）、0.1.108（beta 包） |
++| cn | `com.xd.cindycn` | `NTC4BJ542G` | Developer ID Application: X.D. Network Inc. | 0.1.104（stable） |
++
++- 观测版本: 见上表；观测日期 2026-10-14
++- 自更新机制: 自研（Electron Forge，没有 Sparkle，没有 electron-builder 的 `app-update.yml`，所有采样的真包（含 CDN 上的 0.1.6 与 0.1.16）的
++  `Info.plist` 都没有 `SUFeedURL`）。app 自己读 `<cdn>/manifest-darwin-<arch>[-beta|-canary].json`，
++  下载整个 `.app` 的 zip，退出时用脚本 `rm -rf` 旧 bundle 再 `mv` 新的
++- 分发: GitHub Releases（dmg）和厂商自己的 CDN（`hotfix.cindy.app` / `hotfix.cindy.com.cn`，官网下载页链到这里）；没有 Homebrew cask，没有 MAS。
++  CDN 上有第一个 GitHub release（v0.1.17）**之前**的构建：`app/darwin-arm64/cindy-0.1.6-arm64.dmg` 起，到 `0.1.16`，
++  global 与 cn 两个主机各一套，HTTP 200，`last-modified` 2026-07-22 至 07-27；它们不是任何 GitHub release
++- 开源: 是（`makecindy/cindy`）。版本方案、渠道开关、自更新流程都读自仓库源码，见「Channel 详情」
++- 现在发的两个版本都叫 `Cindy.app`，不能同在 `/Applications`。**例外是早期 global 构建**：0.1.6（2026-07-22 的 CDN dmg）里是
++  `CindyGlobal.app`（Info.plist 的 id 仍是 `com.xd.cindy`，Team 同为 `SX9RG894L5`，已公证），0.1.16 起改名为 `Cindy.app`。
++  上游提交 `75baac1ee` 写明「存量 global 用户的升级迁移按 owner 决策不做处理」，而 app 的自更新是原地替换，
++  所以老 global 用户的磁盘上可能仍是 `/Applications/CindyGlobal.app`（读自源码与提交说明，没有在真机上看到）。
++  cn 版从 0.1.6 起就是 `Cindy.app`
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++| global / cn | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|-------------|---------|----------|-----|--------|-------------|
++| **stable**  | —       | —        | —   | ✓      | —           |
++| **beta**    | —       | —        | —   | ○      | ○           |
++| **canary**  | —       | —        | —   | ✗      | ○           |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**（两个版本都由 channel-verify 实测，见「如何复验」）。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `com.xd.cindy` / `com.xd.cindycn` | 共享 | — | `/releases/latest` + tag 锚 `^vX.Y.Z$` + dmg 名锚（按版本分 `-global` / `-cn`） | ✓ |
++| beta    | 同 stable | 共享 | `~/Library/Application Support/<userData>/update-channel-settings.json` 的 `enableBeta`（用户没拨过开关时看 `orgDefaultEnableBeta`）；bundle 里没有任何信号 | — | ○ 未接入 |
++| canary  | 同 stable | 共享 | 账号级服务端 flag 落盘成 `<userData>/canary-flag.json`（`{"canary":true}`） | — | ✗ 无 GitHub release，只有 CDN manifest |
++
++- settled from source（`makecindy/cindy@main`）:
++  - `packages/maker-shared/src/brandIdentity.ts`——按构建期的区域选 bundle id（global `com.xd.cindy`，cn
++    `com.xd.cindycn`）和 userData 目录（global `CindyGlobal`，cn `Cindy`）。
++  - `apps/desktop/src/main/updateChannelStore.ts`——通道优先级 canary > beta > release；beta 开关落盘在
++    `userData/update-channel-settings.json`，用户拨动写 `enableBeta`，组织默认写 `orgDefaultEnableBeta`，
++    两者分开；canary 是账号级、服务端下发的灰度标记。
++  - `apps/desktop/src/main/updateScriptMacOS.ts`——整包替换：`rm -rf "<app>"` 后 `mv` 新 bundle，脚本里没有对
++    磁盘上版本的比较。
++- beta 的落盘格式只读自源码，**没有在真机上抓过**，按 `CHANNEL_COVERAGE_TODO.md` 的规矩不当作 detectable。
++- beta 包的 `Info.plist`（0.1.108，`v0.1.108-beta` 的 global arm64 dmg）: `CFBundleShortVersionString` =
++  `CFBundleVersion` = `0.1.108`，不带 `-beta`；bundle id、显示名也与 stable 相同。`channel-verify` 对它
++  判成 `stable`。所以装着 beta 的副本，在我们这边就是 stable。
++- 后果: beta 领先 stable 时（装 0.1.108、stable 0.1.104）显示「已是最新」，不会提示降级；stable 追上并超过它之后，
++  会提示那个更高的 stable，不是降级。不会装错方向，但 beta 用户收不到下一个 beta。
++
++## 更新检测
++- 源: `makecindy/cindy` GitHub Releases，`/releases/latest`
++- 版本方案: tag `vX.Y.Z` == `CFBundleShortVersionString` == `CFBundleVersion`（0.1.17 / 0.1.58 / 0.1.103 /
++  0.1.104 真包全部一致）。不需要 `versionIsBuild`
++- 读的是 app 自己 stable 通道会装的那个包: 2026-10-14 取到的 stable manifest
++  （`hotfix.cindy.app` 与 `hotfix.cindy.com.cn`，arm64 与 x64 共四份）里 `app.installer.sha256` 与同版本
++  GitHub dmg 的 `digest` 逐个相等，版本都是 0.1.104
++- 注意事项:
++  - **`-beta` tag 是 prerelease**（65 个 release 里每个 `-beta` 都标了，非 beta 没有一个被标），但它们的
++    `Info.plist` 是裸 `X.Y.Z`。tag 正则锚死 `^v…$`，不收 `-beta`。
++  - **`v1.0.0` 是无资产的源码快照 release**（2026-07-25，`prerelease:false`，0 个资产），是最旧的一条，
++    tag 形状却能通过 tag 正则。靠 dmg 名锚保证它即使成为最新也不会被当答案：没有匹配资产，源改走列表往回找。
++  - **残缺 release**: `v0.1.52` 只有 `cindy-0.1.52-darwin-arm64-global.dmg`（外加 win32 两个 exe），没有 cn、
++    没有 x64。cn 规则在它面前往回找，答 0.1.51，这是对的：GitHub 上确实没有 cn 的 0.1.52。
++  - **版本号空间共享，可原样晋升**: `v0.1.58` 与 `v0.1.58-beta` 的六个 darwin 资产 `digest` 逐个相同。
++  - **两个版本的 dmg 名互斥**: 每条规则的 `installAssetPattern` 只收自己的 `-global` / `-cn`，不依赖 Team 闸
++    来挡错版本（`CindyGitHubRuleTests` 逐一断言）。
++  - **两条规则同 repo 同 channel，`recipeID` 会撞**: `github:makecindy/cindy:stable` 同时是两个版本的 id，
++    `RecipeHealth` 与 baseline 都按它记，后跑的那条决定两边的健康结论
++    （`RecipeHealthKeyTests.rulesSharingASlugRecordSeparateHealthEntries` 实测失败：2 条规则只记到 1 行）。
++    所以给 `GitHubReleaseRule` 加了可选的 `variant`，拼在 `recipeID` 末尾（`…:stable:global` / `…:stable:cn`）；
++    别的规则不设，id 不变。这是 Core 的改动（一个字段，所有 recipe golden 多一行 `variant = nil`）。
++  - 每个资产都有 GitHub `digest`（65 个 release 全部，包括 2026-07 上传的 0.1.17）。
++  - 安装的是最新 stable，与 app 自己 stable 通道给的字节相同，所以没有「领先于厂商分配」的问题。
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 增量 | 无：hotfix 是整个 `.app` 的 zip，`updateScriptMacOS.ts` 只做整包替换 | 无：manifest 里只有整包 zip 与 dmg（2026-10-14） | 不需要 |
++| 按设备灰度 | 有：canary 由账号级 feature flag 决定 | stable manifest 不带设备参数；canary 与 beta 当前同为 0.1.108 | 不消费（不接 canary） |
++| 按架构 / OS 分轨 | 按 `<platform>-<arch>` 分 manifest | arm64 与 x64 各一份；manifest 没有 min/max 字段；`LSMinimumSystemVersion` 在所有采样构建里都是 `12.0` | GitHub 规则的架构偏好已覆盖 |
++| 自更新器会不会和我们抢 | 有，见「已知问题」 | — | 需要端到端第二轮实测 |
++
++- 格式: 厂商自有（整包 zip），没有 binary delta
++- 阻塞项: 无
++
++## Changelog
++- 来源: recipe——app 自己「更新内容」用的 CDN notice，`<cdn>/notice/darwin-arm64/<version>.json`，
++  每个版本一个文件、没有 latest 别名（`index.json` 只是版本列表），所以用 `sourceTemplate` 按提供的版本取。
++  取 `contentByLocale.en.topics`（title 当小标题，text 当条目）。darwin-x64 的 notice 与 arm64 内容相同。
++- 为什么不用 GitHub release 正文: 正文是中文，并以 `---` 页脚收尾，页脚是 7 条 `- commit:` / `- source tag:` /
++  `- regions:` / iOS 与 Android 构建号，`GitHubMarkdownParser` 会把它们读成条目；约一半的 stable release
++  没有 `## PRs` 小节，`skipSections` 也跳不掉。recipe 失效时 GitHub 源的结构化日志就是这几条页脚。
++- 结构化（2026-10-14，channel-verify 的 `changelog pane` 行原文）:
++  - global: `recipe changelog:com.xd.cindy:-: 1 entries; newest 0.1.104: 13 items, headings ["Provider Groups Phase 2: Same-Account Direct and Sharing Relay", "Run Orca Workers on Another Computer", "Let the Agent Update Cindy for You", "Live Response Speed While Replying", "Shared Tasks: Guests Can Read and Write the Working Directory", "Tighter Permissions for Shared Providers", "Teammates Keep Their Own Todos, Better Group Chat", "A Batch of Mobile Fixes", "Scheduled Tasks No Longer Stall Silently on a Syntax Error", "Media and Files From IM Now Reach the Model", "Model Catalog Filled In, No More Silent Effort Drops in Pi", "Switching Companions No Longer Stalls on Huge Commands", "Remote Agent and Remote Desktop Fixes"]; first items ["Provider groups now cover your other com", "When starting collaboration or creating ", "You can now ask the Agent to update Cind"]`
++  - cn: `recipe changelog:com.xd.cindycn:-: 1 entries; newest 0.1.104: 10 items, headings ["Provider Groups Switch Machines Automatically", "Collaboration Workers on Another Computer", "Let the Agent Update Cindy for You", "Teammate To-dos and Group Feedback", "Audio and Video Attachments in IM Channels", "See How Fast Replies Come", "Shared Task Files and Permissions", "A Batch of Mobile Improvements", "Models and Capabilities", "Stability Fixes"]; first items ["A provider group now picks a usable comp", "Every Worker in a collaboration — includ", "You can now ask Cindy to upgrade itself "]`
++- 语言: 英文，与 `com-kimi-code-desktop` 一致。notice 带 zh-CN / en / ja / ko，recipe 的正则先进
++  `contentByLocale` → `en` 再读 `topics`，zh-CN 文本不会混进来。要换成中文，去掉 `entryPattern` 里的
++  `contentByLocale … "en"` 那一段即可（顶层 `topics` 是 zh-CN）；本次没有这么做。
++- 跟随 channel: 否（`channel: nil`）。装着 beta 的副本被当作 stable，拿到的是所提供版本的 notice。
++- Recipe 状态: 已有（两个 family 各一条）
++
++## 一键安装
++- 状态: **需要验证**（两个版本）
++- 端到端: **未跑**。派出的 agent 不得使用 `duo` CLI，也不得写 `/Applications`；留给串行的端到端轮
++  （coverage-discovery Phase 5）
++- 格式: dmg，`cindy-<ver>-darwin-{arm64,x64}-{global,cn}.dmg`，没有 universal 包。选包由宿主架构决定
++  （`HostArch`）
++- 校验: GitHub 为每个资产发 `digest`（`sha256:…`），自 #1019 起每条 GitHub 规则自动带上，不需要单独接。
++  真实下载的 `shasum -a 256` 与 GitHub `digest` 对九个包全部相等（0.1.104 的 arm64 global / arm64 cn / x64 global，
++  0.1.103 的 arm64 global / arm64 cn，0.1.108-beta 的 arm64 global，0.1.17 的 arm64 global / arm64 cn，
++  0.1.58 的 x64 global），大小也一致。
++- **读的是**: 人人可手动下载的 GA（官方 repo 的公开资产，与 app 自己 stable 通道的安装包字节相同，没有按设备灰度）
++- 包验（2026-10-14，挂载只读）:
++
++| 包 | Bundle ID | short = build | 架构 | Team | `codesign --verify --deep --strict` | `spctl -t exec` |
++|----|-----------|---------------|------|------|------|------|
++| 0.1.104 arm64 global | `com.xd.cindy` | 0.1.104 | arm64 | `SX9RG894L5` | 0 | Notarized Developer ID |
++| 0.1.104 x64 global | `com.xd.cindy` | 0.1.104 | x86_64 | `SX9RG894L5` | 0 | Notarized Developer ID |
++| 0.1.104 arm64 cn | `com.xd.cindycn` | 0.1.104 | arm64 | `NTC4BJ542G` | 0 | Notarized Developer ID |
++| 0.1.103 arm64 global | `com.xd.cindy` | 0.1.103 | arm64 | `SX9RG894L5` | 0 | Notarized Developer ID |
++| 0.1.103 arm64 cn | `com.xd.cindycn` | 0.1.103 | arm64 | `NTC4BJ542G` | 0 | Notarized Developer ID |
++| 0.1.108（beta）arm64 global | `com.xd.cindy` | 0.1.108 | arm64 | `SX9RG894L5` | 0 | Notarized Developer ID |
++| 0.1.58 x64 global | `com.xd.cindy` | 0.1.58 | x86_64 | `SX9RG894L5` | 0 | Notarized Developer ID |
++| 0.1.17 arm64 global | `com.xd.cindy` | 0.1.17 | arm64 | `SX9RG894L5` | 0 | Notarized Developer ID |
++| 0.1.17 arm64 cn | `com.xd.cindycn` | 0.1.17 | arm64 | `NTC4BJ542G` | 0 | Notarized Developer ID |
++
++  - 两个版本由**不同 Team** 签名，各自从 0.1.17 到最新不变，所以上一版的 Team 闸会放行。
++  - `xcrun stapler validate`: 九个包里的 `Cindy.app` 都通过（dmg 文件本身没有 staple，退 65，不影响安装）。
++  - `LSMinimumSystemVersion` 全部 `12.0`。
++  - 嵌套 app: `Contents/Frameworks/Cindy Helper{, (GPU), (Plugin), (Renderer)}.app`，id `<bundle id>.helper`，
++    `LSUIElement=true`，是 Electron 的子进程 helper，不是常驻登录项。没有 `Contents/Library`
++    （无 LoginItems / LaunchAgents / LaunchDaemons）。`Resources/tools/*` 与 `Resources/cli/cindy` 是普通可执行文件。
++    对 `apps/desktop/src/main` 的代码搜索：`LaunchAgents` 0 处，`SMAppService` 0 处；`launchctl` 只用于
++    `launchctl print`。所以换包后没有会继续跑旧代码的常驻 helper（读自源码，没有在真机上观察）。
++- 阻塞: 无。状态留在「需要验证」直到串行端到端跑完
++
++## 已知问题
++- **app 自己的更新器可能抢在 `duo restart` 之前把旧包放回去**（读自源码，没有观测到）。
++  `executeRelaunch()` 拿暂存的 hotfix 与**正在运行进程**的 `app.getVersion()` 比较，脚本里的 `rm -rf` + `mv`
++  不读磁盘上的版本。若运行中的旧副本已暂存了 hotfix，而 duo 又装了更新的 bundle，在 `duo restart` 之前点了
++  Cindy 自己的「重启」（或空闲自动重启），暂存的旧包会盖回去。新启动的进程会丢弃不更新的暂存包
++  （启动路径里的 `compareAppUpdateVersions`），所以 `duo restart` 本身安全。端到端第二轮要实测。
++- 装在 Rosetta 下的 x64 副本：duo 按宿主架构选 arm64 的 dmg，而 Cindy 自己的更新器沿用 `process.arch`（x64）。
++  `channel-verify` 对 x64 dmg 也是下载 arm64 资产。行为差异，只记录。
++- beta 盲区（见 Channel 详情）。
++- **GitHub 的「最新」按 `created_at` 排，不按版本号**（[文档](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)）。
++  列表里 `v0.1.85` 的 `created_at`（2026-09-16T15:51:19Z）晚于 `v0.1.86`（2026-09-15T12:06:12Z），所以那几天 `/releases/latest`
++  很可能答 0.1.85 而不是 0.1.86（推断，没有观察到）。后果只是短暂滞后，不会是降级。CDN 上还有从未成为 GitHub release 的构建
++  （0.1.56、0.1.57、0.1.89、0.1.99 的 dmg 都能下），它们是否进过 stable manifest 不知道；「CDN 与 GitHub 同一份字节」只在
++  2026-10-14 这一天量过。
++- 早期 global 构建的 `.app` 名是 `CindyGlobal.app`（见基本信息）。检测与 changelog 对它照常工作（见「如何复验」），
++  一键安装按所检出的 bundle 路径原地替换，应当保留旧名（读自代码，没有跑过）。
++- 若 changelog recipe 失效，GitHub 源回落到的结构化日志是构建号页脚，不是更新内容。
++- cn 版的 changelog 措辞与 global 不同（两边各自的 notice）。
++
++## 未覆盖的身份
++- `com.xd.cindydev` / `CindyDev.app`：内部 `dev` 构建目标，65 个 release 的资产名里只有 `-global` / `-cn`，从未发布。不覆盖。
++- 合并前的前身 `xdt-maker`：`brandIdentity.ts` 说该渠道在 2026-07-17 的身份切换后冻结、「留在冻结的渠道上」，只保留旧 scheme、
++  userData 目录名和 DB 前缀。它的 macOS bundle id 不在公开源码里，也从未发过 GitHub release，没有包可查，所以不写
++  `BundleIDMigration`。已发布的 Cindy 构建之间（0.1.6 到 0.1.108）bundle id 没有改名：`com.xd.cindy` / `com.xd.cindycn`。
++- Windows / Linux 产物：不属于 macOS 更新器。
++
++## 如何复验
++以下每条的输出行都是 `channel-verify` 原样打印的（去掉了颜色码；每条另有 `bundle id`、`detected channel → stable`、`✓ detection matches --expect stable`，
++以及 `download` 行；`changelog pane` 行见 Changelog 一节，global 各条相同、cn 各条相同）。
++```
++# GET https://api.github.com/repos/makecindy/cindy/releases/latest → tag_name v0.1.104
++# 挂载 cindy-0.1.104-darwin-arm64-{global,cn}.dmg → com.xd.cindy / com.xd.cindycn，Team SX9RG894L5 / NTC4BJ542G，Notarized
++swift run --package-path application-test feed-discover cindy-0.1.104-darwin-arm64-global.dmg
++#      —  no Sparkle and no electron-builder update config
++swift run --package-path application-test channel-verify cindy-0.1.104-darwin-arm64-global.dmg --expect stable
++#   short version   0.1.104
++#   winning source  GitHub
++#   latest          0.1.104
++#   status          up to date
++swift run --package-path application-test channel-verify cindy-0.1.103-darwin-arm64-global.dmg --expect stable
++#   short version   0.1.103
++#   winning source  GitHub
++#   latest          0.1.104
++#   status          UPDATE → 0.1.104
++swift run --package-path application-test channel-verify cindy-0.1.17-darwin-arm64-global.dmg --expect stable
++#   short version   0.1.17
++#   winning source  GitHub
++#   latest          0.1.104
++#   status          UPDATE → 0.1.104
++swift run --package-path application-test channel-verify cindy-0.1.104-darwin-arm64-cn.dmg --expect stable
++#   short version   0.1.104
++#   winning source  GitHub
++#   latest          0.1.104
++#   status          up to date
++swift run --package-path application-test channel-verify cindy-0.1.103-darwin-arm64-cn.dmg --expect stable
++#   short version   0.1.103
++#   winning source  GitHub
++#   latest          0.1.104
++#   status          UPDATE → 0.1.104
++swift run --package-path application-test channel-verify cindy-0.1.17-darwin-arm64-cn.dmg --expect stable
++#   short version   0.1.17
++#   winning source  GitHub
++#   latest          0.1.104
++#   status          UPDATE → 0.1.104
++swift run --package-path application-test channel-verify cindy-0.1.108-darwin-arm64-global.dmg --expect stable   # v0.1.108-beta 的包
++#   short version   0.1.108
++#   winning source  GitHub
++#   latest          0.1.104
++#   status          up to date
++swift run --package-path application-test channel-verify cindy-0.1.104-darwin-x64-global.dmg --expect stable
++#   short version   0.1.104
++#   winning source  GitHub
++#   latest          0.1.104
++#   status          up to date
++swift run --package-path application-test channel-verify cindy-0.1.6-arm64.dmg（hotfix.cindy.app，CDN，包内是 CindyGlobal.app，bundle id com.xd.cindy） --expect stable
++#   short version   0.1.6
++#   winning source  GitHub
++#   latest          0.1.104
++#   status          UPDATE → 0.1.104
++swift run --package-path application-test channel-verify cindy-0.1.16-arm64.dmg（hotfix.cindy.app，CDN，包内是 Cindy.app，bundle id com.xd.cindy） --expect stable
++#   short version   0.1.16
++#   winning source  GitHub
++#   latest          0.1.104
++#   status          UPDATE → 0.1.104
++swift run --package-path application-test channel-verify cindy-0.1.16-arm64.dmg（hotfix.cindy.com.cn，CDN，bundle id com.xd.cindycn） --expect stable
++#   short version   0.1.16
++#   winning source  GitHub
++#   latest          0.1.104
++#   status          UPDATE → 0.1.104
++swift run --package-path application-test channel-verify cindy-0.1.6-arm64.dmg（hotfix.cindy.com.cn，CDN，bundle id com.xd.cindycn） --expect stable
++#   short version   0.1.6
++#   winning source  GitHub
++#   latest          0.1.104
++#   status          UPDATE → 0.1.104
++```
++- 第 8 条（x64 dmg）的 `download` 行是 `…/cindy-0.1.104-darwin-arm64-global.dmg`：选包看宿主架构，harness 不打印被测包的架构。
++- CDN 旧包（2026-10-14 取）: 0.1.6 global `sha256` `74eb19d998873a7378cfd5a9c40565d9405da50cdd8a5bbe4f124af6255d8bf3`、0.1.16 global `132fa0f7…ee89`、
++  0.1.16 cn `94b69798…2d81`、0.1.6 cn `1c8dac8d…4aa6`；四个包 `codesign --verify --deep --strict` 退 0，`spctl` 为 Notarized Developer ID，
++  `.app` 里 `stapler validate` 通过；Team 与 stable 相同。
++
++## 建议下一步
++1. 串行端到端（coverage-discovery Phase 5）：两个版本各装 0.1.103 → `duo install` → 核对版本 / Team / 严格签名 / `spctl` /
++   inode / `duo backups`。**再加一轮 `CindyGlobal.app`**：把 CDN 的 0.1.6 global 装成 `/Applications/CindyGlobal.app`，确认 `duo install`
++   原地替换并保留这个名字（否则会留下两个同 id 的 app）。两版同名 `Cindy.app`，**一个一个来**，装之前先 `mdfind "kMDItemCFBundleIdentifier == 'com.xd.cindy*'"`
++   确认不会覆盖真实安装。第二轮复现自更新器抢跑（`XDT_CDN_BASE_URL` 可把 app 指到本地 manifest）；退出后
++   `pgrep -fl "/Applications/Cindy.app/"` 与 `pgrep -fl "/Applications/CindyGlobal.app/"` 都应为空。
++2. beta 轨：先在真机上确认 `update-channel-settings.json` 的落盘，再写 `ChannelBinding` + `.beta` 的
++   `GitHubReleaseRule`（`usePrereleases: true`，tag `^v([0-9]+\.[0-9]+\.[0-9]+)-beta$`）。已记入 `CHANNEL_COVERAGE_TODO.md` §2b。
++3. 核心改动（只记录，本次不做）：`GitHubMarkdownParser` 缺一个「在第一条 `---` 处截断正文」的选项；做了就可以
++   不依赖 CDN notice。这是 parser 改动，要升 `parserGeneration`。
++4. changelog 语言目前固定在 recipe 里（英文），按界面语言选 notice 需要新机制。
++
++## 历史与实测
++
++2026-10-14 的测量（这些原来属于 recipe 注释，按 README 规矩放这里）。
++
++- **CDN 与 GitHub 是同一份字节**: `hotfix.cindy.{app,com.cn}/cindy/manifest-darwin-{arm64,x64}.json` 十二份
++  manifest（含 `-beta`、`-canary`）全部 HTTP 200。stable 四份 `app.version` = 0.1.104，
++  `app.installer.sha256` 与 `cindy-0.1.104-darwin-{arm64,x64}-{global,cn}.dmg` 的 GitHub `digest` 逐个相等。
++  `-beta` 与 `-canary` 此刻都是 0.1.108，与 `v0.1.108-beta` 的 dmg 一致。manifest 的 `app` 节没有设备 id、
++  没有 min/max，也没有 `releaseNotes`；整个 manifest 另带 `codex` / `claudeCode` 之类的随包组件条目，
++  与 app 的版本检测无关。
++- **GitHub release 列表**: 65 个 release。`/releases/latest` = `v0.1.104`（2026-10-12）。stable tag
++  `vX.Y.Z`；beta tag `vX.Y.Z-beta`，全部 `prerelease:true`，没有非 beta 被标；最新 beta 是 `v0.1.108-beta`
++  （2026-10-14）。没有任何 tag 不符合这两种形状。最旧的是无资产的 `v1.0.0`（2026-07-25），其次是
++  `v0.1.17`（2026-07-27）。每个资产都有 `digest`。
++- **晋升**: `v0.1.58` 与 `v0.1.58-beta` 的六个 darwin 资产 `digest` 逐个相同。
++- **notice 扫描**: global 与 cn 两个主机各取 `index.json` 里最新的 45 个版本（共 90 个文件），都带 `topics` 与
++  `contentByLocale.en`，且小标题数一致（1–22）。一个差异：cn 的 `0.1.106` 没有 `intro`。`0.1.17` 用的是旧的
++  `sections` 结构，不影响，因为 recipe 只取所提供的那个版本。notice 文本里没有 `<` 或 `&…;`。
++  recipe 的正则在 `0.1.104` 与 `0.1.106` 两个主机的真实响应上重新验过：每个文件恰好一条，版本与日期对，
++  抽出的 title / text 解 JSON 转义后与 `contentByLocale.en.topics` 完全相等。
++- **GitHub 正文**: `Desktop release X` / `## 更新说明` / `### <emoji> 标题` + 一段正文，可选 `## PRs`，再是
++  `---` 页脚的 7 条列表。这是不用它的理由（见 Changelog）。
++- **嵌套 helper 与常驻进程**: 见「一键安装」的包验。

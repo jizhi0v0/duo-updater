@@ -1,0 +1,7 @@
+single secretive claude-sonnet-5-5 xhigh sonnet-xhigh brief.md
+single obelisk claude-sonnet-5-5 xhigh sonnet-xhigh brief.md
+single openinterminal claude-sonnet-5-5 xhigh sonnet-xhigh brief.md
+single lokii claude-sonnet-5-5 xhigh sonnet-xhigh brief.md
+single disktree claude-sonnet-5-5 xhigh sonnet-xhigh brief.md
+single spotifast claude-sonnet-5-5 xhigh sonnet-xhigh brief.md
+single cindy claude-sonnet-5-5 xhigh sonnet-xhigh brief.md

@@ -1,0 +1,106 @@
+{
+  "changelogRecipes" : [
+    "changelog:com.xd.cindy:-"
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 1,
+      "headings" : [
+        "🗂️ Provider Groups Phase 2: Same-Account Direct and Sharing Relay",
+        "🖥️ Run Orca Workers on Another Computer",
+        "⬆️ Let the Agent Update Cindy for You",
+        "⚡ Live Response Speed While Replying",
+        "🔐 Shared Tasks: Guests Can Read and Write the Working Directory",
+        "🔌 Tighter Permissions for Shared Providers",
+        "🤖 Teammates Keep Their Own Todos, Better Group Chat",
+        "📱 A Batch of Mobile Fixes",
+        "⏱️ Scheduled Tasks No Longer Stall Silently on a Syntax Error",
+        "💬 Media and Files From IM Now Reach the Model",
+        "🎚️ Model Catalog Filled In, No More Silent Effort Drops in Pi",
+        "🚀 Switching Companions No Longer Stalls on Huge Commands",
+        "🔗 Remote Agent and Remote Desktop Fixes"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 14,
+      "newestVersion" : "0.1.104",
+      "recipeID" : "changelog:com.xd.cindy:-"
+    },
+    "download" : "cindy-0.1.104-arm64.dmg",
+    "installTrust" : "developerID",
+    "latest" : "0.1.104",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "Vendor",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 1,
+      "headings" : [
+        "🗂️ Provider Groups Phase 2: Same-Account Direct and Sharing Relay",
+        "🖥️ Run Orca Workers on Another Computer",
+        "⬆️ Let the Agent Update Cindy for You",
+        "⚡ Live Response Speed While Replying",
+        "🔐 Shared Tasks: Guests Can Read and Write the Working Directory",
+        "🔌 Tighter Permissions for Shared Providers",
+        "🤖 Teammates Keep Their Own Todos, Better Group Chat",
+        "📱 A Batch of Mobile Fixes",
+        "⏱️ Scheduled Tasks No Longer Stall Silently on a Syntax Error",
+        "💬 Media and Files From IM Now Reach the Model",
+        "🎚️ Model Catalog Filled In, No More Silent Effort Drops in Pi",
+        "🚀 Switching Companions No Longer Stalls on Huge Commands",
+        "🔗 Remote Agent and Remote Desktop Fixes"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 14,
+      "newestVersion" : "0.1.104",
+      "recipeID" : "changelog:com.xd.cindy:-"
+    },
+    "download" : "cindy-0.1.104-arm64.dmg",
+    "installTrust" : "developerID",
+    "latest" : "0.1.104",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "Vendor",
+    "status" : "update→0.1.104"
+  },
+  "perRelease" : [
+    {
+      "prerelease" : true,
+      "tag" : "v0.1.106-beta"
+    },
+    {
+      "prerelease" : true,
+      "tag" : "v0.1.105-beta"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.1.104"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.1.103"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.1.101"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.1.97"
+    },
+    {
+      "prerelease" : true,
+      "tag" : "v0.1.96-beta"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v0.1.95"
+    }
+  ],
+  "rules" : [
+
+  ]
+}

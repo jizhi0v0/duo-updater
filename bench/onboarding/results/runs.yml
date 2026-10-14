@@ -1,0 +1,1877 @@
+# Every onboarding run, one record each. Written by harness/export_results.py (run.sh
+# export) from harness/score.py and harness/probe.py output; see README.md.
+#
+#   config    what was run. From the run's config.json when it has one; the 2026-10-13/14
+#             runs predate it and are described from their tag and rounds/*.txt.
+#   vs_main   the graded behaviour against main's (reference_commit, graded on
+#             reference_graded). MATCH, DIFF(n) with n differing fields and releases,
+#             or LIVE when the case has no graded reference. An older run can show a
+#             DIFF only because the vendor released since.
+#   probe     the stable rule's version pattern on synthetic next tags (harness/probe.py):
+#             ok, NEXT-MISS (next tag unreadable) or SUFFIX-AS-STABLE (rc/beta read as
+#             stable). null: the grade recorded no stable GitHub rule (nothing onboarded,
+#             another source, or the legacy grader, which records no rules).
+#   grader    current (ZZBenchGrade.swift) or legacy (ZZBenchGradeLegacy.swift, for bases
+#             that lack the current grader's APIs).
+runs:
+  - run: "aircard-haiku"
+    round: "1"
+    date: "2026-10-13"
+    case: "aircard"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.66
+    minutes: 16.9
+    turns: 71
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "NEXT-MISS two-part tag v1.3 (vendor has shipped this shape)"
+    head: "554f207 Add AirCard: GitHub detection, detection-only"
+  - run: "astrlink-haiku"
+    round: "1"
+    date: "2026-10-13"
+    case: "astrlink"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.54
+    minutes: 16.4
+    turns: 59
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(4)"
+    reference_commit: "ff7f3690ea3b5cf9c2e21f9b84f8e791944bb3b0"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "f29aa99 AstrLink: GitHub Releases detection and one-click"
+  - run: "herdr-haiku"
+    round: "1"
+    date: "2026-10-13"
+    case: "herdr"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.61
+    minutes: 19.4
+    turns: 61
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "4229f08 Track Herdr (GUI) via GitHub releases: detection and one-click"
+  - run: "plexo-haiku"
+    round: "1"
+    date: "2026-10-13"
+    case: "plexo"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.43
+    minutes: 15.1
+    turns: 44
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "d0bea69 Plexo: GitHub Releases detection and changelog, one-click for Team-signed builds"
+  - run: "pulse-haiku"
+    round: "1"
+    date: "2026-10-13"
+    case: "pulse"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.74
+    minutes: 18.2
+    turns: 61
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(16)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: null
+    head: "a5d3acd Track Pulse via its MyGo update manifest, with one-click and structured changelog"
+  - run: "reviu-haiku"
+    round: "1"
+    date: "2026-10-13"
+    case: "reviu"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.84
+    minutes: 20.0
+    turns: 78
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "SUFFIX-AS-STABLE v1.7.0-rc.1→1.7.0"
+    head: "1e12551 Track Reviu via GitHub releases (one-click dmg, changelog)"
+  - run: "rustgis-haiku"
+    round: "1"
+    date: "2026-10-13"
+    case: "rustgis"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.38
+    minutes: 14.4
+    turns: 45
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "b5042fe RustGIS: GitHub Releases detection and one-click"
+  - run: "search-haiku"
+    round: "1"
+    date: "2026-10-13"
+    case: "search"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.47
+    minutes: 15.9
+    turns: 59
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "0e05bde Track Search via GitHub releases; one-click install pending end-to-end"
+  - run: "yomado-haiku"
+    round: "1"
+    date: "2026-10-13"
+    case: "yomado"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.77
+    minutes: 28.9
+    turns: 80
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "ff7f3690ea3b5cf9c2e21f9b84f8e791944bb3b0"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "69e351d yomado: GitHub Releases detection and one-click"
+  - run: "aircard-opus"
+    round: "1"
+    date: "2026-10-13"
+    case: "aircard"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 3.75
+    minutes: 19.3
+    turns: 68
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "fa3ed6f AirCard: detect its GitHub releases, detection-only"
+  - run: "astrlink-opus"
+    round: "1"
+    date: "2026-10-13"
+    case: "astrlink"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 3.91
+    minutes: 18.5
+    turns: 65
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(4)"
+    reference_commit: "ff7f3690ea3b5cf9c2e21f9b84f8e791944bb3b0"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "935d604 AstrLink: GitHub Releases detection and one-click"
+  - run: "herdr-opus"
+    round: "1"
+    date: "2026-10-13"
+    case: "herdr"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 3.4
+    minutes: 17.7
+    turns: 67
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "a08be90 Track Herdr (herdr-gpui) via GitHub releases with one-click and structured notes"
+  - run: "plexo-opus"
+    round: "1"
+    date: "2026-10-13"
+    case: "plexo"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 3.55
+    minutes: 17.1
+    turns: 65
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "8659ef7 Plexo: GitHub Releases detection and one-click, keeping the rc suffix"
+  - run: "pulse-opus"
+    round: "1"
+    date: "2026-10-13"
+    case: "pulse"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 3.51
+    minutes: 16.6
+    turns: 65
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "SUFFIX-AS-STABLE v0.2.0-rc.1→0.2.0"
+    head: "14f954f Pulse (egoist): GitHub Releases detection and one-click"
+  - run: "reviu-opus"
+    round: "1"
+    date: "2026-10-13"
+    case: "reviu"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 3.94
+    minutes: 23.7
+    turns: 79
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "23068f5 Reviu: detect and install its GitHub releases"
+  - run: "rustgis-opus"
+    round: "1"
+    date: "2026-10-13"
+    case: "rustgis"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 2.23
+    minutes: 14.3
+    turns: 44
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "c36d2e4 RustGIS: GitHub Releases detection and one-click"
+  - run: "search-opus"
+    round: "1"
+    date: "2026-10-13"
+    case: "search"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 2.46
+    minutes: 15.2
+    turns: 49
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "6fb43b2 Track Search (Office Commun) via GitHub releases, with one-click install"
+  - run: "yomado-opus"
+    round: "1"
+    date: "2026-10-13"
+    case: "yomado"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 4.09
+    minutes: 21.4
+    turns: 75
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "ff7f3690ea3b5cf9c2e21f9b84f8e791944bb3b0"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "6fee3cf yomado: GitHub Releases detection and one-click"
+  - run: "aircard-sonnet"
+    round: "1"
+    date: "2026-10-13"
+    case: "aircard"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.09
+    minutes: 14.4
+    turns: 39
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "162f339 AirCard: detect its GitHub releases, detection-only"
+  - run: "astrlink-sonnet"
+    round: "1"
+    date: "2026-10-13"
+    case: "astrlink"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.22
+    minutes: 14.8
+    turns: 41
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(4)"
+    reference_commit: "ff7f3690ea3b5cf9c2e21f9b84f8e791944bb3b0"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "52e07a9 AstrLink: GitHub Releases detection and one-click"
+  - run: "herdr-sonnet"
+    round: "1"
+    date: "2026-10-13"
+    case: "herdr"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.03
+    minutes: 15.4
+    turns: 36
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "39a4167 Track Herdr (so.pen.herdr-gpui) via GitHub releases, one-click"
+  - run: "plexo-sonnet"
+    round: "1"
+    date: "2026-10-13"
+    case: "plexo"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.41
+    minutes: 16.4
+    turns: 45
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "7f117dc Plexo: GitHub Releases detection and one-click"
+  - run: "pulse-sonnet"
+    round: "1"
+    date: "2026-10-13"
+    case: "pulse"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.91
+    minutes: 11.0
+    turns: 35
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "SUFFIX-AS-STABLE v0.2.0-rc.1→0.2.0"
+    head: "24ac2de Pulse (egoist): GitHub Releases detection and one-click"
+  - run: "reviu-sonnet"
+    round: "1"
+    date: "2026-10-13"
+    case: "reviu"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.64
+    minutes: 16.0
+    turns: 66
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "SUFFIX-AS-STABLE v1.7.0-rc.1→1.7.0"
+    head: "3c6110c Track Reviu via GitHub releases, with one-click for both architectures"
+  - run: "rustgis-sonnet"
+    round: "1"
+    date: "2026-10-13"
+    case: "rustgis"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.77
+    minutes: 11.9
+    turns: 25
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "SUFFIX-AS-STABLE v0.3.0-rc.1→0.3.0; SUFFIX-AS-STABLE v0.3.0-beta.2→0.3.0"
+    head: "18c5bee RustGIS: GitHub Releases detection and one-click"
+  - run: "search-sonnet"
+    round: "1"
+    date: "2026-10-13"
+    case: "search"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.88
+    minutes: 10.5
+    turns: 33
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "0486480 Track Search (com.officecommun.search) via GitHub releases, with one-click install"
+  - run: "yomado-sonnet"
+    round: "1"
+    date: "2026-10-13"
+    case: "yomado"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "high", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.35
+    minutes: 16.9
+    turns: 44
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "ff7f3690ea3b5cf9c2e21f9b84f8e791944bb3b0"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "9c5ee81 yomado: GitHub Releases detection and one-click"
+  - run: "aircard-haiku-max"
+    round: "2"
+    date: "2026-10-13"
+    case: "aircard"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "max", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.8
+    minutes: 24.0
+    turns: 114
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "e29f917 AirCard: detect its GitHub releases, detection-only"
+  - run: "astrlink-haiku-max"
+    round: "2"
+    date: "2026-10-13"
+    case: "astrlink"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "max", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.05
+    minutes: 25.9
+    turns: 84
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(4)"
+    reference_commit: "ff7f3690ea3b5cf9c2e21f9b84f8e791944bb3b0"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "708a400 AstrLink: GitHub Releases detection and one-click"
+  - run: "herdr-haiku-max"
+    round: "2"
+    date: "2026-10-13"
+    case: "herdr"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "max", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.43
+    minutes: 25.5
+    turns: 97
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "a607ced Track Herdr via GitHub releases with one-click and structured notes"
+  - run: "plexo-haiku-max"
+    round: "2"
+    date: "2026-10-13"
+    case: "plexo"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "max", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.42
+    minutes: 34.6
+    turns: 89
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "33daa66 Plexo: GitHub Releases detection and one-click (arm64 dmg)"
+  - run: "pulse-haiku-max"
+    round: "2"
+    date: "2026-10-13"
+    case: "pulse"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "max", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.54
+    minutes: 34.1
+    turns: 81
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "SUFFIX-AS-STABLE v0.2.0-rc.1→0.2.0"
+    head: "dee6161 Track Pulse via GitHub releases, with one-click install"
+  - run: "reviu-haiku-max"
+    round: "2"
+    date: "2026-10-13"
+    case: "reviu"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "max", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 2.69
+    minutes: 32.0
+    turns: 168
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "SUFFIX-AS-STABLE v1.7.0-rc.1→1.7.0"
+    head: "a662837 Track Reviu via GitHub releases, with arm64 one-click install"
+  - run: "rustgis-haiku-max"
+    round: "2"
+    date: "2026-10-13"
+    case: "rustgis"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "max", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.23
+    minutes: 28.8
+    turns: 87
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "0eba2b1 RustGIS: GitHub Releases detection and one-click"
+  - run: "search-haiku-max"
+    round: "2"
+    date: "2026-10-13"
+    case: "search"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "max", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.06
+    minutes: 25.3
+    turns: 78
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "55c074a Track Search via GitHub releases, with one-click install"
+  - run: "yomado-haiku-max"
+    round: "2"
+    date: "2026-10-13"
+    case: "yomado"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "max", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.58
+    minutes: 32.7
+    turns: 109
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "ff7f3690ea3b5cf9c2e21f9b84f8e791944bb3b0"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "b41bf58 yomado: GitHub Releases detection and one-click"
+  - run: "aircard-haiku-xhigh"
+    round: "2"
+    date: "2026-10-13"
+    case: "aircard"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.8
+    minutes: 21.6
+    turns: 79
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "eaf0a0d Add AirCard: GitHub detection, audit (detection-only)"
+  - run: "astrlink-haiku-xhigh"
+    round: "2"
+    date: "2026-10-13"
+    case: "astrlink"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.83
+    minutes: 22.3
+    turns: 76
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(4)"
+    reference_commit: "ff7f3690ea3b5cf9c2e21f9b84f8e791944bb3b0"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "2871a22 AstrLink: GitHub Releases detection and one-click"
+  - run: "herdr-haiku-xhigh"
+    round: "2"
+    date: "2026-10-13"
+    case: "herdr"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.73
+    minutes: 11.7
+    turns: 65
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "56285fd Track Herdr UI (so.pen.herdr-gpui) via GitHub releases, one-click dmg"
+  - run: "plexo-haiku-xhigh"
+    round: "2"
+    date: "2026-10-13"
+    case: "plexo"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.19
+    minutes: 26.6
+    turns: 100
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "9648068 Plexo: GitHub Releases detection and one-click dmg"
+  - run: "pulse-haiku-xhigh"
+    round: "2"
+    date: "2026-10-13"
+    case: "pulse"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.67
+    minutes: 17.1
+    turns: 65
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "SUFFIX-AS-STABLE v0.2.0-rc.1→0.2.0"
+    head: "016b6f5 Track Pulse via GitHub releases, with one-click install"
+  - run: "reviu-haiku-xhigh"
+    round: "2"
+    date: "2026-10-13"
+    case: "reviu"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.16
+    minutes: 25.2
+    turns: 106
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "SUFFIX-AS-STABLE v1.7.0-rc.1→1.7.0"
+    head: "d9d2ec9 Track Reviu via GitHub releases (one-click dmg)"
+  - run: "rustgis-haiku-xhigh"
+    round: "2"
+    date: "2026-10-13"
+    case: "rustgis"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.73
+    minutes: 24.2
+    turns: 66
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "SUFFIX-AS-STABLE v0.3.0-rc.1→0.3.0; SUFFIX-AS-STABLE v0.3.0-beta.2→0.3.0"
+    head: "7f7e91d RustGIS: GitHub Releases detection and one-click"
+  - run: "search-haiku-xhigh"
+    round: "2"
+    date: "2026-10-13"
+    case: "search"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.77
+    minutes: 15.5
+    turns: 78
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "12df11f Track Search (com.officecommun.search) via GitHub releases, with one-click install"
+  - run: "yomado-haiku-xhigh"
+    round: "2"
+    date: "2026-10-13"
+    case: "yomado"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.89
+    minutes: 26.9
+    turns: 74
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "ff7f3690ea3b5cf9c2e21f9b84f8e791944bb3b0"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "c314444 Yomado: GitHub Releases detection and one-click"
+  - run: "cindy-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "cindy"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 2.01
+    minutes: 27.8
+    turns: 131
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "28b22e0 Track Cindy via GitHub releases with one-click and structured notes"
+  - run: "cryptomator-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "cryptomator"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.73
+    minutes: 17.5
+    turns: 76
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "3db4b60 Track Cryptomator via GitHub releases, with one-click install"
+  - run: "crystalfetch-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "crystalfetch"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.93
+    minutes: 18.9
+    turns: 95
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "83e0d56 Track CrystalFetch via GitHub releases, with one-click install"
+  - run: "designcraft-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "designcraft"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.85
+    minutes: 16.2
+    turns: 73
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "f18182b Track DesignCraft via GitHub releases with one-click and structured notes"
+  - run: "diri-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "diri"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.22
+    minutes: 16.5
+    turns: 106
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "56f0a13 Track diri via GitHub releases, with one-click install"
+  - run: "disktree-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "disktree"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.58
+    minutes: 14.1
+    turns: 72
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(7)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "SUFFIX-AS-STABLE v0.12.0-rc.1→0.12.0"
+    head: "dfeb840 disktree: GitHub Releases detection, detection-only (io.github.tobi.disktree)"
+  - run: "effectcraft-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "effectcraft"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.0
+    minutes: 17.9
+    turns: 89
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "6b5654b Track EffectCraft via GitHub releases with one-click and structured notes"
+  - run: "filmcraft-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "filmcraft"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.78
+    minutes: 14.8
+    turns: 68
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "b9271a6 Track FilmCraft via GitHub releases with one-click dmg and structured notes"
+  - run: "finicky-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "finicky"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.46
+    minutes: 21.5
+    turns: 99
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "cacfe19 Track Finicky via GitHub releases, with one-click install"
+  - run: "lightcraft-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "lightcraft"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.95
+    minutes: 24.7
+    turns: 70
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "b621abf Track LightCraft via GitHub releases with one-click and structured notes"
+  - run: "lokii-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "lokii"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.63
+    minutes: 15.1
+    turns: 59
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(8)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "16ab5a1 Track Lokii via GitHub releases (detection-only)"
+  - run: "macdown-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "macdown"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.02
+    minutes: 18.2
+    turns: 80
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "aab4eb7 Track MacDown 3000 via GitHub releases, with one-click install (stable + beta)"
+  - run: "magpie-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "magpie"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.47
+    minutes: 23.0
+    turns: 106
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "SUFFIX-AS-STABLE v0.2.0-beta.1→0.2.0"
+    head: "c758e84 Track magpie via GitHub releases with one-click and structured notes"
+  - run: "meetingbar-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "meetingbar"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.96
+    minutes: 21.9
+    turns: 89
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "0d5857e Track MeetingBar via GitHub releases, with one-click install"
+  - run: "neovide-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "neovide"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.0
+    minutes: 22.3
+    turns: 87
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "3f08008 Track Neovide via GitHub releases, with one-click install"
+  - run: "obelisk-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "obelisk"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.21
+    minutes: 32.6
+    turns: 92
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(14)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "583b9e4 Track Obelisk's changelog from its GitHub releases"
+  - run: "openinterminal-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "openinterminal"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.93
+    minutes: 18.4
+    turns: 77
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(11)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "NEXT-MISS two-part tag v3.0.0 (vendor has shipped this shape)"
+    head: "255385f Track OpenInTerminal via GitHub releases (detection only)"
+  - run: "photocraft-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "photocraft"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.03
+    minutes: 19.5
+    turns: 76
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "67fab8d Track PhotoCraft via GitHub releases with one-click and structured notes"
+  - run: "secretive-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "secretive"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.95
+    minutes: 16.5
+    turns: 75
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(18)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "40dbe77 app-audits: Secretive, held: GitHub rule would offer 4.0.0 below macOS 15"
+  - run: "spotifast-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "spotifast"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.71
+    minutes: 12.8
+    turns: 62
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(8)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "f70522e Track Spotifast via GitHub releases with one-click and structured notes"
+  - run: "vectorcraft-haiku-xhigh"
+    round: "3"
+    date: "2026-10-13"
+    case: "vectorcraft"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.13
+    minutes: 18.5
+    turns: 88
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-13"
+    probe: "ok"
+    head: "0d55438 Track VectorCraft via GitHub releases with one-click and structured notes"
+  - run: "cindy-haiku-xhigh-b2"
+    round: "4"
+    date: "2026-10-14"
+    case: "cindy"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief2.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.63
+    minutes: 30.6
+    turns: 109
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "3252c3d Track Cindy via GitHub releases: global edition, one-click, structured notes"
+  - run: "disktree-haiku-xhigh-b2"
+    round: "4"
+    date: "2026-10-14"
+    case: "disktree"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief2.md"}
+    claude_code: "2.1.296"
+    cost_usd: 0.99
+    minutes: 16.9
+    turns: 87
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "b2a82bb disktree: GitHub Releases detection and digest-only one-click"
+  - run: "lokii-haiku-xhigh-b2"
+    round: "4"
+    date: "2026-10-13"
+    case: "lokii"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief2.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.24
+    minutes: 19.1
+    turns: 93
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "8b06555 Track Lokii via GitHub releases, with digest-only one-click install"
+  - run: "obelisk-haiku-xhigh-b2"
+    round: "4"
+    date: "2026-10-13"
+    case: "obelisk"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief2.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.26
+    minutes: 22.7
+    turns: 88
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(12)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "8fb2192 Track Obelisk via GitHub releases, with one-click install"
+  - run: "openinterminal-haiku-xhigh-b2"
+    round: "4"
+    date: "2026-10-13"
+    case: "openinterminal"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief2.md"}
+    claude_code: "2.1.296"
+    cost_usd: 3.44
+    minutes: 39.0
+    turns: 180
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(1)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "3901a74 Track OpenInTerminal and its editions, with one-click install"
+  - run: "secretive-haiku-xhigh-b2"
+    round: "4"
+    date: "2026-10-13"
+    case: "secretive"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief2.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.03
+    minutes: 17.4
+    turns: 85
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(12)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "e16589f Track Secretive via GitHub releases, with one-click install"
+  - run: "spotifast-haiku-xhigh-b2"
+    round: "4"
+    date: "2026-10-14"
+    case: "spotifast"
+    config: {"mode": "single", "model": "claude-haiku-5-5", "effort": "xhigh", "brief": "brief2.md"}
+    claude_code: "2.1.296"
+    cost_usd: 1.8
+    minutes: 36.1
+    turns: 108
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(8)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "f4c8283 Track Spotifast via GitHub releases (one-click, structured notes)"
+  - run: "cindy-opus-xhigh"
+    round: "4"
+    date: "2026-10-14"
+    case: "cindy"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 17.94
+    minutes: 46.9
+    turns: 193
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(13)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "ac707dd Cindy: detection, one-click and What's New for the global and China editions"
+  - run: "disktree-opus-xhigh"
+    round: "4"
+    date: "2026-10-14"
+    case: "disktree"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 4.44
+    minutes: 17.6
+    turns: 85
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "SUFFIX-AS-STABLE v0.12.0-rc.1→0.12.0"
+    head: "a006dde disktree: GitHub Releases detection and digest-only one-click"
+  - run: "lokii-opus-xhigh"
+    round: "4"
+    date: "2026-10-13"
+    case: "lokii"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 5.76
+    minutes: 21.5
+    turns: 97
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "6f318d4 Track Lokii via GitHub releases, one-click on the digest-only route"
+  - run: "obelisk-opus-xhigh"
+    round: "4"
+    date: "2026-10-13"
+    case: "obelisk"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 7.61
+    minutes: 21.0
+    turns: 113
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(12)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "b2da8e0 Track Obelisk: Sparkle detection, structured changelog from GitHub releases"
+  - run: "openinterminal-opus-xhigh"
+    round: "4"
+    date: "2026-10-13"
+    case: "openinterminal"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 7.21
+    minutes: 18.6
+    turns: 113
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "5fefd17 Track OpenInTerminal via GitHub releases, with one-click install"
+  - run: "secretive-opus-xhigh"
+    round: "4"
+    date: "2026-10-13"
+    case: "secretive"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 6.07
+    minutes: 18.6
+    turns: 113
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(12)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "22e61ab Track Secretive via GitHub releases, with one-click install"
+  - run: "spotifast-opus-xhigh"
+    round: "4"
+    date: "2026-10-14"
+    case: "spotifast"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 6.78
+    minutes: 34.1
+    turns: 5
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(8)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "0181101 Track Spotifast via GitHub releases with one-click and structured notes"
+  - run: "cindy-sonnet-xhigh"
+    round: "4"
+    date: "2026-10-14"
+    case: "cindy"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 5.98
+    minutes: 36.3
+    turns: 134
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "7f9b05a Track Cindy via GitHub releases, global and cn builds, with one-click and structured notes"
+  - run: "disktree-sonnet-xhigh"
+    round: "4"
+    date: "2026-10-14"
+    case: "disktree"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 2.21
+    minutes: 14.7
+    turns: 74
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(7)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "7690b5e disktree: GitHub Releases detection, detection-only (the macOS zips are ad-hoc signed)"
+  - run: "lokii-sonnet-xhigh"
+    round: "4"
+    date: "2026-10-14"
+    case: "lokii"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 2.76
+    minutes: 18.6
+    turns: 83
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(7)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "3b9692e Track Lokii via GitHub releases (detection-only)"
+  - run: "obelisk-sonnet-xhigh"
+    round: "4"
+    date: "2026-10-14"
+    case: "obelisk"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 3.43
+    minutes: 20.9
+    turns: 101
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(12)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "aafda8b Give Obelisk a structured changelog from its GitHub releases"
+  - run: "openinterminal-sonnet-xhigh"
+    round: "4"
+    date: "2026-10-14"
+    case: "openinterminal"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 3.83
+    minutes: 22.2
+    turns: 113
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(4)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "402273f Track OpenInTerminal via GitHub releases, with one-click install"
+  - run: "secretive-sonnet-xhigh"
+    round: "4"
+    date: "2026-10-14"
+    case: "secretive"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 3.41
+    minutes: 19.2
+    turns: 103
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(12)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "f6cdf5f Track Secretive via GitHub releases, with one-click install"
+  - run: "spotifast-sonnet-xhigh"
+    round: "4"
+    date: "2026-10-14"
+    case: "spotifast"
+    config: {"mode": "single", "model": "claude-sonnet-5-5", "effort": "xhigh", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 3.36
+    minutes: 21.1
+    turns: 102
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "3c13b55 Track Spotifast via GitHub releases with one-click and structured notes"
+  - run: "cindy-opus-medium"
+    round: "5"
+    date: "2026-10-14"
+    case: "cindy"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 5.52
+    minutes: 25.1
+    turns: 99
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "ad08b77 Track Cindy via GitHub releases, global and cn builds, with one-click and structured notes"
+  - run: "disktree-opus-medium"
+    round: "5"
+    date: "2026-10-14"
+    case: "disktree"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 2.84
+    minutes: 12.6
+    turns: 54
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "SUFFIX-AS-STABLE v0.12.0-rc.1→0.12.0"
+    head: "19a78fc disktree: GitHub Releases detection and digest-only one-click"
+  - run: "lokii-opus-medium"
+    round: "5"
+    date: "2026-10-14"
+    case: "lokii"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 2.66
+    minutes: 12.7
+    turns: 56
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "579a751 Track Lokii via GitHub releases, one-click on the digest-only route"
+  - run: "obelisk-opus-medium"
+    round: "5"
+    date: "2026-10-14"
+    case: "obelisk"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 4.2
+    minutes: 22.1
+    turns: 76
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "6816018 Track Obelisk: GitHub-release changelog over its Sparkle feed, detection for pre-updater copies"
+  - run: "openinterminal-opus-medium"
+    round: "5"
+    date: "2026-10-14"
+    case: "openinterminal"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 2.65
+    minutes: 10.9
+    turns: 59
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(1)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "21adfe6 Track OpenInTerminal via GitHub releases, with one-click install"
+  - run: "secretive-opus-medium"
+    round: "5"
+    date: "2026-10-14"
+    case: "secretive"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 2.98
+    minutes: 14.6
+    turns: 64
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(12)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "6b7b724 Track Secretive via GitHub releases, with one-click install"
+  - run: "spotifast-opus-medium"
+    round: "5"
+    date: "2026-10-14"
+    case: "spotifast"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md"}
+    claude_code: "2.1.296"
+    cost_usd: 2.65
+    minutes: 10.9
+    turns: 53
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "9b54c3f Track Spotifast via GitHub releases with one-click and structured notes"
+  - run: "cindy-pipeA-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "cindy"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 8.43
+    cost_by_stage: {"exec": {"usd": 2.3, "minutes": 33.5, "by_model": {"claude-sonnet-5-5": 2.2, "claude-haiku-5-5": 0.1}}, "review": {"usd": 2.158, "minutes": 7.0, "by_model": {"claude-opus-5-5": 2.158}}, "fix": {"usd": 3.972, "minutes": 17.3, "by_model": {"claude-sonnet-5-5": 3.815, "claude-haiku-5-5": 0.157}}}
+    minutes: 57.8
+    turns: 135
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "425d58d Cindy: cn edition through the vendor manifest, beta/canary reclassified"
+  - run: "disktree-pipeA-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "disktree"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 4.92
+    cost_by_stage: {"exec": {"usd": 1.26, "minutes": 15.8, "by_model": {"claude-sonnet-5-5": 1.235, "claude-haiku-5-5": 0.025}}, "review": {"usd": 1.997, "minutes": 5.5, "by_model": {"claude-opus-5-5": 1.997}}, "fix": {"usd": 1.666, "minutes": 6.2, "by_model": {"claude-sonnet-5-5": 1.623, "claude-haiku-5-5": 0.043}}}
+    minutes: 27.5
+    turns: 89
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "dcbda54 disktree: review follow-ups (0.10.0 checked, source builds, full fixtures)"
+  - run: "lokii-pipeA-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "lokii"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 5.75
+    cost_by_stage: {"exec": {"usd": 1.256, "minutes": 14.7, "by_model": {"claude-sonnet-5-5": 1.21, "claude-haiku-5-5": 0.046}}, "review": {"usd": 2.727, "minutes": 7.0, "by_model": {"claude-opus-5-5": 2.715, "claude-haiku-5-5": 0.012}}, "fix": {"usd": 1.765, "minutes": 8.3, "by_model": {"claude-sonnet-5-5": 1.67, "claude-haiku-5-5": 0.095}}}
+    minutes: 30.1
+    turns: 102
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "8180752 Lokii: name it in the digest-only Settings copy; audit FDA, tap and v0.1.0"
+  - run: "obelisk-pipeA-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "obelisk"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 4.84
+    cost_by_stage: {"exec": {"usd": 1.102, "minutes": 13.9, "by_model": {"claude-sonnet-5-5": 1.066, "claude-haiku-5-5": 0.036}}, "review": {"usd": 1.664, "minutes": 5.6, "by_model": {"claude-opus-5-5": 1.664}}, "fix": {"usd": 2.07, "minutes": 8.8, "by_model": {"claude-sonnet-5-5": 2.017, "claude-haiku-5-5": 0.053}}}
+    minutes: 28.2
+    turns: 94
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "228bf04 Obelisk: detect 0.1.0-0.2.2 through GitHub releases, add a changelog fixture test"
+  - run: "openinterminal-pipeA-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "openinterminal"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 2.66
+    cost_by_stage: {"exec": {"usd": 0.434, "minutes": 3.5, "by_model": {"claude-sonnet-5-5": 0.417, "claude-haiku-5-5": 0.017}}, "review": {"usd": 0.717, "minutes": 2.2, "by_model": {"claude-opus-5-5": 0.717}}, "fix": {"usd": 1.513, "minutes": 15.9, "by_model": {"claude-sonnet-5-5": 1.443, "claude-haiku-5-5": 0.07}}}
+    minutes: 21.5
+    turns: 71
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(11)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "NEXT-MISS two-part tag v3.0.0 (vendor has shipped this shape)"
+    head: "8716a29 Track OpenInTerminal via GitHub releases (detection only)"
+  - run: "secretive-pipeA-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "secretive"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 3.42
+    cost_by_stage: {"exec": {"usd": 0.384, "minutes": 6.6, "by_model": {"claude-sonnet-5-5": 0.359, "claude-haiku-5-5": 0.025}}, "review": {"usd": 1.993, "minutes": 5.3, "by_model": {"claude-opus-5-5": 1.993}}, "fix": {"usd": 1.04, "minutes": 8.6, "by_model": {"claude-sonnet-5-5": 0.992, "claude-haiku-5-5": 0.048}}}
+    minutes: 20.5
+    turns: 80
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "751d81b Track Secretive via GitHub releases (detection only)"
+  - run: "spotifast-pipeA-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "spotifast"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 5.84
+    cost_by_stage: {"exec": {"usd": 1.227, "minutes": 18.1, "by_model": {"claude-sonnet-5-5": 1.17, "claude-haiku-5-5": 0.057}}, "review": {"usd": 2.431, "minutes": 6.5, "by_model": {"claude-opus-5-5": 2.431}}, "fix": {"usd": 2.181, "minutes": 12.0, "by_model": {"claude-sonnet-5-5": 2.092, "claude-haiku-5-5": 0.088}}}
+    minutes: 36.6
+    turns: 103
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "da38363 Spotifast: detect copies still on the Fastpotify bundle id (0.9.1 and below)"
+  - run: "cindy-pipeA-2"
+    round: "5"
+    date: "2026-10-14"
+    case: "cindy"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "on"}
+    claude_code: "2.1.296"
+    cost_usd: 6.99
+    cost_by_stage: {"exec": {"usd": 1.462, "minutes": 23.4, "by_model": {"claude-sonnet-5-5": 1.397, "claude-haiku-5-5": 0.064}}, "review": {"usd": 2.651, "minutes": 7.4, "by_model": {"claude-opus-5-5": 2.651}}, "fix": {"usd": 2.879, "minutes": 31.7, "by_model": {"claude-sonnet-5-5": 2.658, "claude-haiku-5-5": 0.22}}}
+    minutes: 62.6
+    turns: 114
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "9f8fa3c Cindy: cn edition via the CDN manifest, Intel via x64, beta/canary documented"
+  - run: "disktree-pipeA-2"
+    round: "5"
+    date: "2026-10-14"
+    case: "disktree"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "on"}
+    claude_code: "2.1.296"
+    cost_usd: 4.36
+    cost_by_stage: {"exec": {"usd": 0.884, "minutes": 13.7, "by_model": {"claude-sonnet-5-5": 0.855, "claude-haiku-5-5": 0.029}}, "review": {"usd": 2.12, "minutes": 5.5, "by_model": {"claude-opus-5-5": 2.12}}, "fix": {"usd": 1.352, "minutes": 6.5, "by_model": {"claude-sonnet-5-5": 1.306, "claude-haiku-5-5": 0.046}}}
+    minutes: 25.7
+    turns: 85
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "SUFFIX-AS-STABLE v0.12.0-rc.1→0.12.0"
+    head: "3bb0ceb disktree: review fixes (make install copy, v0.10.0, CI signing switch, fixtures)"
+  - run: "lokii-pipeA-2"
+    round: "5"
+    date: "2026-10-14"
+    case: "lokii"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "on"}
+    claude_code: "2.1.296"
+    cost_usd: 5.1
+    cost_by_stage: {"exec": {"usd": 1.247, "minutes": 14.7, "by_model": {"claude-sonnet-5-5": 1.212, "claude-haiku-5-5": 0.035}}, "review": {"usd": 2.172, "minutes": 6.0, "by_model": {"claude-opus-5-5": 2.172}}, "fix": {"usd": 1.676, "minutes": 5.3, "by_model": {"claude-sonnet-5-5": 1.622, "claude-haiku-5-5": 0.054}}}
+    minutes: 26.0
+    turns: 93
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "e7cec1d Lokii: name it in the digest-only opt-in text; cover v0.1.0; fix the docs"
+  - run: "obelisk-pipeA-2"
+    round: "5"
+    date: "2026-10-14"
+    case: "obelisk"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "on"}
+    claude_code: "2.1.296"
+    cost_usd: 5.42
+    cost_by_stage: {"exec": {"usd": 1.68, "minutes": 20.5, "by_model": {"claude-sonnet-5-5": 1.637, "claude-haiku-5-5": 0.042}}, "review": {"usd": 1.575, "minutes": 5.1, "by_model": {"claude-opus-5-5": 1.575}}, "fix": {"usd": 2.169, "minutes": 10.3, "by_model": {"claude-sonnet-5-5": 2.105, "claude-haiku-5-5": 0.064}}}
+    minutes: 35.9
+    turns: 92
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "b1caacb Obelisk: skip Downloads/Installation in the changelog; correct the audit's facts"
+  - run: "openinterminal-pipeA-2"
+    round: "5"
+    date: "2026-10-14"
+    case: "openinterminal"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "on"}
+    claude_code: "2.1.296"
+    cost_usd: 5.24
+    cost_by_stage: {"exec": {"usd": 1.349, "minutes": 15.2, "by_model": {"claude-sonnet-5-5": 1.296, "claude-haiku-5-5": 0.053}}, "review": {"usd": 1.615, "minutes": 4.5, "by_model": {"claude-opus-5-5": 1.615}}, "fix": {"usd": 2.271, "minutes": 14.1, "by_model": {"claude-sonnet-5-5": 2.171, "claude-haiku-5-5": 0.1}}}
+    minutes: 33.8
+    turns: 93
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(4)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "NEXT-MISS two-part tag v3.0.0 (vendor has shipped this shape)"
+    head: "6083b0c Cover OpenInTerminal-Lite and OpenInEditor-Lite; pin the series split"
+  - run: "secretive-pipeA-2"
+    round: "5"
+    date: "2026-10-14"
+    case: "secretive"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "on"}
+    claude_code: "2.1.296"
+    cost_usd: 5.03
+    cost_by_stage: {"exec": {"usd": 0.995, "minutes": 12.9, "by_model": {"claude-sonnet-5-5": 0.952, "claude-haiku-5-5": 0.043}}, "review": {"usd": 2.315, "minutes": 6.0, "by_model": {"claude-opus-5-5": 2.315}}, "fix": {"usd": 1.718, "minutes": 9.3, "by_model": {"claude-sonnet-5-5": 1.653, "claude-haiku-5-5": 0.065}}}
+    minutes: 28.3
+    turns: 96
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(12)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "a9b6dc5 Secretive: read nightly and one-off builds as non-stable"
+  - run: "spotifast-pipeA-2"
+    round: "5"
+    date: "2026-10-14"
+    case: "spotifast"
+    config: {"mode": "pipeline-A", "stages": [{"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "on"}
+    claude_code: "2.1.296"
+    cost_usd: 6.26
+    cost_by_stage: {"exec": {"usd": 1.023, "minutes": 13.3, "by_model": {"claude-sonnet-5-5": 0.984, "claude-haiku-5-5": 0.04}}, "review": {"usd": 2.553, "minutes": 8.3, "by_model": {"claude-opus-5-5": 2.553}}, "fix": {"usd": 2.687, "minutes": 18.7, "by_model": {"claude-sonnet-5-5": 2.591, "claude-haiku-5-5": 0.096}}}
+    minutes: 40.4
+    turns: 125
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(4)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "SUFFIX-AS-STABLE v0.13.0-rc.1→0.13.0"
+    head: "1ea450d Spotifast: old Fastpotify copies find the rule; one-click needs verification"
+  - run: "cindy-pipeB-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "cindy"
+    config: {"mode": "pipeline-B", "stages": [{"stage": "plan", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 16.43
+    cost_by_stage: {"plan": {"usd": 7.771, "minutes": 36.9, "by_model": {"claude-opus-5-5": 7.771}}, "exec": {"usd": 2.309, "minutes": 29.2, "by_model": {"claude-sonnet-5-5": 2.204, "claude-haiku-5-5": 0.105}}, "review": {"usd": 3.595, "minutes": 15.0, "by_model": {"claude-opus-5-5": 3.593, "claude-haiku-5-5": 0.001}}, "fix": {"usd": 2.76, "minutes": 10.4, "by_model": {"claude-sonnet-5-5": 2.616, "claude-haiku-5-5": 0.144}}}
+    minutes: 91.5
+    turns: 229
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "ad842e4 Cindy audit: record the pre-GitHub CDN builds and the CindyGlobal.app name"
+  - run: "disktree-pipeB-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "disktree"
+    config: {"mode": "pipeline-B", "stages": [{"stage": "plan", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 7.43
+    cost_by_stage: {"plan": {"usd": 2.888, "minutes": 8.8, "by_model": {"claude-opus-5-5": 2.876, "claude-haiku-5-5": 0.012}}, "exec": {"usd": 0.919, "minutes": 14.2, "by_model": {"claude-sonnet-5-5": 0.896, "claude-haiku-5-5": 0.023}}, "review": {"usd": 2.453, "minutes": 8.3, "by_model": {"claude-opus-5-5": 2.453}}, "fix": {"usd": 1.167, "minutes": 4.0, "by_model": {"claude-sonnet-5-5": 1.141, "claude-haiku-5-5": 0.026}}}
+    minutes: 35.4
+    turns: 131
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "8c3ba0f disktree audit: review notes (Intel wording, rebuild caveat, #84, cdhash pair)"
+  - run: "lokii-pipeB-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "lokii"
+    config: {"mode": "pipeline-B", "stages": [{"stage": "plan", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 8.34
+    cost_by_stage: {"plan": {"usd": 3.965, "minutes": 9.8, "by_model": {"claude-opus-5-5": 3.965}}, "exec": {"usd": 1.131, "minutes": 14.1, "by_model": {"claude-sonnet-5-5": 1.077, "claude-haiku-5-5": 0.054}}, "review": {"usd": 1.803, "minutes": 5.0, "by_model": {"claude-opus-5-5": 1.778, "claude-haiku-5-5": 0.024}}, "fix": {"usd": 1.441, "minutes": 5.8, "by_model": {"claude-sonnet-5-5": 1.364, "claude-haiku-5-5": 0.077}}}
+    minutes: 34.6
+    turns: 144
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "cc1b009 Lokii: settle the Full Disk Access and hotkey notes, add v0.1.0 digests and an Intel pick"
+  - run: "obelisk-pipeB-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "obelisk"
+    config: {"mode": "pipeline-B", "stages": [{"stage": "plan", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 8.88
+    cost_by_stage: {"plan": {"usd": 3.878, "minutes": 16.1, "by_model": {"claude-opus-5-5": 3.878}}, "exec": {"usd": 1.163, "minutes": 29.9, "by_model": {"claude-sonnet-5-5": 1.094, "claude-haiku-5-5": 0.069}}, "review": {"usd": 2.106, "minutes": 5.5, "by_model": {"claude-opus-5-5": 2.106}}, "fix": {"usd": 1.733, "minutes": 8.4, "by_model": {"claude-sonnet-5-5": 1.637, "claude-haiku-5-5": 0.096}}}
+    minutes: 59.9
+    turns: 158
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "f6db30c Obelisk changelog: skip the Downloads list, record 0.2.4 x64 and source builds"
+  - run: "openinterminal-pipeB-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "openinterminal"
+    config: {"mode": "pipeline-B", "stages": [{"stage": "plan", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 7.74
+    cost_by_stage: {"plan": {"usd": 4.81, "minutes": 15.7, "by_model": {"claude-opus-5-5": 4.81}}, "exec": {"usd": 0.438, "minutes": 3.2, "by_model": {"claude-sonnet-5-5": 0.42, "claude-haiku-5-5": 0.018}}, "review": {"usd": 0.879, "minutes": 2.6, "by_model": {"claude-opus-5-5": 0.879}}, "fix": {"usd": 1.612, "minutes": 14.2, "by_model": {"claude-sonnet-5-5": 1.538, "claude-haiku-5-5": 0.074}}}
+    minutes: 35.8
+    turns: 142
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "DIFF(11)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "NEXT-MISS two-part tag v3.0.0 (vendor has shipped this shape)"
+    head: "6d2b22f Track OpenInTerminal, OpenInTerminal-Lite and OpenInEditor-Lite via GitHub releases"
+  - run: "secretive-pipeB-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "secretive"
+    config: {"mode": "pipeline-B", "stages": [{"stage": "plan", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 8.12
+    cost_by_stage: {"plan": {"usd": 3.56, "minutes": 15.4, "by_model": {"claude-opus-5-5": 3.56}}, "exec": {"usd": 1.07, "minutes": 13.1, "by_model": {"claude-sonnet-5-5": 1.038, "claude-haiku-5-5": 0.032}}, "review": {"usd": 2.223, "minutes": 5.0, "by_model": {"claude-opus-5-5": 2.223}}, "fix": {"usd": 1.268, "minutes": 3.0, "by_model": {"claude-sonnet-5-5": 1.231, "claude-haiku-5-5": 0.037}}}
+    minutes: 36.5
+    turns: 137
+    make_test_rc: "0"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "4f093a9 Secretive: keep it detection-only until the SecretAgent swap is checked"
+  - run: "spotifast-pipeB-1"
+    round: "5"
+    date: "2026-10-14"
+    case: "spotifast"
+    config: {"mode": "pipeline-B", "stages": [{"stage": "plan", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "exec", "model": "claude-sonnet-5-5", "effort": "high", "subagent": {"name": "executor", "model": "claude-haiku-5-5", "effort": "xhigh"}}, {"stage": "review", "model": "claude-opus-5-5", "effort": "high"}, {"stage": "fix", "model": "claude-sonnet-5-5", "effort": "high", "resumes": "exec"}], "brief": "brief.md", "ditto_note": "off"}
+    claude_code: "2.1.296"
+    cost_usd: 11.38
+    cost_by_stage: {"plan": {"usd": 5.431, "minutes": 14.2, "by_model": {"claude-opus-5-5": 5.431}}, "exec": {"usd": 1.611, "minutes": 20.0, "by_model": {"claude-sonnet-5-5": 1.561, "claude-haiku-5-5": 0.05}}, "review": {"usd": 2.223, "minutes": 5.4, "by_model": {"claude-opus-5-5": 2.223}}, "fix": {"usd": 2.114, "minutes": 7.4, "by_model": {"claude-sonnet-5-5": 2.037, "claude-haiku-5-5": 0.076}}}
+    minutes: 47.0
+    turns: 174
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: "ok"
+    head: "94b0acd Spotifast audit: correct release counts, measure the rename bound, spell out the old-id gap"

@@ -37,7 +37,12 @@
 #         alike, so a steered reviewer cannot read /proc/self/environ (the
 #         model's token). Not blockReadsOutsideWorkingDirectories: it also
 #         refuses gh-get calls whose jq filter looks like a path.
-#       – writes: review.md only (`Edit(./.claude-review/review.md)`);
+#       – writes: review.md only (`Edit(//<workspace>/.claude-review/review.md)`).
+#         Absolute (`//`): a `./` rule is relative to the CURRENT directory, so
+#         after the reviewer `cd`s into a subdirectory it no longer matches and
+#         the write is refused. That failed #1301's round 3 and 2 of 7 replays
+#         in bench/onboarding (https://code.claude.com/docs/en/permissions,
+#         "Read and Edit");
 #       – git: no `Bash(git …:*)` prefix rule. Claude Code's built-in read-only
 #         classification runs diff/log/show and refuses `--output=<file>`, which
 #         writes anywhere (e.g. git config, then `git diff` runs a command). A
@@ -73,12 +78,16 @@ jobs:
     # recipe-autofix.yml's: what a reviewer here could judge, its gates already
     # checked, and what they cannot (the vendor's page) this job cannot fetch;
     # a second model that reads the page decides there instead.
+    # `bench/` is a run of the onboarding benchmark (bench/onboarding/): result
+    # files written by its harness, measured, not authored. A change to the
+    # harness itself goes on any other branch and is reviewed as usual.
     if: >-
       github.event.pull_request.user.login == 'jizhi0v0' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !startsWith(github.event.pull_request.head.ref, 'verify/baseline-') &&
       !startsWith(github.event.pull_request.head.ref, 'verify/install-') &&
-      !startsWith(github.event.pull_request.head.ref, 'recipe-autofix/')
+      !startsWith(github.event.pull_request.head.ref, 'recipe-autofix/') &&
+      !startsWith(github.event.pull_request.head.ref, 'bench/')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -143,12 +152,17 @@ jobs:
           # The reviewer's model is the repository variable CLAUDE_REVIEW_MODEL
           # (Settings → Secrets and variables → Actions → Variables), so it can
           # change without a pull request. Unset means the action's default.
-          # Effort is set explicitly: claude-opus-5-5 defaults to medium, which is
-          # what day-to-day authoring runs at, and the reviewer sits one above it.
+          # Effort is set explicitly: claude-opus-5-5 defaults to medium. Authoring
+          # runs at medium or high, and the reviewer sits above both. xhigh over
+          # high, measured on seven onboardings (bench/onboarding/results/
+          # review-replay.yml): 2 of 4 expected problems caught against 1 (it saw
+          # that one-click turns a recorded nightly gap into a downgrade), one more
+          # true finding, no false positives, about twice the cost and time
+          # ($2.5 and 6 min a review).
           claude_args: >-
             ${{ vars.CLAUDE_REVIEW_MODEL && format('--model {0}', vars.CLAUDE_REVIEW_MODEL) || '' }}
-            --effort high
-            --allowedTools "Edit(./.claude-review/review.md),Bash(${{ github.workspace }}/.github/claude-review/gh-get *)"
+            --effort xhigh
+            --allowedTools "Edit(/${{ github.workspace }}/.claude-review/review.md),Bash(${{ github.workspace }}/.github/claude-review/gh-get *)"
 
       - name: Check the review was written
         if: steps.prep.outputs.mode != 'skip'

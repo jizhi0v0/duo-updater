@@ -1,0 +1,5 @@
+b1caacb Obelisk: skip Downloads/Installation in the changelog; correct the audit's facts
+ac1692e Track Obelisk: Sparkle already detects it; add its GitHub changelog and legacy detection
+2c49ab0 One-click updates for ad-hoc signed GitHub apps, checked by GitHub's file hash (opt-in) (#952)
+7587537 verify: update recipe baseline (#951)
+c8c4787 CLI tools: uv, Junie, Rust and global npm packages (#949)

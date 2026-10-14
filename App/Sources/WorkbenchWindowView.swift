@@ -2747,7 +2747,8 @@ private struct DetailHeader: View {
                 .font(.callout).foregroundStyle(.secondary)
                 .lineLimit(1).minimumScaleFactor(0.75)
         case .status:
-            if case .updateAvailable(let latest) = result.status {
+            switch result.status {
+            case .updateAvailable(let latest):
                 let bump = result.buildBump(latest: latest)
                 let from = bump.map { "\(result.installedDisplay ?? "?") (\($0.installed))" }
                     ?? (result.installedDisplay ?? "?")
@@ -2755,8 +2756,24 @@ private struct DetailHeader: View {
                 Text("\(from)  →  \(to)")
                     .font(.callout).foregroundStyle(.tint)
                     .lineLimit(1).minimumScaleFactor(0.75)
-            } else {
+            case .upToDate:
+                // The only status a check answers with "current". The popover
+                // prints a bare "v<installed>" here too and puts the verdict in
+                // its action column as a checkmark; this header's action is blank
+                // for an up-to-date row, so the line says it.
                 Text("v\(result.installedDisplay ?? "?") · up to date")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .lineLimit(1).minimumScaleFactor(0.75)
+            default:
+                // A failed check (`.error` — a rate limit, a timeout), no source
+                // (`.unknown`), or a channel that owns the updates: none of them
+                // established "up to date", and the action column beside this line
+                // already says which it is (Failed / Rate-limited, a source hint, a
+                // store tile). This used to append "· up to date" to all of
+                // them, so a rate-limited row read "v3.3.0 · up to date" right next
+                // to its orange "Rate-limited" badge. Same bare line the popover
+                // and sidebar draw for these.
+                Text("v\(result.installedDisplay ?? "?")")
                     .font(.callout).foregroundStyle(.secondary)
                     .lineLimit(1).minimumScaleFactor(0.75)
             }

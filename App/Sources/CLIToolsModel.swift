@@ -272,14 +272,16 @@ final class CLIToolsModel {
     /// background check (`backgroundCheck`) keeps those ages too, so an open
     /// right after it asks nothing again.
     ///
-    /// Nothing while an update's re-check is out: its report is about to land.
+    /// One open at a time: the lane's (`RefreshLane`). Only opens and the other
+    /// triggers this lane decides queue behind one another; an update's re-check
+    /// of its one tool answers for that tool only, so an open during one still
+    /// decides for every tool (found in review, #1290).
     func refreshOnOpen() async {
         await lane.handle(.popoverOpen)
     }
 
     private func onOpen() async -> RefreshDecision<Set<Int>> {
         let all = Set(providers.indices)
-        guard !checking else { return .skip(because: "an update's re-check is out") }
         guard !checkedAt.isEmpty else { return .run(all, because: "no report yet") }
         let found = await scanAll()
         // What the scan can see change without a check: which copies of which

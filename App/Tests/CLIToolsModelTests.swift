@@ -1234,7 +1234,7 @@ struct CLIToolsModelTests {
         #expect(model.statuses.map(\.state) == [.updateAvailable])
     }
 
-    /// (h) An open while a check is out leaves it to that check rather than
+    /// (h) An open while another open's check is out waits for it rather than
     /// starting another: with a closed popover no longer cancelling its check,
     /// opening it five times while the first is out would otherwise ask every
     /// tool's channel five times over.
@@ -1256,6 +1256,37 @@ struct CLIToolsModelTests {
         await gate.open()
         await first.value
         for open in more { await open.value }
+    }
+
+    /// (i) …but only another open's check holds an open back. An update's
+    /// re-check asks its one tool; an open during it still re-checks the other
+    /// tools whose report is old. Found in review (#1290): a guard on any check
+    /// being out dropped the open, and nothing re-asked the stale tools.
+    ///
+    /// Mutation: `guard !checking else { return .skip(…) }` at the top of `onOpen`.
+    @Test func anUpdatesRecheckDoesNotHoldAnOpenBack() async {
+        let recheck = Gate()
+        let check = FakeCheck([
+            (Self.report(Self.status(Self.native)), nil),
+            (Self.report(Self.status(Self.native, version: "2.1.285", state: .upToDate, oneClick: false)), recheck),
+        ])
+        let fxCheck = FakeCheck([(Self.report(.fx, []), nil)])
+        let fx = FakeProvider(kind: .fx, checker: fxCheck)
+        let updater = FakeUpdater()
+        await updater.set(Self.id(Self.native), .updated(version: "2.1.285"))
+        let clock = Clock()
+        let model = Self.model(check: check, updater: updater, clock: clock, others: [fx])
+        await model.refresh()
+
+        clock.now += CLIToolsModel.recheckInterval
+        let update = Task { await model.update(Self.id(Self.native)) }
+        await until { await recheck.arrived == 1 }
+        let open = Task { await model.refreshOnOpen() }
+        await until { await fxCheck.calls == 2 }
+        #expect(await fxCheck.calls == 2)
+        await recheck.open()
+        await update.value
+        await open.value
     }
 
     // MARK: the workbench becoming key again

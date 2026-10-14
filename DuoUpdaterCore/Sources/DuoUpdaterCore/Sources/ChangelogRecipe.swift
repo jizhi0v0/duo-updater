@@ -554,6 +554,15 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// captures "the text" stops at the first of them. See
         /// `StructuredChangelogDecoder.decodeTraeDocsChangelog`.
         case traeDocsChangelog
+        /// Longbridge Desktop's Preview manifest, `assets.lbkrs.com/…/longbridge-
+        /// desktop/preview/latest.json` — `{version, published_at, release_notes:
+        /// {en: "### Heading\r\n\r\n- **Area**: text\r\n…"}}`. The notes are Markdown
+        /// inside a JSON string, so a regex over the body would meet the two-character
+        /// `\r\n` and `\"` escapes and the `**` emphasis; the decoder reads the string
+        /// for real and keeps each `- ` bullet as one change line. The manifest holds
+        /// only the newest preview build. See
+        /// `StructuredChangelogDecoder.decodeLongbridgeDesktopManifest`.
+        case longbridgeDesktopManifest
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex

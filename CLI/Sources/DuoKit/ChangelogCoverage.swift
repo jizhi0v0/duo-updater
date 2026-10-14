@@ -74,6 +74,8 @@ enum ChangelogCoverage {
             "news page is behind a Cloudflare challenge (403); its RSS posts are single prose paragraphs",
         "net.whatsapp.WhatsApp":
             "WhatsApp publishes no Mac release notes; the App Store listing's What's New is boilerplate",
+        "org.cindori.TrimEnabler4":
+            "one page lists 15 releases split by <hr>, only the newest labelled 4.3.6: a recipe could show just that entry (1 item) and hide the 14 older releases the page carries; product frozen",
         "org.gimp.gimp":
             "prose release announcements mixed into a news index; no per-version change list",
         "org.gnu.Emacs":

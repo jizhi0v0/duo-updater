@@ -71,6 +71,8 @@ public enum StructuredChangelogDecoder {
             return decodeGotEmailReleases(body, maxEntries: maxEntries)
         case .traeDocsChangelog:
             return decodeTraeDocsChangelog(body, maxEntries: maxEntries)
+        case .longbridgeDesktopManifest:
+            return decodeLongbridgeDesktopManifest(body)
         case .opencodeReleases:
             guard let changelog = OpencodeRelease.parseNotes(Data(body.utf8)),
                   !changelog.entries.isEmpty
@@ -541,6 +543,37 @@ public enum StructuredChangelogDecoder {
         guard !items.isEmpty else { return nil }
         return Changelog(entries: [.init(
             version: build, date: isoDay(file.date), items: items, content: content)])
+    }
+
+    // MARK: - Longbridge Desktop Preview (…/longbridge-desktop/preview/latest.json)
+
+    /// One document, one entry: the manifest's own `version` and `published_at`,
+    /// and `release_notes.en` read as a JSON string so its escapes resolve. Each
+    /// `- ` line is one change line; the `###` headings and the `**` around a
+    /// bullet's label are dropped, so `- **Trade**: Added …` reads `Trade: Added …`
+    /// as the stable page's `<li><strong>Trade</strong>: …` does. The manifest
+    /// carries the newest build only, so its entry is that build whatever version
+    /// the caller asked for.
+    static func decodeLongbridgeDesktopManifest(_ body: String) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let version = (root["version"] as? String)?
+                  .trimmingCharacters(in: .whitespaces),
+              !version.isEmpty,
+              let notes = (root["release_notes"] as? [String: Any])?["en"] as? String
+        else { return nil }
+
+        let items: [String] = notes.components(separatedBy: .newlines).compactMap { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("- ") else { return nil }
+            let text = String(trimmed.dropFirst(2))
+                .replacingOccurrences(of: "**", with: "")
+                .trimmingCharacters(in: .whitespaces)
+            return text.isEmpty ? nil : text
+        }
+        guard !items.isEmpty else { return nil }
+        return Changelog(entries: [.init(
+            version: version, date: isoDay(root["published_at"] as? String), items: items)])
     }
 
     // MARK: - GotEmail (gotemail.shipcat.app/releases.json)

@@ -3241,16 +3241,74 @@ struct ChangelogEntriesView: View {
     /// was set: until the reader picks another version or another click lands.
     @State private var shownBreaking: BreakingChangesJump?
 
-    /// The ids of the rows `ChangelogRowsStack` has built among those
-    /// `scrollToBreaking` can go to: entry titles and breaking rows. Kept per
-    /// id, by each row's own `onAppear`/`onDisappear`, so it cannot outlive the
-    /// row the way a single "target is built" flag did when the tint moved off a
-    /// title that stayed on screen. Not observed: rows coming and going while the
-    /// reader scrolls must not re-run this body.
-    final class BuiltRows {
-        var ids: Set<AnyHashable> = []
+    /// What `scrollToBreaking` needs to know about the notes as they scroll,
+    /// kept by `ChangelogRowsStack` and the scroll views. Not observed: rows
+    /// coming and going while the reader scrolls must not re-run this body.
+    final class NotesScroll {
+        /// The ids of the blocks built right now among those `scrollToBreaking`
+        /// can go to: entry titles and breaking rows. Kept per id, by each
+        /// block's own `onAppear`/`onDisappear`, so it cannot outlive the block
+        /// the way a single "target is built" flag did when the tint moved off a
+        /// title that stayed on screen.
+        var built: Set<AnyHashable> = []
+        /// The height of each of those blocks, last measured.
+        var heights: [AnyHashable: CGFloat] = [:]
+        /// The pinned title's height (`PinnedTitleView`), last measured.
+        var headerHeight: CGFloat = 0
+        /// The scroll view's height.
+        var viewportHeight: CGFloat = 0
     }
-    @State private var builtRows = BuiltRows()
+    @State private var notesScroll = NotesScroll()
+
+    /// The version whose title is pinned over the top of the notes, and how far
+    /// the next version's title has pushed it up. `ChangelogRowsStack` reports
+    /// its blocks' frames here; only `PinnedTitleView` reads it, so the rows are
+    /// not redrawn when it changes.
+    @Observable final class PinnedTitle {
+        private(set) var entry: Int?
+        private(set) var push: CGFloat = 0
+        @ObservationIgnored private var pushedBy: AnyHashable?
+
+        /// A block discarded while it was pushing the title: it will not report
+        /// leaving the band, so let go here. A jump moves blocks through the band
+        /// in passing; without this the title stayed pushed up after one.
+        func blockGone(id: AnyHashable) {
+            guard pushedBy == id else { return }
+            pushedBy = nil
+            if push != 0 { push = 0 }
+        }
+
+        /// Another changelog: its blocks report afresh.
+        func reset() {
+            entry = nil
+            push = 0
+            pushedBy = nil
+        }
+
+        /// `frame` is the block's, in the scroll view's own coordinates (0 is the
+        /// top edge). The block across the top edge says which version is being
+        /// read; a version's opening block coming up under the pinned title
+        /// pushes it up, the way a pinned section header is pushed.
+        func blockMoved(id: AnyHashable, entry: Int, opensEntry: Bool, isFirst: Bool,
+                        frame: CGRect, headerHeight: CGFloat) {
+            if frame.minY <= 0, frame.maxY > 0, self.entry != entry { self.entry = entry }
+            // Scrolled back above the first version's title: nothing to pin.
+            if isFirst, frame.minY > 0, self.entry != nil { self.entry = nil }
+            guard opensEntry else { return }
+            if frame.minY > 0, frame.minY < headerHeight {
+                pushedBy = id
+                let offset = frame.minY - headerHeight
+                if push != offset { push = offset }
+            } else if pushedBy == id {
+                pushedBy = nil
+                if push != 0 { push = 0 }
+            }
+        }
+    }
+    @State private var pinnedTitle = PinnedTitle()
+
+    /// The scroll view's coordinate space, for `PinnedTitle.blockMoved`.
+    fileprivate static let notesSpace = "changelog-notes"
 
     /// `shownBreaking` resolved to its entry and the rows that mark it breaking,
     /// once per render rather than once per row.
@@ -3295,8 +3353,10 @@ struct ChangelogEntriesView: View {
         // The ⚠ beside a flagged version, budgeted for the same reason: without
         // it only the flagged rows would truncate their labels.
         let breakingAccessory: CGFloat = flagsBreaking ? 18 : 0
+        // The selected row's Copy button, budgeted for the same reason.
+        let copyAccessory: CGFloat = 20
         let minimum: CGFloat = showsDatesInline ? 156 : 140
-        return min(max(pick + chrome + inlineAccessory + breakingAccessory, minimum), 360)
+        return min(max(pick + chrome + inlineAccessory + breakingAccessory + copyAccessory, minimum), 360)
     }
 
     var body: some View {
@@ -3312,6 +3372,7 @@ struct ChangelogEntriesView: View {
         .onChange(of: changelog) {
             selection = 0
             shownBreaking = nil
+            pinnedTitle.reset()
             cachedRailWidth = measuredRailWidth
         }
         // The flags can land after the notes: they come from the tool's check.
@@ -3337,11 +3398,17 @@ struct ChangelogEntriesView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 ChangelogRowsStack(changelog: changelog, entries: Array(changelog.entries.indices),
-                                   itemStyle: itemStyle, tint: tint, builtRows: builtRows,
+                                   itemStyle: itemStyle, tint: tint, scroll: notesScroll, pinned: pinnedTitle,
                                    idsQualifiedByEntry: false)
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .id(Self.scrollTopAnchor)
+            }
+            .coordinateSpace(.named(Self.notesSpace))
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { notesScroll.viewportHeight = $0 }
+            .overlay(alignment: .top) {
+                PinnedTitleView(changelog: changelog, pinned: pinnedTitle, scroll: notesScroll,
+                                itemStyle: itemStyle, tint: tint)
             }
             .onChange(of: shownBreaking) {
                 scrollToBreaking(proxy, idsQualifiedByEntry: false)
@@ -3412,7 +3479,13 @@ struct ChangelogEntriesView: View {
     /// This used to cut to the entry's top first, wait 80 ms for its rows and then
     /// scroll on down: the row's id lived inside a lazily built entry.
     ///
-    /// Animated only when the row is already built (`builtRows`), which in
+    /// A breaking row lands one pinned title below the top (`PinnedTitleView`
+    /// covers what is above). `scrollTo` lines up the point at `anchor.y` of the
+    /// target with the point at `anchor.y` of the scroll view, so the target's top
+    /// lands at `y × (viewport − target)`; solved for the title's height. The
+    /// row is a block of its own, measured once built; before that, a line.
+    ///
+    /// Animated only when the row is already built (`notesScroll.built`), which in
     /// a lazy stack means on screen or just off it: a short way, and the motion
     /// keeps where the reader was coming from. Otherwise a jump. The row is then
     /// typically far away — openclaw's 2026.9.3 sits ~40,000 pt down its long
@@ -3423,8 +3496,10 @@ struct ChangelogEntriesView: View {
     /// `breakingAnchor` id in the update that tints it, and by the next turn its
     /// `onAppear` has recorded it — observed, not documented: a row near the top
     /// of the screen animated and a far one jumped (2026-10-14).
-    /// `idsQualifiedByEntry` is the layout's `ChangelogRowsStack` setting.
-    private func scrollToBreaking(_ proxy: ScrollViewProxy, idsQualifiedByEntry: Bool) {
+    /// `idsQualifiedByEntry` is the layout's `ChangelogRowsStack` setting;
+    /// `pinsTitle` is false where no title is pinned (columns: the rail says
+    /// which version it is).
+    private func scrollToBreaking(_ proxy: ScrollViewProxy, idsQualifiedByEntry: Bool, pinsTitle: Bool = true) {
         guard let shownBreaking, let index = entry(shownBreaking.version) else { return }
         let opensEntry = (ChangelogEntryView.breakingRows(of: changelog.entries[index]).first ?? 0) == 0
         let title = ChangelogRowsStack.titleID(of: index, qualifiedByEntry: idsQualifiedByEntry)
@@ -3435,10 +3510,15 @@ struct ChangelogEntriesView: View {
             : AnyHashable(ChangelogEntryView.breakingAnchor(index))
         let built = opensEntry ? title : target
         Task { @MainActor in
-            if builtRows.ids.contains(built) {
-                withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(target, anchor: .top) }
+            // A version's top lands at the top: its own title is what gets pinned.
+            let room = notesScroll.viewportHeight - (notesScroll.heights[target] ?? 20)
+            let anchor = opensEntry || !pinsTitle || room <= notesScroll.headerHeight
+                ? UnitPoint.top
+                : UnitPoint(x: 0, y: notesScroll.headerHeight / room)
+            if notesScroll.built.contains(built) {
+                withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(target, anchor: anchor) }
             } else {
-                proxy.scrollTo(target, anchor: .top)
+                proxy.scrollTo(target, anchor: anchor)
             }
         }
     }
@@ -3473,11 +3553,14 @@ struct ChangelogEntriesView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     ChangelogRowsStack(changelog: changelog, entries: [index], itemStyle: itemStyle,
-                                       tint: tint, builtRows: builtRows, idsQualifiedByEntry: false)
+                                       tint: tint, scroll: notesScroll, idsQualifiedByEntry: false,
+                                       showsTitleCopy: false)
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .id(Self.scrollTopAnchor)
                 }
+                .coordinateSpace(.named(Self.notesSpace))
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { notesScroll.viewportHeight = $0 }
                 // BOTH triggers. `index` alone misses the most common switch there
                 // is: picking a different app resets `selection` to 0, so a user who
                 // was on entry 0 (the default) and had scrolled halfway down a long
@@ -3492,7 +3575,7 @@ struct ChangelogEntriesView: View {
                     proxy.scrollTo(Self.scrollTopAnchor, anchor: .top)
                 }
                 .onChange(of: shownBreaking) {
-                    scrollToBreaking(proxy, idsQualifiedByEntry: false)
+                    scrollToBreaking(proxy, idsQualifiedByEntry: false, pinsTitle: false)
                 }
             }
         }
@@ -3503,10 +3586,16 @@ struct ChangelogEntriesView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 ChangelogRowsStack(changelog: changelog, entries: Array(changelog.entries.indices),
-                                   itemStyle: itemStyle, tint: tint, builtRows: builtRows,
+                                   itemStyle: itemStyle, tint: tint, scroll: notesScroll, pinned: pinnedTitle,
                                    idsQualifiedByEntry: true)
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .coordinateSpace(.named(Self.notesSpace))
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { notesScroll.viewportHeight = $0 }
+            .overlay(alignment: .top) {
+                PinnedTitleView(changelog: changelog, pinned: pinnedTitle, scroll: notesScroll,
+                                itemStyle: itemStyle, tint: tint)
             }
             .onChange(of: shownBreaking) {
                 scrollToBreaking(proxy, idsQualifiedByEntry: true)
@@ -3541,8 +3630,10 @@ struct ChangelogEntriesView: View {
 /// of the main thread while scrolling — selectable text is laid out through
 /// TextKit, and every frame re-ran accessibility and cursor hit-testing over its
 /// rows. Without it the same 30-page scroll took ~1.7–2.2 s instead of ~3.6 s
-/// (2026-10-14). Each version's title carries a Copy button instead
-/// (`ChangelogEntryView.CopyNotesButton`).
+/// (2026-10-14). Each version gets a Copy button instead
+/// (`ChangelogEntryView.CopyNotesButton`) where it stays in reach: on the title
+/// pinned over the long scroll (`PinnedTitleView`), and beside the notes on
+/// the version rail's selected row (`ChangelogVersionList`).
 private struct ChangelogRowsStack: View {
     /// The entry whose breaking changes are tinted, and which of its rows
     /// (`ChangelogEntryView.breakingRows`): none means its title.
@@ -3556,14 +3647,20 @@ private struct ChangelogRowsStack: View {
     let entries: [Int]
     var itemStyle: ChangelogEntriesView.ItemStyle = .bulleted
     var tint: Tint?
-    /// Where the titles and breaking rows built right now are recorded, by id
-    /// (`ChangelogEntriesView.builtRows`).
-    var builtRows: ChangelogEntriesView.BuiltRows?
+    /// Where the titles and breaking rows built right now are recorded, by id,
+    /// with their heights (`ChangelogEntriesView.NotesScroll`).
+    var scroll: ChangelogEntriesView.NotesScroll?
+    /// Where each block's frame is reported, to pin the title of the version
+    /// being read (`ChangelogEntriesView.PinnedTitle`).
+    var pinned: ChangelogEntriesView.PinnedTitle?
     /// The long scroll: ids carry the entry, and a title's id is
     /// `ChangelogEntriesView.entryAnchor`. One entry shown: ids are the row
     /// alone, so picking another version updates the rows in place rather than
     /// rebuilding every one of them.
     var idsQualifiedByEntry: Bool
+    /// Off beside the version rail, which carries the Copy button instead
+    /// (`ChangelogVersionList`).
+    var showsTitleCopy = true
 
     /// The gap between an entry's last row and the next entry's title.
     private static let entryGap: CGFloat = 20
@@ -3598,22 +3695,31 @@ private struct ChangelogRowsStack: View {
     /// ~5.4 s to ~3.6 s; blocks of 24 measured the same as 12 (2026-10-14).
     private struct Block: Identifiable {
         let rows: [Row]
+        /// The first block of the stack.
+        let isFirst: Bool
         var id: AnyHashable { rows[0].id }
         var isRecorded: Bool { rows[0].isRecorded }
+        var entry: Int { rows[0].entry }
+        /// Starts with its version's title.
+        var opensEntry: Bool { rows[0].part == .title }
     }
     private static let blockSize = 12
 
     private var blocks: [Block] {
         var blocks: [Block] = []
         var current: [Row] = []
-        for row in rows {
-            if !current.isEmpty && (row.isRecorded || current.count == Self.blockSize) {
-                blocks.append(Block(rows: current))
-                current = []
-            }
-            current.append(row)
+        func flush() {
+            if !current.isEmpty { blocks.append(Block(rows: current, isFirst: blocks.isEmpty)) }
+            current = []
         }
-        if !current.isEmpty { blocks.append(Block(rows: current)) }
+        for row in rows {
+            if row.isRecorded || current.count == Self.blockSize { flush() }
+            current.append(row)
+            // A breaking row is a block of its own: its block's top and height
+            // are the row's, which `scrollToBreaking` lands below the pinned title.
+            if row.isRecorded, row.part != .title { flush() }
+        }
+        flush()
         return blocks
     }
 
@@ -3624,12 +3730,24 @@ private struct ChangelogRowsStack: View {
                     ForEach(block.rows) { row in
                         ChangelogEntryView(entry: changelog.entries[row.entry], itemStyle: itemStyle,
                                            syntax: changelog.itemSyntax, part: row.part,
-                                           tinted: tint?.entry == row.entry ? tint?.rows : nil)
+                                           tinted: tint?.entry == row.entry ? tint?.rows : nil,
+                                           showsCopy: showsTitleCopy)
                             .padding(.bottom, row.gapBelow)
                     }
                 }
-                .onAppear { if block.isRecorded { builtRows?.ids.insert(block.id) } }
-                .onDisappear { if block.isRecorded { builtRows?.ids.remove(block.id) } }
+                .onAppear { if block.isRecorded { scroll?.built.insert(block.id) } }
+                .onDisappear {
+                    if block.isRecorded { scroll?.built.remove(block.id) }
+                    pinned?.blockGone(id: block.id)
+                }
+                .onGeometryChange(for: CGRect.self) {
+                    $0.frame(in: .named(ChangelogEntriesView.notesSpace))
+                } action: { frame in
+                    if block.isRecorded { scroll?.heights[block.id] = frame.height }
+                    pinned?.blockMoved(id: block.id, entry: block.entry, opensEntry: block.opensEntry,
+                                       isFirst: block.isFirst, frame: frame,
+                                       headerHeight: scroll?.headerHeight ?? 0)
+                }
             }
         }
     }
@@ -3664,6 +3782,53 @@ private struct ChangelogRowsStack: View {
             }
         }
         return rows
+    }
+}
+
+/// The title of the version being read, pinned over the top of the notes with
+/// its Copy button (`ChangelogEntriesView.PinnedTitle`), so the button is in
+/// reach anywhere in a long version's notes.
+///
+/// Drawn over the scroll view, not as a pinned section header: a section per
+/// version made the lazy stack estimate whole versions again, and the scroller
+/// jumped — 10 of 300 small steps off by more than 0.02, against 2 for these
+/// flat blocks (2026-10-14).
+private struct PinnedTitleView: View {
+    let changelog: Changelog
+    let pinned: ChangelogEntriesView.PinnedTitle
+    let scroll: ChangelogEntriesView.NotesScroll
+    var itemStyle: ChangelogEntriesView.ItemStyle = .bulleted
+    var tint: ChangelogRowsStack.Tint?
+
+    var body: some View {
+        let shown = pinned.entry.flatMap { changelog.entries.indices.contains($0) ? $0 : nil }
+        ZStack(alignment: .top) {
+            // Measures the title's height before anything is pinned, so the
+            // first jump already lands a row below it. Hidden from sight and
+            // from accessibility: only the pinned copy below is a control.
+            if let first = changelog.entries.indices.first {
+                title(first)
+                    .hidden()
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { scroll.headerHeight = $0 }
+            }
+            if let shown {
+                title(shown)
+                    .background(.bar)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { scroll.headerHeight = $0 }
+                    .offset(y: pinned.push)
+            }
+        }
+    }
+
+    private func title(_ index: Int) -> some View {
+        ChangelogEntryView(entry: changelog.entries[index], itemStyle: itemStyle,
+                           syntax: changelog.itemSyntax, part: .title,
+                           tinted: tint?.entry == index ? tint?.rows : nil)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -3724,6 +3889,12 @@ private struct ChangelogVersionList: View {
                                     .help("This version’s notes mark breaking changes. Click to show them.")
                                     .accessibilityLabel("This version’s notes mark breaking changes. Click to show them.")
                                 }
+                                if index == selected {
+                                    // The notes beside the rail scroll their title
+                                    // away; the selected row is always in view.
+                                    Spacer(minLength: 0)
+                                    ChangelogEntryView.CopyNotesButton(entry: entry)
+                                }
                             }
                             if !showsDatesInline, let date = entry.date, !date.isEmpty {
                                 Text(date).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
@@ -3738,6 +3909,15 @@ private struct ChangelogVersionList: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    // The Copy button inside the selected row is not an
+                    // accessibility element of its own; the row offers it.
+                    .accessibilityActions {
+                        if index == selected {
+                            Button(ChangelogEntryView.CopyNotesButton.label(for: entry)) {
+                                ChangelogEntryView.CopyNotesButton.copy(entry)
+                            }
+                        }
+                    }
                 }
             }
             .padding(8)
@@ -3779,6 +3959,8 @@ private struct ChangelogEntryView: View {
     /// asked to see them (`ChangelogEntriesView.showBreaking`); nil otherwise.
     /// Empty: nothing in the notes can be pointed at, so the title is tinted.
     var tinted: IndexSet?
+    /// The title's Copy button (`CopyNotesButton`).
+    var showsCopy = true
 
     private var displayDate: String? {
         guard let date = entry.date else { return nil }
@@ -3818,7 +4000,7 @@ private struct ChangelogEntryView: View {
     /// The id of `entry`'s first tinted row, for `ChangelogEntriesView.scrollToBreaking`.
     /// Per entry, so moving the tint to another version changes the row's
     /// identity, which should run the old row's `onDisappear` and drop its id
-    /// from `ChangelogEntriesView.builtRows` — expected, not observed: openclaw,
+    /// from `ChangelogEntriesView.NotesScroll.built` — expected, not observed: openclaw,
     /// the one long changelog tried, flags a single version. Should the id linger,
     /// a later jump to that same row from far away would animate rather than jump.
     static func breakingAnchor(_ entry: Int) -> String { "changelog-breaking-\(entry)" }
@@ -3829,7 +4011,7 @@ private struct ChangelogEntryView: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 title
                 Spacer(minLength: 0)
-                CopyNotesButton(entry: entry)
+                if showsCopy { CopyNotesButton(entry: entry) }
             }
             // Nothing in the notes to point at: the version itself is.
             .breakingTint(tinted?.isEmpty == true, spacing: 8)
@@ -3897,12 +4079,22 @@ private struct ChangelogEntryView: View {
         @State private var copied = false
         @State private var resetTask: Task<Void, Never>?
 
-        var body: some View {
+        /// The button's label, and the name of the same action where the button
+        /// cannot be reached on its own (`ChangelogVersionList`).
+        static func label(for entry: Changelog.Entry) -> String {
             let name = entry.version.isEmpty ? (entry.title ?? "") : entry.version
-            let label = String(localized: "Copy the \(name) release notes")
+            return String(localized: "Copy the \(name) release notes")
+        }
+
+        static func copy(_ entry: Changelog.Entry) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(ChangelogEntryView.plainText(of: entry), forType: .string)
+        }
+
+        var body: some View {
+            let label = Self.label(for: entry)
             Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(ChangelogEntryView.plainText(of: entry), forType: .string)
+                Self.copy(entry)
                 copied = true
                 resetTask?.cancel()
                 // Back to the copy glyph, so a second copy confirms again.

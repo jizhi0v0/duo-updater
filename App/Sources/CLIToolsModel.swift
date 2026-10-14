@@ -243,8 +243,11 @@ final class CLIToolsModel {
 
     /// How soon after a check an open re-asks a copy it left unanswered
     /// (offline, GitHub's rate limit). Every open re-asked every tool before, so
-    /// a popover opened again and again while rate-limited spent the very
-    /// budget whose exhaustion it was waiting out.
+    /// a popover opened again and again while rate-limited kept asking GitHub —
+    /// which says not to retry before `x-ratelimit-reset`, and that "continuing
+    /// to make requests while you are rate limited may result in the banning of
+    /// your integration" (docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api,
+    /// read 2026-10-14; it does not say whether the refused requests count).
     static let unansweredRecheckInterval: TimeInterval = 60
 
     private func decide(_ trigger: RefreshTrigger) async -> RefreshDecision<Set<Int>> {

@@ -1,7 +1,7 @@
 # WhatCable
 
 ## 基本信息
-- Bundle ID: `uk.whatcable.whatcable`
+- Bundle ID: `uk.whatcable.whatcable`；v0.2.0–v0.5.14 是 `com.bitmoor.whatcable`（见「改名前的 bundle id」）
 - Team ID: `M4RUJ7W6MP`（Developer ID Application: Darryl Morley）
 - 观测版本: stable `1.4.0`（build `130`）· beta `1.5.0-beta.8`（build `137`）
 - 架构: universal（`lipo -archs` → `x86_64 arm64`）
@@ -28,6 +28,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable | `uk.whatcable.whatcable` | 共享 | 版本串**无**后缀 | `/releases/latest`（GitHub 不返 prerelease）| ✓ |
+| stable（改名前） | `com.bitmoor.whatcable`（< 0.6.0） | 独立 | `BundleIDMigration` 把它归到新 id 的 stable rule | 同 stable | ✓ |
 | beta | 同上 | 共享 | `CFBundleShortVersionString` = `1.5.0-beta.8` → `ReleaseChannel.detect` 第 4 步 | `usePrereleases: true`（读 releases 列表而不是 `/releases/latest`）| ✓ |
 
 **为什么 beta 这条必须有**：beta 包的 marketing 串原样带 `-beta.8`（实测 v1.5.0-beta.8
@@ -120,7 +121,40 @@ release is newest, so a stable always supersedes its own betas."。锚死 `-beta
   ⚠️ 和 UTM 那条一样要说清够不到什么：它看不见"厂商开了第三条同名轨"，也不说被选中的是哪个
   release（`.recipeAnchor` 分支根本不看解析出来的 artifact）。
 
+## 改名前的 bundle id
+
+v0.2.0 到 v0.5.14 是 `com.bitmoor.whatcable`，v0.6.0（2026-05-05，与 0.5.14 同一天）起是
+`uk.whatcable.whatcable`。两边同一个 Team（`M4RUJ7W6MP`），都公证过。实测真包（2026-10-14，
+GitHub release 的 `WhatCable.zip`）：v0.5.14 → `com.bitmoor.whatcable` / 0.5.14，v0.6.0 →
+`uk.whatcable.whatcable` / 0.6.0，两者 `LSMinimumSystemVersion` 14.0，都没有 `SUFeedURL`。
+
+厂商 v0.6.0 的 release notes 说这是上 App Store 前的一次性改名：手动替换 `WhatCable.app`
+或走 Homebrew 是支持的升级方式；旧版 app 内更新器可能因 bundle id 不同拒绝这次更新；
+首次启动新版会重置偏好和通知权限，开机启动要重新打开。
+
+所以 `BundleIDMigration`（from `com.bitmoor.whatcable`，to `uk.whatcable.whatcable`，
+lastFromVersion 0.5.14，firstToVersion 0.6.0）把 0.6.0 以下的旧 id 副本归到 stable rule，
+一键就是厂商说的「手动替换」。0.6.0 及以上还签旧 id 的副本不是这次改名，不归。
+
+这一组是 2026-10-14 onboarding benchmark 第 6 轮（`bench/onboarding/results/holdout6-skill-ab.yml`）
+带 coverage checklist 的两次运行发现的；原来的接入没有列出改名前的版本。
+
+真机（2026-10-14，本分支 `make install` + `make cli`，用户原有的 1.4.0 先 `ditto` 备份）：
+- 不运行：`/Applications` 放 v0.5.14（`com.bitmoor.whatcable`）→ `duo check whatcable` 显示
+  `0.5.14 → 1.5.0 [GitHub, in-place]`；`duo install whatcable --yes --json` →
+  `outcome installed`，9 s。之后 `uk.whatcable.whatcable` / 1.5.0 / build 140，inode 变了，
+  `codesign --verify --deep --strict` 通过，`spctl` = Notarized Developer ID，Team
+  `M4RUJ7W6MP`，`diff -r` 与厂商 v1.5.0 解包一致；`duo backups` 有 0.5.14 的回滚点；再
+  `duo check` → up to date。
+- 运行中：重放 v0.5.14 并启动（pid 70366）。旧版自带更新器只留下 HTTP 缓存，没有暂存下载。
+  `duo install` → `installed`；`duo restart whatcable` → 新进程 70695 跑 1.5.0，之后 10 s
+  内版本没有回退。
+- 收尾：退出 app，删掉旧 id 启动时建的 `~/Library/Caches/com.bitmoor.whatcable` 和
+  `~/Library/HTTPStorages/com.bitmoor.whatcable`；本机留在 1.5.0，未运行。
+
 ## 已知问题
+- **改名前的副本升级后偏好、通知权限和开机启动都会重置**（新 id 读不到旧 id 的 defaults）。
+  这是厂商说明里写明的后果，不是一键带来的。
 - **beta 安装会被交付 stable 构件**（当 stable 是最新那条时）。这是上面写的刻意取舍，
   也是厂商自己更新器的行为；反方向不会发生。
 - ⚠️ **而且这一步是单向的**：装完 `1.5.0` 之后 `detect` 判 `.stable`，下一轮起这台就由

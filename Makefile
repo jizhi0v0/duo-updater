@@ -71,6 +71,8 @@ test-scripts: check-python
 	$(PYTHON) scripts/check_engine_notes.py
 	$(PYTHON) scripts/check_skill_docs.py
 	$(PYTHON) scripts/check_prose_claims.py
+	$(PYTHON) scripts/test_check_digest_only_names.py
+	$(PYTHON) scripts/check_digest_only_names.py
 	$(PYTHON) scripts/check_offpool.py
 	$(PYTHON) scripts/test_check_github_gate.py
 	$(PYTHON) scripts/check_github_gate.py

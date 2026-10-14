@@ -31,11 +31,17 @@
 #     model, and only posts that file. The checkout keeps no credential
 #     (`persist-credentials: false`).
 #   • review.md is the one way out of `review`, and it is posted verbatim, so
-#     the reviewer is confined to the checkout: no bare Read/Glob/Grep rule
-#     (default mode reads inside the working directory only, so a steered
-#     reviewer cannot read /proc/self/environ and the model's token in it), and
-#     the only writable file is review.md (`Edit(./.claude-review/review.md)`;
-#     a bare Write could rewrite git config and turn `git diff` into a command).
+#     the reviewer is confined to the checkout:
+#       – reads: no bare Read/Glob/Grep rule. Default mode then refuses reads
+#         outside the working directory, by the file tools and by cat/grep/head
+#         alike, so a steered reviewer cannot read /proc/self/environ (the
+#         model's token). Not blockReadsOutsideWorkingDirectories: it also
+#         refuses gh-get calls whose jq filter looks like a path.
+#       – writes: review.md only (`Edit(./.claude-review/review.md)`);
+#       – git: no `Bash(git …:*)` prefix rule. Claude Code's built-in read-only
+#         classification runs diff/log/show and refuses `--output=<file>`, which
+#         writes anywhere (e.g. git config, then `git diff` runs a command). A
+#         prefix rule let `--out''put=` through; the classifier parses the quotes.
 #     `post` also refuses a review that contains anything shaped like a token.
 #
 # The reviewer reads REVIEW.md, the checkout and the PR description, runs
@@ -142,7 +148,7 @@ jobs:
           claude_args: >-
             ${{ vars.CLAUDE_REVIEW_MODEL && format('--model {0}', vars.CLAUDE_REVIEW_MODEL) || '' }}
             --effort high
-            --allowedTools "Edit(./.claude-review/review.md),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(${{ github.workspace }}/.github/claude-review/gh-get *)"
+            --allowedTools "Edit(./.claude-review/review.md),Bash(${{ github.workspace }}/.github/claude-review/gh-get *)"
 
       - name: Check the review was written
         if: steps.prep.outputs.mode != 'skip'

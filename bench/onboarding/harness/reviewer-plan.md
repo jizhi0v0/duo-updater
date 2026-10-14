@@ -1,0 +1,1 @@
+3. The plan. A planner wrote `__SCR__/plan.md` before the work started. Go through its coverage checklist item by item and, for each, say whether the result covers it, covers it differently, misses it, or leaves it out of scope with a reason, and whether you agree.

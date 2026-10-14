@@ -73,12 +73,16 @@ jobs:
     # recipe-autofix.yml's: what a reviewer here could judge, its gates already
     # checked, and what they cannot (the vendor's page) this job cannot fetch;
     # a second model that reads the page decides there instead.
+    # `bench/` is a run of the onboarding benchmark (bench/onboarding/): result
+    # files written by its harness, measured, not authored. A change to the
+    # harness itself goes on any other branch and is reviewed as usual.
     if: >-
       github.event.pull_request.user.login == 'jizhi0v0' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !startsWith(github.event.pull_request.head.ref, 'verify/baseline-') &&
       !startsWith(github.event.pull_request.head.ref, 'verify/install-') &&
-      !startsWith(github.event.pull_request.head.ref, 'recipe-autofix/')
+      !startsWith(github.event.pull_request.head.ref, 'recipe-autofix/') &&
+      !startsWith(github.event.pull_request.head.ref, 'bench/')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

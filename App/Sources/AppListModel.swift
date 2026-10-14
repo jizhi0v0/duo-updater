@@ -1906,7 +1906,7 @@ final class AppListModel {
     /// token` hold the whole refresh hostage forever. Falling back to nil just means
     /// the check runs unauthenticated this cycle.
     private static func resolveGitHubToken(
-        explicit: String?, timeout: Duration = .seconds(2)
+        explicit: String?, timeout: Duration = GitHubToken.cliDeadline
     ) async -> String? {
         // Logged so a resolve is visible in `log stream`: without an explicit or env
         // token each one is a `gh auth token` subprocess, and this line is how to
@@ -1917,7 +1917,7 @@ final class AppListModel {
         // A settings value or an env var answers here, with no subprocess, no hop
         // and no deadline. Racing those was a regression: the hop has to be
         // ADMITTED to a Dispatch queue, and on a loaded machine admission alone
-        // can outlast the two seconds — which turns a token the user pasted into
+        // can outlast the deadline — which turns a token the user pasted into
         // "continuing without a token". See `GitHubToken.preresolved`.
         if let cheap = GitHubToken.preresolved(explicit: explicit) { return cheap }
         // Only `gh auth token` is left, awaited through `ChildProcess`. The detached

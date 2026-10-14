@@ -111,6 +111,22 @@ public enum GitHubToken {
         return nil
     }
 
+    /// How long a caller that must not stall waits for `gh auth token` before
+    /// going on unauthenticated — `AppListModel`'s round and
+    /// `ChangelogService.gitHubToken`, which share it so the two cannot drift.
+    ///
+    /// The deadline is there for a `gh` that never answers (a keychain prompt
+    /// nobody is looking at), not for a slow one, and missing it is expensive:
+    /// the whole round goes out anonymous, spends the network's 60/hour on the
+    /// first sixty GitHub-tracked apps, and the popover tells a user who IS
+    /// signed in to add a token. It was 2 seconds, and that is what happened
+    /// on 2026-10-14, a few minutes after a reboot: the app launched under
+    /// login load, `gh` was spawned at 10:16:41.27, the round gave up at
+    /// 10:16:43.21, and `gh`'s keychain read (`security`) ran at 10:16:44.6 —
+    /// about 3.4 s for a call that takes 40 ms warm. Every GitHub row after the
+    /// sixtieth then came back 403 with `X-RateLimit-Remaining: 0`.
+    public static let cliDeadline: Duration = .seconds(15)
+
     /// Ask the `gh` CLI for its stored token.
     ///
     /// Cheap only when it answers: `gh` can sit on a keychain prompt nobody is

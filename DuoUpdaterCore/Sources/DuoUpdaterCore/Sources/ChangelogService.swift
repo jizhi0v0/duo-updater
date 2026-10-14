@@ -508,7 +508,7 @@ public enum ChangelogService {
     ///   `anExplicitTokenDoesNotRaceTheDeadline` proves the settings token is
     ///   answered without entering the race at all.
     static func gitHubToken(
-        now: Date = Date(), timeout: Duration = .seconds(2)
+        now: Date = Date(), timeout: Duration = GitHubToken.cliDeadline
     ) async -> String? {
         let (explicit, usesCLI, hit) = rememberedToken(now: now)
         if let hit { return hit }

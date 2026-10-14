@@ -22,15 +22,18 @@ enum SettingsMetrics {
     static let contentWidth: CGFloat = 620
 }
 
-/// A card a deep link can name. Raw strings are not persisted anywhere — this is
-/// only ever in-memory between the control that links and the page that lands —
-/// so adding a case costs nothing beyond marking the card.
+/// A card or row a deep link can name. Nothing here is persisted — this is only
+/// ever in-memory between the control that links and the page that lands — so
+/// adding a case costs nothing beyond marking the card or row.
 ///
 /// Every link that names a SETTING rather than a page belongs here. Landing on the
 /// page is not landing on the control: General is four cards long and GitHub's
 /// token sits under its CLI card, so a reader sent from a beta row or from the
 /// rate-limit banner still has to go looking for the thing they were sent for.
-enum SettingsAnchor: String, Hashable, Sendable {
+///
+/// The sidebar search (`SettingsSearch`) is the other caller: each setting it can
+/// find, and each app listed on a page, is one of these.
+enum SettingsAnchor: Hashable, Sendable {
     /// Linked from the mark on a beta row whose detection is off.
     case testFlightDetection
     /// Linked from the menu's rate-limit banner and from the welcome window's
@@ -39,14 +42,75 @@ enum SettingsAnchor: String, Hashable, Sendable {
     /// Linked from the workbench's empty Rollback tab when backups are off.
     case backups
 
+    // General
+    case launchAtLogin, checkFrequency, hideDockIcon, appRuntimeTags, cliRuntimeTags
+    case autoRelaunch, concurrency, appStoreUpdates, selfUpdatingApps, digestOnlyInstalls
+    // Notifications
+    case notifyApps, notifyCLITools, notifyHomebrew
+    // Backups
+    case keepBackups, pruneOrphanBackups, backupLocation
+    // Storage
+    case storageCaches, storageAppData, storageSystem
+    // Folders
+    case scanFolders, builtInFolders
+    // Updates
+    case selfUpdateCheck, silentSelfUpdate
+    // Accounts
+    case githubCLI, alcoveLicense, appleDeveloperSignIn, renewAppleSession, downloadXcode
+    // Library
+    case ignoredApps, skippedVersions
+    case appManagement, fullDiskAccess, appStoreHelper, lastChecked, recipes
+
+    /// One app's row on a page, keyed the way that page keys it: an ignore or
+    /// skip by its `Preferences.key(for:)`, a recipe by `RecipeHealth.Entry.key`.
+    case ignoredApp(String)
+    case skippedVersion(String)
+    case recipe(String)
+
     /// Which page holds it. A page ignores a request for a card it does not have,
     /// so this is what keeps one request from making every page run a scroll —
     /// and it is the compiler's reminder to put a new card somewhere real.
     var section: SettingsSection {
         switch self {
-        case .testFlightDetection: .general
-        case .githubToken: .github
-        case .backups: .backups
+        case .testFlightDetection, .launchAtLogin, .checkFrequency, .hideDockIcon,
+             .appRuntimeTags, .cliRuntimeTags, .autoRelaunch, .concurrency,
+             .appStoreUpdates, .selfUpdatingApps, .digestOnlyInstalls: .general
+        case .notifyApps, .notifyCLITools, .notifyHomebrew: .notifications
+        case .backups, .keepBackups, .pruneOrphanBackups, .backupLocation: .backups
+        case .storageCaches, .storageAppData, .storageSystem: .storage
+        case .scanFolders, .builtInFolders: .folders
+        case .selfUpdateCheck, .silentSelfUpdate: .updates
+        case .githubToken, .githubCLI: .github
+        case .alcoveLicense: .alcove
+        case .appleDeveloperSignIn, .renewAppleSession, .downloadXcode: .xcode
+        case .ignoredApps, .skippedVersions, .ignoredApp, .skippedVersion: .ignored
+        case .appManagement, .fullDiskAccess, .appStoreHelper, .lastChecked,
+             .recipes, .recipe: .diagnostics
+        }
+    }
+
+    /// Whether this names a whole card (outlined around it) or one row inside a
+    /// card (washed behind it). A ring around one row would cross the card's own
+    /// border; a wash behind a whole card would read as the card changing colour.
+    var isCard: Bool {
+        switch self {
+        case .testFlightDetection, .githubToken, .backups, .backupLocation,
+             .storageCaches, .storageAppData, .storageSystem,
+             .scanFolders, .builtInFolders, .alcoveLicense, .appleDeveloperSignIn,
+             .downloadXcode, .ignoredApps, .skippedVersions, .recipes:
+            true
+        default:
+            false
+        }
+    }
+
+    /// For the log line: the case, never an app's key (an install path).
+    var logName: String {
+        switch self {
+        case .ignoredApp: "ignoredApp"
+        case .skippedVersion: "skippedVersion"
+        case .recipe: "recipe"
+        default: "\(self)"
         }
     }
 }
@@ -113,17 +177,34 @@ private struct SettingsAnchorHighlight: ViewModifier {
     let anchor: SettingsAnchor
     @Environment(\.revealedSettingsAnchor) private var revealed
 
+    /// How far a row's wash stands in from the row's edges. The outer rows of a
+    /// card meet its rounded corners, so the wash's radius shrinks by the same
+    /// amount to stay concentric with them.
+    private static let rowInset: CGFloat = 4
+
     func body(content: Content) -> some View {
         let lit = revealed == anchor
         return content
             .id(anchor)
+            .background {
+                if !anchor.isCard {
+                    RoundedRectangle(
+                        cornerRadius: SettingsMetrics.cardRadius - Self.rowInset, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.18))
+                        .padding(Self.rowInset)
+                        .opacity(lit ? 1 : 0)
+                        .allowsHitTesting(false)
+                }
+            }
             .overlay {
-                RoundedRectangle(
-                    cornerRadius: SettingsMetrics.cardRadius + Self.gap, style: .continuous)
-                    .strokeBorder(Color.accentColor, lineWidth: 2)
-                    .padding(-Self.gap)
-                    .opacity(lit ? 1 : 0)
-                    .allowsHitTesting(false)
+                if anchor.isCard {
+                    RoundedRectangle(
+                        cornerRadius: SettingsMetrics.cardRadius + Self.gap, style: .continuous)
+                        .strokeBorder(Color.accentColor, lineWidth: 2)
+                        .padding(-Self.gap)
+                        .opacity(lit ? 1 : 0)
+                        .allowsHitTesting(false)
+                }
             }
             .animation(.easeInOut(duration: 0.3), value: lit)
     }
@@ -182,7 +263,7 @@ struct SettingsPage<Content: View>: View {
         guard let target = request?.anchor, target.section == section else { return }
         try? await Task.sleep(for: .milliseconds(300))
         guard !Task.isCancelled else { return }
-        Log.app.debug("settings: revealing \(target.rawValue, privacy: .public) on \(self.section.rawValue, privacy: .public)")
+        Log.app.debug("settings: revealing \(target.logName, privacy: .public) on \(self.section.rawValue, privacy: .public)")
         withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(target, anchor: .center) }
         revealed = target
         try? await Task.sleep(for: .seconds(2))

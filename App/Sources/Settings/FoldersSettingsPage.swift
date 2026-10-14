@@ -19,8 +19,8 @@ struct FoldersSettingsPage: View {
 
     var body: some View {
         SettingsPage(section: .folders) {
-            customCard
-            builtInCard
+            customCard.settingsAnchor(.scanFolders)
+            builtInCard.settingsAnchor(.builtInFolders)
         }
     }
 

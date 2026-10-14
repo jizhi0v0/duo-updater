@@ -7,6 +7,9 @@ MAIN=$DUO_REPO
 c=$1; tag=${2:-opus-medium}; effort=${3:-xhigh}
 SRC=$B/runs/$c-$tag/repo; D=$B/replay/$c-$tag-$effort; R=$D/repo; W=$R/.claude-review
 parent=$(python3 -c "import json;print(json.load(open('$BENCH_HOME/cases/$c.json'))['parent'])")
+# A SKILL=1 run starts at the harness's own commit (diff_base), not at the case's parent:
+# reviewing from parent would count the injected checklist as the agent's work.
+parent=$(python3 -c "import json,os;p='$B/runs/$c-$tag/config.json';print((json.load(open(p)).get('diff_base') if os.path.exists(p) else None) or '$parent')")
 head=$(git -C $SRC rev-parse HEAD)
 rm -rf $D; mkdir -p $D
 git clone -q $SRC $R && git -C $R checkout -q --detach $head || { echo "clone failed" > $D/status; exit 1; }

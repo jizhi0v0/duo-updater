@@ -18,12 +18,15 @@ summary:
   beyond_main: "WhatCable's pre-rename id com.bitmoor.whatcable: base 0/2, skill 2/2"
   overreach: {base: 0, skill: 0}
   usd_mean: {base: 4.92, skill: 5.69}
-  minutes_mean: {base: 17.3, skill: 18.8}
+  minutes_mean: {base: 17.8, skill: 19.1}
   make_test: >-
     rc=2 in all eight tinycast and cuadriver runs, both arms, from vendorResolvesInstallPlans with
     the same message ("com.zarifpour.superconductor [nightly] resolved no installer"). A clean clone
     of Tinycast's base fails it the same way (Cua Driver's base was not rerun clean), so it is the
     bases', not the runs'. All other runs rc=0.
+  treatment_loaded: >-
+    Every skill-arm transcript mentions "Coverage checklist" (1-5 times) and no base-arm transcript
+    does; the runner has no user-level app-audit skill (~/.claude/skills) that could shadow the clone's.
   rule_attempts: >-
     Three runs tried `git stash`, which the harness denies (t3code om-base-1 and om-base-2,
     whatcable om-skill-1); score.py reports it as viol. No run read another run or main's answer

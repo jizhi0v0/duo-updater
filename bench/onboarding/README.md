@@ -110,10 +110,10 @@ medium, `brief.md`, the clone's own `app-audit` with and without the checklist
 | **Total** | | **6/12** | **10/12** |
 | WhatCable | pre-rename id `com.bitmoor.whatcable`, which main lacks | 0/2 | 2/2 |
 
-No overreach in either arm; $4.92 → $5.69 and 17 → 19 min a run. Both arms missed Cua
+No overreach in either arm; $4.92 → $5.69 and 17.8 → 19.1 min a run. Both arms missed Cua
 Driver's nightly track, whose signal is a file outside the bundle while the checklist's
 examples are all inside it; rewording it from this answer would need a new held-out set.
-The checklist went into `.claude/skills/app-audit/SKILL.md` (#1308), with one line changed
+#1308 puts the checklist into `.claude/skills/app-audit/SKILL.md`, with one line changed
 after the test (keeping a sibling out, now as `REVIEW.md` says).
 
 Every run, with its configuration and cost per stage: `results/runs.yml`.

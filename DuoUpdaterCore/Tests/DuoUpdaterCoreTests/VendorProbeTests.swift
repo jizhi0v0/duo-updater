@@ -2267,3 +2267,63 @@ private let doubaoImeSuffixedDownloadURLFixture = #"""
     #expect(r.install == nil)
     #expect(r.downloadURL?.absoluteString == "https://muse.ai/")
 }
+
+/// Trim Enabler (DevMate): every item carries three `<sparkle:deltas>`
+/// enclosures that repeat the main enclosure's `sparkle:shortVersionString`.
+/// The version pattern used to be unanchored, so it matched four times inside
+/// one `<item>`; `highestVersionEntry`'s one-match guard declined the slice and
+/// a healthy feed warned `entryPatternNoMatch` (issue #1254). The fixture is
+/// the header and the first two items of the live feed, read 2026-10-14.
+@Test func trimEnablerReadsTheMainEnclosureOfEachItemWithoutTrippingTheGuard() async throws {
+    let feed = #"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+    	<channel>
+    		<title>Trim Enabler</title>
+    		<link></link>
+    		<description></description>
+    		<language>en</language>
+    		<item>
+    			<title>26</title>
+    			<sparkle:minimumSystemVersion>10.9</sparkle:minimumSystemVersion>
+    			<sparkle:releaseNotesLink>https://updates.devmate.com/releasenotes/26/org.cindori.TrimEnabler4.html</sparkle:releaseNotesLink>
+    			<sparkle:releaseNotesLink xml:lang="en">https://updates.devmate.com/releasenotes/26/org.cindori.TrimEnabler4.html</sparkle:releaseNotesLink>
+    			<pubDate>Sat, 02 Jan 2021 12:27:37 +0000</pubDate>
+    			<enclosure url="https://dl.devmate.com/org.cindori.TrimEnabler4/26/1609590590/TrimEnabler-26.zip" length="63924802" type="application/octet-stream" sparkle:version="26" sparkle:shortVersionString="4.3.6"/>
+    			<sparkle:deltas>
+    				<enclosure url="https://dl.devmate.com/org.cindori.TrimEnabler4/26/1609590590/21.delta" sparkle:version="26" sparkle:shortVersionString="4.3.6" sparkle:deltaFrom="21" length="244256" type="application/octet-stream"/>
+    				<enclosure url="https://dl.devmate.com/org.cindori.TrimEnabler4/26/1609590590/24.delta" sparkle:version="26" sparkle:shortVersionString="4.3.6" sparkle:deltaFrom="24" length="243660" type="application/octet-stream"/>
+    				<enclosure url="https://dl.devmate.com/org.cindori.TrimEnabler4/26/1609590590/25.delta" sparkle:version="26" sparkle:shortVersionString="4.3.6" sparkle:deltaFrom="25" length="138424" type="application/octet-stream"/>
+    			</sparkle:deltas>
+    		</item>
+    		<item>
+    			<title>25</title>
+    			<sparkle:minimumSystemVersion>10.9</sparkle:minimumSystemVersion>
+    			<sparkle:releaseNotesLink>https://updates.devmate.com/releasenotes/25/org.cindori.TrimEnabler4.html</sparkle:releaseNotesLink>
+    			<sparkle:releaseNotesLink xml:lang="en">https://updates.devmate.com/releasenotes/25/org.cindori.TrimEnabler4.html</sparkle:releaseNotesLink>
+    			<pubDate>Wed, 11 Nov 2020 14:33:06 +0000</pubDate>
+    			<enclosure url="https://dl.devmate.com/org.cindori.TrimEnabler4/25/1605105283/TrimEnabler-25.zip" length="64037173" type="application/octet-stream" sparkle:version="25" sparkle:shortVersionString="4.3.5"/>
+    			<sparkle:deltas>
+    				<enclosure url="https://dl.devmate.com/org.cindori.TrimEnabler4/25/1605105283/20.delta" sparkle:version="25" sparkle:shortVersionString="4.3.5" sparkle:deltaFrom="20" length="211288" type="application/octet-stream"/>
+    				<enclosure url="https://dl.devmate.com/org.cindori.TrimEnabler4/25/1605105283/21.delta" sparkle:version="25" sparkle:shortVersionString="4.3.5" sparkle:deltaFrom="21" length="199240" type="application/octet-stream"/>
+    				<enclosure url="https://dl.devmate.com/org.cindori.TrimEnabler4/25/1605105283/24.delta" sparkle:version="25" sparkle:shortVersionString="4.3.5" sparkle:deltaFrom="24" length="197001" type="application/octet-stream"/>
+    			</sparkle:deltas>
+    		</item>
+    	</channel>
+    </rss>
+    """#
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "org.cindori.TrimEnabler4" })
+    let server = try RecipeVerificationTests.StubServer(body: feed)
+    defer { server.stop() }
+    let outcome = await VendorProbeSource().probeDiagnostic(recipe.with(url: server.url))
+    #expect(outcome.failure == nil)
+    #expect(outcome.remote?.shortVersion == "4.3.6")
+    #expect(outcome.remote?.publishedAt == Date(timeIntervalSince1970: 1_609_590_457),
+            "pubDate binds to the newest <item>, not a delta or a sibling")
+    #expect(outcome.remote?.downloadURL?.absoluteString
+            == "https://dl.devmate.com/org.cindori.TrimEnabler4/26/1609590590/TrimEnabler-26.zip",
+            "the one-click zip is the newest item's main enclosure")
+    #expect(!outcome.warnings.contains(.entryPatternNoMatch),
+            "a healthy DevMate feed with deltas must not degrade the recipe (#1254)")
+}

@@ -81,6 +81,18 @@
 ## 建议下一步
 1. 无。产品冻结在 4.3.6，recipe 只为让旧版用户看到并装上最后一版。
 
+## 历史与实测
+
+- 2026-10-14，`entryPatternNoMatch`（issue #1254）：`versionPattern` 原为不锚定的 `sparkle:shortVersionString="([0-9.]+)"`。
+  每个 item 的 3 个 `<sparkle:deltas>` enclosure 都带同一属性，所以一个 item 内命中 4 次；`highestVersionEntry` 的
+  「切片内只能命中一次」守卫因此拒收切片，回落到整页首次命中。版本仍是 4.3.6，但 pubDate 和 zip 没有绑在同一 item 上。
+  修复：版本只读非 delta 的主 enclosure（`<enclosure(?![^>]*deltaFrom)…`）。实测：feed 15 个 item 各命中 1 次，
+  版本 4.3.6 → 4.0，pubDate 与 zip 与 item 一致。
+- 2026-10-14，changelog（issue #1253）：`updateinfo…/26/releasenotes.html` 是一页 15 段、以 `<hr>` 分隔的合并列表，
+  只有最上面一段标了版本号。`updates.devmate.com/releasenotes/<build>/…` 跳转（redirect）到对应的 `updateinfo` 页（`26` 跳到合并页），各 build 页（25、24、21、20、3）头部版本各不相同。
+  试验（生产 `ChangelogExtractor`）：body 取整个 `dm-rn-content` 时，4.3.6 下挂 7 条 `<li>`，其中 6 条属于 4.3.5 及更早版本（误归属）；
+  body 在第一个 `<hr` 截断时只剩 1 条（4.3.6 的 crash 修复），`<p>` 的 Big Sur 说明不在 `<li>` 里。结论：不写 ChangelogRecipe，列入 `ChangelogCoverage.acknowledged`，理由同上。
+
 ## 如何复验
 
 ```bash

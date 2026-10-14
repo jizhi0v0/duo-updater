@@ -107,7 +107,7 @@ bench/onboarding/harness/grade-refs.sh            # every case, one at a time
 
 BENCH_ROUND=6 bench/onboarding/run.sh single claude-opus-5-5 medium hard7   # one agent per app
 BENCH_ROUND=6 bench/onboarding/run.sh pipe A 3 hard7                         # pipeline A, repetition 3
-bench/onboarding/run.sh replay opus-medium high hard7   # production review on those runs
+bench/onboarding/run.sh replay opus-medium xhigh hard7  # production review (the workflow runs xhigh)
 bench/onboarding/run.sh score                           # vs main
 bench/onboarding/run.sh probe                           # next-tag probe
 bench/onboarding/run.sh export                          # merge into results/runs.yml

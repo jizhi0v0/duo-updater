@@ -1,7 +1,7 @@
 # The production Claude review (.github/claude-review/full.md + REVIEW.md at main
 # 57a2e88e, Opus 5.5, the workflow's tool allowlist) replayed on the seven Opus-medium
-# onboardings of round 5 (runs <app>-opus-medium), once at effort high (what the
-# workflow runs) and once at xhigh. harness/replay-review.sh; the reviews are in
+# onboardings of round 5 (runs <app>-opus-medium), once at effort high (the workflow's
+# setting until #1301) and once at xhigh (its setting since). harness/replay-review.sh; the reviews are in
 # evidence/_review-replay/. 2026-10-14, Claude Code 2.1.296.
 #
 # review_md_write_refused: the review `cd`'d into a subdirectory, after which the relative

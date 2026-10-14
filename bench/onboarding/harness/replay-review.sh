@@ -1,10 +1,10 @@
 #!/bin/bash
 # replay-review.sh <case> [src-tag] [effort] — replay the production Claude review (main's REVIEW.md +
-# .github/claude-review/full.md, Opus 5.5 high, same tool allowlist) on a finished run's commits.
+# .github/claude-review/full.md, Opus 5.5, same tool allowlist; effort as the workflow sets it, xhigh since #1301) on a finished run's commits.
 set -uo pipefail
 . "$(dirname "$0")/env.sh"
 MAIN=$DUO_REPO
-c=$1; tag=${2:-opus-medium}; effort=${3:-high}
+c=$1; tag=${2:-opus-medium}; effort=${3:-xhigh}
 SRC=$B/runs/$c-$tag/repo; D=$B/replay/$c-$tag-$effort; R=$D/repo; W=$R/.claude-review
 parent=$(python3 -c "import json;print(json.load(open('$BENCH_HOME/cases/$c.json'))['parent'])")
 head=$(git -C $SRC rev-parse HEAD)

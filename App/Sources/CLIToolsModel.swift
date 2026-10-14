@@ -278,6 +278,14 @@ final class CLIToolsModel {
         case .workbenchFocus: return await onFocus()
         case .backgroundTick(let interval): return await onTick(interval: interval)
         case .afterAction: return .skip(because: "an update re-checks its own tool by itself")
+        // The button asks for a fresh answer from everything: every tool, past
+        // the age and unanswered throttles. Still not while an update runs: it
+        // re-checks by itself, and a check mid-run reads a half-done copy.
+        case .manual:
+            guard updating.isEmpty, !updatingAll else { return .skip(because: "an update is running") }
+            return .run(Set(providers.indices), because: "the refresh button")
+        case .diskChanged, .backstopTick:
+            return .skip(because: "the apps lane's; tools are checked on opens, focuses and ticks")
         }
     }
 

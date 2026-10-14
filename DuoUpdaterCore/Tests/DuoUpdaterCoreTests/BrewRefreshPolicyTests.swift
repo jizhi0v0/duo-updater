@@ -43,4 +43,17 @@ struct BrewRefreshPolicyTests {
         #expect(!runs(.backgroundTick(interval: 300), since: nil, idle: false))
         #expect(runs(.afterAction("brew update"), since: nil, ours: true, idle: false))
     }
+
+    /// The refresh button reads brew whatever the spacing — the user asked for
+    /// a fresh answer — but not on top of a brew run of ours. Disk events and
+    /// the backstop's ticks are the apps lane's, not brew's.
+    ///
+    /// Mutations: `.manual` spaced; drop its `ourBrewRunGoing` guard; disk
+    /// events run.
+    @Test func theButtonReadsUnspacedAndDiskEventsDoNot() {
+        #expect(runs(.manual, since: .zero))
+        #expect(!runs(.manual, since: nil, ours: true))
+        #expect(!runs(.diskChanged, since: nil))
+        #expect(!runs(.backstopTick, since: nil))
+    }
 }

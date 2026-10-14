@@ -1113,6 +1113,7 @@ final class AppListModel {
     /// thing to refresh is a new lane added here, with its own policy.
     @ObservationIgnored private(set) lazy var refreshes: RefreshLanes = {
         let lanes = RefreshLanes()
+        lanes.add(appsLane)
         lanes.add(brewLane)
         lanes.add(homebrewSelfUpdateLane)
         lanes.add(cliTools.lane)
@@ -1132,6 +1133,33 @@ final class AppListModel {
         "brew",
         decide: { [weak self] trigger in self?.brewDecision(trigger) ?? .skip(because: "model gone") },
         work: { [weak self] in await self?.readBrewFormulae() })
+    /// The app list: a full round (`refresh(intent:)`, a disk scan and every
+    /// app's networked check) or a network-free rescan (`refreshLocal`), decided
+    /// by `AppsRefreshPolicy` and never two at once. Every trigger goes through
+    /// here; both functions are private so nothing can go round it. Three steps
+    /// of our own flows call them directly, on purpose: the post-batch sweep
+    /// after Update All and the drain of a deferred rescan once installs settle
+    /// (`performLocalRescan`, guard-free by design — queued behind a round, a
+    /// finished row would sit at 100% for its length), and a notification's
+    /// Relaunch, which re-reads disk before deciding (`restart(byID:)`).
+    @ObservationIgnored private(set) lazy var appsLane = RefreshLane<AppsRefreshPlan>(
+        "apps",
+        decide: { [weak self] trigger in
+            guard let self else { return .skip(because: "model gone") }
+            return AppsRefreshPolicy.decide(
+                trigger, hasResults: !self.results.isEmpty, owesTestFlightRead: self.owesTestFlightRead)
+        },
+        merge: { $0.merged(with: $1) },
+        work: { [weak self] plan in
+            guard let self else { return }
+            switch plan {
+            case .full(let intent): await self.refresh(intent: intent)
+            // Unattended: the watcher's and the backstops' path, which defers to
+            // an install in flight and clears what it can meanwhile.
+            case .local(unattended: true): await self.backgroundLocalRescan()
+            case .local(unattended: false): await self.refreshLocal(unattended: false)
+            }
+        })
     /// Whether Homebrew itself has an update to offer (`checkHomebrewSelfUpdate`).
     @ObservationIgnored private(set) lazy var homebrewSelfUpdateLane = RefreshLane(
         "homebrew-self-update",
@@ -2658,7 +2686,7 @@ final class AppListModel {
     /// the silent scheduler's tick does none of it — it reads TestFlight only when
     /// Full Disk Access makes that read silent — so a cold launch never prompts
     /// unprompted and an hourly check never blanks the notes being read.
-    func refresh(intent: RefreshIntent = .userPresent) async {
+    private func refresh(intent: RefreshIntent) async {
         if let existing = refreshTask {
             // A user-present caller that lands on a scheduled refresh would otherwise
             // return with neither of its consequences delivered — TestFlight tags
@@ -2747,7 +2775,7 @@ final class AppListModel {
             self.testFlightReapplyPending = false
             guard late.accessible else { return }  // Don't Allow / missing DB → don't loop
             Log.scan.info("TestFlight: access granted after prompt — re-checking")
-            await self.refresh()
+            await self.appsLane.handle(.afterAction("TestFlight access granted"))
         }
     }
 
@@ -3742,7 +3770,7 @@ final class AppListModel {
     /// callers and `mayReadTestFlightStore` admits `.unknown`, which is right only
     /// for a refresh someone asked for. No default: every caller states it, so a
     /// new unattended trigger can't silently fall through to the attended gate.
-    func refreshLocal(unattended: Bool) async {
+    private func refreshLocal(unattended: Bool) async {
         // Don't churn the list while an install is in flight: this rebuilds and
         // re-sorts `results` wholesale, which would reorder/replace the row under
         // an active spinner. Installs key by id and finish fine, but the visible
@@ -4075,6 +4103,12 @@ final class AppListModel {
             return .skip(because: "re-checked only after a brew update that ran")
         case .afterAction:
             return .run((), because: "brew update moves Homebrew itself")
+        case .manual:
+            guard brewInstalled else { return .skip(because: "no Homebrew") }
+            guard !homebrewUpdating else { return .skip(because: "brew update is running; it re-checks when it ends") }
+            return .run((), because: "the refresh button")
+        case .diskChanged, .backstopTick:
+            return .skip(because: "decided on the workbench's open and after brew update")
         }
     }
 
@@ -8812,7 +8846,7 @@ final class AppListModel {
             },
             Task { @MainActor in await self.backgroundRefreshHomebrew(interval: interval) },
         ]
-        await refresh(intent: .scheduled)
+        await appsLane.handle(.backgroundTick(interval: interval))
         for task in others { await task.value }
     }
 
@@ -9039,7 +9073,7 @@ final class AppListModel {
             paths.append(path)
         }
         let watcher = AppDirectoryWatcher(paths: paths) { [weak self] in
-            Task { @MainActor in await self?.backgroundLocalRescan() }
+            Task { @MainActor in await self?.appsLane.handle(.diskChanged) }
         }
         appDirWatcher = watcher
         watcher.start()
@@ -9099,7 +9133,7 @@ final class AppListModel {
             while !Task.isCancelled {
                 try? await Task.sleep(for: self?.localRescanInterval ?? .seconds(180))
                 guard !Task.isCancelled, let self else { return }
-                await self.backgroundLocalRescan()
+                await self.appsLane.handle(.backstopTick)
             }
         }
     }

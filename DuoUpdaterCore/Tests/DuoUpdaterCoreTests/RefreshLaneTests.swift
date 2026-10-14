@@ -233,6 +233,32 @@ struct RefreshLaneTests {
         #expect(lane.sinceLastPass == .seconds(7))
     }
 
+    /// `handle(_:waitingFor:)` hands the trigger to every lane but returns as
+    /// soon as the one named has dealt with it, the others still running.
+    ///
+    /// Mutations: waiting for every lane; not handing the trigger to the others.
+    @Test func lanesCanWaitForOneLaneOnly() async {
+        let fast = Record(), slow = Record()
+        let open = Gate(), held = Gate()
+        await open.open()
+        let lanes = RefreshLanes()
+        let awaited = lane(fast, first: open)
+        lanes.add(awaited)
+        lanes.add(lane(slow, first: held))
+
+        let call = Task { await lanes.handle(.workbenchOpen, waitingFor: awaited) }
+        await until { await held.arrived == 1 }
+        await until { fast.plans.count == 1 && !awaited.isRunning }
+        // Bounded so a wrong implementation fails rather than hangs: the call must
+        // already be done while `slow`'s pass still waits at its gate.
+        let returned = Task { await call.value; return true }
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(slow.events == ["pass 1 start"])
+        await held.open()
+        #expect(await returned.value)
+        await until { slow.events.count == 2 }
+    }
+
     /// `RefreshLanes` hands a trigger to every lane added, and returns when all
     /// of them have dealt with it.
     ///

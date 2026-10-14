@@ -397,17 +397,13 @@ struct WorkbenchWindowView: View {
             applyRequestedBrewUnchecked()
             applyRequestedCLITools()
             applyRequestedHomebrew()
-            // First open with no data: full (networked) check. Otherwise, if no
-            // round has read TestFlight yet this launch and one may
-            // (`owesTestFlightRead`), run one full refresh; past that a cheap,
-            // network-free rescan that catches background self-updates.
-            if model.results.isEmpty {
-                await model.refresh()
-            } else if model.owesTestFlightRead {
-                await model.refresh()
-            } else {
-                await model.refreshLocal(unattended: false)
-            }
+            // Every lane decides what an open calls for (`AppListModel.refreshes`):
+            // the apps a full check with no data or while TestFlight is still
+            // owed a read, otherwise a network-free rescan (`AppsRefreshPolicy`);
+            // the CLI tab's brew tree, Homebrew's own offer and the other tools
+            // beside them. Waits for the apps only, so the first row is picked
+            // without waiting on brew's read.
+            await model.refreshes.handle(.workbenchOpen, waitingFor: model.appsLane)
             if !hadRequest && selection == nil {
                 selection = apps.first?.id
                 detailSelection = selection   // first show is immediate, no debounce
@@ -416,12 +412,6 @@ struct WorkbenchWindowView: View {
             // focus, and the search field has already taken it by default.
             listFocus = shownTab(sidebarLists)
         }
-        // The CLI tab: the brew tree (formulae; the cask set derives from results
-        // above), whether Homebrew itself has an update, and the other tools'
-        // installs and channels. Each a lane that decides for itself what an open
-        // calls for (`AppListModel.refreshes`); the lanes run side by side, so the
-        // Homebrew check (login shell + `brew config`) never holds up the tree.
-        .task { await model.refreshes.handle(.workbenchOpen) }
         // Refocus → re-read on-disk versions. Scoped to THIS window: the
         // notification carries whichever window became key, and with `object: nil`
         // we heard every one of them — so merely opening Settings, the Release Log,
@@ -440,11 +430,10 @@ struct WorkbenchWindowView: View {
             // permission that only the menu's open and the Welcome/Settings polling
             // refresh. Coming back from System Settings is exactly this moment.
             model.refreshPermissionStatus()
-            Task { await model.refreshLocal(unattended: false) }
-            // Brew and the CLI tab's tools too: `refreshLocal` reads neither, and
-            // a `brew trust` run in a terminal, or a Helm installed there, stayed
+            // A disk re-read of the apps, and brew and the CLI tab's tools too: a
+            // `brew trust` run in a terminal, or a Helm installed there, stayed
             // invisible until the window was reopened. What a focus calls for is
-            // each lane's to say (`AppListModel.brewDecision`,
+            // each lane's to say (`AppsRefreshPolicy`, `BrewRefreshPolicy`,
             // `CLIToolsModel.onFocus`).
             Task { await model.refreshes.handle(.workbenchFocus) }
         }
@@ -455,7 +444,7 @@ struct WorkbenchWindowView: View {
             guard scenePhase != .background else { return }
             // Unattended: this fires on a 180s clock, not because the user did
             // anything.
-            Task { await model.refreshLocal(unattended: true) }
+            Task { await model.appsLane.handle(.backstopTick) }
         }
         // Keep lifecycle bookkeeping in the model so focus/badge refresh behavior
         // matches the other top-level windows.

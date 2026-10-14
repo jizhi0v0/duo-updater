@@ -101,7 +101,7 @@ struct FoldersSettingsPage: View {
             Button("Remove") {
                 prefs.removeScanPath(path)
                 lastAddWasDuplicate = false
-                Task { await model.refresh() }
+                Task { await model.appsLane.handle(.afterAction("scan folders changed")) }
             }
             .controlSize(.small)
         }
@@ -124,6 +124,6 @@ struct FoldersSettingsPage: View {
         var added = false
         for url in panel.urls where prefs.addScanPath(url) { added = true }
         lastAddWasDuplicate = !added
-        if added { Task { await model.refresh() } }
+        if added { Task { await model.appsLane.handle(.afterAction("scan folders changed")) } }
     }
 }

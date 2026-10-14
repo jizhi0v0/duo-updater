@@ -46,6 +46,16 @@ public enum BrewRefreshPolicy {
             // Not spaced, and even after a failed run: brew carries on past a
             // formula that fails, so a failed run still upgrades what it can.
             return .run((), because: "our brew run changed the package list")
+        case .manual:
+            // The button asks for a fresh answer from everything: not spaced.
+            // Still not on top of a brew run of ours, which holds brew's lock
+            // and re-reads when it ends.
+            guard !ourBrewRunGoing else {
+                return .skip(because: "a brew run of ours is going; it re-reads when it ends")
+            }
+            return .run((), because: "the refresh button")
+        case .diskChanged, .backstopTick:
+            return .skip(because: "brew's list is read on opens, focuses and ticks, not on disk events")
         }
     }
 }

@@ -237,7 +237,12 @@ final class CLIToolsModel {
     /// own. Age alone re-checks only the tools whose report is that old: the
     /// background check (`backgroundCheck`) keeps those ages too, so an open
     /// right after it asks nothing again.
+    ///
+    /// Nothing while a check is out: its report is about to land, and a closed
+    /// popover no longer cancels it (`check`), so each open of a popover flicked
+    /// open and shut would otherwise ask every tool's channel once more.
     func refreshOnOpen() async {
+        guard !checking else { return }
         guard !checkedAt.isEmpty else { return await refresh() }
         let found = await scanAll()
         // What the scan can see change without a check: which copies of which
@@ -364,9 +369,20 @@ final class CLIToolsModel {
         checking = true
         // Each provider's requests filed under its tool, so the request log's App
         // column names it; npm and bun packages are filed per package below that.
-        let answers = await inProviderOrder(indices) { provider in
-            await RequestAttribution.withApp(provider.kind.displayName) { await provider.check() }
-        }
+        //
+        // In a task of the model's own, not the caller's — `refresh()`'s rule
+        // in `AppListModel`. The popover's and the workbench's `.task` are
+        // cancelled when the view goes, and a cancelled check does not come back
+        // empty: its requests fail and its `--version` children are killed
+        // (`.terminateChild`), so every tool came back "Couldn't reach … release
+        // channel" / "Couldn't read the installed version" and that was put on
+        // screen (2026-10-14, the popover opened and closed with the workbench
+        // up). Run to the end, the check's answers are the real ones.
+        let answers = await Task {
+            await self.inProviderOrder(indices) { provider in
+                await RequestAttribution.withApp(provider.kind.displayName) { await provider.check() }
+            }
+        }.value
         checksInFlight -= 1
         checking = checksInFlight > 0
         let current = answers.filter { latestCheck[$0.0] == generation }

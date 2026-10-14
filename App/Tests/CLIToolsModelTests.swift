@@ -209,12 +209,17 @@ struct CLIToolsModelTests {
         var scanner: @Sendable () async -> [CLIToolSighting] = { [] }
         var notes = FakeNotes(Changelog(entries: []))
         var readsGitHubAPI = false
+        /// What the check answers when its task was cancelled while it waited —
+        /// the real checks' shape: a cancelled request or a killed `--version`
+        /// comes back as "couldn't reach" / "couldn't read".
+        var whenCancelled: CLIToolReport?
 
         func scan() async -> [CLIToolSighting] { await scanner() }
 
         func check() async -> CLIToolReport {
             let (report, gate) = await checker.next()
             await gate?.wait()
+            if Task.isCancelled, let whenCancelled { return whenCancelled }
             return report
         }
 
@@ -1190,6 +1195,57 @@ struct CLIToolsModelTests {
         found.sightings = [CLIToolSighting(kind: .claudeCode, path: Self.native, version: "2.1.274", state: "fine")]
         await model.refreshOnOpen()
         #expect(await check.calls == 2)
+    }
+
+    /// (g) Closing the popover mid-check — SwiftUI cancels its `.task` — does not
+    /// put the cancelled requests' failures on screen: the check runs to the end
+    /// and its real answers land. Seen on the real machine (2026-10-14): opening
+    /// and closing the popover a few times with the workbench up turned every
+    /// tool into "Couldn't reach … release channel" / "Couldn't read the
+    /// installed version" until the workbench was focused again.
+    ///
+    /// Mutation: run the providers in the caller's task in `check` (no `Task {}`).
+    @Test func closingThePopoverMidCheckDoesNotLandItsCancellation() async {
+        let answered = Self.status(Self.native)
+        let unreachable = Self.status(Self.native, state: .unknown, oneClick: false, withheld: .channelUnreadable)
+        let gate = Gate()
+        let check = FakeCheck([(Self.report(answered), gate)])
+        var provider = FakeProvider(kind: .claudeCode, checker: check)
+        provider.whenCancelled = Self.report(unreachable)
+        let model = Self.model([provider])
+
+        let open = Task { await model.refreshOnOpen() }
+        await until { await gate.arrived == 1 }
+        open.cancel()
+        await gate.open()
+        await open.value
+        await until { model.checked }
+
+        #expect(model.statuses.map(\.withheld) == [nil])
+        #expect(model.statuses.map(\.state) == [.updateAvailable])
+    }
+
+    /// (h) An open while a check is out leaves it to that check rather than
+    /// starting another: with a closed popover no longer cancelling its check,
+    /// opening it five times while the first is out would otherwise ask every
+    /// tool's channel five times over.
+    ///
+    /// Mutation: drop `guard !checking` from `refreshOnOpen`.
+    @Test func anOpenWhileACheckIsOutAsksNothingMore() async {
+        let gate = Gate()
+        let check = FakeCheck([(Self.report(Self.status(Self.native)), gate)])
+        let model = Self.model(check: check)
+
+        let first = Task { await model.refreshOnOpen() }
+        await until { await gate.arrived == 1 }
+        // Each in a task of its own: one let through waits at the same closed
+        // gate, and awaiting it here would never return.
+        let more = (0..<5).map { _ in Task { await model.refreshOnOpen() } }
+        try? await Task.sleep(for: .milliseconds(30))
+        #expect(await check.calls == 1)
+        await gate.open()
+        await first.value
+        for open in more { await open.value }
     }
 
     // MARK: the workbench becoming key again

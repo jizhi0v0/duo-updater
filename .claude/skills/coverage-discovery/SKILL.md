@@ -88,6 +88,7 @@ grep -rni '<bundle id>' DuoUpdaterCore/Sources docs/app-audits
 | `declared` / `ADOPT`, or the bundle id is already in the repo | Covered. **Don't drop it silently**: run `channel-verify` on it and report its three counts, because "covered" can still mean a flattened changelog |
 | `NEEDS BINDING` | A `ChannelBinding` job, not a recipe (the Osaurus route; `/app-audit` §1a-0) |
 | `noKnownUpdater`, Developer ID + notarized | Dispatch (Phase 3) |
+| No Team ID, shipped as a GitHub release asset | Dispatch. One-click goes through `installTrust: .publishedDigestOnly`, behind the user's setting, when every condition in `Recipes/org-alacritty.swift` holds (seal verifies, signed identifier is the bundle id, version is the tag, GitHub publishes a `digest` for the asset); otherwise detection-only. Lokii and disktree are the worked examples |
 | No Team ID / not notarized | Detection-only at best — except a MyGo app (`declared`, MyGo), whose vendor signature carries one-click behind the user's setting. Dispatch only if detection alone is worth it |
 | `check-bundle.sh` lists a `nested` app with `LSUIElement=true` | Flag it in the brief: a resident helper that keeps running after a bundle swap. `LSBackgroundOnly` launchers that exit are fine (OpenInTerminal) |
 
@@ -102,7 +103,8 @@ The brief follows the memory note `subagent-brief-rules`. It must say:
 - its own `SCR=$(mktemp -d "$TMPDIR/recipe-<app>.XXXX")`;
 - follow `.claude/skills/app-audit/SKILL.md` and `fragile-recipe`, with `git show <a recent GitHubReleaseRule commit>` as the worked example;
 - the facts triage already found (bundle id, Team, feed-discover verdict, nested helpers), so the agent doesn't rediscover them;
-- one-click only when the app is Developer ID signed with a Team ID, `spctl` says Notarized, and the asset is dmg or zip; prefer universal, otherwise arm64;
+- one-click when the app is Developer ID signed with a Team ID, `spctl` says Notarized, and the asset is dmg or zip; prefer universal, otherwise arm64;
+- an ad-hoc build on a GitHub release (no Team ID on any release checked) gets one-click through `installTrust: .publishedDigestOnly` when the conditions in `Recipes/org-alacritty.swift` hold. When one fails, the audit says which one; "ad-hoc" alone is not a reason to stay detection-only;
 - check the **previous** release's Team ID too, because a change means the gate refuses every old copy;
 - old→new `channel-verify` on the previous and newest packages, then goldens re-recorded and `make test` judged by exit code, in the foreground;
 - the audit doc plus a README line **in the section matching its source**. A row whose coverage is generic Sparkle (`— S`) belongs in the Sparkle section; `AppAuditCoverageTests` fails it anywhere else;

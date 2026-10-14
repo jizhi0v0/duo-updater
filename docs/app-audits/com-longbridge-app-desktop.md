@@ -45,10 +45,12 @@ Store 搜索没有 Longbridge Desktop。公开 stable 分发由厂商自己的 r
 - preview（`55721c0e`，2026-08-26 接入）: 独立 recipe，端点 `…/longbridge-desktop/preview/latest.json`，版本 pattern 要求 `-preview.N` 后缀；两条轨的 pattern 互不匹配，跨轨解析 fail-closed。
 
 ## Changelog
-- 来源: 英文的逐版本页 `longbridge.com/desktop/release-notes/v{version}`（preview 是 `…/release-notes/preview/v{version}`），不是 `latest.json` 的 `release_notes.en`——逐版本页正文更全，还带配图。（更正 2026-09-14：原先这里写的是 JSON 的 `release_notes.en`，与 `Recipes/com-longbridge-app-desktop.swift` 的 `ChangelogRecipe` 不符。）
-- 状态: 原生 changelog，`ChangelogRecipe` 用正则读页面的 `Release Date:` 块与 `<li>`/`<p>` 条目（`<video>` 截断条目，`imagePattern` 收图）。
-- 网页兜底: `https://longbridge.com/desktop/release-notes/`。
-- 限制: `maxEntries: 1`，按装机版本取那一页，原生视图一次显示一版；官网保留历史版本。
+- 来源（stable）: 英文版本页 `longbridge.com/en/changelog/longbridge-pro/{major.minor}`。官网一页对应一条小版本线（如 `…/0.19` 同页含 0.19.1 与 0.19.0），每版是一个 `release-section`。
+- 来源（preview）: 官网已没有 preview 版本页（见「历史与实测」2026-10-14）。唯一仍发布 preview 说明的是 `…/longbridge-desktop/preview/latest.json` 的 `release_notes.en`。
+- 状态（stable）: `ChangelogRecipe`，正则取该页第一个 `release-section`（`data-rail-version` / `data-rail-date`），条目取 `div.prose` 里的 `<li>`/`<p>`；`<video>` 截断条目，`imagePattern` 收图。
+- 状态（preview）: `StructuredFormat.longbridgeDesktopManifest`，读 JSON 字符串 `release_notes.en`，每个 `- ` 行一条，去掉 `**` 与 `###` 标题。清单只含最新一版，所以无论请求哪个版本，条目都是这一版（条目上标的是它自己的版本号）。
+- 网页兜底（stable）: `https://longbridge.com/desktop/release-notes/`（仍 200，跳到 Pro 产品列表）。preview 没有专属兜底页，`changelogURL` 同样跳到 Pro 产品列表。
+- 限制: stable 的 `maxEntries: 1`，按装机版本的那条小版本线取最新一版；preview 只有最新一版的说明，没有历史。
 
 ## 一键安装
 - 状态: ✓（Apple Silicon）。
@@ -97,6 +99,19 @@ Longbridge 归到 `native`。见 `AppRuntimeDetector`。
 
 
 ## 历史与实测
+
+### Recipes/com-longbridge-app-desktop.swift — changelog（官网改版，2026-10-14 实测）
+
+只读 GET，浏览器样式 User-Agent，原始字节存在 scratch 里。以下为本次复测结果：
+
+- 官网改为 Astro 页面（`data-astro-cid-*`，`All release notes`，RSS 在 `/en/changelog/rss.xml`）。旧的 `div.vp-doc`、`Release Date:` 块、`id="downloads"` 都已不存在。
+- 旧版本页 URL 仍可用，但会跳转：`/desktop/release-notes/v0.19.1`、`…/v0.19.0`、`…/v1.0.0` 都跳到 `/en/changelog/longbridge-pro/<minor>#v<version>`（落地页 200，含 `release-section`）。`/desktop/release-notes/` 跳到 `/changelog/longbridge-pro`（产品列表，无 `release-section`）。
+- preview 页已经没有：`/desktop/release-notes/preview/` 与 `/desktop/release-notes/preview/v1.0.0-preview.3` 都跳到 `/changelog/longbridge-pro`（产品列表，无 preview 条目）。猜测过的 `/en/changelog/longbridge-preview`、`…/longbridge-pro-preview`、`…/longbridge-pro/preview`、`…/longbridge-pro/1.0-preview`、`…/longbridge-pro/1.0.0-preview.3` 都是 404。产品列表 `/en/changelog` 只列 Longbridge Pro（版本线 0.1–1.0）与 LongbridgeAI，没有 preview。
+- RSS `/en/changelog/rss.xml`（全站，约 20.7 KB）没有 preview 条目；`description` 被截成一行（例：「Fixed an issue where an order price tracking Mid / Bid1 / As」），不是正文。所以没有选 RSS 作为正文来源。
+- 清单：`stable/latest.json` 版本 `1.0.0`（`published_at` 2026-10-12），`preview/latest.json` 版本 `1.0.0-preview.3`（`published_at` 2026-10-09）。两份的 `release_notes.en` 都在。
+- 版本页结构：`pro-0.19` 页 2 个 release-section（0.19.1、0.19.0），`pro-0.20` 页 2 个（0.20.1、0.20.0），`pro-1.0` 页 1 个（1.0.0）。`<section>` 上的 `data-rail-version` 与 `data-rail-date` 是 ISO 日期，`<time datetime>` 与之一致。
+- 生产解析器（`ChangelogService.parse`）在实时字节上的结果（maxEntries 1）：stable `1.0.0` 页 → 1 条 `1.0.0`，2026-10-13，11 条；`0.20` 页 → 1 条 `0.20.1`，2026-09-24，4 条；`0.19` 页 → 1 条 `0.19.1`，2026-08-20，2 条。preview 清单 → 1 条 `1.0.0-preview.3`，2026-10-09，11 条。新的 stable 正则读 preview 清单、preview 解码器读 stable 页面，都得到 nil。
+- 结构：stable 条目保持扁平，`<h2>` 分类标题（如「New Features」）不作为条目输出，只保留 `<li>` 文本，与旧版本一致。preview 同样扁平，`###` 标题被丢弃。
 
 从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
 

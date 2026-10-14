@@ -94,8 +94,8 @@ def record(r, probe, ref_meta):
     cfg_path = os.path.join(d, "config.json")
     if os.path.exists(cfg_path):
         cfg = json.load(open(cfg_path))
-        config = {k: cfg[k] for k in ("mode", "model", "effort", "stages", "brief", "ditto_note", "env",
-                                      "permission_mode", "disallowed_tools") if k in cfg}
+        config = {k: cfg[k] for k in ("mode", "model", "effort", "stages", "brief", "ditto_note", "skill",
+                                      "diff_base", "env", "permission_mode", "disallowed_tools") if k in cfg}
         rnd = cfg.get("round") or "unlabelled"
         date = (cfg.get("date") or "")[:10]
         cc = (cfg.get("claude_code") or "").split(" ")[0] or claude_version(d)

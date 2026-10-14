@@ -1,0 +1,125 @@
+{
+  "changelogRecipes" : [
+    "changelog:com.tinycast.app:stable"
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 6,
+      "headings" : [
+
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 72,
+      "newestVersion" : "0.11.19",
+      "recipeID" : "changelog:com.tinycast.app:stable"
+    },
+    "download" : "releases",
+    "installTrust" : "developerID(legacy base)",
+    "latest" : "0.11.19",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "GitHub",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 6,
+      "headings" : [
+
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 72,
+      "newestVersion" : "0.11.19",
+      "recipeID" : "changelog:com.tinycast.app:stable"
+    },
+    "download" : "releases",
+    "installTrust" : "developerID(legacy base)",
+    "latest" : "0.11.19",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "GitHub",
+    "status" : "update→0.11.19"
+  },
+  "perRelease" : [
+    {
+      "arm64" : "<none>",
+      "prerelease" : true,
+      "tag" : "v0.11.21-beta.120",
+      "version" : "<no match>",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : true,
+      "tag" : "v0.11.20-beta.119",
+      "version" : "<no match>",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.11.19",
+      "version" : "0.11.19",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : true,
+      "tag" : "v0.11.19-beta.117",
+      "version" : "<no match>",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : true,
+      "tag" : "v0.11.18-beta.116",
+      "version" : "<no match>",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : true,
+      "tag" : "v0.11.17-beta.115",
+      "version" : "<no match>",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : true,
+      "tag" : "v0.11.16-beta.114",
+      "version" : "<no match>",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : true,
+      "tag" : "v0.11.15-beta.113",
+      "version" : "<no match>",
+      "x86_64" : "<none>"
+    }
+  ],
+  "rules" : [
+    {
+      "bundleID" : "com.tinycast.app",
+      "channel" : "stable",
+      "installAssetPattern" : "<nil>",
+      "installerKind" : "<nil>",
+      "installTrust" : "developerID(legacy base)",
+      "slug" : "abue-ammar\/tinycast",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
+    },
+    {
+      "bundleID" : "com.tinycast.app.beta",
+      "channel" : "beta",
+      "installAssetPattern" : "<nil>",
+      "installerKind" : "<nil>",
+      "installTrust" : "developerID(legacy base)",
+      "slug" : "abue-ammar\/tinycast",
+      "usePrereleases" : true,
+      "versionPattern" : "^v([0-9]+\\.[0-9]+\\.[0-9]+-beta\\.[0-9]+)$"
+    }
+  ]
+}

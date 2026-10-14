@@ -1,0 +1,747 @@
+diff --git a/CHANNEL_COVERAGE_TODO.md b/CHANNEL_COVERAGE_TODO.md
+index fcc6a90..9d483e2 100644
+--- a/CHANNEL_COVERAGE_TODO.md
++++ b/CHANNEL_COVERAGE_TODO.md
+@@ -456,6 +456,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** 
+ - ◐ **Insomnia — Beta 可接（已不是死轨）/ Alpha 仍受阻** · 同 `com.insomnia.app`（共享 id）。真机验证 2026-06-06：beta 构建 `CFBundleShortVersionString` **保留** `13.0.0-beta.0` 后缀（无 Mozilla 式剥离）。**更正 2026-09-14**：原先这里写 `ReleaseChannel.detect()`「不解析版本后缀」、`channel: .beta` rule 永远选不中——自 `87fafac7`（2026-08-30）起 `detect()` 第 4 步严格识别整串以 `-beta.<数字>` 结尾的版本，beta 的检测前提已具备，**只差一条 `channel: .beta` rule**（GitHub prerelease tag + `Insomnia.Core-<ver>-beta.N.dmg` 资产已就绪；见 `docs/app-audits/com-insomnia-app.md`）。`-alpha.N` 仍不被 `detect()` 识别（第 4 步和版本尾词表都没有 alpha），alpha 仍受阻。
+ - ✗ **Postman — Canary** · 已停产（cask `postman@canary` 2025-11-15 disabled）
+ - ✗ **RustDesk — Nightly** · 同 `com.carriez.rustdesk`，同 repo prerelease，stable rule 已排除
++- ✗ **Cua Driver — Nightly** · 同 `com.trycua.driver`、同 Team，CD 用 `${VERSION%%-*}` 把 `-nightly.<日期>.<run>` 从两个 CFBundle 版本键里剥掉（真包 0.30.5-nightly 读出 `0.30.5`）；渠道选择存在 `~/.cua-driver/release-channel`，但那是选择不是装着的构建。无检测信号，stable rule 用 tag 形状排除 nightly（`docs/app-audits/com-trycua-driver.md`）
+ - ✗ **1Password — Beta** · 同 `com.1password.1password`，cask 装同名同 id；vendor API 仅服务 NIGHTLY 且需 auth
+ - ✅ **Raycast — v2** · **更正 2026-08-27**：旧判断「Beta(v2) 应用内 opt-in、无独立下载」已经过期。
+   v2 于 2026-08-25 转正（GA 2.0.6.0），**不是 channel 问题**：Raycast 现在开着两条 train，
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index 6298bbd..d0786b1 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -142,6 +142,7 @@ public enum AppRecipeIndex {
+         com_tinyapp_tableplus.set,
+         com_tinyspeck_slackmacgap.set,
+         com_todesktop_230313mzl4w4u92.set,
++        com_trycua_driver.set,
+         com_typewhisper_mac.set,
+         com_unity3d_unityhub.set,
+         com_usebruno_app.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-trycua-driver.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-trycua-driver.swift
+new file mode 100644
+index 0000000..a50093e
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-trycua-driver.swift
+@@ -0,0 +1,112 @@
++import Foundation
++
++enum com_trycua_driver {
++    static let set = AppRecipeSet(
++        family: "com-trycua-driver",
++        changelogs: [
++        // Cua Driver's notes are the release-please CHANGELOG checked in beside
++        // the Rust crate, not the GitHub release bodies. Two reasons, both the
++        // vendor's doing:
++        //
++        //  * A `.gitHubReleases` recipe cannot read this repo at all. Every stable
++        //    Cua Driver release is published with GitHub's `prerelease` flag set
++        //    (see the rule below), and that decoder keeps stable releases only.
++        //    It would fetch a page and produce zero entries.
++        //  * The body `GitHubReleasesSource` already carries inline covers ONE
++        //    release, and around its notes it has `## Install`, `## Why GitHub
++        //    says "Pre-release"` and a `## SHA256 Checksums` block. The file has
++        //    the history, and nothing else.
++        //
++        // Release-please's shape, the version in BRACKETS followed by a compare
++        // link and the day in parentheses:
++        //
++        //   ## [0.35.4](https://github.com/trycua/cua/compare/cua-driver-rs-v0.35.3...cua-driver-rs-v0.35.4) (2026-10-14)
++        //
++        //   ### Bug Fixes
++        //
++        //   * **cua-driver:** background browser clicks reach pointer-driven rows ([#5110](…)) ([a7c4a0e](…))
++        //
++        // Every bullet is one line, so the single-line item pattern is enough.
++        // The `**scope:**` prefix stays: it is where the vendor says which
++        // platform a fix is for (`cua-driver/linux`, `cua-driver/windows`,
++        // `cua-driver/macos`). `\n##\s` cannot fire on a `###` group heading,
++        // because a `#` follows the second `#` there, not whitespace. Every
++        // `###` in the file is a release-please category (Bug Fixes, Features,
++        // Performance Improvements, Reverts, ⚠ BREAKING CHANGES), so
++        // `headingPattern` keeps them as real headings, as the Mac Performance
++        // Monitor recipe does for Keep a Changelog. `CuaDriverRecipeTests` pins
++        // both against the real file's opening.
++        ChangelogRecipe(
++            bundleID: "com.trycua.driver",
++            source: URL(string: "https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/rust/CHANGELOG.md")!,
++            entryPattern:
++                #"(?:^|\n)##\s+\[(?<version>[0-9][^\]]*)\]\([^)\n]*\)\s*\((?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\)\n(?<body>.*?)(?=\n##\s|\z)"#,
++            itemPatterns: [#"\n\*\s+(?<item>[^\n]+)"#],
++            markdownSource: true,
++            headingPattern: #"\n###\s+(?<heading>[^\n]+)"#),
++        ],
++        githubRules: [
++        // History: docs/app-audits/com-trycua-driver.md#历史与实测
++        //
++        // Cua Driver (`CuaDriver.app`), from the `trycua/cua` monorepo. The bundle
++        // carries no `SUFeedURL` and no electron-builder config; the app's own
++        // `check-update` reads this same repo's Releases. A `cuadriver` cask
++        // exists (not `auto_updates`), so a copy brew installed is served by
++        // `HomebrewCaskSource` first; every other copy lands here.
++        //
++        // The repo releases dozens of products. Nightly lume, the SDKs, Cua
++        // Spaces and others sit in front of the driver's tag most of the time,
++        // so this is a list rule that takes the first `cua-driver-rs-vX.Y.Z`
++        // tag, the Bitwarden shape.
++        //
++        // `usePrereleases: true` on a STABLE rule, on purpose. The vendor's
++        // release workflow publishes every stable Cua Driver release with
++        // `--prerelease`, and each release body says why: the flag only keeps
++        // this monorepo's single "Latest" pointer from flipping between
++        // products, and "a plain Cua Driver SemVer is a stable release". So the
++        // flag carries no channel meaning here, `/releases/latest` never
++        // returns a driver release, and the tag shape is the only track split.
++        // The vendor's own updater (`version_check.rs`) splits the same way: it
++        // ignores the flag and accepts only plain `x.y.z` behind the
++        // `cua-driver-rs-v` prefix. This pattern copies that rule, anchored at
++        // both ends, so a `cua-driver-rs-v0.36.0-rc.1`, a
++        // `nightly-cua-driver-rs-v…-nightly.…` tag and the retired Swift port's
++        // `cua-driver-v…` tags all read as nothing.
++        //
++        // `listPageSize: 30` clears the floor `GitHubListPageSizeTests` records
++        // for this rule (the worst run between two driver tags, measured over
++        // the repo's whole history; History has it) with room for a bigger
++        // burst. A page is large here (each driver release lists dozens of
++        // assets), so it is not padded further. `probesNewestFirst: false` for
++        // the same reason as Bitwarden: nightly lume releases daily, so the
++        // newest row is rarely a driver tag and a one-row probe would mostly
++        // add a request.
++        //
++        // One-click installs the universal tarball, the same artifact the
++        // vendor's installer and the Homebrew cask use. It unpacks to
++        // `cua-driver-rs-<v>-darwin-universal/CuaDriver.app`, one directory
++        // down, which `ArchiveExtractor` finds. On macOS the vendor's installer
++        // only `ditto`s that bundle to `/Applications/CuaDriver.app` and links
++        // the CLI into it, so swapping the bundle in place is the whole install.
++        // The bundles are `com.trycua.driver`, Team `YCK386LBJ7`, notarized
++        // and stapled (History has the packages checked). The pattern does not
++        // take the `-universal-binary` tarball (a bare CLI, no app) or the
++        // per-arch ones.
++        //
++        // Nightly shares this bundle id, and its bundle cannot be told apart
++        // from stable: the workflow stamps `${VERSION%%-*}` into both
++        // CFBundle version keys, so `0.30.5-nightly.<date>.<run>` reads `0.30.5`.
++        // No nightly rule, then. A nightly copy is served this stable rule and
++        // is offered a stable release only once that release is above its base
++        // version. The audit has the details.
++        GitHubReleaseRule(
++            bundleID: "com.trycua.driver",
++            owner: "trycua", repo: "cua",
++            usePrereleases: true,
++            listPageSize: 30,
++            versionPattern: #"^cua-driver-rs-v([0-9]+\.[0-9]+\.[0-9]+)$"#,
++            installAssetPattern: #"^cua-driver-rs-[0-9]+\.[0-9]+\.[0-9]+-darwin-universal\.tar\.gz$"#,
++            installerKind: .tarGz,
++            probesNewestFirst: false),
++        ])
++}
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CuaDriverRecipeTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CuaDriverRecipeTests.swift
+new file mode 100644
+index 0000000..d6b2afe
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CuaDriverRecipeTests.swift
+@@ -0,0 +1,283 @@
++import Testing
++import Foundation
++@testable import DuoUpdaterCore
++
++/// Cua Driver (`com.trycua.driver`, `trycua/cua`). Three decisions in its family
++/// are easy to undo by accident, and each is pinned here against strings the
++/// vendor really publishes (fetched 2026-10-14):
++///
++///  * the stable rule reads the releases LIST and ignores GitHub's
++///    `prerelease` flag, because the vendor sets that flag on every stable
++///    release of this monorepo;
++///  * the tag pattern is anchored, because that flag no longer separates
++///    anything and the tag shape is the only track split left;
++///  * the notes come from the release-please `CHANGELOG.md`, not the release
++///    bodies.
++///
++/// See `docs/app-audits/com-trycua-driver.md` for the measurements.
++@Suite(.serialized)
++struct CuaDriverRecipeTests {
++    private static let bundleID = "com.trycua.driver"
++
++    /// Every rule this bundle id carries, and the lookup must find something:
++    /// a typo'd bundle id or an unregistered family would otherwise leave the
++    /// suite green while it checks nothing.
++    private static var rules: [GitHubReleaseRule] {
++        get throws {
++            let found = GitHubReleaseRegistry.rules.filter { $0.bundleID == bundleID }
++            try #require(!found.isEmpty, "com.trycua.driver is no longer in GitHubReleaseRegistry")
++            return found
++        }
++    }
++
++    private static var stableRule: GitHubReleaseRule {
++        get throws {
++            try #require(self.rules.first { $0.channel == .stable }, "com.trycua.driver has no stable rule")
++        }
++    }
++
++    /// Nightly copies carry the same bundle id and a version stripped of its
++    /// `-nightly.…` suffix, so nothing local can route one to a nightly rule.
++    /// A second rule here would be a rule no copy can be detected for.
++    @Test func thereIsOneRuleAndItIsStable() throws {
++        let rules = try Self.rules
++        #expect(rules.count == 1)
++        #expect(rules.first?.channel == .stable)
++    }
++
++    // MARK: - Tag pattern
++
++    /// Real tags, newest and oldest of the Rust line and the last one that
++    /// still shipped `CuaDriverRs.app`. `extractVersion` is the same call
++    /// `GitHubReleasesSource` makes on every release it walks.
++    @Test(arguments: [
++        ("cua-driver-rs-v0.35.4", "0.35.4"),
++        ("cua-driver-rs-v0.35.2", "0.35.2"),
++        ("cua-driver-rs-v0.2.18", "0.2.18"),
++        ("cua-driver-rs-v0.1.3", "0.1.3"),
++        ("cua-driver-rs-v1.0.0", "1.0.0"),
++    ])
++    func driverTagsResolveToTheirVersion(tag: String, expected: String) throws {
++        let rule = try Self.stableRule
++        #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: rule.versionPattern) == expected)
++    }
++
++    /// Tags the rule must read as nothing. The first two are real (the nightly
++    /// track, and the retired Swift port that shares this bundle id); the rest
++    /// are shapes the vendor's own updater refuses for stable. GitHub's flag
++    /// cannot keep the rc out: the vendor sets `prerelease` on stable releases
++    /// too, so an rc would arrive looking exactly like them.
++    ///
++    /// Mutation: the registry default `v?([0-9]+(?:\.[0-9]+)+)` (unanchored)
++    /// reads `0.36.0` out of the rc and `0.2.0` out of the Swift tag.
++    @Test(arguments: [
++        "nightly-cua-driver-rs-v0.30.5-nightly.20260929.36522098176",
++        "cua-driver-v0.2.0",
++        "cua-driver-rs-v0.36.0-rc.1",
++        "cua-driver-rs-v0.36.0-beta.1",
++        "cua-driver-rs-v0.35.4+build.1",
++        "nightly-lume-v0.6.2-nightly.20261014.38513423832",
++        "cua-spaces-v0.8.0",
++    ])
++    func otherTracksAndProductsAreNotRead(tag: String) throws {
++        let rule = try Self.stableRule
++        #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: rule.versionPattern) == nil)
++    }
++
++    // MARK: - Install asset
++
++    /// The real macOS-side asset names of `cua-driver-rs-v0.35.4`. Only the
++    /// universal tarball carries `CuaDriver.app`; `-universal-binary` is the
++    /// bare CLI and the per-arch tarballs are not what the vendor's installer
++    /// or the cask use.
++    private static let realDarwinAssets = [
++        "cua-driver-rs-0.35.4-darwin-arm64.tar.gz",
++        "cua-driver-rs-0.35.4-darwin-arm64.tar.gz.sigstore.json",
++        "cua-driver-rs-0.35.4-darwin-universal-binary.tar.gz",
++        "cua-driver-rs-0.35.4-darwin-universal-binary.tar.gz.sigstore.json",
++        "cua-driver-rs-0.35.4-darwin-universal.tar.gz",
++        "cua-driver-rs-0.35.4-darwin-universal.tar.gz.sigstore.json",
++        "cua-driver-rs-0.35.4-darwin-x86_64.tar.gz",
++        "cua-driver-rs-0.35.4-darwin-x86_64.tar.gz.sigstore.json",
++        "cua_driver-0.35.4-py3-none-macosx_13_0_universal2.whl",
++        "cua-driver-rs-v0.35.4-skills.tar.gz",
++    ]
++
++    @Test func onlyTheUniversalAppTarballIsInstallable() throws {
++        let rule = try Self.stableRule
++        let pattern = try #require(rule.installAssetPattern)
++        #expect(rule.installerKind == .tarGz)
++        let regex = try NSRegularExpression(pattern: pattern)
++        let matched = Self.realDarwinAssets.filter {
++            regex.firstMatch(in: $0, range: NSRange($0.startIndex..., in: $0)) != nil
++        }
++        #expect(matched == ["cua-driver-rs-0.35.4-darwin-universal.tar.gz"])
++    }
++
++    // MARK: - Resolution against the vendor's real page shape
++
++    private final class StubProtocol: URLProtocol, @unchecked Sendable {
++        final class Script: @unchecked Sendable {
++            private let lock = NSLock()
++            private var bodies: [String: String] = [:]
++            private var requested: [String] = []
++            func load(_ table: [String: String]) { lock.lock(); bodies = table; requested = []; lock.unlock() }
++            func body(for url: String) -> String? {
++                lock.lock(); defer { lock.unlock() }
++                requested.append(url)
++                return bodies[url]
++            }
++            var urls: [String] { lock.lock(); defer { lock.unlock() }; return requested }
++        }
++        static let script = Script()
++
++        override class func canInit(with request: URLRequest) -> Bool { true }
++        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
++        override func startLoading() {
++            let body = Self.script.body(for: request.url!.absoluteString)
++            let response = HTTPURLResponse(
++                url: request.url!, statusCode: body == nil ? 404 : 200,
++                httpVersion: "HTTP/1.1", headerFields: [:])!
++            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
++            client?.urlProtocol(self, didLoad: Data((body ?? "{}").utf8))
++            client?.urlProtocolDidFinishLoading(self)
++        }
++        override func stopLoading() {}
++    }
++
++    private static func session() -> URLSession {
++        let configuration = URLSessionConfiguration.ephemeral
++        configuration.protocolClasses = [StubProtocol.self]
++        configuration.urlCache = nil
++        return URLSession(configuration: configuration)
++    }
++
++    /// One release row, flagged the way this vendor flags it.
++    private static func release(_ tag: String, prerelease: Bool, assets: [String]) -> String {
++        let assetJSON = assets.map {
++            #"{"name": "\#($0)", "browser_download_url": "https://github.com/trycua/cua/releases/download/\#(tag)/\#($0)", "size": 83035346}"#
++        }.joined(separator: ",")
++        return """
++        {"tag_name": "\(tag)", "assets": [\(assetJSON)], "prerelease": \(prerelease), "draft": false,
++         "published_at": "2026-10-14T12:32:14Z", "html_url": "https://github.com/trycua/cua/releases/tag/\(tag)",
++         "body": ""}
++        """
++    }
++
++    /// The head of the real list on 2026-10-14: a nightly-lume release on top,
++    /// then the driver's stable release (flagged prerelease, as all of them
++    /// are), then another product's release that is NOT flagged. A
++    /// hypothetical nightly-driver and rc tag sit in front of the stable one
++    /// as well, to prove the tag shape does the splitting.
++    ///
++    /// Mutations this catches: `usePrereleases: false` (the rule asks
++    /// `/releases/latest`, which this repo never points at a driver release —
++    /// the stub answers 404 and nothing resolves); a page size or probe change
++    /// (the URL differs and nothing resolves); an unanchored pattern (the rc or
++    /// the nightly is offered).
++    @Test func theStableReleaseResolvesThroughThePrereleaseFlag() async throws {
++        let rule = try Self.stableRule
++        let listURL = "https://api.github.com/repos/trycua/cua/releases?per_page=30"
++        StubProtocol.script.load([
++            listURL: "[" + [
++                Self.release("nightly-lume-v0.6.2-nightly.20261014.38513423832", prerelease: true,
++                             assets: ["lume-0.6.2-nightly.20261014.38513423832-darwin-arm64.tar.gz"]),
++                Self.release("nightly-cua-driver-rs-v0.35.5-nightly.20261015.1", prerelease: true,
++                             assets: ["cua-driver-rs-0.35.5-nightly.20261015.1-darwin-universal.tar.gz"]),
++                Self.release("cua-driver-rs-v0.36.0-rc.1", prerelease: true,
++                             assets: ["cua-driver-rs-0.36.0-rc.1-darwin-universal.tar.gz"]),
++                Self.release("cua-driver-rs-v0.35.4", prerelease: true, assets: Self.realDarwinAssets),
++                Self.release("cua-spaces-v0.8.0", prerelease: false,
++                             assets: ["cua-spaces-0.8.0-darwin-universal.dmg"]),
++            ].joined(separator: ",") + "]",
++        ])
++        let source = GitHubReleasesSource(rules: [rule], session: Self.session())
++
++        let outcome = await source.resolveDiagnostic(rule, preferring: .arm64, allowingIntelTranslation: false)
++
++        let remote = try #require(outcome.remote, "nothing resolved; requested \(StubProtocol.script.urls)")
++        #expect(remote.shortVersion == "0.35.4")
++        #expect(remote.downloadURL?.lastPathComponent == "cua-driver-rs-0.35.4-darwin-universal.tar.gz")
++        #expect(remote.vendorInstallerKind == .tarGz)
++        #expect(!remote.requiresManualInstaller)
++        #expect(StubProtocol.script.urls == [listURL])
++    }
++
++    // MARK: - Changelog
++
++    private static var changelogRecipe: ChangelogRecipe {
++        get throws {
++            try #require(ChangelogRecipeRegistry.recipes.first { $0.bundleID == bundleID })
++        }
++    }
++
++    /// Verbatim from `libs/cua-driver/rust/CHANGELOG.md` on `main`, 2026-10-14:
++    /// the preamble, then the 0.35.2 and 0.35.1 entries exactly as they sit
++    /// in the file (0.35.1 has two groups, so headings are exercised).
++    private static let fixture = #"""
++    # Changelog
++
++    ## [0.35.2](https://github.com/trycua/cua/compare/cua-driver-rs-v0.35.1...cua-driver-rs-v0.35.2) (2026-10-13)
++
++
++    ### Bug Fixes
++
++    * **cua-driver:** name the missing AT-SPI bus in the X11 background keyboard refusal ([#5070](https://github.com/trycua/cua/issues/5070)) ([d7c98c1](https://github.com/trycua/cua/commit/d7c98c1e0f661b1e0b1ca821a79b6a5ef45fbd2c))
++    * **cua-driver:** scroll an inner Electron scroller in the background on macOS ([#5079](https://github.com/trycua/cua/issues/5079)) ([f72e033](https://github.com/trycua/cua/commit/f72e033269cd42c6e630cccd6496325b8b698248))
++    * **cua-driver:** tolerate a transient UIA read and a twice-reported consent prompt on Windows ([#5082](https://github.com/trycua/cua/issues/5082)) ([f0c468f](https://github.com/trycua/cua/commit/f0c468f7b2b5875726a909b6d395204110777873))
++
++    ## [0.35.1](https://github.com/trycua/cua/compare/cua-driver-rs-v0.35.0...cua-driver-rs-v0.35.1) (2026-10-13)
++
++
++    ### Features
++
++    * **cua-driver:** attach to an existing Chrome profile in the background when Chrome is on another Space (macOS) ([#5052](https://github.com/trycua/cua/issues/5052)) ([10c5d3f](https://github.com/trycua/cua/commit/10c5d3f3d40f96009ac542fd3725b832b2ff7a36))
++
++
++    ### Bug Fixes
++
++    * **cua-driver:** pixel type_text, press_key and scroll in the background focus their target again on macOS ([#5062](https://github.com/trycua/cua/issues/5062)) ([d0a5093](https://github.com/trycua/cua/commit/d0a50933f0492993ebd6111ebb058712d7958080))
++    * **cua-driver:** skip AT-SPI frame rebase when the frame has no extents ([#4984](https://github.com/trycua/cua/issues/4984)) ([7d8378f](https://github.com/trycua/cua/commit/7d8378f168264ac2b622870334f37f6589e07c24))
++    * **cua-driver:** stop advertising pid as required for element_token tools ([#5047](https://github.com/trycua/cua/issues/5047)) ([a85f1be](https://github.com/trycua/cua/commit/a85f1be9cb787249118b3cfaac4a0935c6b21a6f))
++    """#
++
++    @Test func theRecipeReadsTheCheckedInChangelog() throws {
++        let recipe = try Self.changelogRecipe
++        #expect(recipe.source.absoluteString
++                == "https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/rust/CHANGELOG.md")
++        #expect(recipe.markdownSource)
++        #expect(recipe.channel == nil)
++    }
++
++    /// Mutation: dropping the `\(...)` compare-link part of the entry pattern
++    /// (copying the Keep a Changelog recipe's `\]\s*-\s*` shape) parses nothing.
++    @Test func entriesAreTheReleasesWithTheirDays() throws {
++        let parsed = try #require(ChangelogService.parse(try Self.changelogRecipe, body: Self.fixture))
++        #expect(parsed.entries.map(\.version) == ["0.35.2", "0.35.1"])
++        #expect(parsed.entries.map(\.date) == ["2026-10-13", "2026-10-13"])
++        #expect(parsed.entries.map(\.items.count) == [3, 4])
++    }
++
++    /// The `**scope:**` prefix is where the vendor says which platform a fix is
++    /// for, so it stays; a group heading never becomes or leaks into an item.
++    @Test func itemsKeepTheirScopeAndHeadingsStayHeadings() throws {
++        let parsed = try #require(ChangelogService.parse(try Self.changelogRecipe, body: Self.fixture))
++        let newer = try #require(parsed.entries.first)
++        #expect(newer.items.first?.hasPrefix("**cua-driver:** name the missing AT-SPI bus") == true)
++        for entry in parsed.entries {
++            for item in entry.items {
++                #expect(!item.contains("###"), "a group heading leaked into an item: \(item)")
++                #expect(!item.contains("## ["), "an entry heading leaked into an item: \(item)")
++            }
++        }
++        let older = try #require(parsed.entries.last)
++        #expect(older.content == [
++            .heading("Features"),
++            .note(older.items[0]),
++            .heading("Bug Fixes"),
++            .note(older.items[1]),
++            .note(older.items[2]),
++            .note(older.items[3]),
++        ])
++    }
++}
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListPageSizeTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListPageSizeTests.swift
+index 601bf41..42b4bd5 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListPageSizeTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListPageSizeTests.swift
+@@ -57,6 +57,11 @@ struct GitHubListPageSizeTests {
+         "com.vorssaint.utils/beta": 2,        // gap 1 (only 4 -beta. tags ever), +1
+         "com.microsoft.Headlamp/stable": 5,   // gap 4 (v0.23.0→v0.22.0), +1
+         "com.bitwarden.desktop/stable": 8,    // gap 7 (desktop-v2026.6.0→…2026.5.0), +1
++        // Cua Driver: all 770 trycua/cua releases on 2026-10-14, not the newest
++        // 100 — the worst run is older than that. Gap 22, ending at
++        // cua-driver-rs-v0.32.0 (the 2026-10-01 burst when most of the monorepo
++        // released at once), so the floor is 23.
++        "com.trycua.driver/stable": 23,
+         "com.t3tools.t3code/nightly": 3,      // gap 2 (…20260902.1252→…20260901.1250), +1
+         "uk.whatcable.whatcable/beta": 1,     // gap 0 (all 100 tags match), +1
+         // CotEditor: gap 0 — its beta rule accepts plain tags as well as `-beta`
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListProbeTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListProbeTests.swift
+index bc99df7..a2537d1 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListProbeTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListProbeTests.swift
+@@ -299,10 +299,14 @@ struct GitHubListProbeTests {
+     /// so it is opted out; every other prerelease `.newest` rule probes. A new
+     /// opt-out is a measurement to be written down in the rule's comment, and
+     /// this list is where it is registered.
++    ///
++    /// Cua Driver is the second: `trycua/cua` publishes a nightly-lume release
++    /// every day, and from 2026-08-15 to 2026-10-14 the repo's newest release
++    /// was a `cua-driver-rs-v` tag about 14% of the time (by `created_at`).
+     @Test func onlyTheMeasuredRulesAreOptedOutOfProbing() {
+         let optedOut = GitHubReleaseRegistry.rules
+             .filter { $0.usePrereleases && $0.candidateScope == .newest && !$0.probesNewestFirst }
+             .map { "\($0.bundleID)/\($0.channel.rawValue)" }
+-        #expect(Set(optedOut) == ["com.bitwarden.desktop/stable"])
++        #expect(Set(optedOut) == ["com.bitwarden.desktop/stable", "com.trycua.driver/stable"])
+     }
+ }
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-trycua-driver.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-trycua-driver.txt
+new file mode 100644
+index 0000000..6c6783b
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-trycua-driver.txt
+@@ -0,0 +1,66 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "com-trycua-driver"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 1)
++changelogs[0] = struct ChangelogRecipe
++changelogs[0].bundleID = "com.trycua.driver"
++changelogs[0].source = URL("https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/rust/CHANGELOG.md")
++changelogs[0].sourceTemplate = nil
++changelogs[0].mode = .html
++changelogs[0].entryPattern = "(?:^|\\n)##\\s+\\[(?<version>[0-9][^\\]]*)\\]\\([^)\\n]*\\)\\s*\\((?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\\)\\n(?<body>.*?)(?=\\n##\\s|\\z)"
++changelogs[0].itemPatterns = Array(count: 1)
++changelogs[0].itemPatterns[0] = "\\n\\*\\s+(?<item>[^\\n]+)"
++changelogs[0].stripTags = true
++changelogs[0].decodeEntities = true
++changelogs[0].escapedMarkup = false
++changelogs[0].markdownSource = true
++changelogs[0].maxEntries? = 40
++changelogs[0].minItemLength = 1
++changelogs[0].newestLast = false
++changelogs[0].indexLinkPattern = nil
++changelogs[0].feedPagePattern = nil
++changelogs[0].channel = nil
++changelogs[0].includesPromotedStable = false
++changelogs[0].imagePattern = nil
++changelogs[0].headingPattern? = "\\n###\\s+(?<heading>[^\\n]+)"
++changelogs[0].minimumAppVersion = nil
++changelogs[0].belowAppVersion = nil
++changelogs[0].acknowledgedStaleEntry = nil
++changelogs[0].structuredFormat = nil
++changelogs[0].httpMethod = .get
++changelogs[0].requestBody = nil
++changelogs[0].skipSections = Array(count: 0)
++changelogs[0].tagPattern = nil
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "com.trycua.driver"
++githubRules[0].owner = "trycua"
++githubRules[0].repo = "cua"
++githubRules[0].usePrereleases = true
++githubRules[0].listPageSize = 30
++githubRules[0].versionPattern = "^cua-driver-rs-v([0-9]+\\.[0-9]+\\.[0-9]+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = false
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^cua-driver-rs-[0-9]+\\.[0-9]+\\.[0-9]+-darwin-universal\\.tar\\.gz$"
++githubRules[0].installerKind? = .tarGz
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index 679b743..548d2de 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -237,6 +237,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**claude-devtools**](com-claudecode-context.md) · `com.claudecode.context` — G (one-click arm64 dmg) · 真包 v0.5.0 挂载验证 ✓（GitHub 胜、up to date、release 正文即 changelog；`v0.4.13` 其实是 prerelease，原文说「全部非 prerelease」有误）· 2026-08-31
+ - [x] [**Ollama**](com-electron-ollama.md) · `com.electron.ollama` — C + G (one-click zip, best-effort)
+ - [x] [**Petex**](ad-neko-petex.md) · `ad.neko.petex` — G (**detection-only**) · 真包 v1.0.10 arm64 dmg 挂载验证 ✓ · 产物 ad-hoc 签名、无 Team ID、`--deep --strict` 与 `spctl` 各退 1 → **一键永久不可** · 厂商不写发布说明（release 正文只有一行 `Full Changelog`），**changelog 结构化无从做起**，不加 recipe · patch 位是 commit height（每次推 master 发一版）· 2026-09-16
++- [x] [**Cua Driver**](com-trycua-driver.md) · `com.trycua.driver` — G (one-click universal tar.gz) · 真包 0.35.4 / 0.35.2 解包验证 ✓ · 单仓多产品、stable 全带 prerelease 标志 → 列表 rule + 锚死 tag · **已接 changelog**（release-please `CHANGELOG.md`）· nightly 同 id 无信号（Pattern D）· 2026-10-14
+ 
+ ## Changelog-only (detection via Sparkle or Homebrew)
+ 
+diff --git a/docs/app-audits/com-trycua-driver.md b/docs/app-audits/com-trycua-driver.md
+new file mode 100644
+index 0000000..51333f6
+--- /dev/null
++++ b/docs/app-audits/com-trycua-driver.md
+@@ -0,0 +1,190 @@
++# Cua Driver
++
++## 基本信息
++- Bundle ID: `com.trycua.driver`（`CuaDriver.app`）
++- Team ID: `YCK386LBJ7`（Developer ID Application: Cua AI, Inc.）
++- 观测版本: `0.35.4`（short == build == tag 里的版本号）
++- 自更新机制: 自研 CLI（`cua-driver check-update` / `update --apply` / `channel set`），
++  只在用户显式 `update --apply` 时才装（文档 `docs/content/docs/cua-driver/reference/cli/updates.mdx`）。
++  没有 Sparkle，没有 electron-builder 配置（`feed-discover` 判 `noKnownUpdater`）
++- 分发: `trycua/cua` 单仓多产品的 GitHub Releases（`cua-driver-rs-v*` tag）；官方一行脚本
++  `https://cua.ai/driver/install.sh`；Homebrew cask `cuadriver`（无 `auto_updates`）。
++  Mac App Store 没有上架（`itunes.apple.com/search`，`entity=macSoftware`，`country=us`，
++  搜 `cua driver` 只有 1 条无关结果）
++- 开源: 是。下面几处结论都是「settled from source」：`libs/cua-driver/rust/` 和
++  `.github/workflows/cd-rust-cua-driver.yml`，`main` 分支，2026-10-14
++
++## 要先列清的几组拷贝（coverage checklist）
++
++| 组 | 结论 | 处理 |
++|---|---|---|
++| `com.trycua.driver`，Rust 版 `cua-driver-rs` v0.2.4 起 | 本 rule 覆盖 | ✓ 检测 + 一键 |
++| `com.trycua.driver`，已退役的 Swift 版（`cua-driver-v0.0.3`…`v0.2.0`，2026-04-23 至 05-17） | 同 bundle id、同 Team，`CFBundleShortVersionString` 是 `0.x.y`、`CFBundleVersion=1`。厂商 `Info.plist` 注释写明 Rust 版就是要原地替换 Swift 版（同 id、同路径，「seamless upgrade」） | ✓ 同一条 rule。Swift 拷贝会被提供 Rust 最新版；Team 相同，一键闸能过 |
++| `com.trycua.cuadriverrs`（`CuaDriverRs.app`），Rust v0.2.0–v0.2.3（2026-05-17 至 05-18） | 厂商已退役这个身份；新版装到另一个路径、另一个 id，**不会替换这份拷贝**，只有 `uninstall.sh` 会清它 | **缺口，有意不接**：见「已知问题」。列入 Open question |
++| Rust v0.1.3、v0.1.4 | 包里没有 `.app`，只有 CLI | — 不适用（没有 bundle 可扫） |
++| nightly 轨（`nightly-cua-driver-rs-v<x.y.z>-nightly.<日期>.<run>`） | 与 stable 同 id、同 Team、公证；`CFBundle*Version` 被剥成 `x.y.z`，本地无信号 | **Pattern D，不接**（见 Channel 详情）；nightly 拷贝落到 stable rule 上 |
++| Homebrew 装的拷贝 | `HomebrewCaskSource` 只在本地 Caskroom 有这个 cask 时应答，排在 GitHub 前面 | 交给 Homebrew 源，不是本 rule |
++| 版本区间 | 所有带 `.app` 的版本都没有 `SUFeedURL`，签名都是 `YCK386LBJ7`（抽查 0.1.0/0.2.0 Swift、0.2.0/0.2.3/0.2.4/0.2.18/0.3.1/0.35.2/0.35.4 Rust） | 没有「老拷贝缺 feed」的问题 |
++| 宿主下限 | `LSMinimumSystemVersion=13.0`，universal；低于我们的部署下限 | 不需要 `hostRequirement` |
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|             | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|-------------|---------|----------|-----|--------|-------------|
++| **stable**  | —       | ✓（仅 brew 装的拷贝） | — | ✓ | — |
++| **nightly** | —       | —        | —   | ✗（无检测信号） | — |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**（brew 装的拷贝是 **Homebrew**）。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `com.trycua.driver` | 共享 | — | tag 锚 `^cua-driver-rs-vX.Y.Z$` | ✓ |
++| nightly | `com.trycua.driver` | 共享 | **无** | — | ✗ Pattern D |
++
++- 渠道怎么切（settled from source: `crates/cua-driver/src/release_channel.rs`）：
++  `cua-driver channel set nightly` 把 `stable`/`nightly` 写进 `~/.cua-driver/release-channel`
++  （`CUA_DRIVER_RS_HOME` 可改位置）。这是**选择**，不是装着的构建：文档明说选择「never installs by itself」，
++  所以文件写着 nightly 时装着的完全可能还是 stable 构建。不能拿它判轨。
++- 为什么 bundle 里没有信号（settled from source: `cd-rust-cua-driver.yml`）：打包步骤
++  `BUNDLE_VERSION="${VERSION%%-*}"` 再 `plutil -replace` 两个版本键。实测 nightly
++  `0.30.5-nightly.20260929.36522098176` 的包读出 `CFBundleShortVersionString=0.30.5`、
++  `CFBundleVersion=0.30.5`，id 和 Team 与 stable 相同。完整版本串只在主二进制的字符串里
++  （`strings` 能看到 `cua-driver 0.30.5-nightly.20260929.36522098176`），`ReleaseChannel.detect()` 不读那里。
++- nightly 拷贝落到 stable rule 上的后果：stable 只有在**高于** nightly 的基础版本时才会被提供
++  （nightly 是下一个 patch 的预览，所以同号的 stable 发布不会被提供，再下一个才会）。
++  一键装上的是 stable 构建；app 自己的 `release-channel` 文件不变，下次 `update --apply` 仍按 nightly 走。
++- nightly 的发布是「计划每天，有改动且 E2E 通过才发」（`nightly-cua-driver.yml`）。2026-10-14 时最新一条是
++  2026-09-29。
++
++## 更新检测
++- 源: `trycua/cua` GitHub Releases **列表**（`/releases?per_page=30`），取第一个匹配
++  `^cua-driver-rs-v([0-9]+\.[0-9]+\.[0-9]+)$` 的 tag
++- ⚠️ **stable 发布全都带 GitHub 的 `prerelease` 标志**（105/105）。这是厂商刻意的：
++  `cd-rust-cua-driver.yml` 发布那步固定传 `--prerelease`，每条 release 正文都有一节
++  「Why GitHub says "Pre-release"」：这个标签只是为了不让单仓的 Latest 指针在产品之间跳，
++  「A plain Cua Driver SemVer is a stable release」。所以：
++  - `/releases/latest` 永远不会是 driver，rule 必须 `usePrereleases: true`，哪怕它是 stable rule；
++  - 标志不再分轨，**tag 形状是唯一的分轨依据**，pattern 两端锚死。厂商自己的
++    `version_check.rs::pick_latest_release_excluding` 也是这么做的：忽略标志，只认前缀后的纯 `x.y.z`。
++- 版本方案: tag 版本 == `CFBundleShortVersionString` == `CFBundleVersion`（0.35.4、0.35.2 实测）。
++  无 `versionIsBuild` 问题。Swift 旧版的 `CFBundleVersion=1`，比较走 marketing，`0.2.0 < 0.35.4`。
++- pattern 实测（Python 独立复算，全部 770 条 release）：匹配 105 条，全是 `cua-driver-rs-v*` stable；
++  `nightly-cua-driver-rs-…`、Swift `cua-driver-v…`、其他产品 0 条误中；构造的 `-rc.1`、`-beta.1`、
++  `+build.1`、两段 `v0.36` 都不匹配。从没发过两段版本号的 tag。
++- 列表深度: 按 API 返回顺序，两个 driver stable tag 之间最多隔 22 行（结束于 `cua-driver-rs-v0.32.0`，
++  2026-10-01 整个单仓集中发版那次）。`GitHubListPageSizeTests` 记 floor 23，rule 取 30。
++- 代价: 这个仓库一行 release 很大（driver 每版 ~50 个资产）。用 `gh api` 存下的第一页估：30 行
++  identity 约 1.8 MB，gzip 约 116 KB。不做一行探针（`probesNewestFirst: false`）：nightly-lume 每天发，
++  2026-08-15 到 10-14 按 `created_at` 算，仓库最新一条是 driver stable 的时间只占约 14%。
++- **读的是**: 人人可手动下载的 GA。没有按设备分配：厂商的 stable 答案是安装脚本里的
++  `CUA_DRIVER_RS_BAKED_VERSION`，CD 在全部资产公开之后才推进它，跟 GitHub 上最新的 stable 发布是同一个号
++  （2026-10-14 两边都是 0.35.4）。
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | 不适用 |
++| 证据 | `update --apply` 委托给安装脚本，脚本下整包 tarball（`_install-rust.sh`） | 0.35.4 的资产里只有整包 tar.gz/zip/whl 和 `.sigstore.json`、校验和，没有 patch 类文件 | — |
++
++- 按设备灰度: 无（见上）。按架构/OS 分轨: 只有一个 universal macOS 包，`LSMinimumSystemVersion=13.0`，
++  没有上限。自更新器抢不抢: 它只在用户手动 `update --apply` 时动 `/Applications/CuaDriver.app`，
++  不会在后台自己装。
++
++## Changelog
++- 来源: **recipe**，读仓库里 release-please 维护的 `libs/cua-driver/rust/CHANGELOG.md`
++  （`raw.githubusercontent.com/trycua/cua/main/…`）
++- 为什么不用 release 正文：
++  - `.gitHubReleases` 格式只收 `prerelease == false` 的 release，这个仓库的 driver stable **全部**带标志，
++    recipe 会得到 0 条；
++  - `GitHubReleasesSource` 自带的 inline 正文只有最新一版，而且夹着 `## Install`、`## Why GitHub says
++    "Pre-release"`、`## SHA256 Checksums` 这些不是发布说明的节。
++- 格式: `## [0.35.4](<compare 链接>) (2026-10-14)` → `### Bug Fixes` 等 → `* **scope:** 文本 ([#PR](…)) ([sha](…))`。
++  全文 62 个条目（0.35.4 → 0.9.0），749 行 bullet，Python 复算 recipe 的三条正则：62/62 条目、749/749 项，
++  `###` 只出现 Bug Fixes / Features / Performance Improvements / Reverts / ⚠ BREAKING CHANGES，
++  严格新到旧。`**scope:**` 前缀保留（它写着修的是 linux/windows/macos 哪一端）。
++- 跟随 channel: 否（文件只有 stable 版本；nightly 拷贝反正也被当 stable）
++- 已知差异: 文件里有 0.35.3 和 0.13.0（0.13.0 自注 Retracted），GitHub 上没有这两个 release。
++  这只影响历史列表多两条，不影响检测。
++- Recipe 状态: 已有
++
++## 一键安装
++- 状态: 支持
++- 格式: tar.gz（`cua-driver-rs-<v>-darwin-universal.tar.gz`），解出来是
++  `cua-driver-rs-<v>-darwin-universal/CuaDriver.app`，在下一层，`ArchiveExtractor.firstApp` 会往下找一层
++- 资产选择: `^cua-driver-rs-[0-9]+\.[0-9]+\.[0-9]+-darwin-universal\.tar\.gz$`。105 个 stable release
++  每个恰好匹配 1 个；不要 `-universal-binary`（纯 CLI，无 app）和分架构包。和 cask、官方安装脚本用的是同一个包。
++- 安装语义: 厂商脚本在 macOS 上只是把这个 bundle `ditto` 到 `/Applications/CuaDriver.app`，再把
++  `~/.local/bin/cua-driver` 链进 bundle 里。原地换 bundle 就是完整安装；cask 的 binary 链接同样指进 bundle。
++- **读的是**: 人人可手动下载的 GA（同「更新检测」）
++- 包验（2026-10-14，下载后解包，未运行）：
++
++  | 包 | bundle id | 版本 | Team | `codesign --verify --deep --strict` | `spctl -a -t exec` | stapler |
++  |---|---|---|---|---|---|---|
++  | 0.35.4 universal | `com.trycua.driver` | 0.35.4 / 0.35.4 | YCK386LBJ7 | 0 | accepted, Notarized Developer ID | validate ok |
++  | 0.35.2 universal | `com.trycua.driver` | 0.35.2 / 0.35.2 | YCK386LBJ7 | 0 | accepted, Notarized Developer ID | validate ok |
++
++  两者都是 `x86_64 arm64`，hardened runtime。
++- 阻塞: 无。真机端到端一键安装**未跑**（由协调方之后串行执行）。
++
++## 已知问题
++- **`com.trycua.cuadriverrs`（`CuaDriverRs.app`）没有接**。这个身份只在 Rust v0.2.0–v0.2.3 出现过
++  （2026-05-17 至 05-18，同 Team）。给它挂一条检测 rule 能提示「过时了」，但：一键过不了 bundle id 闸；
++  用户照着链接装新版，装出来的是另一个 app（`CuaDriver.app`），旧行永远红着不会消。厂商自己的处理是
++  `uninstall.sh` 把它当遗留物删掉。保守起见不接，留作 Open question。
++- **厂商「撤回」的版本不会从 GitHub 消失**。`.github/release-state/cua-driver-rs-withdrawn-versions`
++  列着 `0.28.3`（macOS 包未签名发出），它的 release 和 universal 包仍在。厂商的安装器/更新器会跳过撤回版，
++  我们的 rule 不读那份清单。今天无影响（它不是最新）；若将来最新一版被撤回而 release 仍挂着，检测会报它，
++  一键则由签名闸兜底（0.28.3 那种未签名包过不了 gate 2/3）。
++- nightly 拷贝被当作 stable（见 Channel 详情）。
++
++## 如何复验
++
++```sh
++# tag 形状、prerelease 标志、资产（单仓，翻页）
++gh api "repos/trycua/cua/releases?per_page=100" -q '.[] | select(.tag_name|test("cua-driver")) | "\(.tag_name)\t\(.prerelease)"'
++# 包：下 universal tarball，解包后
++plutil -p <dir>/cua-driver-rs-<v>-darwin-universal/CuaDriver.app/Contents/Info.plist | grep -E 'Identifier|Version'
++codesign -dvvv <app> 2>&1 | grep -E 'Authority|TeamIdentifier'
++codesign --verify --deep --strict <app>; echo $?
++spctl -a -t exec -vv <app>
++xcrun stapler validate <app>
++# 厂商自己的 stable 答案
++curl -fsSL https://cua.ai/driver/_install-rust.sh | grep -E '^CUA_DRIVER_RS_(BAKED_VERSION|WITHDRAWN_VERSIONS)='
++# 端到端
++duo verify --only com.trycua.driver
++```
++
++## 建议下一步
++1. 真机端到端一键安装（本次未跑）。
++2. 若决定覆盖 `com.trycua.cuadriverrs`：一条检测-only rule（同 repo、同 pattern、无安装资产），并在审计里写明
++   「这一行只能靠卸载旧 app 消掉」。
++3. nightly：除非厂商把渠道写进 bundle（例如保留版本后缀或加一个 plist 键），否则保持 Pattern D。
++
++## 历史与实测
++
++### 2026-10-14 —— 接入（检测 + 一键 + changelog）
++
++- 仓库 770 条 release，37 个 tag 家族。`cua-driver-rs-v*` 105 条，全部 `prerelease: true`、`draft: false`，
++  最早 `v0.1.3`（2026-05-14），最新 `v0.35.4`（2026-10-14T12:32:14Z）。`nightly-cua-driver-rs-v*` 34 条，
++  最新 `v0.30.5-nightly.20260929.36522098176`。Swift 版 `cua-driver-v*` 23 条，最新 `v0.2.0`（2026-05-17）。
++- 看过的资产（全部 `https://github.com/trycua/cua/releases/download/<tag>/<asset>`）：
++  - `cua-driver-rs-v0.35.4/cua-driver-rs-0.35.4-darwin-universal.tar.gz`（83035346 字节）
++  - `cua-driver-rs-v0.35.2/cua-driver-rs-0.35.2-darwin-universal.tar.gz`（82320275 字节）
++  - `nightly-cua-driver-rs-v0.30.5-nightly.20260929.36522098176/cua-driver-rs-0.30.5-nightly.20260929.36522098176-darwin-universal.tar.gz`
++    → `com.trycua.driver`、`0.30.5`/`0.30.5`、YCK386LBJ7、Notarized Developer ID
++  - Rust `v0.1.3`、`v0.1.4` universal → 无 `.app`
++  - Rust `v0.2.0`/`v0.2.1`/`v0.2.2`/`v0.2.3` universal → `CuaDriverRs.app`、`com.trycua.cuadriverrs`、YCK386LBJ7
++  - Rust `v0.2.4`/`v0.2.5`/`v0.2.18`/`v0.3.1` universal → `CuaDriver.app`、`com.trycua.driver`、YCK386LBJ7
++  - Swift `cua-driver-v0.1.0`、`cua-driver-v0.2.0` 的 `darwin-arm64.tar.gz` → `com.trycua.driver`、
++    `0.1.0`/`0.2.0`、`CFBundleVersion=1`、YCK386LBJ7，`spctl` 通过
++- 列表深度（按 API 返回顺序，全部 770 条）：driver stable 之间超过 10 行的间隔有五次：22（止于 v0.32.0）、
++  18（v0.19.3）、15（v0.33.1）、12（v0.20.0）、11（v0.17.0）。
++- `feed-discover` 对 0.35.4 的 bundle：`no Sparkle and no electron-builder update config`。
++- Homebrew `cuadriver` cask 当时是 0.35.2，URL 就是 universal tarball，没有 `auto_updates`，没有 `livecheck`。
++- 厂商安装脚本 `_install-rust.sh` 当时 `CUA_DRIVER_RS_BAKED_VERSION="0.35.4"`、
++  `CUA_DRIVER_RS_WITHDRAWN_VERSIONS="0.28.3"`。

@@ -1875,3 +1875,387 @@ runs:
     reference_graded: "2026-10-14"
     probe: "ok"
     head: "94b0acd Spotifast audit: correct release counts, measure the rename bound, spell out the old-id gap"
+  - run: "cuadriver-om-base-1"
+    round: "6"
+    date: "2026-10-14"
+    case: "cuadriver"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "0", "diff_base": "26d1e0189fa3c8185a8dceeef9826a392b45f048", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 8.56
+    minutes: 22.8
+    turns: 118
+    make_test_rc: "2"
+    grader: "legacy"
+    vs_main: "DIFF(4)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "6c11047 Cua Driver: detect its GitHub releases and install them in one click"
+  - run: "pdfcraft-om-base-1"
+    round: "6"
+    date: "2026-10-14"
+    case: "pdfcraft"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "0", "diff_base": "2372cfaa7f1cb1ae7816768cc8727647fdc8fe64", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 3.52
+    minutes: 34.1
+    turns: 62
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(4)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "dd43f30 PdfCraft (formerly PrintCraft): GitHub Releases detection and one-click"
+  - run: "swiftvm-om-base-1"
+    round: "6"
+    date: "2026-10-14"
+    case: "swiftvm"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "0", "diff_base": "90f84159738b4464d0ad4e01d0d59fa77f66f2df", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 4.1
+    minutes: 20.5
+    turns: 68
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "1aa69ca SwiftVM: beta channel binding and GitHub release notes"
+  - run: "t3code-om-base-1"
+    round: "6"
+    date: "2026-10-14"
+    case: "t3code"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "0", "diff_base": "29677f4eab0820d6c0862e84b409864c5c25b7c2", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 6.26
+    minutes: 17.3
+    turns: 110
+    make_test_rc: "0"
+    grader: "none (base predates the legacy grader APIs; judged by hand)"
+    vs_main: "DIFF(1)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "bceb65c feat(recipe): detect and one-click install T3 Code stable"
+  - run: "tinycast-om-base-1"
+    round: "6"
+    date: "2026-10-14"
+    case: "tinycast"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "0", "diff_base": "fe6df0bbcd9bb83c6347e9a1f792f6fab233f77a", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 5.32
+    minutes: 15.3
+    turns: 77
+    make_test_rc: "2"
+    grader: "legacy"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "0994abf Tinycast: detect stable and beta GitHub releases, detection-only"
+  - run: "whatcable-om-base-1"
+    round: "6"
+    date: "2026-10-14"
+    case: "whatcable"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "0", "diff_base": "43bc8aa7ced51249f00677507b886642df41fa25", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 4.73
+    minutes: 16.0
+    turns: 86
+    make_test_rc: "0"
+    grader: "none (base predates the legacy grader APIs; judged by hand)"
+    vs_main: "DIFF(1)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "b266586 Track WhatCable — stable and beta, one-click zip on both"
+  - run: "cuadriver-om-base-2"
+    round: "6"
+    date: "2026-10-14"
+    case: "cuadriver"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "0", "diff_base": "26d1e0189fa3c8185a8dceeef9826a392b45f048", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 6.78
+    minutes: 20.2
+    turns: 100
+    make_test_rc: "2"
+    grader: "legacy"
+    vs_main: "DIFF(4)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "e2d6742 Cua Driver: detect and install its GitHub releases"
+  - run: "pdfcraft-om-base-2"
+    round: "6"
+    date: "2026-10-14"
+    case: "pdfcraft"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "0", "diff_base": "2372cfaa7f1cb1ae7816768cc8727647fdc8fe64", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 2.16
+    minutes: 9.8
+    turns: 42
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(4)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "84bfb1a PdfCraft: GitHub Releases detection and one-click (PrintCraft renamed, new bundle id)"
+  - run: "swiftvm-om-base-2"
+    round: "6"
+    date: "2026-10-14"
+    case: "swiftvm"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "0", "diff_base": "90f84159738b4464d0ad4e01d0d59fa77f66f2df", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 4.1
+    minutes: 17.2
+    turns: 64
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "566b62a SwiftVM: beta channel binding and structured changelogs from GitHub Releases"
+  - run: "t3code-om-base-2"
+    round: "6"
+    date: "2026-10-14"
+    case: "t3code"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "0", "diff_base": "29677f4eab0820d6c0862e84b409864c5c25b7c2", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 5.45
+    minutes: 14.9
+    turns: 96
+    make_test_rc: "0"
+    grader: "none (base predates the legacy grader APIs; judged by hand)"
+    vs_main: "DIFF(1)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "b32eb98 recipes(t3code): cover T3 Code stable via GitHubReleasesSource"
+  - run: "tinycast-om-base-2"
+    round: "6"
+    date: "2026-10-14"
+    case: "tinycast"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "0", "diff_base": "fe6df0bbcd9bb83c6347e9a1f792f6fab233f77a", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 5.25
+    minutes: 13.9
+    turns: 79
+    make_test_rc: "2"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "24fbac1 Tinycast: detect its GitHub releases, stable and beta, detection-only"
+  - run: "whatcable-om-base-2"
+    round: "6"
+    date: "2026-10-14"
+    case: "whatcable"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "0", "diff_base": "43bc8aa7ced51249f00677507b886642df41fa25", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 2.85
+    minutes: 11.2
+    turns: 61
+    make_test_rc: "0"
+    grader: "none (base predates the legacy grader APIs; judged by hand)"
+    vs_main: "DIFF(1)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "4ee25ea Track WhatCable — v-tags, versionless universal zip"
+  - run: "cuadriver-om-skill-1"
+    round: "6"
+    date: "2026-10-14"
+    case: "cuadriver"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "1", "diff_base": "11aa6f697ed7428a40a2bfa71e09454ed6670bc0", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 7.93
+    minutes: 22.5
+    turns: 116
+    make_test_rc: "2"
+    grader: "legacy"
+    vs_main: "DIFF(4)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "7616b11 Cua Driver: detect its GitHub releases, one-click install, changelog"
+  - run: "pdfcraft-om-skill-1"
+    round: "6"
+    date: "2026-10-14"
+    case: "pdfcraft"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "1", "diff_base": "6f2478db9c61fde2c6f2e2ec465e394ed0871ac4", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 3.61
+    minutes: 14.8
+    turns: 63
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(4)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "53ad37f PdfCraft: follow PrintCraft's rename to storytold/pdfcraft and ai.storyteller.pdfcraft"
+  - run: "swiftvm-om-skill-1"
+    round: "6"
+    date: "2026-10-14"
+    case: "swiftvm"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "1", "diff_base": "1a7a8f6b880c50c1a0dd98f84c1199791b20a967", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 4.9
+    minutes: 25.2
+    turns: 78
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "b1f2c00 SwiftVM: follow the beta feed its bundle declares, changelog from GitHub releases"
+  - run: "t3code-om-skill-1"
+    round: "6"
+    date: "2026-10-14"
+    case: "t3code"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "1", "diff_base": "323bb09c5790d8f78efcf4c7725a848354bcb60e", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 5.1
+    minutes: 15.1
+    turns: 83
+    make_test_rc: "0"
+    grader: "none (base predates the legacy grader APIs; judged by hand)"
+    vs_main: "DIFF(1)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "256db2c recipes(t3code): cover T3 Code stable and nightly via GitHubReleasesSource"
+  - run: "tinycast-om-skill-1"
+    round: "6"
+    date: "2026-10-14"
+    case: "tinycast"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "1", "diff_base": "c75c156b33a30e2426b4d070adf155de2db38140", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 6.57
+    minutes: 18.5
+    turns: 92
+    make_test_rc: "2"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "29b5557 Tinycast: detect its GitHub releases, stable and beta, detection-only"
+  - run: "whatcable-om-skill-1"
+    round: "6"
+    date: "2026-10-14"
+    case: "whatcable"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "1", "diff_base": "6f4c989c956864ee3d74c4e954f1c71cc20238d3", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 7.46
+    minutes: 21.8
+    turns: 125
+    make_test_rc: "0"
+    grader: "none (base predates the legacy grader APIs; judged by hand)"
+    vs_main: "DIFF(1)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "e0aea58 Track WhatCable — stable + beta, one-click zip, pre-rename id"
+  - run: "cuadriver-om-skill-2"
+    round: "6"
+    date: "2026-10-14"
+    case: "cuadriver"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "1", "diff_base": "e59ea76dfc0d04afab6ce6a042c0a156ac608673", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 8.15
+    minutes: 25.2
+    turns: 113
+    make_test_rc: "2"
+    grader: "legacy"
+    vs_main: "MATCH"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "db70934 Cua Driver: detect its GitHub releases, one-click the universal tarball"
+  - run: "pdfcraft-om-skill-2"
+    round: "6"
+    date: "2026-10-14"
+    case: "pdfcraft"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "1", "diff_base": "73b6c13d0177fa55239357772116f14e039f1b98", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 3.64
+    minutes: 15.5
+    turns: 62
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(4)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "5f569ab Track PdfCraft (PrintCraft renamed) via GitHub releases, with one-click install"
+  - run: "swiftvm-om-skill-2"
+    round: "6"
+    date: "2026-10-14"
+    case: "swiftvm"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "1", "diff_base": "b00941a6c4e692e5d615aa0660d5df3faee28920", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 3.72
+    minutes: 13.7
+    turns: 62
+    make_test_rc: "0"
+    grader: "current"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "82da090 SwiftVM: Sparkle stable, a binding for its beta feed, GitHub release notes for both"
+  - run: "t3code-om-skill-2"
+    round: "6"
+    date: "2026-10-14"
+    case: "t3code"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "1", "diff_base": "27fc0519ec9b0a133306aeeb6613879a48aae465", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 6.28
+    minutes: 28.1
+    turns: 100
+    make_test_rc: "0"
+    grader: "none (base predates the legacy grader APIs; judged by hand)"
+    vs_main: "DIFF(1)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "095692c recipes(t3code): cover T3 Code stable + nightly via GitHubReleasesSource"
+  - run: "tinycast-om-skill-2"
+    round: "6"
+    date: "2026-10-14"
+    case: "tinycast"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "1", "diff_base": "d6eab27ec36940468a4a3ffb384bc04d13795c15", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 6.02
+    minutes: 15.2
+    turns: 91
+    make_test_rc: "2"
+    grader: "legacy"
+    vs_main: "DIFF(2)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "ff9a93e Tinycast: detect its stable and beta GitHub releases, detection-only"
+  - run: "whatcable-om-skill-2"
+    round: "6"
+    date: "2026-10-14"
+    case: "whatcable"
+    config: {"mode": "single", "model": "claude-opus-5-5", "effort": "medium", "brief": "brief.md", "skill": "1", "diff_base": "243ccfee96643c3a25eef888848152e67d9d36bb", "env": {"unset": ["CLAUDE_EFFORT"], "kept": "CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}, "permission_mode": "auto", "disallowed_tools": ["Bash(make install:*)", "Bash(make cli:*)", "Bash(duo:*)", "Bash(pkill:*)", "Bash(killall:*)", "Bash(git stash:*)", "Bash(git push:*)", "Bash(gh pr create:*)", "Bash(gh issue create:*)", "Bash(open:*)", "Bash(sudo:*)", "Bash(ditto:*)"]}
+    claude_code: "2.1.296"
+    cost_usd: 4.95
+    minutes: 14.0
+    turns: 89
+    make_test_rc: "0"
+    grader: "none (base predates the legacy grader APIs; judged by hand)"
+    vs_main: "DIFF(1)"
+    reference_commit: "f33dffa0691952f855d9613a8da882114eb4800e"
+    reference_graded: "2026-10-14"
+    probe: null
+    head: "dfe3c60 Track WhatCable — stable and beta one-click, plus the pre-rename id"

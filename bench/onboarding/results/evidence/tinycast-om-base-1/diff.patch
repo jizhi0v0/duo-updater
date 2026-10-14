@@ -1,0 +1,579 @@
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index 46a7d29..8766fed 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -141,6 +141,7 @@ public enum AppRecipeIndex {
+         com_theron_UnnaturalScrollWheels.set,
+         com_tigervnc_tigervnc.set,
+         com_tinyapp_tableplus.set,
++        com_tinycast_app.set,
+         com_tinyspeck_slackmacgap.set,
+         com_todesktop_230313mzl4w4u92.set,
+         com_trycua_driver.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-tinycast-app.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-tinycast-app.swift
+new file mode 100644
+index 0000000..c0b662a
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-tinycast-app.swift
+@@ -0,0 +1,92 @@
++import Foundation
++
++enum com_tinycast_app {
++    static let set = AppRecipeSet(
++        family: "com-tinycast-app",
++        changelogs: [
++        // History: docs/app-audits/com-tinycast-app.md#历史与实测
++        //
++        // Tinycast — the release bodies ARE the changelog: the vendor's
++        // `Scripts/release-notes.sh` writes GitHub's generated "What's Changed"
++        // list (diffed against the previous tag OF THE SAME CHANNEL) above a
++        // `<!-- tinycast:install -->` marker, and install boilerplate below it.
++        // The boilerplate is paragraphs and a fenced block, never a bullet, so the
++        // bullet pass stops at the list and never reaches it.
++        //
++        // Two recipes because the two tracks are two bundle ids
++        // (`com.tinycast.app` / `com.tinycast.app.beta`), same shape as Cline's
++        // pair (`Recipes/bot-cline-app.swift`), and for the same reason
++        // `includesPromotedStable` stays false on the beta one: a stable release
++        // is a different app on disk, never a build the beta row is offered.
++        //
++        // `tagPattern` is a filter here, not a version extractor: the repo also
++        // carries `v*-sequoia` prereleases (macOS 15 side builds, last one
++        // 2026-08-19) and one `v0.5.7-alpha.22`, all flagged prerelease, so the
++        // beta rail would render them as betas without it.
++        ChangelogRecipe(
++            bundleID: "com.tinycast.app",
++            source: URL(string: "https://api.github.com/repos/abue-ammar/tinycast/releases?per_page=40")!,
++            mode: .json,
++            maxEntries: 20,
++            channel: .stable,
++            structuredFormat: .gitHubReleases,
++            tagPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#),
++
++        ChangelogRecipe(
++            bundleID: "com.tinycast.app.beta",
++            source: URL(string: "https://api.github.com/repos/abue-ammar/tinycast/releases?per_page=40")!,
++            mode: .json,
++            maxEntries: 20,
++            channel: .beta,
++            structuredFormat: .gitHubReleases,
++            tagPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+)$"#),
++        ],
++        githubRules: [
++        // Tinycast — an open-source launcher (`abue-ammar/tinycast`) whose own
++        // updater reads this same Releases list (`ReleaseFeed.swift`); the bundle
++        // carries no `SUFeedURL` and Homebrew core has no cask (only the vendor's
++        // own tap). The release workflow builds each channel as a separate
++        // side-by-side app: stable `Tinycast.app` / `com.tinycast.app`, beta
++        // `Tinycast Beta.app` / `com.tinycast.app.beta` — Pattern A, so each rule
++        // is keyed on its own bundle id and never has to tell the tracks apart
++        // inside one id.
++        //
++        // `MARKETING_VERSION` is the full tag minus `v` and `CURRENT_PROJECT_VERSION`
++        // is the workflow run number, so `CFBundleShortVersionString` equals the
++        // captured version on both tracks (`0.11.19`, `0.11.21-beta.120` on the
++        // mounted dmgs) and nothing needs `versionIsBuild`.
++        //
++        // Detection-only, permanently, and not a backlog item: every release is
++        // signed with a self-signed certificate ("Tinycast Self-Signed",
++        // `--timestamp=none`), never notarized — the release bodies say so. The
++        // mounted bundles read `TeamIdentifier=not set` and `spctl` rejects them,
++        // so `SignatureVerifier` gate 3 (`noTeamIdentifier`) would refuse every
++        // swap. An `installAssetPattern` here could only produce an Update button
++        // that always fails. `TinycastGitHubRuleTests` pins that.
++        //
++        // Stable reads `/releases/latest`. The anchors matter: the `-sequoia`
++        // side builds are flagged prerelease today, so `/releases/latest` never
++        // returns one, but an unanchored pattern would read `v0.9.7-sequoia` as
++        // `0.9.7` the day one is published unflagged.
++        GitHubReleaseRule(
++            bundleID: "com.tinycast.app",
++            owner: "abue-ammar", repo: "tinycast",
++            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#),
++
++        // Tinycast Beta — the vendor's beta channel accepts prereleases only
++        // (`ReleaseChannel.accepts(prerelease:)` in its source) and a beta never
++        // graduates onto stable, because stable is a different bundle id. So the
++        // pattern requires `-beta.<N>` and drops `-sequoia` / `-alpha` tags.
++        //
++        // listPageSize stays at the default 20, above the measured floor of 5
++        // registered in `GitHubListPageSizeTests.measuredMinimumDepth` (History
++        // has the walk). The newest release is a beta on most rounds, so
++        // `probesNewestFirst` usually answers with a page of one.
++        GitHubReleaseRule(
++            bundleID: "com.tinycast.app.beta",
++            owner: "abue-ammar", repo: "tinycast",
++            usePrereleases: true,
++            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+)$"#,
++            channel: .beta),
++        ])
++}
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListPageSizeTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListPageSizeTests.swift
+index 68939e8..6f3e5f7 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListPageSizeTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListPageSizeTests.swift
+@@ -74,6 +74,10 @@ struct GitHubListPageSizeTests {
+         // the nightly train is younger than the 100-row window.)
+         "com.trycua.driver/nightly": 9,
+         "uk.whatcable.whatcable/beta": 1,     // gap 0 (all 100 tags match), +1
++        // Tinycast Beta: newest 100 releases on 2026-10-14, 76 `-beta.N` tags;
++        // worst gap 4 (v0.9.5 → v0.9.2-beta.49: two stables and a `-sequoia`
++        // side build between), so 5. The rule keeps the default 20.
++        "com.tinycast.app.beta/beta": 5,
+         // CotEditor: gap 0 — its beta rule accepts plain tags as well as `-beta`
+         // ones (a cyclical train whose copies must be able to take the release
+         // that graduates from them, see the rule), so all 100 tags match and the
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/TinycastGitHubRuleTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/TinycastGitHubRuleTests.swift
+new file mode 100644
+index 0000000..cf3f33e
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/TinycastGitHubRuleTests.swift
+@@ -0,0 +1,157 @@
++import Testing
++import Foundation
++@testable import DuoUpdaterCore
++
++/// Tinycast (`abue-ammar/tinycast`) ships two side-by-side apps from one
++/// Releases list — `com.tinycast.app` (stable) and `com.tinycast.app.beta` —
++/// plus a retired `-sequoia` side track and one early `-alpha` tag. Every
++/// release is self-signed and not notarized, so both rules are detection-only.
++/// These pin the decisions that are easy to undo by accident, against the
++/// strings the vendor actually publishes.
++///
++/// See `docs/app-audits/com-tinycast-app.md` for the measurements.
++@Suite struct TinycastGitHubRuleTests {
++
++    private static let bundleIDs = ["com.tinycast.app", "com.tinycast.app.beta"]
++
++    /// EVERY rule either bundle id carries, so a third rule (say a second beta
++    /// endpoint) cannot slip past the detection-only guard by not being first.
++    /// Non-empty is required: a typo'd id or an unregistered family must fail
++    /// here rather than leave the suite green over nothing.
++    private static var rules: [GitHubReleaseRule] {
++        get throws {
++            let found = GitHubReleaseRegistry.rules.filter { bundleIDs.contains($0.bundleID) }
++            try #require(!found.isEmpty, "Tinycast is no longer in GitHubReleaseRegistry")
++            return found
++        }
++    }
++
++    private static func rule(_ bundleID: String, _ channel: ReleaseChannel) throws -> GitHubReleaseRule {
++        try #require(
++            GitHubReleaseRegistry.rules.first { $0.bundleID == bundleID && $0.channel == channel },
++            "\(bundleID) has no \(channel) rule any more")
++    }
++
++    /// Every artifact is signed "Tinycast Self-Signed" and carries no Team
++    /// Identifier (mounted v0.11.19, v0.11.12, v0.11.21-beta.120,
++    /// v0.11.20-beta.119), so `SignatureVerifier` gate 3 refuses the swap with
++    /// `noTeamIdentifier`. An install pattern could only produce an Update
++    /// button that always fails.
++    @Test func tinycastStaysDetectionOnly() throws {
++        let rules = try Self.rules
++        #expect(rules.count == 2, "expected one stable and one beta rule, found \(rules.count)")
++        for rule in rules {
++            #expect(rule.installAssetPattern == nil,
++                    "\(rule.bundleID) (\(rule.channel)): Tinycast is self-signed — an install pattern can only fail the Team-ID gate")
++            #expect(rule.installerKind == nil, "\(rule.bundleID) (\(rule.channel)): see above")
++        }
++    }
++
++    /// Each track is its own bundle id, and each rule must be on the channel
++    /// production detects for that id — otherwise the channel gate refuses
++    /// the rule and the row reads "Failed" forever. `detect` is fed the real
++    /// identity read off the mounted dmgs (name, bundle id, short version).
++    @Test(arguments: [
++        ("Tinycast", "com.tinycast.app", "0.11.19", ReleaseChannel.stable),
++        ("Tinycast Beta", "com.tinycast.app.beta", "0.11.21-beta.120", ReleaseChannel.beta),
++    ])
++    func eachBundleIsDetectedOnItsRulesChannel(
++        name: String, bundleID: String, version: String, channel: ReleaseChannel
++    ) throws {
++        let detected = ReleaseChannel.detect(
++            name: name, bundleID: bundleID, keystoneChannel: nil, version: version)
++        #expect(detected == channel)
++        _ = try Self.rule(bundleID, channel)
++    }
++
++    /// Real tags as published on 2026-10-14, and what each rule reads out of
++    /// them — `extractVersion` is the call `GitHubReleasesSource` makes on every
++    /// release it walks. The captured version must equal the bundle's
++    /// `CFBundleShortVersionString`, which carries the full `-beta.N` suffix.
++    @Test(arguments: [
++        ("v0.11.19", "0.11.19", "nil-beta"),
++        ("v0.11.12", "0.11.12", "nil-beta"),
++        ("v0.11.21-beta.120", "nil-stable", "0.11.21-beta.120"),
++        ("v0.11.20-beta.119", "nil-stable", "0.11.20-beta.119"),
++        // The retired macOS 15 side track and the one early alpha: flagged
++        // prerelease on GitHub, and neither rule may read them.
++        ("v0.9.7-sequoia", "nil-stable", "nil-beta"),
++        ("v0.5.7-alpha.22", "nil-stable", "nil-beta"),
++    ])
++    func realTagsResolveOnlyOnTheirOwnTrack(tag: String, stable: String, beta: String) throws {
++        let stableRule = try Self.rule("com.tinycast.app", .stable)
++        let betaRule = try Self.rule("com.tinycast.app.beta", .beta)
++        #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: stableRule.versionPattern)
++                == (stable.hasPrefix("nil") ? nil : stable))
++        #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: betaRule.versionPattern)
++                == (beta.hasPrefix("nil") ? nil : beta))
++    }
++
++    /// The mutation the anchors exist for: with the registry's default
++    /// unanchored pattern a `-sequoia` tag reads as plain `0.9.7`, a macOS 15
++    /// build offered under the stable id.
++    @Test func theDefaultPatternWouldReadASequoiaTag() {
++        #expect(VendorProbeRecipe.extractVersion(
++            from: "v0.9.7-sequoia", pattern: #"v?([0-9]+(?:\.[0-9]+)+)"#) == "0.9.7")
++    }
++
++    /// The beta rule reads the list; the stable rule reads `/releases/latest`,
++    /// which GitHub computes with prereleases (every beta, every `-sequoia`)
++    /// excluded.
++    @Test func onlyTheBetaRuleReadsPrereleases() throws {
++        #expect(try Self.rule("com.tinycast.app", .stable).usePrereleases == false)
++        #expect(try Self.rule("com.tinycast.app.beta", .beta).usePrereleases == true)
++    }
++
++    // MARK: - Changelog
++
++    /// A cut-down page of the real `releases?per_page=40` response
++    /// (2026-10-14): the newest beta, the newest stable, a "Maintenance" beta,
++    /// and a `-sequoia` prerelease. Bodies are verbatim apart from the
++    /// What's Changed list being shortened.
++    private static let releasesFixture = #"""
++    [
++      {"tag_name": "v0.11.21-beta.120", "prerelease": true, "draft": false,
++       "published_at": "2026-10-13T22:08:37Z",
++       "body": "## What's Changed\n* Fix palette menu clicks and cropping; prefer synchronous code by @abue-ammar in #1475\n* Load bundled extension dependencies by @szupzj18 in #1489\n\n<!-- tinycast:install -->\n\n**Channel:** beta · **Version:** 0.11.21-beta.120 · **Bundle ID:** `com.tinycast.app.beta`\n\n**Recommended:** install via Homebrew:\n```sh\nbrew install --cask abue-ammar/tinycast/tinycast@beta\n```\nThis build is self-signed.\n"},
++      {"tag_name": "v0.11.19", "prerelease": false, "draft": false,
++       "published_at": "2026-10-10T15:14:51Z",
++       "body": "## What's Changed\n* Add local Dictation and expand keyboard shortcut capabilities by @Risengan in #1280\n* Close AI Chat with Escape by @abue-ammar in #1309\n\n## New Contributors\n* @barissglc made their first contribution in #1284\n\n<!-- tinycast:install -->\n\n**Channel:** stable · **Version:** 0.11.19 · **Bundle ID:** `com.tinycast.app`\n\n**Recommended:** install via Homebrew:\n```sh\nbrew install --cask abue-ammar/tinycast/tinycast\n```\nOn an **Intel** Mac, install `abue-ammar/tinycast/tinycast-universal` instead — same app, built with both slices.\nThis build is self-signed.\n"},
++      {"tag_name": "v0.10.14-beta.82", "prerelease": true, "draft": false,
++       "published_at": "2026-09-06T19:34:09Z",
++       "body": "Maintenance and internal changes.\n\n<!-- tinycast:install -->\n\n**Channel:** beta · **Version:** 0.10.14-beta.82 · **Bundle ID:** `com.tinycast.app.beta`\n"},
++      {"tag_name": "v0.9.7-sequoia", "prerelease": true, "draft": false,
++       "published_at": "2026-08-19T20:12:44Z",
++       "body": "**Channel:** stable · macOS 15 Sequoia\n**Version:** 0.9.7-sequoia\n\nThis is the **macOS 15 (Sequoia)** build.\n"}
++    ]
++    """#
++
++    private static func changelog(for bundleID: String, _ channel: ReleaseChannel) throws -> Changelog {
++        let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: bundleID, channel: channel))
++        #expect(recipe.bundleID == bundleID && recipe.channel == channel,
++                "\(bundleID) resolved to another app's or channel's recipe")
++        let format = try #require(recipe.structuredFormat)
++        return try #require(StructuredChangelogDecoder.decode(
++            releasesFixture, format: format, channel: recipe.channel,
++            maxEntries: recipe.maxEntries, skipSections: recipe.skipSections,
++            includesPromotedStable: recipe.includesPromotedStable, tagPattern: recipe.tagPattern))
++    }
++
++    /// Each app sees only its own track, and the `-sequoia` prerelease reaches
++    /// neither: without `tagPattern` the beta rail would list it as a beta.
++    @Test func eachRailListsOnlyItsOwnTags() throws {
++        #expect(try Self.changelog(for: "com.tinycast.app", .stable).entries.map(\.version)
++                == ["0.11.19"])
++        #expect(try Self.changelog(for: "com.tinycast.app.beta", .beta).entries.map(\.version)
++                == ["0.11.21-beta.120", "0.10.14-beta.82"])
++    }
++
++    /// The What's Changed bullets become the entry; New Contributors and the
++    /// install boilerplate under `<!-- tinycast:install -->` do not.
++    @Test func theInstallBoilerplateIsNotAChange() throws {
++        let entry = try #require(Self.changelog(for: "com.tinycast.app", .stable).entries.first)
++        #expect(entry.items.count == 2, "\(entry.items)")
++        #expect(entry.items.first?.hasPrefix("Add local Dictation") == true)
++        #expect(!entry.items.contains { $0.contains("Homebrew") || $0.contains("first contribution") })
++    }
++}
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-tinycast-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-tinycast-app.txt
+new file mode 100644
+index 0000000..319f5f3
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-tinycast-app.txt
+@@ -0,0 +1,106 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "com-tinycast-app"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 2)
++changelogs[0] = struct ChangelogRecipe
++changelogs[0].bundleID = "com.tinycast.app"
++changelogs[0].source = URL("https://api.github.com/repos/abue-ammar/tinycast/releases?per_page=40")
++changelogs[0].sourceTemplate = nil
++changelogs[0].mode = .json
++changelogs[0].entryPattern = ""
++changelogs[0].itemPatterns = Array(count: 0)
++changelogs[0].stripTags = true
++changelogs[0].decodeEntities = true
++changelogs[0].escapedMarkup = false
++changelogs[0].markdownSource = false
++changelogs[0].maxEntries? = 20
++changelogs[0].minItemLength = 1
++changelogs[0].newestLast = false
++changelogs[0].indexLinkPattern = nil
++changelogs[0].feedPagePattern = nil
++changelogs[0].channel? = .stable
++changelogs[0].includesPromotedStable = false
++changelogs[0].imagePattern = nil
++changelogs[0].headingPattern = nil
++changelogs[0].minimumAppVersion = nil
++changelogs[0].belowAppVersion = nil
++changelogs[0].acknowledgedStaleEntry = nil
++changelogs[0].structuredFormat? = .gitHubReleases
++changelogs[0].httpMethod = .get
++changelogs[0].requestBody = nil
++changelogs[0].skipSections = Array(count: 0)
++changelogs[0].tagPattern? = "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
++changelogs[1] = struct ChangelogRecipe
++changelogs[1].bundleID = "com.tinycast.app.beta"
++changelogs[1].source = URL("https://api.github.com/repos/abue-ammar/tinycast/releases?per_page=40")
++changelogs[1].sourceTemplate = nil
++changelogs[1].mode = .json
++changelogs[1].entryPattern = ""
++changelogs[1].itemPatterns = Array(count: 0)
++changelogs[1].stripTags = true
++changelogs[1].decodeEntities = true
++changelogs[1].escapedMarkup = false
++changelogs[1].markdownSource = false
++changelogs[1].maxEntries? = 20
++changelogs[1].minItemLength = 1
++changelogs[1].newestLast = false
++changelogs[1].indexLinkPattern = nil
++changelogs[1].feedPagePattern = nil
++changelogs[1].channel? = .beta
++changelogs[1].includesPromotedStable = false
++changelogs[1].imagePattern = nil
++changelogs[1].headingPattern = nil
++changelogs[1].minimumAppVersion = nil
++changelogs[1].belowAppVersion = nil
++changelogs[1].acknowledgedStaleEntry = nil
++changelogs[1].structuredFormat? = .gitHubReleases
++changelogs[1].httpMethod = .get
++changelogs[1].requestBody = nil
++changelogs[1].skipSections = Array(count: 0)
++changelogs[1].tagPattern? = "^v([0-9]+\\.[0-9]+\\.[0-9]+-beta\\.[0-9]+)$"
++
++githubRules = Array(count: 2)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "com.tinycast.app"
++githubRules[0].owner = "abue-ammar"
++githubRules[0].repo = "tinycast"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern = nil
++githubRules[0].installerKind = nil
++githubRules[1] = struct GitHubReleaseRule
++githubRules[1].bundleID = "com.tinycast.app.beta"
++githubRules[1].owner = "abue-ammar"
++githubRules[1].repo = "tinycast"
++githubRules[1].usePrereleases = true
++githubRules[1].listPageSize = 20
++githubRules[1].versionPattern = "^v([0-9]+\\.[0-9]+\\.[0-9]+-beta\\.[0-9]+)$"
++githubRules[1].candidateScope = .newest
++githubRules[1].probesNewestFirst = true
++githubRules[1].installedTagPrefix = nil
++githubRules[1].channel = .beta
++githubRules[1].installAssetPattern = nil
++githubRules[1].installerKind = nil
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index f123926..5e9c38a 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -239,6 +239,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**Ollama**](com-electron-ollama.md) · `com.electron.ollama` — C + G (one-click zip, best-effort)
+ - [x] [**Petex**](ad-neko-petex.md) · `ad.neko.petex` — G (**detection-only**) · 真包 v1.0.10 arm64 dmg 挂载验证 ✓ · 产物 ad-hoc 签名、无 Team ID、`--deep --strict` 与 `spctl` 各退 1 → **一键永久不可** · 厂商不写发布说明（release 正文只有一行 `Full Changelog`），**changelog 结构化无从做起**，不加 recipe · patch 位是 commit height（每次推 master 发一版）· 2026-09-16
+ - [x] [**Cua Driver**](com-trycua-driver.md) · `com.trycua.driver` — G (one-click `darwin-universal.tar.gz`) · **本机装了真包、钉旧版 0.28.1 → `duo install` 升回 0.28.2 走通**（inode 变、Team YCK386LBJ7 不变、`--deep --strict` 与 `spctl` 各退 0、厂商自己的 `cua-driver doctor` 六项全绿）· ⚠️ **stable tag 全部被厂商标成 prerelease**（monorepo 的 "Latest" 指针之争，厂商在 release 正文里写明），`/releases/latest` 会答成 `sandbox-v0.8.0` —— **必须 `usePrereleases`** · ⚠️ nightly tag **内含**一个完整 stable tag，不锚就每夜读出一个没发布的版本 · changelog 走内联解析（`.gitHubReleases` recipe 在这里恒得 0 条目，prerelease 闸）· `listPageSize: 25`（下限 19 实测）· **nightly 轨也已接**：轨道在磁盘上不可分辨（三份真包的 short/build 全是裸 base），唯一信号是 `~/.cua-driver/release-channel`，`CuaDriverChannel` 是本 registry 第一个读普通文本文件的 binding；nightly rule 只能捕 base 版本，**同 base 内的后续 nightly 看不见（实测 52% 的 nightly 才会提示）**；分叉态（意图 nightly / 装的 stable）端到端验过，duo 把它带回 nightly 轨 ✓ · 2026-09-16
++- [x] [**Tinycast**](com-tinycast-app.md) · `com.tinycast.app` — G + C (**detection-only**, stable + beta) · 两轨是两个独立 bundle id（beta = `com.tinycast.app.beta`），pattern A · 四份真包挂载 + `channel-verify` 验证 ✓ · 自签名、无 Team ID、未公证 → **一键永久不可** · changelog 走 release body，两条 `.gitHubReleases` recipe，`tagPattern` 挡掉 `-sequoia` 侧轨 · 2026-10-14
+ 
+ ## Changelog-only (detection via Sparkle or Homebrew)
+ 
+diff --git a/docs/app-audits/com-tinycast-app.md b/docs/app-audits/com-tinycast-app.md
+new file mode 100644
+index 0000000..7a29e84
+--- /dev/null
++++ b/docs/app-audits/com-tinycast-app.md
+@@ -0,0 +1,161 @@
++# Tinycast
++
++## 基本信息
++- Bundle ID: `com.tinycast.app`（stable）/ `com.tinycast.app.beta`（beta，独立 app「Tinycast Beta」）
++- Team ID: **无** —— 自签名证书 "Tinycast Self-Signed"，`TeamIdentifier=not set`，未公证
++- 观测版本: stable `0.11.19`（build `118`）、beta `0.11.21-beta.120`（build `120`），2026-10-14
++- 自更新机制: **自研**。app 自己读 `api.github.com/repos/abue-ammar/tinycast/releases`
++  （源码 `Tinycast/Features/Updates/Model/ReleaseFeed.swift`），下载 zip 用 `ditto` 解开再替换
++- 分发: GitHub Releases（`abue-ammar/tinycast`）+ 厂商自己的 Homebrew tap
++  `abue-ammar/tinycast`（`tinycast` / `tinycast@beta` / `tinycast-universal`）。
++  Homebrew 官方仓库无 cask（`brew info --cask tinycast` → unavailable）。无 Sparkle feed。
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|------------|---------|----------|-----|--------|-------------|
++| **stable** | —       | —        | —   | ✓（检测-only） | —     |
++| **beta**   | —       | —        | —   | ✓（检测-only） | —     |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**（两轨都是，`channel-verify` 实测）。
++
++Homebrew 一栏是「—」：厂商 tap 不在 `HomebrewCaskSource` 读的范围内，GitHub 源已直接读同一份发布。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `com.tinycast.app` | 独立 | — | `/releases/latest` + tag 锚 `^vX.Y.Z$` | ✓ |
++| beta    | `com.tinycast.app.beta` | 独立 | bundle id 后缀 `.beta`（另有显示名 "Tinycast Beta"、版本 `-beta.N`） | 列表 + tag 锚 `^vX.Y.Z-beta.N$` | ✓ |
++| sequoia | `com.tinycast.app`（与 stable **共享**） | 共享 | 版本后缀 `-sequoia`，`detect` 不认 | — | ✗ 厂商已停更，见「已知问题」 |
++
++**Pattern A**，settled from source: `.github/workflows/release.yml` on `main`
++（`case "$CHANNEL"` 给 beta 设 `BUNDLE="com.tinycast.app.beta"`、`DISPLAY="Tinycast Beta"`、
++`PRERELEASE=true`；stable 设 `com.tinycast.app`、`PRERELEASE=false`），以及
++`Tinycast/Features/Updates/Model/ReleaseChannel.swift`（"Side-by-side apps with their own
++bundle ids"；stable 只收非 prerelease，beta 只收 prerelease，**beta 永不转正到 stable**）。
++所以不需要 `ChannelBinding`，beta rule 也不接受 stable tag（与 WhatCable 的 beta 相反：
++那边是同一 bundle id、beta 会毕业到 stable；这边 stable 是另一个 app）。
++
++## 更新检测
++- 源: `abue-ammar/tinycast` GitHub Releases。stable 走 `/releases/latest`（GitHub 定义上排除
++  prerelease），beta 走列表（`usePrereleases: true`）。
++- 版本方案（settled from source: `release.yml`）：`MARKETING_VERSION="$VERSION"`（完整 tag 去 `v`，
++  beta 含 `-beta.<run_number>`），`CURRENT_PROJECT_VERSION="$BUILD_NUMBER"`（workflow run number）。
++  所以 `CFBundleShortVersionString` == 捕获的版本，无需 `versionIsBuild`。挂载实测四份包全部吻合
++  （见「历史与实测」）。
++- tag 形状与 prerelease 标志一致：最新 100 条 release 里，`^vX.Y.Z$` 全是非 prerelease，
++  `^vX.Y.Z-beta.N$` 全是 prerelease；例外只有 3 条 `-sequoia` 与 1 条 `-alpha.22`，都是 prerelease，
++  两条 rule 的锚都不收。
++- beta 的 `listPageSize` 保持默认 20：最新 100 条里连续的非 beta tag 最长 4 条，下限 5，
++  登记在 `GitHubListPageSizeTests.measuredMinimumDepth`。
++- **读的是什么**: 轨道最新 = 人人可从 Releases 页手动下载的那一版。厂商没有灰度/分配
++  （app 自己的更新器也是在列表里取版本最大的那条），所以两者相同。
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | 不适用 |
++| 证据 | `ReleaseFeed.swift` 只挑 `.zip` 资产整包下载（"the updater expands an archive rather than mounting a volume"），无 patch 概念 | 每条 release 资产只有 dmg + zip（stable 另有 `-Universal-` 两个），2026-10-14 | 检测-only，不安装 |
++
++- 按架构分轨：stable 发 arm64 薄包 + `Tinycast-Universal-*` 通用包（给 Intel / macOS 26）；beta 只发 arm64。
++  检测-only，不选资产，所以不影响我们。
++- 按 OS 分轨：四份实测包 `LSMinimumSystemVersion` 全是 `26.0`；release body / API 里不带 min/max
++  字段。macOS 15 的 `-sequoia` 侧轨已停更（见「已知问题」）。
++- 自更新器会不会和我们抢：app 有自己的更新器（可关），但我们只检测、不替换 bundle，不存在抢写。
++
++## Changelog
++- 来源: GitHub release body。厂商 `Scripts/release-notes.sh` 用 GitHub 的 generate-notes（**按渠道**取
++  上一个同轨 tag 做 diff），正文 = "What's Changed" bullet 列表 + `<!-- tinycast:install -->` 标记 +
++  安装说明（段落和代码块，**没有 bullet**）。
++- 结构化：`GitHubMarkdownParser` 的严格 bullet 趟只取列表项，"New Contributors" 按关键词跳过，
++  标记以下的安装说明不是 bullet、不会进条目。`channel-verify` 显示 "0 chars inline"，即走了结构化路径。
++- Recipe 状态: **已有，两条** `.gitHubReleases`（`per_page=40`、`maxEntries: 20`，分别挂两个 bundle id），
++  带 `tagPattern` 把 `-sequoia` / `-alpha` 挡在 beta 栏之外。这样版本轨上能看到多条历史，而不只是
++  GitHub 源随检测带回来的最新一条。
++- 跟随 channel: 是（两个 bundle id 各一条 recipe；`includesPromotedStable` 为 false，理由同 Cline）。
++
++## 一键安装
++- 状态: **不支持，且不是待办**
++- 格式: dmg / zip（`ditto -c -k --keepParent`）
++- **读的是**: 轨道最新（= 人人可手动下载的那一版；见「更新检测」）
++- 阻塞: 产物没有 Developer ID 签名。`release.yml` 用 `CODE_SIGN_IDENTITY="Tinycast Self-Signed"`、
++  `OTHER_CODE_SIGN_FLAGS="--timestamp=none"`，没有公证步骤；release 正文自己写着
++  "This build is self-signed … macOS will refuse to open it until you clear the quarantine flag"。
++  挂载实测：`codesign --verify --deep --strict` 退 0（签名本身完整），但 `TeamIdentifier=not set`、
++  `spctl -a -t exec` 退 3（rejected）、`stapler validate` 无票据。`SignatureVerifier` gate 3
++  （`verifyTeamIdentifierMatch`）对没有 Team ID 的拷贝直接抛 `noTeamIdentifier`，所以挂
++  `installAssetPattern` 只会得到一个必定失败的 Update 按钮。`TinycastGitHubRuleTests.tinycastStaysDetectionOnly` 钉住。
++- 真机端到端安装：**未跑**（本次接入不做；而且按上面的闸本来也装不了）。
++
++## 已知问题
++- **`-sequoia` 侧轨与 stable 共享 `com.tinycast.app`。** 那是给 macOS 15 的单独构建
++  （`v0.9.7-sequoia` 等，版本串 `0.9.7-sequoia`，正文写 "Requires: macOS 15.0 or later"），
++  厂商 2026-09-14 提交 "Mark macOS 15 Sequoia as no longer maintained (#689)"。这样一份拷贝
++  `ReleaseChannel.detect` 读成 stable（`-sequoia` 不是渠道词），stable rule 会对它报 `0.11.19`，
++  而 0.11.19 要求 macOS 26。检测-only，所以最坏是一条指向 Releases 页、在 macOS 15 上装不了的
++  提示；`GitHubReleaseRule` 没有 `hostRequirement` 这类字段可以挡。没有为一条停更的侧轨加机制。
++- **两类 release 正文会让条目带噪声**：(1) 列表项保留 "by @user in #1304" 尾巴——厂商脚本把 PR URL
++  改写成了 `#N`，`cleanItem` 只剥 "in https://…" 那种写法；(2) 正文只有一句
++  "Maintenance and internal changes." 的 release（100 条里 2 条：`v0.10.14-beta.82`、`v0.10.1`）
++  没有 bullet，会落到散文趟，标记以下的 "**Channel:** …"、"**Recommended:** …" 等行也会被当成条目。
++  两者都是共享解析器的行为，本次没改（改它要动所有 GitHub 源 app 并 bump `parserGeneration`）。
++
++## 建议下一步
++1. 若厂商改用 Developer ID 签名并公证：两条 rule 补 `installAssetPattern`（stable `^Tinycast-[0-9.]+\.zip$`，
++   注意别吃到 `Tinycast-Universal-*`；beta `^Tinycast-[0-9.]+-beta\.[0-9]+\.zip$`）+ `installerKind: .zip`，
++   beta 还要一条 `githubChannelProofs`（`/download/v[0-9.]+-beta\.[0-9]+/`）。
++2. 若要去掉 changelog 里的 "by @user in #N" 尾巴，在 `GitHubMarkdownParser.cleanItem` 加 `#N` 写法并 bump
++   `parserGeneration`——影响所有 GitHub 源 app，需单独评估。
++
++## 如何复验
++
++```sh
++# tag 形状与 prerelease 标志
++gh api 'repos/abue-ammar/tinycast/releases?per_page=100' -q '.[] | "\(.tag_name)\t\(.prerelease)\t\(.draft)"'
++gh api repos/abue-ammar/tinycast/releases/latest -q .tag_name
++# 下载后挂载只读读身份与签名
++hdiutil attach -nobrowse -readonly -mountpoint <mnt> Tinycast-<v>.dmg
++/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "<mnt>/Tinycast.app/Contents/Info.plist"
++codesign -dvvv "<mnt>/Tinycast.app" 2>&1 | grep -E 'Authority|TeamIdentifier'
++spctl -a -vv -t exec "<mnt>/Tinycast.app"; echo $?
++# 生产检测链，对真包（只读挂载、自动卸载）
++swift run --package-path application-test channel-verify Tinycast-0.11.19.dmg --expect stable
++swift run --package-path application-test channel-verify Tinycast-0.11.21-beta.120.dmg --expect beta
++```
++
++`channel-verify` 实测（2026-10-14）：
++
++| 包 | bundle id | short / build | detected | winning | latest | status |
++|---|---|---|---|---|---|---|
++| `Tinycast-0.11.19.dmg` | `com.tinycast.app` | 0.11.19 / 118 | stable | GitHub | 0.11.19 | up to date |
++| `Tinycast-0.11.12.dmg` | `com.tinycast.app` | 0.11.12 / 110 | stable | GitHub | 0.11.19 | UPDATE → 0.11.19 |
++| `Tinycast-0.11.21-beta.120.dmg` | `com.tinycast.app.beta` | 0.11.21-beta.120 / 120 | beta | GitHub | 0.11.21-beta.120 | up to date |
++| `Tinycast-0.11.20-beta.119.dmg` | `com.tinycast.app.beta` | 0.11.20-beta.119 / 119 | beta | GitHub | 0.11.21-beta.120 | UPDATE → 0.11.21-beta.120 |
++
++## 历史与实测
++
++### 2026-10-14 —— 接入（两轨检测-only + changelog）
++
++- 检查过的资产（sha256 与 GitHub API 的 `digest` 字段逐字相符）：
++  - `https://github.com/abue-ammar/tinycast/releases/download/v0.11.19/Tinycast-0.11.19.dmg`（8888832 字节，`b8d0b19f…`）
++  - `https://github.com/abue-ammar/tinycast/releases/download/v0.11.12/Tinycast-0.11.12.dmg`（8416768 字节，`5bf7bf03…`）
++  - `https://github.com/abue-ammar/tinycast/releases/download/v0.11.21-beta.120/Tinycast-0.11.21-beta.120.dmg`（9121792 字节，`b2fe08b9…`）
++  - `https://github.com/abue-ammar/tinycast/releases/download/v0.11.20-beta.119/Tinycast-0.11.20-beta.119.dmg`（9065472 字节，`a9b6a55e…`）
++  - `https://github.com/abue-ammar/tinycast/releases/download/v0.11.19/Tinycast-0.11.19.zip`、
++    `…/v0.11.19/Tinycast-Universal-0.11.19.zip`（只下载核对 digest，未解包）
++- 四份 dmg 挂载读 `Info.plist`：无 `SUFeedURL`；`LSMinimumSystemVersion=26.0`；`lipo -archs` 为 `arm64`；
++  bundle id / short / build 见上表。`Contents/Frameworks` 不存在（无 Sparkle）。
++- 签名：四份都是 `Authority=Tinycast Self-Signed`、`TeamIdentifier=not set`、`flags=0x10000(runtime)`；
++  `codesign --verify --deep --strict` 退 0；`spctl -a -vv -t exec` 退 3（`rejected`，`origin=Tinycast Self-Signed`）；
++  `stapler validate`：无票据。
++- `/releases/latest` → `v0.11.19`（`prerelease: false`）。
++- 最新 100 条 release：stable 形 20 条、`-beta.N` 形 76 条、`-sequoia` 3 条（最新 `v0.9.7-sequoia`，2026-08-19）、
++  `-alpha.22` 1 条；beta 首条在第 0 位，连续非 beta 最长 4 条（`v0.9.5` 到 `v0.9.2-beta.49` 之间：
++  `v0.9.5`、`v0.9.4`、`v0.9.4-sequoia`、`v0.9.3`），下限 5。最新 40 条里 stable 形 6 条。
++- 变异验证：去掉 beta changelog recipe 的 `tagPattern`、把 stable `versionPattern` 换回 registry 默认的不锚
++  写法，`TinycastGitHubRuleTests` 的 `eachRailListsOnlyItsOwnTags` 与 `realTagsResolveOnlyOnTheirOwnTrack`
++  各自变红；还原后 7/7 绿。

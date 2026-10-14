@@ -1,0 +1,3 @@
+6c11047 Cua Driver: detect its GitHub releases and install them in one click
+26d1e01 Say when the App Store gave up instead of waiting out the poll budget (#682)
+2f39913 Stop offering to re-open a package that already installed (#681)

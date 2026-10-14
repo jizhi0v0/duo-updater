@@ -1,0 +1,386 @@
+diff --git a/CHANNEL_COVERAGE_TODO.md b/CHANNEL_COVERAGE_TODO.md
+index 2ed460f..5b83861 100644
+--- a/CHANNEL_COVERAGE_TODO.md
++++ b/CHANNEL_COVERAGE_TODO.md
+@@ -143,6 +143,15 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）
+ 
+ ---
+ 
++### Pattern B 变体 — 共享 bundle id，装上的包保留 `-beta.N` 版本后缀（GitHub）
++
++| App | bundle id | 信号 | 门控 | 状态 |
++|---|---|---|---|---|
++| **WhatCable** | `uk.whatcable.whatcable` | short version `1.5.0-beta.10`（真包验证 2026-10-14）| stable `/releases/latest`；beta list + `-beta.N` tag；proof 锚 `/download/v…-beta.` | 已接，两轨一键 zip |
++
++app 内开关 `receiveBetaUpdates` 只决定它自己的更新器读哪个端点，我们不读它。已知缺口：beta 拷贝不会被给
++它那条线毕业出来的 stable（厂商自己的更新器会给），见 `docs/app-audits/uk-whatcable-whatcable.md`。
++
+ ## §2 TODO — Pattern A 未覆盖（可做，独立 bundle id）
+ 
+ > 候选已于 **2026-06-04 用 `brew info --cask` 实测复核**（时效性：cask 名/版本会变）。
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelArtifactProof.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelArtifactProof.swift
+index b1b47d6..d844c7d 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelArtifactProof.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/ChannelArtifactProof.swift
+@@ -335,6 +335,12 @@ public enum ChannelProofRegistry {
+         // that tells them apart after the fact.
+         ChannelProofKey("com.vorssaint.utils", .beta):
+             .artifact(#"/download/v[0-9.]+-beta\."#),
++        // WhatCable's asset FILENAME is `WhatCable.zip` on both trains, so the tag
++        // segment is the only part of the URL that names the channel. Neither the
++        // owner (`darrylmorley`) nor the repo (`whatcable`) contains the token, and
++        // stable's artifact (`/download/v1.5.0/WhatCable.zip`) fails the pattern.
++        ChannelProofKey("uk.whatcable.whatcable", .beta):
++            .artifact(#"/download/v[0-9.]+-beta\."#),
+         // UTM's tag and asset name carry no channel token at all (`v5.0.5` /
+         // `UTM.dmg`), and — unlike every other key here — its Beta artifact is not
+         // even meant to be a different artifact forever: UTM's previews graduate
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift
+index 6a6cad8..6f484ae 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift
+@@ -2012,6 +2012,46 @@ public enum GitHubReleaseRegistry {
+             installerKind: .dmg,
+             channel: .beta),
+ 
++        // WhatCable — USB-C cable diagnostics menu-bar app. No SUFeedURL; its own
++        // updater reads `releases/latest`, or `releases?per_page=10` when the user
++        // turns on "Include beta versions", and the Homebrew cask is
++        // `auto_updates true`, so nothing else answers. Stable and Beta share the
++        // bundle id, the app name and the asset name (`WhatCable.zip` on every
++        // release, plus a `whatcable-cli-<v>.zip` sibling the patterns refuse).
++        // The channel lives in the tag (`v1.5.0` / `v1.5.0-beta.10`, GitHub's
++        // `prerelease` bit agrees on all 138 releases) and in the installed
++        // short version: the beta bundle reports `1.5.0-beta.10`, which is what
++        // `ReleaseChannel.detect` reads. The beta proof therefore anchors on the
++        // tag segment of the download path, as Vorssaint's does.
++        //
++        // Packages verified 2026-10-14: v1.5.0 (140), v1.4.0 (130) and
++        // v1.5.0-beta.10 (139) all unpack to uk.whatcable.whatcable, universal,
++        // LSMinimumSystemVersion 14.0, Team M4RUJ7W6MP, strict deep signature
++        // valid, ticket stapled, `spctl` accepted as Notarized Developer ID.
++        GitHubReleaseRule(
++            bundleID: "uk.whatcable.whatcable",
++            owner: "darrylmorley", repo: "whatcable",
++            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
++            installAssetPattern: #"^WhatCable\.zip$"#,
++            installerKind: .zip),
++        // listPageSize: measured 2026-10-14 over all 138 releases — 19 `-beta.`
++        // tags, first match at index 1 (v1.5.0 sits above it), worst gap 2
++        // (a stable release between two lines' betas). 5 keeps margin.
++        //
++        // Beta-only on purpose, like Vorssaint: a beta install is not offered the
++        // stable release its line graduates into (v1.5.0 over 1.5.0-beta.10) and
++        // waits for the next beta instead. The app's own updater, with betas on,
++        // does take that stable — see the audit doc for why this rule does not.
++        GitHubReleaseRule(
++            bundleID: "uk.whatcable.whatcable",
++            owner: "darrylmorley", repo: "whatcable",
++            usePrereleases: true,
++            listPageSize: 5,
++            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$"#,
++            installAssetPattern: #"^WhatCable\.zip$"#,
++            installerKind: .zip,
++            channel: .beta),
++
+         // OpenLogi — fast-moving native Logitech utility. The real 0.8.1 bundle
+         // is `org.openlogi.openlogi` and carries neither Sparkle nor another
+         // standard update feed in Info.plist; its Homebrew cask is
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ChannelGuardTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ChannelGuardTests.swift
+index c150fa0..2a7e027 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ChannelGuardTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ChannelGuardTests.swift
+@@ -155,6 +155,19 @@ import Foundation
+         keystoneChannel: nil, version: "0.3.377-beta.1429+sha") == .stable)
+ }
+ 
++// WhatCable Stable and Beta share `uk.whatcable.whatcable`, the app name and the
++// asset name. The real v1.5.0-beta.10 bundle (2026-10-14) reports
++// `1.5.0-beta.10` — a two-digit beta number, which the Vorssaint case above
++// never exercised — and v1.5.0 reports a bare `1.5.0`.
++@Test func whatcableBetaVersionSuffixSignalsBeta() {
++    #expect(ReleaseChannel.detect(
++        name: "WhatCable", bundleID: "uk.whatcable.whatcable",
++        keystoneChannel: nil, version: "1.5.0-beta.10") == .beta)
++    #expect(ReleaseChannel.detect(
++        name: "WhatCable", bundleID: "uk.whatcable.whatcable",
++        keystoneChannel: nil, version: "1.5.0") == .stable)
++}
++
+ @Test func mozillaRemotingNameIsAuthoritative() {
+     // Real values read from official bundles 2026-06-04. RemotingName is checked
+     // FIRST and overrides the (misleading) name/version signals: an ESR install
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubChannelProofTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubChannelProofTests.swift
+index 42eb6e9..1b6a6db 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubChannelProofTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubChannelProofTests.swift
+@@ -66,6 +66,8 @@ struct GitHubChannelProofTests {
+              "https://github.com/desktop/desktop/releases/download/release-3.6.5-beta1/GitHub.Desktop-arm64.zip"),
+             ("com.vscodium.VSCodiumInsiders",
+              "https://github.com/VSCodium/vscodium-insiders/releases/download/1.126.04518-insider/VSCodium-darwin-arm64-1.126.04518-insider.zip"),
++            ("uk.whatcable.whatcable",
++             "https://github.com/darrylmorley/whatcable/releases/download/v1.5.0-beta.10/WhatCable.zip"),
+         ]
+         for (bundleID, asset) in cases {
+             let rule = try! #require(nonStableRule(bundleID))
+@@ -137,6 +139,8 @@ struct GitHubChannelProofTests {
+              "https://github.com/desktop/desktop/releases/download/release-3.6.4/GitHub.Desktop-arm64.zip"),
+             ("com.vscodium.VSCodiumInsiders",
+              "https://github.com/VSCodium/vscodium/releases/download/1.126.04518/VSCodium-darwin-arm64-1.126.04518.zip"),
++            ("uk.whatcable.whatcable",
++             "https://github.com/darrylmorley/whatcable/releases/download/v1.5.0/WhatCable.zip"),
+         ]
+         for (bundleID, asset) in cases {
+             let rule = try! #require(nonStableRule(bundleID))
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListPageSizeTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListPageSizeTests.swift
+index 112b8f5..b23c77a 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListPageSizeTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubListPageSizeTests.swift
+@@ -51,6 +51,7 @@ struct GitHubListPageSizeTests {
+         "com.insomnia.app/stable": 10,        // gap 9 (core@11.0.0→core@10.3.1), +1
+         "com.github.GitHubClient/beta": 5,    // gap 4 (release-3.4.16-beta1→…3.4.13-beta2), +1
+         "com.vorssaint.utils/beta": 2,        // gap 1 (only 4 -beta. tags ever), +1
++        "uk.whatcable.whatcable/beta": 3,     // gap 2 (v1.5.0-beta.1→v1.4.0-beta.2), +1; 2026-10-14
+         "com.microsoft.Headlamp/stable": 5,   // gap 4 (v0.23.0→v0.22.0), +1
+         "com.bitwarden.desktop/stable": 8,    // gap 7 (desktop-v2026.6.0→…2026.5.0), +1
+         "com.t3tools.t3code/nightly": 3,      // gap 2 (…20260902.1252→…20260901.1250), +1
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubMarkdownParserTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubMarkdownParserTests.swift
+index 1e14742..1fd4784 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubMarkdownParserTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubMarkdownParserTests.swift
+@@ -156,3 +156,41 @@ import Testing
+         body: body, version: "1.0", date: nil)?.entries.first?.items)
+     #expect(items == ["Fix the sidebar flicker", "Improve startup time"])
+ }
++
++// MARK: - Real vendor bodies
++
++@Test func whatcableReleaseBodyParsesIntoItsBullets() {
++    // Verbatim excerpt of the real v1.5.0 body (darrylmorley/whatcable, LF line
++    // endings, 2026-10-14): an H1 title, a prose intro, `##` sections of
++    // top-level `- ` bullets, one section that opens with a prose credit line,
++    // and a prose-only closing section. Only the bullets are items.
++    let body = """
++    # Devices in the right box, displays read from macOS, and live charging
++
++    A big one. Ten betas went into this, and most of what changed started with a tester's report. Credits inline.
++
++    ## Connected devices
++
++    - **Built-in USB-A ports are labelled and split per physical port** (#490, thanks @i0ntempest). The box now says to move those devices to a Thunderbolt port to see more about them.
++    - **A port that can't read cable details now says where to plug the cable instead:** a Thunderbolt port (#436, thanks @apple-ihack-geek).
++
++    ## Notifications
++
++    Thanks to @official-Cromatin for methodical reports and raw captures throughout (#550, #551, #556).
++
++    - "Notify on app updates" is its own switch.
++
++    ## Update both together
++
++    If you use the standalone CLI, update it along with the app.
++    """
++    let cl = GitHubMarkdownParser.parse(body: body, version: "1.5.0", date: "2026-10-13T12:07:41Z")
++    #expect(cl?.itemSyntax == .markdown)
++    #expect(cl?.entries.count == 1)
++    #expect(cl?.entries.first?.version == "1.5.0")
++    #expect(cl?.entries.first?.items == [
++        "**Built-in USB-A ports are labelled and split per physical port** (#490, thanks @i0ntempest). The box now says to move those devices to a Thunderbolt port to see more about them.",
++        "**A port that can't read cable details now says where to plug the cable instead:** a Thunderbolt port (#436, thanks @apple-ihack-geek).",
++        #""Notify on app updates" is its own switch."#,
++    ])
++}
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubReleaseRuleTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubReleaseRuleTests.swift
+index 57d876c..f9294b8 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubReleaseRuleTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubReleaseRuleTests.swift
+@@ -357,6 +357,31 @@ private func matches(
+     #expect(!matches("Vorssaint-3.3.2.dmg", bundleID, channel: .beta))
+ }
+ 
++/// WhatCable's two trains share the bundle id, the app name AND the asset name
++/// (`WhatCable.zip` on every release), so unlike Vorssaint the asset pattern
++/// cannot separate them — the tag is the whole of it. Stable must refuse a beta
++/// tag even on the list fallback, and beta must refuse a stable one. Real tags
++/// and asset names, 2026-10-14.
++@Test func whatcableRulesKeepStableAndBetaSeparateByTag() {
++    let bundleID = "uk.whatcable.whatcable"
++
++    #expect(extract("v1.5.0", bundleID, channel: .stable) == "1.5.0")
++    #expect(extract("v1.5.0-beta.10", bundleID, channel: .stable) == nil)
++    #expect(rule(bundleID, channel: .stable).usePrereleases == false)
++
++    #expect(extract("v1.5.0-beta.10", bundleID, channel: .beta) == "1.5.0-beta.10")
++    #expect(extract("v1.5.0", bundleID, channel: .beta) == nil)
++    #expect(rule(bundleID, channel: .beta).usePrereleases == true)
++
++    for channel in [ReleaseChannel.stable, .beta] {
++        #expect(matches("WhatCable.zip", bundleID, channel: channel))
++        // The CLI ships beside the app on every release since v0.13.0.
++        #expect(!matches("whatcable-cli-1.5.0.zip", bundleID, channel: channel))
++        #expect(!matches("whatcable-cli-1.5.0-beta.10.zip", bundleID, channel: channel))
++        #expect(rule(bundleID, channel: channel).installerKind == .zip)
++    }
++}
++
+ /// OpenLogi publishes twelve artifacts per release across three platforms, each
+ /// with a `.minisig` beside it. The pattern has to pick exactly one of them.
+ @Test func openLogiRulePinsTheArm64DmgAndRejectsItsTwelveSiblings() {
+@@ -881,6 +906,7 @@ private func matches(
+         "com.usebruno.app": "usebruno/bruno",
+         // Renamed upstream; re-pinned 2026-09-05 (was vorssaintapp/vorssaint-utils). #340
+         "com.vorssaint.utils": "vorssaint/vorssaint-utils",
++        "uk.whatcable.whatcable": "darrylmorley/whatcable",
+         "org.openlogi.openlogi": "AprilNEA/OpenLogi",
+         "org.localsend.localsendApp": "localsend/localsend",
+         "com.utmapp.UTM": "utmapp/UTM",
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index e314fda..582e73e 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -21,6 +21,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**HBuilderX**](io-dcloud-HBuilderX.md) · `io.dcloud.HBuilderX` — P(stable/alpha) C · 2 channels, independent bundle IDs（alpha=`io.dcloud.HBuilderXAlpha`）· **全 channel 一键 ✓**（stable 一键接入 2026-07-03：版本源改 DCloud `release.json` + arm64 dmg，Team YQM5H857L5；alpha 早有一键）· **两 channel 本机验证 ✓**（stable channel-verify 复验 UPDATE 5.07→5.14）· 2026-06-04
+ - [x] [**Zed**](dev-zed-Zed.md) · `dev.zed.Zed` — G(stable+preview) C(stable+preview) · **两 channel 均经 GitHub 检测 ✓**（收尾补 stable rule 填上原缺口 + 修 Preview channel-gate 回归；`--check dev.zed.Zed-Preview` 全链 winning=GitHub/up-to-date）· 2026-06-04
+ - [x] [**Vorssaint**](com-vorssaint-utils.md) · `com.vorssaint.utils` — G(stable+beta，**两轨一键 dmg**) · 共享 bundle id **和 app 名**，beta 由真实版本后缀 `-beta.N` 分流 · cask `auto_updates true`，原通用 Homebrew 源会跳过 · beta 轨已在 `ChannelProofRegistry` 登记 artifact proof · **beta 端到端验过**：装 3.3.3-beta.1 → 收到 3.3.3-beta.3（不是 stable 3.3.2）→ 一键装绿 ✓ · 原「严格签名验证失败」结论复测未复现（没签名的是 dmg 容器，闸开在 .app 上）· 2026-09-03
++- [x] [**WhatCable**](uk-whatcable-whatcable.md) · `uk.whatcable.whatcable` — G(stable+beta，**两轨一键 zip**) · 共享 bundle id、app 名**和 asset 名**，beta 由真实版本后缀 `-beta.N` 分流，proof 锚 tag 段 · cask `auto_updates true` · 真包 v1.5.0 / v1.4.0 / v1.5.0-beta.10 验证 ✓ · 2026-10-14
+ - [x] [**Tailscale**](io-tailscale-ipn-macsys.md) · `io.tailscale.ipn.macsys` — P(stable) C · stable 一键 ✓ · unstable 未覆盖 · **stable 本机验证 ✓** · 2026-06-04
+ - [x] [**Fork**](com-DanPristupov-Fork.md) · `com.DanPristupov.Fork` — B(stable/beta) C · 2 channels, shared ID + feed-swap ChannelBinding · **beta（Fork 默认 Developer 渠道）+ stable 两 channel 真机验证 ✓**（stable 经 `applicationUpdateChannel=2` 验证，改动已还原）· 2026-06-04
+ - [x] [**Surge**](com-nssurge-surge-mac.md) · `com.nssurge.surge-mac` — B(stable/beta) · 2 channels, shared ID + feed-swap ChannelBinding · **beta（IncludeBetaBuilds=true）+ stable 两 channel 真机验证 ✓**（stable 经逐字节备份/还原验证，无需退出进程）· 2026-06-04
+diff --git a/docs/app-audits/uk-whatcable-whatcable.md b/docs/app-audits/uk-whatcable-whatcable.md
+new file mode 100644
+index 0000000..c74f952
+--- /dev/null
++++ b/docs/app-audits/uk-whatcable-whatcable.md
+@@ -0,0 +1,132 @@
++# WhatCable
++
++> 审计 2026-10-14 · stable / beta 真实 zip 验证（v1.5.0、v1.4.0、v1.5.0-beta.10）· GitHub 双渠道检测 + 一键已接入
++
++## 基本信息
++- Bundle ID: `uk.whatcable.whatcable`（stable / beta 共享，app 名也同为 `WhatCable`）
++- Team ID: `M4RUJ7W6MP`（Darryl Morley）
++- 观测版本: stable `1.5.0`（build `140`）、上一版 `1.4.0`（`130`）、beta `1.5.0-beta.10`（`139`）
++- 架构: universal（`x86_64 arm64`），`LSMinimumSystemVersion` 14.0（三个包相同）
++- 自更新机制: 自研，直读 GitHub Releases API（无 `SUFeedURL`、无 Sparkle、无 electron-builder 配置；
++  `feed-discover` 结论 `no Sparkle and no electron-builder update config`）
++- 分发: GitHub Releases（`darrylmorley/whatcable`）/ Homebrew cask `whatcable`（`auto_updates true`）/ whatcable.uk。
++  Mac App Store `lookup?bundleId=` 返回 0 条。
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|------------|---------|----------|-----|--------|-------------|
++| **stable** | —       | `auto_updates`，通用源跳过 | — | ✓ 检测 + 一键 | — |
++| **beta**   | —       | —        | —   | ✓ 检测 + 一键 | — |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**（两轨都是）。
++
++`auto_updates true` 意味着 `HomebrewCaskSource` 返回 nil，没有 GitHub rule 时这一行是 unknown。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `uk.whatcable.whatcable` | 共享 | 版本无后缀（`1.5.0`） | `/releases/latest` + tag 锚 `^vX.Y.Z$` | ✓ |
++| beta    | `uk.whatcable.whatcable` | 共享 | `CFBundleShortVersionString` 带 `-beta.N`（`1.5.0-beta.10`） | list + tag 锚 `^vX.Y.Z-beta\.N$` | ✓ |
++
++Pattern B 的变体：app 内开关 `receiveBetaUpdates`（Settings → Updates → "Include beta versions"）决定
++**它自己的**更新器读哪个端点；装上的 beta 包把 `-beta.N` 原样留在 short version 里（真实
++beta.10 包验证），所以 `ReleaseChannel.detect` 的版本后缀规则就能分轨，不需要 ChannelBinding。
++
++⚠️ 这个开关本身我们**不读**：开着开关、但跑的是 stable 包的拷贝，判为 stable，只会被给 stable。
++这与厂商自己的语义不同（厂商会给它下一个 beta），但只会"少给"，不会跨轨装错。
++
++三个 asset 层面的事实（2026-10-14，全部 138 个 release）:
++- 119 个 `vX.Y.Z`，19 个 `vX.Y.Z-beta.N`，GitHub 的 `prerelease` 位与 tag 后缀**全部一致**，无 draft，无其他 tag 形状。
++- **两轨 asset 同名**：每个 release 恰好一个 `WhatCable.zip`，自 v0.13.0 起旁边还有 `whatcable-cli-<v>.zip`
++  （命令行工具，规则用字面量 `^WhatCable\.zip$` 拒掉）。所以 asset 名分不出轨，**只有 tag 能**。
++- beta 的 channel proof 因此锚在下载路径的 tag 段 `/download/v[0-9.]+-beta\.`（与 Vorssaint 相同）；
++  owner `darrylmorley`、repo `whatcable` 都不含该 token，stable 的 `/download/v1.5.0/WhatCable.zip` 不满足。
++
++## 更新检测
++- 源: `darrylmorley/whatcable` GitHub Releases。stable 走 `/releases/latest`；beta 走
++  `/releases?per_page=5`（`listPageSize: 5`）。
++- 版本方案: tag `v1.5.0` → `1.5.0` == 包的 short version；build 是独立递增整数（130/139/140），
++  不进比较（source 不给 remote build）。beta tag `v1.5.0-beta.10` → `1.5.0-beta.10` == beta 包的 short version。
++- 列表深度（beta）: 第一个 `-beta.` 匹配在 index 1（v1.5.0 在上面），相邻两个 beta 匹配之间最大间隔 2
++  （`v1.5.0-beta.1` → `v1.4.0` → `v1.4.0-beta.2`）。floor = 3，取 5 留余量。
++- **读的是**: 人人可手动下载的 GA / 公开 prerelease（官方 repo 的公开资产，无灰度）。
++- 厂商自己的更新器（从 v1.5.0 源码 `Sources/WhatCable/Services/UpdateChecker.swift` 读出）:
++  - 关 beta: `releases/latest`，并在客户端再拒一次 `prerelease == true`。
++  - 开 beta: `releases?per_page=10`，在 stable+beta 里取 **semver 最大**，所以 stable 会盖过自己那条线的 beta。
++  - 取 asset 的方式与我们相同：`name == "WhatCable.zip"`。
++
++## 已知取舍：beta 不随线毕业
++我们的 beta rule 只认 `-beta.N` tag（照 Vorssaint 的先例）。后果是 beta 拷贝**不会**被给它那条线毕业出来的
++stable：`1.5.0-beta.10` 在 `v1.5.0` 发布后显示 up to date，直到下一个 beta（如 `1.6.0-beta.1`）出来。
++按历史回放，这个空窗出现过 5 次：v1.2.0→v1.2.1-beta.1 约 2 天，v1.2.1→v1.3.0-beta.1 约 3 天，
++v1.3.0→v1.4.0-beta.1 约 8 天，v1.4.0→v1.5.0-beta.1 约 2 天；v1.5.0（2026-10-13）之后还没有新 beta，
++所以这个空窗现在就开着。
++
++没有改成"stable 和 beta 都认"（跟厂商一致），原因：
++1. `.artifact` proof 锚的是 tag 里的 `-beta.`，beta rule 一旦能解析出 stable 的 URL，`RecipeSanity.crossChannelArtifact`
++   就会在每个 stable 发布后报警。换成 `.recipeAnchor` 只能锚 `versionPattern` 的可选组，比现在弱。
++2. UTM 解决同类问题用的是 `.installedMajorLineOrNewestStable` + 专门的 proof 和测试，是个单独的设计，
++   不该在接入一个新 app 时顺手搬过来。
++
++空窗的方向是"少给"，不是"装错"。
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | 不能（也不需要） |
++| 证据 | 无 Sparkle framework，自研更新器只下载整个 `WhatCable.zip` | 138 个 release 的 asset 只有 `WhatCable.zip` 和 `whatcable-cli-*.zip`（2026-10-14） | — |
++
++- 按设备灰度: 无（公开 GitHub API，不带设备参数）。
++- 按 OS 分轨: 无。三个包的 floor 都是 macOS 14.0，cask `depends_on macos >= 14`；没有 per-release 上限。
++- 自更新器会不会和我们抢: 会并存。app 自己会提示更新，也会自己换 bundle；我们装完后它看到的是同一版本，不冲突。
++  它在 Homebrew 装的拷贝上提示"`brew upgrade` 可能把 beta 换成 stable"——与我们无关。
++
++## Changelog
++- 来源: GitHub Release body，`GitHubReleasesSource` 用 `GitHubMarkdownParser` 原生解析成结构化条目
++  （`# 标题` + `## 分节` + 顶层 `- ` bullet，LF 换行；分节里的散文感谢行和末尾纯散文节不进条目）。
++- 跟随 channel: 是。beta 的 body 是自己的（`v1.5.0-beta.10` 开头 "Beta build for testers"）。
++- Recipe 状态: 不需要。`whatcableReleaseBodyParsesIntoItsBullets` 用 v1.5.0 真实 body 的原文摘录钉住解析结果。
++- `channel-verify` 显示 `release notes 0 chars inline`，这是**对的**：source 只在结构化解析失败时才把原文塞进
++  `releaseNotesHTML`（`structured == nil ? body : nil`），0 表示结构化成功。
++
++## 一键安装
++- 状态: **支持**（两轨）
++- 格式: zip — `WhatCable.zip`，解出顶层只有 `WhatCable.app`（三个包 `unzip -Z1` 验证）
++- Pattern: `^WhatCable\.zip$`, kind `.zip`（stable / beta 相同；分轨靠 tag）
++- **读的是**: 人人可手动下载的 GA（stable）/ 厂商公开的 prerelease（beta，release 页面上可手动下载）
++- 包验（2026-10-14，下载后 sha256 与 GitHub API 的 `digest` 一致）:
++
++  | tag | sha256 | short (build) | Team | 签名 / 公证 |
++  |---|---|---|---|---|
++  | v1.5.0 | `92f42a5485577c560f944c7020cdcf0dd3fcc919e2de80ab699dce3d608b888b` | 1.5.0 (140) | `M4RUJ7W6MP` | `codesign --verify --deep --strict` 通过；`stapler validate` 通过；`spctl` accepted, Notarized Developer ID |
++  | v1.4.0 | `e397334f2410cf0259b014826780f73cc22f79c40719757a5fcbdb026c4b5527` | 1.4.0 (130) | `M4RUJ7W6MP` | 同上 |
++  | v1.5.0-beta.10 | `3c73b10ae7017059e19fb238b4d31b3de7a53113e137b9e98bdf4db357df14c7` | 1.5.0-beta.10 (139) | `M4RUJ7W6MP` | 同上 |
++
++- 真机端到端一键（装旧版 → 一键升级）: **本次未跑**，交给串行的 coordinator 跑。
++
++## 已知问题
++- beta 拷贝不随线毕业到 stable，见上文「已知取舍」。
++
++## 如何复验
++```
++# GET https://api.github.com/repos/darrylmorley/whatcable/releases/latest → v1.5.0
++# GET https://api.github.com/repos/darrylmorley/whatcable/releases?per_page=100(&page=2) → 138 个，prerelease 位 == `-beta.` 后缀
++# 下载 https://github.com/darrylmorley/whatcable/releases/download/v1.5.0/WhatCable.zip
++#      https://github.com/darrylmorley/whatcable/releases/download/v1.4.0/WhatCable.zip
++#      https://github.com/darrylmorley/whatcable/releases/download/v1.5.0-beta.10/WhatCable.zip
++# 解包后 plutil / codesign -dvv / spctl -a -vv -t exec / xcrun stapler validate
++# swift run --package-path application-test channel-verify <v1.5.0 .app> --expect stable
++#   → winning GitHub, latest 1.5.0, up to date
++# … <v1.4.0 .app> --expect stable → UPDATE → 1.5.0, download …/v1.5.0/WhatCable.zip
++# … <v1.5.0-beta.10 .app> --expect beta → latest 1.5.0-beta.10, up to date,
++#   download …/v1.5.0-beta.10/WhatCable.zip
++```
++
++## 建议下一步
++1. 跑真机端到端一键（stable 1.4.0 → 1.5.0；beta 取一个更早的 beta 拷贝 → 最新 beta），确认 zip 安装路径和 Team 闸。
++2. 若决定让 beta 随线毕业，按 UTM 的做法单独设计 candidate scope 和 proof，别在这个 rule 上直接放宽 pattern。

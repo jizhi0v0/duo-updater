@@ -1,0 +1,3 @@
+24fbac1 Tinycast: detect its GitHub releases, stable and beta, detection-only
+fe6df0b Release 0.3.97 (#702)
+a4cdc0e iStat Menus: offer the archive's own version and build, read by byte range (#700)

@@ -1,0 +1,3 @@
+566b62a SwiftVM: beta channel binding and structured changelogs from GitHub Releases
+90f8415 Add check_ifchange.py: links between code that must change together (#1222)
+8430015 verify-install: update identities and baseline (#1224)

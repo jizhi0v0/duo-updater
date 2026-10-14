@@ -1,0 +1,3 @@
+e0aea58 Track WhatCable — stable + beta, one-click zip, pre-rename id
+6f4c989 app-audit: coverage checklist
+43bc8aa verify: update recipe baseline (#364)

@@ -1,0 +1,526 @@
+diff --git a/CHANNEL_COVERAGE_TODO.md b/CHANNEL_COVERAGE_TODO.md
+index 84c95c1..1d72b90 100644
+--- a/CHANNEL_COVERAGE_TODO.md
++++ b/CHANNEL_COVERAGE_TODO.md
+@@ -141,6 +141,18 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）
+   故接受 channel `Beta|RC`、文件名 `beta|rc`。修了原 §284 错注释(曾称 Canary 被跳过，实为
+   误判 .stable 的潜在跨轨覆盖 bug)。两轨本机已装、harness ✓。
+ 
++### T3 Code — stable 接入,nightly/preview 只做了检测隔离(2026-10-14)
++
++- **T3 Code** stable / nightly / preview **共享** `com.t3tools.t3code`。坑在**stable 的
++  app 名就叫 "T3 Code (Alpha)"**(preview 同名,nightly 是 "T3 Code (Nightly)"),
++  通用的显示名一步会把每个 stable 读成 `.alpha`。`ReleaseChannel.detect` step 0.9 对该 id
++  专属读版本串:`x.y.z` → stable、`…-nightly.<日期>.<n>` → nightly、`…-preview.<日期>.<n>`
++  → preview,其余落回 `.alpha`(无配方 → 跳过)。版本串取自真实 bundle(v0.0.45/v0.0.44
++  dmg、nightly/preview zip 里的 `Info.plist`),short 与 build 相同。
++- stable 走 `GitHubReleaseRule`(`/releases/latest`)+ arm64 dmg 一键。nightly(GitHub
++  prerelease,每天约 4 个)与 preview(手动触发、不带 `app-update.yml`)**未接**,
++  只保证它们不会被推 stable。详见 `docs/app-audits/com-t3tools-t3code.md`。
++
+ ---
+ 
+ ## §2 TODO — Pattern A 未覆盖（可做，独立 bundle id）
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift
+index d3e1480..1df65e8 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift
+@@ -73,6 +73,9 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
+     ///      channel abbreviates to a `-b<N>` suffix ("7.1.7-b7") distinct from
+     ///      both pre-release shapes step 4 already recognizes. See the block
+     ///      comment on the check.
++    ///   0.9. A sixth bundle-id-scoped rule — T3 Code, whose STABLE build is
++    ///      named "T3 Code (Alpha)", so step 3 would actively misread it. The
++    ///      version string decides instead. See the block comment on the check.
+     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
+     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
+     ///      authoritative).
+@@ -199,6 +202,35 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
+             return .beta
+         }
+ 
++        // 0.9 T3 Code — Stable, Nightly and Preview all ship one bundle id
++        //     (`com.t3tools.t3code`), and here step 3 is not merely silent but
++        //     WRONG: the Stable app is named "T3 Code (Alpha)" — CFBundleName,
++        //     CFBundleDisplayName and the .app filename alike, read off the
++        //     mounted v0.0.45 and v0.0.44 dmgs (2026-10-14) — so the display-name
++        //     word match reads every stable install as `.alpha` and the stable
++        //     GitHub rule would never apply. Preview builds carry that same
++        //     "(Alpha)" name; Nightly is "T3 Code (Nightly)". The version string
++        //     is the one signal that is both always present and unambiguous: the
++        //     vendor's release workflow stamps it per channel and electron-builder
++        //     copies it verbatim into BOTH CFBundleShortVersionString and
++        //     CFBundleVersion — `0.0.45`, `0.0.46-nightly.20261014.3105`,
++        //     `0.0.46-preview.20261010.2909` on the real bundles.
++        //
++        //     Only a bare dotted-numeric version returns `.stable`. Anything this
++        //     rule does not recognise falls through, where "(Alpha)" lands it on
++        //     `.alpha` — a channel no recipe targets, so it is skipped rather than
++        //     offered the stable build.
++        if bundleID == "com.t3tools.t3code",
++           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines) {
++            if fullyMatches(#"[0-9]+(\.[0-9]+)+-nightly\.[0-9]+\.[0-9]+"#, version) {
++                return .nightly
++            }
++            if fullyMatches(#"[0-9]+(\.[0-9]+)+-preview\.[0-9]+\.[0-9]+"#, version) {
++                return .preview
++            }
++            if fullyMatches(#"[0-9]+(\.[0-9]+)+"#, version) { return .stable }
++        }
++
+         // 1. Keystone's own channel id — authoritative when present.
+         if let ks = keystoneChannel?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !ks.isEmpty {
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift
+index 5d7d48e..226b8b4 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift
+@@ -1825,6 +1825,36 @@ public enum GitHubReleaseRegistry {
+             installAssetPattern: #"^wailbrew-v[0-9.]+\.zip$"#,
+             installerKind: .zip),
+ 
++        // T3 Code — com.t3tools.t3code, Team ARK85ZXQ4Z, notarized (stapled
++        // ticket, `spctl` "Notarized Developer ID") on BOTH v0.0.45 and v0.0.44,
++        // read off the mounted arm64 dmgs 2026-10-14. Electron + electron-updater;
++        // both Homebrew casks (`t3-code`, `t3-code@nightly`) are `auto_updates`, so
++        // nothing answers for it ahead of this rule.
++        //
++        // The repo is overwhelmingly prereleases: ~4 nightlies a day
++        // (`v0.0.46-nightly.20261014.3105`) plus manual previews
++        // (`v0.0.46-preview.…`), and the newest 100 releases held no stable one at
++        // all on 2026-10-14. Stable releases are the only ones the vendor's
++        // workflow publishes with `prerelease: false` / `make_latest: true`, and
++        // only for a bare `x.y.z` version — so `/releases/latest` is exactly the
++        // stable train, and the anchored pattern refuses anything else should a
++        // suffixed stable ever get through.
++        //
++        // All three tracks share the bundle id, and the STABLE app is named
++        // "T3 Code (Alpha)" — `ReleaseChannel.detect` step 0.9 is what keeps that
++        // name from reading as `.alpha`; without it this rule never applies.
++        // Nightly / preview stay unserved here (see the audit doc).
++        //
++        // Tag `v0.0.45` ⇒ `0.0.45`, equal to the bundle's CFBundleShortVersionString
++        // AND CFBundleVersion. The arm64 dmg is the cask's own choice; the
++        // pattern's `[0-9.]+` keeps the nightly/preview dmgs (same prefix) out.
++        GitHubReleaseRule(
++            bundleID: "com.t3tools.t3code",
++            owner: "pingdotgg", repo: "t3code",
++            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#,
++            installAssetPattern: #"^T3-Code-[0-9.]+-arm64\.dmg$"#,
++            installerKind: .dmg),
++
+         // Deliberately NOT covered — FreeCAD (`org.freecad.FreeCAD`). Its bundle
+         // ships an EMPTY `CFBundleShortVersionString` and puts 1.1.3 in
+         // `CFBundleVersion` alone. `AppScanner` drops any bundle with no marketing
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubReleaseRuleTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubReleaseRuleTests.swift
+index 51c2ef3..ddbd2c6 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubReleaseRuleTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubReleaseRuleTests.swift
+@@ -665,6 +665,8 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
+         "org.RedisLabs.RedisInsight-V2": "redis/RedisInsight",
+         "org.upscayl.Upscayl": "upscayl/upscayl",
+         "io.github.wickenico.wailbrew": "wickenico/WailBrew",
++        // 2026-10-14.
++        "com.t3tools.t3code": "pingdotgg/t3code",
+     ]
+     for (bundleID, slug) in expected {
+         #expect(rule(bundleID).slug == slug, "slug drifted for \(bundleID)")
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/T3CodeGitHubRuleTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/T3CodeGitHubRuleTests.swift
+new file mode 100644
+index 0000000..e100e55
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/T3CodeGitHubRuleTests.swift
+@@ -0,0 +1,192 @@
++import Testing
++import Foundation
++@testable import DuoUpdaterCore
++
++/// T3 Code (`pingdotgg/t3code`) — one bundle id, three tracks, and a stable app
++/// literally named "T3 Code (Alpha)". Every fixture below was read off the real
++/// artifacts on 2026-10-14: the release tags and asset names from the Releases
++/// API, and the bundle identity from the mounted v0.0.45 / v0.0.44 arm64 dmgs
++/// and the `Info.plist` inside the nightly and preview arm64 zips.
++@Suite struct T3CodeGitHubRuleTests {
++
++    static let bundleID = "com.t3tools.t3code"
++
++    /// What each track's real bundle reports. `CFBundleName` and
++    /// `CFBundleDisplayName` are identical on every one of them, and
++    /// `CFBundleVersion` equals `CFBundleShortVersionString`.
++    static let realBundles: [(channel: ReleaseChannel, name: String, version: String)] = [
++        (.stable, "T3 Code (Alpha)", "0.0.45"),
++        (.stable, "T3 Code (Alpha)", "0.0.44"),
++        (.nightly, "T3 Code (Nightly)", "0.0.46-nightly.20261014.3105"),
++        (.preview, "T3 Code (Alpha)", "0.0.46-preview.20261010.2909"),
++    ]
++
++    static var rules: [GitHubReleaseRule] {
++        GitHubReleaseRegistry.rules.filter { $0.bundleID == bundleID }
++    }
++
++    static func app(name: String, version: String) -> InstalledApp {
++        InstalledApp(
++            name: name, bundleID: bundleID,
++            shortVersion: version, buildVersion: version,
++            path: URL(fileURLWithPath: "/Applications/\(name).app"),
++            isMASApp: false, sparkleFeedURL: nil,
++            releaseChannel: ReleaseChannel.detect(
++                name: name, bundleID: bundleID, keystoneChannel: nil, version: version,
++                bundleFileName: name))
++    }
++
++    // MARK: - Channel detection
++
++    /// Each real bundle lands on its own track — above all the stable one, which
++    /// the generic display-name step would read as `.alpha`.
++    @Test(arguments: realBundles.map { [$0.channel.rawValue, $0.name, $0.version] })
++    func detectReadsTheTrackFromTheVersion(_ row: [String]) {
++        #expect(ReleaseChannel.detect(
++            name: row[1], bundleID: Self.bundleID, keystoneChannel: nil, version: row[2],
++            bundleFileName: row[1]).rawValue == row[0])
++    }
++
++    /// The trap the 0.9 rule exists for, and its scope: without the bundle id the
++    /// very same name reads as `.alpha`, and a version this rule does not know
++    /// falls through to that too rather than defaulting to stable.
++    @Test func theAlphaNameIsOnlyOverriddenByAStableShapedVersion() {
++        #expect(ReleaseChannel.detect(
++            name: "T3 Code (Alpha)", bundleID: "com.example.other",
++            keystoneChannel: nil, version: "0.0.45") == .alpha)
++        #expect(ReleaseChannel.detect(
++            name: "T3 Code (Alpha)", bundleID: Self.bundleID,
++            keystoneChannel: nil, version: "0.0.46-rc.1") == .alpha)
++    }
++
++    // MARK: - Registry, derived over every track
++
++    /// For every track a real bundle exists for: if the registry has a rule on
++    /// that channel the source must select it, and if it has none the source must
++    /// refuse before any fetch. Derived from the registry, so adding a nightly or
++    /// preview rule later moves that track from "refused" to "selected" here
++    /// without anyone editing a list.
++    @Test func everyTrackIsServedByItsOwnRuleOrRefused() async throws {
++        let ruled = Set(Self.rules.map(\.channel))
++        #expect(ruled.contains(.stable))
++        for bundle in Self.realBundles where !ruled.contains(bundle.channel) {
++            // A rule-less source would make this vacuous; use the real registry.
++            let source = GitHubReleasesSource(rules: Self.rules, session: .refusingAll)
++            let app = Self.app(name: bundle.name, version: bundle.version)
++            #expect(app.releaseChannel == bundle.channel)
++            #expect(try await source.latestVersion(for: app) == nil,
++                    "\(bundle.version) must not be offered another track's build")
++        }
++        for bundle in Self.realBundles where ruled.contains(bundle.channel) {
++            // The refusing session turns "a rule was selected" into a thrown
++            // fetch, which is how this tells selection from a channel-gate nil.
++            let source = GitHubReleasesSource(rules: Self.rules, session: .refusingAll)
++            let app = Self.app(name: bundle.name, version: bundle.version)
++            await #expect(throws: (any Error).self) {
++                _ = try await source.latestVersion(for: app)
++            }
++        }
++    }
++
++    // MARK: - Stable rule
++
++    static var stable: GitHubReleaseRule? { rules.first { $0.channel == .stable } }
++
++    /// Real tags from the repo's release list (2026-10-14). Only the bare stable
++    /// tag extracts; the nightly, preview and the Android-only tag do not.
++    @Test func stableRuleExtractsOnlyTheStableTag() throws {
++        let rule = try #require(Self.stable)
++        #expect(rule.slug == "pingdotgg/t3code")
++        #expect(rule.usePrereleases == false)
++        func extract(_ tag: String) -> String? {
++            VendorProbeRecipe.extractVersion(from: tag, pattern: rule.versionPattern)
++        }
++        #expect(extract("v0.0.45") == "0.0.45")
++        #expect(extract("v0.0.44") == "0.0.44")
++        #expect(extract("v0.0.46-nightly.20261014.3105") == nil)
++        #expect(extract("v0.0.46-preview.20261010.2909") == nil)
++        #expect(extract("android-nightly") == nil)
++        // Equal to both version keys the real v0.0.45 bundle reports.
++        #expect(VersionComparator.compare(extract("v0.0.45")!, "0.0.45") == .orderedSame)
++    }
++
++    /// The full v0.0.45 asset list: exactly the arm64 dmg is selected, never the
++    /// zip, x64 build, blockmap, CLI tarball or another platform's installer —
++    /// and none of a nightly's same-prefixed assets.
++    @Test func stableRulePicksTheArm64DmgAndNothingElse() throws {
++        let rule = try #require(Self.stable)
++        let pattern = try #require(rule.installAssetPattern)
++        #expect(rule.installerKind == .dmg)
++        let v045 = [
++            "builder-debug.yml", "latest-linux-arm64.yml", "latest-linux.yml", "latest-mac.yml",
++            "latest.yml", "SHA256SUMS", "t3-0.0.45-darwin-arm64.tar.gz",
++            "t3-0.0.45-linux-arm64.tar.gz", "t3-0.0.45-linux-x64.tar.gz",
++            "t3-0.0.45-win32-arm64.zip", "t3-0.0.45-win32-x64.zip", "T3-Code-0.0.45-amd64.deb",
++            "T3-Code-0.0.45-arm64.AppImage", "T3-Code-0.0.45-arm64.deb", "T3-Code-0.0.45-arm64.dmg",
++            "T3-Code-0.0.45-arm64.dmg.blockmap", "T3-Code-0.0.45-arm64.exe",
++            "T3-Code-0.0.45-arm64.exe.blockmap", "T3-Code-0.0.45-arm64.zip",
++            "T3-Code-0.0.45-arm64.zip.blockmap", "T3-Code-0.0.45-x64.dmg",
++            "T3-Code-0.0.45-x64.dmg.blockmap", "T3-Code-0.0.45-x64.exe",
++            "T3-Code-0.0.45-x64.exe.blockmap", "T3-Code-0.0.45-x64.zip",
++            "T3-Code-0.0.45-x64.zip.blockmap", "T3-Code-0.0.45-x86_64.AppImage",
++        ]
++        let nightly = [
++            "T3-Code-0.0.46-nightly.20261014.3105-arm64.dmg",
++            "T3-Code-0.0.46-nightly.20261014.3105-arm64.zip",
++            "T3-Code-0.0.46-preview.20261010.2909-arm64.dmg",
++        ]
++        func matches(_ name: String) -> Bool {
++            name.range(of: pattern, options: .regularExpression) != nil
++        }
++        #expect(v045.filter(matches) == ["T3-Code-0.0.45-arm64.dmg"])
++        #expect(nightly.filter(matches).isEmpty)
++    }
++
++    // MARK: - Changelog
++
++    /// Trimmed from the real v0.0.45 body: GitHub's generated "What's Changed"
++    /// list, the "New Contributors" roster and the compare link.
++    static let v045Body = """
++    ## What's Changed
++    * fix(shared): merge OpenCode Go limits by credential by @Yash-Singh1 in https://github.com/pingdotgg/t3code/pull/14209
++    * feat(codex): regenerate protocol bindings for Codex 0.159 by @juliusmarminge in https://github.com/pingdotgg/t3code/pull/14311
++    * feat: start threads without a project by @t3dotgg in https://github.com/pingdotgg/t3code/pull/13612
++
++    ## New Contributors
++    * @jakaskerjanc made their first contribution in https://github.com/pingdotgg/t3code/pull/8865
++
++    **Full Changelog**: https://github.com/pingdotgg/t3code/compare/v0.0.44...v0.0.45
++    """
++
++    /// The release body is the changelog `GitHubReleasesSource` attaches; it
++    /// parses to structured items with the PR attribution stripped and the
++    /// contributor roster dropped.
++    @Test func releaseBodyParsesToStructuredItems() throws {
++        let changelog = try #require(GitHubMarkdownParser.parse(
++            body: Self.v045Body, version: "0.0.45", date: "2026-10-02T18:17:31Z"))
++        #expect(changelog.entries.count == 1)
++        #expect(changelog.entries.first?.items == [
++            "fix(shared): merge OpenCode Go limits by credential",
++            "feat(codex): regenerate protocol bindings for Codex 0.159",
++            "feat: start threads without a project",
++        ])
++    }
++}
++
++private extension URLSession {
++    /// A session whose every request fails without touching the network.
++    static var refusingAll: URLSession {
++        let config = URLSessionConfiguration.ephemeral
++        config.protocolClasses = [RefusingURLProtocol.self]
++        return URLSession(configuration: config)
++    }
++}
++
++private final class RefusingURLProtocol: URLProtocol {
++    override class func canInit(with request: URLRequest) -> Bool { true }
++    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
++    override func startLoading() {
++        client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
++    }
++    override func stopLoading() {}
++}
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index b4bf4b8..14305a4 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -118,6 +118,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**OpenCode Desktop**](ai-opencode-desktop.md) · `ai.opencode.desktop` — G C (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
+ - [x] [**OpenChamber**](dev-openchamber-desktop.md) · `dev.openchamber.desktop` — G (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
+ - [x] [**Jan**](jan-ai-app.md) · `jan.ai.app` — G (one-click universal zip) · real app verified ✓ · 2026-08-17
++- [x] [**T3 Code**](com-t3tools-t3code.md) · `com.t3tools.t3code` — G(stable) · 一键 dmg · 三轨共用 id，stable 名为 "(Alpha)"，渠道按版本串判 · 2026-10-14
+ 
+ ## Changelog-only (detection via Sparkle or Homebrew)
+ 
+diff --git a/docs/app-audits/com-t3tools-t3code.md b/docs/app-audits/com-t3tools-t3code.md
+new file mode 100644
+index 0000000..bcd86c8
+--- /dev/null
++++ b/docs/app-audits/com-t3tools-t3code.md
+@@ -0,0 +1,183 @@
++# T3 Code
++
++审计 2026-10-14。
++
++## 基本信息
++
++- Bundle ID: `com.t3tools.t3code`(stable / nightly / preview 三轨**共用**)
++- App 名: stable 与 preview 都是 `T3 Code (Alpha).app`,nightly 是 `T3 Code (Nightly).app`
++  ——`CFBundleName` / `CFBundleDisplayName` 与文件名一致
++- 官网 / 下载: https://t3.codes/ · https://github.com/pingdotgg/t3code/releases
++- 观测版本(stable): `CFBundleShortVersionString` = `CFBundleVersion` = `0.0.45`
++- Team ID: `ARK85ZXQ4Z`(T3 Tools, Inc.)
++- `LSMinimumSystemVersion`: `13.0`(三轨相同;Homebrew cask 也写 `macos >= 13`)
++- 架构: arm64 dmg 里的主二进制是单架构 `arm64`;x64 另出一套 dmg/zip
++- 自更新机制: Electron + electron-updater(`Contents/Resources/app-update.yml`,
++  provider `github`),**不是** Sparkle,`Info.plist` 无 `SUFeedURL`
++
++## 覆盖矩阵
++
++> ✓ = 已接入 ○ = 可接入(未实现) ✗ = 已调查不可行 — = 不适用
++
++|              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|--------------|---------|----------|-----|--------|-------------|
++| **stable**   | —       | — (`auto_updates`) | — | ✓ 一键 | — |
++| **nightly**  | —       | — (`auto_updates`) | — | ○      | — |
++| **preview**  | —       | —        | —   | ○(不建议) | — |
++
++当前生效源: **GitHubReleasesSource**。两个 cask(`t3-code`、`t3-code@nightly`)都是
++`auto_updates: true`,`HomebrewCaskSource` 返回 nil,链条落到 GitHub。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `com.t3tools.t3code` | 共享 | 版本串 `x.y.z` | `channel: .stable` | ✓ |
++| nightly | `com.t3tools.t3code` | 共享 | 版本串 `x.y.z-nightly.<YYYYMMDD>.<n>` | 无 rule → 拒绝 | ○ |
++| preview | `com.t3tools.t3code` | 共享 | 版本串 `x.y.z-preview.<YYYYMMDD>.<n>` | 无 rule → 拒绝 | ○ |
++
++真实 bundle 上读到的(2026-10-14):
++
++| 包 | 文件名 / CFBundleName | 版本(short = build) | `app-update.yml` |
++|---|---|---|---|
++| `T3-Code-0.0.45-arm64.dmg` | `T3 Code (Alpha)` | `0.0.45` | `releaseType: release` |
++| `T3-Code-0.0.44-arm64.dmg` | `T3 Code (Alpha)` | `0.0.44` | `releaseType: release` |
++| `T3-Code-0.0.46-nightly.20261014.3105-arm64.zip` | `T3 Code (Nightly)` | `0.0.46-nightly.20261014.3105` | `releaseType: prerelease`, `channel: nightly` |
++| `T3-Code-0.0.46-preview.20261010.2909-arm64.zip` | `T3 Code (Alpha)` | `0.0.46-preview.20261010.2909` | **无** |
++
++**最大的坑:stable 自己就叫 "(Alpha)"。** `ReleaseChannel.detect` 的显示名一步按词边界
++匹配 "alpha",会把**每一个 stable** 读成 `.alpha`,于是 stable rule 永远不被选中,
++app 一直显示 unknown。所以新增 step 0.9:只对这个 bundle id,按版本串判渠道——
++`x.y.z` → stable,`-nightly.` → nightly,`-preview.` → preview;认不出的版本**不**
++默认 stable,而是落回显示名那一步(→ `.alpha`,无配方 → 跳过)。
++
++版本串是 vendor 自己的发布流程按渠道拼出来的(`.github/workflows/release.yml`:
++nightly/preview 由 `scripts/resolve-nightly-release.ts` 按日期和 run number 生成,
++都标 `prerelease=true`;stable 只有纯 `x.y.z` 才 `prerelease=false` /
++`make_latest=true`),electron-builder 原样写进 short 和 build 两个键。bundle id 在
++`scripts/build-desktop-artifact.ts` 里是常量 `DESKTOP_APP_ID`,三轨相同;nightly
++另换 `productName`("T3 Code (Nightly)")、图标和 updater channel,preview 构建不带
++publish 配置(所以没有 `app-update.yml`)。
++
++## 更新检测
++
++- 源: `GitHubReleaseRule`(`GitHubReleasesSource.swift`)
++  ```swift
++  GitHubReleaseRule(
++      bundleID: "com.t3tools.t3code",
++      owner: "pingdotgg", repo: "t3code",
++      versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#,
++      installAssetPattern: #"^T3-Code-[0-9.]+-arm64\.dmg$"#,
++      installerKind: .dmg)
++  ```
++- 端点: `GET https://api.github.com/repos/pingdotgg/t3code/releases/latest`
++  → 2026-10-14 为 `v0.0.45`(published 2026-10-02T18:17:31Z,`prerelease: false`)。
++- 读的是 `/releases/latest`,**不能**换成列表接口:仓库几乎全是 prerelease——
++  672 个 release 里 nightly 571、preview 39,最新 100 个里**一个 stable 都没有**,
++  `per_page=20` 的列表根本看不到 stable。
++- 版本方案: tag `v0.0.45` → `0.0.45`,与 bundle 的 short **和** build 都相等,无
++  marketing/build 分歧。
++- 全量复算(Python 独立实现同一条 pattern,打真实 API,672 个 release):
++  - 41 个匹配 versionPattern 的 tag 全部是 `prerelease: false`,每个**恰好一个**
++    资产匹配 installAssetPattern,且文件名里的版本与 tag 一致;
++  - 没有任何 prerelease 的资产匹配 installAssetPattern;
++  - 没有任何 nightly/preview 版本串被 step 0.9 读成 stable;
++  - 13 个 2026-03 的旧 tag `v0.0.0-alpha.N` 是 `prerelease: false` 但不匹配 pattern
++    ——它们早已不是 latest;若真有人还装着这种版本,step 0.9 不认,落回 `.alpha` 跳过。
++
++### 自更新器做了什么(Phase 3⅞)
++
++| | 客户端有这个能力? | 服务端现在真在发? | 我们能消费吗? |
++|---|---|---|---|
++| 增量 / 二进制补丁 | 有:`app.asar` 内含 electron-updater 的 `DifferentialDownloader`(38 处)/ `blockmap`(22 处)| 有:每个 dmg/zip 都配 `.blockmap`(如 `T3-Code-0.0.45-arm64.zip.blockmap`)| 不能:这是 electron-builder 的分块差分下载,不是 Sparkle BinaryDelta;`DeltaApplier` 不适用 |
++| 按设备灰度 | 没查到:`latest-mac.yml` 无 `stagingPercentage` 字段 | 无(v0.0.45 的 `latest-mac.yml` 只有 version/files/releaseDate)| — |
++| 按架构 / 按 OS 分轨 | 分架构:arm64 / x64 两套资产,manifest 同一份 | `LSMinimumSystemVersion` 13.0,manifest 无 min/max 字段 | pattern 钉 arm64(DuoUpdater 自身 arm64-only)|
++| 自更新器会不会和我们抢 | 会:stable 内置 electron-updater 指向同一仓库同一 release | — | 无冲突:两边读同一个 GitHub release,装的是同一个 dmg |
++
++**读的是:人人可手动下载的 GA。** `/releases/latest` 就是 GitHub 页面上的 "Latest"
++release,dmg 与 Homebrew cask `t3-code` 指向的 URL 完全相同,不存在"厂商还没分配给
++这台机器"的问题。
++
++## 增量更新(delta / binary patch)
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 有 | 有 | 不能 |
++| 证据 | `app.asar` 字符串 `DifferentialDownloader` / `disableDifferentialDownload` / `blockmap`(v0.0.45 dmg)| v0.0.45 release 资产里的 `*.dmg.blockmap` / `*.zip.blockmap`(2026-10-14)| 现有机制只有 Sparkle `BinaryDelta`(`DeltaApplier` / `VendorAppcastDeltas`)|
++
++- 格式: electron-builder blockmap(分块差分下载,不是补丁文件)
++- 阻塞项: 需要新的下载机制;单个 dmg 约 143 MB,收益有,但不在本次范围。
++
++## Changelog
++
++- 来源: GitHub release body,由 `GitHubReleasesSource` 用 `GitHubMarkdownParser`
++  解析成结构化条目(无需单独的 `ChangelogRecipe`)。
++- v0.0.45 的 body 是 GitHub 自动生成的 "What's Changed"(63 条 PR)+
++  "New Contributors" + compare 链接;生产路径解析出 63 条,`by @user in <url>` 尾巴被
++  剥掉,贡献者名单被跳过。63 这个数用 Python 按 section 数 bullet 独立复算过。
++- 跟随 channel: stable rule 只读 stable release 的 body。
++- 历史条目: 只有被提供的那一版。**没有**加 `.gitHubReleases` 格式的
++  `ChangelogRecipe`——它读 `releases?per_page=40` 且只取 stable,而这个仓库最新的
++  100 个 release 里没有 stable,会解析出空。
++
++## 一键安装
++
++- 状态: **支持**(代码已接入,真机端到端安装**未跑**,由协调方串行执行)
++- 格式: dmg(`T3-Code-<ver>-arm64.dmg`,里面是 `T3 Code (Alpha).app` + `/Applications` 链接)
++- **读的是**: 人人可手动下载的 GA(见上)
++- 门禁核对(挂载真实 dmg,只读):
++
++  | 包 | Team | 公证 |
++  |---|---|---|
++  | v0.0.45 arm64 dmg | `ARK85ZXQ4Z` | `Notarization Ticket=stapled`;`stapler validate` 通过;`spctl -a -t execute` → `accepted, source=Notarized Developer ID` |
++  | v0.0.44 arm64 dmg | `ARK85ZXQ4Z` | 同上 |
++
++  两版 `codesign --verify --deep --strict` 均通过,Authority 为
++  `Developer ID Application: T3 Tools, Inc. (ARK85ZXQ4Z)`。
++- 阻塞: 无。安装后 stable 的 electron-updater 仍会继续自更新,与我们读同一个源。
++
++## 已知问题
++
++- nightly / preview 未接,只保证不被推 stable(`T3CodeGitHubRuleTests` 从 registry
++  推导,对每个真实 bundle 断言"有 rule 就选中、没有就拒绝")。
++- 若 vendor 将来把 stable 的 `productName` 改掉 "(Alpha)",step 0.9 仍然成立
++  (它只看版本串),不需要跟着改。
++- 若 vendor 改了 nightly/preview 版本串的形状,step 0.9 认不出 → 落回显示名:nightly
++  仍因 "(Nightly)" 读成 `.nightly`,preview 读成 `.alpha`,都不会被推 stable。
++
++## 建议下一步
++
++1. 接 nightly(可选):`GitHubReleaseRule(usePrereleases: true,
++   versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-nightly\.[0-9]+\.[0-9]+)$"#,
++   channel: .nightly)`。要先核:`VersionComparator` 对 `0.0.46-nightly.20261014.3105`
++   这种串的排序;列表接口 `per_page=20` 在 preview 连发时能否稳定含 nightly;
++   一键需要 `ChannelProofRegistry.githubProofs` 条目(资产 URL 带 `-nightly.`)。
++2. preview 不建议接:手动触发、不带 `app-update.yml`(vendor 自己都不给它自更新),
++   且与 stable 同名同 id,装上会覆盖 stable 的位置。
++
++## 如何复验
++
++```sh
++# 1. stable rule + step 0.9 + changelog 解析(离线)
++cd DuoUpdaterCore && swift test --filter T3CodeGitHubRuleTests
++
++# 2. 端点现状
++gh api repos/pingdotgg/t3code/releases/latest --jq '.tag_name, .prerelease, (.assets[].name | select(test("^T3-Code-[0-9.]+-arm64\\.dmg$")))'
++
++# 3. 真实包身份(只读挂载,读完卸载)
++hdiutil attach -nobrowse -readonly -mountpoint <mnt> T3-Code-<ver>-arm64.dmg
++plutil -p "<mnt>/T3 Code (Alpha).app/Contents/Info.plist" | grep -E 'CFBundle(Identifier|Name|ShortVersionString|Version)"'
++codesign -dvv "<mnt>/T3 Code (Alpha).app" 2>&1 | grep -E 'TeamIdentifier|Notarization'
++hdiutil detach <mnt>
++
++# nightly / preview zip 不必解包:unzip -p 取 Contents/Info.plist 即可
++```
++
++2026-10-14 的生产路径实跑(`GitHubReleasesSource` + `ReleaseChannel.detect`,真实 API):
++
++```
++0.0.44 stable  -> 0.0.45 …/v0.0.45/T3-Code-0.0.45-arm64.dmg kind=dmg manual=false items=63 newer=true
++0.0.45 stable  -> 0.0.45 …/v0.0.45/T3-Code-0.0.45-arm64.dmg kind=dmg manual=false items=63 newer=false
++0.0.46-nightly.20261013.3080 nightly -> nil
++0.0.46-preview.20261010.2909 preview -> nil
++```

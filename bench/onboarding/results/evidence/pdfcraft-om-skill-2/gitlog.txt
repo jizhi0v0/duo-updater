@@ -1,0 +1,3 @@
+5f569ab Track PdfCraft (PrintCraft renamed) via GitHub releases, with one-click install
+73b6c13 app-audit: coverage checklist
+2372cfa verify: ask the page before calling a single changelog entry a collapse (#1102)

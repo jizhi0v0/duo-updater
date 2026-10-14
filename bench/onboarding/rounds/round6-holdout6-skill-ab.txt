@@ -1,0 +1,27 @@
+# Round 6 (2026-10-14): the app-audit coverage checklist, A/B on six past onboardings no
+# prompt was written from. Opus 5.5 medium, brief.md. Each line: <case> <SKILL> <tag>;
+# run as `SKILL=<SKILL> TAG=<tag> run.sh single claude-opus-5-5 medium <case>`.
+swiftvm 0 om-base-1
+swiftvm 1 om-skill-1
+pdfcraft 0 om-base-1
+pdfcraft 1 om-skill-1
+tinycast 0 om-base-1
+tinycast 1 om-skill-1
+cuadriver 0 om-base-1
+cuadriver 1 om-skill-1
+whatcable 0 om-base-1
+whatcable 1 om-skill-1
+t3code 0 om-base-1
+t3code 1 om-skill-1
+swiftvm 1 om-skill-2
+swiftvm 0 om-base-2
+pdfcraft 1 om-skill-2
+pdfcraft 0 om-base-2
+tinycast 1 om-skill-2
+tinycast 0 om-base-2
+cuadriver 1 om-skill-2
+cuadriver 0 om-base-2
+whatcable 1 om-skill-2
+whatcable 0 om-base-2
+t3code 1 om-skill-2
+t3code 0 om-base-2

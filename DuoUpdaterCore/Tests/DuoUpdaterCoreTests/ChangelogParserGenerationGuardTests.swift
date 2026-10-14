@@ -124,8 +124,10 @@ import Foundation
     /// `GitHubListContinuationTests`.
     /// 18 (Sublime Text's entry versions keep "Build ") moves neither fixture: it
     /// is one app's recipe. Pinned by `sublimeTextEntryVersionsMatchTheInstalledBundle`.
+    /// 19 (the prose pass drops a leading `•`) moves neither fixture: neither has
+    /// a `•` line. Pinned by `proseLinesDropATypedBulletGlyph`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 18)
+        #expect(Changelog.parserGeneration == 19)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

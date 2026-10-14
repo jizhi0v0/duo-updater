@@ -17,12 +17,15 @@ struct NotificationsSettingsPage: View {
             ) {
                 Toggle("Apps", isOn: $prefs.notifyOnUpdates)
                     .settingsRow()
+                    .settingsAnchor(.notifyApps)
                 SettingsDivider()
                 Toggle("Command-line tools", isOn: $prefs.notifyOnCLIToolUpdates)
                     .settingsRow()
+                    .settingsAnchor(.notifyCLITools)
                 SettingsDivider()
                 Toggle("Homebrew packages", isOn: $prefs.notifyOnHomebrewUpdates)
                     .settingsRow()
+                    .settingsAnchor(.notifyHomebrew)
             }
         }
     }

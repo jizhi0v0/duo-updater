@@ -90,6 +90,7 @@ struct GitHubSettingsPage: View {
             // a token pasted below still is.
             Toggle("Use the GitHub CLI’s sign-in", isOn: $prefs.useGitHubCLIToken)
                 .settingsRow()
+                .settingsAnchor(.githubCLI)
                 .onChange(of: prefs.useGitHubCLIToken) { model.gitHubCredentialsChanged() }
         }
     }

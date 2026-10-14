@@ -14,8 +14,17 @@ public enum RefreshTrigger: Sendable, Equatable, CustomStringConvertible {
     /// interval; nil is "Only when I check".
     case backgroundTick(interval: TimeInterval?)
     /// One of our own actions changed what a lane reads: a `brew upgrade`, a
-    /// `brew update`. Named for the log.
+    /// `brew update`, a folder added to the scan. Named for the log. Sent to
+    /// the lane it concerns, not to every lane.
     case afterAction(String)
+    /// The refresh button: the user asked for a fresh answer from everything.
+    case manual
+    /// A watched folder changed on disk (`AppDirectoryWatcher`). Sent to the
+    /// apps lane only.
+    case diskChanged
+    /// A backstop timer's tick: the model's, for a watcher event that never
+    /// came, and the workbench's while it stays open. Sent to the apps lane only.
+    case backstopTick
 
     public var description: String {
         switch self {
@@ -25,6 +34,9 @@ public enum RefreshTrigger: Sendable, Equatable, CustomStringConvertible {
         case .backgroundTick(let interval):
             return interval.map { "background tick (every \(Int($0))s)" } ?? "background tick (manual)"
         case .afterAction(let action): return "after \(action)"
+        case .manual: return "refresh button"
+        case .diskChanged: return "disk changed"
+        case .backstopTick: return "backstop tick"
         }
     }
 }
@@ -260,5 +272,17 @@ public final class RefreshLanes {
                 group.addTask { await lane.handle(trigger) }
             }
         }
+    }
+
+    /// Hand `trigger` to every lane, and return when `lane` has dealt with it;
+    /// the others carry on without holding the caller. For a view whose next
+    /// step depends on one lane only — the workbench picks its first row once
+    /// the apps are in, not once brew's ~3 s read is.
+    public func handle(_ trigger: RefreshTrigger, waitingFor lane: any RefreshHandling) async {
+        var awaited: (any RefreshHandling)?
+        for each in lanes {
+            if each === lane { awaited = each } else { Task { await each.handle(trigger) } }
+        }
+        await awaited?.handle(trigger)
     }
 }

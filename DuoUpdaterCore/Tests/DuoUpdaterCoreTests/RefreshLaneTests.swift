@@ -39,6 +39,12 @@ struct RefreshLaneTests {
     }
 
     /// Poll until `condition` holds. The deadline only turns a hang into a failure.
+    /// Whether a call has returned yet.
+    actor Returned {
+        var value = false
+        func set() { value = true }
+    }
+
     func until(_ condition: () async -> Bool) async {
         for _ in 0..<2000 {
             if await condition() { return }
@@ -231,6 +237,35 @@ struct RefreshLaneTests {
         clock.now += .seconds(7)
 
         #expect(lane.sinceLastPass == .seconds(7))
+    }
+
+    /// `handle(_:waitingFor:)` hands the trigger to every lane but returns as
+    /// soon as the one named has dealt with it, the others still running.
+    ///
+    /// Mutations: waiting for every lane; not handing the trigger to the others.
+    @Test func lanesCanWaitForOneLaneOnly() async {
+        let fast = Record(), slow = Record()
+        let open = Gate(), held = Gate()
+        await open.open()
+        let lanes = RefreshLanes()
+        let awaited = lane(fast, first: open)
+        lanes.add(awaited)
+        lanes.add(lane(slow, first: held))
+
+        let returned = Returned()
+        let call = Task {
+            await lanes.handle(.workbenchOpen, waitingFor: awaited)
+            await returned.set()
+        }
+        await until { await held.arrived == 1 }
+        await until { fast.plans.count == 1 && !awaited.isRunning }
+        // The call is done while `slow`'s pass still waits at its gate. Bounded
+        // by `until`, so a call that waits for every lane fails rather than hangs.
+        await until { await returned.value }
+        #expect(slow.events == ["pass 1 start"])
+        await held.open()
+        await call.value
+        await until { slow.events.count == 2 }
     }
 
     /// `RefreshLanes` hands a trigger to every lane added, and returns when all

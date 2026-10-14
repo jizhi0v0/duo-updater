@@ -1312,6 +1312,27 @@ struct CLIToolsModelTests {
         #expect(model.oneClickable.count == 1)
     }
 
+    /// (j) The refresh button checks every tool, past the age and unanswered
+    /// throttles an open applies: the user asked for a fresh answer.
+    ///
+    /// Mutation: `.manual` decided as `onOpen()`.
+    @Test func theRefreshButtonChecksEveryToolAtOnce() async {
+        let status = Self.status(Self.native)
+        let found = ScanResult([status])
+        let fxCheck = FakeCheck([(Self.report(.fx, []), nil)])
+        let fx = FakeProvider(kind: .fx, checker: fxCheck)
+        let check = FakeCheck([(Self.report(status), nil)])
+        let model = Self.model(check: check, scan: { found.sightings }, others: [fx])
+        await model.refresh()
+
+        await model.refreshOnOpen()
+        #expect(await check.calls == 1)
+
+        await model.lane.handle(.manual)
+        #expect(await check.calls == 2)
+        #expect(await fxCheck.calls == 2)
+    }
+
     // MARK: the workbench becoming key again
 
     /// A tool installed in a terminal while the workbench is open — Helm into

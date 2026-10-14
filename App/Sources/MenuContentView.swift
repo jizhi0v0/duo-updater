@@ -159,32 +159,16 @@ struct MenuContentView: View {
                 openWindow(id: WorkbenchWindowView.windowID)
                 model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
             })
-            // First open: full (networked) check. Every later open: a cheap
-            // local rescan to catch background self-updates and surface Restart.
-            if model.results.isEmpty {
-                Log.app.info("menu .task: results empty → full refresh()")
-                await model.refresh()
-            } else if model.owesTestFlightRead {
-                // The rule the workbench's open already follows. When Full Disk
-                // Access cannot be asked about, the scheduler's tick doesn't read
-                // TestFlight, so a list it filled after launch has no TestFlight
-                // verdicts in it until a refresh the user is present for — and
-                // this open is that refresh. Not when the tick read it (granted),
-                // nor without the grant: that refresh could not read it either.
-                Log.app.info("menu .task: TestFlight not read this session → full refresh()")
-                await model.refresh()
-            } else {
-                Log.app.info("menu .task: results present → refreshLocal()")
-                await model.refreshLocal(unattended: false)
-            }
+            // Every lane decides what an open calls for (`AppListModel.refreshes`):
+            // the apps a full check on the first open, or while TestFlight is
+            // still owed a read, and otherwise a cheap rescan that catches
+            // background self-updates and surfaces Restart
+            // (`AppsRefreshPolicy`); brew and the other tools beside it. Waits
+            // for the apps only.
+            await model.refreshes.handle(.popoverOpen, waitingFor: model.appsLane)
             // After the check, so the rows it names are this open's rows.
             model.offerFullDiskAccessIfNeeded()
         }
-        // Brew's package list and the other command-line tools (Claude Code, …):
-        // each a lane that decides for itself what an open calls for
-        // (`AppListModel.refreshes`), kicked off beside the app check so it never
-        // delays it.
-        .task { await model.refreshes.handle(.popoverOpen) }
     }
 
     @ViewBuilder
@@ -525,7 +509,7 @@ struct MenuContentView: View {
                 Spacer()
                 HStack(spacing: 8) {
                     Button {
-                        Task { await model.refresh(intent: .userRequested) }
+                        Task { await model.refreshes.handle(.manual) }
                     } label: {
                         // Keep both refresh states in the same 16pt layout box.
                         Group {

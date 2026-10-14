@@ -127,6 +127,23 @@ public enum RefreshIntent: Sendable, Equatable {
         }
     }
 
+    /// The intent that does everything either does, for two triggers answered
+    /// by one round (`AppsRefreshPlan.merged`). The three are nested — each
+    /// read, restart, drop or sync `scheduled` does, `userPresent` does too,
+    /// and each of those `userRequested` does — so that is the larger one.
+    /// (`keepsTestFlightVerdicts` runs the other way: it is what a round that
+    /// skips the read keeps; one that reads has fresh verdicts instead.)
+    public func merged(with other: RefreshIntent) -> RefreshIntent {
+        func rank(_ intent: RefreshIntent) -> Int {
+            switch intent {
+            case .scheduled: 0
+            case .userPresent: 1
+            case .userRequested: 2
+            }
+        }
+        return rank(other) > rank(self) ? other : self
+    }
+
     /// Whether a caller with this intent that coalesced onto an in-flight
     /// refresh still owes a pass of its own once that one finishes.
     ///

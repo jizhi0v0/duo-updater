@@ -451,6 +451,22 @@ import Testing
     ])
 }
 
+/// Junie 3659.4 (2026-10-13), verbatim: a list typed with `•` (U+2022), which is
+/// not a Markdown marker, so the body reaches the prose pass. The pane draws its
+/// own bullet, so a kept `•` showed two.
+@Test func proseLinesDropATypedBulletGlyph() throws {
+    let body = "• Cache cleanup: old versions, artifacts and logs are now removed automatically. "
+        + "The new `junie cache [clean]` command shows disk usage and removes unused data\n"
+        + "• Per-session settings: model, effort and brave are saved separately for each session\n"
+    let items = try #require(GitHubMarkdownParser.parse(
+        body: body, version: "3659.4", date: nil)?.entries.first?.items)
+    #expect(items == [
+        "Cache cleanup: old versions, artifacts and logs are now removed automatically. "
+            + "The new `junie cache [clean]` command shows disk usage and removes unused data",
+        "Per-session settings: model, effort and brave are saved separately for each session",
+    ])
+}
+
 /// A body written as Markdown TABLES is not prose and must not be converted.
 /// Headlamp's v0.45.0 notes are 142 table rows; line-by-line they render as
 /// bullets reading `|:--|--:|` and `| <img src="…">`, next to download links for

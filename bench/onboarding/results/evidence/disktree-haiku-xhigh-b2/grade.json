@@ -1,0 +1,92 @@
+{
+  "changelogRecipes" : [
+
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 1,
+      "headings" : [
+
+      ],
+      "kind" : "sourceStructured",
+      "markdown" : false,
+      "newestItems" : 23,
+      "newestVersion" : "0.11.0"
+    },
+    "download" : "disktree-0.11.0-aarch64-macos.zip",
+    "installTrust" : "publishedDigestOnly",
+    "latest" : "0.11.0",
+    "oneClickKind" : "zip",
+    "requiresManualInstaller" : false,
+    "source" : "GitHub",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 1,
+      "headings" : [
+
+      ],
+      "kind" : "sourceStructured",
+      "markdown" : false,
+      "newestItems" : 23,
+      "newestVersion" : "0.11.0"
+    },
+    "download" : "disktree-0.11.0-aarch64-macos.zip",
+    "installTrust" : "publishedDigestOnly",
+    "latest" : "0.11.0",
+    "oneClickKind" : "zip",
+    "requiresManualInstaller" : false,
+    "source" : "GitHub",
+    "status" : "update→0.11.0"
+  },
+  "perRelease" : [
+    {
+      "arm64" : "disktree-0.11.0-aarch64-macos.zip",
+      "prerelease" : false,
+      "tag" : "v0.11.0",
+      "version" : "0.11.0",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "disktree-0.10.1-aarch64-macos.zip",
+      "prerelease" : false,
+      "tag" : "v0.10.1",
+      "version" : "0.10.1",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "disktree-0.10.0-aarch64-macos.zip",
+      "prerelease" : false,
+      "tag" : "v0.10.0",
+      "version" : "0.10.0",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.9.1",
+      "version" : "0.9.1",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.9.0",
+      "version" : "0.9.0",
+      "x86_64" : "<none>"
+    }
+  ],
+  "rules" : [
+    {
+      "bundleID" : "io.github.tobi.disktree",
+      "channel" : "stable",
+      "installAssetPattern" : "^disktree-[0-9.]+-aarch64-macos\\.zip$",
+      "installerKind" : "zip",
+      "installTrust" : "publishedDigestOnly",
+      "slug" : "tobi\/disktree",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+(?:\\.[0-9]+)+)$"
+    }
+  ]
+}

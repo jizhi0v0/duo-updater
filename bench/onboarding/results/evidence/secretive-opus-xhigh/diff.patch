@@ -1,0 +1,336 @@
+diff --git a/CHANNEL_COVERAGE_TODO.md b/CHANNEL_COVERAGE_TODO.md
+index 41d05b4..98611aa 100644
+--- a/CHANNEL_COVERAGE_TODO.md
++++ b/CHANNEL_COVERAGE_TODO.md
+@@ -460,6 +460,9 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** 
+ - ✗ **Postman — Canary** · 已停产（cask `postman@canary` 2025-11-15 disabled）
+ - ✗ **RustDesk — Nightly** · 同 `com.carriez.rustdesk`，同 repo prerelease，stable rule 已排除
+ - ✗ **1Password — Beta** · 同 `com.1password.1password`，cask 装同名同 id；vendor API 仅服务 NIGHTLY 且需 auth
++- ✗ **Secretive — Nightly** · 同 `com.maxgoedjen.Secretive.Host`，只发 GitHub Actions artifact（下载需登录，不建 release）。
++  版本串 `0.0.0_nightly-<date>` 是唯一信号，`detect()` 0.10 认成 `.nightly`，stable rule 因此不推给它（2026-10-13 真包验证）。
++  见 `docs/app-audits/com-maxgoedjen-Secretive-Host.md`
+ - ✅ **Raycast — v2** · **更正 2026-08-27**：旧判断「Beta(v2) 应用内 opt-in、无独立下载」已经过期。
+   v2 于 2026-08-25 转正（GA 2.0.6.0），**不是 channel 问题**：Raycast 现在开着两条 train，
+   归属由**机器**而非用户偏好决定 —— v2 要求 macOS Tahoe + Apple Silicon
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift
+index 820344d..ae0620a 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Models/ReleaseChannel.swift
+@@ -96,6 +96,10 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
+     ///      only the numbered beta shape, so the UNNUMBERED `7.1.0-beta` and
+     ///      every `-rc` tag read as `.stable` without this. See the block
+     ///      comment on the check.
++    ///   0.10. A seventh bundle-id-scoped rule — Secretive, whose nightly
++    ///      stamps `0.0.0_nightly-<date>`: the word follows an underscore, which
++    ///      step 4's dash-tail shape does not read. See the block comment on
++    ///      the check.
+     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
+     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
+     ///      authoritative).
+@@ -257,6 +261,20 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
+             return .beta
+         }
+ 
++        // 0.10 Secretive — the nightly workflow builds the stable bundle id
++        //     (`com.maxgoedjen.Secretive.Host`), the same `CFBundleName`
++        //     ("Secretive") and app filename, and stamps
++        //     `CFBundleShortVersionString` as `0.0.0_nightly-<yyyy-MM-dd>`. The
++        //     word sits behind an UNDERSCORE, which step 4's dash-tail shape
++        //     does not read, so without this rule a nightly reads as `.stable`
++        //     and the stable GitHub rule offers — and one-click installs — the
++        //     newest release over it (same Team ID, so no install gate stops it).
++        if bundleID == "com.maxgoedjen.Secretive.Host",
++           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
++           fullyMatches(#"[0-9]+(\.[0-9]+)+_nightly(-[0-9]+)*"#, version.lowercased()) {
++            return .nightly
++        }
++
+         // 1. Keystone's own channel id — authoritative when present.
+         if let ks = keystoneChannel?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !ks.isEmpty {
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index b3b6fbb..4131a37 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -91,6 +91,7 @@ public enum AppRecipeIndex {
+         com_longbridge_app_desktop.set,
+         com_macpaw_site_theunarchiver.set,
+         com_mak5er_aircard.set,
++        com_maxgoedjen_Secretive_Host.set,
+         com_meetily_ai.set,
+         com_meta_endo.set,
+         com_microsoft_edgemac.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-maxgoedjen-Secretive-Host.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-maxgoedjen-Secretive-Host.swift
+new file mode 100644
+index 0000000..787b19f
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-maxgoedjen-Secretive-Host.swift
+@@ -0,0 +1,26 @@
++import Foundation
++
++enum com_maxgoedjen_Secretive_Host {
++    static let set = AppRecipeSet(
++        family: "com-maxgoedjen-Secretive-Host",
++        githubRules: [
++        // Secretive — SSH keys in the Secure Enclave. No SUFeedURL; its own
++        // updater (an XPC service) reads this repo's /releases list, drops
++        // prereleases and only links to the release page, so the repo is the
++        // authoritative source. The release workflow stamps the tag minus `v`
++        // into CFBundleShortVersionString (CFBundleVersion is `1.<run id>`).
++        // The anchor also keeps out the release-less `v0.0.0_beta1`,
++        // `v0.0.0_test` and `v3.0.1-skipped` tags. Single track: nightlies are
++        // Actions artifacts only (`0.0.0_nightly-<date>`), never releases. One
++        // universal `Secretive.zip` per release, unversioned name. The body's
++        // "Minimum macOS Version" is not read here; the downloaded bundle's
++        // LSMinimumSystemVersion is checked at install. Team Z72PRUAWF6,
++        // notarized (ticket not stapled).
++        GitHubReleaseRule(
++            bundleID: "com.maxgoedjen.Secretive.Host",
++            owner: "maxgoedjen", repo: "secretive",
++            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
++            installAssetPattern: #"^Secretive\.zip$"#,
++            installerKind: .zip),
++        ])
++}
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ChannelGuardTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ChannelGuardTests.swift
+index b3e90e0..01e97dc 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ChannelGuardTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ChannelGuardTests.swift
+@@ -424,6 +424,51 @@ import Foundation
+         keystoneChannel: nil) == .stable)
+ }
+ 
++// MARK: - Secretive nightly: the word follows an underscore in CFBundleShortVersionString
++
++/// Secretive's nightly ships the stable bundle id, `CFBundleName` and filename;
++/// the version is the only signal. Values read off real bundles 2026-10-13: the
++/// nightly Actions artifact reports `0.0.0_nightly-2026-10-13`, the v4.0.0
++/// release `4.0.0`. The underscore is why step 4's dash-tail shape misses it,
++/// asserted below by the `com.example.other` row.
++@Test func secretiveNightlyVersionSignalsNightly() {
++    func detect(_ bundleID: String, _ version: String) -> ReleaseChannel {
++        ReleaseChannel.detect(
++            name: "Secretive", bundleID: bundleID, keystoneChannel: nil, version: version)
++    }
++    #expect(detect("com.maxgoedjen.Secretive.Host", "0.0.0_nightly-2026-10-13") == .nightly)
++    #expect(detect("com.maxgoedjen.Secretive.Host", "4.0.0") == .stable)
++    // Scoped to this bundle id: the same string on any other app falls through
++    // to the ordinary signals, none of which reads it.
++    #expect(detect("com.example.other", "0.0.0_nightly-2026-10-13") == .stable)
++}
++
++/// Why the rule above is worth having: the stable rule carries a one-click
++/// install spec, the nightly is signed by the same Team ID, and `0.0.0` sorts
++/// below every release — so a nightly read as `.stable` is offered, and
++/// installable, the newest release. Drives the REAL registry entry.
++@Test func secretiveStableRuleDoesNotReachTheNightly() async throws {
++    let bundleID = "com.maxgoedjen.Secretive.Host"
++    let rule = try #require(GitHubReleaseRegistry.rules.first { $0.bundleID == bundleID })
++    #expect(rule.channel == .stable)
++    #expect(rule.installAssetPattern != nil,
++            "stable rule lost its install spec — the hazard this guards has changed")
++
++    let source = GitHubReleasesSource(rules: [rule])
++    let version = "0.0.0_nightly-2026-10-13"
++    let nightly = InstalledApp(
++        name: "Secretive", bundleID: bundleID,
++        shortVersion: version, buildVersion: "1.38367930469",
++        path: URL(fileURLWithPath: "/Applications/Secretive.app"),
++        isMASApp: false, sparkleFeedURL: nil,
++        releaseChannel: ReleaseChannel.detect(
++            name: "Secretive", bundleID: bundleID, keystoneChannel: nil, version: version))
++
++    #expect(nightly.releaseChannel == .nightly)
++    // Skipped before any fetch — a network call here would be a bug on its own.
++    #expect(try await source.latestVersion(for: nightly) == nil)
++}
++
+ // MARK: - Prerelease WORD in the version tail (issue #93)
+ 
+ /// Freelens nightly, VLC nightly and the KeePassXC snapshot each ship the STABLE
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-maxgoedjen-Secretive-Host.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-maxgoedjen-Secretive-Host.txt
+new file mode 100644
+index 0000000..b8f68de
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-maxgoedjen-Secretive-Host.txt
+@@ -0,0 +1,39 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "com-maxgoedjen-Secretive-Host"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 0)
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "com.maxgoedjen.Secretive.Host"
++githubRules[0].owner = "maxgoedjen"
++githubRules[0].repo = "secretive"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^Secretive\\.zip$"
++githubRules[0].installerKind? = .zip
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index c857d50..4b1b77a 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -231,6 +231,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**T3 Code**](com-t3tools-t3code.md) · `com.t3tools.t3code` — G(alpha/nightly) · 2 channels，共享 bundle id，app 名渠道词 + GitHub 双 rule · **两轨一键 ✓**（Team ARK85ZXQ4Z，真包挂载验证）· 2026-08-30 · 仓库出现了未覆盖的 `-preview.` 发布系列（tag 自 2026-09-12、release 自 2026-09-13；2026-09-14 复测）
+ - [x] [**Kun**](com-xingyuzhong-deepseekgui.md) · `com.xingyuzhong.deepseekgui` — G (one-click arm64 dmg) · 真包 v0.3.7 挂载验证 ✓ · 2026-08-30
+ - [x] [**Reviu**](com-jorisgallot-reviu.md) · `com.jorisgallot.reviu` — G (one-click arm64 dmg) · 真包 v1.4.0 挂载验证 ✓ · 一键 1.3.0→1.4.0 端到端 ✓ · 2026-09-29
++- [x] [**Secretive**](com-maxgoedjen-Secretive-Host.md) · `com.maxgoedjen.Secretive.Host` — G (one-click universal zip) · 真包 v4.0.0 / v3.0.4 解包验证 ✓ · nightly（Actions artifact）只做 `detect()` 识别、不接 · 2026-10-13
+ - [x] [**DSH Desktop**](ai-deepseek-dsh-desktop.md) · `ai.deepseek.dsh.desktop` — G (one-click universal dmg) · 真包 v2.0.4 挂载验证 ✓ · 2026-08-30
+ - [x] [**Meetily**](com-meetily-ai.md) · `com.meetily.ai` — G (one-click arm64 dmg) · 真包 v0.4.0 挂载验证 ✓ · 2026-08-30
+ - [x] [**Paseo**](sh-paseo-desktop.md) · `sh.paseo.desktop` — G (one-click arm64 dmg) · 真包 v0.6.1 挂载验证 ✓（beta 是 prerelease 轨，未接入）· 2026-08-30
+diff --git a/docs/app-audits/com-maxgoedjen-Secretive-Host.md b/docs/app-audits/com-maxgoedjen-Secretive-Host.md
+new file mode 100644
+index 0000000..a90d84f
+--- /dev/null
++++ b/docs/app-audits/com-maxgoedjen-Secretive-Host.md
+@@ -0,0 +1,123 @@
++# Secretive
++
++## 基本信息
++- Bundle ID: `com.maxgoedjen.Secretive.Host`（内嵌 login item `Contents/Library/LoginItems/SecretAgent.app`，
++  `com.maxgoedjen.Secretive.SecretAgent`，同 Team，随主 bundle 一起替换）
++- Team ID: `Z72PRUAWF6`
++- 观测版本: `4.0.0`（v4.0.0 release 包）、`3.0.4`（v3.0.4 release 包）；`CFBundleVersion` 是
++  `1.<Actions run id>`（`1.35554366823`），不参与比较
++- 自更新机制: 自研，只提示不安装（`Brief` 包 + `SecretiveUpdater.xpc`：`GET api.github.com/repos/maxgoedjen/secretive/releases`，
++  「Update」按钮只打开 release 页）。bundle 里没有 Sparkle，无 `SUFeedURL`，无 electron-builder 配置
++- 分发: GitHub Releases（`maxgoedjen/secretive`，README 的 Direct Download 指向 Releases 页）/ Homebrew cask
++  `secretive`（url 就是 GitHub 资产，sha256 相同）；无 MAS
++- 开源: 是。以下渠道、版本方案、厂商更新逻辑均读自仓库源码（`main` 分支）
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|             | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|-------------|---------|----------|-----|--------|-------------|
++| **stable**  | —       | ✓¹       | —   | ✓      | —           |
++| **nightly** | —       | —        | —   | ✗      | —           |
++
++¹ 通用源：cask 没设 `auto_updates`，brew 装的副本由 `HomebrewCaskSource` 应答（它排在 GitHub 前面）。
++本次没有在 brew 装的副本上实测。
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: 直接下载的副本 → **GitHub**；brew 装的副本 → Homebrew。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `com.maxgoedjen.Secretive.Host` | 共享 | 版本串是纯 `X.Y.Z` | tag 锚 `^vX.Y.Z$` + `/releases/latest` | ✓ |
++| nightly | `com.maxgoedjen.Secretive.Host` | 共享 | `CFBundleShortVersionString` = `0.0.0_nightly-<yyyy-MM-dd>` → `detect()` 0.10 → `.nightly` | 无 rule；stable rule 被渠道闸拒绝 | ✗ |
++
++- settled from source: `.github/workflows/nightly.yml` on `main`——每天 08:00 UTC 构建，版本写成
++  `0.0.0_nightly-$DATE`，产物只上传为 **Actions artifact**，不建 release。artifact 下载要 GitHub 登录
++  （2026-10-13 匿名 `GET …/actions/artifacts/<id>/zip` → 401），且有保留期。没有可消费的公开端点，所以不接。
++- nightly 的唯一本地信号是版本串：bundle id、`CFBundleName`（"Secretive"）、文件名都和 stable 相同。
++  下划线后的 `nightly` 是 `detect()` 第 4 步（只读 `-` 分隔的尾词）读不到的形状，所以加了只对本 bundle id
++  生效的 0.10 规则。没有它，nightly 会读成 `.stable`，被 stable rule 推 4.0.0 并可一键覆盖（同 Team，安装闸拦不住）。
++- 厂商的 `SemVer` 注释还写了 beta 形状 `1.2.3_beta1`，但没有 beta 工作流，唯一的 `v0.0.0_beta1` tag 没有
++  release，真包里也没见过——不处理。
++- 渠道切换: 无。厂商更新器硬过滤 `prerelease`（`Updater.evaluate`），没有 beta 开关。
++
++## 更新检测
++- 源: `maxgoedjen/secretive` GitHub Releases，`/releases/latest`
++- 版本方案: settled from source: `.github/workflows/release.yml` on `main`——tag push 触发，
++  `sed 's/refs\/tags\/v//'` 后写进 `CI_VERSION` → `CFBundleShortVersionString`；`CFBundleVersion` = `1.<run id>`。
++  tag `v4.0.0` → `4.0.0` == 包的 `CFBundleShortVersionString`（v3.0.4 同理）。
++- tag 与 release（2026-10-13）: 30 个 tag、27 个 release。没有 release 的 3 个 tag 是 `v0.0.0_beta1`、
++  `v0.0.0_test`、`v3.0.1-skipped`，pattern 本来也不收。prerelease 只有 2020-03 的 0.1.1–0.5.1。
++  每个 release 的 `name` 都等于 tag 去掉 `v`（厂商更新器按 `name` 比版本）。
++- 厂商更新器对照: settled from source: `Sources/SecretiveUpdater/SecretiveUpdater.swift` +
++  `Sources/Packages/Sources/Brief/Updater.swift`——读同一个 releases 列表，丢掉 prerelease，取最新且
++  正文「Minimum macOS Version」≤ 本机系统的那条。请求不带设备标识，不存在按设备灰度。
++- `/releases/latest`（2026-10-13）: `v4.0.0`，资产只有 `Secretive.zip`。
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | 不能 |
++| 证据 | 厂商更新器不下载，只 `openURL(update.html_url)`（`Sources/Secretive/Views/Views/UpdateView.swift`）；zip 里没有 Sparkle | 每个 release 只有一个整包 `Secretive.zip`（2026-10-13） | — |
++
++## 按 OS / 架构分轨
++- 按 OS: 每个 release 正文有 `## Minimum macOS Version`：v4.0.0 是 `15.0.0`，v3.0.4 和 v3.0.3 是 `14.0.0`。
++  包的 `LSMinimumSystemVersion` 与之一致：v4.0.0 `15.0`，v3.0.4 `14.0`。cask 的 `depends_on.macos` 为空。
++  `GitHubReleasesSource` 不读这个逐版本下限，见「已知问题」。
++- 按架构: 主程序 `x86_64 arm64 arm64e` universal，一个资产，无需选架构。
++- 按设备灰度: 无。公开 releases 列表，谁读都一样。
++- 自更新器会不会和我们抢: 不会，厂商更新器从不下载或替换 bundle。
++
++## Changelog
++- 来源: GitHub Release body，`GitHubReleasesSource` 用 `GitHubMarkdownParser` 结构化带回。
++  用真实正文跑生产 parser（2026-10-13）：v4.0.0 → 1 条 entry、19 个 item，分节 `Features` / `Fixes`；
++  `Minimum macOS Version` / `Build` / `Attestation` / `New Contributors` / `Full Changelog` 不进 item。
++  v3.0.4 → 21 个 item，分节 `Fixes` / `Features` / `Special Thanks`（正文自带一份「New in 3.0」）。
++- 跟随 channel: 单轨（nightly 没有 release notes）
++- Recipe 状态: 不需要
++
++## 一键安装
++- 状态: **支持**（真机端到端未跑）
++- 格式: zip — `Secretive.zip`，根目录就是 `Secretive.app`，没有 `._*` 条目
++- Pattern: `^Secretive\.zip$`, kind `.zip`
++- **读的是**: 人人可手动下载的 GA（官方 repo 公开资产；README 和 Homebrew cask 指向的是同一个文件）
++- 包验（2026-10-13）:
++  - v4.0.0: sha256 `877517e2…1ac1fa` == GitHub 资产 `digest`；`com.maxgoedjen.Secretive.Host` / `4.0.0`，
++    Team `Z72PRUAWF6`，`codesign --verify --deep --strict` 通过，`spctl` accepted / Notarized Developer ID，
++    **未 staple**（`stapler validate`: does not have a ticket stapled）——发布流程只 `notarytool submit`，不 staple
++  - v3.0.4: sha256 `696d0781…d084ba` == `digest`；`com.maxgoedjen.Secretive.Host` / `3.0.4`，其余同上
++    （Team 相同，Notarized，未 staple）
++- 安装闸都过得去: 签名 + 同 Team + 同 bundle id + universal；`VendorInstaller` 不要求 staple
++- 端到端: **未跑**
++
++## 已知问题
++- **OS 下限只在安装时才看。** 4.0.0 需要 macOS 15，3.x 需要 14。macOS 14 上的 3.0.4 副本会一直看到
++  「4.0.0 可更新」，一键会在 gate 6（`verifyRunnableSystemVersion`）被拒。厂商更新器读正文的
++  「Minimum macOS Version」避开了这一点；`GitHubReleaseRule` 没有逐版本读下限的字段。
++- nightly 副本检测为 `.nightly` 后没有源应答，显示 unknown。这是有意的：stable 不推给 nightly。
++- 替换 bundle 后，正在运行的 SecretAgent 仍是旧代码，直到重启（推断，未验证）。
++
++## 如何复验
++```
++# GET https://api.github.com/repos/maxgoedjen/secretive/releases/latest → v4.0.0，资产 Secretive.zip
++# 下载 https://github.com/maxgoedjen/secretive/releases/download/v4.0.0/Secretive.zip
++#   和 …/v3.0.4/Secretive.zip，各自解包
++swift run --package-path application-test feed-discover Secretive.zip
++#   → com.maxgoedjen.Secretive.Host 4.0.0 (1.35554366823) — no Sparkle and no electron-builder update config
++swift run --package-path application-test channel-verify <v4.0.0>/Secretive.app --expect stable
++#   → detected stable, winning source GitHub, latest 4.0.0, status up to date
++swift run --package-path application-test channel-verify <v3.0.4>/Secretive.app --expect stable
++#   → detected stable, winning source GitHub, latest 4.0.0,
++#     download …/releases/download/v4.0.0/Secretive.zip, status UPDATE → 4.0.0
++# nightly: 2026-10-13 的 Actions artifact（需登录下载），版本 0.0.0_nightly-2026-10-13，Team Z72PRUAWF6
++swift run --package-path application-test channel-verify <nightly>/Secretive.app --expect nightly
++#   → detected nightly, winning source <none>, status unknown (no source answered)
++#   （加 0.10 规则之前同一个包: detected stable, GitHub, UPDATE → 4.0.0）
++```
++
++## 建议下一步
++1. 端到端一键：装 3.0.4 → check 报 `3.0.4 → 4.0.0 [GitHub]` → install → 装好的包是 `4.0.0`、Team `Z72PRUAWF6`。
++2. 若要消掉 macOS 14 上的常驻提示：给 `GitHubReleaseRule` 加一个从正文读逐版本下限的字段（引擎改动，本次未做）。

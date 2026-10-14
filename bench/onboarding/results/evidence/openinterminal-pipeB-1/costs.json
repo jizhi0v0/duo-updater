@@ -1,0 +1,76 @@
+{
+ "plan": {
+  "total": 4.81,
+  "turns": 74,
+  "subtype": "success",
+  "by_model": {
+   "claude-opus-5-5": 4.81
+  },
+  "models_seen": {
+   "main": [
+    "claude-opus-5-5"
+   ],
+   "subagent": []
+  },
+  "subagents_spawned": 0,
+  "subagents_completed": 0,
+  "minutes": 15.7
+ },
+ "exec": {
+  "total": 0.438,
+  "turns": 12,
+  "subtype": "success",
+  "by_model": {
+   "claude-sonnet-5-5": 0.42,
+   "claude-haiku-5-5": 0.018
+  },
+  "models_seen": {
+   "main": [
+    "claude-sonnet-5-5"
+   ],
+   "subagent": [
+    "claude-haiku-5-5"
+   ]
+  },
+  "subagents_spawned": 1,
+  "subagents_completed": 1,
+  "minutes": 3.2
+ },
+ "review": {
+  "total": 0.879,
+  "turns": 21,
+  "subtype": "success",
+  "by_model": {
+   "claude-opus-5-5": 0.879
+  },
+  "models_seen": {
+   "main": [
+    "claude-opus-5-5"
+   ],
+   "subagent": []
+  },
+  "subagents_spawned": 0,
+  "subagents_completed": 0,
+  "minutes": 2.6
+ },
+ "fix": {
+  "total": 1.612,
+  "turns": 35,
+  "subtype": "success",
+  "by_model": {
+   "claude-sonnet-5-5": 1.538,
+   "claude-haiku-5-5": 0.074
+  },
+  "models_seen": {
+   "main": [
+    "claude-sonnet-5-5"
+   ],
+   "subagent": [
+    "claude-haiku-5-5"
+   ]
+  },
+  "subagents_spawned": 4,
+  "subagents_completed": 4,
+  "minutes": 14.2
+ }
+}

@@ -1,0 +1,46 @@
+# The production Claude review (.github/claude-review/full.md + REVIEW.md at main
+# 57a2e88e, Opus 5.5, the workflow's tool allowlist) replayed on the seven Opus-medium
+# onboardings of round 5 (runs <app>-opus-medium), once at effort high (what the
+# workflow runs) and once at xhigh. harness/replay-review.sh; the reviews are in
+# evidence/_review-replay/. 2026-10-14, Claude Code 2.1.296.
+#
+# expected: what main covers and the onboarding left out, that REVIEW.md or the review
+# prompt asks a reviewer to flag. A gap the audit records as a gap with a reason is not
+# expected (REVIEW.md: "covered by a rule or recorded as a gap").
+# Bias: several REVIEW.md checks were written from these same apps' failures (it names
+# Secretive's nightly), so the catch rate here is optimistic.
+
+summary:
+  high:  {expected_caught: 1 of 4, true_extra: 2, false_positive: 0, usd_total: 8.85, minutes_mean: 2.9, review_md_write_refused: 2 of 7}
+  xhigh: {expected_caught: 2 of 4, true_extra: 3, false_positive: 0, usd_total: 17.43, minutes_mean: 6.3, review_md_write_refused: 0 of 7}
+
+apps:
+  secretive:
+    expected: "nightly copies (0.0.0_nightly-<date>) read as stable; with one-click on, a newer nightly is offered an older stable build"
+    high: {blocking: 0, verdict: "missed: accepted the audit's recorded gap"}
+    xhigh: {blocking: 1, verdict: "caught: the one-click rule reaches nightly copies and can downgrade them"}
+  obelisk:
+    expected: "nothing (matches main)"
+    high: {blocking: 0, verdict: "correct"}
+    xhigh: {blocking: 0, verdict: "correct"}
+  openinterminal:
+    expected: "nothing (matches main)"
+    high: {blocking: 2, verdict: "two findings main shares: the Lite apps' v1.x tags read as OpenInTerminal releases on the list fallback (main's reference grade reads v1.2.8 as 1.2.8), and pre-rename wang.jianing.OpenInTerminal copies (<= 2.0.5) neither covered nor recorded (not verified here)"}
+    xhigh: {blocking: 2, verdict: "the same two"}
+  lokii:
+    expected: "the digest-only Settings text, which lists the apps by name, not updated to include Lokii (main does)"
+    high: {blocking: 0, verdict: "missed the Settings text"}
+    xhigh: {blocking: 1, verdict: "missed the Settings text; caught a wrong SHA-256 in the audit's re-verify section (…db8b29 written, the API says …dc8b29; checked)"}
+  disktree:
+    expected: "the same Settings text, not updated to include disktree (main does)"
+    disputed: "the probe reads v0.12.0-rc.1 as 0.12.0 with this pattern; the high review argued the asset pattern keeps an rc out. Not counted either way."
+    high: {blocking: 0, verdict: "missed the Settings text"}
+    xhigh: {blocking: 0, verdict: "missed the Settings text"}
+  spotifast:
+    expected: "pre-rename me.paolino.fastpotify copies get no detection; the audit defers the decision without a reason that holds"
+    high: {blocking: 1, verdict: "caught"}
+    xhigh: {blocking: 1, verdict: "caught"}
+  cindy:
+    expected: "nothing under REVIEW.md: the beta track main covers is recorded in the audit as a gap"
+    high: {blocking: 0, verdict: "correct under REVIEW.md"}
+    xhigh: {blocking: 0, verdict: "correct under REVIEW.md"}

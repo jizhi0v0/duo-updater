@@ -1,0 +1,562 @@
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Models/BundleIDMigration.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Models/BundleIDMigration.swift
+index f865025..cefc679 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Models/BundleIDMigration.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Models/BundleIDMigration.swift
+@@ -41,6 +41,16 @@ public struct BundleIDMigration: Sendable, Equatable {
+         BundleIDMigration(
+             from: "com.workbuddy.workbuddy", to: "com.tencent.workbuddy.mac",
+             teamID: "FN2V63AD2J", lastFromVersion: "5.3.14", firstToVersion: "5.5.4"),
++        // Fastpotify → Spotifast (crmne/spotifast): 0.9.1 is the last release
++        // signed as `me.paolino.fastpotify`, 0.10.0 the first `rocks.spotifast.Spotifast`
++        // (both Team JPL7999US3, read from the real dmgs; 0.8.0 and 0.9.1 ship two
++        // identical `.app`s under the old id, 0.7.1 and below are ad-hoc). The
++        // vendor's own updater carries old copies over. The GitHub rule for the old
++        // id is detection-only, so only the recipe lookup and the process lookup
++        // use this entry. See docs/app-audits/rocks-spotifast-Spotifast.md.
++        BundleIDMigration(
++            from: "me.paolino.fastpotify", to: "rocks.spotifast.Spotifast",
++            teamID: "JPL7999US3", lastFromVersion: "0.9.1", firstToVersion: "0.10.0"),
+     ]
+ 
+     /// Whether an installed copy signed as `from` at `version` is this rename.
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index f692b68..c80fff9 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -255,6 +255,7 @@ public enum AppRecipeIndex {
+         org_zotero_zotero.set,
+         pl_maketheweb_cleanshotx.set,
+         pro_betterdisplay_BetterDisplay.set,
++        rocks_spotifast_Spotifast.set,
+         ru_starmel_OpenSuperWhisper.set,
+         se_johnste_finicky.set,
+         sh_brew_app.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/rocks-spotifast-Spotifast.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/rocks-spotifast-Spotifast.swift
+new file mode 100644
+index 0000000..e61d327
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/rocks-spotifast-Spotifast.swift
+@@ -0,0 +1,68 @@
++import Foundation
++
++enum rocks_spotifast_Spotifast {
++    static let set = AppRecipeSet(
++        family: "rocks-spotifast-Spotifast",
++        changelogs: [
++        // Spotifast — release bodies from the releases API. The GitHub rule below
++        // carries only the newest body, so a copy a few versions behind would see
++        // one version's notes (releases come every few days). Bodies are Markdown,
++        // written by hand per release (`packaging/release-notes/vX.Y.Z.md` in the
++        // repo): an opening paragraph, a `**Download Spotifast:**` line of links,
++        // then `## New` / `## Fixed` / `## Changed` sections. No `skipSections`:
++        // the closing `## Thanks` roster is a paragraph, so it yields no items
++        // (removing the setting changed nothing in the test below).
++        //
++        // Entries are filed under the tag minus its `v`, which is what the app
++        // reports. Tags with a suffix are prereleases (the workflow flags every tag
++        // containing `-`) and the decoder drops them.
++        ChangelogRecipe(
++            bundleID: "rocks.spotifast.Spotifast",
++            source: URL(string: "https://api.github.com/repos/crmne/spotifast/releases?per_page=20")!,
++            mode: .json,
++            maxEntries: 10,
++            structuredFormat: .gitHubReleases),
++        ],
++        githubRules: [
++        // Spotifast (crmne/spotifast, formerly Fastpotify) — a Rust/egui Spotify
++        // client. The macOS app has its own updater (`src/updates.rs`, the
++        // fastframe-update crate: reads `crmne/spotifast` releases, requires an
++        // Ed25519 signature on `checksums.txt`); no `SUFeedURL`, no Sparkle. The
++        // vendor's own tap carries a cask (`crmne/tap/spotifast`, no
++        // `auto_updates`), but `HomebrewCaskCatalog` reads only the official
++        // catalog, so `/releases/latest` is the source that answers.
++        //
++        // Versions: tag `vX.Y.Z` equals `CFBundleShortVersionString` and
++        // `CFBundleVersion` (0.12.0 and 0.13.0 measured). The release workflow
++        // flags any tag containing `-` as a prerelease; both patterns are anchored
++        // anyway, so an un-flagged `vX.Y.Z-rcN` could not be offered as "X.Y.Z".
++        //
++        // One-click: the `macos-universal.dmg` (x86_64 + arm64), Developer ID,
++        // Team JPL7999US3, notarized, the same Team on 0.12.0 and 0.13.0. A single
++        // `Spotifast.app`, no nested helpers or login items. The app's own updater
++        // may offer the same release; whichever installs first is harmless.
++        GitHubReleaseRule(
++            bundleID: "rocks.spotifast.Spotifast",
++            owner: "crmne", repo: "spotifast",
++            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#,
++            installAssetPattern: #"^spotifast-v[0-9]+\.[0-9]+\.[0-9]+-macos-universal\.dmg$"#,
++            installerKind: .dmg),
++
++        // The same app through 0.9.1 (Fastpotify): bundle id `me.paolino.fastpotify`,
++        // executable `fastpotify`; 0.10.0 is the first `rocks.spotifast.Spotifast`
++        // (`BundleIDMigration`). The vendor's own updater carries these copies over
++        // (0.9.1 notes: it "accepts the new archive and macOS bundle identities
++        // used by future releases"), so an old-id copy is the same app and gets
++        // detection here and, through the migration entry, the changelog.
++        //
++        // DETECTION ONLY, on purpose. The 0.12.0 notes say settings and sign-ins
++        // from 0.9.0 or older "are no longer moved over: if you update straight
++        // from one of those, you start fresh", and a rule cannot tell a 0.9.1 copy
++        // (profile already moved) from a 0.8.0 one. Copies at 0.7.1 and below are
++        // ad-hoc signed, so the Team gate would refuse them anyway.
++        GitHubReleaseRule(
++            bundleID: "me.paolino.fastpotify",
++            owner: "crmne", repo: "spotifast",
++            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#),
++        ])
++}
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift
+index b463f16..3beee7e 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/GitHubReleasesSource.swift
+@@ -423,7 +423,16 @@ public extension GitHubReleaseRule {
+     /// decides a row is orphaned when no rule produces its key. A second,
+     /// separately-maintained spelling of this string would make the prune delete
+     /// live rows the first time the two drifted.
+-    var recipeID: String { "github:\(slug):\(channel.rawValue)" }
++    ///
++    /// When another registry rule has the same repo and channel under a DIFFERENT
++    /// bundle id (an app that renamed its bundle id and keeps both detected:
++    /// Spotifast / Fastpotify), the bundle id is appended so each keeps its own
++    /// health row and baseline entry. Every other rule's key is unchanged.
++    var recipeID: String {
++        let base = "github:\(slug):\(channel.rawValue)"
++        return GitHubReleaseRegistry.slugsSharedAcrossBundleIDs.contains(base)
++            ? "\(base):\(bundleID)" : base
++    }
+ }
+ 
+ /// Resolves updates for apps distributed through GitHub Releases. Kept separate
+@@ -1610,4 +1619,11 @@ public enum GitHubReleaseRegistry {
+     // `FreeCAD_<ver>-macOS-arm64-py<n>.dmg`. Check the shipped plist, not the
+     // release notes.
+     public static let rules: [GitHubReleaseRule] = AppRecipeIndex.all.flatMap(\.githubRules)
++
++    /// The `github:<slug>:<channel>` bases that more than one bundle id's rule
++    /// files under; see `GitHubReleaseRule.recipeID`.
++    static let slugsSharedAcrossBundleIDs: Set<String> = {
++        let byBase = Dictionary(grouping: rules) { "github:\($0.slug):\($0.channel.rawValue)" }
++        return Set(byBase.filter { Set($0.value.map(\.bundleID)).count > 1 }.keys)
++    }()
+ }
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/SpotifastRecipeTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/SpotifastRecipeTests.swift
+new file mode 100644
+index 0000000..3a0a7bf
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/SpotifastRecipeTests.swift
+@@ -0,0 +1,146 @@
++import Testing
++import Foundation
++@testable import DuoUpdaterCore
++
++/// Spotifast (`rocks.spotifast.Spotifast`, `crmne/spotifast`): GitHub rule plus a
++/// changelog recipe over the same repo's releases. See `rocks-spotifast-Spotifast.swift`.
++///
++/// The fixture is three real releases from the live `per_page` listing fetched
++/// 2026-10-14: v0.12.0 and v0.11.2 verbatim (tag, `prerelease`, `draft`,
++/// `published_at`, body), and v0.5.0-rc2, which the workflow flagged as a prerelease.
++private let spotifastReleasesFixture = #"""
++[
++  {
++    "tag_name": "v0.12.0",
++    "prerelease": false,
++    "draft": false,
++    "published_at": "2026-10-03T16:05:07Z",
++    "body": "Spotifast 0.12.0 rests the audio device while you're paused, lets you drop skins on the window on Wayland again, speaks Turkish, and fixes the queue, the Add to playlist menu, the volume on phones and a crowded top bar. It also finishes the move from Fastpotify: the old name, command and profile move are gone.\n\n**Download Spotifast:** [Mac](https://github.com/crmne/spotifast/releases/download/v0.12.0/spotifast-v0.12.0-macos-universal.dmg) · [Windows](https://github.com/crmne/spotifast/releases/download/v0.12.0/spotifast-v0.12.0-x86_64-pc-windows-msvc-setup.exe) · [Windows ARM](https://github.com/crmne/spotifast/releases/download/v0.12.0/spotifast-v0.12.0-aarch64-pc-windows-msvc-setup.exe) · [Linux](https://github.com/crmne/spotifast/releases/download/v0.12.0/spotifast-v0.12.0-x86_64-unknown-linux-gnu.tar.gz) · [Linux ARM](https://github.com/crmne/spotifast/releases/download/v0.12.0/spotifast-v0.12.0-aarch64-unknown-linux-gnu.tar.gz) · [Flatpak](https://github.com/crmne/spotifast/releases/download/v0.12.0/spotifast-v0.12.0-x86_64.flatpak) · [AppImage](https://github.com/crmne/spotifast/releases/download/v0.12.0/spotifast-0.12.0-x86_64.AppImage) · [AppImage ARM](https://github.com/crmne/spotifast/releases/download/v0.12.0/spotifast-0.12.0-aarch64.AppImage)\n\n## New\n\n- **A paused Spotifast costs nothing.** Paused, Spotifast used to keep the audio device running and fed it silence. Now the device rests until you press Play, and starts again at once. On a Mac that took Spotifast from about 0.5% of a core to nothing, and macOS's audio service from about 4% to nearly nothing; Windows' audio service went from about 5% to nothing. By @crmne; thanks @gagarine. (#636)\n- **Turkish.** Spotifast is now available in Turkish. By @brsbrkctn. (#643)\n- **Drop skins on the window on Wayland again.** Dropping a `.wsz` skin, or any file, on the window works on Wayland again, and pasting keeps working on Hyprland. This lifts the 0.11.2 limitation. By @crmne.\n- **Every command works on Linux too.** `spotifast now-playing`, `devices`, `next`, `like`, `transfer` and the other subcommands now work on Linux as they do on macOS and Windows, beside MPRIS. By @crmne.\n- **Scrolling, the tray and media controls shared with ZapFast and Solco.** Spotifast's scrolling, single-instance guard and desktop media controls now come from fastframe, the foundation its sister apps share, so fixes reach every app. Scrolling picks up two fixes on the way: a slow frame no longer cuts a touchpad gesture short. By @crmne.\n\n## Fixed\n\n- **Reordering the queue moves the song you dragged.** Several quick moves in Playing next could move a different song, or empty the list until the next track. By @crmne; thanks @D3SOX. (#598)\n- **The Add to playlist menu stays open while you search.** Clicking its search field closed the menu, and clearing a search left the list short. By @crmne; thanks @D3SOX. (#638)\n- **The volume is greyed out for devices that won't take it.** When the playing device, such as an iPhone over Bluetooth, doesn't let other apps change its volume, the volume control is now greyed out with a tooltip instead of showing an error. By @crmne; thanks @jorisw. (#627)\n- **The top bar keeps its room in a narrow window.** With Queue or Lyrics open, the buttons beside the search field ran over it. The side panels now give way, down to their narrowest, and the window can't be made narrower than they need while they're open. By @crmne; thanks @oo7kc. (#624)\n- **A personal Spotify app is told to authorize again, not to sign in.** A personal app set up before 0.9.0 showed \"Spotify permissions changed. Sign in again.\" on every launch, which signing in couldn't fix. The message now points to Authorize in Settings → Account. By @crmne; thanks @azais-corentin. (#634)\n- **The window keeps its size when the interface is zoomed.** With the zoom not at 100%, the window shrank on every restart. By @crmne.\n- **Older Windows graphics drivers start Spotifast.** When a modern OpenGL context isn't available, Spotifast now falls back to a compatible one instead of failing to start. By @crmne.\n\n## Changed\n\n- **Fastpotify is gone.** Spotifast no longer carries the old name anywhere:\n  - the `fastpotify` command is gone; use `spotifast`;\n  - settings, sign-ins and caches from Fastpotify 0.9.0 or older are no longer moved over: if you update straight from one of those, you start fresh (your old files stay where they were);\n  - on Windows, if you're on 0.10.0 to 0.10.2, start Spotifast once by hand after this update: those versions' updater looks for the old program name.\n- **The `rodio` audio backend setting now always means Spotifast's own output,** which it always did in practice; librespot's separate rodio output is no longer included. PulseAudio stays available on Linux.\n- **Scripts and tools that talked to port 47113 need the command line now.** On macOS and Windows the fixed local port is gone, replaced by a private channel only your own `spotifast` command can use. The `spotifast` subcommands work as before; tools that opened the port directly, such as Stream Deck plugins, should call them instead.\n\n## Thanks\n\n@brsbrkctn, @D3SOX, @jorisw, @oo7kc, @azais-corentin, @gagarine, @jescribmun, and everyone who reported problems since 0.11.2.\n\n**Full changelog**: https://github.com/crmne/spotifast/compare/v0.11.2...v0.12.0\n"
++  },
++  {
++    "tag_name": "v0.5.0-rc2",
++    "prerelease": true,
++    "draft": false,
++    "published_at": "2026-09-01T14:57:40Z",
++    "body": "0.5.0-rc2 adds MilkDrop, a better queue, playback history, and multi-select. The macOS build is not notarized yet. Follow the first-open steps on the [download page](https://fastpotify.rocks/download/).\n\n## New\n\n- **MilkDrop** by @crmne. Run it in its own window, make it fullscreen, and switch between thousands of presets. It is not included in the Windows on ARM build.\n\n  https://github.com/user-attachments/assets/0d408524-2c31-4e43-bd05-73eef3a20f1e\n\n- **A better queue** by @crmne. It updates immediately, survives restarts, and can be cleared or saved as a playlist. Song radio now opens with its queue visible. Thanks @shaded00. (#93)\n- **Recent now includes Spotify history and songs played in Fastpotify.** By @zHeuzy2 and @crmne. Thanks @penguin221. (#106, #113)\n- **Multi-select** by @crmne. Ctrl-click or Cmd-click selects songs. Shift-click selects a range. Thanks @penguin221. (#105)\n- **Fastpotify remembers the last song and position.** By @koels. (#98)\n\n## Fixed\n\n- Artwork no longer makes the window flash. By @crmne; thanks @Ianuarius. (#129)\n- Browser sign-in works when Windows cannot find `powershell.exe`. By @crmne; thanks @Nippey. (#107)\n- The macOS first-open command works on macOS 27. By @crmne; thanks @jorisw. (#126)\n\n## Thanks\n\n@koels, @zHeuzy2, @braydenpb72, @penguin221, @shaded00, @Nippey, @jorisw, and @Ianuarius.\n\n**Full changelog**: https://github.com/crmne/fastpotify/compare/v0.4.1...v0.5.0-rc2\n"
++  },
++  {
++    "tag_name": "v0.11.2",
++    "prerelease": false,
++    "draft": false,
++    "published_at": "2026-09-30T23:11:58Z",
++    "body": "Spotifast 0.11.2 puts the new icon everywhere the app shows its logo, makes pasting work again on Hyprland, keeps running when a computer has no audio output, and keeps desktop media controls in step with the volume.\n\n**Download Spotifast:** [Mac](https://github.com/crmne/spotifast/releases/download/v0.11.2/spotifast-v0.11.2-macos-universal.dmg) · [Windows](https://github.com/crmne/spotifast/releases/download/v0.11.2/spotifast-v0.11.2-x86_64-pc-windows-msvc-setup.exe) · [Windows ARM](https://github.com/crmne/spotifast/releases/download/v0.11.2/spotifast-v0.11.2-aarch64-pc-windows-msvc-setup.exe) · [Linux](https://github.com/crmne/spotifast/releases/download/v0.11.2/spotifast-v0.11.2-x86_64-unknown-linux-gnu.tar.gz) · [Linux ARM](https://github.com/crmne/spotifast/releases/download/v0.11.2/spotifast-v0.11.2-aarch64-unknown-linux-gnu.tar.gz) · [Flatpak](https://github.com/crmne/spotifast/releases/download/v0.11.2/spotifast-v0.11.2-x86_64.flatpak) · [AppImage](https://github.com/crmne/spotifast/releases/download/v0.11.2/spotifast-0.11.2-x86_64.AppImage) · [AppImage ARM](https://github.com/crmne/spotifast/releases/download/v0.11.2/spotifast-0.11.2-aarch64.AppImage)\n\n![The sign-in and connecting card with the new icon](https://raw.githubusercontent.com/crmne/spotifast/v0.11.2/packaging/release-notes/v0.11.2/sign-in.png)\n\n*The sign-in card, before and while connecting (demo content).*\n\n## Fixed\n\n- **The new icon is on every screen.** 0.11.1 refreshed the app icon, but the sign-in and connecting card and Settings → About still drew the old flat disc. They now show the same icon as the app, the window and the tray, and the built-in Winamp skin's logo button and About mark have its polished look too. By @crmne.\n- **Pasting works again on Hyprland.** Ctrl+V and Paste in the text menu did nothing on Hyprland, such as on Omarchy, in every field, including the Client ID. By @crmne; thanks @fgrehm. (#614)\n- **No audio output no longer closes Spotifast.** On a computer without an output device, for example a new PC still missing its audio drivers, pressing play closed the app without a word. The song now pauses with a message saying no audio output device was found, in your language, and Spotifast stays open to play on another Spotify Connect device. By @crmne; thanks @spencernaugler7. (#623)\n- **Desktop media controls keep up with the volume.** Changing the volume from your desktop's media controls on Linux could leave them showing the old level. By @rosset-nocpes. (#599)\n\n## Known limitations\n\n- On Wayland, dropping a file on the window, such as a `.wsz` skin, is not available for now: it took the clipboard from the rest of the app on Hyprland. Put skins in the skins folder that Settings opens instead. X11, macOS and Windows are unaffected.\n\n## Thanks\n\n@rosset-nocpes, @spencernaugler7, @fgrehm, and everyone who reported problems after 0.11.1.\n\n**Full changelog**: https://github.com/crmne/spotifast/compare/v0.11.1...v0.11.2\n"
++  }
++]
++"""#
++
++private func spotifastRecipe() throws -> ChangelogRecipe {
++    try #require(
++        ChangelogRecipeRegistry.recipes.first { $0.bundleID == "rocks.spotifast.Spotifast" },
++        "no Spotifast changelog recipe")
++}
++
++private func spotifastChangelog() throws -> Changelog {
++    try #require(ChangelogService.parse(try spotifastRecipe(), body: spotifastReleasesFixture))
++}
++
++@Test func spotifastChangelogDropsThePrereleaseAndKeepsTheTagMinusV() throws {
++    #expect(try spotifastChangelog().entries.map(\.version) == ["0.12.0", "0.11.2"])
++}
++
++/// Sections stay headings; the `## Thanks` roster and the download-links line are not items
++/// (no `skipSections` needed: both are paragraphs).
++@Test func spotifastReleaseBodyKeepsItsSectionsWithoutTheRoster() throws {
++    let newest = try #require(try spotifastChangelog().entries.first)
++    #expect(newest.date == "2026-10-03")
++    let headings = newest.content.compactMap { block -> String? in
++        if case .heading(let h) = block { return h }
++        return nil
++    }
++    #expect(headings == ["New", "Fixed", "Changed"])
++    #expect(!newest.items.contains { $0.contains("D3SOX, @jorisw") || $0.contains("Download Spotifast") })
++}
++
++@Test func spotifastGitHubRuleReadsTheBareTagAndTheUniversalDmgOnly() throws {
++    let rule = try #require(
++        GitHubReleaseRegistry.rules.first { $0.bundleID == "rocks.spotifast.Spotifast" },
++        "no GitHubReleaseRule for rocks.spotifast.Spotifast")
++    #expect(rule.owner == "crmne" && rule.repo == "spotifast")
++    #expect(rule.channel == .stable && !rule.usePrereleases)
++    #expect(rule.installerKind == .dmg)
++    let pattern = try #require(rule.installAssetPattern)
++    func extract(_ tag: String) -> String? {
++        VendorProbeRecipe.extractVersion(from: tag, pattern: rule.versionPattern)
++    }
++    func matches(_ name: String) -> Bool {
++        name.range(of: pattern, options: .regularExpression) != nil
++    }
++
++    #expect(extract("v0.13.0") == "0.13.0")
++    #expect(extract("v0.5.0-rc2") == nil)
++
++    // The real v0.13.0 asset listing.
++    #expect(matches("spotifast-v0.13.0-macos-universal.dmg"))
++    #expect(!matches("spotifast-v0.5.0-rc2-macos-universal.dmg"))
++    #expect(!matches("spotifast-0.13.0-x86_64.AppImage"))
++    #expect(!matches("spotifast-v0.13.0-x86_64-pc-windows-msvc.msi"))
++    #expect(!matches("spotifast-v0.13.0-x86_64-unknown-linux-gnu.tar.gz"))
++    #expect(!matches("spotifast-v0.13.0-source.tar.gz"))
++    #expect(!matches("checksums.txt"))
++}
++
++// MARK: - Copies still on the Fastpotify bundle id (0.9.1 and below)
++
++/// Measured on the real dmgs: 0.7.1 is ad-hoc signed, 0.8.0 and 0.9.1 are Developer ID
++/// (JPL7999US3) and still `me.paolino.fastpotify`, 0.10.0 is the first
++/// `rocks.spotifast.Spotifast`.
++@Test func spotifastOldIdRuleDetectsAndNeverInstalls() throws {
++    let rule = try #require(
++        GitHubReleaseRegistry.rules.first { $0.bundleID == "me.paolino.fastpotify" },
++        "no GitHubReleaseRule for me.paolino.fastpotify")
++    #expect(rule.owner == "crmne" && rule.repo == "spotifast")
++    #expect(rule.channel == .stable && !rule.usePrereleases)
++    // Detection only: settings from 0.9.0 and older are not carried to current releases.
++    #expect(rule.installAssetPattern == nil && rule.installerKind == nil)
++    #expect(VendorProbeRecipe.extractVersion(from: "v0.13.0", pattern: rule.versionPattern) == "0.13.0")
++    #expect(VendorProbeRecipe.extractVersion(from: "v0.5.0-rc2", pattern: rule.versionPattern) == nil)
++}
++
++@Test func spotifastOldIdCopiesAreFiledUnderTheNewIdUpToTheBound() {
++    for version in ["0.7.1", "0.8.0", "0.9.1"] {
++        #expect(BundleIDMigration.recipeBundleID(
++            for: "me.paolino.fastpotify", installedVersion: version) == "rocks.spotifast.Spotifast")
++    }
++    #expect(BundleIDMigration.recipeBundleID(
++        for: "me.paolino.fastpotify", installedVersion: "0.10.0") == "me.paolino.fastpotify")
++    #expect(BundleIDMigration.recipeBundleID(
++        for: "rocks.spotifast.Spotifast", installedVersion: "0.9.1") == "rocks.spotifast.Spotifast")
++}
++
++/// The identity gate lets a new-id download replace a Developer ID old-id copy of the
++/// same Team only; an ad-hoc copy (0.7.1 and below, no Team) is refused.
++@Test func spotifastIdentityGateAdmitsOnlyTheSameTeam() {
++    func admitted(team: String?, version: String = "0.9.1") -> Bool {
++        BundleIDMigration.migration(
++            installed: "me.paolino.fastpotify", downloaded: "rocks.spotifast.Spotifast",
++            installedVersion: version, installedTeam: team, downloadedTeam: "JPL7999US3") != nil
++    }
++    #expect(admitted(team: "JPL7999US3"))
++    #expect(!admitted(team: nil, version: "0.7.1"))
++    #expect(!admitted(team: "ABCDE12345"))
++    #expect(!admitted(team: "JPL7999US3", version: "0.10.0"))
++}
++
++/// Both ids read `crmne/spotifast` on the stable channel, so the bundle id is what keeps their
++/// health rows apart; a rule with no sibling keeps the plain key.
++@Test func spotifastRulesKeepSeparateHealthKeys() throws {
++    let ids = GitHubReleaseRegistry.rules
++        .filter { $0.slug == "crmne/spotifast" }.map(\.recipeID).sorted()
++    #expect(ids == [
++        "github:crmne/spotifast:stable:me.paolino.fastpotify",
++        "github:crmne/spotifast:stable:rocks.spotifast.Spotifast",
++    ])
++    let photocraft = try #require(
++        GitHubReleaseRegistry.rules.first { $0.bundleID == "ai.storyteller.photocraft" })
++    #expect(photocraft.recipeID == "github:storytold/photocraft:stable")
++}
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/rocks-spotifast-Spotifast.txt b/DuoUpdaterCore/Tests/RecipeGoldens/rocks-spotifast-Spotifast.txt
+new file mode 100644
+index 0000000..4a3e701
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/rocks-spotifast-Spotifast.txt
+@@ -0,0 +1,84 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "rocks-spotifast-Spotifast"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 1)
++changelogs[0] = struct ChangelogRecipe
++changelogs[0].bundleID = "rocks.spotifast.Spotifast"
++changelogs[0].source = URL("https://api.github.com/repos/crmne/spotifast/releases?per_page=20")
++changelogs[0].sourceTemplate = nil
++changelogs[0].versionFromTemplate = false
++changelogs[0].mode = .json
++changelogs[0].entryPattern = ""
++changelogs[0].itemPatterns = Array(count: 0)
++changelogs[0].stripTags = true
++changelogs[0].decodeEntities = true
++changelogs[0].escapedMarkup = false
++changelogs[0].markdownSource = false
++changelogs[0].maxEntries? = 10
++changelogs[0].minItemLength = 1
++changelogs[0].newestLast = false
++changelogs[0].indexLinkPattern = nil
++changelogs[0].feedPagePattern = nil
++changelogs[0].channel = nil
++changelogs[0].includesPromotedStable = false
++changelogs[0].imagePattern = nil
++changelogs[0].headingPattern = nil
++changelogs[0].minimumAppVersion = nil
++changelogs[0].belowAppVersion = nil
++changelogs[0].carriesOtherTrainEntries = false
++changelogs[0].acknowledgedStaleEntry = nil
++changelogs[0].structuredFormat? = .gitHubReleases
++changelogs[0].httpMethod = .get
++changelogs[0].requestBody = nil
++changelogs[0].skipSections = Array(count: 0)
++changelogs[0].tagPattern = nil
++
++githubRules = Array(count: 2)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "rocks.spotifast.Spotifast"
++githubRules[0].owner = "crmne"
++githubRules[0].repo = "spotifast"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^spotifast-v[0-9]+\\.[0-9]+\\.[0-9]+-macos-universal\\.dmg$"
++githubRules[0].installerKind? = .dmg
++githubRules[0].installTrust = .developerID
++githubRules[1] = struct GitHubReleaseRule
++githubRules[1].bundleID = "me.paolino.fastpotify"
++githubRules[1].owner = "crmne"
++githubRules[1].repo = "spotifast"
++githubRules[1].usePrereleases = false
++githubRules[1].listPageSize = 20
++githubRules[1].versionPattern = "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
++githubRules[1].candidateScope = .newest
++githubRules[1].probesNewestFirst = true
++githubRules[1].installedTagPrefix = nil
++githubRules[1].channel = .stable
++githubRules[1].installAssetPattern = nil
++githubRules[1].installerKind = nil
++githubRules[1].installTrust = .developerID
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index e6a2d87..078613e 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -263,6 +263,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**PrintCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.printcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
+ - [x] [**EffectCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.effectcraft` — G (one-click universal dmg) · 真包 v0.3.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
+ - [x] [**DesignCraft**](ai-storyteller-photocraft.md) · `ai.storyteller.designcraft` — G (one-click universal dmg) · 真包 v0.2.1 挂载验证 ✓ · 一键端到端 ✓（rc 轨未接入）· 2026-10-07
++- [x] [**Spotifast**](rocks-spotifast-Spotifast.md) · `rocks.spotifast.Spotifast` — G C (one-click universal dmg) · 真包 v0.12.0→v0.13.0 channel-verify ✓ · 一键端到端未跑 · 旧 id `me.paolino.fastpotify`（≤0.9.1）仅检测 · 2026-10-14
+ 
+ ## Changelog-only (detection via Sparkle or Homebrew)
+ 
+diff --git a/docs/app-audits/rocks-spotifast-Spotifast.md b/docs/app-audits/rocks-spotifast-Spotifast.md
+new file mode 100644
+index 0000000..54fa5c4
+--- /dev/null
++++ b/docs/app-audits/rocks-spotifast-Spotifast.md
+@@ -0,0 +1,161 @@
++# Spotifast
++
++## 基本信息
++- Bundle ID: `rocks.spotifast.Spotifast`（0.10.0 起；0.1.0–0.9.1 是 `me.paolino.fastpotify`，见「旧 bundle id」）
++- Team ID: `JPL7999US3`（Developer ID Application: PlentyLabs UG (haftungsbeschrankt) & Co. KG，公证；
++  0.12.0 与 0.13.0 相同）
++- 观测版本: `0.13.0`（`CFBundleShortVersionString` = `CFBundleVersion` = tag 去掉 `v`）
++- 自更新机制: 自研（`src/updates.rs`，fastframe-update crate，读 `crmne/spotifast` 的 GitHub release，
++  要求 `checksums.txt` 带 Ed25519 签名）。**不是 Sparkle**：无 `SUFeedURL`，无 Sparkle.framework
++- 分发: GitHub Releases（`crmne/spotifast`，MIT，开源）；厂商自己的 tap 里有 cask
++  （README 的第一条 macOS 安装方式 `brew install --cask crmne/tap/spotifast`，
++  `crmne/homebrew-tap` 的 `Casks/spotifast.rb`：0.13.0、同一个 dmg、没有 `auto_updates`，
++  `cask_renames.json` 把 `fastpotify` 指到 `spotifast`）。官方 homebrew-cask 没有这个名字
++  （`brew info --cask spotifast` → No Cask with this name exists）。无 MAS
++- 前身: Fastpotify（同一个仓库改名而来），见「旧 bundle id」
++- 开源: 是。以下 tag 命名、预发布规则、更新器配置读自 `main` 分支源码
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|------------|---------|----------|-----|--------|-------------|
++| **stable** | — | ✗（只在厂商 tap，`HomebrewCaskCatalog` 只读官方 catalog） | — | ✓（新 id 一键 dmg；旧 id 仅检测） | — |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `rocks.spotifast.Spotifast` | 单一渠道 | — | tag 锚 `^vX.Y.Z$` | ✓ |
++| stable（旧 id） | `me.paolino.fastpotify`（≤0.9.1） | 同一个 app 改名前 | — | 同上，另有 `BundleIDMigration` | ✓ 仅检测 + changelog |
++
++单渠道。settled from source: `.github/workflows/release.yml` on `main`：「带后缀的 tag
++（`v0.4.0-rc1`）是 pre-release」，`prerelease: ${{ contains(github.ref_name, '-') }}`。2026-10-14
++列出的全部 release 里，带 `-rc` 的都标了 `prerelease: true`，没有未标记的 rc。app 内没有渠道开关。
++两条 pattern 仍都锚定，rc 即使漏标也不会被当成 `X.Y.Z` 报出来。
++
++## 更新检测
++- 源: `crmne/spotifast` GitHub Releases，`/releases/latest`
++- 版本方案: tag `v0.13.0` ↔ short `0.13.0` ↔ `CFBundleVersion` `0.13.0`，三者相等，不需要 `versionIsBuild`
++- 注意事项: 无设备标识、无灰度、无 OS 分桶
++
++## 按 OS 分轨
++- 0.12.0、0.13.0 真包 `LSMinimumSystemVersion` = `11.0`；每个版本只有一个 macOS 包（universal），
++  不按 OS 分桶，release 页没有声明上限
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | 不适用 |
++| 证据 | 不带 Sparkle（`Contents/Frameworks` 不存在）；`src/updates.rs` 的更新器只下整包 | 2026-10-14 v0.13.0 release 的资产列表：每个平台一个整包，没有 delta / patch 文件 | — |
++
++## Changelog
++- 来源: `ChangelogRecipe`，`api.github.com/repos/crmne/spotifast/releases?per_page=20`，
++  `.gitHubReleases`，`maxEntries: 10`
++- 为什么要 recipe: GitHub 源只带最新一条正文，而 release 每隔几天一个（0.10.0–0.13.0 在 19 天内），
++  落后几个版本的副本只看得到一版说明
++- 正文形状: 手写 Markdown（仓库 `packaging/release-notes/vX.Y.Z.md`）：开头一段摘要、一行
++  `**Download Spotifast:**` 下载链接，然后 `## New` / `## Fixed` / `## Changed`，末尾 `## Thanks`
++  （贡献者名单）和 compare 链接。`skipSections` 不需要：名单和下载行都是段落，不会变成条目
++  （把 `skipSections: ["Thanks"]` 加上再去掉，对 `SpotifastRecipeTests` 的结果没有差别）
++- 结构化（2026-10-14，`channel-verify` 的 `changelog pane` 行）:
++  `recipe changelog:rocks.spotifast.Spotifast:-: 10 entries; newest 0.13.0: 42 items, headings ["New", "Fixed"]`。
++  小标题保留为标题，没有被压平成条目；v0.12.0 的 `Changed` 节在 `SpotifastRecipeTests` 里验证
++- 跟随 channel: 单渠道
++- Recipe 状态: 已有
++
++## 旧 bundle id（Fastpotify，0.1.0–0.9.1）
++
++2026-10-14 在真 dmg 上量到的（只读挂载）：
++
++| 版本 | dmg 里的 app | Bundle ID | 签名 |
++|---|---|---|---|
++| 0.7.1（及以前同形） | `Fastpotify.app` | `me.paolino.fastpotify` | ad-hoc，无 Team，`spctl` rejected |
++| 0.8.0、0.9.1 | `Fastpotify.app` 与 `Spotifast.app`（两份字节相同，`diff -rq` 无差异） | `me.paolino.fastpotify`（可执行文件 `fastpotify`） | Developer ID，`JPL7999US3`，公证 |
++| 0.10.0 | `Spotifast.app` | `rocks.spotifast.Spotifast`（可执行文件 `Spotifast`） | Developer ID，`JPL7999US3`，公证 |
++
++仓库的 `packaging/macos/Info.plist` 把 bundle id 写成占位符，由打包脚本填；0.9.1 的
++`spotifast-…` 与 `fastpotify-…` 两个 dmg 字节相同。
++
++- **厂商自己迁移旧副本。** 0.9.1 release notes：「accepts the new archive and macOS bundle identities
++  used by future releases」；`fastframe-update` v0.5.1 README「Renamed apps」：「A bundle with a legacy
++  bundle name is installed as `<app_name>.app` in the same folder」。所以旧 id 的副本就是同一个 app，
++  不是另一个产品
++- **我们接了什么。** 第二条 `GitHubReleaseRule`（`bundleID: "me.paolino.fastpotify"`）给检测，加
++  `BundleIDMigration`（`me.paolino.fastpotify` → `rocks.spotifast.Spotifast`，Team `JPL7999US3`，
++  `lastFromVersion` 0.9.1，`firstToVersion` 0.10.0）让 changelog recipe 和进程查找找到这些副本。
++  GitHub 源按 `app.bundleID` 找规则，只有迁移条目是找不到它们的，所以规则必须单独有
++- **为什么旧 id 仅检测，没有 `installAssetPattern`。** 0.12.0 release notes：「settings, sign-ins and
++  caches from Fastpotify 0.9.0 or older are no longer moved over: if you update straight from one of
++  those, you start fresh (your old files stay where they were)」。规则看不出已装的是 0.9.1（配置已迁到
++  Spotifast）还是 0.8.0，一键可能让用户悄悄「从头开始」。厂商自己的建议也是先装 0.9.1、或手动装新版。
++  0.7.1 及以前是 ad-hoc，Team 门本来就会拒绝。下载链接是 release 页
++- **健康键。** 两条规则读同一个仓库的 stable，`GitHubReleaseRule.recipeID` 原来按
++  `github:<owner>/<repo>:<channel>` 取键会撞成一行（`RecipeHealthKeyTests` 抓到的）。现在当 registry
++  里另有同仓库同渠道、不同 bundle id 的规则时，键后面追加 bundle id
++  （`…:stable:me.paolino.fastpotify` / `…:stable:rocks.spotifast.Spotifast`）；其他规则的键不变
++- **文件夹名。** 若将来给旧 id 开了一键，duo 的替换保持原来的 `Fastpotify.app` 文件夹名；厂商自己的
++  更新器会改成 `Spotifast.app`
++- 实测（`channel-verify`，2026-10-14）：0.9.1、0.8.0、0.7.1 三个真 dmg 都是 bundle id
++  `me.paolino.fastpotify`、`winning source GitHub`、`latest 0.13.0`、`status UPDATE → 0.13.0`，
++  `changelog pane` 与新 id 相同（recipe，10 entries，newest 0.13.0，headings `["New", "Fixed"]`）。
++  `SpotifastRecipeTests` 钉住：旧 id 规则无安装字段、0.7.1/0.8.0/0.9.1 归到新 id、0.10.0 不归、
++  身份门只放行同 Team 的 Developer ID 旧副本（ad-hoc、别的 Team、0.10.0 都拒）
++
++## 一键安装
++- 状态: 支持（新 id；`installAssetPattern` `^spotifast-v[0-9]+\.[0-9]+\.[0-9]+-macos-universal\.dmg$`，`.dmg`）。旧 id 仅检测，见上
++- 端到端: 未跑。本次审计只做了检测、包检查和 `channel-verify`；`duo install` 从 0.12.0 装到 0.13.0
++  需要在串行环境里跑一遍再把结果写在这里
++- 格式: dmg，x86_64 + arm64 universal，里面一个 `Spotifast.app` 加 `LICENSE`、`README.md` 和
++  `/Applications` 链接
++- 校验: Team ID 门（0.12.0 与 0.13.0 同为 `JPL7999US3`，旧版本的副本不会被拒）。GitHub 资产自带
++  `digest`，自 #1019 起每条可安装规则都会传下去。2026-10-14 实测 v0.13.0 dmg 的
++  `shasum -a 256` = `7c16925e515e78cf94ef439cde92c426c76fadc5cade9534135a32c574b0a93c`，与 release 的
++  `checksums.txt` 里该文件一行相同
++- **读的是**: 人人可手动下载的 GA（`/releases/latest` 的公开资产，也是 app 自己更新器读的同一个 release）
++- 嵌套 app / 常驻进程: 没有。`Contents` 下只有 `Info.plist`、`MacOS`、`Resources`、`_CodeSignature`，没有
++  `Library/LoginItems`、`Helpers`、`Frameworks`，`LSUIElement` / `LSBackgroundOnly` 都没设
++- 阻塞: 无
++
++## 已知问题
++- **一键在 Homebrew tap 装的副本上。** duo 的 GitHub 一键会直接替换 app，Homebrew 不知道，
++  `brew list --versions` 仍记着旧版本；厂商自己的更新器认得 `/Caskroom/` 路径并拒绝更新这种
++  安装（`fastframe-update` v0.5.1 的 `detect.rs`：「Update this installation with Homebrew」）。
++  这条没有实测
++- app 自己的更新器也会提示同一个 release（要求签名过的 `checksums.txt`）。**与 duo 抢的风险没有
++  实测，只读过源码**（`fastframe-update` v0.5.1 `helper.rs` / `stage.rs`）：更新器在
++  `/Applications` 里挨着 app 建 `.spotifast-update-<16 位十六进制>` 暂存目录，换包前把旧 app 存成
++  `previous`，新 app 起来后要写 `started`，没写就把 `previous` 放回去。若 duo 的替换正好落在这
++  一段里，可能被回滚。「app 在运行且更新器已暂存」这一轮没有跑
++
++## 如何复验
++```
++# GET https://api.github.com/repos/crmne/spotifast/releases/latest → v0.13.0（prerelease: false）
++# spotifast-v0.13.0-macos-universal.dmg  31631683 B  sha256 7c16925e…a93c（= checksums.txt）
++# spotifast-v0.12.0-macos-universal.dmg  30390590 B  sha256 80570465…daab6
++# 挂载（只读）→ rocks.spotifast.Spotifast，0.13.0 / 0.12.0（short = build），x86_64 + arm64，
++#   LSMinimumSystemVersion 11.0，无 SUFeedURL，TeamIdentifier=JPL7999US3，
++#   codesign --verify --deep --strict 退出 0，spctl: accepted, source=Notarized Developer ID，
++#   dmg 文件本身 stapler validate 通过（.app 本身没有 staple 票据）
++# 两个版本的 Team ID 都是 JPL7999US3，同一个证书主体
++swift run --package-path application-test feed-discover spotifast-v0.13.0-macos-universal.dmg
++#   → no Sparkle and no electron-builder update config
++swift run --package-path application-test channel-verify spotifast-v0.13.0-macos-universal.dmg --expect stable
++#   → detected channel stable, winning source GitHub, latest 0.13.0,
++#     download …/v0.13.0/spotifast-v0.13.0-macos-universal.dmg, status up to date
++swift run --package-path application-test channel-verify spotifast-v0.12.0-macos-universal.dmg --expect stable
++#   → winning source GitHub, latest 0.13.0, status UPDATE → 0.13.0
++swift run --package-path application-test channel-verify spotifast-v0.9.1-macos-universal.dmg --expect stable
++#   → bundle id me.paolino.fastpotify, winning source GitHub, latest 0.13.0, status UPDATE → 0.13.0
++#   （0.8.0 与 0.7.1 的 fastpotify-… dmg 同样结果）
++```
++
++## 建议下一步
++1. 在串行环境里跑一次 `duo install` 端到端（0.12.0 → 0.13.0），把结果写进「一键安装」
++2. 旧 id 要不要开一键：先在串行环境里装 0.9.1，看 `duo install` 之后配置是否还在，再决定
++3. 「app 在运行且更新器已暂存」那一轮：装一个旧版、让它的更新器暂存，再 `duo install` 与 `duo restart`，
++   看替换会不会被厂商的 `previous` 回滚

@@ -1,0 +1,3 @@
+8b06555 Track Lokii via GitHub releases, with digest-only one-click install
+7bccb0b Update Sparkle appcast for v0.5.0 (#1033)
+f196600 chore: bump to 0.5.0 (118) (#1032)

@@ -1,18 +1,18 @@
-astrlink claude-haiku-5-5 xhigh haiku-xhigh
-astrlink claude-haiku-5-5 max haiku-max
-yomado claude-haiku-5-5 xhigh haiku-xhigh
-yomado claude-haiku-5-5 max haiku-max
-rustgis claude-haiku-5-5 xhigh haiku-xhigh
-rustgis claude-haiku-5-5 max haiku-max
-plexo claude-haiku-5-5 xhigh haiku-xhigh
-plexo claude-haiku-5-5 max haiku-max
-pulse claude-haiku-5-5 xhigh haiku-xhigh
-pulse claude-haiku-5-5 max haiku-max
-search claude-haiku-5-5 xhigh haiku-xhigh
-search claude-haiku-5-5 max haiku-max
-herdr claude-haiku-5-5 xhigh haiku-xhigh
-herdr claude-haiku-5-5 max haiku-max
-reviu claude-haiku-5-5 xhigh haiku-xhigh
-reviu claude-haiku-5-5 max haiku-max
-aircard claude-haiku-5-5 xhigh haiku-xhigh
-aircard claude-haiku-5-5 max haiku-max
+single astrlink claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single astrlink claude-haiku-5-5 max haiku-max brief.md
+single yomado claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single yomado claude-haiku-5-5 max haiku-max brief.md
+single rustgis claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single rustgis claude-haiku-5-5 max haiku-max brief.md
+single plexo claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single plexo claude-haiku-5-5 max haiku-max brief.md
+single pulse claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single pulse claude-haiku-5-5 max haiku-max brief.md
+single search claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single search claude-haiku-5-5 max haiku-max brief.md
+single herdr claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single herdr claude-haiku-5-5 max haiku-max brief.md
+single reviu claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single reviu claude-haiku-5-5 max haiku-max brief.md
+single aircard claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single aircard claude-haiku-5-5 max haiku-max brief.md

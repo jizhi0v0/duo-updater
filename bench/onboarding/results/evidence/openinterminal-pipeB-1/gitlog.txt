@@ -1,0 +1,5 @@
+6d2b22f Track OpenInTerminal, OpenInTerminal-Lite and OpenInEditor-Lite via GitHub releases
+57e6ce0 Track Reviu via GitHub releases, with one-click install (#924)
+11a1072 verify: update recipe baseline (#923)
+91e7928 verify: update recipe baseline (#921)
+f587cdb verify: update recipe baseline (#919)

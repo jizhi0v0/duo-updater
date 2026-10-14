@@ -1,5 +1,6 @@
 #!/bin/bash
-# run-one.sh <case> <model> <effort> <tag>  — one onboarding run, then grade.
+# run-one-b.sh <case> <model> <effort> <tag>  — one single-agent onboarding run, then grade.
+# BRIEF picks the brief (default brief.md). Writes $R/config.json (record_config.py).
 set -uo pipefail
 . "$(dirname "$0")/env.sh"
 case=$1; model=$2; effort=$3; tag=$4
@@ -10,6 +11,10 @@ R=$B/runs/$case-$tag; mkdir -p $R
 CLONE=$R/repo; SCR=$R/scr; mkdir -p $SCR
 $H/mkclone.sh $CLONE $parent > $R/clone.log 2>&1 || { echo "clone failed" > $R/status; exit 1; }
 sed -e "s#__CLONE__#$CLONE#g; s#__OWNER__#$owner#g; s#__REPO__#$repo#g; s#__SCR__#$SCR#g" $H/${BRIEF:-brief.md} > $R/brief.md
+python3 $H/record_config.py $R mode=single case=$case tag=$tag model=$model effort=$effort \
+  brief=${BRIEF:-brief.md} parent=$parent permission_mode=auto \
+  'env={"unset":["CLAUDE_EFFORT"],"kept":"CLAUDE_CODE_EFFORT_LEVEL if set; background tasks allowed; user settings (~/.claude) load"}' \
+  'disallowed_tools=["Bash(make install:*)","Bash(make cli:*)","Bash(duo:*)","Bash(pkill:*)","Bash(killall:*)","Bash(git stash:*)","Bash(git push:*)","Bash(gh pr create:*)","Bash(gh issue create:*)","Bash(open:*)","Bash(sudo:*)","Bash(ditto:*)"]'
 date +%s > $R/t0
 ( cd $CLONE && env -u CLAUDE_EFFORT claude -p --model $model --effort $effort \
     --permission-mode auto --strict-mcp-config --no-session-persistence \
@@ -33,6 +38,7 @@ if [ "$(cat $R/grade.rc)" != 0 ]; then  # base predates APIs the grader uses
   cp $H/ZZBenchGradeLegacy.swift DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ZZBenchGrade.swift
   ( cd DuoUpdaterCore && BENCH_GRADE_CASE=$C BENCH_GRADE_OUT=$R/grade.json swift test --filter ZZBenchGrade > $R/grade-legacy.log 2>&1; echo $? > $R/grade.rc )
 fi
+[ -f $R/grade-legacy.log ] && g=legacy || g=current; python3 $H/record_config.py $R grader=$g
 rm -f DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ZZBenchGrade.swift
 # reclaim disk: build products only; keep the repo, diff and logs
 rm -rf DuoUpdaterCore/.build CLI/.build application-test/.build

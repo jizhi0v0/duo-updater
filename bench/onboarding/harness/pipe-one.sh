@@ -30,6 +30,12 @@ cat > $R/agents.json <<JSON
   "prompt": "You carry out exactly the task you are given and report the results precisely: commands run, exit codes, raw output that matters. Follow the same forbidden-actions rules as your caller: no make install/make cli/duo CLI, nothing into /Applications, nothing launched, no quarantine changes, no system UI, no git stash or push.${DNOTE}",
   "model": "claude-haiku-5-5", "effort": "xhigh"}}
 JSON
+stages='[{"stage":"exec","model":"claude-sonnet-5-5","effort":"high","subagent":{"name":"executor","model":"claude-haiku-5-5","effort":"xhigh"}},{"stage":"review","model":"claude-opus-5-5","effort":"high","denied_extra":["Edit","Write","NotebookEdit"]},{"stage":"fix","model":"claude-sonnet-5-5","effort":"high","resumes":"exec"}]'
+[ $group = B ] && stages='[{"stage":"plan","model":"claude-opus-5-5","effort":"high","denied_extra":["Edit","NotebookEdit"]},'${stages#[}
+python3 $H/record_config.py $R mode=pipeline-$group case=$case tag=$tag parent=$parent permission_mode=auto \
+  "stages=$stages" ditto_note=$([ -n "${DITTO_NOTE:-}" ] && echo on || echo off) \
+  'env={"unset":["CLAUDE_EFFORT","CLAUDE_CODE_EFFORT_LEVEL"],"set":{"CLAUDE_CODE_DISABLE_BACKGROUND_TASKS":"1"},"kept":"user settings (~/.claude) load"}' \
+  "disallowed_tools=$(python3 -c 'import json,sys;print(json.dumps(sys.argv[1:]))' "${DENY[@]}")"
 date +%s > $R/t0
 # 1. plan (B only)
 if [ $group = B ]; then
@@ -73,6 +79,7 @@ if [ "$(cat $R/grade.rc)" != 0 ]; then
   cp $H/ZZBenchGradeLegacy.swift DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ZZBenchGrade.swift
   ( cd DuoUpdaterCore && BENCH_GRADE_CASE=$C BENCH_GRADE_OUT=$R/grade.json swift test --filter ZZBenchGrade > $R/grade-legacy.log 2>&1; echo $? > $R/grade.rc )
 fi
+[ -f $R/grade-legacy.log ] && g=legacy || g=current; python3 $H/record_config.py $R grader=$g
 rm -f DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ZZBenchGrade.swift
 rm -rf DuoUpdaterCore/.build CLI/.build application-test/.build
 echo done > $R/status

@@ -1,21 +1,21 @@
-macdown claude-haiku-5-5 xhigh haiku-xhigh
-secretive claude-haiku-5-5 xhigh haiku-xhigh
-neovide claude-haiku-5-5 xhigh haiku-xhigh
-meetingbar claude-haiku-5-5 xhigh haiku-xhigh
-crystalfetch claude-haiku-5-5 xhigh haiku-xhigh
-cryptomator claude-haiku-5-5 xhigh haiku-xhigh
-finicky claude-haiku-5-5 xhigh haiku-xhigh
-openinterminal claude-haiku-5-5 xhigh haiku-xhigh
-obelisk claude-haiku-5-5 xhigh haiku-xhigh
-diri claude-haiku-5-5 xhigh haiku-xhigh
-magpie claude-haiku-5-5 xhigh haiku-xhigh
-designcraft claude-haiku-5-5 xhigh haiku-xhigh
-effectcraft claude-haiku-5-5 xhigh haiku-xhigh
-filmcraft claude-haiku-5-5 xhigh haiku-xhigh
-lightcraft claude-haiku-5-5 xhigh haiku-xhigh
-photocraft claude-haiku-5-5 xhigh haiku-xhigh
-vectorcraft claude-haiku-5-5 xhigh haiku-xhigh
-lokii claude-haiku-5-5 xhigh haiku-xhigh
-cindy claude-haiku-5-5 xhigh haiku-xhigh
-spotifast claude-haiku-5-5 xhigh haiku-xhigh
-disktree claude-haiku-5-5 xhigh haiku-xhigh
+single macdown claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single secretive claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single neovide claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single meetingbar claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single crystalfetch claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single cryptomator claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single finicky claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single openinterminal claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single obelisk claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single diri claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single magpie claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single designcraft claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single effectcraft claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single filmcraft claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single lightcraft claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single photocraft claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single vectorcraft claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single lokii claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single cindy claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single spotifast claude-haiku-5-5 xhigh haiku-xhigh brief.md
+single disktree claude-haiku-5-5 xhigh haiku-xhigh brief.md

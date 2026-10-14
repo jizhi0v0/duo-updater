@@ -1,0 +1,5 @@
+dcbda54 disktree: review follow-ups (0.10.0 checked, source builds, full fixtures)
+6f6e93a disktree: GitHub Releases detection, digest-only one-click
+90f8415 Add check_ifchange.py: links between code that must change together (#1222)
+8430015 verify-install: update identities and baseline (#1224)
+6e66c03 verify: update recipe baseline (#1223)

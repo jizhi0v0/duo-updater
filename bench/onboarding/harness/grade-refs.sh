@@ -1,10 +1,12 @@
 #!/bin/bash
-# grade-refs.sh [case...] — re-grade references sequentially: historical cases in ref/main,
-# live cases (astrlink, yomado) in ref/pr. Writes ref/out/<case>.json.
+# grade-refs.sh [case...] — grade the reference (main, cloned at $B/ref/main) for each case,
+# one at a time. Default: every case in cases/ except the extra grade cases (fastpotify,
+# cindycn; see README). Writes $B/ref/out/<case>.json.
 . "$(dirname "$0")/env.sh"
-cases=${*:-"rustgis plexo pulse search herdr reviu aircard astrlink yomado"}
+mkdir -p $B/ref/out
+cases=${*:-$(ls $BENCH_HOME/cases | sed -n 's/\.json$//p' | grep -v -x -e fastpotify -e cindycn)}
 for c in $cases; do
-  case $c in astrlink|yomado) R=$B/ref/pr ;; *) R=$B/ref/main ;; esac
+  R=$B/ref/main
   cp $H/ZZBenchGrade.swift $R/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/
   ( cd $R/DuoUpdaterCore && BENCH_GRADE_CASE=$BENCH_HOME/cases/$c.json BENCH_GRADE_OUT=$B/ref/out/$c.json \
       swift test --filter ZZBenchGrade > $B/ref/out/$c.log 2>&1; echo "$(date +%H:%M:%S) ref $c rc=$?" )

@@ -1,0 +1,349 @@
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index b3b6fbb..5c7bcc2 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -242,6 +242,7 @@ public enum AppRecipeIndex {
+         tv_plex_desktop.set,
+         uk_co_bzwrd_macperfmonitor.set,
+         uk_whatcable_whatcable.set,
++        wang_jianing_app_OpenInTerminal.set,
+         xyz_chatboxapp_app.set,
+     ]
+ }
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/wang-jianing-app-OpenInTerminal.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/wang-jianing-app-OpenInTerminal.swift
+new file mode 100644
+index 0000000..274a5e7
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/wang-jianing-app-OpenInTerminal.swift
+@@ -0,0 +1,26 @@
++import Foundation
++
++enum wang_jianing_app_OpenInTerminal {
++    static let set = AppRecipeSet(
++        family: "wang-jianing-app-OpenInTerminal",
++        githubRules: [
++        // OpenInTerminal — Finder toolbar app, no SUFeedURL and no updater of its
++        // own. The repo ALSO releases OpenInTerminal-Lite / OpenInEditor-Lite
++        // (separate bundle ids) under the same bare `v` tags: the full app is
++        // v2.x, the Lite pair v1.x, cut minutes apart. The asset pattern is what
++        // keeps a Lite release from being read as this app's version: a
++        // `/releases/latest` that lands on a Lite tag carries no `OpenInTerminal.zip`,
++        // so the source falls back to the stable list and walks to the v2 tag.
++        // Asset was `OpenInTerminal.app.zip` up to v2.3.6, `OpenInTerminal.zip`
++        // since; universal. short == tag; CFBundleVersion is a constant `1`.
++        // One-click: Team C8VX3ZLX5U, notarized + stapled, from v2.3.9. v2.3.8
++        // and earlier are signed by Team Q33U8R4U57 (same developer name), so
++        // VendorInstaller's same-Team gate refuses one-click from those.
++        GitHubReleaseRule(
++            bundleID: "wang.jianing.app.OpenInTerminal",
++            owner: "Ji4n1ng", repo: "OpenInTerminal",
++            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
++            installAssetPattern: #"^OpenInTerminal(?:\.app)?\.zip$"#,
++            installerKind: .zip),
++        ])
++}
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/OpenInTerminalGitHubRuleTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/OpenInTerminalGitHubRuleTests.swift
+new file mode 100644
+index 0000000..2db008b
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/OpenInTerminalGitHubRuleTests.swift
+@@ -0,0 +1,134 @@
++import Foundation
++import Testing
++@testable import DuoUpdaterCore
++
++/// OpenInTerminal (`wang.jianing.app.OpenInTerminal`) shares `Ji4n1ng/OpenInTerminal`
++/// with OpenInTerminal-Lite and OpenInEditor-Lite. Both trains use bare `vX.Y.Z`
++/// tags (the full app is v2.x, the Lite pair v1.x) and are cut minutes apart, so
++/// `/releases/latest` can land on a Lite release. The tag pattern cannot tell
++/// them apart; the asset name is what does. These tests pin that against the
++/// names and notes the vendor really published.
++///
++/// See `docs/app-audits/wang-jianing-app-OpenInTerminal.md` for the measurements.
++@Suite(.serialized)
++struct OpenInTerminalGitHubRuleTests {
++    private static var rule: GitHubReleaseRule {
++        get throws {
++            let found = GitHubReleaseRegistry.rules.filter {
++                $0.bundleID == "wang.jianing.app.OpenInTerminal"
++            }
++            try #require(found.count == 1, "expected exactly one OpenInTerminal rule")
++            return found[0]
++        }
++    }
++
++    /// The real v2.3.9 release body, verbatim.
++    static let v239Body = """
++        Changes:
++
++        - Security: Fixed an AppleScript/command injection vulnerability that allowed arbitrary command execution via a crafted folder name when opening it in a non-default terminal or an editor. Thanks to Paul Gerste ([Sonar](https://www.sonarsource.com)) for the responsible disclosure.
++        - Added support for Zed, Emacs, Kakoune, GitKraken, and cmux.
++        - Added an option to limit global keyboard shortcuts to Finder-only shortcuts. (#251, #243)
++        - Introduced a new default app icon with automatic light/dark mode support.
++        - Added an option to display the Finder context menu items in a submenu.
++        - Fixed the Finder extension icon being rendered as a template icon.
++        - Improved startup responsiveness by fetching installed applications on a background thread.
++        - Fixed the keyboard shortcut overlapping the "Open in ..." title in the status bar menu.
++        """
++
++    /// Every asset name the repo has published under this app's or the Lite
++    /// apps' releases (v2.3.1…v2.3.9, v1.2.3…v1.2.8).
++    @Test func theInstallPatternTakesOnlyTheFullApp() throws {
++        let pattern = try #require(try Self.rule.installAssetPattern)
++        let matches = { (name: String) in
++            name.range(of: pattern, options: .regularExpression) != nil
++        }
++        #expect(matches("OpenInTerminal.zip"))       // v2.3.7 onward
++        #expect(matches("OpenInTerminal.app.zip"))   // up to v2.3.6
++        #expect(!matches("OpenInTerminal-Lite.zip"))
++        #expect(!matches("OpenInTerminal-Lite.app.zip"))
++        #expect(!matches("OpenInEditor-Lite.zip"))
++        #expect(!matches("OpenInEditor-Lite.app.zip"))
++        #expect(!matches("Icons.zip"))
++    }
++
++    /// `/releases/latest` answering with the Lite release: the source must fall
++    /// back to the list and walk to the full app's tag rather than report 1.2.8.
++    @Test func aLiteReleaseOnTopIsSkippedForTheFullAppsRelease() async throws {
++        let configuration = URLSessionConfiguration.ephemeral
++        configuration.protocolClasses = [FixtureProtocol.self]
++        let source = GitHubReleasesSource(
++            rules: [try Self.rule], session: URLSession(configuration: configuration))
++        let installed = InstalledApp(
++            name: "OpenInTerminal", bundleID: "wang.jianing.app.OpenInTerminal",
++            shortVersion: "2.3.8", buildVersion: "1",
++            path: URL(fileURLWithPath: "/Applications/OpenInTerminal.app"),
++            isMASApp: false, isToolboxManaged: false, sparkleFeedURL: nil)
++
++        let remote = try #require(try await source.latestVersion(for: installed))
++
++        #expect(remote.displayVersion == "2.3.9")
++        #expect(remote.vendorInstallerKind == .zip)
++        #expect(remote.requiresManualInstaller == false)
++        #expect(remote.downloadURL?.absoluteString
++                == "https://github.com/Ji4n1ng/OpenInTerminal/releases/download/v2.3.9/OpenInTerminal.zip")
++        let items = try #require(remote.structuredChangelog?.entries.first?.items)
++        #expect(items.count == 8)
++        #expect(items.first?.hasPrefix("Security: Fixed an AppleScript/command injection") == true)
++    }
++
++    private final class FixtureProtocol: URLProtocol, @unchecked Sendable {
++        override class func canInit(with request: URLRequest) -> Bool { true }
++        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
++
++        override func startLoading() {
++            let lite = Self.release(
++                tag: "v1.2.8", assets: ["OpenInEditor-Lite.zip", "OpenInTerminal-Lite.zip"],
++                body: "Changes:\n\n- Lite-only change")
++            let full = Self.release(
++                tag: "v2.3.9", assets: ["OpenInTerminal.zip"],
++                body: OpenInTerminalGitHubRuleTests.v239Body)
++            let status: Int
++            let body: String
++            switch request.url?.path ?? "" {
++            case "/repos/Ji4n1ng/OpenInTerminal/releases/latest":
++                status = 200
++                body = lite
++            case "/repos/Ji4n1ng/OpenInTerminal/releases":
++                status = 200
++                body = "[\(lite),\(full)]"
++            default:
++                status = 404
++                body = #"{"message":"Not Found"}"#
++            }
++            let response = HTTPURLResponse(
++                url: request.url!, statusCode: status,
++                httpVersion: "HTTP/1.1", headerFields: nil)!
++            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
++            client?.urlProtocol(self, didLoad: Data(body.utf8))
++            client?.urlProtocolDidFinishLoading(self)
++        }
++
++        override func stopLoading() {}
++
++        private static func release(tag: String, assets: [String], body: String) -> String {
++            let escapedBody = body
++                .replacingOccurrences(of: "\\", with: "\\\\")
++                .replacingOccurrences(of: "\"", with: "\\\"")
++                .replacingOccurrences(of: "\n", with: "\\n")
++            let assetJSON = assets.map { name in
++                """
++                {"name":"\(name)",\
++                "browser_download_url":"https://github.com/Ji4n1ng/OpenInTerminal/releases/download/\(tag)/\(name)",\
++                "size":24842104}
++                """
++            }.joined(separator: ",")
++            return """
++            {"tag_name":"\(tag)","prerelease":false,"draft":false,\
++            "published_at":"2026-07-13T12:08:34Z",\
++            "html_url":"https://github.com/Ji4n1ng/OpenInTerminal/releases/tag/\(tag)",\
++            "body":"\(escapedBody)","assets":[\(assetJSON)]}
++            """
++        }
++    }
++}
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/wang-jianing-app-OpenInTerminal.txt b/DuoUpdaterCore/Tests/RecipeGoldens/wang-jianing-app-OpenInTerminal.txt
+new file mode 100644
+index 0000000..5a927d5
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/wang-jianing-app-OpenInTerminal.txt
+@@ -0,0 +1,39 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "wang-jianing-app-OpenInTerminal"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 0)
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "wang.jianing.app.OpenInTerminal"
++githubRules[0].owner = "Ji4n1ng"
++githubRules[0].repo = "OpenInTerminal"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^OpenInTerminal(?:\\.app)?\\.zip$"
++githubRules[0].installerKind? = .zip
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index c857d50..2a0ceb0 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -231,6 +231,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**T3 Code**](com-t3tools-t3code.md) · `com.t3tools.t3code` — G(alpha/nightly) · 2 channels，共享 bundle id，app 名渠道词 + GitHub 双 rule · **两轨一键 ✓**（Team ARK85ZXQ4Z，真包挂载验证）· 2026-08-30 · 仓库出现了未覆盖的 `-preview.` 发布系列（tag 自 2026-09-12、release 自 2026-09-13；2026-09-14 复测）
+ - [x] [**Kun**](com-xingyuzhong-deepseekgui.md) · `com.xingyuzhong.deepseekgui` — G (one-click arm64 dmg) · 真包 v0.3.7 挂载验证 ✓ · 2026-08-30
+ - [x] [**Reviu**](com-jorisgallot-reviu.md) · `com.jorisgallot.reviu` — G (one-click arm64 dmg) · 真包 v1.4.0 挂载验证 ✓ · 一键 1.3.0→1.4.0 端到端 ✓ · 2026-09-29
++- [x] [**OpenInTerminal**](wang-jianing-app-OpenInTerminal.md) · `wang.jianing.app.OpenInTerminal` — G (one-click universal zip) · 真包 v2.3.9 解包验证 ✓ · v2.3.9 换了 Team ID，旧副本一键会被 Team 闸拒绝 · 2026-10-14
+ - [x] [**DSH Desktop**](ai-deepseek-dsh-desktop.md) · `ai.deepseek.dsh.desktop` — G (one-click universal dmg) · 真包 v2.0.4 挂载验证 ✓ · 2026-08-30
+ - [x] [**Meetily**](com-meetily-ai.md) · `com.meetily.ai` — G (one-click arm64 dmg) · 真包 v0.4.0 挂载验证 ✓ · 2026-08-30
+ - [x] [**Paseo**](sh-paseo-desktop.md) · `sh.paseo.desktop` — G (one-click arm64 dmg) · 真包 v0.6.1 挂载验证 ✓（beta 是 prerelease 轨，未接入）· 2026-08-30
+diff --git a/docs/app-audits/wang-jianing-app-OpenInTerminal.md b/docs/app-audits/wang-jianing-app-OpenInTerminal.md
+new file mode 100644
+index 0000000..307c479
+--- /dev/null
++++ b/docs/app-audits/wang-jianing-app-OpenInTerminal.md
+@@ -0,0 +1,102 @@
++# OpenInTerminal
++
++## 基本信息
++- Bundle ID: `wang.jianing.app.OpenInTerminal`
++- Team ID: `C8VX3ZLX5U`（v2.3.9 起）；v2.3.8 及更早是 `Q33U8R4U57`，两者证书名都是
++  `Developer ID Application: Jianing Wang`
++- 观测版本: `2.3.9`（`CFBundleVersion` 恒为 `1`，不参与比较）
++- 自更新机制: 无（无 `SUFeedURL`、无 Sparkle.framework、二进制里没有更新端点）
++- 分发: GitHub Releases（`Ji4n1ng/OpenInTerminal`）/ Homebrew cask `openinterminal`（非
++  `auto_updates`）；无 MAS
++- 开源: 是。签名、打包、资产名读自仓库 `master` 分支源码
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|------------|---------|----------|-----|--------|-------------|
++| **stable** | —       | ✓        | —   | ✓      | —           |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**（brew 装的副本由
++`HomebrewCaskSource` 先应答）。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `wang.jianing.app.OpenInTerminal` | 单一渠道 | — | 资产名锚 `OpenInTerminal(.app).zip` | ✓ |
++
++单渠道：仓库 release 全部非 prerelease，无 beta/nightly 产物。
++
++同一仓库还发 **OpenInTerminal-Lite** 和 **OpenInEditor-Lite**（各自独立 bundle id，
++本 rule 不覆盖）。两条产品线共用裸 `vX.Y.Z` tag：完整版是 v2.x，Lite 两件套是 v1.x，
++通常前后几分钟发出（v2.3.9 `2026-07-13T12:08:34Z`，v1.2.8 `2026-07-13T12:08:48Z`）。
++
++## 更新检测
++- 源: `Ji4n1ng/OpenInTerminal` GitHub Releases，`/releases/latest`（2026-10-14 返回 `v2.3.9`）
++- 版本方案: tag `v2.3.9` → `2.3.9` == `CFBundleShortVersionString`。settled from source:
++  `OpenInTerminal.xcodeproj/project.pbxproj` on `master`（`MARKETING_VERSION = 2.3.9`，
++  `CURRENT_PROJECT_VERSION = 1`）
++- 注意事项: tag 形状分不开完整版和 Lite，`/releases/latest` 可能落在 Lite release 上。
++  rule 靠 `installAssetPattern` 区分：Lite release 不带 `OpenInTerminal.zip`，源随即
++  回退到列表（`stableOnly`）并跳到 v2 tag。用例
++  `OpenInTerminalGitHubRuleTests.aLiteReleaseOnTopIsSkippedForTheFullAppsRelease`
++  钉住这一点；去掉资产 pattern 时该用例读出 `1.2.8`（已验证会红）。
++  Lite 与完整版一一配对发布，回退窗口（`maxReleasesWithoutMacOSAsset = 5`）够用。
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | 不能 |
++| 证据 | 包内无 Sparkle / 更新框架，主二进制 `strings` 里只有仓库、赞助链接 | release 资产只有整包 zip（2026-10-14） | — |
++
++## 按 OS 分轨
++- 包的 `LSMinimumSystemVersion` = `10.13`（v2.3.8、v2.3.9 相同）；release 不声明任何
++  min/max 系统版本。无可读的 OS 窗口。
++
++## Changelog
++- 来源: GitHub Release body（`Changes:` + 顶层 `- ` 列表），`GitHubMarkdownParser`
++  严格 pass 即可结构化；v2.3.9 的 body 解析为 8 条（用例里用真实 body 钉住）
++- 跟随 channel: 单渠道
++- Recipe 状态: 不需要
++
++## 一键安装
++- 状态: **支持**（v2.3.9 起的已装副本）
++- 格式: zip — `OpenInTerminal.zip`（v2.3.7 起；v2.3.6 及更早叫 `OpenInTerminal.app.zip`），
++  universal（`x86_64 arm64`），zip 内含 `__MACOSX/` 资源分叉条目
++- Pattern: `^OpenInTerminal(?:\.app)?\.zip$`, kind `.zip`
++- **读的是**: 人人可手动下载的 GA（官方 repo 公开资产；README 的手动下载入口就是 releases 页）
++- 包验（2026-10-14，解包）:
++  - v2.3.9: `wang.jianing.app.OpenInTerminal` / `2.3.9`，Team `C8VX3ZLX5U`，
++    `codesign --verify --deep --strict` 通过，`spctl` accepted / Notarized Developer ID，
++    stapled；zip sha256 `14df8720…a387765` 与 GitHub 资产 digest 一致
++  - v2.3.8: 同 bundle id / `2.3.8`，Team `Q33U8R4U57`，Notarized Developer ID，stapled
++- 阻塞: **Team ID 在 v2.3.9 换了**。`VendorInstaller` 的同 Team 闸会拒绝从 v2.3.8 及更早
++  （`Q33U8R4U57`）一键到 v2.3.9（`C8VX3ZLX5U`）——那些副本只能手动更新一次。v2.3.9 起
++  的副本对后续版本一键可用（前提是厂商不再换 Team）。仓库 2026-07-14 新增
++  `build-signed.sh`（Developer ID 签名 + 公证 + staple），v2.3.9 是第一个用它出的包。
++- 端到端: 未跑。且目前无法演示：唯一用 `C8VX3ZLX5U` 签名的版本就是最新的 v2.3.9，
++  从 v2.3.8 起步会被 Team 闸拒绝，要等 v2.3.10 才能走通 2.3.9 → 新版。
++
++## 已知问题
++- 跨 Team 过渡（见上）。
++- Lite 两件套未接入。
++
++## 如何复验
++```
++# GET https://api.github.com/repos/Ji4n1ng/OpenInTerminal/releases/latest → v2.3.9
++# 解包 v2.3.9/OpenInTerminal.zip → wang.jianing.app.OpenInTerminal / 2.3.9 / Team C8VX3ZLX5U
++swift run --package-path application-test channel-verify OpenInTerminal.app --expect stable   # 2.3.9
++#   → detected stable, winning source GitHub, latest 2.3.9, status up to date
++swift run --package-path application-test channel-verify OpenInTerminal.app --expect stable   # 2.3.8
++#   → detected stable, winning source GitHub, latest 2.3.9, status UPDATE → 2.3.9
++swift run --package-path application-test feed-discover OpenInTerminal.app
++#   → no Sparkle and no electron-builder update config
++```
++
++## 建议下一步
++1. v2.3.10 发布后跑一次 2.3.9 → 2.3.10 一键端到端，确认 Team 没再变。
++2. OpenInTerminal-Lite / OpenInEditor-Lite：同仓 v1.x，资产 `OpenInTerminal-Lite.zip` /
++   `OpenInEditor-Lite.zip`，可各加一条 GitHub rule（需先下真包读 bundle id 和 Team）。

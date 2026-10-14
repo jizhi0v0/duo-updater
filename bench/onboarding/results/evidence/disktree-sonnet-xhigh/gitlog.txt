@@ -1,0 +1,3 @@
+7690b5e disktree: GitHub Releases detection, detection-only (the macOS zips are ad-hoc signed)
+90f8415 Add check_ifchange.py: links between code that must change together (#1222)
+8430015 verify-install: update identities and baseline (#1224)

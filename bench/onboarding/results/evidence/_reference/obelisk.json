@@ -1,0 +1,109 @@
+{
+  "changelogRecipes" : [
+    "changelog:com.obelisk.app:-"
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 6,
+      "headings" : [
+        "Highlights",
+        "Complete session browsing",
+        "Copilot history from Stable and Insiders",
+        "Kiro CLI history",
+        "Documentation and contribution guidance"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 23,
+      "newestVersion" : "0.2.5",
+      "recipeID" : "changelog:com.obelisk.app:-"
+    },
+    "download" : "releases",
+    "installTrust" : "developerID",
+    "latest" : "0.2.5",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "GitHub",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 6,
+      "headings" : [
+        "Highlights",
+        "Complete session browsing",
+        "Copilot history from Stable and Insiders",
+        "Kiro CLI history",
+        "Documentation and contribution guidance"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 23,
+      "newestVersion" : "0.2.5",
+      "recipeID" : "changelog:com.obelisk.app:-"
+    },
+    "download" : "releases",
+    "installTrust" : "developerID",
+    "latest" : "0.2.5",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "GitHub",
+    "status" : "update→0.2.5"
+  },
+  "perRelease" : [
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.2.5",
+      "version" : "0.2.5",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.2.4",
+      "version" : "0.2.4",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.2.2",
+      "version" : "0.2.2",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.2.1",
+      "version" : "0.2.1",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.2.0",
+      "version" : "0.2.0",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.1.0",
+      "version" : "0.1.0",
+      "x86_64" : "<none>"
+    }
+  ],
+  "rules" : [
+    {
+      "bundleID" : "com.obelisk.app",
+      "channel" : "stable",
+      "installAssetPattern" : "<nil>",
+      "installerKind" : "<nil>",
+      "installTrust" : "developerID",
+      "slug" : "tommy0103\/obelisk",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+(?:\\.[0-9]+)+)$"
+    }
+  ]
+}

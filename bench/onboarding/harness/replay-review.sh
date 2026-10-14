@@ -24,6 +24,9 @@ for k,v in {"@PR@":"1","@HEAD_SHA@":"$head","@MERGE_BASE@":"$parent","@OUT@":"$W
     t=t.replace(k,v)
 open(sys.argv[2],"w").write(t)
 PY
+python3 $H/record_config.py $D mode=replay case=$c source_run=$c-$tag model=claude-opus-5-5 effort=$effort \
+  review_md_commit=$(git -C $MAIN rev-parse origin/main) head=$head parent=$parent permission_mode=default \
+  setting_sources=project 'allowed_tools=["Edit(./.claude-review/review.md)","Bash(<repo>/.github/claude-review/gh-get *)"]'
 date +%s > $D/t0
 ( cd $R && env -u CLAUDE_EFFORT -u CLAUDE_CODE_EFFORT_LEVEL CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1 \
     claude -p --model claude-opus-5-5 --effort $effort --setting-sources project --permission-mode default \

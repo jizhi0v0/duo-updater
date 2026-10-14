@@ -1,0 +1,3 @@
+8fb2192 Track Obelisk via GitHub releases, with one-click install
+2c49ab0 One-click updates for ad-hoc signed GitHub apps, checked by GitHub's file hash (opt-in) (#952)
+7587537 verify: update recipe baseline (#951)

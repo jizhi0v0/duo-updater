@@ -1,0 +1,3 @@
+40dbe77 app-audits: Secretive, held: GitHub rule would offer 4.0.0 below macOS 15
+57e6ce0 Track Reviu via GitHub releases, with one-click install (#924)
+11a1072 verify: update recipe baseline (#923)

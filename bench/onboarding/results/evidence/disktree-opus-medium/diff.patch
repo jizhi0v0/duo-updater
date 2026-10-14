@@ -1,0 +1,279 @@
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index d6fdb79..59751af 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -214,6 +214,7 @@ public enum AppRecipeIndex {
+         io_dcloud_HBuilderX.set,
+         io_ganeshrvel_openmtp.set,
+         io_github_clash_verge_rev_clash_verge_rev.set,
++        io_github_tobi_disktree.set,
+         io_github_wickenico_wailbrew.set,
+         io_podmandesktop_PodmanDesktop.set,
+         io_rancherdesktop_app.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-github-tobi-disktree.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-github-tobi-disktree.swift
+new file mode 100644
+index 0000000..918994e
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-github-tobi-disktree.swift
+@@ -0,0 +1,31 @@
++import Foundation
++
++enum io_github_tobi_disktree {
++    static let set = AppRecipeSet(
++        family: "io-github-tobi-disktree",
++        githubRules: [
++        // disktree (tobi/disktree) — a Rust + GPUI disk-usage treemap. No
++        // updater of any kind: no `SUFeedURL`, no electron-builder config, and
++        // the binary names no GitHub API or release address, so this rule is the
++        // only source. The release workflow refuses a tag that is not
++        // `v<Cargo.toml version>`, and `xtask bundle` writes that version into
++        // both CFBundleShortVersionString and CFBundleVersion, so short == tag
++        // (checked 2026-10-14 on 0.10.1/0.11.0). macOS assets start at 0.10.0.
++        //
++        // Digest-only (see `Recipes/org-alacritty.swift`): the workflow signs
++        // with a Developer ID only when the repository has signing secrets, and
++        // every published build so far is ad-hoc — no Team ID, `spctl`
++        // rejected — with a seal that verifies and a signed identifier equal to
++        // the bundle id. One zip per arch (`aarch64` / `x86_64`), `disktree.app`
++        // at the top, no nested apps or helpers. Should upstream start signing,
++        // the digest route refuses the first Developer ID build over an ad-hoc
++        // copy (`teamIdentifierAppeared`); that update is by hand once, and the
++        // rule then moves to the default trust.
++        GitHubReleaseRule(
++            bundleID: "io.github.tobi.disktree",
++            owner: "tobi", repo: "disktree",
++            installAssetPattern: #"^disktree-[0-9.]+-(?:aarch64|x86_64)-macos\.zip$"#,
++            installerKind: .zip,
++            installTrust: .publishedDigestOnly),
++        ])
++}
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/DigestOnlyRecipeTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/DigestOnlyRecipeTests.swift
+index 577cf66..5594310 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/DigestOnlyRecipeTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/DigestOnlyRecipeTests.swift
+@@ -5,7 +5,8 @@ import Testing
+ /// The three rules this route was opened for, against the asset names their
+ /// repositories actually published (every stable release with a digest, read
+ /// from the GitHub API 2026-10-02 — see `docs/app-audits/org-alacritty.md`),
+-/// and Lokii, added since (both releases, 2026-10-07 — `docs/app-audits/com-lokii-app.md`).
++/// and Lokii, added since (both releases, 2026-10-07 — `docs/app-audits/com-lokii-app.md`),
++/// and disktree (0.11.0 and 0.10.1, 2026-10-14 — `docs/app-audits/io-github-tobi-disktree.md`).
+ @Suite struct DigestOnlyRecipeTests {
+ 
+     private static let expected: [String: [[String]]] = [
+@@ -28,6 +29,20 @@ import Testing
+             ["Lokii-arm64.dmg", "Lokii-x86_64.dmg"],
+             ["Lokii-arm64.dmg", "Lokii-x86_64.dmg"],
+         ],
++        "io.github.tobi.disktree": [
++            ["disktree-0.11.0-aarch64-linux.tar.gz", "disktree-0.11.0-aarch64-linux.tar.gz.sha256",
++             "disktree-0.11.0-aarch64-macos.zip", "disktree-0.11.0-aarch64-macos.zip.sha256",
++             "disktree-0.11.0-aarch64-windows.zip", "disktree-0.11.0-aarch64-windows.zip.sha256",
++             "disktree-0.11.0-x86_64-linux.tar.gz", "disktree-0.11.0-x86_64-linux.tar.gz.sha256",
++             "disktree-0.11.0-x86_64-macos.zip", "disktree-0.11.0-x86_64-macos.zip.sha256",
++             "disktree-0.11.0-x86_64-windows.zip", "disktree-0.11.0-x86_64-windows.zip.sha256"],
++            ["disktree-0.10.1-aarch64-linux.tar.gz", "disktree-0.10.1-aarch64-linux.tar.gz.sha256",
++             "disktree-0.10.1-aarch64-macos.zip", "disktree-0.10.1-aarch64-macos.zip.sha256",
++             "disktree-0.10.1-aarch64-windows.zip", "disktree-0.10.1-aarch64-windows.zip.sha256",
++             "disktree-0.10.1-x86_64-linux.tar.gz", "disktree-0.10.1-x86_64-linux.tar.gz.sha256",
++             "disktree-0.10.1-x86_64-macos.zip", "disktree-0.10.1-x86_64-macos.zip.sha256",
++             "disktree-0.10.1-x86_64-windows.zip", "disktree-0.10.1-x86_64-windows.zip.sha256"],
++        ],
+     ]
+ 
+     private func rule(_ bundleID: String) -> GitHubReleaseRule? {
+@@ -54,6 +69,7 @@ import Testing
+             "org.flameshot.Flameshot": ["Flameshot-14.0-macos-arm64.dmg", "Flameshot-13.3.0-artifact-macos-arm64.dmg"],
+             "org.darktable": ["darktable-5.6.1-arm64.dmg", "darktable-5.2.1-arm64.dmg", "darktable-5.4.0-arm64.dmg"],
+             "com.lokii.app": ["Lokii-arm64.dmg", "Lokii-arm64.dmg"],
++            "io.github.tobi.disktree": ["disktree-0.11.0-aarch64-macos.zip", "disktree-0.10.1-aarch64-macos.zip"],
+         ]
+         for (bundleID, releases) in Self.expected {
+             let pattern = try #require(rule(bundleID)?.installAssetPattern, "\(bundleID)")
+@@ -63,8 +79,9 @@ import Testing
+                     from: assets, matching: pattern, preferring: .arm64, allowingIntelTranslation: false)
+                 #expect(picked?.url.lastPathComponent == picks[bundleID]?[index], "\(bundleID) release \(index)")
+                 // The rc asset ships under a prerelease tag, which `/releases/latest`
+-                // never returns; the pattern must still not prefer it.
+-                #expect(!(picked?.url.lastPathComponent.contains("rc") ?? false))
++                // never returns; the pattern must still not prefer it. `-rc`, not
++                // `rc`: disktree's `aarch64` spells those two letters too.
++                #expect(!(picked?.url.lastPathComponent.contains("-rc") ?? false))
+             }
+         }
+     }
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift
+index 500c68c..ee1d3fe 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift
+@@ -133,6 +133,11 @@ struct GitHubAssetSelectionTests {
+         // Lokii: one dmg per architecture, no version in the name (v0.1.1).
+         (#"^Lokii-(?:arm64|x86_64)\.dmg$"#,
+          ["Lokii-arm64.dmg", "Lokii-x86_64.dmg"]),
++        // disktree: one zip per architecture under one tag (v0.11.0, macOS
++        // assets in the order GitHub listed them, `.sha256` files beside them).
++        (#"^disktree-[0-9.]+-(?:aarch64|x86_64)-macos\.zip$"#,
++         ["disktree-0.11.0-aarch64-macos.zip", "disktree-0.11.0-aarch64-macos.zip.sha256",
++          "disktree-0.11.0-x86_64-macos.zip", "disktree-0.11.0-x86_64-macos.zip.sha256"]),
+         // Cindy: four macOS dmgs per release, two editions × two arches
+         // (v0.1.97, in the order GitHub listed them); each rule admits its own
+         // edition's two.
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/io-github-tobi-disktree.txt b/DuoUpdaterCore/Tests/RecipeGoldens/io-github-tobi-disktree.txt
+new file mode 100644
+index 0000000..caa1a34
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/io-github-tobi-disktree.txt
+@@ -0,0 +1,43 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "io-github-tobi-disktree"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 0)
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "io.github.tobi.disktree"
++githubRules[0].owner = "tobi"
++githubRules[0].repo = "disktree"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "v?([0-9]+(?:\\.[0-9]+)+)"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^disktree-[0-9.]+-(?:aarch64|x86_64)-macos\\.zip$"
++githubRules[0].installerKind? = .zip
++githubRules[0].installTrust = .publishedDigestOnly
++githubRules[0].variant = nil
++githubRules[0].architectureRequirement = nil
++githubRules[0].tagRefPrefix = nil
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index a14e3fb..71a1526 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -270,6 +270,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**Herdr**](so-pen-herdr-gpui.md) · `so.pen.herdr-gpui` — G (one-click universal dmg) · 日期版本 `vYYYYMMDD.N` · 真包 20261007.1/.2 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中）· changelog 结构化 ✓ · 2026-10-07
+ - [x] [**Search**](com-officecommun-search.md) · `com.officecommun.search` — G (one-click arm64 dmg，1.0.5 起另有 `Search-Intel.dmg`) · 真包 1.0.3/1.0.4 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中；自研更新器启动即换 bundle）· changelog 结构化 ✓ · 2026-10-09
+ - [x] [**Pulse**](com-egoist-pulse.md) · `com.egoist.pulse` — G (one-click arm64 dmg) · 真包 0.1.4/0.1.5 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中）· changelog 结构化 ✓ · `install.sh` 只装 Linux，无 macOS CLI · 2026-10-10
++- [x] [**disktree**](io-github-tobi-disktree.md) · `io.github.tobi.disktree` — G (**digest-only**，ad-hoc 签名，arm64/x86_64 zip) · 4 个真包核对封印/标识/版本/digest ✓ · 一键端到端未跑 · changelog 结构化 ✓ · 2026-10-14
+ 
+ ## Changelog-only (detection via Sparkle or Homebrew)
+ 
+diff --git a/docs/app-audits/io-github-tobi-disktree.md b/docs/app-audits/io-github-tobi-disktree.md
+new file mode 100644
+index 0000000..bfd13ff
+--- /dev/null
++++ b/docs/app-audits/io-github-tobi-disktree.md
+@@ -0,0 +1,92 @@
++# disktree
++
++## 基本信息
++- App: disktree — Rust + GPUI 的磁盘占用 treemap（Linux / macOS / Windows）
++- Bundle ID: `io.github.tobi.disktree`
++- 仓库: `tobi/disktree`（开源，MIT）
++- 签名: **ad-hoc，无 Team ID**（`codesign -dvv`: `Signature=adhoc`、`TeamIdentifier=not set`；`spctl -a -vv -t exec`
++  rejected，未公证）；封印完整（`codesign --verify --deep --strict` 0），签名标识 = bundle id。0.10.1 与 0.11.0
++  的 aarch64 / x86_64 四个包相同
++- 观测版本: 0.11.0（`CFBundleVersion` 同为 `0.11.0`）；观测日期: 2026-10-14
++- 自更新机制: 无。没有 `SUFeedURL`、没有 electron-builder 配置（`feed-discover`: no Sparkle and no
++  electron-builder update config）；二进制里没有 `api.github.com`、`releases/latest`、`appcast`、`Sparkle` 字串
++- 分发: 只有 GitHub Releases。没有 Homebrew cask（`brew info --cask disktree`: No Cask with this name exists）、没有 MAS
++- macOS 资产从 v0.10.0 起才有；v0.9.0 / v0.9.1 只有 Linux tarball
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|------------|---------|----------|-----|--------|-------------|
++| **stable** | —       | —        | —   | ✓      | —           |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**（channel-verify 实测）。
++
++## Channel 详情
++
++只有一条轨。所有 release 都不是 prerelease；发布流程只认 `v*` tag，没有 beta / nightly 的构建或开关。
++settled from source: `.github/workflows/release.yml` on `main`（tag 必须等于 `v<Cargo.toml version>`，否则失败）。
++
++## 更新检测
++- 源: `tobi/disktree` GitHub Releases，`/releases/latest`
++- 版本方案: tag `vX.Y.Z` 去掉 `v` == `CFBundleShortVersionString` == `CFBundleVersion`。settled from source:
++  `xtask/src/bundle.rs` 把 `CARGO_PKG_VERSION` 填进 `packaging/macos/Info.plist.in` 的两个 `@VERSION@`
++- 资产: `disktree-<v>-aarch64-macos.zip` / `disktree-<v>-x86_64-macos.zip`（各带一个 `.sha256`），同一 release
++  还有 Linux tarball 与 Windows zip；pattern 锚在 `-macos\.zip$`，arch 交给源的架构偏好
++- 注意事项: 无 rollout、无 WAF
++
++## 按架构 / 按 OS 分轨
++- 两个架构分包，各是单 slice（`lipo -archs`: `arm64` / `x86_64`）
++- `LSMinimumSystemVersion` = `11.0`（0.10.1、0.11.0 相同）；release 不声明 OS 上下限
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | — |
++| 证据 | 没有任何更新器（见基本信息） | 2026-10-14 release 资产只有整包 zip/tarball 与 `.sha256` | 无可消费 |
++
++## Changelog
++- 来源: GitHub Release body（`--generate-notes` 生成的 `## What's Changed` PR 列表），经 `GitHubMarkdownParser`
++- 结构化（2026-10-14，channel-verify `changelog pane`）: `source structured: 1 entries; newest 0.11.0: 23 items,
++  headings []; first items ["Integrate Windows scanning, drive picker", "build: pin the toolchain so a fresh clon",
++  "Steam libraries on a second drive show a"]`。正文唯一的小标题是自动生成的 `What's Changed`（以及被丢弃的
++  `New Contributors`），条目里不含小标题文字，没有被压平的厂商分节
++- 跟随 channel: —（单轨）
++- Recipe 状态: 不需要
++
++## 一键安装
++- 状态: **digest-only**（`installTrust: .publishedDigestOnly`）——用户在设置 → 通用里打开
++  「无开发者签名的 app 按文件哈希一键更新」才可用
++- 端到端: **未跑**。真机安装由协调方之后串行执行（coverage-discovery Phase 5）
++- 格式: zip（`disktree.app` 在顶层，没有嵌套 app、helper 或 LaunchAgent）
++- Pattern: `^disktree-[0-9.]+-(?:aarch64|x86_64)-macos\.zip$`, kind `.zip`
++- 条件核对（2026-10-14，0.10.1 / 0.11.0 两个 arch 共 4 个包）: 封印 `--deep --strict` 0；签名标识
++  `io.github.tobi.disktree`；short == tag；GitHub 为每个资产发布 sha256 `digest`，下载后 `shasum -a 256` 逐一相同
++  （0.11.0 aarch64 `942f2508…3600b`、x86_64 `16ddba6c…43f4d`；0.10.1 aarch64 `90381628…7d9eca`、
++  x86_64 `9955a0da…4b96`）
++- **读的是**: 人人可手动下载的 GA（GitHub `/releases/latest`；发布流程先建 draft，全部平台构建上传后才公开）
++- 阻塞: 无（digest-only 路线需要用户在设置里打开）
++
++## 已知问题
++- **上游随时可能改用 Developer ID。** `release.yml` 只在仓库配置了签名 secrets 时才用 Developer ID 签名并公证，
++  否则 ad-hoc。一旦首个 Developer ID 构建发布，digest-only 路线对 ad-hoc 旧版会以 `teamIdentifierAppeared` 拒绝
++  （`SignatureVerifier.digestOnlyIdentity`），该次需手动更新；之后 rule 应改回默认 trust
++- ad-hoc 签名每次构建 cdhash 都变；macOS 对 Desktop / Documents / Downloads 的文件夹授权在更新后是否需要重新
++  授予，未验证
++- 下载的 zip 带 quarantine 时首次打开要「仍要打开」（上游 workflow 注释原话）；duo 换包后的首启行为未验证
++
++## 建议下一步
++1. 上游开始 Developer ID 签名后：rule 去掉 `installTrust: .publishedDigestOnly`，并从 `DigestOnlyRecipeTests`
++   移除，同时核对新旧两个版本的 Team ID。
++2. 协调方跑端到端（设置关闭→拒绝；打开→installed）后，替换上面「端到端: 未跑」一行。
++
++## 如何复验
++```
++gh api repos/tobi/disktree/releases --jq '.[] | .assets[] | "\(.name) \(.digest)"'   # 对照 shasum -a 256
++unzip -q disktree-0.10.1-aarch64-macos.zip -d old && unzip -q disktree-0.11.0-aarch64-macos.zip -d new
++swift run --package-path application-test channel-verify old/disktree.app --expect stable   # → UPDATE → 0.11.0，winning source GitHub
++swift run --package-path application-test channel-verify new/disktree.app --expect stable   # → up to date
++swift run --package-path application-test feed-discover disktree-0.11.0-aarch64-macos.zip   # → no Sparkle and no electron-builder update config
++```

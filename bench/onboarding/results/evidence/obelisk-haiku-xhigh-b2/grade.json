@@ -1,0 +1,111 @@
+{
+  "changelogRecipes" : [
+    "changelog:com.obelisk.app:stable"
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 6,
+      "headings" : [
+        "Highlights",
+        "Complete session browsing",
+        "Copilot history from Stable and Insiders",
+        "Kiro CLI history",
+        "Documentation and contribution guidance",
+        "Included work"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 28,
+      "newestVersion" : "0.2.5",
+      "recipeID" : "changelog:com.obelisk.app:stable"
+    },
+    "download" : "Obelisk-0.2.5-mac-arm64.dmg",
+    "installTrust" : "developerID",
+    "latest" : "0.2.5",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "GitHub",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 6,
+      "headings" : [
+        "Highlights",
+        "Complete session browsing",
+        "Copilot history from Stable and Insiders",
+        "Kiro CLI history",
+        "Documentation and contribution guidance",
+        "Included work"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 28,
+      "newestVersion" : "0.2.5",
+      "recipeID" : "changelog:com.obelisk.app:stable"
+    },
+    "download" : "Obelisk-0.2.5-mac-arm64.dmg",
+    "installTrust" : "developerID",
+    "latest" : "0.2.5",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "GitHub",
+    "status" : "update→0.2.5"
+  },
+  "perRelease" : [
+    {
+      "arm64" : "Obelisk-0.2.5-mac-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v0.2.5",
+      "version" : "0.2.5",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "Obelisk-0.2.4-mac-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v0.2.4",
+      "version" : "0.2.4",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "Obelisk-0.2.2-mac-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v0.2.2",
+      "version" : "0.2.2",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "Obelisk-0.2.1-mac-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v0.2.1",
+      "version" : "0.2.1",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "Obelisk-0.2.0-mac-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v0.2.0",
+      "version" : "0.2.0",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "Obelisk-0.1.0-mac-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v0.1.0",
+      "version" : "0.1.0",
+      "x86_64" : "<none>"
+    }
+  ],
+  "rules" : [
+    {
+      "bundleID" : "com.obelisk.app",
+      "channel" : "stable",
+      "installAssetPattern" : "^Obelisk-[0-9.]+-mac-arm64\\.dmg$",
+      "installerKind" : "dmg",
+      "installTrust" : "developerID",
+      "slug" : "tommy0103\/obelisk",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+(?:\\.[0-9]+)+)$"
+    }
+  ]
+}

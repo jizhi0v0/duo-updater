@@ -15,6 +15,9 @@
 #                   no one-click)
 #   cindy           the cn edition `com.xd.cindycn`; the beta track
 #
+# probe_errors counts probe hits (harness/probe.py) not already counted as a miss: the
+# OpenInTerminal v2 pin is a miss, so its NEXT-MISS is not counted again.
+#
 # Verdicts: covered | missed | overreach (does more than main, and the extra is wrong or
 # unverified) | judgment (does more than main, defensible either way).
 

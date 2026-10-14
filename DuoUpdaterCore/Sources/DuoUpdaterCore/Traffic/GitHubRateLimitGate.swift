@@ -36,6 +36,14 @@ public enum GitHubRateLimitGate {
     public enum Credential: String, Sendable, Hashable, Codable, CaseIterable {
         case token
         case anonymous
+
+        /// The budget requests spend now: the token's when one resolved and
+        /// GitHub has not rejected it, else the anonymous one — a rejected
+        /// token's requests go out without it (`GitHubCredentials`), and the
+        /// vendor updaters are handed none (`CLIToolGitHubToken`).
+        public static func inUse(tokenResolved: Bool, tokenRejected: Bool) -> Credential {
+            tokenResolved && !tokenRejected ? .token : .anonymous
+        }
     }
 
     /// Why the gate is closed, for the log and for a row's wording.

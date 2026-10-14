@@ -54,6 +54,7 @@ fill() { # template -> prompt output
   t="${t//@PREV@/$WORK/prev-round.md}"
   t="${t//@OUT@/$WORK/review.md}"
   t="${t//@PRINFO@/$WORK/pr.md}"
+  t="${t//@GHGET@/$here/gh-get}"
   printf '%s\n' "$t" > "$WORK/prompt.md"
   {
     echo "prompt<<CLAUDE_REVIEW_PROMPT_EOF"

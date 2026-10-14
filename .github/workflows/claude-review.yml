@@ -23,14 +23,31 @@
 #     workflows triggered by a fork, so even a mistake in the `if:` leaks nothing.
 #   • claude-code-action refuses actors without write access and all bots by
 #     default. `allowed_non_write_users` / `allowed_bots` are deliberately unset.
-#   • `GH_TOKEN` is set on the two steps that shell out to `gh`, not on the job,
-#     so it is absent from the reviewer step's environment. The action gets its
-#     own `github_token` input; nothing else here needs the token, and the
-#     checkout deliberately keeps no credential (`persist-credentials: false`).
+#   • Two jobs, split by what each may hold. `review` runs the model with a
+#     READ-ONLY token (contents, pull requests): the reviewer reads vendors'
+#     GitHub repositories through it, and that vendor text is the input an
+#     attacker would write, so its token cannot post, push or approve. It ends
+#     by uploading review.md. `post` holds `pull-requests: write`, runs no
+#     model, and only posts that file. The checkout keeps no credential
+#     (`persist-credentials: false`).
+#   • review.md is the one way out of `review`, and it is posted verbatim, so
+#     the reviewer is confined to the checkout:
+#       – reads: no bare Read/Glob/Grep rule. Default mode then refuses reads
+#         outside the working directory, by the file tools and by cat/grep/head
+#         alike, so a steered reviewer cannot read /proc/self/environ (the
+#         model's token). Not blockReadsOutsideWorkingDirectories: it also
+#         refuses gh-get calls whose jq filter looks like a path.
+#       – writes: review.md only (`Edit(./.claude-review/review.md)`);
+#       – git: no `Bash(git …:*)` prefix rule. Claude Code's built-in read-only
+#         classification runs diff/log/show and refuses `--output=<file>`, which
+#         writes anywhere (e.g. git config, then `git diff` runs a command). A
+#         prefix rule let `--out''put=` through; the classifier parses the quotes.
+#     `post` also refuses a review that contains anything shaped like a token.
 #
 # The reviewer reads REVIEW.md, the checkout and the PR description, runs
-# read-only git, and writes its review file. Posting is done by the last step,
-# not by the model.
+# read-only git, reads the GitHub REST API through `.github/claude-review/gh-get`
+# (GET under repos/<owner>/<repo> only, jq in an empty environment so no filter
+# can print the token), and writes its review file.
 name: Claude review
 
 on:
@@ -39,7 +56,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
@@ -65,6 +81,12 @@ jobs:
       !startsWith(github.event.pull_request.head.ref, 'recipe-autofix/')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      mode: ${{ steps.prep.outputs.mode }}
+      round: ${{ steps.prep.outputs.round }}
     env:
       REPO: ${{ github.repository }}
       PR: ${{ github.event.pull_request.number }}
@@ -107,8 +129,10 @@ jobs:
         # even when the model asks for the background
         # (https://code.claude.com/docs/en/sub-agents.md). Drop it once the action
         # waits for the final result.
+        # GH_TOKEN is this job's read-only token, for gh-get.
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          GH_TOKEN: ${{ github.token }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
@@ -124,24 +148,71 @@ jobs:
           claude_args: >-
             ${{ vars.CLAUDE_REVIEW_MODEL && format('--model {0}', vars.CLAUDE_REVIEW_MODEL) || '' }}
             --effort high
-            --allowedTools "Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
+            --allowedTools "Edit(./.claude-review/review.md),Bash(${{ github.workspace }}/.github/claude-review/gh-get *)"
 
-      - name: Post the review
+      - name: Check the review was written
         if: steps.prep.outputs.mode != 'skip'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          MODE: ${{ steps.prep.outputs.mode }}
-          ROUND: ${{ steps.prep.outputs.round }}
         run: |
           if [ ! -s "$WORK/review.md" ]; then
             echo "::error::The reviewer finished without writing $WORK/review.md"
             exit 1
           fi
+
+      # Copied out of .claude-review/ first: upload-artifact skips hidden paths.
+      - name: Stage the review
+        if: steps.prep.outputs.mode != 'skip'
+        run: |
+          mkdir -p "$RUNNER_TEMP/claude-review"
+          cp "$WORK/review.md" "$RUNNER_TEMP/claude-review/review.md"
+      - name: Upload the review
+        if: steps.prep.outputs.mode != 'skip'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: claude-review
+          path: ${{ runner.temp }}/claude-review/review.md
+          retention-days: 7
+          if-no-files-found: error
+
+  post:
+    needs: review
+    if: needs.review.outputs.mode != '' && needs.review.outputs.mode != 'skip'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    env:
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      MODE: ${{ needs.review.outputs.mode }}
+      ROUND: ${{ needs.review.outputs.round }}
+    steps:
+      - name: Download the review
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: claude-review
+          path: ${{ runner.temp }}/claude-review
+
+      - name: Post the review
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          review="$RUNNER_TEMP/claude-review/review.md"
+          if [ ! -s "$review" ]; then
+            echo "::error::The review artifact has no review.md"
+            exit 1
+          fi
+          # A backstop, not the boundary (that is the reviewer's confinement):
+          # never post text shaped like an Anthropic or GitHub token.
+          if grep -Eq 'sk-ant-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}' "$review"; then
+            echo "::error::The review contains a token-shaped string; not posting it"
+            exit 1
+          fi
           {
             echo "### Claude review · round $ROUND ($MODE) · \`${HEAD_SHA:0:7}\`"
             echo
-            cat "$WORK/review.md"
+            cat "$review"
             echo
             echo "<!-- claude-review:v1 sha=$HEAD_SHA round=$ROUND -->"
-          } > "$WORK/comment.md"
-          gh pr comment "$PR" --repo "$REPO" --body-file "$WORK/comment.md"
+          } > "$RUNNER_TEMP/comment.md"
+          gh pr comment "$PR" --repo "$REPO" --body-file "$RUNNER_TEMP/comment.md"

@@ -62,7 +62,7 @@ public struct BunCheck: Sendable {
         do {
             newest = try await latest()
         } catch {
-            let limited = if case .rateLimited? = error as? BunRelease.Failure { true } else { false }
+            let limited = if case .rateLimited? = error as? BunRelease.Failure { true } else { GitHubRateLimitGate.isRefusal(error) }
             return verdict(.unknown, note: "could not read bun's release channel: \(error)",
                            withheld: limited ? .rateLimited : .channelUnreadable)
         }

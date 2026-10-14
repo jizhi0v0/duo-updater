@@ -855,6 +855,9 @@ private struct CLIToolReleaseNotesView: View {
         } catch CLIToolReleaseNotesError.rateLimited {
             // The rows' own words for the same refusal (`CLIToolWithheld.rateLimited`).
             state = .failed(String(localized: "Hitting GitHub’s rate limit"))
+        } catch is GitHubRateLimitGate.Refused {
+            // Held back unsent: the same spent budget, in the same words.
+            state = .failed(String(localized: "Hitting GitHub’s rate limit"))
         } catch CLIToolReleaseNotesError.noSections {
             state = .failed(String(localized: "The file loaded but carried no release sections."))
         } catch {

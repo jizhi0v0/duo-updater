@@ -255,6 +255,10 @@ public enum ChangelogService {
         let id = recipe.recipeID
         if parsed != nil {
             await RecipeHealth.shared.recordSuccess(id: id, source: "Changelog")
+        } else if isGitHubAPI(fetched), await GitHubRateLimitGate.active?.isHoldingBack() == true {
+            // The rate-limit gate held the request back unsent (or GitHub has
+            // just said the budget is spent): that says nothing of the recipe,
+            // and a miss would show it broken in Diagnostics for an hour.
         } else {
             await RecipeHealth.shared.recordMiss(
                 id: id, source: "Changelog",

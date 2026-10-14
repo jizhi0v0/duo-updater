@@ -99,6 +99,9 @@ case "$sig" in *"adhoc"*) die "product is AD-HOC signed";; esac
 case "$sig" in *"TeamIdentifier=$TEAM"*) ;; *) die "product is not signed by team $TEAM";; esac
 case "$sig" in *"flags=0x10000(runtime)"*) ;; *) die "hardened runtime is not enabled";; esac
 case "$ents" in *"com.apple.security.get-task-allow"*) die "get-task-allow entitlement is present";; esac
+# This build is what ships: none of this Mac's developer hooks may be in it
+# (`GitHubAPIMock`, compiled only under DUO_DEV_HOOKS — see the script).
+"$REPO/scripts/check-no-dev-hooks.sh" "$BUILD_APP" || die "the release build carries developer hooks"
 printf '   %s\n' "$(printf '%s\n' "$sig" | sed -n 's/^Authority=/Authority=/p' | head -n 1)"
 printf '   %s\n' "$(printf '%s\n' "$sig" | sed -n 's/^TeamIdentifier=/TeamIdentifier=/p')"
 printf '   %s\n' "$(printf '%s\n' "$sig" | sed -n 's/^CodeDirectory .* flags=/CodeDirectory flags=/p')"

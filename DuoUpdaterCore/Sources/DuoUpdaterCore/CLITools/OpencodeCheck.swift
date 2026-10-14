@@ -69,7 +69,7 @@ public struct OpencodeCheck: Sendable {
         do {
             newest = try await latest(architecture)
         } catch {
-            let limited = if case .rateLimited? = error as? OpencodeRelease.Failure { true } else { false }
+            let limited = if case .rateLimited? = error as? OpencodeRelease.Failure { true } else { GitHubRateLimitGate.isRefusal(error) }
             return verdict(.unknown, note: "could not read OpenCode's latest release: \(error)",
                            withheld: limited ? .rateLimited : .channelUnreadable)
         }

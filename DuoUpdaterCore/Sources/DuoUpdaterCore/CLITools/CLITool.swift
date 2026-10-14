@@ -280,6 +280,20 @@ public struct CLIToolStatus: Sendable, Equatable {
     /// The command-line counterpart of `UpdateStatus.isRateLimitError`: the check
     /// stopped on GitHub's API rate limit.
     public var isRateLimitError: Bool { withheld == .rateLimited }
+
+    /// This verdict with its one-click held back because the GitHub API budget
+    /// its updater would spend is closed until `until` (`GitHubRateLimitGate`):
+    /// the vendor's command asks GitHub itself, out of our process, where the
+    /// gate cannot stop it — so we do not run it. The update stays reported;
+    /// only the click is withheld, and comes back when the gate opens.
+    public func heldBackByGitHubRateLimit(until: Date) -> CLIToolStatus {
+        CLIToolStatus(
+            kind: kind, path: path, installedVersion: installedVersion, latestVersion: latestVersion,
+            channel: channel, state: state, oneClick: nil, withheld: .rateLimited,
+            note: "update held back: GitHub's API budget is spent until \(until.formatted(.iso8601))",
+            manualCommand: manualCommand, name: name, releaseNotesKey: releaseNotesKey, detail: detail,
+            needsAdministrator: needsAdministrator)
+    }
 }
 
 /// One full look at one tool on this Mac.
@@ -450,5 +464,46 @@ public enum CLIToolChangelog {
         _ changelog: Changelog, installed: String?, latest: String?, minimum: Int = 5
     ) -> Changelog? {
         ClaudeCodeChangelog.relevant(changelog, installed: installed, latest: latest, minimum: minimum)
+    }
+}
+
+extension CLIToolKind {
+    /// Whose GitHub API budget the tool's own update command spends, asking
+    /// `api.github.com` from its own process (`CLIToolGitHubToken`'s list, read
+    /// 2026-10-11): uv, bun and mise take our token when there is one;
+    /// zoxide's `install.sh` and `atuin update` always go without; Codex's
+    /// installer does only when `releases.openai.com` fails — counted, so a
+    /// spent budget is never what its fallback meets. Nil for every other tool.
+    public var updaterSpendsGitHubAPI: UpdaterGitHubAPI? {
+        switch self {
+        case .uv, .bun, .mise: return .ourTokenIfAny
+        case .zoxide, .atuin, .codex: return .anonymous
+        default: return nil
+        }
+    }
+
+    public enum UpdaterGitHubAPI: Sendable, Equatable {
+        /// Handed our token when one resolves (`CLIToolGitHubToken.app`), else anonymous.
+        case ourTokenIfAny
+        case anonymous
+    }
+}
+
+extension CLIToolStatus {
+    /// This verdict as it may be offered while GitHub's API budgets are closed
+    /// (`pause`, until when, per credential; one absent is open): with its
+    /// one-click held back when the tool's own update command would spend a
+    /// closed budget (`CLIToolKind.updaterSpendsGitHubAPI`), unchanged
+    /// otherwise. `updatersGetOurToken`: a token resolves, so uv, bun and mise
+    /// would spend ours rather than the anonymous one. The app's CLI tab and
+    /// `duo install` both offer through here.
+    public func applyingGitHubPause(
+        _ pause: [GitHubRateLimitGate.Credential: Date], updatersGetOurToken: Bool, now: Date
+    ) -> CLIToolStatus {
+        guard oneClick != nil, let access = kind.updaterSpendsGitHubAPI else { return self }
+        let credential: GitHubRateLimitGate.Credential =
+            access == .ourTokenIfAny && updatersGetOurToken ? .token : .anonymous
+        guard let until = pause[credential], until > now else { return self }
+        return heldBackByGitHubRateLimit(until: until)
     }
 }

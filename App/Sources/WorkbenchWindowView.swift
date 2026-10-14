@@ -1973,6 +1973,8 @@ private struct HomebrewSelfUpdateDetailPane: View {
             state = .failed(String(localized: "The server answered HTTP \(status)."))
         } catch CLIToolReleaseNotesError.rateLimited {
             state = .failed(String(localized: "Hitting GitHub’s rate limit"))
+        } catch is GitHubRateLimitGate.Refused {
+            state = .failed(String(localized: "Hitting GitHub’s rate limit"))
         } catch CLIToolReleaseNotesError.noSections {
             state = .failed(String(localized: "The file loaded but carried no release sections."))
         } catch {
@@ -2636,7 +2638,8 @@ private struct DetailHeader: View {
                             openWindow(id: SettingsView.windowID)
                             model.surfaceWindow(sceneID: SettingsView.windowID)
                         },
-                        signInToAppleDeveloper: { model.signInToAppleDeveloper() }),
+                        signInToAppleDeveloper: { model.signInToAppleDeveloper() },
+                        retryPausedUntil: model.gitHubPausedUntil),
                     helperEnabled: model.helperEnabled,
                     testFlightUnboundedReason: model.testFlightUnboundedReason)
                 if let url = changelogURL {

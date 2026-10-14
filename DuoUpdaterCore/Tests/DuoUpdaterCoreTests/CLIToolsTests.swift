@@ -27,6 +27,39 @@ struct CLIToolsTests {
         #expect(CLITools.providers().map(\.kind) == CLIToolKind.allCases)
     }
 
+    /// While a GitHub API budget is closed, a one-click whose vendor command
+    /// spends it is held back as rate-limited — the command asks GitHub from its
+    /// own process, past the gate — and comes back when it opens. uv, bun and
+    /// mise spend our token's budget when one resolves, else the anonymous one;
+    /// zoxide, atuin and Codex the anonymous one; every other tool neither.
+    ///
+    /// Mutations: drop the token/anonymous choice (always `.token`); ignore
+    /// `until > now`; hold back every tool.
+    @Test func aClosedGitHubBudgetHoldsBackTheUpdatersThatSpendIt() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let later = now.addingTimeInterval(600)
+        func held(_ kind: CLIToolKind, _ pause: [GitHubRateLimitGate.Credential: Date], token: Bool) -> Bool {
+            let status = Self.status(kind).applyingGitHubPause(pause, updatersGetOurToken: token, now: now)
+            return status.oneClick == nil && status.withheld == .rateLimited
+        }
+        for kind: CLIToolKind in [.uv, .bun, .mise] {
+            #expect(held(kind, [.token: later], token: true), "\(kind)")
+            #expect(!held(kind, [.anonymous: later], token: true), "\(kind)")
+            #expect(held(kind, [.anonymous: later], token: false), "\(kind)")
+            #expect(!held(kind, [.token: later], token: false), "\(kind)")
+        }
+        for kind: CLIToolKind in [.zoxide, .atuin, .codex] {
+            #expect(held(kind, [.anonymous: later], token: true), "\(kind)")
+            #expect(!held(kind, [.token: later], token: true), "\(kind)")
+        }
+        #expect(!held(.fx, [.token: later, .anonymous: later], token: true))
+        #expect(!held(.uv, [.token: now], token: true), "a pause that has ended holds nothing")
+        // Nothing to hold back on a verdict with no one-click.
+        let none = Self.status(.uv, oneClick: false, withheld: .unverified)
+            .applyingGitHubPause([.token: later], updatersGetOurToken: true, now: now)
+        #expect(none.withheld == .unverified)
+    }
+
     @Test func updateAllRunsAnOfferedUpdateThatNeedsNoPassword() {
         #expect(Self.status().joinsUpdateAll)
         #expect(!Self.status(oneClick: false, withheld: .unverified).joinsUpdateAll)

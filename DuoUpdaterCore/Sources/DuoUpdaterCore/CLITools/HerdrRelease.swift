@@ -225,6 +225,7 @@ public struct HerdrRelease: Sendable {
         } catch {
             unasked.append("herdr's GitHub releases (\(error))")
             if case .rateLimited? = error as? Failure { rateLimited = true }
+            if GitHubRateLimitGate.isRefusal(error) { rateLimited = true }
         }
         guard unasked.isEmpty else {
             let reason = "could not ask " + unasked.joined(separator: " or ")

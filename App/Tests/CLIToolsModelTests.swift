@@ -1289,6 +1289,29 @@ struct CLIToolsModelTests {
         await open.value
     }
 
+    /// While the GitHub budget a tool's own updater would spend is closed, its
+    /// one-click is held back — not offered, not counted, not run by a click —
+    /// and back the moment the pause is lifted.
+    ///
+    /// Mutation: `publishStatuses` passing the checks' verdicts through as they are.
+    @Test func aClosedGitHubBudgetHoldsBackItsUpdatersOneClick() async {
+        let zoxide = Self.status("/Users/u/.local/bin/zoxide", kind: .zoxide)
+        let check = FakeCheck([(Self.report(.zoxide, [zoxide]), nil)])
+        let updater = FakeUpdater()
+        let model = Self.model([FakeProvider(kind: .zoxide, checker: check, updater: updater)])
+        await model.refresh()
+        #expect(model.oneClickable.count == 1)
+
+        model.gitHubPause = [.anonymous: Date().addingTimeInterval(600)]
+        #expect(model.oneClickable.isEmpty)
+        #expect(model.statuses.first?.withheld == .rateLimited)
+        await model.update(zoxide.toolID)
+        #expect(await updater.calls.isEmpty)
+
+        model.gitHubPause = [:]
+        #expect(model.oneClickable.count == 1)
+    }
+
     // MARK: the workbench becoming key again
 
     /// A tool installed in a terminal while the workbench is open — Helm into

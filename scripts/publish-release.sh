@@ -776,6 +776,9 @@ if [ -n "${CI_RUN_ID:-}" ]; then
         *"com.apple.security.get-task-allow"*)
             die "the CI artifact carries the get-task-allow entitlement";;
     esac
+    # And notarize.sh's last gate: none of a developer build's hooks.
+    "$REPO_ROOT/scripts/check-no-dev-hooks.sh" "$ci_app" \
+        || die "the CI artifact carries developer hooks"
     xcrun stapler validate "$ci_app" >/dev/null 2>&1 \
         || die "the CI artifact is not stapled — Gatekeeper would need the network to admit it"
     spctl -a -t exec "$ci_app" >/dev/null 2>&1 \

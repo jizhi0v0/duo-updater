@@ -3240,13 +3240,24 @@ struct ChangelogEntriesView: View {
     /// The version whose breaking changes are tinted, and scrolled to when it
     /// was set: until the reader picks another version or another click lands.
     @State private var shownBreaking: BreakingChangesJump?
-    /// The list layout's entries on screen. Only those have their rows laid
-    /// out, so only in those can `scrollToBreaking` find the tinted row without
-    /// first going to the entry. Not observed: scrolling must not re-run this body.
-    private final class EntriesOnScreen {
-        var indexes: Set<Int> = []
+
+    /// The ids of the rows `ChangelogRowsStack` has built among those
+    /// `scrollToBreaking` can go to: entry titles and breaking rows. Kept per
+    /// id, by each row's own `onAppear`/`onDisappear`, so it cannot outlive the
+    /// row the way a single "target is built" flag did when the tint moved off a
+    /// title that stayed on screen. Not observed: rows coming and going while the
+    /// reader scrolls must not re-run this body.
+    final class BuiltRows {
+        var ids: Set<AnyHashable> = []
     }
-    @State private var listEntriesOnScreen = EntriesOnScreen()
+    @State private var builtRows = BuiltRows()
+
+    /// `shownBreaking` resolved to its entry and the rows that mark it breaking,
+    /// once per render rather than once per row.
+    private var tint: ChangelogRowsStack.Tint? {
+        guard let shownBreaking, let index = entry(shownBreaking.version) else { return nil }
+        return .init(entry: index, rows: ChangelogEntryView.breakingRows(of: changelog.entries[index]))
+    }
 
     /// Content-driven rail width. For each row take the wider of its two lines — the
     /// title/version (callout) and the date subtitle (caption2) — since a short
@@ -3325,19 +3336,15 @@ struct ChangelogEntriesView: View {
     private var singleBody: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    ForEach(Array(changelog.entries.enumerated()), id: \.offset) { _, entry in
-                        ChangelogEntryView(entry: entry, itemStyle: itemStyle, syntax: changelog.itemSyntax,
-                                           tintsBreaking: shownBreaking?.version == entry.version)
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .id(Self.scrollTopAnchor)
+                ChangelogRowsStack(changelog: changelog, entries: Array(changelog.entries.indices),
+                                   itemStyle: itemStyle, tint: tint, builtRows: builtRows,
+                                   idsQualifiedByEntry: false)
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .id(Self.scrollTopAnchor)
             }
-            .onChange(of: shownBreaking) { previous, _ in
-                scrollToBreaking(proxy, entryAnchor: Self.scrollTopAnchor,
-                                 laidOut: previous?.version == shownBreaking?.version)
+            .onChange(of: shownBreaking) {
+                scrollToBreaking(proxy, idsQualifiedByEntry: false)
             }
         }
     }
@@ -3394,38 +3401,54 @@ struct ChangelogEntriesView: View {
         withAnimation(.easeOut(duration: 0.2)) { shownBreaking = jump }
     }
 
-    /// Scroll to the tinted part of `shownBreaking`'s version: first to
-    /// `entryAnchor`, the top of the entry, then — once the newly selected
-    /// entry is laid out — to its first tinted row (`ChangelogEntryView.breakingAnchor`).
-    /// When that row opens the entry, or nothing in it could be tinted but its
-    /// title, the top is where the tint is. When the tint is already `laidOut`
-    /// (a click again on the version shown, its entry on screen) there is no hop
-    /// to the top: it made every repeat click scroll down from the entry's start.
-    private func scrollToBreaking(_ proxy: ScrollViewProxy, entryAnchor: AnyHashable, laidOut: Bool) {
+    /// Scroll to the tinted part of `shownBreaking`'s version: its first tinted
+    /// row (`ChangelogEntryView.breakingAnchor`), or the top of its entry when
+    /// that row opens the entry or nothing in it could be tinted but its title.
+    ///
+    /// One move, straight to the row. `ChangelogRowsStack` gives every row its
+    /// id through its `ForEach`, and with that `scrollTo` reached the row from the
+    /// top of openclaw's long scroll, unbuilt, in every run (2026-10-14; Apple's
+    /// docs say only that it scrolls to "a child view with identifier `id`").
+    /// This used to cut to the entry's top first, wait 80 ms for its rows and then
+    /// scroll on down: the row's id lived inside a lazily built entry.
+    ///
+    /// Animated only when the row is already built (`builtRows`), which in
+    /// a lazy stack means on screen or just off it: a short way, and the motion
+    /// keeps where the reader was coming from. Otherwise a jump. The row is then
+    /// typically far away — openclaw's 2026.9.3 sits ~40,000 pt down its long
+    /// scroll — and an animated scroll that far builds every row it passes,
+    /// recorded at 70–240 ms between frames (2026-10-14). Whether the version was
+    /// shown before says nothing about the distance: switching layouts rebuilds
+    /// the long scroll at its top. Deferred a turn: the row takes its
+    /// `breakingAnchor` id in the update that tints it, and by the next turn its
+    /// `onAppear` has recorded it — observed, not documented: a row near the top
+    /// of the screen animated and a far one jumped (2026-10-14).
+    /// `idsQualifiedByEntry` is the layout's `ChangelogRowsStack` setting.
+    private func scrollToBreaking(_ proxy: ScrollViewProxy, idsQualifiedByEntry: Bool) {
         guard let shownBreaking, let index = entry(shownBreaking.version) else { return }
         let opensEntry = (ChangelogEntryView.breakingRows(of: changelog.entries[index]).first ?? 0) == 0
-        if laidOut {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                proxy.scrollTo(opensEntry ? entryAnchor : ChangelogEntryView.breakingAnchor, anchor: .top)
-            }
-            return
-        }
-        proxy.scrollTo(entryAnchor, anchor: .top)
-        guard !opensEntry else { return }
+        let title = ChangelogRowsStack.titleID(of: index, qualifiedByEntry: idsQualifiedByEntry)
+        // The long scroll goes to the entry's title; one entry shown, to the top
+        // of the pane, padding included.
+        let target = opensEntry
+            ? (idsQualifiedByEntry ? title : AnyHashable(Self.scrollTopAnchor))
+            : AnyHashable(ChangelogEntryView.breakingAnchor(index))
+        let built = opensEntry ? title : target
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(80))
-            withAnimation(.easeInOut(duration: 0.3)) {
-                proxy.scrollTo(ChangelogEntryView.breakingAnchor, anchor: .top)
+            if builtRows.ids.contains(built) {
+                withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(target, anchor: .top) }
+            } else {
+                proxy.scrollTo(target, anchor: .top)
             }
         }
     }
 
     /// Stable anchor for the detail pane's scroll-to-top. Constant on purpose —
     /// the whole point is that switching versions must NOT change view identity.
-    private static let scrollTopAnchor = "changelog-entry-top"
+    fileprivate static let scrollTopAnchor = "changelog-entry-top"
 
-    /// The list layout's anchor for the top of one entry.
-    private static func entryAnchor(_ index: Int) -> String { "changelog-entry-\(index)" }
+    /// The list layout's anchor for the top of one entry: its title row.
+    fileprivate static func entryAnchor(_ index: Int) -> String { "changelog-entry-\(index)" }
 
     /// Master/detail: a content-sized version rail + the selected version's notes.
     private var columnsBody: some View {
@@ -3449,8 +3472,8 @@ struct ChangelogEntriesView: View {
             // ScrollView and moving it instead lets SwiftUI update the notes in place.
             ScrollViewReader { proxy in
                 ScrollView {
-                    ChangelogEntryView(entry: changelog.entries[index], itemStyle: itemStyle, syntax: changelog.itemSyntax,
-                                       tintsBreaking: shownBreaking?.version == changelog.entries[index].version)
+                    ChangelogRowsStack(changelog: changelog, entries: [index], itemStyle: itemStyle,
+                                       tint: tint, builtRows: builtRows, idsQualifiedByEntry: false)
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .id(Self.scrollTopAnchor)
@@ -3468,38 +3491,139 @@ struct ChangelogEntriesView: View {
                 .onChange(of: changelog) {
                     proxy.scrollTo(Self.scrollTopAnchor, anchor: .top)
                 }
-                .onChange(of: shownBreaking) { previous, _ in
-                    scrollToBreaking(proxy, entryAnchor: Self.scrollTopAnchor,
-                                     laidOut: previous?.version == shownBreaking?.version)
+                .onChange(of: shownBreaking) {
+                    scrollToBreaking(proxy, idsQualifiedByEntry: false)
                 }
             }
         }
     }
 
-    /// One long top-down scroll of every version. LazyVStack so a long changelog
-    /// doesn't lay out every selectable, `fixedSize` bullet synchronously on appear.
+    /// One long top-down scroll of every version.
     private var listBody: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 20) {
-                    ForEach(Array(changelog.entries.enumerated()), id: \.offset) { index, entry in
-                        ChangelogEntryView(entry: entry, itemStyle: itemStyle, syntax: changelog.itemSyntax,
-                                           tintsBreaking: shownBreaking?.version == entry.version)
-                            .id(Self.entryAnchor(index))
-                            .onAppear { listEntriesOnScreen.indexes.insert(index) }
-                            .onDisappear { listEntriesOnScreen.indexes.remove(index) }
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+                ChangelogRowsStack(changelog: changelog, entries: Array(changelog.entries.indices),
+                                   itemStyle: itemStyle, tint: tint, builtRows: builtRows,
+                                   idsQualifiedByEntry: true)
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .onChange(of: shownBreaking) { previous, _ in
-                guard let shownBreaking, let index = entry(shownBreaking.version) else { return }
-                let laidOut = previous?.version == shownBreaking.version
-                    && listEntriesOnScreen.indexes.contains(index)
-                scrollToBreaking(proxy, entryAnchor: Self.entryAnchor(index), laidOut: laidOut)
+            .onChange(of: shownBreaking) {
+                scrollToBreaking(proxy, idsQualifiedByEntry: true)
             }
         }
+    }
+}
+
+/// The notes of one or more entries as ONE flat lazy stack of rows: each entry's
+/// title, then the rows under it (`ChangelogEntryView.rowCount`). Every layout of
+/// `ChangelogEntriesView` draws its notes through this — the single entry, the
+/// version picked in the rail, and the long scroll of every version.
+///
+/// Flat, not a lazy stack of entries each holding its own lazy stack of rows,
+/// which is what the long scroll used to be. A lazy stack knows the height of
+/// what it has built and guesses the rest from that, and an entry is a poor unit
+/// to guess from: openclaw's run from a handful of rows to hundreds. Stepping its
+/// long scroll from top to bottom, the content height the scroll view reported
+/// grew from 2,290 to 52,228 pt, and the scroller's thumb jumped at every
+/// correction (AX probe and screen recording, 2026-10-14). Rows are an even
+/// unit to guess from. The ids are the `ForEach`'s own data; with them
+/// `ScrollViewProxy.scrollTo` reached rows not built yet (see
+/// `ChangelogEntriesView.scrollToBreaking`).
+///
+/// Lazy, not eager: TablePro's 0.67.0 alone carries 205 change lines. And with
+/// every row built, each accessibility update walks every selectable row's
+/// responder (`ResponderNode.visitFocusResponders`): openclaw's long scroll,
+/// built eagerly, held the main thread for tens of seconds per accessibility
+/// action while an accessibility client was attached (measured 2026-10-14).
+private struct ChangelogRowsStack: View {
+    /// The entry whose breaking changes are tinted, and which of its rows
+    /// (`ChangelogEntryView.breakingRows`): none means its title.
+    struct Tint {
+        let entry: Int
+        let rows: IndexSet
+    }
+
+    let changelog: Changelog
+    /// Indexes into `changelog.entries`, in drawing order.
+    let entries: [Int]
+    var itemStyle: ChangelogEntriesView.ItemStyle = .bulleted
+    var tint: Tint?
+    /// Where the titles and breaking rows built right now are recorded, by id
+    /// (`ChangelogEntriesView.builtRows`).
+    var builtRows: ChangelogEntriesView.BuiltRows?
+    /// The long scroll: ids carry the entry, and a title's id is
+    /// `ChangelogEntriesView.entryAnchor`. One entry shown: ids are the row
+    /// alone, so picking another version updates the rows in place rather than
+    /// rebuilding every one of them.
+    var idsQualifiedByEntry: Bool
+
+    /// The gap between an entry's last row and the next entry's title.
+    private static let entryGap: CGFloat = 20
+    /// The gap between an entry's title and its first row.
+    private static let titleGap: CGFloat = 8
+
+    private struct RowKey: Hashable {
+        let entry: Int
+        /// -1 for the title.
+        let row: Int
+    }
+
+    private struct Row: Identifiable {
+        let id: AnyHashable
+        let entry: Int
+        let part: ChangelogEntryView.Part
+        /// A title or breaking row: one `scrollToBreaking` may go to.
+        let isRecorded: Bool
+        /// Space below this row. Below, not above, so a row's own frame is the
+        /// top `scrollTo(_:anchor: .top)` lines up.
+        let gapBelow: CGFloat
+    }
+
+    var body: some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(rows) { row in
+                ChangelogEntryView(entry: changelog.entries[row.entry], itemStyle: itemStyle,
+                                   syntax: changelog.itemSyntax, part: row.part,
+                                   tinted: tint?.entry == row.entry ? tint?.rows : nil)
+                    .padding(.bottom, row.gapBelow)
+                    .onAppear { if row.isRecorded { builtRows?.ids.insert(row.id) } }
+                    .onDisappear { if row.isRecorded { builtRows?.ids.remove(row.id) } }
+            }
+        }
+        .textSelection(.enabled)
+    }
+
+    /// An entry's title row id: `ChangelogEntriesView.entryAnchor` in the long
+    /// scroll, one fixed id when a single entry is shown.
+    static func titleID(of entry: Int, qualifiedByEntry: Bool) -> AnyHashable {
+        qualifiedByEntry ? AnyHashable(ChangelogEntriesView.entryAnchor(entry)) : AnyHashable(RowKey(entry: 0, row: -1))
+    }
+
+    private var rows: [Row] {
+        var rows: [Row] = []
+        for (position, index) in entries.enumerated() {
+            let entry = changelog.entries[index]
+            let count = ChangelogEntryView.rowCount(of: entry)
+            let spacing = ChangelogEntryView.rowSpacing(of: entry, itemStyle: itemStyle)
+            let afterEntry = position == entries.count - 1 ? 0 : Self.entryGap
+            let firstTinted = tint?.entry == index ? tint?.rows.first : nil
+            rows.append(Row(
+                id: Self.titleID(of: index, qualifiedByEntry: idsQualifiedByEntry),
+                entry: index, part: .title,
+                isRecorded: true,
+                gapBelow: count == 0 ? afterEntry : Self.titleGap))
+            for row in 0..<count {
+                rows.append(Row(
+                    id: row == firstTinted
+                        ? AnyHashable(ChangelogEntryView.breakingAnchor(index))
+                        : AnyHashable(RowKey(entry: idsQualifiedByEntry ? index : 0, row: row)),
+                    entry: index, part: .row(row),
+                    isRecorded: row == firstTinted,
+                    gapBelow: row == count - 1 ? afterEntry : spacing))
+            }
+        }
+        return rows
     }
 }
 
@@ -3595,17 +3719,26 @@ private struct ChangelogVersionList: View {
 
 // MARK: - One changelog entry
 
-/// One changelog block: either a classic version heading, or a post-style title
-/// with date/build metadata underneath.
+/// One part of a changelog entry — its title, or one row under it — as
+/// `ChangelogRowsStack` lays them out. The title is either a classic version
+/// heading, or a post-style title with date/build metadata underneath.
 private struct ChangelogEntryView: View {
+    /// What of the entry to draw: its title, or row `n` of `rowCount(of:)`.
+    enum Part: Hashable {
+        case title
+        case row(Int)
+    }
+
     let entry: Changelog.Entry
     var itemStyle: ChangelogEntriesView.ItemStyle = .bulleted
     /// Carried down from the `Changelog` so a bullet knows whether its text is
     /// Markdown; see `rendered(_:syntax:)`.
     var syntax: Changelog.ItemSyntax = .plain
-    /// Tint what marks this entry breaking (`breakingRows`): the reader asked
-    /// to see it (`ChangelogEntriesView.showBreaking`).
-    var tintsBreaking = false
+    let part: Part
+    /// The rows that mark this entry breaking (`breakingRows`) when the reader
+    /// asked to see them (`ChangelogEntriesView.showBreaking`); nil otherwise.
+    /// Empty: nothing in the notes can be pointed at, so the title is tinted.
+    var tinted: IndexSet?
 
     private var displayDate: String? {
         guard let date = entry.date else { return nil }
@@ -3625,64 +3758,74 @@ private struct ChangelogEntryView: View {
             ? CLIToolChangelog.breakingItems(entry.items) : CLIToolChangelog.breakingBlocks(in: entry.content)
     }
 
-    /// The first tinted row's id, for `ChangelogEntriesView.scrollToBreaking`.
-    /// Only one entry is tinted at a time, so it is unique in the pane.
-    static let breakingAnchor = "changelog-breaking"
-
-    /// Each row's id: its index, or `breakingAnchor` for the first tinted row.
-    static func rowID(_ index: Int, tinted: IndexSet) -> AnyHashable {
-        index == tinted.first ? AnyHashable(breakingAnchor) : AnyHashable(index)
+    /// How many rows the entry draws under its title, counted the way
+    /// `breakingRows` indexes them.
+    static func rowCount(of entry: Changelog.Entry) -> Int {
+        if let markdown = entry.markdown {
+            let blocks = ChangelogMarkdownView.blocks(for: markdown)
+            return blocks.isEmpty ? entry.items.count : blocks.count
+        }
+        return entry.content.isEmpty ? entry.items.count : entry.content.count
     }
 
+    /// The gap between two rows of `entry`.
+    static func rowSpacing(of entry: Changelog.Entry, itemStyle: ChangelogEntriesView.ItemStyle) -> CGFloat {
+        if entry.markdown != nil { return 6 }
+        if entry.content.isEmpty { return itemStyle == .paragraphs ? 14 : 6 }
+        return 8
+    }
+
+    /// The id of `entry`'s first tinted row, for `ChangelogEntriesView.scrollToBreaking`.
+    /// Per entry, so moving the tint to another version changes the row's
+    /// identity, which should run the old row's `onDisappear` and drop its id
+    /// from `ChangelogEntriesView.builtRows` — expected, not observed: openclaw,
+    /// the one long changelog tried, flags a single version. Should the id linger,
+    /// a later jump to that same row from far away would animate rather than jump.
+    static func breakingAnchor(_ entry: Int) -> String { "changelog-breaking-\(entry)" }
+
     var body: some View {
-        let tinted = tintsBreaking ? Self.breakingRows(of: entry) : IndexSet()
-        VStack(alignment: .leading, spacing: 8) {
+        switch part {
+        case .title:
             title
                 // Nothing in the notes to point at: the version itself is.
-                .breakingTint(tintsBreaking && tinted.isEmpty, spacing: 8)
-            // Rich entries — notes interleaved with images (WeChat) or category
-            // headings (Mac Performance Monitor's Keep a Changelog file, a
-            // GitHub-sourced app whose release body had ≥2 real ones — see
-            // `Changelog.Entry.Block`) — walk `content` so a screenshot or a
-            // heading lands exactly where it does on the vendor's page. Text-only
-            // entries (the common case) just bullet `items`.
-            // LAZY, not a plain VStack. An entry used to be a couple of dozen lines
-            // at most, because every changelog came from a recipe. A Sparkle feed's
-            // inline notes are not capped that way — TablePro's 0.67.0 carries 205
-            // change lines — and an eager stack built every one of them on each
-            // version switch. (The HTML fallback this path replaced was already
-            // lazy; going native must not lose that.)
-            if let markdown = entry.markdown {
-                // Notes that ARE Markdown (Sparkle's inline notes) are drawn as the
-                // author wrote them — their own headings, nesting and code — rather
-                // than through `content`/`items`, which flatten that structure.
-                ChangelogMarkdownView(markdown: markdown, fallbackItems: entry.items, tinted: tinted)
-            } else if entry.content.isEmpty {
-                let spacing: CGFloat = itemStyle == .paragraphs ? 14 : 6
-                LazyVStack(alignment: .leading, spacing: spacing) {
-                    ForEach(Array(entry.items.enumerated()), id: \.offset) { index, item in
-                        noteRow(item)
-                            .breakingTint(tinted.contains(index), spacing: spacing)
-                            .id(Self.rowID(index, tinted: tinted))
-                    }
-                }
+                .breakingTint(tinted?.isEmpty == true, spacing: 8)
+        case let .row(index):
+            row(index)
+                .breakingTint(tinted?.contains(index) == true,
+                              spacing: Self.rowSpacing(of: entry, itemStyle: itemStyle))
+        }
+    }
+
+    /// Row `index` under the title. Rich entries — notes interleaved with images
+    /// (WeChat) or category headings (Mac Performance Monitor's Keep a Changelog
+    /// file, a GitHub-sourced app whose release body had ≥2 real ones — see
+    /// `Changelog.Entry.Block`) — walk `content` so a screenshot or a heading
+    /// lands exactly where it does on the vendor's page. Text-only entries (the
+    /// common case) just bullet `items`.
+    @ViewBuilder
+    private func row(_ index: Int) -> some View {
+        if let markdown = entry.markdown {
+            // Notes that ARE Markdown (Sparkle's inline notes) are drawn as the
+            // author wrote them — their own headings, nesting and code — rather
+            // than through `content`/`items`, which flatten that structure.
+            let blocks = ChangelogMarkdownView.blocks(for: markdown)
+            if blocks.isEmpty {
+                // Drawn as plain bullets if Foundation parses no blocks at all, so
+                // a body it cannot read shows its lines instead of an empty pane.
+                ChangelogMarkdownView.row(ChangelogMarkdown.Block(
+                    kind: .listItem(depth: 1, marker: "•"), text: AttributedString(entry.items[index])))
             } else {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(entry.content.enumerated()), id: \.offset) { index, block in
-                        Group {
-                            switch block {
-                            case let .note(text): noteRow(text)
-                            case let .image(url): noteImage(url)
-                            case let .heading(text): headingRow(text)
-                            }
-                        }
-                        .breakingTint(tinted.contains(index), spacing: 8)
-                        .id(Self.rowID(index, tinted: tinted))
-                    }
-                }
+                ChangelogMarkdownView.row(blocks[index])
+            }
+        } else if entry.content.isEmpty {
+            noteRow(entry.items[index])
+        } else {
+            switch entry.content[index] {
+            case let .note(text): noteRow(text)
+            case let .image(url): noteImage(url)
+            case let .heading(text): headingRow(text)
             }
         }
-        .textSelection(.enabled)
     }
 
     /// A classic version heading, or a post-style title with its metadata.
@@ -3802,39 +3945,12 @@ private struct ChangelogEntryView: View {
 /// headings, list items indented by depth, code in a box, quotes with a rule.
 /// Inline emphasis, code spans and links are already on each block's text, which
 /// `Text` draws. Matches the bulleted rows and `headingRow` above in size and
-/// spacing, so a Markdown entry sits in the pane like every other one.
-private struct ChangelogMarkdownView: View {
-    let markdown: String
-    /// Drawn as plain bullets if Foundation parses no blocks at all, so a body it
-    /// cannot read shows its lines instead of an empty pane.
-    let fallbackItems: [String]
-    /// The blocks to tint, or the fallback items when there are none
-    /// (`ChangelogEntryView.breakingRows`).
-    var tinted = IndexSet()
-
-    var body: some View {
-        let blocks = Self.blocks(for: markdown)
-        // Lazy for the same reason the item list is: TablePro's notes run to
-        // hundreds of lines.
-        LazyVStack(alignment: .leading, spacing: 6) {
-            if blocks.isEmpty {
-                ForEach(Array(fallbackItems.enumerated()), id: \.offset) { index, item in
-                    row(ChangelogMarkdown.Block(kind: .listItem(depth: 1, marker: "•"), text: AttributedString(item)))
-                        .breakingTint(tinted.contains(index), spacing: 6)
-                        .id(ChangelogEntryView.rowID(index, tinted: tinted))
-                }
-            } else {
-                ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
-                    row(block)
-                        .breakingTint(tinted.contains(index), spacing: 6)
-                        .id(ChangelogEntryView.rowID(index, tinted: tinted))
-                }
-            }
-        }
-    }
-
+/// spacing, so a Markdown entry sits in the pane like every other one. Each
+/// block is one row of `ChangelogRowsStack` (`ChangelogEntryView.row`).
+@MainActor
+private enum ChangelogMarkdownView {
     @ViewBuilder
-    private func row(_ block: ChangelogMarkdown.Block) -> some View {
+    static func row(_ block: ChangelogMarkdown.Block) -> some View {
         switch block.kind {
         case let .heading(level):
             Text(block.text)
@@ -3883,7 +3999,7 @@ private struct ChangelogMarkdownView: View {
 }
 
 /// The tint on what marks a version breaking, once the reader asked to see it
-/// (`ChangelogEntryView.tintsBreaking`): the sidebar's orange, washed behind the
+/// (`ChangelogEntryView.tinted`): the sidebar's orange, washed behind the
 /// row with a solid bar at its leading edge, reaching out by half the stack's
 /// `spacing` so consecutive tinted rows read as one block.
 private struct BreakingTint: ViewModifier {

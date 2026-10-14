@@ -181,7 +181,7 @@ final class CLIToolsModel {
     /// popover open can start one, and each update ends with one — and a check
     /// started before an update finished must not land after the re-check that
     /// follows it and put the stale "outdated" verdict back.
-    /// `refreshBrewFormulae`'s rule, per tool: an update re-checks only its own.
+    /// `AppListModel.readBrewFormulae`'s rule, per tool: an update re-checks only its own.
     @ObservationIgnored private var refreshGeneration = 0
     /// Per provider (by index in `providers`), the generation of the latest check
     /// started that asks it.
@@ -223,13 +223,47 @@ final class CLIToolsModel {
         sightings = found
     }
 
+    /// This model's lane (`RefreshLane`): what an open of the popover or the
+    /// workbench, a focus of the workbench and a tick of the background schedule
+    /// call for is decided here (`decide`), one check at a time, and logged under
+    /// `refresh[cli-tools]`. The plan is which tools to check (indices into
+    /// `providers`); triggers that arrive during a check are decided after it
+    /// lands, against its report. An update's own re-check (`check([provider])`)
+    /// does not go through here: it re-asks one tool the moment its update ends.
+    @ObservationIgnored private(set) lazy var lane = RefreshLane<Set<Int>>(
+        "cli-tools",
+        decide: { [weak self] trigger in await self?.decide(trigger) ?? .skip(because: "model gone") },
+        merge: { $0.union($1) },
+        work: { [weak self] plan in await self?.check(plan.sorted()) })
+
+    /// Whether a GitHub token resolves, for the background check (`onTick`).
+    /// Asked only when a tool would be held back for want of one: resolving a
+    /// token can run `gh auth token`.
+    @ObservationIgnored private var hasGitHubToken: @MainActor () async -> Bool = { false }
+
+    /// How soon after a check an open re-asks a copy it left unanswered
+    /// (offline, GitHub's rate limit). Every open re-asked every tool before, so
+    /// a popover opened again and again while rate-limited spent the very
+    /// budget whose exhaustion it was waiting out.
+    static let unansweredRecheckInterval: TimeInterval = 60
+
+    private func decide(_ trigger: RefreshTrigger) async -> RefreshDecision<Set<Int>> {
+        switch trigger {
+        case .popoverOpen, .workbenchOpen: return await onOpen()
+        case .workbenchFocus: return await onFocus()
+        case .backgroundTick(let interval): return await onTick(interval: interval)
+        case .afterAction: return .skip(because: "an update re-checks its own tool by itself")
+        }
+    }
+
     /// What an open of the popover does: a local scan, and the networked check
     /// only when the report on screen may be wrong — the app list's rule (a full
     /// check on the first open, a local rescan on later ones) applied here. Checks
     /// when there is no completed report yet, when it is older than
     /// `recheckInterval`, when the scan disagrees with it (a copy of any tool
     /// appeared or went, or its version moved — a `claude update` in a terminal),
-    /// or when it left a copy unanswered. An update re-checks by itself and does
+    /// or when it left a copy unanswered and `unansweredRecheckInterval` has
+    /// passed since that copy was asked. An update re-checks by itself and does
     /// not go through here.
     ///
     /// A change the scan sees, or an unanswered copy, re-checks every tool, as one
@@ -238,25 +272,41 @@ final class CLIToolsModel {
     /// background check (`backgroundCheck`) keeps those ages too, so an open
     /// right after it asks nothing again.
     ///
-    /// Nothing while a check is out: its report is about to land, and a closed
-    /// popover no longer cancels it (`check`), so each open of a popover flicked
-    /// open and shut would otherwise ask every tool's channel once more.
+    /// Nothing while an update's re-check is out: its report is about to land.
     func refreshOnOpen() async {
-        guard !checking else { return }
-        guard !checkedAt.isEmpty else { return await refresh() }
+        await lane.handle(.popoverOpen)
+    }
+
+    private func onOpen() async -> RefreshDecision<Set<Int>> {
+        let all = Set(providers.indices)
+        guard !checking else { return .skip(because: "an update's re-check is out") }
+        guard !checkedAt.isEmpty else { return .run(all, because: "no report yet") }
         let found = await scanAll()
         // What the scan can see change without a check: which copies of which
         // tool there are, the version each one reads as, and the rest of what its
         // verdict rests on (`CLIToolSighting.state`) — held against what the last
         // check's own scan saw, built by the same rule.
-        let moved = Set(found) != Set(checkedSightings)
-        if moved || unchecked.contains(where: Self.mayClearByItself) { return await refresh() }
+        if Set(found) != Set(checkedSightings) {
+            return .run(all, because: "the scan disagrees with the last check")
+        }
         let now = now()
+        var held: String?
+        let unanswered = unchecked.filter(Self.mayClearByItself)
+        if !unanswered.isEmpty {
+            // Each copy asked when its tool's report was; the longest-waiting one decides.
+            let asked = unanswered.compactMap { provider(of: $0).flatMap { checkedAt[$0] } }.min()
+            let age = asked.map { now.timeIntervalSince($0) } ?? .infinity
+            let names = unanswered.map { "\($0.kind.displayName) (\($0.withheld.map { "\($0)" } ?? "no verdict"))" }
+                .joined(separator: ", ")
+            let what = "\(unanswered.count) unanswered — \(names) — asked \(Int(age))s ago"
+            if age >= Self.unansweredRecheckInterval { return .run(all, because: what) }
+            held = "\(what), re-asked after \(Int(Self.unansweredRecheckInterval))s"
+        }
         let stale = providers.indices.filter { index in
             checkedAt[index].map { now.timeIntervalSince($0) >= Self.recheckInterval } ?? true
         }
-        guard !stale.isEmpty else { return }
-        await check(stale)
+        guard !stale.isEmpty else { return .skip(because: held ?? "every report is fresh and the scan agrees") }
+        return .run(Set(stale), because: "\(stale.count) report(s) \(Int(Self.recheckInterval / 60)) min old or more: \(names(stale))")
     }
 
     /// What the workbench becoming key again does: a local scan, and a check of
@@ -267,14 +317,20 @@ final class CLIToolsModel {
     /// own sake, so going back and forth between windows asks nothing. Age and
     /// unanswered copies are left to the popover's open (`refreshOnOpen`) and
     /// the background check. Skipped until a first report has landed (the
-    /// window's open checks), while a check is out (its report is about to
-    /// replace the one this compares against) and while an update runs (which
-    /// re-checks by itself, and a scan mid-run sees a half-done copy).
+    /// window's open checks), while an update's re-check is out (its report is
+    /// about to replace the one this compares against) and while an update runs
+    /// (which re-checks by itself, and a scan mid-run sees a half-done copy).
     func refreshOnFocus() async {
-        guard !checkedAt.isEmpty, !checking, updating.isEmpty, !updatingAll else { return }
+        await lane.handle(.workbenchFocus)
+    }
+
+    private func onFocus() async -> RefreshDecision<Set<Int>> {
+        guard !checkedAt.isEmpty else { return .skip(because: "no report yet; the open checks") }
+        guard !checking else { return .skip(because: "an update's re-check is out") }
+        guard updating.isEmpty, !updatingAll else { return .skip(because: "an update is running") }
         let found = await scanAll()
-        guard Set(found) != Set(checkedSightings) else { return }
-        await refresh()
+        guard Set(found) != Set(checkedSightings) else { return .skip(because: "the scan agrees with the last check") }
+        return .run(Set(providers.indices), because: "the scan disagrees with the last check")
     }
 
     /// What a tick of the app's background schedule does for these tools: check
@@ -285,9 +341,14 @@ final class CLIToolsModel {
     /// `hasGitHubToken` is asked only when a tool would be held back for want of
     /// one: resolving a token can run `gh auth token`.
     func backgroundCheck(
-        interval: TimeInterval?, hasGitHubToken: () async -> Bool
+        interval: TimeInterval?, hasGitHubToken: @escaping @MainActor () async -> Bool
     ) async {
-        guard interval != nil else { return }
+        self.hasGitHubToken = hasGitHubToken
+        await lane.handle(.backgroundTick(interval: interval))
+    }
+
+    private func onTick(interval: TimeInterval?) async -> RefreshDecision<Set<Int>> {
+        guard interval != nil else { return .skip(because: "Only when I check") }
         let now = now()
         let due = { (token: Bool) in
             self.providers.indices.filter { index in
@@ -297,8 +358,14 @@ final class CLIToolsModel {
         }
         var indices = due(false)
         if indices.count < providers.count, await hasGitHubToken() { indices = due(true) }
-        guard !indices.isEmpty else { return }
-        await check(indices)
+        guard !indices.isEmpty else { return .skip(because: "no tool's turn yet") }
+        let held = providers.count - indices.count
+        return .run(Set(indices), because: "\(indices.count) tool(s) due" + (held > 0 ? ", \(held) held to the GitHub floor" : ""))
+    }
+
+    /// The tools at `indices`, by name, for the log.
+    private func names(_ indices: [Int]) -> String {
+        indices.map { providers[$0].kind.displayName }.joined(separator: ", ")
     }
 
     /// Whether a tool is checked on this tick. Every tool is, except one whose
@@ -378,14 +445,27 @@ final class CLIToolsModel {
         // channel" / "Couldn't read the installed version" and that was put on
         // screen (2026-10-14, the popover opened and closed with the workbench
         // up). Run to the end, the check's answers are the real ones.
-        let answers = await Task {
+        let clock = ContinuousClock()
+        let began = clock.now
+        let timed = await Task {
             await self.inProviderOrder(indices) { provider in
-                await RequestAttribution.withApp(provider.kind.displayName) { await provider.check() }
+                let clock = ContinuousClock()
+                let began = clock.now
+                let report = await RequestAttribution.withApp(provider.kind.displayName) { await provider.check() }
+                return (report, clock.now - began)
             }
         }.value
+        let answers = timed.map { ($0.0, $0.1.0) }
         checksInFlight -= 1
         checking = checksInFlight > 0
         let current = answers.filter { latestCheck[$0.0] == generation }
+        // What tuning reads: how long the check took, which tools held it up
+        // (every verdict waits for the slowest), and what it left unanswered.
+        let slowest = timed.sorted { $0.1.1 > $1.1.1 }.prefix(3)
+            .map { "\(providers[$0.0].kind.displayName) \(Log.seconds($0.1.1))" }.joined(separator: ", ")
+        let unanswered = current.flatMap { $0.1.statuses }.filter { $0.state == .unknown }.count
+        let superseded = answers.count - current.count
+        Log.app.info("cli-tools check of \(indices.count, privacy: .public) tool(s): \(Log.seconds(clock.now - began), privacy: .public); slowest \(slowest, privacy: .public); \(unanswered, privacy: .public) copies not checked\(superseded > 0 ? ", \(superseded) superseded by a later check" : "", privacy: .public)")
         guard !current.isEmpty else { return }
         apply(current, startedAt: started)
     }

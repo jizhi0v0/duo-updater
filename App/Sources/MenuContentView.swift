@@ -193,13 +193,11 @@ struct MenuContentView: View {
             // After the check, so the rows it names are this open's rows.
             model.offerFullDiskAccessIfNeeded()
         }
-        // CLI formulae: a separate brew-upgrade surface (formula-only), kicked off
-        // concurrently so it never delays the app check above.
-        .task { await model.refreshBrewFormulae() }
-        // The other command-line tools (Claude Code, …): their own surface, beside
-        // brew so it never delays the app check. A local rescan; the networked
-        // check only when the model judges the report stale (`refreshOnOpen`).
-        .task { await model.cliTools.refreshOnOpen() }
+        // Brew's package list and the other command-line tools (Claude Code, …):
+        // each a lane that decides for itself what an open calls for
+        // (`AppListModel.refreshes`), kicked off beside the app check so it never
+        // delays it.
+        .task { await model.refreshes.handle(.popoverOpen) }
     }
 
     @ViewBuilder

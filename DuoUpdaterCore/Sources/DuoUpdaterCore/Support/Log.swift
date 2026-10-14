@@ -46,4 +46,10 @@ public enum Log {
     public static let app = Logger(subsystem: subsystem, category: "app")
     /// Changelog view: which recipe/source rendered, load successes and failures.
     public static let changelog = Logger(subsystem: subsystem, category: "changelog")
+
+    /// A duration as a log line spells it: `1.23s`.
+    public static func seconds(_ duration: Duration) -> String {
+        let (s, attoseconds) = duration.components
+        return String(format: "%.2fs", Double(s) + Double(attoseconds) / 1e18)
+    }
 }

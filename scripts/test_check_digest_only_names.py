@@ -56,7 +56,8 @@ def xcstrings(key: str, **values: str) -> dict:
 def run(sources: dict, swift: str, xc=None) -> list:
     repos = cd.digest_only_repos(sources)
     literal, names = cd.listed_names(swift)
-    return cd.problems(repos, literal, names, xc if xc is not None else xcstrings(literal))
+    return cd.problems(repos, literal, names, xc if xc is not None else xcstrings(literal),
+                       cd.all_repo_names(sources))
 
 
 class DigestOnlyNamesTests(unittest.TestCase):
@@ -99,6 +100,25 @@ class DigestOnlyNamesTests(unittest.TestCase):
         xc = xcstrings(literal, de="… Alacritty und Lokii …", ja="… Alacritty …")
         found = run({"a.swift": ALACRITTY, "l.swift": LOKII}, swift, xc)
         self.assertEqual(found, [f"{cd.XCSTRINGS.relative_to(cd.ROOT)} [ja] doesn't name Lokii"])
+
+    def test_translation_still_names_a_dropped_app(self):
+        # Mutation: Lokii leaves digest-only, the English text drops it, the
+        # xcstrings entry is re-keyed, and the ja value still lists it.
+        lokii_dev = LOKII.replace(".publishedDigestOnly", ".developerID")
+        swift = settings("Alacritty")
+        literal, _ = cd.listed_names(swift)
+        xc = xcstrings(literal, de="… Alacritty …", ja="（Alacritty、Lokii）")
+        found = run({"a.swift": ALACRITTY, "l.swift": lokii_dev}, swift, xc)
+        self.assertEqual(found, [f"{cd.XCSTRINGS.relative_to(cd.ROOT)} [ja] still names lokii, "
+                                 "which the English text doesn't list"])
+
+    def test_generic_repo_name_is_not_an_app(self):
+        # A repository named "app" must not turn every "App" in a translation into a hit.
+        generic = LOKII.replace('repo: "lokii"', 'repo: "app"').replace(".publishedDigestOnly", ".developerID")
+        swift = settings("Alacritty")
+        literal, _ = cd.listed_names(swift)
+        xc = xcstrings(literal, ja="GitHub のリリースがアドホック署名だけの App（Alacritty）")
+        self.assertEqual(run({"a.swift": ALACRITTY, "g.swift": generic}, swift, xc), [])
 
     def test_english_text_changed_without_xcstrings(self):
         swift = settings("Alacritty and Lokii")

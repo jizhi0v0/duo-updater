@@ -16,7 +16,10 @@ xhigh on the Lokii and disktree onboardings, missed it both times
 
 A recipe is matched to a listed name by its GitHub repository name, ignoring
 case. When an app's name differs from its repository's, add it to ALIASES.
-Every translation in Localizable.xcstrings must carry the same names.
+Every translation in Localizable.xcstrings must carry the same names, and no
+other app's: a translation still naming an app the English text dropped is the
+same stale list. "Other app" means any recipe's repository name, as a whole
+word; GENERIC lists repository names that are ordinary words.
 """
 
 import json
@@ -31,6 +34,8 @@ XCSTRINGS = ROOT / "App/Resources/Localizable.xcstrings"
 MARKER = "only ad-hoc signed"
 # repository name (lowercase) -> the name the Settings text uses
 ALIASES: dict[str, str] = {}
+# repository names that are ordinary words in the translations ("app")
+GENERIC = {"app"}
 
 
 def strip_comments(swift: str) -> str:
@@ -65,6 +70,19 @@ def digest_only_repos(sources: dict[str, str]) -> dict[str, str]:
     return found
 
 
+def all_repo_names(sources: dict[str, str]) -> set[str]:
+    """Every rule's repository name (lowercase), the apps a translation could name."""
+    names = set()
+    for text in sources.values():
+        names |= {r.lower() for r in re.findall(r'\brepo:\s*"([^"]+)"', strip_comments(text))}
+    return names - GENERIC
+
+
+def names_in(text: str, candidates: set[str]) -> list[str]:
+    return sorted(c for c in candidates
+                  if re.search(r"(?<![\w-])" + re.escape(c) + r"(?![\w-])", text, re.IGNORECASE))
+
+
 def listed_names(swift: str) -> tuple[str, list[str]]:
     """The literal that carries MARKER, and the names it lists between dashes."""
     for literal in re.findall(r'"((?:[^"\\]|\\.)*)"', swift):
@@ -76,7 +94,8 @@ def listed_names(swift: str) -> tuple[str, list[str]]:
     raise SystemExit(f"{SETTINGS.relative_to(ROOT)}: no string literal contains {MARKER!r}")
 
 
-def problems(repos: dict[str, str], literal: str, names: list[str], xcstrings: dict) -> list[str]:
+def problems(repos: dict[str, str], literal: str, names: list[str], xcstrings: dict,
+             universe: set[str] = frozenset()) -> list[str]:
     out = []
     wanted = {ALIASES.get(r, r): f for r, f in repos.items()}
     have = {n.lower(): n for n in names}
@@ -97,6 +116,11 @@ def problems(repos: dict[str, str], literal: str, names: list[str], xcstrings: d
             missing = [n for n in names if n not in value]
             if missing:
                 out.append(f"{XCSTRINGS.relative_to(ROOT)} [{lang}] doesn't name {', '.join(missing)}")
+            extra = names_in(value, set(universe) - {n.lower() for n in names}
+                             - {r for r, a in ALIASES.items() if a.lower() in {n.lower() for n in names}})
+            if extra:
+                out.append(f"{XCSTRINGS.relative_to(ROOT)} [{lang}] still names {', '.join(extra)}, "
+                           f"which the English text doesn't list")
     return out
 
 
@@ -104,7 +128,7 @@ def main() -> int:
     sources = {p.name: p.read_text() for p in sorted(RECIPES.glob("*.swift"))}
     repos = digest_only_repos(sources)
     literal, names = listed_names(SETTINGS.read_text())
-    found = problems(repos, literal, names, json.loads(XCSTRINGS.read_text()))
+    found = problems(repos, literal, names, json.loads(XCSTRINGS.read_text()), all_repo_names(sources))
     for p in found:
         print("✗ " + p)
     if found:

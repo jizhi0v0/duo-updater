@@ -16,6 +16,10 @@ H = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(os.path.dirname(H), "results", "runs.yml")
 SIMPLE9 = {"rustgis", "plexo", "pulse", "search", "herdr", "reviu", "aircard", "astrlink", "yomado"}
 M = {"haiku": "claude-haiku-5-5", "sonnet": "claude-sonnet-5-5", "opus": "claude-opus-5-5"}
+# The 2026-10-13/14 references for the two cases that were not on main yet: graded in a
+# checkout of PR #1264's branch at ff7f3690 (squash-merged as 864d00f2), not in ref/main.
+LEGACY_REFS = {"astrlink": "ff7f3690ea3b5cf9c2e21f9b84f8e791944bb3b0",
+               "yomado": "ff7f3690ea3b5cf9c2e21f9b84f8e791944bb3b0"}
 HEADER = """\
 # Every onboarding run, one record each. Written by harness/export_results.py (run.sh
 # export) from harness/score.py and harness/probe.py output; see README.md.
@@ -103,7 +107,7 @@ def record(r, probe, ref_meta):
         date = datetime.datetime.fromtimestamp(int(open(d + "/t0").read())).strftime("%Y-%m-%d")
         cc = claude_version(d)
         grader = "legacy" if os.path.exists(d + "/grade-legacy.log") else "current"
-        ref_commit = ref_meta.get("commit")
+        ref_commit = LEGACY_REFS.get(case) or ref_meta.get("commit")
     verdict = "LIVE" if not r["has_ref"] else ("MATCH" if not r["diffs"] else "DIFF(%d)" % len(r["diffs"]))
     lines = ["  - run: " + q(case + "-" + tag),
              "    round: " + q(rnd),

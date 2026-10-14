@@ -85,8 +85,9 @@ The workflow's own review (`.github/claude-review/full.md` and `REVIEW.md` at ma
 xhigh added Secretive's nightly downgrade and a wrong SHA-256 in an audit, at twice the cost.
 Neither effort caught the Settings text that names the digest-only apps; `REVIEW.md` has
 no check for it. At high, 2 of 7 reviews had the write to `review.md` refused and returned
-the review only as text; the workflow's "Check the review was written" step would fail on
-that. That was seen in this replay, not in the workflow.
+the review only as text. Both had `cd`'d into a subdirectory first, and the workflow's
+`Edit(./.claude-review/review.md)` is relative to the current directory; the same failure
+then hit the workflow itself on #1301. The rule is absolute now (`claude-review.yml`).
 
 Every run, with its configuration and cost per stage: `results/runs.yml`.
 

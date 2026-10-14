@@ -4,6 +4,10 @@
 # workflow runs) and once at xhigh. harness/replay-review.sh; the reviews are in
 # evidence/_review-replay/. 2026-10-14, Claude Code 2.1.296.
 #
+# review_md_write_refused: the review `cd`'d into a subdirectory, after which the relative
+# allow rule `Edit(./.claude-review/review.md)` no longer matched. Fixed in the workflow by
+# making the rule absolute; the review text was recovered from the run's result.
+#
 # expected: what main covers and the onboarding left out, that REVIEW.md or the review
 # prompt asks a reviewer to flag. A gap the audit records as a gap with a reason is not
 # expected (REVIEW.md: "covered by a rule or recorded as a gap").

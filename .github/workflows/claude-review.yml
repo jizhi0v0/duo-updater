@@ -37,7 +37,12 @@
 #         alike, so a steered reviewer cannot read /proc/self/environ (the
 #         model's token). Not blockReadsOutsideWorkingDirectories: it also
 #         refuses gh-get calls whose jq filter looks like a path.
-#       – writes: review.md only (`Edit(./.claude-review/review.md)`);
+#       – writes: review.md only (`Edit(//<workspace>/.claude-review/review.md)`).
+#         Absolute (`//`): a `./` rule is relative to the CURRENT directory, so
+#         after the reviewer `cd`s into a subdirectory it no longer matches and
+#         the write is refused. That failed #1301's round 3 and 2 of 7 replays
+#         in bench/onboarding (https://code.claude.com/docs/en/permissions,
+#         "Read and Edit");
 #       – git: no `Bash(git …:*)` prefix rule. Claude Code's built-in read-only
 #         classification runs diff/log/show and refuses `--output=<file>`, which
 #         writes anywhere (e.g. git config, then `git diff` runs a command). A
@@ -152,7 +157,7 @@ jobs:
           claude_args: >-
             ${{ vars.CLAUDE_REVIEW_MODEL && format('--model {0}', vars.CLAUDE_REVIEW_MODEL) || '' }}
             --effort high
-            --allowedTools "Edit(./.claude-review/review.md),Bash(${{ github.workspace }}/.github/claude-review/gh-get *)"
+            --allowedTools "Edit(/${{ github.workspace }}/.claude-review/review.md),Bash(${{ github.workspace }}/.github/claude-review/gh-get *)"
 
       - name: Check the review was written
         if: steps.prep.outputs.mode != 'skip'

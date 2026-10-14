@@ -1103,9 +1103,40 @@ final class AppListModel {
     /// Bumped by every check; a check only applies its outcome if it is still the
     /// latest one started. See `checkHomebrewSelfUpdate`.
     private var homebrewCheckGeneration = 0
-    /// The same for `refreshBrewFormulae`: the workbench re-reads brew on every
-    /// focus, so reads overlap, and one started earlier must not land last.
+    /// The same for `readBrewFormulae`. Its reads no longer overlap (`brewLane`
+    /// runs one at a time), so this only guards a read against one started
+    /// after it — kept as the floor under that rule.
     private var brewRefreshGeneration = 0
+
+    /// What the UI's triggers go to: a view says what happened
+    /// (`refreshes.handle(.popoverOpen)`) and each lane decides for itself. A new
+    /// thing to refresh is a new lane added here, with its own policy.
+    @ObservationIgnored private(set) lazy var refreshes: RefreshLanes = {
+        let lanes = RefreshLanes()
+        lanes.add(brewLane)
+        lanes.add(homebrewSelfUpdateLane)
+        lanes.add(cliTools.lane)
+        return lanes
+    }()
+    /// The brew package list. One read at a time: an open of the popover, the
+    /// workbench's open and every focus, a background tick and each brew action
+    /// all ask for one, and each read is 9 `brew` runs (`installedLeaves`,
+    /// `installedReport`, `outdated`, `outdatedCasks`), 10 when brew could not
+    /// load some package from its tap (`tap-info`, to say why; a homebrew/core
+    /// orphan alone does not need it), ~5.7 s of CPU between them. Measured 2026-10-14, one
+    /// read sampled at 20 ms: 10 `brew` children, 3.42 s; each run 0.14–0.73 s
+    /// of CPU under `/usr/bin/time`; seven popover opens in five seconds spawned
+    /// ~69. A trigger during a read is decided after it, so a re-read after an
+    /// upgrade still reads the upgraded state.
+    @ObservationIgnored private(set) lazy var brewLane = RefreshLane(
+        "brew",
+        decide: { [weak self] trigger in self?.brewDecision(trigger) ?? .skip(because: "model gone") },
+        work: { [weak self] in await self?.readBrewFormulae() })
+    /// Whether Homebrew itself has an update to offer (`checkHomebrewSelfUpdate`).
+    @ObservationIgnored private(set) lazy var homebrewSelfUpdateLane = RefreshLane(
+        "homebrew-self-update",
+        decide: { [weak self] trigger in self?.homebrewSelfUpdateDecision(trigger) ?? .skip(because: "model gone") },
+        work: { [weak self] in await self?.checkHomebrewSelfUpdate() })
     /// True while `brew update` is running.
     private(set) var homebrewUpdating = false
     /// Streamed tail of the running `brew update`.
@@ -3794,11 +3825,19 @@ final class AppListModel {
 
     // MARK: - Homebrew formulae (CLI tools)
 
-    /// Re-read outdated CLI formulae via `brew outdated --formula`. A local tap
-    /// read (no implicit `brew update`), so it's cheap enough to call on every
-    /// popover open. Never throws to the caller — any failure just leaves the list
-    /// empty, so no row shows on a clean or brew-less machine.
-    func refreshBrewFormulae() async {
+    /// When to re-read the brew package list (`brewLane`). A read is local (no
+    /// implicit `brew update`) but costs 9–10 `brew` runs (`brewLane`).
+    private func brewDecision(_ trigger: RefreshTrigger) -> RefreshDecision<Void> {
+        BrewRefreshPolicy.decide(
+            trigger, sinceLastRead: brewLane.sinceLastPass,
+            ourBrewRunGoing: brewUpgrading || homebrewUpdating || !upgradingFormulae.isEmpty,
+            brewIsIdle: brewIsIdle)
+    }
+
+    /// Re-read outdated CLI formulae via `brew outdated --formula` — `brewLane`'s
+    /// pass. Never throws — any failure just leaves the list empty, so no row
+    /// shows on a clean or brew-less machine.
+    private func readBrewFormulae() async {
         guard BrewFormulaService.isAvailable else {
             brewOutdatedFormulae = []
             brewFormulae = []
@@ -3807,6 +3846,8 @@ final class AppListModel {
             brewChecked = true
             return
         }
+        let clock = ContinuousClock()
+        let started = clock.now
         // Phase 1 — fast local inventory: paint the Brew tree immediately with the
         // installed leaves (no update badges yet), mirroring how the Apps tree shows
         // every app before its update check lands. The `await` yields to the runloop,
@@ -3824,6 +3865,7 @@ final class AppListModel {
         brewReadsInFlight += 1
         defer { brewReadsInFlight -= 1 }
         let leaves = (try? await brewFormulaService.installedLeaves()) ?? []
+        let leavesRead = clock.now - started
         if generation == brewRefreshGeneration, brewFormulae.isEmpty { brewFormulae = leaves }
 
         // Phase 2 — the slower `brew outdated` read: learn which leaves have an
@@ -3850,6 +3892,9 @@ final class AppListModel {
         let casks = (try? await brewFormulaService.outdatedCasks()) ?? []
         let installed = await report
         let newUnchecked = installed.unchecked
+        // Where the read's time went, beside the lane's own line for the pass.
+        let total = clock.now - started
+        Log.app.notice("brew read: \(Log.seconds(total), privacy: .public) — leaves \(Log.seconds(leavesRead), privacy: .public), \(leaves.count, privacy: .public) leaves, \(outdated.count, privacy: .public) outdated formulae\(outdatedRead ? "" : " (read failed)", privacy: .public), \(casks.count, privacy: .public) app-less casks, \(newUnchecked.count, privacy: .public) unchecked")
         // Every read is in; apply them together, and only if no newer refresh has
         // started since — its results are fresher and it applies its own.
         guard generation == brewRefreshGeneration else { return }
@@ -3902,7 +3947,7 @@ final class AppListModel {
         // NOT the authoritative guard — that is the `claim` below, and it has to
         // stay there so we never hold a slot we might not fill. This only keeps
         // a refresh from spawning a task and a disk read per formula for work
-        // that is already done: `refreshBrewFormulae` runs on every menu-bar
+        // that is already done: `readBrewFormulae` runs on every menu-bar
         // open, not just after an upgrade.
         let pending = brewFormulae.filter { formula in
             formula.hasUpdate && formulaReleases.state(
@@ -3964,13 +4009,25 @@ final class AppListModel {
         }
     }
 
-    /// Re-decide whether to offer a Homebrew update. Reads the user's login shell
-    /// and `brew config` (about a second together) and, only if an update may be
-    /// offered, the latest release (cached for hours) — so it runs when the
-    /// workbench opens, not on every popover open.
-    func refreshHomebrewSelfUpdate() async {
-        guard brewInstalled, !homebrewUpdating else { return }
-        await checkHomebrewSelfUpdate()
+    /// When to re-decide whether to offer a Homebrew update. A check reads the
+    /// user's login shell and `brew config` (about a second together) and, only
+    /// if an update may be offered, the latest release (cached for hours) — so
+    /// it runs when the workbench opens, not on every popover open.
+    private func homebrewSelfUpdateDecision(_ trigger: RefreshTrigger) -> RefreshDecision<Void> {
+        switch trigger {
+        case .workbenchOpen:
+            guard brewInstalled else { return .skip(because: "no Homebrew") }
+            guard !homebrewUpdating else { return .skip(because: "brew update is running; it re-checks when it ends") }
+            return .run((), because: "the workbench shows the offer")
+        case .popoverOpen:
+            return .skip(because: "the popover does not show the offer")
+        case .workbenchFocus:
+            return .skip(because: "decided when the workbench opens")
+        case .backgroundTick:
+            return .skip(because: "re-checked only after a brew update that ran")
+        case .afterAction:
+            return .run((), because: "brew update moves Homebrew itself")
+        }
     }
 
     private func checkHomebrewSelfUpdate() async {
@@ -4021,11 +4078,10 @@ final class AppListModel {
         }
         // `brew update` updates Homebrew itself too, so an offer on the workbench
         // may now be for the version already installed.
-        if outcome == .updated, homebrewSelfUpdate != nil { await checkHomebrewSelfUpdate() }
-        // The workbench focus rule: a read started under one of our own runs could
-        // land after that run's own re-read with the half-done state.
-        guard brewIsIdle else { return }
-        await refreshBrewFormulae()
+        if outcome == .updated, homebrewSelfUpdate != nil {
+            await homebrewSelfUpdateLane.handle(.afterAction("background brew update"))
+        }
+        await brewLane.handle(.backgroundTick(interval: interval))
     }
 
     /// None of our own brew runs is under way. brew takes one global lock, and an
@@ -4077,14 +4133,14 @@ final class AppListModel {
             homebrewUpdateError = error.localizedDescription
             return
         }
-        await checkHomebrewSelfUpdate()
+        await homebrewSelfUpdateLane.handle(.afterAction("brew update"))
         // A successful `brew update` that still leaves the same release on offer
         // (e.g. a mirror remote that lags GitHub) would otherwise look like a button
         // that does nothing.
         if let still = homebrewSelfUpdate, still.latest == offered.latest {
             homebrewUpdateError = String(localized: "brew update finished, but Homebrew is still \(still.installed).")
         }
-        await refreshBrewFormulae()
+        await brewLane.handle(.afterAction("brew update"))
     }
 
     /// Run `brew upgrade --formula` (the bulk action, mirroring a bare terminal
@@ -4132,7 +4188,7 @@ final class AppListModel {
         // brew carries on past a formula that fails, and a post-install failure
         // fails the run after the new keg is poured — skipping this left every
         // upgraded formula counted as outdated (2026-10-11).
-        await refreshBrewFormulae()
+        await brewLane.handle(.afterAction("brew upgrade"))
     }
 
     /// Upgrade a single formula (`brew upgrade --formula <name>`) — the per-row
@@ -4155,7 +4211,7 @@ final class AppListModel {
                 guard let phase = Self.brewUpgradePhase(from: line) else { return }
                 Task { @MainActor in self?.formulaUpgradeNotes[name] = phase }
             }
-            await refreshBrewFormulae()
+            await brewLane.handle(.afterAction("brew upgrade \(name)"))
         } catch {
             formulaUpgradeErrors[name] = error.localizedDescription
         }
@@ -9304,7 +9360,7 @@ final class AppListModel {
     /// round settles (`announce`).
     @ObservationIgnored private var pendingAnnouncements: [UpdateBanner.Category: [String]] = [:]
     @ObservationIgnored private var announcementFlush: Task<Void, Never>?
-    /// `refreshBrewFormulae` reads and background `brew update`s under way, so a
+    /// `readBrewFormulae` reads and background `brew update`s under way, so a
     /// banner waits for Homebrew's part of the round.
     @ObservationIgnored private var brewReadsInFlight = 0
 

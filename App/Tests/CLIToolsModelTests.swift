@@ -1130,22 +1130,31 @@ struct CLIToolsModelTests {
         #expect(await fxCheck.calls == 4)
     }
 
-    /// (d) A report that left a copy unanswered (offline, say) is retried on the
-    /// next open rather than kept for fifteen minutes.
+    /// (d) A report that left a copy unanswered (offline, say) is retried on an
+    /// open rather than kept for fifteen minutes — but not on every open: only
+    /// once `unansweredRecheckInterval` has passed since it was asked. Opened
+    /// again and again while rate-limited, the popover re-asked every tool each
+    /// time, spending the very budget it was waiting on.
     ///
-    /// Mutation: drop the `unchecked.contains(where:)` clause from the `refresh()` condition.
+    /// Mutations: drop the unanswered clause from `onOpen`; drop the
+    /// `age >= unansweredRecheckInterval` condition.
     @Test func anUnansweredCopyRechecks() async {
         // GitHub's rate limit too: it ends with the hour, nothing on disk moves.
         // Mutation: drop `.rateLimited` from `mayClearByItself`.
         for withheld in [CLIToolWithheld.channelUnreadable, .rateLimited] {
             let status = Self.status(Self.native, state: .unknown, oneClick: false, withheld: withheld)
             let found = ScanResult([status])
+            let clock = Clock()
             let check = FakeCheck([(Self.report(status), nil)])
-            let model = Self.model(check: check, scan: { found.sightings })
+            let model = Self.model(check: check, scan: { found.sightings }, clock: clock)
             await model.refresh()
 
-            await model.refreshOnOpen()
+            clock.now += CLIToolsModel.unansweredRecheckInterval - 1
+            for _ in 0..<3 { await model.refreshOnOpen() }
+            #expect(await check.calls == 1, "\(withheld)")
 
+            clock.now += 1
+            await model.refreshOnOpen()
             #expect(await check.calls == 2, "\(withheld)")
         }
     }
@@ -1230,7 +1239,8 @@ struct CLIToolsModelTests {
     /// opening it five times while the first is out would otherwise ask every
     /// tool's channel five times over.
     ///
-    /// Mutation: `refreshOnOpen` calling `openOnce()` directly (no `openRun`).
+    /// Mutation: a trigger joining the lane's running pass starting one of its
+    /// own (no `running` check in `RefreshLane.handle`).
     @Test func anOpenWhileACheckIsOutAsksNothingMore() async {
         let gate = Gate()
         let check = FakeCheck([(Self.report(Self.status(Self.native)), gate)])
@@ -1253,7 +1263,7 @@ struct CLIToolsModelTests {
     /// tools whose report is old. Found in review (#1290): a guard on any check
     /// being out dropped the open, and nothing re-asked the stale tools.
     ///
-    /// Mutation: `guard !checking else { return }` at the top of `openOnce`.
+    /// Mutation: `guard !checking else { return .skip(…) }` at the top of `onOpen`.
     @Test func anUpdatesRecheckDoesNotHoldAnOpenBack() async {
         let recheck = Gate()
         let check = FakeCheck([

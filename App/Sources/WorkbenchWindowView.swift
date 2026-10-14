@@ -416,15 +416,12 @@ struct WorkbenchWindowView: View {
             // focus, and the search field has already taken it by default.
             listFocus = shownTab(sidebarLists)
         }
-        // Brew tree data (formulae + the cask set derives from results above).
-        .task { await model.refreshBrewFormulae() }
-        // Separate task so the Homebrew check (login shell + `brew config`) never
-        // holds up the tree itself.
-        .task { await model.refreshHomebrewSelfUpdate() }
-        // The CLI tab's other groups: each tool's installs and their channels.
-        // The popover's rule: a local scan, and the networked check only when the
-        // report on screen may be wrong.
-        .task { await model.cliTools.refreshOnOpen() }
+        // The CLI tab: the brew tree (formulae; the cask set derives from results
+        // above), whether Homebrew itself has an update, and the other tools'
+        // installs and channels. Each a lane that decides for itself what an open
+        // calls for (`AppListModel.refreshes`); the lanes run side by side, so the
+        // Homebrew check (login shell + `brew config`) never holds up the tree.
+        .task { await model.refreshes.handle(.workbenchOpen) }
         // Refocus → re-read on-disk versions. Scoped to THIS window: the
         // notification carries whichever window became key, and with `object: nil`
         // we heard every one of them — so merely opening Settings, the Release Log,
@@ -444,20 +441,12 @@ struct WorkbenchWindowView: View {
             // refresh. Coming back from System Settings is exactly this moment.
             model.refreshPermissionStatus()
             Task { await model.refreshLocal(unattended: false) }
-            // Brew too: `refreshLocal` doesn't read it, and nothing watches brew's
-            // files, so a `brew trust` / `upgrade` / `update` run in a terminal (the
-            // unchecked pane hands out the trust command to copy) stayed invisible
-            // until the window was reopened. Skipped while one of our own brew runs
-            // is going: each of those re-reads brew when it ends, and a read started
-            // mid-run could land after that one with the half-done state.
-            if !model.brewUpgrading, !model.homebrewUpdating, model.upgradingFormulae.isEmpty {
-                Task { await model.refreshBrewFormulae() }
-            }
-            // And the CLI tab's tools, which the window's open alone scanned: a
-            // Helm or Starship installed in a terminal meanwhile stayed missing
-            // until the window was reopened. Networked only when the scan finds
-            // a change (`refreshOnFocus`).
-            Task { await model.cliTools.refreshOnFocus() }
+            // Brew and the CLI tab's tools too: `refreshLocal` reads neither, and
+            // a `brew trust` run in a terminal, or a Helm installed there, stayed
+            // invisible until the window was reopened. What a focus calls for is
+            // each lane's to say (`AppListModel.brewDecision`,
+            // `CLIToolsModel.onFocus`).
+            Task { await model.refreshes.handle(.workbenchFocus) }
         }
         // Stationary stay (never lose focus) → the backstop timer keeps versions
         // fresh. Skip ticks while hidden/minimized: refreshing for a window no one

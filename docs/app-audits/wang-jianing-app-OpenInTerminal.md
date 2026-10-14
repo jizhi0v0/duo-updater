@@ -163,6 +163,8 @@ gh release download 2.0.5 -R Ji4n1ng/OpenInTerminal -p OpenInTerminal.app.zip   
 gh api 'repos/Ji4n1ng/OpenInTerminal/contents/OpenInTerminalCore/Defaults.swift?ref=2.0.5' --jq .content | base64 -d | grep 'UserDefaults'   # → UserDefaults.standard
 gh api 'repos/Ji4n1ng/OpenInTerminal/contents/OpenInTerminalCore/Defaults.swift?ref=v2.3.9' --jq .content | base64 -d | grep -n 'Defaults'   # → GroupDefaults ?? .standard
 find <v2.3.9>/OpenInTerminal.app -type f -exec sh -c 'file -b "$1" | grep -q Mach-O && strings -a "$1" | grep -iE "jianing|persistentDomain|addSuiteNamed" | sed "s|^|$1: |"' _ {} \;   # 旧 id 只在 helper；无旧 group；只有 removePersistentDomainForName:（删新 group 的重置）
+gh api 'repos/Ji4n1ng/OpenInTerminal/contents/OpenInTerminalCore/DefaultsManager.swift?ref=v2.3.9' --jq .content | base64 -d | grep -n PersistentDomain   # → removePersistentDomain(forName: Constants.Id.Group)
+gh api 'repos/Ji4n1ng/OpenInTerminal/contents/OpenInTerminalCore/Constants.swift?ref=v2.3.9' --jq .content | base64 -d | grep -n 'static let Group'   # → group.wang.jianing.app.OpenInTerminal
 # Lite 与主 app 的 created_at 是否仍相同（决定 /releases/latest 能否落到 Lite）
 gh api 'repos/Ji4n1ng/OpenInTerminal/releases?per_page=4' --jq '.[]|[.tag_name,.created_at]|@tsv'
 ```

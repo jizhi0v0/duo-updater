@@ -1,7 +1,8 @@
 # OpenInTerminal
 
 ## 基本信息
-- Bundle ID: `wang.jianing.app.OpenInTerminal`
+- Bundle ID: `wang.jianing.app.OpenInTerminal`（2.1.1 起；2.0.5 及以前是 `wang.jianing.OpenInTerminal`，
+  **未覆盖**，见「改名前旧 id」）
 - Team ID: `C8VX3ZLX5U`（2.3.9 起；2.3.8 的签名 Team 是 `Q33U8R4U57`，同一署名 “Jianing Wang”）
 - 观测版本: `2.3.9`（`CFBundleVersion` 恒为 `1`，不参与比较）
 - 自更新机制: 无（包内无 `SUFeedURL`，无 Sparkle / electron-builder 配置；`feed-discover` 结论
@@ -26,6 +27,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `wang.jianing.app.OpenInTerminal` | 单一渠道 | — | tag `^vX.Y.Z$` + 资产名 `OpenInTerminal.zip` | ✓ |
+| 改名前旧 id | `wang.jianing.OpenInTerminal`（≤ 2.0.5） | 独立 | bundle id | 无规则 | 未接入（有意，见下） |
 
 单渠道：最近 30 个 release 全部非 prerelease、非 draft（2026-09-29，`gh api .../releases?per_page=30`）。
 
@@ -46,6 +48,40 @@
 OpenInTerminal-Lite 的 bundle id 是 `wang.jianing.app.OpenInTerminal-Lite`（v1.2.8 真包：
 short `1.2.8` == tag，universal，Team `C8VX3ZLX5U`，`spctl` Notarized Developer ID）。本次**未接入**，
 见「建议下一步」。
+
+### 改名前旧 id（≤ 2.0.5）：有意不覆盖
+主 app 在 2.0.5 与 2.1.1 之间改过 bundle id（中间没有 2.1.0 tag/release）。直接下载的 2.0.5
+及更早副本是 `wang.jianing.OpenInTerminal`，recipe 只按新 id 建键，所以这类副本**没有检测**。
+这是 2026-10-14 审过之后的取舍，不是遗漏。
+
+实测（2026-10-14）：
+- 源码：`OpenInTerminal.xcodeproj/project.pbxproj` 的主 app `PRODUCT_BUNDLE_IDENTIFIER`，tag
+  `0.10.0`、`2.0.1`、`2.0.5` 是 `wang.jianing.OpenInTerminal`，`2.1.1`、`2.2.3`、`v2.3.9` 是
+  `wang.jianing.app.OpenInTerminal`。
+- 真包（release 资产 `OpenInTerminal.app.zip`，`ditto -x -k` 解压，只读不运行）：
+
+  | | 2.0.5 | 2.1.1 |
+  |---|---|---|
+  | `CFBundleIdentifier` | `wang.jianing.OpenInTerminal` | `wang.jianing.app.OpenInTerminal` |
+  | short / build | `2.0.5` / `1`（short == tag） | `2.1.1` / `1` |
+  | Team / 证书 | `C8VX3ZLX5U`，`Mac Developer: Jianing Wang`（开发证书） | `Q33U8R4U57`，Developer ID |
+  | 公证 | 无 ticket，`spctl` rejected | stapled，`spctl` Notarized Developer ID |
+  | 架构 | x86_64 | x86_64 |
+  | zip SHA-256 | `ecc02de4…18df22` | `9267950f…c999b1` |
+
+不接入的理由：
+- **`BundleIDMigration` 不适用**：改名同时换了 Team（2.0.5 `C8VX3ZLX5U` → 2.1.1 `Q33U8R4U57`），
+  而该表要求两个 id 同一 Team；旧包也不是 Developer ID 签名。
+- **Spotifast 式的只检测规则在这里不安全**：只检测规则不设 `installAssetPattern`，`settle()` 就不做
+  缺资产回退，也就挡不住同仓库 Lite 的 `v1.x` release（见上一节，主规则正是靠资产名挡它）。
+  GitHub 的 `/releases/latest` 按 `created_at`（release 所指 commit 的日期，不是发布时间）排序
+  （[文档](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)），而 v2.3.9 与
+  v1.2.8 的 `created_at` 完全相同（`2026-07-13T11:56:06Z`）；相同时取哪个文档没说。2026-10-14
+  实测返回 v2.3.9，但一旦返回 v1.2.8，旧副本会被报成「已是最新」（1.2.8 < 2.0.5），而且版本历史
+  会混入 Lite 的版本——比不检测更糟。把 tag 锚到 `^v(2\.…)$` 能挡住 Lite，但主 app 到 v3 或 Lite
+  到 v2 时就要重改，为 2019 年的未公证开发签名包不值得。
+- 版本比较本身没问题：旧包 short == tag，按主规则的 tag 方案 2.0.5 < 2.3.9。将来若改主意接入，
+  阻碍只在上面的 Lite 歧义，不在版本方案。
 
 ## 更新检测
 - 源: `Ji4n1ng/OpenInTerminal` GitHub Releases，`/releases/latest`（资产不匹配时回落列表）
@@ -90,6 +126,8 @@ short `1.2.8` == tag，universal，Team `C8VX3ZLX5U`，`spctl` Notarized Develop
 
 ## 已知问题
 - 上述 Team 变更使旧版一键被 Team-ID 闸拒绝（fail-closed，不会替换）。
+- 改名前旧 id `wang.jianing.OpenInTerminal`（≤ 2.0.5）的副本没有检测，有意为之，理由见
+  「改名前旧 id（≤ 2.0.5）」。
 
 ## 如何复验
 ```
@@ -99,6 +137,11 @@ swift run --package-path application-test channel-verify <v2.3.9>/OpenInTerminal
 #   → winning source GitHub, latest 2.3.9, status up to date
 swift run --package-path application-test channel-verify <v2.3.8>/OpenInTerminal.app --expect stable
 #   → winning source GitHub, latest 2.3.9, status UPDATE → 2.3.9
+# 改名前旧 id（2.0.5 → wang.jianing.OpenInTerminal，2.1.1 起 wang.jianing.app.OpenInTerminal）
+gh api 'repos/Ji4n1ng/OpenInTerminal/contents/OpenInTerminal.xcodeproj/project.pbxproj?ref=2.0.5' --jq .content | base64 -d | grep PRODUCT_BUNDLE_IDENTIFIER
+gh release download 2.0.5 -R Ji4n1ng/OpenInTerminal -p OpenInTerminal.app.zip   # 解压后只读，不运行
+# Lite 与主 app 的 created_at 是否仍相同（决定 /releases/latest 能否落到 Lite）
+gh api 'repos/Ji4n1ng/OpenInTerminal/releases?per_page=4' --jq '.[]|[.tag_name,.created_at]|@tsv'
 ```
 
 ## 建议下一步

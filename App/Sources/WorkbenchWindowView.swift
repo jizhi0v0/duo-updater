@@ -3407,9 +3407,11 @@ struct ChangelogEntriesView: View {
     ///
     /// `belowHeader`: the version's header floats over the top of the notes
     /// (`ChangelogSectionsList`), so the row lands one header below the top.
-    /// `scrollTo` lines up the point at `anchor.y` of the target with the point
-    /// at `anchor.y` of the scroll view, so the target's top lands at
-    /// `y × (viewport − target)`; solved for the header's height. The row's
+    /// The anchor assumes `scrollTo` lines up the point at `anchor.y` of the
+    /// target with the point at `anchor.y` of the scroll view, putting the
+    /// target's top at `y × (viewport − target)`, solved for the header's
+    /// height. Apple's docs don't spell that out; on openclaw the breaking row
+    /// landed fully visible just under the header (2026-10-14). The row's
     /// height is measured once built; before that, a line. Beside the rail
     /// nothing floats (the rail says which version it is): the top of the pane.
     ///

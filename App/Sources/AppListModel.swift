@@ -3824,29 +3824,10 @@ final class AppListModel {
     /// When to re-read the brew package list (`brewLane`). A read is local (no
     /// implicit `brew update`) but costs ~7 `brew` runs.
     private func brewDecision(_ trigger: RefreshTrigger) -> RefreshDecision<Void> {
-        switch trigger {
-        case .popoverOpen, .workbenchOpen:
-            return .run((), because: "an open shows the package list")
-        case .workbenchFocus:
-            // Brew is read again on focus because nothing watches its files: a
-            // `brew trust` / `upgrade` / `update` run in a terminal (the unchecked
-            // pane hands out the trust command to copy) stayed invisible until
-            // the window was reopened. Not while one of our own brew runs is
-            // going: each re-reads when it ends, and a read started mid-run could
-            // land after that one with the half-done state.
-            guard !brewUpgrading, !homebrewUpdating, upgradingFormulae.isEmpty else {
-                return .skip(because: "a brew run of ours is going; it re-reads when it ends")
-            }
-            return .run((), because: "a terminal may have changed brew meanwhile")
-        case .backgroundTick:
-            // The same rule, and an app row's cask install runs brew too.
-            guard brewIsIdle else { return .skip(because: "a brew run or install of ours is going") }
-            return .run((), because: "the schedule's tick")
-        case .afterAction:
-            // Even after a failed run: brew carries on past a formula that fails,
-            // so a failed run still upgrades what it can.
-            return .run((), because: "our brew run changed the package list")
-        }
+        BrewRefreshPolicy.decide(
+            trigger, sinceLastRead: brewLane.sinceLastPass,
+            ourBrewRunGoing: brewUpgrading || homebrewUpdating || !upgradingFormulae.isEmpty,
+            brewIsIdle: brewIsIdle)
     }
 
     /// Re-read outdated CLI formulae via `brew outdated --formula` — `brewLane`'s

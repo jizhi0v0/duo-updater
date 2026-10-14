@@ -47,11 +47,19 @@ struct RefreshLaneTests {
         Issue.record("condition never became true")
     }
 
+    /// A settable clock for `sinceLastPass`.
+    final class Clock: @unchecked Sendable {
+        var now = ContinuousClock.now
+    }
+
     /// A lane whose plan is the set of triggers that said run, and whose first
     /// pass waits at `first`.
-    func lane(_ record: Record, first: Gate) -> RefreshLane<Set<String>> {
+    func lane(_ record: Record, first: Gate, passTimeout: Duration = .seconds(60),
+              clock: Clock? = nil) -> RefreshLane<Set<String>> {
         let lane = RefreshLane<Set<String>>(
             "test",
+            passTimeout: passTimeout,
+            clock: { clock?.now ?? ContinuousClock.now },
             decide: { trigger in
                 record.skip.contains(trigger.description)
                     ? .skip(because: "told to") : .run([trigger.description], because: "told to")
@@ -180,6 +188,49 @@ struct RefreshLaneTests {
         await lane.handle(.popoverOpen)
 
         #expect(record.plans == [["popover open"], ["popover open"]])
+    }
+
+    /// A pass still running after `passTimeout` no longer holds the lane: its
+    /// caller returns, and the next trigger runs a pass of its own while the
+    /// hung one is left to finish — not cancelled.
+    ///
+    /// Mutation: `finishes(_:within:)` awaiting the pass with no deadline.
+    @Test func aHungPassDoesNotHoldLaterTriggers() async {
+        let record = Record()
+        let hung = Gate()
+        let lane = lane(record, first: hung, passTimeout: .milliseconds(50))
+
+        let first = Task { await lane.handle(.popoverOpen) }
+        await until { record.laneEvents.contains(.passTimedOut(answering: [.popoverOpen])) }
+        // Without a deadline the first caller would wait on the gate for good:
+        // open it, so the test fails instead of hanging.
+        if !record.laneEvents.contains(.passTimedOut(answering: [.popoverOpen])) { await hung.open() }
+        await first.value
+        await lane.handle(.workbenchFocus)
+
+        #expect(record.plans == [["popover open"], ["workbench focus"]])
+        #expect(record.events == ["pass 1 start", "pass 2 start", "pass 2 end"])
+        await hung.open()
+        await until { record.events.count == 4 }
+        #expect(record.cancelledInPass == [false, false])
+    }
+
+    /// `sinceLastPass` counts from when the last pass's work finished — what a
+    /// policy that spaces passes out reads (brew's ten seconds).
+    ///
+    /// Mutation: `lastPassFinished` never set.
+    @Test func sinceLastPassCountsFromTheEndOfTheLastPass() async {
+        let record = Record()
+        let open = Gate()
+        await open.open()
+        let clock = Clock()
+        let lane = lane(record, first: open, clock: clock)
+        #expect(lane.sinceLastPass == nil)
+
+        await lane.handle(.popoverOpen)
+        clock.now += .seconds(7)
+
+        #expect(lane.sinceLastPass == .seconds(7))
     }
 
     /// `RefreshLanes` hands a trigger to every lane added, and returns when all

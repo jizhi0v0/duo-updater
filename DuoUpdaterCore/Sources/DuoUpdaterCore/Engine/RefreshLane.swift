@@ -34,6 +34,11 @@ public enum RefreshTrigger: Sendable, Equatable, CustomStringConvertible {
 public enum RefreshDecision<Plan: Sendable>: Sendable {
     case run(Plan, because: String)
     case skip(because: String)
+
+    public var runs: Bool {
+        if case .run = self { return true }
+        return false
+    }
 }
 
 /// What a lane did with a trigger, as a test observes it (`RefreshLane.onEvent`).
@@ -44,6 +49,9 @@ public enum RefreshLaneEvent: Sendable, Equatable {
     case decided(RefreshTrigger, runs: Bool)
     /// A pass finished; these are the triggers it answered.
     case passFinished(answering: [RefreshTrigger])
+    /// A pass ran past `passTimeout`: the lane stopped waiting for it and went
+    /// on to the triggers after it. The pass itself was left to finish.
+    case passTimedOut(answering: [RefreshTrigger])
 }
 
 /// One thing the app refreshes (the brew package list, the CLI tools' checks…),
@@ -65,6 +73,14 @@ public enum RefreshLaneEvent: Sendable, Equatable {
 ///   closed — neither cancels the pass others wait on nor lands its
 ///   cancellation as the refreshed thing's answer (2026-10-14: a cancelled CLI
 ///   check put "Couldn't reach … release channel" on 26 tools).
+/// - **Never stuck.** A pass still running after `passTimeout` (60 s) is no
+///   longer waited for: the lane logs it and goes on to the triggers queued
+///   behind it. A provider whose request or child process hangs without a
+///   deadline of its own would otherwise hold every later trigger for the rest
+///   of the session. The late pass is not cancelled — a cancelled read lands
+///   its failures as answers, the bug above — so it may overlap the next one;
+///   each lane's work guards its own state against a pass that started
+///   earlier landing later (the generation counters).
 /// - **Logged.** Every trigger's decision and every pass's duration, under
 ///   `refresh[<name>]` in the app category.
 @MainActor
@@ -73,22 +89,40 @@ public final class RefreshLane<Plan: Sendable> {
     private let decide: @MainActor (RefreshTrigger) async -> RefreshDecision<Plan>
     private let merge: @MainActor (Plan, Plan) -> Plan
     private let work: @MainActor (Plan) async -> Void
+    private let passTimeout: Duration
+    private let clock: @MainActor () -> ContinuousClock.Instant
     private var running: Task<Void, Never>?
+    /// When the last pass's work finished, late ones included.
+    private var lastPassFinished: ContinuousClock.Instant?
     /// Triggers not yet decided.
     private var queued: [RefreshTrigger] = []
     /// For tests.
     public var onEvent: (@MainActor (RefreshLaneEvent) -> Void)?
 
+    /// How long a pass is waited for before the lane goes on without it.
+    public static var defaultPassTimeout: Duration { .seconds(60) }
+
+    /// `passTimeout` and `clock` are injected so tests need not wait out a minute.
     public init(
         _ name: String,
+        passTimeout: Duration = RefreshLane.defaultPassTimeout,
+        clock: @escaping @MainActor () -> ContinuousClock.Instant = { ContinuousClock.now },
         decide: @escaping @MainActor (RefreshTrigger) async -> RefreshDecision<Plan>,
         merge: @escaping @MainActor (Plan, Plan) -> Plan,
         work: @escaping @MainActor (Plan) async -> Void
     ) {
         self.name = name
+        self.passTimeout = passTimeout
+        self.clock = clock
         self.decide = decide
         self.merge = merge
         self.work = work
+    }
+
+    /// How long ago the last pass's work finished, or nil before the first.
+    /// For a policy that spaces its passes out (`AppListModel.brewDecision`).
+    public var sinceLastPass: Duration? {
+        lastPassFinished.map { clock() - $0 }
     }
 
     /// Whether a pass, or the decisions before one, is under way.
@@ -136,13 +170,49 @@ public final class RefreshLane<Plan: Sendable> {
             }
         }
         guard let plan else { return }
-        let clock = ContinuousClock()
-        let started = clock.now
-        await work(plan)
-        let took = Log.seconds(clock.now - started)
+        let started = clock()
         let names = answering.map(\.description).joined(separator: ", ")
-        Log.app.info("refresh[\(self.name, privacy: .public)] pass done in \(took, privacy: .public) (for \(names, privacy: .public))")
-        onEvent?(.passFinished(answering: answering))
+        let pass = Task { @MainActor in
+            await work(plan)
+            lastPassFinished = clock()
+        }
+        if await Self.finishes(pass, within: passTimeout) {
+            let took = Log.seconds(clock() - started)
+            Log.app.info("refresh[\(self.name, privacy: .public)] pass done in \(took, privacy: .public) (for \(names, privacy: .public))")
+            onEvent?(.passFinished(answering: answering))
+            return
+        }
+        let limit = Log.seconds(passTimeout)
+        Log.app.error("refresh[\(self.name, privacy: .public)] pass still running after \(limit, privacy: .public) (for \(names, privacy: .public)) — no longer waited for; later triggers go ahead")
+        onEvent?(.passTimedOut(answering: answering))
+        Task { @MainActor in
+            await pass.value
+            let took = Log.seconds(clock() - started)
+            Log.app.notice("refresh[\(self.name, privacy: .public)] late pass finished after \(took, privacy: .public) (for \(names, privacy: .public))")
+        }
+    }
+
+    /// Whether `pass` finishes within `timeout`. Neither outcome cancels it.
+    /// A continuation rather than a task group: a group waits for every child
+    /// at its end, and a child awaiting `pass.value` does not stop for
+    /// cancellation, so it would wait out the hung pass after all.
+    private static func finishes(_ pass: Task<Void, Never>, within timeout: Duration) async -> Bool {
+        await withCheckedContinuation { (answer: CheckedContinuation<Bool, Never>) in
+            var answered = false
+            let deadline = Task { @MainActor in
+                try? await Task.sleep(for: timeout)
+                guard !answered, !Task.isCancelled else { return }
+                answered = true
+                answer.resume(returning: false)
+            }
+            Task { @MainActor in
+                await pass.value
+                deadline.cancel()
+                guard !answered else { return }
+                answered = true
+                answer.resume(returning: true)
+            }
+        }
     }
 }
 
@@ -150,10 +220,13 @@ extension RefreshLane where Plan == Void {
     /// A lane whose pass takes no plan: it runs, or it doesn't.
     public convenience init(
         _ name: String,
+        passTimeout: Duration = RefreshLane.defaultPassTimeout,
+        clock: @escaping @MainActor () -> ContinuousClock.Instant = { ContinuousClock.now },
         decide: @escaping @MainActor (RefreshTrigger) async -> RefreshDecision<Void>,
         work: @escaping @MainActor () async -> Void
     ) {
-        self.init(name, decide: decide, merge: { _, _ in () }, work: { _ in await work() })
+        self.init(name, passTimeout: passTimeout, clock: clock,
+                  decide: decide, merge: { _, _ in () }, work: { _ in await work() })
     }
 }
 

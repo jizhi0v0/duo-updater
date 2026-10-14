@@ -3536,6 +3536,13 @@ struct ChangelogEntriesView: View {
 /// responder (`ResponderNode.visitFocusResponders`): openclaw's long scroll,
 /// built eagerly, held the main thread for tens of seconds per accessibility
 /// action while an accessibility client was attached (measured 2026-10-14).
+///
+/// Not selectable. `.textSelection(.enabled)` on the notes cost about a third
+/// of the main thread while scrolling — selectable text is laid out through
+/// TextKit, and every frame re-ran accessibility and cursor hit-testing over its
+/// rows. Without it the same 30-page scroll took ~1.7–2.2 s instead of ~3.6 s
+/// (2026-10-14). Each version's title carries a Copy button instead
+/// (`ChangelogEntryView.CopyNotesButton`).
 private struct ChangelogRowsStack: View {
     /// The entry whose breaking changes are tinted, and which of its rows
     /// (`ChangelogEntryView.breakingRows`): none means its title.
@@ -3580,18 +3587,51 @@ private struct ChangelogRowsStack: View {
         let gapBelow: CGFloat
     }
 
+    /// Up to `blockSize` consecutive rows, laid out together. A title or a
+    /// breaking row always starts a block, so its id is the block's and
+    /// `scrollTo` can still reach it.
+    ///
+    /// The lazy stack walks every item of its `ForEach` on each frame it places
+    /// (`LazySubviewPlacements` → `ForEachState.forEachItem`): one row per item
+    /// was openclaw's ~1,500 items, 18% of the main thread while scrolling.
+    /// Blocks of 12 cut the main-thread time of the same 30-page scroll from
+    /// ~5.4 s to ~3.6 s; blocks of 24 measured the same as 12 (2026-10-14).
+    private struct Block: Identifiable {
+        let rows: [Row]
+        var id: AnyHashable { rows[0].id }
+        var isRecorded: Bool { rows[0].isRecorded }
+    }
+    private static let blockSize = 12
+
+    private var blocks: [Block] {
+        var blocks: [Block] = []
+        var current: [Row] = []
+        for row in rows {
+            if !current.isEmpty && (row.isRecorded || current.count == Self.blockSize) {
+                blocks.append(Block(rows: current))
+                current = []
+            }
+            current.append(row)
+        }
+        if !current.isEmpty { blocks.append(Block(rows: current)) }
+        return blocks
+    }
+
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(rows) { row in
-                ChangelogEntryView(entry: changelog.entries[row.entry], itemStyle: itemStyle,
-                                   syntax: changelog.itemSyntax, part: row.part,
-                                   tinted: tint?.entry == row.entry ? tint?.rows : nil)
-                    .padding(.bottom, row.gapBelow)
-                    .onAppear { if row.isRecorded { builtRows?.ids.insert(row.id) } }
-                    .onDisappear { if row.isRecorded { builtRows?.ids.remove(row.id) } }
+            ForEach(blocks) { block in
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(block.rows) { row in
+                        ChangelogEntryView(entry: changelog.entries[row.entry], itemStyle: itemStyle,
+                                           syntax: changelog.itemSyntax, part: row.part,
+                                           tinted: tint?.entry == row.entry ? tint?.rows : nil)
+                            .padding(.bottom, row.gapBelow)
+                    }
+                }
+                .onAppear { if block.isRecorded { builtRows?.ids.insert(block.id) } }
+                .onDisappear { if block.isRecorded { builtRows?.ids.remove(block.id) } }
             }
         }
-        .textSelection(.enabled)
     }
 
     /// An entry's title row id: `ChangelogEntriesView.entryAnchor` in the long
@@ -3786,9 +3826,13 @@ private struct ChangelogEntryView: View {
     var body: some View {
         switch part {
         case .title:
-            title
-                // Nothing in the notes to point at: the version itself is.
-                .breakingTint(tinted?.isEmpty == true, spacing: 8)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                title
+                Spacer(minLength: 0)
+                CopyNotesButton(entry: entry)
+            }
+            // Nothing in the notes to point at: the version itself is.
+            .breakingTint(tinted?.isEmpty == true, spacing: 8)
         case let .row(index):
             row(index)
                 .breakingTint(tinted?.contains(index) == true,
@@ -3825,6 +3869,55 @@ private struct ChangelogEntryView: View {
             case let .image(url): noteImage(url)
             case let .heading(text): headingRow(text)
             }
+        }
+    }
+
+    /// The entry's notes as plain text, for `CopyNotesButton`: its Markdown as
+    /// written, else its `content` (headings as lines, notes as `- ` items, images
+    /// left out), else its `items` as `- ` items.
+    static func plainText(of entry: Changelog.Entry) -> String {
+        if let markdown = entry.markdown { return markdown }
+        if entry.content.isEmpty { return entry.items.map { "- \($0)" }.joined(separator: "\n") }
+        return entry.content.compactMap { block -> String? in
+            switch block {
+            case let .heading(text): return "\n\(text)"
+            case let .note(text): return "- \(text)"
+            case .image: return nil
+            }
+        }
+        .joined(separator: "\n")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Copies one version's notes: the notes are not selectable
+    /// (`ChangelogRowsStack`), so this is how their text gets out. Turns into a
+    /// checkmark for a moment, so the click visibly landed.
+    struct CopyNotesButton: View {
+        let entry: Changelog.Entry
+        @State private var copied = false
+        @State private var resetTask: Task<Void, Never>?
+
+        var body: some View {
+            let name = entry.version.isEmpty ? (entry.title ?? "") : entry.version
+            let label = String(localized: "Copy the \(name) release notes")
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(ChangelogEntryView.plainText(of: entry), forType: .string)
+                copied = true
+                resetTask?.cancel()
+                // Back to the copy glyph, so a second copy confirms again.
+                resetTask = Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    guard !Task.isCancelled else { return }
+                    copied = false
+                }
+            } label: {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+            .help(label)
+            .accessibilityLabel(label)
         }
     }
 

@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import DuoUpdaterCore
 
 /// The rule every search field shares — popover, workbench and Settings sidebar.
@@ -21,6 +22,19 @@ import Testing
         #expect(SearchMatch.matches("ｘｃｏｄ", in: "Xcode"))
         #expect(SearchMatch.matches("xcod", in: "Ｘｃｏｄｅ"))
         #expect(!"Xcode".localizedStandardContains("ｘｃｏｄ"))
+    }
+
+    /// Turkish pairs I with ı and İ with i, so a fold under tr_TR alone loses
+    /// plain ASCII matches, and a fold with no locale loses the dotless ı.
+    @Test(arguments: [
+        ("GITHUB", "GitHub"),
+        ("izinler", "İzinler"),
+        ("IZINLER", "İzinler"),
+        ("ı", "Install"),
+        ("icloud", "iCloud"),
+    ])
+    func turkishLocaleKeepsBothFolds(query: String, text: String) {
+        #expect(SearchMatch.matches(query, in: text, locale: Locale(identifier: "tr_TR")))
     }
 
     @Test func blankQueryMatchesEverything() {

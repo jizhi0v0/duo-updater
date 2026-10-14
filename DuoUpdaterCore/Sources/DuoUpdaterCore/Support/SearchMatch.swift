@@ -4,7 +4,7 @@ import Foundation
 /// the menu-bar popover, the workbench, and the Settings sidebar. One rule so the
 /// same query never finds an app in one window and misses it in the next.
 ///
-/// Folds case, diacritics and character width, under the reader's locale:
+/// Folds case, diacritics and character width:
 ///
 /// - **Diacritics** — "cafe" finds "Café", "zurich" finds "Zürich",
 ///   "notificacoes" finds "Notificações".
@@ -13,14 +13,16 @@ import Foundation
 ///   without this a search that looks right on screen finds nothing.
 ///   `localizedStandardContains`, which the popover and workbench used before,
 ///   does not fold width.
-/// - **Locale** — case folding follows the reader's language rules.
+/// - **Case, twice** — once with no locale and once under the reader's, and
+///   either is a match. Neither alone is enough, measured 2026-10-14 under
+///   tr_TR: the locale-aware fold (what `localizedStandardContains` did) misses
+///   "GITHUB" → "GitHub" and "izinler" → "İzinler", because Turkish pairs I with
+///   ı and İ with i; the locale-free fold (what Settings did) misses "ı" →
+///   "Install". Taking both means nothing either old predicate found is lost.
 ///
-/// Measured 2026-10-14, en_US, against the two predicates this replaces
-/// (`localizedStandardContains` in the popover and workbench, and
-/// `range(of:options: [.caseInsensitive, .diacriticInsensitive])` in Settings):
-/// all three agreed on accents, ß, Turkish İ and Greek tonos; only this one
-/// matched full-width Latin. None folds half-width katakana into full-width
-/// (ﾊﾞｯｸｱｯﾌﾟ vs バックアップ), and none reads a hyphen as a space.
+/// Also measured 2026-10-14, en_US: accents, ß and Greek tonos fold in both.
+/// Neither folds half-width katakana into full-width (ﾊﾞｯｸｱｯﾌﾟ vs バックアップ),
+/// nor reads a hyphen as a space, nor German "ue" as "ü".
 public enum SearchMatch {
     /// The query as the fields read it: surrounding whitespace dropped.
     public static func trimmed(_ query: String) -> String {
@@ -29,12 +31,16 @@ public enum SearchMatch {
 
     /// Whether `text` contains `query`. A blank query matches everything.
     public static func matches(_ query: String, in text: String) -> Bool {
+        matches(query, in: text, locale: .current)
+    }
+
+    /// `matches(_:in:)` under a given reader's locale, so tests can pin one.
+    static func matches(_ query: String, in text: String, locale: Locale) -> Bool {
         let needle = trimmed(query)
         guard !needle.isEmpty else { return true }
-        return text.range(
-            of: needle,
-            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-            locale: .current) != nil
+        let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
+        return text.range(of: needle, options: options) != nil
+            || text.range(of: needle, options: options, locale: locale) != nil
     }
 
     /// Whether any of `texts` contains `query`; nils are skipped. A blank query

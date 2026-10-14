@@ -1,0 +1,5 @@
+4f093a9 Secretive: keep it detection-only until the SecretAgent swap is checked
+8ffae40 Track Secretive via GitHub releases, with one-click install
+57e6ce0 Track Reviu via GitHub releases, with one-click install (#924)
+11a1072 verify: update recipe baseline (#923)
+91e7928 verify: update recipe baseline (#921)

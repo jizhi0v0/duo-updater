@@ -1,0 +1,5 @@
+8c3ba0f disktree audit: review notes (Intel wording, rebuild caveat, #84, cdhash pair)
+e1ce0d6 disktree: GitHub Releases detection, digest-only one-click
+90f8415 Add check_ifchange.py: links between code that must change together (#1222)
+8430015 verify-install: update identities and baseline (#1224)
+6e66c03 verify: update recipe baseline (#1223)

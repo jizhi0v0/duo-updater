@@ -1,0 +1,3 @@
+255385f Track OpenInTerminal via GitHub releases (detection only)
+57e6ce0 Track Reviu via GitHub releases, with one-click install (#924)
+11a1072 verify: update recipe baseline (#923)

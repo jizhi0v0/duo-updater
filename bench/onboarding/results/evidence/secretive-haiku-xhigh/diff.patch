@@ -1,0 +1,148 @@
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index c857d50..4f2c9bc 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -305,6 +305,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**CotEditor**](com-coteditor-CotEditor.md) · `com.coteditor.CotEditor` — P(stable/beta) B · **两轨全接（GitHub 两条规则 + ChannelBinding，一键 ✓，Team HT3Z3A72WZ 两轨真包核对）**；appcast **故意不读**——它只留一个预发布名额，旧 beta 副本找不到自己会被推 `7.0.9` 这个 marketing 降级包（守卫见 #368），换 GitHub 后渠道由 tag 和 `checksUpdatesForBeta` 决定，盲区消失 · 2026-09-06
+ - [x] [**TRAE**](com-trae-app.md) · `com.trae.app` — official API `2.3.61406` != real app `3.5.81`; no comparable remote version, deliberately left unknown · 2026-08-17
+ - [x] [**macFUSE**](io-macfuse-preferencepanes-macfuse.md) · `io.macfuse.preferencepanes.macfuse` — 装的是 `.prefPane` + `/Library/Filesystems/macfuse.fs`（嵌套的 `macfuse.app` 自报 `1.0`），都不在 `AppScanner` 的扫描目录里；GitHub 侧可行但接不到检查，是扫描模型的缺口不是 recipe 缺口 · 2026-09-14 复核
++- [x] [**Secretive**](com-maxgoedjen-Secretive-Host.md) · `com.maxgoedjen.Secretive.Host` — G 不接入：GitHub 规则无 OS 窗口，4.0.0 要求 macOS 15.0.0（逐版下限 11→15）· 2026-10-13
+ 
+ ## 未编入分类（补录 2026-08-30）
+ 
+diff --git a/docs/app-audits/com-maxgoedjen-Secretive-Host.md b/docs/app-audits/com-maxgoedjen-Secretive-Host.md
+new file mode 100644
+index 0000000..97823c9
+--- /dev/null
++++ b/docs/app-audits/com-maxgoedjen-Secretive-Host.md
+@@ -0,0 +1,130 @@
++# Secretive
++
++## 基本信息
++- Bundle ID: `com.maxgoedjen.Secretive.Host`（主 app）。来源：源码 target `Secretive` 的 `PRODUCT_BUNDLE_IDENTIFIER = $(SECRETIVE_BASE_BUNDLE_ID).Host`，`SECRETIVE_BASE_BUNDLE_ID` 默认 `com.maxgoedjen.Secretive`；Homebrew cask 的 `uninstall: quit` 与 `zap` 给出同一个 id。包内 `Info.plist` 本次未读取。
++- 同包伴随 bundle: `com.maxgoedjen.Secretive.SecretAgent`（`Contents/Library/LoginItems/SecretAgent.app`，SSH agent），以及 XPC 服务 `com.maxgoedjen.Secretive.SecretiveUpdater` 等。
++- Team ID: 未验证。源码默认 `Z72PRUAWF6`（`Sources/Config/Config.xcconfig`，CI 未覆盖时的值），这不是包内证据。
++- 观测版本: `4.0.0`（GitHub Releases 最新，tag `v4.0.0`，发布于 2026-09-21）。源码层：`CFBundleShortVersionString` 由 CI 用 tag 写入（`.github/workflows/release.yml`）；包内值未读取。
++- 自更新机制: 自研。`SecretiveUpdater` 读 GitHub Releases 列表，不用 Sparkle（`Sources/Secretive/Info.plist` 没有 `SUFeedURL`）。
++- 开源: 是（MIT）。以下来源均为仓库 `main` 分支的源码、CI 配置与 GitHub API。
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|------------|---------|----------|-----|--------|-------------|
++| **stable** | —       | ✓ †      | —   | ✗      | —           |
++
++† Homebrew 是既有的通用源（`HomebrewCaskSource`），不是本 audit 接入的。它只对 brew 安装的副本应答（Caskroom 来源闸）。cask 不声明 `depends_on.macos`，所以对 macOS < 15 的宿主同样会给出 4.0.0（见「已知问题」）。
++
++当前生效源（`SourceStack` 中第一个应答的，代码路径推断，未实跑）: **HomebrewCaskSource（仅 brew 安装的副本）**；直接下载的副本: **unknown**。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `com.maxgoedjen.Secretive.Host` | 单渠道 | tag `v<semver>` = `CFBundleShortVersionString` | `/releases/latest` | ✗（OS 窗口缺口，见下） |
++| nightly | — | — | `nightly.yml` 只上传 Actions artifact（版本 `0.0.0_nightly-<date>`），不发布 Release | — | 不是公开渠道，不接入 |
++
++源码层：`.github/workflows/nightly.yml` on `main`。当前公开 Releases 全部 `prerelease=false`，没有 prerelease 轨。
++
++## 更新检测
++- 源（若接入）: GitHub Releases `maxgoedjen/secretive`，`/releases/latest`
++- 版本方案: tag `v<semver>`。`CFBundleShortVersionString` 由 CI 把 tag 去掉 `v` 后写入（`.github/workflows/release.yml` 的 `sed` 步骤，源码层）。`CFBundleVersion = 1.<run_id>` 是构建号，不参与比较。
++- 资产: 每个 release 只有一个 `Secretive.zip`，文件名固定，不带版本号（API 观测，2026-10-13）。
++- 厂商自家更新器: `SecretiveUpdater` 请求 `https://api.github.com/repos/maxgoedjen/secretive/releases`（固定 URL、无认证）。`Brief/Updater.swift` 的 `evaluate` 从新到旧取**第一个 `minimumOSVersion <= 宿主 OS` 且非 prerelease** 的 release，再与 `CFBundleShortVersionString` 比较。
++- `minimumOSVersion` 来自 release body 的 `## Minimum macOS Version` 段（`Brief/Release.swift`，缺省 `11.0.0`）。
++
++### 逐版 OS 下限（API 观测，2026-10-13）
++
++| tag | 发布日 | Minimum macOS Version |
++|-----|--------|-----------------------|
++| v4.0.0 | 2026-09-21 | 15.0.0 |
++| v3.0.4 | 2025-11-27 | 14.0.0 |
++| v3.0.3 | 2025-10-08 | 14.0.0 |
++| v3.0.2 | 2025-09-17 | 14.0.0 |
++| v3.0.0 | 2025-09-14 | 14.0.0 |
++| v2.4.1 | 2024-01-25 | 12.0.0 |
++| v2.4.0 | 2024-01-07 | 12.0.0 |
++| v2.3.1 | 2023-07-23 | 11.0.0 |
++| v2.3.0 | 2022-12-23 | 11.0.0 |
++| v2.2.0 | 2022-02-17 | 11.0.0 |
++
++按厂商自家更新器的规则算出的「该宿主能运行的最新版」: macOS 11 → 2.3.1；macOS 12–13 → 2.4.1；macOS 14 → 3.0.4；macOS 15 及以上 → 4.0.0。
++
++### 为什么 GitHub 规则目前不接入
++- `GitHubReleaseRule` 只能用 tag 正则选版本，没有 OS 窗口字段；`GitHubReleasesSource` 也不读 release body。`OSWindowRefusal.evaluate` 的调用点只有 Sparkle 与 VendorProbe（源码检索，2026-10-13），GitHub 路径没有。
++- 后果：规则会对 macOS < 15 的宿主报告「4.0.0 可更新」，但 4.0.0 在这些宿主上运行不了（`LSMinimumSystemVersion` 15.0）。对 macOS 12–13 宿主，连 3.0.4 也运行不了，正确答案是 2.4.1。厂商自家更新器对这些宿主不会报 4.0.0。
++- 一键安装若接入，会在 `VendorInstaller` 的 gate 6 被拒绝（下载之后才判断）。`HostOS.swift` 的注释把「一直被提供、每次都在最后一步失败」的更新列为最坏的一种结果。
++- 因此本次不写 `GitHubReleaseRule`，也不新增 OS 窗口字段（那是 Core 共享代码的改动，需要先确认，见「建议下一步」）。
++
++## 增量更新（delta / binary patch）
++> 三栏分开写，每栏标证据来源。
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | 不能 |
++| 证据 | 源码: `Package.swift` 无 Sparkle 依赖；检索 `bspatch` / `binary delta` / `sparkle` 无命中（2026-10-13） | API 观测: `releases?per_page=10` 的每个 release 只有 1 个整包 zip（`Secretive.zip`） | — |
++
++- 格式: 整包 zip
++- 阻塞项: 没有增量机制可消费。
++
++## 按 OS 分轨 / 设备灰度 / 自更新冲突
++
++| | 客户端有这个能力? | 服务端现在真在发? | 我们能消费吗? |
++|---|---|---|---|
++| 增量 / 二进制补丁 | 无（源码） | 无（API 观测） | 不能 |
++| 按设备灰度 | 无（固定 URL，无设备参数，`SecretiveUpdater.swift`） | 无（同一公开列表，API 观测） | 不适用 |
++| 按架构 / 按 OS 分轨 | 有（`minimumOSVersion` + `Updater.evaluate`，源码） | 有（release body 逐版下限，API 观测，见上表） | **不能**：GitHub 规则不读 body |
++| 自更新器会不会和我们抢 | 不会自装：`UpdateView` / `Notifier` 只 `open(html_url)`（源码） | — | 不会冲突 |
++
++架构（arm64 / universal）: 未验证，包内 Mach-O 未读取。
++
++## Changelog
++- 来源（若接入）: GitHub release body，经 `GitHubMarkdownParser` 结构化。当前 v4.0.0 的 body 用 `## Features` / `## Fixes` 小节加 `- ` 条目，属于解析器的 bullet 通道（源码层；未用 fixture 实跑）。
++- 跟随 channel: 单渠道
++- Recipe 状态: 不需要。随检测接入一起生效。当前未接入，所以 changelog 也未生效（前提是检测）。
++
++## 一键安装
++- 状态: **不支持（未验证）**
++- 格式: zip（`Secretive.zip`，内含 `Secretive.app`，对应 `VendorInstallerKind.zip`）
++- **读的是**: 人人可手动下载的 GA（公开 release 资产，与厂商自家更新器读取的列表同源，没有设备级分配）
++- 阻塞:
++  1. 包内 Team ID 与公证状态未读取。源码层：`release.yml` 对 `Secretive.zip` 执行了 `notarytool submit`，但没有 `stapler` 步骤，内层 `.app` 未 staple。
++  2. OS 下限：同上文「为什么 GitHub 规则目前不接入」。gate 6 会在下载后拒绝低于 15 的宿主。
++  3. 替换运行中的 `SecretAgent`（LoginItem，SSH agent）：`VendorInstaller` 不退出也不重启 app，替换后旧 agent 进程会一直运行到重启。对 SSH agent 的影响未验证。
++
++## 已知问题
++- Homebrew 既有源对 brew 安装的副本给出 4.0.0，不管宿主 OS。cask 的 `depends_on.macos` 为空，所以 OS 窗口没有可用来源。这是代码路径推断（`HomebrewCaskSource` 的 Caskroom 来源闸，加上 cask 的 `app: Secretive.app` 文件名匹配），未在真实 brew 安装的副本上核对。
++
++## 如何复验
++```
++# 1. 最新版与列表（GitHub API；SecretiveUpdater 也是匿名请求同一端点）
++gh api repos/maxgoedjen/secretive/releases/latest
++#   → tag v4.0.0，prerelease=false，published_at 2026-09-21
++gh api "repos/maxgoedjen/secretive/releases?per_page=10"
++#   → 10 个 release，全部 prerelease=false，资产均为 Secretive.zip
++
++# 2. 资产与摘要（下载后只做 sha256 比对，未解包、未读包内容）
++https://github.com/maxgoedjen/secretive/releases/download/v4.0.0/Secretive.zip
++#   → sha256 877517e212938ffb7048bc7b6811e992194ba4b3eaa4dae36405b6303d1ac1fa，22831028 字节，与 API digest 一致
++https://github.com/maxgoedjen/secretive/releases/download/v3.0.4/Secretive.zip
++#   → sha256 696d07812e4431075234a900a0136dbad3131a91086e535fc2b07d69a1d084ba，9661989 字节，与 API digest 一致
++
++# 3. Homebrew cask（brew info --cask secretive --json=v2）
++#   → version 4.0.0；sha256 同上；uninstall.quit = com.maxgoedjen.Secretive.Host；
++#     zap 含 ~/Library/Containers/com.maxgoedjen.Secretive.*；depends_on.macos = {}；auto_updates = null
++
++# 4. 源码（main 分支）
++#   Sources/Secretive.xcodeproj/project.xcproj  target Secretive:
++#       PRODUCT_BUNDLE_IDENTIFIER = $(SECRETIVE_BASE_BUNDLE_ID).Host；MACOSX_DEPLOYMENT_TARGET = 15.0
++#   Sources/Config/Config.xcconfig  SECRETIVE_BASE_BUNDLE_ID 默认 com.maxgoedjen.Secretive；DEVELOPMENT_TEAM 默认 Z72PRUAWF6
++```
++尚未完成（待补）: 包内 `Info.plist`（bundle id、`CFBundleShortVersionString`、`LSMinimumSystemVersion`）、`codesign` 得到的 Team ID、公证状态。这些需要解包或挂载后读取，本次未做。
++
++## 建议下一步
++1. **需要人决定**：是否在 `GitHubReleasesSource` 加入 OS 窗口：读取 release body 的 `## Minimum macOS Version`，经 `OSWindowRefusal.evaluate` 判定，与 Sparkle / VendorProbe 走同一道闸。这是 Core 共享代码的改动，并且要给 `GitHubReleaseRule` 增加字段。建议做，不做则保持不接入。
++2. 第 1 条完成后，再加检测规则：`GitHubReleaseRule(bundleID: "com.maxgoedjen.Secretive.Host", owner: "maxgoedjen", repo: "secretive", versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#)`，然后用真包跑 `channel-verify`，核对包内 `CFBundleShortVersionString` 等于 tag。
++3. 一键安装另需：(a) 包内 Team ID 一致（v4.0.0 与 v3.0.4 相同，并与已安装副本一致）；(b) 公证状态；(c) 运行中 `SecretAgent` 的替换策略。满足后再考虑 `installAssetPattern: #"^Secretive\.zip$"`、`installerKind: .zip`。
++4. Homebrew cask 缺少 `depends_on.macos` 是上游数据问题（homebrew-cask），不属于本仓库的改动。

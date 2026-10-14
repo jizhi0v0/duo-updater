@@ -1,0 +1,21 @@
+pipe lokii B pipeB-1
+pipe secretive A pipeA-1
+pipe secretive B pipeB-1
+single secretive claude-opus-5-5 medium opus-medium brief.md
+pipe obelisk A pipeA-1
+pipe obelisk B pipeB-1
+single obelisk claude-opus-5-5 medium opus-medium brief.md
+pipe openinterminal A pipeA-1
+pipe openinterminal B pipeB-1
+single openinterminal claude-opus-5-5 medium opus-medium brief.md
+pipe lokii A pipeA-1
+single lokii claude-opus-5-5 medium opus-medium brief.md
+pipe disktree A pipeA-1
+pipe disktree B pipeB-1
+single disktree claude-opus-5-5 medium opus-medium brief.md
+pipe spotifast A pipeA-1
+pipe spotifast B pipeB-1
+single spotifast claude-opus-5-5 medium opus-medium brief.md
+pipe cindy A pipeA-1
+pipe cindy B pipeB-1
+single cindy claude-opus-5-5 medium opus-medium brief.md

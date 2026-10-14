@@ -1,0 +1,5 @@
+425d58d Cindy: cn edition through the vendor manifest, beta/canary reclassified
+74364ea Track Cindy (com.xd.cindy) via GitHub releases with one-click and structured notes
+7bccb0b Update Sparkle appcast for v0.5.0 (#1033)
+f196600 chore: bump to 0.5.0 (118) (#1032)
+21047ba Track storytold's seven -craft apps (GitHub releases, one-click) (#1031)

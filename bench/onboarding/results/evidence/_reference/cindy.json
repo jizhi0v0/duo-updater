@@ -1,0 +1,163 @@
+{
+  "changelogRecipes" : [
+    "changelog:com.xd.cindy:-"
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 20,
+      "headings" : [
+        "🧩 供应商组自动换机",
+        "🖧 协同 Worker 跑在另一台电脑",
+        "⬆️ 让 Agent 帮你更新 Cindy",
+        "🤖 伙伴的待办与群聊反馈",
+        "💬 IM 渠道的音视频附件",
+        "⚡ 回复速度看得见",
+        "👥 共享任务的文件与权限",
+        "📱 手机端一批改进",
+        "🎚️ 模型与能力",
+        "🧹 稳定性修复"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 10,
+      "newestVersion" : "0.1.104",
+      "recipeID" : "changelog:com.xd.cindy:-"
+    },
+    "download" : "cindy-0.1.104-darwin-arm64-global.dmg",
+    "installTrust" : "developerID",
+    "latest" : "0.1.104",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "GitHub",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 20,
+      "headings" : [
+        "🧩 供应商组自动换机",
+        "🖧 协同 Worker 跑在另一台电脑",
+        "⬆️ 让 Agent 帮你更新 Cindy",
+        "🤖 伙伴的待办与群聊反馈",
+        "💬 IM 渠道的音视频附件",
+        "⚡ 回复速度看得见",
+        "👥 共享任务的文件与权限",
+        "📱 手机端一批改进",
+        "🎚️ 模型与能力",
+        "🧹 稳定性修复"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 10,
+      "newestVersion" : "0.1.104",
+      "recipeID" : "changelog:com.xd.cindy:-"
+    },
+    "download" : "cindy-0.1.104-darwin-arm64-global.dmg",
+    "installTrust" : "developerID",
+    "latest" : "0.1.104",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "GitHub",
+    "status" : "update→0.1.104"
+  },
+  "perRelease" : [
+    {
+      "arm64" : "cindy-0.1.108-darwin-arm64-global.dmg",
+      "prerelease" : true,
+      "tag" : "v0.1.108-beta",
+      "version" : "<no match>",
+      "x86_64" : "cindy-0.1.108-darwin-x64-global.dmg"
+    },
+    {
+      "arm64" : "cindy-0.1.106-darwin-arm64-global.dmg",
+      "prerelease" : true,
+      "tag" : "v0.1.106-beta",
+      "version" : "<no match>",
+      "x86_64" : "cindy-0.1.106-darwin-x64-global.dmg"
+    },
+    {
+      "arm64" : "cindy-0.1.105-darwin-arm64-global.dmg",
+      "prerelease" : true,
+      "tag" : "v0.1.105-beta",
+      "version" : "<no match>",
+      "x86_64" : "cindy-0.1.105-darwin-x64-global.dmg"
+    },
+    {
+      "arm64" : "cindy-0.1.104-darwin-arm64-global.dmg",
+      "prerelease" : false,
+      "tag" : "v0.1.104",
+      "version" : "0.1.104",
+      "x86_64" : "cindy-0.1.104-darwin-x64-global.dmg"
+    },
+    {
+      "arm64" : "cindy-0.1.103-darwin-arm64-global.dmg",
+      "prerelease" : false,
+      "tag" : "v0.1.103",
+      "version" : "0.1.103",
+      "x86_64" : "cindy-0.1.103-darwin-x64-global.dmg"
+    },
+    {
+      "arm64" : "cindy-0.1.101-darwin-arm64-global.dmg",
+      "prerelease" : false,
+      "tag" : "v0.1.101",
+      "version" : "0.1.101",
+      "x86_64" : "cindy-0.1.101-darwin-x64-global.dmg"
+    },
+    {
+      "arm64" : "cindy-0.1.97-darwin-arm64-global.dmg",
+      "prerelease" : false,
+      "tag" : "v0.1.97",
+      "version" : "0.1.97",
+      "x86_64" : "cindy-0.1.97-darwin-x64-global.dmg"
+    },
+    {
+      "arm64" : "cindy-0.1.96-darwin-arm64-global.dmg",
+      "prerelease" : true,
+      "tag" : "v0.1.96-beta",
+      "version" : "<no match>",
+      "x86_64" : "cindy-0.1.96-darwin-x64-global.dmg"
+    }
+  ],
+  "rules" : [
+    {
+      "bundleID" : "com.xd.cindy",
+      "channel" : "stable",
+      "installAssetPattern" : "^cindy-[0-9]+\\.[0-9]+\\.[0-9]+-darwin-(?:arm64|x64)-global\\.dmg$",
+      "installerKind" : "dmg",
+      "installTrust" : "developerID",
+      "slug" : "makecindy\/cindy",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
+    },
+    {
+      "bundleID" : "com.xd.cindy",
+      "channel" : "beta",
+      "installAssetPattern" : "^cindy-[0-9]+\\.[0-9]+\\.[0-9]+-darwin-(?:arm64|x64)-global\\.dmg$",
+      "installerKind" : "dmg",
+      "installTrust" : "developerID",
+      "slug" : "makecindy\/cindy",
+      "usePrereleases" : true,
+      "versionPattern" : "^v([0-9]+\\.[0-9]+\\.[0-9]+)(?:-beta)?$"
+    },
+    {
+      "bundleID" : "com.xd.cindycn",
+      "channel" : "stable",
+      "installAssetPattern" : "^cindy-[0-9]+\\.[0-9]+\\.[0-9]+-darwin-(?:arm64|x64)-cn\\.dmg$",
+      "installerKind" : "dmg",
+      "installTrust" : "developerID",
+      "slug" : "makecindy\/cindy",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
+    },
+    {
+      "bundleID" : "com.xd.cindycn",
+      "channel" : "beta",
+      "installAssetPattern" : "^cindy-[0-9]+\\.[0-9]+\\.[0-9]+-darwin-(?:arm64|x64)-cn\\.dmg$",
+      "installerKind" : "dmg",
+      "installTrust" : "developerID",
+      "slug" : "makecindy\/cindy",
+      "usePrereleases" : true,
+      "versionPattern" : "^v([0-9]+\\.[0-9]+\\.[0-9]+)(?:-beta)?$"
+    }
+  ]
+}

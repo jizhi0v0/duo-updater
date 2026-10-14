@@ -1,0 +1,262 @@
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index d6fdb79..59751af 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -214,6 +214,7 @@ public enum AppRecipeIndex {
+         io_dcloud_HBuilderX.set,
+         io_ganeshrvel_openmtp.set,
+         io_github_clash_verge_rev_clash_verge_rev.set,
++        io_github_tobi_disktree.set,
+         io_github_wickenico_wailbrew.set,
+         io_podmandesktop_PodmanDesktop.set,
+         io_rancherdesktop_app.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-github-tobi-disktree.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-github-tobi-disktree.swift
+new file mode 100644
+index 0000000..f102544
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-github-tobi-disktree.swift
+@@ -0,0 +1,36 @@
++import Foundation
++
++enum io_github_tobi_disktree {
++    static let set = AppRecipeSet(
++        family: "io-github-tobi-disktree",
++        githubRules: [
++        // disktree — a Rust + GPUI treemap for finding what fills a disk. The
++        // app has no updater of its own (no Sparkle, no network client in the
++        // binary), so `/releases/latest` is the only source. v-tags; short ==
++        // CFBundleVersion == the tag's X.Y.Z (checked 2026-10-14 on 0.10.0,
++        // 0.10.1 and 0.11.0). Release notes are GitHub's generated list of
++        // merged pull requests.
++        //
++        // Detection-only (see `Recipes/org-alacritty.swift`): the macOS zips
++        // are built by upstream's release workflow, which signs and notarizes
++        // only when the repository has signing secrets. The published ones do
++        // not: every one of the six zips examined (0.10.0, 0.10.1, 0.11.0;
++        // arm64 and x86_64) is ad-hoc signed with no Team ID, `spctl` rejects
++        // it, and there is no stapled ticket. The Team-ID gate in
++        // `VendorInstaller` would refuse the swap, so no `installAssetPattern`.
++        // The seal does verify and the signed identifier is the bundle id, so
++        // `.publishedDigestOnly` is open to it; it is not taken because it
++        // lowers the install bar to a file hash.
++        //
++        // Per-arch zips (`disktree-<v>-aarch64-macos.zip` / `-x86_64-macos.zip`),
++        // no universal build. A rule with no `installAssetPattern` also skips
++        // the walk past releases that carry no macOS asset. v0.9.0 and v0.9.1
++        // are Linux-only, but they predate the macOS port (first macOS asset:
++        // 0.10.0), and the release workflow publishes a release only once the
++        // Linux, macOS and Windows builds are all in.
++        GitHubReleaseRule(
++            bundleID: "io.github.tobi.disktree",
++            owner: "tobi", repo: "disktree",
++            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#),
++        ])
++}
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/io-github-tobi-disktree.txt b/DuoUpdaterCore/Tests/RecipeGoldens/io-github-tobi-disktree.txt
+new file mode 100644
+index 0000000..2300502
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/io-github-tobi-disktree.txt
+@@ -0,0 +1,43 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "io-github-tobi-disktree"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 0)
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "io.github.tobi.disktree"
++githubRules[0].owner = "tobi"
++githubRules[0].repo = "disktree"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern = nil
++githubRules[0].installerKind = nil
++githubRules[0].installTrust = .developerID
++githubRules[0].variant = nil
++githubRules[0].architectureRequirement = nil
++githubRules[0].tagRefPrefix = nil
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index a14e3fb..dcb0467 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -270,6 +270,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**Herdr**](so-pen-herdr-gpui.md) · `so.pen.herdr-gpui` — G (one-click universal dmg) · 日期版本 `vYYYYMMDD.N` · 真包 20261007.1/.2 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中）· changelog 结构化 ✓ · 2026-10-07
+ - [x] [**Search**](com-officecommun-search.md) · `com.officecommun.search` — G (one-click arm64 dmg，1.0.5 起另有 `Search-Intel.dmg`) · 真包 1.0.3/1.0.4 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中；自研更新器启动即换 bundle）· changelog 结构化 ✓ · 2026-10-09
+ - [x] [**Pulse**](com-egoist-pulse.md) · `com.egoist.pulse` — G (one-click arm64 dmg) · 真包 0.1.4/0.1.5 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中）· changelog 结构化 ✓ · `install.sh` 只装 Linux，无 macOS CLI · 2026-10-10
++- [x] [**disktree**](io-github-tobi-disktree.md) · `io.github.tobi.disktree` — G (**detection-only**：6 个 macOS 包全是 ad-hoc 签名、无 Team ID、未公证；`.publishedDigestOnly` 条件实测全成立但未接) · 真包 0.10.0/0.10.1/0.11.0 × arm64/x86_64 核对 ✓ · 一键端到端未跑 · changelog 结构化 ✓（GitHub 生成的 PR 列表，无分节）· 2026-10-14
+ 
+ ## Changelog-only (detection via Sparkle or Homebrew)
+ 
+diff --git a/docs/app-audits/io-github-tobi-disktree.md b/docs/app-audits/io-github-tobi-disktree.md
+new file mode 100644
+index 0000000..cf654f9
+--- /dev/null
++++ b/docs/app-audits/io-github-tobi-disktree.md
+@@ -0,0 +1,141 @@
++# disktree
++
++## 基本信息
++- App: disktree — 找出并清理占满磁盘的东西的 treemap。Rust + GPUI（经 gpui-omarchy），起初只给 Omarchy（Linux）；0.10.0 起有
++  macOS 与 Windows 版
++- Bundle ID: `io.github.tobi.disktree`（`packaging/macos/Info.plist.in`；源码里写明它是各项 macOS 权限授予的键，不要轻易改）
++- 仓库: `tobi/disktree`（MIT，开源，已读源码；settled from source: `.github/workflows/release.yml`、`xtask/src/bundle.rs`、
++  `packaging/macos/Info.plist.in` on `main`）
++- Team ID: **无。** 已核对的六个 macOS 包（0.10.0 / 0.10.1 / 0.11.0，arm64 与 x86_64）全是 ad-hoc 签名：
++  `codesign -dvv` → `Signature=adhoc`、`flags=0x2(adhoc)`、`TeamIdentifier=not set`；`spctl -a -vv -t exec` →
++  `rejected`；`xcrun stapler validate`（在 0.11.0 与 0.10.1 的 arm64 包上跑）→ `does not have a ticket stapled to it`，
++  即未公证。来源见下「一键安装」
++- 观测版本: 0.11.0（`CFBundleShortVersionString` 与 `CFBundleVersion` 都是 `0.11.0`）；观测日期: 2026-10-14
++- 自更新机制: **无。** 二进制里没有 Sparkle、没有 `SUFeedURL`、没有任何网络客户端字串
++  （`api.github.com` / `releases/latest` / `github.com/tobi` / `appcast` / `Sparkle` 均 0 处；仅链系统框架），
++  仓库源码里也没有更新模块。`feed-discover` 同样报 `no Sparkle and no electron-builder update config`
++- 分发: GitHub Releases（`tobi/disktree`）。没有 Homebrew cask（`brew info --cask disktree` →
++  `No Cask with this name exists`）、没有 MAS
++- 包形态: 每个版本每个 arch 一个 zip，**没有 universal 包**：`disktree-<v>-aarch64-macos.zip`（`lipo -archs` = `arm64`）与
++  `disktree-<v>-x86_64-macos.zip`（`x86_64`），各配一个 `.sha256` 旁证文件。bundle 里只有一个主可执行文件，
++  没有嵌套 app、helper 或 LaunchAgent
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|------------|---------|----------|-----|--------|-------------|
++| **stable** | —       | —        | —   | ✓（仅检测） | —           |
++
++当前生效源: **GitHub**（channel-verify 实测）。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `io.github.tobi.disktree` | — | — | `/releases/latest` | ✓ |
++
++只有一条轨。发布流程（`release.yml`）只在 `v*` tag 上建 release，没有 prerelease、nightly 或 beta 的分支；
++目前仅有的五个 release（v0.9.0、v0.9.1、v0.10.0、v0.10.1、v0.11.0）都不是 prerelease。`settled from source: .github/workflows/release.yml on main`。
++
++## 更新检测
++- 源: `tobi/disktree` GitHub Releases，`/releases/latest`；tag `v0.11.0` 去掉 `v` 等于 `CFBundleShortVersionString`
++  （也等于 `CFBundleVersion`，两个字段都由 `xtask bundle` 从 `Cargo.toml` 的 workspace 版本填入，
++  settled from source: `packaging/macos/Info.plist.in`）
++- 规则: `versionPattern` = `^v([0-9]+(?:\.[0-9]+)+)$`，无 `installAssetPattern`（见「一键安装」）
++- **读的是**: 轨道最新（GitHub 的 latest 即最新一个非 prerelease、非 draft 的已发布 release）。这也是任何人在
++  release 页面能手动下载到的 GA，没有分批放量的机制可超前
++- **没有 macOS 资产检查。** 对没有 `installAssetPattern` 的规则，源不会跳过「没带 macOS 资产」的 release
++  （`GitHubReleasesSource.settle` 里这一步只对有 pattern 的规则做）。这个仓库确有只含 Linux 资产的 release：
++  v0.9.0、v0.9.1。但它们早于 macOS 移植（commit `cbdfe1c`、`8b66200`，2026-09-25；首个 macOS 资产是 0.10.0），
++  所以不会有 macOS 副本停在它们之前；而 `release.yml` 的 `publish` job `needs: [release, linux, macos, windows]`，
++  release 在三个平台都传完才从 draft 转正，今后的 release 不会只带 Linux。若上游改变这一点，才会出现 phantom update
++- 实测（2026-10-14，`channel-verify`，winning source GitHub，latest 0.11.0）:
++  - 0.10.0 arm64 → `UPDATE → 0.11.0`；0.10.1 arm64 → `UPDATE → 0.11.0`；0.10.1 x86_64 → `UPDATE → 0.11.0`
++  - 0.11.0 arm64 → `up to date`；0.11.0 x86_64 → `up to date`
++  - 检测到的 channel 均为 stable，`--expect stable` 通过
++- 下载链接指向 release 页（`https://github.com/tobi/disktree/releases`），因为没有可一键装的资产
++
++## 按架构 / 按 OS 分轨
++- 两个 arch 都有，分包发布；规则不区分 arch，检测对两种 Mac 给同一个版本，这是对的：每个版本两个 arch 同时发布
++- `LSMinimumSystemVersion` = `11.0`（六个包相同）；GitHub 不带 OS 上下限，规则里没有可读的字段
++- 没有按设备灰度：GitHub release 对所有人一样
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | 不适用 |
++| 证据 | 二进制无 `bsdiff` / `bspatch`，也没有任何更新代码（见「基本信息」） | 2026-10-14 `v0.11.0` 的 12 个资产全是整包（各平台的 zip / `.tar.gz`）和各自的 `.sha256`，没有补丁文件（`gh api repos/tobi/disktree/releases`） | `channel-verify` 的 `deltas 0` |
++
++- 格式: 无
++- 自更新器会不会和我们抢: 不会，app 里没有更新器，也不联网
++
++## Changelog
++- 来源: GitHub Release 正文。`release.yml` 用 `gh release create --generate-notes`，所以正文是 GitHub 自动生成的
++  合并 PR 列表（`## What's Changed` 下每条 `* 标题 by @作者 in <PR 链接>`，再接 `## New Contributors` 与
++  `**Full Changelog**`），没有手写的分节
++- 结构化（2026-10-14，channel-verify `changelog pane`，从 0.10.1 起）: `source structured: 1 entries; newest 0.11.0:
++  23 items, headings []; first items ["Integrate Windows scanning, drive picker", "build: pin the toolchain so a fresh clon",
++  "Steam libraries on a second drive show a"]`。23 条恰好是 `What's Changed` 下的 23 个 PR；`New Contributors` 与
++  `Full Changelog` 被当作噪音略去，`by @作者 in <链接>` 后缀被去掉；`What's Changed` 没有混进条目
++- 小标题: **没有可保留的。** `headings []` 是这份正文的形状，不是被压平：GitHub 生成的 `What's Changed` 不是厂商分节，
++  厂商没有写 Features / Fixes 之类的分节。条目是 PR 标题，且混有 Windows / Linux 的改动（如 `fix(windows): embed icon`），
++  面板不会按平台过滤
++- 只有最新一版：detection 走 `/releases/latest`，面板只有 1 条，装机版本落后多版时看不到中间版本的说明
++- 跟随 channel: —（单轨）
++- Recipe 状态: 不需要。若要显示多版历史，可仿 `Recipes/com-obelisk-app.swift` 写一条读 `releases?per_page=` 的
++  `ChangelogRecipe`（`structuredFormat: .gitHubReleases`）；macOS 只有 3 个 release，暂不值得
++
++## 一键安装
++- 状态: **仅检测**（`installAssetPattern` 为 nil）。**这一项做不到，原因是包不合格，不是没做。**
++- 原因: 一键要求 Developer ID 签名带 Team ID、公证、资产是 dmg 或 zip。这里资产是 zip，但：
++  - 签名: 六个包（0.10.0 / 0.10.1 / 0.11.0 × arm64 / x86_64）全是 ad-hoc、无 Team ID，`spctl` rejected（无装订 ticket 只在两个包上核对过，见上）。
++    `VendorInstaller` 的 Team-ID 闸对这样的包必然拒绝（`.developerID` 要求两侧同一个 Team）
++  - 为什么是 ad-hoc: `xtask bundle` 在没给 `--sign` 时用 `codesign --sign -`；`release.yml` 只在仓库配了
++    `MACOS_CERTIFICATE` 等 secrets 时才传 `--sign` / `--notarize`，已发布的包说明没有配
++    （settled from source: `xtask/src/bundle.rs`、`.github/workflows/release.yml`）。上游 README 也承认
++    「A release that was not signed and notarized is stopped by Gatekeeper」，让用户 `xattr -dr com.apple.quarantine`
++  - 新旧两版都查了（Team 一致，都是「无」）：新 0.11.0 与旧 0.10.1、0.10.0，所以没有「中途换 Team」的问题
++- `.publishedDigestOnly` 的条件**全部成立**，但没接（保守选择，见「建议下一步」第 2 条）。逐项实测（2026-10-14）:
++  - 封印: 六个包 `codesign --verify --deep --strict` 全是 0
++  - 签名标识 == bundle id: 六个包 `Identifier=io.github.tobi.disktree`
++  - `CFBundleShortVersionString` == tag 去 `v`: 0.10.0 / 0.10.1 / 0.11.0
++  - GitHub 为每个资产发布 `digest`，六个下载的 `shasum -a 256` 与之逐一相同，也等于各自 `.sha256` 旁证文件
++    （0.11.0: arm64 `942f2508…3600b`、x86_64 `16ddba6c…43f4d`；0.10.1: arm64 `90381628…9eca`、x86_64 `9955a0da…4b96`；
++    0.10.0: arm64 `efe3c3ba…c49`、x86_64 `1e24d718…ae87d`）
++  - 它是用户在设置里打开「无开发者签名的 app 按文件哈希一键更新」才可用的路线，信任只到「release 页上的那个文件」，
++    不证明是谁放上去的；本次不接，是因为 coverage-discovery 的规则是 Developer ID + 公证才一键
++- 格式: zip（`ditto` 打包，保留签名所需的扩展属性）。若以后接，pattern 是
++  `^disktree-[0-9.]+-(?:aarch64|x86_64)-macos\.zip$`，`.sha256` 旁证文件被 `$` 挡掉，arch 交给源的架构偏好
++- 校验: 不接就写原因：包没有 Team ID，一键的 Team-ID 闸不能成立；digest 条件见上
++- **读的是**: 轨道最新 / 人人可手动下载的 GA（GitHub `/releases/latest`；release 页面就是手动下载处）
++- 端到端: **未跑**。本次任务不做真机安装（由协调者串行执行）；而且仅检测的规则，`duo install` 预期是
++  `Skipping: … detection only`，没有可验证的换包路径
++- 阻塞: 上游发布 Developer ID 签名并公证的包（给仓库配好签名 secrets）
++
++## 已知问题
++- **一键不可用**（见上）。用户看到更新提示后要自己去 release 页下载、解压、拖进 Applications；上游 README 说未公证的下载
++  需要清掉 quarantine 或在「隐私与安全性」里选「仍要打开」。
++- **ad-hoc 签名每次构建的 cdhash 都变。** 这个 app 要完全磁盘访问授权才能看全（README），授权是否会因为
++  cdhash 变化在更新后失效，**未验证**（没有装机更新过）。上游说 bundle id 是各项授权的键，那是上游的说法，不是我们测的。
++- **条目混有 Windows / Linux 的改动**，见 Changelog。
++- 0.9.x 是 Linux-only，见「更新检测」；若上游以后又发只带部分平台的 release，没有 macOS 资产检查，会出现 phantom update。
++  接了 `installAssetPattern`（任何信任模式）就会获得这道检查。
++
++## 建议下一步
++1. 上游开始用 Developer ID 签名并公证后（`codesign -dvv` 出现 `TeamIdentifier`、`spctl` 为 Notarized），补
++   `installAssetPattern` + `installerKind: .zip`，核对新旧两版 Team 一致，再做 `duo install` 端到端（不运行 + 运行中）。
++2. 或者决定接 `.publishedDigestOnly`：条件已经全部实测成立，只差一个策略决定；接了之后端到端需要临时打开设置里的开关。
++
++## 如何复验
++```
++gh api repos/tobi/disktree/releases --jq '.[] | .tag_name as $t | .assets[] | select(.name|test("macos.zip$")) | "\($t) \(.name) \(.digest)"'
++shasum -a 256 disktree-0.11.0-aarch64-macos.zip      # 与上面的 digest 相同
++unzip -q disktree-0.11.0-aarch64-macos.zip -d out && codesign -dvv out/disktree.app   # Signature=adhoc, TeamIdentifier=not set
++spctl -a -vv -t exec out/disktree.app                # rejected
++xcrun stapler validate out/disktree.app              # does not have a ticket stapled to it
++swift run --package-path application-test feed-discover out/disktree.app    # → no Sparkle and no electron-builder update config
++swift run --package-path application-test channel-verify out/disktree.app --expect stable   # 0.10.x → UPDATE → 0.11.0; 0.11.0 → up to date
++```

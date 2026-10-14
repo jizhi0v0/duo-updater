@@ -1,0 +1,97 @@
+# The seven apps Haiku (xhigh) onboarded short of main in round 3, and what every later
+# configuration did on each. Judged by hand against main's onboarding (the reference),
+# from the graded behaviour (runs.yml), the probe, the old-id grade (cases/fastpotify.json)
+# and the recipe source of each run. Selection bias: these seven were picked from Haiku's
+# failures, so they say how a configuration does on hard apps, not on average ones.
+#
+# Per app, the items main covers that a run can miss:
+#   secretive       onboard it at all (main: detection only); nightly `0.0.0_nightly-<date>`
+#                   read as stable is a bug main has too
+#   obelisk         copies 0.1.0-0.2.2, which predate the Sparkle feed
+#   openinterminal  one-click (zip, Developer ID); a version pattern that does not pin v2
+#   lokii           one-click through `.publishedDigestOnly` (ad-hoc signed)
+#   disktree        one-click through `.publishedDigestOnly` (ad-hoc signed)
+#   spotifast       copies on the pre-rename id `me.paolino.fastpotify` (main: detected,
+#                   no one-click)
+#   cindy           the cn edition `com.xd.cindycn`; the beta track
+#
+# probe_errors counts probe hits (harness/probe.py) not already counted as a miss: the
+# OpenInTerminal v2 pin is a miss, so its NEXT-MISS is not counted again.
+#
+# Verdicts: covered | missed | overreach (does more than main, and the extra is wrong or
+# unverified) | judgment (does more than main, defensible either way).
+
+items_missed_per_config:
+  haiku-xhigh:     {missed: 9, overreach: 0, probe_errors: 1}
+  haiku-xhigh-b2:  {missed: 2, overreach: 2, probe_errors: 0, usd_mean: 1.63}
+  sonnet-xhigh:    {missed: 5, overreach: 0, probe_errors: 0, usd_mean: 3.57}
+  opus-xhigh:      {missed: 3, overreach: 0, probe_errors: 1, usd_mean: 7.97}
+  opus-medium:     {missed: 2, overreach: 0, probe_errors: 1, usd_mean: 3.36, minutes_mean: 16}
+  pipeA-1:         {missed: 3, overreach: 0, probe_errors: 0, usd_mean: 5.12, minutes_mean: 32}
+  pipeB-1:         {missed: 4, overreach: 1, probe_errors: 0, usd_mean: 9.76, minutes_mean: 49}
+  pipeA-2:         {missed: 2, overreach: 2, probe_errors: 2, usd_mean: 5.49, minutes_mean: 36}
+
+apps:
+  secretive:
+    haiku-xhigh: "missed (declined to onboard: \"macOS 11-14 would be offered 4.0.0\"; DuoUpdater needs macOS 15)"
+    haiku-xhigh-b2: "judgment (one-click despite the resident SecretAgent)"
+    sonnet-xhigh: "judgment (one-click); nightly recorded"
+    opus-xhigh: "judgment (one-click); nightly fixed"
+    opus-medium: "judgment (one-click)"
+    pipeA-1: "covered (= main; exec stage stalled on the ditto deny, fix stage onboarded)"
+    pipeB-1: "covered (= main; the plan said detection only, review held exec to it)"
+    pipeA-2: "judgment (one-click); nightly fixed after review"
+  obelisk:
+    haiku-xhigh: "missed"
+    haiku-xhigh-b2: "covered"
+    sonnet-xhigh: "missed (recorded)"
+    opus-xhigh: "missed (recorded)"
+    opus-medium: "covered"
+    pipeA-1: "covered (caught by review)"
+    pipeB-1: "covered (in the plan)"
+    pipeA-2: "covered"
+  openinterminal:
+    haiku-xhigh: "missed one-click; missed v3 (pinned v2)"
+    haiku-xhigh-b2: "covered; overreach (adds the Lite apps)"
+    sonnet-xhigh: "covered"
+    opus-xhigh: "covered"
+    opus-medium: "covered"
+    pipeA-1: "missed one-click; missed v3 (exec stage stalled on the ditto deny)"
+    pipeB-1: "missed one-click; missed v3; overreach (Lite apps)"
+    pipeA-2: "one-click covered (exec commit = main); missed v3 and overreach (review made Lite blocking, the fix pinned v2 to keep Lite out)"
+  lokii:
+    haiku-xhigh: "missed one-click"
+    haiku-xhigh-b2: "covered"
+    sonnet-xhigh: "missed one-click"
+    opus-xhigh: "covered"
+    opus-medium: "covered"
+    pipeA-1: "covered; also names Lokii in the digest-only Settings copy, as main does (caught by review)"
+    pipeB-1: "covered"
+    pipeA-2: "covered; Settings copy too (caught by review)"
+  disktree:
+    haiku-xhigh: "missed one-click; probe SUFFIX-AS-STABLE"
+    haiku-xhigh-b2: "covered"
+    sonnet-xhigh: "missed one-click"
+    opus-xhigh: "covered; probe SUFFIX-AS-STABLE (v0.12.0-rc.1 read as 0.12.0)"
+    opus-medium: "covered; probe SUFFIX-AS-STABLE"
+    pipeA-1: "covered"
+    pipeB-1: "covered"
+    pipeA-2: "covered; probe SUFFIX-AS-STABLE (registry default pattern)"
+  spotifast:
+    haiku-xhigh: "missed (silently)"
+    haiku-xhigh-b2: "covered; overreach (one-click for old-id 0.8-0.9.0, which the vendor says restart from scratch)"
+    sonnet-xhigh: "missed (recorded, with the vendor's reason)"
+    opus-xhigh: "missed (recorded)"
+    opus-medium: "missed (recorded as a next step)"
+    pipeA-1: "covered (old-id grade identical to main; caught by review)"
+    pipeB-1: "missed (the plan described it; exec added a BundleIDMigration but no rule; review did not block)"
+    pipeA-2: "covered (caught by review); overreach (one-click for old-id 0.8-0.9.1); probe SUFFIX-AS-STABLE (registry default pattern; the vendor does flag its rcs as prereleases)"
+  cindy:
+    haiku-xhigh: "missed cn; missed beta"
+    haiku-xhigh-b2: "missed cn; missed beta"
+    sonnet-xhigh: "cn covered (recipe-id Core change); missed beta"
+    opus-xhigh: "cn covered (vendor manifest, Core change); missed beta"
+    opus-medium: "cn covered; missed beta"
+    pipeA-1: "cn covered (caught by review); missed beta"
+    pipeB-1: "cn covered; missed beta"
+    pipeA-2: "cn covered (caught by review); missed beta (review flagged it, the fix only documented it)"

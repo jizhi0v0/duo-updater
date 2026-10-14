@@ -1,0 +1,115 @@
+{
+  "changelogRecipes" : [
+
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 1,
+      "headings" : [
+        "Features",
+        "Fixes"
+      ],
+      "kind" : "sourceStructured",
+      "markdown" : false,
+      "newestItems" : 19,
+      "newestVersion" : "4.0.0"
+    },
+    "download" : "releases",
+    "installTrust" : "developerID(legacy base)",
+    "latest" : "4.0.0",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "GitHub",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 1,
+      "headings" : [
+        "Features",
+        "Fixes"
+      ],
+      "kind" : "sourceStructured",
+      "markdown" : false,
+      "newestItems" : 19,
+      "newestVersion" : "4.0.0"
+    },
+    "download" : "releases",
+    "installTrust" : "developerID(legacy base)",
+    "latest" : "4.0.0",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "GitHub",
+    "status" : "update→4.0.0"
+  },
+  "perRelease" : [
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v4.0.0",
+      "version" : "4.0.0",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v3.0.4",
+      "version" : "3.0.4",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v3.0.3",
+      "version" : "3.0.3",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v3.0.2",
+      "version" : "3.0.2",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v3.0.0",
+      "version" : "3.0.0",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v2.4.1",
+      "version" : "2.4.1",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v2.4.0",
+      "version" : "2.4.0",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v2.3.1",
+      "version" : "2.3.1",
+      "x86_64" : "<none>"
+    }
+  ],
+  "rules" : [
+    {
+      "bundleID" : "com.maxgoedjen.Secretive.Host",
+      "channel" : "stable",
+      "installAssetPattern" : "<nil>",
+      "installerKind" : "<nil>",
+      "installTrust" : "developerID(legacy base)",
+      "slug" : "maxgoedjen\/secretive",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+(?:\\.[0-9]+)+)$"
+    }
+  ]
+}

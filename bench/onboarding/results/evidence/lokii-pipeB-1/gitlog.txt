@@ -1,0 +1,5 @@
+cc1b009 Lokii: settle the Full Disk Access and hotkey notes, add v0.1.0 digests and an Intel pick
+250fa44 Track Lokii via GitHub releases with digest-only one-click
+7bccb0b Update Sparkle appcast for v0.5.0 (#1033)
+f196600 chore: bump to 0.5.0 (118) (#1032)
+21047ba Track storytold's seven -craft apps (GitHub releases, one-click) (#1031)

@@ -1,0 +1,125 @@
+{
+  "changelogRecipes" : [
+
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 1,
+      "headings" : [
+        "New",
+        "Fixed"
+      ],
+      "kind" : "sourceStructured",
+      "markdown" : false,
+      "newestItems" : 45,
+      "newestVersion" : "0.13.0"
+    },
+    "download" : "releases",
+    "installTrust" : "developerID",
+    "latest" : "0.13.0",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "GitHub",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 1,
+      "headings" : [
+        "New",
+        "Fixed"
+      ],
+      "kind" : "sourceStructured",
+      "markdown" : false,
+      "newestItems" : 45,
+      "newestVersion" : "0.13.0"
+    },
+    "download" : "releases",
+    "installTrust" : "developerID",
+    "latest" : "0.13.0",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "GitHub",
+    "status" : "update→0.13.0"
+  },
+  "perRelease" : [
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.13.0",
+      "version" : "0.13.0",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.12.0",
+      "version" : "0.12.0",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.11.2",
+      "version" : "0.11.2",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.11.1",
+      "version" : "0.11.1",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.11.0",
+      "version" : "0.11.0",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.10.2",
+      "version" : "0.10.2",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.10.1",
+      "version" : "0.10.1",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "<none>",
+      "prerelease" : false,
+      "tag" : "v0.10.0",
+      "version" : "0.10.0",
+      "x86_64" : "<none>"
+    }
+  ],
+  "rules" : [
+    {
+      "bundleID" : "rocks.spotifast.Spotifast",
+      "channel" : "stable",
+      "installAssetPattern" : "^spotifast-v[0-9]+\\.[0-9]+\\.[0-9]+-macos-universal\\.dmg$",
+      "installerKind" : "dmg",
+      "installTrust" : "developerID",
+      "slug" : "crmne\/spotifast",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
+    },
+    {
+      "bundleID" : "me.paolino.fastpotify",
+      "channel" : "stable",
+      "installAssetPattern" : "<nil>",
+      "installerKind" : "<nil>",
+      "installTrust" : "developerID",
+      "slug" : "crmne\/spotifast",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+\\.[0-9]+\\.[0-9]+)$"
+    }
+  ]
+}

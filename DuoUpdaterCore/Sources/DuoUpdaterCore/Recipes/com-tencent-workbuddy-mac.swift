@@ -8,12 +8,14 @@ enum com_tencent_workbuddy_mac {
             bundleID: "com.tencent.workbuddy.mac", host: "www.workbuddy.cn",
             assetHost: "download.codebuddy.cn", arch: .arm64,
             downloadURL: URL(string: "https://www.workbuddy.cn/")!,
-            changelogURL: URL(string: "https://www.codebuddy.cn/docs/workbuddy/Changelog")!),
+            changelogURL: URL(string: "https://www.codebuddy.cn/docs/workbuddy/Changelog")!,
+            installsZip: true),
         VendorProbeRegistry.workBuddyRecipe(
             bundleID: "com.tencent.workbuddy.mac", host: "www.workbuddy.cn",
             assetHost: "download.codebuddy.cn", arch: .x86_64,
             downloadURL: URL(string: "https://www.workbuddy.cn/")!,
-            changelogURL: URL(string: "https://www.codebuddy.cn/docs/workbuddy/Changelog")!),
+            changelogURL: URL(string: "https://www.codebuddy.cn/docs/workbuddy/Changelog")!,
+            installsZip: true),
         ],
         changelogs: [
         // History: docs/app-audits/com-tencent-workbuddy-mac.md#历史与实测

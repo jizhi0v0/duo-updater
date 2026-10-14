@@ -1,0 +1,361 @@
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+index f692b68..fdb1b2e 100644
+--- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/AppRecipeIndex.swift
+@@ -99,6 +99,7 @@ public enum AppRecipeIndex {
+         com_kimi_code_desktop.set,
+         com_lemon_lvoverseas.set,
+         com_local_claudestatusbar.set,
++        com_lokii_app.set,
+         com_longbridge_app_desktop.set,
+         com_macpaw_site_theunarchiver.set,
+         com_mak5er_aircard.set,
+diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-lokii-app.swift b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-lokii-app.swift
+new file mode 100644
+index 0000000..adeab71
+--- /dev/null
++++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-lokii-app.swift
+@@ -0,0 +1,32 @@
++import Foundation
++
++enum com_lokii_app {
++    static let set = AppRecipeSet(
++        family: "com-lokii-app",
++        githubRules: [
++        // Shared rationale for digest-only: Recipes/org-alacritty.swift.
++
++        // Lokii — native file search (Rust core + AppKit), huangy7/lokii. No
++        // updater we can read: no `SUFeedURL`, no electron-builder config; the
++        // app's own check (`Lokii/Lokii/AppUpdater.swift`) reads
++        // `/releases/latest` and only opens the dmg in a browser, so it never
++        // swaps the bundle. One channel: no release has ever been a
++        // prerelease and there is no channel setting. The release workflow
++        // refuses a tag that differs from `lokii-core/Cargo.toml`, and
++        // `scripts/build.sh` writes that version into
++        // `CFBundleShortVersionString`, so short == tag without the `v`.
++        //
++        // Ad-hoc signed, no Team ID: `build.sh` signs with `-` unless the
++        // repo's signing secrets are set. The seal verifies and the signed
++        // identifier is the bundle id, so one-click is digest-only. One thin
++        // dmg per architecture, both named without a version; arch selection
++        // picks this Mac's. No nested code, no login item.
++        GitHubReleaseRule(
++            bundleID: "com.lokii.app",
++            owner: "huangy7", repo: "lokii",
++            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
++            installAssetPattern: #"^Lokii-(arm64|x86_64)\.dmg$"#,
++            installerKind: .dmg,
++            installTrust: .publishedDigestOnly),
++        ])
++}
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/DigestOnlyRecipeTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/DigestOnlyRecipeTests.swift
+index f50cb6d..436de35 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/DigestOnlyRecipeTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/DigestOnlyRecipeTests.swift
+@@ -2,9 +2,10 @@ import Foundation
+ import Testing
+ @testable import DuoUpdaterCore
+ 
+-/// The three rules this route was opened for, against the asset names their
+-/// repositories actually published (every stable release with a digest, read
+-/// from the GitHub API 2026-10-02 — see `docs/app-audits/org-alacritty.md`).
++/// The digest-only rules, against the asset names their repositories actually
++/// published (every stable release with a digest, read from the GitHub API
++/// 2026-10-02 — see `docs/app-audits/org-alacritty.md`; Lokii's, read
++/// 2026-10-14 — see `docs/app-audits/com-lokii-app.md`).
+ @Suite struct DigestOnlyRecipeTests {
+ 
+     private static let expected: [String: [[String]]] = [
+@@ -23,6 +24,7 @@ import Testing
+             ["darktable-5.2.1-arm64-13.5.dmg", "darktable-5.2.1-arm64.dmg", "darktable-5.2.1-x86_64.dmg"],
+             ["darktable-5.4.0-arm64.dmg"],
+         ],
++        "com.lokii.app": [["Lokii-arm64.dmg", "Lokii-x86_64.dmg"]],
+     ]
+ 
+     private func rule(_ bundleID: String) -> GitHubReleaseRule? {
+@@ -48,6 +50,7 @@ import Testing
+             "org.alacritty": ["Alacritty-v0.17.0.dmg", "Alacritty-v0.16.1.dmg"],
+             "org.flameshot.Flameshot": ["Flameshot-14.0-macos-arm64.dmg", "Flameshot-13.3.0-artifact-macos-arm64.dmg"],
+             "org.darktable": ["darktable-5.6.1-arm64.dmg", "darktable-5.2.1-arm64.dmg", "darktable-5.4.0-arm64.dmg"],
++            "com.lokii.app": ["Lokii-arm64.dmg"],
+         ]
+         for (bundleID, releases) in Self.expected {
+             let pattern = try #require(rule(bundleID)?.installAssetPattern, "\(bundleID)")
+@@ -61,5 +64,12 @@ import Testing
+                 #expect(!(picked?.url.lastPathComponent.contains("rc") ?? false))
+             }
+         }
++        // An Intel Mac gets the x86_64 dmg, not the arm64 one.
++        let lokiiPattern = try #require(rule("com.lokii.app")?.installAssetPattern)
++        let lokiiAssets = Self.expected["com.lokii.app"]![0]
++            .map { (name: $0, url: URL(string: "https://github.com/x/y/\($0)")!, size: Int64?.none) }
++        #expect(GitHubReleaseRule.installableAsset(
++            from: lokiiAssets, matching: lokiiPattern, preferring: .x86_64, allowingIntelTranslation: false)?
++            .url.lastPathComponent == "Lokii-x86_64.dmg")
+     }
+ }
+diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift
+index 47f3704..6fa5e4e 100644
+--- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift
++++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/GitHubAssetSelectionTests.swift
+@@ -127,6 +127,9 @@ struct GitHubAssetSelectionTests {
+          ["Flameshot-14.0-macos-arm64.dmg", "Flameshot-14.0-macos-intel.dmg"]),
+         (#"^darktable-[0-9.]+-(arm64|x86_64)\.dmg$"#,
+          ["darktable-5.6.1-arm64.dmg", "darktable-5.6.1-x86_64.dmg"]),
++        // Lokii: one thin dmg per architecture, named without a version (v0.1.2).
++        (#"^Lokii-(arm64|x86_64)\.dmg$"#,
++         ["Lokii-arm64.dmg", "Lokii-x86_64.dmg"]),
+         // magpie: one zip per architecture under every tag (v0.1.1084).
+         (#"^magpie-darwin-(?:arm64|amd64)\.zip$"#,
+          ["magpie-darwin-amd64.zip", "magpie-darwin-arm64.zip"]),
+diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-lokii-app.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-lokii-app.txt
+new file mode 100644
+index 0000000..b256168
+--- /dev/null
++++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-lokii-app.txt
+@@ -0,0 +1,40 @@
++// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
++// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
++
++family = "com-lokii-app"
++
++probes = Array(count: 0)
++
++changelogs = Array(count: 0)
++
++githubRules = Array(count: 1)
++githubRules[0] = struct GitHubReleaseRule
++githubRules[0].bundleID = "com.lokii.app"
++githubRules[0].owner = "huangy7"
++githubRules[0].repo = "lokii"
++githubRules[0].usePrereleases = false
++githubRules[0].listPageSize = 20
++githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
++githubRules[0].candidateScope = .newest
++githubRules[0].probesNewestFirst = true
++githubRules[0].installedTagPrefix = nil
++githubRules[0].channel = .stable
++githubRules[0].installAssetPattern? = "^Lokii-(arm64|x86_64)\\.dmg$"
++githubRules[0].installerKind? = .dmg
++githubRules[0].installTrust = .publishedDigestOnly
++
++appStoreCases = Array(count: 0)
++
++channelProofs = Dictionary(count: 0)
++
++githubChannelProofs = Dictionary(count: 0)
++
++bindingProofs = Dictionary(count: 0)
++
++sparkleFeeds = Dictionary(count: 0)
++
++supersededFeeds = Dictionary(count: 0)
++
++loginWalls = Dictionary(count: 0)
++
++changelogPages = Dictionary(count: 0)
+diff --git a/docs/app-audits/README.md b/docs/app-audits/README.md
+index e6a2d87..476c108 100644
+--- a/docs/app-audits/README.md
++++ b/docs/app-audits/README.md
+@@ -234,6 +234,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
+ - [x] [**Reviu**](com-jorisgallot-reviu.md) · `com.jorisgallot.reviu` — G (one-click arm64 dmg) · 真包 v1.4.0 挂载验证 ✓ · 一键 1.3.0→1.4.0 端到端 ✓ · 2026-09-29
+ - [x] [**Obelisk**](com-obelisk-app.md) · `com.obelisk.app` — G (**detection-only**：0.2.2 为 ad-hoc 签名) C (GitHub releases) · 真包 v0.2.2 挂载验证 ✓ · 下一版起 bundle 自带 Sparkle feed，待复验 · 2026-10-02
+ - [x] [**diri**](com-dirijor-diri.md) · `com.dirijor.diri` — G (one-click universal zip) C (GitHub releases) · 真包 v0.9.1 解包验证 ✓（Team A56RVNJ69X）· 一键 0.9.0→0.9.1 端到端 ✓ · 2026-10-04
++- [x] [**Lokii**](com-lokii-app.md) · `com.lokii.app` — G (digest-only one-click per-arch dmg；ad-hoc 签名，无 Team ID) · 无 changelog（release 正文为固定句）· 真包 v0.1.2 挂载验证 ✓ · 一键端到端未跑 · 2026-10-14
+ - [x] [**CrystalFetch**](llc-turing-CrystalFetch.md) · `llc.turing.CrystalFetch` — G (one-click universal dmg; MAS 副本走商店) · 真包 v2.2.0 挂载验证 ✓ · 2026-09-29
+ - [x] [**Neovide**](com-neovide-neovide.md) · `com.neovide.neovide` — G (one-click arm64 dmg) · 真包 0.16.2 挂载验证 ✓ · channel-verify 0.16.1→0.16.2 ✓ · 2026-09-29
+ - [x] [**MacDown 3000**](app-macdown-macdown3000.md) · `app.macdown.macdown3000` — G (one-click universal dmg) · 真包 v3000.0.7 挂载验证 ✓（rc/beta 是 prerelease 轨，未接入）· 2026-09-29
+diff --git a/docs/app-audits/com-lokii-app.md b/docs/app-audits/com-lokii-app.md
+new file mode 100644
+index 0000000..d9d9cc5
+--- /dev/null
++++ b/docs/app-audits/com-lokii-app.md
+@@ -0,0 +1,186 @@
++# Lokii
++
++## 基本信息
++- Bundle ID: `com.lokii.app`
++- Team ID: 无（ad-hoc 签名，`flags=0x2(adhoc)`，`TeamIdentifier=not set`；未公证，`spctl` 拒绝，无 staple）
++- 观测版本: `0.1.2`（`CFBundleShortVersionString` = tag 去掉 `v`；`CFBundleVersion` 每个版本都是 `1`，
++  不参与比较）
++- 自更新机制: 自研（`Lokii/Lokii/AppUpdater.swift`），**不是 Sparkle**：无 `SUFeedURL`。它读
++  `api.github.com/repos/huangy7/lokii/releases/latest`，有新版时用浏览器打开对应架构的 dmg 地址，
++  **不下载、不换 bundle**
++- 分发: GitHub Releases（`huangy7/lokii`，MIT），每个 release 两个瘦包：`Lokii-arm64.dmg`、
++  `Lokii-x86_64.dmg`（文件名不带版本号）。不在官方 homebrew-cask；有作者自己的 tap
++  （`huangy7/homebrew-tap`）。无 MAS
++- 开源: 是。以下 tag / 签名 / 发布顺序读自 `main` 分支源码
++
++## 覆盖矩阵
++
++> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
++
++|            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
++|------------|---------|----------|-----|--------|-------------|
++| **stable** | — | —（仅第三方 tap，不在官方 catalog，落到下一个源） | — | ✓（digest-only 一键，按架构选 dmg） | — |
++
++当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**。
++
++## Channel 详情
++
++| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
++|---------|-----------|----------|---------|---------|------|
++| stable  | `com.lokii.app` | 单一渠道 | — | tag 锚 `^vX.Y.Z$` | ✓ |
++
++单渠道。2026-10-14 全部 3 个 release（v0.1.0 / v0.1.1 / v0.1.2）都不是 prerelease、不是 draft；
++app 里没有渠道偏好，`AppUpdater` 写死 `/releases/latest`（settled from source:
++`Lokii/Lokii/AppUpdater.swift` on `main`）。`ci.yml` 只构建不上传，没有 nightly（settled from
++source: `.github/workflows/ci.yml` on `main`）。
++
++## 更新检测
++- 源: `huangy7/lokii` GitHub Releases，`/releases/latest`
++- 版本方案: tag `v0.1.2` ↔ short `0.1.2`。`release.yml` 的 `prepare` 任务在 tag 与
++  `lokii-core/Cargo.toml` 的 `version` 不一致时直接失败，`scripts/build.sh` 把同一个版本写进
++  `CFBundleShortVersionString`（settled from source: `.github/workflows/release.yml`、
++  `scripts/build.sh` on `main`）
++- 发布顺序: release 先建成 draft，两个架构都上传后由 `publish` 任务取消 draft 并标 `--latest`
++  （settled from source: `release.yml`）。所以 `/releases/latest` 不会出现只有一个架构的 release
++- Bundle ID 历史: `scripts/build.sh` 与 `Lokii/project.yml` 自首个提交起都是 `com.lokii.app`
++- 注意事项:
++  - Homebrew: 作者 tap 的 cask 停在 0.1.1（它的同步 workflow 没有为 v0.1.2 触发）。`HomebrewCaskSource`
++    只读官方 catalog，对 tap 安装不应答，落到同一条 GitHub 规则
++  - 无设备标识、无灰度
++- 观测（2026-10-14，`gh api repos/huangy7/lokii/releases`）:
++
++| tag | 发布时间 | 资产 |
++|---|---|---|
++| v0.1.2（`/releases/latest`）| 2026-10-13 | `Lokii-arm64.dmg`、`Lokii-x86_64.dmg` |
++| v0.1.1 | 2026-10-06 | 同上 |
++| v0.1.0 | 2026-10-03 | 同上 |
++
++## 按 OS 分轨
++- 真包 `LSMinimumSystemVersion` = `13.0`（v0.1.1、v0.1.2，两个架构），无上限；GitHub release
++  本身不声明系统要求，一键安装的系统下限由门 6 从 bundle 读出，规则里不写 `hostRequirement`
++- 不按 OS 分桶：每个架构一个包
++
++## 增量更新（delta / binary patch）
++
++| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
++|---|---|---|---|
++| 结论 | 无 | 无 | 不适用 |
++| 证据 | 不带 Sparkle；`AppUpdater` 只打开 dmg 地址 | 每个 release 只有两个整包 dmg（2026-10-14 `releases` 响应） | — |
++
++自更新器会不会和我们抢: 不会。`AppUpdater` 从不写 bundle，用户要自己从 dmg 里拖。
++
++## Changelog
++- 来源: 无。厂商不写更新说明：三个 release 的正文都是同一句
++  `See the assets to download this version and install.`（`release.yml` 里
++  `gh release create --notes` 的固定字符串）。仓库里没有 CHANGELOG / 更新日志文件
++  （`git/trees/main?recursive=1`，未截断，无匹配），官网也没有
++- 结构化: `channel-verify` 的 `changelog pane` 行原文（2026-10-14，v0.1.1 → v0.1.2）:
++  `source structured: 1 entries; newest 0.1.2: 1 items, headings []; first items ["See the assets to download this version "]`。
++  机械上算「structured」，但唯一的条目就是上面那句固定话，**没有任何版本的真实改动说明、没有小标题**，
++  所以不算达成「结构化 changelog」
++- 跟随 channel: 单渠道
++- Recipe 状态: 不需要。`ChangelogRecipe` 读 GitHub releases 也只会重复同一句话；可抓的来源不存在
++
++## 一键安装
++- 状态: **digest-only（用户在设置里开启后）**。`installTrust: .publishedDigestOnly`，
++  `installAssetPattern` `^Lokii-(arm64|x86_64)\.dmg$`，`.dmg`。每个版本都是 ad-hoc 签名、无 Team ID，
++  所以 Team-ID 路线不可能；与 Alacritty / Flameshot / darktable 同类（共用理由见
++  `Recipes/org-alacritty.swift`）
++- 端到端: **未跑**（`duo install` 从上一版装到最新版没有执行）。本次审计在受限环境完成，不允许
++  写 `/Applications`、不允许运行 `duo`；由协调者串行补做。因此「一键」只有静态证据：规则、
++  单元测试里的资产挑选、`channel-verify` 的下载地址，它们都不下载也不换包
++- 格式: dmg，每个架构一个瘦包（arm64 / x86_64）；架构选择挑本机的那个
++- 校验: GitHub 资产自带 `digest`，自 #1019 起所有可安装规则自动校验，这是 digest-only 路线上的
++  全部证明。真实下载的 `shasum -a 256` 与 API `digest` 逐个相等（2026-10-14）:
++
++| 资产 | sha256 | 等于 API digest |
++|---|---|---|
++| v0.1.2 `Lokii-arm64.dmg` | `ff475bae…8b29` | ✓ |
++| v0.1.2 `Lokii-x86_64.dmg` | `95b5be83…db3c` | ✓ |
++| v0.1.1 `Lokii-arm64.dmg` | `291a53f9…71bd` | ✓ |
++| v0.1.1 `Lokii-x86_64.dmg` | `c4ac5972…2593` | ✓ |
++| v0.1.0 `Lokii-arm64.dmg` | `2d548bf6…2924` | ✓ |
++| v0.1.0 `Lokii-x86_64.dmg` | `483685fd…856a` | ✓ |
++
++- **读的是**: 人人可手动下载的 GA（`/releases/latest` 的公开资产，官网下载按钮和 app 自己的检查用
++  的是同一个地址）
++- 身份证明（digest-only 路线）: GitHub `digest` + 封印校验（`codesign --verify --deep --strict` 退出 0）
++  + 包内 bundle id / 版本 + 签名标识符。真包上这四项: 标识符 `com.lokii.app`，`Sealed Resources
++  version=2`，short 版本等于 tag，v0.1.1 与 v0.1.2 都是 ad-hoc、无 Team
++- 常驻进程: 无。bundle 里只有 `MacOS/Lokii`、`Resources`、`_CodeSignature`，没有
++  `LoginItems` / `Helpers` / `LaunchAgents` / XPC / framework；源码里没有 `SMAppService`。app 本身
++  是 `LSUIElement`（菜单栏常驻），换包后需要重启才跑新代码
++- 阻塞: 代码上无
++
++## 已知问题
++- 作者 tap 的 cask 落后于 GitHub（停在 0.1.1）；tap 安装的副本被换包后，Caskroom 里的版本记录
++  不会跟着变
++- app 自己的检查也会提示同一个版本（只开浏览器，不换包），两边并存无害
++- 换包后正在运行的进程继续跑旧代码，要重启
++- 每个 release 正文都是固定一句话，变更面板只会显示这一句。要消除只能在 Core 里加「忽略厂商
++  固定句」的选项，这超出本次范围，未做
++- 完全磁盘访问（FDA）**预期**每次更新都会丢，**真机上未确认**。app 需要 FDA（`lokii-core/src/permissions.rs`
++  的 `has_full_disk_access`，引导窗口 `FDAGuideWindowController.swift`）。静态证据:
++  - 两个版本的 designated requirement 都是各自构建的 cdhash，且不同（2026-10-14，真包
++    `codesign -d -r-`）:
++
++    | 包 | designated requirement |
++    |---|---|
++    | v0.1.1 arm64 | `cdhash H"beb55af78b167990b24d7b1431d573e075bfeb88"` |
++    | v0.1.2 arm64 | `cdhash H"6a0fd887ae138cf4135076f379ec260f0ca4fbef"` |
++    | v0.1.1 x86_64 | `cdhash H"2ed204355842aaacaa0db13c57a7a4972c6d0bda"` |
++    | v0.1.2 x86_64 | `cdhash H"09d377e3a2bae6c4a65576cd3c73327c24996dac"` |
++  - Apple DTS 在开发者论坛上说，macOS 用 designated requirement 判断「版本 N+1 是不是同一个程序」，
++    ad-hoc 签名的代码没有稳定的 DR，所以系统认不出是同一份代码
++    （[thread/795739](https://developer.apple.com/forums/thread/795739)、
++    [thread/707177](https://developer.apple.com/forums/thread/707177)，后者明说 TCC 用 DR 跟踪）。
++    这两个帖子讨论的是别的隐私权限（如屏幕录制），**没有测过 FDA**，所以这里是推断，不是实测
++  - 若属实，对包括厂商手动拖装在内的所有更新路径都一样，不是不开一键的理由
++- 全局快捷键用 Carbon `RegisterEventHotKey`（`Lokii/Lokii/KeyboardShortcuts/CarbonKeyboardShortcuts.swift`
++  on `main`）；源码里没有 `AXIsProcessTrusted`、事件 tap 或全局事件监听，所以换包不涉及任何隐私权限
++  （settled from source；「Carbon 热键不需要权限」本身 Apple 没有明文，来自社区说法）
++- **未验证**: 在 Rosetta 下运行 x86_64 包的 Apple silicon 机器，是否被一键换成 arm64 包（规则按
++  本机架构优先选 arm64；`channel-verify` 在 arm64 机器上对 x86_64 的 v0.1.1 包给出的下载地址就是
++  `Lokii-arm64.dmg`，但没有真机安装）
++- **未验证**: 2026-10-02 那个已被删除的最早 v0.1.0 发布（history 被改写）里的包 bundle id；源码在
++  该提交处写的是 `com.lokii.app`，没有检查过真包
++
++## 如何复验
++```
++# GET https://api.github.com/repos/huangy7/lokii/releases/latest → v0.1.2
++# 资产 URL（已检查）:
++#   https://github.com/huangy7/lokii/releases/download/v0.1.2/Lokii-arm64.dmg
++#   https://github.com/huangy7/lokii/releases/download/v0.1.2/Lokii-x86_64.dmg
++#   https://github.com/huangy7/lokii/releases/download/v0.1.1/Lokii-arm64.dmg
++#   https://github.com/huangy7/lokii/releases/download/v0.1.1/Lokii-x86_64.dmg
++# 挂载（只读）→ com.lokii.app / 0.1.2 / CFBundleVersion 1 / LSMinimumSystemVersion 13.0 / 无 SUFeedURL
++#   codesign -dvv: Identifier=com.lokii.app, Format=app bundle with Mach-O thin (arm64),
++#     CodeDirectory flags=0x2(adhoc), Signature=adhoc, TeamIdentifier=not set,
++#     Sealed Resources version=2 rules=13 files=4
++#   codesign --verify --deep --strict → 退出 0；spctl -a -t exec → rejected（退出 3）；
++#   stapler validate → 无 ticket
++#   v0.1.1 的 arm64 包同上（0.1.1）；x86_64 包为 thin x86_64，其余相同
++swift run --package-path application-test feed-discover Lokii-arm64.dmg
++#   → Lokii  [com.lokii.app]  0.1.2 (1) — no Sparkle and no electron-builder update config
++swift run --package-path application-test channel-verify <v0.1.1 的 Lokii-arm64.dmg> --expect stable
++#   → detected channel stable, winning source GitHub, latest 0.1.2,
++#     download https://github.com/huangy7/lokii/releases/download/v0.1.2/Lokii-arm64.dmg,
++#     changelog pane source structured: 1 entries; newest 0.1.2: 1 items, headings []; first items ["See the assets to download this version "],
++#     status UPDATE → 0.1.2
++swift run --package-path application-test channel-verify <v0.1.1 的 Lokii-x86_64.dmg> --expect stable
++#   → 同上（在 arm64 主机上挑 arm64 包）
++swift run --package-path application-test channel-verify <v0.1.2 的 Lokii-arm64.dmg> --expect stable
++#   → winning source GitHub, latest 0.1.2, status up to date
++swift run --package-path application-test channel-verify <v0.1.2 的 Lokii-x86_64.dmg> --expect stable
++#   → status up to date
++# 改动前（未登记）: 'VendorProbe — no recipe registered for com.lokii.app', winning source <none>,
++#   status unknown (no source answered)
++```
++
++## 建议下一步
++1. 在真机上跑一键端到端（上一版 → 0.1.2，先在设置里开启 digest-only），并同时测 FDA 换包后是否
++   保留（预期会丢，见「已知问题」）；跑完把本文「端到端」一行改成结果
++2. 若上游开始用 Developer ID 签名（`build.sh` 里已有这条路径，签名 secrets 配上就会走），ad-hoc 老副本
++   会被 digest-only 的身份门以 `teamIdentifierAppeared` 拒绝（需手动更新一次），那时规则应改为默认
++   的 `.developerID` 信任并从 `DigestOnlyRecipeTests` 里去掉
++3. 若厂商之后开始写 release 正文，重跑 `channel-verify` 看 `changelog pane`；固定句问题见「已知问题」

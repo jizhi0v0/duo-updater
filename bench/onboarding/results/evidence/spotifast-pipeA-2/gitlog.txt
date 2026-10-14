@@ -1,0 +1,5 @@
+1ea450d Spotifast: old Fastpotify copies find the rule; one-click needs verification
+3189443 Spotifast: detection, one-click and What's New from GitHub releases
+7bccb0b Update Sparkle appcast for v0.5.0 (#1033)
+f196600 chore: bump to 0.5.0 (118) (#1032)
+21047ba Track storytold's seven -craft apps (GitHub releases, one-click) (#1031)

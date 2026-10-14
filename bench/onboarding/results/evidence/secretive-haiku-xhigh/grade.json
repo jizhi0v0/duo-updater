@@ -1,0 +1,66 @@
+{
+  "changelogRecipes" : [
+
+  ],
+  "new" : {
+    "changelogPane" : {
+      "kind" : "webOrNone"
+    },
+    "download" : "<nil>",
+    "installTrust" : "developerID(legacy base)",
+    "latest" : "<none>",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "<none>",
+    "status" : "unknown"
+  },
+  "old" : {
+    "changelogPane" : {
+      "kind" : "webOrNone"
+    },
+    "download" : "<nil>",
+    "installTrust" : "developerID(legacy base)",
+    "latest" : "<none>",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "<none>",
+    "status" : "unknown"
+  },
+  "perRelease" : [
+    {
+      "prerelease" : false,
+      "tag" : "v4.0.0"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v3.0.4"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v3.0.3"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v3.0.2"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v3.0.0"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v2.4.1"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v2.4.0"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v2.3.1"
+    }
+  ],
+  "rules" : [
+
+  ]
+}

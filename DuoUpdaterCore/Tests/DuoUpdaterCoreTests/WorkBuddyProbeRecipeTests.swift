@@ -20,6 +20,10 @@ struct WorkBuddyProbeRecipeTests {
         /// off the vendor's own DMG — deliberately the THREE-segment string, which
         /// is the point of the version pattern.
         let installedShortVersion: String
+        /// The artifact `sha256hash` describes, which one-click must install: the
+        /// dmg for the international site, the zip for the China site (its digest
+        /// moved to the zip by 2026-10-14; see `workBuddyRecipe`).
+        let installKind: VendorInstallerKind
         let bodies: [String: String]  // variant slug → captured response body
     }
 
@@ -28,6 +32,7 @@ struct WorkBuddyProbeRecipeTests {
             bundleID: "com.workbuddy.workbuddy-ai",
             host: "www.workbuddy.ai",
             installedShortVersion: "5.4.2",
+            installKind: .dmg,
             bodies: [
                 "arm64": #"{"version":"5.4.2.36857725","url":"https://codebuddy-1328495429.cos.accelerate.myqcloud.com/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-5.4.2.36857725-d74591c4.zip","productVersion":"5.4.2.36857725","sha256hash":"5d28d2b009dddb661ca8f2b1821dc57f853132071ae23101465f385d016a7743","timestamp":1787580925,"hash":"","name":"","supportsFastUpdate":false}"#,
                 "x64": #"{"version":"5.4.2.36857725","url":"https://codebuddy-1328495429.cos.accelerate.myqcloud.com/workbuddy/saas/darwin-x64/WorkBuddy-darwin-x64-5.4.2.36857725-d74591c4.zip","productVersion":"5.4.2.36857725","sha256hash":"0f1dce554df89f5e50db04823144e01faee7ea88483875cdc7066406d15b362b","timestamp":1787580925,"hash":"","name":"","supportsFastUpdate":false}"#,
@@ -36,6 +41,7 @@ struct WorkBuddyProbeRecipeTests {
             bundleID: "com.tencent.workbuddy.mac",
             host: "www.workbuddy.cn",
             installedShortVersion: "5.3.14",
+            installKind: .zip,
             bodies: [
                 "arm64": #"{"version":"5.3.14.36279234","url":"https://download.codebuddy.cn/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-5.3.14.36279234-825709d4.zip","productVersion":"5.3.14.36279234","sha256hash":"a7c18fecd2939f8bd7a00ab5accdd905dbc5bbd5927291c9c5762541c1bd6a61","timestamp":1787002434,"hash":"","name":"","supportsFastUpdate":false}"#,
                 "x64": #"{"version":"5.3.14.36279234","url":"https://download.codebuddy.cn/workbuddy/saas/darwin-x64/WorkBuddy-darwin-x64-5.3.14.36279234-825709d4.zip","productVersion":"5.3.14.36279234","sha256hash":"25fe856763ff917e3086135f445c1016085ef7130433661994840e7a4c0a09ce","timestamp":1787002434,"hash":"","name":"","supportsFastUpdate":false}"#,
@@ -58,7 +64,6 @@ struct WorkBuddyProbeRecipeTests {
         guard case .bodyTemplate(let template, let fields) = spec.urlSource else {
             throw RecipeShapeError.notABodyTemplate(recipe.recipeID)
         }
-        #expect(spec.kind == .dmg)
         var filled = template
         for (index, field) in fields.enumerated() {
             guard let value = VendorProbeRecipe.extractVersion(from: body, pattern: field)
@@ -206,20 +211,24 @@ struct WorkBuddyProbeRecipeTests {
 
     // MARK: - the install artifact
 
-    /// Every recipe installs the dmg beside the zip its own captured body names:
-    /// the same path and name, only the extension swapped. That dmg is the file
-    /// `sha256hash` describes.
-    @Test func eachRecipeInstallsTheDMGBesideTheZipItsOwnBodyNames() throws {
+    /// Every recipe installs the artifact its site's digest describes, found beside
+    /// the zip its own captured body names: the same path and name, only the
+    /// extension swapped (`Site.installKind`).
+    @Test func eachRecipeInstallsTheArtifactItsDigestDescribes() throws {
         for site in Self.sites {
             for recipe in Self.recipes where recipe.bundleID == site.bundleID {
                 let slug = try #require(recipe.variant)
                 let body = try #require(site.bodies[slug])
+                let spec = try #require(recipe.install)
+                #expect(spec.kind == site.installKind,
+                        "\(recipe.recipeID) installs the wrong artifact kind")
                 let resolved = try #require(
                     try Self.resolvedInstallURL(recipe, body: body),
                     "\(recipe.recipeID) resolved no install URL")
                 let zip = try Self.bodyURL(body)
                 #expect(zip.hasSuffix(".zip"))
-                #expect(resolved == String(zip.dropLast(".zip".count)) + ".dmg")
+                let artifactExtension = site.installKind == .zip ? ".zip" : ".dmg"
+                #expect(resolved == String(zip.dropLast(".zip".count)) + artifactExtension)
                 #expect(resolved.contains("/darwin-\(slug)/"))
                 #expect(resolved.contains("WorkBuddy-darwin-\(slug)-"))
             }
@@ -265,11 +274,9 @@ struct WorkBuddyProbeRecipeTests {
         }
     }
 
-    /// `sha256hash` is the SHA-256 of the `.dmg` sibling, not of the `.zip` the
-    /// body's `url` names (measured 2026-10-07 on all four host×arch pairs), and
-    /// the dmg is what one-click downloads. The digest is read as hex SHA-256
-    /// from the same body the URL comes from.
-    @Test func theDMGIsCheckedAgainstTheBodysSHA256() throws {
+    /// The digest is read as hex SHA-256 from the same body the URL comes from, and
+    /// the artifact one-click installs is the one it describes (`Site.installKind`).
+    @Test func theInstalledArtifactIsCheckedAgainstTheBodysSHA256() throws {
         for site in Self.sites {
             for recipe in Self.recipes where recipe.bundleID == site.bundleID {
                 let slug = try #require(recipe.variant)
@@ -283,6 +290,35 @@ struct WorkBuddyProbeRecipeTests {
                 #expect(VendorProbeRecipe.extractVersion(from: body, pattern: pattern)
                     == published, "\(recipe.recipeID)")
             }
+        }
+    }
+
+    /// The China site's endpoint on 2026-10-14, captured verbatim
+    /// (`curl -sS 'https://www.workbuddy.cn/v2/update?platform=workbuddy-darwin-<arch>'`).
+    /// Its `sha256hash` is the SHA-256 of the `.zip` that `url` names: `shasum -a 256`
+    /// on that zip equals it for both arches, and the dmg at the swapped path hashes
+    /// to something else. Installing that dmg against this digest was the bug.
+    @Test func theChinaSiteDigestIsTheZipsToday() throws {
+        let captured: [(slug: String, body: String, sha: String)] = [
+            ("arm64",
+             #"{"version":"5.8.2.41111488","url":"https://download.codebuddy.cn/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-5.8.2.41111488-b8f6c953.zip","productVersion":"5.8.2.41111488","sha256hash":"af6c9f92cf5edbf1cefd4c97d9dbaf5564a7fa43e861761e29018c1422807ef9","timestamp":1791834688,"hash":"","name":"","supportsFastUpdate":false}"#,
+             "af6c9f92cf5edbf1cefd4c97d9dbaf5564a7fa43e861761e29018c1422807ef9"),
+            ("x64",
+             #"{"version":"5.8.2.41111488","url":"https://download.codebuddy.cn/workbuddy/saas/darwin-x64/WorkBuddy-darwin-x64-5.8.2.41111488-b8f6c953.zip","productVersion":"5.8.2.41111488","sha256hash":"f64eaf8093fe60309bafb4637a0d0b33063ccc26607edbbc8dfc39a43083653f","timestamp":1791834688,"hash":"","name":"","supportsFastUpdate":false}"#,
+             "f64eaf8093fe60309bafb4637a0d0b33063ccc26607edbbc8dfc39a43083653f"),
+        ]
+        for (slug, body, sha) in captured {
+            let recipe = try #require(Self.recipes.first {
+                $0.bundleID == "com.tencent.workbuddy.mac" && $0.variant == slug
+            })
+            let spec = try #require(recipe.install)
+            #expect(spec.kind == .zip, "\(recipe.recipeID) must install the zip its digest describes")
+            #expect(VendorProbeRecipe.extractVersion(
+                from: body, pattern: recipe.versionPattern) == "5.8.2")
+            #expect(VendorProbeRecipe.extractVersion(
+                from: body, pattern: try #require(spec.checksumPattern)) == sha)
+            #expect(try Self.resolvedInstallURL(recipe, body: body)
+                == "https://download.codebuddy.cn/workbuddy/saas/darwin-\(slug)/WorkBuddy-darwin-\(slug)-5.8.2.41111488-b8f6c953.zip")
         }
     }
 

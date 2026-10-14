@@ -49,7 +49,7 @@ Write the recheck to `@OUT@`. Do not modify any other file. Use this format:
    - Trigger: …
    - Evidence: the quoted line(s)
 
-If there are any, end with the claims you could not check, in two lists. A claim belongs in the first list when the merged code's behavior depends on it being true (for example, whether the vendor flags its pre-releases, which decides whether `/releases/latest` answers 404).
+Always end with the claims you could not check, in two lists, even when there are no findings. A claim belongs in the first list when the merged code's behavior depends on it being true (for example, whether the vendor flags its pre-releases, which decides whether `/releases/latest` answers 404). Write `- None.` under a heading whose list is empty.
 
 **Unverified external claims the behavior depends on**
 

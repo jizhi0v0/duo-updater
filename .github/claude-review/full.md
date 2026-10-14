@@ -30,7 +30,7 @@ Do not report style, naming, formatting, optional refactors, missing tests on th
 If the diff adds or changes a recipe under `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/` or an audit under `docs/app-audits/`, do this before you read the recipe code:
 
 1. From the audit doc, `CHANNEL_COVERAGE_TODO.md` and the rest of the repository, list every group of installed copies a user might have: bundle IDs (including old ones from a rename), editions, release tracks, version ranges with and without the vendor's update feed, and how each range is signed.
-2. Only then read the rules, and mark each group as covered by a rule, recorded as a gap, or neither.
+2. Only then read the rules, and mark each group as covered by a rule, recorded as a gap, or neither. `REVIEW.md` says when a recorded gap doesn't count.
 
 A group marked "neither" is a finding under the "Recipes and onboarding" section of `REVIEW.md`. Work from the repository only; you have no network access.
 
@@ -52,7 +52,7 @@ Write the review to `@OUT@`. Do not modify any other file. Use this format:
 
 If N is 0, write `**Blocking findings: 0**` and one sentence on what you checked.
 
-If there are any, end with the claims you could not check, in two lists. A claim belongs in the first list when the merged code's behavior depends on it being true (for example, whether the vendor flags its pre-releases, which decides whether `/releases/latest` answers 404).
+Always end with the claims you could not check, in two lists, even when there are no findings. A claim belongs in the first list when the merged code's behavior depends on it being true (for example, whether the vendor flags its pre-releases, which decides whether `/releases/latest` answers 404). Write `- None.` under a heading whose list is empty.
 
 **Unverified external claims the behavior depends on**
 

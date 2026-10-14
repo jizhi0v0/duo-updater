@@ -62,6 +62,7 @@ struct StorageSettingsPage: View {
                 SettingsDivider()
                 clearRow
             }
+            .settingsAnchor(.storageCaches)
 
             SettingsCard(
                 header: "App data",
@@ -69,6 +70,7 @@ struct StorageSettingsPage: View {
             ) {
                 rows(Self.appData)
             }
+            .settingsAnchor(.storageAppData)
 
             SettingsCard(
                 header: "Kept by macOS for DuoUpdater",
@@ -76,6 +78,7 @@ struct StorageSettingsPage: View {
             ) {
                 rows(Self.system)
             }
+            .settingsAnchor(.storageSystem)
         }
         .task { await measure() }
         .onDisappear { noteReset?.cancel(); refreshedReset?.cancel() }

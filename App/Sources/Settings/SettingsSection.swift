@@ -1,4 +1,5 @@
 import SwiftUI
+import DuoUpdaterCore
 
 /// One page of the Settings window. Promoted out of `SettingsView` so the model
 /// can deep-link to a page (`AppListModel.requestedSettingsSection`) without
@@ -170,12 +171,9 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Case- and diacritic-insensitive match over the label, subtitle, and keywords.
+    /// Match over the label, subtitle, and keywords, by the rule every search
+    /// field shares (`SearchMatch`: case, diacritics and width folded).
     func matches(_ query: String) -> Bool {
-        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !needle.isEmpty else { return true }
-        return ([label, subtitle] + localizedKeywords + englishAliases).contains {
-            $0.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-        }
+        SearchMatch.matches(query, in: [label, subtitle] + localizedKeywords + englishAliases)
     }
 }

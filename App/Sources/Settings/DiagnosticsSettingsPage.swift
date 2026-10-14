@@ -26,7 +26,7 @@ struct DiagnosticsSettingsPage: View {
         SettingsPage(section: .diagnostics) {
             permissionsCard
             lastCheckCard
-            recipesCard
+            recipesCard.settingsAnchor(.recipes)
         }
         .task {
             entries = await RecipeHealth.shared.snapshot()
@@ -58,6 +58,7 @@ struct DiagnosticsSettingsPage: View {
                         .help("Open System Settings with a panel to drag DuoUpdater into")
                 }
             }
+            .settingsAnchor(.appManagement)
             SettingsDivider()
             // Optional: without it nothing reads TestFlight's store or CotEditor's
             // container (`TCCPreflight.admitsOtherAppsData`).
@@ -71,10 +72,12 @@ struct DiagnosticsSettingsPage: View {
                         .settingsGlassButton()
                 }
             }
+            .settingsAnchor(.fullDiskAccess)
             SettingsDivider()
             // Privileged helper: a one-time approval that lets App Store ("full")
             // updates run without a password each time.
             HelperStatusRow(helper: model.helperClient)
+                .settingsAnchor(.appStoreHelper)
             SettingsDivider()
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 10) {
@@ -107,6 +110,7 @@ struct DiagnosticsSettingsPage: View {
                 Text(model.lastCheck.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? String(localized: "Not yet"))
                     .foregroundStyle(.secondary)
             }
+            .settingsAnchor(.lastChecked)
         }
     }
 
@@ -138,6 +142,7 @@ struct DiagnosticsSettingsPage: View {
                 ForEach(Array(entries.enumerated()), id: \.element.key) { index, entry in
                     if index > 0 { SettingsDivider() }
                     recipeRow(entry)
+                        .settingsAnchor(.recipe(entry.key))
                 }
             }
         }

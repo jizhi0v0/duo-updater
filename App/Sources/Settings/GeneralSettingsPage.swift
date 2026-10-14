@@ -42,6 +42,7 @@ struct GeneralSettingsPage: View {
         SettingsCard {
             Toggle("Launch at login", isOn: $prefs.launchAtLogin)
                 .settingsRow()
+                .settingsAnchor(.launchAtLogin)
             SettingsDivider()
             Picker("Check for updates", selection: $prefs.checkFrequency) {
                 ForEach(Preferences.CheckFrequency.allCases) { freq in
@@ -49,11 +50,13 @@ struct GeneralSettingsPage: View {
                 }
             }
             .settingsRow()
+            .settingsAnchor(.checkFrequency)
             // Re-arm the background loop with the new interval immediately.
             .onChange(of: prefs.checkFrequency) { _, _ in model.reschedule() }
             SettingsDivider()
             Toggle("Hide the Dock icon", isOn: $prefs.hideDockIcon)
                 .settingsRow()
+                .settingsAnchor(.hideDockIcon)
             SettingsDivider()
             HStack(spacing: 6) {
                 Toggle("Show what each app is built with", isOn: $prefs.showRuntimeTags)
@@ -64,9 +67,11 @@ struct GeneralSettingsPage: View {
                 if spotlit.contains(SettingsSpotlights.appRuntimeTags.id) { SpotlightDot() }
             }
             .settingsRow()
+            .settingsAnchor(.appRuntimeTags)
             SettingsDivider()
             Toggle("Show what each command-line tool is built with", isOn: $prefs.showCLIRuntimeTags)
                 .settingsRow()
+                .settingsAnchor(.cliRuntimeTags)
         } footer: {
             // What else follows the schedule (`AppListModel.backgroundRefresh`).
             // The 15-minute floor on command-line tools that read GitHub binds only
@@ -99,6 +104,7 @@ struct GeneralSettingsPage: View {
                 "Relaunch updated apps automatically",
                 detail: "Apps are asked to quit normally, so unsaved-work prompts still appear. One that won’t quit keeps its Relaunch button.",
                 isOn: $prefs.autoRestartAfterUpdate)
+                .settingsAnchor(.autoRelaunch)
         }
     }
 
@@ -110,6 +116,7 @@ struct GeneralSettingsPage: View {
                 Text("Check up to \(prefs.maxConcurrency) apps at once")
             }
             .settingsRow()
+            .settingsAnchor(.concurrency)
         }
     }
 
@@ -130,6 +137,7 @@ struct GeneralSettingsPage: View {
                     PickerOptionDetail(appStoreStrategyDetail)
                 }
                 .settingsRow()
+                .settingsAnchor(.appStoreUpdates)
             }
 
             SettingsCard {
@@ -147,6 +155,7 @@ struct GeneralSettingsPage: View {
                     PickerOptionDetail(vendorPolicyDetail)
                 }
                 .settingsRow()
+                .settingsAnchor(.selfUpdatingApps)
             }
 
             SettingsCard {
@@ -155,6 +164,7 @@ struct GeneralSettingsPage: View {
                     detail: "Checks only that the download is byte for byte the file GitHub publishes for the release — or, for apps built with MyGo, that it is signed with the update key of the app you have installed. Neither protects you the way a developer signature does if the developer’s account or key is taken over, and macOS may ask you to grant these apps’ privacy permissions again after each update.",
                     info: "For apps whose GitHub releases are only ad-hoc signed — Alacritty, Flameshot, darktable, disktree and Lokii — and for apps built with MyGo that are. An app installed with a developer signature is never replaced by one without, whatever this says.",
                     isOn: $prefs.allowsDigestOnlyInstalls)
+                    .settingsAnchor(.digestOnlyInstalls)
             }
 
             testFlightCard.settingsAnchor(.testFlightDetection)

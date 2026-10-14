@@ -144,7 +144,7 @@ struct BackupsSettingsPage: View {
     var body: some View {
         SettingsPage(section: .backups) {
             rollbackCard.settingsAnchor(.backups)
-            locationCard
+            locationCard.settingsAnchor(.backupLocation)
             storageCard
         }
         .task {
@@ -264,9 +264,11 @@ struct BackupsSettingsPage: View {
         ) {
             Toggle("Keep a backup so updates can be rolled back", isOn: $prefs.keepBackups)
                 .settingsRow()
+                .settingsAnchor(.keepBackups)
             SettingsDivider()
             Toggle("Delete a backup once its app is uninstalled", isOn: $prefs.pruneOrphanBackups)
                 .settingsRow()
+                .settingsAnchor(.pruneOrphanBackups)
         }
     }
 

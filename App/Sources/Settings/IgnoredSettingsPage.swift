@@ -19,8 +19,8 @@ struct IgnoredSettingsPage: View {
 
     var body: some View {
         SettingsPage(section: .ignored) {
-            ignoredCard
-            skippedCard
+            ignoredCard.settingsAnchor(.ignoredApps)
+            skippedCard.settingsAnchor(.skippedVersions)
         }
     }
 
@@ -38,6 +38,7 @@ struct IgnoredSettingsPage: View {
                             .controlSize(.small)
                     }
                     .settingsRow()
+                    .settingsAnchor(.ignoredApp(key))
                 }
             }
         }
@@ -59,6 +60,7 @@ struct IgnoredSettingsPage: View {
                             .controlSize(.small)
                     }
                     .settingsRow()
+                    .settingsAnchor(.skippedVersion(entry.key))
                 }
             }
         }

@@ -27,7 +27,7 @@ A **blocking** defect is one where the merged code would do the wrong thing (a w
 - Every tool call should have a purpose. Don't explore the environment or test whether a tool works.
 - Before saying something is missing, unused or never called, search for it.
 - This runner has no macOS toolchain, so you cannot build or run the tests. Do not try.
-- You have no network access. When these commits assert something you cannot check from the repository, such as a vendor endpoint's response, a third-party action's default or an OS behavior, do not try to look it up. List it under "Unverified external claims" instead. The author verifies those locally.
+- You have no network access. When these commits assert something you cannot check from the repository, such as a vendor endpoint's response, a third-party action's default or an OS behavior, do not try to look it up. List it with the unverified external claims at the end instead. The author verifies those locally.
 
 ## Evidence
 
@@ -49,8 +49,12 @@ Write the recheck to `@OUT@`. Do not modify any other file. Use this format:
    - Trigger: …
    - Evidence: the quoted line(s)
 
-If there are any, end with:
+If there are any, end with the claims you could not check, in two lists. A claim belongs in the first list when the merged code's behavior depends on it being true (for example, whether the vendor flags its pre-releases, which decides whether `/releases/latest` answers 404).
 
-**Unverified external claims**
+**Unverified external claims the behavior depends on**
+
+- `path/to/file:123`: the claim, quoted, and what goes wrong if it is false
+
+**Other unverified external claims**
 
 - `path/to/file:123`: the claim, quoted

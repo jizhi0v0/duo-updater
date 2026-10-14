@@ -23,7 +23,16 @@ Do not report style, naming, formatting, optional refactors, missing tests on th
 - Every tool call should have a purpose. Don't explore the environment or test whether a tool works.
 - Before saying something is missing, unused or never called, search for it.
 - This runner has no macOS toolchain, so you cannot build or run the tests. Do not try.
-- You have no network access. When the diff asserts something you cannot check from the repository, such as a vendor endpoint's response, a third-party action's default or an OS behavior, do not try to look it up. List it under "Unverified external claims" instead. The author verifies those locally.
+- You have no network access. When the diff asserts something you cannot check from the repository, such as a vendor endpoint's response, a third-party action's default or an OS behavior, do not try to look it up. List it with the unverified external claims at the end instead. The author verifies those locally.
+
+## Recipe pull requests
+
+If the diff adds or changes a recipe under `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/` or an audit under `docs/app-audits/`, do this before you read the recipe code:
+
+1. From the audit doc, `CHANNEL_COVERAGE_TODO.md` and the rest of the repository, list every group of installed copies a user might have: bundle IDs (including old ones from a rename), editions, release tracks, version ranges with and without the vendor's update feed, and how each range is signed.
+2. Only then read the rules, and mark each group as covered by a rule, recorded as a gap, or neither.
+
+A group marked "neither" is a finding under the "Recipes and onboarding" section of `REVIEW.md`. Work from the repository only; you have no network access.
 
 ## Evidence
 
@@ -43,8 +52,12 @@ Write the review to `@OUT@`. Do not modify any other file. Use this format:
 
 If N is 0, write `**Blocking findings: 0**` and one sentence on what you checked.
 
-If there are any, end with:
+If there are any, end with the claims you could not check, in two lists. A claim belongs in the first list when the merged code's behavior depends on it being true (for example, whether the vendor flags its pre-releases, which decides whether `/releases/latest` answers 404).
 
-**Unverified external claims**
+**Unverified external claims the behavior depends on**
+
+- `path/to/file:123`: the claim, quoted, and what goes wrong if it is false
+
+**Other unverified external claims**
 
 - `path/to/file:123`: the claim, quoted

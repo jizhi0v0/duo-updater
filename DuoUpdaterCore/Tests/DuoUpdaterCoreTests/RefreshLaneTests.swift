@@ -39,6 +39,12 @@ struct RefreshLaneTests {
     }
 
     /// Poll until `condition` holds. The deadline only turns a hang into a failure.
+    /// Whether a call has returned yet.
+    actor Returned {
+        var value = false
+        func set() { value = true }
+    }
+
     func until(_ condition: () async -> Bool) async {
         for _ in 0..<2000 {
             if await condition() { return }
@@ -246,16 +252,19 @@ struct RefreshLaneTests {
         lanes.add(awaited)
         lanes.add(lane(slow, first: held))
 
-        let call = Task { await lanes.handle(.workbenchOpen, waitingFor: awaited) }
+        let returned = Returned()
+        let call = Task {
+            await lanes.handle(.workbenchOpen, waitingFor: awaited)
+            await returned.set()
+        }
         await until { await held.arrived == 1 }
         await until { fast.plans.count == 1 && !awaited.isRunning }
-        // Bounded so a wrong implementation fails rather than hangs: the call must
-        // already be done while `slow`'s pass still waits at its gate.
-        let returned = Task { await call.value; return true }
-        try? await Task.sleep(for: .milliseconds(50))
+        // The call is done while `slow`'s pass still waits at its gate. Bounded
+        // by `until`, so a call that waits for every lane fails rather than hangs.
+        await until { await returned.value }
         #expect(slow.events == ["pass 1 start"])
         await held.open()
-        #expect(await returned.value)
+        await call.value
         await until { slow.events.count == 2 }
     }
 

@@ -1120,9 +1120,10 @@ final class AppListModel {
     }()
     /// The brew package list. One read at a time: an open of the popover, the
     /// workbench's open and every focus, a background tick and each brew action
-    /// all ask for one, and each read is 9 `brew` runs, 10 with unchecked
-    /// packages (`installedLeaves`, `installedReport`, `outdated`,
-    /// `outdatedCasks`), ~5.7 s of CPU between them. Measured 2026-10-14, one
+    /// all ask for one, and each read is 9 `brew` runs (`installedLeaves`,
+    /// `installedReport`, `outdated`, `outdatedCasks`), 10 when brew could not
+    /// load some package from its tap (`tap-info`, to say why; a homebrew/core
+    /// orphan alone does not need it), ~5.7 s of CPU between them. Measured 2026-10-14, one
     /// read sampled at 20 ms: 10 `brew` children, 3.42 s; each run 0.14–0.73 s
     /// of CPU under `/usr/bin/time`; seven popover opens in five seconds spawned
     /// ~69. A trigger during a read is decided after it, so a re-read after an

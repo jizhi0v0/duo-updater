@@ -160,8 +160,9 @@ app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行写�
 ## 一键安装
 
 - 状态：**支持**（检测 + 一键，两站均是）
-- 格式：`.dmg`，端点 JSON 的 `url`（一个 `.zip`）把扩展名换成 `.dmg`（同路径同名）。端点没声明 dmg，
-  但 `sha256hash` 描述的正是这个 dmg（见下「校验」），所以装它（2026-10-07 起；之前装 zip）
+- 格式：国内站装**端点 JSON 的 `url` 指向的 `.zip`**（2026-10-14 起；见「历史与实测」）。国际站仍装 `.dmg`：
+  端点 JSON 的 `url`（一个 `.zip`）把扩展名换成 `.dmg`（同路径同名），`sha256hash` 描述的是这个 dmg（见下「校验」）。
+  （国际站 dmg 自 2026-10-07 起；国内站 2026-10-07 至 5.7.7 都是 dmg，之前装 zip）
 - 签名闸：Team `FN2V63AD2J`，两站同一个，与已装包一致 → `VendorInstaller` 放行
 - **install 正则钉死各自的下载 host**（intl `codebuddy-1328495429.cos.accelerate.myqcloud.com`，
   CN `download.codebuddy.cn`）：两站的产物**路径完全相同**（`/workbuddy/saas/darwin-<arch>/`），
@@ -170,8 +171,10 @@ app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行写�
   而且下游一个都拦不住：同厂商、同 Team、真正的公证包，签名闸看不出来，
   `ChannelProofRegistry` 又只管非 stable。钉死之后同样的情况变成**响亮失败**
   （`installURLUnresolved`，夜扫 `duo verify` 会报）。守卫见 `noRecipeResolvesTheOtherSitesArtifact`
-- 校验：`sha256hash`（hex SHA-256，`checksumFormat: .sha256Hex`），在签名闸之前核对。它不是 `url` 那个 `.zip`
-  的摘要，而是同路径 `.dmg` 的（2026-10-07 两站×两架构四个组合全部实测，见「历史与实测」），所以一键改装 dmg。
+- 校验：`sha256hash`（hex SHA-256，`checksumFormat: .sha256Hex`），在签名闸之前核对，核对的是**一键要装的那个文件**。
+  国内站：`sha256hash` 是 `url` 那个 `.zip` 的摘要（2026-10-14 实测，5.8.2，两架构）。国际站：是同路径 `.dmg` 的
+  （2026-10-07 实测，5.6.2；2026-10-14 复测 5.7.6 仍是）。两站的 recipe 因此各自决定装哪个文件（`workBuddyRecipe` 的 `installsZip`）。
+  规则不变：摘要与要装的文件对不上 → `checksumMismatch`，不回退到另一个文件。
   厂商哪天不发 dmg → 地址照样拼得出来但 404（夜扫 `duo verify` HEAD 它，报 `installURLNotFound`）；改成给 zip 算摘要 → `checksumMismatch`。都不会不校验就装
 
 ## 已知问题
@@ -373,6 +376,50 @@ dmg 的摘要配在 zip 的 `url` 旁边。要用它，得把一键改成装那�
   `com.tencent.workbuddy.mac`（与 cask `workbuddy-cn` 的 `uninstall quit:` 一致），不是本 recipe 的 `com.workbuddy.workbuddy`
   （2026-08-27 对当时的真实 bundle 核过）。新装的国内站拷贝因此匹配不到这两条 recipe；旧 id 的拷贝一键到新包会被
   `SignatureVerifier` 的 bundle id 闸拒绝（未实测）。何时改的 id、旧拷贝自更新后是哪个 id，都没查。
+
+### 更新日志停在 5.7.7：5.8.2 还没有说明（2026-10-14，#1291）
+
+`curl -sS --compressed` 取 `https://www.workbuddy.cn/docs/workbuddy/Changelog` 与 `https://www.codebuddy.cn/docs/workbuddy/Changelog`，两份字节完全相同（178,473 B）。
+`grep -o '5\.8'` 只命中 `4.5.8`（两次），`5.8.2` 为 0，`_5-8` 为 0；`<h2>` 版本标题共 97 个，最新是
+`5.7.7 版本发布 🚀（2026-10-08）`，然后 `5.7.6`（2026-10-04）。5.8.2 的构建在 2026-10-12 上线，所以页面落后一个版本，
+是厂商还没写说明，不是 recipe 漏匹配。recipe 没改。
+
+### 国内站 5.8.2 起 `sha256hash` 是 zip 的摘要，一键改装 zip（2026-10-14）
+
+现象：夜扫 `duo verify-install` 对国内站两架构都报 `install.checksum`（issues #1297、#1298，`download.codebuddy.cn`，连续两轮）。
+同一端点、同一 URL 形状，但 `sha256hash` 已不再是 dmg 的摘要。
+
+端点原始响应（`curl -sS -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' 'https://www.workbuddy.cn/v2/update?platform=workbuddy-darwin-arm64'`，x64 同）：
+
+```
+{"version":"5.8.2.41111488","url":"https://download.codebuddy.cn/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-5.8.2.41111488-b8f6c953.zip","productVersion":"5.8.2.41111488","sha256hash":"af6c9f92cf5edbf1cefd4c97d9dbaf5564a7fa43e861761e29018c1422807ef9","timestamp":1791834688,"hash":"","name":"","supportsFastUpdate":false}
+```
+
+下载（`curl -sS -L -H <UA> -o …`，临时目录；未挂载、未打开、未执行）后 `shasum -a 256`：
+
+| 文件 | sha256 | 等于 `sha256hash`？ | 大小 | 响应 `x-cos-meta-md5` = 本地 md5？ |
+|---|---|---|---|---|
+| arm64 `.zip`（`url` 所指） | `af6c9f92…` | **是** | 438,985,018 B | 是（`42f7808c…`） |
+| arm64 `.dmg`（同路径换扩展名） | `81782539…` | 否 | 366,884,880 B | 是（`c42a954c…`） |
+| x64 `.zip` | `f64eaf80…` | **是** | 463,323,865 B | 是（`10444c15…`） |
+| x64 `.dmg` | `2df41894…` | 否 | 396,571,412 B | 是（`bd0629f3…`） |
+
+- 字节稳定：arm64 zip 下载两次，`cmp` 相同（sha `af6c9f92…`）；dmg 两次 sha 相同。两个 dmg 的 `ETag` 都是 `…-350` / `…-379` 形式的分片值，与 zip 同一次发布（`Last-Modified` 2026-10-12）。
+- 签名与身份（只解包 zip 到临时目录、`codesign` 只读）：`CFBundleIdentifier` `com.tencent.workbuddy.mac`、`CFBundleShortVersionString` `5.8.2`（两架构）；
+  `codesign -dv` 的 `TeamIdentifier=FN2V63AD2J`，`codesign --verify --deep --strict` 退出码 0（两架构）。
+- 生产路径（临时 Swift test，跑完已删）：`VendorInstaller.verifySHA256` 对 arm64 zip 与 `af6c9f92…` 通过，对 x64 zip 通过（`f64eaf80…`）；
+  对 arm64 dmg、x64 dmg 均报 `checksumMismatch`；arm64 zip 对 x64 摘要报 `checksumMismatch`。
+- 结论：厂商的清单自洽（`url` 与 `sha256hash` 指向同一个 zip），我们的代码假设「`sha256hash` 是同路径 dmg 的摘要」在 5.8.2 上不成立。
+  这是我们这边的 recipe 把摘要配错了文件，不是厂商端点坏了，也不是 CDN 两地不一致（只测了一个节点，见下「未验证」）。
+  2026-10-07 的实测（5.7.6，见上）当时摘要确实是 dmg 的，所以字段含义是在 5.7.6 与 5.8.2 之间变的，或在 5.8.2 上才这样；我们没有 5.7.7 的清单可对。
+- 修法：国内站两条 recipe 改为装 `url` 所指的 zip（`workBuddyRecipe(…, installsZip: true)`，`kind: .zip`），摘要不变。
+  国际站不动：2026-10-14 复测 5.7.6 的 `sha256hash` 仍等于两架构的 dmg（zip 不等），见下表。
+  没有选「两个文件都试」：摘要只能对上一个，回退到另一个文件等于放宽校验。
+- 国际站对照（`https://www.workbuddy.ai/v2/update?platform=workbuddy-darwin-<arch>`，5.7.6.40488862，2026-10-14）：
+  `sha256hash` arm64 `d7c7651c…`、x64 `6fae926e…`；它们分别等于两架构 dmg 的 `shasum -a 256`（`d7c7651c…`、`6fae926e…`），不等于 zip（`3e35600e…`、`172865eb…`）。
+  所以国际站目前仍对，recipe 不改。这是 **未来可能同样变** 的同一风险：它哪天也把摘要挪到 zip，一键会以 `checksumMismatch` 失败，不会装错。
+- 未验证：真机一键（CN 5.8.x 装 zip 的完整安装路径，`duo install` 之后的 Team/inode/`spctl`）**没做**，需要你在真机跑；
+  为什么厂商改了字段，没有可查的说明；5.8.2 的 dmg 内容没检查（只读 hdiutil 也没跑，按要求不挂载）；多个 CDN 节点的一致性只在同一 host 上比过两次。
 
 ### Bundle ID 迁移：`com.workbuddy.workbuddy` → `com.tencent.workbuddy.mac`（2026-10-07）
 

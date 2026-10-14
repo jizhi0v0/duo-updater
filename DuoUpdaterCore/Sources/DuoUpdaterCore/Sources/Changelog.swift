@@ -148,7 +148,10 @@ public struct Changelog: Codable, Sendable, Hashable {
     /// - 18: Sublime Text's recipe keeps the "Build " in its entry versions
     ///   (`Build 4215`, the string the probe offers and the bundle reports).
     ///   Notes already cached for a build carry the bare `4215`.
-    public static let parserGeneration = 18
+    /// - 19: `GitHubMarkdownParser`'s prose pass drops a leading `•` from a line.
+    ///   Notes already cached for a body typed as a `•` list (Junie 3659.4) keep
+    ///   it, and the pane draws a second bullet beside it.
+    public static let parserGeneration = 19
 
     public let entries: [Entry]
 

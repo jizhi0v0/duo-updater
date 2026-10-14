@@ -377,13 +377,18 @@ public enum GitHubMarkdownParser {
             if skippedSectionKeywords.contains(where: {
                 trimmed.lowercased().hasPrefix("**\($0)")
             }) { continue }
-            items.append(trimmed)
+            // A list typed with `•` is not Markdown, so it lands here; the pane
+            // draws its own bullet, and a kept one showed two (Junie 3659.4).
+            let note = trimmed.hasPrefix("•")
+                ? String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces) : trimmed
+            if note.isEmpty { continue }
+            items.append(note)
             if !qualifying.isEmpty {
                 if let heading = pendingHeading {
                     content.append(heading)
                     pendingHeading = nil
                 }
-                content.append(.note(trimmed))
+                content.append(.note(note))
             }
             if items.count > proseItemCap { return ([], []) }
         }

@@ -1239,21 +1239,35 @@ final class AppListModel {
     /// resolve (the banner also requires rate-limit errors, which only exist
     /// after a check).
     private(set) var hasGitHubToken = false {
-        // Which budget uv, bun and mise would spend: ours, or the anonymous one.
-        didSet {
-            cliTools.updatersGetOurToken = hasGitHubToken
-            cliTools.gitHubPause = gitHubPause
-        }
+        didSet { syncCLIToolsGitHubBudget() }
+    }
+
+    /// Whether GitHub requests go out with our token now
+    /// (`GitHubRateLimitGate.Credential.inUse`): once GitHub rejected it, the
+    /// anonymous budget is the one being spent and the one whose pause counts.
+    /// (A round's start tries the token again while `gitHubTokenRejected` stays
+    /// up; until the round says, this keeps to the budget the last one spent.)
+    var gitHubRequestsCarryToken: Bool {
+        GitHubRateLimitGate.Credential.inUse(
+            tokenResolved: hasGitHubToken, tokenRejected: gitHubTokenRejected) == .token
+    }
+
+    /// Which budget uv, bun and mise would spend — ours or the anonymous one —
+    /// and how long each is closed, for the CLI rows' one-click.
+    private func syncCLIToolsGitHubBudget() {
+        cliTools.updatersGetOurToken = gitHubRequestsCarryToken
+        cliTools.gitHubPause = gitHubPause
     }
 
     /// Until when each GitHub API budget is closed (`GitHubRateLimitGate`): no
     /// request on it goes out before then, a retry included. Read from the gate
     /// whenever it changes (`watchGitHubGate`), and dropped at its time.
     private(set) var gitHubPause: [GitHubRateLimitGate.Credential: Date] = [:]
-    /// The pause on the budget the app's GitHub rows spend: the token's when one
-    /// resolves, else the anonymous one. Nil when that budget is open.
+    /// The pause on the budget the app's GitHub rows spend: the token's while
+    /// requests carry it (`gitHubRequestsCarryToken`), else the anonymous one.
+    /// Nil when that budget is open.
     var gitHubPausedUntil: Date? {
-        gitHubPause[hasGitHubToken ? .token : .anonymous]
+        gitHubPause[gitHubRequestsCarryToken ? .token : .anonymous]
     }
     @ObservationIgnored private var gitHubPauseExpiry: Task<Void, Never>?
 
@@ -1273,8 +1287,7 @@ final class AppListModel {
     private func readGitHubPause(from gate: GitHubRateLimitGate.Store) async {
         let pause = await gate.pause()
         gitHubPause = pause
-        cliTools.updatersGetOurToken = hasGitHubToken
-        cliTools.gitHubPause = pause
+        syncCLIToolsGitHubBudget()
         gitHubPauseExpiry?.cancel()
         guard let next = pause.values.min() else { return }
         gitHubPauseExpiry = Task { @MainActor [weak self] in
@@ -1291,7 +1304,9 @@ final class AppListModel {
     /// does not blink off and on with every refresh while the token stays
     /// rejected; a round that ends without a rejection clears it, and so does a
     /// change in Settings.
-    private(set) var gitHubTokenRejected = false
+    private(set) var gitHubTokenRejected = false {
+        didSet { syncCLIToolsGitHubBudget() }
+    }
 
     /// How many times the GitHub credentials changed in Settings — the observable
     /// face of `GitHubCredentials.generation`, which views cannot watch. The

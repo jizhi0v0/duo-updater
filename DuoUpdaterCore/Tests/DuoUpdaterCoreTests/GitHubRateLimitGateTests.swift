@@ -104,6 +104,12 @@ struct GitHubRateLimitGateTests {
         await store.admit(credential, generation: generation, probe: { await world.probe() })
     }
 
+    /// What a request left waiting was admitted with, once it was.
+    actor Released {
+        var value: GitHubRateLimitGate.Admission?
+        func set(_ admission: GitHubRateLimitGate.Admission) { value = admission }
+    }
+
     func until(_ condition: () async -> Bool) async {
         for _ in 0..<2000 {
             if await condition() { return }
@@ -215,11 +221,15 @@ struct GitHubRateLimitGateTests {
     @Test func anUnansweredCanaryReleasesTheOthers() async {
         let world = World()
         world.answer = .init(remaining: 10, reset: world.now.addingTimeInterval(600))
-        let store = store(world, patience: .milliseconds(50))
+        // An hour's patience: only the unanswered completion can release the
+        // waiting request within `until`'s two seconds, not the timer.
+        let store = store(world, patience: .seconds(3600))
         #expect(await admit(store, world) == .go(canary: true))
-        let waiting = Task { await self.admit(store, world) }
+        let released = Released()
+        Task { await released.set(await self.admit(store, world)) }
         await store.complete(.token, generation: 1, canary: true, status: nil, headers: [:], body: nil)
-        #expect(await waiting.value == .go(canary: false))
+        await until { await released.value != nil }
+        #expect(await released.value == .go(canary: false))
 
         let quiet = self.store(world, patience: .milliseconds(50))
         #expect(await admit(quiet, world) == .go(canary: true))
@@ -257,5 +267,17 @@ struct GitHubRateLimitGateTests {
         await store.complete(.token, generation: 1, canary: false, status: 200, headers: [:], body: nil)
         await store.complete(.token, generation: 1, canary: false, status: 403, headers: [:], body: body)
         #expect(await store.closure(.token)?.until == world.now.addingTimeInterval(60))
+    }
+
+    /// A rejected token's requests go out anonymously, so the anonymous budget
+    /// is the one in use — whatever a token resolved to.
+    ///
+    /// Mutation: `inUse` answering `.token` whenever one resolved.
+    @Test func aRejectedTokenSpendsTheAnonymousBudget() {
+        typealias C = GitHubRateLimitGate.Credential
+        #expect(C.inUse(tokenResolved: true, tokenRejected: false) == .token)
+        #expect(C.inUse(tokenResolved: true, tokenRejected: true) == .anonymous)
+        #expect(C.inUse(tokenResolved: false, tokenRejected: false) == .anonymous)
+        #expect(C.inUse(tokenResolved: false, tokenRejected: true) == .anonymous)
     }
 }

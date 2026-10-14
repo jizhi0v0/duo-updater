@@ -67,6 +67,16 @@ public struct BundleIDMigration: Sendable, Equatable {
         BundleIDMigration(
             from: "app.getmoshi.desktop.tauri", to: "app.getmoshi.desktop",
             teamID: "FL442366Y7", lastFromVersion: "0.4.23", firstToVersion: "0.5.0"),
+        // WhatCable: v0.2.0 through v0.5.14 are `com.bitmoor.whatcable`; v0.6.0
+        // (2026-05-05, the same day) and every release since are
+        // `uk.whatcable.whatcable`, the same Team, all notarized. The vendor's
+        // v0.6.0 notes call it a one-time change: replacing the app by hand is the
+        // supported upgrade, the old in-app updater may refuse it, and
+        // preferences, notification permission and launch at login reset.
+        // See docs/app-audits/uk-whatcable-whatcable.md, 改名前的 bundle id.
+        BundleIDMigration(
+            from: "com.bitmoor.whatcable", to: "uk.whatcable.whatcable",
+            teamID: "M4RUJ7W6MP", lastFromVersion: "0.5.14", firstToVersion: "0.6.0"),
     ]
 
     /// Whether an installed copy signed as `from` at `version` is this rename.

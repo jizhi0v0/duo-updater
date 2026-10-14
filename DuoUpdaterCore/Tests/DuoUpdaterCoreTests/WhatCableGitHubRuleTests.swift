@@ -165,4 +165,56 @@ import Testing
         })
     }
 
+    // MARK: - Copies from before the rename
+
+    /// A WhatCable 0.5.14 copy, still `com.bitmoor.whatcable`, is checked by the
+    /// stable rule through `BundleIDMigration` and offered the app zip. A copy on
+    /// the old id at or past the rename's bound is not that rename and gets
+    /// nothing. Mutation: drop the WhatCable entry from `BundleIDMigration.all`
+    /// → the first expectation fails.
+    @Test func aPreRenameCopyIsOfferedTheCurrentRelease() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubLatest.self]
+        let source = GitHubReleasesSource(
+            rules: [try rule(.stable)], session: URLSession(configuration: config))
+
+        let old = try await source.latestVersion(for: Self.installed("com.bitmoor.whatcable", "0.5.14"))
+        #expect(old?.shortVersion == "1.5.0")
+        #expect(old?.downloadURL?.lastPathComponent == "WhatCable.zip")
+        #expect(try await source.latestVersion(for: Self.installed("com.bitmoor.whatcable", "0.6.0")) == nil)
+    }
+
+    private static func installed(_ id: String, _ version: String) -> InstalledApp {
+        InstalledApp(
+            name: "WhatCable", bundleID: id, shortVersion: version, buildVersion: version,
+            path: URL(fileURLWithPath: "/Applications/ZZFixture-WhatCable.app"),
+            isMASApp: false, sparkleFeedURL: nil, releaseChannel: .stable)
+    }
+
+    /// `/releases/latest` answering v1.5.0 with the two assets every release carries.
+    final class StubLatest: URLProtocol, @unchecked Sendable {
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+        override func startLoading() {
+            let base = "https://github.com/darrylmorley/whatcable/releases/download/v1.5.0/"
+            let assets = ["WhatCable.zip", "whatcable-cli-1.5.0.zip"].map {
+                #"{"name":"\#($0)","browser_download_url":"\#(base)\#($0)","size":1000}"#
+            }
+            let release = """
+            {"tag_name":"v1.5.0","name":"v1.5.0","draft":false,"prerelease":false,\
+            "published_at":"2026-10-01T00:00:00Z",\
+            "html_url":"https://github.com/darrylmorley/whatcable/releases/tag/v1.5.0",\
+            "body":"notes","assets":[\(assets.joined(separator: ","))]}
+            """
+            let body = request.url?.absoluteString.contains("/releases/latest") == true
+                ? release : "[\(release)]"
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data(body.utf8))
+            client?.urlProtocolDidFinishLoading(self)
+        }
+        override func stopLoading() {}
+    }
 }

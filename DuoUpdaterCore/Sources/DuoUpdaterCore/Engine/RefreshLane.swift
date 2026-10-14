@@ -82,7 +82,10 @@ public enum RefreshLaneEvent: Sendable, Equatable {
 ///   each lane's work guards its own state against a pass that started
 ///   earlier landing later (the generation counters).
 /// - **Logged.** Every trigger's decision and every pass's duration, under
-///   `refresh[<name>]` in the app category.
+///   `refresh[<name>]` in the app category, at `.notice`: the lowest level the
+///   unified log keeps on disk for us (`Log`). At `.info` these lines were gone
+///   from `log show` within minutes (2026-10-14), before anyone tuning a lane
+///   could read them.
 @MainActor
 public final class RefreshLane<Plan: Sendable> {
     public let name: String
@@ -133,7 +136,7 @@ public final class RefreshLane<Plan: Sendable> {
     public func handle(_ trigger: RefreshTrigger) async {
         queued.append(trigger)
         if let running {
-            Log.app.info("refresh[\(self.name, privacy: .public)] \(trigger.description, privacy: .public) → joins the pass in flight")
+            Log.app.notice("refresh[\(self.name, privacy: .public)] \(trigger.description, privacy: .public) → joins the pass in flight")
             onEvent?(.joined(trigger))
             await running.value
             return
@@ -160,10 +163,10 @@ public final class RefreshLane<Plan: Sendable> {
         for trigger in triggers {
             switch await decide(trigger) {
             case .skip(let why):
-                Log.app.info("refresh[\(self.name, privacy: .public)] \(trigger.description, privacy: .public) → skip: \(why, privacy: .public)")
+                Log.app.notice("refresh[\(self.name, privacy: .public)] \(trigger.description, privacy: .public) → skip: \(why, privacy: .public)")
                 onEvent?(.decided(trigger, runs: false))
             case .run(let next, let why):
-                Log.app.info("refresh[\(self.name, privacy: .public)] \(trigger.description, privacy: .public) → run: \(why, privacy: .public)")
+                Log.app.notice("refresh[\(self.name, privacy: .public)] \(trigger.description, privacy: .public) → run: \(why, privacy: .public)")
                 onEvent?(.decided(trigger, runs: true))
                 plan = plan.map { merge($0, next) } ?? next
                 answering.append(trigger)
@@ -178,7 +181,7 @@ public final class RefreshLane<Plan: Sendable> {
         }
         if await Self.finishes(pass, within: passTimeout) {
             let took = Log.seconds(clock() - started)
-            Log.app.info("refresh[\(self.name, privacy: .public)] pass done in \(took, privacy: .public) (for \(names, privacy: .public))")
+            Log.app.notice("refresh[\(self.name, privacy: .public)] pass done in \(took, privacy: .public) (for \(names, privacy: .public))")
             onEvent?(.passFinished(answering: answering))
             return
         }

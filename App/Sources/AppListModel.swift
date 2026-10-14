@@ -3894,7 +3894,7 @@ final class AppListModel {
         let newUnchecked = installed.unchecked
         // Where the read's time went, beside the lane's own line for the pass.
         let total = clock.now - started
-        Log.app.info("brew read: \(Log.seconds(total), privacy: .public) — leaves \(Log.seconds(leavesRead), privacy: .public), \(leaves.count, privacy: .public) leaves, \(outdated.count, privacy: .public) outdated formulae\(outdatedRead ? "" : " (read failed)", privacy: .public), \(casks.count, privacy: .public) app-less casks, \(newUnchecked.count, privacy: .public) unchecked")
+        Log.app.notice("brew read: \(Log.seconds(total), privacy: .public) — leaves \(Log.seconds(leavesRead), privacy: .public), \(leaves.count, privacy: .public) leaves, \(outdated.count, privacy: .public) outdated formulae\(outdatedRead ? "" : " (read failed)", privacy: .public), \(casks.count, privacy: .public) app-less casks, \(newUnchecked.count, privacy: .public) unchecked")
         // Every read is in; apply them together, and only if no newer refresh has
         // started since — its results are fresher and it applies its own.
         guard generation == brewRefreshGeneration else { return }

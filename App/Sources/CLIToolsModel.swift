@@ -470,7 +470,7 @@ final class CLIToolsModel {
             .map { "\(providers[$0.0].kind.displayName) \(Log.seconds($0.1.1))" }.joined(separator: ", ")
         let unanswered = current.flatMap { $0.1.statuses }.filter { $0.state == .unknown }.count
         let superseded = answers.count - current.count
-        Log.app.info("cli-tools check of \(indices.count, privacy: .public) tool(s): \(Log.seconds(clock.now - began), privacy: .public); slowest \(slowest, privacy: .public); \(unanswered, privacy: .public) copies not checked\(superseded > 0 ? ", \(superseded) superseded by a later check" : "", privacy: .public)")
+        Log.app.notice("cli-tools check of \(indices.count, privacy: .public) tool(s): \(Log.seconds(clock.now - began), privacy: .public); slowest \(slowest, privacy: .public); \(unanswered, privacy: .public) copies not checked\(superseded > 0 ? ", \(superseded) superseded by a later check" : "", privacy: .public)")
         guard !current.isEmpty else { return }
         apply(current, startedAt: started)
     }

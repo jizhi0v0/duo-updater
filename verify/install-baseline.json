@@ -1301,23 +1301,19 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.tencent.workbuddy.mac:stable:arm64" : {
-      "consecutiveActionable" : 2,
+      "closedAt" : "2026-10-14T16:03:36Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1297,
-      "lastCommentedAt" : "2026-10-14T10:42:10Z",
-      "lastSignature" : "install.checksum",
-      "previousSignature" : "install.checksum",
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.tencent.workbuddy.mac:stable:x64" : {
-      "consecutiveActionable" : 2,
+      "closedAt" : "2026-10-14T16:03:37Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1298,
-      "lastCommentedAt" : "2026-10-14T10:42:12Z",
-      "lastSignature" : "install.checksum",
-      "previousSignature" : "install.checksum",
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.tencent.xinWeChat:stable" : {
@@ -1724,5 +1720,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-14T10:42:12Z"
+  "updatedAt" : "2026-10-14T16:03:37Z"
 }

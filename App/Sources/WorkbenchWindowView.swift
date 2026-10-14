@@ -3402,9 +3402,11 @@ struct ChangelogEntriesView: View {
     /// row opens the entry or nothing in it could be tinted but its title.
     ///
     /// One move, straight to the row. `ChangelogRowsStack` gives every row its
-    /// id through its `ForEach`, so the row is found even when it is not laid out
-    /// yet; this used to cut to the entry's top first, wait 80 ms for its rows and
-    /// then scroll on down, because the row's id lived inside a lazily built entry.
+    /// id through its `ForEach`, and with that `scrollTo` reached the row from the
+    /// top of openclaw's long scroll, unbuilt, in every run (2026-10-14; Apple's
+    /// docs say only that it scrolls to "a child view with identifier `id`").
+    /// This used to cut to the entry's top first, wait 80 ms for its rows and then
+    /// scroll on down: the row's id lived inside a lazily built entry.
     ///
     /// Animated only when the row is already built (`breakingTarget`), which in
     /// a lazy stack means on screen or just off it: a short way, and the motion
@@ -3414,7 +3416,10 @@ struct ChangelogEntriesView: View {
     /// recorded at 70–240 ms between frames (2026-10-14). Whether the version was
     /// shown before says nothing about the distance: switching layouts rebuilds
     /// the long scroll at its top. Deferred a turn: the row takes `breakingAnchor`
-    /// as its id, and is built or not, in the update that tints it.
+    /// as its id in the update that tints it, and by the next turn its
+    /// `onAppear` has set `breakingTarget` — observed, not documented: a row near
+    /// the top of the screen animated and a far one jumped (2026-10-14). A stale
+    /// flag only trades the animation for a jump; the destination is the same.
     private func scrollToBreaking(_ proxy: ScrollViewProxy, top: @escaping (Int) -> AnyHashable) {
         guard let shownBreaking, let index = entry(shownBreaking.version) else { return }
         let opensEntry = (ChangelogEntryView.breakingRows(of: changelog.entries[index]).first ?? 0) == 0
@@ -3512,8 +3517,9 @@ struct ChangelogEntriesView: View {
 /// long scroll from top to bottom, the content height the scroll view reported
 /// grew from 2,290 to 52,228 pt, and the scroller's thumb jumped at every
 /// correction (AX probe and screen recording, 2026-10-14). Rows are an even
-/// unit to guess from. The ids are the `ForEach`'s own data, which is what lets
-/// `ScrollViewProxy.scrollTo` reach a row that is not built yet.
+/// unit to guess from. The ids are the `ForEach`'s own data; with them
+/// `ScrollViewProxy.scrollTo` reached rows not built yet (see
+/// `ChangelogEntriesView.scrollToBreaking`).
 ///
 /// Lazy, not eager: TablePro's 0.67.0 alone carries 205 change lines. And with
 /// every row built, each accessibility update walks every selectable row's

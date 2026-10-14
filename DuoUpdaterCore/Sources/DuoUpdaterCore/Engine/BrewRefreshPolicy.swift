@@ -4,7 +4,8 @@ import Foundation
 /// on its inputs so it can be tested without the model.
 public enum BrewRefreshPolicy {
     /// How long after a read an open or a focus asks for another. Each read is
-    /// ~3 s of ~7 `brew` runs, and the list does not change by itself — what
+    /// ~3.4 s of 9–10 `brew` runs (~5.7 s of CPU; `AppListModel.brewLane` has
+    /// the measurement), and the list does not change by itself — what
     /// changes it is a `brew` run, ours (which re-reads regardless) or one in a
     /// terminal. Measured 2026-10-14: a popover flicked open and shut with the
     /// workbench up sends an open and a focus per flick, and without a spacing

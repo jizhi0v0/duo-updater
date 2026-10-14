@@ -3402,8 +3402,9 @@ struct ChangelogEntriesView: View {
     ///
     /// One move, straight to the row. Every row has its id through its
     /// `ForEach`, and with that `scrollTo` reached the row from the top of
-    /// openclaw's long scroll, unbuilt, in every run (2026-10-14; Apple's docs
-    /// say only that it scrolls to "a child view with identifier `id`").
+    /// openclaw's long scroll, unbuilt, in every run — on the lazy stack and
+    /// again on the list (2026-10-14; Apple's docs say only that it scrolls to
+    /// "a child view with identifier `id`").
     ///
     /// `belowHeader`: the version's header floats over the top of the notes
     /// (`ChangelogSectionsList`), so the row lands one header below the top.
@@ -3676,11 +3677,12 @@ private struct ChangelogRowsStack: View {
 /// notes while that version is read, and is pushed off by the next one's. The
 /// same list and header band as the Release Log's days (`ReleaseLogView.feed`).
 ///
-/// A native list, not a lazy stack with its title drawn over it: AppKit floats
-/// the header in the same pass that moves the rows. The overlay this replaced
-/// learned where the rows were after they had moved, and a fast scroll caught
-/// it a frame behind — two titles at once, or one with no band behind it
-/// (user's screen recording, 2026-10-14). A lazy stack's own pinned section
+/// A native list, not a lazy stack with its title drawn over it: in every
+/// 20th frame recorded over 18 page-downs, the floating header named the
+/// version under it (2026-10-14). The overlay this replaced learned where the
+/// rows were after they had moved, and a fast scroll caught it a frame behind
+/// — two titles at once, or one with no band behind it (user's screen
+/// recording, 2026-10-14). A lazy stack's own pinned section
 /// headers made the scroller's thumb jump again: 10 of 300 small steps off by
 /// more than 0.02, against 2 for flat rows (2026-10-14).
 private struct ChangelogSectionsList: View {
@@ -4034,7 +4036,7 @@ private struct ChangelogEntryView: View {
 
         var body: some View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                // Primary: a list draws its section headers dimmed.
+                // Primary: the list drew its section headers dimmed (seen 2026-10-14).
                 if let title = entry.title {
                     Text(title).font(.headline).foregroundStyle(.primary)
                     if !entry.version.isEmpty {

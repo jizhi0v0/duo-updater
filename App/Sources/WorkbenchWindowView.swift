@@ -4016,7 +4016,12 @@ private struct ChangelogEntryView: View {
                     copied = false
                 }
             } label: {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                // Both glyphs always laid out, one shown: they differ in size,
+                // and swapping them changed the header's height on each click.
+                ZStack {
+                    Image(systemName: "doc.on.doc").opacity(copied ? 0 : 1)
+                    Image(systemName: "checkmark").opacity(copied ? 1 : 0)
+                }
             }
             .buttonStyle(.borderless)
             .foregroundStyle(.secondary)

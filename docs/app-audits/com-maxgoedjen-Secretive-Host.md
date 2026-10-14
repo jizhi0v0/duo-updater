@@ -33,8 +33,10 @@
 单渠道对外分发。仓库里的 prerelease 只有 2020 年的 `v0.1.1`–`v0.5.1`，此后全部是正式版。
 
 nightly 不是可订阅的轨道，但装上了必须认得出来:
-- `.github/workflows/nightly.yml` 每天 08:00 UTC 出一个构建，只作为 Actions artifact 上传
-  （需登录才能下载、90 天过期），不建 release。用的是**同一个** bundle id、名字、Team。
+- `.github/workflows/nightly.yml` 每天 08:00 UTC 出一个构建，只作为 Actions artifact 上传，
+  不建 release。用的是**同一个** bundle id、名字、Team。2026-10-13 那个 artifact 的
+  `expires_at` 是 2027-01-11，即 90 天后过期（artifacts API 实读）。匿名能否下载**未验证**:
+  匿名请求被限流挡住，官方文档也没写。
 - 版本由 `sed s/GITHUB_CI_VERSION/0.0.0_nightly-$DATE/` 写进 `Config.xcconfig` 的 `CI_VERSION`。
   2026-10-14 下载 run 38367930469 的 artifact 实读 Info.plist:
   `CFBundleShortVersionString = 0.0.0_nightly-2026-10-13`、`CFBundleVersion = 1.38367930469`、

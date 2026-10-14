@@ -26,10 +26,17 @@
 #   • Two jobs, split by what each may hold. `review` runs the model with a
 #     READ-ONLY token (contents, pull requests): the reviewer reads vendors'
 #     GitHub repositories through it, and that vendor text is the input an
-#     attacker would write, so nothing in this job can post, push or approve.
-#     It ends by uploading review.md. `post` holds `pull-requests: write`, runs
-#     no model, and only posts that file. The checkout keeps no credential
+#     attacker would write, so its token cannot post, push or approve. It ends
+#     by uploading review.md. `post` holds `pull-requests: write`, runs no
+#     model, and only posts that file. The checkout keeps no credential
 #     (`persist-credentials: false`).
+#   • review.md is the one way out of `review`, and it is posted verbatim, so
+#     the reviewer is confined to the checkout: no bare Read/Glob/Grep rule
+#     (default mode reads inside the working directory only, so a steered
+#     reviewer cannot read /proc/self/environ and the model's token in it), and
+#     the only writable file is review.md (`Edit(./.claude-review/review.md)`;
+#     a bare Write could rewrite git config and turn `git diff` into a command).
+#     `post` also refuses a review that contains anything shaped like a token.
 #
 # The reviewer reads REVIEW.md, the checkout and the PR description, runs
 # read-only git, reads the GitHub REST API through `.github/claude-review/gh-get`
@@ -135,7 +142,7 @@ jobs:
           claude_args: >-
             ${{ vars.CLAUDE_REVIEW_MODEL && format('--model {0}', vars.CLAUDE_REVIEW_MODEL) || '' }}
             --effort high
-            --allowedTools "Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(${{ github.workspace }}/.github/claude-review/gh-get *)"
+            --allowedTools "Edit(./.claude-review/review.md),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(${{ github.workspace }}/.github/claude-review/gh-get *)"
 
       - name: Check the review was written
         if: steps.prep.outputs.mode != 'skip'
@@ -187,6 +194,12 @@ jobs:
           review="$RUNNER_TEMP/claude-review/review.md"
           if [ ! -s "$review" ]; then
             echo "::error::The review artifact has no review.md"
+            exit 1
+          fi
+          # A backstop, not the boundary (that is the reviewer's confinement):
+          # never post text shaped like an Anthropic or GitHub token.
+          if grep -Eq 'sk-ant-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}' "$review"; then
+            echo "::error::The review contains a token-shaped string; not posting it"
             exit 1
           fi
           {

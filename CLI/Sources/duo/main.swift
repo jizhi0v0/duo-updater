@@ -5,6 +5,10 @@ import DuoUpdaterCore
 // Before anything else, while this is the only thread: `duo … <&-` would
 // otherwise hand every child process no stdin at all. See the function.
 ChildProcess.ensureStandardInputIsOpen()
+// Before any command can ask GitHub: every request to its API passes the
+// rate-limit gate, so a spent budget is waited out, not asked again
+// (`GitHubRateLimitGate`).
+GitHubRateLimitGate.activate()
 
 // duo — the command line face of DuoUpdater.
 //

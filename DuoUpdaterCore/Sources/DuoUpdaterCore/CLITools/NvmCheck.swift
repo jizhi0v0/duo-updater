@@ -57,6 +57,9 @@ public struct NvmCheck: Sendable {
             newest = try await latest()
         } catch NvmRelease.Failure.rateLimited(let status) {
             return verdict(.unknown, note: "\(NvmRelease.Failure.rateLimited(status))", withheld: .rateLimited)
+        } catch let refused as GitHubRateLimitGate.Refused {
+            // Held back by the gate, unsent: the same budget, spent.
+            return verdict(.unknown, note: refused.localizedDescription, withheld: .rateLimited)
         } catch {
             return verdict(.unknown, note: "could not read nvm's latest release: \(error)", withheld: .channelUnreadable)
         }

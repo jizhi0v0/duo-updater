@@ -1238,7 +1238,51 @@ final class AppListModel {
     /// rate-limited rows ⇒ nudge the user to add a token. False until the first
     /// resolve (the banner also requires rate-limit errors, which only exist
     /// after a check).
-    private(set) var hasGitHubToken = false
+    private(set) var hasGitHubToken = false {
+        // Which budget uv, bun and mise would spend: ours, or the anonymous one.
+        didSet {
+            cliTools.updatersGetOurToken = hasGitHubToken
+            cliTools.gitHubPause = gitHubPause
+        }
+    }
+
+    /// Until when each GitHub API budget is closed (`GitHubRateLimitGate`): no
+    /// request on it goes out before then, a retry included. Read from the gate
+    /// whenever it changes (`watchGitHubGate`), and dropped at its time.
+    private(set) var gitHubPause: [GitHubRateLimitGate.Credential: Date] = [:]
+    /// The pause on the budget the app's GitHub rows spend: the token's when one
+    /// resolves, else the anonymous one. Nil when that budget is open.
+    var gitHubPausedUntil: Date? {
+        gitHubPause[hasGitHubToken ? .token : .anonymous]
+    }
+    @ObservationIgnored private var gitHubPauseExpiry: Task<Void, Never>?
+
+    /// Follow the gate for as long as the model lives: each time a budget
+    /// closes or reopens, read until when, and wake again at that time.
+    private func watchGitHubGate() {
+        guard let gate = GitHubRateLimitGate.active else { return }
+        Task { @MainActor [weak self] in
+            await self?.readGitHubPause(from: gate)
+            for await _ in gate.changes {
+                guard let self else { return }
+                await self.readGitHubPause(from: gate)
+            }
+        }
+    }
+
+    private func readGitHubPause(from gate: GitHubRateLimitGate.Store) async {
+        let pause = await gate.pause()
+        gitHubPause = pause
+        cliTools.updatersGetOurToken = hasGitHubToken
+        cliTools.gitHubPause = pause
+        gitHubPauseExpiry?.cancel()
+        guard let next = pause.values.min() else { return }
+        gitHubPauseExpiry = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(max(next.timeIntervalSinceNow, 0) + 1))
+            guard !Task.isCancelled, let self else { return }
+            await self.readGitHubPause(from: gate)
+        }
+    }
 
     /// GitHub rejected the token (`401`) this round, or the last one: the
     /// round carries on without it (`GitHubCredentials`). Drives the popover's
@@ -1860,7 +1904,11 @@ final class AppListModel {
     var owesTestFlightRead: Bool { !testFlightReadThisSession && mayReadTestFlightStore }
 
     init(prefs: Preferences = .shared) {
+        // Before anything here can ask GitHub: every request to its API passes
+        // the rate-limit gate from now on (`GitHubRateLimitGate`).
+        GitHubRateLimitGate.activate()
         self.prefs = prefs
+        defer { watchGitHubGate() }
         // Restore when we last checked so the scheduler can pick up where it left
         // off across relaunches instead of restarting the interval from zero.
         self.lastCheck = prefs.lastCheckDate
@@ -9650,8 +9698,13 @@ final class AppListModel {
         guard !isRetryingFailedChecks, !isRefreshing, !isInstallingAll, installing.isEmpty else { return }
         // Same rule the full refresh applies: an ignored app is not asked after, so
         // retrying must not spend the request `performRefresh` refuses to spend.
+        // Nor a row GitHub's rate limit stopped while the budget is still closed:
+        // the gate would refuse it unsent, and asking only to be refused reads
+        // as a Retry that does nothing.
+        let paused = gitHubPausedUntil != nil
         let targets = failedCheckResults.filter {
             prefs.deservesCheck($0.app) && (ids?.contains($0.id) ?? true)
+                && !(paused && $0.status.isRateLimitError)
         }
         guard !targets.isEmpty else { return }
         Log.app.info("retry failed: re-checking \(targets.count, privacy: .public) errored rows\(ids == nil ? "" : " (automatic)", privacy: .public)")
@@ -9893,6 +9946,12 @@ final class AppListModel {
     func retry(_ result: UpdateResult) async {
         let id = result.id
         guard installing[id] == nil else { return }
+        // The row's Retry is not offered while the budget is closed
+        // (`RowActions.retryPausedUntil`); this holds for any other way in.
+        if result.status.isRateLimitError, let until = gitHubPausedUntil {
+            Log.app.notice("retry: \(result.app.name, privacy: .public) held back — GitHub API closed until \(until.formatted(.iso8601), privacy: .public)")
+            return
+        }
         Log.app.info("retry: re-checking \(result.app.name, privacy: .public)")
         refreshRunningApps()
         installing[id] = .checking

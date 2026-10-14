@@ -330,8 +330,14 @@ struct MenuContentView: View {
     /// a cluster means the unauthenticated 60/hour cap is biting and a token is
     /// the real fix. Not while GitHub is rejecting the token there is: that
     /// banner is the fix to make first.
+    ///
+    /// And whenever GitHub's budget is closed with a row it stopped, token or
+    /// not: then nothing is asked until it reopens (`GitHubRateLimitGate`), and
+    /// the banner says when — where the generic banner below would offer a
+    /// Retry that cannot be sent.
     private var showRateLimitBanner: Bool {
-        !model.gitHubTokenRejected && !model.hasGitHubToken && rateLimitedCount >= 2
+        if model.gitHubPausedUntil != nil, rateLimitedCount >= 1 { return true }
+        return !model.gitHubTokenRejected && !model.hasGitHubToken && rateLimitedCount >= 2
     }
 
     /// Show the "couldn't be checked" banner whenever any row errored — except when
@@ -438,6 +444,18 @@ struct MenuContentView: View {
 
     /// Aggregate counterpart to the per-row "Rate-limited" badge: one tap
     /// deep-links to Settings → GitHub to add a token (60/hour → 5000/hour).
+    /// With the budget closed, when checking resumes — and the token to add
+    /// when there is none; otherwise the token to add.
+    private var rateLimitBannerDetail: String {
+        guard let until = model.gitHubPausedUntil else {
+            return String(localized: "\(rateLimitedCount) items couldn’t be checked — add a token")
+        }
+        let time = until.formatted(date: .omitted, time: .shortened)
+        return model.hasGitHubToken
+            ? String(localized: "\(rateLimitedCount) items wait until \(time), when GitHub takes requests again")
+            : String(localized: "\(rateLimitedCount) items wait until \(time) — or add a token")
+    }
+
     private var rateLimitBanner: some View {
         Button {
             model.requestedSettingsSection = .github
@@ -450,7 +468,7 @@ struct MenuContentView: View {
                     .foregroundStyle(.orange)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Hitting GitHub’s rate limit").font(.caption).fontWeight(.medium)
-                    Text("\(rateLimitedCount) items couldn’t be checked — add a token")
+                    Text(rateLimitBannerDetail)
                         .font(.caption2).foregroundStyle(.secondary)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1330,7 +1348,8 @@ private struct AppRow: View {
                             openWindow(id: SettingsView.windowID)
                             model.surfaceWindow(sceneID: SettingsView.windowID)
                         },
-                        signInToAppleDeveloper: { model.signInToAppleDeveloper() }),
+                        signInToAppleDeveloper: { model.signInToAppleDeveloper() },
+                        retryPausedUntil: model.gitHubPausedUntil),
                     runningVersion: model.runningVersion(result.id),
                     helperEnabled: model.helperEnabled,
                     downloadReadout: { downloadReadout },

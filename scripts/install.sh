@@ -56,9 +56,15 @@ say "Building Release (Developer ID signing)"
 mkdir -p "$DD"
 LOG="$DD/install-$$.log"
 set +e
+# DUO_DEV_HOOKS: this Mac's own build carries the developer hooks
+# (`GitHubAPIMock`: DUO_GITHUB_API_MOCK sends GitHub API requests to a local
+# stand-in). The release build (notarize.sh) does not set it, and
+# check-no-dev-hooks.sh fails a release that has them.
 xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
            -scheme DuoUpdater -configuration Release \
-           -derivedDataPath "$DD" build > "$LOG" 2>&1
+           -derivedDataPath "$DD" \
+           'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DUO_DEV_HOOKS' \
+           build > "$LOG" 2>&1
 STATUS=$?
 set -e
 if [ $STATUS -ne 0 ]; then

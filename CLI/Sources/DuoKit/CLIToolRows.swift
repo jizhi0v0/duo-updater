@@ -173,10 +173,23 @@ enum CLIToolRows {
 
     /// Every install with its verdict, each tool's requests filed under it as
     /// the app files them (`CLIToolsModel.check`).
+    ///
+    /// A one-click whose vendor command would ask GitHub's API on a budget
+    /// this process has found closed is held back, as the app holds it back
+    /// (`CLIToolStatus.applyingGitHubPause`): the command asks from its own
+    /// process, where the gate cannot stop it. What this process knows is what
+    /// its own requests learned — the checks that read the API probe it first.
     static func check(_ providers: [any CLIToolProvider] = CLITools.providers()) async -> [CLIToolStatus] {
-        await CLITools.inProviderOrder(providers, Array(providers.indices)) { provider in
+        let statuses = await CLITools.inProviderOrder(providers, Array(providers.indices)) { provider in
             await RequestAttribution.withApp(provider.kind.displayName) { await provider.check() }
         }.flatMap { $0.1.statuses }
+        guard let gate = GitHubRateLimitGate.active,
+              statuses.contains(where: { $0.oneClick != nil && $0.kind.updaterSpendsGitHubAPI != nil })
+        else { return statuses }
+        let pause = await gate.pause()
+        guard !pause.isEmpty else { return statuses }
+        let ourToken = await CLITools.vendorUpdatersGetOurToken()
+        return statuses.map { $0.applyingGitHubPause(pause, updatersGetOurToken: ourToken, now: Date()) }
     }
 
     // MARK: - Text

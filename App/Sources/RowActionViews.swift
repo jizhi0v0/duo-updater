@@ -173,6 +173,10 @@ struct RowActions {
     var install: () -> Void = {}
     var openStagedPackage: () -> Void = {}
     var retry: () -> Void = {}
+    /// Until when GitHub's API budget is closed (`AppListModel.gitHubPausedUntil`):
+    /// a row that GitHub's rate limit stopped offers no Retry until then — the
+    /// gate would refuse it unsent — and says when checking resumes.
+    var retryPausedUntil: Date? = nil
     var restart: () -> Void = {}
     var relaunchStaged: () -> Void = {}
     var confirmQuit: () -> Void = {}
@@ -204,15 +208,26 @@ struct RowActions {
         openTestFlight: @escaping () -> Void,
         grantFullDiskAccess: @escaping () -> Void,
         openTestFlightSetting: @escaping () -> Void,
-        signInToAppleDeveloper: @escaping () -> Void
+        signInToAppleDeveloper: @escaping () -> Void,
+        retryPausedUntil: Date?
     ) -> RowActions {
         RowActions(
             install: install, openStagedPackage: openStagedPackage, retry: retry,
+            retryPausedUntil: retryPausedUntil,
             restart: restart, relaunchStaged: relaunchStaged, confirmQuit: confirmQuit,
             openSelfUpdater: openSelfUpdater, openToolbox: openToolbox,
             openTestFlight: openTestFlight, grantFullDiskAccess: grantFullDiskAccess,
             openTestFlightSetting: openTestFlightSetting,
             signInToAppleDeveloper: signInToAppleDeveloper)
+    }
+}
+
+extension RowActions {
+    /// What a rate-limited row says while GitHub's budget is closed.
+    static func pausedHelp(_ until: Date?) -> String? {
+        until.map {
+            String(localized: "GitHub’s rate limit: checks resume at \($0.formatted(date: .omitted, time: .shortened))")
+        }
     }
 }
 
@@ -313,13 +328,16 @@ struct WorkbenchRowAction: View {
                     .font(.callout)
                     .lineLimit(1).minimumScaleFactor(0.7)
                     .foregroundStyle(rateLimited ? Color.orange : Color.secondary)
-                Button { actions.retry() } label: {
-                    Image(systemName: "arrow.clockwise")
+                    .help(rateLimited ? RowActions.pausedHelp(actions.retryPausedUntil) ?? "" : "")
+                if !(rateLimited && actions.retryPausedUntil != nil) {
+                    Button { actions.retry() } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
+                    .help(message.isEmpty
+                          ? String(localized: "Update check failed — click to retry")
+                          : String(localized: "\(message) — click to retry"))
                 }
-                .buttonStyle(.bordered)
-                .help(message.isEmpty
-                      ? String(localized: "Update check failed — click to retry")
-                      : String(localized: "\(message) — click to retry"))
             }
 
         case .noSourceCovers(let hint):

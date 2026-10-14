@@ -32,3 +32,12 @@ enum CLIToolGitHubToken {
         { isRejected() ? nil : await resolve() }
     }
 }
+
+extension CLITools {
+    /// Whether uv, bun and mise would be handed our token now
+    /// (`CLIToolGitHubToken.app`): which GitHub budget their updaters spend,
+    /// for `CLIToolStatus.applyingGitHubPause`.
+    public static func vendorUpdatersGetOurToken() async -> Bool {
+        await CLIToolGitHubToken.app() != nil
+    }
+}

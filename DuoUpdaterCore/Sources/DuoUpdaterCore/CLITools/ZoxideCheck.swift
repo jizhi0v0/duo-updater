@@ -63,6 +63,9 @@ public struct ZoxideCheck: Sendable {
             published = try await latest()
         } catch ZoxideRelease.Failure.rateLimited(let status) {
             return verdict(.unknown, note: "\(ZoxideRelease.Failure.rateLimited(status))", withheld: .rateLimited)
+        } catch let refused as GitHubRateLimitGate.Refused {
+            // Held back by the gate, unsent: the same budget, spent.
+            return verdict(.unknown, note: refused.localizedDescription, withheld: .rateLimited)
         } catch {
             return verdict(.unknown, note: "could not read zoxide's latest release: \(error)",
                            withheld: .channelUnreadable)

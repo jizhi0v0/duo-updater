@@ -232,9 +232,15 @@ public extension URLSession {
     /// `followsTokenRejection: false` is for a token that is not the one in use —
     /// Settings verifying a pasted token before saving it, whose 401 is the
     /// answer it asked for.
+    ///
+    /// Every request to `api.github.com` also passes the rate-limit gate
+    /// (`GitHubRateLimitGate`): while GitHub has said the budget it would spend
+    /// is gone, it is not sent, and this throws `GitHubRateLimitGate.Refused`.
+    /// Except Settings verifying a pasted token: that budget is not the one in
+    /// use, and the user is waiting on the answer.
     func countedData(
         for request: URLRequest, purpose: RequestPurpose, store: EventStore = .shared,
-        followsTokenRejection: Bool = true
+        followsTokenRejection: Bool = true, gate: GitHubRateLimitGate.Store? = GitHubRateLimitGate.active
     ) async throws -> (Data, URLResponse) {
         guard followsTokenRejection else {
             return try await recordedData(for: request, purpose: purpose, store: store)
@@ -245,11 +251,33 @@ public extension URLSession {
         let generation = credentials.requestGeneration()
         let outgoing = GitHubCredentials.carriesToken(request) && credentials.isRejected(generation: generation)
             ? GitHubCredentials.anonymous(request) : request
-        let answer = try await recordedData(for: outgoing, purpose: purpose, store: store)
+        let answer = try await gatedData(for: outgoing, purpose: purpose, store: store, gate: gate)
         guard GitHubCredentials.isRejection(of: outgoing, answer.1) else { return answer }
         credentials.recordRejection(generation: generation)
         Log.source.notice("GitHub rejected the token (HTTP 401) — asking again without it")
-        return try await recordedData(for: GitHubCredentials.anonymous(outgoing), purpose: purpose, store: store)
+        return try await gatedData(
+            for: GitHubCredentials.anonymous(outgoing), purpose: purpose, store: store, gate: gate)
+    }
+
+    /// `recordedData`, behind the rate-limit gate when the request is to the
+    /// GitHub API: admitted, or refused without being sent; and what came
+    /// back — or that nothing did — told to the gate.
+    private func gatedData(
+        for request: URLRequest, purpose: RequestPurpose, store: EventStore, gate: GitHubRateLimitGate.Store?
+    ) async throws -> (Data, URLResponse) {
+        guard let pass = try await GitHubRateLimitGate.Pass(admitting: request, gate: gate, probe: { probe in
+            try? await self.recordedData(for: probe, purpose: .other, store: store)
+        }) else {
+            return try await recordedData(for: request, purpose: purpose, store: store)
+        }
+        do {
+            let answer = try await recordedData(for: request, purpose: purpose, store: store)
+            await pass.complete(answer.0, answer.1)
+            return answer
+        } catch {
+            await pass.complete(nil, nil)
+            throw error
+        }
     }
 
     private func recordedData(
@@ -260,7 +288,9 @@ public extension URLSession {
         // callback, which runs on the session's delegate queue outside this
         // task's tree and would see only the default. That is the same trap the
         // purpose fell into; see this file's header.
-        try await data(for: request, delegate: RequestMetricsRecorder(
+        // A developer build may send API requests to a local stand-in
+        // (`GitHubAPIMock`); a release hands `request` back unchanged.
+        try await data(for: GitHubAPIMock.redirect(request), delegate: RequestMetricsRecorder(
             purpose, appID: RequestAttribution.appID, store: store))
     }
 
@@ -276,11 +306,23 @@ public extension URLSession {
     /// Breaking out of the returned sequence cancels the transfer, and however the
     /// caller leaves it the request is recorded once — see ``CountedBytes``.
     func countedBytes(
-        for request: URLRequest, purpose: RequestPurpose, store: EventStore = .shared
+        for request: URLRequest, purpose: RequestPurpose, store: EventStore = .shared,
+        gate: GitHubRateLimitGate.Store? = GitHubRateLimitGate.active
     ) async throws -> (CountedBytes, URLResponse) {
-        let (bytes, response) = try await bytes(for: request, delegate: RequestMetricsRecorder(
-            purpose, appID: RequestAttribution.appID, store: store))
-        return (CountedBytes(bytes), response)
+        // Behind the same gate as `countedData` when it is an API request; the
+        // answer's headers are all the gate reads, so the body is not waited for.
+        let pass = try await GitHubRateLimitGate.Pass(admitting: request, gate: gate, probe: { probe in
+            try? await self.recordedData(for: probe, purpose: .other, store: store)
+        })
+        do {
+            let (bytes, response) = try await bytes(for: GitHubAPIMock.redirect(request), delegate: RequestMetricsRecorder(
+                purpose, appID: RequestAttribution.appID, store: store))
+            await pass?.complete(nil, response)
+            return (CountedBytes(bytes), response)
+        } catch {
+            await pass?.complete(nil, nil)
+            throw error
+        }
     }
 
     /// The body of a ``countedBytes(for:purpose:store:)`` request: `AsyncBytes`

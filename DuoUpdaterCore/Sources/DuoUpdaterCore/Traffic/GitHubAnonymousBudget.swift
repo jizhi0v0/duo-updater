@@ -39,7 +39,8 @@ public struct GitHubAnonymousBudget: Sendable {
     public init(session: URLSession = .updates) {
         self.init(fetch: { request in
             let (data, response) = try await session.data(
-                for: request, delegate: RequestMetricsRecorder(.other, store: .shared, rateBudget: Self.unread))
+                for: GitHubAPIMock.redirect(request),
+                delegate: RequestMetricsRecorder(.other, store: .shared, rateBudget: Self.unread))
             return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
         })
     }

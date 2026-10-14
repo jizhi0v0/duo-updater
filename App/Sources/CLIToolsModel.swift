@@ -39,8 +39,30 @@ final class CLIToolsModel {
 
     /// Every install found, with its verdict, in `CLIToolKind.allCases` order and
     /// each tool's own order within that. Empty until the first check returns
-    /// (`checked`).
+    /// (`checked`). The checks' verdicts (`checkedStatuses`), with a one-click
+    /// held back while the GitHub API budget its updater would spend is closed
+    /// (`gitHubPause`).
     private(set) var statuses: [CLIToolStatus] = []
+    /// The verdicts as the checks returned them.
+    @ObservationIgnored private var checkedStatuses: [CLIToolStatus] = []
+
+    /// Until when each GitHub API budget is closed (`GitHubRateLimitGate`), as
+    /// the app last read it; a credential absent is open. While the budget a
+    /// tool's own update command would spend is closed, its one-click is held
+    /// back (`CLIToolKind.updaterSpendsGitHubAPI`): the command asks GitHub
+    /// from its own process, which the gate cannot stop.
+    @ObservationIgnored var gitHubPause: [GitHubRateLimitGate.Credential: Date] = [:] {
+        didSet { publishStatuses() }
+    }
+    /// Whether a GitHub token resolves, so uv, bun and mise would be handed it.
+    @ObservationIgnored var updatersGetOurToken = false
+
+    private func publishStatuses() {
+        let current = self.now()
+        statuses = checkedStatuses.map {
+            $0.applyingGitHubPause(gitHubPause, updatersGetOurToken: updatersGetOurToken, now: current)
+        }
+    }
     /// The tool-wide settings each tool's verdicts were made under, for its group
     /// header: Claude Code's channel and auto-update, fx's settings.
     private(set) var contexts: [CLIToolKind: CLIToolReport.Context] = [:]
@@ -497,7 +519,8 @@ final class CLIToolsModel {
         }
         let ordered = reports.keys.sorted().compactMap { reports[$0] }
         contexts = Dictionary(ordered.map { ($0.kind, $0.context) }, uniquingKeysWith: { a, _ in a })
-        statuses = ordered.flatMap(\.statuses)
+        checkedStatuses = ordered.flatMap(\.statuses)
+        publishStatuses()
         checkedSightings = ordered.flatMap(\.sightings)
         sightings = checkedSightings
         checked = true

@@ -844,15 +844,20 @@ struct PopoverRowAction: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .foregroundStyle(rateLimited ? Color.orange : Color.secondary)
-            Button { actions.retry() } label: {
-                Image(systemName: "arrow.clockwise")
+                .help(rateLimited ? RowActions.pausedHelp(actions.retryPausedUntil) ?? "" : "")
+            // No Retry while GitHub's budget is closed: the gate would refuse
+            // it unsent, a click that does nothing.
+            if !(rateLimited && actions.retryPausedUntil != nil) {
+                Button { actions.retry() } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                .tint(.orange)
+                .help(message.isEmpty
+                    ? String(localized: "Update check failed — click to retry")
+                    : String(localized: "\(message) — click to retry"))
             }
-            .controlSize(.small)
-            .buttonStyle(.bordered)
-            .tint(.orange)
-            .help(message.isEmpty
-                ? String(localized: "Update check failed — click to retry")
-                : String(localized: "\(message) — click to retry"))
         }
     }
 

@@ -47,9 +47,13 @@ say "Generating Xcode project from App/project.yml"
 ( cd "$APP_DIR" && xcodegen generate >/dev/null )
 
 say "Building Release (Developer ID signing)"
+# DUO_DEV_HOOKS: as scripts/install.sh — this Mac's own `duo` carries the
+# developer hooks; a release does not.
 xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
            -scheme duo-cli -configuration Release \
-           -derivedDataPath "$DD" build >/dev/null
+           -derivedDataPath "$DD" \
+           'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DUO_DEV_HOOKS' \
+           build >/dev/null
 
 [ -f "$PRODUCT" ] || die "build produced no binary at $PRODUCT"
 

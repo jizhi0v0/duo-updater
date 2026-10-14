@@ -238,11 +238,40 @@ final class CLIToolsModel {
     /// background check (`backgroundCheck`) keeps those ages too, so an open
     /// right after it asks nothing again.
     ///
-    /// Nothing while a check is out: its report is about to land, and a closed
-    /// popover no longer cancels it (`check`), so each open of a popover flicked
-    /// open and shut would otherwise ask every tool's channel once more.
+    /// One open at a time. A closed popover no longer cancels its check
+    /// (`check`), so opens of a popover flicked open and shut would otherwise
+    /// each start one — on a cold start, a check of every tool per flick. An
+    /// open while another's is under way waits for it and is then decided
+    /// against the report it left; however many arrive, that is one more
+    /// decision. Only opens queue here: an update's re-check of its one tool and
+    /// the background check of the tools whose turn it is answer for those
+    /// tools only, so an open during one still decides for every tool.
     func refreshOnOpen() async {
-        guard !checking else { return }
+        if let openRun {
+            openOwed = true
+            await openRun.value
+            return
+        }
+        // In a task of the model's own, so a popover closing mid-open stops
+        // neither this open nor the one owed after it.
+        let run = Task { @MainActor in
+            repeat {
+                openOwed = false
+                await openOnce()
+            } while openOwed
+            // No await since the last `openOwed` read: an open can neither find
+            // a finished task here nor slip in between.
+            openRun = nil
+        }
+        openRun = run
+        await run.value
+    }
+
+    /// The open under way (`refreshOnOpen`), and whether another arrived during it.
+    @ObservationIgnored private var openRun: Task<Void, Never>?
+    @ObservationIgnored private var openOwed = false
+
+    private func openOnce() async {
         guard !checkedAt.isEmpty else { return await refresh() }
         let found = await scanAll()
         // What the scan can see change without a check: which copies of which

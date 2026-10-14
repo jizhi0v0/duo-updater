@@ -109,7 +109,10 @@ jobs:
           only=false
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
             files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename')
-            if [ -n "$files" ] && ! grep -qv '^bench/' <<<"$files"; then only=true; fi
+            # The files endpoint lists at most 3000; with more, some went unseen.
+            total=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .changed_files)
+            if [ -n "$files" ] && [ "$(wc -l <<<"$files")" -eq "$total" ] &&
+               ! grep -qv '^bench/' <<<"$files"; then only=true; fi
           fi
           echo "bench_only=$only" >> "$GITHUB_OUTPUT"
           echo "bench_only=$only"

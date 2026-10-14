@@ -66,7 +66,7 @@ git log --oneline HEAD -5 > $R/gitlog.txt
 git status --porcelain > $R/uncommitted.txt
 git diff --stat $parent HEAD > $R/diffstat.txt 2>/dev/null
 git diff $parent HEAD > $R/diff.patch 2>/dev/null
-PATH=$H/pyshim:$PATH make test > $R/make-test.log 2>&1; echo $? > $R/make-test.rc
+PATH=$PYSHIM:$PATH make test > $R/make-test.log 2>&1; echo $? > $R/make-test.rc
 cp $H/ZZBenchGrade.swift DuoUpdaterCore/Tests/DuoUpdaterCoreTests/
 ( cd DuoUpdaterCore && BENCH_GRADE_CASE=$C BENCH_GRADE_OUT=$R/grade.json swift test --filter ZZBenchGrade > $R/grade.log 2>&1; echo $? > $R/grade.rc )
 if [ "$(cat $R/grade.rc)" != 0 ]; then

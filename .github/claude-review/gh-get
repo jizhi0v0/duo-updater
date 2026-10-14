@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# gh-get <repos/OWNER/REPO[/path][?query]> [jq-filter]
+#
+# The reviewer's only network access: one authenticated GET of the GitHub REST
+# API, with the review job's read-only token (GH_TOKEN). The path must sit under
+# repos/<owner>/<repo>, so no other host, method or endpoint family is reachable,
+# and the jq filter runs in a separate process with an EMPTY environment: `gh
+# --jq` (gojq) can read the environment through `env` / `$ENV`, which would
+# print the token.
+set -uo pipefail
+[ $# -ge 1 ] && [ $# -le 2 ] || { echo "usage: gh-get repos/OWNER/REPO[/path][?query] [jq-filter]" >&2; exit 64; }
+p=$1
+[[ $p =~ ^repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/[A-Za-z0-9_./@%+-]*)?(\?[A-Za-z0-9_=\&.%-]*)?$ ]] || { echo "gh-get: only repos/<owner>/<repo>/... paths" >&2; exit 64; }
+[[ $p == *..* ]] && { echo "gh-get: '..' not allowed" >&2; exit 64; }
+if [ $# -eq 2 ]; then
+  jq_bin=$(command -v jq) || { echo "gh-get: jq not found" >&2; exit 69; }
+  gh api --method GET "$p" | env -i "$jq_bin" -r "$2"
+  rc=("${PIPESTATUS[@]}")
+  # jq first: a filter that fails to compile makes gh die of SIGPIPE (141).
+  [ "${rc[1]}" -ne 0 ] && exit "${rc[1]}"
+  exit "${rc[0]}"
+fi
+exec gh api --method GET "$p"

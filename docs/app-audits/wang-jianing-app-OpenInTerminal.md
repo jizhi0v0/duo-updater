@@ -83,8 +83,10 @@ short `1.2.8` == tag，universal，Team `C8VX3ZLX5U`，`spctl` Notarized Develop
       （上游 2.0.5 `OpenInTerminalCore/Defaults.swift`：`let Defaults = UserDefaults.standard`）。
     - v2.3.9 主 app 读 `UserDefaults(suiteName: "group.wang.jianing.app.OpenInTerminal")`，取不到时
       回落到自己的 `UserDefaults.standard`（新 id 的域）（上游 v2.3.9 同一文件）。两个域都不是旧域。
-    - v2.3.9 真包里每个 Mach-O 的 `strings`：旧 id 只出现在 login-item helper（判断主 app 是否在跑），
-      没有旧 group，也没有 `persistentDomain` / `addSuiteNamed`，即发布的二进制里没有读旧域的代码。
+    - v2.3.9 真包里每个 Mach-O 的 `strings`（不分大小写）：旧 id 只出现在 login-item helper（判断主 app
+      是否在跑），没有旧 group，也没有 `addSuiteNamed`；唯一的 persistent-domain 调用是
+      `removePersistentDomainForName:`，对应上游 `DefaultsManager.removeAllUserDefaults()` 删除**新** group 域
+      （`Constants.Id.Group`）的重置功能。即发布的二进制里没有读旧域的代码。
     - 所以换成新 id 的包从空设置起步，旧设置留在旧域里不会被读。以上读源码与真包二进制得出，
       没有实际运行 app。
     登记会连一键一起打开（表的四处读取不分检测与一键），而这跟 Spotifast 不登记的理由相同：
@@ -160,7 +162,7 @@ gh api 'repos/Ji4n1ng/OpenInTerminal/contents/OpenInTerminal.xcodeproj/project.p
 gh release download 2.0.5 -R Ji4n1ng/OpenInTerminal -p OpenInTerminal.app.zip   # 解压后只读，不运行
 gh api 'repos/Ji4n1ng/OpenInTerminal/contents/OpenInTerminalCore/Defaults.swift?ref=2.0.5' --jq .content | base64 -d | grep 'UserDefaults'   # → UserDefaults.standard
 gh api 'repos/Ji4n1ng/OpenInTerminal/contents/OpenInTerminalCore/Defaults.swift?ref=v2.3.9' --jq .content | base64 -d | grep -n 'Defaults'   # → GroupDefaults ?? .standard
-find <v2.3.9>/OpenInTerminal.app -type f -exec sh -c 'file -b "$1" | grep -q Mach-O && strings -a "$1" | grep -i jianing' _ {} \;   # 旧 id 只在 helper
+find <v2.3.9>/OpenInTerminal.app -type f -exec sh -c 'file -b "$1" | grep -q Mach-O && strings -a "$1" | grep -iE "jianing|persistentDomain|addSuiteNamed" | sed "s|^|$1: |"' _ {} \;   # 旧 id 只在 helper；无旧 group；只有 removePersistentDomainForName:（删新 group 的重置）
 # Lite 与主 app 的 created_at 是否仍相同（决定 /releases/latest 能否落到 Lite）
 gh api 'repos/Ji4n1ng/OpenInTerminal/releases?per_page=4' --jq '.[]|[.tag_name,.created_at]|@tsv'
 ```

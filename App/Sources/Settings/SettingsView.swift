@@ -36,7 +36,8 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            SettingsSidebar(selection: $selection, query: $query, prefs: prefs)
+            SettingsSidebar(selection: $selection, query: $query, prefs: prefs, model: model,
+                            reveal: { show($0) })
                 .navigationSplitViewColumnWidth(212)
         } detail: {
             detail
@@ -112,10 +113,17 @@ struct SettingsView: View {
     private func applyRequestedAnchor() {
         guard let anchor = model.requestedSettingsAnchor else { return }
         query = ""
+        show(anchor)
+        model.requestedSettingsAnchor = nil
+    }
+
+    /// Open the page that holds `anchor` and scroll to it. The search keeps its
+    /// query here — a reader picking one result often wants the next — where a
+    /// deep link from elsewhere clears it first.
+    private func show(_ anchor: SettingsAnchor) {
         selection = anchor.section
         revealToken += 1
         reveal = SettingsReveal(anchor: anchor, token: revealToken)
-        model.requestedSettingsAnchor = nil
     }
 }
 
@@ -123,12 +131,35 @@ struct SettingsView: View {
 
 /// Grouped source list plus a search field. Search filters pages by label,
 /// subtitle, and keywords, so "token" reaches GitHub and "rollback" reaches
-/// General; groups that end up empty drop out.
+/// General; groups that end up empty drop out. Below the pages it lists the
+/// settings and the apps a query names (`SettingsSearch`), each leading to its
+/// own card or row rather than to the top of its page.
 private struct SettingsSidebar: View {
     @Binding var selection: SettingsSection
     @Binding var query: String
-    /// Only for the "new setting" dots — the sidebar itself has nothing to set.
+    /// For the "new setting" dots, and for the settings search's own titles
+    /// (one carries a live value) and the ignored and skipped apps it lists.
     @Bindable var prefs: Preferences
+    /// Names and icons for the apps the search lists.
+    let model: AppListModel
+    /// Open a search result's page at its card or row.
+    let reveal: (SettingsAnchor) -> Void
+
+    /// Diagnostics' recipe list, so an app with a recipe is found by name. Read
+    /// when a search starts and after each check — the same snapshot the page
+    /// itself shows.
+    @State private var recipes: [RecipeHealth.Entry] = []
+    /// The search result last picked. Only remembered while it is on the page
+    /// being shown; otherwise the list highlights the page row, as before.
+    @State private var pickedHit: SettingsAnchor?
+
+    /// One sidebar row: a page, or a result that leads into one.
+    private enum Row: Hashable {
+        case page(SettingsSection)
+        case hit(SettingsAnchor)
+    }
+
+    private var isSearching: Bool { !SearchMatch.trimmed(query).isEmpty }
 
     private var groups: [(group: SettingsSection.Group, sections: [SettingsSection])] {
         SettingsSection.Group.allCases.compactMap { group in
@@ -137,23 +168,71 @@ private struct SettingsSidebar: View {
         }
     }
 
+    private var settingHits: [SettingsSearchHit] {
+        SettingsSearch.settings(matching: query, prefs: prefs)
+    }
+
+    private var appHits: [SettingsSearchHit] {
+        SettingsSearch.apps(matching: query, prefs: prefs, results: model.results, recipes: recipes)
+    }
+
+    /// Picking a result opens its page at its card or row; picking a page opens
+    /// the page, as it always did.
+    private var rowSelection: Binding<Row?> {
+        Binding(
+            get: {
+                if isSearching, let pickedHit, pickedHit.section == selection { return .hit(pickedHit) }
+                return .page(selection)
+            },
+            set: { row in
+                switch row {
+                case .page(let section)?:
+                    pickedHit = nil
+                    selection = section
+                case .hit(let anchor)?:
+                    pickedHit = anchor
+                    reveal(anchor)
+                case nil:
+                    break
+                }
+            })
+    }
+
     var body: some View {
+        // Computed once per pass: each walks the catalog or the scan.
+        let groups = groups
+        let settingHits = settingHits
+        let appHits = appHits
         VStack(spacing: 0) {
             AppSearchField(text: $query, prompt: String(localized: "Search"))
                 .frame(height: 24)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
 
-            if groups.isEmpty {
+            if groups.isEmpty && settingHits.isEmpty && appHits.isEmpty {
                 ContentUnavailableView.search(text: query)
                     .controlSize(.small)
                 Spacer()
             } else {
-                List(selection: $selection) {
+                List(selection: rowSelection) {
                     ForEach(groups, id: \.group.id) { entry in
                         SwiftUI.Section(entry.group.displayName) {
                             ForEach(entry.sections) { section in
-                                row(section).tag(section)
+                                row(section).tag(Row.page(section))
+                            }
+                        }
+                    }
+                    if !settingHits.isEmpty {
+                        SwiftUI.Section(String(localized: "Settings")) {
+                            ForEach(settingHits) { hit in
+                                hitRow(hit).tag(Row.hit(hit.anchor))
+                            }
+                        }
+                    }
+                    if !appHits.isEmpty {
+                        SwiftUI.Section(String(localized: "Apps")) {
+                            ForEach(appHits) { hit in
+                                hitRow(hit).tag(Row.hit(hit.anchor))
                             }
                         }
                     }
@@ -161,6 +240,13 @@ private struct SettingsSidebar: View {
                 .listStyle(.sidebar)
                 .softScrollEdges()
             }
+        }
+        .task(id: isSearching) {
+            if isSearching { recipes = await RecipeHealth.shared.snapshot() }
+        }
+        .onChange(of: model.lastCheck) {
+            guard isSearching else { return }
+            Task { recipes = await RecipeHealth.shared.snapshot() }
         }
     }
 
@@ -172,6 +258,36 @@ private struct SettingsSidebar: View {
             }
         } icon: {
             SettingsIconTile(section: section)
+        }
+        .padding(.vertical, 1)
+    }
+
+    /// A result: what it is, and under it where it lives — "Ignored → Ignored
+    /// apps" — as System Settings lists its own.
+    private func hitRow(_ hit: SettingsSearchHit) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(hit.title)
+                    .lineLimit(2)
+                Text(hit.location)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+        } icon: {
+            switch hit.icon {
+            case .section(let section):
+                SettingsIconTile(section: section)
+            case .app(let path?):
+                Image(nsImage: AppIconCache.icon(for: path))
+                    .resizable()
+                    .frame(width: 20, height: 20)
+            case .app(nil):
+                Image(systemName: "app.dashed")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+            }
         }
         .padding(.vertical, 1)
     }

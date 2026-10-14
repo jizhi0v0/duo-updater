@@ -177,19 +177,16 @@ struct WorkbenchWindowView: View {
 
     /// `apps` narrowed by the search field. A blank query passes everything through;
     /// otherwise we match the query against the app name and bundle id (so
-    /// "com.google" finds Chrome too), ignoring case and diacritics.
-    private var searchQuery: String { searchText.trimmingCharacters(in: .whitespaces) }
+    /// "com.google" finds Chrome too), by the rule every search field shares
+    /// (`SearchMatch`: case, diacritics and width folded).
+    private var searchQuery: String { SearchMatch.trimmed(searchText) }
 
     private func matchesSearch(_ result: UpdateResult) -> Bool {
-        let query = searchQuery
-        guard !query.isEmpty else { return true }
-        if result.app.name.localizedStandardContains(query) { return true }
-        if let bundleID = result.app.bundleID, bundleID.localizedStandardContains(query) { return true }
-        return false
+        SearchMatch.matches(searchQuery, in: [result.app.name, result.app.bundleID])
     }
 
     private func matchesSearch(_ name: String) -> Bool {
-        searchQuery.isEmpty || name.localizedStandardContains(searchQuery)
+        SearchMatch.matches(searchQuery, in: name)
     }
 
     /// A command-line tool's row matches by the tool's name, so "claude" finds every

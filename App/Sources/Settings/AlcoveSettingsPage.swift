@@ -50,6 +50,7 @@ struct AlcoveSettingsPage: View {
             ) {
                 if editing { editor } else { savedRow }
             }
+            .settingsAnchor(.alcoveLicense)
 
             if editing { advancedCard }
         }

@@ -3236,6 +3236,9 @@ struct ChangelogEntriesView: View {
     /// The version whose breaking changes are tinted, and scrolled to when it
     /// was set: until the reader picks another version or another click lands.
     @State private var shownBreaking: BreakingChangesJump?
+    /// The version a switch to the long scroll lands on: the one picked in
+    /// the rail. Nil once landed, and dropped by new notes.
+    @State private var landing: Int?
 
     /// What `scrollToBreaking` needs to know about the notes as they scroll,
     /// kept by the rows and the scroll views. Not observed: rows coming and
@@ -3250,12 +3253,16 @@ struct ChangelogEntriesView: View {
         var heights: [AnyHashable: CGFloat] = [:]
         /// A version header's height (`ChangelogSectionsList`), last measured.
         var headerHeight: CGFloat = 0
-        /// The tinted version's header and first row in the window, last
-        /// measured, by version: where `bandInset` is read. Each is nil while
-        /// not built. The row's id too, so only the view that reported a frame
-        /// clears it.
-        var tintedHeader: (entry: Int, frame: CGRect)?
-        var tintedFirstRow: (entry: Int, id: AnyHashable, frame: CGRect)?
+        /// The measured version's header and first row in the window, last
+        /// measured, by version: where `bandInset` is read
+        /// (`ChangelogSectionsList.measured`). Each is nil while not built.
+        /// The row's id too, so only the view that reported a frame clears it.
+        var measuredHeader: (entry: Int, frame: CGRect)?
+        var measuredFirstRow: (entry: Int, id: AnyHashable, frame: CGRect)?
+        /// The long scroll's versions whose headers are built, by each header's
+        /// `onAppear`/`onDisappear`. The first is the one floating at the top:
+        /// the version the reader is in, carried to the side-by-side layout.
+        var shownHeaders: Set<Int> = []
         /// The top of the long scroll's list in the window. The window's space,
         /// not one named on the list: that did not reach the list's headers,
         /// which got the window's anyway (2026-10-15).
@@ -3270,10 +3277,10 @@ struct ChangelogEntriesView: View {
         /// (`HeaderBand.padding`), else keeps the value read before; whether
         /// it changed.
         func readBandInset(entry: Int) -> Bool {
-            guard let header = tintedHeader, header.entry == entry,
+            guard let header = measuredHeader, header.entry == entry,
                   let padding = HeaderBand.padding(
                       header: header.frame,
-                      firstRow: tintedFirstRow?.entry == entry ? tintedFirstRow?.frame : nil,
+                      firstRow: measuredFirstRow?.entry == entry ? measuredFirstRow?.frame : nil,
                       listTop: listTop),
                   abs(padding - bandInset) > 0.5 else { return false }
             bandInset = padding
@@ -3344,7 +3351,18 @@ struct ChangelogEntriesView: View {
         .onChange(of: changelog) {
             selection = 0
             shownBreaking = nil
+            landing = nil
             cachedRailWidth = measuredRailWidth
+        }
+        // The other layout opens on the version the reader was in: the one
+        // floating at the top of the long scroll, or the one picked in the rail.
+        .onChange(of: layout) { _, layout in
+            switch layout {
+            case .columns:
+                if let top = notesScroll.shownHeaders.min() { selection = top }
+            case .list:
+                landing = selection
+            }
         }
         // The flags can land after the notes: they come from the tool's check.
         .onChange(of: breakingVersions) {
@@ -3489,20 +3507,43 @@ struct ChangelogEntriesView: View {
                 if notesScroll.readBandInset(entry: index) {
                     proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: belowHeader))
                 }
+            } else if belowHeader {
+                await land(proxy, on: target, built: built, entry: index)
             } else {
-                proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: belowHeader))
-                guard belowHeader else { return }
-                for _ in 0..<10 where !notesScroll.built.contains(built) {
-                    try? await Task.sleep(for: .milliseconds(16))
-                }
-                _ = notesScroll.readBandInset(entry: index)
-                proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: belowHeader))
-                // The padding read only now, with the header at the top.
-                try? await Task.sleep(for: .milliseconds(50))
-                if notesScroll.readBandInset(entry: index) {
-                    proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: belowHeader))
-                }
+                proxy.scrollTo(target, anchor: .top)
             }
+        }
+    }
+
+    /// Jump to `target` under the band, and again once it is built: the move
+    /// `scrollToBreaking` makes to a row far away.
+    private func land(_ proxy: ScrollViewProxy, on target: AnyHashable, built: AnyHashable, entry: Int) async {
+        proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: true))
+        for _ in 0..<10 where !notesScroll.built.contains(built) {
+            try? await Task.sleep(for: .milliseconds(16))
+        }
+        _ = notesScroll.readBandInset(entry: entry)
+        proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: true))
+        // The padding read only now, with the header at the top.
+        try? await Task.sleep(for: .milliseconds(50))
+        if notesScroll.readBandInset(entry: entry) {
+            proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: true))
+        }
+    }
+
+    /// The long scroll just opened from the side-by-side layout: bring
+    /// `landing`'s version to the top, its first row under its header.
+    private func land(_ proxy: ScrollViewProxy) {
+        guard let landing else { return }
+        let index = min(max(landing, 0), changelog.entries.count - 1)
+        guard ChangelogEntryView.rowCount(of: changelog.entries[index]) > 0 else {
+            self.landing = nil
+            return
+        }
+        let target = ChangelogSectionsList.rowID(entry: index, row: 0)
+        Task { @MainActor in
+            await land(proxy, on: target, built: target, entry: index)
+            self.landing = nil
         }
     }
 
@@ -3586,7 +3627,8 @@ struct ChangelogEntriesView: View {
     /// the notes while they are read (`ChangelogSectionsList`).
     private var sectionsBody: some View {
         ScrollViewReader { proxy in
-            ChangelogSectionsList(changelog: changelog, itemStyle: itemStyle, tint: tint, scroll: notesScroll)
+            ChangelogSectionsList(changelog: changelog, itemStyle: itemStyle, tint: tint,
+                                  measured: tint?.entry ?? landing, scroll: notesScroll)
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
                     notesScroll.viewportHeight = $0.height
                     notesScroll.listTop = $0.minY
@@ -3594,6 +3636,7 @@ struct ChangelogEntriesView: View {
                 .onChange(of: shownBreaking) {
                     scrollToBreaking(proxy, belowHeader: true)
                 }
+                .onAppear { land(proxy) }
         }
     }
 }
@@ -3753,6 +3796,10 @@ private struct ChangelogSectionsList: View {
     let changelog: Changelog
     var itemStyle: ChangelogEntriesView.ItemStyle = .bulleted
     var tint: ChangelogRowsStack.Tint?
+    /// The version whose header's frame is measured, for `NotesScroll.bandInset`:
+    /// the one a scroll is landing on. One only: a header's frame changes on
+    /// every frame of a scroll.
+    var measured: Int?
     /// Where the rows `scrollToBreaking` may go to are recorded while built,
     /// with their heights, and the header's height (`ChangelogEntriesView.NotesScroll`).
     let scroll: ChangelogEntriesView.NotesScroll
@@ -3807,14 +3854,14 @@ private struct ChangelogSectionsList: View {
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                                 scroll.heights[row.id] = height
                             }
-                            // Under the tinted header (`NotesScroll.readBandInset`).
+                            // Under the measured header (`NotesScroll.readBandInset`).
                             .onGeometryChange(for: CGRect?.self) {
-                                row.row == 0 && tinted != nil ? $0.frame(in: .global) : nil
+                                row.row == 0 && index == measured ? $0.frame(in: .global) : nil
                             } action: { frame in
-                                if row.row == 0, tinted != nil, let frame { scroll.tintedFirstRow = (index, row.id, frame) }
+                                if row.row == 0, index == measured, let frame { scroll.measuredFirstRow = (index, row.id, frame) }
                             }
                             .onDisappear {
-                                if row.row == 0, scroll.tintedFirstRow?.id == row.id { scroll.tintedFirstRow = nil }
+                                if row.row == 0, scroll.measuredFirstRow?.id == row.id { scroll.measuredFirstRow = nil }
                             }
                             .listRowInsets(EdgeInsets())
                             .listRowSeparator(.hidden)
@@ -3822,14 +3869,16 @@ private struct ChangelogSectionsList: View {
                 } header: {
                     ChangelogEntryView.Header(entry: entry, tinted: tinted?.isEmpty == true)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { scroll.headerHeight = $0 }
-                        // Only the tinted one: its frame changes on every
-                        // frame of a scroll.
                         .onGeometryChange(for: CGRect?.self) {
-                            tinted == nil ? nil : $0.frame(in: .global)
+                            index == measured ? $0.frame(in: .global) : nil
                         } action: { frame in
-                            if tinted != nil, let frame { scroll.tintedHeader = (index, frame) }
+                            if index == measured, let frame { scroll.measuredHeader = (index, frame) }
                         }
-                        .onDisappear { if scroll.tintedHeader?.entry == index { scroll.tintedHeader = nil } }
+                        .onAppear { scroll.shownHeaders.insert(index) }
+                        .onDisappear {
+                            scroll.shownHeaders.remove(index)
+                            if scroll.measuredHeader?.entry == index { scroll.measuredHeader = nil }
+                        }
                         // Not all of them: the list still put the header 8 pt
                         // in and 4.125 pt down, in a band 37.5 pt tall for a
                         // 29.25 pt header (`NotesScroll.bandInset`; 2026-10-15).

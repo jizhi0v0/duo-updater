@@ -27,8 +27,9 @@ public enum CLIStart: Equatable, Sendable {
 ///
 /// - Homebrew vs. Homebrew: one at a time. `brew update` takes a lock of its own;
 ///   an upgrade locks the formula and all its dependencies, and a second run
-///   that needs one of them fails with "already in progress" (Homebrew 7.0.9:
-///   `cmd/update.sh` `lock update`, `FormulaInstaller#lock`).
+///   that needs one of them fails at once, "A `brew …` process has already
+///   locked …" (Homebrew 7.0.9: `cmd/update.sh` `lock update`,
+///   `FormulaInstaller#lock`, `LockFile` with `LOCK_NB`).
 /// - Homebrew vs. a tool: one at a time, whatever the tool. brew guards nothing
 ///   against a process outside it: its locks are flock files only brew takes,
 ///   it unlinks a formula's old keg (`bin/node` gone) before installing the new

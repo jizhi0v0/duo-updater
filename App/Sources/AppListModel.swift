@@ -4354,11 +4354,11 @@ final class AppListModel {
         guard case .blocked(let blocker) = cliStart(operation) else { return nil }
         switch (operation.isHomebrew, blocker.isHomebrew) {
         case (true, true):
-            return String(localized: "Another Homebrew command is running. This starts once it has finished.")
+            return String(localized: "Another Homebrew command is running. Try again once it has finished.")
         case (true, false):
-            return String(localized: "Command-line tools are updating. Homebrew waits for them: it could replace the node or libraries they run on.")
+            return String(localized: "Command-line tools are updating. Homebrew can’t run until they finish: it could replace the node or libraries they run on.")
         default:
-            return String(localized: "Homebrew is running. Tools wait for it: it could replace the node or libraries they run on.")
+            return String(localized: "Homebrew is running. Tools can’t update until it finishes: it could replace the node or libraries they run on.")
         }
     }
 

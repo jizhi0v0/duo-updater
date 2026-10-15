@@ -156,3 +156,80 @@ import Foundation
     #expect(app.electronUpdate == nil)
     #expect(app.sparkleFeedURL == nil)
 }
+
+/// Helium ships Sparkle inside its Chromium framework, reached the way a real
+/// versioned framework is laid out: `Helium Framework.framework/Frameworks` is a
+/// symlink to `Versions/Current/Frameworks`, and `Current` points at the version.
+/// Before this, the flag looked only at `Contents/Frameworks/Sparkle.framework`, so
+/// a build Helium's own Sparkle had staged was invisible to `SelfUpdaterStaging`.
+///
+/// Mutation: drop `nestsSparkleOneFrameworkDeep` from the scanner's check.
+@Test func sparkleNestedInAVersionedFrameworkIsSeen() throws {
+    let bundle = try makeBundleWithNestedSparkle(depth: 1, id: "net.example.zzfixture.nested1")
+    defer { try? FileManager.default.removeItem(at: bundle.deletingLastPathComponent()) }
+    let app = try #require(AppScanner(testflight: TestFlightInventory(macRows: [])).scan(bundlesAt: [bundle]).first)
+    #expect(app.hasSparkleUpdater)
+}
+
+/// The check is bounded on purpose (it runs for every bundle on every scan), so a
+/// Sparkle two frameworks down is not looked for.
+///
+/// Mutation: replace the one-level check with a recursive walk of the bundle.
+@Test func sparkleTwoFrameworksDownIsNotSearched() throws {
+    let bundle = try makeBundleWithNestedSparkle(depth: 2, id: "net.example.zzfixture.nested2")
+    defer { try? FileManager.default.removeItem(at: bundle.deletingLastPathComponent()) }
+    let app = try #require(AppScanner(testflight: TestFlightInventory(macRows: [])).scan(bundlesAt: [bundle]).first)
+    #expect(!app.hasSparkleUpdater)
+}
+
+/// A bundle with `Sparkle.framework` `depth` frameworks below `Contents/Frameworks`,
+/// each level laid out as a versioned framework with a `Frameworks` symlink.
+private func makeBundleWithNestedSparkle(depth: Int, id: String) throws -> URL {
+    let fm = FileManager.default
+    let root = fm.temporaryDirectory.appendingPathComponent("scanner-nested-sparkle-\(UUID().uuidString)")
+    let bundle = root.appendingPathComponent("ZZNested.app")
+    var frameworks = bundle.appendingPathComponent("Contents/Frameworks")
+    for level in 0..<depth {
+        let framework = frameworks.appendingPathComponent("Host\(level) Framework.framework")
+        let versioned = framework.appendingPathComponent("Versions/A/Frameworks")
+        try fm.createDirectory(at: versioned, withIntermediateDirectories: true)
+        try fm.createSymbolicLink(
+            atPath: framework.appendingPathComponent("Versions/Current").path,
+            withDestinationPath: "A")
+        try fm.createSymbolicLink(
+            atPath: framework.appendingPathComponent("Frameworks").path,
+            withDestinationPath: "Versions/Current/Frameworks")
+        frameworks = versioned
+    }
+    try fm.createDirectory(
+        at: frameworks.appendingPathComponent("Sparkle.framework"), withIntermediateDirectories: true)
+    let info = bundle.appendingPathComponent("Contents/Info.plist")
+    try PropertyListSerialization
+        .data(fromPropertyList: [
+            "CFBundleIdentifier": id, "CFBundleShortVersionString": "1.0",
+            "CFBundleVersion": "1", "CFBundleName": "ZZNested",
+        ], format: .xml, options: 0)
+        .write(to: info)
+    return bundle
+}
+
+/// Both installer matchers — `SparkleStagingClearance`'s job match and
+/// `SelfUpdaterStaging`'s process walk — read their homes from here. Before this,
+/// each kept the top-level path, so Helium's `Autoupdate`, running from inside its
+/// Chromium framework, read as "no installer" to the orphan check even after the
+/// job match had been fixed (found on the mini, 2026-10-15).
+///
+/// Mutation: build the homes from the top-level path alone again.
+@Test func installerHomesIncludeASparkleNestedInAFramework() throws {
+    let bundle = try makeBundleWithNestedSparkle(depth: 1, id: "net.example.zzfixture.homes")
+    defer { try? FileManager.default.removeItem(at: bundle.deletingLastPathComponent()) }
+    let app = InstalledApp(
+        name: "ZZNested", bundleID: "net.example.zzfixture.homes", shortVersion: "1.0",
+        buildVersion: "1", path: bundle, isMASApp: false, sparkleFeedURL: nil,
+        hasSparkleUpdater: true)
+    let homes = SelfUpdaterStaging.sparkleInstallerHomes(for: app, sparkleRoots: [])
+    let nested = bundle
+        .appendingPathComponent("Contents/Frameworks/Host0 Framework.framework/Versions/A/Frameworks/Sparkle.framework")
+        .resolvingSymlinksInPath().path
+    #expect(homes == [nested])
+}

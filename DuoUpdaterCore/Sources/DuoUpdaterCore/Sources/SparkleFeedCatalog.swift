@@ -30,11 +30,11 @@ import Foundation
 /// real builds on 2026-08-31: the 0.16.2.1 (default) bundle sees 8 of the feed's
 /// 9 items, the 0.16.1.1 (beta-tagged) bundle sees all 9.
 ///
-/// Deliberately NOT gated on `InstalledApp.hasSparkleUpdater`: that flag looks for
-/// `Contents/Frameworks/Sparkle.framework`, and Helium's copy lives inside its
-/// Chromium framework
-/// (`Helium Framework.framework/Versions/<v>/Frameworks/Sparkle.framework`), so
-/// the flag reads false for the one app in this table.
+/// Deliberately NOT gated on `InstalledApp.hasSparkleUpdater`. That flag now finds
+/// Helium's copy, inside its Chromium framework
+/// (`Helium Framework.framework/Versions/<v>/Frameworks/Sparkle.framework`), but it
+/// looks only one framework deep, and whether a vendor's feed applies is not a
+/// question about where its updater happens to be packaged.
 ///
 /// ``supersededFeeds`` is the second, narrower gap: a bundle that *does* state an
 /// address, at a feed the vendor has abandoned. Everything above says a stated

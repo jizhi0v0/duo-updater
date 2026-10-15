@@ -612,6 +612,7 @@ consume, or that would break us if we ignored it?**
 | 按设备灰度（同一个 key 因人而异）| | | |
 | 按架构 / 按 OS 分轨 | | | |
 | 自更新器会不会和我们抢 | | | |
+| 已停放整包（自更新器下完、还没装的那份） | | | |
 
 Column 1 is usually answered from **strings in the binary**. Column 2 requires
 **hitting the real endpoint**. They are different claims, and a string is never
@@ -695,6 +696,39 @@ If it is a **Sparkle** binary delta, we already apply it: `DeltaApplier` ships
 Sparkle's own `BinaryDelta`, and `VendorAppcastDeltas` pulls patches out of an
 appcast's `<sparkle:deltas>`. So "can we consume it" is usually a *plumbing*
 question — where does the patch URL come from — not a new-mechanism one.
+
+**已停放整包 — how to actually check:**
+
+An app whose own updater has finished a download, but not applied it, leaves the
+whole release on disk. When it is the release duo is about to install,
+`SelfUpdaterStash` copies those bytes instead of downloading them again. It only
+reads layouts someone has taught it, so a layout nobody wrote down is never used.
+Cindy is the case that slipped through: its 2026-10-07 audit recorded that the
+updater had staged the hotfix (`updates/patch-info.json`) within 60 s, and nothing
+asked whether we could use it.
+
+- **Column 1 — where it parks, and what says the download finished.** Read the
+  updater's source when the app is open source (Cindy: `writePatchInfo` in
+  `updateService.ts`). Otherwise search `app.asar` or the binary for the file
+  names. Write down four things: the directory, the record file and its fields,
+  whether that record is written only after the download completed and was
+  checked, and which digest it carries (algorithm and encoding), or that it
+  carries none.
+- **Column 2 — what is actually there.** This comes from the Phase 4 round 2
+  diff below, not from column 1. Write down the path, the size, what the record
+  says, and the version inside the archive. A file with no completion record
+  beside it, or one much smaller than the vendor's package, is an abandoned
+  download, not a parked one (Warp, 2026-10-15: 32% of the dmg, in a random temp
+  directory).
+- **Column 3 — can we use it.** Read `SelfUpdaterStash` for the layouts it reads
+  today, rather than trusting a list here. If yours is one of them, column 3 is
+  answered by the end-to-end run. If not, record it as ○ and, under 建议下一步,
+  give the four column-1 facts plus the container. A new layout is a Swift change,
+  not a recipe field: it needs a completion record, an archive whose root `.app`
+  is the app itself, and an answer to "do two installed copies share this
+  directory?". Containers other than zip, and installer wrappers, are covered in
+  `docs/engine-notes/self-updater-stash.md` §4. Don't write "不能" because the
+  container is a dmg; write what the record and the container are.
 
 **Two traps that produced false "no" answers:**
 
@@ -889,6 +923,30 @@ data the app didn't just create. Two rounds, in order:
    (magpie: `MAGPIE_UPDATE_FEED` pointed at a local feed that names an older
    real release).
 
+   **Diff what the launch left on disk.** This is column 2 of the
+   已停放整包 row in Phase 3⅞, and this round is the only time the audit sees
+   it. Take a timestamp before launching. Once the updater has staged
+   something, list what is new:
+
+   ```bash
+   T0=$(date +%s)   # before launching
+   # … launch, let the updater stage …
+   find ~/Library/Caches ~/Library/"Application Support" ~/Library/Containers \
+     -type f -size +8M -newermt "@$T0" 2>/dev/null
+   ls -la "<dir of each hit>"   # the record file sits beside the archive
+   ```
+
+   Databases and logs that grew during the launch show up too; skip them.
+
+   For each hit, write down the path, the size against the vendor's package,
+   the record file and its fields, and the version inside the archive. An
+   updater that applies on idle or on next launch may consume the file before
+   you look (Cindy does when its auto-relaunch-on-idle setting is on; the
+   default is off), so quit the app as soon as the record appears. A hit with
+   the same version as the release duo installs is useful here: if `SelfUpdaterStash` reads that layout,
+   `duo install` should log `local stash hit` and report `bytesDownloaded: 0`.
+   Run that before staging an older build for the collision check.
+
 Before either round, run `make cli`. `duo` at `~/.local/bin` is whatever was
 last built and won't have the recipe you just wrote. Leave the machine on the
 newest release with the app not running, stop anything you served, and say in
@@ -964,6 +1022,18 @@ same check.
 
 - 格式: Sparkle binary delta / 厂商自有 / 未知
 - 阻塞项: ...
+
+## 已停放整包（自更新器下完、还没装的那份）
+> 第 2 栏来自 Phase 4 第二轮的前后 diff，不来自源码。
+
+| | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
+|---|---|---|---|
+| 结论 | 会/不会/没查 | 有/无/没查 | 能（已接）/ ○ / 不能 / 没查 |
+| 证据 | (源码 / asar / strings) | (路径、大小、记录文件、包内版本) | (`SelfUpdaterStash` 读哪种布局；端到端 `local stash hit`) |
+
+- 记录文件与字段: ...（是否下载完成后才写、摘要算法与编码）
+- 容器: zip / dmg / pkg / 解开的 .app；包根是不是 app 本身
+- 两份副本会不会共用这个目录: ...
 
 ## Changelog
 - 来源: Sparkle inline / recipe / WebView / 无

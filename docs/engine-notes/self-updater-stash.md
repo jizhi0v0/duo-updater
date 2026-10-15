@@ -71,9 +71,12 @@ matched the zip's contents exactly (960 entries), and the zip and
 
 Relaunching 0.1.108 left the same-version patch on disk: the log read `Version
 check: current=0.1.108, latest=0.1.108, ready=<none>`, and the bundle stayed on
-0.1.108. The source's `checkExistingPatch` discards a same-version patch, but it
-did not run on that launch path. So the zip stays until Cindy's next download
-replaces it. It is not a collision, just 285 MB the app keeps.
+0.1.108. That launch went through the background check only; the log has no
+`Startup: current=…` line. In the source, the startup check
+(`update-check-startup`) calls `checkExistingPatch` when the manifest is not
+newer, and that deletes a same-version patch. So the zip is cleared by a launch
+that takes that path, or replaced by Cindy's next download, whichever comes
+first. Either way it is not a collision.
 
 ### How to re-run the survey
 

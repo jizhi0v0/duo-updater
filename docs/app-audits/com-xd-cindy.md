@@ -78,7 +78,8 @@
 - 端到端（2026-10-15，国际版 arm64）：启动 0.1.97，41 s 后它暂存好 0.1.108 hotfix，随即退出它 → `duo install Cindy --yes`
   9.8 s `installed`、`bytesDownloaded: 0`，日志 `local stash hit … 284600168 B not fetched` → 0.1.108、inode 变、Team 不变、
   Notarized，与 hotfix zip 逐文件一致；它暂存的 zip 与 `patch-info.json` 原样未动。之后再启动 0.1.108：日志
-  `ready=<none>`、版本不回退，同版本的暂存包留在 `updates/` 不清（约 285 MB，下次更新时被替换）。
+  `ready=<none>`、版本不回退。那次启动只走了后台检查（日志无 `Startup: current=`），同版本暂存包留在 `updates/`；
+  按源码，走启动检查（`update-check-startup`）的那种启动会调 `checkExistingPatch` 把它删掉，否则等下次更新被替换。
 
 ## 按 OS 分轨
 - `LSMinimumSystemVersion` = `12.0`；release 不声明逐版本 min/max。

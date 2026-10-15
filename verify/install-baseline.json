@@ -1,10 +1,11 @@
 {
   "entries" : {
     "install:github:AprilNEA\/OpenLogi:stable" : {
-      "consecutiveActionable" : 0,
+      "consecutiveActionable" : 1,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
+      "lastSignature" : "identityChanged: Sparkle key none → dwOe",
+      "sweepsSinceComment" : 1
     },
     "install:github:BlueBubblesApp\/bluebubbles-server:stable" : {
       "consecutiveActionable" : 0,
@@ -1732,5 +1733,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-15T10:20:05Z"
+  "updatedAt" : "2026-10-15T15:48:07Z"
 }

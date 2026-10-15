@@ -252,6 +252,29 @@ struct HyperFramesRecipeTests {
         #expect(entry.content.compactMap { if case .heading(let h) = $0 { h } else { nil } } == ["Fixed"])
     }
 
+    /// `…/desktop/whats-new-b347.json` and `-b356.json`, 2026-10-14: a hotfix has
+    /// a title and empty lists, and b347 an empty summary too. The app shows a
+    /// hotfix as `Fixes: <title>` over its summary.
+    @Test func hotfixReadsAsFixesAndItsTitle() throws {
+        let b347 = #"""
+            {"schema":1,"kind":"hotfix","build":"b347","date":"2026-10-14","title":"No false 'Failed to read' message","summary":"","new":[],"improved":[],"fixed":[],"scenes":[]}
+            """#
+        let titleOnly = try #require(StructuredChangelogDecoder.decode(
+            b347, format: .hyperFramesWhatsNew, channel: nil, maxEntries: 1)?.entries.first)
+        #expect(titleOnly.version == "b347")
+        #expect(titleOnly.items == ["Fixes: No false 'Failed to read' message"])
+
+        let b356 = #"""
+            {"schema":1,"kind":"hotfix","build":"b356","date":"2026-10-14","title":"New project always opens a new project, and OpenCode joins","summary":"Switching projects is quicker. Antigravity works in Auto. Your own video no longer times out. Cmd+V pastes files into a project.","new":[],"improved":[],"fixed":[],"scenes":[]}
+            """#
+        let withSummary = try #require(StructuredChangelogDecoder.decode(
+            b356, format: .hyperFramesWhatsNew, channel: nil, maxEntries: 1)?.entries.first)
+        #expect(withSummary.items == [
+            "Fixes: New project always opens a new project, and OpenCode joins",
+            "Switching projects is quicker. Antigravity works in Auto. Your own video no longer times out. Cmd+V pastes files into a project.",
+        ])
+    }
+
     /// Like the app: another schema, a build that is not `b<digits>`, or the
     /// `latest.json` the recipe falls back to, reads as nothing.
     @Test func otherDocumentsReadAsNothing() {

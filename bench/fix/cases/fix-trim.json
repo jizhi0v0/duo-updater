@@ -1,0 +1,1 @@
+{"name": "fix-trim", "issues": [1254, 1253], "bundleIDs": ["org.cindori.TrimEnabler4"], "expect": {"1254": "fixed", "1253": "acknowledged"}, "refPR": 1295, "kind": "fix", "base": "6d5a7b6edac0992d299e2ff663dd21c7e3ec688c", "ref": "0c78399805476dec0ca6321f5bfd577fe4bfb63a"}

@@ -1,0 +1,34 @@
+# Grader validation, 2026-10-14: no agent; each case graded on its base (the commit the issues
+# were filed against) and on its reference (main at the fixes). Base must be red (Qoder green, its
+# right answer is no change) and ref green; otherwise the vendor side has moved. From score-fix.py;
+# each run took about 90-125 s. 'touched verify/coverage' on ref is an artifact: ref is main, which
+# also carries Trim's ChangelogCoverage change.
+runs:
+  - run: "fix-longbridge-gradeonly-base"
+    flags: []
+    issues:
+      "1273": {outcome: "FAIL", expect: "fixed", note: "1.0.0=(None, None, None) 0.20.1=(None, None)"}
+      "1272": {outcome: "FAIL", expect: "fixed", note: "manifest=1.0.0-preview.3 got=(None, None)"}
+  - run: "fix-longbridge-gradeonly-ref"
+    flags: ["touched verify/coverage"]
+    issues:
+      "1273": {outcome: "PASS", expect: "fixed", note: "1.0.0=('1.0.0', '2026-10-13', 11) 0.20.1=('0.20.1', 4)"}
+      "1272": {outcome: "PASS", expect: "fixed", note: "manifest=1.0.0-preview.3 got=('1.0.0-preview.3', 11)"}
+  - run: "fix-qoder-gradeonly-base"
+    flags: []
+    issues:
+      "1276": {outcome: "PASS", expect: "no-change", note: "recipe changed=False ack=1.29.0 page=1.32.0 endpoint=1.33.0"}
+  - run: "fix-qoder-gradeonly-ref"
+    flags: ["touched verify/coverage"]
+    issues:
+      "1276": {outcome: "PASS", expect: "no-change", note: "recipe changed=False ack=1.29.0 page=1.32.0 endpoint=1.33.0"}
+  - run: "fix-trim-gradeonly-base"
+    flags: []
+    issues:
+      "1254": {outcome: "FAIL", expect: "fixed", note: "4.3.6 0/TrimEnabler-26.zip warn=['entryPatternNoMatch']"}
+      "1253": {outcome: "FAIL", expect: "acknowledged", note: "unresolved"}
+  - run: "fix-trim-gradeonly-ref"
+    flags: []
+    issues:
+      "1254": {outcome: "PASS", expect: "fixed", note: "4.3.6 0/TrimEnabler-26.zip warn=[]"}
+      "1253": {outcome: "PASS", expect: "acknowledged", note: "acknowledged"}

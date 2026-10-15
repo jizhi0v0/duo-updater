@@ -508,7 +508,7 @@ public enum StructuredChangelogDecoder {
     /// 2026-10-06) has empty `new` and `improved`: only the headings with lines
     /// render.
     ///
-    /// A `kind` of `hotfix` or `rollback` (from b346, 2026-10-14) is a build the
+    /// A `kind` of `hotfix` or `rollback` (hotfix files go back to b275) is a build the
     /// app lists by its title, `Fixes: <title>` for a hotfix, over its summary
     /// (the renderer's "Also since your last update" list); so for those the title
     /// line comes first. b347's lists and summary are all empty.

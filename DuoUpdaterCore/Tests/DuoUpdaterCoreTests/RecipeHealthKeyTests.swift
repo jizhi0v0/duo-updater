@@ -176,6 +176,21 @@ struct RecipeHealthKeyTests {
                 == "github:owner/repo:stable")
     }
 
+    /// The app a row's icon comes from: reached into a recipe id like the name
+    /// is, and for a GitHub rule — whose id names a repository — through the rule.
+    @Test func aRecipeIDResolvesTheAppsBundleID() throws {
+        func entry(_ id: String, _ source: String = "Vendor") -> RecipeHealth.Entry {
+            RecipeHealth.Entry(id: id, source: source)
+        }
+        let known: Set = ["com.example.editor"]
+        #expect(entry("vendor:com.example.editor:beta").bundleID(among: known) == "com.example.editor")
+        #expect(entry("com.example.editor", "Electron").bundleID(among: known) == "com.example.editor")
+        #expect(entry("vendor:com.example.other:stable").bundleID(among: known) == nil)
+        let rule = try #require(GitHubReleaseRegistry.rules.first)
+        #expect(entry(rule.recipeID, "GitHub").bundleID(among: []) == rule.bundleID)
+        #expect(entry("github:nobody/nothing:stable", "GitHub").bundleID(among: []) == nil)
+    }
+
     /// Derived from the registry: every rule that shares a slug with another must
     /// still land in its own `RecipeHealth` row. Written as "run them all and count
     /// the rows" rather than as an assertion about ids, so it measures what the

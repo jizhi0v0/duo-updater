@@ -74,6 +74,30 @@ import DuoUpdaterCore
         }
         #expect(why.contains("already has 2.0 staged"))
         #expect(!why.contains("detection only"))
+        #expect(why.contains("quit it to apply"))
+    }
+
+    /// Firefox 2026-10-15: Mozilla's updater applies its staging on the next
+    /// launch and does nothing on quit, so "quit it to apply" sends the user the
+    /// wrong way. Spotify is the same shape.
+    ///
+    /// Mutation: always say "quit it to apply".
+    @Test func aStagingAppliedAtLaunchSaysOpenItToApply() {
+        let r = result(source: "Sparkle")
+        let decision = Install.classify(
+            r, settings: settings(),
+            environment: InstallEnvironment(
+                isHelperEnabled: false, runningAppPaths: [],
+                stagedSelfUpdates: [r.id: StagedSelfUpdate(
+                    version: "2.0", buildVersion: nil,
+                    stagedBundlePath: URL(fileURLWithPath: "/tmp/Updated.app"),
+                    appliesOn: .launch, updater: .mozilla)]))
+        guard case .refuse(let why, _) = decision else {
+            Issue.record("expected a refusal, got \(decision)")
+            return
+        }
+        #expect(why.contains("open it to apply"))
+        #expect(!why.contains("quit it to apply"))
     }
 
     @Test func aVendorArchiveInstalls() {

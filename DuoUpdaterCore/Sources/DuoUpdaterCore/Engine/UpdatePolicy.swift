@@ -812,6 +812,15 @@ public enum UpdatePolicy {
             result.app.versionSide, as: staged.versionSide,
             buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID: result.app.bundleID)
         ) { return nil }
+        // Mozilla's launch skips a staged update older than the app it starts
+        // (`IsOlderVersion` in `nsUpdateDriver.cpp`), so one that trails the latest
+        // cannot undo our install and must not hold it back. Equal to the latest it
+        // still blocks: that one is a Relaunch away, with nothing to download.
+        if staged.updater == .mozilla,
+           let latest = result.remote?.versionSide, !latest.isEmpty,
+           VersionComparator.isNewer(latest, than: staged.versionSide) {
+            return nil
+        }
         return routeCollidesWithSelfUpdater(result) ? staged : nil
     }
 

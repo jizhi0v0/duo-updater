@@ -107,8 +107,10 @@ https://aus.thunderbird.net/update/6/Thunderbird/<Version>/<BuildID>/Darwin_aarc
   （Team `43AQ936H96`）。此前本节记为「仅检测」、并称「三条 recipe 均无安装链」——
   两句都已不成立，recipe 带 `install: VendorInstallSpec`。
   「绝不碰自更新器」那条绝对规则已由用户设置 `vendorInstallPolicy` 取代：默认 `.deferWhenRunning` —— app 正在运行就交回它自己的更新器，没在运行才就地替换；选 `.alwaysOverwrite` 才总是由我们装。见 `UpdatePolicy.defersToSelfUpdater`。
-- ⚠️ 与 Firefox 同理：Mozilla 更新器不是 Squirrel/Sparkle，`SelfUpdaterStaging` 不覆盖它，
-  唯一的闸是 `vendorInstallPolicy`。
+- 自己暂存的更新：与 Firefox 同一套 toolkit 更新器，2026-10-15 起由 `SelfUpdaterStaging` 的 `.mozilla` 识别
+  （规则与实测见 [`org-mozilla-firefox.md`](org-mozilla-firefox.md)「一键安装」）。真包静态核对（158.0）：
+  `org.mozilla.thunderbird`、带 `Contents/MacOS/updater.app`、`application.ini` `Vendor=Mozilla`，
+  所以暂存在 `~/Library/Caches/Mozilla/updates/Applications/Thunderbird/updates/0`。**Thunderbird 本身的暂存未真机跑过。**
 - 格式: dmg（官网直发）
 - 阻塞: 无需求——自更新器接管。
 

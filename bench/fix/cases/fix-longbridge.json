@@ -1,0 +1,1 @@
+{"name": "fix-longbridge", "issues": [1273, 1272], "bundleIDs": ["com.longbridge.app.desktop", "com.longbridge.app.desktop.preview"], "expect": {"1273": "fixed", "1272": "fixed"}, "refPR": 1294, "kind": "fix", "base": "6d5a7b6edac0992d299e2ff663dd21c7e3ec688c", "ref": "0c78399805476dec0ca6321f5bfd577fe4bfb63a"}

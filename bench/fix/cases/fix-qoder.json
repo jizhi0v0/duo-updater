@@ -1,0 +1,1 @@
+{"name": "fix-qoder", "issues": [1276], "bundleIDs": ["com.qoder.ide"], "expect": {"1276": "no-change"}, "refPR": null, "kind": "fix", "base": "6d5a7b6edac0992d299e2ff663dd21c7e3ec688c", "ref": "0c78399805476dec0ca6321f5bfd577fe4bfb63a"}

@@ -542,9 +542,12 @@ import Testing
                 archiveURL: plain.archiveURL, kind: .zip,
                 version: VersionSide(marketing: "2.0.1", build: nil),
                 bundleID: Self.bundleID, bytes: 1))
+        // Wrapped as `LocalStashFailure`, so the coordinator downloads the asset
+        // itself instead of failing the install.
         let error = await applyError(result, stashed)
-        guard case VendorInstaller.InstallError.digestOnlyNeedsTheAsset? = error else {
-            Issue.record("expected digestOnlyNeedsTheAsset, got \(String(describing: error))")
+        guard case VendorInstaller.InstallError.digestOnlyNeedsTheAsset? =
+                (error as? LocalStashFailure)?.underlying else {
+            Issue.record("expected digestOnlyNeedsTheAsset as a LocalStashFailure, got \(String(describing: error))")
             return
         }
     }

@@ -3251,10 +3251,11 @@ struct ChangelogEntriesView: View {
         /// A version header's height (`ChangelogSectionsList`), last measured.
         var headerHeight: CGFloat = 0
         /// The tinted version's header and first row in the window, last
-        /// measured, by version: where `bandInset` is read. The first row is
-        /// nil while not built.
+        /// measured, by version: where `bandInset` is read. Each is nil while
+        /// not built. The row's id too: tinting it changes it, and the view
+        /// leaving must not clear what the one replacing it reported.
         var tintedHeader: (entry: Int, frame: CGRect)?
-        var tintedFirstRow: (entry: Int, frame: CGRect)?
+        var tintedFirstRow: (entry: Int, id: AnyHashable, frame: CGRect)?
         /// The top of the long scroll's list in the window. The window's space,
         /// not one named on the list: that did not reach the list's headers,
         /// which got the window's anyway (2026-10-15).
@@ -3814,10 +3815,10 @@ private struct ChangelogSectionsList: View {
                             .onGeometryChange(for: CGRect?.self) {
                                 row.row == 0 && tinted != nil ? $0.frame(in: .global) : nil
                             } action: { frame in
-                                if row.row == 0, tinted != nil, let frame { scroll.tintedFirstRow = (index, frame) }
+                                if row.row == 0, tinted != nil, let frame { scroll.tintedFirstRow = (index, row.id, frame) }
                             }
                             .onDisappear {
-                                if row.row == 0, scroll.tintedFirstRow?.entry == index { scroll.tintedFirstRow = nil }
+                                if row.row == 0, scroll.tintedFirstRow?.id == row.id { scroll.tintedFirstRow = nil }
                             }
                             .listRowInsets(EdgeInsets())
                             .listRowSeparator(.hidden)
@@ -3832,6 +3833,7 @@ private struct ChangelogSectionsList: View {
                         } action: { frame in
                             if tinted != nil, let frame { scroll.tintedHeader = (index, frame) }
                         }
+                        .onDisappear { if scroll.tintedHeader?.entry == index { scroll.tintedHeader = nil } }
                         // Not all of them: the list still put the header 8 pt
                         // in and 4.125 pt down, in a band 37.5 pt tall for a
                         // 29.25 pt header (`NotesScroll.bandInset`; 2026-10-15).

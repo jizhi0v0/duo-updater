@@ -3,7 +3,9 @@ import Testing
 
 /// Where the long scroll reads the padding around a version header
 /// (`HeaderBand.padding`). The numbers are openclaw's on macOS 27.2: the list
-/// at 335, a 29.25 pt header, 4.125 pt of padding (2026-10-15).
+/// at 335, a 29.25 pt header, 4.125 pt of padding above it and 4.125 below,
+/// with the list unscrolled: header 339.125–368.375, first row at 372.5
+/// (2026-10-15).
 ///
 /// Each case names the one-line mutation of `HeaderBand.padding` it fails under.
 struct HeaderBandTests {

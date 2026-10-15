@@ -154,13 +154,13 @@ enum SettingsSearch {
         }
         let recipesCard = String(localized: "Detection recipes")
         let names = byBundleID.mapValues(\.name)
+        let installed = Set(byBundleID.keys)
         for entry in recipes {
             let name = entry.displayName(resolving: names)
             guard SearchMatch.matches(query, in: name) else { continue }
-            // The same resolving `displayName` does: the whole id, or one of its
-            // `:`-separated parts, is a bundle id.
-            let app = byBundleID[entry.id]
-                ?? entry.id.split(separator: ":").lazy.compactMap { byBundleID[String($0)] }.first
+            // The same lookup as the row on the Diagnostics page: the id or one of
+            // its parts, or for a GitHub rule the rule's own bundle id.
+            let app = entry.bundleID(among: installed).flatMap { byBundleID[$0] }
             hits.append(SettingsSearchHit(
                 anchor: .recipe(entry.key), title: name,
                 location: location(.diagnostics, recipesCard), icon: .app(app?.path.path)))

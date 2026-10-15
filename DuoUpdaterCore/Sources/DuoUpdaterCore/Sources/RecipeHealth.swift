@@ -88,7 +88,26 @@ public actor RecipeHealth {
             }
             return id
         }
+
+        /// The bundle id this recipe is about, when one can be told: the id itself
+        /// or one of its `:`-separated parts, if `known` holds it (as
+        /// `displayName(resolving:)` reads it) — else, for a GitHub rule, whose id
+        /// names the repository rather than the app, the rule's own bundle id.
+        /// For the app icon next to the row; nil leaves the row without one.
+        public func bundleID(among known: Set<String>) -> String? {
+            if known.contains(id) { return id }
+            for part in id.split(separator: ":") where known.contains(String(part)) {
+                return String(part)
+            }
+            return RecipeHealth.gitHubBundleIDs[id]
+        }
     }
+
+    /// `github:<owner>/<repo>:<channel>` → the bundle id its rule tracks. The
+    /// first rule wins where two share an id; they track the same repository.
+    static let gitHubBundleIDs: [String: String] = Dictionary(
+        GitHubReleaseRegistry.rules.map { ($0.recipeID, $0.bundleID) },
+        uniquingKeysWith: { first, _ in first })
 
     /// Recipes are keyed by `(id, source)` together, not by `id` alone — see the
     /// note on `Entry.id`.

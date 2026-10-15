@@ -1498,6 +1498,18 @@ final class AppListModel {
     /// download. Sorted heaviest-app-first by the store.
     private(set) var trafficStats: [AppTrafficStat] = []
 
+    /// Diagnostics' detection-recipe list: the last `RecipeHealth` snapshot, nil
+    /// until first read. Held here rather than in the page's own state so coming
+    /// back to the page draws the list it showed last time at once, instead of a
+    /// "Reading recipe health…" spinner that the whole list then replaces —
+    /// which moved everything under it on every visit.
+    private(set) var recipeHealth: [RecipeHealth.Entry]?
+
+    func reloadRecipeHealth() async {
+        let snapshot = await RecipeHealth.shared.snapshot()
+        if snapshot != recipeHealth { recipeHealth = snapshot }
+    }
+
     /// The aggregate the Traffic window's header reads — grand total, month
     /// buckets, per-source split. Recomputed with the snapshot rather than in the
     /// view, which would redo the whole pass on every redraw.
@@ -3539,6 +3551,9 @@ final class AppListModel {
         scheduleAutomaticRetry(afterRound: checked, intent: intent)
         lastCheck = .now
         prefs.lastCheckDate = lastCheck  // persist so the scheduler survives relaunches
+        // Ready before Diagnostics is opened, so even the first visit after launch
+        // draws the list rather than a spinner the list then replaces.
+        await reloadRecipeHealth()
         // Announce anything newly pending — keyed off a persisted baseline, so it
         // fires no matter which refresh path got here first (background or manual).
         notifyNewUpdates()

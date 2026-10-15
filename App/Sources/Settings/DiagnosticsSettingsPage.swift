@@ -6,8 +6,14 @@ import DuoUpdaterCore
 struct DiagnosticsSettingsPage: View {
     let model: AppListModel
     @Environment(\.openWindow) private var openWindow
-    @State private var entries: [RecipeHealth.Entry] = []
-    @State private var loaded = false
+    /// A search result being revealed: a recipe row past the first ten opens the
+    /// list first, or there would be no row to scroll to.
+    @Environment(\.settingsReveal) private var reveal
+    @State private var showsAllRecipes = false
+
+    /// Rows shown before "Show All": every flagged recipe (they sort first, and
+    /// one is never hidden) and at least this many in all.
+    private static let collapsedRecipeCount = 10
 
     /// bundleID → app name, so a recipe whose id carries a bundle id shows a
     /// friendly name next to it (`RecipeHealth.Entry.displayName(resolving:)` does
@@ -22,21 +28,38 @@ struct DiagnosticsSettingsPage: View {
         return map
     }
 
+    /// bundleID → the installed app's path, for the icon beside each row.
+    private var appPaths: [String: String] {
+        var map: [String: String] = [:]
+        for result in model.results {
+            if let id = result.app.bundleID { map[id] = result.app.path.path }
+        }
+        return map
+    }
+
+    private func collapsedLimit(_ entries: [RecipeHealth.Entry]) -> Int {
+        max(Self.collapsedRecipeCount, entries.count { !$0.isHealthy })
+    }
+
+    private func openRecipesIfRevealHidden() {
+        guard case .recipe(let key)? = reveal?.anchor, let entries = model.recipeHealth,
+              let index = entries.firstIndex(where: { $0.key == key }),
+              index >= collapsedLimit(entries)
+        else { return }
+        showsAllRecipes = true
+    }
+
     var body: some View {
         SettingsPage(section: .diagnostics) {
             permissionsCard
             lastCheckCard
             recipesCard.settingsAnchor(.recipes)
         }
-        .task {
-            entries = await RecipeHealth.shared.snapshot()
-            loaded = true
-        }
-        // The window is long-lived; re-pull health whenever a check completes so
-        // an open Diagnostics page doesn't show stale/empty data.
-        .onChange(of: model.lastCheck) {
-            Task { entries = await RecipeHealth.shared.snapshot() }
-        }
+        // The model also re-reads it at the end of every check, which keeps an
+        // open page current; this covers what was recorded since.
+        .task { await model.reloadRecipeHealth() }
+        .onChange(of: reveal, initial: true) { openRecipesIfRevealHidden() }
+        .onChange(of: model.recipeHealth) { openRecipesIfRevealHidden() }
     }
 
     // MARK: - Permissions
@@ -121,37 +144,72 @@ struct DiagnosticsSettingsPage: View {
             header: "Detection recipes",
             footer: "A recipe is flagged when it fetched successfully but couldn’t read a version — often a sign the vendor changed their page. Cleared automatically on the next successful check."
         ) {
-            if !loaded {
-                HStack {
-                    ProgressView().controlSize(.small)
-                    Text("Reading recipe health…").foregroundStyle(.secondary)
-                }
-                .settingsRow()
-            } else if entries.isEmpty {
-                Text("No recipe-backed apps have been checked yet this session.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .settingsRow()
-            } else {
+            if let entries = model.recipeHealth, !entries.isEmpty {
                 // `.key`, not `.id`: the same bundle id can now appear under two
                 // different `source`s (e.g. a Vendor recipe and an Electron
                 // manifest read both tracking Notion) since `RecipeHealth` keys
                 // its entries on `(id, source)`. `.id` alone is a display key and
                 // is no longer guaranteed unique across `entries` — see
                 // `RecipeHealth.Entry.key`.
-                ForEach(Array(entries.enumerated()), id: \.element.key) { index, entry in
+                // `names` and `paths` once for the list, not once per row: each
+                // walks every app.
+                let names = names
+                let paths = appPaths
+                let installed = Set(paths.keys)
+                let limit = collapsedLimit(entries)
+                let shown = showsAllRecipes ? entries : Array(entries.prefix(limit))
+                // Ten rows by default: all ~150 laid out up front held every visit
+                // back by ~200 ms. Not a LazyVStack — measured, it guessed the
+                // list's height, drew the last rows over "Show All" and then slid
+                // the bottom of the page into place over ~300 ms.
+                ForEach(Array(shown.enumerated()), id: \.element.key) { index, entry in
                     if index > 0 { SettingsDivider() }
-                    recipeRow(entry)
+                    recipeRow(entry, names: names, paths: paths, installed: installed)
                         .settingsAnchor(.recipe(entry.key))
                 }
+                if entries.count > limit {
+                    SettingsDivider()
+                    Button(showsAllRecipes
+                           ? String(localized: "Show Fewer")
+                           : String(localized: "Show All \(entries.count)")) {
+                        showsAllRecipes.toggle()
+                    }
+                    .buttonStyle(.link)
+                    .font(.callout)
+                    .settingsRow()
+                }
+            } else if model.recipeHealth == nil {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Reading recipe health…").foregroundStyle(.secondary)
+                }
+                .settingsRow()
+            } else {
+                Text("No recipe-backed apps have been checked yet this session.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .settingsRow()
             }
         }
     }
 
-    private func recipeRow(_ entry: RecipeHealth.Entry) -> some View {
+    private func recipeRow(
+        _ entry: RecipeHealth.Entry, names: [String: String], paths: [String: String],
+        installed: Set<String>
+    ) -> some View {
         HStack(spacing: 8) {
             Image(systemName: entry.isHealthy ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .foregroundStyle(entry.isHealthy ? .green : .orange)
+            // The app the recipe is about, when it is installed here; an empty slot
+            // otherwise, so the names still line up.
+            Group {
+                if let id = entry.bundleID(among: installed), let path = paths[id] {
+                    Image(nsImage: AppIconCache.icon(for: path)).resizable()
+                } else {
+                    Color.clear
+                }
+            }
+            .frame(width: 18, height: 18)
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.displayName(resolving: names)).font(.callout)
                 if !entry.isHealthy, let detail = entry.lastMissDetail {
@@ -233,15 +291,27 @@ private struct HelperStatusRow: View {
     private var reachability: some View {
         HStack(spacing: 6) {
             Spacer(minLength: 0)
-            if checking || answering != nil {
-                statusIcon
-                Text(checking && answering == nil
-                     ? String(localized: "Checking…")
-                     : (answering == true
-                        ? String(localized: "Responding — App Store updates will work")
-                        : String(localized: "Switched on but not responding — use Restart Helper")))
-                    .foregroundStyle(checking ? Color.secondary
-                                     : (answering == true ? Color.green : Color.orange))
+            // Laid out from the start and only drawn once there is something to
+            // say: the probe on arrival answers a beat after the page appears,
+            // and a line that appeared then pushed everything below it down a row.
+            ZStack(alignment: .trailing) {
+                HStack(spacing: 6) {
+                    statusIcon
+                    Text("Responding — App Store updates will work")
+                }
+                .hidden()
+                if checking || answering != nil {
+                    HStack(spacing: 6) {
+                        statusIcon
+                        Text(checking && answering == nil
+                             ? String(localized: "Checking…")
+                             : (answering == true
+                                ? String(localized: "Responding — App Store updates will work")
+                                : String(localized: "Switched on but not responding — use Restart Helper")))
+                            .foregroundStyle(checking ? Color.secondary
+                                             : (answering == true ? Color.green : Color.orange))
+                    }
+                }
             }
         }
         .font(.caption)

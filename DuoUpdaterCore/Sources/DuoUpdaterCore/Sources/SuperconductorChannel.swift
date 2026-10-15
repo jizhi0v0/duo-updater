@@ -72,10 +72,11 @@ enum SuperconductorChannel {
     /// `update_channel` from the first settings file that exists, or nil when there
     /// is none, or the key or a non-null value is missing from it. The first file
     /// that exists answers alone, key or no key. On an upgraded copy both names are
-    /// the same file: the `9cd78956` binary's own text says startup "publishes the
-    /// new data name as a link to existing legacy storage", checks that the
-    /// `~/.super.engineering` symlink resolves to `~/.superconductor`, and treats
-    /// independent old and new profiles as an error. That fallback only matters for
+    /// the same file. In build `9cd78956`, the bundled `sc` helper's text says
+    /// startup "publishes the new data name as a link to existing legacy storage"
+    /// and that independent old and new profiles are an error. The main executable
+    /// accepts a `~/.super.engineering` symlink only if it resolves to
+    /// `~/.superconductor`. That fallback only matters for
     /// a copy that has not run a renamed build yet. The file is ~9 KB; the cap keeps
     /// a path that turns out to be something else from being read into memory
     /// wholesale.

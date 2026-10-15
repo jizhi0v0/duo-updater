@@ -33,9 +33,9 @@ available"。但设置页的选择器还在，选择写在设置文件顶层的 
 `~/.superconductor/settings.json` 读到 `"nightly"`；2026-10-15 全新安装 `ac45e7aa` 只建了
 `~/.super.engineering/`，同一个键在 `~/.super.engineering/settings.json`，94 个顶层键）。
 `SuperconductorChannel` 先读新路径，新文件不存在才读旧路径；新文件存在就只听它的（键缺了也按「没有记录」，
-不去旧文件里找）。升级上来的安装两者是同一个文件：`9cd78956` 二进制里的说明写着启动时把新名字发布成指向旧存储的链接
+不去旧文件里找）。升级上来的安装两者是同一个文件：`9cd78956` 包里 `Contents/MacOS/sc` 的说明写着启动时把新名字发布成指向旧存储的链接
 （`sc migrate-data` 帮助："Publish ~/.super.engineering as a link to existing ~/.superconductor storage"；
-`secure_runtime_root` 要求 `~/.super.engineering` 是符号链接时必须 `-ef "$HOME/.superconductor"`；
+主程序 `Contents/MacOS/superconductor` 的 `secure_runtime_root` 要求 `~/.super.engineering` 是符号链接时必须 `-ef "$HOME/.superconductor"`；
 "Independent old/new profiles and broken links produce an error"）。所以只有没跑过改名后构建的旧安装才会走到回退。
 这是从 `strings` 读到的厂商文字，没在升级的真机上看到链接。这个文件把整份设置连同默认值一起
 序列化（92 个顶层键里有 4 个 `null`、15 个 `false`），所以启动过的安装基本都带这个键 —— 这是推断，

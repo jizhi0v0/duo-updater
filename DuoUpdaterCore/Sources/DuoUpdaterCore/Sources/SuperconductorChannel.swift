@@ -7,8 +7,10 @@ import Foundation
 /// own changelog, 2026-04-05, "Disable stable channel and enforce nightly-only
 /// updates") and the Settings row says "Nightly is currently the only release track
 /// available". The picker survived, though, and so did the setting behind it: a
-/// top-level `update_channel` in `~/.superconductor/settings.json`, read as
-/// `"nightly"` off a real install on 2026-09-11.
+/// top-level `update_channel` in the app's settings file, read as `"nightly"` off a
+/// real install on 2026-09-11 (`~/.superconductor/settings.json`) and again on
+/// 2026-10-15, after the rename, from `~/.super.engineering/settings.json` — a fresh
+/// install of build `ac45e7aa` created that directory and no `~/.superconductor` at all.
 ///
 /// That key is the only on-disk channel signal there is. The bundle carries none —
 /// its version is a bare commit hash, its name and bundle id are the same for every
@@ -28,7 +30,8 @@ import Foundation
 /// measured.
 ///
 /// Not watched for changes (`ChannelBinding.preferenceWatchCandidates`): FSEvents
-/// streams are recursive and the app writes its logs inside `~/.superconductor`, so
+/// streams are recursive and the app writes its logs inside its settings directory
+/// (`~/.super.engineering/logs` on 2026-10-15), so
 /// a watch root there would fire continuously while it runs, for a choice that
 /// currently has one possible value. The key is re-read on every scan, and on the
 /// app's own launch and quit.
@@ -55,19 +58,40 @@ enum SuperconductorChannel {
         resolve(updateChannel: readUpdateChannel())
     }
 
-    /// The file the app keeps its settings in.
-    static var settingsFileURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".superconductor/settings.json", isDirectory: false)
+    /// The files the app has kept its settings in, current name first: builds since
+    /// the super.engineering rename write `~/.super.engineering/settings.json`, older
+    /// ones `~/.superconductor/settings.json`.
+    static func settingsFileURLs(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [URL] {
+        [".super.engineering/settings.json", ".superconductor/settings.json"].map {
+            home.appendingPathComponent($0, isDirectory: false)
+        }
     }
 
-    /// `update_channel` from the settings file, or nil when the file, the key, or a
-    /// non-null value is missing. The file is ~9 KB; the cap keeps a path that turns
-    /// out to be something else from being read into memory wholesale.
-    static func readUpdateChannel() -> String? {
-        guard let data = try? Data(contentsOf: settingsFileURL), data.count <= 1024 * 1024
-        else { return nil }
-        return updateChannel(inSettings: data)
+    /// `update_channel` from the first settings file that exists, or nil when there
+    /// is none, or the key or a non-null value is missing from it. The first file
+    /// that exists answers alone, key or no key. On an upgraded copy both names are
+    /// the same file: on 2026-10-15, launching `9cd78956` against a home that held
+    /// only `~/.superconductor` created `~/.super.engineering` as a symlink to it,
+    /// and `settings.json` had one inode through both paths. That matches the
+    /// bundled `sc` helper's text ("Startup publishes the new data name as a link
+    /// to existing legacy storage"; independent old and new profiles are an
+    /// error). That launch also rewrote a staged `"stable"` to `"nightly"` and left
+    /// the other 93 keys alone, and so did a second one against a home that already
+    /// had a real `~/.super.engineering` directory (no migration, rewritten within
+    /// 10 s). So today a non-nightly value does not survive the app starting. The file is ~9 KB; the cap keeps
+    /// a path that turns out to be something else from being read into memory
+    /// wholesale.
+    static func readUpdateChannel(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> String? {
+        for url in settingsFileURLs(home: home) {
+            guard let data = try? Data(contentsOf: url) else { continue }
+            guard data.count <= 1024 * 1024 else { return nil }
+            return updateChannel(inSettings: data)
+        }
+        return nil
     }
 
     /// The parsing half, split out so it is testable without a file on disk.

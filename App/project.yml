@@ -68,6 +68,9 @@ targets:
       - path: Sources/HomebrewGroupState.swift
       # Where the workbench sidebars' keys move the selection. Foundation only.
       - path: Sources/SidebarSelection.swift
+      # Where the long scroll reads the padding around a version header.
+      # CoreGraphics only.
+      - path: Sources/HeaderBand.swift
       # The CLI tools model: Foundation + Core only, with its providers injected,
       # so its tests run no installer and reach no network.
       - path: Sources/CLIToolsModel.swift

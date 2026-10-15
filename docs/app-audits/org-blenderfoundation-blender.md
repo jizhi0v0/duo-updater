@@ -45,6 +45,7 @@
 - **alpha / beta / rc** 端点: `https://builder.blender.org/download/daily/?format=json&v=1`（约 80 KB，每个分支 × 平台 × 文件类型只列**最新一个**构建；更早的在 `/download/daily/archive/?format=json&v=1`，约 100 天，**不按时间排序**，也不含当前构建）。按 `{"url"` 切成条目，取 `risk_id` / 分支 / `darwin` / `arm64` / `dmg` 都对得上的条目里 `version` 最高的那个；`hash` 是 commit（`headBuildPattern`），`file_mtime` 是上传时间（`publishedAtPattern`）。读的是：该轨的最新构建，builder 页面上人人可下。
 - **比较**: 同一轨所有构建的 `version` 都一样（每个 5.3 alpha 都是 5.3.0），只能按 commit 比。列表只给最新那个，所以用 `BuildLineage.head`：已装 commit 等于它就是最新，否则落后于它。`UpdateChecker.evaluate` 在上面加两道闸：已装的 marketing 版本更高时不提示（RC 轨可能同时列着 4.5 LTS 和 5.2 的 candidate，按版本取最高后仍可能低于已装的）；该构建的上传时间早于已装拷贝的构建时间时不提示——这是防护，没观测到过：防的是列表万一滞后于 builder 页面上已被下载的构建，或本地用更新的 commit 编译的拷贝。
 - **周期外**: beta/RC 只在发布周期里存在几周。列表里还有正常形状的 alpha 条目、却没有该轨条目时，`trackClosedPattern` 判为「轨道关闭」，不算失败；列表形状变了则两者都不匹配，照常报 recipe 失败。
+- **列表服务端崩溃**: 正文以 PHP 的 `<br />` + `<b>Fatal error</b>:` 开头时，`transientBodyPattern` 判为厂商错误信封（`vendorErrorEnvelope`，infra）：抓取时重试一次，`duo verify` 按 infra 窗口（5 天）才报，PR 上的 `vendorResolvesInstallPlans` 在有新鲜 `lastGoodAt` 时记为 known issue。锚在文档开头，正常列表以 `[` 开头，匹配不到。
 - `hostRequirement`: 全部仅 arm64。5.0 起 Blender 不再出 Intel dmg，builder 条目也只读 `darwin`/`arm64`。
 - 注意事项:
   - Homebrew 的 livecheck 说下载页在 Cloudflare 后面、它抓不到，所以改读 `download.blender.org/release/`；那个目录是两级（每个 minor 一个子目录），单 URL 的 probe 跟不下去。2026-09-25 连续 5 次 GET 都是 200（`server: cloudflare`, `cf-cache-status: DYNAMIC`），被挑战时 probe 退回 unknown，不会误报。
@@ -190,3 +191,7 @@ RC **不排除**（PR #1086 第一轮 review 指出）：Blender 也给已发布
 4.5.13 candidate），这类拷贝取 `/5.2/`、`/4.5/` 页，能解析（上文生产路径表：`5.2.1 → /5.2/ 1 条 24 项`）。只有新 minor 的
 `X.Y.0` RC 仍会由守卫解析为零条、在 RC 期间报 miss。`AppScanner` 用 `BlenderBuildInfo` 从可执行文件读出周期并置为权威 channel，
 所以这条拷贝走到查找时是 `.alpha`。正式版与读不出周期的拷贝照旧拿到 recipe，守卫仍然兜底。
+
+### Recipes/org-blenderfoundation-blender.swift — builder 列表的 PHP fatal 记为厂商错误信封
+
+2026-10-15 约 09:00 UTC 起（nightly 的 `lastGoodAt` 是 08:33:04Z），`https://builder.blender.org/download/daily/?format=json&v=1` 返回 HTTP/2 200、`content-type: application/json`、590 字节的 PHP fatal（`Call to undefined method BuildsRenderer::getFileNameURL()`，栈里是 `renderJSON('1')`）；`v=2` 与 `archive/?format=json&v=1` 同样 590 字节，HTML 页 `/download/daily/` 正常（267016 字节，列着 5.4.0 alpha、5.3.0 beta、5.2.3 candidate）。三条轨都报 `versionPatternNoMatch`，PR 的 `test` 全红：`excusesVendorOutage` 对 pattern miss 只在 Balrog 停发时豁免。经用户同意，三条 builder 轨声明 `transientBodyPattern` `\A\s*<br />\s*<b>Fatal error</b>:`，`excusesVendorOutage` 豁免 `vendorErrorEnvelope`（仍要求 5 天内的 `lastGoodAt`）。`BlenderBuilderTrackTests` 用原样抓下的正文钉两个方向（崩溃正文匹配、三份真实列表都不匹配、也不判为轨道关闭），并经 `VendorProbeSource` 实跑：重试一次后为 infra。

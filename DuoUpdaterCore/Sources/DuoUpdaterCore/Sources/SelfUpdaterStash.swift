@@ -18,7 +18,7 @@ public struct LocalStagedInstaller: Sendable, Equatable {
     /// other updater, which is free to reuse or clear it.
     public let archiveURL: URL
     /// Container format, derived from `archiveURL` itself rather than from the
-    /// route. See ``SelfUpdaterStash/resolve(for:population:cachesDirectory:fileManager:)``
+    /// route. See ``SelfUpdaterStash/resolve(for:population:cachesDirectory:applicationSupportDirectory:fileManager:)``
     /// for why the route's kind cannot speak for these bytes.
     public let kind: VendorInstallerKind
     /// Both version strings read out of the bundle inside the archive.
@@ -72,7 +72,43 @@ public enum SelfUpdaterStash {
         return name
     }
 
-    /// Whether exactly one installed bundle claims `cacheDirectoryName`.
+    /// Where an app's own updater leaves a finished download, and so which record
+    /// says it finished. One case per updater whose layout has been read out of
+    /// that updater's own code; anything else has no spot and is never guessed at.
+    enum ParkingSpot: Sendable, Hashable {
+        /// electron-updater: `~/Library/Caches/<name>/pending/update-info.json`,
+        /// see ``electronCacheDirectoryName(for:)``.
+        case electronUpdater(cacheDirectoryName: String)
+        /// Cindy's own hotfix updater:
+        /// `~/Library/Application Support/<userData>/updates/patch-info.json`.
+        ///
+        /// Cindy ships no `app-update.yml` and no Sparkle; it reads its own
+        /// manifest, whose `app.hotfix` is a zip of the whole `.app`
+        /// (`docs/app-audits/com-xd-cindy.md`). From its source,
+        /// `apps/desktop/src/main/updateService.ts` (makecindy/cindy `e818d410`,
+        /// 2026-10-15): `getUpdatesDir()` is `<userData>/updates`; the download
+        /// goes to `path.basename(asset.file)` there through a downloader handed
+        /// the manifest's sha256 and size; and only after it succeeds, on an
+        /// unchanged channel, does `writePatchInfo` record
+        /// `{version, fileName, sha256: <manifest sha256, lowercased>, …}`. So,
+        /// like `update-info.json`, the record's presence means the download
+        /// finished. `userData` is `CindyGlobal` or `Cindy` by region
+        /// (`regionUserData.ts`); ``CindyChannel`` owns that mapping.
+        case cindyHotfix(userDataDirectoryName: String)
+    }
+
+    /// This app's ``ParkingSpot``, or nil when it has none we know how to read.
+    static func parkingSpot(for app: InstalledApp) -> ParkingSpot? {
+        if let id = app.bundleID,
+           let dir = CindyChannel.userDataDirectoryName(forBundleID: id) {
+            return .cindyHotfix(userDataDirectoryName: dir)
+        }
+        return electronCacheDirectoryName(for: app).map {
+            .electronUpdater(cacheDirectoryName: $0)
+        }
+    }
+
+    /// Whether exactly one installed bundle claims `spot`.
     ///
     /// **This is the gate that has no substitute.** Two copies of one app share a
     /// cache directory, and the two checks that would otherwise settle ownership
@@ -101,12 +137,15 @@ public enum SelfUpdaterStash {
     /// The gate would then hand that other app's `pending/` to this one, leaving
     /// only the archive's bundle identifier to object; and two copies of one app,
     /// the case this gate exists for, share that too.
-    public static func isSoleClaimant(
-        _ app: InstalledApp, of cacheDirectoryName: String, in population: [InstalledApp]
+    ///
+    /// Cindy is the same shape one level up: its `userData` directory is per
+    /// edition, not per copy, so two copies of one edition share `updates/`.
+    static func isSoleClaimant(
+        _ app: InstalledApp, of spot: ParkingSpot, in population: [InstalledApp]
     ) -> Bool {
         var claimants = Set<String>()
         for candidate in population
-        where electronCacheDirectoryName(for: candidate) == cacheDirectoryName {
+        where parkingSpot(for: candidate) == spot {
             claimants.insert(canonicalPath(candidate.path))
         }
         return claimants == [canonicalPath(app.path)]
@@ -119,13 +158,38 @@ public enum SelfUpdaterStash {
         url.resolvingSymlinksInPath().standardizedFileURL.path
     }
 
-    /// What `pending/update-info.json` records. Deliberately only the fields
-    /// electron-updater actually writes — `setDownloadedFile` stores exactly
-    /// `fileName`, `sha512` and `isAdminRightsRequired`, and **no version**, which
-    /// is why the version has to be read out of the archive itself.
+    /// What a parking spot's record says about the archive beside it: its file
+    /// name, and the digest the app's own updater recorded for it.
+    ///
+    /// Deliberately only the fields the updaters actually write. electron-updater's
+    /// `setDownloadedFile` stores exactly `fileName`, `sha512` and
+    /// `isAdminRightsRequired`, and **no version**, which is why the version has to
+    /// be read out of the archive itself. Cindy's `patch-info.json` does carry a
+    /// `version`, and it is not read either: the archive is the only thing that can
+    /// say what the archive is, and one source of truth keeps the two spots on the
+    /// same gates.
     struct PendingRecord: Sendable, Hashable {
         let fileName: String
-        let sha512: String
+        let digest: RecordedDigest
+    }
+
+    /// The digest as each updater spells it.
+    enum RecordedDigest: Sendable, Hashable {
+        /// electron-updater: base64 of the SHA-512.
+        case sha512Base64(String)
+        /// Cindy: lowercase hex of the SHA-256 (the app lowercases the manifest's).
+        case sha256Hex(String)
+
+        func matches(_ data: Data) -> Bool {
+            switch self {
+            case .sha512Base64(let expected):
+                return Data(SHA512.hash(data: data)).base64EncodedString()
+                    == expected.trimmingCharacters(in: .whitespacesAndNewlines)
+            case .sha256Hex(let expected):
+                return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+                    == expected.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            }
+        }
     }
 
     static func pendingRecord(
@@ -143,9 +207,32 @@ public enum SelfUpdaterStash {
         // storing it, with a comment naming the traversal it is avoiding. The value
         // still arrives here from a file, so the same reduction is re-applied rather
         // than assumed.
-        guard !fileName.contains("/"), fileName != ".", fileName != ".."
+        guard isPlainFileName(fileName) else { return nil }
+        return PendingRecord(fileName: fileName, digest: .sha512Base64(sha512))
+    }
+
+    /// Cindy's `updates/patch-info.json` under its `userData` directory. See
+    /// ``ParkingSpot/cindyHotfix(userDataDirectoryName:)`` for where this is written.
+    static func cindyPatchRecord(
+        inUserDataDirectory userData: URL, fileManager: FileManager
+    ) -> PendingRecord? {
+        let url = userData
+            .appendingPathComponent("updates", isDirectory: true)
+            .appendingPathComponent("patch-info.json", isDirectory: false)
+        guard let data = try? Data(contentsOf: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let fileName = json["fileName"] as? String, !fileName.isEmpty,
+              let sha256 = json["sha256"] as? String, !sha256.isEmpty
         else { return nil }
-        return PendingRecord(fileName: fileName, sha512: sha512)
+        // The app writes `path.basename` of the manifest's file, but the value
+        // still arrives here from a file, so the reduction is re-applied.
+        guard isPlainFileName(fileName) else { return nil }
+        return PendingRecord(fileName: fileName, digest: .sha256Hex(sha256))
+    }
+
+    /// A name that stays inside the directory it is joined onto.
+    private static func isPlainFileName(_ name: String) -> Bool {
+        !name.contains("/") && name != "." && name != ".."
     }
 
     /// The archive format, from the file name the vendor's own updater chose.
@@ -170,7 +257,7 @@ extension SelfUpdaterStash {
     /// they already expect — but they are not all equally interesting to a reader.
     enum Rejection: String, Sendable, CaseIterable, Error {
         case populationUnknown
-        case noCacheDirectoryName
+        case noParkingSpot
         case noPendingRecord
         case archiveMissing
         case attributionAmbiguous
@@ -183,7 +270,7 @@ extension SelfUpdaterStash {
         /// Whether this answer means "there IS a parked download and we refused
         /// it", as opposed to "this app has nothing parked".
         ///
-        /// Decides the log level in ``SelfUpdaterStash/resolve(for:population:cachesDirectory:fileManager:)``,
+        /// Decides the log level in ``SelfUpdaterStash/resolve(for:population:cachesDirectory:applicationSupportDirectory:fileManager:)``,
         /// and the gate order is arranged so the distinction is exactly true
         /// rather than nearly true: every case below is reached only after an
         /// archive has been found on disk. The cheap "nothing to see" answers are
@@ -193,7 +280,7 @@ extension SelfUpdaterStash {
         /// `.debug` nor `.info` is retained for this subsystem.
         var refusedAnArchiveOnDisk: Bool {
             switch self {
-            case .populationUnknown, .noCacheDirectoryName, .noPendingRecord, .archiveMissing:
+            case .populationUnknown, .noParkingSpot, .noPendingRecord, .archiveMissing:
                 return false
             case .attributionAmbiguous, .unsupportedKind, .unreadableBundle,
                  .bundleIDMismatch, .versionMismatch, .checksumMismatch:
@@ -240,11 +327,14 @@ extension SelfUpdaterStash {
         for result: UpdateResult,
         population: [InstalledApp]?,
         cachesDirectory: URL? = nil,
+        applicationSupportDirectory: URL? = nil,
         fileManager: FileManager = .default
     ) async -> LocalStagedInstaller? {
         switch await evaluate(
             for: result, population: population,
-            cachesDirectory: cachesDirectory, fileManager: fileManager) {
+            cachesDirectory: cachesDirectory,
+            applicationSupportDirectory: applicationSupportDirectory,
+            fileManager: fileManager) {
         case .success(let stash):
             Log.install.notice(
                 "local stash hit: \(result.app.name, privacy: .public) \(stash.version.text(withBuild: true), privacy: .public) already downloaded by its own updater — \(stash.bytes, privacy: .public) B not fetched")
@@ -260,7 +350,7 @@ extension SelfUpdaterStash {
         }
     }
 
-    /// ``resolve(for:population:cachesDirectory:fileManager:)`` without the
+    /// ``resolve(for:population:cachesDirectory:applicationSupportDirectory:fileManager:)`` without the
     /// logging, and saying WHICH gate answered.
     ///
     /// Separated because a reason that only reaches the log cannot be asserted:
@@ -274,6 +364,7 @@ extension SelfUpdaterStash {
         for result: UpdateResult,
         population: [InstalledApp]?,
         cachesDirectory: URL? = nil,
+        applicationSupportDirectory: URL? = nil,
         fileManager: FileManager = .default
     ) async -> Result<LocalStagedInstaller, Rejection> {
         func skip(_ why: Rejection) -> Result<LocalStagedInstaller, Rejection> { .failure(why) }
@@ -286,20 +377,31 @@ extension SelfUpdaterStash {
         // Gate 1 — we must be able to see the whole population to know whether
         // anyone else claims this cache directory.
         guard let population else { return skip(.populationUnknown) }
-        // Gate 2 — the app has to name its own cache directory; we never guess one.
-        guard let key = electronCacheDirectoryName(for: result.app)
-        else { return skip(.noCacheDirectoryName) }
-        guard let caches = cachesDirectory
-                ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
-        else { return .failure(.noPendingRecord) }
-        let cacheDir = caches.appendingPathComponent(key, isDirectory: true)
+        // Gate 2 — a spot whose layout we have read out of the updater itself; we
+        // never guess one.
+        guard let spot = parkingSpot(for: result.app) else { return skip(.noParkingSpot) }
 
         // Gate 3 — a completed-download record, and the file it names still there.
-        guard let record = pendingRecord(inCacheDirectory: cacheDir, fileManager: fileManager)
-        else { return skip(.noPendingRecord) }
-        let archive = cacheDir
-            .appendingPathComponent("pending", isDirectory: true)
-            .appendingPathComponent(record.fileName, isDirectory: false)
+        let record: PendingRecord?
+        let parkedIn: URL
+        switch spot {
+        case .electronUpdater(let name):
+            guard let caches = cachesDirectory
+                    ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
+            else { return .failure(.noPendingRecord) }
+            let cacheDir = caches.appendingPathComponent(name, isDirectory: true)
+            record = pendingRecord(inCacheDirectory: cacheDir, fileManager: fileManager)
+            parkedIn = cacheDir.appendingPathComponent("pending", isDirectory: true)
+        case .cindyHotfix(let name):
+            guard let support = applicationSupportDirectory
+                    ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            else { return .failure(.noPendingRecord) }
+            let userData = support.appendingPathComponent(name, isDirectory: true)
+            record = cindyPatchRecord(inUserDataDirectory: userData, fileManager: fileManager)
+            parkedIn = userData.appendingPathComponent("updates", isDirectory: true)
+        }
+        guard let record else { return skip(.noPendingRecord) }
+        let archive = parkedIn.appendingPathComponent(record.fileName, isDirectory: false)
         guard fileManager.fileExists(atPath: archive.path) else { return skip(.archiveMissing) }
 
         // Gate 4 — the directory the archive came out of has to belong to this app
@@ -311,7 +413,7 @@ extension SelfUpdaterStash {
         // announced `attributionAmbiguous` at `.notice` for two copies of an app
         // whose `pending/` was empty, and a reader chasing "why did it download
         // again?" would go looking for a file that was never there.
-        guard isSoleClaimant(result.app, of: key, in: population)
+        guard isSoleClaimant(result.app, of: spot, in: population)
         else { return reject(.attributionAmbiguous) }
 
         // Gate 5 — a container this route can actually unpack and swap. In practice
@@ -358,11 +460,11 @@ extension SelfUpdaterStash {
         // the cooperative pool: this is a whole-file hash, and a hash of a download
         // parks a thread for its duration if run inline (see `OffPool`).
         let path = archive.path
+        let digest = record.digest
         let digestMatches = await offCooperativePool { () -> Bool in
             guard let data = try? Data(contentsOf: URL(fileURLWithPath: path),
                                        options: .mappedIfSafe) else { return false }
-            return Data(SHA512.hash(data: data)).base64EncodedString()
-                == record.sha512.trimmingCharacters(in: .whitespacesAndNewlines)
+            return digest.matches(data)
         }
         guard digestMatches else { return reject(.checksumMismatch) }
 

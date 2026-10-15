@@ -7,8 +7,10 @@
 # and `scripts/build-cli.sh` set for this Mac's own builds and the release build
 # does not. Today that is `GitHubAPIMock`: with DUO_GITHUB_API_MOCK in the
 # environment, a build that has it sends GitHub API requests to a local
-# stand-in. A release must not even read that variable, so each marker below
-# must appear in no Mach-O file of what is shipped. Run by `scripts/notarize.sh`
+# stand-in; and `VendorInstaller`'s DUO_SELF_UPDATER_CACHES_DIR, which points
+# the local-stash lookup at another caches directory. A release must not even
+# read those variables, so each marker below must appear in no Mach-O file of
+# what is shipped. Run by `scripts/notarize.sh`
 # on the build it notarizes and by `scripts/publish-release.sh` on a CI artifact.
 set -euo pipefail
 
@@ -16,7 +18,7 @@ target="${1:?usage: $0 <DuoUpdater.app | binary>}"
 [ -e "$target" ] || { echo "✗ $target does not exist" >&2; exit 1; }
 
 # A string only the hooks' code carries — the environment variable each reads.
-markers=(DUO_GITHUB_API_MOCK)
+markers=(DUO_GITHUB_API_MOCK DUO_SELF_UPDATER_CACHES_DIR)
 
 found=0
 checked=0

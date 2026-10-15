@@ -184,8 +184,11 @@ Reading the plist itself is 2–10 ms in every row; the rest is attach and detac
   reader does, would refuse it; one that follows the route's own nested path
   would not.
 
-Shapes seen that day, beyond the two above. None was newer than what was
-installed, so none would have been used:
+Shapes seen that day, beyond the two above. None matched the version on offer,
+so none would have been used: Gemini's and Qianwen's were no newer than what was
+installed, and Cindy's 0.1.99 was newer than its installed 0.1.97 — a live
+pending update by §2's test — but a version the GitHub line it is offered
+through never published (0.1.97 → 0.1.101), so the version gate refuses it:
 
 | app | parked at | integrity record | parked | installed |
 |---|---|---|---|---|

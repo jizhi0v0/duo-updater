@@ -124,7 +124,12 @@ struct LocalStashInstallWiringTests {
         let stashed = DownloadedUpdate(
             archiveURL: archive, bytesDownloaded: 0, workDir: scratch,
             finalHost: nil, localStash: stash)
-        let stashError = await Self.failure(for: stashed, result: result)
+        let wrapped = await Self.failure(for: stashed, result: result)
+        // A stash's refusal before the swap arrives as `LocalStashFailure`, which
+        // the coordinator retries on; the opt-out is about the error inside it.
+        // Matching the outer error instead stays green with the opt-out deleted.
+        #expect(wrapped is LocalStashFailure)
+        let stashError = (wrapped as? LocalStashFailure)?.underlying ?? wrapped
 
         if case VendorInstaller.InstallError.checksumMismatch? = stashError {
             Issue.record("the route's checksum describes the route's artifact, not the stash — it must not run here")

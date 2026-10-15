@@ -35,6 +35,49 @@ launch to decide it already holds the file.
 either — OpenCode's is `opencode-desktop-mac-arm64.zip`. That is why the version
 has to be read out of the archive.
 
+### A second layout: Cindy's own hotfix updater
+
+Cindy (`com.xd.cindy`, CN edition `com.xd.cindycn`) has neither electron-updater
+nor Sparkle. From its source, `apps/desktop/src/main/updateService.ts`
+(makecindy/cindy `e818d410`, 2026-10-15), it parks the manifest's `app.hotfix`
+(a zip of the whole `.app`) at `<userData>/updates/<path.basename(file)>`,
+downloaded through a downloader given the manifest's sha256 and size, and only
+then writes `updates/patch-info.json`:
+`{version, fileName, sha256: <lowercased>, requireRelogin, enableBeta}`.
+`userData` is `~/Library/Application Support/CindyGlobal` or `…/Cindy` by
+region — the same mapping `CindyChannel` already reads its settings file from.
+
+`SelfUpdaterStash.ParkingSpot.cindyHotfix` reads it through the same gates as
+electron-updater's, with two differences: the digest is hex SHA-256 rather than
+base64 SHA-512, and the recorded `version` is not trusted any more than a file
+name would be — the archive's own `Info.plist` decides. Attribution is the §3
+shape one level up: `userData` is per edition, so two copies of one edition share
+`updates/` and are refused, while one copy of each edition is not a contest.
+
+Cindy's manifest and GitHub are two release lines: a hotfix can carry a version
+GitHub never published (0.1.99 sat on this machine in October; GitHub went
+0.1.97 → 0.1.101), and then the version gate refuses it. On 2026-10-15 both
+lines were at 0.1.108.
+
+End to end on 2026-10-15, global edition, arm64: 0.1.97 launched, its updater
+staged `cindy-0.1.108-arm64-hotfix.zip` and `patch-info.json` 41 s later, and it
+was quit before it could apply them. `duo install Cindy --yes` then logged
+`local stash hit: Cindy 0.1.108 already downloaded by its own updater —
+284600168 B not fetched` and returned `bytesDownloaded: 0` in 9.8 s. Afterwards
+the bundle was 0.1.108 with a new inode, Team `SX9RG894L5`, `codesign --deep
+--strict` clean, and `spctl` "Notarized Developer ID". Its files and symlinks
+matched the zip's contents exactly (960 entries), and the zip and
+`patch-info.json` were byte-for-byte and mtime unchanged.
+
+Relaunching 0.1.108 left the same-version patch on disk: the log read `Version
+check: current=0.1.108, latest=0.1.108, ready=<none>`, and the bundle stayed on
+0.1.108. That launch went through the background check only; the log has no
+`Startup: current=…` line. In the source, the startup check
+(`update-check-startup`) calls `checkExistingPatch` when the manifest is not
+newer, and that deletes a same-version patch. So the zip is cleared by a launch
+that takes that path, or replaced by Cindy's next download, whichever comes
+first. Either way it is not a collision.
+
 ### How to re-run the survey
 
 Nothing here is a tracked number; to see the current state on any machine, walk
@@ -119,12 +162,14 @@ re-derive them:
 
 Against implementing them, in order of weight:
 
-1. **A dmg cannot be version-read cheaply.** Reading the bundle version out of
-   one means `hdiutil attach` — seconds, a mount point, and possibly UI. A zip's
-   central directory is at the tail and randomly addressable, which is what makes
-   the gate in §5 affordable. Both of these carry the version in the *file name*,
-   but trusting a vendor's file-name habit is the assumption OpenCode already
-   falsifies.
+1. **A dmg cannot be version-read as cheaply as a zip.** Reading the bundle
+   version out of one means attaching it — a device, a mount point — where a
+   zip's central directory is at the tail and randomly addressable, which is
+   what makes the gate in §5 cost ~2 ms. This originally said "seconds"; that
+   was never measured, and it is only true with checksum verification on. With
+   `-noverify` it is a fraction of a second — see *Re-measured 2026-10-15* below.
+   Both of these carry the version in the *file name*, but trusting a vendor's
+   file-name habit is the assumption OpenCode already falsifies.
 2. **A `.pkg` is not swapped by this route at all** — `VendorInstaller.download`
    refuses `.pkg` and `PackageInstaller` handles it, so the substitution has
    nowhere to land.
@@ -135,6 +180,94 @@ Against implementing them, in order of weight:
 pretending they do not exist; `resolve` refuses everything but zip, which is what
 electron-updater downloads on macOS in any case
 (`findFile(files, "zip", ["pkg", "dmg"])`).
+
+### Re-measured 2026-10-15: what reading a dmg's version actually costs
+
+One-time measurement, not a tracked metric. Same two images, same script, on two
+machines: the development Mac (macOS 27.2, M3 Max; load average ~27 at the time,
+so its numbers are the noisier ones) and the mini (macOS 26.7, M4; load ~3). Each
+cell is the median of 5 runs of attach → read the root `.app`'s `Info.plist` →
+detach, with `com.apple.diskimages.recentcksum` stripped before every run so the
+verified rows really verify. Both images are UDZO, ~176 MB.
+
+| mode | Gemini, 27.2 | Gemini, 26.7 | Qianwen, 27.2 | Qianwen, 26.7 |
+|---|---|---|---|---|
+| `hdiutil attach -noverify` | 0.56 s | 0.25 s | 0.60 s | 0.18 s |
+| `diskutil image attach` | 0.96 s | 0.41 s | 0.78 s | 0.32 s |
+| `hdiutil attach` (verifies) | 2.00 s | 3.59 s | 3.40 s | 2.97 s |
+
+Reading the plist itself is 2–10 ms in every row; the rest is attach and detach.
+
+- **Nothing here shows macOS 27 to be faster.** The two OS versions ran on
+  different hardware under different loads, so this table cannot separate the
+  OS from the machine. The non-verifying rows were faster on the 26.7 mini; the
+  verifying row was mixed (Gemini 2.00 s on 27.2 against 3.59 s on 26.7,
+  Qianwen the other way). What both machines agree on is where the "seconds"
+  come from: the UDIF checksum pass over the whole image, 1.5–4.9 s per run.
+- **`-noverify` is only honest with a digest gate behind it.** Skipping the
+  checksum is what makes this cheap, so the bytes have to be proven some other
+  way, as gate 8 does for zips. Of the shapes seen, Gemini records no digest at
+  all, Qianwen records only an MD5 (its `sha256` field is empty), and Cindy (a
+  zip) records a SHA-256.
+- **A verifying attach writes onto the other updater's file.** It leaves a
+  `com.apple.diskimages.recentcksum` xattr on the image, and later verifying
+  attaches skip the pass because of it (the uncached ~2.4 s became ~0.3 s). That
+  is a write to bytes we do not own, and it is also why a naive re-run looks fast.
+- **macOS 27's `DiskImageKit` does not help.** Its public interface (SDK
+  `DiskImageKit.swiftinterface`) knows three formats — `asif`, `raw`, `stack` —
+  and offers create / open / append-layer / truncate, with no block or file
+  read. Opening either UDZO image throws `UnsupportedFormatError` within 16 ms.
+  `diskutil image attach`, which the 27 `hdiutil imageinfo` deprecation
+  warning points to, is still an attach, and slower than `hdiutil -noverify`.
+- **What is inside need not be the app, and the route already knows.** Qianwen's
+  image root holds `com.qianwen.inputmethod.desktopime.installer`; the input
+  method (`com.qianwen.inputmethod.desktopime` 1.2.35.46) is in
+  `Contents/Resources/QianwenIME.zip` inside it — exactly the recipe's
+  `nestedArchivePath`. A reader that looks only at the root `.app`, as the zip
+  reader does, would refuse it; one that follows the route's own nested path
+  would not.
+
+Shapes seen that day, beyond the two above. None matched the version on offer,
+so none would have been used: Gemini's and Qianwen's were no newer than what was
+installed, and Cindy's 0.1.99 was newer than its installed 0.1.97 — a live
+pending update by §2's test — but a version the GitHub line it is offered
+through never published (0.1.97 → 0.1.101), so the version gate refuses it:
+
+| app | parked at | integrity record | parked | installed |
+|---|---|---|---|---|
+| Gemini | `~/Library/Caches/com.google.GeminiMacOS/Updates/<version>/update.dmg` | none locally | 1.128.7.1072 | 1.128.14.1166 |
+| Qianwen IME | `~/Library/Application Support/QianwenIME/updates/<md5>.dmg` + `silent-install-session.json` | MD5 (= file name) | 1.2.35.46 | 1.2.35.46 |
+| Cindy | `~/Library/Application Support/CindyGlobal/updates/<name>.zip` + `patch-info.json` | SHA-256 + version | 0.1.99 | 0.1.97, offered 0.1.108 |
+
+What each one is, as far as the evidence went:
+
+- **Gemini** — written by the app's in-app Omaha updater (its log says "Using
+  Omaha updater"); a second updater, GoogleUpdater/Keystone, also installs it
+  (`Logs/preinstall_*.log`, signal file `update_pending`). The dmg was born
+  12:30:58, finished 12:31:29, and the app relaunched as that version at
+  12:31:38, so it is the installer of the version just applied, left behind —
+  not a download waiting to be applied. Whether this updater ever parks a
+  *newer* version there is not observed. The route's own Omaha response carries
+  a `hash_sha256` per package, which would be the digest gate if the parked file
+  is that same package; not checked, since Omaha only answers for the current
+  version.
+- **Qianwen IME** — not byte-identical to the vendor's current CDN dmg (176,333,529
+  vs 176,309,198 bytes, ETag ≠ its MD5) but carries the same payload version —
+  the OpenCode shape again, one release in two containers. Version equal to the
+  installed build, so there was nothing to apply.
+- **Cindy** — a full `Cindy.app` (`com.xd.cindy` 0.1.99), SHA-256 matching
+  `patch-info.json`. It comes from Cindy's own manifest (`app.version` +
+  `app.hotfix.file`, applied on relaunch), not from GitHub: v0.1.99 was never
+  published as a GitHub release (0.1.97 → 0.1.101), and our route offers GitHub
+  versions, so the version gate can only match when the two lines agree.
+
+Warp's parked file that day was a truncated UDIF image, not a different format:
+its first chunk inflates to 512 zero bytes, consistent with the start of a UDZO
+image, but it
+is 105,775,627 bytes against the vendor's 326,470,525 for that version, so the
+`koly` trailer never arrived and `hdiutil` reports "image not recognized". It
+sat in a random-named directory (`autoupdate/nCFyXHk/`) from 2026-07-16 with no
+completion record beside it — an abandoned download.
 
 ## §5 Why reading the version is affordable
 
@@ -196,6 +329,16 @@ than a parallel one.
 The file is copied into our scratch directory, never used in place and never
 deleted: it belongs to the other updater, which is free to clear `pending/` or
 overwrite it mid-install, and our caller removes the scratch directory wholesale.
+
+A stash that fails before the swap (it does not unpack, or its bundle fails a
+gate) is not the end of the install, whichever spot it was parked in. `applyVerified` throws `LocalStashFailure`,
+and `InstallCoordinator` retries once with `useLocalStash: false`, so the route's
+own artifact is downloaded and checked as usual. Without that, every retry took
+the same file again until the app's updater replaced it. Not retried, because
+the download would fail the same way or the failure is not about the bytes:
+cancellation, no free space, the digest-only setting turned off, and the OS
+floor (`localStashFailureIsWorthRetrying`). The stash costs no network bytes, so
+the install reports only what the retry downloads.
 
 ## §7 Why a refusal is logged louder than a skip, and why the gate order follows
 

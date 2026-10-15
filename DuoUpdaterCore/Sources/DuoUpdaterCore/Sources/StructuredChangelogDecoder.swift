@@ -507,10 +507,17 @@ public enum StructuredChangelogDecoder {
     /// not schema 1 or names no `b<digits>` build is not read. b272 (Canary,
     /// 2026-10-06) has empty `new` and `improved`: only the headings with lines
     /// render.
+    ///
+    /// A `kind` of `hotfix` or `rollback` (hotfix files go back to b275) is a build the
+    /// app lists by its title, `Fixes: <title>` for a hotfix, over its summary
+    /// (the renderer's "Also since your last update" list); so for those the title
+    /// line comes first. b347's lists and summary are all empty.
     private struct HyperFramesWhatsNew: Decodable {
         let schema: Int?
+        let kind: String?
         let build: String?
         let date: String?
+        let title: String?
         let summary: String?
         let new: [String]?
         let improved: [String]?
@@ -529,6 +536,12 @@ public enum StructuredChangelogDecoder {
         }
         var items: [String] = []
         var content: [Changelog.Entry.Block] = []
+        if file.kind == "hotfix" || file.kind == "rollback",
+           let title = file.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            let line = file.kind == "hotfix" ? "Fixes: \(title)" : title
+            items.append(line)
+            content.append(.note(line))
+        }
         if let summary = file.summary?.trimmingCharacters(in: .whitespacesAndNewlines), !summary.isEmpty {
             items.append(summary)
             content.append(.note(summary))

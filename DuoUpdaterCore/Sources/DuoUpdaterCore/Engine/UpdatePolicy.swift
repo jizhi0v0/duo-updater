@@ -857,14 +857,17 @@ public enum UpdatePolicy {
     /// Whether `staged` is the build `result` offers. Pre-release tracks are
     /// compared on the `BuildID` (their remote is in the `.vendor` namespace, and
     /// one `Version` covers a whole beta or Nightly cycle); release and ESR on the
-    /// version, which moves with every release there.
+    /// version, which moves with every release there. ESR is offered in its
+    /// display form (`140.17.0esr`) while `update.version` is the bare `Version`
+    /// (`140.17.0`), so the suffix is dropped before comparing.
     static func mozillaStagedIsLatest(_ result: UpdateResult, _ staged: StagedSelfUpdate) -> Bool {
         guard let remote = result.remote else { return false }
         if remote.buildNamespace == .vendor {
             guard let build = staged.vendorBuild, let latest = remote.version else { return false }
             return build == latest
         }
-        guard let latest = remote.shortVersion else { return false }
+        guard var latest = remote.shortVersion else { return false }
+        if latest.hasSuffix("esr") { latest.removeLast(3) }
         return VersionComparator.isSame(
             VersionSide(marketing: latest, build: nil),
             as: VersionSide(marketing: staged.version, build: nil))

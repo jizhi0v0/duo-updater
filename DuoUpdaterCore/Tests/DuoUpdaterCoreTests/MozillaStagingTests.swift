@@ -250,6 +250,22 @@ struct MozillaStagingTests {
         }
     }
 
+    /// Review round 2, #1340: ESR is offered as `140.17.0esr`, its staged
+    /// `update.version` is `140.17.0`. That is the latest: a Relaunch, not a
+    /// clearance and a second download.
+    ///
+    /// Mutation: compare the offered ESR version with its suffix.
+    @Test func theLatestEsrStagedIsARelaunch() throws {
+        try Self.withFixture(installed: "140.16.0") { f in
+            try Self.stage(f, status: "applied", version: "140.17.0")
+            let s = try #require(Self.staged(f))
+            let r = Self.result(f, latest: "140.17.0esr")
+            #expect(UpdatePolicy.stagedBlocksInstall(r, staged: s)?.version == "140.17.0")
+            #expect(UpdatePolicy.actionableStaged(r, staged: s)?.version == "140.17.0")
+            #expect(!UpdatePolicy.clearsStagedBuild(r, staged: s))
+        }
+    }
+
     /// Review round 1, #1340: Beta 155.0b3 installed, its updater staged b4, b5 is
     /// out. All three have `Version` 155.0, so the launch WOULD apply b4 over a b5
     /// we installed. It blocks, is cleared, and is not offered as a Relaunch.

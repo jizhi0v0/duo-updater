@@ -6338,6 +6338,136 @@
         }
       }
     },
+    "Another Homebrew command is running. This starts once it has finished.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein anderer Homebrew-Befehl läuft. Dies startet, sobald er fertig ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se está ejecutando otro comando de Homebrew. Esto empezará cuando termine."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une autre commande Homebrew est en cours. Ceci démarrera une fois qu’elle sera terminée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "È in esecuzione un altro comando Homebrew. Questo partirà quando sarà terminato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別の Homebrew コマンドを実行中です。完了してから開始します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Outro comando do Homebrew está em execução. Isto começa assim que ele terminar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выполняется другая команда Homebrew. Это начнётся, когда она завершится."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başka bir Homebrew komutu çalışıyor. Bu, o bittiğinde başlar."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "另一个 Homebrew 命令正在运行，它结束后才能开始。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "另一個 Homebrew 指令正在執行，它結束後才能開始。"
+          }
+        }
+      }
+    },
+    "Command-line tools are updating. Homebrew waits for them: it could replace the node or libraries they run on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Befehlszeilentools werden aktualisiert. Homebrew wartet auf sie: Es könnte das node oder die Bibliotheken ersetzen, mit denen sie laufen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se están actualizando herramientas de línea de comandos. Homebrew espera a que terminen: podría reemplazar el node o las bibliotecas con las que se ejecutan."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Des outils en ligne de commande sont en cours de mise à jour. Homebrew les attend : il pourrait remplacer le node ou les bibliothèques sur lesquels ils s’exécutent."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sono in aggiornamento alcuni strumenti da riga di comando. Homebrew li attende: potrebbe sostituire il node o le librerie su cui girano."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コマンドラインツールをアップデート中です。Homebrew はその完了を待ちます。ツールが使う node やライブラリを置き換える可能性があるためです。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ferramentas de linha de comando estão sendo atualizadas. O Homebrew espera por elas: ele poderia substituir o node ou as bibliotecas em que elas rodam."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновляются инструменты командной строки. Homebrew ждёт их: он может заменить node или библиотеки, на которых они работают."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komut satırı araçları güncelleniyor. Homebrew onları bekler: üzerinde çalıştıkları node’u veya kütüphaneleri değiştirebilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令行工具正在更新，Homebrew 会等它们完成：它可能替换这些工具所用的 node 或库。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令列工具正在更新，Homebrew 會等它們完成：它可能替換這些工具所用的 node 或程式庫。"
+          }
+        }
+      }
+    },
     "GitHub’s rate limit: checks resume at %@": {
       "extractionState": "manual",
       "localizations": {
@@ -12406,6 +12536,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "檢查上游"
+          }
+        }
+      }
+    },
+    "Homebrew is running. Tools wait for it: it could replace the node or libraries they run on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew läuft. Tools warten darauf: Es könnte das node oder die Bibliotheken ersetzen, mit denen sie laufen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew se está ejecutando. Las herramientas esperan a que termine: podría reemplazar el node o las bibliotecas con las que se ejecutan."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew est en cours d’exécution. Les outils l’attendent : il pourrait remplacer le node ou les bibliothèques sur lesquels ils s’exécutent."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew è in esecuzione. Gli strumenti lo attendono: potrebbe sostituire il node o le librerie su cui girano."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew を実行中です。ツールはその完了を待ちます。ツールが使う node やライブラリを置き換える可能性があるためです。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Homebrew está em execução. As ferramentas esperam por ele: ele poderia substituir o node ou as bibliotecas em que elas rodam."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew выполняется. Инструменты ждут его: он может заменить node или библиотеки, на которых они работают."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew çalışıyor. Araçlar onu bekler: üzerinde çalıştıkları node’u veya kütüphaneleri değiştirebilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 正在运行，工具会等它完成：它可能替换这些工具所用的 node 或库。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 正在執行，工具會等它完成：它可能替換這些工具所用的 node 或程式庫。"
           }
         }
       }
@@ -58092,71 +58287,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "使用此資料夾"
-          }
-        }
-      }
-    },
-    "Waiting for %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wartet auf %@"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esperando a %@"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "En attente de %@"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "In attesa di %@"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ を待機中"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aguardando %@"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ожидание: %@"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ bekleniyor"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在等待 %@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在等待 %@"
           }
         }
       }

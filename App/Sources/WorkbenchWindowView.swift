@@ -276,6 +276,12 @@ struct WorkbenchWindowView: View {
             || !model.cliTools.justUpdated.isEmpty
     }
 
+    /// Why every "Other tools" Update is disabled — a Homebrew run is under way
+    /// (`CLIConcurrency`) — for its tooltip; nil while they may run.
+    private var toolUpdateBlockedReason: String? {
+        model.cliBlockedReason(.tool)
+    }
+
     /// The app the detail pane shows — keyed off the debounced `detailSelection`,
     /// not the live `selection`, so fast arrow-key scrubbing doesn't rebuild it.
     private var selected: UpdateResult? {
@@ -350,10 +356,12 @@ struct WorkbenchWindowView: View {
                 Group {
                     if case .claudeCode(let claudeCode) = status.detail {
                         ClaudeCodeDetailPane(status: claudeCode, cli: model.cliTools,
-                                             showsRuntime: model.prefs.showCLIRuntimeTags)
+                                             showsRuntime: model.prefs.showCLIRuntimeTags,
+                                             blockedReason: toolUpdateBlockedReason)
                     } else {
                         CLIToolDetailPane(status: status, cli: model.cliTools,
-                                          showsRuntime: model.prefs.showCLIRuntimeTags)
+                                          showsRuntime: model.prefs.showCLIRuntimeTags,
+                                          blockedReason: toolUpdateBlockedReason)
                     }
                 }
                 .id(status.toolID.tag)
@@ -874,24 +882,22 @@ struct WorkbenchWindowView: View {
     @ViewBuilder
     private var brewBulkUpgrade: some View {
         if !model.brewOutdatedFormulae.isEmpty {
-            let busy = model.brewUpgrading || model.brewUpgradeWaitingFor != nil
+            let blocked = model.cliBlockedReason(.upgradeAll)
             ZStack(alignment: .trailing) {
-                // Never disabled: behind another brew run, or a tool's update on
-                // the node it upgrades, the click waits its turn (`CLIConcurrency`).
                 Button("Upgrade All") { Task { await model.upgradeBrewFormulae() } }
                     .controlSize(.small)
                     .buttonStyle(.bordered)
-                    .help("Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above.")
-                    .opacity(busy ? 0 : 1)
-                    .accessibilityHidden(busy)
-                if busy {
+                    // Not beside another brew run or a tool's update; the tooltip
+                    // says which (`CLIConcurrency`).
+                    .disabled(blocked != nil)
+                    .help(blocked ?? String(localized: "Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above."))
+                    .opacity(model.brewUpgrading ? 0 : 1)
+                    .accessibilityHidden(model.brewUpgrading)
+                if model.brewUpgrading {
                     HStack(spacing: 6) {
                         if let progress = model.brewBulkProgressText {
                             Text(progress)
                                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                        } else if let blocker = model.brewUpgradeWaitingFor {
-                            Text("Waiting for \(blocker)")
-                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
                         ProgressView().controlSize(.small)
                     }
@@ -1011,10 +1017,9 @@ struct WorkbenchWindowView: View {
             Button("Update All") { Task { await tools.updateAll() } }
                 .controlSize(.small)
                 .buttonStyle(.bordered)
-                // Not against brew: a copy on the node a brew run upgrades waits
-                // for it on its own row (`CLIToolsModel.waitForHomebrew`).
-                .disabled(tools.updatingAll || tools.batchable.isEmpty)
-                .help(String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone."))
+                // Not beside a brew run; the tooltip says so (`CLIConcurrency`).
+                .disabled(tools.updatingAll || tools.batchable.isEmpty || toolUpdateBlockedReason != nil)
+                .help(toolUpdateBlockedReason ?? String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone."))
                 .opacity(tools.updatingAll ? 0 : 1)
                 .overlay {
                     if tools.updatingAll { ProgressView().controlSize(.small) }
@@ -1237,7 +1242,8 @@ struct WorkbenchWindowView: View {
                     ForEach(group.statuses, id: \.toolID) { status in
                         CLIToolSidebarRow(
                             status: status, cli: model.cliTools,
-                            showsRuntime: model.prefs.showCLIRuntimeTags)
+                            showsRuntime: model.prefs.showCLIRuntimeTags,
+                            blockedReason: toolUpdateBlockedReason)
                             .sidebarRow(status.toolID.tag, selection: $selection)
                     }
                 }
@@ -1746,37 +1752,17 @@ private struct WorkbenchRollbackRow: View {
 
 // MARK: - Brew formula row
 
-/// What a formula's row and detail pane show in place of Update: its own
-/// upgrade, its place in Upgrade All, or what its click waits for.
-struct FormulaActivity {
-    /// The line to show; nil leaves the row's version line (an own upgrade
-    /// before brew has said anything).
-    let text: String?
-    /// Still running or waiting: a spinner. Not once Upgrade All poured it.
-    let inFlight: Bool
-}
-
 extension AppListModel {
-    /// nil while the formula's Update is live. Otherwise the button is gone — its
-    /// click would be redundant (`CLIConcurrency`) or is already waiting.
+    /// Whether `formula` is being upgraded: by its own row, or by a bulk "Upgrade
+    /// All", which upgrades every *outdated* formula at once — so each outdated
+    /// one is part of it. Up-to-date leaves aren't touched by the bulk run.
     ///
     /// One answer for the row and the detail pane. The pane once read only the
     /// per-row set, so during Upgrade All the selected row spun while its pane
     /// offered Update — a conflicting `brew upgrade` on top of the bulk run
     /// (2026-10-06).
-    func activity(of formula: BrewInstalledFormula) -> FormulaActivity? {
-        if let blocker = formulaWaitingFor[formula.name] {
-            return FormulaActivity(text: String(localized: "Waiting for \(blocker)"), inFlight: true)
-        }
-        if upgradingFormulae.contains(formula.name) {
-            return FormulaActivity(text: formulaUpgradeNotes[formula.name], inFlight: true)
-        }
-        switch bulkPhase(of: formula.name) {
-        case .queued?: return FormulaActivity(text: String(localized: "Queued"), inFlight: true)
-        case .updating?: return FormulaActivity(text: String(localized: "Updating…"), inFlight: true)
-        case .updated?: return FormulaActivity(text: String(localized: "Updated"), inFlight: false)
-        case nil: return nil
-        }
+    func isUpgrading(_ formula: BrewInstalledFormula) -> Bool {
+        upgradingFormulae.contains(formula.name) || (brewUpgrading && formula.hasUpdate)
     }
 }
 
@@ -1788,8 +1774,9 @@ private struct BrewFormulaSidebarRow: View {
     let formula: BrewInstalledFormula
     @Bindable var model: AppListModel
 
-    private var activity: FormulaActivity? { model.activity(of: formula) }
+    private var upgrading: Bool { model.isUpgrading(formula) }
     private var error: String? { model.formulaUpgradeErrors[formula.name] }
+    private var progressNote: String? { model.formulaUpgradeNotes[formula.name] }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -1798,11 +1785,10 @@ private struct BrewFormulaSidebarRow: View {
                 Text(formula.name).font(.body).lineLimit(1)
                 if let error {
                     Text(error).font(.caption).foregroundStyle(.red).lineLimit(1)
-                } else if let note = activity?.text {
-                    // Live brew output ("Downloading…", "Pouring…"), or where it is
-                    // in Upgrade All, so it visibly progresses instead of sitting on
-                    // a bare spinner.
-                    Text(note)
+                } else if upgrading, let progressNote {
+                    // Live brew output ("Downloading…", "Pouring…") so the upgrade
+                    // visibly progresses instead of sitting on a bare spinner.
+                    Text(progressNote)
                         .font(.caption).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.middle)
                 } else if let available = formula.availableVersion {
@@ -1832,13 +1818,15 @@ private struct BrewFormulaSidebarRow: View {
                 }
             }
             Spacer()
-            if let activity {
-                if activity.inFlight { ProgressView().controlSize(.small) }
+            if upgrading {
+                ProgressView().controlSize(.small)
             } else if formula.hasUpdate {
-                // Never disabled: behind another brew run the click waits its turn.
+                let blocked = model.cliBlockedReason(.upgradeFormula)
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
+                    .disabled(blocked != nil)
+                    .help(blocked ?? "")
             }
         }
         .padding(.vertical, 2)
@@ -1854,6 +1842,9 @@ private struct HomebrewSelfUpdateSidebarRow: View {
     let update: HomebrewSelfUpdate
     @Bindable var model: AppListModel
 
+    /// Why `brew update` can't start now (`CLIConcurrency`), for the tooltip.
+    private var blocked: String? { model.cliBlockedReason(.homebrewUpdate) }
+
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "mug")
@@ -1867,24 +1858,20 @@ private struct HomebrewSelfUpdateSidebarRow: View {
                     Text(note)
                         .font(.caption).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.middle)
-                } else if let blocker = model.homebrewUpdateWaitingFor {
-                    Text("Waiting for \(blocker)")
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 } else {
                     Text("You have \(update.installed)")
                         .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
             Spacer()
-            if model.homebrewUpdating || model.homebrewUpdateWaitingFor != nil {
+            if model.homebrewUpdating {
                 ProgressView().controlSize(.small)
             } else {
-                // brew holds one global lock: behind an upgrade the click waits
-                // its turn (`CLIConcurrency`).
                 Button("Update") { Task { await model.updateHomebrew() } }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
-                    .help("Runs `brew update`, which updates Homebrew and refreshes its package lists using your own Homebrew settings.")
+                    .disabled(blocked != nil)
+                    .help(blocked ?? String(localized: "Runs `brew update`, which updates Homebrew and refreshes its package lists using your own Homebrew settings."))
             }
         }
         .padding(.vertical, 2)
@@ -2168,6 +2155,8 @@ private struct FormulaDetailPane: View {
     let formula: BrewInstalledFormula
     @Bindable var model: AppListModel
 
+    private var upgrading: Bool { model.isUpgrading(formula) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -2218,19 +2207,22 @@ private struct FormulaDetailPane: View {
                 }
             }
             Spacer()
-            if let activity = model.activity(of: formula) {
+            if upgrading {
                 HStack(spacing: 7) {
-                    if activity.inFlight { ProgressView().controlSize(.small) }
-                    Text(activity.text ?? String(localized: "Updating…"))
+                    ProgressView().controlSize(.small)
+                    Text(model.formulaUpgradeNotes[formula.name] ?? String(localized: "Updating…"))
                         .font(.callout).foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(.quaternary, in: Capsule())
             } else if formula.hasUpdate {
+                let blocked = model.cliBlockedReason(.upgradeFormula)
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
                     .controlSize(.large)
                     .buttonStyle(.borderedProminent)
+                    .disabled(blocked != nil)
+                    .help(blocked ?? "")
             }
         }
         .padding(16)

@@ -834,11 +834,6 @@ private struct CommandLineRow: View {
             return half([Text(model.brewBulkProgressText ?? String(localized: "Running brew upgrade…"))
                 .monospacedDigit()], mark: spinner)
         }
-        if let blocker = model.brewUpgradeWaitingFor {
-            // Clicked behind another brew run, or a tool's update on the node it
-            // upgrades: it starts when that ends (`CLIConcurrency`).
-            return half([Text(String(localized: "Waiting for \(blocker)"))], mark: spinner)
-        }
         if outdated == 0 && !model.brewChecked {
             // Before the first verdict only; a re-check keeps the last answer up.
             return half([Text(String(localized: "Checking…"))], mark: spinner)
@@ -857,6 +852,7 @@ private struct CommandLineRow: View {
             return half([first, uncheckedLine, deprecatedLine].compactMap { $0 },
                         mark: unchecked > 0 ? uncheckedMark : nil,
                         button: updateButton(
+                            blocked: model.cliBlockedReason(.upgradeAll),
                             help: String(localized: "Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
                         ) { await model.upgradeBrewFormulae() })
         }
@@ -900,9 +896,9 @@ private struct CommandLineRow: View {
         }
         if !tools.checked { return half([Text(String(localized: "Checking…"))], mark: spinner) }
         if !tools.outdated.isEmpty {
-            // Not against brew: a copy on the node a brew run upgrades waits for
-            // it on its own (`CLIToolsModel.waitForHomebrew`).
             let button: (any View)? = tools.batchable.isEmpty ? nil : updateButton(
+                // Not beside a brew run (`CLIConcurrency`).
+                blocked: model.cliBlockedReason(.tool),
                 help: String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone.")
             ) { await tools.updateAll() }
             if let error = tools.outdated.lazy.compactMap({ tools.errors[$0.toolID] }).first {
@@ -944,7 +940,9 @@ private struct CommandLineRow: View {
 
     // MARK: Parts
 
-    private func updateButton(help: String, action: @escaping () async -> Void) -> some View {
+    /// `blocked`: why it is disabled (`AppListModel.cliBlockedReason`), its
+    /// tooltip in place of `help`; nil, it is enabled.
+    private func updateButton(blocked: String?, help: String, action: @escaping () async -> Void) -> some View {
         // The app rows' button: small, its label at least
         // `PopoverRowAction.buttonLabelMinWidth` wide, so the column of buttons
         // ends on one edge down the whole popover. Its own size, never scaled.
@@ -955,7 +953,8 @@ private struct CommandLineRow: View {
         .fixedSize()
         .controlSize(.small)
         .buttonStyle(.borderedProminent)
-        .help(help)
+        .disabled(blocked != nil)
+        .help(blocked ?? help)
     }
 
     private var spinner: some View { ProgressView().controlSize(.small) }

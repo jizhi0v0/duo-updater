@@ -178,6 +178,9 @@ struct CLIToolSidebarRow: View {
     /// Whether to show what the tool is built with — the CLI tab's own setting,
     /// `Preferences.showCLIRuntimeTags`.
     var showsRuntime = true
+    /// Why Update is disabled — a Homebrew run is under way
+    /// (`AppListModel.cliBlockedReason`) — shown as its tooltip; nil, it isn't.
+    var blockedReason: String?
 
     private var id: CLIToolID { status.toolID }
     private var updating: Bool { cli.updating.contains(id) }
@@ -253,11 +256,14 @@ struct CLIToolSidebarRow: View {
             Button("Update") { Task { await cli.update(id) } }
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
-                .help(String(localized: "Asks for an administrator password"))
+                .disabled(blockedReason != nil)
+                .help(blockedReason ?? String(localized: "Asks for an administrator password"))
         } else if status.oneClick != nil {
             Button("Update") { Task { await cli.update(id) } }
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
+                .disabled(blockedReason != nil)
+                .help(blockedReason ?? "")
         } else if let command = CLIToolPresentation.manualCommand(status) {
             // A glyph, like the Brew trust command's row button: a labelled button
             // would leave a 260 pt sidebar too little room for the title beside it.
@@ -402,6 +408,8 @@ struct ClaudeCodeDetailPane: View {
     let status: ClaudeCodeStatus
     let cli: CLIToolsModel
     var showsRuntime = true
+    /// Why Update is disabled (`CLIToolSidebarRow.blockedReason`).
+    var blockedReason: String?
 
     /// The latest click on a version in the Compatibility row, for the notes.
     @State private var breakingJump: BreakingChangesJump?
@@ -449,6 +457,8 @@ struct ClaudeCodeDetailPane: View {
                 Button("Update to \(latest)") { Task { await cli.update(id) } }
                     .controlSize(.large)
                     .buttonStyle(.borderedProminent)
+                    .disabled(blockedReason != nil)
+                    .help(blockedReason ?? "")
             }
         }
         .padding(16)
@@ -587,6 +597,8 @@ struct CLIToolDetailPane: View {
     let status: CLIToolStatus
     let cli: CLIToolsModel
     var showsRuntime = true
+    /// Why Update is disabled (`CLIToolSidebarRow.blockedReason`).
+    var blockedReason: String?
     /// The latest click on a version in the Compatibility row, for the notes.
     @State private var breakingJump: BreakingChangesJump?
 
@@ -630,11 +642,14 @@ struct CLIToolDetailPane: View {
                 Button("Update to \(latest)") { Task { await cli.update(id) } }
                     .controlSize(.large)
                     .buttonStyle(.borderedProminent)
-                    .help(String(localized: "Asks for an administrator password"))
+                    .disabled(blockedReason != nil)
+                    .help(blockedReason ?? String(localized: "Asks for an administrator password"))
             } else if status.oneClick != nil, let latest = status.latestVersion {
                 Button("Update to \(latest)") { Task { await cli.update(id) } }
                     .controlSize(.large)
                     .buttonStyle(.borderedProminent)
+                    .disabled(blockedReason != nil)
+                    .help(blockedReason ?? "")
             }
         }
         .padding(16)

@@ -1,5 +1,4 @@
 import Foundation
-import Observation
 import Testing
 import DuoUpdaterCore
 
@@ -1886,63 +1885,25 @@ struct CLIToolsModelTests {
         #expect(model.oneClickable.map(\.toolID) == [id])
     }
 
-    // MARK: Waiting for Homebrew (#1312)
-
-    /// The Homebrew run `homebrewBlocker` reports, as `AppListModel` would:
-    /// observed, so a waiting update hears it end.
-    @Observable @MainActor final class BrewRun {
-        var label: String? = "Homebrew"
-    }
-
-    /// A copy whose update conflicts with a brew run is claimed and says what it
-    /// waits for, runs nothing meanwhile, and runs once the brew run ends.
+    /// While a Homebrew run is under way neither a row's Update nor Update All
+    /// runs anything, whatever the button showed (#1312); once it ends, both do.
     ///
-    /// Mutation: drop `await waitForHomebrew(status)` from `update` → it runs at once.
-    @Test func anUpdateWaitsForTheBrewRunItConflictsWith() async {
+    /// Mutations: drop `blockedByHomebrew` from `update`'s guard; from `updateAll`'s.
+    @Test func noUpdateRunsBesideHomebrew() async {
         let updater = FakeUpdater()
         let model = Self.model(check: FakeCheck([(Self.report(Self.status(Self.native)), nil)]), updater: updater)
         await model.refresh()
-        let brew = BrewRun()
-        model.homebrewBlocker = { _ in brew.label }
+        var brewRunning = true
+        model.blockedByHomebrew = { brewRunning }
         let id = Self.id(Self.native)
 
-        let click = Task { await model.update(id) }
-        await until { model.waitingForHomebrew.contains(id) }
-        #expect(model.updating.contains(id))
-        #expect(model.progress[id] == String(localized: "Waiting for Homebrew"))
+        await model.update(id)
+        await model.updateAll()
         #expect(await updater.calls.isEmpty)
+        #expect(model.updating.isEmpty)
 
-        brew.label = nil
-        await click.value
+        brewRunning = false
+        await model.update(id)
         #expect(await updater.calls == [id])
-        #expect(model.waitingForHomebrew.isEmpty)
-    }
-
-    /// Under Update All only the conflicting copy waits; the others run.
-    ///
-    /// Mutation: drop `await waitForHomebrew(status)` from `runLane` → the
-    /// Claude Code copy runs while brew does.
-    @Test func updateAllHoldsOnlyTheConflictingCopy() async {
-        let claudeUpdater = FakeUpdater()
-        let fxUpdater = FakeUpdater()
-        let model = Self.model([
-            FakeProvider(kind: .claudeCode, checker: FakeCheck([(Self.report(Self.status(Self.native)), nil)]),
-                         updater: claudeUpdater),
-            FakeProvider(kind: .fx, checker: FakeCheck([(Self.report(.fx, [Self.status(Self.fx, kind: .fx)]), nil)]),
-                         updater: fxUpdater),
-        ])
-        await model.refresh()
-        let brew = BrewRun()
-        model.homebrewBlocker = { $0.kind == .claudeCode ? brew.label : nil }
-
-        let run = Task { await model.updateAll() }
-        await until { await fxUpdater.calls == [Self.id(Self.fx, .fx)] }
-        await until { model.waitingForHomebrew == [Self.id(Self.native)] }
-        #expect(await claudeUpdater.calls.isEmpty)
-
-        brew.label = nil
-        await run.value
-        #expect(await claudeUpdater.calls == [Self.id(Self.native)])
-        #expect(!model.updatingAll)
     }
 }

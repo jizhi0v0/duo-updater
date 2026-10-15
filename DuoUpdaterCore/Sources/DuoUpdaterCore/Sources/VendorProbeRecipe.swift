@@ -570,7 +570,8 @@ public struct VendorProbeRecipe: Sendable {
     /// half the user feels. `transientBodyIsOnlyDeclaredWhereItCanBeHonoured`
     /// pins that from the registry.
     ///
-    /// CapCut is the measured case and the only recipe that sets it (2026-09-01).
+    /// CapCut is the measured case (2026-09-01); Blender's builder tracks also
+    /// set it, for a PHP fatal served as 200 (2026-10-15).
     /// Its settings endpoint answers **HTTP 200** with
     /// `{"data": {},"message": "ExecBizCode error: … reason=request timeout
     /// request_timeout=500ms real_time=501018us"}` — ByteDance's own internal RPC

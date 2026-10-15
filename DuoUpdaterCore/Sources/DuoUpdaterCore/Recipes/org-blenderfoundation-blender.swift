@@ -153,6 +153,11 @@ enum org_blenderfoundation_blender {
             url: URL(string: "https://builder.blender.org/download/daily/?format=json&v=1")!,
             mode: .responseBody,
             versionPattern: builderEntry(risk: risk, branch: branch),
+            // The listing's server crashing: a 200 whose body is a PHP
+            // `<br />\n<b>Fatal error</b>: …` instead of JSON is the vendor's
+            // outage, not a schema change. Anchored to the start of the
+            // document, where a listing has its `[`.
+            transientBodyPattern: #"\A\s*<br />\s*<b>Fatal error</b>:"#,
             // The listing keeps each branch's newest Mac dmg long after the branch
             // stops building (it still lists `v43`'s 4.3.2 dmg, uploaded
             // 2025-01-10), so `main`'s newest Mac alpha is always there: a listing

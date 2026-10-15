@@ -70,6 +70,16 @@
 |---|---|---|---|
 | 结论 | 无（hotfix 是整 app zip） | 无 | 不能 |
 
+**它自己已下好的 hotfix 会被直接拿来装**（2026-10-15 起）：Cindy 在后台把 manifest 的
+`app.hotfix` 下到 `<userData>/updates/` 并写 `patch-info.json` 之后，`duo install` 若要装的正是这个版本，
+就复制这份 zip 来装、不再下 GitHub 的 dmg。闸门、归属规则和源码出处见
+`docs/engine-notes/self-updater-stash.md` §1「A second layout」。hotfix 版本号与 GitHub 不一定一致
+（0.1.99 只在 CDN），不一致就照常下载。
+- 端到端（2026-10-15，国际版 arm64）：启动 0.1.97，41 s 后它暂存好 0.1.108 hotfix，随即退出它 → `duo install Cindy --yes`
+  9.8 s `installed`、`bytesDownloaded: 0`，日志 `local stash hit … 284600168 B not fetched` → 0.1.108、inode 变、Team 不变、
+  Notarized，与 hotfix zip 逐文件一致；它暂存的 zip 与 `patch-info.json` 原样未动。之后再启动 0.1.108：日志
+  `ready=<none>`、版本不回退，同版本的暂存包留在 `updates/` 不清（约 285 MB，下次更新时被替换）。
+
 ## 按 OS 分轨
 - `LSMinimumSystemVersion` = `12.0`；release 不声明逐版本 min/max。
 - 架构: arm64 / x64 分包，源按本机架构选。

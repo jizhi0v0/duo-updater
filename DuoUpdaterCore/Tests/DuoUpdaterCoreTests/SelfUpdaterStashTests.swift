@@ -209,7 +209,7 @@ struct SelfUpdaterStashTests {
         defer { try? FileManager.default.removeItem(at: caches) }
 
         #expect(!SelfUpdaterStash.isSoleClaimant(
-            alpha, of: "zzshared-updater", in: [alpha, nightly]))
+            alpha, of: .electronUpdater(cacheDirectoryName: "zzshared-updater"), in: [alpha, nightly]))
         await Self.expectRefusal(
             .attributionAmbiguous, for: alpha, population: [alpha, nightly], caches: caches)
         // And the same layout with only one claimant IS used — without this the
@@ -224,7 +224,7 @@ struct SelfUpdaterStashTests {
     /// contest. Mutation: count array elements instead of distinct paths.
     @Test func theSameCopyListedTwiceIsNotAContest() async throws {
         let app = Self.fixtureApp(name: "ZZStash-Dup", cacheDirName: "zzdup-updater")
-        #expect(SelfUpdaterStash.isSoleClaimant(app, of: "zzdup-updater", in: [app, app]))
+        #expect(SelfUpdaterStash.isSoleClaimant(app, of: .electronUpdater(cacheDirectoryName: "zzdup-updater"), in: [app, app]))
     }
 
     /// Mutation: `let population = population ?? [result.app]` — the plausible
@@ -298,7 +298,7 @@ struct SelfUpdaterStashTests {
 
         #expect(SelfUpdaterStash.electronCacheDirectoryName(for: app) == nil)
         await Self.expectRefusal(
-            .noCacheDirectoryName, for: app, population: [app], caches: caches)
+            .noParkingSpot, for: app, population: [app], caches: caches)
     }
 
     /// Mutations: drop the separator check in `electronCacheDirectoryName`, and
@@ -345,7 +345,7 @@ struct SelfUpdaterStashTests {
         // `mine` is NOT in the population — an app the scan missed, or one moved
         // after it ran. `theirs` is the only claimant, and shares the bundle id, so
         // nothing downstream of this gate can tell the two apart.
-        #expect(!SelfUpdaterStash.isSoleClaimant(mine, of: "zzabsent-updater", in: [theirs]))
+        #expect(!SelfUpdaterStash.isSoleClaimant(mine, of: .electronUpdater(cacheDirectoryName: "zzabsent-updater"), in: [theirs]))
 
         let caches = try await Self.layOutCache(cacheDirName: "zzabsent-updater")
         defer { try? FileManager.default.removeItem(at: caches) }
@@ -404,5 +404,195 @@ struct SelfUpdaterStashTests {
             url: https://zzfixture.invalid
             """))
         #expect(without.updaterCacheDirName == nil)
+    }
+
+    // MARK: - Cindy's hotfix updater
+
+    /// A Cindy copy at an invented path. The bundle IDs are the real ones: the
+    /// spot is chosen by them, so a fixture ID would test nothing.
+    private static func cindyApp(
+        name: String = "ZZCindyStash", id: String = CindyChannel.globalBundleID
+    ) -> InstalledApp {
+        let path = URL(fileURLWithPath: "/Applications/\(name).app")
+        #expect(!FileManager.default.fileExists(atPath: path.path),
+                "fixture path must not exist on the host: \(path.path)")
+        return InstalledApp(
+            name: name, bundleID: id,
+            shortVersion: "0.1.97", buildVersion: "0.1.97",
+            path: path, isMASApp: false, sparkleFeedURL: nil,
+            hasSelfUpdater: true, releaseChannel: .stable)
+    }
+
+    /// Lays out `<support>/<userData>/updates/{patch-info.json,<archive>}` the way
+    /// Cindy's `writePatchInfo` does, and returns the Application Support root.
+    /// `recordedSHA256` defaults to the archive's real digest in lowercase hex.
+    private static func layOutCindy(
+        userData: String = "CindyGlobal",
+        fileName: String = "cindy-9.9.9-arm64-hotfix.zip",
+        zipBundleID: String = CindyChannel.globalBundleID,
+        short: String = offered, recordedSHA256: String? = nil
+    ) async throws -> URL {
+        let fm = FileManager.default
+        let support = fm.temporaryDirectory
+            .appendingPathComponent("ZZFixture-support-\(UUID().uuidString)", isDirectory: true)
+        let updates = support
+            .appendingPathComponent(userData, isDirectory: true)
+            .appendingPathComponent("updates", isDirectory: true)
+        try fm.createDirectory(at: updates, withIntermediateDirectories: true)
+        let archive = updates.appendingPathComponent(fileName)
+        try await makeZip(
+            at: archive, appName: "Cindy", bundleID: zipBundleID,
+            short: short, build: short, nestedHelper: true)
+        let actual = SHA256.hash(data: try Data(contentsOf: archive))
+            .map { String(format: "%02x", $0) }.joined()
+        let digest = recordedSHA256 ?? actual
+        try JSONSerialization
+            .data(withJSONObject: [
+                "version": short, "fileName": fileName, "sha256": digest,
+                "requireRelogin": false, "enableBeta": false,
+            ])
+            .write(to: updates.appendingPathComponent("patch-info.json"))
+        return support
+    }
+
+    private static func evaluateCindy(
+        _ app: InstalledApp, population: [InstalledApp], support: URL,
+        offering version: String = offered
+    ) async -> Result<LocalStagedInstaller, SelfUpdaterStash.Rejection> {
+        // A caches root with nothing in it, so an electron spot can never answer
+        // for a Cindy case by accident.
+        let emptyCaches = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-nocaches-\(UUID().uuidString)", isDirectory: true)
+        return await SelfUpdaterStash.evaluate(
+            for: result(app, offering: version), population: population,
+            cachesDirectory: emptyCaches, applicationSupportDirectory: support)
+    }
+
+    private static func refusal(
+        _ outcome: Result<LocalStagedInstaller, SelfUpdaterStash.Rejection>
+    ) -> SelfUpdaterStash.Rejection? {
+        if case .failure(let why) = outcome { return why }
+        return nil
+    }
+
+    /// The case this exists for: Cindy running in the background has already
+    /// fetched exactly the release we are about to install.
+    ///
+    /// Mutation: drop the Cindy branch of `parkingSpot(for:)` → `noParkingSpot`.
+    @Test func aFinishedCindyHotfixOfTheOfferedVersionIsUsed() async throws {
+        let app = Self.cindyApp()
+        let support = try await Self.layOutCindy()
+        defer { try? FileManager.default.removeItem(at: support) }
+
+        let outcome = await Self.evaluateCindy(app, population: [app], support: support)
+        let stash = try outcome.get()
+        #expect(stash.kind == .zip)
+        #expect(stash.bundleID == CindyChannel.globalBundleID)
+        #expect(stash.version.marketing == Self.offered)
+        #expect(stash.archiveURL.path.hasSuffix("/CindyGlobal/updates/cindy-9.9.9-arm64-hotfix.zip"))
+    }
+
+    /// What this machine actually held on 2026-10-15: a 0.1.99 hotfix while
+    /// 0.1.108 was on offer.
+    ///
+    /// Mutation: drop the version gate in `evaluate`.
+    @Test func aCindyHotfixOfAnotherVersionIsRefused() async throws {
+        let app = Self.cindyApp()
+        let support = try await Self.layOutCindy(short: "0.1.99")
+        defer { try? FileManager.default.removeItem(at: support) }
+
+        #expect(Self.refusal(await Self.evaluateCindy(
+            app, population: [app], support: support, offering: "0.1.108")) == .versionMismatch)
+    }
+
+    /// Mutation: make `RecordedDigest.matches` return true for `.sha256Hex`, or
+    /// compare it against a SHA-512.
+    @Test func aCindyHotfixThatDoesNotMatchItsRecordedSHA256IsRefused() async throws {
+        let app = Self.cindyApp()
+        let support = try await Self.layOutCindy(recordedSHA256: String(repeating: "0", count: 64))
+        defer { try? FileManager.default.removeItem(at: support) }
+
+        #expect(Self.refusal(await Self.evaluateCindy(app, population: [app], support: support))
+                == .checksumMismatch)
+    }
+
+    /// The app lowercases the manifest's digest before writing it, so the file is
+    /// lowercase in practice; an uppercase one is the same digest, not a mismatch.
+    ///
+    /// Mutation: drop `.lowercased()` from the hex comparison.
+    @Test func theRecordedSHA256IsComparedWithoutRegardToCase() async throws {
+        let app = Self.cindyApp()
+        let probe = try await Self.layOutCindy()
+        let archive = probe.appendingPathComponent("CindyGlobal/updates/cindy-9.9.9-arm64-hotfix.zip")
+        let upper = SHA256.hash(data: try Data(contentsOf: archive))
+            .map { String(format: "%02X", $0) }.joined()
+        // Re-record the same bytes with the digest spelled in uppercase.
+        try JSONSerialization
+            .data(withJSONObject: [
+                "version": Self.offered, "fileName": "cindy-9.9.9-arm64-hotfix.zip", "sha256": upper,
+            ])
+            .write(to: probe.appendingPathComponent("CindyGlobal/updates/patch-info.json"))
+        defer { try? FileManager.default.removeItem(at: probe) }
+
+        #expect(Self.refusal(await Self.evaluateCindy(app, population: [app], support: probe)) == nil)
+    }
+
+    /// Each edition parks under its own `userData`: a global copy must not pick up
+    /// the CN edition's hotfix, and the CN copy must find its own.
+    ///
+    /// Mutation: point both editions at one directory in
+    /// `CindyChannel.userDataDirectoryName`.
+    @Test func eachCindyEditionReadsOnlyItsOwnUpdatesDirectory() async throws {
+        let global = Self.cindyApp(name: "ZZCindyGlobal")
+        let china = Self.cindyApp(name: "ZZCindyCN", id: CindyChannel.chinaBundleID)
+        let support = try await Self.layOutCindy(
+            userData: "Cindy", zipBundleID: CindyChannel.chinaBundleID)
+        defer { try? FileManager.default.removeItem(at: support) }
+
+        #expect(Self.refusal(await Self.evaluateCindy(
+            global, population: [global, china], support: support)) == .noPendingRecord)
+        #expect(Self.refusal(await Self.evaluateCindy(
+            china, population: [global, china], support: support)) == nil)
+    }
+
+    /// Two copies of one edition share `updates/`, exactly as two copies of an
+    /// electron-updater app share a cache directory, and the archive's bundle ID
+    /// cannot tell them apart. The two editions do not share it, so their
+    /// coexisting is not a contest.
+    ///
+    /// Mutation: compare anything but the parking spot in `isSoleClaimant`.
+    @Test func twoCopiesOfOneCindyEditionAreRefused() async throws {
+        let one = Self.cindyApp(name: "ZZCindyOne")
+        let two = Self.cindyApp(name: "ZZCindyTwo")
+        let china = Self.cindyApp(name: "ZZCindyChina", id: CindyChannel.chinaBundleID)
+        let support = try await Self.layOutCindy()
+        defer { try? FileManager.default.removeItem(at: support) }
+
+        #expect(Self.refusal(await Self.evaluateCindy(
+            one, population: [one, two], support: support)) == .attributionAmbiguous)
+        #expect(Self.refusal(await Self.evaluateCindy(
+            one, population: [one, china], support: support)) == nil)
+    }
+
+    /// Mutation: drop `isPlainFileName` from `cindyPatchRecord`. Asserted on the
+    /// record reader itself: through `evaluate`, a traversal name would simply
+    /// name a file that is not there and be refused as `archiveMissing` anyway.
+    @Test func aCindyPatchFileNameThatLeavesUpdatesIsRefused() throws {
+        let fm = FileManager.default
+        let userData = fm.temporaryDirectory
+            .appendingPathComponent("ZZFixture-userdata-\(UUID().uuidString)", isDirectory: true)
+        let updates = userData.appendingPathComponent("updates", isDirectory: true)
+        try fm.createDirectory(at: updates, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: userData) }
+
+        func record(_ fileName: String) throws -> SelfUpdaterStash.PendingRecord? {
+            try JSONSerialization
+                .data(withJSONObject: ["fileName": fileName, "sha256": "ab"])
+                .write(to: updates.appendingPathComponent("patch-info.json"))
+            return SelfUpdaterStash.cindyPatchRecord(inUserDataDirectory: userData, fileManager: fm)
+        }
+        #expect(try record("../escape.zip") == nil)
+        #expect(try record("..") == nil)
+        #expect(try record("cindy-9.9.9-arm64-hotfix.zip")?.digest == .sha256Hex("ab"))
     }
 }

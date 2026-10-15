@@ -10,7 +10,7 @@ Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A vers
 
 **Apps que já baixaram a própria atualização são tratados corretamente.** Firefox e Helium não são mais atualizados uma segunda vez por cima de uma atualização que já prepararam, e o Cindy é instalado a partir do download que ele já fez. Se o download do próprio app não passar nas verificações, o DuoUpdater agora baixa a atualização por conta própria em vez de falhar toda vez.
 
-**Várias atualizações que falhavam agora são instaladas.** O AdGuard 2.20 e outras atualizações que colocam um pacote de instalação dentro de uma imagem de disco não param mais em “No .app bundle was found inside the archive.”. A edição chinesa do WorkBuddy volta a se atualizar, e as betas do Xcode retomam o download depois de uma queda de conexão em vez de começar do zero.
+**Várias atualizações que falhavam agora são instaladas.** A atualização do AdGuard para a 2.20 não para mais em “No .app bundle was found inside the archive.”. A edição chinesa do WorkBuddy volta a se atualizar, e as betas do Xcode retomam o download depois de uma queda de conexão em vez de começar do zero.
 
 **O DuoUpdater não esgota mais as requisições ao GitHub depois de reiniciar.** Agora ele espera por um GitHub CLI conectado que demora a responder e, enquanto o limite do GitHub está esgotado, para de perguntar até o limite ser restabelecido, em vez de fazer as mesmas verificações falharem de novo e de novo.
 

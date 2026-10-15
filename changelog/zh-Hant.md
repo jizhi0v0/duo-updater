@@ -10,7 +10,7 @@
 
 **App 自己已經下載好的更新，現在會被正確處理。** Firefox 和 Helium 已經自己準備好的更新，不會再被重複更新一遍；Cindy 會直接用它已經下載好的檔案安裝。如果 App 自己下載的檔案沒通過驗證，DuoUpdater 會改為自己下載這次更新，不會每次都失敗。
 
-**幾個之前裝不上的更新現在能裝了。** AdGuard 2.20 等把安裝套件放在磁碟映像裡的更新，不會再停在「No .app bundle was found inside the archive.」。WorkBuddy 中國版可以正常更新了；Xcode 測試版下載時連線中斷，會從中斷處繼續，不用從頭再來。
+**幾個之前裝不上的更新現在能裝了。** AdGuard 更新到 2.20 時，不會再停在「No .app bundle was found inside the archive.」。WorkBuddy 中國版可以正常更新了；Xcode 測試版下載時連線中斷，會從中斷處繼續，不用從頭再來。
 
 **重新開機後，DuoUpdater 不會再把 GitHub 的請求額度用光。** 已登入的 GitHub CLI 回應慢時，現在會多等一會兒；GitHub 的額度用完後，會停下來等額度恢復，不再一遍遍重試同樣的檢查。
 

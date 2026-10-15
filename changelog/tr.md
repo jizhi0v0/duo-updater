@@ -10,7 +10,7 @@ Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce 
 
 **Kendi güncellemesini zaten indirmiş uygulamalar doğru şekilde ele alınıyor.** Firefox ve Helium artık kendi hazırladıkları bir güncellemenin üzerine ikinci kez güncellenmiyor; Cindy de zaten yaptığı indirmeden kuruluyor. Bir uygulamanın kendi indirdiği dosya denetimlerden geçmezse DuoUpdater artık her seferinde başarısız olmak yerine güncellemeyi kendisi indiriyor.
 
-**Başarısız olan birkaç güncelleme artık kuruluyor.** AdGuard 2.20 ve kurulum paketini bir disk görüntüsünün içine koyan diğer güncellemeler artık “No .app bundle was found inside the archive.” hatasında durmuyor. WorkBuddy’nin Çin sürümü yeniden güncelleniyor; Xcode betaları da bağlantı koptuğunda indirmeye baştan başlamak yerine kaldığı yerden devam ediyor.
+**Başarısız olan birkaç güncelleme artık kuruluyor.** AdGuard’ın 2.20 güncellemesi artık “No .app bundle was found inside the archive.” hatasında durmuyor. WorkBuddy’nin Çin sürümü yeniden güncelleniyor; Xcode betaları da bağlantı koptuğunda indirmeye baştan başlamak yerine kaldığı yerden devam ediyor.
 
 **DuoUpdater yeniden başlatmadan sonra GitHub istek hakkını artık tüketmiyor.** Artık yavaş yanıt veren, oturum açılmış bir GitHub CLI’yi bekliyor; GitHub’ın sınırı dolduğunda da aynı denetimleri tekrar tekrar başarısız kılmak yerine sınır sıfırlanana kadar sormayı bırakıyor.
 

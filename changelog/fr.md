@@ -10,7 +10,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Les apps qui ont déjà téléchargé leur propre mise à jour sont correctement prises en compte.** Firefox et Helium ne sont plus mis à jour une deuxième fois par-dessus une mise à jour qu’ils ont déjà préparée, et Cindy s’installe à partir du téléchargement qu’il a déjà effectué. Si le téléchargement d’une app échoue à ses vérifications, DuoUpdater télécharge désormais la mise à jour lui-même au lieu d’échouer à chaque fois.
 
-**Plusieurs mises à jour qui échouaient s’installent maintenant.** AdGuard 2.20 et les autres mises à jour qui placent un paquet d’installation dans une image disque ne s’arrêtent plus sur « No .app bundle was found inside the archive. ». L’édition chinoise de WorkBuddy se met à nouveau à jour, et les bêtas de Xcode reprennent leur téléchargement après une coupure au lieu de repartir de zéro.
+**Plusieurs mises à jour qui échouaient s’installent maintenant.** La mise à jour d’AdGuard vers 2.20 ne s’arrête plus sur « No .app bundle was found inside the archive. ». L’édition chinoise de WorkBuddy se met à nouveau à jour, et les bêtas de Xcode reprennent leur téléchargement après une coupure au lieu de repartir de zéro.
 
 **DuoUpdater n’épuise plus ses requêtes GitHub après un redémarrage.** Il attend désormais un GitHub CLI connecté qui tarde à répondre, et quand la limite de GitHub est atteinte, il cesse de demander jusqu’à sa réinitialisation au lieu de faire échouer les mêmes vérifications encore et encore.
 

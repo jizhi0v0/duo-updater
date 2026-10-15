@@ -27,7 +27,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Apps that already downloaded their own update are handled properly.** Firefox and Helium are no longer updated a second time over an update they have already staged, and Cindy installs from the download it already made. If an app's own download fails its checks, DuoUpdater now downloads the update itself instead of failing every time.
 
-**Several updates that failed now install.** AdGuard 2.20 and other updates that put an installer package inside a disk image no longer stop with "No .app bundle was found inside the archive." WorkBuddy's China edition updates again, and Xcode betas pick up where they left off after a dropped connection instead of starting over.
+**Several updates that failed now install.** AdGuard's update to 2.20 no longer stops with "No .app bundle was found inside the archive." WorkBuddy's China edition updates again, and Xcode betas pick up where they left off after a dropped connection instead of starting over.
 
 **DuoUpdater no longer runs out of GitHub requests after a restart.** It now waits for a signed-in GitHub CLI that is slow to answer, and while GitHub's limit is spent it stops asking until the limit resets instead of failing the same checks over and over.
 

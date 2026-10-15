@@ -3241,10 +3241,10 @@ struct ChangelogEntriesView: View {
     /// kept by the rows and the scroll views. Not observed: rows coming and
     /// going while the reader scrolls must not re-run this body.
     final class NotesScroll {
-        /// The ids of the rows built right now among those `scrollToBreaking`
-        /// can go to. Kept per id, by each row's own `onAppear`/`onDisappear`,
-        /// so it cannot outlive the row the way a single "target is built" flag
-        /// did when the tint moved off a title that stayed on screen.
+        /// The ids of the rows built right now (blocks of rows beside the
+        /// rail). Kept per id, by each row's own `onAppear`/`onDisappear`,
+        /// whether or not a scroll may go to it: tinting changes no id, so a
+        /// row on screen when it is tinted must already be here.
         var built: Set<AnyHashable> = []
         /// The height of each of those rows, last measured.
         var heights: [AnyHashable: CGFloat] = [:]
@@ -3252,8 +3252,8 @@ struct ChangelogEntriesView: View {
         var headerHeight: CGFloat = 0
         /// The tinted version's header and first row in the window, last
         /// measured, by version: where `bandInset` is read. Each is nil while
-        /// not built. The row's id too: tinting it changes it, and the view
-        /// leaving must not clear what the one replacing it reported.
+        /// not built. The row's id too, so only the view that reported a frame
+        /// clears it.
         var tintedHeader: (entry: Int, frame: CGRect)?
         var tintedFirstRow: (entry: Int, id: AnyHashable, frame: CGRect)?
         /// The top of the long scroll's list in the window. The window's space,
@@ -3422,8 +3422,8 @@ struct ChangelogEntriesView: View {
     }
 
     /// Scroll to the tinted part of `shownBreaking`'s version: its first tinted
-    /// row (`ChangelogEntryView.breakingAnchor`), or the top of its notes when
-    /// nothing in them could be tinted but the version itself.
+    /// row, or the top of its notes when nothing in them could be tinted but
+    /// the version itself.
     ///
     /// One move, straight to the row. Every row has its id through its
     /// `ForEach`, and with that `scrollTo` reached the row from the top of
@@ -3454,10 +3454,13 @@ struct ChangelogEntriesView: View {
     /// the reader was coming from. Otherwise a jump. The row is then typically
     /// far away, and an animated scroll that far builds every row it passes:
     /// 70–240 ms between frames, recorded on the lazy stack the long scroll
-    /// used to be (2026-10-14); not re-measured on the list. Deferred a turn:
-    /// the row takes its `breakingAnchor` id in the update that tints it, and by
-    /// the next turn its `onAppear` has recorded it — observed, not documented
-    /// (2026-10-14).
+    /// used to be (2026-10-14); not re-measured on the list. Deferred a turn,
+    /// to the update after the one that tints the row.
+    ///
+    /// Tinting keeps every row's id. It once gave the first tinted row an id
+    /// of its own, set inside the tint's animation: a row on screen then left
+    /// and came back as a new one, flying in under the version's first rows
+    /// (recorded 2026-10-15).
     private func scrollToBreaking(_ proxy: ScrollViewProxy, belowHeader: Bool) {
         guard let shownBreaking, let index = entry(shownBreaking.version) else { return }
         let breaking = ChangelogEntryView.breakingRows(of: changelog.entries[index])
@@ -3465,14 +3468,12 @@ struct ChangelogEntriesView: View {
         let built: AnyHashable
         if belowHeader {
             guard ChangelogEntryView.rowCount(of: changelog.entries[index]) > 0 else { return }
-            target = breaking.isEmpty
-                ? ChangelogSectionsList.rowID(entry: index, row: 0)
-                : AnyHashable(ChangelogEntryView.breakingAnchor(index))
+            target = ChangelogSectionsList.rowID(entry: index, row: breaking.first ?? 0)
             built = target
         } else {
             // One version shown: its top is the top of the pane, padding included.
             let opensEntry = (breaking.first ?? 0) == 0
-            target = opensEntry ? AnyHashable(Self.scrollTopAnchor) : AnyHashable(ChangelogEntryView.breakingAnchor(index))
+            target = opensEntry ? AnyHashable(Self.scrollTopAnchor) : ChangelogRowsStack.rowID(breaking.first ?? 0)
             built = opensEntry ? ChangelogRowsStack.titleID : target
         }
         Task { @MainActor in
@@ -3651,8 +3652,10 @@ private struct ChangelogRowsStack: View {
     private struct Row: Identifiable {
         let id: AnyHashable
         let part: ChangelogEntryView.Part
-        /// The title or breaking row: one `scrollToBreaking` may go to.
-        let isRecorded: Bool
+        /// The title or the first breaking row: one `scrollToBreaking` may go
+        /// to, so it starts a block. Breaking whether tinted or not, so tinting
+        /// changes no block and no id.
+        let startsBlock: Bool
         /// Space below this row. Below, not above, so a row's own frame is the
         /// top `scrollTo(_:anchor: .top)` lines up.
         let gapBelow: CGFloat
@@ -3670,7 +3673,6 @@ private struct ChangelogRowsStack: View {
     private struct Block: Identifiable {
         let rows: [Row]
         var id: AnyHashable { rows[0].id }
-        var isRecorded: Bool { rows[0].isRecorded }
     }
     private static let blockSize = 12
 
@@ -3682,11 +3684,11 @@ private struct ChangelogRowsStack: View {
             current = []
         }
         for row in rows {
-            if row.isRecorded || current.count == Self.blockSize { flush() }
+            if row.startsBlock || current.count == Self.blockSize { flush() }
             current.append(row)
             // A breaking row is a block of its own: its block's top and height
             // are the row's.
-            if row.isRecorded, row.part != .title { flush() }
+            if row.startsBlock, row.part != .title { flush() }
         }
         flush()
         return blocks
@@ -3703,10 +3705,10 @@ private struct ChangelogRowsStack: View {
                             .padding(.bottom, row.gapBelow)
                     }
                 }
-                .onAppear { if block.isRecorded { scroll?.built.insert(block.id) } }
-                .onDisappear { if block.isRecorded { scroll?.built.remove(block.id) } }
+                .onAppear { scroll?.built.insert(block.id) }
+                .onDisappear { scroll?.built.remove(block.id) }
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                    if block.isRecorded { scroll?.heights[block.id] = height }
+                    scroll?.heights[block.id] = height
                 }
             }
         }
@@ -3714,20 +3716,20 @@ private struct ChangelogRowsStack: View {
 
     /// The title row's id.
     static let titleID = AnyHashable(RowKey(row: -1))
+    /// The id of a row under the title.
+    static func rowID(_ row: Int) -> AnyHashable { AnyHashable(RowKey(row: row)) }
 
     private var rows: [Row] {
         let item = changelog.entries[entry]
         let count = ChangelogEntryView.rowCount(of: item)
         let spacing = ChangelogEntryView.rowSpacing(of: item, itemStyle: itemStyle)
-        let firstTinted = tint?.entry == entry ? tint?.rows.first : nil
-        var rows = [Row(id: Self.titleID, part: .title, isRecorded: true, gapBelow: count == 0 ? 0 : Self.titleGap)]
+        let firstBreaking = ChangelogEntryView.breakingRows(of: item).first
+        var rows = [Row(id: Self.titleID, part: .title, startsBlock: true, gapBelow: count == 0 ? 0 : Self.titleGap)]
         for row in 0..<count {
             rows.append(Row(
-                id: row == firstTinted
-                    ? AnyHashable(ChangelogEntryView.breakingAnchor(entry))
-                    : AnyHashable(RowKey(row: row)),
+                id: Self.rowID(row),
                 part: .row(row),
-                isRecorded: row == firstTinted,
+                startsBlock: row == firstBreaking,
                 gapBelow: row == count - 1 ? 0 : spacing))
         }
         return rows
@@ -3763,16 +3765,12 @@ private struct ChangelogSectionsList: View {
         let row: Int
     }
 
-    /// The id of `entry`'s `row`, unless it is the first tinted row
-    /// (`ChangelogEntryView.breakingAnchor`).
+    /// The id of `entry`'s `row`, tinted or not.
     static func rowID(entry: Int, row: Int) -> AnyHashable { AnyHashable(RowKey(entry: entry, row: row)) }
 
     private struct Row: Identifiable {
         let id: AnyHashable
         let row: Int
-        /// Where `scrollToBreaking` may go: the version's first row, and its
-        /// first tinted one.
-        let isRecorded: Bool
         /// Padding around the row, inside it: a list row's own insets only
         /// partly took (top yes, bottom no; 2026-10-14), so the list's are
         /// zero, as in the Release Log.
@@ -3786,10 +3784,8 @@ private struct ChangelogSectionsList: View {
         let count = ChangelogEntryView.rowCount(of: entry)
         let spacing = ChangelogEntryView.rowSpacing(of: entry, itemStyle: itemStyle)
         return (0..<count).map { row in
-            Row(id: row == tinted?.first
-                    ? AnyHashable(ChangelogEntryView.breakingAnchor(index)) : Self.rowID(entry: index, row: row),
+            Row(id: Self.rowID(entry: index, row: row),
                 row: row,
-                isRecorded: row == 0 || row == tinted?.first,
                 padding: EdgeInsets(top: row == 0 ? Self.sectionInset : 0, leading: 16,
                                    bottom: row == count - 1 ? Self.sectionInset : spacing, trailing: 16))
         }
@@ -3806,10 +3802,10 @@ private struct ChangelogSectionsList: View {
                                            part: .row(row.row), tinted: tinted)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(row.padding)
-                            .onAppear { if row.isRecorded { scroll.built.insert(row.id) } }
-                            .onDisappear { if row.isRecorded { scroll.built.remove(row.id) } }
+                            .onAppear { scroll.built.insert(row.id) }
+                            .onDisappear { scroll.built.remove(row.id) }
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                                if row.isRecorded { scroll.heights[row.id] = height }
+                                scroll.heights[row.id] = height
                             }
                             // Under the tinted header (`NotesScroll.readBandInset`).
                             .onGeometryChange(for: CGRect?.self) {
@@ -3994,14 +3990,6 @@ private struct ChangelogEntryView: View {
         if entry.content.isEmpty { return itemStyle == .paragraphs ? 14 : 6 }
         return 8
     }
-
-    /// The id of `entry`'s first tinted row, for `ChangelogEntriesView.scrollToBreaking`.
-    /// Per entry, so moving the tint to another version changes the row's
-    /// identity, which should run the old row's `onDisappear` and drop its id
-    /// from `ChangelogEntriesView.NotesScroll.built` — expected, not observed: openclaw,
-    /// the one long changelog tried, flags a single version. Should the id linger,
-    /// a later jump to that same row from far away would animate rather than jump.
-    static func breakingAnchor(_ entry: Int) -> String { "changelog-breaking-\(entry)" }
 
     var body: some View {
         switch part {

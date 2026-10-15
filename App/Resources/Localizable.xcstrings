@@ -6468,6 +6468,136 @@
         }
       }
     },
+    "Don’t ask again": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht mehr fragen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No volver a preguntar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ne plus demander"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non chiedere più"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今後確認しない"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não perguntar novamente"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Больше не спрашивать"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir daha sorma"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不再询问"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不再詢問"
+          }
+        }
+      }
+    },
+    "Email…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-Mail …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correo…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-mail…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-mail…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メール…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E‑mail…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эл. почта…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-posta…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邮件…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "郵件…"
+          }
+        }
+      }
+    },
     "GitHub’s rate limit: checks resume at %@": {
       "extractionState": "manual",
       "localizations": {
@@ -12670,6 +12800,461 @@
         }
       }
     },
+    "No email app is set up on this Mac. Send the report to %@, or open a GitHub issue instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf diesem Mac ist keine E-Mail-App eingerichtet. Sende den Bericht an %@ oder eröffne stattdessen ein GitHub-Issue."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay ninguna app de correo configurada en este Mac. Envía el informe a %@ o abre una incidencia en GitHub."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune app de messagerie n’est configurée sur ce Mac. Envoyez le rapport à %@ ou ouvrez plutôt un ticket GitHub."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Su questo Mac non è configurata alcuna app di posta. Invia il rapporto a %@ oppure apri una segnalazione su GitHub."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このMacにはメールアプリが設定されていません。レポートを %@ に送るか、代わりにGitHubでIssueを作成してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nenhum app de e‑mail está configurado neste Mac. Envie o relatório para %@ ou abra uma issue no GitHub."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На этом Mac не настроено почтовое приложение. Отправьте отчёт на %@ или создайте issue на GitHub."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu Mac’te ayarlanmış bir e-posta uygulaması yok. Raporu %@ adresine gönderin ya da bunun yerine GitHub’da bir issue açın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 Mac 上没有设置邮件 App。请把报告发送到 %@，或改为在 GitHub 上创建 Issue。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這台 Mac 上沒有設定郵件 App。請把報告寄到 %@，或改在 GitHub 上建立 Issue。"
+          }
+        }
+      }
+    },
+    "No report is open.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Bericht geöffnet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay ningún informe abierto."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun rapport n’est ouvert."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun rapporto aperto."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開いているレポートはありません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nenhum relatório aberto."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет открытого отчёта."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Açık bir rapor yok."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有打开的报告。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有開啟的報告。"
+          }
+        }
+      }
+    },
+    "Nothing is sent until you choose how below. You can edit the report first — remove anything you’d rather not share.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es wird nichts gesendet, bis du unten einen Weg wählst. Du kannst den Bericht vorher bearbeiten – entferne alles, was du nicht teilen möchtest."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se envía nada hasta que elijas cómo abajo. Puedes editar el informe antes: quita lo que prefieras no compartir."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien n’est envoyé tant que vous n’avez pas choisi comment ci-dessous. Vous pouvez d’abord modifier le rapport — retirez ce que vous préférez ne pas partager."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non viene inviato nulla finché non scegli come qui sotto. Puoi prima modificare il rapporto: togli ciò che preferisci non condividere."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下で送信方法を選ぶまで何も送信されません。先にレポートを編集して、共有したくない内容を削除できます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada é enviado até você escolher como abaixo. Você pode editar o relatório antes — remova o que preferir não compartilhar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ничего не отправляется, пока вы не выберете способ ниже. Сначала можно отредактировать отчёт — удалите то, чем не хотите делиться."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aşağıdan bir yol seçene kadar hiçbir şey gönderilmez. Önce raporu düzenleyebilir, paylaşmak istemediğiniz her şeyi silebilirsiniz."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在你于下方选择发送方式之前，不会发送任何内容。你可以先编辑报告，删掉不想分享的内容。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在你於下方選擇傳送方式之前，不會傳送任何內容。你可以先編輯報告，刪掉不想分享的內容。"
+          }
+        }
+      }
+    },
+    "Offer to report failed updates": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melden fehlgeschlagener Updates anbieten"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ofrecer informar de actualizaciones fallidas"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proposer de signaler les mises à jour échouées"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proponi di segnalare gli aggiornamenti non riusciti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失敗したアップデートの報告を提案"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oferecer relato de atualizações que falharam"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предлагать сообщать о неудачных обновлениях"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başarısız güncellemeleri bildirmeyi öner"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提示报告失败的更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提示回報失敗的更新"
+          }
+        }
+      }
+    },
+    "Open GitHub Issue…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub-Issue öffnen …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir incidencia en GitHub…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir un ticket GitHub…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri segnalazione su GitHub…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHubでIssueを開く…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Issue no GitHub…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть issue на GitHub…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub Issue’su Aç…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 GitHub Issue…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開 GitHub Issue…"
+          }
+        }
+      }
+    },
+    "Opens a new issue on GitHub with the report filled in. Needs a GitHub account.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnet ein neues Issue auf GitHub mit ausgefülltem Bericht. Erfordert ein GitHub-Konto."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre una incidencia nueva en GitHub con el informe ya rellenado. Necesita una cuenta de GitHub."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvre un nouveau ticket sur GitHub avec le rapport déjà rempli. Nécessite un compte GitHub."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apre una nuova segnalazione su GitHub con il rapporto già compilato. Serve un account GitHub."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "レポートを記入済みの新しいIssueをGitHubで開きます。GitHubアカウントが必要です。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre uma nova issue no GitHub com o relatório preenchido. Requer uma conta do GitHub."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открывает новое issue на GitHub с заполненным отчётом. Нужна учётная запись GitHub."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Raporu doldurulmuş yeni bir GitHub issue’su açar. GitHub hesabı gerekir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 GitHub 上打开一个已填好报告的新 Issue。需要 GitHub 账户。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 GitHub 上打開一個已填好報告的新 Issue。需要 GitHub 帳號。"
+          }
+        }
+      }
+    },
+    "Opens a new message to %@ with the report attached.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnet eine neue E-Mail an %@ mit dem Bericht im Anhang."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre un mensaje nuevo para %@ con el informe adjunto."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvre un nouveau message à %@ avec le rapport en pièce jointe."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apre un nuovo messaggio a %@ con il rapporto in allegato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "レポートを添付した %@ 宛ての新規メッセージを開きます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre uma nova mensagem para %@ com o relatório anexado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открывает новое письмо на %@ с отчётом во вложении."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Raporu ekli olarak %@ adresine yeni bir ileti açar."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开一封发给 %@ 的新邮件，并附上报告。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開一封寄給 %@ 的新郵件，並附上報告。"
+          }
+        }
+      }
+    },
     "Pinned to %@ in %@’s global packages, so it doesn’t follow new releases": {
       "extractionState": "manual",
       "localizations": {
@@ -12731,6 +13316,331 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 %2$@ 的全域套件中鎖定為 %1$@，因此不會跟隨新版本"
+          }
+        }
+      }
+    },
+    "Report a failed update": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlgeschlagenes Update melden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informar de una actualización fallida"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signaler une mise à jour échouée"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segnala un aggiornamento non riuscito"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失敗したアップデートを報告"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relatar uma atualização que falhou"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сообщить о неудачном обновлении"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başarısız bir güncellemeyi bildir"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "报告失败的更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回報失敗的更新"
+          }
+        }
+      }
+    },
+    "Report a Problem": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Problem melden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informar de un problema"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signaler un problème"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segnala un problema"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "問題を報告"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relatar um Problema"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сообщить о проблеме"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sorun Bildir"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "报告问题"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回報問題"
+          }
+        }
+      }
+    },
+    "Report this problem…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Problem melden …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informar de este problema…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signaler ce problème…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segnala questo problema…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この問題を報告…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relatar este problema…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сообщить о проблеме…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sorunu bildir…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "报告此问题…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回報此問題…"
+          }
+        }
+      }
+    },
+    "Report…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melden …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informar…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signaler…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segnala…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "報告…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relatar…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сообщить…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildir…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "报告…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回報…"
+          }
+        }
+      }
+    },
+    "Review the report, then open a GitHub issue or an email with it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bericht prüfen und dann damit ein GitHub-Issue oder eine E-Mail öffnen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisa el informe y luego abre con él una incidencia en GitHub o un correo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relisez le rapport, puis ouvrez avec lui un ticket GitHub ou un e-mail."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rivedi il rapporto, poi aprilo in una segnalazione su GitHub o in un’e-mail."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "レポートを確認してから、GitHubのIssueまたはメールで開きます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revise o relatório e depois abra uma issue no GitHub ou um e‑mail com ele."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Просмотрите отчёт, затем откройте с ним issue на GitHub или письмо."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Raporu gözden geçirin, ardından onunla bir GitHub issue’su veya e-posta açın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看报告，然后用它创建 GitHub Issue 或邮件。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢視報告，然後用它建立 GitHub Issue 或郵件。"
           }
         }
       }
@@ -12861,6 +13771,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "顯示較少"
+          }
+        }
+      }
+    },
+    "Shows “Report this problem…” under an update’s error, once for each app, version and error. Nothing is sent unless you choose to send it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeigt „Problem melden …“ unter dem Fehler eines Updates, einmal pro App, Version und Fehler. Es wird nur gesendet, was du selbst sendest."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muestra «Informar de este problema…» bajo el error de una actualización, una vez por app, versión y error. No se envía nada salvo que tú lo envíes."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Affiche « Signaler ce problème… » sous l’erreur d’une mise à jour, une fois par app, version et erreur. Rien n’est envoyé sans que vous le choisissiez."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra «Segnala questo problema…» sotto l’errore di un aggiornamento, una volta per app, versione ed errore. Non viene inviato nulla se non scegli tu di farlo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートのエラーの下に「この問題を報告…」を、App・バージョン・エラーごとに1回表示します。自分で送信しない限り何も送信されません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra “Relatar este problema…” abaixo do erro de uma atualização, uma vez por app, versão e erro. Nada é enviado a menos que você escolha enviar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывает «Сообщить о проблеме…» под ошибкой обновления — один раз для каждого приложения, версии и ошибки. Ничего не отправляется, пока вы сами не отправите."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir güncellemenin hatasının altında “Bu sorunu bildir…” seçeneğini her uygulama, sürüm ve hata için bir kez gösterir. Siz göndermedikçe hiçbir şey gönderilmez."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在更新的错误下方显示“报告此问题…”，每个 App、版本和错误只显示一次。除非你自己选择发送，否则不会发送任何内容。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在更新的錯誤下方顯示「回報此問題…」，每個 App、版本和錯誤只顯示一次。除非你自己選擇傳送，否則不會傳送任何內容。"
           }
         }
       }
@@ -19880,6 +20855,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "已簽署，但不是 %@ 簽的"
+          }
+        }
+      }
+    },
+    "Stop offering to report failed updates. Turn it back on in Settings → Diagnostics.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bietet nicht mehr an, fehlgeschlagene Updates zu melden. Unter Einstellungen → Diagnose wieder einschalten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deja de ofrecer informar de actualizaciones fallidas. Vuelve a activarlo en Ajustes → Diagnóstico."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ne plus proposer de signaler les mises à jour échouées. Réactivez-le dans Réglages → Diagnostic."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smette di proporre la segnalazione degli aggiornamenti non riusciti. Riattivalo in Impostazioni → Diagnostica."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失敗したアップデートの報告を提案しなくなります。設定 → 診断 で再びオンにできます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deixa de oferecer o relato de atualizações que falharam. Reative em Ajustes → Diagnóstico."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Больше не предлагать сообщать о неудачных обновлениях. Снова включить можно в Настройки → Диагностика."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başarısız güncellemeleri bildirmeyi önermeyi bırakır. Ayarlar → Tanılama’dan yeniden açabilirsiniz."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不再提示报告失败的更新。可在 设置 → 诊断 中重新打开。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不再提示回報失敗的更新。可在 設定 → 診斷 中重新開啟。"
           }
         }
       }

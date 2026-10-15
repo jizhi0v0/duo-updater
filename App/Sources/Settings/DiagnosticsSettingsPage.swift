@@ -154,6 +154,12 @@ struct DiagnosticsSettingsPage: View {
             header: "Recent failures",
             footer: "Updates that didn’t install in the last 30 days. Kept on this Mac only — nothing is sent. Copy a report to include in an issue or an email."
         ) {
+            Toggle("Offer to report failed updates", isOn: Binding(
+                get: { model.prefs.offerFailureReports },
+                set: { model.prefs.offerFailureReports = $0 }))
+                .help("Shows “Report this problem…” under an update’s error, once for each app, version and error. Nothing is sent unless you choose to send it.")
+                .settingsRow()
+            SettingsDivider()
             if model.recentFailures.isEmpty {
                 Text("No failed updates recorded.")
                     .font(.callout)
@@ -163,7 +169,11 @@ struct DiagnosticsSettingsPage: View {
                 ForEach(Array(model.recentFailures.enumerated()), id: \.element.id) { index, event in
                     if let failure = event.failure {
                         if index > 0 { SettingsDivider() }
-                        FailureRow(failure: failure, date: event.date)
+                        FailureRow(failure: failure, date: event.date) {
+                            model.openFailureReport(event)
+                            openWindow(id: FailureReportView.windowID)
+                            model.surfaceWindow(sceneID: FailureReportView.windowID)
+                        }
                     }
                 }
             }
@@ -489,10 +499,11 @@ private struct HelperStatusRow: View {
     }
 }
 
-/// One recorded failure, with a Copy Report button at the top right.
+/// One recorded failure, with Report… and Copy Report buttons at the top right.
 private struct FailureRow: View {
     let failure: InstallFailureEvent
     let date: Date
+    let report: () -> Void
     @State private var copied = false
     @State private var copiedResetTask: Task<Void, Never>?
 
@@ -513,12 +524,11 @@ private struct FailureRow: View {
                     .foregroundStyle(.tertiary)
             }
             Spacer(minLength: 12)
+            Button("Report…", action: report)
+                .settingsGlassButton()
+                .help("Review the report, then open a GitHub issue or an email with it.")
             Button {
-                let version = AppListModel.runningSelfVersion ?? "?"
-                let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-                let text = InstallFailureReport.text(
-                    for: failure, at: date,
-                    duoUpdaterVersion: build.map { "\(version) (\($0))" } ?? version)
+                let text = FailureReportView.reportText(for: failure, at: date)
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(text, forType: .string)
                 // The same confirm-and-revert as the workbench's Copy Report.

@@ -67,6 +67,14 @@ struct DuoUpdaterApp: App {
         .defaultSize(width: 1000, height: 780)
         .windowResizability(.contentMinSize)
 
+        // The report for one failed update, opened from a row's "Report this
+        // problem…" or from Diagnostics. Its own window so the popover can go away.
+        Window("Report a Problem", id: FailureReportView.windowID) {
+            FailureReportView(model: model)
+        }
+        .defaultSize(width: 600, height: 480)
+        .windowResizability(.contentMinSize)
+
         // DuoUpdater's own release notes. Its own window, like the Release Log,
         // so it survives the popover dismissing — you open it from the menu and
         // then the menu goes away.
@@ -228,6 +236,7 @@ private enum WindowSpaces {
     private static let sceneIDs = [
         WelcomeView.windowID, WorkbenchWindowView.windowID, SettingsView.windowID,
         ReleaseLogView.windowID, NetworkWindowView.windowID, SelfChangelogView.windowID,
+        FailureReportView.windowID,
     ]
     private static var observer: NSObjectProtocol?
 

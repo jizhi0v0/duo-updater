@@ -1383,6 +1383,15 @@ private struct AppRow: View {
                         .buttonStyle(.link)
                         .disabled(model.restartingHelper)
                     }
+                    if let failure = model.reportableFailure(for: result) {
+                        Button("Report this problem…") {
+                            model.openFailureReport(failure)
+                            openWindow(id: FailureReportView.windowID)
+                            model.surfaceWindow(sceneID: FailureReportView.windowID)
+                        }
+                        .font(.caption2)
+                        .buttonStyle(.link)
+                    }
                 }
             } else if let note {
                 // The staged-package line is the fallback, not an override: once

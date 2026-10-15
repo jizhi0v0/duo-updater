@@ -2668,6 +2668,15 @@ private struct DetailHeader: View {
                     .buttonStyle(.link)
                     .disabled(model.restartingHelper)
                 }
+                if let failure = model.reportableFailure(for: result) {
+                    Button("Report this problem…") {
+                        model.openFailureReport(failure)
+                        openWindow(id: FailureReportView.windowID)
+                        model.surfaceWindow(sceneID: FailureReportView.windowID)
+                    }
+                    .font(.caption)
+                    .buttonStyle(.link)
+                }
             } else if let note = model.installNotes[result.id] ?? model.stagedPackageNote(for: result) {
                 Text(note)
                     .font(.caption)

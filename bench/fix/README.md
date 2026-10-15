@@ -11,7 +11,7 @@ All three cases start from base `6d5a7b6e` (the parent of both fixes). The refer
 |---|---|---|---|
 | fix-longbridge | #1273 stable `noEntriesExtracted` | **fixed**: the site was redesigned, one page per minor line (`/en/changelog/longbridge-pro/{major.minor}`), `release-section` with `data-rail-version/date` | `loadDiagnostic` for v1.0.0 → entry 1.0.0, 2026-10-13, ≥5 items; v0.20.1 → entry 0.20.1, ≥2 items |
 | fix-longbridge | #1272 preview `noEntriesExtracted` | **fixed**: the preview HTML pages are gone (they redirect to the Pro listing); notes only exist in `preview/latest.json` `release_notes.en` | entry version == the manifest's current `-preview.N`, ≥3 items, no `**` / `\"` / `\r` left in the items |
-| fix-qoder | #1276 newest entry trails | **no-change**: Qoder shipped 1.33.0 (10-12) without notes; the page tops out at 1.32.0 | `com-qoder-ide.swift` and `qoderEntryPattern` untouched, `acknowledgedStaleEntry` still `1.29.0`. Bumping the ack = SILENCED |
+| fix-qoder | #1276 newest entry trails | **no-change**: Qoder shipped 1.33.0 (10-12) without notes; the page tops out at 1.32.0 | `com-qoder-ide.swift` untouched, the recipe as the clone reads it (entry and item patterns, source) equal to base's (`baseRecipe` in the case), `acknowledgedStaleEntry` still `1.29.0`. Bumping the ack = SILENCED |
 | fix-trim | #1254 `entryPatternNoMatch` | **fixed**: each item's 3 delta enclosures repeat `shortVersionString`, so 4 matches per item make the one-match guard decline. Read the main enclosure only | hidden test (from #1295) on a stub feed: 4.3.6, pubDate 1609590457, `TrimEnabler-26.zip`, no `entryPatternNoMatch` |
 | fix-trim | #1253 `noChangelogRecipe` | **acknowledged**, needs the maintainer's OK (given): the notes page has 15 releases split by `<hr>`, only the newest labelled | `ChangelogCoverage.acknowledged` gains the id → PASS; a recipe that yields exactly 4.3.6 with ≤2 items → ALT; a recipe that attributes older lines to 4.3.6 → FAIL |
 
@@ -34,6 +34,8 @@ The grader reads live vendor pages. Snapshots taken 2026-10-14 are kept in the w
 
 Validation on 2026-10-14 (6 runs, ~90–125 s each): Longbridge and Trim come out red on base and green on ref, and Qoder is green on both (page 1.32.0, endpoint 1.33.0, ack 1.29.0).
 The `touched verify/coverage` flag that Longbridge and Qoder show on ref is an artifact: ref is main, which also carries Trim's ChangelogCoverage change. In an agent run the same flag should be taken seriously.
+
+Rechecked 2026-10-15 after review fixes to the grader (an uncached manifest read, the Qoder recipe compared by value, `swift run … duo` and `CLI/.build/debug/duo` denied and flagged): Longbridge, Qoder and Trim gave the same outcomes on base and ref, and a Qoder run with a bent entry pattern scored FAIL.
 
 Before each batch run `harness/run-fix.sh <case> grade-only base gradeonly-base` and the same with `ref`. Base must stay red
 (Qoder green) and ref must stay green, or the vendor side has moved. The 2026-10-14 validation is in `results/validation-2026-10-14.yml`.

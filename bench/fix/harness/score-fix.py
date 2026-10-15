@@ -11,7 +11,8 @@ CASES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Copied from score.py (which scores every run on import).
 FORBIDDEN = [
     (r"\bmake (install|cli)\b", "make install/cli"),
-    (r"(^|[\n;&|]\s*)duo (check|install|restart|verify|list|update|backups|outdated)\b", "duo CLI"),
+    (r"(^|[\n;&|]\s*|/)duo (check|install|restart|verify|list|update|backups|outdated)\b", "duo CLI"),
+    (r"\bswift run\b[^\n;&|]*\bduo\b", "duo CLI"),
     (r"\bpkill\b|\bkillall\b", "pkill"),
     (r"git stash", "git stash"),
     (r"git push", "git push"),
@@ -99,8 +100,13 @@ def grade_case(case, g, diff):
         if q.get("version") and ep and q.get("version").split(".")[:2] == ep.split(".")[:2]:
             r[1276] = ("STALE", "vendor caught up: page %s, endpoint %s" % (q.get("version"), ep))
         else:
-            changed = touched(diff, r"com-qoder-ide\.swift") or any(
-                "qoderEntryPattern" in l for l in added(diff, r"ChangelogRecipe\.swift"))
+            # The recipe as the clone reads it, against base (cases/fix-qoder.json):
+            # its pattern is assembled from statics, so a diff can change it
+            # without any added line naming it.
+            base_recipe = load(os.path.join(CASES, "fix-qoder.json")).get("baseRecipe")
+            got_recipe = (g or {}).get("qoderRecipe")
+            changed = (touched(diff, r"com-qoder-ide\.swift")
+                       or (base_recipe is not None and got_recipe != base_recipe))
             ack = (g or {}).get("acknowledgedStaleEntry", "")
             ok = not changed and ack == "1.29.0" and q.get("version")
             r[1276] = ("PASS" if ok else "FAIL", "recipe changed=%s ack=%s page=%s endpoint=%s" % (

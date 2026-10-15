@@ -38,8 +38,15 @@ import Testing
         return row
     }
 
+    /// No cache: the recipe revalidates its own fetch of the same manifest, and a
+    /// copy `URLCache.shared` kept from an earlier grade would compare it against
+    /// an older version.
     private static func liveJSON(_ url: String) async -> [String: Any]? {
-        guard let (data, _) = try? await URLSession.shared.data(from: URL(string: url)!) else { return nil }
+        var request = URLRequest(url: URL(string: url)!)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.finishTasksAndInvalidate() }
+        guard let (data, _) = try? await session.data(for: request) else { return nil }
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
 
@@ -61,8 +68,16 @@ import Testing
             let latest = await Self.liveJSON(
                 "https://center.qoder.sh/algo/api/update/darwin-arm64/stable/latest?machineId=00000000-0000-4000-8000-000000000000")
             facts["qoderEndpointVersion"] = latest?["productVersion"] as? String ?? ""
-            facts["acknowledgedStaleEntry"] = ChangelogRecipeRegistry.recipe(forBundleID: "com.qoder.ide")?
-                .acknowledgedStaleEntry ?? ""
+            let qoder = ChangelogRecipeRegistry.recipe(forBundleID: "com.qoder.ide")
+            facts["acknowledgedStaleEntry"] = qoder?.acknowledgedStaleEntry ?? ""
+            // What the recipe reads with, wherever in the source it was edited: the
+            // pattern is assembled from statics in ChangelogRecipe.swift, so a diff
+            // can bend it without naming it.
+            facts["qoderRecipe"] = qoder.map { r -> [String: Any] in
+                ["entryPattern": r.entryPattern, "itemPatterns": r.itemPatterns,
+                 "source": r.source.absoluteString, "sourceTemplate": r.sourceTemplate ?? "",
+                 "maxEntries": r.maxEntries ?? -1, "minItemLength": r.minItemLength]
+            } ?? [:]
         case "fix-trim":
             facts["trimProbe"] = await Self.trimHidden()
             facts["trimChangelog"] = await Self.changelog("org.cindori.TrimEnabler4", nil, "4.3.6")

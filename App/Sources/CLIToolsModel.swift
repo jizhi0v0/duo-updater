@@ -91,6 +91,14 @@ final class CLIToolsModel {
     /// longer running anything. Under `updateAll` the re-check waits for the
     /// tool's other lanes, so this can last as long as the slowest of them.
     private(set) var awaitingCheck: Set<CLIToolID> = []
+    /// The claimed copies whose update waits for a Homebrew run that upgrades a
+    /// formula they run on (`CLIConcurrency`) — Homebrew's node under an npm
+    /// copy. Claimed, so the row says what it waits for, but not running.
+    private(set) var waitingForHomebrew: Set<CLIToolID> = []
+    /// What a copy's update waits for before it starts — the running Homebrew
+    /// run it conflicts with, as the row names it — or nil to start now. Set by
+    /// `AppListModel`, which owns Homebrew's runs; nil, nothing waits.
+    @ObservationIgnored var homebrewBlocker: (@MainActor (CLIToolStatus) -> String?)?
     /// True for the whole of `updateAll`, including the re-checks at the end of
     /// each tool's lanes, so the popover row stays in its updating state instead
     /// of flashing back to "Update" between two copies.
@@ -611,6 +619,7 @@ final class CLIToolsModel {
         // exits: that check waits on the network, and releasing the row earlier
         // shows the old "outdated" verdict with a live Update button for its length.
         defer { release(id) }
+        await waitForHomebrew(status)
         let outcome = await run(status, with: provider)
         if Self.needsRecheck(outcome) {
             progress[id] = String(localized: "Checking…")
@@ -630,6 +639,24 @@ final class CLIToolsModel {
         queued.remove(id)
         awaitingCheck.remove(id)
         progress[id] = nil
+    }
+
+    /// Hold a claimed copy until no Homebrew run it conflicts with is running
+    /// (`homebrewBlocker`), its row saying what it waits for. Writes only what
+    /// changes: Homebrew's own waiters read `waitingForHomebrew`.
+    private func waitForHomebrew(_ status: CLIToolStatus) async {
+        guard let blocker = homebrewBlocker else { return }
+        let id = status.toolID
+        await CLIConcurrency.waitForTurn(inputs: { _ = blocker(status) }) {
+            guard let label = blocker(status) else {
+                if waitingForHomebrew.contains(id) { waitingForHomebrew.remove(id) }
+                return true
+            }
+            if !waitingForHomebrew.contains(id) { waitingForHomebrew.insert(id) }
+            let line = String(localized: "Waiting for \(label)")
+            if progress[id] != line { progress[id] = line }
+            return false
+        }
     }
 
     /// The command alone, for a copy already in `updating`: its output goes to the
@@ -772,6 +799,7 @@ final class CLIToolsModel {
     private func runLane(_ lane: [(CLIToolStatus, Int)], _ run: BatchRun) async {
         for (status, provider) in lane {
             queued.remove(status.toolID)
+            await waitForHomebrew(status)
             let outcome = await self.run(status, with: provider)
             if Self.needsRecheck(outcome) {
                 run.ran[provider, default: []].append((status, outcome))

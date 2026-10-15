@@ -1092,6 +1092,20 @@ final class AppListModel {
     /// line), keyed by formula name — so the row shows real progress instead of a bare
     /// spinner. Cleared when the upgrade finishes.
     private(set) var formulaUpgradeNotes: [String: String] = [:]
+    /// What the running Upgrade All set out to upgrade — `brewOutdatedFormulae`
+    /// when it started; empty when none runs. Its rows say where each one is
+    /// (`bulkPhase(of:)`), and a row's own Update is redundant meanwhile.
+    private(set) var brewUpgradeTargets: Set<String> = []
+    /// The target the bulk run is installing now (`==> Upgrading <name>`), and the
+    /// ones it has poured (`🍺 …/Cellar/<name>/…`), by short name.
+    private(set) var brewUpgradeCurrent: String?
+    private(set) var brewUpgradePoured: Set<String> = []
+    /// What each brew run clicked while another blocks it waits for
+    /// (`CLIConcurrency`), as its row says it: Upgrade All's, `brew update`'s,
+    /// and each formula's own.
+    private(set) var brewUpgradeWaitingFor: String?
+    private(set) var homebrewUpdateWaitingFor: String?
+    private(set) var formulaWaitingFor: [String: String] = [:]
 
     /// A newer Homebrew release to offer `brew update` for, at the top of the
     /// workbench Brew tree. nil = show nothing — including when the user disabled
@@ -2008,6 +2022,8 @@ final class AppListModel {
         Task { await cliTools.scanInstalls() }
         // Every landed check, whichever path asked, may have something new to say.
         cliTools.onReport = { [weak self] in self?.notifyNewCLIToolUpdates() }
+        // A copy that runs on a formula a brew run upgrades waits for it.
+        cliTools.homebrewBlocker = { [weak self] status in self?.homebrewBlocker(for: status) }
         // A rejection is reported from whichever request met it; the banner hears
         // of it on the main actor, unless the credentials changed in between.
         GitHubCredentials.shared.onRejected { [weak self] generation in
@@ -4212,10 +4228,17 @@ final class AppListModel {
     /// Run `brew update` for the offered release, then re-check and re-read the
     /// Brew tree (an update refreshes the package lists, so new upgrades can appear).
     func updateHomebrew() async {
-        // brew takes one global lock; an update on top of an upgrade would just fail.
-        guard let offered = homebrewSelfUpdate, !homebrewUpdating,
-              !brewUpgrading, upgradingFormulae.isEmpty else { return }
-        homebrewUpdating = true
+        guard homebrewSelfUpdate != nil, !homebrewUpdating, homebrewUpdateWaitingFor == nil else { return }
+        // brew takes one global lock; an update on top of an upgrade would just
+        // fail, so it waits its turn (`CLIConcurrency`).
+        var claimed: HomebrewSelfUpdate?
+        await takeBrewTurn(waiting: \.homebrewUpdateWaitingFor) { [weak self] in
+            self?.homebrewSelfUpdate == nil ? nil : .homebrewUpdate
+        } claim: {
+            claimed = homebrewSelfUpdate
+            homebrewUpdating = true
+        }
+        guard let offered = claimed else { return }
         homebrewUpdateError = nil
         homebrewUpdateNote = String(localized: "Starting…")
         defer { homebrewUpdating = false; homebrewUpdateNote = nil }
@@ -4243,27 +4266,52 @@ final class AppListModel {
     /// Run `brew upgrade --formula` (the bulk action, mirroring a bare terminal
     /// `brew upgrade` but formula-scoped) and refresh the list when it finishes.
     func upgradeBrewFormulae() async {
-        guard !brewUpgrading, !homebrewUpdating else { return }
-        // Don't stack a bulk run on top of in-flight per-row upgrades — both call
-        // `brew`, which takes a single global lock; the second would just fail.
-        guard upgradingFormulae.isEmpty else { return }
-        brewUpgrading = true
+        guard !brewUpgrading, brewUpgradeWaitingFor == nil else { return }
+        // Not on top of `brew update` or a row's own upgrade — both call `brew`,
+        // which takes a single global lock; the second would just fail. It waits
+        // its turn instead (`CLIConcurrency`), and so does a tool's update on
+        // Homebrew's node while this runs.
+        //
+        // The target set is snapshotted when the run starts, so dependency
+        // formulae brew pulls in (which also emit a 🍺 line) don't inflate the
+        // count past the user-visible total.
+        var claimed: [BrewOutdatedFormula] = []
+        await takeBrewTurn(waiting: \.brewUpgradeWaitingFor) { [weak self] in
+            guard let self, !self.brewOutdatedFormulae.isEmpty else { return nil }
+            return .upgradeAll(targets: Set(self.brewOutdatedFormulae.map(\.name)))
+        } claim: {
+            claimed = brewOutdatedFormulae
+            brewUpgradeTargets = Set(claimed.map(\.name))
+            brewUpgrading = true
+        }
+        guard !claimed.isEmpty else { return }
         brewUpgradeError = nil
         brewUpgradeNote = String(localized: "Starting…")
-        // Snapshot the target set so dependency formulae brew pulls in (which also
-        // emit a 🍺 line) don't inflate the count past the user-visible total.
-        let targets = Set(brewOutdatedFormulae.map(\.name))
+        let targets = brewUpgradeTargets
+        let shortTargets = Set(targets.map(CLIConcurrency.shortName))
         // Cask tokens are upgraded by name in a second pass — never a bare
         // `brew upgrade --cask`, which would reach GUI casks this surface doesn't own.
-        let caskTokens = brewOutdatedFormulae.filter { $0.kind == .cask }.map(\.name)
+        let caskTokens = claimed.filter { $0.kind == .cask }.map(\.name)
         brewUpgradeTotal = targets.count
         brewUpgradeDone = 0
-        defer { brewUpgrading = false; brewUpgradeNote = nil; brewUpgradeDone = 0; brewUpgradeTotal = 0 }
+        defer {
+            brewUpgrading = false; brewUpgradeNote = nil; brewUpgradeDone = 0; brewUpgradeTotal = 0
+            brewUpgradeTargets = []; brewUpgradeCurrent = nil; brewUpgradePoured = []
+        }
         await afterBackgroundHomebrewUpdate()
         do {
             let onOutput: @Sendable (String) -> Void = { [weak self] line in
                 Task { @MainActor in
                     self?.brewUpgradeNote = line
+                    // brew installs one formula at a time: the row of the one
+                    // under way says Updating, the poured ones Updated.
+                    if let name = BrewFormulaService.upgradingFormula(fromLine: line), shortTargets.contains(name) {
+                        self?.brewUpgradeCurrent = name
+                    }
+                    if let name = BrewFormulaService.pouredFormula(fromLine: line), shortTargets.contains(name) {
+                        self?.brewUpgradePoured.insert(name)
+                        if self?.brewUpgradeCurrent == name { self?.brewUpgradeCurrent = nil }
+                    }
                     // One 🍺 Cellar line per poured formula — count only the targeted
                     // ones, clamped so it never reads past the total. Casks don't emit
                     // a Cellar line, so they're counted separately below.
@@ -4291,8 +4339,18 @@ final class AppListModel {
     /// Upgrade a single formula (`brew upgrade --formula <name>`) — the per-row
     /// action in the workbench Brew list — then re-read the outdated set.
     func upgradeBrewFormula(named name: String) async {
-        guard !upgradingFormulae.contains(name), !homebrewUpdating else { return }
-        upgradingFormulae.insert(name)
+        guard !upgradingFormulae.contains(name), formulaWaitingFor[name] == nil else { return }
+        // Redundant while Upgrade All has it in hand; after any other brew run,
+        // and after a tool's update on its node, it waits its turn
+        // (`CLIConcurrency`) — and gives up if that run left it up to date.
+        let started = await takeBrewTurn(waiting: \.formulaWaitingFor[name]) { [weak self] in
+            guard let self, self.brewFormulae.contains(where: { $0.name == name && $0.hasUpdate })
+                    || self.brewOutdatedFormulae.contains(where: { $0.name == name }) else { return nil }
+            return .upgradeFormula(name)
+        } claim: {
+            upgradingFormulae.insert(name)
+        }
+        guard started else { return }
         formulaUpgradeErrors[name] = nil
         formulaUpgradeNotes[name] = String(localized: "Starting…")
         defer {
@@ -4332,6 +4390,89 @@ final class AppListModel {
         guard brewUpgrading, brewUpgradeTotal > 0 else { return nil }
         let current = min(brewUpgradeDone + 1, brewUpgradeTotal)
         return String(localized: "Upgrading… (\(current)/\(brewUpgradeTotal))")
+    }
+
+    // MARK: - Which CLI-tab runs wait for which (#1312)
+
+    /// Where a formula is in the running Upgrade All, nil when it is not one of
+    /// its targets.
+    enum BulkPhase { case queued, updating, updated }
+
+    func bulkPhase(of name: String) -> BulkPhase? {
+        let short = CLIConcurrency.shortName(name)
+        guard brewUpgrading, brewUpgradeTargets.contains(where: { CLIConcurrency.shortName($0) == short }) else { return nil }
+        if brewUpgradePoured.contains(short) { return .updated }
+        return brewUpgradeCurrent == short ? .updating : .queued
+    }
+
+    /// Homebrew's runs under way; one clicked and waiting is not among them.
+    private var runningBrewOperations: [CLIOperation] {
+        var running: [CLIOperation] = upgradingFormulae.sorted().map { .upgradeFormula($0) }
+        if homebrewUpdating { running.insert(.homebrewUpdate, at: 0) }
+        if brewUpgrading { running.insert(.upgradeAll(targets: brewUpgradeTargets), at: 0) }
+        return running
+    }
+
+    /// The "Other tools" updates under way: claimed and not waiting for Homebrew.
+    /// A copy `updateAll` has queued behind another in its lane counts — it
+    /// starts without asking again.
+    private var runningToolOperations: [CLIOperation] {
+        cliTools.statuses
+            .filter { cliTools.updating.contains($0.toolID) && !cliTools.waitingForHomebrew.contains($0.toolID) }
+            .map(toolOperation)
+    }
+
+    private func toolOperation(_ status: CLIToolStatus) -> CLIOperation {
+        .tool(id: status.toolID.tag, homebrewFormulae: CLIConcurrency.homebrewFormulae(of: status))
+    }
+
+    /// When a brew run may start now: what every Update and Upgrade All in the
+    /// CLI tab, popover and workbench, reads.
+    func cliStart(_ operation: CLIOperation) -> CLIStart {
+        CLIConcurrency.start(operation, running: runningBrewOperations + runningToolOperations)
+    }
+
+    /// What a tool's update waits for (`CLIToolsModel.homebrewBlocker`). Only
+    /// Homebrew's runs: tool against tool stays each tool's own rule.
+    private func homebrewBlocker(for status: CLIToolStatus) -> String? {
+        guard case .after(let blocker) = CLIConcurrency.start(toolOperation(status), running: runningBrewOperations)
+        else { return nil }
+        return label(of: blocker)
+    }
+
+    /// A blocker as "Waiting for …" names it: Homebrew, or the tool.
+    private func label(of operation: CLIOperation) -> String {
+        guard case .tool(let id, _) = operation else { return "Homebrew" }
+        guard let status = cliTools.statuses.first(where: { $0.toolID.tag == id }) else { return "Homebrew" }
+        return status.name ?? status.kind.displayName
+    }
+
+    /// Wait until the brew run `operation` names may start, saying meanwhile in
+    /// `waiting` what it waits for, then `claim` it in the same main-actor turn
+    /// (`CLIConcurrency.waitForTurn`). `operation` answers nil once there is
+    /// nothing left for the run to do. True when claimed; false when redundant
+    /// or no longer wanted.
+    @discardableResult
+    private func takeBrewTurn(
+        waiting: ReferenceWritableKeyPath<AppListModel, String?>,
+        operation: @escaping @MainActor () -> CLIOperation?,
+        claim: () -> Void
+    ) async -> Bool {
+        var started = false
+        await CLIConcurrency.waitForTurn(inputs: { [weak self] in
+            if let operation = operation() { _ = self?.cliStart(operation) }
+        }) {
+            let decision = operation().map(cliStart)
+            guard case .after(let blocker)? = decision else {
+                if self[keyPath: waiting] != nil { self[keyPath: waiting] = nil }
+                if decision == .now { claim(); started = true }
+                return true
+            }
+            let label = label(of: blocker)
+            if self[keyPath: waiting] != label { self[keyPath: waiting] = label }
+            return false
+        }
+        return started
     }
 
     /// The releases `update` would bring (`HomebrewReleaseNotes.relevant`). The

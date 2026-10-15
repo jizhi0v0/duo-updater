@@ -1004,6 +1004,21 @@ public actor BrewFormulaService {
         return ns.substring(with: match.range(at: 1))
     }
 
+    /// Short name of the formula a `brew upgrade` line says it starts installing,
+    /// or nil for any other line. brew fetches every bottle first, then installs
+    /// one formula at a time, each under `==> Upgrading <full name>`
+    /// (`Upgrade.print_upgrade_message`, Homebrew 7.0.9 source) — the start
+    /// `pouredFormula` is the end of. The run's own heading,
+    /// `==> Upgrading 3 outdated packages:`, is not one.
+    public static func upgradingFormula(fromLine line: String) -> String? {
+        let prefix = "==> Upgrading "
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix(prefix) else { return nil }
+        let name = trimmed.dropFirst(prefix.count)
+        guard !name.isEmpty, !name.contains(" "), !name.hasSuffix(":") else { return nil }
+        return name.split(separator: "/").last.map(String.init)
+    }
+
     private static let pouredLinePattern = try! NSRegularExpression(
         pattern: #"/Cellar/([^/\s]+)/[^/\s:]+: (?:[\d,]+ files, )?\d+(?:\.\d)?[KMG]?B(?:, built in .+)?\s*$"#)
 

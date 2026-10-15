@@ -791,6 +791,13 @@ public enum UpdatePolicy {
         staged: StagedSelfUpdate?
     ) -> StagedSelfUpdate? {
         guard let staged else { return nil }
+        // Mozilla is decided on its own terms: its staged side carries a `BuildID`,
+        // not a `CFBundleVersion`, and its launch has a version check of its own.
+        if staged.updater == .mozilla {
+            if mozillaStagingApplied(result, staged) { return nil }
+            guard mozillaStagingSurvivesInstall(result, staged) else { return nil }
+            return routeCollidesWithSelfUpdater(result) ? staged : nil
+        }
         // A staged build EQUAL to what is on disk has already been applied; the
         // directory just hasn't been swept yet. Dropping the "must be newer" filter
         // to catch trailing builds would otherwise let such leftovers block installs
@@ -812,15 +819,6 @@ public enum UpdatePolicy {
             result.app.versionSide, as: staged.versionSide,
             buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID: result.app.bundleID)
         ) { return nil }
-        // Mozilla's launch skips a staged update older than the app it starts
-        // (`IsOlderVersion` in `nsUpdateDriver.cpp`), so one that trails the latest
-        // cannot undo our install and must not hold it back. Equal to the latest it
-        // still blocks: that one is a Relaunch away, with nothing to download.
-        if staged.updater == .mozilla,
-           let latest = result.remote?.versionSide, !latest.isEmpty,
-           VersionComparator.isNewer(latest, than: staged.versionSide) {
-            return nil
-        }
         return routeCollidesWithSelfUpdater(result) ? staged : nil
     }
 
@@ -839,16 +837,70 @@ public enum UpdatePolicy {
     /// whatever it staged in on quit without a version check, and stages only on
     /// its own clock (every six hours by default) while it publishes several builds
     /// a day — measured 2026-10-06, a staged 0.1.1082 replaced our 0.1.1084 on
-    /// `duo restart`. Squirrel's ShipIt and Spotify stage differently and keep
+    /// `duo restart`. A Mozilla staging that is not the latest likewise (see
+    /// `StagedUpdater.mozilla`): `stagedBlocksInstall` only returns one the launch
+    /// would still apply. Squirrel's ShipIt and Spotify stage differently and keep
     /// yielding.
     public static func clearsStagedBuild(
         _ result: UpdateResult,
         staged: StagedSelfUpdate
     ) -> Bool {
+        if staged.updater == .mozilla { return !mozillaStagedIsLatest(result, staged) }
         guard staged.updater == .sparkle || staged.updater == .magpie,
               let latest = result.remote?.versionSide, !latest.isEmpty
         else { return false }
         return VersionComparator.isNewer(latest, than: staged.versionSide)
+    }
+
+    // MARK: - Mozilla's own staging
+
+    /// Whether `staged` is the build `result` offers. Pre-release tracks are
+    /// compared on the `BuildID` (their remote is in the `.vendor` namespace, and
+    /// one `Version` covers a whole beta or Nightly cycle); release and ESR on the
+    /// version, which moves with every release there.
+    static func mozillaStagedIsLatest(_ result: UpdateResult, _ staged: StagedSelfUpdate) -> Bool {
+        guard let remote = result.remote else { return false }
+        if remote.buildNamespace == .vendor {
+            guard let build = staged.vendorBuild, let latest = remote.version else { return false }
+            return build == latest
+        }
+        guard let latest = remote.shortVersion else { return false }
+        return VersionComparator.isSame(
+            VersionSide(marketing: latest, build: nil),
+            as: VersionSide(marketing: staged.version, build: nil))
+    }
+
+    /// Whether `staged` is the build already on disk: the launch that applied it
+    /// has not cleaned up yet.
+    static func mozillaStagingApplied(_ result: UpdateResult, _ staged: StagedSelfUpdate) -> Bool {
+        guard let build = staged.vendorBuild, let installed = result.app.vendorBuildVersion
+        else { return false }
+        return build == installed
+    }
+
+    /// Whether Mozilla's next launch would still apply `staged` once the latest is
+    /// installed. It skips an update whose `update.version` is older than the
+    /// app's `Version` (`IsOlderVersion`, `nsUpdateDriver.cpp`), and nothing else;
+    /// so within one beta or Nightly cycle, where `Version` does not move, it
+    /// applies whatever was staged. Unknown answers true, the side that protects
+    /// our install.
+    static func mozillaStagingSurvivesInstall(_ result: UpdateResult, _ staged: StagedSelfUpdate) -> Bool {
+        guard let offered = result.remote?.shortVersion.flatMap(mozillaVersionNumber),
+              let stagedVersion = mozillaVersionNumber(staged.version)
+        else { return true }
+        return !VersionComparator.isNewer(offered, than: stagedVersion)
+    }
+
+    /// The leading dotted number of a Mozilla version: `159.0` for `159.0b2` (the
+    /// display form a beta is offered as; its `Version` is `159.0`), `157.0` for
+    /// `157.0a1` (Nightly, whose `Version` keeps the suffix), `153.5.0` for
+    /// `153.5.0esr`. Both sides are cut the same way, so a cycle's suffix never
+    /// decides the comparison: within a cycle they compare equal, which is the
+    /// case `IsOlderVersion` lets through.
+    static func mozillaVersionNumber(_ offered: String) -> String? {
+        guard let range = offered.range(of: #"^[0-9]+(\.[0-9]+)*"#, options: .regularExpression)
+        else { return nil }
+        return String(offered[range])
     }
 
     /// Whether an installer parked on this app's quit, whose staged build could not
@@ -897,6 +949,10 @@ public enum UpdatePolicy {
         staged: StagedSelfUpdate?
     ) -> StagedSelfUpdate? {
         guard let staged else { return nil }
+        if staged.updater == .mozilla {
+            return mozillaStagedIsLatest(result, staged) && !mozillaStagingApplied(result, staged)
+                ? staged : nil
+        }
         // Relaunching must move the app FORWARD. A staged build at or below what is
         // installed would apply a downgrade, and `relaunchStagedUpdate` waits for the
         // on-disk version to advance — so it would spin for its full timeout and

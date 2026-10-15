@@ -21,16 +21,24 @@ public struct StagedSelfUpdate: Sendable, Hashable {
     /// nobody said, and a decision keyed on it must take its safe side (see
     /// `ReappearanceWatch.init(for:)`).
     public let updater: StagedUpdater?
+    /// The vendor's own build id, when the updater states one in a namespace
+    /// other than `CFBundleVersion` — Mozilla's `BuildID`, compared with
+    /// `InstalledApp.vendorBuildVersion` and a `.vendor`-namespace remote. Kept
+    /// apart from `buildVersion` because `versionSide` pairs that with the
+    /// installed `CFBundleVersion`, which is a different number.
+    public let vendorBuild: String?
 
     public init(
         version: String, buildVersion: String?, stagedBundlePath: URL,
-        appliesOn: StagedApplyTrigger = .quit, updater: StagedUpdater? = nil
+        appliesOn: StagedApplyTrigger = .quit, updater: StagedUpdater? = nil,
+        vendorBuild: String? = nil
     ) {
         self.version = version
         self.buildVersion = buildVersion
         self.stagedBundlePath = stagedBundlePath
         self.appliesOn = appliesOn
         self.updater = updater
+        self.vendorBuild = vendorBuild
     }
 
     /// What identifies this staged build when the question is "is this a
@@ -49,7 +57,7 @@ public struct StagedSelfUpdate: Sendable, Hashable {
     /// NOT for display: it is a bare build number with no marketing version in
     /// front of it. `UpdateResult.stagedRelaunchLine` is what a row or a
     /// notification should show.
-    public var buildIdentity: String { buildVersion ?? version }
+    public var buildIdentity: String { buildVersion ?? vendorBuild ?? version }
 
     /// Both version strings the staged bundle carries, for comparison against an
     /// installed copy or a remote offer. Prefer this over ``buildIdentity`` where
@@ -114,10 +122,14 @@ public enum StagedUpdater: Sendable, Hashable {
     /// the next LAUNCH, not on quit — measured 2026-10-15 on Firefox 157.0.1 with
     /// 158.0 staged: a quit left the bundle alone for 60 s, the next launch swapped
     /// it in (a "replace request": `Updated.app/Contents` renamed over the
-    /// installed `Contents`). Unlike Sparkle and magpie it does check versions, at
-    /// startup before the swap: `nsUpdateDriver.cpp` returns without applying when
-    /// `update.version` is older than the app (`IsOlderVersion`), so a trailing
-    /// staging cannot undo our install (`UpdatePolicy.stagedBlocksInstall`).
+    /// installed `Contents`). It does check versions at startup, before the swap:
+    /// `nsUpdateDriver.cpp` returns without applying when `update.version` is
+    /// older than the app's `Version` (`IsOlderVersion`). That protects only where
+    /// `Version` moves with every release (release, ESR). A beta, Developer
+    /// Edition or Nightly cycle keeps one `Version` across all its builds
+    /// (`155.0` for 155.0b1–b9), so an earlier build staged in the same cycle is
+    /// not "older" and IS applied over ours. `UpdatePolicy` decides per case on
+    /// the `BuildID` (`vendorBuild`).
     case mozilla
 }
 
@@ -436,15 +448,49 @@ public enum SelfUpdaterStaging {
         } else {
             return nil
         }
+        // The BuildID: from the applied bundle's own `application.ini`, or for a
+        // pending MAR from `active-update.xml` beside `updates/`, which records the
+        // update it is applying.
+        let buildID: String? = status.hasPrefix("applied")
+            ? mozillaINIValue("BuildID", in: applied.appendingPathComponent("Contents/Resources/application.ini"))
+            : mozillaActiveUpdateBuildID(
+                in: dir.deletingLastPathComponent().deletingLastPathComponent())
         if requireNewerThanInstalled {
-            // `update.version` is Mozilla's marketing version and the only one this
-            // file states, so it is compared with the installed marketing string.
-            guard let installed = app.shortVersion,
-                  VersionComparator.isNewer(version, than: installed) else { return nil }
+            // A staged build of the one installed has been applied already.
+            if let buildID, buildID == app.vendorBuildVersion { return nil }
+            // `update.version` is Mozilla's marketing `Version`. Where a newer
+            // build keeps it (beta, Nightly), the BuildID decides; otherwise the
+            // version must move forward.
+            guard let installed = app.shortVersion else { return nil }
+            let newer = VersionComparator.isNewer(version, than: installed)
+            let sameVersionNewerBuild = !VersionComparator.isNewer(installed, than: version)
+                && buildID != nil && app.vendorBuildVersion != nil
+                && VersionComparator.isNewer(buildID!, than: app.vendorBuildVersion!)
+            guard newer || sameVersionNewerBuild else { return nil }
         }
         return StagedSelfUpdate(
             version: version, buildVersion: nil,
-            stagedBundlePath: staged, appliesOn: .launch, updater: .mozilla)
+            stagedBundlePath: staged, appliesOn: .launch, updater: .mozilla,
+            vendorBuild: buildID)
+    }
+
+    /// `key=value` from an `application.ini`, or nil.
+    static func mozillaINIValue(_ key: String, in url: URL) -> String? {
+        guard let ini = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        return ini.split(whereSeparator: \.isNewline).lazy
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { $0.hasPrefix(key + "=") }
+            .map { String($0.dropFirst(key.count + 1)) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// The `buildID` attribute of the update `active-update.xml` names, or nil.
+    static func mozillaActiveUpdateBuildID(in root: URL) -> String? {
+        guard let xml = try? String(
+                contentsOf: root.appendingPathComponent("active-update.xml"), encoding: .utf8),
+              let range = xml.range(of: #"buildID="([0-9]+)""#, options: .regularExpression)
+        else { return nil }
+        return String(xml[range].dropFirst("buildID=\"".count).dropLast())
     }
 
     /// The staging directory magpie's updater unpacks into: `.magpie-update` beside

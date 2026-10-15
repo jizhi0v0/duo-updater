@@ -263,6 +263,10 @@ public actor EventStore {
     /// they are not diagnostics that anyone would expect a log reset to take with
     /// it. Nothing in the app passes true today; the parameter exists so that a
     /// future caller that means it has to say so.
+    ///
+    /// Failure events are kept on the same terms: they are not network activity,
+    /// and clearing the Network window should not take away a failure the user
+    /// has yet to report. Retention still ages them out.
     public func reset(includingInstalls: Bool = false) {
         // Drain `staging` first, for the reason `flush` gives — and here the
         // opposite of it matters just as much: `stage` hands events over from a
@@ -288,7 +292,7 @@ public actor EventStore {
         guard exec(db, "BEGIN IMMEDIATE;") else { return }
         exec(db, includingInstalls
              ? "DELETE FROM events;"
-             : "DELETE FROM events WHERE kind <> 'install';")
+             : "DELETE FROM events WHERE kind NOT IN ('install', 'failure');")
         exec(db, "DELETE FROM totals;")
         if includingInstalls {
             // Forget that the legacy file was imported, so it can be imported
@@ -446,6 +450,8 @@ public actor EventStore {
             // adds.
             bind(statement, 7, install.appID)
             sqlite3_bind_int64(statement, 9, install.bytes)
+        } else if let failure = event.failure {
+            bind(statement, 7, failure.appID)
         }
         guard let payload = try? event.payloadJSON() else { return false }
         bind(statement, 11, payload)
@@ -533,7 +539,7 @@ public actor EventStore {
             let batch = min(remaining - Self.retentionFloor, max(100, remaining / 10))
             if let statement = prepare(db, """
                 DELETE FROM events WHERE id IN (
-                  SELECT id FROM events WHERE kind <> 'install'
+                  SELECT id FROM events WHERE kind NOT IN ('install', 'failure')
                   ORDER BY at ASC, rowid ASC LIMIT ?
                 );
                 """) {
@@ -562,12 +568,18 @@ public actor EventStore {
     /// The fewest events retention will leave behind, whatever the budget says.
     static let retentionFloor = 200
 
-    /// Prunable events only. Installs are excluded from both retention passes —
-    /// they are the permanent download ledger, not diagnostics, and counting them
-    /// here would let a machine with a long install history exhaust the floor and
-    /// stop the size pass giving up request events it should.
+    /// Events the size pass may delete. Installs are excluded from both retention
+    /// passes — they are the permanent download ledger, not diagnostics, and
+    /// counting them here would let a machine with a long install history exhaust
+    /// the floor and stop the size pass giving up request events it should.
+    ///
+    /// Failures are excluded from the size pass only. They are a few hundred
+    /// bytes each and rare, and the budget binds within hours on a machine that
+    /// checks every five minutes: trimmed with the requests, a failure would be
+    /// gone before the user came back to report it. The age pass still ends them
+    /// at ``retentionDays``.
     private func eventCount(_ db: OpaquePointer) -> Int {
-        guard let statement = prepare(db, "SELECT count(*) FROM events WHERE kind <> 'install';")
+        guard let statement = prepare(db, "SELECT count(*) FROM events WHERE kind NOT IN ('install', 'failure');")
         else { return 0 }
         defer { sqlite3_finalize(statement) }
         guard sqlite3_step(statement) == SQLITE_ROW else { return 0 }

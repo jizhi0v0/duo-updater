@@ -317,6 +317,32 @@ struct EventStoreTests {
         #expect(bytes > 0)
     }
 
+    @Test("The byte budget never trims a failure, however old within the age window")
+    func byteRetentionKeepsFailures() async {
+        let (store, url) = Self.store(
+            retentionDays: 3650, retentionBytes: 512 * 1024, flushEventCount: 500,
+            pruneInterval: .zero)
+        defer { Self.remove(url) }
+
+        // Oldest row in the store, so an oldest-first trim reaches it first.
+        await store.append(DuoEvent(
+            date: Date().addingTimeInterval(-86_400),
+            payload: .failure(InstallFailureEvent(
+                appID: "/Applications/Surge.app", appName: "Surge", bundleID: nil,
+                fromVersion: "6.9.0", toVersion: "6.9.1", sourceName: "Sparkle",
+                stage: .install, message: "Couldn’t replace the app."))))
+        for index in 0..<4000 {
+            await store.append(Self.event(host: "h\(index % 50).example.com", path: "/\(index)"))
+        }
+        await store.flush()
+        await store.append(Self.event(host: "last.example.com"))
+        await store.flush()
+
+        #expect(await store.coverage(kind: "request").count < 4001,
+                "the size pass should have run")
+        #expect(await store.events(EventQuery(kind: "failure")).count == 1)
+    }
+
     @Test("A budget too small to meet leaves the newest events rather than emptying the store")
     func retentionNeverEmptiesTheStore() async {
         // One byte is unmeetable — an empty SQLite file with this schema is

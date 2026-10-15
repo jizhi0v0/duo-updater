@@ -1498,6 +1498,31 @@ final class AppListModel {
     /// download. Sorted heaviest-app-first by the store.
     private(set) var trafficStats: [AppTrafficStat] = []
 
+    /// Updates that didn't happen, newest first, for Diagnostics' Recent failures.
+    /// Read from the event store, so a failure is still there after the row's
+    /// red line has been cleared by a retry, a rescan or a relaunch.
+    private(set) var recentFailures: [DuoEvent] = []
+
+    func reloadRecentFailures() async {
+        recentFailures = await eventStore.events(EventQuery(kind: "failure", limit: 20)).reversed()
+    }
+
+    /// Keep a failure the row is showing, so it can be reported later. Local
+    /// only, like every event: nothing is sent anywhere.
+    private func recordFailure(_ result: UpdateResult, stage: InstallFailureEvent.Stage, message: String) async {
+        await eventStore.append(DuoEvent(payload: .failure(InstallFailureEvent(
+            appID: result.app.id,
+            appName: result.app.name,
+            bundleID: result.app.bundleID,
+            fromVersion: result.app.shortVersion,
+            toVersion: result.remote?.displayVersion,
+            sourceName: result.remote?.sourceName,
+            stage: stage,
+            message: message))))
+        await eventStore.flush()
+        await reloadRecentFailures()
+    }
+
     /// The aggregate the Traffic window's header reads — grand total, month
     /// buckets, per-source split. Recomputed with the snapshot rather than in the
     /// view, which would redo the whole pass on every redraw.
@@ -4603,6 +4628,12 @@ final class AppListModel {
             releaseAfterDownload: isAppStore ? nil : hostGate)
         await ProcessInstallLock.shared.release()
         await hostGate.release()
+        // An expired Apple session is not kept: `install` takes that line down
+        // again, since the row offers Sign In… instead.
+        if outcome == .notInstalled, let message = installErrors[id],
+           message != AppleDeveloperSession.expiredMessage {
+            await recordFailure(result, stage: .install, message: message)
+        }
         // If something self-updated externally while this install ran, its rescan was
         // deferred — drain it now that the install is done (no-op in a batch, which
         // drains once at the end of `installAll`, and when nothing was deferred).
@@ -6798,6 +6829,11 @@ final class AppListModel {
         // batch is still installing, which would strand this row stale (it's current
         // on disk but the row never gets re-read).
         await refreshRow(result)
+        // After the refresh, not before: a swap that landed in the gap has been
+        // retracted by it, and that is not a failure worth reporting.
+        if let message = failureMessage, stagedRelaunchFailures[result.id]?.message == message {
+            await recordFailure(result, stage: .relaunch, message: message)
+        }
         if applied {
             let version = await Self.readShortVersionOffMain(result.app.path)
             UpdateNotifier.restarted(app: result.app.name, version: version, appID: result.app.bundleID)

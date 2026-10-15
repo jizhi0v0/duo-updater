@@ -33,12 +33,12 @@ available"。但设置页的选择器还在，选择写在设置文件顶层的 
 `~/.superconductor/settings.json` 读到 `"nightly"`；2026-10-15 全新安装 `ac45e7aa` 只建了
 `~/.super.engineering/`，同一个键在 `~/.super.engineering/settings.json`，94 个顶层键）。
 `SuperconductorChannel` 先读新路径，新文件不存在才读旧路径；新文件存在就只听它的（键缺了也按「没有记录」，
-不去旧文件里找）。按厂商文字，升级上来的安装两者是同一个文件：`9cd78956` 包里 `Contents/MacOS/sc` 的说明写着 "Startup publishes the new data name as a link to existing legacy storage"
-（`sc migrate-data` 帮助："Publish ~/.super.engineering as a link to existing ~/.superconductor storage"；
-主程序 `Contents/MacOS/superconductor` 里内嵌的 shell 函数 `secure_runtime_root` 要求 `~/.super.engineering` 是符号链接时必须 `-ef "$HOME/.superconductor"`；
-"Independent old/new profiles and broken links produce an error"）。所以只有没跑过改名后构建的旧安装才会走到回退。
-这是从 `strings` 读到的厂商文字，没在升级的真机上看到链接；"Startup" 指 app 自己启动还是只指 `sc` CLI 启动，也没定论。
-若改名后的构建其实另起一份独立的新文件，留在旧文件里的选择会被忽略（只有 nightly 一条轨时无害）。这个文件把整份设置连同默认值一起
+不去旧文件里找）。升级上来的安装两者是同一个文件（2026-10-15 实测）：以 `HOME` 指向一个只有 `~/.superconductor`
+（真实数据的副本，`update_channel` 改成 `"stable"`）的临时目录，直接启动 `9cd78956` 的 `Contents/MacOS/superconductor`，
+10 s 内出现 `~/.super.engineering -> ~/.superconductor` 符号链接，两条路径下 `settings.json` 同一个 inode；
+与 `Contents/MacOS/sc` 的说明一致（"Startup publishes the new data name as a link to existing legacy storage"；
+"Independent old/new profiles and broken links produce an error"）。同一次启动还把 `"stable"` 改回了 `"nightly"`，
+其余 93 个键不变 —— 眼下 app 一启动，非 nightly 的值就留不住。这个文件把整份设置连同默认值一起
 序列化（92 个顶层键里有 4 个 `null`、15 个 `false`），所以启动过的安装基本都带这个键 —— 这是推断，
 没有重置设置去验证。
 
@@ -147,7 +147,7 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
 - 实时: `duo verify --only com.zarifpour.superconductor`
 - 设置路径（2026-10-15，`9cd78956`，只有 `~/.super.engineering/`）：`swift run --package-path application-test channel-verify --check com.zarifpour.superconductor`
   → `detected channel → nightly`、`winning source → Vendor`；把 `~/.super.engineering/settings.json` 的 `update_channel`
-  临时改成 `"stable"` 再跑 → `detected channel → stable`、`winning source → <none>`（不推 nightly）；之后从备份还原，`cmp` 一致。
+  临时改成 `"stable"`（app 没在运行；它一启动就会改回 `"nightly"`）再跑 → `detected channel → stable`、`winning source → <none>`（不推 nightly）；之后从备份还原，`cmp` 一致。
 
 ## 已知问题
 - 厂商若把 plist 里的版本改成别的长度（About 窗口显示的是 7 位 `8545a7d`），`versionPattern` 和 lineage

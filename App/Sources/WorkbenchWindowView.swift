@@ -3250,27 +3250,32 @@ struct ChangelogEntriesView: View {
         var heights: [AnyHashable: CGFloat] = [:]
         /// A version header's height (`ChangelogSectionsList`), last measured.
         var headerHeight: CGFloat = 0
-        /// The tinted version's header in the window, last measured: where
-        /// `bandInset` is read.
-        var tintedHeader: CGRect?
+        /// The tinted version's header and first row in the window, last
+        /// measured, by version: where `bandInset` is read. The first row is
+        /// nil while not built.
+        var tintedHeader: (entry: Int, frame: CGRect)?
+        var tintedFirstRow: (entry: Int, frame: CGRect)?
         /// The top of the long scroll's list in the window. The window's space,
         /// not one named on the list: that did not reach the list's headers,
         /// which got the window's anyway (2026-10-15).
         var listTop: CGFloat = 0
         /// What the list adds above and below a header's own view: the band
-        /// floating over the notes is `headerHeight + 2 × bandInset`. Read off
-        /// the tinted header while it sits at the top of the list.
+        /// floating over the notes is `headerHeight + 2 × bandInset`.
         var bandInset: CGFloat = 0
         /// The height the floating header covers.
         var band: CGFloat { headerHeight + 2 * bandInset }
 
-        /// Reads `bandInset` off the tinted header, if it is the one at the
-        /// top of the list; whether it changed.
-        func readBandInset() -> Bool {
-            guard let frame = tintedHeader else { return false }
-            let inset = frame.minY - listTop
-            guard inset >= 0, inset < frame.height, abs(inset - bandInset) > 0.5 else { return false }
-            bandInset = inset
+        /// Reads `bandInset` off `entry`'s header where that is unambiguous
+        /// (`HeaderBand.padding`), else keeps the value read before; whether
+        /// it changed.
+        func readBandInset(entry: Int) -> Bool {
+            guard let header = tintedHeader, header.entry == entry,
+                  let padding = HeaderBand.padding(
+                      header: header.frame,
+                      firstRow: tintedFirstRow?.entry == entry ? tintedFirstRow?.frame : nil,
+                      listTop: listTop),
+                  abs(padding - bandInset) > 0.5 else { return false }
+            bandInset = padding
             return true
         }
         /// The scroll view's height.
@@ -3470,7 +3475,7 @@ struct ChangelogEntriesView: View {
             built = opensEntry ? ChangelogRowsStack.titleID : target
         }
         Task { @MainActor in
-            _ = notesScroll.readBandInset()
+            _ = notesScroll.readBandInset(entry: index)
             if notesScroll.built.contains(built) {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: belowHeader))
@@ -3479,7 +3484,7 @@ struct ChangelogEntriesView: View {
                 // The band's padding may be readable only now, with the
                 // version's header at the top.
                 try? await Task.sleep(for: .milliseconds(350))
-                if notesScroll.readBandInset() {
+                if notesScroll.readBandInset(entry: index) {
                     proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: belowHeader))
                 }
             } else {
@@ -3488,8 +3493,13 @@ struct ChangelogEntriesView: View {
                 for _ in 0..<10 where !notesScroll.built.contains(built) {
                     try? await Task.sleep(for: .milliseconds(16))
                 }
-                _ = notesScroll.readBandInset()
+                _ = notesScroll.readBandInset(entry: index)
                 proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: belowHeader))
+                // The padding read only now, with the header at the top.
+                try? await Task.sleep(for: .milliseconds(50))
+                if notesScroll.readBandInset(entry: index) {
+                    proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: belowHeader))
+                }
             }
         }
     }
@@ -3800,6 +3810,15 @@ private struct ChangelogSectionsList: View {
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                                 if row.isRecorded { scroll.heights[row.id] = height }
                             }
+                            // Under the tinted header (`NotesScroll.readBandInset`).
+                            .onGeometryChange(for: CGRect?.self) {
+                                row.row == 0 && tinted != nil ? $0.frame(in: .global) : nil
+                            } action: { frame in
+                                if row.row == 0, tinted != nil, let frame { scroll.tintedFirstRow = (index, frame) }
+                            }
+                            .onDisappear {
+                                if row.row == 0, scroll.tintedFirstRow?.entry == index { scroll.tintedFirstRow = nil }
+                            }
                             .listRowInsets(EdgeInsets())
                             .listRowSeparator(.hidden)
                     }
@@ -3810,7 +3829,9 @@ private struct ChangelogSectionsList: View {
                         // frame of a scroll.
                         .onGeometryChange(for: CGRect?.self) {
                             tinted == nil ? nil : $0.frame(in: .global)
-                        } action: { if tinted != nil { scroll.tintedHeader = $0 } }
+                        } action: { frame in
+                            if tinted != nil, let frame { scroll.tintedHeader = (index, frame) }
+                        }
                         // Not all of them: the list still put the header 8 pt
                         // in and 4.125 pt down, in a band 37.5 pt tall for a
                         // 29.25 pt header (`NotesScroll.bandInset`; 2026-10-15).

@@ -944,7 +944,11 @@ data the app didn't just create. Two rounds, in order:
    you look. Cindy applies a ready patch at its next launch whatever its
    settings say; only its background idle path checks auto-relaunch-on-idle.
    So quit the app as soon as the record appears, and don't launch it again
-   until column 2 and the `duo install` check below are done. A hit with
+   until column 2 and the `duo install` check below are done. Quitting is not
+   always fast enough: when Cindy's startup check finishes the download while
+   its splash is still up, it relaunches about 1.5 s later, applies the patch,
+   and deletes it. If the diff shows nothing, read the app's own log for a
+   completed download before writing 无 in column 2. A hit with
    the same version as the release duo installs is useful here: if `SelfUpdaterStash` reads that layout,
    `duo install` should log `local stash hit` and report `bytesDownloaded: 0`.
    Run that before staging an older build for the collision check.

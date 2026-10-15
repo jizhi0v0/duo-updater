@@ -18,10 +18,11 @@
 
 |            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |------------|---------|----------|-----|--------|-------------|
-| **stable** | —       | 见注     | —   | ✓      | —           |
+| **stable** | —       | ✗        | —   | ✓      | —           |
 
-当前生效源: **GitHub**（channel-verify 实测，拷贝不是经 brew 装的）。`HomebrewCaskSource` 在 `SourceStack` 里排在 GitHub
-前面；从厂商 tap 装的拷贝会先由 brew 源应答——这条路径**未验证**。
+当前生效源: **GitHub**（channel-verify 实测）。从厂商 tap（`brew install --cask mstcvk/tap/mc-download-manager`）装的拷贝
+也由 GitHub 规则应答：`HomebrewCaskSource` 只查官方目录 `formulae.brew.sh/api/cask.json`（`HomebrewCaskCatalog.swift`），
+那里没有这个 cask（`/api/cask/mc-download-manager.json` 2026-10-15 返回 404），候选为空就返回 nil，不会走到 Caskroom 判定。
 
 ## Channel 详情
 
@@ -78,10 +79,12 @@
 
 ## 已知问题
 - **1.0.0 → 新版一键被拒（设计如此）。** ad-hoc → Developer ID 没有 Team ID 可比。行上仍提示有更新。
+- **厂商 tap 装的拷贝一键后 Caskroom 不跟着更新。** 这类拷贝走 GitHub 规则原地替换，brew 的 Caskroom 仍记旧版本，
+  `brew outdated` 会继续报它，下次 `brew upgrade` 重装同一版本。所有只在第三方 tap 的 cask 都是这样，不是这条规则特有。
 - **首启设置 sheet 挡 `duo restart`。** 只影响刚装、还没走完首启设置的拷贝；`duo` 不强退，留给用户。
 
 ## 建议下一步
-1. 有机会时验证从厂商 tap 装的拷贝走 brew 源的路径。
+1. 若 MC 进了官方 homebrew/cask，重新审计：届时 brew 装的拷贝会改由 `HomebrewCaskSource` 应答。
 
 ## 如何复验
 ```

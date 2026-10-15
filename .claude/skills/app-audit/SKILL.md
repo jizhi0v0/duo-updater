@@ -941,8 +941,10 @@ data the app didn't just create. Two rounds, in order:
    For each hit, write down the path, the size against the vendor's package,
    the record file and its fields, and the version inside the archive. An
    updater that applies on idle or on next launch may consume the file before
-   you look (Cindy does when its auto-relaunch-on-idle setting is on; the
-   default is off), so quit the app as soon as the record appears. A hit with
+   you look. Cindy applies a ready patch at its next launch whatever its
+   settings say; only its background idle path checks auto-relaunch-on-idle.
+   So quit the app as soon as the record appears, and don't launch it again
+   until column 2 and the `duo install` check below are done. A hit with
    the same version as the release duo installs is useful here: if `SelfUpdaterStash` reads that layout,
    `duo install` should log `local stash hit` and report `bytesDownloaded: 0`.
    Run that before staging an older build for the collision check.

@@ -111,6 +111,7 @@ public struct SparkleAppcastSource: UpdateSource {
             minimumSystemVersion: best.minimumSystemVersion,
             sourceName: name,
             minimumAutoupdateVersion: best.minimumAutoupdateVersion,
+            sparklePackageEnclosure: best.installationType == "package",
             releaseNotesHTML: best.descriptionHTML,
             structuredChangelog: structured,
             changelogURL: best.releaseNotesLink,
@@ -664,6 +665,9 @@ struct SparkleAppcastItem {
     /// order "Update All" shortest-first. Absent on feeds that omit it.
     var enclosureLength: Int64?
     var edSignature: String?
+    /// `sparkle:installationType` on `<enclosure>`, lowercased: `"application"`
+    /// or `"package"` (Sparkle's `SPUInstallationType.h`). Absent on most feeds.
+    var installationType: String?
     var minimumSystemVersion: String?
     var maximumSystemVersion: String?
     var deltaFrom: String?
@@ -1126,6 +1130,9 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             }
             if let delta = sparkleAttribute("deltaFrom", attributeDict, sortedAttributeKeys) {
                 current?.deltaFrom = delta
+            }
+            if let type = sparkleAttribute("installationType", attributeDict, sortedAttributeKeys) {
+                current?.installationType = type.lowercased()
             }
             // Usually an item-level child element, but tolerate it on enclosure.
             if let m = sparkleAttribute("minimumAutoupdateVersion", attributeDict, sortedAttributeKeys) {

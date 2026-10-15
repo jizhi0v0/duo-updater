@@ -82,6 +82,79 @@ public enum InstallFailureReport {
         return lines.joined(separator: "\n")
     }
 
+    // MARK: - Sending
+
+    /// Where a report goes. Nothing is sent from here: these are only the
+    /// addresses of the page and the message the user opens and sends themselves.
+    public static let issueRepository = "jizhi0v0/duo-updater"
+    public static let emailRecipient = "jizhiovo@gmail.com"
+
+    /// Issue title and email subject.
+    public static func title(for failure: InstallFailureEvent) -> String {
+        "Update failed: \(failure.appName) \(failure.fromVersion ?? "?") → \(failure.toVersion ?? "?")"
+    }
+
+    /// The longest new-issue link this builds. GitHub answered 200 up to a URL of
+    /// about 8,190 characters and 414 past it (measured 2026-10-15, signed in);
+    /// this leaves room under that.
+    public static let maxIssueURLLength = 7_500
+
+    /// Appended when the body had to be cut to fit the link.
+    public static let shortenedMarker = "\n\n[Shortened to fit the link.]"
+
+    /// A new-issue page with the title and body filled in, for the user to read,
+    /// edit and submit in their browser. A body too long for a link is cut from
+    /// the end and marked, so the page still opens.
+    public static func issueURL(title: String, body: String, maxLength: Int = maxIssueURLLength) -> URL {
+        func url(_ body: String) -> URL {
+            var components = URLComponents(string: "https://github.com/\(issueRepository)/issues/new")!
+            components.queryItems = [URLQueryItem(name: "title", value: title),
+                                     URLQueryItem(name: "body", value: body)]
+            // URLComponents leaves a `+` in a query value as is, and GitHub reads a
+            // bare `+` as a space, so encode it.
+            components.percentEncodedQuery = components.percentEncodedQuery?
+                .replacingOccurrences(of: "+", with: "%2B")
+            return components.url!
+        }
+        let full = url(body)
+        guard full.absoluteString.count > maxLength else { return full }
+        // Longest prefix that fits: encoding makes the length per character vary.
+        let characters = Array(body)
+        var low = 0, high = characters.count
+        while low < high {
+            let mid = (low + high + 1) / 2
+            if url(String(characters[..<mid]) + shortenedMarker).absoluteString.count <= maxLength {
+                low = mid
+            } else {
+                high = mid - 1
+            }
+        }
+        return url(String(characters[..<low]) + shortenedMarker)
+    }
+
+    /// True for an error the user can fix on their own Mac — no disk space,
+    /// Accessibility not granted, the App Store helper's hints — where a report
+    /// would only tell the developer what the row already told the user.
+    /// Matches the English text Core produces; the app's own translated copies
+    /// of these are its to recognise.
+    public static func isUserFixable(_ message: String) -> Bool {
+        let fragments = [
+            "not enough free space", "not enough disk space", "not enough space",
+            AppStoreAXInstaller.AXError.notTrusted.errorDescription ?? "",
+            MASInstaller.MASError.appStoreUpdatesHint,
+            MASInstaller.MASError.helperApprovalHint,
+            MASInstaller.MASError.helperRestartHint,
+        ]
+        return fragments.contains { !$0.isEmpty && message.localizedCaseInsensitiveContains($0) }
+    }
+
+    /// What "ask at most once" is keyed on: the app, the version it was going
+    /// to, and the error. A new version or a different error asks again.
+    public static func promptKey(for failure: InstallFailureEvent) -> String {
+        [failure.bundleID ?? failure.appID, failure.toVersion ?? "", failure.message]
+            .joined(separator: "\u{1F}")
+    }
+
     /// `arm64` or `x86_64`: what `uname` reports to this process.
     public static var machineArchitecture: String {
         var info = utsname()

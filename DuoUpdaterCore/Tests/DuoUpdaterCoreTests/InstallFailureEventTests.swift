@@ -97,3 +97,73 @@ struct InstallFailureEventTests {
         #expect(text.contains("macOS: Version 27.2 (arm64)"))
     }
 }
+
+/// Turning a report into something the user sends themselves.
+struct InstallFailureReportSendingTests {
+
+    private static let failure = InstallFailureEvent(
+        appID: "/Applications/Foo.app", appName: "Foo", bundleID: "com.example.foo",
+        fromVersion: "1.0", toVersion: "2.0", sourceName: "Sparkle", stage: .install,
+        message: "The download failed.")
+
+    @Test func issueURLCarriesTitleAndBodyExactly() throws {
+        // The characters that a hand-built query gets wrong: `&` and `#` end the
+        // value, a bare `+` reads as a space, `%` starts an escape.
+        let body = "a & b #1 (50%+)\nline two → done = yes"
+        let url = InstallFailureReport.issueURL(title: "Update failed: Foo", body: body)
+        #expect(url.absoluteString.hasPrefix("https://github.com/jizhi0v0/duo-updater/issues/new?"))
+        let query = try #require(url.query(percentEncoded: true))
+        #expect(!query.contains("+"))
+        #expect(query.contains("%26") && query.contains("%23") && query.contains("%2B") && query.contains("%0A"))
+        // Decoded the way a server does (no `+`-as-space left to confuse it).
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+        #expect(items?.first { $0.name == "title" }?.value == "Update failed: Foo")
+        #expect(items?.first { $0.name == "body" }?.value == body)
+    }
+
+    @Test func aLongBodyIsShortenedToFitTheLink() {
+        let body = String(repeating: "é", count: 10_000)
+        let url = InstallFailureReport.issueURL(title: "t", body: body)
+        #expect(url.absoluteString.count <= InstallFailureReport.maxIssueURLLength)
+        let sent = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first { $0.name == "body" }?.value ?? ""
+        #expect(sent.hasSuffix(InstallFailureReport.shortenedMarker))
+        #expect(sent.count > 1_000)  // cut to fit, not emptied
+        // A short one is untouched.
+        let short = InstallFailureReport.issueURL(title: "t", body: "ok")
+        #expect(URLComponents(url: short, resolvingAgainstBaseURL: false)?
+            .queryItems?.first { $0.name == "body" }?.value == "ok")
+    }
+
+    @Test func userFixableErrorsAreRecognised() {
+        #expect(InstallFailureReport.isUserFixable(
+            DiskSpaceGuard.InsufficientSpace(needed: 2_000_000_000, free: 1_000).errorDescription!))
+        #expect(InstallFailureReport.isUserFixable(
+            AppStoreAXInstaller.AXError.notTrusted.errorDescription!))
+        #expect(InstallFailureReport.isUserFixable(
+            "The helper isn’t allowed to run. " + MASInstaller.MASError.helperApprovalHint))
+        #expect(InstallFailureReport.isUserFixable(
+            "not enough disk space to extract the update — free up space and try again"))
+        #expect(!InstallFailureReport.isUserFixable("The download failed."))
+        #expect(!InstallFailureReport.isUserFixable("Couldn’t verify the signature."))
+    }
+
+    @Test func promptKeyChangesWithVersionOrError() {
+        let base = InstallFailureReport.promptKey(for: Self.failure)
+        let newVersion = InstallFailureEvent(
+            appID: "/Applications/Foo.app", appName: "Foo", bundleID: "com.example.foo",
+            fromVersion: "1.0", toVersion: "2.1", sourceName: "Sparkle", stage: .install,
+            message: "The download failed.")
+        let otherError = InstallFailureEvent(
+            appID: "/Applications/Foo.app", appName: "Foo", bundleID: "com.example.foo",
+            fromVersion: "1.0", toVersion: "2.0", sourceName: "Sparkle", stage: .install,
+            message: "Couldn’t verify the signature.")
+        let retried = InstallFailureEvent(
+            appID: "/Applications/Foo.app", appName: "Foo", bundleID: "com.example.foo",
+            fromVersion: "1.0", toVersion: "2.0", sourceName: "GitHub", stage: .relaunch,
+            message: "The download failed.")
+        #expect(InstallFailureReport.promptKey(for: newVersion) != base)
+        #expect(InstallFailureReport.promptKey(for: otherError) != base)
+        #expect(InstallFailureReport.promptKey(for: retried) == base)
+    }
+}

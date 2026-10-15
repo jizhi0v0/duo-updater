@@ -1507,6 +1507,42 @@ final class AppListModel {
         recentFailures = await eventStore.events(EventQuery(kind: "failure", limit: 20)).reversed()
     }
 
+    /// The failure the report window is showing. Set by `openFailureReport`.
+    var failureReportDraft: DuoEvent?
+
+    /// Rows whose error is the app's own translated copy of a message the user
+    /// can fix themselves (not enough space), which Core's English check cannot
+    /// recognise. Holds the message, so a later, different error on the row is
+    /// judged on its own.
+    private var userFixableErrors: [String: String] = [:]
+
+    /// The recorded failure a row's error may offer to report: one that was
+    /// kept, is not something the user can fix on their own Mac, and has not
+    /// been offered before for this app, version and error.
+    func reportableFailure(for result: UpdateResult) -> DuoEvent? {
+        guard prefs.offerFailureReports,
+              let message = installErrors[result.id],
+              message != AppleDeveloperSession.expiredMessage,
+              userFixableErrors[result.id] != message,
+              !InstallFailureReport.isUserFixable(message),
+              let event = recentFailures.first(where: {
+                  $0.failure?.appID == result.app.id && $0.failure?.message == message
+              }),
+              let failure = event.failure,
+              !prefs.askedFailureReports.contains(InstallFailureReport.promptKey(for: failure))
+        else { return nil }
+        return event
+    }
+
+    /// Show the report form for `event`. Counts as having asked, so the row's
+    /// link does not come back for the same failure.
+    func openFailureReport(_ event: DuoEvent) {
+        if let failure = event.failure {
+            prefs.markFailureReportAsked(InstallFailureReport.promptKey(for: failure))
+        }
+        failureReportDraft = event
+    }
+
     /// Keep a failure the row is showing, so it can be reported later. Local
     /// only, like every event: nothing is sent anywhere.
     private func recordFailure(_ result: UpdateResult, stage: InstallFailureEvent.Stage, message: String) async {
@@ -5534,6 +5570,7 @@ final class AppListModel {
                 let free = ByteCountFormatter.string(fromByteCount: short.free, countStyle: .file)
                 let needed = ByteCountFormatter.string(fromByteCount: short.needed, countStyle: .file)
                 installErrors[id] = String(localized: "Not enough free space on this Mac to install this update: \(free) free, \(needed) needed. Nothing was changed.")
+                userFixableErrors[id] = installErrors[id]
             } else {
                 installErrors[id] = error.localizedDescription
             }

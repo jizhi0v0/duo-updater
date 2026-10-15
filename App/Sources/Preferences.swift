@@ -110,6 +110,8 @@ final class Preferences {
         static let showCLIRuntimeTags = "ShowCLIRuntimeTags"
         static let renewAppleDeveloperSession = AppleDeveloperSessionRenewal.enabledKey
         static let acknowledgedSpotlights = "AcknowledgedSettingsSpotlights"
+        static let offerFailureReports = "OfferFailureReports"
+        static let askedFailureReports = "AskedFailureReports"
         static let lastRunSelfVersion = "LastRunSelfVersion"
     }
 
@@ -343,6 +345,27 @@ final class Preferences {
     /// waits for the user.
     var renewAppleDeveloperSession: Bool {
         didSet { defaults.set(renewAppleDeveloperSession, forKey: Key.renewAppleDeveloperSession) }
+    }
+
+    /// Whether a row's install error offers "Report this problem…". Default on;
+    /// the report form's "Don't ask again" turns it off, Diagnostics turns it
+    /// back on.
+    var offerFailureReports: Bool {
+        didSet { defaults.set(offerFailureReports, forKey: Key.offerFailureReports) }
+    }
+
+    /// Failures the row has already offered to report, by
+    /// `InstallFailureReport.promptKey`, so each app + version + error asks once.
+    /// Newest last, and only the last `askedFailureReportsLimit` kept.
+    private(set) var askedFailureReports: [String] {
+        didSet { defaults.set(askedFailureReports, forKey: Key.askedFailureReports) }
+    }
+
+    static let askedFailureReportsLimit = 200
+
+    func markFailureReportAsked(_ key: String) {
+        guard !askedFailureReports.contains(key) else { return }
+        askedFailureReports = Array((askedFailureReports + [key]).suffix(Self.askedFailureReportsLimit))
     }
 
     /// Settings whose "new" dot the user has already seen. See `SettingsSpotlight`.
@@ -624,6 +647,8 @@ final class Preferences {
         self.showCLIRuntimeTags = defaults.object(forKey: Key.showCLIRuntimeTags) as? Bool ?? true
         self.renewAppleDeveloperSession = AppleDeveloperSessionRenewal.isEnabled(in: defaults)
         self.acknowledgedSpotlights = Set(defaults.stringArray(forKey: Key.acknowledgedSpotlights) ?? [])
+        self.offerFailureReports = defaults.object(forKey: Key.offerFailureReports) as? Bool ?? true
+        self.askedFailureReports = defaults.stringArray(forKey: Key.askedFailureReports) ?? []
         // `.incremental` is not offered in Settings (see `visibleCases`), but it is
         // honoured when set by hand:
         //

@@ -309,6 +309,12 @@ import CryptoKit
 /// `nightly` shutoff ("Bug 2075059: crashes") failed `test` on every PR, as a
 /// 13-hour one had on 2026-09-16 (PR #695).
 ///
+/// A `vendorErrorEnvelope` is excused: the body matched the recipe's own
+/// `transientBodyPattern`, the vendor's error written down per recipe, so it is
+/// not a guess about what a pattern miss means. On 2026-10-15
+/// builder.blender.org's JSON listing answered 200 with a PHP fatal and failed
+/// `test` on every PR.
+///
 /// A 4xx, any other pattern miss, and every other transport error are never
 /// excused. Neither is `installURLTransient`: `lastGoodAt` proves the
 /// version resolved, not the installer.
@@ -321,6 +327,7 @@ func excusesVendorOutage(
     case .httpStatus(let code)?: transient = VendorProbeSource.isTransientStatus(code)
     case let f? where isTimeout(f): transient = timedOutInSweep <= maxExcusedTimeouts
     case .versionPatternNoMatch?: transient = balrogShutoff
+    case .vendorErrorEnvelope?: transient = true
     default: transient = false
     }
     guard transient, let lastGoodAt else { return false }
@@ -431,6 +438,13 @@ private func committedLastGoodDates() -> [String: Date] {
     #expect(!excusesVendorOutage(miss, lastGoodAt: stale, timedOutInSweep: 0, balrogShutoff: true, now: now))
     #expect(!excusesVendorOutage(.httpStatus(404), lastGoodAt: fresh, timedOutInSweep: 0, balrogShutoff: true, now: now),
             "a shutoff answers 200 with an empty body, not a 4xx")
+
+    // A body the recipe declares as the vendor's own error envelope, with the anchor.
+    let envelope = ProbeFailure.vendorErrorEnvelope(sampleBytes: 590)
+    #expect(excusesVendorOutage(envelope, lastGoodAt: fresh, timedOutInSweep: 0, now: now))
+    #expect(!excusesVendorOutage(envelope, lastGoodAt: nil, timedOutInSweep: 0, now: now),
+            "a recipe the nightly never resolved has not shown it works")
+    #expect(!excusesVendorOutage(envelope, lastGoodAt: stale, timedOutInSweep: 0, now: now))
 
     // The anchor has to be readable, or the excuse is dead code that fails closed.
     // Only `vendor:` keys: the sweep looks up `ProbeOutcome.recipeID`, and the

@@ -80,7 +80,8 @@
 ## 已知问题
 - **1.0.0 → 新版一键被拒（设计如此）。** ad-hoc → Developer ID 没有 Team ID 可比。行上仍提示有更新。
 - **厂商 tap 装的拷贝一键后 Caskroom 不跟着更新。** 这类拷贝走 GitHub 规则原地替换，brew 的 Caskroom 仍记旧版本，
-  `brew outdated` 会继续报它，下次 `brew upgrade` 重装同一版本。所有只在第三方 tap 的 cask 都是这样，不是这条规则特有。
+  在用户信任了 `mstcvk/tap` 时，`brew outdated` 会继续报它，下次 `brew upgrade` 重装同一版本；未信任时（Homebrew 6.0.0
+  起）`brew outdated --cask` 直接略过它（见 `BrewFormulaService.swift` 的实测注释）。所有只在第三方 tap 的 cask 都是这样，不是这条规则特有。
 - **首启设置 sheet 挡 `duo restart`。** 只影响刚装、还没走完首启设置的拷贝；`duo` 不强退，留给用户。
 
 ## 建议下一步

@@ -208,8 +208,9 @@ public enum UpdatePolicy {
             // still installable, but `requiresInstaller` owns them so the download
             // is EdDSA-verified and then handed to macOS Installer. Keeping them out
             // of this branch prevents `SparkleInstaller` from feeding a `.pkg` to
-            // `ArchiveExtractor`, which can never extract it.
-            if Self.sparklePackageExtensions.contains(ext ?? "") { return false }
+            // `ArchiveExtractor`, which can never extract it — nor a `.dmg` that
+            // only wraps one (AdGuard), which fails there as "No .app bundle".
+            if Self.isSparklePackage(result.remote) { return false }
             // Signed feed: the full EdDSA path — needs both the app's SUPublicEDKey
             // and a signature in the item.
             if result.app.sparkleEdPublicKey?.isEmpty == false {
@@ -464,8 +465,7 @@ public enum UpdatePolicy {
             // (EdDSA over the exact enclosure bytes) before PackageInstaller applies
             // its Developer ID Installer + Team-ID gate. An unsigned package stays
             // detection-only: unlike an extracted app, it has no bundle-id gate.
-            guard let ext = result.remote?.downloadURL?.pathExtension.lowercased(),
-                  Self.sparklePackageExtensions.contains(ext),
+            guard Self.isSparklePackage(result.remote),
                   result.app.sparkleEdPublicKey?.isEmpty == false,
                   result.remote?.edSignature?.isEmpty == false else { return false }
             return true
@@ -509,6 +509,17 @@ public enum UpdatePolicy {
     ]
 
     private static let sparklePackageExtensions: Set<String> = ["pkg", "mpkg"]
+
+    /// Sparkle's own rule (`SUAppcastItem.m`): an enclosure that declares
+    /// `sparkle:installationType="package"` is a package install whatever its
+    /// extension — typically an archive with a `.pkg` at its root — and one that
+    /// declares nothing is a package exactly when it is a bare `.pkg`/`.mpkg`.
+    private static func isSparklePackage(_ remote: RemoteVersion?) -> Bool {
+        guard let remote, remote.downloadURL != nil else { return false }
+        if remote.sparklePackageEnclosure { return true }
+        let ext = remote.downloadURL?.pathExtension.lowercased() ?? ""
+        return sparklePackageExtensions.contains(ext)
+    }
 
     /// Whether, per the user's `vendorInstallPolicy`, this update should be handed
     /// to the app's OWN updater rather than installed over by us right now. True for

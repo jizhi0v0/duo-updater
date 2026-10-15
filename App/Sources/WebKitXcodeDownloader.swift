@@ -36,7 +36,12 @@ final class WebKitXcodeDownloader: NSObject, XcodeArchiveDownloading, @unchecked
 /// a web view or a continuation.
 @MainActor
 final class DownloadJob: NSObject {
-    private let session: AppleDeveloperSession
+    private let dataStore: WKWebsiteDataStore
+    /// Apple sent the request to sign-in instead: the session has expired.
+    private let onExpired: () -> Void
+    /// A download finished: the response that authorized it may have brought a
+    /// fresh session cookie, so this is when the session gets saved.
+    private let onAuthorized: () async -> Void
     private let directory: URL
     private let onProgress: @Sendable (Double) -> Void
 
@@ -50,6 +55,13 @@ final class DownloadJob: NSObject {
 
     private var expectedFinalHost: String?
     private var destinationURL: URL?
+    /// The first response's `Content-Length` (-1 when it sent none). A resumed
+    /// download never asks for a destination again, so this stays the full size.
+    private var expectedLength: Int64 = -1
+
+    /// `WKDownload`s attached so far: the first, plus one per resume. Counts
+    /// attempts the way `Downloader` does, against `DownloadRetryPolicy`.
+    private var attempts = 0
 
     /// Set synchronously the moment `decidePolicyFor:navigationResponse:`
     /// answers `.download`, cleared once the handoff either lands
@@ -75,15 +87,35 @@ final class DownloadJob: NSObject {
     private static let webKitErrorDomain = "WebKitErrorDomain"
     private static let frameLoadInterruptedCode = 102
 
-    init(session: AppleDeveloperSession, directory: URL, progress: @escaping @Sendable (Double) -> Void) {
-        self.session = session
+    init(
+        dataStore: WKWebsiteDataStore,
+        directory: URL,
+        progress: @escaping @Sendable (Double) -> Void,
+        onExpired: @escaping () -> Void,
+        onAuthorized: @escaping () async -> Void
+    ) {
+        self.dataStore = dataStore
         self.directory = directory
         self.onProgress = progress
+        self.onExpired = onExpired
+        self.onAuthorized = onAuthorized
+    }
+
+    convenience init(session: AppleDeveloperSession, directory: URL, progress: @escaping @Sendable (Double) -> Void) {
+        self.init(
+            dataStore: session.dataStore,
+            directory: directory,
+            progress: progress,
+            onExpired: { session.noteExpired() },
+            onAuthorized: {
+                await session.save()
+                session.noteConfirmed()
+            })
     }
 
     func run(authorizedURL: URL) async throws -> XcodeArchiveDownload {
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = session.dataStore
+        configuration.websiteDataStore = dataStore
         let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 800, height: 600), configuration: configuration)
         webView.navigationDelegate = self
         self.webView = webView
@@ -196,15 +228,14 @@ extension DownloadJob: WKNavigationDelegate {
         // second, so 30 s is only a backstop.
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(Self.handoffDeadlineSeconds))
-            guard let self, !self.finished, self.download == nil else { return }
+            guard let self, !self.finished, self.attempts == 0 else { return }
             self.fail(self.handoffStalledError())
         }
     }
 
     func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
         expectingDownloadHandoff = false
-        self.download = download
-        download.delegate = self
+        attach(download)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -219,7 +250,7 @@ extension DownloadJob: WKNavigationDelegate {
             // No sign-in window from here: a download the user clicked is not a
             // moment to be ambushed by one. The row turns to "Sign In…" instead,
             // and nothing has been downloaded.
-            session.noteExpired()
+            onExpired()
             fail(sessionExpiredError())
         }
     }
@@ -306,6 +337,23 @@ extension DownloadJob: WKNavigationDelegate {
                 localized: "The Xcode download did not start. Try again.")])
     }
 
+    private func incompleteDownloadError() -> Error {
+        NSError(
+            domain: "com.duoupdater.app.XcodeDownload",
+            code: -5,
+            userInfo: [NSLocalizedDescriptionKey: String(
+                localized: "Apple's download server stopped sending the Xcode archive partway through. Try again.")])
+    }
+
+    /// The first bytes of a file that came out the wrong size, for the log: when
+    /// a resume was refused, they are the server's own error page.
+    nonisolated static func preview(of file: URL) -> String {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return "«unreadable»" }
+        defer { try? handle.close() }
+        let head = (try? handle.read(upToCount: 200)) ?? Data()
+        return String(decoding: head, as: UTF8.self).debugDescription
+    }
+
     private func sessionExpiredError() -> Error {
         NSError(
             domain: "com.duoupdater.app.XcodeDownload",
@@ -325,11 +373,7 @@ extension DownloadJob: WKDownloadDelegate {
         let destination = directory.appendingPathComponent(suggestedFilename)
         try? FileManager.default.removeItem(at: destination)
         destinationURL = destination
-
-        progressObservation = download.progress.observe(\.fractionCompleted, options: [.new]) { [onProgress] progress, _ in
-            onProgress(progress.fractionCompleted)
-        }
-
+        expectedLength = response.expectedContentLength
         return destination
     }
 
@@ -340,17 +384,78 @@ extension DownloadJob: WKDownloadDelegate {
             return
         }
         let bytes = download.progress.completedUnitCount
+        // WebKit finishes a resumed download whatever the server answered: a
+        // resume refused with a small error page (measured against a local
+        // server, 2026-10-15) ends here with the page written over the whole
+        // file and no error. Only the size the first response declared can tell.
+        let onDisk = (try? FileManager.default.attributesOfItem(atPath: destinationURL.path)[.size] as? Int64) ?? nil
+        if expectedLength > 0, onDisk != expectedLength {
+            Log.install.error(
+                "xcode download incomplete: \(onDisk ?? -1, privacy: .public) of \(self.expectedLength, privacy: .public) bytes on disk after attempt \(self.attempts, privacy: .public) — starts with \(Self.preview(of: destinationURL), privacy: .public)")
+            fail(incompleteDownloadError())
+            return
+        }
+        Log.install.notice(
+            "xcode download ok: \(bytes, privacy: .public) bytes from \(self.expectedFinalHost ?? "«unknown host»", privacy: .public) (attempt \(self.attempts, privacy: .public))")
         Task {
             // The response that just got authorized is exactly the moment a
             // fresh session/auth cookie shows up — save it per the task's brief.
-            await self.session.save()
-            self.session.noteConfirmed()
+            await self.onAuthorized()
             self.succeed(XcodeArchiveDownload(
                 fileURL: destinationURL, bytesDownloaded: bytes, finalHost: self.expectedFinalHost))
         }
     }
 
     func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
-        fail(error)
+        // A stop already answered the caller; the cancel it sent lands here.
+        guard !finished else { return }
+        let host = expectedFinalHost ?? "«unknown host»"
+        let bytes = download.progress.completedUnitCount
+        let max = DownloadRetryPolicy.maxAttempts
+        guard let resumeData,
+              Self.shouldResume(after: error, attempts: attempts, hasResumeData: true) else {
+            Log.install.error(
+                "xcode download failed: \(host, privacy: .public) after attempt \(self.attempts, privacy: .public)/\(max, privacy: .public), \(bytes, privacy: .public) bytes, transient=\(DownloadRetryPolicy.isTransient(error), privacy: .public), resumeData=\(resumeData != nil, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+            fail(error)
+            return
+        }
+        Log.install.notice(
+            "xcode download retry \(self.attempts, privacy: .public)/\(max, privacy: .public): resuming from \(bytes, privacy: .public) bytes — \(error.localizedDescription, privacy: .public)")
+        progressObservation?.invalidate()
+        progressObservation = nil
+        self.download = nil
+        // Same growing backoff as `Downloader` (0.5 s, 1.0 s, …).
+        let delay = Duration.milliseconds(500 * attempts)
+        Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            // A stop during the backoff has already answered the caller.
+            guard let self, !self.finished, let webView = self.webView else { return }
+            webView.resumeDownload(fromResumeData: resumeData) { [weak self] resumed in
+                guard let self, !self.finished else {
+                    resumed.cancel()
+                    return
+                }
+                self.attach(resumed)
+            }
+        }
+    }
+
+    /// Whether a failed attempt is worth resuming: the failures and the attempt
+    /// count `Downloader` uses, and only with WebKit's resume data in hand.
+    /// `attempts` counts the attempts made so far, the failed one included.
+    nonisolated static func shouldResume(after error: Error, attempts: Int, hasResumeData: Bool) -> Bool {
+        hasResumeData && attempts < DownloadRetryPolicy.maxAttempts && DownloadRetryPolicy.isTransient(error)
+    }
+
+    /// Takes over a `WKDownload`, the first or a resumed one; each carries its
+    /// own `progress`, so the observation moves with it.
+    private func attach(_ download: WKDownload) {
+        attempts += 1
+        self.download = download
+        download.delegate = self
+        progressObservation?.invalidate()
+        progressObservation = download.progress.observe(\.fractionCompleted, options: [.new]) { [onProgress] progress, _ in
+            onProgress(progress.fractionCompleted)
+        }
     }
 }

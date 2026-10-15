@@ -72928,6 +72928,71 @@
           }
         }
       }
+    },
+    "Apple's download server stopped sending the Xcode archive partway through. Try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apples Download-Server hat mittendrin aufgehört, das Xcode-Archiv zu senden. Versuche es erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servidor de descargas de Apple dejó de enviar el archivo de Xcode a mitad de camino. Vuelve a intentarlo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur de téléchargement d'Apple a cessé d'envoyer l'archive Xcode en cours de route. Réessayez."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il server di download di Apple ha smesso di inviare l'archivio di Xcode a metà. Riprova."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appleのダウンロードサーバーが途中でXcodeアーカイブの送信を停止しました。もう一度お試しください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O servidor de downloads da Apple parou de enviar o arquivo do Xcode no meio do caminho. Tente de novo."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер загрузок Apple перестал отправлять архив Xcode на полпути. Повторите попытку."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple'ın indirme sunucusu Xcode arşivini göndermeyi yarıda kesti. Yeniden deneyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 的下载服务器中途停止了 Xcode 的下载。请重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 的下載伺服器中途停止了 Xcode 的下載。請再試一次。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

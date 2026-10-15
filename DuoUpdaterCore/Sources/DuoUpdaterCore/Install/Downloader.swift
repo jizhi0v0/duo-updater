@@ -74,7 +74,7 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     /// giving up, counting the first attempt. Sized for the observed failure mode:
     /// a proxy that resets a transfer every ~200 MB needs a handful of resumes to
     /// carry a ~500 MB payload across the finish line.
-    private let maxAttempts = 5
+    private let maxAttempts = DownloadRetryPolicy.maxAttempts
 
     private var continuation: CheckedContinuation<URL, Error>?
     /// The attempt's data task, and whether a cancellation has already arrived for
@@ -734,16 +734,7 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         if case .lengthMismatch(let received, let expected) = error as? DownloadError {
             return received < expected
         }
-        guard let urlError = error as? URLError else { return false }
-        switch urlError.code {
-        case .networkConnectionLost,   // -1005: the proxy/CDN reset mid-transfer
-             .timedOut,                // -1001: stalled long enough to time out
-             .cannotConnectToHost,     // -1004: a transient proxy/connect hiccup
-             .secureConnectionFailed:  // -1200: TLS connection reset ("unexpected eof")
-            return true
-        default:
-            return false
-        }
+        return DownloadRetryPolicy.isTransient(error)
     }
 
     private func destinationURL(forSuggestedFilename suggested: String) throws -> URL {
@@ -780,5 +771,27 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
             return "download"
         }
         return last
+    }
+}
+
+/// The retry policy `Downloader` applies, public so the app's WebKit Xcode
+/// downloader resumes on the same failures, as many times.
+public enum DownloadRetryPolicy {
+    /// Attempts per download, counting the first.
+    public static let maxAttempts = 5
+
+    /// A `URLError` for a connection the network/proxy/CDN dropped while bytes
+    /// were flowing — worth resuming from the bytes already on disk.
+    public static func isTransient(_ error: Error) -> Bool {
+        guard let urlError = error as? URLError else { return false }
+        switch urlError.code {
+        case .networkConnectionLost,   // -1005: the proxy/CDN reset mid-transfer
+             .timedOut,                // -1001: stalled long enough to time out
+             .cannotConnectToHost,     // -1004: a transient proxy/connect hiccup
+             .secureConnectionFailed:  // -1200: TLS connection reset ("unexpected eof")
+            return true
+        default:
+            return false
+        }
     }
 }

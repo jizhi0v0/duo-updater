@@ -131,7 +131,7 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
   - **退出不装、启动也不装**：正常退出后 60 s、再启动后 90 s，bundle 的 id、版本、inode 都不变，暂存包仍在。
     设置页原文 "Downloads stay staged until you restart" 指的是 app 内的重启按钮，不是进程重启。
   - 运行中 `duo install com.zarifpour.superconductor` → `installed`（12.6 s，下了 91,064,646 B = legacy-id 包），
-    `duo restart` → `restarted`；之后 90 s bundle 仍是 legacy-id `9cd78956`、inode 不变，`settings.json` 的
+    `duo restart` → `restarted`；之后 90 s bundle 仍是 legacy-id `9cd78956`、inode 不变，`~/.super.engineering/settings.json` 的
     `last_installed_version` 变成 `9cd78956…`、`previous_installed_version` 是 `ac45e7aa…`；缓存里同 sha 的新 id 包
     留着、没被换上。
   - 结论: 没有「退出/重启时换回暂存包」的碰撞，所以 **不需要** `SelfUpdaterStaging` 识别它（那一层是给「退出或启动
@@ -157,6 +157,10 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
 - 实时: `duo verify --only com.zarifpour.superconductor`
 
 ## 已知问题
+- **渠道设置换了目录**（2026-10-15 实测）：全新安装 `ac45e7aa` 启动后只有 `~/.super.engineering/`，没有 `~/.superconductor/`；
+  `update_channel`（`nightly`）写在 `~/.super.engineering/settings.json`。`SuperconductorChannel` 仍读
+  `~/.superconductor/settings.json`，所以新安装一律走「没有记录 → nightly」。眼下无害（厂商只剩 nightly），
+  但选了别的轨道的人会被当成 nightly —— 与本页「绝不推 nightly」相悖。老安装是否还留着旧目录、app 会不会迁移它，没查。
 - 厂商若把 plist 里的版本改成别的长度（About 窗口显示的是 7 位 `8545a7d`），`versionPattern` 和 lineage
   pattern 要一起改；测试钉的是 8 位。
 - App 层「运行中的版本落后于磁盘」的 Restart 徽标（`AppListModel`）仍用 `VersionComparator` 比较 hash，

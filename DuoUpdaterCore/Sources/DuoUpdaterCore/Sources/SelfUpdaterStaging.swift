@@ -412,9 +412,10 @@ public enum SelfUpdaterStaging {
     /// ``mozillaStagingDirectory(for:cachesDirectory:fileManager:)``.
     ///
     /// The version is the marketing one (`update.version`, e.g. `158.0`), compared
-    /// with the installed marketing string, as for Spotify. Nightly's marketing
-    /// version does not change between builds, so a staged Nightly is not told
-    /// apart from the installed one here.
+    /// with the installed marketing string, as for Spotify. Beta, Developer
+    /// Edition and Nightly keep one `Version` for a whole cycle, so a staging with
+    /// the same `Version` also counts as newer when its `BuildID` is newer than
+    /// the installed one (carried as `vendorBuild`).
     private static func mozillaStaged(
         for app: InstalledApp,
         requireNewerThanInstalled: Bool,

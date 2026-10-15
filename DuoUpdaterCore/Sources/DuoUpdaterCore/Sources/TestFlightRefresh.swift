@@ -109,6 +109,15 @@ public struct TestFlightRefresh: Sendable {
         /// announced success at +10s, the data landed at +40s, and the check in the
         /// same process printed the *previous* build as up to date.
         case changedWithoutSettling(lastChange: Duration)
+        /// The store changed, then went quiet holding **no build rows at all** while
+        /// betas were expected — and the instance we started had exited, or the
+        /// deadline came. TestFlight empties its store first thing on launch, so this
+        /// is a sync that died after its first step, not one that finished. Measured
+        /// 2026-10-15 14:20 on this Mac: the instance was gone 1.4s after launch, the
+        /// wait saw 6s of quiet and reported `refreshed`, and every beta row read
+        /// "not testing" until TestFlight next ran. `run` retries once on this before
+        /// returning it.
+        case leftEmpty(lastChange: Duration)
         /// The instance ran and the store never changed. Usually "already
         /// current"; it can also be a sync that did not happen, and this
         /// deliberately does not claim to know which — the store carries no "last
@@ -214,6 +223,12 @@ public struct TestFlightRefresh: Sendable {
     /// (`TestFlightInventory.isRebuilding`). Asked only once the store has gone
     /// quiet, so a healthy sync costs one extra read.
     let storeRebuilding: @Sendable () async -> Bool
+    /// Whether the store holds no build row at all (`TestFlightInventory.holdsNoBuilds`);
+    /// nil when it cannot say. Asked before the launch and, only once the store has
+    /// settled, again — so a healthy sync costs two extra reads.
+    let storeHoldsNoBuilds: @Sendable () async -> Bool?
+    /// Whether the instance we started is still running.
+    let isRunning: @Sendable (pid_t) -> Bool
 
     public init(
         locate: @escaping @Sendable () -> URL? = Self.locateTestFlight,
@@ -223,7 +238,9 @@ public struct TestFlightRefresh: Sendable {
         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
         testsNothing: @escaping @Sendable () async -> Bool = Self.storeTestsNothing,
         appStoreSignedIn: @escaping @Sendable () async -> Bool? = Self.appStoreSignIn,
-        storeRebuilding: @escaping @Sendable () async -> Bool = Self.storeIsRebuilding
+        storeRebuilding: @escaping @Sendable () async -> Bool = Self.storeIsRebuilding,
+        storeHoldsNoBuilds: @escaping @Sendable () async -> Bool? = Self.storeHoldsNoBuilds,
+        isRunning: @escaping @Sendable (pid_t) -> Bool = Self.instanceIsRunning
     ) {
         self.locate = locate
         self.spawn = spawn
@@ -233,14 +250,39 @@ public struct TestFlightRefresh: Sendable {
         self.testsNothing = testsNothing
         self.appStoreSignedIn = appStoreSignedIn
         self.storeRebuilding = storeRebuilding
+        self.storeHoldsNoBuilds = storeHoldsNoBuilds
+        self.isRunning = isRunning
     }
 
     /// Run one attempt. Never throws: every failure is an `Outcome` the caller can
     /// print, because "we tried to refresh and could not" is information the user
     /// needs before reading a version number.
+    ///
+    /// `expectingBetas`: the caller knows a TestFlight beta is installed on this Mac,
+    /// so an empty store is never a finished one. The store's own state before the
+    /// launch counts too — if it held builds then, emptying is not an answer — but a
+    /// store some earlier attempt already left empty cannot vouch for itself, which
+    /// is what this is for.
+    ///
+    /// **One retry, and only on `leftEmpty`.** That outcome is a sync that died after
+    /// its first step, and a second launch is what fixed it by hand on 2026-10-15.
+    /// Never more than one: if TestFlight dies every time, this is two launches where
+    /// there was one, and the next attempt is `TestFlightSyncPolicy`'s to decide (an
+    /// empty store gives it no evidence, so that is the floor).
     public func run(
         deadline: Duration = defaultDeadline,
-        settle: Duration = settleInterval
+        settle: Duration = settleInterval,
+        expectingBetas: Bool = false
+    ) async -> Outcome {
+        let first = await attempt(
+            deadline: deadline, settle: settle, expectingBetas: expectingBetas, isRetry: false)
+        guard case .leftEmpty = first else { return first }
+        Log.app.notice("TestFlight sync: \(String(describing: first), privacy: .public) — retrying once")
+        return await attempt(deadline: deadline, settle: settle, expectingBetas: true, isRetry: true)
+    }
+
+    private func attempt(
+        deadline: Duration, settle: Duration, expectingBetas: Bool, isRetry: Bool
     ) async -> Outcome {
         guard let bundle = locate() else { return .notInstalled }
 
@@ -258,11 +300,15 @@ public struct TestFlightRefresh: Sendable {
         // starts, and ends, a hidden TestFlight on each refresh the user asks for.
         let signedIn = await appStoreSignedIn()
         if signedIn == false { return .notSignedIn }
-        if signedIn == nil, await testsNothing() { return .accountTestsNothing }
+        // Not on the retry: the attempt before it left the store empty, and an empty
+        // store always reads as testing nothing — the gate would refuse the very
+        // launch that repairs it.
+        if signedIn == nil, !isRetry, await testsNothing() { return .accountTestsNothing }
 
         // Read the store BEFORE anything of ours touches it, so the wait below
         // compares against the state that predates our own writes.
         let before = storeStamp()
+        let expectsBuilds = expectingBetas ? true : await storeHoldsNoBuilds() == false
 
         // One route, whether or not the user has TestFlight open: our own instance.
         // There is no branch on `isRunning` any more, and that is the whole change —
@@ -296,13 +342,23 @@ public struct TestFlightRefresh: Sendable {
             // freezes the store half built, so that case keeps waiting, and a
             // deadline reached in it is reported as unsettled below.
             if let lastChange, waited - lastChange >= settle, await !storeRebuilding() {
-                return .refreshed(after: lastChange)
+                // Emptied and never refilled: the rebuild's first stage, which
+                // `storeRebuilding` deliberately does not match. While our instance
+                // lives it may still be on its way; once it has gone, nothing will
+                // write this store again until TestFlight next runs.
+                guard expectsBuilds, await storeHoldsNoBuilds() == true else {
+                    return .refreshed(after: lastChange)
+                }
+                if !isRunning(pid) { return .leftEmpty(lastChange: lastChange) }
             }
         }
         // Ran out of time. It still changed, so say so rather than pretending
         // nothing happened — but do NOT call it a refresh: the store never held
         // still, or held still half built, so the sync may well be in flight, and
         // the caller is about to read it.
+        if let lastChange, expectsBuilds, await storeHoldsNoBuilds() == true {
+            return .leftEmpty(lastChange: lastChange)
+        }
         if let lastChange { return .changedWithoutSettling(lastChange: lastChange) }
         return .noChange
     }
@@ -337,6 +393,20 @@ public struct TestFlightRefresh: Sendable {
         }
     }
 
+    /// Whether the store holds no build row (`TestFlightInventory.holdsNoBuilds`),
+    /// off the cooperative pool like the two reads above. nil when it cannot say,
+    /// which never counts as empty.
+    public static let storeHoldsNoBuilds: @Sendable () async -> Bool? = {
+        await offCooperativePool { TestFlightInventory().holdsNoBuilds }
+    }
+
+    /// Whether `pid` is still a running process. `NSRunningApplication` returns nil
+    /// once the process is gone, and `isTerminated` covers one not yet collected.
+    public static let instanceIsRunning: @Sendable (pid_t) -> Bool = { pid in
+        guard pid > 0, let app = NSRunningApplication(processIdentifier: pid) else { return false }
+        return !app.isTerminated
+    }
+
     /// Whether this Mac is signed in to the App Store (`AppStoreSignIn`), read off the
     /// cooperative pool for the same reason. nil when it cannot say.
     public static let appStoreSignIn: @Sendable () async -> Bool? = {
@@ -362,7 +432,7 @@ extension TestFlightRefresh.Outcome {
     /// the reason the case exists.
     public var storeChanged: Bool {
         switch self {
-        case .refreshed, .changedWithoutSettling: true
+        case .refreshed, .changedWithoutSettling, .leftEmpty: true
         case .noChange, .notSignedIn, .accountTestsNothing, .notInstalled, .launchFailed: false
         }
     }
@@ -376,7 +446,7 @@ extension TestFlightRefresh.Outcome {
     /// would silence it on the strength of nothing.
     public var testFlightRan: Bool {
         switch self {
-        case .refreshed, .changedWithoutSettling, .noChange: true
+        case .refreshed, .changedWithoutSettling, .leftEmpty, .noChange: true
         case .notSignedIn, .accountTestsNothing, .notInstalled, .launchFailed: false
         }
     }

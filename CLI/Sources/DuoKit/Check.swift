@@ -74,6 +74,10 @@ public enum Check {
                 format: "duo: TestFlight had not finished syncing when we stopped waiting "
                       + "(last seen moving after %.1fs); the versions below may predate the sync",
                 seconds)
+        case .leftEmpty:
+            // Only ever the second attempt's answer: `run` already retried once.
+            return "duo: TestFlight stopped partway through reloading its data, twice, and left it empty; "
+                + "open TestFlight to reload it — TestFlight versions below are missing"
         case .noChange:
             // One sentence for one route. It deliberately does not say "already
             // current": the store has no "last synced" of its own, so a sync that

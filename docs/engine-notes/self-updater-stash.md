@@ -119,12 +119,14 @@ re-derive them:
 
 Against implementing them, in order of weight:
 
-1. **A dmg cannot be version-read cheaply.** Reading the bundle version out of
-   one means `hdiutil attach` — seconds, a mount point, and possibly UI. A zip's
-   central directory is at the tail and randomly addressable, which is what makes
-   the gate in §5 affordable. Both of these carry the version in the *file name*,
-   but trusting a vendor's file-name habit is the assumption OpenCode already
-   falsifies.
+1. **A dmg cannot be version-read as cheaply as a zip.** Reading the bundle
+   version out of one means attaching it — a device, a mount point — where a
+   zip's central directory is at the tail and randomly addressable, which is
+   what makes the gate in §5 cost ~2 ms. This originally said "seconds"; that
+   was never measured, and it is only true with checksum verification on. With
+   `-noverify` it is a fraction of a second — see *Re-measured 2026-10-15* below.
+   Both of these carry the version in the *file name*, but trusting a vendor's
+   file-name habit is the assumption OpenCode already falsifies.
 2. **A `.pkg` is not swapped by this route at all** — `VendorInstaller.download`
    refuses `.pkg` and `PackageInstaller` handles it, so the substitution has
    nowhere to land.
@@ -135,6 +137,57 @@ Against implementing them, in order of weight:
 pretending they do not exist; `resolve` refuses everything but zip, which is what
 electron-updater downloads on macOS in any case
 (`findFile(files, "zip", ["pkg", "dmg"])`).
+
+### Re-measured 2026-10-15: what reading a dmg's version actually costs
+
+One-time measurement, not a tracked metric. Same two images, same script, on two
+machines: the development Mac (macOS 27.2, M3 Max; load average ~27 at the time,
+so its numbers are the noisier ones) and the mini (macOS 26.7, M4; load ~3). Each
+cell is the median of 5 runs of attach → read the root `.app`'s `Info.plist` →
+detach, with `com.apple.diskimages.recentcksum` stripped before every run so the
+verified rows really verify. Both images are UDZO, ~176 MB.
+
+| mode | Gemini, 27.2 | Gemini, 26.7 | Qianwen, 27.2 | Qianwen, 26.7 |
+|---|---|---|---|---|
+| `hdiutil attach -noverify` | 0.56 s | 0.25 s | 0.60 s | 0.18 s |
+| `diskutil image attach` | 0.96 s | 0.41 s | 0.78 s | 0.32 s |
+| `hdiutil attach` (verifies) | 2.00 s | 3.59 s | 3.40 s | 2.97 s |
+
+Reading the plist itself is 2–10 ms in every row; the rest is attach and detach.
+
+- **There is no OS difference to find.** macOS 26 is no slower, and on the quiet
+  machine it is faster. The "seconds" is the UDIF checksum pass over the whole
+  image, on either OS (1.5–4.9 s per run across both machines).
+- **`-noverify` is only honest with a digest gate behind it.** Skipping the
+  checksum is what makes this cheap, so the bytes have to be proven some other
+  way, as gate 8 does for zips. Of the shapes seen, Gemini records no digest at
+  all, Qianwen records only an MD5 (its `sha256` field is empty), and Cindy (a
+  zip) records a SHA-256.
+- **A verifying attach writes onto the other updater's file.** It leaves a
+  `com.apple.diskimages.recentcksum` xattr on the image, and later verifying
+  attaches skip the pass because of it (the uncached ~2.4 s became ~0.3 s). That
+  is a write to bytes we do not own, and it is also why a naive re-run looks fast.
+- **macOS 27's `DiskImageKit` does not help.** Its public interface (SDK
+  `DiskImageKit.swiftinterface`) knows three formats — `asif`, `raw`, `stack` —
+  and offers create / open / append-layer / truncate, with no block or file
+  read. Opening either UDZO image throws `UnsupportedFormatError` within 16 ms.
+  `diskutil image attach`, which the 27 `hdiutil imageinfo` deprecation
+  warning points to, is still an attach, and slower than `hdiutil -noverify`.
+- **What is inside need not be the app.** Qianwen's image holds
+  `com.qianwen.inputmethod.desktopime.installer`, not the input method, so the
+  bundle-ID gate would refuse it whatever it cost to read.
+
+Shapes seen that day, beyond the two above. All three were stale, so none would
+have been used:
+
+| app | parked at | parked | installed |
+|---|---|---|---|
+| Gemini | `~/Library/Caches/com.google.GeminiMacOS/Updates/<version>/update.dmg` | 1.128.7.1072 | 1.128.14.1166 |
+| Qianwen IME | `~/Library/Application Support/QianwenIME/updates/<md5>.dmg` + `silent-install-session.json` | 1.2.35.46 | 1.2.35.46 (already applied) |
+| Cindy | `~/Library/Application Support/CindyGlobal/updates/<name>.zip` + `patch-info.json` | 0.1.99 | 0.1.97, offered 0.1.108 |
+
+Warp's parked file that day was not a UDIF image at all: it starts with a zlib
+header, has no `koly` trailer, and `hdiutil` reports "image not recognized".
 
 ## §5 Why reading the version is affordable
 

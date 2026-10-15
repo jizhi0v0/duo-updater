@@ -45,17 +45,16 @@ struct DiagnosticsSettingsPage: View {
         max(Self.collapsedRecipeCount, entries.count { !$0.isHealthy })
     }
 
-    /// Once per reveal, and only once there is a list to look in: a reveal that
-    /// arrives before the first snapshot is acted on when it lands.
+    /// Once per reveal, and only once the row is in the list: the search can read
+    /// a newer snapshot than the model holds (a changelog load records a recipe
+    /// between checks), and the page's own reload then brings the row in.
     private func openRecipesIfRevealHidden() {
         guard let reveal, case .recipe(let key) = reveal.anchor,
-              reveal.token != handledReveal, let entries = model.recipeHealth
+              reveal.token != handledReveal, let entries = model.recipeHealth,
+              let index = entries.firstIndex(where: { $0.key == key })
         else { return }
         handledReveal = reveal.token
-        guard let index = entries.firstIndex(where: { $0.key == key }),
-              index >= collapsedLimit(entries)
-        else { return }
-        showsAllRecipes = true
+        if index >= collapsedLimit(entries) { showsAllRecipes = true }
     }
 
     var body: some View {

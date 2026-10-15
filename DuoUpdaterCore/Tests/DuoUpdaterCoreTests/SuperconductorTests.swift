@@ -751,8 +751,6 @@ struct SuperconductorTests {
     /// The file the app actually writes: a flat JSON object with the choice at the
     /// top level, among ninety-odd other settings.
     @Test func theResolverReadsTheSettingFromTheFileTheAppWrites() {
-        #expect(SuperconductorChannel.settingsFileURL.path
-            .hasSuffix("/.superconductor/settings.json"))
         func read(_ json: String) -> String? {
             SuperconductorChannel.updateChannel(inSettings: Data(json.utf8))
         }
@@ -767,6 +765,57 @@ struct SuperconductorTests {
         let odd = read(#"{"update_channel": 2}"#)
         #expect(odd != nil)
         #expect(SuperconductorChannel.resolve(updateChannel: odd).channel != .nightly)
+    }
+
+    /// Builds since the super.engineering rename keep their settings in
+    /// `~/.super.engineering/` — a fresh install of `ac45e7aa` on 2026-10-15 created
+    /// no `~/.superconductor/` at all — so reading only the old path read every new
+    /// install as "no record", i.e. nightly, whatever it had chosen.
+    @Test func theResolverReadsTheRenamedSettingsDirectory() throws {
+        try Self.withHome { home in
+            try Self.writeSettings(home, ".super.engineering", #"{"update_channel": "stable"}"#)
+            #expect(SuperconductorChannel.readUpdateChannel(home: home) == "stable")
+            #expect(SuperconductorChannel.resolve(
+                updateChannel: SuperconductorChannel.readUpdateChannel(home: home)).channel != .nightly)
+        }
+    }
+
+    /// Older builds wrote `~/.superconductor/settings.json`; a copy that still only
+    /// has that file keeps its recorded choice.
+    @Test func theResolverFallsBackToTheLegacySettingsDirectory() throws {
+        try Self.withHome { home in
+            #expect(SuperconductorChannel.readUpdateChannel(home: home) == nil)
+            try Self.writeSettings(home, ".superconductor", #"{"update_channel": "stable"}"#)
+            #expect(SuperconductorChannel.readUpdateChannel(home: home) == "stable")
+        }
+    }
+
+    /// Both present: the current file is the one the installed build reads, and it
+    /// answers alone — even without the key, a choice left in the legacy file is
+    /// not the app's choice any more.
+    @Test func theRenamedSettingsFileWinsOverTheLegacyOne() throws {
+        try Self.withHome { home in
+            try Self.writeSettings(home, ".superconductor", #"{"update_channel": "nightly"}"#)
+            try Self.writeSettings(home, ".super.engineering", #"{"update_channel": "stable"}"#)
+            #expect(SuperconductorChannel.readUpdateChannel(home: home) == "stable")
+            try Self.writeSettings(home, ".superconductor", #"{"update_channel": "stable"}"#)
+            try Self.writeSettings(home, ".super.engineering", #"{"provider_update_checks": true}"#)
+            #expect(SuperconductorChannel.readUpdateChannel(home: home) == nil)
+        }
+    }
+
+    static func withHome(_ body: (URL) throws -> Void) throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("superconductor-home-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        try body(home)
+    }
+
+    static func writeSettings(_ home: URL, _ directory: String, _ json: String) throws {
+        let dir = home.appendingPathComponent(directory, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data(json.utf8).write(to: dir.appendingPathComponent("settings.json"))
     }
 
     // MARK: - Ordering

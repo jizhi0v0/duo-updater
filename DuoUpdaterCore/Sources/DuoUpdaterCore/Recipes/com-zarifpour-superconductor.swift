@@ -28,7 +28,8 @@ enum com_zarifpour_superconductor {
         // stable track (#711 in its own changelog, 2026-04-05) and the app's Settings
         // say "Nightly is currently the only release track available" — but the
         // picker is still there, and its choice is `update_channel` in
-        // `~/.superconductor/settings.json`. `SuperconductorChannel` reads it, so a
+        // `~/.super.engineering/settings.json` (`~/.superconductor/` before the
+        // rename). `SuperconductorChannel` reads it, so a
         // copy set to anything but nightly resolves to a channel with no recipe and
         // is never offered this build. Every pattern below is anchored inside the
         // manifest's `"nightly"` object for the same reason: the updater looks its

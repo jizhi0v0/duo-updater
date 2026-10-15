@@ -24,13 +24,16 @@
 
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
-| nightly | `com.zarifpour.superconductor` | 共享 | `~/.superconductor/settings.json` → `update_channel` = `nightly`；没有记录时按 app 默认 nightly | channel-gated VendorProbe（`SuperconductorChannel` 选配方）| ✓ |
+| nightly | `com.zarifpour.superconductor` | 共享 | `~/.super.engineering/settings.json`（不存在时退回改名前的 `~/.superconductor/settings.json`）→ `update_channel` = `nightly`；没有记录时按 app 默认 nightly | channel-gated VendorProbe（`SuperconductorChannel` 选配方）| ✓ |
 | stable | 同上 | 共享 | `update_channel` 为 nightly 以外的任何值 | 无配方 → 不提示，绝不推 nightly | — 厂商已关闭 |
 
 厂商在 2026-04-05 关掉了 stable 轨道（它自己 changelog 里的 #711 "Disable stable channel and
 enforce nightly-only updates"），app 设置页写着 "Nightly is currently the only release track
-available"。但设置页的选择器还在，选择写在 `~/.superconductor/settings.json` 顶层的
-`update_channel`（2026-09-11 在真实安装上读到 `"nightly"`）。这个文件把整份设置连同默认值一起
+available"。但设置页的选择器还在，选择写在设置文件顶层的 `update_channel`（2026-09-11 在真实安装的
+`~/.superconductor/settings.json` 读到 `"nightly"`；2026-10-15 全新安装 `ac45e7aa` 只建了
+`~/.super.engineering/`，同一个键在 `~/.super.engineering/settings.json`，94 个顶层键）。
+`SuperconductorChannel` 先读新路径，新文件不存在才读旧路径；新文件存在就只听它的（键缺了也按「没有记录」，
+不去旧文件里找 —— 装着的构建读的是新文件）。这个文件把整份设置连同默认值一起
 序列化（92 个顶层键里有 4 个 `null`、15 个 `false`），所以启动过的安装基本都带这个键 —— 这是推断，
 没有重置设置去验证。
 
@@ -45,7 +48,7 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
 并核对 lineage（`changelog.json`）是否分轨。`identity.json` 的 `build_channel`（实测 `prod`）是构建
 风味，不是更新渠道，别读错。
 
-**不监听 `~/.superconductor`**：FSEvents 是递归的，而 app 的日志就写在这个目录下，会持续触发重查；
+**不监听 `~/.super.engineering`（及旧的 `~/.superconductor`）**：FSEvents 是递归的，而 app 的日志就写在这个目录下（`logs/`），会持续触发重查；
 现在只有一条轨道、切换不可能发生。渠道在每次扫描、以及 app 启动 / 退出时重读。
 
 ## 更新检测
@@ -137,6 +140,9 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
   没有任何本地文件记录发布日期或序号 —— 这就是排序只能来自 `changelog.json` 的原因。
 - 单元测试: `SuperconductorTests`（真实响应体逐字截取；每条排序用例先断言比较器在该组合上是错的）
 - 实时: `duo verify --only com.zarifpour.superconductor`
+- 设置路径（2026-10-15，`9cd78956`，只有 `~/.super.engineering/`）：`swift run --package-path application-test channel-verify --check com.zarifpour.superconductor`
+  → `detected channel → nightly`、`winning source → Vendor`；把 `~/.super.engineering/settings.json` 的 `update_channel`
+  临时改成 `"stable"` 再跑 → `detected channel → stable`、`winning source → <none>`（不推 nightly）；之后从备份还原，`cmp` 一致。
 
 ## 已知问题
 - 厂商若把 plist 里的版本改成别的长度（About 窗口显示的是 7 位 `8545a7d`），`versionPattern` 和 lineage

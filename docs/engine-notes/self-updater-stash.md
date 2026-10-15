@@ -173,21 +173,52 @@ Reading the plist itself is 2–10 ms in every row; the rest is attach and detac
   read. Opening either UDZO image throws `UnsupportedFormatError` within 16 ms.
   `diskutil image attach`, which the 27 `hdiutil imageinfo` deprecation
   warning points to, is still an attach, and slower than `hdiutil -noverify`.
-- **What is inside need not be the app.** Qianwen's image holds
-  `com.qianwen.inputmethod.desktopime.installer`, not the input method, so the
-  bundle-ID gate would refuse it whatever it cost to read.
+- **What is inside need not be the app, and the route already knows.** Qianwen's
+  image root holds `com.qianwen.inputmethod.desktopime.installer`; the input
+  method (`com.qianwen.inputmethod.desktopime` 1.2.35.46) is in
+  `Contents/Resources/QianwenIME.zip` inside it — exactly the recipe's
+  `nestedArchivePath`. A reader that looks only at the root `.app`, as the zip
+  reader does, would refuse it; one that follows the route's own nested path
+  would not.
 
-Shapes seen that day, beyond the two above. All three were stale, so none would
-have been used:
+Shapes seen that day, beyond the two above. None was newer than what was
+installed, so none would have been used:
 
-| app | parked at | parked | installed |
-|---|---|---|---|
-| Gemini | `~/Library/Caches/com.google.GeminiMacOS/Updates/<version>/update.dmg` | 1.128.7.1072 | 1.128.14.1166 |
-| Qianwen IME | `~/Library/Application Support/QianwenIME/updates/<md5>.dmg` + `silent-install-session.json` | 1.2.35.46 | 1.2.35.46 (already applied) |
-| Cindy | `~/Library/Application Support/CindyGlobal/updates/<name>.zip` + `patch-info.json` | 0.1.99 | 0.1.97, offered 0.1.108 |
+| app | parked at | integrity record | parked | installed |
+|---|---|---|---|---|
+| Gemini | `~/Library/Caches/com.google.GeminiMacOS/Updates/<version>/update.dmg` | none locally | 1.128.7.1072 | 1.128.14.1166 |
+| Qianwen IME | `~/Library/Application Support/QianwenIME/updates/<md5>.dmg` + `silent-install-session.json` | MD5 (= file name) | 1.2.35.46 | 1.2.35.46 |
+| Cindy | `~/Library/Application Support/CindyGlobal/updates/<name>.zip` + `patch-info.json` | SHA-256 + version | 0.1.99 | 0.1.97, offered 0.1.108 |
 
-Warp's parked file that day was not a UDIF image at all: it starts with a zlib
-header, has no `koly` trailer, and `hdiutil` reports "image not recognized".
+What each one is, as far as the evidence went:
+
+- **Gemini** — written by the app's in-app Omaha updater (its log says "Using
+  Omaha updater"); a second updater, GoogleUpdater/Keystone, also installs it
+  (`Logs/preinstall_*.log`, signal file `update_pending`). The dmg was born
+  12:30:58, finished 12:31:29, and the app relaunched as that version at
+  12:31:38, so it is the installer of the version just applied, left behind —
+  not a download waiting to be applied. Whether this updater ever parks a
+  *newer* version there is not observed. The route's own Omaha response carries
+  a `hash_sha256` per package, which would be the digest gate if the parked file
+  is that same package; not checked, since Omaha only answers for the current
+  version.
+- **Qianwen IME** — not byte-identical to the vendor's current CDN dmg (176,333,529
+  vs 176,309,198 bytes, ETag ≠ its MD5) but carries the same payload version —
+  the OpenCode shape again, one release in two containers. Version equal to the
+  installed build, so there was nothing to apply.
+- **Cindy** — a full `Cindy.app` (`com.xd.cindy` 0.1.99), SHA-256 matching
+  `patch-info.json`. It comes from Cindy's own manifest (`app.version` +
+  `app.hotfix.file`, applied on relaunch), not from GitHub: v0.1.99 was never
+  published as a GitHub release (0.1.97 → 0.1.101), and our route offers GitHub
+  versions, so the version gate can only match when the two lines agree.
+
+Warp's parked file that day was a truncated UDIF image, not a different format:
+its first chunk inflates to 512 zero bytes, consistent with the start of a UDZO
+image, but it
+is 105,775,627 bytes against the vendor's 326,470,525 for that version, so the
+`koly` trailer never arrived and `hdiutil` reports "image not recognized". It
+sat in a random-named directory (`autoupdate/nCFyXHk/`) from 2026-07-16 with no
+completion record beside it — an abandoned download.
 
 ## §5 Why reading the version is affordable
 

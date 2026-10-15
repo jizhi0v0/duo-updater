@@ -36,8 +36,9 @@ public enum CLIStart: Equatable, Sendable {
 ///   one, and removes old kegs at the end of the run, with no check for a
 ///   process using them (`install.rb` `kegs.each(&:unlink)`, `Cleanup`). And
 ///   which Homebrew files a tool's update runs on can't be known in full ahead
-///   of time: an npm copy may run on Homebrew's node, that node links a score of
-///   Homebrew libraries any of which Upgrade All may replace, and an updater can
+///   of time: an npm copy may run on Homebrew's node, that node links Homebrew's
+///   icu4c, openssl, libuv and more (`otool -L`), any of which Upgrade All may
+///   replace, and an updater can
 ///   start programs of its own. A rule that let some through would fail open for
 ///   every case it missed.
 /// - Tool vs. tool: not decided here (`.now`). Each tool's own rules stay

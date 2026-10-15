@@ -130,7 +130,25 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
 - **读的是**: 轨道最新 —— 也是唯一的轨道。它就是官网 Download 按钮（`super.engineering/api/download`
   在 2026-09-10 302 到同一个 dmg）和 app 自己的更新器发给任何用户的那个构建，不存在「厂商还没分配给
   这台机器」的情况。
-- 阻塞: 无。**未验证**：app 自带更新器已经暂存了新版、我们又一键装了同一构建时，它下次重启的行为。
+- 阻塞: 无。
+- **自带更新器的暂存与 duo 的关系（2026-10-15 真机实测，legacy-id `ac45e7aa` → `9cd78956`）**:
+  - 暂存位置: 启动后约 1 分钟内落下 `~/.super.engineering/update-cache/<40 位 sha>.dmg` 和同名 `.sha256`（hex，
+    与清单逐字相同），旁边一个空的 `.lock`。没有别的状态文件；它自己的日志不记录更新器动作。
+  - **legacy-id 安装下载的是新 id 的包**：暂存 dmg 的 sha256 是 `3ed7391f…`，即 `bundles["engineering.super.app"]`
+    那一项，不是本 id 的 `0ffff319…`（91,065,005 B 对 91,064,646 B）。这是此前「机制未验证」的迁移入口：
+    在 app 里点重启更新，大概率就换成 `engineering.super.app`（**推断**，没点）。
+  - **退出不装、启动也不装**：正常退出后 60 s、再启动后 90 s，bundle 的 id、版本、inode 都不变，暂存包仍在。
+    设置页原文 "Downloads stay staged until you restart" 指的是 app 内的重启按钮，不是进程重启。
+  - 运行中 `duo install com.zarifpour.superconductor` → `installed`（12.6 s，下了 91,064,646 B = legacy-id 包），
+    `duo restart` → `restarted`；之后 90 s bundle 仍是 legacy-id `9cd78956`、inode 不变，`~/.super.engineering/settings.json` 的
+    `last_installed_version` 变成 `9cd78956…`、`previous_installed_version` 是 `ac45e7aa…`；缓存里同 sha 的新 id 包
+    留着、没被换上。
+  - 结论: 没有「退出/重启时换回暂存包」的碰撞，所以 **不需要** `SelfUpdaterStaging` 识别它（那一层是给「退出或启动
+    就会自己装」的更新器让路用的，对它让路成 Relaunch 什么也不会发生）。
+  - 没测: 装完同版本后再在 app 里点「重启更新」会不会拿缓存的新 id 包换掉 legacy-id（会的话就是迁移，之后这份
+    安装没有 recipe）。
+  - 启动副作用: `~/.super.engineering/`（数据、`bin/`、`hooks/`）；`~/.zshrc`、`~/.zprofile`、`~/.claude/settings.json`、
+    `~/.claude/skills`、LaunchAgents、`sfltool dumpbtm` 都没变。
 
 ## 如何复验
 - `swift run --package-path application-test feed-discover <dmg>` → `no Sparkle and no electron-builder update config`
@@ -151,12 +169,16 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
   临时改成 `"stable"`（app 没在运行；它一启动就会改回 `"nightly"`）再跑 → `detected channel → stable`、`winning source → <none>`（不推 nightly）；之后从备份还原，`cmp` 一致。
 
 ## 已知问题
+- **渠道设置换了目录（已修，#1335）**：全新安装 `ac45e7aa` 启动后只有 `~/.super.engineering/`，没有 `~/.superconductor/`，
+  `update_channel` 写在 `~/.super.engineering/settings.json`。`SuperconductorChannel` 原先只读旧路径，新安装一律走
+  「没有记录 → nightly」；#1335 起先读新路径、不存在才退回旧路径，见「Channel 详情」。
 - 厂商若把 plist 里的版本改成别的长度（About 窗口显示的是 7 位 `8545a7d`），`versionPattern` 和 lineage
   pattern 要一起改；测试钉的是 8 位。
 - App 层「运行中的版本落后于磁盘」的 Restart 徽标（`AppListModel`）仍用 `VersionComparator` 比较 hash，
   装完新版时约一半情况不会提示重启。未在这次改动里处理。
 - `RelaunchProgress.hasLanded` 仍用比较器，但当前走不到：它只在 `SelfUpdaterStaging` 识别出暂存更新时
-  调用，而它不识别这个 app 的更新器。
+  调用，而它不识别这个 app 的更新器。这一条本身不是问题：2026-10-15 实测它的暂存在退出、启动时都不会被应用（见「一键安装」），
+  不该让路给 Relaunch。
 - `duo verify` 的两道历史检查（baseline 的「version went BACKWARDS」、changelog 落后于检测版本）对这个
   app 是**关掉**而不是换成 lineage 版：hash 之间比不出先后。baseline 那道要对 probe 和 changelog
   **两条** recipe 都关：#579 就是只按 probe 的 recipe id 关了，`changelog:` 那条照样按数字段比，

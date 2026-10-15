@@ -291,7 +291,8 @@ public enum ChannelBinding {
         //
         // super.engineering deliberately adds nothing either, for the opposite
         // reason: its choice IS outside every root above
-        // (`~/.superconductor/settings.json`), but that directory is also where the
+        // (`~/.super.engineering/settings.json`, `~/.superconductor/settings.json`
+        // before the rename), but that directory is also where the
         // app writes its logs, and FSEvents streams are recursive — a root there
         // would fire continuously while the app runs, for a picker that currently
         // has one possible value. Its key is re-read on every scan and on the app's

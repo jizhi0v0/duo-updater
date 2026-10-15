@@ -129,7 +129,7 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 ### Pattern B/C 续 — super.engineering（2026-09-11 接，nightly 是唯一轨）
 
 - **super.engineering** `com.zarifpour.superconductor` — 设置页 "Update channel" 选择器，选择写在
-  `~/.superconductor/settings.json` 顶层 `update_channel`（实测 `"nightly"`）。厂商 2026-04-05 关了
+  `~/.super.engineering/settings.json`（改名前是 `~/.superconductor/settings.json`，作为回退）顶层 `update_channel`（实测 `"nightly"`）。厂商 2026-04-05 关了
   stable（它 changelog 里的 #711），现在只有 nightly。`SuperconductorChannel`：`nightly` / 无记录 →
   `.nightly`，其他值 → 无配方的渠道（绝不推 nightly）。门控 = channel-gated VendorProbe（`latest.json`，
   pattern 全部锚在 `"nightly"` 对象里），一键 dmg，`ChannelProofRegistry` 登记

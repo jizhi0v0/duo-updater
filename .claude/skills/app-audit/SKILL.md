@@ -433,7 +433,7 @@ are NOT CFPreferences.
 | CapCut `com.lemon.lvoverseas` | INI `~/Movies/CapCut/User Data/Config/{updateInfo,channel}` `[General]` (sandboxed app, file outside its container) | `joinBeta` true/1; else `tea_channel` = `capcutpc_beta` | selects VendorProbe recipe |
 | CotEditor `com.coteditor.CotEditor` | container plist `~/Library/Containers/com.coteditor.CotEditor/Data/Library/Preferences/com.coteditor.CotEditor.plist` (needs FDA) | `checksUpdatesForBeta` true | selects GitHubReleaseRule |
 | Windscribe `com.windscribe.client` | `~/Library/Preferences/com.windscribe.Windscribe2.plist` (file name ≠ bundle id) | `engineSettings`: base64 + SimpleCrypt + QDataStream Int, 1 beta / 2 guinea pig | selects VendorProbe recipe |
-| super.engineering `com.zarifpour.superconductor` | JSON `~/.superconductor/settings.json` | `update_channel` ("nightly" or absent = nightly) | selects VendorProbe recipe |
+| super.engineering `com.zarifpour.superconductor` | JSON `~/.super.engineering/settings.json` (legacy `~/.superconductor/settings.json` as fallback) | `update_channel` ("nightly" or absent = nightly) | selects VendorProbe recipe |
 | Mac Mouse Fix `com.nuebling.mac-mouse-fix` | `~/Library/Application Support/com.nuebling.mac-mouse-fix/config.plist` | `General.checkForPrereleases` true | feed swap |
 | Cua Driver `com.trycua.driver` | plain text `~/.cua-driver/release-channel` | file contents "nightly" | selects GitHubReleaseRule |
 | Cindy `com.xd.cindy` / `com.xd.cindycn` | JSON `~/Library/Application Support/{CindyGlobal,Cindy}/update-channel-settings.json` (Electron `userData`, per edition) | `enableBeta` true; absent → `orgDefaultEnableBeta` | selects GitHubReleaseRule |

@@ -102,7 +102,7 @@ public actor InstallCoordinator {
     /// per-process: two processes installing at the same time is what
     /// ``InstallLock`` prevents, not this.
     private let permits: InstallPermits
-    private let vendor = VendorInstaller()
+    private let vendor: VendorInstaller
     private let sparkle = SparkleInstaller()
     private let homebrew = HomebrewInstaller()
     private let packages = PackageInstaller()
@@ -118,9 +118,11 @@ public actor InstallCoordinator {
         permits: InstallPermits = InstallPermits(downloads: 4, applies: 2),
         xcodeDownloader: (any XcodeArchiveDownloading)? = nil,
         runningProcesses: @escaping @Sendable () -> [NestedAppGuard.RunningProcess] = NestedAppGuard.liveProcesses,
-        space: DiskSpaceGuard.SpaceLedger = .shared
+        space: DiskSpaceGuard.SpaceLedger = .shared,
+        vendor: VendorInstaller = VendorInstaller()
     ) {
         self.permits = permits
+        self.vendor = vendor
         self.space = space
         self.xcodeDownloader = xcodeDownloader
         self.runningProcesses = runningProcesses
@@ -487,34 +489,21 @@ public actor InstallCoordinator {
 
         case .vendor:
             do {
-                return try await fetchThenSwap(
-                    result, spaceToApply: spaceToApply,
-                    progress: progress, releaseAfterDownload: releaseAfterDownload,
-                    download: {
-                        try await self.vendor.download(
-                            $0, preferDelta: true,
-                            population: installedPopulation, onStage: $1)
-                    },
-                    apply: {
-                        _ = try await self.vendor.apply(
-                            $0, download: $1, digestOnlyAllowed: digestOnlyAllowed, onStage: $2)
-                    })
-            } catch let failure as DeltaRouteFailure {
-                Log.install.info("delta route failed, retrying with the full archive: \(result.app.name, privacy: .public) — \(failure.errorDescription ?? "unknown", privacy: .public)")
-                // The patch's bytes were spent whether or not it worked, so they
-                // belong in the total this install reports.
-                return try await withBytes(failure.bytesSpent) { try await fetchThenSwap(
-                    result, spaceToApply: spaceToApply,
-                    progress: progress, releaseAfterDownload: releaseAfterDownload,
-                    download: {
-                        try await self.vendor.download(
-                            $0, preferDelta: false,
-                            population: installedPopulation, onStage: $1)
-                    },
-                    apply: {
-                        _ = try await self.vendor.apply(
-                            $0, download: $1, digestOnlyAllowed: digestOnlyAllowed, onStage: $2)
-                    }) }
+                return try await vendorRoute(
+                    result, useLocalStash: true, installedPopulation: installedPopulation,
+                    digestOnlyAllowed: digestOnlyAllowed, spaceToApply: spaceToApply,
+                    progress: progress, releaseAfterDownload: releaseAfterDownload)
+            } catch let failure as LocalStashFailure {
+                // The bytes the app's own updater parked did not unpack or did not
+                // pass a gate, and a retry would pick the same file again until
+                // that updater replaced it. Take the route's own artifact instead,
+                // verified as usual. The stash spent no network bytes, so there is
+                // nothing to add to what the retry reports.
+                Log.install.notice("local stash failed, downloading the route's own artifact: \(result.app.name, privacy: .public) — \(failure.errorDescription ?? "unknown", privacy: .public)")
+                return try await vendorRoute(
+                    result, useLocalStash: false, installedPopulation: installedPopulation,
+                    digestOnlyAllowed: digestOnlyAllowed, spaceToApply: spaceToApply,
+                    progress: progress, releaseAfterDownload: releaseAfterDownload)
             }
 
         case .sparkle:
@@ -543,6 +532,49 @@ public actor InstallCoordinator {
                     },
                     apply: { _ = try await self.sparkle.apply($0, download: $1, onStage: $2) }) }
             }
+        }
+    }
+
+    /// The `.vendor` route, with its delta retry. `useLocalStash` is false on the
+    /// retry after a `LocalStashFailure`, for both passes.
+    private func vendorRoute(
+        _ result: UpdateResult,
+        useLocalStash: Bool,
+        installedPopulation: [InstalledApp]?,
+        digestOnlyAllowed: Bool,
+        spaceToApply: Int64,
+        progress: @Sendable @escaping (InstallStage) -> Void,
+        releaseAfterDownload: @Sendable () async -> Void
+    ) async throws -> Outcome {
+        do {
+            return try await fetchThenSwap(
+                result, spaceToApply: spaceToApply,
+                progress: progress, releaseAfterDownload: releaseAfterDownload,
+                download: {
+                    try await self.vendor.download(
+                        $0, preferDelta: true, useLocalStash: useLocalStash,
+                        population: installedPopulation, onStage: $1)
+                },
+                apply: {
+                    _ = try await self.vendor.apply(
+                        $0, download: $1, digestOnlyAllowed: digestOnlyAllowed, onStage: $2)
+                })
+        } catch let failure as DeltaRouteFailure {
+            Log.install.info("delta route failed, retrying with the full archive: \(result.app.name, privacy: .public) — \(failure.errorDescription ?? "unknown", privacy: .public)")
+            // The patch's bytes were spent whether or not it worked, so they
+            // belong in the total this install reports.
+            return try await withBytes(failure.bytesSpent) { try await fetchThenSwap(
+                result, spaceToApply: spaceToApply,
+                progress: progress, releaseAfterDownload: releaseAfterDownload,
+                download: {
+                    try await self.vendor.download(
+                        $0, preferDelta: false, useLocalStash: useLocalStash,
+                        population: installedPopulation, onStage: $1)
+                },
+                apply: {
+                    _ = try await self.vendor.apply(
+                        $0, download: $1, digestOnlyAllowed: digestOnlyAllowed, onStage: $2)
+                }) }
         }
     }
 

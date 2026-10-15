@@ -77,9 +77,10 @@ enum SuperconductorChannel {
     /// and `settings.json` had one inode through both paths. That matches the
     /// bundled `sc` helper's text ("Startup publishes the new data name as a link
     /// to existing legacy storage"; independent old and new profiles are an
-    /// error). The same launch rewrote a staged `"stable"` to `"nightly"` and left
-    /// the other 93 keys alone, so today a non-nightly value does not survive the
-    /// app starting. The file is ~9 KB; the cap keeps
+    /// error). That launch also rewrote a staged `"stable"` to `"nightly"` and left
+    /// the other 93 keys alone, and so did a second one against a home that already
+    /// had a real `~/.super.engineering` directory (no migration, rewritten within
+    /// 10 s). So today a non-nightly value does not survive the app starting. The file is ~9 KB; the cap keeps
     /// a path that turns out to be something else from being read into memory
     /// wholesale.
     static func readUpdateChannel(

@@ -38,7 +38,8 @@ available"。但设置页的选择器还在，选择写在设置文件顶层的 
 10 s 内出现 `~/.super.engineering -> ~/.superconductor` 符号链接，两条路径下 `settings.json` 同一个 inode；
 与 `Contents/MacOS/sc` 的说明一致（"Startup publishes the new data name as a link to existing legacy storage"；
 "Independent old/new profiles and broken links produce an error"）。同一次启动还把 `"stable"` 改回了 `"nightly"`，
-其余 93 个键不变 —— 眼下 app 一启动，非 nightly 的值就留不住。这个文件把整份设置连同默认值一起
+其余 93 个键不变；再用一个本来就有真实 `~/.super.engineering` 目录（不涉及迁移）的临时 home 启动一次，
+10 s 内同样被改回 `"nightly"`、其余键不变 —— 眼下 app 一启动，非 nightly 的值就留不住。这个文件把整份设置连同默认值一起
 序列化（92 个顶层键里有 4 个 `null`、15 个 `false`），所以启动过的安装基本都带这个键 —— 这是推断，
 没有重置设置去验证。
 

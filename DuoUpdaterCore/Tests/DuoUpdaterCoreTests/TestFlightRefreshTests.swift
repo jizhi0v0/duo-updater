@@ -213,6 +213,44 @@ struct TestFlightRefreshTests {
         #expect(spy.launches.count == 2)
     }
 
+    /// **The retry lives inside the first attempt's deadline, not a second one.**
+    /// The app stops waiting at `defaultDeadline + 30s` and reopens its
+    /// one-sync-at-a-time gate; a retry with a deadline of its own could outlive
+    /// that and overlap the next sync (PR #1324 review).
+    ///
+    /// Deadline 10s: the first attempt is `leftEmpty` at +3.5s (7 polls), the retry's
+    /// store never changes, and it gives up when the 10s are spent — 20 polls in
+    /// all, not 27.
+    ///
+    /// Mutation: pass the retry `deadline` instead of `remaining` — 27 polls.
+    @Test func theRetrySharesTheFirstAttemptsDeadline() async {
+        let spy = Spy()
+        let refresher = Self.refresher(
+            stamp: Stamp(changesAt: [2]), holdsNoBuilds: { true },
+            isRunning: { _ in false }, spy: spy)
+        let outcome = await refresher.run(
+            deadline: .seconds(10), settle: .seconds(3), expectingBetas: true)
+        #expect(outcome == .noChange)
+        #expect(spy.launches.count == 2)
+        #expect(spy.sleeps == 20)
+    }
+
+    /// A first attempt that waited out the whole deadline with its instance alive
+    /// and the store empty has nothing left for a retry: reported, one launch.
+    ///
+    /// Mutation: drop the `remaining > settle` guard — a second instance is
+    /// launched with no time to wait on it.
+    @Test func anEmptyStoreAtTheDeadlineIsNotRetried() async {
+        let spy = Spy()
+        let refresher = Self.refresher(
+            stamp: Stamp(changesAt: [2]), holdsNoBuilds: { true },
+            isRunning: { _ in true }, spy: spy)
+        let outcome = await refresher.run(
+            deadline: .seconds(10), settle: .seconds(3), expectingBetas: true)
+        #expect(outcome == .leftEmpty(lastChange: .milliseconds(500)))
+        #expect(spy.launches.count == 1)
+    }
+
     /// A Mac with no beta installed and an empty store is just that — not a sync
     /// that died. No witness says otherwise, so it settles as before and nothing is
     /// relaunched.

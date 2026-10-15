@@ -269,22 +269,37 @@ public struct TestFlightRefresh: Sendable {
     /// Never more than one: if TestFlight dies every time, this is two launches where
     /// there was one, and the next attempt is `TestFlightSyncPolicy`'s to decide (an
     /// empty store gives it no evidence, so that is the floor).
+    ///
+    /// **Both attempts share `deadline`.** The app's callers stop waiting at
+    /// `defaultDeadline + 30s` and then reopen their one-sync-at-a-time gate, so a
+    /// retry given a deadline of its own could still be running — with its hidden
+    /// instance — after that gate let a second sync start. The retry gets what the
+    /// first attempt left, and is skipped when that cannot cover one settle: a first
+    /// attempt that waited out the deadline with its instance alive is reported
+    /// `leftEmpty` without a second launch.
     public func run(
         deadline: Duration = defaultDeadline,
         settle: Duration = settleInterval,
         expectingBetas: Bool = false
     ) async -> Outcome {
-        let first = await attempt(
+        let (first, waited) = await attempt(
             deadline: deadline, settle: settle, expectingBetas: expectingBetas, isRetry: false)
         guard case .leftEmpty = first else { return first }
+        let remaining = deadline - waited
+        guard remaining > settle else {
+            Log.app.notice("TestFlight sync: \(String(describing: first), privacy: .public) — no time left to retry")
+            return first
+        }
         Log.app.notice("TestFlight sync: \(String(describing: first), privacy: .public) — retrying once")
-        return await attempt(deadline: deadline, settle: settle, expectingBetas: true, isRetry: true)
+        return await attempt(deadline: remaining, settle: settle, expectingBetas: true, isRetry: true).outcome
     }
 
+    /// One launch and its wait, and how long that wait polled — what `run` has left
+    /// for a retry. The returns before the launch waited nothing.
     private func attempt(
         deadline: Duration, settle: Duration, expectingBetas: Bool, isRetry: Bool
-    ) async -> Outcome {
-        guard let bundle = locate() else { return .notInstalled }
+    ) async -> (outcome: Outcome, waited: Duration) {
+        guard let bundle = locate() else { return (.notInstalled, .zero) }
 
         // Nothing to fetch without an account, and starting TestFlight then only
         // asks the user to sign in. The App Store sign-in goes first because it is
@@ -299,11 +314,11 @@ public struct TestFlightRefresh: Sendable {
         // ever running to catch it up. The cost: a Mac signed in but testing nothing
         // starts, and ends, a hidden TestFlight on each refresh the user asks for.
         let signedIn = await appStoreSignedIn()
-        if signedIn == false { return .notSignedIn }
+        if signedIn == false { return (.notSignedIn, .zero) }
         // Not on the retry: the attempt before it left the store empty, and an empty
         // store always reads as testing nothing — the gate would refuse the very
         // launch that repairs it.
-        if signedIn == nil, !isRetry, await testsNothing() { return .accountTestsNothing }
+        if signedIn == nil, !isRetry, await testsNothing() { return (.accountTestsNothing, .zero) }
 
         // Read the store BEFORE anything of ours touches it, so the wait below
         // compares against the state that predates our own writes.
@@ -314,7 +329,7 @@ public struct TestFlightRefresh: Sendable {
         // There is no branch on `isRunning` any more, and that is the whole change —
         // reaching an already-running instance meant making it active, and making an
         // app active means giving it the foreground.
-        guard let pid = await spawn(bundle) else { return .launchFailed }
+        guard let pid = await spawn(bundle) else { return (.launchFailed, .zero) }
         // Ours to end, on every path from here on — the wait has several. The two
         // returns above this line have no process to end. Leaving one behind would
         // be worse than the old cold-launch path, which at least had macOS
@@ -347,9 +362,9 @@ public struct TestFlightRefresh: Sendable {
                 // lives it may still be on its way; once it has gone, nothing will
                 // write this store again until TestFlight next runs.
                 guard expectsBuilds, await storeHoldsNoBuilds() == true else {
-                    return .refreshed(after: lastChange)
+                    return (.refreshed(after: lastChange), waited)
                 }
-                if !isRunning(pid) { return .leftEmpty(lastChange: lastChange) }
+                if !isRunning(pid) { return (.leftEmpty(lastChange: lastChange), waited) }
             }
         }
         // Ran out of time. It still changed, so say so rather than pretending
@@ -357,10 +372,10 @@ public struct TestFlightRefresh: Sendable {
         // still, or held still half built, so the sync may well be in flight, and
         // the caller is about to read it.
         if let lastChange, expectsBuilds, await storeHoldsNoBuilds() == true {
-            return .leftEmpty(lastChange: lastChange)
+            return (.leftEmpty(lastChange: lastChange), waited)
         }
-        if let lastChange { return .changedWithoutSettling(lastChange: lastChange) }
-        return .noChange
+        if let lastChange { return (.changedWithoutSettling(lastChange: lastChange), waited) }
+        return (.noChange, waited)
     }
 
     // MARK: - Live effects

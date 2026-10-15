@@ -155,9 +155,12 @@ verified rows really verify. Both images are UDZO, ~176 MB.
 
 Reading the plist itself is 2–10 ms in every row; the rest is attach and detach.
 
-- **There is no OS difference to find.** macOS 26 is no slower, and on the quiet
-  machine it is faster. The "seconds" is the UDIF checksum pass over the whole
-  image, on either OS (1.5–4.9 s per run across both machines).
+- **Nothing here shows macOS 27 to be faster.** The two OS versions ran on
+  different hardware under different loads, so this table cannot separate the
+  OS from the machine. The non-verifying rows were faster on the 26.7 mini; the
+  verifying row was mixed (Gemini 2.00 s on 27.2 against 3.59 s on 26.7,
+  Qianwen the other way). What both machines agree on is where the "seconds"
+  come from: the UDIF checksum pass over the whole image, 1.5–4.9 s per run.
 - **`-noverify` is only honest with a digest gate behind it.** Skipping the
   checksum is what makes this cheap, so the bytes have to be proven some other
   way, as gate 8 does for zips. Of the shapes seen, Gemini records no digest at

@@ -395,24 +395,33 @@ func parseBalrogShutoffs(_ data: Data) -> Set<BalrogTrack>? {
 }
 
 /// Whether `recipe`'s endpoint answers with a server crash report right now
-/// (`isServerErrorPage`). A plain GET with the recipe's headers; an endpoint
-/// with placeholders (`ProbeIdentity`) is not fetched, and anything that is not
-/// a 200 is not a crash report served as content.
+/// (`isServerErrorPage`). A GET with the probe's User-Agent and the recipe's
+/// headers. Not for a recipe that puts a value read off this Mac into its URL
+/// (`localReads`: identities, a rollout track): its `url` carries the
+/// placeholders, not the request that failed, and nothing here may send that
+/// value. Anything but a 200 is not a crash report served as content.
 func servesErrorPage(_ recipe: VendorProbeRecipe) async -> Bool {
-    guard !recipe.url.absoluteString.contains("{") else { return false }
-    var request = URLRequest(url: recipe.url)
-    request.cachePolicy = .reloadIgnoringLocalCacheData
-    request.timeoutInterval = 15
-    for (field, value) in recipe.requestHeaders { request.setValue(value, forHTTPHeaderField: field) }
-    guard let (data, response) = try? await URLSession.shared.data(for: request),
+    guard let request = errorPageRequest(for: recipe),
+          let (data, response) = try? await URLSession.shared.data(for: request),
           (response as? HTTPURLResponse)?.statusCode == 200
     else { return false }
     return isServerErrorPage(String(decoding: data, as: UTF8.self))
 }
 
+/// The request `servesErrorPage` sends for `recipe`, or nil when it sends none.
+func errorPageRequest(for recipe: VendorProbeRecipe) -> URLRequest? {
+    guard recipe.localReads.isEmpty else { return nil }
+    var request = URLRequest(url: recipe.url)
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    request.timeoutInterval = 15
+    request.setValue(VendorProbeSource.userAgent, forHTTPHeaderField: "User-Agent")
+    for (field, value) in recipe.requestHeaders { request.setValue(value, forHTTPHeaderField: field) }
+    return request
+}
+
 /// A body that is a server's crash report, not a page: PHP's fatal or parse
 /// error, a Python traceback, or a proxy's 5xx page. Only a short body: a
-/// crash report is a few hundred bytes (Blender's, 319), and a real page long
+/// crash report is a few hundred bytes (Blender's, 590), and a real page long
 /// enough could mention one of these in passing (a changelog quoting a
 /// traceback).
 func isServerErrorPage(_ body: String) -> Bool {
@@ -442,7 +451,8 @@ private func committedLastGoodDates() -> [String: Date] {
     return entries.compactMapValues { ($0["lastGoodAt"] as? String).flatMap(iso.date(from:)) }
 }
 
-/// Blender's JSON listing on 2026-10-15, as served (319 bytes, status 200).
+/// Blender's JSON listing on 2026-10-15, as served with status 200: 590
+/// bytes (319 on the wire, compressed), less its final newline.
 private let blenderCrashReport = """
 <br />
 <b>Fatal error</b>:  Uncaught Error: Call to undefined method BuildsRenderer::getFileNameURL() in /var/www/html/source/BuildsRenderer.php:16
@@ -467,6 +477,23 @@ Stack trace:
     // A real page long enough could quote one in passing.
     let changelog = String(repeating: "Fixed a crash. ", count: 2_000) + "Traceback (most recent call last):"
     #expect(!isServerErrorPage(changelog))
+}
+
+/// The second look at a page goes out as the probe's own request would, and
+/// never for a recipe that puts a value read off this Mac into its URL.
+///
+/// Mutations: drop the `localReads` guard (Codex's placeholder URL goes out);
+/// drop the User-Agent line.
+@Test func theSecondLookIsTheProbesRequestAndSkipsLocalReads() throws {
+    let codex = try #require(VendorProbeRegistry.recipes.first {
+        $0.bundleID == "com.openai.codex" && !$0.localReads.isEmpty })
+    #expect(errorPageRequest(for: codex) == nil,
+            "its url carries __IDENTITY__, not the request that failed")
+    let blender = try #require(VendorProbeRegistry.recipes.first {
+        $0.bundleID == "org.blenderfoundation.blender" && $0.channel == .alpha })
+    let request = try #require(errorPageRequest(for: blender))
+    #expect(request.url == blender.url)
+    #expect(request.value(forHTTPHeaderField: "User-Agent") == VendorProbeSource.userAgent)
 }
 
 @Test func vendorOutageIsExcusedOnlyForARecipeThatRecentlyWorked() {

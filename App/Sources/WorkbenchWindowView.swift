@@ -276,11 +276,10 @@ struct WorkbenchWindowView: View {
             || !model.cliTools.justUpdated.isEmpty
     }
 
-    /// Homebrew's Upgrade All or a formula's own upgrade is running. Every
-    /// "Other tools" Update waits for it, not only Update All: npm packages can
-    /// run on Homebrew's node.
-    private var brewUpgradeRunning: Bool {
-        model.brewUpgrading || !model.upgradingFormulae.isEmpty
+    /// Why every "Other tools" Update is disabled — a Homebrew run is under way
+    /// (`CLIConcurrency`) — for its tooltip; nil while they may run.
+    private var toolUpdateBlockedReason: String? {
+        model.cliBlockedReason(.tool)
     }
 
     /// The app the detail pane shows — keyed off the debounced `detailSelection`,
@@ -358,11 +357,11 @@ struct WorkbenchWindowView: View {
                     if case .claudeCode(let claudeCode) = status.detail {
                         ClaudeCodeDetailPane(status: claudeCode, cli: model.cliTools,
                                              showsRuntime: model.prefs.showCLIRuntimeTags,
-                                             brewUpgrading: brewUpgradeRunning)
+                                             blockedReason: toolUpdateBlockedReason)
                     } else {
                         CLIToolDetailPane(status: status, cli: model.cliTools,
                                           showsRuntime: model.prefs.showCLIRuntimeTags,
-                                          brewUpgrading: brewUpgradeRunning)
+                                          blockedReason: toolUpdateBlockedReason)
                     }
                 }
                 .id(status.toolID.tag)
@@ -883,17 +882,15 @@ struct WorkbenchWindowView: View {
     @ViewBuilder
     private var brewBulkUpgrade: some View {
         if !model.brewOutdatedFormulae.isEmpty {
+            let blocked = model.cliBlockedReason(.upgradeAll)
             ZStack(alignment: .trailing) {
                 Button("Upgrade All") { Task { await model.upgradeBrewFormulae() } }
                     .controlSize(.small)
                     .buttonStyle(.bordered)
-                    // A per-row upgrade or `brew update` is already holding brew's
-                    // lock — a bulk run would just fail, so disable it until that finishes.
-                    // Nor while the other tools update: npm packages can run on
-                    // Homebrew's node, the popover's rule.
-                    .disabled(model.brewUpgrading || !model.upgradingFormulae.isEmpty || model.homebrewUpdating
-                        || model.cliTools.updatingAll || !model.cliTools.updating.isEmpty)
-                    .help("Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above.")
+                    // Not beside another brew run or a tool's update; the tooltip
+                    // says which (`CLIConcurrency`).
+                    .disabled(blocked != nil)
+                    .help(blocked ?? String(localized: "Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above."))
                     .opacity(model.brewUpgrading ? 0 : 1)
                     .accessibilityHidden(model.brewUpgrading)
                 if model.brewUpgrading {
@@ -1020,10 +1017,9 @@ struct WorkbenchWindowView: View {
             Button("Update All") { Task { await tools.updateAll() } }
                 .controlSize(.small)
                 .buttonStyle(.bordered)
-                // Not while brew upgrades: npm packages can run on Homebrew's node.
-                .disabled(tools.updatingAll || tools.batchable.isEmpty
-                    || model.brewUpgrading || !model.upgradingFormulae.isEmpty)
-                .help(String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone."))
+                // Not beside a brew run; the tooltip says so (`CLIConcurrency`).
+                .disabled(tools.updatingAll || tools.batchable.isEmpty || toolUpdateBlockedReason != nil)
+                .help(toolUpdateBlockedReason ?? String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone."))
                 .opacity(tools.updatingAll ? 0 : 1)
                 .overlay {
                     if tools.updatingAll { ProgressView().controlSize(.small) }
@@ -1247,7 +1243,7 @@ struct WorkbenchWindowView: View {
                         CLIToolSidebarRow(
                             status: status, cli: model.cliTools,
                             showsRuntime: model.prefs.showCLIRuntimeTags,
-                            brewUpgrading: brewUpgradeRunning)
+                            blockedReason: toolUpdateBlockedReason)
                             .sidebarRow(status.toolID.tag, selection: $selection)
                     }
                 }
@@ -1825,10 +1821,12 @@ private struct BrewFormulaSidebarRow: View {
             if upgrading {
                 ProgressView().controlSize(.small)
             } else if formula.hasUpdate {
+                let blocked = model.cliBlockedReason(.upgradeFormula)
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
-                    .disabled(model.homebrewUpdating)
+                    .disabled(blocked != nil)
+                    .help(blocked ?? "")
             }
         }
         .padding(.vertical, 2)
@@ -1844,8 +1842,8 @@ private struct HomebrewSelfUpdateSidebarRow: View {
     let update: HomebrewSelfUpdate
     @Bindable var model: AppListModel
 
-    /// brew holds one global lock, so `brew update` can't start while an upgrade runs.
-    private var brewBusy: Bool { model.brewUpgrading || !model.upgradingFormulae.isEmpty }
+    /// Why `brew update` can't start now (`CLIConcurrency`), for the tooltip.
+    private var blocked: String? { model.cliBlockedReason(.homebrewUpdate) }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -1872,8 +1870,8 @@ private struct HomebrewSelfUpdateSidebarRow: View {
                 Button("Update") { Task { await model.updateHomebrew() } }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
-                    .disabled(brewBusy)
-                    .help("Runs `brew update`, which updates Homebrew and refreshes its package lists using your own Homebrew settings.")
+                    .disabled(blocked != nil)
+                    .help(blocked ?? String(localized: "Runs `brew update`, which updates Homebrew and refreshes its package lists using your own Homebrew settings."))
             }
         }
         .padding(.vertical, 2)
@@ -2219,9 +2217,12 @@ private struct FormulaDetailPane: View {
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(.quaternary, in: Capsule())
             } else if formula.hasUpdate {
+                let blocked = model.cliBlockedReason(.upgradeFormula)
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
                     .controlSize(.large)
                     .buttonStyle(.borderedProminent)
+                    .disabled(blocked != nil)
+                    .help(blocked ?? "")
             }
         }
         .padding(16)

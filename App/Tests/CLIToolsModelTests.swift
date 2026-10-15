@@ -1884,4 +1884,26 @@ struct CLIToolsModelTests {
         #expect(!model.updating.contains(id))
         #expect(model.oneClickable.map(\.toolID) == [id])
     }
+
+    /// While a Homebrew run is under way neither a row's Update nor Update All
+    /// runs anything, whatever the button showed (#1312); once it ends, both do.
+    ///
+    /// Mutations: drop `blockedByHomebrew` from `update`'s guard; from `updateAll`'s.
+    @Test func noUpdateRunsBesideHomebrew() async {
+        let updater = FakeUpdater()
+        let model = Self.model(check: FakeCheck([(Self.report(Self.status(Self.native)), nil)]), updater: updater)
+        await model.refresh()
+        var brewRunning = true
+        model.blockedByHomebrew = { brewRunning }
+        let id = Self.id(Self.native)
+
+        await model.update(id)
+        await model.updateAll()
+        #expect(await updater.calls.isEmpty)
+        #expect(model.updating.isEmpty)
+
+        brewRunning = false
+        await model.update(id)
+        #expect(await updater.calls == [id])
+    }
 }

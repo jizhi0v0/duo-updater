@@ -852,8 +852,7 @@ private struct CommandLineRow: View {
             return half([first, uncheckedLine, deprecatedLine].compactMap { $0 },
                         mark: unchecked > 0 ? uncheckedMark : nil,
                         button: updateButton(
-                            disabled: tools.updatingAll || !tools.updating.isEmpty || model.homebrewUpdating
-                                || !model.upgradingFormulae.isEmpty,
+                            blocked: model.cliBlockedReason(.upgradeAll),
                             help: String(localized: "Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
                         ) { await model.upgradeBrewFormulae() })
         }
@@ -898,8 +897,8 @@ private struct CommandLineRow: View {
         if !tools.checked { return half([Text(String(localized: "Checking…"))], mark: spinner) }
         if !tools.outdated.isEmpty {
             let button: (any View)? = tools.batchable.isEmpty ? nil : updateButton(
-                // Not while brew upgrades: npm packages can run on Homebrew's node.
-                disabled: model.brewUpgrading || !model.upgradingFormulae.isEmpty,
+                // Not beside a brew run (`CLIConcurrency`).
+                blocked: model.cliBlockedReason(.tool),
                 help: String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone.")
             ) { await tools.updateAll() }
             if let error = tools.outdated.lazy.compactMap({ tools.errors[$0.toolID] }).first {
@@ -941,7 +940,9 @@ private struct CommandLineRow: View {
 
     // MARK: Parts
 
-    private func updateButton(disabled: Bool, help: String, action: @escaping () async -> Void) -> some View {
+    /// `blocked`: why it is disabled (`AppListModel.cliBlockedReason`), its
+    /// tooltip in place of `help`; nil, it is enabled.
+    private func updateButton(blocked: String?, help: String, action: @escaping () async -> Void) -> some View {
         // The app rows' button: small, its label at least
         // `PopoverRowAction.buttonLabelMinWidth` wide, so the column of buttons
         // ends on one edge down the whole popover. Its own size, never scaled.
@@ -952,8 +953,8 @@ private struct CommandLineRow: View {
         .fixedSize()
         .controlSize(.small)
         .buttonStyle(.borderedProminent)
-        .disabled(disabled)
-        .help(help)
+        .disabled(blocked != nil)
+        .help(blocked ?? help)
     }
 
     private var spinner: some View { ProgressView().controlSize(.small) }

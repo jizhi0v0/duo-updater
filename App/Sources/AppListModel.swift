@@ -2008,6 +2008,8 @@ final class AppListModel {
         Task { await cliTools.scanInstalls() }
         // Every landed check, whichever path asked, may have something new to say.
         cliTools.onReport = { [weak self] in self?.notifyNewCLIToolUpdates() }
+        // A tool's update never runs beside a brew run (`CLIConcurrency`).
+        cliTools.blockedByHomebrew = { [weak self] in self?.cliBlockedReason(.tool) != nil }
         // A rejection is reported from whichever request met it; the banner hears
         // of it on the main actor, unless the credentials changed in between.
         GitHubCredentials.shared.onRejected { [weak self] generation in
@@ -4212,9 +4214,8 @@ final class AppListModel {
     /// Run `brew update` for the offered release, then re-check and re-read the
     /// Brew tree (an update refreshes the package lists, so new upgrades can appear).
     func updateHomebrew() async {
-        // brew takes one global lock; an update on top of an upgrade would just fail.
-        guard let offered = homebrewSelfUpdate, !homebrewUpdating,
-              !brewUpgrading, upgradingFormulae.isEmpty else { return }
+        // Not on top of another brew run or a tool's update (`CLIConcurrency`).
+        guard let offered = homebrewSelfUpdate, cliStart(.homebrewUpdate) == .now else { return }
         homebrewUpdating = true
         homebrewUpdateError = nil
         homebrewUpdateNote = String(localized: "Starting…")
@@ -4243,10 +4244,9 @@ final class AppListModel {
     /// Run `brew upgrade --formula` (the bulk action, mirroring a bare terminal
     /// `brew upgrade` but formula-scoped) and refresh the list when it finishes.
     func upgradeBrewFormulae() async {
-        guard !brewUpgrading, !homebrewUpdating else { return }
-        // Don't stack a bulk run on top of in-flight per-row upgrades — both call
-        // `brew`, which takes a single global lock; the second would just fail.
-        guard upgradingFormulae.isEmpty else { return }
+        // Not on top of `brew update`, a row's own upgrade or a tool's update
+        // (`CLIConcurrency`).
+        guard cliStart(.upgradeAll) == .now else { return }
         brewUpgrading = true
         brewUpgradeError = nil
         brewUpgradeNote = String(localized: "Starting…")
@@ -4291,7 +4291,9 @@ final class AppListModel {
     /// Upgrade a single formula (`brew upgrade --formula <name>`) — the per-row
     /// action in the workbench Brew list — then re-read the outdated set.
     func upgradeBrewFormula(named name: String) async {
-        guard !upgradingFormulae.contains(name), !homebrewUpdating else { return }
+        // Not on top of another brew run — Upgrade All included — or a tool's
+        // update (`CLIConcurrency`).
+        guard cliStart(.upgradeFormula) == .now else { return }
         upgradingFormulae.insert(name)
         formulaUpgradeErrors[name] = nil
         formulaUpgradeNotes[name] = String(localized: "Starting…")
@@ -4328,6 +4330,38 @@ final class AppListModel {
 
     /// One-line "x/n" status for an in-flight bulk upgrade — the count of the next
     /// formula being worked on over the total. nil when no bulk run is active.
+    // MARK: - Which CLI-tab runs wait for which (#1312)
+
+    /// The CLI tab's runs under way, as `CLIConcurrency` names them.
+    private var runningCLIOperations: [CLIOperation] {
+        var running: [CLIOperation] = []
+        if homebrewUpdating { running.append(.homebrewUpdate) }
+        if brewUpgrading { running.append(.upgradeAll) }
+        if !upgradingFormulae.isEmpty { running.append(.upgradeFormula) }
+        if cliTools.updatingAll || !cliTools.updating.isEmpty { running.append(.tool) }
+        return running
+    }
+
+    /// Whether `operation` may start now: what every model action checks.
+    func cliStart(_ operation: CLIOperation) -> CLIStart {
+        CLIConcurrency.start(operation, running: runningCLIOperations)
+    }
+
+    /// Why `operation`'s button is disabled, for its tooltip; nil while it may
+    /// start. Every Update and Upgrade All in the CLI tab, popover and
+    /// workbench, reads this and nothing else.
+    func cliBlockedReason(_ operation: CLIOperation) -> String? {
+        guard case .blocked(let blocker) = cliStart(operation) else { return nil }
+        switch (operation.isHomebrew, blocker.isHomebrew) {
+        case (true, true):
+            return String(localized: "Another Homebrew command is running. Try again once it has finished.")
+        case (true, false):
+            return String(localized: "Command-line tools are updating. Homebrew can’t run until they finish: it could replace the node or libraries they run on.")
+        default:
+            return String(localized: "Homebrew is running. Tools can’t update until it finishes: it could replace the node or libraries they run on.")
+        }
+    }
+
     var brewBulkProgressText: String? {
         guard brewUpgrading, brewUpgradeTotal > 0 else { return nil }
         let current = min(brewUpgradeDone + 1, brewUpgradeTotal)

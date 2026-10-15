@@ -66,6 +66,8 @@ test-scripts: check-python
 	$(PYTHON) scripts/check_localizable_specifiers.py
 	$(PYTHON) scripts/check_staged_version_use.py
 	$(PYTHON) scripts/test_check_staged_version_use.py
+	$(PYTHON) scripts/check_cli_concurrency_gates.py
+	$(PYTHON) scripts/test_check_cli_concurrency_gates.py
 	$(PYTHON) scripts/check_app_audits.py
 	$(PYTHON) scripts/check_recipe_snapshots.py
 	$(PYTHON) scripts/check_engine_notes.py

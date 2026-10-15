@@ -91,6 +91,9 @@ final class CLIToolsModel {
     /// longer running anything. Under `updateAll` the re-check waits for the
     /// tool's other lanes, so this can last as long as the slowest of them.
     private(set) var awaitingCheck: Set<CLIToolID> = []
+    /// Whether a Homebrew run is under way, which no tool's update runs beside
+    /// (`CLIConcurrency`). Set by `AppListModel`, which owns Homebrew's runs.
+    @ObservationIgnored var blockedByHomebrew: (@MainActor () -> Bool)?
     /// True for the whole of `updateAll`, including the re-checks at the end of
     /// each tool's lanes, so the popover row stays in its updating state instead
     /// of flashing back to "Update" between two copies.
@@ -603,7 +606,8 @@ final class CLIToolsModel {
         // Re-read here, not trusted from the click: the list may have been
         // re-checked since the row was drawn, and `oneClickable` is what carries
         // every gate — auto-update on, nothing else updating, not already ours.
-        guard let status = oneClickable.first(where: { $0.toolID == id }),
+        guard blockedByHomebrew?() != true,
+              let status = oneClickable.first(where: { $0.toolID == id }),
               let provider = provider(of: status)
         else { return }
         updating.insert(id)
@@ -728,7 +732,7 @@ final class CLIToolsModel {
     /// installer — Junie's alone downloads ~330 MB — plus a re-check of every
     /// tool after each copy.
     func updateAll() async {
-        guard !updatingAll else { return }
+        guard !updatingAll, blockedByHomebrew?() != true else { return }
         // `batchable`, never `oneClickable`: no administrator panel from a batch.
         let batch = batchable.compactMap { status in provider(of: status).map { (status, $0) } }
         guard !batch.isEmpty else { return }

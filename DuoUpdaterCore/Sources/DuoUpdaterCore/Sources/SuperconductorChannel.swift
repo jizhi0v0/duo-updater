@@ -71,13 +71,16 @@ enum SuperconductorChannel {
 
     /// `update_channel` from the first settings file that exists, or nil when there
     /// is none, or the key or a non-null value is missing from it. The first file
-    /// that exists answers alone, key or no key. On an upgraded copy both names are
-    /// the same file. In build `9cd78956`, the bundled `sc` helper's text says
-    /// startup "publishes the new data name as a link to existing legacy storage"
-    /// and that independent old and new profiles are an error. The main executable
-    /// accepts a `~/.super.engineering` symlink only if it resolves to
-    /// `~/.superconductor`. That fallback only matters for
-    /// a copy that has not run a renamed build yet. The file is ~9 KB; the cap keeps
+    /// that exists answers alone, key or no key. The vendor's own text says that on
+    /// an upgraded copy both names are the same file. In build `9cd78956`, the
+    /// bundled `sc` helper's text says "Startup publishes the new data name as a
+    /// link to existing legacy storage" and that independent old and new profiles
+    /// are an error. A shell script embedded in the main executable accepts a
+    /// `~/.super.engineering` symlink only if it resolves to `~/.superconductor`.
+    /// Not observed on an upgraded machine, and it is not settled whether
+    /// "startup" covers the app's own launch or only the `sc` CLI. If a renamed
+    /// build ever writes an independent new file, the choice left in the legacy
+    /// one is ignored. The file is ~9 KB; the cap keeps
     /// a path that turns out to be something else from being read into memory
     /// wholesale.
     static func readUpdateChannel(

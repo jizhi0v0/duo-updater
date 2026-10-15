@@ -790,9 +790,9 @@ struct SuperconductorTests {
         }
     }
 
-    /// Both present: the current file is the one the installed build reads, and it
-    /// answers alone — even without the key, a choice left in the legacy file is
-    /// not the app's choice any more.
+    /// Both present: the current file answers alone. Even without the key, the
+    /// legacy file is not consulted (on an upgraded copy the vendor links both
+    /// names to one file; see `readUpdateChannel`).
     @Test func theRenamedSettingsFileWinsOverTheLegacyOne() throws {
         try Self.withHome { home in
             try Self.writeSettings(home, ".superconductor", #"{"update_channel": "nightly"}"#)

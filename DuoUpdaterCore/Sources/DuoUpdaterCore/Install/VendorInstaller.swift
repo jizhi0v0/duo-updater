@@ -52,14 +52,17 @@ import CryptoKit
 /// not-running app just updates silently.
 public actor VendorInstaller {
 
-    /// Where `SelfUpdaterStash` looks for what an app's own updater parked. Nil
-    /// is the user's real `~/Library/Caches`; tests point it at a scratch
-    /// directory. A `DUO_DEV_HOOKS` build also reads
-    /// `DUO_SELF_UPDATER_CACHES_DIR`, so the installed `duo` can be shown a
-    /// fabricated stash without touching another app's real cache.
+    /// Where `SelfUpdaterStash` looks for what an app's own updater parked:
+    /// electron-updater's caches root and Cindy's Application Support root. Nil
+    /// is the user's real directory; tests point them at scratch directories. A
+    /// `DUO_DEV_HOOKS` build also reads `DUO_SELF_UPDATER_CACHES_DIR`, so the
+    /// installed `duo` can be shown a fabricated stash without touching another
+    /// app's real cache.
     private let stashCachesDirectory: URL?
+    private let stashApplicationSupportDirectory: URL?
 
-    public init(stashCachesDirectory: URL? = nil) {
+    public init(stashCachesDirectory: URL? = nil, stashApplicationSupportDirectory: URL? = nil) {
+        self.stashApplicationSupportDirectory = stashApplicationSupportDirectory
         #if DUO_DEV_HOOKS
         self.stashCachesDirectory = stashCachesDirectory
             ?? ProcessInfo.processInfo.environment["DUO_SELF_UPDATER_CACHES_DIR"]
@@ -160,7 +163,8 @@ public actor VendorInstaller {
         let digestOnly = remote.installTrust == .publishedDigestOnly
         let stash = digestOnly || !useLocalStash
             ? nil : await SelfUpdaterStash.resolve(
-                for: result, population: population, cachesDirectory: stashCachesDirectory)
+                for: result, population: population, cachesDirectory: stashCachesDirectory,
+                applicationSupportDirectory: stashApplicationSupportDirectory)
 
         // A patch published for exactly the build on disk. Vendors reached through
         // a probe can still serve a Sparkle appcast — ChatGPT does, and every one

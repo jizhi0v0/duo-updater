@@ -331,7 +331,7 @@ deleted: it belongs to the other updater, which is free to clear `pending/` or
 overwrite it mid-install, and our caller removes the scratch directory wholesale.
 
 A stash that fails before the swap (it does not unpack, or its bundle fails a
-gate) is not the end of the install. `applyVerified` throws `LocalStashFailure`,
+gate) is not the end of the install, whichever spot it was parked in. `applyVerified` throws `LocalStashFailure`,
 and `InstallCoordinator` retries once with `useLocalStash: false`, so the route's
 own artifact is downloaded and checked as usual. Without that, every retry took
 the same file again until the app's updater replaced it. Not retried, because

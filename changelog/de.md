@@ -2,6 +2,26 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.8
+
+**Ein fehlgeschlagenes Update lässt sich jetzt mit wenigen Klicks melden.** Schlägt ein Update fehl, öffnet „Problem melden …“ unter dem Fehler einen bereits ausgefüllten Bericht, den du als GitHub-Issue oder per E-Mail senden kannst. Einstellungen › Diagnose › Letzte Fehlschläge bewahrt die fehlgeschlagenen Updates der letzten 30 Tage auf diesem Mac auf, und nichts wird gesendet, solange du es nicht selbst sendest.
+
+**Mehr Apps werden unterstützt.** Swifty Download Manager, MC Download Manager und AstrLink erhalten Update-Prüfungen, Versionshinweise und Updates per Klick, yomado erhält Update-Prüfungen und Versionshinweise. Mit MyGo gebaute Apps wie Leafmark erhalten Update-Prüfungen, dazu Updates per Klick, die nur das Geänderte herunterladen, sobald „Ein-Klick-Updates für Apps ohne Entwicklersignatur erlauben“ in Einstellungen › Allgemein eingeschaltet ist. Auch WhatCable-Kopien von vor der Umbenennung erhalten Updates.
+
+**Apps, die ihr Update schon selbst heruntergeladen haben, werden richtig behandelt.** Firefox und Helium werden nicht mehr ein zweites Mal über ein Update aktualisiert, das sie bereits vorbereitet haben, und Cindy installiert aus dem Download, den es schon gemacht hat. Besteht der eigene Download einer App die Prüfungen nicht, lädt DuoUpdater das Update jetzt selbst herunter, statt jedes Mal zu scheitern.
+
+**Mehrere Updates, die fehlschlugen, werden jetzt installiert.** Das Update von AdGuard auf 2.20 bleibt nicht mehr bei „No .app bundle was found inside the archive.“ stehen. Die chinesische Ausgabe von WorkBuddy aktualisiert sich wieder, und Xcode-Betas setzen den Download nach einem Verbindungsabbruch fort, statt von vorn zu beginnen.
+
+**DuoUpdater verbraucht nach einem Neustart nicht mehr alle GitHub-Anfragen.** Es wartet jetzt auf eine angemeldete GitHub CLI, die langsam antwortet, und solange das GitHub-Limit erschöpft ist, fragt es erst wieder, wenn das Limit zurückgesetzt ist, statt dieselben Prüfungen immer wieder scheitern zu lassen.
+
+**Die Suche in den Einstellungen findet einzelne Einstellungen und Apps.** Gib den Namen einer Einstellung oder einer App ein und spring direkt zu ihrer Zeile. Einstellungen › Diagnose springt beim Öffnen nicht mehr, zeigt App-Symbole und listet die ersten 10 Erkennungs-Rezepte mit einer Schaltfläche, um alle anzuzeigen.
+
+**Versionshinweise scrollen flüssiger.** Kopieren sitzt immer oben rechts, beim Wechsel zwischen den beiden Layouts bleibt die Version, die du gerade liest, und der Sprung zu einer inkompatiblen Änderung landet auf ihr statt unter der Versionsüberschrift.
+
+**Korrekturen.** Das Schließen des Menüs während einer Prüfung markiert nicht mehr jedes Befehlszeilenwerkzeug als „nicht erreichbar“. Die Werkbank zeigt nicht mehr „Aktuell“, wenn eine Prüfung fehlgeschlagen ist. Den Nightly-Builds von Secretive wird nicht mehr die stabile Version angeboten, Superconductor folgt dem Update-Kanal, den du gewählt hast, und die Versionshinweise von Longbridge und HyperFrames werden wieder angezeigt.
+
+**Unter der Haube.** Eine abgebrochene TestFlight-Synchronisierung wird wiederholt, mit • geschriebene Versionshinweise zeigen keine doppelten Aufzählungszeichen mehr, und Updates von Homebrew und Befehlszeilenwerkzeugen laufen nicht mehr gleichzeitig übereinander.
+
 ## 0.5.7
 
 **Globale Pakete von pnpm und Yarn werden jetzt unterstützt.** Mit `pnpm add -g` oder `yarn global add` installierte Pakete erscheinen im CLI-Tab mit Update-Prüfung, Versionshinweisen und Updates mit einem Klick, die den von dir gewählten Versionsbereich beibehalten.

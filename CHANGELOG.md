@@ -19,6 +19,26 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.8
+
+**You can now report a failed update in a couple of clicks.** When an update fails, "Report this problem…" under its error opens a report that is already filled in, to send as a GitHub issue or an email. Settings › Diagnostics › Recent failures keeps the last 30 days of failed updates on this Mac, and nothing is sent unless you send it.
+
+**More apps are supported.** Swifty Download Manager, MC Download Manager and AstrLink get update checks, release notes and one-click updates, and yomado gets update checks and release notes. Apps built with MyGo, such as Leafmark, get update checks, plus one-click updates that download only what changed once "Allow one-click updates for apps without a developer signature" is on in Settings › General. WhatCable copies from before its rename get updates too.
+
+**Apps that already downloaded their own update are handled properly.** Firefox and Helium are no longer updated a second time over an update they have already staged, and Cindy installs from the download it already made. If an app's own download fails its checks, DuoUpdater now downloads the update itself instead of failing every time.
+
+**Several updates that failed now install.** AdGuard's update to 2.20 no longer stops with "No .app bundle was found inside the archive." WorkBuddy's China edition updates again, and Xcode betas pick up where they left off after a dropped connection instead of starting over.
+
+**DuoUpdater no longer runs out of GitHub requests after a restart.** It now waits for a signed-in GitHub CLI that is slow to answer, and while GitHub's limit is spent it stops asking until the limit resets instead of failing the same checks over and over.
+
+**Settings search finds individual settings and apps.** Type a setting's name or an app's name and jump straight to its row. Settings › Diagnostics no longer jumps when it opens, shows app icons, and lists the first 10 detection recipes with a Show All button.
+
+**Release notes scroll more smoothly.** Copy is always at the top right, switching between the two layouts keeps the version you were reading, and jumping to a breaking change lands on it instead of under the version header.
+
+**Fixes.** Closing the menu during a check no longer marks every command-line tool "Couldn't reach". The workbench no longer says "up to date" when a check failed. Secretive's nightly builds are no longer offered the stable release, Superconductor follows the update channel you picked, and Longbridge's and HyperFrames' release notes show again.
+
+**Under the hood.** A TestFlight sync that is cut short is retried, release notes written with • no longer show two bullets, and Homebrew and command-line tool updates no longer run over each other.
+
 ## 0.5.7
 
 **pnpm's and Yarn's global packages are now supported.** Packages installed with `pnpm add -g` or `yarn global add` appear in the CLI tab with update checks, release notes and one-click updates, which keep the version range you chose.

@@ -2,6 +2,26 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.8
+
+**Ahora puedes informar de una actualización fallida con un par de clics.** Cuando una actualización falla, «Informar de este problema…» debajo del error abre un informe ya rellenado para enviarlo como incidencia de GitHub o por correo. Ajustes › Diagnóstico › Fallos recientes guarda en este Mac las actualizaciones fallidas de los últimos 30 días, y no se envía nada a menos que tú lo envíes.
+
+**Se admiten más apps.** Swifty Download Manager, MC Download Manager y AstrLink reciben comprobación de actualizaciones, notas de la versión y actualizaciones con un clic, y yomado recibe comprobación de actualizaciones y notas de la versión. Las apps creadas con MyGo, como Leafmark, reciben comprobación de actualizaciones, y también actualizaciones con un clic que solo descargan lo que ha cambiado cuando «Permitir actualizaciones con un clic para apps sin firma de desarrollador» está activado en Ajustes › General. Las copias de WhatCable anteriores a su cambio de nombre también reciben actualizaciones.
+
+**Las apps que ya descargaron su propia actualización se tratan correctamente.** Firefox y Helium ya no se actualizan una segunda vez encima de una actualización que ya habían preparado, y Cindy se instala desde la descarga que ya hizo. Si la descarga propia de una app no pasa sus comprobaciones, DuoUpdater ahora descarga la actualización por su cuenta en lugar de fallar cada vez.
+
+**Varias actualizaciones que fallaban ahora se instalan.** La actualización de AdGuard a 2.20 ya no se detiene con «No .app bundle was found inside the archive.». La edición china de WorkBuddy vuelve a actualizarse, y las betas de Xcode retoman la descarga tras un corte de conexión en lugar de empezar de nuevo.
+
+**DuoUpdater ya no agota las solicitudes a GitHub tras reiniciar.** Ahora espera a un GitHub CLI con sesión iniciada que tarda en responder, y mientras el límite de GitHub está agotado deja de preguntar hasta que se restablece, en lugar de hacer fallar las mismas comprobaciones una y otra vez.
+
+**La búsqueda de Ajustes encuentra ajustes y apps concretos.** Escribe el nombre de un ajuste o de una app y salta directamente a su fila. Ajustes › Diagnóstico ya no salta al abrirse, muestra los iconos de las apps y lista las 10 primeras recetas de detección con un botón para mostrarlas todas.
+
+**Las notas de la versión se desplazan con más fluidez.** Copiar está siempre arriba a la derecha, cambiar entre las dos disposiciones mantiene la versión que estabas leyendo, y saltar a un cambio incompatible lo deja a la vista en lugar de debajo del encabezado de la versión.
+
+**Correcciones.** Cerrar el menú durante una comprobación ya no marca todas las herramientas de línea de comandos como «inaccesible». El banco de trabajo ya no dice «Actualizado» cuando una comprobación ha fallado. A las compilaciones nightly de Secretive ya no se les ofrece la versión estable, Superconductor sigue el canal de actualización que elegiste, y las notas de la versión de Longbridge y HyperFrames vuelven a mostrarse.
+
+**Por dentro.** Una sincronización de TestFlight interrumpida se reintenta, las notas de la versión escritas con • ya no muestran dos viñetas, y las actualizaciones de Homebrew y de las herramientas de línea de comandos ya no se pisan entre sí.
+
 ## 0.5.7
 
 **Ahora se admiten los paquetes globales de pnpm y Yarn.** Los paquetes instalados con `pnpm add -g` o `yarn global add` aparecen en la pestaña CLI con comprobación de actualizaciones, notas de la versión y actualizaciones con un clic, que conservan el rango de versiones que elegiste.

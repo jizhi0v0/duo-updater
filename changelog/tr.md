@@ -2,6 +2,26 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.8
+
+**Başarısız bir güncellemeyi artık birkaç tıklamayla bildirebilirsiniz.** Bir güncelleme başarısız olduğunda, hatanın altındaki “Bu sorunu bildir…” önceden doldurulmuş bir rapor açar; bunu GitHub issue’su ya da e-posta olarak gönderebilirsiniz. Ayarlar › Tanılama › Son başarısızlıklar, son 30 günün başarısız güncellemelerini bu Mac’te saklar ve siz göndermedikçe hiçbir şey gönderilmez.
+
+**Daha fazla uygulama destekleniyor.** Swifty Download Manager, MC Download Manager ve AstrLink güncelleme denetimi, sürüm notları ve tek tıkla güncelleme alıyor; yomado da güncelleme denetimi ve sürüm notları alıyor. Leafmark gibi MyGo ile yapılmış uygulamalar güncelleme denetimi alıyor; Ayarlar › Genel’de “Geliştirici imzası olmayan uygulamalarda tek tıkla güncellemeye izin ver” açıkken yalnızca değişen kısmı indiren tek tıkla güncelleme de alıyor. Adı değişmeden önceki WhatCable kopyaları da güncelleme alıyor.
+
+**Kendi güncellemesini zaten indirmiş uygulamalar doğru şekilde ele alınıyor.** Firefox ve Helium artık kendi hazırladıkları bir güncellemenin üzerine ikinci kez güncellenmiyor; Cindy de zaten yaptığı indirmeden kuruluyor. Bir uygulamanın kendi indirdiği dosya denetimlerden geçmezse DuoUpdater artık her seferinde başarısız olmak yerine güncellemeyi kendisi indiriyor.
+
+**Başarısız olan birkaç güncelleme artık kuruluyor.** AdGuard’ın 2.20 güncellemesi artık “No .app bundle was found inside the archive.” hatasında durmuyor. WorkBuddy’nin Çin sürümü yeniden güncelleniyor; Xcode betaları da bağlantı koptuğunda indirmeye baştan başlamak yerine kaldığı yerden devam ediyor.
+
+**DuoUpdater yeniden başlatmadan sonra GitHub istek hakkını artık tüketmiyor.** Artık yavaş yanıt veren, oturum açılmış bir GitHub CLI’yi bekliyor; GitHub’ın sınırı dolduğunda da aynı denetimleri tekrar tekrar başarısız kılmak yerine sınır sıfırlanana kadar sormayı bırakıyor.
+
+**Ayarlar araması tek tek ayarları ve uygulamaları buluyor.** Bir ayarın ya da uygulamanın adını yazın ve doğrudan satırına gidin. Ayarlar › Tanılama açılırken artık zıplamıyor, uygulama simgelerini gösteriyor ve ilk 10 algılama tarifini, tümünü gösteren bir düğmeyle listeliyor.
+
+**Sürüm notları daha akıcı kayıyor.** Kopyala her zaman sağ üstte; iki düzen arasında geçiş yapmak okuduğunuz sürümü koruyor; uyumsuz bir değişikliğe atlamak da onu sürüm başlığının altında bırakmak yerine tam üzerine getiriyor.
+
+**Düzeltmeler.** Bir denetim sürerken menüyü kapatmak artık tüm komut satırı araçlarını “ulaşılamadı” olarak işaretlemiyor. Çalışma alanı, başarısız olan bir denetim için artık “Güncel” demiyor. Secretive’in nightly derlemelerine artık kararlı sürüm önerilmiyor, Superconductor seçtiğiniz güncelleme kanalını izliyor ve Longbridge ile HyperFrames’in sürüm notları yeniden görünüyor.
+
+**Perde arkasında.** Yarıda kesilen bir TestFlight eşitlemesi yeniden deneniyor, • ile yazılmış sürüm notlarında artık iki madde işareti görünmüyor ve Homebrew ile komut satırı araçlarının güncellemeleri artık birbirinin üzerine binmiyor.
+
 ## 0.5.7
 
 **pnpm ve Yarn'ın genel paketleri artık destekleniyor.** `pnpm add -g` veya `yarn global add` ile kurulan paketler CLI sekmesinde güncelleme denetimi, sürüm notları ve tek tıkla güncellemeyle görünüyor; tek tıkla güncelleme seçtiğiniz sürüm aralığını koruyor.

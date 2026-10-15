@@ -21,16 +21,24 @@ public struct StagedSelfUpdate: Sendable, Hashable {
     /// nobody said, and a decision keyed on it must take its safe side (see
     /// `ReappearanceWatch.init(for:)`).
     public let updater: StagedUpdater?
+    /// The vendor's own build id, when the updater states one in a namespace
+    /// other than `CFBundleVersion` — Mozilla's `BuildID`, compared with
+    /// `InstalledApp.vendorBuildVersion` and a `.vendor`-namespace remote. Kept
+    /// apart from `buildVersion` because `versionSide` pairs that with the
+    /// installed `CFBundleVersion`, which is a different number.
+    public let vendorBuild: String?
 
     public init(
         version: String, buildVersion: String?, stagedBundlePath: URL,
-        appliesOn: StagedApplyTrigger = .quit, updater: StagedUpdater? = nil
+        appliesOn: StagedApplyTrigger = .quit, updater: StagedUpdater? = nil,
+        vendorBuild: String? = nil
     ) {
         self.version = version
         self.buildVersion = buildVersion
         self.stagedBundlePath = stagedBundlePath
         self.appliesOn = appliesOn
         self.updater = updater
+        self.vendorBuild = vendorBuild
     }
 
     /// What identifies this staged build when the question is "is this a
@@ -49,7 +57,7 @@ public struct StagedSelfUpdate: Sendable, Hashable {
     /// NOT for display: it is a bare build number with no marketing version in
     /// front of it. `UpdateResult.stagedRelaunchLine` is what a row or a
     /// notification should show.
-    public var buildIdentity: String { buildVersion ?? version }
+    public var buildIdentity: String { buildVersion ?? vendorBuild ?? version }
 
     /// Both version strings the staged bundle carries, for comparison against an
     /// installed copy or a remote offer. Prefer this over ``buildIdentity`` where
@@ -109,6 +117,20 @@ public enum StagedUpdater: Sendable, Hashable {
     /// process exits — with no version check, so like Sparkle it applies on quit
     /// and like Sparkle a staged build older than ours undoes our install.
     case magpie
+    /// Mozilla's own updater (Firefox, Thunderbird). It stages under
+    /// `~/Library/Caches/<Vendor>/updates/<install path>/updates/0` and applies on
+    /// the next LAUNCH, not on quit — measured 2026-10-15 on Firefox 157.0.1 with
+    /// 158.0 staged: a quit left the bundle alone for 60 s, the next launch swapped
+    /// it in (a "replace request": `Updated.app/Contents` renamed over the
+    /// installed `Contents`). It does check versions at startup, before the swap:
+    /// `nsUpdateDriver.cpp` returns without applying when `update.version` is
+    /// older than the app's `Version` (`IsOlderVersion`). That protects only where
+    /// `Version` moves with every release (release, ESR). A beta, Developer
+    /// Edition or Nightly cycle keeps one `Version` across all its builds
+    /// (`155.0` for 155.0b1–b9), so an earlier build staged in the same cycle is
+    /// not "older" and IS applied over ours. `UpdatePolicy` decides per case on
+    /// the `BuildID` (`vendorBuild`).
+    case mozilla
 }
 
 /// Detects updates that an app's *own* Squirrel updater (Electron's
@@ -131,7 +153,14 @@ public enum SelfUpdaterStaging {
     /// stat-ing every installed app.
     public static func mayHaveStaging(_ app: InstalledApp) -> Bool {
         app.hasSelfUpdater || app.hasSparkleUpdater || app.bundleID == spotifyBundleID
-            || app.bundleID == magpieBundleID
+            || app.bundleID == magpieBundleID || isMozillaBundleID(app.bundleID)
+    }
+
+    /// Mozilla's own apps, by bundle id alone so this stays a string test (see
+    /// `mayHaveStaging`). Whether the bundle really carries Mozilla's updater is
+    /// asked later, in `mozillaStaged`.
+    static func isMozillaBundleID(_ bundleID: String?) -> Bool {
+        bundleID?.lowercased().hasPrefix("org.mozilla.") ?? false
     }
 
     private static let spotifyBundleID = "com.spotify.client"
@@ -180,6 +209,12 @@ public enum SelfUpdaterStaging {
                 for: app, requireNewerThanInstalled: requireNewerThanInstalled,
                 applicationSupportDirectory: applicationSupportDirectory,
                 fileManager: fileManager)
+        }
+
+        if isMozillaBundleID(bundleID) {
+            return mozillaStaged(
+                for: app, requireNewerThanInstalled: requireNewerThanInstalled,
+                cachesDirectory: cachesDirectory, fileManager: fileManager)
         }
 
         // Sparkle apps reach the same answer by a different cache layout. Asked
@@ -323,6 +358,140 @@ public enum SelfUpdaterStaging {
             version: versionTo, buildVersion: nil,
             stagedBundlePath: URL(fileURLWithPath: updatePath),
             appliesOn: .launch, updater: .spotify)
+    }
+
+    /// Where Mozilla's updater stages for the bundle at `app.path`, from
+    /// `nsXREDirProvider::GetUpdateRootDir` (mozilla-firefox `main`, read
+    /// 2026-10-15): the local user data home (`~/Library/Caches`), then the
+    /// `application.ini` `Vendor` (or `Name` when there is none), then `updates`,
+    /// then the executable's path with its leading `/` dropped and cut at the
+    /// last `.app` — `/Applications/Firefox.app` → `Applications/Firefox`, which is
+    /// what Firefox 157.0.1 used here. `updates/0` under it holds one staged update.
+    ///
+    /// Nil when the bundle has no `application.ini` naming a vendor or name, or no
+    /// `Contents/MacOS/updater.app`: that is not Mozilla's updater.
+    static func mozillaStagingDirectory(
+        for app: InstalledApp, cachesDirectory: URL? = nil, fileManager: FileManager = .default
+    ) -> URL? {
+        let contents = app.path.appendingPathComponent("Contents", isDirectory: true)
+        guard fileManager.fileExists(
+                atPath: contents.appendingPathComponent("MacOS/updater.app").path),
+              let ini = try? String(
+                contentsOf: contents.appendingPathComponent("Resources/application.ini"),
+                encoding: .utf8),
+              let caches = cachesDirectory
+                ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
+        else { return nil }
+        func value(_ key: String) -> String? {
+            ini.split(whereSeparator: \.isNewline).lazy
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .first { $0.hasPrefix(key + "=") }
+                .map { String($0.dropFirst(key.count + 1)) }
+                .flatMap { $0.isEmpty ? nil : $0 }
+        }
+        guard let owner = value("Vendor") ?? value("Name"),
+              !owner.contains("/"), owner != ".", owner != ".."
+        else { return nil }
+        // The path Mozilla starts from is the executable's directory
+        // (`Contents/MacOS`); cutting at the last ".app" makes that the bundle.
+        let executableDir = contents.appendingPathComponent("MacOS", isDirectory: true).path
+        guard let dot = executableDir.range(of: ".app", options: .backwards),
+              executableDir.hasPrefix("/")
+        else { return nil }
+        let relative = String(executableDir[executableDir.index(after: executableDir.startIndex)..<dot.lowerBound])
+        guard !relative.isEmpty, !relative.split(separator: "/").contains("..") else { return nil }
+        return caches
+            .appendingPathComponent(owner, isDirectory: true)
+            .appendingPathComponent("updates", isDirectory: true)
+            .appendingPathComponent(relative, isDirectory: true)
+            .appendingPathComponent("updates/0", isDirectory: true)
+    }
+
+    /// A staged update of `app` that Mozilla's updater will apply on its next
+    /// launch. Read from `update.status` and `update.version` in
+    /// ``mozillaStagingDirectory(for:cachesDirectory:fileManager:)``.
+    ///
+    /// The version is the marketing one (`update.version`, e.g. `158.0`), compared
+    /// with the installed marketing string, as for Spotify. Beta, Developer
+    /// Edition and Nightly keep one `Version` for a whole cycle, so a staging with
+    /// the same `Version` also counts as newer when its `BuildID` is newer than
+    /// the installed one (carried as `vendorBuild`).
+    private static func mozillaStaged(
+        for app: InstalledApp,
+        requireNewerThanInstalled: Bool,
+        cachesDirectory: URL?,
+        fileManager: FileManager
+    ) -> StagedSelfUpdate? {
+        guard let dir = mozillaStagingDirectory(
+                for: app, cachesDirectory: cachesDirectory, fileManager: fileManager),
+              let status = try? String(
+                contentsOf: dir.appendingPathComponent("update.status"), encoding: .utf8)
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              let version = try? String(
+                contentsOf: dir.appendingPathComponent("update.version"), encoding: .utf8)
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !version.isEmpty
+        else { return nil }
+        // What the launch would apply, by `update.status` (`ProcessUpdates` in
+        // `nsUpdateDriver.cpp`): a MAR waiting to be applied (`pending`,
+        // `pending-service`) or one already applied to `Updated.app` (`applied`,
+        // `applied-service`), and it has to be there. `pending-elevate` waits for
+        // the user and is not applied at launch; `downloading`, `applying`,
+        // `succeeded` and `failed: …` are not staged updates. All fall to nil.
+        let applied = dir.appendingPathComponent("Updated.app", isDirectory: true)
+        let mar = dir.appendingPathComponent("update.mar", isDirectory: false)
+        let staged: URL
+        if status.hasPrefix("applied"), fileManager.fileExists(atPath: applied.path) {
+            staged = applied
+        } else if status.hasPrefix("pending"), status != "pending-elevate",
+                  fileManager.fileExists(atPath: mar.path) {
+            staged = mar
+        } else {
+            return nil
+        }
+        // The BuildID: from the applied bundle's own `application.ini`, or for a
+        // pending MAR from `active-update.xml` beside `updates/`, which records the
+        // update it is applying.
+        let buildID: String? = status.hasPrefix("applied")
+            ? mozillaINIValue("BuildID", in: applied.appendingPathComponent("Contents/Resources/application.ini"))
+            : mozillaActiveUpdateBuildID(
+                in: dir.deletingLastPathComponent().deletingLastPathComponent())
+        if requireNewerThanInstalled {
+            // A staged build of the one installed has been applied already.
+            if let buildID, buildID == app.vendorBuildVersion { return nil }
+            // `update.version` is Mozilla's marketing `Version`. Where a newer
+            // build keeps it (beta, Nightly), the BuildID decides; otherwise the
+            // version must move forward.
+            guard let installed = app.shortVersion else { return nil }
+            let newer = VersionComparator.isNewer(version, than: installed)
+            let sameVersionNewerBuild = !VersionComparator.isNewer(installed, than: version)
+                && buildID != nil && app.vendorBuildVersion != nil
+                && VersionComparator.isNewer(buildID!, than: app.vendorBuildVersion!)
+            guard newer || sameVersionNewerBuild else { return nil }
+        }
+        return StagedSelfUpdate(
+            version: version, buildVersion: nil,
+            stagedBundlePath: staged, appliesOn: .launch, updater: .mozilla,
+            vendorBuild: buildID)
+    }
+
+    /// `key=value` from an `application.ini`, or nil.
+    static func mozillaINIValue(_ key: String, in url: URL) -> String? {
+        guard let ini = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        return ini.split(whereSeparator: \.isNewline).lazy
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { $0.hasPrefix(key + "=") }
+            .map { String($0.dropFirst(key.count + 1)) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// The `buildID` attribute of the update `active-update.xml` names, or nil.
+    static func mozillaActiveUpdateBuildID(in root: URL) -> String? {
+        guard let xml = try? String(
+                contentsOf: root.appendingPathComponent("active-update.xml"), encoding: .utf8),
+              let range = xml.range(of: #"buildID="([0-9]+)""#, options: .regularExpression)
+        else { return nil }
+        return String(xml[range].dropFirst("buildID=\"".count).dropLast())
     }
 
     /// The staging directory magpie's updater unpacks into: `.magpie-update` beside

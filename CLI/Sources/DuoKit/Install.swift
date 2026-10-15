@@ -348,8 +348,11 @@ public enum Install {
             // that, rather than blaming a source that does publish an artefact.
             if let staged = UpdatePolicy.actionableStaged(
                 result, staged: environment.stagedSelfUpdates[result.id]) {
+                // A launch-time updater (Spotify, Mozilla) does nothing on quit; it
+                // applies when the app is opened again.
+                let apply = staged.appliesOn == .launch ? "open it to apply" : "quit it to apply"
                 return .refuse("its own updater already has \(result.stagedRelaunchLine(staged).to) "
-                    + "staged — quit it to apply, or `duo restart`", nil)
+                    + "staged — \(apply), or `duo restart`", nil)
             }
             // #193 originally split this into two messages — "no artefact this
             // time" for a recognised source vs. "no route wired up yet" for one

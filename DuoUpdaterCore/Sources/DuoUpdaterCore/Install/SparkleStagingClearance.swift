@@ -302,8 +302,7 @@ public enum SparkleStagingClearance {
     private static func installerJobs(
         in jobs: [Job], for app: InstalledApp, sparkleRoots: [URL], system: System
     ) -> [Job] {
-        let homes = (sparkleRoots + [app.path.appendingPathComponent("Contents/Frameworks/Sparkle.framework", isDirectory: true)])
-            .map { $0.resolvingSymlinksInPath().path }
+        let homes = SelfUpdaterStaging.sparkleInstallerHomes(for: app, sparkleRoots: sparkleRoots)
         return jobs.filter { job in
             guard let path = system.executablePath(job.pid) else { return false }
             return homes.contains { AppRestarter.isExecutable(path, insideBundlePath: $0) }

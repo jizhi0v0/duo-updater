@@ -90,6 +90,55 @@ public struct AppScanner: Sendable {
         self.locations = (locations ?? Self.defaultLocations) + extraLocations
     }
 
+    /// Whether a framework directly under `Contents/Frameworks` carries its own
+    /// `Sparkle.framework` — Helium's case, where Sparkle ships inside the
+    /// Chromium framework (`Helium Framework.framework/Frameworks/Sparkle.framework`,
+    /// through the framework's `Frameworks` symlink into `Versions/Current`).
+    ///
+    /// One level and no further, on purpose. `FeedDiscovery.containsSparkle` walks
+    /// the whole bundle, which is right for a one-off feed question and wrong for a
+    /// flag computed for every bundle on every scan: an Electron app has thousands
+    /// of entries, and this costs one directory listing plus a `fileExists` per
+    /// framework. It also stays out of nested `.app` bundles (Docker's GUI under
+    /// `Contents/MacOS` embeds a Sparkle it never uses), which only a walk would
+    /// reach.
+    static func nestsSparkleOneFrameworkDeep(
+        _ bundleURL: URL, fileManager fm: FileManager
+    ) -> Bool {
+        !nestedSparkleFrameworks(in: bundleURL, fileManager: fm).isEmpty
+    }
+
+    /// Every `Sparkle.framework` this app could run its updater from: the usual
+    /// `Contents/Frameworks/Sparkle.framework`, and any one framework deep (see
+    /// ``nestsSparkleOneFrameworkDeep(_:fileManager:)``). Only the ones that exist.
+    ///
+    /// Shared so that "does it ship Sparkle" and "is this process its Sparkle
+    /// installer" cannot disagree. Helium's `Autoupdate` runs from the nested copy,
+    /// and a matcher that knew only the top-level path missed it while the flag
+    /// said Sparkle was there.
+    public static func sparkleFrameworks(
+        in bundleURL: URL, fileManager fm: FileManager = .default
+    ) -> [URL] {
+        let top = bundleURL.appendingPathComponent("Contents/Frameworks/Sparkle.framework", isDirectory: true)
+        return (fm.fileExists(atPath: top.path) ? [top] : [])
+            + nestedSparkleFrameworks(in: bundleURL, fileManager: fm)
+    }
+
+    private static func nestedSparkleFrameworks(
+        in bundleURL: URL, fileManager fm: FileManager
+    ) -> [URL] {
+        let frameworks = bundleURL.appendingPathComponent("Contents/Frameworks", isDirectory: true)
+        guard let names = try? fm.contentsOfDirectory(atPath: frameworks.path) else { return [] }
+        return names.sorted()
+            .filter { $0.hasSuffix(".framework") && $0 != "Sparkle.framework" }
+            .map {
+                frameworks
+                    .appendingPathComponent($0, isDirectory: true)
+                    .appendingPathComponent("Frameworks/Sparkle.framework", isDirectory: true)
+            }
+            .filter { fm.fileExists(atPath: $0.path) }
+    }
+
     /// Strip invisible bidi / zero-width formatting marks that some bundles embed in
     /// their display name (e.g. WhatsApp's leading U+200E LEFT-TO-RIGHT MARK). These
     /// are presentational only — they never belong to the logical name and break any
@@ -656,7 +705,9 @@ public struct AppScanner: Sendable {
         // Read here, next to Squirrel, because a `fileExists` during a scan that
         // already stats this bundle is far cheaper than one per app later.
         let sparkle = bundleURL.appendingPathComponent("Contents/Frameworks/Sparkle.framework")
-        let hasSparkleUpdater = !isiOSAppOnMac && fm.fileExists(atPath: sparkle.path)
+        let hasSparkleUpdater = !isiOSAppOnMac
+            && (fm.fileExists(atPath: sparkle.path)
+                || Self.nestsSparkleOneFrameworkDeep(bundleURL, fileManager: fm))
 
         // For Toolbox-managed apps, show Toolbox's own `displayVersion`: the
         // on-disk `CFBundleShortVersionString` is either truncated (Android Studio

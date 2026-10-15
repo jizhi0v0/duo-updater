@@ -149,12 +149,28 @@ stable rule 走 `/releases/latest`（GitHub 定义上排除 prerelease），所�
 **仍然没做、也不打算做的**：把 `helium-update-channel` 读成 `ChannelBinding`。上面第 2 条
 让它变成纯多余，而它引入的是一个位置型判据。
 
-**一个已知盲区**：`InstalledApp.hasSparkleUpdater` 查的是
-`Contents/Frameworks/Sparkle.framework`，而 Helium 的那份嵌在 Chromium framework 里，
-所以这个标志对 Helium 为 false。后果是 `SelfUpdaterStaging` 那条"app 自己的更新器已经把
-新版暂存好了"的识别对 Helium 不生效。本次没动它——那面旗子还管着别的行为，值得单独评估。
-（另注：官网说 Helium 只在 "Helium services" 开启时才自更新，而它默认关闭，所以这条盲区
-的实际触发面比看上去小。）
+**嵌套 Sparkle 的盲区（2026-10-15 已修）**：`hasSparkleUpdater` 原先只查
+`Contents/Frameworks/Sparkle.framework`，而 Helium 的那份嵌在 Chromium framework 里，标志恒为 false，
+`SelfUpdaterStaging` 认不出它自己暂存的新版。现在扫描器再往下看一层 framework
+（`AppScanner.sparkleFrameworks`）；同一份位置清单也给了两处找安装器进程的地方
+（`SelfUpdaterStaging.sparkleInstallerHomes`，被 `SparkleStagingClearance` 的作业匹配和孤儿检测共用），
+因为 Helium 的 `Autoupdate` 跑在
+`Helium Framework.framework/Versions/<v>/Frameworks/Sparkle.framework/Versions/B/Autoupdate`。
+用这面旗子的地方都是 Sparkle 的「在下载 / 已暂存 / 安装器待命」检测，放宽到 Helium 正是要的语义。
+
+真机（mini，全新装 Helium，2026-10-15）:
+- 0.18.3.1 + 预写偏好 `helium.services.enabled = true` 启动 → Sparkle 约 25 s 内用 delta
+  （`…19.2.1-0.18.3.1-arm64.delta`）在 `~/Library/Caches/net.imput.helium/org.sparkle-project.Sparkle/Installation/<r>/<r>/Helium.app`
+  拼好 0.19.2.1，`Autoupdate net.imput.helium` 作为 `net.imput.helium-sparkle-updater` 待命。
+- 同一时刻 `duo install Helium --dry-run`：main 版 `Will install: Helium 0.18.3.1 → 0.19.2.1 [sparkle]`；
+  修复后 `Skipping: … its own updater already has 0.19.2.1 staged — quit it to apply, or duo restart`。
+  `duo restart Helium` → 5 s 内盘上 0.19.2.1、新进程、签名过、暂存目录被 Sparkle 清掉。
+- 孤儿安装器（待命后删掉 `Installation/`）：只修了作业匹配时 `duo install` 回 `skipped`
+  （「its own updater has an update staged for the next quit」——孤儿检测的进程遍历还只认顶层路径）；
+  两处共用清单后 → `sparkle installer orphaned: removing Helium's installer jobs …-sparkle-updater [96540],
+  …-sparkle-progress [96541]` → `installed`（delta 37,216,090 B）→ 0.19.2.1，作业清空；`duo restart` 后 20 s 不回退。
+
+（官网说 Helium 只在 "Helium services" 开启时才自更新，默认关闭，所以默认安装本来就不会暂存。）
 
 ## 历史与实测
 

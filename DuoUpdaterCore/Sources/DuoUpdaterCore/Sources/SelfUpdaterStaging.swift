@@ -634,17 +634,37 @@ public enum SelfUpdaterStaging {
         return true
     }
 
-    /// Whether an `Autoupdate` of `app`'s runs under this user's uid. Same homes
-    /// as `SparkleStagingClearance`'s job match: the app's own `Sparkle.framework`
-    /// (where it runs from, observed on TinyWeb and ChatGPT) or its cache. A root
+    /// Where `app`'s Sparkle installer pieces run from, resolved: its Sparkle cache
+    /// roots, and every `Sparkle.framework` the bundle carries
+    /// (`AppScanner.sparkleFrameworks` — top level, or one framework deep as in
+    /// Helium, whose `Autoupdate` was observed on the mini on 2026-10-15 under
+    /// `Helium Framework.framework/Versions/<v>/Frameworks/Sparkle.framework`).
+    ///
+    /// One list for both matchers, the process walk below and
+    /// `SparkleStagingClearance`'s job match. Each kept its own copy of the
+    /// top-level path, and fixing one left the other blind to Helium: the
+    /// real-machine run found the second after the first was fixed.
+    ///
+    /// When the bundle carries no Sparkle that can be found on disk, the
+    /// top-level path is still listed. That keeps the old answer for a bundle
+    /// path that is not readable here.
+    static func sparkleInstallerHomes(for app: InstalledApp, sparkleRoots: [URL]) -> [String] {
+        let frameworks = AppScanner.sparkleFrameworks(in: app.path)
+        return (sparkleRoots + (frameworks.isEmpty
+                ? [app.path.appendingPathComponent("Contents/Frameworks/Sparkle.framework", isDirectory: true)]
+                : frameworks))
+            .map { $0.resolvingSymlinksInPath().path }
+    }
+
+    /// Whether an `Autoupdate` of `app`'s runs under this user's uid, from one of
+    /// ``sparkleInstallerHomes(for:sparkleRoots:)``. A root
     /// installer's uid is not readable from here (`proc_pidinfo` answered EPERM
     /// for Tailscale's on 2026-09-13, issue #588) — it is skipped, which is the
     /// answer wanted for it.
     private static func sameUserSparkleInstallerRunning(
         for app: InstalledApp, sparkleRoots: [URL]
     ) -> Bool {
-        let homes = (sparkleRoots + [app.path.appendingPathComponent("Contents/Frameworks/Sparkle.framework", isDirectory: true)])
-            .map { $0.resolvingSymlinksInPath().path }
+        let homes = sparkleInstallerHomes(for: app, sparkleRoots: sparkleRoots)
         let capacity = Int(proc_listallpids(nil, 0)) + 64
         guard capacity > 64 else { return false }
         var pids = [pid_t](repeating: 0, count: capacity)

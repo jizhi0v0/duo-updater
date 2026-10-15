@@ -271,6 +271,39 @@ struct SparkleStagingClearanceTests {
         }
     }
 
+    /// Helium runs `Autoupdate` from the Sparkle inside its Chromium framework,
+    /// observed on the mini 2026-10-15 as `…/Helium Framework.framework/Versions/
+    /// 154.0.8037.97/Frameworks/Sparkle.framework/Versions/B/Autoupdate`. Missing it
+    /// means an older build Helium staged survives our install and lands on quit.
+    ///
+    /// Mutation: match only `Contents/Frameworks/Sparkle.framework` again.
+    @Test func parkedInstallerPIDsFindAnAutoupdateNestedInAFramework() async throws {
+        try await withFixture { f in
+            let fm = FileManager.default
+            let host = f.app.path.appendingPathComponent(
+                "Contents/Frameworks/Host Framework.framework", isDirectory: true)
+            let sparkle = host.appendingPathComponent(
+                "Versions/154.0.8037.97/Frameworks/Sparkle.framework/Versions/B", isDirectory: true)
+            try fm.createDirectory(at: sparkle, withIntermediateDirectories: true)
+            try fm.createSymbolicLink(
+                atPath: host.appendingPathComponent("Versions/Current").path,
+                withDestinationPath: "154.0.8037.97")
+            try fm.createSymbolicLink(
+                atPath: host.appendingPathComponent("Frameworks").path,
+                withDestinationPath: "Versions/Current/Frameworks")
+            let nested = sparkle.appendingPathComponent("Autoupdate").path
+            let pids = await SparkleStagingClearance.parkedInstallerPIDs(
+                for: f.app, cachesDirectory: f.caches,
+                system: system(f, calls: Calls(), paths: [
+                    802: nested,
+                    804: f.launcherUpdater,
+                    712: f.app.path.path + "/Contents/MacOS/TinyWeb",
+                    900: f.app.path.path + "/Contents/Frameworks/Helper.framework/Helper",
+                ]))
+            #expect(pids == [802])
+        }
+    }
+
     /// No job list means unknown, which the caller reads as "do not judge" —
     /// so it must come back empty, not invent anything.
     @Test func parkedInstallerPIDsAreEmptyWithoutAJobList() async throws {

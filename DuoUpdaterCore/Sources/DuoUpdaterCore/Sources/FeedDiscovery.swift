@@ -297,11 +297,10 @@ public enum FeedDiscovery {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .flatMap(URL.init(string:))
 
-        // `hasSparkleUpdater`'s test is `Contents/Frameworks/Sparkle.framework`,
-        // and Helium is the standing proof that it under-reports: its copy is
-        // nested inside the Chromium framework. So the flag here is a *search*,
-        // not one `fileExists` — a bundle that ships Sparkle anywhere is a bundle
-        // whose missing address is worth reporting.
+        // `hasSparkleUpdater` looks at `Contents/Frameworks` and one framework
+        // deeper (Helium's copy, inside the Chromium framework), and no further.
+        // So the flag here is a *search* of the whole bundle — a bundle that ships
+        // Sparkle anywhere is a bundle whose missing address is worth reporting.
         let shipsSparkle = declared != nil || containsSparkle(bundleURL)
 
         var candidates: [Candidate] = []
@@ -519,8 +518,8 @@ public enum FeedDiscovery {
     /// the two names it actually appears as.
     ///
     /// `Sparkle.framework` is the ordinary case, and nesting is why this is a walk
-    /// rather than the single `fileExists` `AppScanner.hasSparkleUpdater` does:
-    /// Helium's copy lives inside its Chromium framework. `Sparkle.strings` is the
+    /// rather than the bounded check `AppScanner.hasSparkleUpdater` does (top level
+    /// plus one framework deep, which is where Helium's copy lives). `Sparkle.strings` is the
     /// repackaged case — DevMate ships Sparkle *inside* `DevMateKit.framework`
     /// with no framework of its own, and The Unarchiver read as "ships no Sparkle
     /// updater" until this looked for the localizations too.

@@ -169,10 +169,9 @@ bundle 本身不带渠道信号（`detect()` 读作 `.stable`），所以由 `Su
   临时改成 `"stable"`（app 没在运行；它一启动就会改回 `"nightly"`）再跑 → `detected channel → stable`、`winning source → <none>`（不推 nightly）；之后从备份还原，`cmp` 一致。
 
 ## 已知问题
-- **渠道设置换了目录**（2026-10-15 实测）：全新安装 `ac45e7aa` 启动后只有 `~/.super.engineering/`，没有 `~/.superconductor/`；
-  `update_channel`（`nightly`）写在 `~/.super.engineering/settings.json`。`SuperconductorChannel` 仍读
-  `~/.superconductor/settings.json`，所以新安装一律走「没有记录 → nightly」。眼下无害（厂商只剩 nightly），
-  但选了别的轨道的人会被当成 nightly —— 与本页「绝不推 nightly」相悖。老安装是否还留着旧目录、app 会不会迁移它，没查。
+- **渠道设置换了目录（已修，#1335）**：全新安装 `ac45e7aa` 启动后只有 `~/.super.engineering/`，没有 `~/.superconductor/`，
+  `update_channel` 写在 `~/.super.engineering/settings.json`。`SuperconductorChannel` 原先只读旧路径，新安装一律走
+  「没有记录 → nightly」；#1335 起先读新路径、不存在才退回旧路径，见「Channel 详情」。
 - 厂商若把 plist 里的版本改成别的长度（About 窗口显示的是 7 位 `8545a7d`），`versionPattern` 和 lineage
   pattern 要一起改；测试钉的是 8 位。
 - App 层「运行中的版本落后于磁盘」的 Restart 徽标（`AppListModel`）仍用 `VersionComparator` 比较 hash，

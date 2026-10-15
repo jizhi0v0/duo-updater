@@ -59,7 +59,7 @@ enum SettingsAnchor: Hashable, Sendable {
     case githubCLI, alcoveLicense, appleDeveloperSignIn, renewAppleSession, downloadXcode
     // Library
     case ignoredApps, skippedVersions
-    case appManagement, fullDiskAccess, appStoreHelper, lastChecked, recipes
+    case appManagement, fullDiskAccess, appStoreHelper, lastChecked, recentFailures, recipes
 
     /// One app's row on a page, keyed the way that page keys it: an ignore or
     /// skip by its `Preferences.key(for:)`, a recipe by `RecipeHealth.Entry.key`.
@@ -85,7 +85,7 @@ enum SettingsAnchor: Hashable, Sendable {
         case .appleDeveloperSignIn, .renewAppleSession, .downloadXcode: .xcode
         case .ignoredApps, .skippedVersions, .ignoredApp, .skippedVersion: .ignored
         case .appManagement, .fullDiskAccess, .appStoreHelper, .lastChecked,
-             .recipes, .recipe: .diagnostics
+             .recentFailures, .recipes, .recipe: .diagnostics
         }
     }
 
@@ -97,7 +97,7 @@ enum SettingsAnchor: Hashable, Sendable {
         case .testFlightDetection, .githubToken, .backups, .backupLocation,
              .storageCaches, .storageAppData, .storageSystem,
              .scanFolders, .builtInFolders, .alcoveLicense, .appleDeveloperSignIn,
-             .downloadXcode, .ignoredApps, .skippedVersions, .recipes:
+             .downloadXcode, .ignoredApps, .skippedVersions, .recentFailures, .recipes:
             true
         default:
             false

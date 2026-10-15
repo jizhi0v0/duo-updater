@@ -46,6 +46,8 @@ public struct DuoEvent: Sendable, Hashable, Identifiable {
         case request(RequestEvent)
         /// An app updated: which one, between which versions, at what cost.
         case install(InstallEvent)
+        /// An update that did not happen, kept so it can be reported later.
+        case failure(InstallFailureEvent)
         /// A line whose `kind` this build has never heard of, kept as written.
         ///
         /// Not an error and not dropped: a newer app writes into the same log a
@@ -58,6 +60,7 @@ public struct DuoEvent: Sendable, Hashable, Identifiable {
             switch self {
             case .request: return "request"
             case .install: return "install"
+            case .failure: return "failure"
             case .unknown(let kind, _): return kind
             }
         }
@@ -82,6 +85,11 @@ public struct DuoEvent: Sendable, Hashable, Identifiable {
 
     public var install: InstallEvent? {
         if case .install(let event) = payload { return event }
+        return nil
+    }
+
+    public var failure: InstallFailureEvent? {
+        if case .failure(let event) = payload { return event }
         return nil
     }
 }
@@ -155,6 +163,8 @@ extension DuoEvent {
             return String(decoding: try Self.encoder().encode(event), as: UTF8.self)
         case .install(let event):
             return String(decoding: try Self.encoder().encode(event), as: UTF8.self)
+        case .failure(let event):
+            return String(decoding: try Self.encoder().encode(event), as: UTF8.self)
         case .unknown(_, let json):
             return json
         }
@@ -181,6 +191,13 @@ extension DuoEvent {
             if let data = row.payloadJSON.data(using: .utf8),
                let event = try? Self.decoder().decode(InstallEvent.self, from: data) {
                 payload = .install(event)
+            } else {
+                payload = .unknown(kind: row.kind, json: row.payloadJSON)
+            }
+        case "failure":
+            if let data = row.payloadJSON.data(using: .utf8),
+               let event = try? Self.decoder().decode(InstallFailureEvent.self, from: data) {
+                payload = .failure(event)
             } else {
                 payload = .unknown(kind: row.kind, json: row.payloadJSON)
             }

@@ -26,12 +26,14 @@ struct DiagnosticsSettingsPage: View {
         SettingsPage(section: .diagnostics) {
             permissionsCard
             lastCheckCard
+            failuresCard.settingsAnchor(.recentFailures)
             recipesCard.settingsAnchor(.recipes)
         }
         .task {
             entries = await RecipeHealth.shared.snapshot()
             loaded = true
         }
+        .task { await model.reloadRecentFailures() }
         // The window is long-lived; re-pull health whenever a check completes so
         // an open Diagnostics page doesn't show stale/empty data.
         .onChange(of: model.lastCheck) {
@@ -111,6 +113,29 @@ struct DiagnosticsSettingsPage: View {
                     .foregroundStyle(.secondary)
             }
             .settingsAnchor(.lastChecked)
+        }
+    }
+
+    // MARK: - Recent failures
+
+    private var failuresCard: some View {
+        SettingsCard(
+            header: "Recent failures",
+            footer: "Updates that didn’t install in the last 30 days. Kept on this Mac only — nothing is sent. Copy a report to include in an issue or an email."
+        ) {
+            if model.recentFailures.isEmpty {
+                Text("No failed updates recorded.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .settingsRow()
+            } else {
+                ForEach(Array(model.recentFailures.enumerated()), id: \.element.id) { index, event in
+                    if let failure = event.failure {
+                        if index > 0 { SettingsDivider() }
+                        FailureRow(failure: failure, date: event.date)
+                    }
+                }
+            }
         }
     }
 
@@ -383,5 +408,59 @@ private struct HelperStatusRow: View {
         .settingsGlassButton()
         .disabled(restarting)
         .help("Restart the background helper — use this if App Store updates fail saying the helper isn’t answering. Asks for an administrator password.")
+    }
+}
+
+/// One recorded failure, with a Copy Report button at the top right.
+private struct FailureRow: View {
+    let failure: InstallFailureEvent
+    let date: Date
+    @State private var copied = false
+    @State private var copiedResetTask: Task<Void, Never>?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: "\(failure.appName)  \(failure.fromVersion ?? "?") → \(failure.toVersion ?? "?")")
+                    .font(.callout)
+                Text(verbatim: failure.message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(date.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer(minLength: 12)
+            Button {
+                let version = AppListModel.runningSelfVersion ?? "?"
+                let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+                let text = InstallFailureReport.text(
+                    for: failure, at: date,
+                    duoUpdaterVersion: build.map { "\(version) (\($0))" } ?? version)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+                // The same confirm-and-revert as the workbench's Copy Report.
+                copied = true
+                copiedResetTask?.cancel()
+                copiedResetTask = Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    guard !Task.isCancelled else { return }
+                    copied = false
+                }
+            } label: {
+                // Both labels always laid out, one hidden, so the button keeps
+                // the wider one's size in every language instead of jumping.
+                ZStack {
+                    Label("Copy Report", systemImage: "doc.on.doc").opacity(copied ? 0 : 1)
+                    Label("Copied", systemImage: "checkmark").opacity(copied ? 1 : 0)
+                }
+            }
+            .settingsGlassButton()
+        }
+        .settingsRow()
     }
 }

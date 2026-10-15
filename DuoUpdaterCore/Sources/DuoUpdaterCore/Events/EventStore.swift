@@ -263,6 +263,10 @@ public actor EventStore {
     /// they are not diagnostics that anyone would expect a log reset to take with
     /// it. Nothing in the app passes true today; the parameter exists so that a
     /// future caller that means it has to say so.
+    ///
+    /// Failure events are kept on the same terms: they are not network activity,
+    /// and clearing the Network window should not take away a failure the user
+    /// has yet to report. Retention still ages them out.
     public func reset(includingInstalls: Bool = false) {
         // Drain `staging` first, for the reason `flush` gives — and here the
         // opposite of it matters just as much: `stage` hands events over from a
@@ -288,7 +292,7 @@ public actor EventStore {
         guard exec(db, "BEGIN IMMEDIATE;") else { return }
         exec(db, includingInstalls
              ? "DELETE FROM events;"
-             : "DELETE FROM events WHERE kind <> 'install';")
+             : "DELETE FROM events WHERE kind NOT IN ('install', 'failure');")
         exec(db, "DELETE FROM totals;")
         if includingInstalls {
             // Forget that the legacy file was imported, so it can be imported
@@ -446,6 +450,8 @@ public actor EventStore {
             // adds.
             bind(statement, 7, install.appID)
             sqlite3_bind_int64(statement, 9, install.bytes)
+        } else if let failure = event.failure {
+            bind(statement, 7, failure.appID)
         }
         guard let payload = try? event.payloadJSON() else { return false }
         bind(statement, 11, payload)

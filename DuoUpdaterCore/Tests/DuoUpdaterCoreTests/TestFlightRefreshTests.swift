@@ -64,6 +64,8 @@ struct TestFlightRefreshTests {
         testsNothing: Bool = false,
         appStoreSignedIn: Bool? = nil,
         rebuilding: @escaping @Sendable () -> Bool = { false },
+        holdsNoBuilds: @escaping @Sendable () -> Bool? = { false },
+        isRunning: @escaping @Sendable (pid_t) -> Bool = { _ in true },
         spy: Spy
     ) -> TestFlightRefresh {
         // Every effect injected, `storeRebuilding` included: its default reads the
@@ -80,7 +82,9 @@ struct TestFlightRefreshTests {
             sleep: { _ in spy.slept() },
             testsNothing: { testsNothing },
             appStoreSignedIn: { appStoreSignedIn },
-            storeRebuilding: { rebuilding() })
+            storeRebuilding: { rebuilding() },
+            storeHoldsNoBuilds: { holdsNoBuilds() },
+            isRunning: isRunning)
     }
 
     /// Answers "rebuilding" for the first `times` questions, then "done".
@@ -130,6 +134,165 @@ struct TestFlightRefreshTests {
         let outcome = await refresher.run(deadline: .seconds(10), settle: .seconds(3))
         #expect(outcome == .changedWithoutSettling(lastChange: .milliseconds(500)))
         #expect(spy.terminated == [Self.spawnedPID])
+    }
+
+    /// Answers from a script, one per question, repeating the last once it runs out.
+    private final class Script<T: Sendable>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var answers: [T]
+        private(set) var asked = 0
+        init(_ answers: [T]) { self.answers = answers }
+        func next() -> T {
+            lock.lock(); defer { lock.unlock() }
+            asked += 1
+            return answers.count > 1 ? answers.removeFirst() : answers[0]
+        }
+    }
+
+    /// **Replay of 2026-10-15 14:20.** The store held builds, the instance wiped it
+    /// and died 1.4s in, and the quiet that followed was reported `refreshed` —
+    /// every beta then read "not testing" until TestFlight next ran. Now that quiet
+    /// is `leftEmpty`, and the one retry is what refills it.
+    ///
+    /// Answers to "holds no builds": before the first launch (no — it had builds),
+    /// at the first settle (yes), at the retry's settle (no). Settle 3s: the first
+    /// attempt consumes stamp reads 1–8, so the retry's write on read 11 lands at
+    /// its second poll, +1s.
+    ///
+    /// Mutation: drop the `storeHoldsNoBuilds() == true` guard at the settle — the
+    /// first attempt reports `refreshed(after: 0.5s)` with one launch, and both
+    /// expectations fail.
+    @Test func aStoreLeftEmptyByADeadInstanceIsRetriedOnce() async {
+        let spy = Spy()
+        let empty = Script<Bool?>([false, true, false])
+        let refresher = Self.refresher(
+            stamp: Stamp(changesAt: [2, 11]), holdsNoBuilds: { empty.next() },
+            isRunning: { _ in false }, spy: spy)
+        let outcome = await refresher.run(deadline: .seconds(30), settle: .seconds(3))
+        #expect(outcome == .refreshed(after: .seconds(1)))
+        #expect(spy.launches == [Self.bundle, Self.bundle])
+        #expect(spy.terminated == [Self.spawnedPID, Self.spawnedPID])
+    }
+
+    /// An empty store is the first stage of every healthy rebuild too, so while our
+    /// instance is alive the wait goes on rather than calling it dead. Measured
+    /// 2026-10-15 on a launch by hand: empty → placeholders 3s later → complete at
+    /// +7s.
+    ///
+    /// Write at +0.5s, quiet from +3.5s with the store empty for four polls, then the
+    /// refill at +5.5s and quiet again by +8.5s.
+    ///
+    /// Mutation: drop the `!isRunning(pid)` condition — the first empty answer
+    /// returns `leftEmpty`, a second instance is launched, and both fail.
+    @Test func anEmptyStoreWhileTheInstanceLivesIsStillWaitedOn() async {
+        let spy = Spy()
+        let empty = Script<Bool?>([false, true, true, true, true, false])
+        let refresher = Self.refresher(
+            stamp: Stamp(changesAt: [2, 12]), holdsNoBuilds: { empty.next() },
+            isRunning: { _ in true }, spy: spy)
+        let outcome = await refresher.run(deadline: .seconds(30), settle: .seconds(3))
+        #expect(outcome == .refreshed(after: .milliseconds(5500)))
+        #expect(spy.launches == [Self.bundle])
+    }
+
+    /// **Once, never more.** A TestFlight that dies every time costs two launches,
+    /// not a loop; what comes next is `TestFlightSyncPolicy`'s floor. Also the
+    /// caller's witness: the store was already empty before the launch, so only
+    /// `expectingBetas` says an empty store is wrong here.
+    ///
+    /// Mutations: retry while `leftEmpty` (a loop) — three or more launches; ignore
+    /// `expectingBetas` — the first attempt is `refreshed`, one launch.
+    @Test func aSecondEmptyStoreIsReportedNotRetriedAgain() async {
+        let spy = Spy()
+        let refresher = Self.refresher(
+            stamp: Stamp(changesAt: [2, 11]), holdsNoBuilds: { true },
+            isRunning: { _ in false }, spy: spy)
+        let outcome = await refresher.run(
+            deadline: .seconds(30), settle: .seconds(3), expectingBetas: true)
+        #expect(outcome == .leftEmpty(lastChange: .seconds(1)))
+        #expect(spy.launches.count == 2)
+    }
+
+    /// **The retry lives inside the first attempt's deadline, not a second one.**
+    /// The app stops waiting at `defaultDeadline + 30s` and reopens its
+    /// one-sync-at-a-time gate; a retry with a deadline of its own could outlive
+    /// that and overlap the next sync (PR #1324 review).
+    ///
+    /// Deadline 10s: the first attempt is `leftEmpty` at +3.5s (7 polls), the retry's
+    /// store never changes, and it gives up when the 10s are spent — 20 polls in
+    /// all, not 27.
+    ///
+    /// Mutation: pass the retry `deadline` instead of `remaining` — 27 polls.
+    @Test func theRetrySharesTheFirstAttemptsDeadline() async {
+        let spy = Spy()
+        let refresher = Self.refresher(
+            stamp: Stamp(changesAt: [2]), holdsNoBuilds: { true },
+            isRunning: { _ in false }, spy: spy)
+        let outcome = await refresher.run(
+            deadline: .seconds(10), settle: .seconds(3), expectingBetas: true)
+        #expect(outcome == .noChange)
+        #expect(spy.launches.count == 2)
+        #expect(spy.sleeps == 20)
+    }
+
+    /// A first attempt that waited out the whole deadline with its instance alive
+    /// and the store empty has nothing left for a retry: reported, one launch.
+    ///
+    /// Mutation: drop the `remaining > settle` guard — a second instance is
+    /// launched with no time to wait on it.
+    @Test func anEmptyStoreAtTheDeadlineIsNotRetried() async {
+        let spy = Spy()
+        let refresher = Self.refresher(
+            stamp: Stamp(changesAt: [2]), holdsNoBuilds: { true },
+            isRunning: { _ in true }, spy: spy)
+        let outcome = await refresher.run(
+            deadline: .seconds(10), settle: .seconds(3), expectingBetas: true)
+        #expect(outcome == .leftEmpty(lastChange: .milliseconds(500)))
+        #expect(spy.launches.count == 1)
+    }
+
+    /// A Mac with no beta installed and an empty store is just that — not a sync
+    /// that died. No witness says otherwise, so it settles as before and nothing is
+    /// relaunched.
+    ///
+    /// Mutation: make `expectsBuilds` always true — this returns `leftEmpty` after
+    /// two launches.
+    @Test func anEmptyStoreWithNoBetaExpectedIsAPlainRefresh() async {
+        let spy = Spy()
+        let refresher = Self.refresher(
+            stamp: Stamp(changesAt: [2]), holdsNoBuilds: { true },
+            isRunning: { _ in false }, spy: spy)
+        let outcome = await refresher.run(deadline: .seconds(30), settle: .seconds(3))
+        #expect(outcome == .refreshed(after: .milliseconds(500)))
+        #expect(spy.launches.count == 1)
+    }
+
+    /// The retry skips the "tests nothing" gate: the attempt before it emptied the
+    /// store, and an empty store always reads as testing nothing, so the gate would
+    /// refuse exactly the launch that repairs it.
+    ///
+    /// Mutation: drop `!isRetry` from the gate — the retry returns
+    /// `accountTestsNothing` without launching.
+    @Test func theRetryIsNotRefusedByTheStoreItIsRepairing() async {
+        let spy = Spy()
+        let testsNothing = Script<Bool>([false, true])
+        let empty = Script<Bool?>([false, true, false])
+        let stamp = Stamp(changesAt: [2, 11])
+        let refresher = TestFlightRefresh(
+            locate: { Self.bundle },
+            spawn: { url in spy.launched(url); return Self.spawnedPID },
+            terminate: { spy.terminatedInstance($0) },
+            storeStamp: { stamp.read() },
+            sleep: { _ in spy.slept() },
+            testsNothing: { testsNothing.next() },
+            appStoreSignedIn: { nil },
+            storeRebuilding: { false },
+            storeHoldsNoBuilds: { empty.next() },
+            isRunning: { _ in false })
+        let outcome = await refresher.run(deadline: .seconds(30), settle: .seconds(3))
+        #expect(outcome == .refreshed(after: .seconds(1)))
+        #expect(spy.launches.count == 2)
+        #expect(testsNothing.asked == 1)
     }
 
     /// Mutation: return `.launchFailed` (or `.notInstalled`) unconditionally when

@@ -2979,7 +2979,10 @@ final class AppListModel {
     /// through `recheckTestFlightRows`, the same path a Full Disk Access grant
     /// mid-session already uses.
     private func startAutomaticTestFlightSync(for evidence: [TestFlightSyncPolicy.Evidence]) {
-        let started = Task.detached(priority: .utility) { await TestFlightRefresh().run() }
+        let expectingBetas = results.contains(where: \.app.isTestFlightApp)
+        let started = Task.detached(priority: .utility) {
+            await TestFlightRefresh().run(expectingBetas: expectingBetas)
+        }
         testFlightSyncTask = started
         testFlightSyncLedger.begin(at: .now)
         Task { @MainActor [weak self] in
@@ -3200,9 +3203,11 @@ final class AppListModel {
                 Log.app.notice("TestFlight sync: joining the attempt already running")
                 testFlightSync = inFlight
             } else {
+                // The previous round's rows: this sync starts before the scan.
+                let expectingBetas = results.contains(where: \.app.isTestFlightApp)
                 let started = Task.detached(priority: .utility) { [tfLoader] in
                     if let tfLoader { _ = await Self.firstResult(of: tfLoader, within: .seconds(2)) }
-                    return await TestFlightRefresh().run()
+                    return await TestFlightRefresh().run(expectingBetas: expectingBetas)
                 }
                 testFlightSyncTask = started
                 testFlightSync = started

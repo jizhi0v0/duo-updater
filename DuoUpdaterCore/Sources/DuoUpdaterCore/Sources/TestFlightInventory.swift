@@ -380,6 +380,21 @@ public struct TestFlightInventory: Sendable {
     /// the shape of a signed-out store. False when it cannot say.
     public var isTestingNothing: Bool { testerBundleIDs?.isEmpty == true }
 
+    /// True when the store was read and holds no mac or iOS build row at all — the
+    /// first stage of a rebuild, before even the installed builds' placeholders are
+    /// back. nil when it cannot say: not opened, or the row queries did not prepare.
+    ///
+    /// Not the same as `isTestingNothing`. A signed-out store tests nothing but
+    /// still holds a placeholder row per installed beta, so with a beta on disk
+    /// only a store TestFlight emptied and never refilled answers true here.
+    /// Measured 2026-10-15 on this Mac: a hidden sync's instance exited 1.4s after
+    /// launch, right after the wipe, and the store stayed at zero rows until
+    /// TestFlight next ran.
+    public var holdsNoBuilds: Bool? {
+        guard accessible, rowsReadable else { return nil }
+        return appsByBundleID.isEmpty && iosLatestByBundleID.isEmpty && iosBuildsByBundleID.isEmpty
+    }
+
     /// bundleID → the newest row. **Every** bucket ranks through here — mac and
     /// iOS, real database and test seam — so they cannot drift apart in how
     /// "newest" is decided.

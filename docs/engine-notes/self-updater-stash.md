@@ -35,6 +35,49 @@ launch to decide it already holds the file.
 either — OpenCode's is `opencode-desktop-mac-arm64.zip`. That is why the version
 has to be read out of the archive.
 
+### A second layout: Cindy's own hotfix updater
+
+Cindy (`com.xd.cindy`, CN edition `com.xd.cindycn`) has neither electron-updater
+nor Sparkle. From its source, `apps/desktop/src/main/updateService.ts`
+(makecindy/cindy `e818d410`, 2026-10-15), it parks the manifest's `app.hotfix`
+(a zip of the whole `.app`) at `<userData>/updates/<path.basename(file)>`,
+downloaded through a downloader given the manifest's sha256 and size, and only
+then writes `updates/patch-info.json`:
+`{version, fileName, sha256: <lowercased>, requireRelogin, enableBeta}`.
+`userData` is `~/Library/Application Support/CindyGlobal` or `…/Cindy` by
+region — the same mapping `CindyChannel` already reads its settings file from.
+
+`SelfUpdaterStash.ParkingSpot.cindyHotfix` reads it through the same gates as
+electron-updater's, with two differences: the digest is hex SHA-256 rather than
+base64 SHA-512, and the recorded `version` is not trusted any more than a file
+name would be — the archive's own `Info.plist` decides. Attribution is the §3
+shape one level up: `userData` is per edition, so two copies of one edition share
+`updates/` and are refused, while one copy of each edition is not a contest.
+
+Cindy's manifest and GitHub are two release lines: a hotfix can carry a version
+GitHub never published (0.1.99 sat on this machine in October; GitHub went
+0.1.97 → 0.1.101), and then the version gate refuses it. On 2026-10-15 both
+lines were at 0.1.108.
+
+End to end on 2026-10-15, global edition, arm64: 0.1.97 launched, its updater
+staged `cindy-0.1.108-arm64-hotfix.zip` and `patch-info.json` 41 s later, and it
+was quit before it could apply them. `duo install Cindy --yes` then logged
+`local stash hit: Cindy 0.1.108 already downloaded by its own updater —
+284600168 B not fetched` and returned `bytesDownloaded: 0` in 9.8 s. Afterwards
+the bundle was 0.1.108 with a new inode, Team `SX9RG894L5`, `codesign --deep
+--strict` clean, and `spctl` "Notarized Developer ID". Its files and symlinks
+matched the zip's contents exactly (960 entries), and the zip and
+`patch-info.json` were byte-for-byte and mtime unchanged.
+
+Relaunching 0.1.108 left the same-version patch on disk: the log read `Version
+check: current=0.1.108, latest=0.1.108, ready=<none>`, and the bundle stayed on
+0.1.108. That launch went through the background check only; the log has no
+`Startup: current=…` line. In the source, the startup check
+(`update-check-startup`) calls `checkExistingPatch` when the manifest is not
+newer, and that deletes a same-version patch. So the zip is cleared by a launch
+that takes that path, or replaced by Cindy's next download, whichever comes
+first. Either way it is not a collision.
+
 ### How to re-run the survey
 
 Nothing here is a tracked number; to see the current state on any machine, walk

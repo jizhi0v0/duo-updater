@@ -54,6 +54,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:Kyle-Ye\/SwiftyDownloadManager:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:MarkEdit-app\/MarkEdit:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -469,6 +475,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:mountain-loop\/yaak:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:mstcvk\/mc-download-manager:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1720,5 +1732,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-15T01:53:43Z"
+  "updatedAt" : "2026-10-15T10:20:05Z"
 }

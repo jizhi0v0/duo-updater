@@ -539,7 +539,7 @@ public actor EventStore {
             let batch = min(remaining - Self.retentionFloor, max(100, remaining / 10))
             if let statement = prepare(db, """
                 DELETE FROM events WHERE id IN (
-                  SELECT id FROM events WHERE kind <> 'install'
+                  SELECT id FROM events WHERE kind NOT IN ('install', 'failure')
                   ORDER BY at ASC, rowid ASC LIMIT ?
                 );
                 """) {
@@ -568,12 +568,18 @@ public actor EventStore {
     /// The fewest events retention will leave behind, whatever the budget says.
     static let retentionFloor = 200
 
-    /// Prunable events only. Installs are excluded from both retention passes —
-    /// they are the permanent download ledger, not diagnostics, and counting them
-    /// here would let a machine with a long install history exhaust the floor and
-    /// stop the size pass giving up request events it should.
+    /// Events the size pass may delete. Installs are excluded from both retention
+    /// passes — they are the permanent download ledger, not diagnostics, and
+    /// counting them here would let a machine with a long install history exhaust
+    /// the floor and stop the size pass giving up request events it should.
+    ///
+    /// Failures are excluded from the size pass only. They are a few hundred
+    /// bytes each and rare, and the budget binds within hours on a machine that
+    /// checks every five minutes: trimmed with the requests, a failure would be
+    /// gone before the user came back to report it. The age pass still ends them
+    /// at ``retentionDays``.
     private func eventCount(_ db: OpaquePointer) -> Int {
-        guard let statement = prepare(db, "SELECT count(*) FROM events WHERE kind <> 'install';")
+        guard let statement = prepare(db, "SELECT count(*) FROM events WHERE kind NOT IN ('install', 'failure');")
         else { return 0 }
         defer { sqlite3_finalize(statement) }
         guard sqlite3_step(statement) == SQLITE_ROW else { return 0 }

@@ -1,4 +1,5 @@
 import AppKit
+import DuoUpdaterCore
 import Testing
 
 /// Asks the Objective-C runtime which WebKit callbacks the Xcode downloader has
@@ -117,5 +118,31 @@ struct DownloadJobDeadEndTests {
                     path: "/appleauth/auth/signin") == .allow)
             }
         }
+    }
+}
+
+/// A dropped connection resumes from WebKit's resume data on the failures, and
+/// as many times, as `Downloader` retries; anything else ends the download.
+struct DownloadJobResumeTests {
+
+    @Test(arguments: [URLError.Code.networkConnectionLost, .timedOut, .cannotConnectToHost, .secureConnectionFailed])
+    func aDroppedConnectionResumes(_ code: URLError.Code) {
+        #expect(DownloadJob.shouldResume(after: URLError(code), attempts: 1, hasResumeData: true))
+    }
+
+    @Test func noResumeDataMeansNoResume() {
+        #expect(!DownloadJob.shouldResume(after: URLError(.networkConnectionLost), attempts: 1, hasResumeData: false))
+    }
+
+    @Test func aNonTransientFailureEndsTheDownload() {
+        for error: Error in [URLError(.notConnectedToInternet), URLError(.cancelled), CancellationError()] {
+            #expect(!DownloadJob.shouldResume(after: error, attempts: 1, hasResumeData: true))
+        }
+    }
+
+    @Test func theLastAttemptIsNotResumed() {
+        let error = URLError(.networkConnectionLost)
+        #expect(DownloadJob.shouldResume(after: error, attempts: DownloadRetryPolicy.maxAttempts - 1, hasResumeData: true))
+        #expect(!DownloadJob.shouldResume(after: error, attempts: DownloadRetryPolicy.maxAttempts, hasResumeData: true))
     }
 }

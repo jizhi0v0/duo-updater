@@ -73123,6 +73123,201 @@
           }
         }
       }
+    },
+    "Recent failures": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Letzte Fehlschläge"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fallos recientes"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échecs récents"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Errori recenti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近の失敗"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falhas recentes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Недавние сбои"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son başarısızlıklar"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近失敗"
+          }
+        }
+      }
+    },
+    "No failed updates recorded.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine fehlgeschlagenen Updates aufgezeichnet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay actualizaciones fallidas registradas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune mise à jour échouée enregistrée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun aggiornamento non riuscito registrato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失敗したアップデートの記録はありません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nenhuma atualização com falha registrada."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неудачных обновлений не записано."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kayıtlı başarısız güncelleme yok."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有失败的更新记录。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有失敗的更新記錄。"
+          }
+        }
+      }
+    },
+    "Updates that didn’t install in the last 30 days. Kept on this Mac only — nothing is sent. Copy a report to include in an issue or an email.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates, die in den letzten 30 Tagen nicht installiert wurden. Nur auf diesem Mac gespeichert – nichts wird gesendet. Kopiere einen Bericht für ein Issue oder eine E-Mail."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizaciones que no se instalaron en los últimos 30 días. Se guardan solo en este Mac; no se envía nada. Copia un informe para incluirlo en una incidencia o un correo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mises à jour qui ne se sont pas installées au cours des 30 derniers jours. Conservées sur ce Mac uniquement — rien n’est envoyé. Copiez un rapport à joindre à un ticket ou à un e-mail."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiornamenti non installati negli ultimi 30 giorni. Conservati solo su questo Mac: non viene inviato nulla. Copia un rapporto da includere in una segnalazione o in un’email."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "過去 30 日間にインストールできなかったアップデートです。この Mac にのみ保存され、何も送信されません。Issue やメールに添付するレポートをコピーできます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizações que não foram instaladas nos últimos 30 dias. Mantidas apenas neste Mac — nada é enviado. Copie um relatório para incluir em uma issue ou em um e-mail."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновления, которые не удалось установить за последние 30 дней. Хранятся только на этом Mac — ничего не отправляется. Скопируйте отчёт, чтобы приложить его к issue или письму."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son 30 günde yüklenemeyen güncellemeler. Yalnızca bu Mac’te saklanır, hiçbir şey gönderilmez. Bir issue’ya veya e-postaya eklemek için rapor kopyalayın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "过去 30 天内未能安装的更新。仅保存在这台 Mac 上，不会发送任何内容。可以复制报告，附到 issue 或邮件里。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "過去 30 天內未能安裝的更新。僅儲存在這台 Mac 上，不會傳送任何內容。可以拷貝報告，附到 issue 或郵件裡。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -91,6 +91,7 @@ enum SettingsSearch {
             Setting(anchor: .fullDiskAccess, title: String(localized: "Full Disk Access"), card: permissions),
             Setting(anchor: .appStoreHelper, title: String(localized: "App Store helper"), card: permissions),
             Setting(anchor: .lastChecked, title: String(localized: "Last checked"), card: nil),
+            Setting(anchor: .recentFailures, title: String(localized: "Recent failures"), card: nil),
             Setting(anchor: .recipes, title: String(localized: "Detection recipes"), card: nil),
         ]
     }

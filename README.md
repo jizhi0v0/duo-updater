@@ -298,6 +298,13 @@ the login Keychain as `AfterFirstUnlockThisDeviceOnly` — not synced, not in a
 plist. Changelog panes render vendor pages in a `WKWebView` with a non-persistent
 data store, so vendor cookies do not survive a relaunch.
 
+**Failed updates** are recorded on this Mac — the app, the two versions, the
+update source and the error shown — so **Settings → Diagnostics → Recent
+failures** can list them after the row's error is gone. They are kept for up to 30
+days and sent nowhere. **Copy Report** puts one on the clipboard, with your home
+folder shortened to `~`, for you to paste into an issue or an email if you
+choose to.
+
 ## Permissions
 
 macOS asks for some of these the first time they are needed, and for one of them

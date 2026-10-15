@@ -185,12 +185,18 @@ nightly 的锚点特意用 `120.0a1` 而不是当前的 `157.0a1`：`RecipeSanit
     里面 `update.status`（`applied` / `pending` …）、`update.version`（marketing，如 `158.0`）、`Updated.app` 或 `update.mar`。
   - **何时应用**（实测，157.0.1 暂存 158.0）：退出后 60 s 不动；**下次启动**时更新器做 replace request
     （`Contents` 改名 `Contents.bak`，`Updated.app/Contents` 搬进来）。
-  - **不会降级**：启动时 `nsUpdateDriver.cpp` 先比版本，`update.version` 比 app 旧就不应用（`IsOlderVersion`）。
-    实测：duo 装 158.0 后留着一份 `applied` 的 157.0.1 暂存，启动 Firefox → 更新器没跑（`last-update.log` 不变）、
-    仍是 158.0，暂存被 Firefox 自己清掉。所以落后的暂存**不挡**我们的安装，也不清理它。
+  - **启动时的版本检查只保护正式版 / ESR**：`nsUpdateDriver.cpp` 在 `update.version` 比 app 的 `Version` 旧时不应用（`IsOlderVersion`）。
+    实测（正式版）：duo 装 158.0 后留着一份 `applied` 的 157.0.1 暂存，启动 Firefox → 更新器没跑（`last-update.log` 不变）、仍是 158.0，暂存被 Firefox 自己清掉。
+    但 **beta / Developer Edition / Nightly 一个周期内 `Version` 不变**（158.0b5 与 159.0b1 的 `application.ini` 分别是 `Version=158.0`、`Version=159.0`，
+    `CFBundleShortVersionString` 也一样），同周期里更早的 build 不算「更旧」，照样被换上来。实测（2026-10-15，已装 158.0b5、它暂存了
+    159.0b1、最新 159.0b2）：main 的 duo 装上 b2（BuildID `20261014090526`）→ 下次启动被换回 b1（`20261012090602`）；本修复后
+    `cleared mozilla staging: Firefox had 159.0 staged` → 装 b2 → 启动后仍是 b2。
+  - 所以按 BuildID 判（暂存一侧读 `Updated.app` 的 `application.ini`，pending 时读 `active-update.xml`）：
+    暂存的就是已装 build → 不管；暂存的就是最新（预发布比 BuildID，正式版比版本）→ Relaunch，不重复下载；
+    启动时会被跳过（版本数字严格更旧）→ 不挡、不清；其余（同周期更早的 build、下一周期较早的 beta）→ 装之前先清掉 `updates/0`（Firefox 运行中不清）。
   - **暂存的就是最新版**时不再重复下载：`duo install` 跳过并提示「its own updater already has 158.0 staged — open it to apply」，
     打开 Firefox 5 s 内换成 158.0。此前（main）这一状态会再下 164,845,599 B，装完后下次启动又被同版本换一次。
-  - 限制：只比 marketing 版本；Nightly 的 marketing 版本跨日不变，分辨不出新旧暂存。`pending-elevate` 不算（启动时不应用）。
+  - 限制：`pending-elevate` 不算（启动时不应用）。
   - 运行中仍由 `vendorInstallPolicy` 决定（默认交回它自己的更新器）。
 - `downloadURL` 是"去官网下载"的展示链接，不是安装产物；产物由 `install` 的重定向解析。
 

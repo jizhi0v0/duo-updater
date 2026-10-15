@@ -115,8 +115,9 @@ public struct TestFlightRefresh: Sendable {
         /// is a sync that died after its first step, not one that finished. Measured
         /// 2026-10-15 14:20 on this Mac: the instance was gone 1.4s after launch, the
         /// wait saw 6s of quiet and reported `refreshed`, and every beta row read
-        /// "not testing" until TestFlight next ran. `run` retries once on this before
-        /// returning it.
+        /// "not testing" until TestFlight next ran. `run` retries once on this when the
+        /// deadline leaves room for it, so a caller that gets it back cannot tell
+        /// whether there were one launch or two — and should not claim either.
         case leftEmpty(lastChange: Duration)
         /// The instance ran and the store never changed. Usually "already
         /// current"; it can also be a sync that did not happen, and this

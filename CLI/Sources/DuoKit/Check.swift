@@ -75,8 +75,9 @@ public enum Check {
                       + "(last seen moving after %.1fs); the versions below may predate the sync",
                 seconds)
         case .leftEmpty:
-            // Only ever the second attempt's answer: `run` already retried once.
-            return "duo: TestFlight stopped partway through reloading its data, twice, and left it empty; "
+            // Not "twice": `run` retries only when the deadline leaves room, so this
+            // can follow one launch or two.
+            return "duo: TestFlight stopped partway through reloading its data and left it empty; "
                 + "open TestFlight to reload it — TestFlight versions below are missing"
         case .noChange:
             // One sentence for one route. It deliberately does not say "already

@@ -36,7 +36,7 @@ PY
       --output-format stream-json --verbose \
       --disallowedTools 'Bash(make install:*)' 'Bash(make cli:*)' 'Bash(duo:*)' 'Bash(pkill:*)' 'Bash(killall:*)' \
         'Bash(git stash:*)' 'Bash(git push:*)' 'Bash(gh:*)' 'Bash(open:*)' 'Bash(sudo:*)' \
-        'Bash(swift run:*)' 'Bash(CLI/.build/debug/duo:*)' 'Bash(./CLI/.build/debug/duo:*)' \
+        'Bash(swift run:*)' 'Bash(*.build/*/duo *)' \
       < $R/brief.md > $R/transcript.jsonl 2> $R/claude.stderr )
   echo $? > $R/claude.rc
   date +%s > $R/t1

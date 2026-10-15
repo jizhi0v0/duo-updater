@@ -35,7 +35,7 @@ The grader reads live vendor pages. Snapshots taken 2026-10-14 are kept in the w
 Validation on 2026-10-14 (6 runs, ~90–125 s each): Longbridge and Trim come out red on base and green on ref, and Qoder is green on both (page 1.32.0, endpoint 1.33.0, ack 1.29.0).
 The `touched verify/coverage` flag that Longbridge and Qoder show on ref is an artifact: ref is main, which also carries Trim's ChangelogCoverage change. In an agent run the same flag should be taken seriously.
 
-Rechecked 2026-10-15 after review fixes to the grader (an uncached manifest read, the Qoder recipe compared by value, `swift run … duo` and `CLI/.build/debug/duo` denied and flagged): Longbridge, Qoder and Trim gave the same outcomes on base and ref, and a Qoder run with a bent entry pattern scored FAIL.
+Rechecked 2026-10-15 after review fixes to the grader (an uncached manifest read, the Qoder recipe compared by value, `swift run … duo` and a built `duo` binary denied and flagged): Longbridge and Qoder gave the same outcomes on base and ref. Trim was rechecked after the move into this directory, before these fixes; its grading path (a stub feed) did not change. The scorer marks a Qoder grade whose recipe differs from base as FAIL: checked by altering the entry pattern in a copy of the base `grade.json`, not by an agent run.
 
 Before each batch run `harness/run-fix.sh <case> grade-only base gradeonly-base` and the same with `ref`. Base must stay red
 (Qoder green) and ref must stay green, or the vendor side has moved. The 2026-10-14 validation is in `results/validation-2026-10-14.yml`.

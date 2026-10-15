@@ -31,8 +31,15 @@ import Foundation
     }
     let checker = UpdateChecker(sources: [SparkleAppcastSource()])
     let results = await checker.check(apps)
+    // Only what production would swap in place: a package enclosure (a bare
+    // `.pkg`, or AdGuard's `.dmg` declaring `sparkle:installationType="package"`)
+    // goes to the system installer instead, and these gates would fail it on
+    // "No .app bundle was found inside the archive." for a reason that is not
+    // a vendor breakage.
+    let noInstallers = InstallEnvironment(isHelperEnabled: false, runningAppPaths: [], stagedSelfUpdates: [:])
     let candidates = results.filter {
         $0.hasUpdate && $0.remote?.edSignature != nil && $0.remote?.downloadURL != nil
+            && !UpdatePolicy.requiresInstaller($0, environment: noInstallers)
     }
 
     let sweepAll = ProcessInfo.processInfo.environment["DUO_INSTALL_SMOKE"] == "all"

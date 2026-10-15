@@ -166,10 +166,14 @@ struct DiagnosticsSettingsPage: View {
                     .foregroundStyle(.secondary)
                     .settingsRow()
             } else {
+                let installed = Set(model.results.map(\.app.id))
                 ForEach(Array(model.recentFailures.enumerated()), id: \.element.id) { index, event in
                     if let failure = event.failure {
                         if index > 0 { SettingsDivider() }
-                        FailureRow(failure: failure, date: event.date) {
+                        FailureRow(
+                            failure: failure, date: event.date,
+                            iconPath: installed.contains(failure.appID) ? failure.appID : nil
+                        ) {
                             model.openFailureReport(event)
                             openWindow(id: FailureReportView.windowID)
                             model.surfaceWindow(sceneID: FailureReportView.windowID)
@@ -503,6 +507,9 @@ private struct HelperStatusRow: View {
 private struct FailureRow: View {
     let failure: InstallFailureEvent
     let date: Date
+    /// The app's bundle, when it is still installed where it failed; nil leaves
+    /// the slot empty so the names line up, as the recipe rows do.
+    let iconPath: String?
     let report: () -> Void
     @State private var copied = false
     @State private var copiedResetTask: Task<Void, Never>?
@@ -511,6 +518,14 @@ private struct FailureRow: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
+            Group {
+                if let iconPath {
+                    Image(nsImage: AppIconCache.icon(for: iconPath)).resizable()
+                } else {
+                    Color.clear
+                }
+            }
+            .frame(width: 18, height: 18)
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: "\(failure.appName)  \(failure.fromVersion ?? "?") → \(failure.toVersion ?? "?")")
                     .font(.callout)

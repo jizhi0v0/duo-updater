@@ -71,10 +71,14 @@ enum SuperconductorChannel {
 
     /// `update_channel` from the first settings file that exists, or nil when there
     /// is none, or the key or a non-null value is missing from it. The first file
-    /// that exists answers alone, key or no key: it is the one the installed build
-    /// reads, and a choice left behind in the legacy file is not the app's choice
-    /// any more. The file is ~9 KB; the cap keeps a path that turns out to be
-    /// something else from being read into memory wholesale.
+    /// that exists answers alone, key or no key. On an upgraded copy both names are
+    /// the same file: the `9cd78956` binary's own text says startup "publishes the
+    /// new data name as a link to existing legacy storage", checks that the
+    /// `~/.super.engineering` symlink resolves to `~/.superconductor`, and treats
+    /// independent old and new profiles as an error. That fallback only matters for
+    /// a copy that has not run a renamed build yet. The file is ~9 KB; the cap keeps
+    /// a path that turns out to be something else from being read into memory
+    /// wholesale.
     static func readUpdateChannel(
         home: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> String? {

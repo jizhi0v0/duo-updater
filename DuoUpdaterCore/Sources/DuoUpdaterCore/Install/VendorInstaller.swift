@@ -52,7 +52,22 @@ import CryptoKit
 /// not-running app just updates silently.
 public actor VendorInstaller {
 
-    public init() {}
+    /// Where `SelfUpdaterStash` looks for what an app's own updater parked. Nil
+    /// is the user's real `~/Library/Caches`; tests point it at a scratch
+    /// directory. A `DUO_DEV_HOOKS` build also reads
+    /// `DUO_SELF_UPDATER_CACHES_DIR`, so the installed `duo` can be shown a
+    /// fabricated stash without touching another app's real cache.
+    private let stashCachesDirectory: URL?
+
+    public init(stashCachesDirectory: URL? = nil) {
+        #if DUO_DEV_HOOKS
+        self.stashCachesDirectory = stashCachesDirectory
+            ?? ProcessInfo.processInfo.environment["DUO_SELF_UPDATER_CACHES_DIR"]
+                .map { URL(fileURLWithPath: $0, isDirectory: true) }
+        #else
+        self.stashCachesDirectory = stashCachesDirectory
+        #endif
+    }
 
     public enum InstallError: LocalizedError {
         case notVendorUpdate
@@ -99,6 +114,7 @@ public actor VendorInstaller {
     public func download(
         _ result: UpdateResult,
         preferDelta: Bool = true,
+        useLocalStash: Bool = true,
         population: [InstalledApp]?,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws -> DownloadedUpdate {
@@ -137,9 +153,14 @@ public actor VendorInstaller {
         //
         // Neither a stash nor a patch for a digest-only update: GitHub's digest
         // describes the release asset, and those are other bytes.
+        //
+        // `useLocalStash` is false on the coordinator's retry after a stash failed
+        // to verify or unpack (`LocalStashFailure`): the same file would be picked
+        // again until the app's own updater replaced it.
         let digestOnly = remote.installTrust == .publishedDigestOnly
-        let stash = digestOnly
-            ? nil : await SelfUpdaterStash.resolve(for: result, population: population)
+        let stash = digestOnly || !useLocalStash
+            ? nil : await SelfUpdaterStash.resolve(
+                for: result, population: population, cachesDirectory: stashCachesDirectory)
 
         // A patch published for exactly the build on disk. Vendors reached through
         // a probe can still serve a Sparkle appcast — ChatGPT does, and every one
@@ -253,6 +274,36 @@ public actor VendorInstaller {
         digestOnlyAllowed: Bool,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws {
+        let newApp: URL
+        do {
+            newApp = try await verifiedBundle(
+                result, download: download, digestOnlyAllowed: digestOnlyAllowed, onStage: onStage)
+        } catch where download.localStash != nil && localStashFailureIsWorthRetrying(error) {
+            // The stash is another updater's container, not the route's artifact,
+            // so a refusal here speaks for those bytes alone. Only failures before
+            // the swap are wrapped: once a bundle has passed every gate, a swap
+            // failure would happen identically to the route's own download.
+            throw LocalStashFailure(underlying: error)
+        }
+
+        // 5. Swap the bundle into place. We do this even while the app is
+        // running: macOS keeps the live process on the code it already mapped,
+        // so it keeps working on the old version until the user restarts it (the
+        // caller surfaces a "Restart" prompt). We never force a quit — that would
+        // skip the app's own save-on-quit flow.
+        onStage(.installing)
+        try await installApp(newApp, over: result.app.path)
+
+        onStage(.done)
+    }
+
+    /// Steps 1–4 of `applyVerified`: every gate, and the bundle that passed them.
+    private func verifiedBundle(
+        _ result: UpdateResult,
+        download: DownloadedUpdate,
+        digestOnlyAllowed: Bool,
+        onStage: @Sendable @escaping (InstallStage) -> Void
+    ) async throws -> URL {
         guard let remote = result.remote else {
             throw InstallError.notVendorUpdate
         }
@@ -353,16 +404,7 @@ public actor VendorInstaller {
             installedApp: result.app.path,
             trust: trust
         )
-
-        // 5. Swap the bundle into place. We do this even while the app is
-        // running: macOS keeps the live process on the code it already mapped,
-        // so it keeps working on the old version until the user restarts it (the
-        // caller surfaces a "Restart" prompt). We never force a quit — that would
-        // skip the app's own save-on-quit flow.
-        onStage(.installing)
-        try await installApp(newApp, over: result.app.path)
-
-        onStage(.done)
+        return newApp
     }
 
     /// Gate 1 and unpacking for a full archive: the published digests and MyGo
@@ -602,4 +644,53 @@ public actor VendorInstaller {
         // `aCleanupFailureReasonReachesTheInstallLog` reads it back.
         _ = try await InPlaceSwap.replace(newApp: newApp, over: target)
     }
+}
+
+/// A local stash (`DownloadedUpdate.localStash`) that failed before the swap —
+/// it did not unpack, or the bundle in it did not pass a gate. The coordinator
+/// retries once with `useLocalStash: false`, so the route's own artifact is
+/// downloaded and verified as usual; nothing else lands there. The stash file
+/// itself is left alone: it belongs to the other app's updater.
+///
+/// Carries no byte count, unlike `DeltaRouteFailure`: taking a stash spends no
+/// network bytes (`VendorInstaller.adopt` reports 0), so the retry's own
+/// download is the whole total.
+public struct LocalStashFailure: LocalizedError {
+    public let underlying: Error
+
+    public init(underlying: Error) {
+        self.underlying = underlying
+    }
+
+    /// Reads as the underlying problem, as `DeltaRouteFailure` does.
+    public var errorDescription: String? {
+        (underlying as? LocalizedError)?.errorDescription
+            ?? underlying.localizedDescription
+    }
+}
+
+/// Whether a failure on a local stash is one the route's own artifact could
+/// avoid. Everything before the swap is, by default: the stash is another
+/// updater's container for the same release (§6 of
+/// `docs/engine-notes/self-updater-stash.md`), so a bad zip, a bundle with the
+/// wrong Team or no notarization, or the wrong architecture slice says nothing
+/// about the route's download. The exceptions are the failures the download
+/// would hit for the same reason, or that are not about the bytes at all:
+///   - cancellation — the user stopped this install;
+///   - no free space — a download needs more room, not less;
+///   - the digest-only setting turned off since the row was offered;
+///   - the OS floor — `LSMinimumSystemVersion` belongs to the version, and the
+///     stash already matched the route's version.
+public func localStashFailureIsWorthRetrying(_ error: Error) -> Bool {
+    if error is CancellationError { return false }
+    if error is DiskSpaceGuard.InsufficientSpace { return false }
+    if let cocoa = error as? CocoaError, cocoa.code == .fileWriteOutOfSpace { return false }
+    if let posix = error as? POSIXError, posix.code == .ENOSPC { return false }
+    if case ArchiveExtractor.ExtractError.toolFailed(_, _, let output) = error,
+       output.localizedCaseInsensitiveContains("No space left on device") {
+        return false
+    }
+    if case VendorInstaller.InstallError.digestOnlyNotAllowed = error { return false }
+    if case SignatureVerifier.VerifyError.unsupportedSystemVersion = error { return false }
+    return true
 }

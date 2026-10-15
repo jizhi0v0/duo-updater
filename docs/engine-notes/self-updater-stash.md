@@ -197,6 +197,16 @@ The file is copied into our scratch directory, never used in place and never
 deleted: it belongs to the other updater, which is free to clear `pending/` or
 overwrite it mid-install, and our caller removes the scratch directory wholesale.
 
+A stash that fails before the swap (it does not unpack, or its bundle fails a
+gate) is not the end of the install. `applyVerified` throws `LocalStashFailure`,
+and `InstallCoordinator` retries once with `useLocalStash: false`, so the route's
+own artifact is downloaded and checked as usual. Without that, every retry took
+the same file again until the app's updater replaced it. Not retried, because
+the download would fail the same way or the failure is not about the bytes:
+cancellation, no free space, the digest-only setting turned off, and the OS
+floor (`localStashFailureIsWorthRetrying`). The stash costs no network bytes, so
+the install reports only what the retry downloads.
+
 ## §7 Why a refusal is logged louder than a skip, and why the gate order follows
 
 `resolve` has two log levels. Everything up to "is there a parked archive at all"

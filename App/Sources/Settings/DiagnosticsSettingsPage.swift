@@ -10,6 +10,10 @@ struct DiagnosticsSettingsPage: View {
     /// list first, or there would be no row to scroll to.
     @Environment(\.settingsReveal) private var reveal
     @State private var showsAllRecipes = false
+    /// The reveal already acted on. A reveal stands for as long as the page is
+    /// shown, and every check publishes a new snapshot, so without this the list
+    /// reopened at the end of each check after the user had pressed Show Fewer.
+    @State private var handledReveal: Int?
 
     /// Rows shown before "Show All": every flagged recipe (they sort first, and
     /// one is never hidden) and at least this many in all.
@@ -41,9 +45,14 @@ struct DiagnosticsSettingsPage: View {
         max(Self.collapsedRecipeCount, entries.count { !$0.isHealthy })
     }
 
+    /// Once per reveal, and only once there is a list to look in: a reveal that
+    /// arrives before the first snapshot is acted on when it lands.
     private func openRecipesIfRevealHidden() {
-        guard case .recipe(let key)? = reveal?.anchor, let entries = model.recipeHealth,
-              let index = entries.firstIndex(where: { $0.key == key }),
+        guard let reveal, case .recipe(let key) = reveal.anchor,
+              reveal.token != handledReveal, let entries = model.recipeHealth
+        else { return }
+        handledReveal = reveal.token
+        guard let index = entries.firstIndex(where: { $0.key == key }),
               index >= collapsedLimit(entries)
         else { return }
         showsAllRecipes = true

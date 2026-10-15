@@ -386,6 +386,59 @@ struct BlenderBuilderTrackTests {
         #expect(decision == .alreadyCurrent)
     }
 
+    // MARK: - The listing's own outage
+
+    /// builder.blender.org's JSON listing, verbatim, from 2026-10-15 ~09:00 UTC
+    /// on: HTTP 200, `content-type: application/json`, 590 bytes of PHP fatal
+    /// where the ~80 KB listing belongs (`v=1`, `v=2` and the archive alike),
+    /// while the HTML page at `/download/daily/` still listed every track.
+    static let phpFatal = """
+        <br />
+        <b>Fatal error</b>:  Uncaught Error: Call to undefined method BuildsRenderer::getFileNameURL() in /var/www/html/source/BuildsRenderer.php:16
+        Stack trace:
+        #0 /var/www/html/source/main.php(28): BuildsRenderer-&gt;renderJSON('1')
+        #1 /var/www/html/source/main.php(59): renderDownloadResponseAsJSON(Object(BuildsDirectoryLister))
+        #2 /var/www/html/source/main.php(111): handleDownloadRequest()
+        #3 /var/www/html/webroot/index.php(4): handleRequest()
+        #4 /var/www/html/webroot/index.php(11): main()
+        #5 {main}
+          thrown in <b>/var/www/html/source/BuildsRenderer.php</b> on line <b>16</b><br />
+
+        """
+
+    /// The server's crash is the vendor's outage, not a listing this recipe no
+    /// longer understands — and no real listing reads as one.
+    @Test func aServerCrashIsTheVendorsOutageOnEveryTrack() throws {
+        for channel in [ReleaseChannel.alpha, .beta, .rc] {
+            let recipe = try Self.recipe(channel)
+            #expect(recipe.matchesTransientBody(Self.phpFatal), "\(channel)")
+            for listing in [Self.dailyListing, Self.candidateListing, Self.betaListing] {
+                #expect(!recipe.matchesTransientBody(listing), "\(channel)")
+            }
+            // Nor is it a closed track.
+            #expect(!recipe.matchesTrackClosed(Self.phpFatal), "\(channel)")
+        }
+    }
+
+    /// Through the real probe: retried once, then infra rather than a broken
+    /// recipe.
+    @Test func aServerCrashSurvivingTheRetryIsInfra() async throws {
+        let shipping = try Self.recipe(.alpha)
+        let server = try VendorErrorEnvelopeTests.ScriptedServer(bodies: [Self.phpFatal])
+        defer { server.stop() }
+
+        let outcome = await VendorProbeSource().probeDiagnostic(
+            VendorProbeRecipe(
+                bundleID: shipping.bundleID, url: server.url, mode: .responseBody,
+                versionPattern: shipping.versionPattern,
+                transientBodyPattern: shipping.transientBodyPattern))
+
+        let failure = try #require(outcome.failure)
+        #expect(failure.kind == "vendorErrorEnvelope")
+        #expect(failure.classification == .infra)
+        #expect(server.requests == 2)
+    }
+
     // MARK: - The head lineage itself
 
     @Test func aHeadLineagePlacesEveryOtherBuildBehindIt() {

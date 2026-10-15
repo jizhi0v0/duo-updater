@@ -3250,6 +3250,29 @@ struct ChangelogEntriesView: View {
         var heights: [AnyHashable: CGFloat] = [:]
         /// A version header's height (`ChangelogSectionsList`), last measured.
         var headerHeight: CGFloat = 0
+        /// The tinted version's header in the window, last measured: where
+        /// `bandInset` is read.
+        var tintedHeader: CGRect?
+        /// The top of the long scroll's list in the window. The window's space,
+        /// not one named on the list: that did not reach the list's headers,
+        /// which got the window's anyway (2026-10-15).
+        var listTop: CGFloat = 0
+        /// What the list adds above and below a header's own view: the band
+        /// floating over the notes is `headerHeight + 2 × bandInset`. Read off
+        /// the tinted header while it sits at the top of the list.
+        var bandInset: CGFloat = 0
+        /// The height the floating header covers.
+        var band: CGFloat { headerHeight + 2 * bandInset }
+
+        /// Reads `bandInset` off the tinted header, if it is the one at the
+        /// top of the list; whether it changed.
+        func readBandInset() -> Bool {
+            guard let frame = tintedHeader else { return false }
+            let inset = frame.minY - listTop
+            guard inset >= 0, inset < frame.height, abs(inset - bandInset) > 0.5 else { return false }
+            bandInset = inset
+            return true
+        }
         /// The scroll view's height.
         var viewportHeight: CGFloat = 0
     }
@@ -3403,14 +3426,22 @@ struct ChangelogEntriesView: View {
     /// "a child view with identifier `id`").
     ///
     /// `belowHeader`: the version's header floats over the top of the notes
-    /// (`ChangelogSectionsList`), so the row lands one header below the top.
+    /// (`ChangelogSectionsList`), so the row lands one band below the top
+    /// (`NotesScroll.band`: the header and the list's padding around it).
     /// The anchor assumes `scrollTo` lines up the point at `anchor.y` of the
     /// target with the point at `anchor.y` of the scroll view, putting the
-    /// target's top at `y × (viewport − target)`, solved for the header's
-    /// height. Apple's docs don't spell that out; on openclaw the breaking row
-    /// landed fully visible just under the header (2026-10-14). The row's
-    /// height is measured once built; before that, a line. Beside the rail
-    /// nothing floats (the rail says which version it is): the top of the pane.
+    /// target's top at `y × (viewport − target)`, solved for the band's
+    /// height. Apple's docs don't spell that out. The row's height is measured
+    /// once built; before that, a line. Beside the rail nothing floats (the
+    /// rail says which version it is): the top of the pane.
+    ///
+    /// Under the band, a second move once the first has landed. A jump to an
+    /// unbuilt row landed off by a row or more, which way depending on where
+    /// the list started (openclaw, 2026-10-15); the rows it passes unbuilt
+    /// being placed by guessed heights is a guess. And the band's padding can
+    /// only be read with the version's header at the top. With both, the
+    /// breaking row landed just under the band from the top, a fifth and four
+    /// fifths of the way down, and again from on screen.
     ///
     /// Animated only when the row is already built (`notesScroll.built`), which
     /// means on screen or just off it: a short way, and the motion keeps where
@@ -3439,16 +3470,37 @@ struct ChangelogEntriesView: View {
             built = opensEntry ? ChangelogRowsStack.titleID : target
         }
         Task { @MainActor in
-            let room = notesScroll.viewportHeight - (notesScroll.heights[target] ?? 20)
-            let anchor = !belowHeader || room <= notesScroll.headerHeight
-                ? UnitPoint.top
-                : UnitPoint(x: 0, y: notesScroll.headerHeight / room)
+            _ = notesScroll.readBandInset()
             if notesScroll.built.contains(built) {
-                withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(target, anchor: anchor) }
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: belowHeader))
+                }
+                guard belowHeader else { return }
+                // The band's padding may be readable only now, with the
+                // version's header at the top.
+                try? await Task.sleep(for: .milliseconds(350))
+                if notesScroll.readBandInset() {
+                    proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: belowHeader))
+                }
             } else {
-                proxy.scrollTo(target, anchor: anchor)
+                proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: belowHeader))
+                guard belowHeader else { return }
+                for _ in 0..<10 where !notesScroll.built.contains(built) {
+                    try? await Task.sleep(for: .milliseconds(16))
+                }
+                _ = notesScroll.readBandInset()
+                proxy.scrollTo(target, anchor: anchor(for: target, belowHeader: belowHeader))
             }
         }
+    }
+
+    /// Where `scrollToBreaking` puts `target`'s top: under the floating band
+    /// (`NotesScroll.band`), or at the top of the pane when nothing floats.
+    private func anchor(for target: AnyHashable, belowHeader: Bool) -> UnitPoint {
+        let room = notesScroll.viewportHeight - (notesScroll.heights[target] ?? 20)
+        return !belowHeader || room <= notesScroll.band
+            ? .top
+            : UnitPoint(x: 0, y: notesScroll.band / room)
     }
 
     /// Stable anchor for the detail pane's scroll-to-top. Constant on purpose —
@@ -3523,7 +3575,10 @@ struct ChangelogEntriesView: View {
     private var sectionsBody: some View {
         ScrollViewReader { proxy in
             ChangelogSectionsList(changelog: changelog, itemStyle: itemStyle, tint: tint, scroll: notesScroll)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { notesScroll.viewportHeight = $0 }
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                    notesScroll.viewportHeight = $0.height
+                    notesScroll.listTop = $0.minY
+                }
                 .onChange(of: shownBreaking) {
                     scrollToBreaking(proxy, belowHeader: true)
                 }
@@ -3751,8 +3806,14 @@ private struct ChangelogSectionsList: View {
                 } header: {
                     ChangelogEntryView.Header(entry: entry, tinted: tinted?.isEmpty == true)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { scroll.headerHeight = $0 }
-                        // The band is the whole header, so its measured height
-                        // is what covers the top of the notes.
+                        // Only the tinted one: its frame changes on every
+                        // frame of a scroll.
+                        .onGeometryChange(for: CGRect?.self) {
+                            tinted == nil ? nil : $0.frame(in: .global)
+                        } action: { if tinted != nil { scroll.tintedHeader = $0 } }
+                        // Not all of them: the list still put the header 8 pt
+                        // in and 4.125 pt down, in a band 37.5 pt tall for a
+                        // 29.25 pt header (`NotesScroll.bandInset`; 2026-10-15).
                         .listRowInsets(EdgeInsets())
                 }
             }

@@ -244,10 +244,16 @@ import CryptoKit
                 if balrogShutoffs == nil { balrogShutoffs = await fetchBalrogShutoffs() }
                 shutOff = balrogShutoffs?.contains(track) ?? false
             }
+            // Asked only for a pattern miss, like the shutoffs: one more request,
+            // on the day the recipe would otherwise fail.
+            var errorPage = false
+            if case .versionPatternNoMatch? = outcome?.failure, !shutOff, let recipe = byKey[key] {
+                errorPage = await servesErrorPage(recipe)
+            }
             if let lastGoodAt = outcome.flatMap({ lastGood[$0.recipeID] }),
                excusesVendorOutage(outcome?.failure, lastGoodAt: lastGoodAt,
                                    timedOutInSweep: timedOutInSweep,
-                                   balrogShutoff: shutOff) {
+                                   balrogShutoff: shutOff, serverErrorPage: errorPage) {
                 withKnownIssue("vendor outage on a recipe the nightly sweep resolved on \(lastGoodAt) — see excusesVendorOutage") {
                     Issue.record(Comment(rawValue: message))
                 }
@@ -309,18 +315,26 @@ import CryptoKit
 /// `nightly` shutoff ("Bug 2075059: crashes") failed `test` on every PR, as a
 /// 13-hour one had on 2026-09-16 (PR #695).
 ///
+/// A pattern miss is also excused while the recipe's endpoint answers 200 with
+/// the server's own crash report in place of its content (`serverErrorPage`,
+/// `isServerErrorPage`). On 2026-10-15 Blender's `builder.blender.org` JSON
+/// listing answered a PHP "Fatal error: Uncaught Error: Call to undefined
+/// method" for hours, failing `test` on every PR, while its HTML listing
+/// still worked. A vendor that changed its page is not excused: its page is
+/// not a crash report.
+///
 /// A 4xx, any other pattern miss, and every other transport error are never
 /// excused. Neither is `installURLTransient`: `lastGoodAt` proves the
 /// version resolved, not the installer.
 func excusesVendorOutage(
     _ failure: ProbeFailure?, lastGoodAt: Date?, timedOutInSweep: Int,
-    balrogShutoff: Bool = false, now: Date = Date()
+    balrogShutoff: Bool = false, serverErrorPage: Bool = false, now: Date = Date()
 ) -> Bool {
     let transient: Bool
     switch failure {
     case .httpStatus(let code)?: transient = VendorProbeSource.isTransientStatus(code)
     case let f? where isTimeout(f): transient = timedOutInSweep <= maxExcusedTimeouts
-    case .versionPatternNoMatch?: transient = balrogShutoff
+    case .versionPatternNoMatch?: transient = balrogShutoff || serverErrorPage
     default: transient = false
     }
     guard transient, let lastGoodAt else { return false }
@@ -380,6 +394,38 @@ func parseBalrogShutoffs(_ data: Data) -> Set<BalrogTrack>? {
     })
 }
 
+/// Whether `recipe`'s endpoint answers with a server crash report right now
+/// (`isServerErrorPage`). A plain GET with the recipe's headers; an endpoint
+/// with placeholders (`ProbeIdentity`) is not fetched, and anything that is not
+/// a 200 is not a crash report served as content.
+func servesErrorPage(_ recipe: VendorProbeRecipe) async -> Bool {
+    guard !recipe.url.absoluteString.contains("{") else { return false }
+    var request = URLRequest(url: recipe.url)
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    request.timeoutInterval = 15
+    for (field, value) in recipe.requestHeaders { request.setValue(value, forHTTPHeaderField: field) }
+    guard let (data, response) = try? await URLSession.shared.data(for: request),
+          (response as? HTTPURLResponse)?.statusCode == 200
+    else { return false }
+    return isServerErrorPage(String(decoding: data, as: UTF8.self))
+}
+
+/// A body that is a server's crash report, not a page: PHP's fatal or parse
+/// error, a Python traceback, or a proxy's 5xx page. Only a short body: a
+/// crash report is a few hundred bytes (Blender's, 319), and a real page long
+/// enough could mention one of these in passing (a changelog quoting a
+/// traceback).
+func isServerErrorPage(_ body: String) -> Bool {
+    guard body.utf8.count <= 16_384 else { return false }
+    let signatures = [
+        "<b>Fatal error</b>:", "Fatal error: Uncaught", "<b>Parse error</b>:",
+        "Traceback (most recent call last):",
+        "<title>500 Internal Server Error</title>", "<title>502 Bad Gateway</title>",
+        "<title>503 Service Unavailable</title>", "<title>504 Gateway Time-out</title>",
+    ]
+    return signatures.contains { body.contains($0) }
+}
+
 /// `lastGoodAt` per recipe ID from the committed `verify/baseline.json`.
 private func committedLastGoodDates() -> [String: Date] {
     let url = URL(fileURLWithPath: #filePath)
@@ -394,6 +440,33 @@ private func committedLastGoodDates() -> [String: Date] {
     else { return [:] }
     let iso = ISO8601DateFormatter()
     return entries.compactMapValues { ($0["lastGoodAt"] as? String).flatMap(iso.date(from:)) }
+}
+
+/// Blender's JSON listing on 2026-10-15, as served (319 bytes, status 200).
+private let blenderCrashReport = """
+<br />
+<b>Fatal error</b>:  Uncaught Error: Call to undefined method BuildsRenderer::getFileNameURL() in /var/www/html/source/BuildsRenderer.php:16
+Stack trace:
+#0 /var/www/html/source/main.php(28): BuildsRenderer-&gt;renderJSON('1')
+#1 /var/www/html/source/main.php(59): renderDownloadResponseAsJSON(Object(BuildsDirectoryLister))
+#2 /var/www/html/source/main.php(111): handleDownloadRequest()
+#3 /var/www/html/webroot/index.php(4): handleRequest()
+#4 /var/www/html/webroot/index.php(11): main()
+#5 {main}
+  thrown in <b>/var/www/html/source/BuildsRenderer.php</b> on line <b>16</b><br />
+"""
+
+@Test func aServerCrashReportIsRecognisedAndAPageIsNot() {
+    #expect(isServerErrorPage(blenderCrashReport))
+    #expect(isServerErrorPage("Traceback (most recent call last):\n  File \"app.py\", line 3"))
+    #expect(isServerErrorPage("<html><head><title>502 Bad Gateway</title></head></html>"))
+    // A vendor that changed its page: what a pattern miss is there to catch.
+    #expect(!isServerErrorPage(#"[{"version": "5.4.0", "release_cycle": "alpha"}]"#))
+    #expect(!isServerErrorPage("<html><title>Blender Builds</title><body>Alpha</body></html>"))
+    #expect(!isServerErrorPage(""))
+    // A real page long enough could quote one in passing.
+    let changelog = String(repeating: "Fixed a crash. ", count: 2_000) + "Traceback (most recent call last):"
+    #expect(!isServerErrorPage(changelog))
 }
 
 @Test func vendorOutageIsExcusedOnlyForARecipeThatRecentlyWorked() {
@@ -431,6 +504,14 @@ private func committedLastGoodDates() -> [String: Date] {
     #expect(!excusesVendorOutage(miss, lastGoodAt: stale, timedOutInSweep: 0, balrogShutoff: true, now: now))
     #expect(!excusesVendorOutage(.httpStatus(404), lastGoodAt: fresh, timedOutInSweep: 0, balrogShutoff: true, now: now),
             "a shutoff answers 200 with an empty body, not a 4xx")
+
+    // …or while the endpoint serves a crash report, and still needs the anchor.
+    #expect(excusesVendorOutage(miss, lastGoodAt: fresh, timedOutInSweep: 0, serverErrorPage: true, now: now))
+    #expect(!excusesVendorOutage(miss, lastGoodAt: nil, timedOutInSweep: 0, serverErrorPage: true, now: now),
+            "a recipe the nightly never resolved has not shown it works")
+    #expect(!excusesVendorOutage(miss, lastGoodAt: stale, timedOutInSweep: 0, serverErrorPage: true, now: now))
+    #expect(!excusesVendorOutage(.httpStatus(404), lastGoodAt: fresh, timedOutInSweep: 0, serverErrorPage: true, now: now),
+            "a crash report served as content is a 200, not a 4xx")
 
     // The anchor has to be readable, or the excuse is dead code that fails closed.
     // Only `vendor:` keys: the sweep looks up `ProbeOutcome.recipeID`, and the

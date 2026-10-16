@@ -1,0 +1,32 @@
+name: diag-early-boot-disk-images
+on:
+  push:
+    branches: [diag/early-boot-disk-images]
+permissions:
+  contents: read
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe disk images from boot
+        run: |
+          set +e
+          bash diag/probe.sh 480
+      - name: Summary
+        if: always()
+        run: |
+          set +e
+          echo "== failures by kind and 30 s bucket of uptime"
+          grep -h ' rc=[1-9]' "$RUNNER_TEMP"/probe-*.log | awk '{b=int($2/30)*30; print b"s", $3, $4}' | sort | uniq -c | sort -k2 -n
+          echo "== totals"
+          for f in "$RUNNER_TEMP"/probe-*.log; do echo "$f ok=$(grep -c ' rc=0' $f) fail=$(grep -c ' rc=[1-9]' $f)"; done
+          echo "== all failures"
+          grep -h ' rc=[1-9]' "$RUNNER_TEMP"/probe-*.log | head -200
+          echo "== cpu"
+          cat "$RUNNER_TEMP"/cpu.log

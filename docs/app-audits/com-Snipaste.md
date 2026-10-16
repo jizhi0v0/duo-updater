@@ -43,11 +43,15 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `com.Snipaste` | — | — | `versions` JSON 的 `mac_version` | ✓ |
-| beta    | `com.Snipaste` | 共享 | app 内偏好（键名未找到） | app 自己的 feed（地址未找到） | ○ |
+| beta    | `com.Snipaste` | 共享 | app 内偏好（2.11.3 Free 界面里没有这个开关，见下） | app 自己的 feed（地址未找到） | ○ |
 
 - beta 是 Pattern B（同 id、偏好切换）。二进制里有 `cb_betaUpdate` / `Include beta builds`，但偏好键不是字面量
   （`Update/` 段下能看到 `force_feed`、`last_feed`、`last_upack`、`changelog` 等，没有 beta 相关的键），feed 地址
-  也是运行时拼的（`https://%1`）。要接它需要启动 app 拨一下开关、读 `~/.snipaste/config.ini` 并抓包，本次没有做。
+  也是运行时拼的（`https://%1`）。
+- 真机（2026-10-16，2.11.3 Free，全新 `~/.snipaste`）：Preferences ▸ Update 页只有 “Check for updates on startup / Every 24 h”、代理设置和
+  “Check for updates” / “Restore Defaults”，**没有** “Include beta builds”。二进制里有这个复选框（`cb_betaUpdate`、提示
+  “Beta versions may contain more bugs.”），但这个构建不显示它；显示条件（Pro？beta 构建？）没查到。`config.ini` 只有
+  `first_run`、`language` 两行。所以这个版本的用户无法打开 beta 轨，没有偏好可读。
 - changelog 里最近一个不带平台限定的 beta 标题是 `v2.8.3 Beta2`（2022-12-25），之后只有
   `v2.8.8 Beta (Linux)`、`v2.8.9 Beta (Linux)`。也就是说当前没有比 stable 新的 Mac beta 在发（推断自 changelog，
   没有抓到 app 的 beta feed 来确认）。
@@ -111,7 +115,7 @@
 
 ## 建议下一步
 1. （已做）运行中一轮，2026-10-16，main `make cli`：2.11.2 运行中、自带更新器已下载 2.11.3 dmg 且模态框开着，`duo install --yes` → `installed.` 并提示 `Still running the old code: Snipaste`；模态框开着时 `duo restart` 退不掉 app（见已知问题）；点 “Install now” 后 app 退出、只挂载 dmg，bundle inode 不变；启动 2.11.3 后 `duo restart` → `restarted`。Team `NGTL73P583`、`codesign --strict` 0、Notarized。新增只有 `~/.snipaste`，登录项前后无差异
-2. beta：在 app 里打开「Include beta builds」，读 `~/.snipaste/config.ini` 的变化并抓 app 的更新请求；有了偏好键和 feed 再写 `ChannelBinding` + beta recipe。
+2. beta：2.11.3 Free 界面里没有「Include beta builds」（2026-10-16 真机），暂无可接的偏好。等哪个版本把开关露出来（或确认 Pro 版有）再拨开关、读 `~/.snipaste/config.ini` 并抓更新请求。
 
 ## 如何复验
 

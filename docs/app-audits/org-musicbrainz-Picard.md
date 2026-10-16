@@ -49,7 +49,7 @@
      位认渠道），要配 channel proof 和测试；
   2. `ChannelBinding` 读用户偏好 `update_level`（`IntOption('setting', 'update_level')`，`in_profile=True`，
      即可能被 profile 覆盖）。Qt `IniFormat` + `UserScope` + org `MusicBrainz` / app `Picard` 在 macOS 上的
-     位置应是 `~/.config/MusicBrainz/Picard.ini` —— **按 Qt 文档推断，未在真 app 上确认**（审计不启动 app）。
+     位置是 `~/.config/MusicBrainz/Picard.ini`（2026-10-16 真机 3.0.2 确认，见「建议下一步」）。
   当前 beta 轨（3.0.0rc4）落后于 stable，没有构建会被漏掉。
 - `old_stable` 是给 macOS 10.12–12 的 2.x 线。DuoUpdater 最低 macOS 15、只跑 arm64，这些 Mac 都能跑 3.x，
   不需要 2.x 线。
@@ -126,9 +126,11 @@
 - 2.0.x 没公证；它被一键替换成已公证的 3.0.2，替换前后都过 Team 闸
 
 ## 建议下一步
-1. 主会话真机跑一键：装 3.0.1（上一版），`duo install` 到 3.0.2
-2. beta: 等下一个 beta 周期再决定用 `installedTagPrefix` rule 还是 `update_level` 偏好；后者要先在真 app
-   里切一次「更新类型」确认 INI 位置和值
+1. （已做）真机一键 3.0.1 → 3.0.2，见「一键安装」的端到端一行
+2. beta: 等下一个 beta 周期再决定用 `installedTagPrefix` rule 还是 `update_level` 偏好。偏好已在真机确认（2026-10-16，3.0.2，
+   全新配置）：Options ▸ Advanced ▸ Updates to check 选 “Stable and Beta releases” 并点 OK 后，`~/.config/MusicBrainz/Picard.ini`
+   的 `[setting]` 段出现 `update_level=1`。点 OK 会把所有选项的默认值一起写进去，所以没有这个键时按默认 0（stable）读；
+   第三项 “Stable, Beta and Dev releases” 另起全新配置实测，写成 `update_level=2`。profile 覆盖的情形没测（`user_profiles=@Invalid()`，没有 profile）
 
 ## 如何复验
 

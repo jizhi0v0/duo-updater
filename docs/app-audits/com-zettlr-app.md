@@ -133,13 +133,12 @@
 
 ## 已知问题
 - nightly 副本显示 unknown，不推更新（见 Channel 详情）
-- `checkForBeta` 的磁盘写入还没在真机上观测
 - 运行中被换包的旧进程开不了新窗口：4.7.0 运行中 duo 装上 4.8.0 后，旧进程的主窗口一片空白，Help → Check for updates 弹 “Could not open window — Could not open main Window: ERR_FAILED (-2) loading 'file:///Applications/Zettlr.app/Contents/Resources/app.asar/.webpack/renderer/main_window/index.html?…'”（窗口从磁盘上的新 `app.asar` 加载）。`duo restart` 后恢复。任何原地换包（包括手动拖拽）都会这样，duo 的 `Still running the old code` 提示就是为此
 - 首启向导（“Hello!” Skip / Start setup）和更新后的 “Update complete!” 页开着时，app 不响应 AppleScript `quit`（返回 0 但不退），也不响应 SIGTERM；向导开着时 `duo restart` 报 `still running — likely a save prompt`。原因没查
 
 ## 建议下一步
 1. （已做）运行中一轮，2026-10-16，main `make cli`：4.7.0 运行中，`duo install --yes` → `installed.` 并提示 `Still running the old code: Zettlr`；首启向导开着时 `duo restart` 退不掉 app；用户点 Skip 后旧进程开窗失败（见已知问题），再 `duo restart` → `restarted`，主进程与 Helper 都映射 4.8.0 的二进制，app 显示 “Update complete! … v4.8.0”。Team `QS52BN8W68`、`codesign --strict` 0、Notarized。新增 `~/Library/Application Support/Zettlr`、`~/Library/Preferences/com.zettlr.app.plist`、`~/Documents/Zettlr Tutorial`，登录项前后无差异
-2. 真机拨 "Notify me about beta releases"，对比 `config.json` 前后，`channel-verify --check com.zettlr.app` 看 `detected channel` 跟随
+2. （已做）2026-10-16 真机 4.8.0：勾选 Settings ▸ Advanced ▸ “Notify me about beta releases” 后 `~/Library/Application Support/Zettlr/config.json` 的 `checkForBeta` `false` → `true`（同时变的只有教程打开的 `openDirectory` / `app.openWorkspaces`）；`channel-verify --check com.zettlr.app` → `detected channel → beta`、`latest → 4.8.0`、`up to date`
 
 ## 如何复验
 ```

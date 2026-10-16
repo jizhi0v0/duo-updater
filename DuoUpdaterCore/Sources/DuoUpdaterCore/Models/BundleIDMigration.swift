@@ -77,6 +77,19 @@ public struct BundleIDMigration: Sendable, Equatable {
         BundleIDMigration(
             from: "com.bitmoor.whatcable", to: "uk.whatcable.whatcable",
             teamID: "M4RUJ7W6MP", lastFromVersion: "0.5.14", firstToVersion: "0.6.0"),
+        // Cork changed its bundle id twice, the same Team throughout: up to
+        // 1.4.4 it is `com.davidbures.Cork`, from 1.4.4.1 through 1.5.7
+        // `com.davidbures.cork` (also the frozen macOS 13 build, 1.5.6), and
+        // from 1.6.0 `eu.davidbures.cork`. The vendor's 1.6.0 post announces
+        // the change: settings may reset once and the licence email may have
+        // to be entered again. Read off the real zips; see
+        // docs/app-audits/eu-davidbures-cork.md, 历史与实测.
+        BundleIDMigration(
+            from: "com.davidbures.Cork", to: "eu.davidbures.cork",
+            teamID: "ZSVA6DVZHM", lastFromVersion: "1.4.4", firstToVersion: "1.6.0"),
+        BundleIDMigration(
+            from: "com.davidbures.cork", to: "eu.davidbures.cork",
+            teamID: "ZSVA6DVZHM", lastFromVersion: "1.5.7", firstToVersion: "1.6.0"),
     ]
 
     /// Whether an installed copy signed as `from` at `version` is this rename.

@@ -220,6 +220,7 @@ public enum AppRecipeIndex {
         dev_warp_Warp_Stable.set,
         dev_zed_Zed.set,
         digital_twisted_noTunes.set,
+        eu_davidbures_cork.set,
         eu_exelban_Stats.set,
         fr_handbrake_HandBrake.set,
         im_riot_app.set,

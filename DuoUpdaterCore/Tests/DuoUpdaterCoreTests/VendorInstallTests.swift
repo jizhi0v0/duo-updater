@@ -872,8 +872,8 @@ private func committedLastGoodDates() -> [String: Date] {
 ///
 /// It goes to the wire, so a vendor timeout gets the sweep's policy: one retry,
 /// then `excusesVendorOutage`. `latestVersion` threw the -1001 straight out and
-/// failed `test` five times between 2026-10-14 and 10-16 on PRs that touched no
-/// recipe, while the sweep above excused the same recipe's timeouts.
+/// failed `test` (e.g. CI run 38904509855, 2026-10-16), while the sweep above
+/// excused the same recipe's timeouts.
 @Test func toolboxManagedCopiesResolveDetectionOnly() async {
     let source = VendorProbeSource()
     var outcomes: [(channel: ReleaseChannel, outcome: ProbeOutcome?)] = []

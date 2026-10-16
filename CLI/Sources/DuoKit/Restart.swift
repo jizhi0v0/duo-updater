@@ -86,8 +86,9 @@ public enum Restart {
         let to = UpdateResult(app: app, remote: nil, status: .unknown).stagedRelaunchLine(staged).to
         let running = AppRestarter.runningInstances(of: app)
         guard !running.isEmpty else {
-            let when = staged.appliesOn == .launch ? "next launch" : "next quit"
-            return ("not running — its own updater applies \(to) on its \(when)", false)
+            // Nothing to quit, and nothing we can do to make the vendor's updater
+            // apply it now — the GUI's Relaunch stands down here too.
+            return ("not running — nothing to restart; its own updater has \(to) staged", false)
         }
         let ending = await StagedRelaunch.quitAndAwait(
             app, staged: staged, old: app.versionSide,

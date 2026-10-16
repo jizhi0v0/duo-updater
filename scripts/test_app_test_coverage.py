@@ -524,13 +524,22 @@ class TheSweepStillHoldsBothOfItsClaims(unittest.TestCase):
     sweep's `main()` → that second mutation stops being caught.
     """
 
+    # Three tests read the same `--quick` run, which is deterministic and takes
+    # about 4 s; running it once instead of three times took this file from 19 s
+    # to about 11 s (2026-10-16). `--selftest-inventory` below is a different
+    # run and keeps its own.
+    _sweep = None
+
     def run_sweep(self):
         import subprocess
-        return subprocess.run(
-            [sys.executable,
-             str(pathlib.Path(atc.__file__).parent / "sweep_app_test_coverage.py"),
-             "--quick"],
-            capture_output=True, text=True, encoding="utf-8")
+        cls = type(self)
+        if cls._sweep is None:
+            cls._sweep = subprocess.run(
+                [sys.executable,
+                 str(pathlib.Path(atc.__file__).parent / "sweep_app_test_coverage.py"),
+                 "--quick"],
+                capture_output=True, text=True, encoding="utf-8")
+        return cls._sweep
 
     def test_the_quick_sweep_reports_no_false_green(self):
         out = self.run_sweep()

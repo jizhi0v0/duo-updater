@@ -60,10 +60,21 @@ set +e
 # (`GitHubAPIMock`: DUO_GITHUB_API_MOCK sends GitHub API requests to a local
 # stand-in). The release build (notarize.sh) does not set it, and
 # check-no-dev-hooks.sh fails a release that has them.
+#
+# SWIFT_COMPILATION_MODE=incremental: the app's own targets compile per file
+# instead of as one whole module, still at -O. Measured 2026-10-16 on a 14-core
+# Mac, editing one file under App/Sources: 49 s -> 12 s. It does NOT reach the
+# SwiftPM packages: DuoUpdaterCore (and Subprocess, SystemPackage) still compile
+# with -whole-module-optimization, checked in the build log, so a Core edit costs
+# the same ~100 s either way. The release build (notarize.sh) does not set this,
+# so what ships is whole-module throughout. A Release-only miscompile in Core —
+# the 2026-10-02 TaskGroup one was in DuoUpdaterCore — still shows up here; one
+# that only appears with the APP module whole-module-optimized would not.
 xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
            -scheme DuoUpdater -configuration Release \
            -derivedDataPath "$DD" \
            'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DUO_DEV_HOOKS' \
+           SWIFT_COMPILATION_MODE=incremental \
            build > "$LOG" 2>&1
 STATUS=$?
 set -e

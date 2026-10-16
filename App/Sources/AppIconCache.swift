@@ -32,9 +32,15 @@ enum AppIconCache {
     /// came from until DuoUpdater restarted (MuseScore's row kept a ⊘ after `duo
     /// install` swapped 4.7.4 for 4.7.5, 2026-10-16, while a fresh process read the
     /// right icon). A replaced bundle brings a new Info.plist, so a new inode; a
-    /// bundle read while missing or half-copied has no stamp, and gets one once the
-    /// copy lands. `nil` for a path that has no Info.plist at all (a flat file, a
-    /// bundle id), which then never changes and stays cached as before.
+    /// bundle read while missing has no stamp, and gets one once the copy lands.
+    /// `nil` for a path that has no Info.plist at all (a flat file, a bundle id),
+    /// which then never changes and stays cached as before.
+    ///
+    /// Half-copied is covered only as far as copiers write Info.plist after the
+    /// icon. Measured 2026-10-16 copying OBS.app (450 MB) while polling every 2 ms:
+    /// `cp -R` and `ditto --noclone` both finished `AppIcon.icns` before
+    /// Info.plist appeared (cp 0.63 s vs 0.99 s; ditto 1.01 s vs 1.73 s), with no
+    /// poll seeing Info.plist beside a partial icon. Finder was not measured.
     struct BundleStamp: Equatable, Sendable {
         let device: Int64
         let inode: UInt64
@@ -42,11 +48,23 @@ enum AppIconCache {
         let mtimeNanoseconds: Int
 
         nonisolated static func read(_ path: String) -> BundleStamp? {
+            if case .present(let stamp) = probe(path) { return stamp }
+            return nil
+        }
+
+        /// What a `stat` of the Info.plist says. `absent` only for the answers that
+        /// mean "no such file" — anything else (EIO, a timed-out network mount)
+        /// says nothing about whether the bundle changed.
+        enum Probe: Equatable, Sendable { case present(BundleStamp), absent, unreadable }
+
+        nonisolated static func probe(_ path: String) -> Probe {
             var info = stat()
-            guard stat(path + "/Contents/Info.plist", &info) == 0 else { return nil }
-            return BundleStamp(
+            guard stat(path + "/Contents/Info.plist", &info) == 0 else {
+                return errno == ENOENT || errno == ENOTDIR ? .absent : .unreadable
+            }
+            return .present(BundleStamp(
                 device: Int64(info.st_dev), inode: UInt64(info.st_ino),
-                mtimeSeconds: info.st_mtimespec.tv_sec, mtimeNanoseconds: info.st_mtimespec.tv_nsec)
+                mtimeSeconds: info.st_mtimespec.tv_sec, mtimeNanoseconds: info.st_mtimespec.tv_nsec))
         }
     }
 
@@ -126,17 +144,41 @@ enum AppIconCache {
     /// The `stat`s run off the main actor; they are plain syscalls, and a custom
     /// scan location can sit on a volume where one blocks. Only the re-reads come
     /// back here, under the same rules as `prefetch`: one path per step with the
-    /// run loop handed back in between, the latest call replacing the one in
-    /// flight. Measured 2026-10-16 in one long-lived process, replacing bundles in
+    /// run loop handed back in between.
+    ///
+    /// One pass at a time, and a call that lands while one runs only replaces the
+    /// paths the NEXT pass will check. Cancelling the running pass instead (the
+    /// first version) could not cancel the detached `stat`s it was awaiting, so on
+    /// a mount where they hang every write to `results` would have parked another
+    /// cooperative-pool thread behind them.
+    ///
+    /// A path whose `stat` fails for any reason but "no such file" is left as it
+    /// is: re-reading it would put the same unreachable volume's I/O on the main
+    /// actor, which is what keeping the `stat`s off it is for. Measured 2026-10-16 in one long-lived process, replacing bundles in
     /// place with `replaceItemAt` and re-reading at the same path: one re-read took
     /// 6–130 ms (mostly 10–60); ten in one pass, 183–284 ms over three runs — what
     /// reading them synchronously in `body` would have cost as a single stall.
     static func revalidate(_ paths: [String]) {
-        revalidateTask?.cancel()
-        revalidateTask = Task(priority: .utility) { await revalidatePass(paths) }
+        pendingRevalidation = paths
+        guard revalidateTask == nil else { return }
+        revalidateTask = Task(priority: .utility) {
+            while let next = pendingRevalidation {
+                pendingRevalidation = nil
+                await revalidatePass(next)
+            }
+            revalidateTask = nil
+        }
     }
 
     private static var revalidateTask: Task<Void, Never>?
+    private static var pendingRevalidation: [String]?
+
+    /// How `revalidatePass` stats a path. A seam so tests can hold a `stat` the
+    /// way a hung mount would, or fail one; nothing in the app sets it.
+    static var probeBundle: @Sendable (String) -> BundleStamp.Probe = BundleStamp.probe
+
+    /// Wait for the passes `revalidate` has queued. Tests only.
+    static func revalidationSettled() async { await revalidateTask?.value }
 
     /// One `revalidate`, awaitable so tests can run it to completion.
     static func revalidatePass(_ paths: [String]) async {
@@ -145,12 +187,19 @@ enum AppIconCache {
         }
         guard !cached.isEmpty else { return }
         let toStat = cached.map(\.0)
+        let probe = probeBundle
         let current = await Task.detached(priority: .utility) {
-            toStat.map(BundleStamp.read)
+            toStat.map(probe)
         }.value
-        for ((path, old), now) in zip(cached, current) where old != now {
+        for ((path, old), now) in zip(cached, current) {
+            let stamp: BundleStamp?
+            switch now {
+            case .present(let s): stamp = s
+            case .absent: stamp = nil
+            case .unreadable: continue
+            }
+            if stamp == old { continue }
             try? await Task.sleep(for: .milliseconds(1))
-            if Task.isCancelled { return }
             // Still the entry that was checked: a miss or `invalidate` since then
             // has already put the new copy's icon (or nothing) there.
             guard let entry = cache.object(forKey: path as NSString), entry.stamp == old else { continue }

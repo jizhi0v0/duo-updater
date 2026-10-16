@@ -123,6 +123,87 @@ struct AppIconCacheTests {
         await AppIconCache.revalidatePass([path])
         #expect(AppIconCache.revision.value == revision)
     }
+
+    /// Only "no such file" answers mean absent; a permission error (standing in
+    /// for EIO or a dead mount, which a test cannot summon) is unreadable.
+    /// Mutations: every failure absent; every failure unreadable.
+    @Test func aStatFailureIsAbsentOnlyWhenTheFileIsMissing() throws {
+        let dir = try Self.tempDir()
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir.appendingPathComponent("Locked").path)
+            try? FileManager.default.removeItem(at: dir)
+        }
+        #expect(AppIconCache.BundleStamp.probe(dir.appendingPathComponent("Nope.app").path) == .absent)
+        let file = dir.appendingPathComponent("flat")
+        try Data().write(to: file)
+        #expect(AppIconCache.BundleStamp.probe(file.path) == .absent)  // ENOTDIR
+        let locked = dir.appendingPathComponent("Locked")
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
+        #expect(AppIconCache.BundleStamp.probe(locked.appendingPathComponent("P.app").path) == .unreadable)
+    }
+
+    /// A `stat` that fails for a reason other than "no such file" (EIO, a
+    /// timed-out network mount) is not a change: re-reading would put that
+    /// volume's I/O on the main actor. Mutation: treating `.unreadable` as absent.
+    @Test func anUnreadableStampLeavesTheEntryAlone() async throws {
+        let dir = try Self.tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let path = try Self.makeBundle(in: dir, version: "1.0")
+        let old = AppIconCache.icon(for: path)
+        let revision = AppIconCache.revision.value
+        let real = AppIconCache.probeBundle
+        AppIconCache.probeBundle = { _ in .unreadable }
+        defer { AppIconCache.probeBundle = real }
+
+        await AppIconCache.revalidatePass([path])
+        #expect(AppIconCache.icon(for: path) === old)
+        #expect(AppIconCache.revision.value == revision)
+    }
+
+    /// While one pass's `stat`s hang (as on an unresponsive mount), further calls
+    /// queue behind it instead of each starting another blocked `stat`, and the
+    /// queue holds one pass, not one per call. Mutation: cancelling and replacing
+    /// the running pass on every call (each new pass stats again while the first
+    /// is still stuck).
+    @Test func callsDuringAHungPassQueueAsOne() async throws {
+        let dir = try Self.tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let path = try Self.makeBundle(in: dir, version: "1.0")
+        _ = AppIconCache.icon(for: path)
+        let gate = Gate()
+        let real = AppIconCache.probeBundle
+        AppIconCache.probeBundle = { path in
+            gate.enter()
+            return real(path)
+        }
+        defer { AppIconCache.probeBundle = real }
+
+        AppIconCache.revalidate([path])
+        while gate.entered == 0 { try await Task.sleep(for: .milliseconds(5)) }
+        // The first pass is now stuck in its `stat`.
+        for _ in 0..<4 { AppIconCache.revalidate([path]) }
+        // Long enough for every call's pass to have reached its `stat` if each one
+        // started its own.
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(gate.entered == 1)
+        gate.open()
+        await AppIconCache.revalidationSettled()
+        #expect(gate.entered == 2)
+    }
+}
+
+/// Holds every `stat` until `open()`, counting how many arrived.
+private final class Gate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = false
+    private var count = 0
+    var entered: Int { lock.withLock { count } }
+    func open() { lock.withLock { isOpen = true } }
+    func enter() {
+        lock.withLock { count += 1 }
+        while !lock.withLock({ isOpen }) { usleep(1_000) }
+    }
 }
 
 /// Set from `withObservationTracking`'s `onChange`, which may run off the main actor.

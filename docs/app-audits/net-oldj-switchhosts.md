@@ -116,19 +116,20 @@ v5 首次启动会把 v4 的 PotDb 数据（`~/.SwitchHosts/{data,config}`）迁
     `identifier "net.oldj.switchhosts" and anchor apple generic and certificate leaf[subject.OU] = "J5J6USUX2F"` 的连接方
   - app 每次查状态都做一次 XPC 握手比对 `PROTOCOL_VERSION`（当前为 1），不一致报 `Outdated`，界面提示重新注册
   - 换 bundle 后：已在跑的 `swh_helper` 继续是旧代码，直到重启或重新注册；新 app 同 identifier、同 Team，连接仍被接受。
-    这与 app 自己的 Tauri updater 原地替换 bundle 后的状态完全相同，所以不因此拦一键。没有真机验证（未验证）
+    这与 app 自己的 Tauri updater 原地替换 bundle 后的状态完全相同，所以不因此拦一键。2026-10-16 真机已确认，见「建议下一步」第 2 条
 - **读的是**: 人人可手动下载的 GA（stable 走 `/releases/latest`，beta 走 release 列表；都是 release 页上直接给的 dmg）。
   beta rule 只对已经装着 beta 的副本生效，不会把 beta 推给装正式版的人
 - 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：5.0.1 → 5.0.2（含 `verifyingSignature`；未启动，`sfltool dumpbtm` 前后都无 SwitchHosts 项），`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 阻塞: 无
 
 ## 已知问题
-- 运行中一轮（2026-10-16）没写 hosts、没装 helper，`swh_helper` 换包后的行为仍未真机验证。启动旧版不会自动注册 helper；如果为了测 helper 而写 hosts，会弹管理员授权并装上
-  root daemon，测完要在偏好设置里卸载（`unregister`），否则拖进废纸篓不会移除它（`helper_admin.rs` 注释原话的意思）。
+- 换包后已在跑的 `swh_helper` 仍是旧二进制（root 进程、按需拉起、不空闲退出），直到重启或重新注册；duo 的 `Still running the old code` 只列 app，不提 helper。实测新 app 照常经旧 helper 写 hosts，无提示
+- 测 helper 要写 hosts：第一次写时 helper 还没在「允许在后台」里放行，注册报 `Operation not permitted`，app 退回一次性管理员授权；放行后要重开 app 才会用 helper（每次会话只试一次）。测完在设置 ▸ Background Helper 卸载，删 app 后 BTM 里仍留 `disabled` 记录
 
 ## 建议下一步
 1. （已做）运行中一轮，2026-10-16，main `make cli`：5.0.1 运行中，`duo install --yes` → `installed.` 并提示 `Still running the old code: SwitchHosts`；随后在旧进程里点 “Download Update”：Tauri updater 把 5.0.2 再原地装一次（新 inode），结果 Team `J5J6USUX2F`、`codesign --strict` 0、Notarized；`duo restart` → `restarted`，新进程映射 5.0.2，`duo check` 报 up to date。`/etc/hosts` 前后 SHA-256 相同。新增 `~/.SwitchHosts`、`~/Library/{Caches,Logs,WebKit}/net.oldj.switchhosts`，登录项前后无差异
-2. 4.2.0（旧 id `SwitchHosts`）→ 5.0.2 的一键可单独跑一轮，确认 `BundleIDMigration` 换 id 与 v5 首启迁移都正常。
+2. （已做）helper 换包，2026-10-16，main `make cli`：5.0.1 运行中、`swh_helper` 已放行并在跑（root，21:08 起），`/etc/hosts` 已写入测试行；`duo install --yes` → `installed.`，`swh_helper` 与 `switchhosts` 换成新 inode，helper 进程不变、BTM 仍 `[enabled, allowed]`、launchd `state = running`；`duo restart` → `restarted`，新 5.0.2 进程改测试行并开关一次，`/etc/hosts` 照常更新（21:11），仍由 21:08 的旧 helper 写入、无授权或「Outdated」提示。卸载 helper、关掉条目后 `/etc/hosts` 与测试前逐字节相同
+3. 4.2.0（旧 id `SwitchHosts`）→ 5.0.2 的一键可单独跑一轮，确认 `BundleIDMigration` 换 id 与 v5 首启迁移都正常。
 
 ## 如何复验
 ```

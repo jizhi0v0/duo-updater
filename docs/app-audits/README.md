@@ -183,6 +183,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Muse**](com-meta-endo.md) · `com.meta.endo` — P (one-click, Sparkle 放行时) · Sparkle feed 被 facebook 登录墙（多数 302→/login），撞墙时由 Homebrew cask API 的版本号接手（只检测；`muse.ai` latest 链接 09-25 起需登录）· 真包 ✓ · 2026-09-25
 - [x] [**Stremio**](com-westbridge-stremio5-mac.md) · `com.westbridge.stremio5-mac`（旧 id `com.stremio.stremio-shell-macos` 仅检测）— P (one-click arm64 dmg) · 外壳自己的 `updater/check`，比下载页新一版 · 无 changelog · v4（`com.smartcodeltd.stremio`）厂商已冻结，不接 · old→new 真包 channel-verify ✓ · 2026-10-16
 - [x] [**Kitten Preview**](dev-kitten-Kitten-Preview.md) · `dev.kitten.Kitten-Preview` — P (detection-only) C · Zed 式 release service `releases/preview/latest/asset` · ad-hoc 签名无 Team ID，一键不可行 · stable 轨未开放 · 2026-10-12
+- [x] [**Snipaste**](com-Snipaste.md) · `com.Snipaste` — P C (one-click universal dmg via `.versionTemplate`) · 版本读官网 `versions` JSON 的 `mac_version`（cask 是 `auto_updates`）· changelog 读 docs 站的 `Changelog.md` · app 内 beta 开关未接 · 真包 old→new ✓ · 2026-10-16
 - [x] [**AirCard**](com-mak5er-aircard.md) · `com.mak5er.aircard` — G (detection-only) · ad-hoc 签名无 Team ID，一键过不了 Team 闸 · 2026-09-24
 - [x] [**Comet**](ai-perplexity-comet.md) · `ai.perplexity.comet` — P · 一键 ✓（2026-08-29，`.fixed` 指向网关）· redirect version avoids stale rollout API · real DMG + live probe ✓ · 2026-08-17
 - [x] [**Devin Desktop**](com-exafunction-windsurf.md) · `com.exafunction.windsurf` — P (one-click dmg via `.bodyPattern`) · former Windsurf bundle · real DMG + live probe ✓ · 2026-08-17

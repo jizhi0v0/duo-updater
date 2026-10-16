@@ -161,6 +161,7 @@ public enum AppRecipeIndex {
         com_runningwithcrayons_Alfred.set,
         com_sequel_ace_sequel_ace.set,
         com_shotbase_app.set,
+        com_Snipaste.set,
         com_sogou_inputmethod_sogou.set,
         com_spotify_client.set,
         com_steipete_codexbar.set,

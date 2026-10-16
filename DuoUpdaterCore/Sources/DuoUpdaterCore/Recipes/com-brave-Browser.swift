@@ -40,6 +40,12 @@ enum com_brave_Browser {
             url: URL(string: "https://updates.bravesoftware.com/sparkle/Brave-Browser/nightly-arm64/appcast.xml")!,
             mode: .responseBody,
             versionPattern: #"sparkle:version="([0-9]+\.[0-9]+)""#,
+            // A complete, well-formed feed with no `<item>` at all is the
+            // vendor's feed being empty for a while, not a closed track: this
+            // track publishes every day. So it reads as an outage rather than a
+            // recipe to fix. Anchored to the whole document: any `<item>`, a
+            // healthy feed's only content, keeps it from matching.
+            transientBodyPattern: #"(?s)\A\s*(?:<\?xml[^>]*\?>\s*)?<rss\b(?:(?!<item\b).)*</channel>\s*</rss>\s*\z"#,
             changelogURL: URL(string: "https://brave.com/latest/")!,
             versionIsBuild: true,
             displayVersionPattern: #"sparkle:shortVersionString="([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,

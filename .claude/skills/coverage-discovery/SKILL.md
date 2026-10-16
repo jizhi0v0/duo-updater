@@ -135,8 +135,8 @@ judged by exit code.
 
 If the batch touches engine code — a binding, `BundleIDMigration`,
 `UpdateResult` / `UpdatePolicy`, or the installer — run one `adversary` agent
-(Opus, xhigh) on that diff before opening the PR: 3 of the last batch's 6
-blocking review findings were there.
+(Opus, xhigh) on that diff before opening the PR: #1358's review found bugs
+in `UpdateResult` and `ZettlrChannel` that no recipe check would.
 
 ## Phase 5: End to end — install the previous release, update it with `duo`
 
@@ -159,9 +159,8 @@ make cli                                    # the CLI from THIS branch
 mdfind "kMDItemCFBundleIdentifier == '<bundle id>'"    # must be empty: never overwrite a real install
 hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$SCR/old/<app>" <previous.dmg>
 ditto "$SCR/old/<app>/<App>.app" "/Applications/<App>.app"     # alone, one per command
-duo list --json | grep -F '"bundleID":"<bundle id>"'   # its "name" is duo's: "MuseScore 4" matched nothing
-duo check "<name>"                          # proves the recipe is in this CLI
-duo install "<name>" --yes
+duo check <bundle id>                       # proves the recipe is in this CLI; by id, since duo's name can differ
+duo install <bundle id> --yes               #   ("MuseScore Studio": "MuseScore 4" matched nothing)
 .claude/skills/coverage-discovery/scripts/check-bundle.sh <newest package>   # compare with the installed copy:
 codesign -dvv "/Applications/<App>.app" 2>&1 | grep TeamIdentifier
 codesign --verify --deep --strict "/Applications/<App>.app"; echo $?

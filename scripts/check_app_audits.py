@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """`docs/app-audits/` is the single maintained reference for how each app
-publishes updates. This keeps it honest about four things that have each gone
+publishes updates. This keeps it honest about five things that have each gone
 wrong at least once.
 
 1. **The index drifts.** `README.md` is hand-written; five audits had been
@@ -40,6 +40,11 @@ wrong at least once.
    someone else's history), and a `## 历史与实测` nobody points at any more
    (history whose recipe comment was deleted or re-pointed: it reads as
    current to whoever opens the audit and is reachable from no code).
+
+5. **Hand-over placeholders outlive the hand-over.** A batch agent writes
+   「一键端到端待主会话」 in its README row; the end-to-end result then lands in
+   the audit and the row keeps the placeholder (Cork, MuseScore, 2026-10-16,
+   caught only by review).
 
 Deliberately NOT checked: that every registry bundle id has an audit. 149 of
 them do not, and turning a documentation backlog into a red build would only
@@ -135,6 +140,17 @@ def check_no_local_evidence_pointers(problems):
                     f"{path}:{n}: points at a file in the untracked records dir; "
                     "fold the evidence into 「如何复验」 instead"
                 )
+
+
+def check_no_handover_placeholders(problems):
+    # Only the index: an audit may still say a round is pending, in a table
+    # cell that names what is missing. A README row is a summary of the result.
+    for n, line in enumerate(open(INDEX, encoding="utf-8"), 1):
+        if "待主会话" in line:
+            problems.append(
+                f"{INDEX}:{n}: 「待主会话」 is a hand-over placeholder — "
+                "write the result from the audit's 一键安装 section"
+            )
 
 
 def registry_bundle_ids():
@@ -292,6 +308,7 @@ def main():
     check_links_resolve(problems)
     check_no_machine_state(problems)
     check_no_local_evidence_pointers(problems)
+    check_no_handover_placeholders(problems)
     check_filename_matches_bundle_id(problems, registry_bundle_ids())
     scanned, families = check_history_pointers(problems)
 
@@ -313,6 +330,7 @@ def main():
     print(
         f"✓ app audits consistent — {n} docs, all indexed, "
         "no machine inventory, no pointers into untracked evidence, "
+        "no hand-over placeholders, "
         f"history pointers resolve ({scanned} Swift files, {families} families)"
     )
     return 0

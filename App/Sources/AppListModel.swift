@@ -269,10 +269,9 @@ final class AppListModel {
     /// `computeSelfUpdateStaging` when the staging it was armed for goes away,
     /// and consumed (at most once) by `settleQuitHandoffs`.
     private var quitHandoffs: [String: QuitHandoff] = [:]
-    /// How long an armed quit hand-off stays live. Generous enough to answer a
-    /// quit dialog after stepping away; short enough that a quit hours later is
-    /// clearly not this hand-off.
-    private static let quitHandoffMaxAge: TimeInterval = 10 * 60
+    /// How long an armed quit hand-off stays live. In Core, because `duo
+    /// restart` waits this long for the same answer (`StagedRelaunch.QuitPatience`).
+    private static let quitHandoffMaxAge = StagedRelaunch.quitHandoffMaxAge
     /// How long after the app quits a relay waits for a rollback or install of
     /// ours to end before it gives up and leaves the app quit
     /// (`waitOutBundleChange`). The patience this relay already gives a vendor's
@@ -7572,80 +7571,43 @@ final class AppListModel {
     }
 
     /// Take the rollback point a Relaunch owes the user before it quits the app
-    /// for the app's own updater. See `StagedRelaunchBackup` for what is decided
-    /// and why.
+    /// for the app's own updater. The sequence is `StagedRelaunchBackup.take`,
+    /// shared with `duo restart`; what stays here is the row's notes around it.
     ///
     /// Returns the instances the quit must act on, re-read AFTER the copy: the
     /// copy can take seconds, and which window is in front — or whether the app
     /// is still up at all — is a question about then, not about the click.
     /// Returns nil when the user quit the app while the copy ran; the caller
     /// stands down instead of quitting whatever is running now.
-    ///
-    /// **Route.** `.sparkle`, and not `InstallCoordinator.route(for:)`: that says
-    /// how WE would install this row, and here we install nothing. `backUp` reads
-    /// the route for two restore-time warnings only, and both describe the
-    /// wrong thing here — `.installer` (a row whose one-click is a vendor .pkg)
-    /// would warn that a pkg's helpers stay newer, and `.appStore` (a copy whose
-    /// source is the store) that the store will re-apply the update; neither
-    /// applied this one. The app's own updater did, which is what `.sparkle`
-    /// records: neither flag. Its one blind spot: an updater parked with staging
-    /// we cannot read may be about to run a package, and we cannot tell.
-    ///
-    /// **Lock.** Held around the copy exactly as `runInstall` holds it around the
-    /// install that contains `backupCurrent`: the CLI writes the same backup
-    /// store, and `BackupStore.save` sweeps other staging directories for the
-    /// same key. A refused claim costs this relaunch its rollback point, not the
-    /// relaunch — the same trade `backupCurrent` makes when the copy fails.
     private func takeRollbackPointBeforeStagedRelaunch(
         _ result: UpdateResult, running: [NSRunningApplication]
     ) async -> [NSRunningApplication]? {
-        let old = result.app.versionSide
-        let buildIsDerived = AppScanner.buildVersionIsOverridden(bundleID: result.app.bundleID)
-        guard StagedRelaunchBackup.shouldTake(
-            keepBackups: prefs.keepBackups, old: old,
-            disk: await Self.readVersionSideOffMain(result.app.path),
-            buildIsDerived: buildIsDerived) else {
-            if prefs.keepBackups {
-                Log.install.notice("relaunch-staged backup skipped: \(result.app.name, privacy: .public) on disk is already past \(old.text(withBuild: true), privacy: .public)")
-            }
+        let taken = await StagedRelaunchBackup.take(
+            result.app, keepBackups: prefs.keepBackups, old: result.app.versionSide,
+            runningBefore: Set(running.map(\.processIdentifier)),
+            system: .live(for: result.app, backUp: { @MainActor [weak self] in
+                guard let self else { return .failed }
+                // This attempt's outcome replaces whatever an earlier one said.
+                for note in [Self.backupUnreadableNote, Self.backupLowSpaceNote, Self.backupFailedNote]
+                where self.installNotes[result.id] == note {
+                    self.installNotes[result.id] = nil
+                }
+                return await self.backupCurrent(result, route: .sparkle, transferNow: false)
+            }))
+        switch taken {
+        case .skipped:
             return running
-        }
-        // This attempt's outcome replaces whatever an earlier one said.
-        for note in [Self.backupUnreadableNote, Self.backupLowSpaceNote, Self.backupFailedNote] where installNotes[result.id] == note {
-            installNotes[result.id] = nil
-        }
-        do {
-            try await ProcessInstallLock.shared.claim()
-        } catch {
-            Log.install.error("relaunch-staged backup blocked by the machine install lock: \(result.app.name, privacy: .public) — relaunching without a rollback point")
+        case .lockRefused:
             installNotes[result.id] = Self.backupFailedNote
             return running
+        case .attempted:
+            await refreshBackupIndex()
+            return AppRestarter.runningInstances(of: result.app)
+        case .standDown(let discarded):
+            if discarded { installNotes[result.id] = Self.backupFailedNote }
+            await refreshBackupIndex()
+            return nil
         }
-        let before = Set(running.map(\.processIdentifier))
-        let outcome = await backupCurrent(result, route: .sparkle, transferNow: false)
-        let after = AppRestarter.runningInstances(of: result.app)
-        let intact = StagedRelaunchBackup.isIntact(
-            runningBefore: before, runningAfter: Set(after.map(\.processIdentifier)),
-            old: old, diskAfter: await Self.readVersionSideOffMain(result.app.path),
-            buildIsDerived: buildIsDerived)
-        if !intact {
-            Log.install.notice("relaunch-staged: \(result.app.name, privacy: .public) quit or changed during its backup — standing down")
-            // Only a copy this attempt stored is suspect. A failed or unreadable
-            // one never replaced the previous backup, which must survive.
-            switch outcome {
-            case .saved, .savedWithoutRuntimeState:
-                let key = BackupStore.key(bundleID: result.app.bundleID, path: result.app.path)
-                // Deletes a whole bundle copy: Dispatch, as `deleteBackups` does.
-                await offCooperativePool(qos: .utility) { BackupStore.remove(forKey: key) }
-                Log.install.error("relaunch-staged: discarded \(result.app.name, privacy: .public)'s backup — its bundle may have been swapped mid-copy")
-                installNotes[result.id] = Self.backupFailedNote
-            case .unreadable, .insufficientSpace, .failed:
-                break
-            }
-        }
-        await ProcessInstallLock.shared.release()
-        await refreshBackupIndex()
-        return intact ? after : nil
     }
 
     /// Settings' "Clean Up Now" button: prunes orphaned backups regardless of the

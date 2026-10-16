@@ -110,4 +110,14 @@ import DuoUpdaterCore
         #expect(line(.restartedWithoutUpdate).text == "restarted without applying 12.6.0")
         #expect(line(.restartedWithoutUpdate).failed)
     }
+
+    /// The rollback-point line, worded as `duo install` words its own. Nothing
+    /// for a skip (backups off, or disk already past).
+    @Test func backupStepsDescribeWhatHappened() {
+        #expect(Restart.describe(.attempted(.saved), version: "12.5.0") == "backed up 12.5.0")
+        #expect(Restart.describe(.attempted(.failed), version: "12.5.0")
+            == "could not back up — restarting without a rollback point")
+        #expect(Restart.describe(.lockRefused, version: "12.5.0")?.hasPrefix("no rollback point") == true)
+        #expect(Restart.describe(.skipped, version: "12.5.0") == nil)
+    }
 }

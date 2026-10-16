@@ -194,4 +194,66 @@ import Testing
         #expect(ending.outcome == .applied)
         #expect(ending.reopenFailed)
     }
+
+    // MARK: - QuitPatience (`duo restart` in a terminal)
+
+    private final class Calls: @unchecked Sendable { var count = 0 }
+
+    private func runPatient(_ w: World, _ calls: Calls) async -> StagedRelaunch.Ending {
+        await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.shipIt), old: old, wasFrontmost: false,
+            quitPatience: .handoff(onSlowQuit: { calls.count += 1 }), system: system(w))
+    }
+
+    /// The save prompt is answered a minute in: the quit lands late, ShipIt
+    /// (staged with launchAfterInstallation=false) swaps, and the app is reopened
+    /// after the landing — what the menu-bar app's quit hand-off does. Mutation:
+    /// bailing at `quitGraceTicks` regardless of the patience → `.wontQuit`, red.
+    @Test func aLateQuitIsWaitedForAndReopenedAfterTheLanding() async {
+        let w = World(disk: old, new: new)
+        w.quitsAt = 300
+        w.landsAt = 310
+        w.updaterRelaunches = false
+        let calls = Calls()
+        let ending = await runPatient(w, calls)
+        #expect(ending.outcome == .applied)
+        #expect(ending.everQuit)
+        #expect(w.launches == [310], "reopened once, after the swap landed")
+        #expect(calls.count == 1, "the slow-quit line is printed once")
+    }
+
+    /// Never answered: `.wontQuit` once the hand-off window has passed, no launch.
+    @Test func anUnansweredPromptEndsAfterTheHandoffWindow() async {
+        let w = World(disk: old, new: new)
+        w.quitsAt = nil
+        let calls = Calls()
+        let ending = await runPatient(w, calls)
+        #expect(ending.outcome == .wontQuit)
+        #expect(w.now == Int(StagedRelaunch.quitHandoffMaxAge * 5) + 1)
+        #expect(w.launches.isEmpty)
+        #expect(calls.count == 1)
+    }
+
+    /// A late quit still gets the swap wait it would have had from the grace on,
+    /// not the remainder of `maxTicks` from the request. Mutation: dropping the
+    /// `swapDeadline` move → the wait ends the tick after the quit, red.
+    @Test func aLateQuitGetsTheFullSwapWait() async {
+        let w = World(disk: old, new: new)
+        w.quitsAt = 2000
+        let ending = await runPatient(w, Calls())
+        #expect(ending.outcome == .swapDidNotLand)
+        // Seen gone at loop tick `quitsAt - 1`.
+        #expect(w.now == 2000 - 1 + StagedRelaunch.maxTicks - StagedRelaunch.quitGraceTicks)
+        #expect(w.launches.count == 1, "the timeout's fallback reopens it")
+    }
+
+    /// An app that quits within the grace is not told it was slow.
+    @Test func aPromptQuitPrintsNothing() async {
+        let w = World(disk: old, new: new)
+        w.landsAt = 10
+        let calls = Calls()
+        let ending = await runPatient(w, calls)
+        #expect(ending.outcome == .applied)
+        #expect(calls.count == 0)
+    }
 }

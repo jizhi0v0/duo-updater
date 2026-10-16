@@ -65,6 +65,7 @@ public enum AppRecipeIndex {
         com_corecode_MacUpdater.set,
         com_coteditor_CotEditor.set,
         com_crystalidea_macsfancontrol.set,
+        com_cu4uc_mounty.set,
         com_culturedcode_ThingsMac.set,
         com_DanPristupov_Fork.set,
         com_dirijor_diri.set,

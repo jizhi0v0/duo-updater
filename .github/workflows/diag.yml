@@ -9,10 +9,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arm: [nocompile, recompile]
-        rep: [1, 2]
+        arm: [nocompile]
+        rep: [1, 2, 3]
     runs-on: xcode-27
-    timeout-minutes: 40
+    timeout-minutes: 25
     steps:
       - name: Uptime at job start
         run: echo "uptime=$(( $(date +%s) - $(sysctl -n kern.boottime | awk '{print $4}' | tr -d ,) ))s"; uptime
@@ -40,10 +40,10 @@ jobs:
           ( while true; do echo "--- $(date -u +%H:%M:%S)"; top -l 2 -n 5 -o cpu -stats pid,command,cpu | tail -6; sleep 20; done ) > "$RUNNER_TEMP/cpu.log" 2>&1 &
           log stream --style compact --level info --predicate 'process CONTAINS[c] "diskimage" OR subsystem CONTAINS[c] "diskimage" OR process == "storagekitd"' > "$RUNNER_TEMP/di.log" 2>&1 &
           LS=$!
-          ( until grep -q 'Test case passing' "$RUNNER_TEMP/out.log" 2>/dev/null; do sleep 1; done; W=1 bash diag/probe.sh 150 ) &
-          scripts/run-with-hang-report.sh 1200 make test-release 2>&1 | tee "$RUNNER_TEMP/out.log"
-          echo "rc=${PIPESTATUS[0]}"
-          wait %2 2>/dev/null; kill $LS
+          ( sleep 20; W=1 bash diag/probe.sh 120 ) > "$RUNNER_TEMP/probe-out.log" 2>&1 &
+          scripts/run-with-hang-report.sh 1200 make test-release
+          echo "rc=$?"
+          sleep 5; kill $LS
           echo "== probe failures"; grep -h ' rc=[1-9]' "$RUNNER_TEMP"/probe-*.log
           echo "== probe totals: ok=$(cat "$RUNNER_TEMP"/probe-*.log | grep -c ' rc=0') fail=$(cat "$RUNNER_TEMP"/probe-*.log | grep -c ' rc=[1-9]')"
           echo "== readonly"; cat "$RUNNER_TEMP/readonly.log" 2>/dev/null | head -80

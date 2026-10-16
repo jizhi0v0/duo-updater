@@ -322,7 +322,21 @@ let inferred = ReleaseChannel.detect(
 // the app had it on beta, so a verification run exercised a recipe the user's
 // machine would never reach, and the actually-broken channel looked fine.
 let bound = bundleID.flatMap {
-    ChannelBinding.resolve(bundleID: $0, bundleFeeds: ChannelBinding.bundleFeeds(fromInfoPlist: info))
+    ChannelBinding.resolve(
+        bundleID: $0, bundleFeeds: ChannelBinding.bundleFeeds(fromInfoPlist: info),
+        bundleStrings: ChannelBinding.bundleStrings(fromInfoPlist: info))
+}
+// Where the binding's answer came from. `boundBundleIDs` is the list of bindings
+// with a user preference behind them (iTerm2's included, though the feed it picks
+// is the bundle's own). Of the rest, one that answers nil without the bundle read
+// it off this Info.plist (AdGuard's `AGChannel`, SwiftVM's `SUFeedURL`), and one
+// that still answers is a constant (Ghostty, CodeEdit, Osaurus).
+let boundSource = bundleID.map { id -> String in
+    if ChannelBinding.boundBundleIDs.contains(id.lowercased()) {
+        return "read from this app's own preference"
+    }
+    return ChannelBinding.resolve(bundleID: id) == nil
+        ? "read from this bundle's Info.plist" : "fixed for this app"
 }
 // Blender's cycle and commit exist only in its executable — the same read
 // AppScanner makes. See `BlenderBuildInfo`.
@@ -342,7 +356,7 @@ print("""
   HFBuildLabel    \(hyperFramesBuild.map { "b\($0)" } ?? "<none>")
   Blender build   \(blender.map { "cycle \($0.cycle?.rawValue ?? "?") · \($0.branch ?? "?") · \($0.commit ?? "?") · built \($0.builtAt.map { "\($0)" } ?? "?") · track commit \($0.trackCommit ?? "<none>")" } ?? "<none>")
   inferred        \(inferred.rawValue)\(bound == nil ? "" : "  (overridden below)")
-  ChannelBinding  \(bound.map { "\($0.channel.rawValue) — read from this app's own preference" } ?? "<none for this app>")
+  ChannelBinding  \(bound.map { "\($0.channel.rawValue) — \(boundSource ?? "")" } ?? "<none for this app>")
   ─────────────────────────────────────────────
   detected channel  → \(detected.rawValue)
 """)

@@ -77,9 +77,13 @@ struct SparkleFeedCatalogTests {
     /// channel authoritative — switching off the feed-based channel inference
     /// this catalog exists to preserve. Whichever one you meant, having both is
     /// not it.
+    ///
+    /// Asked through `hasResolver`, not `resolve(bundleID:)`: called with no
+    /// bundle, the bindings that answer from the bundle itself (AdGuard's
+    /// `AGChannel`, SwiftVM's `SUFeedURL`) resolve nil and slipped past this.
     @Test func noEntryIsAlsoManagedByAChannelBinding() {
         for key in Self.allKeys {
-            #expect(ChannelBinding.resolve(bundleID: key) == nil,
+            #expect(!ChannelBinding.hasResolver(bundleID: key),
                     Comment(rawValue: "\(key) is in SparkleFeedCatalog AND has a "
                         + "ChannelBinding — the binding wins and makes the channel "
                         + "authoritative, which is what this catalog exists to avoid"))

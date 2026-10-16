@@ -52,9 +52,41 @@ struct ChangelogCarriesVersionTests {
         #expect(Changelog(entries: []).carries(version: "3.21.13"))
     }
 
-    /// And the same when it is the KEY that isn't version-shaped — Xcode's
-    /// "27.2 beta 1 (27B5019j)".
-    @Test func aVersionThatIsNotVersionShapedIsNeverJudged() {
-        #expect(Self.log("Xcode 27.2 Beta").carries(version: "27.2 beta 1 (27B5019j)"))
+    /// And the same when it is the KEY that isn't version-shaped and the page
+    /// spells its entries another way — Xcode's "27.2 beta 1 (27B5019j)" under
+    /// the page that key reads, `xcode-27_2`, and "26.6 RC 2 (17F113)" under
+    /// `xcode-26_6` (entries as the real notes decode, 2026-10-16), and AdGuard's
+    /// nightly, whose page lists build numbers. Judging these would re-read them
+    /// every provisional window.
+    @Test func aVersionThatIsNotVersionShapedIsNotJudgedAgainstOtherSpellings() {
+        #expect(Self.log("Xcode 27.2 Beta 3", "Xcode 27.2 Beta 2", "Xcode 27.2 Beta")
+            .carries(version: "27.2 beta 1 (27B5019j)"))
+        #expect(Self.log("Xcode 26.6").carries(version: "26.6 RC 2 (17F113)"))
+        #expect(Self.log("2.20.0.2625", "2.20.0.2619").carries(version: "2.20 Nightly 10"))
+    }
+
+    /// AdGuard's beta feed and versions page both spell `2.20 RC 1`. A page that
+    /// tops out at RC 1 has not published RC 2 — the CleanShot shape, for a
+    /// version `comparableMarketingVersion` cannot read. Entry versions copied
+    /// from the beta page (2026-10-16).
+    ///
+    /// Mutation that turns this red: returning true for every version that is
+    /// not version-shaped, as before.
+    @Test func aPageSpellingEntriesLikeTheVersionIsJudgedByTheWholeString() {
+        let beta = Self.log("2.20 RC 1", "2.20 beta 3", "2.19 RC", "2.17 beta")
+        #expect(!beta.carries(version: "2.20 RC 2"))
+        #expect(beta.carries(version: "2.20 RC 1"))
+        #expect(beta.carries(version: "2.20  rc 1 "))
+        #expect(beta.carries(version: "2.20 beta 3"))
+        #expect(!beta.carries(version: "2.20 beta 4"))
+    }
+
+    /// The two other apps with such versions on the machine this was written
+    /// on spell their entries exactly as their versions, so they carry them and
+    /// are not re-read (cached entries, 2026-10-16).
+    @Test func sublimeAndHyperFramesStillCarryTheirOwnVersion() {
+        #expect(Self.log("Build 4215", "Build 4213").carries(version: "Build 4215"))
+        #expect(!Self.log("Build 4213", "Build 4200").carries(version: "Build 4215"))
+        #expect(Self.log("b272").carries(version: "b272"))
     }
 }

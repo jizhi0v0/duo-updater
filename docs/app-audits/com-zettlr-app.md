@@ -55,7 +55,7 @@
 - app 把它作为 `accept-beta` 发给端点，端点据此把 prerelease 也算进去，回最新的那个，正式版或 beta 都可能。所以 beta 规则
   读整份列表，tag 两种形状都收；beta 构建的 Info.plist 带后缀（真包 4.0.0-beta.5 = `4.0.0-beta.5`），pattern 保留后缀
 - `ZettlrChannel` 只对勾选的状态回答 `.beta`，其余回 nil，让 `detect()` 继续按版本串判断（CotEditor 的形状）。
-  勾选状态的真机写入**未观测**：本条依据源码，主会话真机验证时补「拨开关 → `config.json` 前后对比」
+  真机写入已观测（2026-10-16，4.8.0）：勾选后顶层 `checkForBeta` `false` → `true`，见「建议下一步」第 2 条
 - 首个 beta 不带编号（`v4.0.0-beta`、`v3.1.0-beta`），通用规则把裸 `-beta` 读成 stable。这种副本没勾选时被推下一个正式版，
   与 app 自己的行为一致（`checkForBeta` 关时端点只回正式版）
 - 最后一个 beta 是 `v4.0.0-beta.5`（2025-12-19），之后 4.x 都是正式版

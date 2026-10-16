@@ -128,7 +128,7 @@
 ## 建议下一步
 1. （已做）真机一键 3.0.1 → 3.0.2，见「一键安装」的端到端一行
 2. beta: 等下一个 beta 周期再决定用 `installedTagPrefix` rule 还是 `update_level` 偏好。偏好已在真机确认（2026-10-16，3.0.2，
-   全新配置）：Options ▸ Advanced ▸ Updates to check 选 “Stable and Beta releases” 并点 OK 后，`~/.config/MusicBrainz/Picard.ini`
+   全新配置）：Options ▸ General ▸ Startup ▸ Updates to check 选 “Stable and Beta releases” 并点 OK 后，`~/.config/MusicBrainz/Picard.ini`
    的 `[setting]` 段出现 `update_level=1`。点 OK 会把所有选项的默认值一起写进去，所以没有这个键时按默认 0（stable）读；
    第三项 “Stable, Beta and Dev releases” 另起全新配置实测，写成 `update_level=2`。profile 覆盖的情形没测（`user_profiles=@Invalid()`，没有 profile）
 

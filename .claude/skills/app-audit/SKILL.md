@@ -848,9 +848,7 @@ Only after detection is confirmed. For each supported channel:
 `sha512`, `hash_sha256`, `checksum`, `Hash`. A body that names a SHA-256 (hex)
 or SHA-512 (base64) of the download gets `checksumPattern` plus
 `checksumFormat` (`.sha256Hex` or the default `.sha512Base64`).
-`VendorInstaller` checks it before unpacking, on top of the Team-ID gate. In
-the 2026-10-07 sweep, 142 install-capable probes had no checksum. Most were
-written before anyone asked whether the body carried one.
+`VendorInstaller` checks it before unpacking, on top of the Team-ID gate.
 
 - **Download the exact file the install URL pattern resolves and hash it
   before wiring.** The field name doesn't tell you which file it describes.
@@ -885,8 +883,8 @@ written before anyone asked whether the body carried one.
 - **Formats.** Only hex SHA-256 and base64 SHA-512 are supported; hex SHA-512
   (Mozilla), MD5 and SHA-1 are not. Hex comparison ignores case (Edge's `Hash`
   is uppercase).
-- **GitHub releases need nothing per rule.** Since #1019, every installable
-  rule passes the asset's `digest` on. Assets without one (uploaded before
+- **GitHub releases need nothing per rule.** Every installable rule passes
+  the asset's `digest` on. Assets without one (uploaded before
   GitHub added digests in June 2025) install as before.
 - **Evidence for the audit:** the download's `shasum` equals the captured
   digest. Then run a temporary test: real recipe through
@@ -902,9 +900,8 @@ user adds).
 **This run is pre-authorized. Don't ask before doing it.** Installing an older
 release of the audited app into `/Applications`, launching it, running
 `duo install` / `duo restart` against it, and quitting it are all part of the
-audit. The user said so on 2026-10-06 after being asked once too often. Still
-ask before anything outside that: a password or license prompt, signing in,
-sending data to the vendor beyond the app's own update check, or removing
+audit. Still ask before anything outside that: a password or license prompt,
+signing in, sending data to the vendor beyond the app's own update check, or removing
 data the app didn't just create. Two rounds, in order:
 
 1. **Not running.** `ditto` the previous release into `/Applications`, don't

@@ -34,8 +34,11 @@ public enum ClaudeCLI {
     }
 
     /// The arguments after `claude`, prompt excluded: it goes in on stdin.
-    /// `effort` nil leaves the model's own default.
-    static func arguments(model: String, effort: String? = nil, systemPrompt: String) -> [String] {
+    /// `effort` nil leaves the model's own default. `jsonSchema` makes the CLI
+    /// validate the answer against it and return it in `structured_output`.
+    static func arguments(
+        model: String, effort: String? = nil, jsonSchema: String, systemPrompt: String
+    ) -> [String] {
         [
             "-p",
             "--tools", "",
@@ -46,12 +49,14 @@ public enum ClaudeCLI {
             "--permission-mode", "dontAsk",
             "--model", model,
             "--output-format", "json",
+            "--json-schema", jsonSchema,
             "--system-prompt", systemPrompt,
         ] + (effort.map { ["--effort", $0] } ?? [])
     }
 
     static func ask(
-        prompt: String, systemPrompt: String, model: String, effort: String? = nil
+        prompt: String, systemPrompt: String, model: String, effort: String? = nil,
+        jsonSchema: String
     ) async throws -> String {
         let sandbox = FileManager.default.temporaryDirectory
             .appendingPathComponent("duo-claude-\(UUID().uuidString)")
@@ -67,7 +72,7 @@ public enum ClaudeCLI {
         environment.removeValue(forKey: "CLAUDE_CODE_EFFORT_LEVEL")
         let seconds = Int64(timeout)
         let outcome = try await ChildProcess.run(
-            "/usr/bin/env", ["claude"] + arguments(model: model, effort: effort, systemPrompt: systemPrompt),
+            "/usr/bin/env", ["claude"] + arguments(model: model, effort: effort, jsonSchema: jsonSchema, systemPrompt: systemPrompt),
             environment: environment, workingDirectory: sandbox,
             standardInput: Data(prompt.utf8),
             deadline: .init(terminateAfter: .seconds(seconds), killAfter: .seconds(seconds + 10)),
@@ -78,7 +83,8 @@ public enum ClaudeCLI {
             standardError: String(decoding: outcome.standardError, as: UTF8.self))
     }
 
-    /// The model's text out of `--output-format json`, or why there is none.
+    /// The schema-validated answer out of `--output-format json --json-schema`
+    /// (its `structured_output`, as JSON text), or why there is none.
     ///
     /// The error is reported as the CLI gave it. "Not logged in · Please run
     /// /login" arrives as a successful-looking JSON document with `is_error`
@@ -94,9 +100,14 @@ public enum ClaudeCLI {
             throw Failure(description: "claude exited \(status) without a JSON answer: "
                 + (head.isEmpty ? standardError.prefix(300).description : head))
         }
-        guard output.is_error != true, status == 0, let result = output.result else {
+        guard output.is_error != true, status == 0 else {
             throw Failure(description: "claude reported: \(output.result ?? "an unspecified error")")
         }
-        return result
+        // An object, never a bare value: `data(withJSONObject:)` raises rather than
+        // throws on anything else, and both schemas ask for an object anyway.
+        guard let document = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let structured = document["structured_output"] as? [String: Any]
+        else { throw Failure(description: "claude returned no structured_output object") }
+        return String(decoding: try JSONSerialization.data(withJSONObject: structured), as: UTF8.self)
     }
 }

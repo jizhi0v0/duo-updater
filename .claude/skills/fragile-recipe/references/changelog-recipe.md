@@ -3,16 +3,17 @@
 Turns a vendor's changelog **page** into a structured `Changelog` that the detail
 window renders natively (version headers + bulleted lists). This sidesteps the
 problems of embedding a vendor page in a `WKWebView` — white-on-white text,
-content cut off, site chrome. It's the **third tier** of changelog rendering, in
-this priority order:
+content cut off, site chrome. The pane picks the first of these that answers:
 
-1. `releaseNotesHTML` — inline notes the update source already gave us (Sparkle, GitHub)
-2. **structured extraction (this recipe)** — when a recipe exists for the bundle id
-3. `changelogURL` embedded in a `WKWebView` — the previous fallback
-4. empty state
+1. **structured extraction (this recipe)** — when a recipe exists for the bundle id
+2. the update source's own structured log
+3. `releaseNotesHTML` — raw inline notes the update source gave us (Sparkle, GitHub)
+4. `changelogURL` embedded in a `WKWebView`
+5. empty state
 
-A recipe that extracts nothing returns `nil`, and the UI drops to tier 3. That
-benign fallback is *why* you can author these aggressively.
+A recipe that fails to load drops the pane to the vendor page in a web view (or,
+without one, to raw notes). That benign fallback is *why* you can author these
+aggressively.
 
 ## The output model (what you're producing)
 

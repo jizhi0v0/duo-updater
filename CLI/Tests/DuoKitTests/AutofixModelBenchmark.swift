@@ -140,7 +140,8 @@ struct AutofixModelBenchmark {
         environment.removeValue(forKey: "CLAUDE_CODE_EFFORT_LEVEL")
         let seconds = Int64(ClaudeCLI.timeout)
         let outcome = try await ChildProcess.run(
-            "/usr/bin/env", ["claude"] + ClaudeCLI.arguments(model: model, effort: effort, systemPrompt: system),
+            "/usr/bin/env", ["claude"] + ClaudeCLI.arguments(
+                model: model, effort: effort, jsonSchema: ChangelogAutofix.proposalSchema, systemPrompt: system),
             environment: environment, workingDirectory: sandbox,
             standardInput: Data(prompt.utf8),
             deadline: .init(terminateAfter: .seconds(seconds), killAfter: .seconds(seconds + 10)),

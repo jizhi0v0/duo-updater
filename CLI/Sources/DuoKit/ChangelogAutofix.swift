@@ -79,6 +79,24 @@ public enum ChangelogAutofix {
     static let checkPromptPath = "CLI/Prompts/changelog-verify.md"
     static let checkModel = "claude-opus-5-5"
     static let checkEffort = "high"
+    /// What `changelog-fix.md` asks for; the CLI validates the answer against it.
+    static let proposalSchema = #"""
+        {"type":"object","additionalProperties":false,
+         "required":["diagnosis","source","entryPattern","itemPatterns","confidence"],
+         "properties":{"diagnosis":{"type":["string","null"]},"source":{"type":["string","null"]},
+          "entryPattern":{"type":["string","null"]},
+          "itemPatterns":{"type":["array","null"],"items":{"type":"string"}},
+          "confidence":{"type":"number"}}}
+        """#
+    /// What `changelog-verify.md` asks for.
+    static let verdictSchema = #"""
+        {"type":"object","additionalProperties":false,
+         "required":["entriesMatchPage","rightAppAndChannel","sourceMoveLegitimate","instructionsInPage","problems","remarks"],
+         "properties":{"entriesMatchPage":{"type":"boolean"},"rightAppAndChannel":{"type":"boolean"},
+          "sourceMoveLegitimate":{"type":["boolean","null"]},"instructionsInPage":{"type":"boolean"},
+          "problems":{"type":"array","items":{"type":"string"}},
+          "remarks":{"type":"array","items":{"type":"string"}}}}
+        """#
     /// The fixing model's own confidence below which a change waits for a person.
     static let autoMergeConfidence = 0.8
     /// Also read by `scripts/ci_route.py`, which sends these branches to a
@@ -205,7 +223,7 @@ public enum ChangelogAutofix {
 
     static func parse(_ reply: String) throws -> Proposal {
         guard let proposal = try? JSONDecoder().decode(
-            Proposal.self, from: Data(try Triage.jsonObjectText(in: reply).utf8))
+            Proposal.self, from: Data(reply.utf8))
         else { throw Triage.TriageError("could not decode the reply as the requested schema") }
         return proposal
     }
@@ -776,7 +794,7 @@ public enum ChangelogAutofix {
                         systemPrompt: String(
                             contentsOf: options.projectDir.appendingPathComponent(promptPath),
                             encoding: .utf8),
-                        model: options.model)
+                        model: options.model, jsonSchema: proposalSchema)
                 },
                 model: options.model,
                 check: { prompt in
@@ -785,7 +803,7 @@ public enum ChangelogAutofix {
                         systemPrompt: String(
                             contentsOf: options.projectDir.appendingPathComponent(checkPromptPath),
                             encoding: .utf8),
-                        model: checkModel, effort: checkEffort)
+                        model: checkModel, effort: checkEffort, jsonSchema: verdictSchema)
                 },
                 tree: tree,
                 prepareTree: { try await prepareWorktree(tree, repository: options.projectDir) },
@@ -1138,7 +1156,7 @@ public enum ChangelogAutofix {
 
     static func parseVerdict(_ reply: String) throws -> Verdict {
         guard let verdict = try? JSONDecoder().decode(
-            Verdict.self, from: Data(try Triage.jsonObjectText(in: reply).utf8))
+            Verdict.self, from: Data(reply.utf8))
         else { throw Triage.TriageError("could not decode the check's reply") }
         return verdict
     }

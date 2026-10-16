@@ -441,6 +441,7 @@ are NOT CFPreferences.
 | iTerm2 `com.googlecode.iterm2` | CFPrefs | `CheckTestRelease` true → the bundle's own `SUFeedURLForTesting` (nil on a nightly build, whose feed keys are all the nightly feed) | feed swap, address from Info.plist (`ChannelBinding.bundleFeeds`) |
 | MonitorControl `app.monitorcontrol.MonitorControl` | CFPrefs (no UI yet) | `isBetaChannel` true → beta; else nil | Sparkle channel tag |
 | SwiftVM `com.swiftvm.app` | — (no preference: fixed per build; the bundle's own `SUFeedURL` via `bundleFeeds`) | `SUFeedURL` = `…/releases/download/beta-channel/appcast-beta.xml` → beta; else nil (the app itself keys on `-beta.` in its version) | Sparkle channel tag |
+| AdGuard `com.adguard.mac.adguard` | — (no preference: fixed per build; the bundle's own Info.plist via `bundleStrings`) | `AGChannel` = `beta` → beta, `nightly` → nightly, `release` → stable; else nil | label only (each build declares its own untagged one-item feed) |
 | Ghostty, CodeEdit, Osaurus | — (constant, no user preference) | — | fixed feed / fixed Sparkle tag |
 
 **Confirm the write on the real app.** Have the toggle flipped in the real app (or flip it yourself if no

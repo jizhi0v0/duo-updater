@@ -1,0 +1,62 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "net-mullvad-mullvadbrowser"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 2)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "net.mullvad.mullvadbrowser"
+githubRules[0].owner = "mullvad"
+githubRules[0].repo = "mullvad-browser"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^mullvad-browser-macos-[0-9]+(?:\\.[0-9]+)+\\.dmg$"
+githubRules[0].installerKind? = .dmg
+githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "net.mullvad.mullvadbrowseralpha"
+githubRules[1].owner = "mullvad"
+githubRules[1].repo = "mullvad-browser"
+githubRules[1].usePrereleases = true
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^([0-9]+\\.[0-9]+(?:\\.[0-9]+)?a[0-9]+)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .alpha
+githubRules[1].installAssetPattern? = "^mullvad-browser-macos-[0-9]+\\.[0-9]+(?:\\.[0-9]+)?a[0-9]+\\.dmg$"
+githubRules[1].installerKind? = .dmg
+githubRules[1].installTrust = .developerID
+githubRules[1].variant = nil
+githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "net.mullvad.mullvadbrowseralpha", channel: .alpha)] = .artifact(_:)
+githubChannelProofs[ChannelProofKey(bundleID: "net.mullvad.mullvadbrowseralpha", channel: .alpha)].0 = "/download/[0-9.]+a[0-9]+/mullvad-browser-macos-[0-9.]+a[0-9]+\\.dmg$"
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)

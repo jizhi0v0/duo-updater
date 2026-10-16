@@ -247,6 +247,7 @@ public enum AppRecipeIndex {
         net_kovidgoyal_calibre.set,
         net_kovidgoyal_kitty.set,
         net_librewolf_librewolf.set,
+        net_mullvad_mullvadbrowser.set,
         net_pornel_ImageOptim.set,
         net_shinyfrog_bear.set,
         net_sourceforge_grandperspectiv.set,

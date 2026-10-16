@@ -160,6 +160,7 @@ public enum AppRecipeIndex {
         com_readdle_PDFExpert_Mac.set,
         com_robinebers_openusage.set,
         com_runningwithcrayons_Alfred.set,
+        com_ScooterSoftware_BeyondCompare.set,
         com_sequel_ace_sequel_ace.set,
         com_shotbase_app.set,
         com_Snipaste.set,

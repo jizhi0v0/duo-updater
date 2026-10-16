@@ -299,14 +299,16 @@ private let raycastChangelogFixture = #"""
     /// decision: Raycast's v1 archive, Audacity's 3.x recipe and the 4.0
     /// prerelease id's, which share one case-insensitive group, Carbon Copy
     /// Cloner's four (one per major generation, CCC 7 split again by channel),
-    /// Bartender's 6.x and 7.x recipes, which share one bundle id, and Krita's
-    /// 5.x and 6.x lines, released side by side under `org.krita`.
+    /// Bartender's 6.x and 7.x recipes, which share one bundle id, Krita's
+    /// 5.x and 6.x lines, released side by side under `org.krita`, and Beyond
+    /// Compare's 4.x and 5.x pages, two paid generations under one bundle id.
     @Test func versionScopingIsANoOpForRecipesWithoutAWindow() {
         let windowed = ChangelogRecipeRegistry.recipes.filter(\.declaresVersionWindow)
         #expect(Set(windowed.map { $0.bundleID.lowercased() })
                 == ["com.raycast.macos", "org.audacityteam.audacity", "com.bombich.ccc",
-                    "com.surteesstudios.bartender", "org.krita"])
-        #expect(windowed.count == 11)
+                    "com.surteesstudios.bartender", "org.krita",
+                    "com.scootersoftware.beyondcompare"])
+        #expect(windowed.count == 13)
 
         for recipe in ChangelogRecipeRegistry.recipes where !recipe.declaresVersionWindow {
             // Every bundle id whose group has no window resolves to the same recipe

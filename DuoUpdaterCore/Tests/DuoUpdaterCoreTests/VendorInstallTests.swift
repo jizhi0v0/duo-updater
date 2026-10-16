@@ -869,8 +869,14 @@ private func committedLastGoodDates() -> [String: Date] {
 /// in-place bundle swap that would desync Toolbox's state. Same recipe and channel
 /// the sweep above resolves, so the only difference is the Toolbox flag — this
 /// pins the gate, not the recipe.
-@Test func toolboxManagedCopiesResolveDetectionOnly() async throws {
+///
+/// It goes to the wire, so a vendor timeout gets the sweep's policy: one retry,
+/// then `excusesVendorOutage`. `latestVersion` threw the -1001 straight out and
+/// failed `test` (e.g. CI run 38904509855, 2026-10-16), while the sweep above
+/// excused the same recipe's timeouts.
+@Test func toolboxManagedCopiesResolveDetectionOnly() async {
     let source = VendorProbeSource()
+    var outcomes: [(channel: ReleaseChannel, outcome: ProbeOutcome?)] = []
     for channel in [ReleaseChannel.canary, .beta] {
         let app = InstalledApp(
             name: "Android Studio", bundleID: "com.google.android.studio",
@@ -879,11 +885,34 @@ private func committedLastGoodDates() -> [String: Date] {
             isMASApp: false, isToolboxManaged: true, sparkleFeedURL: nil,
             releaseChannel: channel)
         #expect(app.prefersVendorProbeOverToolbox)  // linchpin for the branch below
-        let remote = try await source.latestVersion(for: app)
-        #expect(remote?.version != nil, "Toolbox-managed \(channel.rawValue) lost its version")
-        #expect(remote?.vendorInstallerKind == nil,
+        var outcome = await source.probeDiagnostic(for: app)
+        if outcome?.remote == nil { outcome = await source.probeDiagnostic(for: app) }
+        outcomes.append((channel, outcome))
+    }
+
+    let lastGood = committedLastGoodDates()
+    let timedOutInSweep = outcomes.filter { isTimeout($0.outcome?.failure) }.count
+    for (channel, outcome) in outcomes {
+        // Nothing resolved: one finding, and none of the gate checks below, which
+        // would pass vacuously on a nil remote.
+        guard let remote = outcome?.remote else {
+            let why = outcome?.failure.map { "\($0.kind): \($0.detail)" } ?? "no recipe applied"
+            let message = "Toolbox-managed \(channel.rawValue) lost its version — \(why)"
+            if let lastGoodAt = outcome.flatMap({ lastGood[$0.recipeID] }),
+               excusesVendorOutage(outcome?.failure, lastGoodAt: lastGoodAt,
+                                   timedOutInSweep: timedOutInSweep) {
+                withKnownIssue("vendor outage on a recipe the nightly sweep resolved on \(lastGoodAt) — see excusesVendorOutage") {
+                    Issue.record(Comment(rawValue: message))
+                }
+            } else {
+                Issue.record(Comment(rawValue: message))
+            }
+            continue
+        }
+        #expect(remote.version != nil, "Toolbox-managed \(channel.rawValue) lost its version")
+        #expect(remote.vendorInstallerKind == nil,
                 "Toolbox-managed \(channel.rawValue) offered an in-place install")
-        #expect(remote?.requiresManualInstaller == true)
+        #expect(remote.requiresManualInstaller == true)
     }
 }
 

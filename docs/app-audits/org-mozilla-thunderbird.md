@@ -110,7 +110,19 @@ https://aus.thunderbird.net/update/6/Thunderbird/<Version>/<BuildID>/Darwin_aarc
 - 自己暂存的更新：与 Firefox 同一套 toolkit 更新器，2026-10-15 起由 `SelfUpdaterStaging` 的 `.mozilla` 识别
   （规则与实测见 [`org-mozilla-firefox.md`](org-mozilla-firefox.md)「一键安装」）。真包静态核对（158.0）：
   `org.mozilla.thunderbird`、带 `Contents/MacOS/updater.app`、`application.ini` `Vendor=Mozilla`，
-  所以暂存在 `~/Library/Caches/Mozilla/updates/Applications/Thunderbird/updates/0`。**Thunderbird 本身的暂存未真机跑过。**
+  所以暂存在 `~/Library/Caches/Mozilla/updates/Applications/Thunderbird/updates/0`。
+  **真机实测（2026-10-16，开发机，已安装的 `duo` 含 #1340）**：
+  1. 从 `archive.mozilla.org/pub/thunderbird/releases/157.0.1/mac/en-US/` 下 dmg，SHA-256 `8397bd44…f8705b` 与官方 `SHA256SUMS` 一致；
+     装进 `/Applications`，`codesign --verify --deep --strict` 通过、Team `43AQ936H96`、`Version=157.0.1`、`BuildID=20261001134409`。
+     `duo check thunderbird` → `157.0.1 → 158.0 [Vendor, in-place]`。
+  2. 全新启动（无旧 profile）：它自己的更新器 50 s 时 `update.status` = `downloading`，60 s 时 `applied`、`update.version` = `158.0`，
+     `updates/0` 里有 `Updated.app`（`application.ini` `BuildID=20261008005236`）和 32,240,363 B 的 `update.mar`。
+  3. 退出后 30 s：磁盘仍是 157.0.1，暂存仍 `applied`（关着不应用，同 Firefox）。
+  4. `duo install thunderbird --yes --json` → `{"outcome":"skipped","reason":"its own updater already has 158.0 staged — open it to apply, or \`duo restart\`"}`，没有下载。
+  5. 再打开：约 2 s 后磁盘变成 158.0，`BuildID=20261008005236`（即暂存那份），签名通过；`duo check thunderbird` → 全部最新。
+  未做：main 上（#1340 之前）的对照组没跑——红绿对照见 Firefox 那次；Beta / ESR 没跑。
+  测完把 app、`~/Library/Thunderbird`、`~/Library/Application Support/Thunderbird`、`~/Library/Caches/{Mozilla,Thunderbird}`、
+  `org.mozilla.thunderbird.plist` 移进废纸篓（测试前本机没有 Thunderbird）。
 - 格式: dmg（官网直发）
 - 阻塞: 无需求——自更新器接管。
 

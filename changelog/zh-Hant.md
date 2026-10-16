@@ -6,9 +6,9 @@
 
 **現在點幾下就能回報一次更新失敗。** 更新失敗時，錯誤下方的「回報此問題…」會打開一份已經填好的報告，可以作為 GitHub Issue 或郵件送出。設定 › 診斷 › 最近失敗會在這台 Mac 上保留最近 30 天的失敗記錄，你不主動送出，就不會傳送任何內容。
 
-**支援更多 App。** Swifty Download Manager、MC Download Manager 和 AstrLink 可以檢查更新、查看更新說明和一鍵更新；yomado 可以檢查更新、查看更新說明。用 MyGo 建置的 App（例如 Leafmark）可以檢查更新；在設定 › 一般裡打開「允許一鍵更新沒有開發者簽署的 App」後，還能一鍵更新，並且只下載有變動的部分。改名之前的舊版 WhatCable 也能收到更新了。
+**支援更多 App。** Swifty Download Manager、MC Download Manager 和 AstrLink 可以檢查更新、查看更新說明和一鍵更新；yomado 可以檢查更新、查看更新說明。用 MyGo 建置的 App（例如 Leafmark）可以檢查更新；在設定 › 一般裡打開「允許一鍵更新沒有開發者簽署的 App」後，還能一鍵更新，並且只下載有變動的部分。Pulse 的更新現在也只下載有變動的部分；只有從磁碟映像安裝的那份第一次更新時，會下載整個 App。改名之前的舊版 WhatCable 也能收到更新了。
 
-**App 自己已經下載好的更新，現在會被正確處理。** Firefox 和 Helium 已經自己準備好的更新，不會再被重複更新一遍；Cindy 會直接用它已經下載好的檔案安裝。如果 App 自己下載的檔案沒通過驗證，DuoUpdater 會改為自己下載這次更新，不會每次都失敗。
+**App 自己已經下載好的更新，現在會被正確處理。** Firefox、Thunderbird 和 Helium 已經自己準備好的更新，不會再被重複更新一遍；Cindy 會直接用它已經下載好的檔案安裝。如果 App 自己下載的檔案沒通過驗證，DuoUpdater 會改為自己下載這次更新，不會每次都失敗。
 
 **幾個之前裝不上的更新現在能裝了。** AdGuard 更新到 2.20 時，不會再停在「No .app bundle was found inside the archive.」。WorkBuddy 中國版可以正常更新了；Xcode 測試版下載時連線中斷，會從中斷處繼續，不用從頭再來。
 

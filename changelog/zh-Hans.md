@@ -6,9 +6,9 @@
 
 **现在点几下就能反馈一次更新失败。** 更新失败时，错误下方的“报告此问题…”会打开一份已经填好的报告，可以作为 GitHub Issue 或邮件发出。设置 › 诊断 › 最近失败会在这台 Mac 上保留最近 30 天的失败记录，你不主动发送，就不会发出任何内容。
 
-**支持更多 App。** Swifty Download Manager、MC Download Manager 和 AstrLink 可以检查更新、查看更新说明和一键更新；yomado 可以检查更新、查看更新说明。用 MyGo 构建的 App（例如 Leafmark）可以检查更新；在设置 › 通用里打开“允许一键更新没有开发者签名的 App”后，还能一键更新，并且只下载有变化的部分。改名之前的旧版 WhatCable 也能收到更新了。
+**支持更多 App。** Swifty Download Manager、MC Download Manager 和 AstrLink 可以检查更新、查看更新说明和一键更新；yomado 可以检查更新、查看更新说明。用 MyGo 构建的 App（例如 Leafmark）可以检查更新；在设置 › 通用里打开“允许一键更新没有开发者签名的 App”后，还能一键更新，并且只下载有变化的部分。Pulse 的更新现在也只下载有变化的部分；只有从磁盘映像安装的那份第一次更新时，会下载整个 App。改名之前的旧版 WhatCable 也能收到更新了。
 
-**App 自己已经下载好的更新，现在会被正确处理。** Firefox 和 Helium 已经自己准备好的更新，不会再被重复更新一遍；Cindy 会直接用它已经下载好的文件安装。如果 App 自己下载的文件没通过校验，DuoUpdater 会改为自己下载这次更新，不会每次都失败。
+**App 自己已经下载好的更新，现在会被正确处理。** Firefox、Thunderbird 和 Helium 已经自己准备好的更新，不会再被重复更新一遍；Cindy 会直接用它已经下载好的文件安装。如果 App 自己下载的文件没通过校验，DuoUpdater 会改为自己下载这次更新，不会每次都失败。
 
 **几个之前装不上的更新现在能装了。** AdGuard 更新到 2.20 时，不会再停在“No .app bundle was found inside the archive.”。WorkBuddy 国内版可以正常更新了；Xcode 测试版下载时连接断开，会从断点继续，不用从头再来。
 

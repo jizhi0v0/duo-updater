@@ -1969,7 +1969,11 @@ final class AppListModel {
                 // `backgroundtaskmanagementd` for the item's disposition; a
                 // Settings window left open behind other windows kept that going
                 // every 1.5 s for hours (2026-10-16, 38 a minute for two hours).
-                self.refreshPermissionStatus(queryingHelper: !self.helperClient.isEnabled)
+                // Skipped only when the client AND the model's mirror both say
+                // enabled: Diagnostics' Enable… registers through the client
+                // alone, and this query is what brings `helperEnabled` along.
+                let settled = self.helperEnabled && self.helperClient.isEnabled
+                self.refreshPermissionStatus(queryingHelper: !settled)
             }
         }
     }

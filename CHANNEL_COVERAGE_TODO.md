@@ -301,6 +301,12 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
 
 ---
 
+- [ ] **AdGuard** · `com.adguard.mac.adguard` — release / beta / nightly 是三个单独下载的构建，
+      各在 Info.plist 写死 `AGChannel` 和自己轨的 `SUFeedURL`，所以**检测和 changelog 三轨都已工作**
+      （2026-10-16，见 `docs/app-audits/com-adguard-mac-adguard.md`）。剩一件：
+      beta / nightly 安装的 channel 标签显示 stable：可加读 `AGChannel` 的 binding，先验证它对
+      无标签 feed 的 `allowedChannels` 有什么影响。2.20 的设置里没有切轨开关，换轨就是装对应构建。
+
 ## §2c 扫描 2026-08-27（CapCut 落地后复扫）
 
 **方法**（复现用，别凭记忆重列一遍）：

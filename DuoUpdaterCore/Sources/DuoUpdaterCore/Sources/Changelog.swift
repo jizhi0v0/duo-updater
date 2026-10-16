@@ -208,12 +208,14 @@ public struct Changelog: Codable, Sendable, Hashable {
     /// cost) and `AppListModel`'s revalidation debt is the other.
     ///
     /// Permissive by construction: true unless the page can be *shown* to be
-    /// behind. Versions that aren't version-shaped are not judged at all — Figma's
+    /// behind. Entries that aren't version-shaped are not judged at all — Figma's
     /// feed is product announcements with no per-entry app version, so the post
     /// title fills `version` (`com-figma-Desktop.swift`), Cursor dates its entries
     /// (`version` reads `Sep 10, 2026`, with the prose in `title`), and the version
-    /// an Xcode entry is filed under is `27.2 beta 1 (27B5019j)` — and neither is a
-    /// page whose newest entry is at or ahead of `version`. Notion is NOT such a
+    /// an Xcode entry is filed under is `27.2 beta 1 (27B5019j)` while the page
+    /// that key reads (`xcode-27_2-release-notes.json`) decodes to `Xcode 27.2
+    /// Beta 3`, `… Beta 2`, `… Beta` (2026-10-16) — and neither is a page whose newest entry
+    /// is at or ahead of `version`. Notion is NOT such a
     /// vendor, though its page recipe once was: the active `.notionPageChunk`
     /// recipe produces `7.34.0`-shaped versions, and it is one of the apps that
     /// does go provisional. A vendor who writes a version with fewer components
@@ -230,8 +232,28 @@ public struct Changelog: Codable, Sendable, Hashable {
     /// be wrong in, since the answer to "behind" is to read the page again rather
     /// than to discard it, but it is why this must not be surfaced to a user or
     /// used to page a maintainer as "the notes are stale".
+    ///
+    /// A `version` that isn't version-shaped is judged only when the page spells
+    /// at least one entry the same way — same run of digits, letters and
+    /// separators (`sameShape`) — and then by the whole string. AdGuard's beta
+    /// feed and versions page both say `2.20 RC 1`, so a page that tops out at
+    /// `2.20 RC 1` does not carry `2.20 RC 2`. Before, every page carried any
+    /// version with a space in it, so the CleanShot failure — the previous
+    /// release's notes filed under the new version for good — went unchecked
+    /// there, and AdGuard's beta page dated `2.20 RC 1` two days after its feed
+    /// did (feed `pubDate` 2026-10-06, page 2026-10-08). Sublime
+    /// Text (`Build 4215`) and HyperFrames (`b272`) spell entries like their
+    /// versions too. A page that spells them differently is still not judged:
+    /// Xcode's above, and AdGuard's nightly page, whose entries are build numbers
+    /// (`2.20.0.2625`) under a `2.20 Nightly 9` version — both would never match
+    /// and would be re-read every `ChangelogDiskCache.provisionalWindow`.
     public func carries(version: String) -> Bool {
-        guard let target = VersionComparator.comparableMarketingVersion(version) else { return true }
+        guard let target = VersionComparator.comparableMarketingVersion(version) else {
+            let wanted = Self.normalized(version)
+            let spelledAlike = entries.map { Self.normalized($0.version) }
+                .filter { Self.sameShape($0, wanted) }
+            return spelledAlike.isEmpty || spelledAlike.contains(wanted)
+        }
         // Judged against the newest version-shaped entry anywhere on the page
         // rather than the first one: a page carrying two trains (Raycast's v1 and
         // v2) is newest-first within a train, not across them, and being at or
@@ -243,6 +265,27 @@ public struct Changelog: Codable, Sendable, Hashable {
         guard let newest = versions.max(by: { VersionComparator.isNewer($1, than: $0) })
         else { return true }
         return !VersionComparator.isNewer(target, than: newest)
+    }
+
+    /// Trimmed, lower-cased, inner whitespace collapsed to one space.
+    private static func normalized(_ version: String) -> String {
+        version.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
+    /// True when two normalized versions have the same sequence of digit runs,
+    /// letter runs and separators: `2.20 rc 1` and `2.20 rc 2` do,
+    /// `2.20 nightly 9` and `2.20.0.2625` do not.
+    private static func sameShape(_ a: String, _ b: String) -> Bool {
+        func shape(_ s: String) -> [String] {
+            var out: [String] = []
+            for c in s {
+                let token = c.isNumber ? "0" : c.isLetter ? "a" : String(c)
+                if (token == "0" || token == "a"), out.last == token { continue }
+                out.append(token)
+            }
+            return out
+        }
+        return shape(a) == shape(b)
     }
 
     /// One released version's worth of notes.

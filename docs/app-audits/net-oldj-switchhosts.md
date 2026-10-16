@@ -62,7 +62,7 @@ Settled from source（`master`）:
 v5 首次启动会把 v4 的 PotDb 数据（`~/.SwitchHosts/{data,config}`）迁到 v5 结构，并把旧目录归档到
 `~/.SwitchHosts/v4/migration-<timestamp>/`（`src-tauri/src/migration/mod.rs`；v5.0.0 release notes 也写了
 「支持首次启动从旧 PotDb 数据迁移」）。所以从 4.x 换成 5.x 就是厂商支持的升级路径，一键只是代替手动替换。
-迁移本身没有在这里跑过（未验证）。
+迁移已在真机跑过（2026-10-16，见「建议下一步」第 3 条）。
 
 ## 更新检测
 - 源: `oldj/SwitchHosts` GitHub Releases。stable 读 `/releases/latest`；beta 读 releases 列表（默认 20 条），取第一个匹配的 tag
@@ -129,7 +129,7 @@ v5 首次启动会把 v4 的 PotDb 数据（`~/.SwitchHosts/{data,config}`）迁
 ## 建议下一步
 1. （已做）运行中一轮，2026-10-16，main `make cli`：5.0.1 运行中，`duo install --yes` → `installed.` 并提示 `Still running the old code: SwitchHosts`；随后在旧进程里点 “Download Update”：Tauri updater 把 5.0.2 再原地装一次（新 inode），结果 Team `J5J6USUX2F`、`codesign --strict` 0、Notarized；`duo restart` → `restarted`，新进程映射 5.0.2，`duo check` 报 up to date。`/etc/hosts` 前后 SHA-256 相同。新增 `~/.SwitchHosts`、`~/Library/{Caches,Logs,WebKit}/net.oldj.switchhosts`，登录项前后无差异
 2. （已做）helper 换包，2026-10-16，main `make cli`：5.0.1 运行中、`swh_helper` 已放行并在跑（root，21:08 起），`/etc/hosts` 已写入测试行；`duo install --yes` → `installed.`，`swh_helper` 与 `switchhosts` 换成新 inode，helper 进程不变、BTM 仍 `[enabled, allowed]`、launchd `state = running`；`duo restart` → `restarted`，新 5.0.2 进程改测试行并开关一次，`/etc/hosts` 照常更新（21:11），仍由 21:08 的旧 helper 写入、无授权或「Outdated」提示。卸载 helper、关掉条目后 `/etc/hosts` 与测试前逐字节相同
-3. 4.2.0（旧 id `SwitchHosts`）→ 5.0.2 的一键可单独跑一轮，确认 `BundleIDMigration` 换 id 与 v5 首启迁移都正常。
+3. （已做）旧 id 一键 + v5 首启迁移，2026-10-16，main `make cli`：装 4.2.0 arm64 dmg（`SwitchHosts`，Team `J5J6USUX2F`，Notarized），启动后建一个关着的 Local 条目 `v4-migrate`（内容 `# v4 migration marker`）并退出；`duo check` 报 `4.2.0 → 5.0.2 [GitHub, in-place]`，`duo install --yes` → `verifyingSignature … verifyingCodeSignature … installed.`，结果 `net.oldj.switchhosts` 5.0.2、Team 不变、`codesign --strict` 0、Notarized，`duo check` up to date。启动 5.0.2：`~/.SwitchHosts/manifest.json` 里条目同 id、`on: false`、标题与内容都保留，旧 `data`/`config` 归档到 `~/.SwitchHosts/v4/migration-<时间戳>/`（含 `archive-metadata.json`），启动不写 `/etc/hosts`，BTM 里没有 SwitchHosts 记录。注意 v4 在条目开关时会写 `/etc/hosts`（本次多出一行空行），测前要备份
 
 ## 如何复验
 ```

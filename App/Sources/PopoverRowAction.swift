@@ -456,7 +456,7 @@ struct PopoverRowAction: View {
                 .font(.headline)
             Text("\(result.app.name) \(result.app.shortVersion ?? "?") → \(result.remote?.displayVersion ?? "?") is a major new version. If this is a commercial app, it may need a new license — with an expired subscription the update can drop into a limited/trial mode.")
                 .font(.callout)
-            Text("Continue only if it’s free or your license covers the new version. Your current version is moved to the Trash, so you can restore it.")
+            Text("Continue only if it’s free or your license covers the new version. The new version replaces this copy. If “Keep a backup so updates can be rolled back” is on in Settings, you can roll back to the version you have now.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Button("Update anyway") {

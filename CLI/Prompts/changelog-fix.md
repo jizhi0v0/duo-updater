@@ -16,8 +16,7 @@ with the app's own extractor, tested, and reviewed by a human before anything
 ships. A wrong answer is caught; a confident wrong answer wastes a reviewer's
 time, so prefer null to a guess.
 
-Reply with a single JSON object and nothing else. No prose before or after, no
-markdown fence.
+Your answer is this object:
 
 {
   "diagnosis": "one or two sentences: what changed on the page, in plain terms",

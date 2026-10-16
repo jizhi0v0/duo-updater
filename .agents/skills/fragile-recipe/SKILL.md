@@ -68,7 +68,8 @@ examples — don't author from memory:
    Do this with a throwaway Python snippet over the fetched file (same regex you'll
    put in Swift) — it's the fastest honest check and needs no rebuild.
 
-6. **Register it** — add the recipe to the right registry array, with a comment
+6. **Register it** — add the recipe to its family file under `Recipes/` (see the
+   file map; both registries are derived from `AppRecipeIndex`), with a comment
    stating the **current contract**: where the version/notes live, why the pattern
    is anchored that way, and any rollout/format gotcha. What you measured to get
    there (dated checks, counts, the versions an endpoint answered, how you found

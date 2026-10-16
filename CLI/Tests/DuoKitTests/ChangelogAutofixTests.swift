@@ -107,7 +107,7 @@ import DuoUpdaterCore
         object["entryPattern"] = entryPattern ?? NSNull()
         object["itemPatterns"] = itemPatterns ?? NSNull()
         let data = try! JSONSerialization.data(withJSONObject: object)
-        return "```json\n" + String(decoding: data, as: UTF8.self) + "\n```"
+        return String(decoding: data, as: UTF8.self)
     }
 
     // MARK: - which findings

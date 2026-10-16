@@ -9,7 +9,7 @@ import Foundation
     /// Each flag is one lock; `ClaudeCLI` says what each does. A refactor that
     /// drops one fails here rather than in a sandbox nobody re-checks.
     @Test func everySandboxFlagIsPassed() {
-        let args = ClaudeCLI.arguments(model: "claude-sonnet-5-5", systemPrompt: "SYSTEM")
+        let args = ClaudeCLI.arguments(model: "claude-sonnet-5-5", jsonSchema: "{}", systemPrompt: "SYSTEM")
         func value(after flag: String) -> String? {
             args.firstIndex(of: flag).flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
         }
@@ -23,16 +23,21 @@ import Foundation
         #expect(value(after: "--permission-mode") == "dontAsk")
         #expect(value(after: "--model") == "claude-sonnet-5-5")
         #expect(value(after: "--output-format") == "json")
+        #expect(value(after: "--json-schema") == "{}")
         #expect(value(after: "--system-prompt") == "SYSTEM")
         #expect(!args.contains("--effort"))
-        let high = ClaudeCLI.arguments(model: "claude-opus-5-5", effort: "high", systemPrompt: "SYSTEM")
+        let high = ClaudeCLI.arguments(model: "claude-opus-5-5", effort: "high", jsonSchema: "{}", systemPrompt: "SYSTEM")
         #expect(high.suffix(2) == ["--effort", "high"])
-        #expect(Array(high.dropLast(2)) == ClaudeCLI.arguments(model: "claude-opus-5-5", systemPrompt: "SYSTEM"))
+        #expect(Array(high.dropLast(2)) == ClaudeCLI.arguments(model: "claude-opus-5-5", jsonSchema: "{}", systemPrompt: "SYSTEM"))
     }
 
-    @Test func theAnswerIsTheResult() throws {
-        let json = #"{"type":"result","is_error":false,"result":"{\"diagnosis\":\"ok\"}"}"#
+    @Test func theAnswerIsTheStructuredOutput() throws {
+        let json = #"{"type":"result","is_error":false,"result":"prose","structured_output":{"diagnosis":"ok"}}"#
         #expect(try ClaudeCLI.answer(from: Data(json.utf8), status: 0, standardError: "") == #"{"diagnosis":"ok"}"#)
+        let none = #"{"type":"result","is_error":false,"result":"{\"diagnosis\":\"ok\"}"}"#
+        #expect(throws: (any Error).self) {
+            try ClaudeCLI.answer(from: Data(none.utf8), status: 0, standardError: "")
+        }
     }
 
     /// Seen on the mini on 2026-10-11: not logged in arrives as a JSON document

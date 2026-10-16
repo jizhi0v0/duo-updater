@@ -28,10 +28,6 @@ So this skill enumerates candidates from **concrete, on-machine + registry
 sources**, then researches and classifies each. The output is a worklist; the
 empirical confirmation and implementation are handed back to `/app-audit`.
 
-> **Hard rule: do NOT seed the candidate list from memory.** If you find yourself
-> typing a list of app names you "know" have betas, stop — that *is* the blind
-> spot. Enumerate from the sources in Phase 1.
-
 ## What "in-app channel switch" means (and why it's the focus)
 
 Reusing `app-audit`'s four patterns:

@@ -290,6 +290,14 @@ final class CLIToolsModel {
 
     private func decide(_ trigger: RefreshTrigger) async -> RefreshDecision<Set<Int>> {
         switch trigger {
+        case .popoverOpen, .workbenchOpen, .workbenchFocus:
+            // Who runs what, now, whatever the check decides: the process watch
+            // may be in its hidden-window sleep (`watchProcesses`), and a dot that
+            // came up to a minute after the window did read as wrong (2026-10-16).
+            Task { await refreshUsage() }
+        default: break
+        }
+        switch trigger {
         case .popoverOpen, .workbenchOpen: return await onOpen()
         case .workbenchFocus: return await onFocus()
         case .backgroundTick(let interval): return await onTick(interval: interval)

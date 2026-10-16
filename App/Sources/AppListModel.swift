@@ -9424,8 +9424,7 @@ final class AppListModel {
                   let line = CLIToolWording.stillRunning(usage, of: status.kind) else { continue }
             Log.app.notice("cli-tools: \(status.kind.displayName, privacy: .public) at \(status.path, privacy: .public) — \(line, privacy: .public) (pids \(usage.stale.map(\.pid).description, privacy: .public))")
             UpdateNotifier.cliStillRunning(
-                tool: status.name ?? status.kind.displayName, line: line,
-                version: status.installedVersion, tag: status.toolID.tag)
+                tool: status.name ?? status.kind.displayName, line: line, tag: status.toolID.tag)
         }
     }
 

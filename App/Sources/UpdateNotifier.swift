@@ -138,9 +138,14 @@ enum UpdateNotifier {
     /// Nothing here can restart a session in someone's terminal, so it is said
     /// once per process that missed the update (`CLIToolsModel.announceStale`),
     /// and withdrawn by its per-install identifier once none is left.
-    static func cliStillRunning(tool: String, line: String, version: String?, tag: String) {
-        let body = version.map { String(localized: "\(line). Restart to use \($0).") } ?? "\(line)."
-        post(title: tool, body: body, identifier: "clistale:\(tag)")
+    ///
+    /// The new version is not named: a tool that updated itself has not been
+    /// checked again yet, and its verdict still reads the old one — fx's own
+    /// auto-update on 2026-10-16 had this say "Restart to use 0.0.13" with
+    /// 0.0.14 on disk.
+    static func cliStillRunning(tool: String, line: String, tag: String) {
+        post(title: tool, body: String(localized: "\(line). Restart to use the new version."),
+             identifier: "clistale:\(tag)")
     }
 
     static func clearCLIStillRunning(tags: [String]) {

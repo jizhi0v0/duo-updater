@@ -42,7 +42,7 @@
 - 源: `SparkleAppcastSource`，读 bundle 声明的 feed。
 - 每个 feed 一个 item（2026-10-16）：release 2.20 / 2626，beta 2.20 RC 1 / 2624，nightly 2.20 Nightly 9 / 2625。
 - 每个 item 只有 `<sparkle:releaseNotesLink>`，不内联说明。
-- release item 带 `<sparkle:phasedRolloutInterval>86400</sparkle:phasedRolloutInterval>`（Sparkle 客户端分 7 组、每组隔一天放量）。我们不读这个字段（Core 里没有 `phasedRollout`），见「一键安装 → 读的是」。
+- 三个 feed 的 item 都带 `<sparkle:phasedRolloutInterval>86400</sparkle:phasedRolloutInterval>`（Sparkle 客户端分 7 组、每组隔一天放量）。我们不读这个字段（Core 里没有 `phasedRollout`），见「一键安装 → 读的是」。
 - Homebrew 两个 cask 都 `auto_updates true`，`HomebrewCaskSource` 返回 nil，落到 Sparkle。cask 版本落后（`adguard` 2.19.0.2258、`adguard@nightly` 2.20.0.2402），且是四段构建号；它们不参与检测。
 
 ## 增量更新（delta / binary patch）
@@ -71,7 +71,7 @@
 - 未跑: app 运行中那一轮；beta / nightly 轨的一键。没跑的原因：启动 AdGuard 会装网络扩展和特权 helper，超出审计预授权的范围。
 - 格式: dmg → `AdGuard.pkg`（`installationType="package"`）。
 - 校验: feed 只有 `sparkle:edSignature`，没有 SHA 摘要字段。
-- **读的是**: 轨道最新。release feed 用 Sparkle 分阶段放量（`phasedRolloutInterval` 86400），我们不读这个字段，所以在一次发布的头 7 天里，一键可能装上 AdGuard 还没分给这台机器的构建。可以接受的理由：enclosure 地址（`static.adtidy.org/mac/release/AdGuard-2.20.0.2626.dmg`）不需要任何凭据就能下载，放量只控制 app 自己提示的节奏，不限制分发。没核对 adguard.com 下载页在放量期间给的是不是同一个构建。
+- **读的是**: 轨道最新。三个 feed 都用 Sparkle 分阶段放量（`phasedRolloutInterval` 86400），我们不读这个字段，所以在一次发布的头 7 天里，一键可能装上 AdGuard 还没分给这台机器的构建。可以接受的理由：Sparkle 的分阶段放量是客户端按自己的分组推迟提示，enclosure 本身是公开地址（2026-10-16 三条轨的 enclosure 不带任何凭据 HEAD 都是 200）。这次量的时候三个 item 发布都已满 7 天或接近满，放量窗口内 CDN 会不会按分组拦下载没测到。没核对 adguard.com 下载页在放量期间给的是不是同一个构建。
 - 阻塞: 无。
 
 ## 已知问题

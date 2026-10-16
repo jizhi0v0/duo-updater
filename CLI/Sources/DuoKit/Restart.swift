@@ -39,6 +39,11 @@ public enum Restart {
         let staged = Install.stagedSelfUpdates(
             for: selected.map { UpdateResult(app: $0, remote: nil, status: .unknown) })
 
+        // Someone at a terminal can answer a save prompt that holds up the quit,
+        // so the staged path waits for them; a script gets the menu-bar app's
+        // ~5 s and the `.wontQuit` line. See `StagedRelaunch.QuitPatience`.
+        let waitsForAnswer = isatty(STDIN_FILENO) != 0
+
         var anyFailed = false
         for app in selected.sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) {
             switch path(for: app, staged: staged[app.id]) {
@@ -47,7 +52,8 @@ public enum Restart {
                 print("\(app.name)  \(describe(outcome))")
                 if isFailure(outcome) { anyFailed = true }
             case .staged(let build):
-                let line = await applyStaged(app, build)
+                let line = await applyStaged(
+                    app, build, keepBackups: settings.keepBackups, waitsForAnswer: waitsForAnswer)
                 print("\(app.name)  \(line.text)")
                 if line.failed { anyFailed = true }
             }
@@ -81,18 +87,46 @@ public enum Restart {
         return .staged(build)
     }
 
-    /// Run the staged relaunch for one app and say what happened.
-    static func applyStaged(_ app: InstalledApp, _ staged: StagedSelfUpdate) async -> (text: String, failed: Bool) {
+    /// Run the staged relaunch for one app and say what happened. Progress
+    /// lines (the rollback point, a quit held up by a prompt) are printed as it
+    /// goes; the returned line is the last.
+    static func applyStaged(
+        _ app: InstalledApp, _ staged: StagedSelfUpdate, keepBackups: Bool, waitsForAnswer: Bool
+    ) async -> (text: String, failed: Bool) {
         let to = UpdateResult(app: app, remote: nil, status: .unknown).stagedRelaunchLine(staged).to
-        let running = AppRestarter.runningInstances(of: app)
+        var running = AppRestarter.runningInstances(of: app)
         guard !running.isEmpty else {
             // Nothing to quit, and nothing we can do to make the vendor's updater
             // apply it now — the GUI's Relaunch stands down here too.
             return ("not running — nothing to restart; its own updater has \(to) staged", false)
         }
+        // The rollback point the menu-bar app's Relaunch takes, honouring the
+        // same preference — while the bundle on disk is still the running build.
+        let taken = await StagedRelaunchBackup.take(
+            app, keepBackups: keepBackups, old: app.versionSide,
+            runningBefore: Set(running.map(\.processIdentifier)),
+            system: .live(for: app, backUp: { await InstallCoordinator.backUp(app, route: .sparkle) }))
+        if case .standDown(let discarded) = taken {
+            let copy = discarded ? " (the copy taken meanwhile was discarded)" : ""
+            return ("quit while it was being backed up — its own updater is applying \(to) on its own; left it alone\(copy)", false)
+        }
+        if let note = describe(taken, version: app.shortVersion ?? "current") {
+            print("\(app.name)  \(note)")
+        }
+        // Re-read after the copy, which can take seconds: which window is in
+        // front is a question about now.
+        running = AppRestarter.runningInstances(of: app)
+        let minutes = Int(StagedRelaunch.quitHandoffMaxAge / 60)
+        let patience: StagedRelaunch.QuitPatience = waitsForAnswer
+            ? .handoff(onSlowQuit: {
+                print("\(app.name)  hasn't quit yet — likely a save prompt. Answer it and its own updater applies \(to); waiting up to \(minutes) min (Ctrl-C to stop waiting)")
+                fflush(stdout)
+            })
+            : .grace
         let ending = await StagedRelaunch.quitAndAwait(
             app, staged: staged, old: app.versionSide,
-            wasFrontmost: AppRestarter.isFrontmost(running), system: .live(for: app))
+            wasFrontmost: AppRestarter.isFrontmost(running), quitPatience: patience,
+            system: .live(for: app))
         let disk = StagedRelaunch.diskVersionSide(app.path)
         return describe(ending, staged: to, disk: disk)
     }
@@ -112,6 +146,28 @@ public enum Restart {
             return ("quit, but its own updater didn't apply \(to) in time\(reopen)", true)
         case .restartedWithoutUpdate:
             return ("restarted without applying \(to)", true)
+        }
+    }
+
+    /// The progress line for the rollback point, or nil when there is nothing
+    /// to say. Worded as `duo install` words its own backup step.
+    static func describe(_ taken: StagedRelaunchBackup.Taken, version: String) -> String? {
+        switch taken {
+        case .skipped, .standDown:
+            return nil
+        case .lockRefused:
+            return "no rollback point: another install holds the install lock — restarting without one"
+        case .attempted(.saved):
+            return "backed up \(version)"
+        case .attempted(.savedWithoutRuntimeState(let omitted)):
+            return "backed up \(version) — without \(omitted) file(s) the app wrote inside its own"
+                + " bundle, which it will recreate"
+        case .attempted(.unreadable(let path)):
+            return "no rollback point: \(path) is not readable by you"
+        case .attempted(.insufficientSpace):
+            return "no rollback point: this Mac is low on space"
+        case .attempted(.failed):
+            return "could not back up — restarting without a rollback point"
         }
     }
 

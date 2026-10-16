@@ -11,8 +11,10 @@ import Foundation
 /// ShipIt logged "Aborting update attempt because there are 1 running instances
 /// of the target app" (`SQRLInstallerErrorDomain` -9) a second after "Beginning
 /// installation". Both hosts now run this one wait; what stays with the caller is
-/// its own state around it (the GUI's spinner, rollback point, quit hand-off and
-/// red line; the CLI's printed line).
+/// its own state around it (the GUI's spinner, notes, quit hand-off and red
+/// line; the CLI's printed lines). The rollback point taken before the quit is
+/// shared too (`StagedRelaunchBackup.take`), and so is how long a quit held up
+/// by a prompt may take (`QuitPatience`).
 ///
 /// **Crucially different from `AppRestarter.restart`**: for a swap-on-quit
 /// updater we must **not** reopen the app before the swap has landed. Those
@@ -54,6 +56,38 @@ public enum StagedRelaunch {
     /// After our own launch (swap-on-launch), how long to let the updater's own
     /// open of the new build register before the fallback launches it.
     public static let settleTicks = 15
+
+    /// How long a quit we asked for may still be answered. The menu-bar app's
+    /// quit hand-off stays armed this long after `.wontQuit`; `duo restart` in a
+    /// terminal keeps waiting this long instead (`QuitPatience`). Generous enough
+    /// to answer a quit dialog after stepping away; short enough that a quit
+    /// hours later is clearly the user closing the app, not that answer.
+    public static let quitHandoffMaxAge: TimeInterval = 10 * 60
+
+    /// How long the wait gives the app to quit before ending as `.wontQuit`.
+    public struct QuitPatience: Sendable {
+        /// Ticks from the quit request. Never shorter than `quitGraceTicks`.
+        public let ticks: Int
+        /// Called once, at `quitGraceTicks`, if the app is still up then and
+        /// `ticks` goes past it — the moment the menu-bar app would have given
+        /// up, so a caller that waits on can say why.
+        public let onSlowQuit: (@Sendable () -> Void)?
+
+        public init(ticks: Int, onSlowQuit: (@Sendable () -> Void)? = nil) {
+            self.ticks = max(ticks, StagedRelaunch.quitGraceTicks)
+            self.onSlowQuit = onSlowQuit
+        }
+
+        /// The menu-bar app's: ~5 s, then `.wontQuit` and its quit hand-off.
+        public static let grace = QuitPatience(ticks: StagedRelaunch.quitGraceTicks)
+
+        /// `duo restart` in a terminal. A one-shot process cannot arm the
+        /// menu-bar app's terminate observer, so it stays and waits for the
+        /// answer itself, for as long as that hand-off would have stayed armed.
+        public static func handoff(onSlowQuit: @escaping @Sendable () -> Void) -> QuitPatience {
+            QuitPatience(ticks: Int(quitHandoffMaxAge * 5), onSlowQuit: onSlowQuit)
+        }
+    }
 
     /// How the wait ended.
     public struct Ending: Sendable, Equatable {
@@ -123,8 +157,9 @@ public enum StagedRelaunch {
 
     /// Quit `app` and wait for its own updater to apply `staged`.
     ///
-    /// The caller has already seen the app running (and, in the GUI, taken its
-    /// rollback point while the running build was still on disk).
+    /// The caller has already seen the app running and taken its rollback
+    /// point (`StagedRelaunchBackup.take`) while the running build was still on
+    /// disk.
     ///
     /// - Parameters:
     ///   - staged: the build being applied, or nil when its staging could not be
@@ -137,9 +172,12 @@ public enum StagedRelaunch {
     ///     900 ticks (189 s) and reported `applied=false` for a swap that had
     ///     already succeeded.
     ///   - wasFrontmost: sampled before the quit; whether a reopen activates.
+    ///   - quitPatience: how long the app may take to quit. A quit after
+    ///     `quitGraceTicks` still gets the swap wait it would have had from
+    ///     there (`maxTicks - quitGraceTicks`).
     public static func quitAndAwait(
         _ app: InstalledApp, staged: StagedSelfUpdate?, old: VersionSide,
-        wasFrontmost: Bool, system: System
+        wasFrontmost: Bool, quitPatience: QuitPatience = .grace, system: System
     ) async -> Ending {
         let buildIsDerived = AppScanner.buildVersionIsOverridden(bundleID: app.bundleID)
         // Spotify only swaps when its old build is opened again; ShipIt/Sparkle
@@ -169,7 +207,14 @@ public enum StagedRelaunch {
         var reappearance = ReappearanceWatch(for: staged)
         var reappearedWithoutLanding = false
         var installerExit = InstallerExitWatch(watching: installerProbe != nil)
-        for tick in 0..<maxTicks {
+        // `maxTicks` from the quit request, moved out by a quit later than
+        // `quitGraceTicks` — which only a patience past the grace allows. Before
+        // the quit the loop is bounded by the `.wontQuit` bail instead.
+        var swapDeadline = maxTicks
+        var tick = -1
+        while true {
+            tick += 1
+            guard tick < swapDeadline || !everQuit else { break }
             await system.tick()
             if RelaunchProgress.hasLanded(
                 old: old, disk: await system.diskVersion(), buildIsDerived: buildIsDerived) {
@@ -185,6 +230,9 @@ public enum StagedRelaunch {
             }
             let runningNow = system.isRunning()
             if !runningNow {
+                if !everQuit {
+                    swapDeadline = max(maxTicks, tick + maxTicks - quitGraceTicks)
+                }
                 everQuit = true  // quit succeeded — now we're waiting on the swap
                 if appliesOnLaunch {
                     await system.awaitBundleProcessesGone()
@@ -192,12 +240,15 @@ public enum StagedRelaunch {
                     _ = await system.relaunch(wasFrontmost)
                     launchedAtTick = tick
                 }
-            } else if !everQuit && tick >= quitGraceTicks {
+            } else if !everQuit && tick >= quitPatience.ticks {
                 // Never quit → a save prompt (or similar) is keeping it up; the swap
                 // can't start, so don't block the long window on it. The caller
                 // decides what to arm for a quit that completes later.
                 Log.app.notice("relaunch-staged: \(app.name, privacy: .public) won't quit (likely a save prompt) — leaving it staged")
                 break
+            } else if !everQuit && tick == quitGraceTicks, let onSlowQuit = quitPatience.onSlowQuit {
+                Log.app.notice("relaunch-staged: \(app.name, privacy: .public) hasn't quit after the grace (likely a save prompt) — waiting up to \(quitPatience.ticks, privacy: .public) ticks for it")
+                onSlowQuit()
             }
             if reappearance.observe(tick: tick, running: runningNow, everQuit: everQuit) {
                 Log.app.notice("relaunch-staged: \(app.name, privacy: .public) is running again on \(old.text(withBuild: true), privacy: .public) — its updater didn't swap; not waiting further")

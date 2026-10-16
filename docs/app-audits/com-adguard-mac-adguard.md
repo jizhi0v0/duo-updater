@@ -61,7 +61,7 @@
   - beta: `recipe …: 10 entries; newest 2.20 RC 1: 2 items, headings ["Changelog", "Fixes"]`
   - nightly: `recipe …: 10 entries; newest 2.20.0.2625: 1 items, headings []`
 - 加 recipe 之前，pane 嵌入的是该网页本身（无结构，带图）。
-- 没用的另一来源: `github.com/AdguardTeam/AdguardForMac` 不是源码仓库（README 自述是公开 bug tracker，仓库只有 `README.md` 和 `.github`），但 Releases 镜像了 release 和 beta（beta 标 `prerelease`，release 名等于 `shortVersionString`，如 `2.20 RC 1`），共 139 条（2026-10-16），没有 nightly，只有英文，正文是 Markdown、带同样的截图，开头有一句「not an open-source project」声明。历史比版本页长得多，但按轨区分要靠 channel 检测；当时 beta / nightly 安装被判成 stable，所以没换。现在有了 `AdGuardChannel`，换不换待用户定（nightly 仍只能用版本页）。
+- 没用的另一来源: `github.com/AdguardTeam/AdguardForMac` 不是源码仓库（README 自述是公开 bug tracker，仓库只有 `README.md` 和 `.github`），但 Releases 镜像了 release 和 beta（beta 标 `prerelease`，release 名等于 `shortVersionString`，如 `2.20 RC 1`），共 139 条（2026-10-16），没有 nightly，只有英文，正文是 Markdown、带同样的截图，开头有一句「not an open-source project」声明。历史比版本页长得多，但按轨区分要靠 channel 检测；当时 beta / nightly 安装被判成 stable，所以没换。有了 `AdGuardChannel` 之后，用户 2026-10-16 定：继续用官网版本页，它够新（每轨最近 10 版，三轨都有，含 nightly），不换 GitHub。
 - 跟随 channel: 是。三条轨的链接各自不同，recipe 接受三者，读的就是 bundle 自己 feed 给的那一条。
 - 版本串: release、beta 页面的标题版本等于 feed 的 `shortVersionString`（`2.20`、`2.20 RC 1`）；nightly 页面标题是四段构建号（`2.20.0.2625`），bundle 的 `shortVersionString` 是 `2.20 Nightly 9`，页面上没有 nightly 序号，所以 nightly 的条目版本对不上已装版本字符串。
 
@@ -79,7 +79,6 @@
 
 ## 建议下一步
 1. app 运行中的一键那一轮，等能接受启动 AdGuard（网络扩展、helper）时再跑。
-2. changelog 换成 GitHub Releases `AdguardTeam/AdguardForMac`（release + beta、历史更长，没有 nightly）：有了 binding 之后可以按轨区分，要不要换由用户定。
 
 ## 如何复验
 

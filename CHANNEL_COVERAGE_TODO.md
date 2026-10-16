@@ -465,6 +465,16 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 4. **UTM** —— 已接（2026-09-03）：exact-release 远端判轨、线锚定候选、stable/beta 一键和分轨 changelog。
    **kitty** 仍归入 §3 死轨，本地无信号，也没有可按已安装版本反查的固定 nightly release。
 
+### Jellyfin Server — rc（2026-10-16 查，未接）
+
+`Jellyfin.Server` 的 rc 包（`repo.jellyfin.org/files/server/macos/preview/v<ver>-rcN/`）与 stable
+同 bundle id、同 Team，版本串是 `12.0-rc7`（真包实测）。`detect()` 把它读成 stable，stable recipe
+给出终版（`channel-verify`：`UPDATE 12.0-rc7 → 12.2`）。缺口只在 rc 窗口期：装着下一大版本 rc 的副本
+不会被推下一个 rc（`13.0-rc1` 对 `12.2` 判为已最新，测试钉住）。没有 `latest-preview` 别名，
+rc 目录在终版发布后仍留着，接 preview 轨需要 `detect()` 加一条 bundle 限定的 `-rcN` 规则，外加一条
+在 rc 与终版之间取高的 probe。`unstable/` 只发 tar.xz（不是 .app），不算可装的轨。
+详见 [审计](docs/app-audits/Jellyfin-Server.md)。
+
 ---
 
 ## §3 死轨 — Pattern D / 不可行（已否决，**勿重开**）

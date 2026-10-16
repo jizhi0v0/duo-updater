@@ -227,6 +227,7 @@ public enum AppRecipeIndex {
         io_rancherdesktop_app.set,
         io_tailscale_ipn_macsys.set,
         jan_ai_app.set,
+        Jellyfin_Server.set,
         leits_MeetingBar.set,
         llc_turing_CrystalFetch.set,
         md_obsidian.set,

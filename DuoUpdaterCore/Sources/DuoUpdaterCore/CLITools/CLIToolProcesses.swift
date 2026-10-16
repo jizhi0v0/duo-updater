@@ -82,9 +82,18 @@ public enum CLIToolProcesses {
 
     /// The binary `status`'s processes run, or nil when it is not one this can
     /// match: a directory (a toolchain, a package), or nothing on disk.
+    ///
+    /// Resolved now, not taken from the check: a native Claude Code install's
+    /// launcher is repointed by its own updater between checks (to
+    /// `versions/<new>`), and the check's `install.executable` still names the
+    /// old file — every new session then read as left on an old version
+    /// (review, #1374). The launcher itself is the native install's path; an
+    /// npm copy's launcher can be a script, so its binary is the check's.
     public static func target(of status: CLIToolStatus) -> Target? {
         var executable: String? = status.path
-        if case .claudeCode(let claude) = status.detail { executable = claude.install.executable ?? status.path }
+        if case .claudeCode(let claude) = status.detail, claude.install.method != .native {
+            executable = claude.install.executable ?? status.path
+        }
         return executable.flatMap { target(kind: status.kind, path: $0) }
     }
 
@@ -119,8 +128,13 @@ public enum CLIToolProcesses {
                 // `claude update` from an old session's launcher is the updater
                 // itself, on its way out — not a session left on the old code.
                 guard !ClaudeCodeActivity.isClaudeUpdateCommand(process.arguments) else { continue }
+                // Only an older version is one the session should leave: a newer
+                // one beside the launcher's (a custom launcher held back, a
+                // `minimumVersion` floor) is not "from before the update".
                 let name = (process.path as NSString).lastPathComponent
-                guard name.first?.isNumber == true else { continue }
+                let current = (target.executable as NSString).lastPathComponent
+                guard name.first?.isNumber == true,
+                      VersionComparator.compare(name, current) == .orderedAscending else { continue }
                 stale.append(.init(pid: process.pid, version: name))
             }
         }

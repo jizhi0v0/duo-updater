@@ -127,6 +127,8 @@ final class CLIToolsModel {
     /// have any. `AppListModel` posts and withdraws the banner.
     @ObservationIgnored var onStaleProcesses: (@MainActor (_ newly: [CLIToolStatus], _ cleared: [CLIToolID]) -> Void)?
     @ObservationIgnored private var processWatch: Task<Void, Never>?
+    /// The watch's current wait; cancelled to wake it early (`wakeProcessWatch`).
+    @ObservationIgnored private var processWatchSleep: Task<Void, Never>?
     /// Update rows whose release notes mark breaking changes in the versions the
     /// update brings → those versions, oldest first
     /// (`CLIToolChangelog.breakingVersions`). A hint beside the version, never a
@@ -294,7 +296,7 @@ final class CLIToolsModel {
             // Who runs what, now, whatever the check decides: the process watch
             // may be in its hidden-window sleep (`watchProcesses`), and a dot that
             // came up to a minute after the window did read as wrong (2026-10-16).
-            Task { await refreshUsage() }
+            wakeProcessWatch()
         default: break
         }
         switch trigger {
@@ -593,12 +595,28 @@ final class CLIToolsModel {
     func watchProcesses(isVisible: @escaping @MainActor () -> Bool) {
         guard processWatch == nil else { return }
         processWatch = Task { [weak self] in
+            var wasVisible: Bool?
             while !Task.isCancelled {
                 await self?.refreshUsage()
                 let visible = isVisible()
-                try? await Task.sleep(for: visible ? Self.processWatchVisibleInterval : Self.processWatchHiddenInterval)
+                // Said when the clock changes, so the log shows which one runs.
+                if visible != wasVisible {
+                    Log.app.info("cli-tools: process watch every \(visible ? "3" : "60", privacy: .public)s (a window is \(visible ? "on screen" : "not on screen", privacy: .public))")
+                    wasVisible = visible
+                }
+                let interval = visible ? Self.processWatchVisibleInterval : Self.processWatchHiddenInterval
+                let sleep = Task { _ = try? await Task.sleep(for: interval) }
+                self?.processWatchSleep = sleep
+                await sleep.value
             }
         }
+    }
+
+    /// Read now and go on at the clock that fits: a window just came on
+    /// screen while the watch was in its 60 s hidden-window wait, which kept
+    /// the 3 s clock from starting for up to a minute.
+    func wakeProcessWatch() {
+        if let processWatchSleep { processWatchSleep.cancel() } else { Task { await refreshUsage() } }
     }
 
     /// One read of the process table for every install there is a binary to

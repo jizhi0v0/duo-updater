@@ -65,6 +65,47 @@ struct CLIToolProcessesTests {
         #expect(CLIToolWording.stillRunning(usage, of: .claudeCode) == "3 open sessions still run 2.1.299, 2.1.300")
     }
 
+    /// A session on a version newer than the launcher's is not left behind.
+    @Test func aNewerSiblingIsNotStale() {
+        let versions = "/Users/u/.local/share/claude/versions"
+        let target = CLIToolProcesses.Target(executable: "\(versions)/2.1.300", versionedSiblings: true)
+        let usage = CLIToolProcesses.usage(of: target, current: disk, processes: [
+            .init(pid: 21, path: "\(versions)/2.1.301", file: replaced),
+        ])
+        #expect(usage == .none)
+    }
+
+    /// The app holds a check's verdict for hours; Claude Code's own updater
+    /// repoints the launcher in between. The target follows the launcher as it
+    /// is now, not the file the check resolved.
+    @Test func aNativeClaudeTargetFollowsTheLauncherNotTheCheck() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cli-processes-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let versions = root.appendingPathComponent(".local/share/claude/versions")
+        try FileManager.default.createDirectory(at: versions, withIntermediateDirectories: true)
+        let old = versions.appendingPathComponent("2.1.300"), new = versions.appendingPathComponent("2.1.301")
+        try Data("old".utf8).write(to: old)
+        try Data("new".utf8).write(to: new)
+        let launcher = root.appendingPathComponent("claude")
+        try FileManager.default.createSymbolicLink(at: launcher, withDestinationURL: old)
+        let install = ClaudeCodeInstall(
+            path: launcher.path, method: .native, origin: .conventional, executable: old.path, version: "2.1.300",
+            signature: .anthropic, problem: nil)
+        let status = CLIToolStatus(
+            kind: .claudeCode, path: launcher.path, installedVersion: "2.1.300", latestVersion: "2.1.301",
+            channel: "latest", state: .updateAvailable, oneClick: nil, withheld: nil, note: nil,
+            detail: .claudeCode(ClaudeCodeStatus(
+                install: install, channel: .latest, latestVersion: "2.1.301", versionConfirmed: nil,
+                state: .updateAvailable, oneClick: nil, note: nil)))
+        #expect(CLIToolProcesses.target(of: status)?.executable == CLIToolProcesses.realpath(old.path))
+
+        // `claude update` repoints the launcher; the verdict above is unchanged.
+        try FileManager.default.removeItem(at: launcher)
+        try FileManager.default.createSymbolicLink(at: launcher, withDestinationURL: new)
+        #expect(CLIToolProcesses.target(of: status)?.executable == CLIToolProcesses.realpath(new.path))
+    }
+
     /// Claude's desktop app runs its own copy of the CLI; it is not the native
     /// install, whatever its file is called.
     @Test func theDesktopAppsBundledCopyIsAnotherInstall() {

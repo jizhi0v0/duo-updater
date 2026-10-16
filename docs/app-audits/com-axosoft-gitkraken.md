@@ -62,10 +62,15 @@ Axosoft 的 Git 客户端，Electron 套壳，用 Electron 自带的 `autoUpdate
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（Squirrel.Mac 的 ShipIt） | 没查 | ○ |
-| 证据 | cask `zap` 列了 `~/Library/Caches/com.axosoft.gitkraken.ShipIt` | 未跑第二轮（运行中 + 自更新器武装），待主会话真机执行 | `SelfUpdaterStash` 目前只读 electron-updater 与 Cindy 两种布局，没有 Squirrel ShipIt |
+| 结论 | 会（Squirrel.Mac 的 ShipIt） | 12.5.0 运行中停放了完整的 12.6.0（实测） | ○ |
+| 证据 | cask `zap` 列了 `~/Library/Caches/com.axosoft.gitkraken.ShipIt` | 2026-10-16 真机：启动 12.5.0 后 15 s 出现 `update.<随机>/GitKraken-v12.6.0.zip`，解压成 `update.<随机>/GitKraken.app`（12.6.0，目录共 633 MB），写 `ShipItState.plist`，launchd 作业 `com.axosoft.gitkraken.ShipIt` 常驻等退出 | `SelfUpdaterStash` 目前只读 electron-updater 与 Cindy 两种布局，没有 Squirrel ShipIt（复用字节做不到；识别「已停放」做得到，见下） |
 
-- 记录文件与字段: 未读（ShipIt 的 `ShipItState.plist`），待真机第二轮看实际目录
+- 记录文件与字段: `ShipItState.plist` = `bundleIdentifier`、`targetBundleURL`（`/Applications/GitKraken.app/`）、`updateBundleURL`（停放的 `.app`）、`launchAfterInstallation`（第一次为 false）、`useUpdateBundleName`；日志 `ShipIt_stderr.log`
+- 运行中一轮（2026-10-16，main `make cli`）：
+  - `duo check` 显示 `12.5.0 → 12.6.0 [Vendor, in-place]`（没提已停放）；`duo install --yes` 让开：`its own updater already has 12.6.0 staged — quit it to apply, or \`duo restart\``，没有和 ShipIt 抢
+  - **`duo restart` 不生效（缺陷）**：ShipIt 16:28:07.86 `Beginning installation`，1.1 s 后 `Aborting update attempt because there are 1 running instances` / `SQRLInstallerErrorDomain Code=-9 "App Still Running Error"`——CLI 的 `duo restart`（`AppRestarter.restart`）退出后立刻重开，没走 GUI 那条「退出后不重开、等换包」的 relaunch-staged 路径。重开的 12.5.0 又停放了一份（`update.<另一个随机名>`）
+  - 直接退出就生效：退出后 ShipIt `status 0`，`/Applications/GitKraken.app` 变成 12.6.0，Team `T7QVVUTZQ8`、`codesign --strict` 0、Notarized；ShipIt 随后把它重新打开（第二次停放的 `launchAfterInstallation` 推测为 true，未读）
+  - 登录项：启动后 BTM 多出 `GitKraken`（app，disabled）和 `GitKraken - background tasks`（enabled、已通知用户），删掉 app 后记录仍在；没有针对单条的清理命令（`sfltool resetbtm` 会清掉全部，不能用）
 - 容器: zip，包根是 `GitKraken.app`
 - 两份副本会不会共用这个目录: 会（缓存目录按 bundle id 命名），未验证
 
@@ -108,7 +113,7 @@ Axosoft 的 Git 客户端，Electron 套壳，用 Electron 自带的 `autoUpdate
 
 ## 建议下一步
 1. （已做，见已知问题）edition 信号：`OneClickGate` 读 `clientType.js`，非 `NORMAL` 不给一键。
-2. 真机第二轮（运行中 + 自更新器武装）时记录 ShipIt 停放的内容，评估要不要给 `SelfUpdaterStash` 加 Squirrel 布局。
+2. （已跑，见「已停放整包」）要不要给 `SelfUpdaterStash` 加 Squirrel 布局待评估；`duo restart` 对 Squirrel 已停放的 app 要改成「只退出、等 ShipIt 换包」。
 3. 13.0 发布后确认 `current` 页是否跟着换成 13.x，不跟就改用 `sourceTemplate`。
 
 ## 如何复验

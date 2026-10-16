@@ -255,6 +255,13 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
       按 bundle id 限定的 step 0.8。两 channel 均仅检测，未接一键（装机带特权
       helper/LaunchDaemon/XPC，一键是独立范围决策）。
 
+- [ ] **MusicBrainz Picard** · `org.musicbrainz.Picard` — Options → General → Startup 的（master 源码 `picard/ui/options/startup.py`）
+      「Update types to check」（`update_level` 0 stable / 1 beta / 2 dev，`in_profile=True`）。beta 构建同
+      bundle id，版本串带 `rc`/`b`（`3.0.0rc4`），`ReleaseChannel.detect()` 判成 stable，走 stable rule。
+      当前 beta（3.0.0rc4）落后于 stable 3.0.2，没有漏掉的构建；下一个 beta 周期前决定接法
+      （`installedTagPrefix` rule 或读 INI 偏好，INI 位置未在真 app 上确认）。见
+      `docs/app-audits/org-musicbrainz-Picard.md`。
+
 - [ ] **WhatCable** · `uk.whatcable.whatcable` — Settings → **"Receive beta updates"**
       checkbox。**版本检测这一半已经不需要它**：beta 包的
       `CFBundleShortVersionString` 原样带 `-beta.8`（实测 v1.5.0-beta.8 的

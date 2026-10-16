@@ -90,6 +90,15 @@ public struct BundleIDMigration: Sendable, Equatable {
         BundleIDMigration(
             from: "com.davidbures.cork", to: "eu.davidbures.cork",
             teamID: "ZSVA6DVZHM", lastFromVersion: "1.5.7", firstToVersion: "1.6.0"),
+        // MusicBrainz Picard changed only the case of its id: the 2.0.4 dmg is
+        // `org.musicbrainz.picard`, the 2.3.1 dmg and every release since are
+        // `org.musicbrainz.Picard`, the same Team. The vendor's mirror carries no
+        // 2.1.x or 2.2.x dmg; the repo's `picard.spec` still writes the lower-case
+        // id at release-2.1.3 and `PICARD_APP_ID` (the mixed-case id) from release-2.2.0 on.
+        // See docs/app-audits/org-musicbrainz-Picard.md, 旧 bundle id.
+        BundleIDMigration(
+            from: "org.musicbrainz.picard", to: "org.musicbrainz.Picard",
+            teamID: "8D89TSJ88H", lastFromVersion: "2.0.4", firstToVersion: "2.3.1"),
     ]
 
     /// Whether an installed copy signed as `from` at `version` is this rename.

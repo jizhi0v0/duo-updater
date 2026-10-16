@@ -203,6 +203,7 @@ public enum AppRecipeIndex {
         com_westbridge_stremio5_mac.set,
         com_windscribe_client.set,
         com_workbuddy_workbuddy_ai.set,
+        com_xbarapp_app.set,
         com_xd_cindy.set,
         com_xd_cindycn.set,
         com_xingyuzhong_deepseekgui.set,

@@ -294,6 +294,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**KnockKnock**](com-objective-see-KnockKnock.md) · `com.objective-see.KnockKnock` — G (one-click universal zip) · 真包 3.9.8/4.0.3/4.1.0 验证 ✓（4.0.3 → 4.1.0、4.1.0 up to date） · **一键端到端待主会话** · changelog 结构化 ✓（4.1.0；`☑️` 风格旧正文带赞助行） · 单轨（settled from source；v3.9.x 是历史 pre-release） · 2026-10-16
 - [x] [**macUSB**](com-kruszoneq-macUSB.md) · `com.kruszoneq.macUSB` — G (one-click 通用 dmg；bundle 内有 SMAppService LaunchDaemon helper，app 换版本后自动重注册) · 真包 2.4/2.5 挂载验证 ✓（2.4 → 2.5、2.5 up to date） · **一键端到端：待主会话真机执行** · changelog 结构化 ✓ · 单轨（settled from source） · 2026-10-16
 - [x] [**Flycut**](com-generalarcade-flycut.md) · `com.generalarcade.flycut` — G (one-click universal zip；release.yml 下一版改出 `Flycut.dmg`，届时 kind 要改 `.dmg`) · 真包 1.8–1.9.6 验证 ✓（1.9.4 → 1.9.6、1.9.6 up to date） · 一键端到端：待主会话执行 · changelog 结构化 ✓（无小标题） · MAS 副本同 id，归 MAS 源 · 单轨 · 2026-10-16
+- [x] [**xbar**](com-xbarapp-app.md) · `com.xbarapp.app` — G (one-click universal dmg，每个 2.x tag 都是 `vX.Y.Z-beta` 且不标 prerelease，pattern 保留后缀) · 真包 v2.1.6-beta/v2.1.7-beta 挂载验证 ✓ · **一键端到端：待主会话执行** · changelog 结构化 ✓ · 单轨（settled from source）· v2.0.40 前 bundle id 逐版不同、BitBar 另一产品，均不覆盖 · 2026-10-16
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

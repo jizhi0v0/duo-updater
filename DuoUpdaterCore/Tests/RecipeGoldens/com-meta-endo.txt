@@ -56,3 +56,5 @@ loginWalls["com.meta.endo"].feed = URL("https://www.facebook.com/endo/release/ap
 loginWalls["com.meta.endo"].login = URL("https://www.facebook.com/login/")
 
 changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)

@@ -281,3 +281,5 @@ supersededFeeds = Dictionary(count: 0)
 loginWalls = Dictionary(count: 0)
 
 changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)

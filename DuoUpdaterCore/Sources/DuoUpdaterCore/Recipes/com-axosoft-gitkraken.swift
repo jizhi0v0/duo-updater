@@ -41,9 +41,8 @@ enum com_axosoft_gitkraken {
         // edition ships under the SAME bundle id, name, Info.plist and Team; only
         // `src/main/static/clientType.js` inside `app.asar` differs (`'NORMAL'` vs
         // `'STANDALONE'`). Detection answers both (the lines share version
-        // numbers); one-click is withheld from any copy not provably NORMAL
-        // (`GitKrakenEdition`, asked by `UpdatePolicy.canAutoInstall` and again by
-        // `VendorInstaller`), since this build would swap its edition.
+        // numbers); one-click is withheld from any copy not provably NORMAL (the
+        // `oneClickGates` entry below), since this build would swap its edition.
         VendorProbeRecipe(
             bundleID: "com.axosoft.gitkraken",
             url: URL(string: "https://release.gitkraken.com/darwin-arm64/RELEASES")!,
@@ -81,5 +80,16 @@ enum com_axosoft_gitkraken {
             itemPatterns: [#"<li\b[^>]*>(?<item>(?:(?!<li\b|</li>|<ul\b|<ol\b).)+)"#],
             maxEntries: 20,
             headingPattern: #"<h3[^>]*>(?:<a\b[^>]*>.*?</a>)?\s*(?<heading>[^<]+?)\s*</h3>"#),
+        ],
+        oneClickGates: [
+            // `src/main/static/clientType.js` is `module.exports = 'NORMAL';` in
+            // the normal edition and `'STANDALONE'` in On-Premise Serverless
+            // (both 12.6.0 packages, 2026-10-16); the download above is NORMAL.
+            OneClickGate(
+                bundleID: "com.axosoft.gitkraken",
+                requirement: .asarEntry(
+                    path: "src/main/static/clientType.js",
+                    pattern: #"module\.exports\s*=\s*['"]NORMAL['"]"#),
+                reason: "this is not the normal edition; On-Premise copies update from GitKraken's On-Premise download"),
         ])
 }

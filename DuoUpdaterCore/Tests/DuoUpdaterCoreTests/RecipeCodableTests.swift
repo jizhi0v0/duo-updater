@@ -130,6 +130,18 @@ struct RecipeCodableTests {
                 expected: .init(
                     feed: URL(string: "https://example.invalid/appcast.xml")!,
                     login: URL(string: "https://example.invalid/login/")!)),
+            .structure(
+                OneClickGate.self,
+                keys: OneClickGate.CodingKeys.allCases.map(\.stringValue),
+                required: #"{"bundleID":"zz.fixture","requirement":{"kind":"installedVersion","pattern":"^4\\."},"reason":"r"}"#,
+                expected: .init(bundleID: "zz.fixture", requirement: .installedVersion(pattern: #"^4\."#), reason: "r")),
+            .tagged(
+                OneClickGate.Requirement.self,
+                tags: OneClickGate.Requirement.CodingKind.allCases.map(\.rawValue),
+                samples: [
+                    (.installedVersion(pattern: "^4"), #"{"kind":"installedVersion","pattern":"^4"}"#),
+                    (.asarEntry(path: "a/b.js", pattern: "N"), #"{"kind":"asarEntry","path":"a\/b.js","pattern":"N"}"#),
+                ]),
 
             // Each sample beside the exact JSON it must encode to. These literals are
             // the format: change one only as a deliberate format change.
@@ -372,6 +384,7 @@ struct RecipeCodableTests {
             try stable(set.supersededFeeds, "\(at).supersededFeeds")
             try stable(set.loginWalls, "\(at).loginWalls")
             try stable(set.changelogPages, "\(at).changelogPages")
+            try stable(set.oneClickGates, "\(at).oneClickGates")
         }
         #expect(failures.isEmpty, Comment(rawValue: failures.joined(separator: "\n")))
         // The kinds above are listed by hand; a kind added to `AppRecipeSet` and
@@ -438,6 +451,7 @@ struct RecipeCodableTests {
         case let v as [String: URL]: return try check(v, count: v.count)
         case let v as [String: SparkleFeedCatalog.SupersededFeed]: return try check(v, count: v.count)
         case let v as [String: SparkleFeedCatalog.LoginWall]: return try check(v, count: v.count)
+        case let v as [OneClickGate]: return try check(v, count: v.count)
         default: return (0, "no round trip for \(type(of: value))")
         }
     }

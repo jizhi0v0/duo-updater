@@ -88,9 +88,6 @@ public actor VendorInstaller {
         /// asset itself — a stash or a patch — so the published digest cannot
         /// speak for these bytes.
         case digestOnlyNeedsTheAsset
-        /// The installed copy is an edition the recipe's build is not
-        /// (`GitKrakenEdition`): installing it would change the edition.
-        case otherEdition
 
         public var errorDescription: String? {
             switch self {
@@ -108,8 +105,6 @@ public actor VendorInstaller {
                 return String(localized: "This app has no developer signature, and one-click updates for such apps are turned off in Settings. Nothing was changed.")
             case .digestOnlyNeedsTheAsset:
                 return "Only the release asset itself can be checked against GitHub's published hash. Nothing was changed."
-            case .otherEdition:
-                return "This copy is a different edition of the app than the update offered (for GitKraken, the On-Premise edition). Update it from the vendor. Nothing was changed."
             }
         }
     }
@@ -146,10 +141,6 @@ public actor VendorInstaller {
         }
         guard let kind = remote.vendorInstallerKind, kind != .pkg else {
             throw InstallError.unknownKind  // pkg goes through PackageInstaller
-        }
-        // Asked again at click time: `canAutoInstall` is the offer, this is the gate.
-        if GitKrakenEdition.withholdsOneClick(bundleID: result.app.bundleID, bundleURL: result.app.path) {
-            throw InstallError.otherEdition
         }
 
         // Bytes this app's OWN updater has already fetched for exactly this release.

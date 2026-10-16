@@ -362,6 +362,13 @@ public actor InstallCoordinator {
         // evidence was the app's own mtime. `.notice`, so it is still readable when
         // the report arrives hours later.
         let label = "\(result.app.name) [\(result.app.bundleID ?? "?")]"
+        // `canAutoInstall` is the offer; this is the gate, for every route, before
+        // anything is touched (`OneClickGate`).
+        if let gate = OneClickGateRegistry.withholding(result.app) {
+            Log.install.notice(
+                "install refused: \(label, privacy: .public) — one-click gate: \(gate.reason, privacy: .public)")
+            throw OneClickGateRegistry.Withheld(appName: result.app.name, reason: gate.reason)
+        }
         Log.install.notice(
             "install start: \(label, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(String(describing: route), privacy: .public)")
         do {

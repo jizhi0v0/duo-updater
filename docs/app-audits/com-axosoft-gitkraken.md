@@ -96,15 +96,18 @@ Axosoft 的 Git 客户端，Electron 套壳，用 Electron 自带的 `autoUpdate
   `plutil` 输出 `diff` 为空，Team 都是 `T7QVVUTZQ8`），区别在 `app.asar` 的 `src/main/static/clientType.js`：普通版 `'NORMAL'`，
   Standalone `'STANDALONE'`（12.5.0、12.6.0 实测）。两包另有约 200 个二进制不同（git、Electron 框架、原生模块，各自构建所致，
   未逐个核），`app.asar.unpacked/gkcli/mcp_resources/` 只在 Standalone 里有（附带差异，不作判据）。
-  现在 `GitKrakenEdition` 只读 asar 头里这一个条目（不解包，按路径+大小+mtime 缓存；真包上首次约 60 ms、缓存命中约 0.25 ms，debug 构建），
-  不是 `NORMAL`（含读不到）就不给一键：`UpdatePolicy.canAutoInstall` 判 false，`VendorInstaller` 点击时再拦一次（`otherEdition`）。
+  现在 recipe 的 `oneClickGates` 声明 `OneClickGate(.asarEntry(path: "src/main/static/clientType.js", pattern: NORMAL))`：
+  只读 asar 头里这一个条目（不解包，`AsarEntryReader` 按路径+大小+mtime 缓存；真包上首次约 60 ms、缓存命中约 0.25 ms，debug 构建），
+  不是 `NORMAL`（含读不到）就不给一键：`UpdatePolicy.canAutoInstall` 判 false，`InstallCoordinator.perform` 点击时再拦一次
+  （`OneClickGateRegistry.Withheld`），所有来源、所有安装路由都一样。
   检测照旧（两条线版本号同步，`standalone/…/12.6.0` 也存在；cask 和官网下载页 2026-10-16 还停在 12.5.0）。
   真包验证：12.6.0 普通版 `clientType=NORMAL withholds=false`，Standalone `clientType=STANDALONE withholds=true`。
+  门改成通用的 `OneClickGate` 后真机再跑一次（2026-10-16）：普通版 12.5.0 → 12.6.0 `installed.`，Team `T7QVVUTZQ8`、`codesign --strict` 0、Notarized、`duo check` up to date，即真实 NORMAL 副本过门。
 - 自托管 Enterprise edition（`CLIENT_TYPE.ENTERPRISE`，从客户自己的服务器 `…/release` 更新）没有公开包可核，推测也是同一 bundle id，
   问题同上。
 
 ## 建议下一步
-1. （已做，见已知问题）edition 信号：`GitKrakenEdition` 读 `clientType.js`，非 `NORMAL` 不给一键。
+1. （已做，见已知问题）edition 信号：`OneClickGate` 读 `clientType.js`，非 `NORMAL` 不给一键。
 2. 真机第二轮（运行中 + 自更新器武装）时记录 ShipIt 停放的内容，评估要不要给 `SelfUpdaterStash` 加 Squirrel 布局。
 3. 13.0 发布后确认 `current` 页是否跟着换成 13.x，不跟就改用 `sourceTemplate`。
 

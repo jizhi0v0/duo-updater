@@ -59,3 +59,5 @@ supersededFeeds["com.readdle.pdfexpert-mac"].live = URL("https://downloads.pdfex
 loginWalls = Dictionary(count: 0)
 
 changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)

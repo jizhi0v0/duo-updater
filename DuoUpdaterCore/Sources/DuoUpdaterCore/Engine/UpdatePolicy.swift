@@ -171,6 +171,10 @@ public enum UpdatePolicy {
         // release; this is the only branch here that turns a *previously offered*
         // one-click off, and only the user can turn it back on (row context menu).
         if elevationDeclined(result, settings: settings, environment: environment) { return false }
+        // A copy its recipe family keeps off the one-click (another app or
+        // edition under the same id, see `OneClickGate`): detection only, every
+        // source.
+        if OneClickGateRegistry.withholding(result.app) != nil { return false }
         // An input method is registered with the system, not merely copied: the
         // vendor's installer calls `TISRegisterInputSource` on the bundle PATH
         // (WeType's installer binary carries "Registered input source from
@@ -247,12 +251,6 @@ public enum UpdatePolicy {
             // is offered only when the user allowed it, and only with a published
             // digest to check the download against. `VendorInstaller` asks both
             // again at click time; this is the offer, not the gate.
-            // A GitKraken copy that is not the NORMAL edition (On-Premise
-            // Serverless shares id, Team and versions): the recipe's build would
-            // swap its edition. Detection only. See `GitKrakenEdition`.
-            if GitKrakenEdition.withholdsOneClick(bundleID: result.app.bundleID, bundleURL: result.app.path) {
-                return false
-            }
             if result.remote?.installTrust == .publishedDigestOnly {
                 guard settings.allowsDigestOnlyInstalls,
                       result.remote?.expectedSHA256 != nil,

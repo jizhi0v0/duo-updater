@@ -33,12 +33,15 @@ enum org_musescore_MuseScore {
         // Developer ID 6EPAF2X3PR from 4.0.0 to 4.7.5. GitHub publishes a
         // `digest` for the recent assets.
         //
-        // Known gap: a MuseScore 3 copy has this same bundle id, so this rule
-        // answers for it too and offers it the newest 4.x. Its one-click passes
-        // the bundle-id and Team gates (same id, same Team 6EPAF2X3PR) and would
-        // put MuseScore 4 in place of `MuseScore 3.app`. A GitHub rule has no
-        // installed-version window (`VendorProbeRecipe.installedVersionPattern`
-        // is the probe-side one), so this cannot be fenced here.
+        // A MuseScore 3 copy has this same bundle id, so this rule answers for
+        // it too and offers it the newest 4.x — as 3.6.2's own update feeds do
+        // (`update.musescore.org/update_mac_stable.xml` says 4.0.0, the 3.x
+        // Sparkle appcast 4.0.1, both saying installing 4 keeps 3). Detection
+        // only for it (the `oneClickGates` entry below): the one-click would pass the bundle-id and Team gates
+        // (same id, same Team 6EPAF2X3PR) and put MuseScore 4 in place of
+        // `MuseScore 3.app`, while the vendor ships 4 beside 3 because 4 lays
+        // old scores out differently. 3.x gets no more releases (3.6.2 is the
+        // last, 2021-02-08), so there is nothing within 3.x to offer.
         //
         // Testing builds (the GitHub prereleases) also share the id, name the
         // app `MuseScore <x.y.z.build> Testing.app` and report a bare `4.6.0`;
@@ -49,5 +52,11 @@ enum org_musescore_MuseScore {
             versionPattern: #"^v(4(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^MuseScore(?:-Studio)?-4\.[0-9]+\.[0-9]+(?:\.[0-9]+)?\.dmg$"#,
             installerKind: .dmg),
+        ],
+        oneClickGates: [
+            OneClickGate(
+                bundleID: "org.musescore.MuseScore",
+                requirement: .installedVersion(pattern: #"^4\."#),
+                reason: "MuseScore 4 installs beside MuseScore 3, not over it; download it from musescore.org"),
         ])
 }

@@ -844,3 +844,59 @@ extension SparkleFeedCatalog.LoginWall: Codable {
         try c.encode(login, forKey: .login)
     }
 }
+
+extension OneClickGate: Codable {
+    enum CodingKeys: String, CodingKey, CaseIterable { case bundleID, requirement, reason }
+
+    public init(from decoder: Decoder) throws {
+        try RecipeCoding.rejectUnknownKeys(in: decoder, allowed: CodingKeys.self)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            bundleID: try c.decode(String.self, forKey: .bundleID),
+            requirement: try c.decode(Requirement.self, forKey: .requirement),
+            reason: try c.decode(String.self, forKey: .reason))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(bundleID, forKey: .bundleID)
+        try c.encode(requirement, forKey: .requirement)
+        try c.encode(reason, forKey: .reason)
+    }
+}
+
+extension OneClickGate.Requirement: Codable {
+    enum CodingKind: String, CaseIterable { case installedVersion, asarEntry }
+
+    public init(from decoder: Decoder) throws {
+        let (kind, c) = try RecipeCoding.taggedObject(CodingKind.self, in: decoder) {
+            switch $0 {
+            case .installedVersion: return ["pattern"]
+            case .asarEntry: return ["path", "pattern"]
+            }
+        }
+        switch kind {
+        case .installedVersion:
+            self = .installedVersion(pattern: try c.decode(String.self, forKey: .init("pattern")))
+        case .asarEntry:
+            self = .asarEntry(
+                path: try c.decode(String.self, forKey: .init("path")),
+                pattern: try c.decode(String.self, forKey: .init("pattern")))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: RecipeCoding.AnyKey.self)
+        let kind: CodingKind
+        switch self {
+        case .installedVersion(let pattern):
+            kind = .installedVersion
+            try c.encode(pattern, forKey: .init("pattern"))
+        case .asarEntry(let path, let pattern):
+            kind = .asarEntry
+            try c.encode(path, forKey: .init("path"))
+            try c.encode(pattern, forKey: .init("pattern"))
+        }
+        try c.encode(kind.rawValue, forKey: .init("kind"))
+    }
+}

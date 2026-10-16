@@ -49,7 +49,7 @@
 | 一组副本 | 结论 | 依据 |
 |---|---|---|
 | 4.0–4.7 stable | ✓ GitHub 规则（检测 + 一键） | 4.0.0 / 4.2.1 / 4.7.4 → `UPDATE → 4.7.5`；4.7.5 → `up to date`（实测） |
-| 3.x，同 id `org.musescore.MuseScore` | **缺口**：规则也会命中，推 4.7.5，一键会把 `MuseScore 3.app` 换成 4.x | 3.6.2 真包 channel-verify `UPDATE → 4.7.5`（实测）；一键行为是读 `VendorInstaller` 源码推断（原地替换已装路径），**没真机跑** |
+| 3.x，同 id `org.musescore.MuseScore` | 只检测：提示 4.x，不给一键（`OneClickGate` `.installedVersion("^4\\.")`） | 3.6.2 真包 channel-verify `UPDATE → 4.7.5`；真机（2026-10-16，集成分支 `make cli`）`duo check` → `3.6.2.548020600 → 4.7.5 [GitHub]`，`duo install` → `detection only for this copy — MuseScore 4 installs beside MuseScore 3, not over it; download it from musescore.org`，`MuseScore 3.app` 原样 |
 | 4.x Testing（GitHub prerelease） | 读成 stable，被推最新 stable；没有 beta 规则 | 4.6.0 beta 真包 `detected stable`、`UPDATE → 4.7.5`（实测） |
 | 4.x Nightly | 读成 nightly，没有 nightly 规则，不推 | 4.7 nightly 真包 `detected nightly`、`unknown`（实测；`.app` 文件名里的 Nightly 一词） |
 | 5.x | 另一个 bundle id，不在本规则内 | main nightly 真包 id = `org.musescore.MuseScoreStudio5Development`（实测）；main 的 `version.cmake` 写 `org.musescore.${MuseScoreStudio}${MAJOR}`（源码） |
@@ -115,10 +115,12 @@ testing 副本被推 stable 是往前走。
 - 阻塞: 无（3.x 的问题见「已知问题」）
 
 ## 已知问题
-- **MuseScore 3 副本会被推 4.x（缺口，未修）**: 3.x 与 4.x 同 bundle id，厂商让它们以 `MuseScore 3.app` / `MuseScore 4.app`
-  并存。GitHub 规则按 bundle id 选，没有「已装版本窗口」（VendorProbe 有 `installedVersionPattern`，GitHub 规则没有），
-  所以 3.6.2 被推 4.7.5（实测），一键会过 bundle id 和 Team 闸，把 MuseScore 4 装进 `MuseScore 3.app` 的位置（读源码推断，
-  未真机跑）。修法要动引擎：给 `GitHubReleaseRule` 加已装版本窗口，或者让 3.x 读成别的 channel
+- **MuseScore 3 副本：提示 4.x、不给一键（2026-10-16 已处理）**: 3.x 与 4.x 同 bundle id，厂商让它们以 `MuseScore 3.app` /
+  `MuseScore 4.app` 并存（4 改了排版引擎，旧谱子在 4 里不保证一样，见 handbook「Upgrading from earlier versions」）。3.6.2 自己的两个更新源
+  （`update.musescore.org/update_mac_stable.xml` → `4.0.0`，3.x Sparkle appcast → `4.0.1`，2026-10-16 curl）也提示 4.0，说装 4 不会删 3；
+  3.x 不再发版（3.6.2 是最后一版，2021-02-08）。所以检测照旧推 4.7.5；一键由 recipe 的 `oneClickGates`（已装版本 `^4\.`）挡掉，
+  `UpdatePolicy.canAutoInstall` 判 false，`InstallCoordinator.perform` 再拦，CLI 给出原因（见上表真机行）。
+  手动拖 `MuseScore 4.app` 进 `/Applications` 时 Finder 只按文件名判断冲突，两者名字不同，不会提示覆盖
 - Testing 构建读成 stable（见「Channel 详情」）
 - 厂商 feed `updates.musescore.org/feed/*.xml` 对两个 UA 都 404，没有抓 app 的真实请求
 

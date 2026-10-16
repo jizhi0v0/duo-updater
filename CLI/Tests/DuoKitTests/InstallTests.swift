@@ -100,6 +100,28 @@ import DuoUpdaterCore
         #expect(!why.contains("quit it to apply"))
     }
 
+    /// A copy a recipe's `OneClickGate` keeps off the one-click (MuseScore 3
+    /// under MuseScore 4's id) is refused with the gate's reason, not as a
+    /// source that publishes nothing — it does publish the 4.x dmg.
+    ///
+    /// Mutation: drop the `OneClickGateRegistry` branch in `classify` → the
+    /// refusal says "this source publishes no installable artefact".
+    @Test func aGatedCopyIsRefusedWithTheGatesReason() {
+        let museScore3 = InstalledApp(
+            name: "MuseScore", bundleID: "org.musescore.MuseScore",
+            shortVersion: "3.6.2.548020600", buildVersion: "3.6.2.548020600",
+            path: URL(fileURLWithPath: "/Applications/MuseScore 3.app"), isMASApp: false,
+            sparkleFeedURL: nil)
+        let decision = Install.classify(
+            result(source: "GitHub", app: museScore3), settings: settings(), environment: environment())
+        guard case .refuse(let why, _) = decision else {
+            Issue.record("expected a refusal, got \(decision)")
+            return
+        }
+        #expect(why.hasPrefix("detection only for this copy — MuseScore 4 installs beside MuseScore 3"))
+        #expect(!why.contains("publishes no installable artefact"))
+    }
+
     @Test func aVendorArchiveInstalls() {
         let decision = Install.classify(
             result(source: "Vendor"), settings: settings(), environment: environment())

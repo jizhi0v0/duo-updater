@@ -34,6 +34,9 @@ worker() {
     if [ -n "$dev" ]; then
       ro=$(diskutil info -plist "$dev" | plutil -extract WritableMedia raw - 2>&1)
       log $w writable-media $([ "$ro" = true ] && echo 0 || echo 1) "WritableMedia=$ro dev=$dev"
+      if [ "$ro" != true ]; then
+        { echo "=== $(date -u +%H:%M:%S) read-only $dev $d/two.dmg"; lsof "$d/two.dmg" 2>&1; hdiutil info 2>&1 | grep -B2 -A12 "$d/two.dmg"; } >> "$RUNNER_TEMP/readonly.log"
+      fi
       o=$(diskutil partitionDisk "$dev" GPT HFS+ V1 20M HFS+ V2 R 2>&1); r=$?; log $w partitionDisk $r "$o"
       o=$(hdiutil detach "$dev" 2>&1); r=$?; log $w detach-gpt $r "$o"; [ $r = 0 ] || hdiutil detach -force "$dev" >/dev/null 2>&1
     fi
@@ -41,6 +44,6 @@ worker() {
   done
 }
 ( while [ $(date +%s) -lt $end ]; do echo "--- uptime $(up)s"; top -l 2 -n 6 -o cpu -stats pid,command,cpu | tail -7; sleep 20; done ) > "$RUNNER_TEMP/cpu.log" 2>&1 &
-for w in 1 2 3; do worker $w & done
+for w in $(seq 1 ${W:-3}); do worker $w & done
 wait
 echo "done at uptime $(up)s"

@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arm: [nocompile, relink, execfirst, diskfirst]
+        arm: [nocompile, recompile]
         rep: [1, 2]
     runs-on: xcode-27
     timeout-minutes: 40
@@ -30,28 +30,33 @@ jobs:
       - name: Put back the cached build's file times
         if: steps.spm-cache.outputs.cache-matched-key != ''
         run: python3 scripts/ci_build_cache.py restore DuoUpdaterCore/.build
-      - name: Relink the test product only (relink arm)
-        if: matrix.arm == 'relink'
-        run: |
-          ls -la DuoUpdaterCore/.build/arm64-apple-macosx/release/ | grep -i xctest
-          rm -rf DuoUpdaterCore/.build/arm64-apple-macosx/release/*.xctest
-      - name: Exec the test binary once (execfirst arm)
-        if: matrix.arm == 'execfirst'
-        run: time swift test --package-path DuoUpdaterCore -c release --build-system native --filter NoSuchTestDiagXYZ || true
-      - name: Disk-image warm-up (diskfirst arm)
-        if: matrix.arm == 'diskfirst'
-        run: |
-          set +e
-          bash diag/probe.sh 30
-          grep -h ' rc=[1-9]' "$RUNNER_TEMP"/probe-*.log | head; cat "$RUNNER_TEMP"/probe-*.log | wc -l
+      - name: Force a Core rebuild (recompile arm)
+        if: matrix.arm == 'recompile'
+        run: echo "// diag $(date +%s)" >> DuoUpdaterCore/Sources/DuoUpdaterCore/Install/DiskImageMount.swift
       - name: Core tests (Release)
         run: |
           set +e
           echo "uptime at test start=$(( $(date +%s) - $(sysctl -n kern.boottime | awk '{print $4}' | tr -d ,) ))s"
           ( while true; do echo "--- $(date -u +%H:%M:%S)"; top -l 2 -n 5 -o cpu -stats pid,command,cpu | tail -6; sleep 20; done ) > "$RUNNER_TEMP/cpu.log" 2>&1 &
-          scripts/run-with-hang-report.sh 1200 make test-release
-          echo "rc=$?"
+          log stream --style compact --level info --predicate 'process CONTAINS[c] "diskimage" OR subsystem CONTAINS[c] "diskimage" OR process == "storagekitd"' > "$RUNNER_TEMP/di.log" 2>&1 &
+          LS=$!
+          ( until grep -q 'Test case passing' "$RUNNER_TEMP/out.log" 2>/dev/null; do sleep 1; done; W=1 bash diag/probe.sh 150 ) &
+          scripts/run-with-hang-report.sh 1200 make test-release 2>&1 | tee "$RUNNER_TEMP/out.log"
+          echo "rc=${PIPESTATUS[0]}"
+          wait %2 2>/dev/null; kill $LS
+          echo "== probe failures"; grep -h ' rc=[1-9]' "$RUNNER_TEMP"/probe-*.log
+          echo "== probe totals: ok=$(cat "$RUNNER_TEMP"/probe-*.log | grep -c ' rc=0') fail=$(cat "$RUNNER_TEMP"/probe-*.log | grep -c ' rc=[1-9]')"
+          echo "== readonly"; cat "$RUNNER_TEMP/readonly.log" 2>/dev/null | head -80
+          echo "== di.log lines $(wc -l < "$RUNNER_TEMP/di.log")"; grep -i -E 'read-?only|busy|error|fail' "$RUNNER_TEMP/di.log" | cut -c1-300 | head -60
           echo "uptime at test end=$(( $(date +%s) - $(sysctl -n kern.boottime | awk '{print $4}' | tr -d ,) ))s"
       - name: CPU
         if: always()
         run: cat "$RUNNER_TEMP/cpu.log" | head -120
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: diag-${{ matrix.arm }}-${{ matrix.rep }}
+          path: |
+            ${{ runner.temp }}/di.log
+            ${{ runner.temp }}/probe-*.log
+            ${{ runner.temp }}/readonly.log

@@ -37,6 +37,7 @@ public enum AppRecipeIndex {
         cc_ffitch_shottr.set,
         co_palokaj_battery.set,
         com_1password_1password.set,
+        com_adguard_mac_adguard.set,
         com_aionui_app.set,
         com_alienator88_Pearcleaner.set,
         com_aliyun_lingma_ide.set,

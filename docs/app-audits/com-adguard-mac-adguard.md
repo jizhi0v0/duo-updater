@@ -30,13 +30,12 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | release | `com.adguard.mac.adguard` | 共享 | Info.plist `AGChannel` = `release` | 每个构建声明自己的 feed | ✓ |
-| beta    | `com.adguard.mac.adguard` | 共享 | `AGChannel` = `beta`；版本串带 `RC n` / `beta n` | 同上 | ✓ 检测、changelog；channel 标签 ○ |
-| nightly | `com.adguard.mac.adguard` | 共享 | `AGChannel` = `nightly`；版本串带 `Nightly n` | 同上 | ✓ 检测、changelog；channel 标签 ○ |
+| beta    | `com.adguard.mac.adguard` | 共享 | `AGChannel` = `beta`；版本串带 `RC n` / `beta n` | 同上 | ✓ |
+| nightly | `com.adguard.mac.adguard` | 共享 | `AGChannel` = `nightly`；版本串带 `Nightly n` | 同上 | ✓ |
 
 三条轨是三个单独下载的构建，各自读自己的 feed，每个 feed 只有本轨一个 item、没有 `<sparkle:channel>` 标签，所以检测天然不会跨轨。
 
-**两个没解决的点：**
-- **channel 标签**: `channel-verify` 对 beta 和 nightly 真包都报 `detected channel → stable`（`inferred stable`，没有 `ChannelBinding`）。检测和 changelog 不受影响（它们只看 bundle 自己的 feed），但这些安装在 UI 上不会标成 beta / nightly。`AGChannel` 是现成的信号，可以照 SwiftVM（「构建自带、无偏好」那一行）加一个 binding。没加：binding 一旦 resolve，`channelIsAuthoritative` 会改变 `SparkleAppcastSource.allowedChannels` 的推断，在这种无标签 feed 上的效果要先验证。
+- **channel 标签**: `AdGuardChannel`（`ChannelBinding`，SwiftVM 那一类：构建自带、无偏好，不进 `boundBundleIDs`）读 bundle 自己 Info.plist 的 `AGChannel`：`release` → stable，`beta` → beta，`nightly` → nightly，其他值或没有这个键 → nil（交回 `ReleaseChannel.detect()`）。resolve 之后 `channelIsAuthoritative` 为真，`SparkleAppcastSource.allowedChannels` = {无标签, 本轨的 tag}；三个 feed 的唯一 item 都无标签，所以照旧放行。`AdGuardChannelTests` 用真 feed 的 item 形状测了 beta / nightly / release 三种副本都拿到自己 feed 的 item；把 `beta` 映射成 `.stable` 的变异让它变红。加 binding 之前，`channel-verify` 对 beta、nightly 真包都报 `detected channel → stable`。
 - **app 内切轨开关**: 2.20 的设置窗口里找不到更新渠道选项（General 页确认没有；窗口里没有 Updates 之类的页），与 Mac 2.0 进 Alpha 时的博客（adguard.com/en/blog/adguard-for-mac-gets-nightly.html）一致：换轨要装对应的构建。adguard.com/en/beta.html 说可以在设置里切渠道，那是对各平台的笼统说法。主程序里虽有 `feedURLStringForUpdater:`、`setAppUpdateChannel:`、`appUpdateChannel` 符号（`strings` 读出），设置里没有入口，所以按「每个构建只读自己的 feed」处理。换轨就是装那条轨的构建，入口是 `adguard.com/en/beta.html` 上的 `agrd.io/mac_beta`、`agrd.io/mac_nightly`：301 到 `static.adtidy.org/mac/{beta,nightly}/AdGuard.dmg`，大小与 feed 里同版本的 dmg 相同（2026-10-16：112021570 / 112521216 字节）。版本页 `adguard.com/en/versions/mac/nightly.html` 的下载按钮给的是 ~1 MB 引导安装器（`com.adguard.mac.adguard-installer` 1.18.52；dmg 里的 `.tag` 记的是下载来源页），它的二进制里只有 `static.adtidy.org/mac/release/AdGuard.dmg` 和 `…/mac/outdated/AdGuard.dmg` 两个下载地址；没运行过它，但按这点看，从版本页装到的是 release。
 
 ## 更新检测
@@ -62,7 +61,7 @@
   - beta: `recipe …: 10 entries; newest 2.20 RC 1: 2 items, headings ["Changelog", "Fixes"]`
   - nightly: `recipe …: 10 entries; newest 2.20.0.2625: 1 items, headings []`
 - 加 recipe 之前，pane 嵌入的是该网页本身（无结构，带图）。
-- 没用的另一来源: `github.com/AdguardTeam/AdguardForMac` 不是源码仓库（README 自述是公开 bug tracker，仓库只有 `README.md` 和 `.github`），但 Releases 镜像了 release 和 beta（beta 标 `prerelease`，release 名等于 `shortVersionString`，如 `2.20 RC 1`），共 139 条（2026-10-16），没有 nightly，只有英文，正文是 Markdown、带同样的截图，开头有一句「not an open-source project」声明。历史比版本页长得多，但按轨区分要靠 channel 检测，而 beta / nightly 安装目前被判成 stable，所以没换；有了读 `AGChannel` 的 binding 之后可以再考虑。
+- 没用的另一来源: `github.com/AdguardTeam/AdguardForMac` 不是源码仓库（README 自述是公开 bug tracker，仓库只有 `README.md` 和 `.github`），但 Releases 镜像了 release 和 beta（beta 标 `prerelease`，release 名等于 `shortVersionString`，如 `2.20 RC 1`），共 139 条（2026-10-16），没有 nightly，只有英文，正文是 Markdown、带同样的截图，开头有一句「not an open-source project」声明。历史比版本页长得多，但按轨区分要靠 channel 检测；当时 beta / nightly 安装被判成 stable，所以没换。现在有了 `AdGuardChannel`，换不换待用户定（nightly 仍只能用版本页）。
 - 跟随 channel: 是。三条轨的链接各自不同，recipe 接受三者，读的就是 bundle 自己 feed 给的那一条。
 - 版本串: release、beta 页面的标题版本等于 feed 的 `shortVersionString`（`2.20`、`2.20 RC 1`）；nightly 页面标题是四段构建号（`2.20.0.2625`），bundle 的 `shortVersionString` 是 `2.20 Nightly 9`，页面上没有 nightly 序号，所以 nightly 的条目版本对不上已装版本字符串。
 
@@ -76,12 +75,11 @@
 - 阻塞: 无。
 
 ## 已知问题
-- beta / nightly 安装的 channel 标签显示为 stable（见上）。
 - **夜扫覆盖**: `duo verify` 的清单只有手写 recipe，没有通用 Sparkle 这一类。这次加的 changelog recipe 让 AdGuard 的 changelog（经 release feed 解析出的页面）进了 sweep；检测和一键仍不在 sweep 里，坏了也不会报。#1321 修安装时也是这个原因没被发现：AdGuard 当时没有 recipe、没有审计文档。
 
 ## 建议下一步
-1. channel 标签：读 `AGChannel` 的 `ChannelBinding`（SwiftVM 那一类），先验证它对无标签 feed 的 `allowedChannels` 有什么影响。
-2. app 运行中的一键那一轮，等能接受启动 AdGuard（网络扩展、helper）时再跑。
+1. app 运行中的一键那一轮，等能接受启动 AdGuard（网络扩展、helper）时再跑。
+2. changelog 换成 GitHub Releases `AdguardTeam/AdguardForMac`（release + beta、历史更长，没有 nightly）：有了 binding 之后可以按轨区分，要不要换由用户定。
 
 ## 如何复验
 
@@ -94,13 +92,13 @@ swift run --package-path application-test channel-verify x/app.pkg/Payload/Adgua
 duo verify --only adguard
 ```
 
-2026-10-16 结果（release 是已安装的 bundle；beta / nightly 是 pkg 展开、未运行的真包）：
+2026-10-16 结果（release 是已安装的 bundle；beta / nightly 是 pkg 展开、未运行的真包）。detected channel 一列是加 `AdGuardChannel` 之后的结果（`ChannelBinding` 行报 `beta` / `nightly` / `stable`）；之前三个都是 `stable`（inferred）。
 
 | 包 | `AGChannel` | 版本 | `SUFeedURL` | 胜出源 / latest | detected channel | changelog pane |
 |---|---|---|---|---|---|---|
 | release | `release` | 2.20 (2626) | release feed | Sparkle / 2.20，up to date | stable | recipe，10 条，最新 2.20 |
-| beta | `beta` | 2.20 RC 1 (2624) | beta feed | Sparkle / 2.20 RC 1，up to date | stable | recipe，10 条，最新 2.20 RC 1 |
-| nightly | `nightly` | 2.20 Nightly 9 (2625) | nightly feed | Sparkle / 2.20 Nightly 9，up to date | stable | recipe，10 条，最新 2.20.0.2625 |
+| beta | `beta` | 2.20 RC 1 (2624) | beta feed | Sparkle / 2.20 RC 1，up to date | beta | recipe，10 条，最新 2.20 RC 1 |
+| nightly | `nightly` | 2.20 Nightly 9 (2625) | nightly feed | Sparkle / 2.20 Nightly 9，up to date | nightly | recipe，10 条，最新 2.20.0.2625 |
 
 `duo verify --only adguard`：changelog ✓ 1。
 

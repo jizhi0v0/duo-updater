@@ -58,7 +58,9 @@ public struct AppScanner: Sendable {
     /// approval. A test comparing two scans injects a deterministic answer here
     /// so it compares what the scanner does with the binding, not how the gate
     /// felt that second.
-    let channelBinding: @Sendable (_ bundleID: String?, _ bundleFeeds: [String: URL]) -> ResolvedChannel?
+    let channelBinding: @Sendable (
+        _ bundleID: String?, _ bundleFeeds: [String: URL], _ bundleStrings: [String: String]
+    ) -> ResolvedChannel?
 
     /// - extraLocations: user-added folders appended to the built-in roots (see
     ///   `Preferences.customScanPaths`). Each should be a directory that *contains*
@@ -73,7 +75,7 @@ public struct AppScanner: Sendable {
         self.init(
             locations: locations, extraLocations: extraLocations,
             toolbox: toolbox, testflight: testflight,
-            channelBinding: { ChannelBinding.resolve(bundleID: $0, bundleFeeds: $1) })
+            channelBinding: { ChannelBinding.resolve(bundleID: $0, bundleFeeds: $1, bundleStrings: $2) })
     }
 
     /// The above, with the channel read injected. See `channelBinding`.
@@ -82,7 +84,9 @@ public struct AppScanner: Sendable {
         extraLocations: [URL] = [],
         toolbox: ToolboxInventory = ToolboxInventory(),
         testflight: TestFlightInventory = TestFlightInventory(),
-        channelBinding: @escaping @Sendable (_ bundleID: String?, _ bundleFeeds: [String: URL]) -> ResolvedChannel?
+        channelBinding: @escaping @Sendable (
+            _ bundleID: String?, _ bundleFeeds: [String: URL], _ bundleStrings: [String: String]
+        ) -> ResolvedChannel?
     ) {
         self.toolbox = toolbox
         self.testflight = testflight
@@ -832,7 +836,9 @@ public struct AppScanner: Sendable {
             releaseChannel = channel
             channelIsAuthoritative = true
         }
-        if let bound = channelBinding(bundleID, ChannelBinding.bundleFeeds(fromInfoPlist: plist)) {
+        if let bound = channelBinding(
+            bundleID, ChannelBinding.bundleFeeds(fromInfoPlist: plist),
+            ChannelBinding.bundleStrings(fromInfoPlist: plist)) {
             releaseChannel = bound.channel
             channelIsAuthoritative = true
             if let feed = bound.feedOverride { feedURL = feed }

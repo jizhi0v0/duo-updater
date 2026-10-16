@@ -165,7 +165,8 @@ public enum ChannelBinding {
     /// Deliberately excludes Ghostty, CodeEdit and Osaurus: each binding is a
     /// constant (a fixed stable-only feed override; a fixed `<sparkle:channel>` tag) with no
     /// user-settable preference behind it, so there is nothing to watch. SwiftVM
-    /// likewise: its answer comes from the bundle's own feed, fixed at build time.
+    /// likewise: its answer comes from the bundle's own feed, fixed at build time;
+    /// and AdGuard, from the bundle's own `AGChannel`.
     public static let boundBundleIDs: Set<String> = [
         DuoPasteChannel.bundleID.lowercased(),
         ForkChannel.bundleID.lowercased(),
@@ -338,9 +339,9 @@ public enum ChannelBinding {
     /// lower-cased domain), so a case-sensitive `switch` silently failed to bind
     /// — same convention `ChangelogRecipe.recipe(forBundleID:)` already uses.
     public static func resolve(
-        bundleID: String?, bundleFeeds: [String: URL] = [:]
+        bundleID: String?, bundleFeeds: [String: URL] = [:], bundleStrings: [String: String] = [:]
     ) -> ResolvedChannel? {
-        resolve(bundleID: bundleID, bundleFeeds: bundleFeeds, bounded: bounded)
+        resolve(bundleID: bundleID, bundleFeeds: bundleFeeds, bundleStrings: bundleStrings, bounded: bounded)
     }
 
     /// The feed addresses a bundle declares in its own Info.plist — `SUFeedURL`
@@ -366,6 +367,15 @@ public enum ChannelBinding {
         return out
     }
 
+    /// Every top-level string value in a bundle's Info.plist, keyed by the plist
+    /// key — for the resolvers whose answer is a vendor key the build itself
+    /// carries rather than a feed: AdGuard names its track in `AGChannel`.
+    ///
+    /// Empty when the caller has no bundle in hand, as with `bundleFeeds`.
+    public static func bundleStrings(fromInfoPlist plist: [String: Any]) -> [String: String] {
+        plist.compactMapValues { $0 as? String }
+    }
+
     /// The body of the above, with the bound injected.
     ///
     /// Tests need a resolver to be treated as stuck without marking the shared
@@ -382,10 +392,11 @@ public enum ChannelBinding {
     /// the life of the process, so a throwaway here would strand one per scan
     /// with the whole suite still green.
     static func resolve(
-        bundleID: String?, bundleFeeds: [String: URL] = [:], bounded: BoundedBlockingWork
+        bundleID: String?, bundleFeeds: [String: URL] = [:], bundleStrings: [String: String] = [:],
+        bounded: BoundedBlockingWork
     ) -> ResolvedChannel? {
         guard let id = bundleID?.lowercased(), let resolver = resolver(for: id) else { return nil }
-        return bounded.run(key: id, timeout: resolveTimeout) { resolver(bundleFeeds) } ?? nil
+        return bounded.run(key: id, timeout: resolveTimeout) { resolver(bundleFeeds, bundleStrings) } ?? nil
     }
 
     /// What a fresh install that nobody has configured is allowed, for an app whose
@@ -456,41 +467,43 @@ public enum ChannelBinding {
 
     /// The one switch both of the above go through. Returns the resolver itself,
     /// unevaluated, so asking "is there one" costs no preference read.
-    private static func resolver(for id: String) -> (@Sendable ([String: URL]) -> ResolvedChannel?)? {
+    private static func resolver(for id: String) -> (@Sendable ([String: URL], [String: String]) -> ResolvedChannel?)? {
         switch id {
-        case DuoPasteChannel.bundleID.lowercased(): return { _ in DuoPasteChannel.resolveCurrent() }
-        case ForkChannel.bundleID.lowercased():     return { _ in ForkChannel.resolveCurrent() }
-        case SurgeChannel.bundleID.lowercased():    return { _ in SurgeChannel.resolveCurrent() }
-        case OrbStackChannel.bundleID.lowercased(): return { _ in OrbStackChannel.resolveCurrent() }
-        case TablePlusChannel.bundleID.lowercased(): return { _ in TablePlusChannel.resolveCurrent() }
-        case CleanShotChannel.bundleID.lowercased(): return { _ in CleanShotChannel.resolveCurrent() }
-        case TailscaleChannel.bundleID.lowercased(): return { _ in TailscaleChannel.resolveCurrent() }
-        case IINAChannel.bundleID.lowercased():    return { _ in IINAChannel.resolveCurrent() }
-        case AlfredChannel.bundleID.lowercased():  return { _ in AlfredChannel.resolveCurrent() }
-        case GhosttyChannel.bundleID.lowercased(): return { _ in GhosttyChannel.resolveCurrent() }
+        case DuoPasteChannel.bundleID.lowercased(): return { _, _ in DuoPasteChannel.resolveCurrent() }
+        case ForkChannel.bundleID.lowercased():     return { _, _ in ForkChannel.resolveCurrent() }
+        case SurgeChannel.bundleID.lowercased():    return { _, _ in SurgeChannel.resolveCurrent() }
+        case OrbStackChannel.bundleID.lowercased(): return { _, _ in OrbStackChannel.resolveCurrent() }
+        case TablePlusChannel.bundleID.lowercased(): return { _, _ in TablePlusChannel.resolveCurrent() }
+        case CleanShotChannel.bundleID.lowercased(): return { _, _ in CleanShotChannel.resolveCurrent() }
+        case TailscaleChannel.bundleID.lowercased(): return { _, _ in TailscaleChannel.resolveCurrent() }
+        case IINAChannel.bundleID.lowercased():    return { _, _ in IINAChannel.resolveCurrent() }
+        case AlfredChannel.bundleID.lowercased():  return { _, _ in AlfredChannel.resolveCurrent() }
+        case GhosttyChannel.bundleID.lowercased(): return { _, _ in GhosttyChannel.resolveCurrent() }
         case BetterDisplayChannel.bundleID.lowercased():
-            return { _ in BetterDisplayChannel.resolveCurrent() }
-        case CapCutChannel.bundleID.lowercased():  return { _ in CapCutChannel.resolveCurrent() }
-        case CotEditorChannel.bundleID.lowercased(): return { _ in CotEditorChannel.resolveCurrent() }
+            return { _, _ in BetterDisplayChannel.resolveCurrent() }
+        case CapCutChannel.bundleID.lowercased():  return { _, _ in CapCutChannel.resolveCurrent() }
+        case CotEditorChannel.bundleID.lowercased(): return { _, _ in CotEditorChannel.resolveCurrent() }
         case WindscribeChannel.bundleID.lowercased():
-            return { _ in WindscribeChannel.resolveCurrent() }
+            return { _, _ in WindscribeChannel.resolveCurrent() }
         case SuperconductorChannel.bundleID.lowercased():
-            return { _ in SuperconductorChannel.resolveCurrent() }
-        case CodeEditChannel.bundleID.lowercased(): return { _ in CodeEditChannel.resolveCurrent() }
-        case OsaurusChannel.bundleID.lowercased(): return { _ in OsaurusChannel.resolveCurrent() }
+            return { _, _ in SuperconductorChannel.resolveCurrent() }
+        case CodeEditChannel.bundleID.lowercased(): return { _, _ in CodeEditChannel.resolveCurrent() }
+        case OsaurusChannel.bundleID.lowercased(): return { _, _ in OsaurusChannel.resolveCurrent() }
         case MacMouseFixChannel.bundleID.lowercased():
-            return { _ in MacMouseFixChannel.resolveCurrent() }
-        case CuaDriverChannel.bundleID.lowercased(): return { _ in CuaDriverChannel.resolveCurrent() }
+            return { _, _ in MacMouseFixChannel.resolveCurrent() }
+        case CuaDriverChannel.bundleID.lowercased(): return { _, _ in CuaDriverChannel.resolveCurrent() }
         case CindyChannel.globalBundleID.lowercased():
-            return { _ in CindyChannel.resolveCurrent(bundleID: CindyChannel.globalBundleID) }
+            return { _, _ in CindyChannel.resolveCurrent(bundleID: CindyChannel.globalBundleID) }
         case CindyChannel.chinaBundleID.lowercased():
-            return { _ in CindyChannel.resolveCurrent(bundleID: CindyChannel.chinaBundleID) }
-        case OBSChannel.bundleID.lowercased():     return { _ in OBSChannel.resolveCurrent() }
+            return { _, _ in CindyChannel.resolveCurrent(bundleID: CindyChannel.chinaBundleID) }
+        case OBSChannel.bundleID.lowercased():     return { _, _ in OBSChannel.resolveCurrent() }
         case ITerm2Channel.bundleID.lowercased():
-            return { ITerm2Channel.resolveCurrent(bundleFeeds: $0) }
+            return { feeds, _ in ITerm2Channel.resolveCurrent(bundleFeeds: feeds) }
         case MonitorControlChannel.bundleID.lowercased():
-            return { _ in MonitorControlChannel.resolveCurrent() }
-        case SwiftVMChannel.bundleID.lowercased(): return { SwiftVMChannel.resolve(bundleFeeds: $0) }
+            return { _, _ in MonitorControlChannel.resolveCurrent() }
+        case SwiftVMChannel.bundleID.lowercased(): return { feeds, _ in SwiftVMChannel.resolve(bundleFeeds: feeds) }
+        case AdGuardChannel.bundleID.lowercased():
+            return { _, strings in AdGuardChannel.resolve(bundleStrings: strings) }
         default:                       return nil
         }
     }
@@ -591,6 +604,12 @@ public enum ChannelBinding {
     + [SwiftVMChannel.betaBundleFeeds, SwiftVMChannel.stableBundleFeeds].compactMap { feeds in
         SwiftVMChannel.resolve(bundleFeeds: feeds)
             .map { (bundleID: SwiftVMChannel.bundleID, resolved: $0) }
+    }
+    // AdGuard's channel is the `AGChannel` its build carries (see the type); the
+    // three values its builds ship stand in for the bundle.
+    + AdGuardChannel.shippedValues.compactMap { value in
+        AdGuardChannel.resolve(bundleStrings: [AdGuardChannel.infoPlistKey: value])
+            .map { (bundleID: AdGuardChannel.bundleID, resolved: $0) }
     }
 
     // Windscribe is deliberately NOT enumerated here, which is the same choice

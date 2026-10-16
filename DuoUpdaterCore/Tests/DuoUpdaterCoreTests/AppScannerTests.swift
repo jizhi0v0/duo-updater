@@ -41,14 +41,14 @@ import Foundation
     // `ChannelBindingBoundTests` and the per-app channel tests.
     let scanner = AppScanner(
         testflight: TestFlightInventory(macRows: []),
-        channelBinding: { bundleID, feeds in
+        channelBinding: { bundleID, feeds, strings in
             guard let bundleID else { return nil }
             let keys = feeds.keys.sorted()
             return ResolvedChannel(
                 channel: .beta,
                 feedOverride: URL(string: "https://binding.invalid/\(bundleID)"),
                 feedHTTPHeaders: Dictionary(uniqueKeysWithValues: keys.map { ($0, feeds[$0]!.absoluteString) }),
-                sparkleChannelNames: [bundleID])
+                sparkleChannelNames: Set([bundleID] + strings.map { "\($0.key)=\($0.value)" }))
         })
     let full = scanner.scan()
     try #require(!full.isEmpty, "expected at least one app in the default locations")

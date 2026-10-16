@@ -132,6 +132,25 @@ jobs:
     # than a pure unit run. Generous, but far under the 6h job ceiling.
     timeout-minutes: 45
     steps:
+      # The xcode-27 image mounts its four Simulator runtimes (iOS, tvOS, watchOS,
+      # visionOS 27.0) the first time anything asks for them, and the first
+      # `swift test` does. Its watchOS cryptex mount fails and falls back to a
+      # disk image, which `simdiskimaged` then fails to unmount every 2 s and
+      # mounts again 45–70 s later. Core's disk-image tests running through that
+      # window failed in 15 of 18 first runs (hdiutil "Resource busy", "no
+      # mountable file systems", partitionDisk -69772 for 60 s): on main whenever
+      # a warm cache left nothing to compile, 17 of 19 hosted jobs from
+      # 2026-10-12 to 10-16, against 0 of 41 that compiled first. Mounted first
+      # and the tests started at least 150 s later: 5 of 5 green (diag runs
+      # 38924731153, 38925900761, 2026-10-16). First step, so checkout and the
+      # cache restore count toward the 150 s; the compile is in the same step as
+      # the tests and cannot.
+      - name: Mount the Simulator runtimes now
+        if: runner.environment == 'github-hosted'
+        run: |
+          xcrun simctl list runtimes
+          echo "SIM_RUNTIMES_MOUNTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -182,6 +201,13 @@ jobs:
       - name: Put back the cached build's file times
         if: steps.spm-cache.outputs.cache-matched-key != ''
         run: python3 scripts/ci_build_cache.py restore DuoUpdaterCore/.build
+
+      - name: Let the Simulator runtime mounts settle
+        if: runner.environment == 'github-hosted'
+        run: |
+          left=$(( SIM_RUNTIMES_MOUNTED_AT + 150 - $(date +%s) ))
+          echo "waiting ${left}s"
+          if [ "$left" -gt 0 ]; then sleep "$left"; fi
 
       - name: make test-swift
         # DUO_DOWNLOAD_GATE moves the one test that fetches real vendor builds off
@@ -335,6 +361,14 @@ jobs:
     runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
     timeout-minutes: 30
     steps:
+      # Same as `swift` (see there): the Simulator runtimes mount now, not under
+      # the disk-image tests.
+      - name: Mount the Simulator runtimes now
+        if: runner.environment == 'github-hosted'
+        run: |
+          xcrun simctl list runtimes
+          echo "SIM_RUNTIMES_MOUNTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -378,6 +412,13 @@ jobs:
       - name: Put back the cached build's file times
         if: steps.spm-cache.outputs.cache-matched-key != ''
         run: python3 scripts/ci_build_cache.py restore DuoUpdaterCore/.build
+
+      - name: Let the Simulator runtime mounts settle
+        if: runner.environment == 'github-hosted'
+        run: |
+          left=$(( SIM_RUNTIMES_MOUNTED_AT + 150 - $(date +%s) ))
+          echo "waiting ${left}s"
+          if [ "$left" -gt 0 ]; then sleep "$left"; fi
 
       # Core's tests once more, optimized — the configuration the app ships in.
       # `make test` builds them in debug only, and on 2026-10-02 that let a

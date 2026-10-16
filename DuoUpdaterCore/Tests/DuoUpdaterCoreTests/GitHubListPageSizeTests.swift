@@ -116,6 +116,12 @@ struct GitHubListPageSizeTests {
         // (15.0a1 → 14.5a6, across the 15.0 stable cycle), so 7. The rule keeps
         // the default 20.
         "net.mullvad.mullvadbrowseralpha/alpha": 7,
+        // SwitchHosts beta: the rule takes plain tags as well as `-beta.N` ones
+        // (graduation, the WhatCable shape). All 60 releases on 2026-10-16: 58
+        // match, first hit at index 0; the only misses are the numberless
+        // `v4.2.0-beta` and `v4.1.2-beta`, one each between two matches, so gap
+        // 1, +1. The rule keeps the default 20.
+        "net.oldj.switchhosts/beta": 2,
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {

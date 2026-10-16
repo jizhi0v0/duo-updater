@@ -296,6 +296,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**macUSB**](com-kruszoneq-macUSB.md) · `com.kruszoneq.macUSB` — G (one-click 通用 dmg；bundle 内有 SMAppService LaunchDaemon helper，app 换版本后自动重注册) · 真包 2.4/2.5 挂载验证 ✓（2.4 → 2.5、2.5 up to date） · **一键端到端：待主会话真机执行** · changelog 结构化 ✓ · 单轨（settled from source） · 2026-10-16
 - [x] [**Flycut**](com-generalarcade-flycut.md) · `com.generalarcade.flycut` — G (one-click universal zip；release.yml 下一版改出 `Flycut.dmg`，届时 kind 要改 `.dmg`) · 真包 1.8–1.9.6 验证 ✓（1.9.4 → 1.9.6、1.9.6 up to date） · 一键端到端：待主会话执行 · changelog 结构化 ✓（无小标题） · MAS 副本同 id，归 MAS 源 · 单轨 · 2026-10-16
 - [x] [**xbar**](com-xbarapp-app.md) · `com.xbarapp.app` — G (one-click universal dmg，每个 2.x tag 都是 `vX.Y.Z-beta` 且不标 prerelease，pattern 保留后缀) · 真包 v2.1.6-beta/v2.1.7-beta 挂载验证 ✓ · **一键端到端：待主会话执行** · changelog 结构化 ✓ · 单轨（settled from source）· v2.0.40 前 bundle id 逐版不同、BitBar 另一产品，均不覆盖 · 2026-10-16
+- [x] [**SwitchHosts**](net-oldj-switchhosts.md) · `net.oldj.switchhosts` — G(stable/beta，两轨一键 universal dmg；beta rule 同 WhatCable 也收 stable tag，channel proof 锚请求) · Tauri v5，app 自己的 updater 只读 `/releases/latest` 的 `latest.json`，无 beta 开关 · 旧 id `SwitchHosts`（≤ 4.2.0，Electron）经 `BundleIDMigration` 归到 stable rule · 真包 3.5.8/4.0.3/4.1.2/4.2.0/4.3.0/5.0.1/5.0.2/5.0.3-beta.3 挂载验证 ✓（Team J5J6USUX2F）· bundle 内有 SMAppService LaunchDaemon `swh_helper` · 真机端到端：待主会话执行 · changelog 结构化 ✓ · 2026-10-16
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

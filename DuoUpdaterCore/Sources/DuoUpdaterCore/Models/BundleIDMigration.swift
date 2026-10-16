@@ -99,6 +99,14 @@ public struct BundleIDMigration: Sendable, Equatable {
         BundleIDMigration(
             from: "org.musicbrainz.picard", to: "org.musicbrainz.Picard",
             teamID: "8D89TSJ88H", lastFromVersion: "2.0.4", firstToVersion: "2.3.1"),
+        // SwitchHosts: every Electron release read (3.5.8, 4.0.3, 4.1.2, 4.2.0)
+        // is `SwitchHosts`; v4.3.0 (a prerelease) and every Tauri v5 release are
+        // `net.oldj.switchhosts`, the same Team, all notarized. v5 migrates the
+        // v4 data on first launch (the vendor's `src-tauri/src/migration`).
+        // See docs/app-audits/net-oldj-switchhosts.md, 旧 bundle id.
+        BundleIDMigration(
+            from: "SwitchHosts", to: "net.oldj.switchhosts",
+            teamID: "J5J6USUX2F", lastFromVersion: "4.2.0", firstToVersion: "4.3.0"),
     ]
 
     /// Whether an installed copy signed as `from` at `version` is this rename.

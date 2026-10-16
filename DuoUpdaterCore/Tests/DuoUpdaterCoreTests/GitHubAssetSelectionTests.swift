@@ -234,6 +234,12 @@ struct GitHubAssetSelectionTests {
          ["CotEditor_7.1.0-rc.dmg", "CotEditor_7.1.0-beta.6.dmg"],
          "one prerelease train with two phases (-beta[.N] -> -rc[.N] -> the plain release); "
              + "one asset per release, so the branches select between tags and never within one"),
+        (#"^Flycut(?:\.app)?(?:\.[0-9][0-9A-Za-z.-]*)?\.(?:zip|dmg)$"#,
+         // Not a listing: 1.8 … 1.9.6 each carry one zip (no dmg); release.yml
+         // on master uploads only `Flycut.dmg`. Here to drive the selector.
+         ["Flycut.1.9.6.zip", "Flycut.dmg"],
+         "zip-era releases (1.8 ... 1.9.6, one zip each) and the release.yml era (one Flycut.dmg); "
+             + "one asset per release, so the branches select between tags and never within one"),
     ]
 
     /// Selection must not depend on the order GitHub happens to list assets in.

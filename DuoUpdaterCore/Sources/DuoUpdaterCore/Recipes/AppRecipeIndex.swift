@@ -83,6 +83,7 @@ public enum AppRecipeIndex {
         com_federicoterzi_espanso.set,
         com_figma_Desktop.set,
         com_FluidApp_app.set,
+        com_generalarcade_flycut.set,
         com_getdropbox_dropbox.set,
         com_github_CopilotForXcode.set,
         com_github_githubapp.set,

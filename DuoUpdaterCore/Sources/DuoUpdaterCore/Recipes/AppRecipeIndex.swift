@@ -274,6 +274,7 @@ public enum AppRecipeIndex {
         org_localsend_localsendApp.set,
         org_mozilla_firefox.set,
         org_mozilla_thunderbird.set,
+        org_musescore_MuseScore.set,
         org_openlogi_openlogi.set,
         org_pgadmin_pgadmin4.set,
         org_qbittorrent_qBittorrent.set,

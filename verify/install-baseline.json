@@ -1,14 +1,14 @@
 {
   "entries" : {
     "install:github:AprilNEA\/OpenLogi:stable" : {
-      "consecutiveActionable" : 2,
+      "consecutiveActionable" : 3,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1351,
       "lastCommentedAt" : "2026-10-15T20:39:13Z",
       "lastSignature" : "identityChanged: Sparkle key none → dwOe",
       "previousSignature" : "identityChanged: Sparkle key none → dwOe",
-      "sweepsSinceComment" : 0
+      "sweepsSinceComment" : 1
     },
     "install:github:BlueBubblesApp\/bluebubbles-server:stable" : {
       "consecutiveActionable" : 0,
@@ -52,6 +52,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:Kruszoneq\/macUSB:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:KunAgent\/Kun:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -70,6 +76,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:MrKai77\/Loop:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:MuhammedKalkan\/OpenLens:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -77,6 +89,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:Sequel-Ace\/Sequel-Ace:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:TermiT\/Flycut:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -107,6 +125,18 @@
       "sweepsSinceComment" : 0
     },
     "install:github:Zackriya-Solutions\/meetily:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:Zettlr\/Zettlr:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:Zettlr\/Zettlr:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -454,7 +484,19 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:matryer\/xbar:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:matt1398\/claude-devtools:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:metabrainz\/picard:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -490,6 +532,24 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:mullvad\/mullvad-browser:alpha" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:mullvad\/mullvad-browser:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:musescore\/MuseScore:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:neovide\/neovide:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -502,7 +562,25 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:objective-see\/KnockKnock:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:objective-see\/LuLu:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:oldj\/SwitchHosts:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:oldj\/SwitchHosts:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -754,6 +832,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:Jellyfin.Server:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:MstyStudio:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -824,6 +908,24 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:com.ScooterSoftware.BeyondCompare:stable:bc4" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:com.ScooterSoftware.BeyondCompare:stable:bc5" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:com.Snipaste:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:com.aionui.app:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -855,6 +957,12 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.anythingllm:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:com.axosoft.gitkraken:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -903,6 +1011,12 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.corecode.MacUpdater:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:com.cu4uc.mounty:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1184,6 +1298,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:com.oracle.mysqlworkbench:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:com.oray.sunlogin.macclient:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -1392,6 +1512,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:com.westbridge.stremio5-mac:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:com.workbuddy.workbuddy-ai:stable:arm64" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -1399,6 +1525,12 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.workbuddy.workbuddy-ai:stable:x64" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:com.xk72.Charles:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1469,6 +1601,13 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
+    },
+    "install:vendor:eu.davidbures.cork:stable" : {
+      "consecutiveActionable" : 1,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastSignature" : "install.unpack",
+      "sweepsSinceComment" : 1
     },
     "install:vendor:im.riot.app:stable" : {
       "consecutiveActionable" : 0,
@@ -1626,6 +1765,18 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:org.krita:stable:download-page" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:org.krita:stable:krita6" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:org.libreoffice.script:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -1736,5 +1887,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-15T20:39:13Z"
+  "updatedAt" : "2026-10-16T10:20:10Z"
 }

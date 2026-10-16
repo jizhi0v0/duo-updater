@@ -94,10 +94,10 @@ electron-builder 配置、无 MyGo feed）：xbar 的更新器在 Go 代码里�
 - 阻塞: 无（v2.0.40–v2.0.42 的副本需手动更新一次）
 
 ## 已知问题
-- **与 xbar 自更新器的碰撞（2026-10-16 实测，无害）。** 设置在 `~/Library/Application Support/xbar/xbar.config.json` 的 `autoupdate`
+- **与 xbar 自更新器的碰撞：试过一次，没碰上（2026-10-16）。** 设置在 `~/Library/Application Support/xbar/xbar.config.json` 的 `autoupdate`
   （默认没有这个文件，即关闭）；启动 10 s 后第一次检查（`app.go`：`time.Sleep(10 * time.Second)`）。写入 `{"autoupdate": true}`、启动 v2.1.6-beta、
   在第 9 s 起 `duo install`：16:38:54–57 装上 v2.1.7-beta（备份 v2.1.6-beta）。之后 2 分钟里 xbar 自己没有留下任何动作（无 `.previous`、`$TMPDIR` 无 zip、
-  进程没换）；它是否真的跑了检查查不到（不写系统日志）。结束状态：包是 v2.1.7-beta、签名完好，运行中的进程映射的是被换走的旧二进制
+  进程没换）。按 v2.1.6-beta 源码它本该下载：自报 `v2.1.6-beta` < `v2.1.7-beta`，zip 7,692,978 B 低于 `DownloadBytesLimit`，`downloadAndReplaceApp` 不删 `os.CreateTemp` 的 zip——所以这次它的更新器没跑成或没跑，原因查不到（不写系统日志）。**真正的碰撞没被观察到**；「两边装同一版本」只是推测无害的理由。结束状态：包是 v2.1.7-beta、签名完好，运行中的进程映射的是被换走的旧二进制
   （`lsof` 路径为已不存在的 `/Applications/.duoupdater-staged-xbar.app/…`），`duo restart` 后新进程映射当前 inode
 - 自更新器默认关闭时：v2.1.6-beta 运行中 `duo install --yes` → `installed.` + `Still running the old code`；`duo restart` 后跑新版，
   Team `N3H5B92L5N`、`codesign --strict` 0、Notarized；登录项前后无差异

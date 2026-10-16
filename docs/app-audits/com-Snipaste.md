@@ -80,8 +80,8 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 没查 | 没查 | 没查 |
-| 证据 | `Update/last_upack` 暗示会记下载过的包，但位置和完成记录没找到 | 本次没有启动 app（Phase 4 第二轮由主会话真机执行） | `SelfUpdaterStash` 没有这种布局 |
+| 结论 | 会（用户点下载后） | 完整的 2.11.3 dmg（实测） | 不需要（见下） |
+| 证据 | 2026-10-16 真机：默认配置下 2.11.2 运行 90 s、重启后 60 s 都没查更新；菜单栏菜单 “Check for updates...” → “New version available: 2.11.3” → “Download updates”（经系统代理约 5 分钟）→ 存到 `~/Downloads/Snipaste-Mac-2.11.3.dmg`（36,795,585 B，SHA-256 与厂商 2.11.3 dmg 相同），弹模态框 Cancel / Show in Finder / Install now | “Install now” 只是退出 app 并挂载这个 dmg（`/Volumes/Snipaste` 拖拽窗口），不替换 bundle | 一键自己下载厂商 dmg，不读它 |
 
 ## Changelog
 - 来源: recipe，读 `https://docs.snipaste.com/wiki/Changelog.md`（docsify 站点，`/changelog` 是它的 alias，原文是 Markdown）
@@ -105,11 +105,12 @@
 - 阻塞: 无
 
 ## 已知问题
-- app 有自己的自动安装选项，与我们的安装是否会互相覆盖：未验证（需要主会话的第二轮真机测试）。
+- app 自己的更新不会和一键互相覆盖：它的 “Install now” 只挂载 dmg 等用户拖拽（运行中一轮实测）。
+- 它的 “已下载” 模态框开着时 app 拒绝退出（AppleScript `quit` 返回 -128 且进程不退），这时 `duo restart` 报 `still running — likely a save prompt, left it alone`，属于预期
 - beta 轨没接，见 Channel 详情。
 
 ## 建议下一步
-1. 主会话真机：装 2.11.2，`duo install` 到 2.11.3（两轮，含 app 运行中、自更新器已启用）。
+1. （已做）运行中一轮，2026-10-16，main `make cli`：2.11.2 运行中、自带更新器已下载 2.11.3 dmg 且模态框开着，`duo install --yes` → `installed.` 并提示 `Still running the old code: Snipaste`；模态框开着时 `duo restart` 退不掉 app（见已知问题）；点 “Install now” 后 app 退出、只挂载 dmg，bundle inode 不变；启动 2.11.3 后 `duo restart` → `restarted`。Team `NGTL73P583`、`codesign --strict` 0、Notarized。新增只有 `~/.snipaste`，登录项前后无差异
 2. beta：在 app 里打开「Include beta builds」，读 `~/.snipaste/config.ini` 的变化并抓 app 的更新请求；有了偏好键和 feed 再写 `ChannelBinding` + beta recipe。
 
 ## 如何复验

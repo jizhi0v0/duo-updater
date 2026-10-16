@@ -60,7 +60,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（第二轮真机由主会话跑） | — |
+| 结论 | 不会 | 无（运行中一轮实测） | — |
 | 证据 | 没有更新器 | — | — |
 
 ## Changelog
@@ -91,7 +91,7 @@
 - 厂商最后一版是 2023-12-29 的 2.4，之后没有发布；old→new 只能用 2.3 → 2.4 验
 
 ## 建议下一步
-1. 主会话真机跑一键：装 2.3（`https://mounty.app/releases/Mounty-2.3.dmg`），`duo install` 到 2.4，两轮（不运行 / 运行中）
+1. （已做）运行中一轮，2026-10-16，main `make cli`：2.3 运行中（首启弹 “Important Notice” 模态框，未关）`duo install --yes` → `installed.` 并提示 `Still running the old code: Mounty for NTFS`；`duo restart` → `restarted`，新进程映射 2.4 的主程序（`lsof` inode 与磁盘一致）。Team `SG6DU88C24`、Notarized；`codesign --verify --deep --strict` 报 `MountyHelper.app` 有 `resource fork, Finder information, or similar detritus`，厂商 `Mounty-2.4.dmg` 原包同样报（包内文件带 `com.apple.lastuseddate#PS`），不是我们装出来的。新增文件只有 `~/Library/Preferences/com.cu4uc.mounty.plist`，登录项前后无差异
 
 ## 如何复验
 

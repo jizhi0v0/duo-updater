@@ -85,8 +85,8 @@ v5 首次启动会把 v4 的 PotDb 数据（`~/.SwitchHosts/{data,config}`）迁
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会（按源码） | 没查 | — |
-| 证据 | `commands.rs` `download_update` 调的是 `download_and_install`，下载完就装，之后才发 `update_downloaded` 让用户重启；没有「已下载待装」的记录文件。`tauri-plugin-updater` 内部实现没读 | 第二轮真机运行时才能看到 | — |
+| 结论 | 不会 | 无（下完立即替换 bundle，实测） | — |
+| 证据 | `commands.rs` `download_update` 调的是 `download_and_install`，下载完就装，之后才发 `update_downloaded` 让用户重启；没有「已下载待装」的记录文件。`tauri-plugin-updater` 内部实现没读 | 2026-10-16 真机：5.0.1 的 “New Version Found … Download Update” 点下后直接原地替换 `/Applications/SwitchHosts.app`（新 inode），再提示 “Version 5.0.2 has been installed and will take effect after restart” | — |
 
 ## Changelog
 - 来源: GitHub release body，经 `GitHubMarkdownParser`（channel-verify 的 `changelog pane` 走的就是这条生产路径）
@@ -123,11 +123,11 @@ v5 首次启动会把 v4 的 PotDb 数据（`~/.SwitchHosts/{data,config}`）迁
 - 阻塞: 无
 
 ## 已知问题
-- 真机端到端运行中一轮时注意: 启动旧版不会自动注册 helper；如果为了测 helper 而写 hosts，会弹管理员授权并装上
+- 运行中一轮（2026-10-16）没写 hosts、没装 helper，`swh_helper` 换包后的行为仍未真机验证。启动旧版不会自动注册 helper；如果为了测 helper 而写 hosts，会弹管理员授权并装上
   root daemon，测完要在偏好设置里卸载（`unregister`），否则拖进废纸篓不会移除它（`helper_admin.rs` 注释原话的意思）。
 
 ## 建议下一步
-1. 主会话真机端到端：装 5.0.1 → `duo install --yes`（不运行；运行中 + `duo restart`），补进本文件。
+1. （已做）运行中一轮，2026-10-16，main `make cli`：5.0.1 运行中，`duo install --yes` → `installed.` 并提示 `Still running the old code: SwitchHosts`；随后在旧进程里点 “Download Update”：Tauri updater 把 5.0.2 再原地装一次（新 inode），结果 Team `J5J6USUX2F`、`codesign --strict` 0、Notarized；`duo restart` → `restarted`，新进程映射 5.0.2，`duo check` 报 up to date。`/etc/hosts` 前后 SHA-256 相同。新增 `~/.SwitchHosts`、`~/Library/{Caches,Logs,WebKit}/net.oldj.switchhosts`，登录项前后无差异
 2. 4.2.0（旧 id `SwitchHosts`）→ 5.0.2 的一键可单独跑一轮，确认 `BundleIDMigration` 换 id 与 v5 首启迁移都正常。
 
 ## 如何复验

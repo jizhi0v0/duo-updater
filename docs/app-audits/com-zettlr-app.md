@@ -97,8 +97,8 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（用户点下载后） | 没查 | ○ |
-| 证据 | `_downloadAppUpdate` 写到 `app.getPath('downloads')/<资产名>`（源码） | 未运行 app（并行 agent 不启动下载物） | `SelfUpdaterStash` 不读这种布局 |
+| 结论 | 会（用户点下载后） | 没观测到（见证据） | ○ |
+| 证据 | `_downloadAppUpdate` 写到 `app.getPath('downloads')/<资产名>`（源码） | 2026-10-16 运行中一轮：启动时日志 `[Update Provider] Checking https://zettlr.com/api/releases/latest`，但这时 bundle 已被 duo 换成 4.8.0，旧进程开不了更新窗口（见已知问题），没走到下载 | `SelfUpdaterStash` 不读这种布局 |
 
 - 记录文件与字段: 无。完成与否只在内存里（`size_downloaded == size_total`）；退出时只删没下完的文件；
   校验用 release 的 `SHA256SUMS.txt`（SHA-256 hex），也只在内存里比对
@@ -134,9 +134,11 @@
 ## 已知问题
 - nightly 副本显示 unknown，不推更新（见 Channel 详情）
 - `checkForBeta` 的磁盘写入还没在真机上观测
+- 运行中被换包的旧进程开不了新窗口：4.7.0 运行中 duo 装上 4.8.0 后，旧进程的主窗口一片空白，Help → Check for updates 弹 “Could not open window — Could not open main Window: ERR_FAILED (-2) loading 'file:///Applications/Zettlr.app/Contents/Resources/app.asar/.webpack/renderer/main_window/index.html?…'”（窗口从磁盘上的新 `app.asar` 加载）。`duo restart` 后恢复。任何原地换包（包括手动拖拽）都会这样，duo 的 `Still running the old code` 提示就是为此
+- 首启向导（“Hello!” Skip / Start setup）和更新后的 “Update complete!” 页开着时，app 不响应 AppleScript `quit`（返回 0 但不退），也不响应 SIGTERM；向导开着时 `duo restart` 报 `still running — likely a save prompt`。原因没查
 
 ## 建议下一步
-1. 主会话真机：装 4.7.0，`duo install --yes`（不运行；运行中 + `duo restart`）
+1. （已做）运行中一轮，2026-10-16，main `make cli`：4.7.0 运行中，`duo install --yes` → `installed.` 并提示 `Still running the old code: Zettlr`；首启向导开着时 `duo restart` 退不掉 app；用户点 Skip 后旧进程开窗失败（见已知问题），再 `duo restart` → `restarted`，主进程与 Helper 都映射 4.8.0 的二进制，app 显示 “Update complete! … v4.8.0”。Team `QS52BN8W68`、`codesign --strict` 0、Notarized。新增 `~/Library/Application Support/Zettlr`、`~/Library/Preferences/com.zettlr.app.plist`、`~/Documents/Zettlr Tutorial`，登录项前后无差异
 2. 真机拨 "Notify me about beta releases"，对比 `config.json` 前后，`channel-verify --check com.zettlr.app` 看 `detected channel` 跟随
 
 ## 如何复验

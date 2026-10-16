@@ -20,10 +20,6 @@ description: >-
 resolves today, which of those are worth an agent, and how to land a batch of
 them without leaving risk on the user's machine.
 
-It was written from a batch of twelve (2026-09-29). Three of the twelve turned
-out to be covered already, and two of those three were detectable from the repo
-before any agent ran. Most of the rules below come from that batch.
-
 ## What "onboarded" means — report all three, every time
 
 An app is onboarded when **all three** hold:
@@ -47,6 +43,10 @@ seen so far:
   (Osaurus, Mos: `headings []`, and "What's Changed" among the items);
 - changelog absent: the vendor publishes no notes.
 
+A one-click that would replace or damage what the user has is **not** a
+legitimate "can't": recording it in the audit is not enough. Gate it
+(`OneClickGate`) or withhold one-click (MuseScore 3, GitKraken On-Premise).
+
 ## Phase 1: Enumerate — from data, not memory
 
 ```bash
@@ -54,33 +54,26 @@ python3 .claude/skills/coverage-discovery/scripts/candidates.py --limit 40
 ```
 
 It ranks casks whose download is a GitHub release asset by 365-day installs
-and drops anything already covered. Coverage is checked against both the code
-and `docs/app-audits/`, in three ways: the repo (following a rename through the
-API), any bundle id the cask names in `uninstall`/`zap`, and the app's name in
-the audit index. The last batch was seeded with a code-only grep. Headlamp got
-through because its repo had been renamed. ClaudeBar got through because its
-coverage lived only in an audit doc.
-
-What the list **cannot** know:
+and drops what the code or `docs/app-audits/` already covers (its docstring
+says how). Seeding a batch from a code-only grep let renamed repos and
+audit-only coverage through. What the list **cannot** know:
 
 - **Sparkle.** A bundle that declares `SUFeedURL` is covered by the generic
-  source with no recipe. The cask won't say so. `auto_updates` is **not** a
-  proxy: casks leave it unset for Sparkle apps (Mos, ClaudeBar, Osaurus were all
-  `None`). Only the real package settles it (Phase 2).
+  source with no recipe. `auto_updates` is **not** a proxy (Mos, ClaudeBar,
+  Osaurus were all `None`). Only the real package settles it (Phase 2).
 - **Size.** Skip multi-hundred-MB apps (FreeCAD, slicers) unless asked. The
   end-to-end run downloads the package twice.
 
 ## Phase 2: Triage each candidate on its real package — before any agent
 
-This takes a minute or two per app. In the last batch an agent took up to
-20 minutes and 180k tokens. Do this first.
+A minute or two per app, against up to 20 minutes and 180k tokens per agent.
 
 ```bash
 gh api repos/<owner>/<repo>/releases/latest -q '.tag_name, (.assets[] | "\(.name)\t\(.size)")'
 curl -sSL -o "$SCR/<asset>" "https://github.com/<owner>/<repo>/releases/download/<tag>/<asset>"
 .claude/skills/coverage-discovery/scripts/check-bundle.sh "$SCR/<asset>"
 swift run --package-path application-test feed-discover "$SCR/<asset>"
-grep -rni '<bundle id>' DuoUpdaterCore/Sources docs/app-audits
+grep -rnF '<bundle id>' DuoUpdaterCore/Sources docs/app-audits
 ```
 
 | Triage result | Next |
@@ -88,12 +81,10 @@ grep -rni '<bundle id>' DuoUpdaterCore/Sources docs/app-audits
 | `declared` / `ADOPT`, or the bundle id is already in the repo | Covered. **Don't drop it silently**: run `channel-verify` on it and report its three counts, because "covered" can still mean a flattened changelog |
 | `NEEDS BINDING` | A `ChannelBinding` job, not a recipe (the Osaurus route; `/app-audit` §1a-0) |
 | `noKnownUpdater`, Developer ID + notarized | Dispatch (Phase 3) |
-| No Team ID, shipped as a GitHub release asset | Dispatch. One-click goes through `installTrust: .publishedDigestOnly`, behind the user's setting, when every condition in `Recipes/org-alacritty.swift` holds (seal verifies, signed identifier is the bundle id, version is the tag, GitHub publishes a `digest` for the asset); otherwise detection-only. Lokii and disktree are the worked examples |
+| No Team ID, shipped as a GitHub release asset | Dispatch. One-click goes through `installTrust: .publishedDigestOnly` when every condition in `Recipes/org-alacritty.swift` holds; otherwise detection-only. Lokii and disktree are the worked examples |
 | No Team ID / not notarized | Detection-only at best — except a MyGo app (`declared`, MyGo), whose vendor signature carries one-click behind the user's setting. Dispatch only if detection alone is worth it |
 | `check-bundle.sh` lists a `nested` app with `LSUIElement=true` | Flag it in the brief: a resident helper that keeps running after a bundle swap. `LSBackgroundOnly` launchers that exit are fine (OpenInTerminal) |
-
-`check-bundle.sh` is used again in Phase 4. It mounts dmgs read-only, reads
-exit codes directly (never through a pipe), and prints any nested apps.
+| Another product under the same bundle id: an older major shipped beside the new one (MuseScore 3 / 4), or an edition (GitKraken On-Premise differs only in `app.asar`'s `clientType.js`) | Flag it in the brief. Detection stays; one-click for those copies goes behind a `OneClickGate` in the family's recipe file (`.installedVersion` / `.asarEntry`) |
 
 ## Phase 3: Dispatch — one agent per app, isolated
 
@@ -102,19 +93,23 @@ The brief follows the memory note `subagent-brief-rules`. It must say:
 - `isolation: "worktree"`, and first `git fetch origin && git switch -c recipe/<app> origin/main`;
 - its own `SCR=$(mktemp -d "$TMPDIR/recipe-<app>.XXXX")`;
 - follow `.claude/skills/app-audit/SKILL.md` and `fragile-recipe`, with `git show <a recent GitHubReleaseRule commit>` as the worked example;
-- the facts triage already found (bundle id, Team, feed-discover verdict, nested helpers), so the agent doesn't rediscover them;
-- one-click when the app is Developer ID signed with a Team ID, `spctl` says Notarized, and the asset is dmg or zip; prefer universal, otherwise arm64;
-- an ad-hoc build on a GitHub release (no Team ID on any release checked) gets one-click through `installTrust: .publishedDigestOnly` when the conditions in `Recipes/org-alacritty.swift` hold. When one fails, the audit says which one; "ad-hoc" alone is not a reason to stay detection-only;
+- the facts triage already found (bundle id, Team, feed-discover verdict, nested helpers, other products under the same id), so the agent doesn't rediscover them;
+- one-click when the app is Developer ID signed with a Team ID, `spctl` says Notarized, and the asset is dmg or zip; prefer universal, otherwise arm64. An ad-hoc build gets `.publishedDigestOnly` as in Phase 2; when a condition fails the audit names it, and "ad-hoc" alone is not a reason;
 - check the **previous** release's Team ID too, because a change means the gate refuses every old copy;
-- old→new `channel-verify` on the previous and newest packages, then goldens re-recorded and `make test` judged by exit code, in the foreground;
+- old→new `channel-verify` on the previous and newest packages, goldens re-recorded, `make test` in the foreground judged by exit code;
 - the audit doc plus a README line **in the section matching its source**. A row whose coverage is generic Sparkle (`— S`) belongs in the Sparkle section; `AppAuditCoverageTests` fails it anywhere else;
 - commit with `git commit -F`, no push;
-- **forbidden**: `make install`, `make cli`, the `duo` CLI, `pkill`, `git stash`, copying into /Applications, launching anything downloaded, touching quarantine, anything that pops system UI. The end-to-end run is yours, done serially (Phase 5), because the CLI and /Applications are shared by every agent;
+- **forbidden**: `make install`, `make cli`, the `duo` CLI, `pkill`, `git stash`, copying into /Applications, launching anything downloaded, touching quarantine, anything that pops system UI. The end-to-end run is yours, serially (Phase 5): the CLI and /Applications are shared. A claim about install behaviour ("the next attempt draws the zip") is a hypothesis until Phase 5;
+- hygiene, each of which went wrong once:
+  - grep bundle ids with `grep -F` (dots are wildcards otherwise);
+  - tell a dmg by `hdiutil imageinfo <file>` (exit 0), not by its extension: UDIF dmgs ship extensionless;
+  - read `Content-Length` before downloading (`curl -sIL <url> | grep -i '^content-length' | tail -1`) and skip anything over the size cap;
+  - compare editions or channels on the **same** version (12.6.0 against 12.5.0 drowned the signal);
 - the report gives the three counts, the exact newest and previous asset URLs, and raw `channel-verify` lines.
 
-An agent that stops without changing anything **loses its worktree**, which is
-cleaned up automatically. Resuming it fails on the first write. Spawn a fresh
-agent and pass the first one's findings in the brief.
+An agent that stops without changing anything **loses its worktree**, and
+resuming it fails on the first write. Spawn a fresh agent with the first one's
+findings in the brief.
 
 ## Phase 4: Integrate — re-check, then pick
 
@@ -122,20 +117,26 @@ For each report:
 
 1. Read the diff (`git show <sha>`), and read the rule's comment as a list of claims.
 2. Re-run `check-bundle.sh` yourself on the agent's newest and previous downloads (they are in its `$SCR`). Don't take the Team, version or notarization from the report.
-3. Question every deliberate "can't" in the report (detection-only, a skipped track). Is the reason measured or assumed? What does the helper actually do? For OpenInTerminal that meant reading `OpenInTerminalHelper/AppDelegate.swift`.
+3. Question every deliberate "can't" in the report (detection-only, a skipped track). Is the reason measured or assumed (read the helper's source, as for OpenInTerminal)?
 
-Then pick all commits onto one integration branch cut from `origin/main`:
+Then pick the agents' **own** commits (parent = `origin/main`) onto one
+integration branch cut from `origin/main`:
 
 ```bash
 .claude/skills/coverage-discovery/scripts/integrate.sh <sha> [<sha> ...]
 ```
 
-It resolves only the conflicts every batch produces: one-line rows in the audit
-README, and `<family>.set,` rows in `AppRecipeIndex.swift`, re-sorted. Any
-other conflict stops the run. Use the agents' **own** commits (parent =
-`origin/main`). Commits already rebased onto each other don't conflict on the
-index and so don't exercise the merge. Finish with `make test` on the combined
-branch, judged by exit code.
+It resolves README rows and `<family>.set,` rows in `AppRecipeIndex.swift`, and
+stops on any other conflict. Append-only tables conflict too —
+`BundleIDMigration.swift`'s table, `GitHubListPageSizeTests.swift`,
+`CHANNEL_COVERAGE_TODO.md`: keep both sides, then fix any count a test asserts
+(`RaycastReleasesTests.swift`). Finish with `make test` on the combined branch,
+judged by exit code.
+
+If the batch touches engine code — a binding, `BundleIDMigration`,
+`UpdateResult` / `UpdatePolicy`, or the installer — run one `adversary` agent
+(Opus, xhigh) on that diff before opening the PR: #1358's review found bugs
+in `UpdateResult` and `ZettlrChannel` that no recipe check would.
 
 ## Phase 5: End to end — install the previous release, update it with `duo`
 
@@ -155,14 +156,11 @@ Then:
 
 ```bash
 make cli                                    # the CLI from THIS branch
-duo check "<App>"                           # proves the recipe is in it — don't grep `strings`
-                                            # for the bundle id: it found none for `org.cryptomator`
-                                            # in a CLI that did contain the recipe (cause not established)
 mdfind "kMDItemCFBundleIdentifier == '<bundle id>'"    # must be empty: never overwrite a real install
 hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$SCR/old/<app>" <previous.dmg>
 ditto "$SCR/old/<app>/<App>.app" "/Applications/<App>.app"     # alone, one per command
-duo check "<App>"
-duo install "<App>" --yes
+duo check <bundle id>                       # proves the recipe is in this CLI; by id, since duo's name can differ
+duo install <bundle id> --yes               #   ("MuseScore Studio": "MuseScore 4" matched nothing)
 .claude/skills/coverage-discovery/scripts/check-bundle.sh <newest package>   # compare with the installed copy:
 codesign -dvv "/Applications/<App>.app" 2>&1 | grep TeamIdentifier
 codesign --verify --deep --strict "/Applications/<App>.app"; echo $?
@@ -178,21 +176,19 @@ Expected outcomes, all seen in practice:
 | `verifyingSignature` as well | A Sparkle route; the EdDSA signature was checked too |
 | `Team Identifier mismatch … Refusing to install.` | The vendor changed Team. The old copy must be untouched; check it |
 | `Skipping: … detection only` | `installAssetPattern` is nil, as designed |
+| `ditto: Couldn't read PKZip signature`, or a ~15 KB download | The vendor served an HTML page. The installer refetches; if it still fails, look at the vendor (Cork) |
 
 **Reading the `changelog pane` line.** It names what the workbench pane shows,
-in the pane's own order: a changelog recipe (fetched, as the app does) beats the
-source's structured log, which beats raw inline notes, which beat the vendor
-page in a web view. The *winning source* does not decide it: Fork is detected
-through Sparkle but shows its recipe. `release notes N chars inline` above is
-not evidence either way, since the Sparkle route carries inline HTML and a
-structured log at once. For `recipe …` / `source structured …`, `headings [...]`
-means sections were kept; `headings []` with a heading's text among the first
-items means they were flattened (Osaurus, Mos). `raw inline notes`, `web page`
-and `none` are all "not structured": say which, and why.
+in the pane's order: a changelog recipe beats the source's structured log,
+which beats raw inline notes, which beat the vendor page in a web view. The
+winning *source* doesn't decide it (Fork is detected through Sparkle but shows
+its recipe), nor does `release notes N chars inline`. `headings [...]` means
+sections were kept; `headings []` with a heading's text among the first items
+means they were flattened (Osaurus, Mos). `raw inline notes`, `web page` and
+`none` are all "not structured": say which, and why.
 
-**Clean up — reversibly.** Nothing launched, so nothing is running. Check with
-`pgrep -f "/Applications/<App>.app/"` anyway. Move the test installs to the
-Trash, never `rm`:
+**Clean up — reversibly.** Check `pgrep -f "/Applications/<App>.app/"`, then
+move the test installs to the Trash, never `rm`:
 
 ```bash
 osascript -e 'tell application "Finder" to delete POSIX file "/Applications/<App>.app"'
@@ -201,8 +197,10 @@ osascript -e 'tell application "Finder" to delete POSIX file "/Applications/<App
 Then tell the user what is left for them: the Trash, the rollback copies
 `duo install` made (listed by `duo backups`), and the permission rule.
 
-Record the end-to-end result in each audit doc's 一键安装 section. Replace any
-"端到端未做" line; don't leave it next to the result.
+Record the result in each audit doc's 一键安装 section **and** its README row,
+replacing the agent's placeholder (「待主会话」, 「端到端未做」) rather than
+leaving it beside the result. `scripts/check_app_audits.py` fails on 「待主会话」
+left in the README.
 
 ## Phase 6: Report
 

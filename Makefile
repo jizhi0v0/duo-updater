@@ -26,8 +26,10 @@ build:
 # Split in three so CI can run each part as its own job (.github/workflows/ci.yml).
 # The parts share nothing: test-scripts only reads the source tree, and
 # test-swift and test-app build into different directories (SwiftPM's .build
-# versus app-tests' derived data). `make test` runs all three, cheapest first.
-test: test-scripts test-swift test-app
+# versus app-tests' derived data). `make test` runs all three at once, each into
+# its own log — see scripts/test-parts.sh for the measurement and the output.
+test:
+	@MAKE="$(MAKE)" scripts/test-parts.sh test-scripts test-swift test-app
 
 # The Python every recipe here runs, and app-tests.sh through the export: the
 # first of python3, python3.15 … python3.10 that is at least 3.10. Picked here

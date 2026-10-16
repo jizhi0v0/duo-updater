@@ -87,3 +87,5 @@ loginWalls = Dictionary(count: 0)
 
 changelogPages = Dictionary(count: 1)
 changelogPages["com.robinebers.openusage"] = URL("https://github.com/robinebers/openusage/releases")
+
+oneClickGates = Array(count: 0)

@@ -27,7 +27,7 @@ struct AppRecipeIndexTests {
     private static let recipeKinds: Set<String> = [
         "probes", "changelogs", "githubRules", "appStoreCases",
         "channelProofs", "githubChannelProofs", "bindingProofs",
-        "sparkleFeeds", "supersededFeeds", "loginWalls", "changelogPages",
+        "sparkleFeeds", "supersededFeeds", "loginWalls", "changelogPages", "oneClickGates",
     ]
 
     /// Mutation: give one family an entry for another family's bundle id (for
@@ -122,5 +122,6 @@ struct AppRecipeIndexTests {
         #expect(SparkleFeedCatalog.supersededFeeds.count == sum { $0.supersededFeeds.count })
         #expect(SparkleFeedCatalog.loginWalls.count == sum { $0.loginWalls.count })
         #expect(ChangelogCatalog.pages.count == sum { $0.changelogPages.count })
+        #expect(OneClickGateRegistry.gates.count == sum { $0.oneClickGates.count })
     }
 }

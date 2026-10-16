@@ -255,6 +255,13 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
       按 bundle id 限定的 step 0.8。两 channel 均仅检测，未接一键（装机带特权
       helper/LaunchDaemon/XPC，一键是独立范围决策）。
 
+- [ ] **MusicBrainz Picard** · `org.musicbrainz.Picard` — Options → General → Startup 的（master 源码 `picard/ui/options/startup.py`）
+      「Update types to check」（`update_level` 0 stable / 1 beta / 2 dev，`in_profile=True`）。beta 构建同
+      bundle id，版本串带 `rc`/`b`（`3.0.0rc4`），`ReleaseChannel.detect()` 判成 stable，走 stable rule。
+      当前 beta（3.0.0rc4）落后于 stable 3.0.2，没有漏掉的构建；下一个 beta 周期前决定接法
+      （`installedTagPrefix` rule 或读 INI 偏好，INI 位置未在真 app 上确认）。见
+      `docs/app-audits/org-musicbrainz-Picard.md`。
+
 - [ ] **WhatCable** · `uk.whatcable.whatcable` — Settings → **"Receive beta updates"**
       checkbox。**版本检测这一半已经不需要它**：beta 包的
       `CFBundleShortVersionString` 原样带 `-beta.8`（实测 v1.5.0-beta.8 的
@@ -297,6 +304,8 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
 - [ ] **OpenClaw** · `ai.openclaw.mac` — 渠道来自 Gateway `update.channel`（运行中 Gateway 优先，兜底 `~/.openclaw/openclaw.json`）：beta/dev → 标签 `beta`；extended-stable → 只认该标签。2026-10-08 appcast 近 100 版 0 条带标签；出现带标签条目即接 ChannelBinding（否则 extended-stable 会被 duo 跨轨推）。详见 [审计](docs/app-audits/ai-openclaw-mac.md)
 - [ ] **Superwhisper** · `com.superduper.superwhisper` — 二进制有 `includeBetaUpdates` 键、无 UI 文案；feed 233 条 0 标签，猜的 4 个 beta feed 都 404。需真 app 确认键与机制（agent 类 app）后再定 binding。详见 [审计](docs/app-audits/com-superduper-superwhisper.md)
 - [ ] **AstrLink — preview** · `com.astrlink.desktop` — app 内 `UpdateChannel { Stable, Preview }`，存于 Tauri `app_config_dir` 的 `desktop-preferences.json` → `updates.channel`（源码 `apps/desktop/src-tauri/src/updates.rs` / `preferences.rs`）；preview 读 `/releases` 取 SemVer 最高（含 pre-release）。2026-10-13 共 17 个 release、0 个 pre-release，所以 preview 与 stable 现在给同一版。第一个 pre-release 出来后：真包读版本串、真 app 确认落盘，再接 `ChannelBinding` + `usePrereleases` 规则。详见 [审计](docs/app-audits/com-astrlink-desktop.md)
+- [ ] **Loop — Development** · `com.MrKai77.Loop` — 一个滚动 prerelease（tag 恒为 `prerelease`），版本只在 release 名字 `🧪 1.4.3 (1783)` 里，同营销版本下按 `CFBundleVersion` 比；app 内开关 CFPrefs `includeDevelopmentVersions`（默认值不写盘）。dev 副本已由 `detect()` 0.995 判为 `.dev`、不再被推 stable；接轨需要 `GitHubReleasesSource` 能从名字读版本并按 build 比。详见 [审计](docs/app-audits/com-MrKai77-Loop.md)
+- [ ] **Snipaste — beta** · `com.Snipaste` — 设置里有「Include beta builds」（`cb_betaUpdate`），偏好键与 app 的 feed 地址都不是二进制里的字面量（feed 运行时拼 `https://%1`）。stable 读官网 `versions` JSON，只有 stable。changelog 最近一个不限平台的 beta 是 `v2.8.3 Beta2`（2022-12-25），之后只有 Linux beta。需真 app 拨开关读 `~/.snipaste/config.ini` 并抓包，再定 binding。详见 [审计](docs/app-audits/com-Snipaste.md)
 - [x] **OpenChamber — v2-preview** · 同 `dev.openchamber.desktop`，版本 `2.0.0-preview.N` → `detect()` 判 preview；`.preview` GitHub rule 只读 stable，preview 拷贝被推 stable（与 app 自己的更新器一致，用户 2026-10-08 定）。详见 [审计](docs/app-audits/dev-openchamber-desktop.md)
 
 ---
@@ -468,6 +477,16 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 4. **UTM** —— 已接（2026-09-03）：exact-release 远端判轨、线锚定候选、stable/beta 一键和分轨 changelog。
    **kitty** 仍归入 §3 死轨，本地无信号，也没有可按已安装版本反查的固定 nightly release。
 
+### Jellyfin Server — rc（2026-10-16 查，未接）
+
+`Jellyfin.Server` 的 rc 包（`repo.jellyfin.org/files/server/macos/preview/v<ver>-rcN/`）与 stable
+同 bundle id、同 Team，版本串是 `12.0-rc7`（真包实测）。`detect()` 把它读成 stable，stable recipe
+给出终版（`channel-verify`：`UPDATE 12.0-rc7 → 12.2`）。缺口只在 rc 窗口期：装着下一大版本 rc 的副本
+不会被推下一个 rc（`13.0-rc1` 对 `12.2` 判为已最新，测试钉住）。没有 `latest-preview` 别名，
+rc 目录在终版发布后仍留着，接 preview 轨需要 `detect()` 加一条 bundle 限定的 `-rcN` 规则，外加一条
+在 rc 与终版之间取高的 probe。`unstable/` 只发 tar.xz（不是 .app），不算可装的轨。
+详见 [审计](docs/app-audits/Jellyfin-Server.md)。
+
 ---
 
 ## §3 死轨 — Pattern D / 不可行（已否决，**勿重开**）
@@ -482,6 +501,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 - ✗ **Obsidian — Insider** · 付费 Catalyst 早鸟，无独立 macOS 自更新 feed
 - ✗ **Dropbox — Beta** · 论坛分发，口径混乱
 - ✗ **Bartender — Test Builds** · 同 `com.surteesstudios.Bartender`；7.0.2 / 7.0.3 的测试版说明页在（`…/Bartender7/updates/7-0-2/rnotes.html`），但不在 AppcastB7 里，测试版 feed 地址与 app 内开关都没找到（2026-10-10）。详见 [审计](docs/app-audits/com-surteesstudios-Bartender.md)
+- ✗ **Zettlr — Nightly** · 同 `com.zettlr.app`；`nightly.zettlr.com` 每周一从 `develop` 构建，版本恒为 `<stable>+nightly`（2026-10-12 的包 = `4.8.0+nightly`），build 之间没有可排序的东西。`ReleaseChannel.detect` 把它判为 nightly、不推任何东西（以前被推同号正式版）；勾了 beta 的 nightly 副本 `ZettlrChannel` 也不作答，不会被 binding 改判 beta。beta 轨已接（`ZettlrChannel`）。详见 [审计](docs/app-audits/com-zettlr-app.md)
 - ✗ **Plex — Beta** · Plex Pass 应用内，非独立下载
 - ✗ **Audacity 4 prerelease（alpha/beta）** · `org.audacityteam.Audacity`（与 3.x 只差大小写），版本 `4.0.0` 无后缀；4.x stable 另起 `org.audacityteam.audacity4`；`latest.test.json` 停在 beta 4，暂无可接构建（2026-10-08）
 - ✗ **Audacity 3 经旧 `audacity` cask 安装** · Caskroom 里是 `audacity`、`.app` 只对得上 `audacity@3`，Homebrew 不应答；现在落到 3.x GitHub rule，被推 3.7.9（≤3.7.8 一键被 Team 闸拒）（2026-10-08）

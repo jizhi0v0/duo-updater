@@ -34,6 +34,24 @@ public struct BundleIDMigration: Sendable, Equatable {
     public let lastFromVersion: String
     /// The oldest release observed signed as `to`.
     public let firstToVersion: String
+    /// The `to` app is the vendor's rewrite, not the same app under a new id:
+    /// features and settings may not carry over. An update across it still
+    /// installs, but only after the user confirms it — `UpdateResult`'s
+    /// `isVendorRewrite` routes the row through the major-upgrade confirmation,
+    /// whatever the source. False for a plain rename.
+    public let isRewrite: Bool
+
+    public init(
+        from: String, to: String, teamID: String,
+        lastFromVersion: String, firstToVersion: String, isRewrite: Bool = false
+    ) {
+        self.from = from
+        self.to = to
+        self.teamID = teamID
+        self.lastFromVersion = lastFromVersion
+        self.firstToVersion = firstToVersion
+        self.isRewrite = isRewrite
+    }
 
     public static let all: [BundleIDMigration] = [
         // WorkBuddy, China site: 5.3.14 (2026-08-17) is `com.workbuddy.workbuddy`,
@@ -77,6 +95,47 @@ public struct BundleIDMigration: Sendable, Equatable {
         BundleIDMigration(
             from: "com.bitmoor.whatcable", to: "uk.whatcable.whatcable",
             teamID: "M4RUJ7W6MP", lastFromVersion: "0.5.14", firstToVersion: "0.6.0"),
+        // Cork changed its bundle id twice, the same Team throughout: up to
+        // 1.4.4 it is `com.davidbures.Cork`, from 1.4.4.1 through 1.5.7
+        // `com.davidbures.cork` (also the frozen macOS 13 build, 1.5.6), and
+        // from 1.6.0 `eu.davidbures.cork`. The vendor's 1.6.0 post announces
+        // the change: settings may reset once and the licence email may have
+        // to be entered again. Read off the real zips; see
+        // docs/app-audits/eu-davidbures-cork.md, 历史与实测.
+        BundleIDMigration(
+            from: "com.davidbures.Cork", to: "eu.davidbures.cork",
+            teamID: "ZSVA6DVZHM", lastFromVersion: "1.4.4", firstToVersion: "1.6.0"),
+        BundleIDMigration(
+            from: "com.davidbures.cork", to: "eu.davidbures.cork",
+            teamID: "ZSVA6DVZHM", lastFromVersion: "1.5.7", firstToVersion: "1.6.0"),
+        // MusicBrainz Picard changed only the case of its id: the 2.0.4 dmg is
+        // `org.musicbrainz.picard`, the 2.3.1 dmg and every release since are
+        // `org.musicbrainz.Picard`, the same Team. The vendor's mirror carries no
+        // 2.1.x or 2.2.x dmg; the repo's `picard.spec` still writes the lower-case
+        // id at release-2.1.3 and `PICARD_APP_ID` (the mixed-case id) from release-2.2.0 on.
+        // See docs/app-audits/org-musicbrainz-Picard.md, 旧 bundle id.
+        BundleIDMigration(
+            from: "org.musicbrainz.picard", to: "org.musicbrainz.Picard",
+            teamID: "8D89TSJ88H", lastFromVersion: "2.0.4", firstToVersion: "2.3.1"),
+        // SwitchHosts: every Electron release read (3.5.8, 4.0.3, 4.1.2, 4.2.0)
+        // is `SwitchHosts`; v4.3.0 (a prerelease) and every Tauri v5 release are
+        // `net.oldj.switchhosts`, the same Team, all notarized. v5 migrates the
+        // v4 data on first launch (the vendor's `src-tauri/src/migration`).
+        // See docs/app-audits/net-oldj-switchhosts.md, 旧 bundle id.
+        BundleIDMigration(
+            from: "SwitchHosts", to: "net.oldj.switchhosts",
+            teamID: "J5J6USUX2F", lastFromVersion: "4.2.0", firstToVersion: "4.3.0"),
+        // MySQL Workbench 8.0 is the native app, `com.oracle.workbench.MySQLWorkbench`,
+        // through 8.0.47 (8.0.46 and 8.0.47 measured); 26.7.0 is the Electron
+        // rewrite on MySQL Shell, `com.oracle.mysqlworkbench`, the same Team. 8.0's
+        // own "Check for Updates" reads `workbench.mysql.com/current-release`,
+        // which answers 26.7.0, so the vendor itself points 8.0 copies at the
+        // rewrite. A rewrite, not a rename: the swap is confirmed by the user first.
+        // History: docs/app-audits/com-oracle-mysqlworkbench.md#历史与实测
+        BundleIDMigration(
+            from: "com.oracle.workbench.MySQLWorkbench", to: "com.oracle.mysqlworkbench",
+            teamID: "VB5E2TV963", lastFromVersion: "8.0.47", firstToVersion: "26.7.0",
+            isRewrite: true),
     ]
 
     /// Whether an installed copy signed as `from` at `version` is this rename.
@@ -93,6 +152,17 @@ public struct BundleIDMigration: Sendable, Equatable {
     ) -> String {
         table.first { $0.from == bundleID && $0.covers(installedVersion: installedVersion) }?.to
             ?? bundleID
+    }
+
+    /// The registered rewrite an installed copy signed as `bundleID` at
+    /// `installedVersion` is the old app of, or nil. Same bound as
+    /// `recipeBundleID`: only a copy that is filed under the new id counts.
+    public static func rewrite(
+        installed bundleID: String, installedVersion: String?, in table: [BundleIDMigration] = all
+    ) -> BundleIDMigration? {
+        table.first {
+            $0.isRewrite && $0.from == bundleID && $0.covers(installedVersion: installedVersion)
+        }
     }
 
     /// `bundleID` and every id a registered rename pairs it with, in either

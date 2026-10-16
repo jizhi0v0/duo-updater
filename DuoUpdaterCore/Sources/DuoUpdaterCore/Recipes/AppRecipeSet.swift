@@ -4,7 +4,7 @@ import Foundation
 /// across its channels and bundle ids — declared in `Recipes/<family>.swift`.
 ///
 /// Pure data. `VendorProbeRegistry.recipes`, `ChangelogRecipeRegistry.recipes`,
-/// `GitHubReleaseRegistry.rules`, `MacAppStoreProbeRegistry.cases`, the three
+/// `GitHubReleaseRegistry.rules`, `OneClickGateRegistry.gates`, `MacAppStoreProbeRegistry.cases`, the three
 /// `ChannelProofRegistry` maps, `SparkleFeedCatalog.feeds` / `.supersededFeeds` / `.loginWalls`
 /// and `ChangelogCatalog.pages` are all derived from `AppRecipeIndex.all`.
 ///
@@ -32,6 +32,7 @@ public struct AppRecipeSet: Sendable {
     let supersededFeeds: [String: SparkleFeedCatalog.SupersededFeed]
     let loginWalls: [String: SparkleFeedCatalog.LoginWall]
     let changelogPages: [String: URL]
+    public let oneClickGates: [OneClickGate]
 
     init(
         family: String,
@@ -45,7 +46,8 @@ public struct AppRecipeSet: Sendable {
         sparkleFeeds: [String: URL] = [:],
         supersededFeeds: [String: SparkleFeedCatalog.SupersededFeed] = [:],
         loginWalls: [String: SparkleFeedCatalog.LoginWall] = [:],
-        changelogPages: [String: URL] = [:]
+        changelogPages: [String: URL] = [:],
+        oneClickGates: [OneClickGate] = []
     ) {
         self.family = family
         self.probes = probes
@@ -59,9 +61,10 @@ public struct AppRecipeSet: Sendable {
         self.supersededFeeds = supersededFeeds
         self.loginWalls = loginWalls
         self.changelogPages = changelogPages
+        self.oneClickGates = oneClickGates
     }
 
-    /// Every bundle id this family names, across all eleven kinds, as written.
+    /// Every bundle id this family names, across all twelve kinds, as written.
     public var bundleIDs: Set<String> {
         var ids = Set<String>()
         ids.formUnion(probes.map(\.bundleID))
@@ -75,6 +78,7 @@ public struct AppRecipeSet: Sendable {
         ids.formUnion(supersededFeeds.keys)
         ids.formUnion(loginWalls.keys)
         ids.formUnion(changelogPages.keys)
+        ids.formUnion(oneClickGates.map(\.bundleID))
         return ids
     }
 }

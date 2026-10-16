@@ -346,6 +346,11 @@ public enum Install {
             // Both policy answers are also false when the app's own updater has
             // already staged the latest — the row is Relaunch, not install. Say
             // that, rather than blaming a source that does publish an artefact.
+            // A copy its recipe family keeps off the one-click (`OneClickGate`):
+            // the source does publish an artefact, just not one for this copy.
+            if let gate = OneClickGateRegistry.withholding(result.app) {
+                return .refuse("detection only for this copy — \(gate.reason)", nil)
+            }
             if let staged = UpdatePolicy.actionableStaged(
                 result, staged: environment.stagedSelfUpdates[result.id]) {
                 // A launch-time updater (Spotify, Mozilla) does nothing on quit; it

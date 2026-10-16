@@ -106,6 +106,22 @@ struct GitHubListPageSizeTests {
         // the list. All 3 releases on 2026-10-13 match (v0.3.3, v0.3.2, v0.3.1),
         // first hit at index 0, gap 0, so 1. The rule keeps the default 20.
         "dev.chekusu.yomado/stable": 1,
+        // Zettlr: the beta rule takes plain tags as well as `-beta[.N]` ones
+        // (the app's `accept-beta` endpoint serves whichever is newer). All 20
+        // newest releases on 2026-10-16 match (v4.8.0 … v4.0.0-beta.5 … v3.4.4),
+        // first hit at index 0, gap 0, so 1.
+        "com.zettlr.app/beta": 1,
+        // Mullvad Browser Alpha: newest 100 releases on 2026-10-16, 43 alpha
+        // tags interleaved with stable ones; first at index 1, worst gap 6
+        // (15.0a1 → 14.5a6, across the 15.0 stable cycle), so 7. The rule keeps
+        // the default 20.
+        "net.mullvad.mullvadbrowseralpha/alpha": 7,
+        // SwitchHosts beta: the rule takes plain tags as well as `-beta.N` ones
+        // (graduation, the WhatCable shape). All 60 releases on 2026-10-16: 58
+        // match, first hit at index 0; the only misses are the numberless
+        // `v4.2.0-beta` and `v4.1.2-beta`, one each between two matches, so gap
+        // 1, +1. The rule keeps the default 20.
+        "net.oldj.switchhosts/beta": 2,
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {

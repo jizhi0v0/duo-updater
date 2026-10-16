@@ -271,6 +271,23 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return .beta
         }
 
+        // 0.91 Zettlr — its weekly nightly (nightly.zettlr.com, built from
+        //     `develop`) ships the stable bundle id and name and stamps the
+        //     version `<package.json version>+nightly` (`build.yml`; the real
+        //     2026-10-12 dmg reads `4.8.0+nightly` in both plist fields). As
+        //     build metadata the token is neither a dash tail step 4 reads nor
+        //     anything `VersionComparator` ranks above the bare number, so the
+        //     copy read as stable and was offered 4.8.0 — the release its own
+        //     code had already moved past. The app itself never offers that
+        //     (semver ignores build metadata). No rule serves `.nightly`: the
+        //     nightly keeps one version string from build to build, so there
+        //     is nothing to order.
+        if bundleID == "com.zettlr.app",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           fullyMatches(#"[0-9]+(\.[0-9]+)+(-beta(\.[0-9]+)?)?\+nightly"#, version) {
+            return .nightly
+        }
+
         // 0.95 Arc and Dia (The Browser Company) — each ships its release
         //     candidate, the build its Early Birds program runs, under the stable
         //     bundle id, the stable `CFBundleName` and a plain version
@@ -355,6 +372,21 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
            let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
            fullyMatches(#"[0-9]+(\.[0-9]+)+_nightly(-[0-9]+)*"#, version.lowercased()) {
             return .nightly
+        }
+
+        // 0.995 Loop — its Development channel is one rolling GitHub prerelease
+        //     under the constant tag `prerelease`, built with the stable bundle id
+        //     `com.MrKai77.Loop`, the name "Loop" and the Team. `dev-build.yml`
+        //     stamps `CFBundleShortVersionString` as "🧪 <version>" (read off the
+        //     real 2026-10-13 build: "🧪 1.4.3", build 1783), and no stable
+        //     release carries the emoji. Without this the copy read as stable
+        //     and the comparator put "🧪 1.4.3" below 1.4.2, so the stable rule
+        //     offered 1.4.2 to a newer build — a downgrade, with the Team gate
+        //     passing.
+        if bundleID == "com.MrKai77.Loop",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           version.hasPrefix("🧪") {
+            return .dev
         }
 
         // 1. Keystone's own channel id — authoritative when present.

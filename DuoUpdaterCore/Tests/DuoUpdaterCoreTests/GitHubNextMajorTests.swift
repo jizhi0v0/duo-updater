@@ -96,6 +96,8 @@ struct GitHubNextMajorTests {
             "Audacity 3; 4.x ships as Audacity 4.app, org.audacityteam.audacity4 (docs/app-audits/org-audacityteam-audacity.md)",
         "org.audacityteam.audacity4":
             "Audacity 4; the audit splits the shared tag list by major, and no 5.x exists to say which app it would be",
+        "org.musescore.MuseScore":
+            "MuseScore 4; the vendor ships each major as its own `MuseScore <major>.app`, and main's version.cmake builds 5.x as org.musescore.MuseScoreStudio5 (docs/app-audits/org-musescore-MuseScore.md)",
     ]
 
     @Test func theExemptionsStillPinAMajor() {

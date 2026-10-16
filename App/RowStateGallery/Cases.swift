@@ -34,6 +34,21 @@ enum RowStateGalleryCases {
     /// The plain row every state uses unless it needs something more specific.
     static let app = result()
 
+    /// A copy on the old id of a REAL `BundleIDMigration` rewrite entry — the
+    /// popover reads `UpdateResult.isVendorRewrite`, which only the registered
+    /// table can answer, so a made-up id would draw the license panel instead.
+    static let rewriteApp = UpdateResult(
+        app: InstalledApp(
+            name: "MySQLWorkbench", bundleID: "com.oracle.workbench.MySQLWorkbench",
+            shortVersion: "8.0.47.CE", buildVersion: "1",
+            path: URL(fileURLWithPath: "/Applications/MySQLWorkbench.app"),
+            isMASApp: false, sparkleFeedURL: nil),
+        remote: RemoteVersion(
+            shortVersion: "26.7.0", version: nil,
+            downloadURL: URL(string: "https://example.com/Example.dmg"),
+            sourceName: "Vendor"),
+        status: .updateAvailable(latest: "26.7.0"))
+
     // The App Store branches are the reason these exist. A single fixture with
     // `remote.appStore == nil` sent EVERY App Store state down `openButton`, so
     // three tiles rendered byte-identically and `appStoreTrailing` — region hint,
@@ -72,7 +87,7 @@ enum RowStateGalleryCases {
     @MainActor
     private static func popoverTile(name: String, state: RowActionState, result: UpdateResult) -> AnyView {
         switch name {
-        case "38-major-upgrade-explanation":
+        case "38-major-upgrade-explanation", "52-vendor-rewrite-explanation":
             return AnyView(
                 PopoverRowAction(state: state, result: result).majorUpgradePopover.fixedSize())
         case "39-region-hint-explanation", "40-mac-compat-hint-explanation", "44-needs-newer-macos-hint-explanation":
@@ -284,6 +299,10 @@ enum RowStateGalleryCases {
         // bundle left behind): the badge where Update used to be, and its panel.
         ("50-orphaned-store-copy", .orphanedStoreCopy(updatedCopy: "Example Renamed.app", version: "1.3.0"), app),
         ("51-orphaned-store-copy-explanation", .orphanedStoreCopy(updatedCopy: "Example Renamed.app", version: "1.3.0"), app),
+        // 38's badge and panel, for an update that replaces the app with the
+        // vendor's rewrite (`BundleIDMigration.isRewrite`): same confirmation,
+        // rewrite wording instead of the license one.
+        ("52-vendor-rewrite-explanation", .updateAvailable(.majorUpgrade), rewriteApp),
     ]
 
     /// Hosts written out, never read: the gallery must draw the same picture on any
@@ -329,6 +348,7 @@ enum RowStateGalleryCases {
         "48-not-for-this-macos-ceiling-explanation",
         "49-not-for-this-macos-floor-explanation",
         "51-orphaned-store-copy-explanation",
+        "52-vendor-rewrite-explanation",
     ]
 
     /// Tiles that are ALLOWED to draw nothing — keyed by SURFACE and state, not by
@@ -350,6 +370,7 @@ enum RowStateGalleryCases {
         "workbench/44-needs-newer-macos-hint-explanation",
         "workbench/48-not-for-this-macos-ceiling-explanation",
         "workbench/49-not-for-this-macos-floor-explanation",
+        "workbench/52-vendor-rewrite-explanation",
     ]
 
     /// Pairs of states that legitimately draw the same picture, keyed

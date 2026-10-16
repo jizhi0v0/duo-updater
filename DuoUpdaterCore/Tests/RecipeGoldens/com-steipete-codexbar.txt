@@ -25,3 +25,5 @@ loginWalls = Dictionary(count: 0)
 
 changelogPages = Dictionary(count: 1)
 changelogPages["com.steipete.codexbar"] = URL("https://github.com/steipete/CodexBar/releases")
+
+oneClickGates = Array(count: 0)

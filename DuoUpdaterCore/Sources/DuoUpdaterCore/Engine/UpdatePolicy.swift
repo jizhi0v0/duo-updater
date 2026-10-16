@@ -171,6 +171,10 @@ public enum UpdatePolicy {
         // release; this is the only branch here that turns a *previously offered*
         // one-click off, and only the user can turn it back on (row context menu).
         if elevationDeclined(result, settings: settings, environment: environment) { return false }
+        // A copy its recipe family keeps off the one-click (another app or
+        // edition under the same id, see `OneClickGate`): detection only, every
+        // source.
+        if OneClickGateRegistry.withholding(result.app) != nil { return false }
         // An input method is registered with the system, not merely copied: the
         // vendor's installer calls `TISRegisterInputSource` on the bundle PATH
         // (WeType's installer binary carries "Registered input source from

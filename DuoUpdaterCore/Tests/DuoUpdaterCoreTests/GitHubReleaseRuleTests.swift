@@ -746,6 +746,20 @@ private func matches(
     #expect(rule("com.objective-see.lulu.app").installerKind == .dmg)
 }
 
+@Test func knockKnockRuleReadsEveryStableTagAndTheUnderscoreZip() {
+    let id = "com.objective-see.KnockKnock"
+    // Every non-prerelease tag published as of 2026-10-16 is `vX.Y.Z`.
+    for tag in ["v2.2.0", "v2.3.0", "v2.5.0", "v3.0.0", "v3.1.0", "v4.0.0", "v4.0.3", "v4.1.0"] {
+        #expect(extract(tag, id) == String(tag.dropFirst()))
+    }
+    #expect(extract("v5.0", id) == "5.0")
+    #expect(extract("v4.2.0-beta.1", id) == nil)
+    #expect(extract("v4.2.0b1", id) == nil)
+    #expect(matches("KnockKnock_4.1.0.zip", id))
+    #expect(!matches("KnockKnock_4.1.0.zip.sha256", id))
+    #expect(rule(id).installerKind == .zip)
+}
+
 @Test func noTunesRuleHandlesTwoComponentTag() {
     #expect(extract("v3.5", "digital.twisted.noTunes") == "3.5")
     #expect(matches("noTunes-3.5.zip", "digital.twisted.noTunes"))

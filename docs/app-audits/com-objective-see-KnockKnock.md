@@ -82,7 +82,7 @@
 
 ## 一键安装
 - 状态: **支持**（按 Team 闸）
-- 端到端: 真机端到端：待主会话执行
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：4.0.3 → 4.1.0（含 `verifyingSignature`），`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 格式: zip（universal，公证、staple）；bundle 内没有嵌套 app、XPC、LoginItems 或 LaunchAgents
 - Pattern: `^KnockKnock_[0-9]+(?:\.[0-9]+)+\.zip$`, kind `.zip`
 - 解包: 4.1.0 的 zip 把 AppleDouble 文件（`Contents/Resources/._*.png`）当普通条目存着。`unzip` 解出来

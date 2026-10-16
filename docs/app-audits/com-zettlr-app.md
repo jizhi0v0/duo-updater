@@ -119,7 +119,7 @@
 
 ## 一键安装
 - 状态: **支持**（stable、beta；按 Team 闸）。`com.zettlr.www` 仅检测
-- 端到端: 真机端到端：待主会话执行
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：4.7.0 → 4.8.0（含 `verifyingSignature`），`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 格式: dmg（公证）。嵌套的四个 `Zettlr Helper*.app`（GPU / Plugin / Renderer / 无后缀，`LSUIElement=true`）是
   Electron 的子进程，随主进程退出，不是常驻 agent；bundle 内没有 LoginItems / LaunchAgents
 - Pattern: stable `^Zettlr-[0-9]+(?:\.[0-9]+)+-(?:arm64|x64)\.dmg$`；beta 另收 `-beta[.N]`。不匹配 AppImage/deb/rpm/exe 与 `SHA256SUMS.txt`

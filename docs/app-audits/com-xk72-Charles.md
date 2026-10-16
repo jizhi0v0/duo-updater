@@ -83,7 +83,7 @@ beta 副本今天的表现（推断，没拿 beta 真包验，因为下不到）
 
 ## 一键安装
 - 状态: 支持（5.x）
-- 端到端: 真机端到端：待主会话执行
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：5.2.1 → 5.2.2，`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 格式: dmg（UDBZ，无 SLA；内含 `Charles.app` 和 `Applications` 链接）
 - 下载地址: `.versionTemplate`，`https://www.charlesproxy.com/assets/release/{version}/charles-proxy-{version}.dmg`，与 Homebrew cask 同一个地址形状。
   5.2.2、5.2.1、5.2、5.1、5.0 都回 200（两段版本 `5.2` 也是这个形状）。

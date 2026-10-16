@@ -99,7 +99,7 @@ Krita Next（`master/macos-universal/krita-6.1.0-prealpha-*.dmg`）没下载，�
 
 ## 一键安装
 - 状态: 支持（两条线都是 dmg，Team 闸）
-- 端到端: 真机端到端：待主会话执行
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：5.3.3 → 5.3.4（装的是 5.3.4.1 的 dmg，bundle 读 5.3.4），`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 格式: dmg（universal，只含 `krita.app`；无 SLA，挂载即见）。`download.kde.org` 302 到镜像
 - 校验: 厂商只发 md5（版本目录的「Details」），`checksumFormat` 不支持，没接；完整性靠 Team 闸
 - **读的是**: 人人可手动下载的 GA（下载页 / 发布文里的公开链接，无分桶）

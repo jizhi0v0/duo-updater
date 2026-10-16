@@ -70,7 +70,7 @@
 - 校验: GitHub 资产 `digest`。`shasum -a 256`: 2.5 = `aec02175…bac6731c`、2.4 = `fe3f25cb…69fde1ae`，与 `digest` 相同
 - 上一版 Team: 2.4 = `27NC66L8P2`，与 2.5 相同（实测）
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`，也是 app 自己的「下载」按钮打开的页面）
-- 端到端: 真机端到端：待主会话执行
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：2.4 → 2.5（含 `verifyingSignature`；未启动，root helper 未注册），`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 阻塞: 无
 
 ### 特权 helper（换包后会怎样）

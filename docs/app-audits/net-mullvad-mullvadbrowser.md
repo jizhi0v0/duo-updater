@@ -99,7 +99,7 @@
 - alpha 渠道证明: `githubChannelProofs` 断言 URL 为 `/download/<v>a<N>/mullvad-browser-macos-<v>a<N>.dmg`
 - **读的是**: 人人可手动下载的 GA（stable: `/releases/latest`，下载页 `/latest` 302 到同一 dmg；alpha: 下载页
   `/latest-alpha` 链接的同一版本）。app 自己的 update XML 请求只带版本与平台、不带设备标识，没看到按设备灰度。
-- 真机端到端：待主会话执行
+- 真机端到端（2026-10-16，集成分支 `make cli`）：15.0.24 → 15.0.25（含 `verifyingSignature`），`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 阻塞: 无
 
 ## 已知问题

@@ -80,7 +80,7 @@ Axosoft 的 Git 客户端，Electron 套壳，用 Electron 自带的 `autoUpdate
 
 ## 一键安装
 - 状态: 支持（`.versionTemplate` → arm64 zip）
-- 端到端: 真机端到端：待主会话执行
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：12.5.0 → 12.6.0，`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 格式: zip（stored，包根 `GitKraken.app`）
 - 校验: 应答不发摘要（只有 `name` 和 `url`），只靠签名 + Team 闸
 - **读的是**: 人人可手动下载的 GA

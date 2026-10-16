@@ -82,7 +82,7 @@
 - 校验: 资产上传于 2025-06 之前，GitHub 没有 `digest`；按 Team 闸安装。1.9.6 zip `shasum -a 256` = `bc1a73b9…74336862`，与 cask 的 sha256 相同
 - **读的是**: 人人可手动下载的 GA（GitHub `/releases/latest`）
 - 上一版 Team: 1.9.4 = `S8JLSG5ES7`、Notarized（实测），与 1.9.6 相同
-- 真机端到端：待主会话执行（1.9.4 → 1.9.6）
+- 真机端到端（2026-10-16，集成分支 `make cli`）：1.9.4 → 1.9.6，`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 阻塞: 无
 
 ## 已知问题

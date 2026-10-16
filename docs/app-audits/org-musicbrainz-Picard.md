@@ -98,7 +98,7 @@
 
 ## 一键安装
 - 状态: 支持（`installAssetPattern` `^MusicBrainz-Picard-[0-9][0-9A-Za-z.]*-macOS-[0-9.]+-arm64\.dmg$`，`.dmg`）
-- 端到端: 真机端到端：待主会话执行
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：3.0.1 → 3.0.2（含 `verifyingSignature`），`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 格式: dmg（arm64，3.0.2 为 60,445,028 B）
 - 校验: GitHub 资产 `digest`（SHA-256），每条 rule 自动带上。实测 3.0.2 arm64 dmg SHA-256
   `15f9054dfc381c6fe3884844361efc119e92d418aa88c6b1bcbf10492a5e7b7b`、3.0.1 `69c438f5c41bd951ac3451b052a697d0aaf618cedf6f335fce5eac4c7296b609`，

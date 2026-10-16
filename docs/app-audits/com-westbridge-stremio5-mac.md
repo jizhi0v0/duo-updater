@@ -102,7 +102,7 @@
 
 ## 一键安装
 - 状态: 支持（`install: .versionTemplate("https://dl.strem.io/stremio-shell-macos/v{version}/Stremio_arm64.dmg")`，`.dmg`）
-- 端到端: 真机端到端：待主会话执行
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：5.1.27 → 5.1.28，`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 格式: dmg（UDZO，无 SLA；根目录 `Stremio.app` + `Applications` 软链接；5.1.28 为 113,661,066 B）
 - 校验: **不接**。descriptor 的 `checksum` 是 dmg 的 hex SHA-256，真实下载相等（5.1.28
   `cd1963dbf0c26900d8880f440a2e7e0c3841c8f58b7e23e6491f9f66d066fd3d`、5.1.27 `ec1364e4…`、5.1.26 `f85286f2…`，

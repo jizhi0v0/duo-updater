@@ -94,7 +94,7 @@
 
 ## 一键安装
 - 状态: 支持（`.versionTemplate`，dmg）
-- 端到端: 真机端到端：待主会话执行
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：2.11.2 → 2.11.3，`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 格式: dmg，`https://download.snipaste.com/archives/Snipaste-{version}.dmg`（universal，下载页标为 "Universal" 的那个文件，也是 cask 的 URL）
 - 校验: `versions` 不带摘要。厂商另有 `dl.snipaste.com/sha-1.txt`，是 SHA-1，不支持，所以没接；只靠 Team ID 闸。
   2.11.3 dmg 实测 SHA-256 `a2287838889e7b1734a65d952bae5ef7f479bdc163d0c31be91859bca120fd3e`（36,795,585 bytes），与 cask 的 `sha256` 一致。

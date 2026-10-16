@@ -85,7 +85,7 @@ beta 副本的 short 版本是 `2.0.0`，所以它会被当作 stable 2.0.0，�
 - 包内没有 helper、login item、XPC、launch agent；开机启动用的是 `SMAppService.mainApp`（`LaunchAtLogin-Modern`），也就是 app 自己，所以 `.zip` 换包即可
 - 旧 bundle id 的副本：`BundleIDMigration` 让 `com.davidbures.cork` / `com.davidbures.Cork`（< 1.6.0，同一 Team）可以被 `eu.davidbures.cork` 替换。
   厂商 1.6.0 的文章说明了这次换 id：设置可能重置一次，可能要重新输入一次邮箱
-- 真机端到端：待主会话执行
+- 真机端到端（2026-10-16，集成分支 `make cli`）：**失败，4/4 次**。每次都是 `failed: ditto -x -k failed (1): ditto: Couldn't read PKZip signature`，停在 extracting，旧版 2.0.2 原样、签名完好。原因（推断）：corkmac.app 逐请求严格交替真内容/首页 HTML（同日实测 10 次，代理内外一致），一次安装里探针在前、下载在后，下载总落在 HTML 上；不是「约一半失败」。一键要等下载器认出 HTML 并重试，或改成只检测
 - 包 URL：最新 `https://corkmac.app/RLS/2.0.3/Cork.zip`，上一版 `https://corkmac.app/RLS/2.0.2/Cork.zip`
 
 ## 已知问题

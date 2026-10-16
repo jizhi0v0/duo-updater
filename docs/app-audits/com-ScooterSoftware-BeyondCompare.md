@@ -106,7 +106,7 @@
 
 ## 一键安装
 - 状态: 支持（两代都接）
-- 端到端: 真机端到端：待主会话执行
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：5.2.5.32528 → 5.2.6.32774，`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 格式: zip，包根直接是 `Beyond Compare.app`；URL 由解析出的版本拼成 `https://www.scootersoftware.com/files/BCompareOSX-{version}.zip`
   （BC4 的 zip 也在 `/files/` 下，实测 200）
 - 校验: 下载页与端点都不发摘要，只靠 Team 闸。实测 SHA-256: 5.2.6 zip `d52a9f15…6bba`（= cask sha256），5.2.5 zip `f913d05e…aba3`

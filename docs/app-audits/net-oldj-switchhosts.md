@@ -119,7 +119,7 @@ v5 首次启动会把 v4 的 PotDb 数据（`~/.SwitchHosts/{data,config}`）迁
     这与 app 自己的 Tauri updater 原地替换 bundle 后的状态完全相同，所以不因此拦一键。没有真机验证（未验证）
 - **读的是**: 人人可手动下载的 GA（stable 走 `/releases/latest`，beta 走 release 列表；都是 release 页上直接给的 dmg）。
   beta rule 只对已经装着 beta 的副本生效，不会把 beta 推给装正式版的人
-- 端到端: 真机端到端：待主会话执行（上一版 5.0.1 universal → 5.0.2）
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：5.0.1 → 5.0.2（含 `verifyingSignature`；未启动，`sfltool dumpbtm` 前后都无 SwitchHosts 项），`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 阻塞: 无
 
 ## 已知问题

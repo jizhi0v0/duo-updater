@@ -115,7 +115,7 @@ settled from source: `Loop/Updater/UpdaterModels.swift`、`Loop/Updater/UpdateCh
   1.4.2 上实测 `status=0`——这个 xattr 不挡一键。同类情况见 PhotoCraft 的审计
 - Team: 上一版 1.4.1、以及 1.0.0–1.4.0 都是 `5F967GYF84`，与 1.4.2 相同，Team 闸不会拒绝老的正式版副本
 - **读的是**: 人人可手动下载的 GA（GitHub `/releases/latest` 的附件，也是厂商自己更新器读的那一个）
-- 端到端: 真机端到端：待主会话执行
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：1.4.1 → 1.4.2（含 `verifyingSignature`），`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 自更新器会不会和我们抢: 1.4.2 的更新器只在用户确认（或开了默认关闭的自动更新且 Loop 不在前台）时下载并安装，
   没有常驻进程。开发分支已加 `Contents/Library/LaunchServices/LoopUpdaterHelper`（dev 构建里有，1.4.2 没有）：
   `UpdaterAuthorizationCoordinator.swift` 用 `SMJobSubmit` 临时提交一个 `LaunchOnlyOnce` 的 system job，用完即

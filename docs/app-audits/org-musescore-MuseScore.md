@@ -111,7 +111,7 @@ testing 副本被推 stable 是往前走。
   QuickLook 预览扩展（`com.apple.quicklook.preview`）和 Qt 插件目录。换 bundle 后系统重新登记扩展，没有常驻进程
 - 上一版 Team: 4.7.4 = 6EPAF2X3PR，与 4.7.5 相同（实测），闸不会拒
 - **读的是**: GitHub `/releases/latest` 的资产，与 Homebrew cask 下载的是同一个文件（sha256 相同）
-- 真机端到端：待主会话执行
+- 真机端到端（2026-10-16，集成分支 `make cli`）：4.7.4 → 4.7.5（含 `verifyingSignature`；`duo` 里显示名是 MuseScore Studio），`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 阻塞: 无（3.x 的问题见「已知问题」）
 
 ## 已知问题

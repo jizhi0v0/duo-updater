@@ -90,7 +90,7 @@ electron-builder 配置、无 MyGo feed）：xbar 的更新器在 Go 代码里�
 - Team: v2.1.6-beta 与 v2.1.7-beta 都是 `N3H5B92L5N`，`codesign --verify --deep --strict` 通过（v2.1.7）
 - 校验: 无。GitHub 对这两个 release 的资产不给 `digest`（2021 年上传，早于 GitHub 加 digest），只靠 Team 闸
 - **读的是**: 人人可手动下载的 GA（GitHub `/releases/latest`，与 app 自己的更新器、Homebrew cask 同一个 dmg）
-- 真机端到端：待主会话执行
+- 真机端到端（2026-10-16，集成分支 `make cli`）：v2.1.6-beta → v2.1.7-beta，`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 阻塞: 无（v2.0.40–v2.0.42 的副本需手动更新一次）
 
 ## 已知问题

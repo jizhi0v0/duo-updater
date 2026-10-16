@@ -73,7 +73,7 @@
 
 ## 一键安装
 - 状态: **支持**（dmg）
-- 端到端: 真机端到端：待主会话执行
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：2.3 → 2.4，`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 格式: dmg（`.versionTemplate` → `https://mounty.app/releases/Mounty-{version}.dmg`，用探到的版本号拼，比较的版本就是下载的版本）。
   无 SLA（`hdiutil imageinfo`: `Software License Agreement: false`）
 - 包内容: 只有 `Mounty.app`。嵌套 app 只有 `Contents/Library/LoginItems/MountyHelper.app`（`com.cu4uc.MountyHelper`，

@@ -78,7 +78,7 @@ Homebrew cask `jellyfin`。
 
 ## 一键安装
 - 状态: 支持（Team-ID 闸）
-- 端到端: 真机端到端：待主会话执行
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：12.1 → 12.2，`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 格式: dmg（ULFO，无 SLA：`hdiutil imageinfo` 报 `Software License Agreement: false`）
 - URL: `.versionTemplate("https://repo.jellyfin.org/files/server/macos/stable/v{version}/arm64/jellyfin_{version}-arm64.dmg")`——用比较过的版本号拼不可变的按版本目录，
   不用会随下一版移动的 `latest-stable/` 别名。文件服务器 302 到地理镜像（如 `sfo1.mirror.jellyfin.org`）。

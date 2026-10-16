@@ -110,7 +110,7 @@ cask `mysqlworkbench` 2026-10-16 仍是 8.0.47）
 
 ## 一键安装
 - 状态: 支持（26.x → 26.x，以及 8.0.x → 26.x 经确认后）
-- 端到端: 真机端到端：待主会话执行。26.x 只有 26.7.0 一个版本；可跑的 old→new 是 8.0.47 → 26.7.0（跨 id，走迁移）
+- 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：用户本机真实的 8.0.47.CE（`com.oracle.workbench.MySQLWorkbench`）→ 26.7.0（`com.oracle.mysqlworkbench`），跨 id 经迁移；装好的 DuoUpdater 里该行显示「Major update」/「⚠」，点开是「Rewritten app」面板。26.x → 26.x 只有 26.7.0 一个版本，未做，`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 格式: dmg（UDBZ，无 SLA）
 - 校验: 页面只公布 MD5（26.7.0 dmg `bb0f5e5bcba12d4add0a35957ce47355`，与下载的 315,593,422 字节一致），
   `checksumFormat` 不支持 MD5，不接；只靠 Team-ID 闸

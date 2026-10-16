@@ -264,6 +264,7 @@ public enum AppRecipeIndex {
         org_inkscape_Inkscape.set,
         org_jkiss_dbeaver_core_product.set,
         org_keepassxc_keepassxc.set,
+        org_krita.set,
         org_libreoffice_script.set,
         org_localsend_localsendApp.set,
         org_mozilla_firefox.set,

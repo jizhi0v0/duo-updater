@@ -207,6 +207,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Moshi Go**](app-getmoshi-desktop.md) · `app.getmoshi.desktop`（Tauri 版 `app.getmoshi.desktop.tauri` 由 `BundleIDMigration` 归到这里）— P C (one-click, tar.gz) · Moshi 的原生重写，与 Tauri 版是两个 bundle id · MyGo delta 增量更新 ✓（原生应用器 + Ed25519 签名校验，仅 tar.gz 装的副本可吃）· 全量包同样验 MyGo 签名· 真实 DMG channel-verify + duo install 两轮 ✓ · 2026-10-07 · 2026-10-13 起 Moshi Go 副本由通用 MyGoUpdateSource 应答，probe 只接 Tauri 副本
 - [x] [**Moshi（Tauri）**](app-getmoshi-desktop-tauri.md) · `app.getmoshi.desktop.tauri` — 无自己的 recipe（2026-10-11 退役）· 厂商经 Tauri feed 迁往 Moshi Go，`BundleIDMigration` 让 Tauri 副本走 Moshi Go 的 recipe（一键未真机验证）· Tauri feed 的 0.5.12 包即 Moshi Go，真包核对 ✓ · 2026-10-11
 - [x] [**Jellyfin Server**](Jellyfin-Server.md) · `Jellyfin.Server` — P C (one-click) · 菜单栏启动器 + 子进程服务端，无自更新器 · 读厂商文件服务器 `latest-stable/arm64/` 索引，按比较过的版本拼不可变目录下 dmg · GitHub release 无 asset，只取说明 · rc 同 id，读作 stable（终版发布后带回 stable；rc 窗口期不推下一个 rc）· channel-verify 12.1→12.2 ✓，真机端到端待跑 · 2026-10-16
+- [x] [**Krita**](org-krita.md) · `org.krita` — P C (one-click dmg) · 5.x（下载页）与 6.x（Qt 6，读发布 RSS）两条正式线共用 id，按装机主版本分 recipe · 热修复第四段只在 `CFBundleLongVersionString`，版本取前三段 · 夜构建同 id 无后缀，未接 · 4.x 是另一个 Team，一键被拒 · 真实 DMG channel-verify ✓（5.3.3/5.3.4.1/6.0.3/6.0.4.1）· 2026-10-16
 
 ## Single-channel — GitHub Releases
 

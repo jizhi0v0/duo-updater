@@ -193,6 +193,7 @@ public enum AppRecipeIndex {
         com_voprex_gotemail.set,
         com_vorssaint_utils.set,
         com_vscodium.set,
+        com_westbridge_stremio5_mac.set,
         com_windscribe_client.set,
         com_workbuddy_workbuddy_ai.set,
         com_xd_cindy.set,

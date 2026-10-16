@@ -38,6 +38,13 @@ import Foundation
         #expect(throws: (any Error).self) {
             try ClaudeCLI.answer(from: Data(none.utf8), status: 0, standardError: "")
         }
+        // A bare value would crash `JSONSerialization.data(withJSONObject:)`; it is refused instead.
+        for value in [#""ok""#, "3", "[1]", "null"] {
+            let bare = #"{"type":"result","is_error":false,"structured_output":"# + value + "}"
+            #expect(throws: (any Error).self) {
+                try ClaudeCLI.answer(from: Data(bare.utf8), status: 0, standardError: "")
+            }
+        }
     }
 
     /// Seen on the mini on 2026-10-11: not logged in arrives as a JSON document

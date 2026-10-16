@@ -103,9 +103,11 @@ public enum ClaudeCLI {
         guard output.is_error != true, status == 0 else {
             throw Failure(description: "claude reported: \(output.result ?? "an unspecified error")")
         }
+        // An object, never a bare value: `data(withJSONObject:)` raises rather than
+        // throws on anything else, and both schemas ask for an object anyway.
         guard let document = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let structured = document["structured_output"], !(structured is NSNull)
-        else { throw Failure(description: "claude returned no structured_output") }
+              let structured = document["structured_output"] as? [String: Any]
+        else { throw Failure(description: "claude returned no structured_output object") }
         return String(decoding: try JSONSerialization.data(withJSONObject: structured), as: UTF8.self)
     }
 }

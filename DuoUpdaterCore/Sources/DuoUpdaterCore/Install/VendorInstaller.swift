@@ -88,6 +88,9 @@ public actor VendorInstaller {
         /// asset itself — a stash or a patch — so the published digest cannot
         /// speak for these bytes.
         case digestOnlyNeedsTheAsset
+        /// The installed copy is an edition the recipe's build is not
+        /// (`GitKrakenEdition`): installing it would change the edition.
+        case otherEdition
 
         public var errorDescription: String? {
             switch self {
@@ -105,6 +108,8 @@ public actor VendorInstaller {
                 return String(localized: "This app has no developer signature, and one-click updates for such apps are turned off in Settings. Nothing was changed.")
             case .digestOnlyNeedsTheAsset:
                 return "Only the release asset itself can be checked against GitHub's published hash. Nothing was changed."
+            case .otherEdition:
+                return "This copy is a different edition of the app than the update offered (for GitKraken, the On-Premise edition). Update it from the vendor. Nothing was changed."
             }
         }
     }
@@ -141,6 +146,10 @@ public actor VendorInstaller {
         }
         guard let kind = remote.vendorInstallerKind, kind != .pkg else {
             throw InstallError.unknownKind  // pkg goes through PackageInstaller
+        }
+        // Asked again at click time: `canAutoInstall` is the offer, this is the gate.
+        if GitKrakenEdition.withholdsOneClick(bundleID: result.app.bundleID, bundleURL: result.app.path) {
+            throw InstallError.otherEdition
         }
 
         // Bytes this app's OWN updater has already fetched for exactly this release.
@@ -210,11 +219,23 @@ public actor VendorInstaller {
                 return try await adopt(stash, into: workDir)
             }
 
-            let downloader = Downloader(destinationDir: workDir) { fraction in
-                onStage(.downloading(fraction: fraction))
+            // A web page where the archive should be is retried: some vendors
+            // answer part of their requests with their home page (HTTP 200,
+            // `text/html`) — corkmac.app about one in two. Not for a patch,
+            // whose bytes are not an archive this check knows.
+            var downloader: Downloader!
+            var bytesDownloaded: Int64 = 0
+            let downloaded = try await Self.fetchArchive(
+                maxAttempts: patch == nil ? Self.htmlBodyMaxAttempts : 1
+            ) {
+                downloader = Downloader(destinationDir: workDir) { fraction in
+                    onStage(.downloading(fraction: fraction))
+                }
+                let file = try await downloader.download(
+                    patch?.url ?? downloadURL, headers: remote.downloadHeaders)
+                bytesDownloaded += downloader.bytesDownloaded
+                return file
             }
-            let downloaded = try await downloader.download(
-                patch?.url ?? downloadURL, headers: remote.downloadHeaders)
 
             // Ensure the file carries an extension matching its kind, so the
             // extractor dispatches correctly even for extensionless CDN-asset URLs.
@@ -225,7 +246,7 @@ public actor VendorInstaller {
                 : downloaded
             return DownloadedUpdate(
                 archiveURL: archive,
-                bytesDownloaded: downloader.bytesDownloaded,
+                bytesDownloaded: bytesDownloaded,
                 workDir: workDir,
                 finalHost: downloader.finalHost,
                 appliedPatch: patch)
@@ -613,6 +634,40 @@ public actor VendorInstaller {
             // number that ledger exists to be trusted on.
             bytesDownloaded: 0,
             workDir: workDir, finalHost: nil, localStash: stash)
+    }
+
+    /// Downloads of an archive that come back as a web page before one is kept.
+    /// At one in two (Cork's server), four attempts all failing is 1 in 16.
+    static let htmlBodyMaxAttempts = 4
+
+    /// Runs `fetch` until the file it returns is not an HTML document, at most
+    /// `maxAttempts` times; each HTML body is deleted. The last one is returned
+    /// as is, so the extractor reports the failure it always has.
+    static func fetchArchive(
+        maxAttempts: Int, _ fetch: () async throws -> URL
+    ) async throws -> URL {
+        var attempt = 1
+        while true {
+            let file = try await fetch()
+            guard attempt < maxAttempts, isHTMLDocument(at: file) else { return file }
+            Log.install.info("download was a web page, not an archive: retry \(attempt, privacy: .public)/\(maxAttempts - 1, privacy: .public)")
+            try? FileManager.default.removeItem(at: file)
+            attempt += 1
+        }
+    }
+
+    /// Whether a downloaded file is an HTML document: its first bytes, after an
+    /// optional UTF-8 BOM and whitespace, open `<!DOCTYPE html` or `<html`. No
+    /// zip (`PK`), tar.gz (`1f 8b`) or disk image starts that way.
+    static func isHTMLDocument(at file: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return false }
+        defer { try? handle.close() }
+        guard let head = try? handle.read(upToCount: 512), !head.isEmpty else { return false }
+        var bytes = head[...]
+        if bytes.starts(with: [0xEF, 0xBB, 0xBF]) { bytes = bytes.dropFirst(3) }
+        let text = String(decoding: bytes, as: UTF8.self)
+            .drop { $0.isWhitespace }.prefix(14).lowercased()
+        return text.hasPrefix("<!doctype html") || text.hasPrefix("<html")
     }
 
     /// Move/rename the download so its extension reflects `kind`. The Tauri/CDN

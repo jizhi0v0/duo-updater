@@ -20,7 +20,7 @@ Homebrew 的图形前端（David Bureš，源码在 `buresdv/Cork`）。app 自�
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **stable**   | —       | —        | —   | ✗ 落后于官网 | ✓ 一键 zip |
+| **stable**   | —       | —        | —   | ✗ 落后于官网 | ✓ 一键 zip（下载遇首页重下） |
 | **beta**     | —       | —        | —   | ○ 目前没有在跑的 beta | — |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **Vendor**
@@ -55,8 +55,11 @@ beta 副本的 short 版本是 `2.0.0`，所以它会被当作 stable 2.0.0，�
   `1.6.1%2BSonoma/` 都不匹配。目录名等于包内 `CFBundleShortVersionString`（`1.4`、`1.5`、`1.7.3.1`、`2.0.3` 都核对过）。
 - 为什么不用 GitHub Releases：`v2.0.3` 只有 tag 没有 release（GitHub 最新 release 是 2.0.2，2026-09-14），
   官网 2.0.3 同日已上线；cask 也读官网。
-- **服务器隔一个请求回一次首页**：同一 URL 交替返回目录索引和完整的首页 HTML（都是 200），zip 地址也一样。
-  recipe 的 `transientBodyPattern` 认出首页（HTML5 文档、`<title>Cork: …`；目录索引是裸 `<html>`、标题 `Index of /RLS/`），重试一次即拿到索引。
+- **服务器约一半请求回首页**：同一 URL 交替返回目录索引和完整的首页 HTML（都是 200），zip 地址也一样。
+  本机单独顺序请求时严格交替（2026-10-16 连发 30 次 `HiHi…`，0 次连续两个 HTML）；同时有别的客户端在请求时（当时另一个 agent 也在测）
+  见过 `HiHHii`。推测是服务端对所有来访者统一轮转，别人的请求会插进来，所以对单个客户端不保证交替（未验证）。
+  recipe 的 `transientBodyPattern` 认出首页（HTML5 文档、`<title>Cork: …`；目录索引是裸 `<html>`、标题 `Index of /RLS/`），重试一次；
+  通常拿到索引，碰上两次都是首页时这次检查报错（下次扫描再查）。重试次数是共用的 `versionFeedData` 定的一次，没为 Cork 单改。
 
 ## 增量更新（delta / binary patch）
 
@@ -79,19 +82,23 @@ beta 副本的 short 版本是 `2.0.0`，所以它会被当作 stable 2.0.0，�
 - 跟随 channel: 只有 stable
 
 ## 一键安装
-- 状态: **一键**（`VendorInstallSpec`，`.versionTemplate("https://corkmac.app/RLS/{version}/Cork.zip")`，`kind: .zip`）
+- 状态: **一键**，下载到首页 HTML 时由 `VendorInstaller.fetchArchive` 重下（`VendorInstallSpec`，`.versionTemplate("https://corkmac.app/RLS/{version}/Cork.zip")`，`kind: .zip`）
 - 包: zip 内只有 `Cork.app`，universal，`spctl` 显示 `Notarized Developer ID`，Team `ZSVA6DVZHM`
 - 上一版的 Team：2.0.2、2.0.1、1.7.6、1.6.0 都是 `ZSVA6DVZHM`，`com.davidbures.*` 时代的 0.9、1.0.0、1.1、1.4–1.4.6、1.5、1.5.7 也一样
 - 包内没有 helper、login item、XPC、launch agent；开机启动用的是 `SMAppService.mainApp`（`LaunchAtLogin-Modern`），也就是 app 自己，所以 `.zip` 换包即可
 - 旧 bundle id 的副本：`BundleIDMigration` 让 `com.davidbures.cork` / `com.davidbures.Cork`（< 1.6.0，同一 Team）可以被 `eu.davidbures.cork` 替换。
   厂商 1.6.0 的文章说明了这次换 id：设置可能重置一次，可能要重新输入一次邮箱
-- 真机端到端（2026-10-16，集成分支 `make cli`）：**失败，4/4 次**。每次都是 `failed: ditto -x -k failed (1): ditto: Couldn't read PKZip signature`，停在 extracting，旧版 2.0.2 原样、签名完好。原因（推断）：corkmac.app 约一半请求回首页 HTML，多数时候严格交替（同日实测 10 次，代理内外一致），一次安装里探针在前、下载紧随其后，下载落在 HTML 上；真机上不是「约一半失败」。同日后来用 cookie jar 连发 6 次是 HTML/目录/HTML/HTML/目录/目录，**并非总是严格交替**；HTML 那次是直接 200（`x-powered-by: PHP`），没有 `Location`、没有 `Set-Cookie`，禁止重定向或带 cookie 都无用。一键要等下载器认出 HTML 并重试，或改成只检测
+- 真机端到端（2026-10-16，集成分支 `make cli`，加 HTML 重试**之前**）：**失败，4/4 次**。每次都是 `failed: ditto -x -k failed (1): ditto: Couldn't read PKZip signature`，停在 extracting，旧版 2.0.2 原样、签名完好。原因（推断）：corkmac.app 约一半请求回首页 HTML，多数时候严格交替（同日实测 10 次，代理内外一致），一次安装里探针在前、下载紧随其后，下载落在 HTML 上；真机上不是「约一半失败」。同日后来用 cookie jar 连发 6 次是 HTML/目录/HTML/HTML/目录/目录，**并非总是严格交替**；HTML 那次是直接 200（`x-powered-by: PHP`），没有 `Location`、没有 `Set-Cookie`，禁止重定向或带 cookie 都无用。一键要等下载器认出 HTML 并重试，或改成只检测
 - 包 URL：最新 `https://corkmac.app/RLS/2.0.3/Cork.zip`，上一版 `https://corkmac.app/RLS/2.0.2/Cork.zip`
 
 ## 已知问题
-- **一键现在用不了**：服务器约一半请求回首页（见更新检测），下载不走 `transientBodyPattern` 的重试。
-  真机 4/4 次都抽到首页：解包失败、安装失败，app 不受影响；再点一次也一样（探针总在下载前一个请求）。
-  修法待定：下载器认出「200 但其实是 HTML」后重试，或把 `install:` 去掉改为只检测。
+- **下载会抽到首页（已加重试）**：服务器约一半请求回首页（见更新检测），下载不走 `transientBodyPattern` 的重试；
+  加重试前真机 4/4 次都抽到首页（解包失败、安装失败，app 不受影响）。现在 `VendorInstaller.fetchArchive` 认出下载到的是 HTML
+  文档（开头 `<!DOCTYPE html` / `<html`）就删掉重下，最多 4 次（各约 1/2 时全败约 1/16）；加重试后的真机端到端（2026-10-16，集成分支 `make cli`）：2.0.2 → 2.0.3 成功，`backed up … verifyingCodeSignature … installed.`；日志 `download ok: 15038 bytes … (attempt 1)` 后接 `download ok: 7843012 bytes … (attempt 1)`，即第一次拿到首页、重下拿到 zip；装后 Team `ZSVA6DVZHM`、`codesign --verify --deep --strict` 0、`spctl` Notarized Developer ID，`duo check` 报 up to date。同一轮里装前的 `duo check` 报 `check failed: the vendor answered with an error, not a version (15038-byte body)`：探针两次都抽到首页，检测偶发失败是实测到的（下次扫描再查即可；探针重试次数是共用的一次，没为 Cork 改）。
+- 那个 HTML 是什么：与 `https://corkmac.app/` 首页逐字节相同（15038 B，同 SHA）；不存在的路径（`/RLS/no-such-file.zip`、
+  `/definitely-missing`）也一半回它、一半回真 404。推测：两个后端轮流应答，一个是对任何路径都回 `index.php` 的 PHP 站，一个是放包的
+  静态 nginx（未验证）。官网首页的 Download 按钮指向 `https://corkmac.app/RLS/latest/Cork.zip`，同样 5/10 是首页。
+  公开渠道没人报过这个症状（Cork issues、homebrew-cask issues/PR 都搜过；最接近的是 buresdv/Cork#591，地区封锁，另一回事）。
 - 博客 RSS 只保留最近 20 篇文章，更早的版本没有条目。
 
 ## 建议下一步

@@ -40,8 +40,10 @@ enum com_axosoft_gitkraken {
         // EDITION CAVEAT: the vendor's on-premise "Serverless" (STANDALONE)
         // edition ships under the SAME bundle id, name, Info.plist and Team; only
         // `src/main/static/clientType.js` inside `app.asar` differs (`'NORMAL'` vs
-        // `'STANDALONE'`). Nothing here can tell the two apart, so a Standalone
-        // copy is offered this (normal-edition) build. See the audit's 已知问题.
+        // `'STANDALONE'`). Detection answers both (the lines share version
+        // numbers); one-click is withheld from any copy not provably NORMAL
+        // (`GitKrakenEdition`, asked by `UpdatePolicy.canAutoInstall` and again by
+        // `VendorInstaller`), since this build would swap its edition.
         VendorProbeRecipe(
             bundleID: "com.axosoft.gitkraken",
             url: URL(string: "https://release.gitkraken.com/darwin-arm64/RELEASES")!,

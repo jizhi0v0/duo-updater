@@ -91,18 +91,20 @@ Axosoft 的 Git 客户端，Electron 套壳，用 Electron 自带的 `autoUpdate
   UA `DuoUpdater/0.1` 拿到 200，Range 请求拿到 206
 
 ## 已知问题
-- **On-Premise Serverless edition 会被换成普通 edition。** Standalone 包（cask `gitkraken-on-premise-serverless`，
-  `api.gitkraken.dev/releases/standalone/production/…`）与普通版 bundle id、app 名、Info.plist、Team 全都一样，只有
-  `app.asar` 里的 `src/main/static/clientType.js` 写的是 `'STANDALONE'`（普通版是 `'NORMAL'`）。我们的扫描读不到这个值，
-  所以 Standalone 副本也会拿到这条 recipe：检测到的版本号大体对（两条线版本号同步，`standalone/…/12.6.0` 也存在），
-  但一键会装上**普通版**的 zip，签名闸拦不住（同 id、同 Team）。实测：Standalone 12.5.0 与 12.6.0 都是
-  `com.axosoft.gitkraken` / `T7QVVUTZQ8`，12.5.0 的 `clientType.js` 是 `'STANDALONE'`。
+- **On-Premise Serverless edition 只检测、不给一键（2026-10-16 已处理）。** Standalone 包（cask `gitkraken-on-premise-serverless`，
+  `api.gitkraken.dev/releases/standalone/production/…`）与普通版 bundle id、app 名、Info.plist、Team 全都一样（12.6.0 两包
+  `plutil` 输出 `diff` 为空，Team 都是 `T7QVVUTZQ8`），区别在 `app.asar` 的 `src/main/static/clientType.js`：普通版 `'NORMAL'`，
+  Standalone `'STANDALONE'`（12.5.0、12.6.0 实测）。两包另有约 200 个二进制不同（git、Electron 框架、原生模块，各自构建所致，
+  未逐个核），`app.asar.unpacked/gkcli/mcp_resources/` 只在 Standalone 里有（附带差异，不作判据）。
+  现在 `GitKrakenEdition` 只读 asar 头里这一个条目（不解包，按路径+大小+mtime 缓存；真包上首次约 60 ms、缓存命中约 0.25 ms，debug 构建），
+  不是 `NORMAL`（含读不到）就不给一键：`UpdatePolicy.canAutoInstall` 判 false，`VendorInstaller` 点击时再拦一次（`otherEdition`）。
+  检测照旧（两条线版本号同步，`standalone/…/12.6.0` 也存在；cask 和官网下载页 2026-10-16 还停在 12.5.0）。
+  真包验证：12.6.0 普通版 `clientType=NORMAL withholds=false`，Standalone `clientType=STANDALONE withholds=true`。
 - 自托管 Enterprise edition（`CLIENT_TYPE.ENTERPRISE`，从客户自己的服务器 `…/release` 更新）没有公开包可核，推测也是同一 bundle id，
   问题同上。
 
 ## 建议下一步
-1. 给扫描加一个 edition 信号：从 `app.asar` 读 `src/main/static/clientType.js`，不是 `'NORMAL'` 的副本不走这条 recipe
-   （至少不提供一键）。`BundleFacts` 已经有不解包读 asar 的代码。
+1. （已做，见已知问题）edition 信号：`GitKrakenEdition` 读 `clientType.js`，非 `NORMAL` 不给一键。
 2. 真机第二轮（运行中 + 自更新器武装）时记录 ShipIt 停放的内容，评估要不要给 `SelfUpdaterStash` 加 Squirrel 布局。
 3. 13.0 发布后确认 `current` 页是否跟着换成 13.x，不跟就改用 `sourceTemplate`。
 

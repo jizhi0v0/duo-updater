@@ -247,6 +247,12 @@ public enum UpdatePolicy {
             // is offered only when the user allowed it, and only with a published
             // digest to check the download against. `VendorInstaller` asks both
             // again at click time; this is the offer, not the gate.
+            // A GitKraken copy that is not the NORMAL edition (On-Premise
+            // Serverless shares id, Team and versions): the recipe's build would
+            // swap its edition. Detection only. See `GitKrakenEdition`.
+            if GitKrakenEdition.withholdsOneClick(bundleID: result.app.bundleID, bundleURL: result.app.path) {
+                return false
+            }
             if result.remote?.installTrust == .publishedDigestOnly {
                 guard settings.allowsDigestOnlyInstalls,
                       result.remote?.expectedSHA256 != nil,

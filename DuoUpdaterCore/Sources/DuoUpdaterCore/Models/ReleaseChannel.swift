@@ -357,6 +357,21 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return .nightly
         }
 
+        // 0.995 Loop — its Development channel is one rolling GitHub prerelease
+        //     under the constant tag `prerelease`, built with the stable bundle id
+        //     `com.MrKai77.Loop`, the name "Loop" and the Team. `dev-build.yml`
+        //     stamps `CFBundleShortVersionString` as "🧪 <version>" (read off the
+        //     real 2026-10-13 build: "🧪 1.4.3", build 1783), and no stable
+        //     release carries the emoji. Without this the copy read as stable
+        //     and the comparator put "🧪 1.4.3" below 1.4.2, so the stable rule
+        //     offered 1.4.2 to a newer build — a downgrade, with the Team gate
+        //     passing.
+        if bundleID == "com.MrKai77.Loop",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           version.hasPrefix("🧪") {
+            return .dev
+        }
+
         // 1. Keystone's own channel id — authoritative when present.
         if let ks = keystoneChannel?.trimmingCharacters(in: .whitespacesAndNewlines),
            !ks.isEmpty {

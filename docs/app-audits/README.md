@@ -281,6 +281,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**yomado**](dev-chekusu-yomado.md) · `dev.chekusu.yomado` — G (one-click arm64 zip，**每个 release 都标 prerelease**，`usePrereleases` 读列表) · 真包 0.3.1/0.3.2/0.3.3 验证 ✓（0.3.2 → 0.3.3、0.3.3 up to date） · **一键只对 0.3.3 起的副本**（0.3.1/0.3.2 ad-hoc 签名，Team 闸拒绝） · 一键端到端：0.3.2（ad-hoc）→ 拒绝 ✓，**0.3.3 → 下一签名版未跑**（只有一个签名版） · changelog 结构化 ✓（厂商无小标题；0.3.1/0.3.2 正文无条目） · 单轨（settled from source） · 2026-10-13
 - [x] [**Swifty Download Manager**](top-kyleye-swifty-download-manager-app.md) · `top.kyleye.swifty-download-manager-app` — G (one-click zip) · 真包 0.4.0/0.5.1/0.6.0 验证 ✓ · 一键端到端：0.5.1 → 0.6.0 不运行 ✓、运行中 ✓ · changelog 结构化（分节保留）· 单轨（settled from source）· 2026-10-15
 - [x] [**MC Download Manager**](com-mesutcevik-mcdownloadmanager.md) · `com.mesutcevik.mcdownloadmanager` — G (one-click dmg) · 真包 1.0.0–1.3.0 验证 ✓ · 一键端到端：1.2.0 → 1.3.0 ✓，1.0.0（ad-hoc）→ 拒绝 ✓ · changelog 结构化（加粗段落分节被平铺）· 单轨（settled from source）· 2026-10-15
+- [x] [**Loop**](com-MrKai77-Loop.md) · `com.MrKai77.Loop` — G (one-click universal zip) · 真包 1.0.0–1.4.2 验证 ✓ · **一键端到端未跑**（待主会话） · changelog 结构化（分节保留）· **Development 轨未接**（滚动 prerelease，版本只在 release 名字里；dev 副本判为 `.dev`，不再被推 stable）· 2026-10-16
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

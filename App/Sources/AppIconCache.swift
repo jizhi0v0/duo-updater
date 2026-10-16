@@ -11,14 +11,59 @@ import DuoUpdaterCore
 enum AppIconCache {
     // NSCache (vs a plain dict): it evicts under memory pressure on its own, so a
     // large library's worth of cached icons can't grow unbounded.
-    private static let cache: NSCache<NSString, NSImage> = {
-        let cache = NSCache<NSString, NSImage>()
+    private static let cache: NSCache<NSString, Entry> = {
+        let cache = NSCache<NSString, Entry>()
         cache.countLimit = 512
         return cache
     }()
 
+    /// An icon and the stamp of the bundle it was read from.
+    private final class Entry {
+        let image: NSImage
+        let stamp: BundleStamp?
+        init(image: NSImage, stamp: BundleStamp?) { self.image = image; self.stamp = stamp }
+    }
+
+    /// Which copy of a bundle sits at a path: its `Contents/Info.plist`'s file
+    /// identity and mtime. `invalidate` only covers the GUI's own installs; the
+    /// `duo` CLI, a vendor's self-updater or a drag in Finder replace the bundle at
+    /// the same path without telling us, and the cached icon outlived the copy it
+    /// came from until DuoUpdater restarted (MuseScore's row kept a ⊘ after `duo
+    /// install` swapped 4.7.4 for 4.7.5, 2026-10-16, while a fresh process read the
+    /// right icon). A replaced bundle brings a new Info.plist, so a new inode; a
+    /// bundle read while missing or half-copied has no stamp, and gets one once the
+    /// copy lands. `nil` for a path that has no Info.plist at all (a flat file, a
+    /// bundle id), which then never changes and stays cached as before.
+    ///
+    /// Checked on every lookup rather than at scan time: rows repaint from many
+    /// places (`refreshRow`, `replaceRow`, both scan paths) and a check at only some
+    /// of them would leave the rest stale. The cost is one `stat`: measured
+    /// 2026-10-16 at 1.2–1.6 µs per lookup over the 185 bundles in this Mac's
+    /// /Applications (warm, -O, five runs of 1000 passes), against the 1–25 ms of a
+    /// miss; at, say, 20 rows repainting 10× a second that is ~0.3 ms a second.
+    struct BundleStamp: Equatable {
+        let device: dev_t
+        let inode: ino_t
+        let mtime: timespec
+
+        static func == (a: Self, b: Self) -> Bool {
+            a.device == b.device && a.inode == b.inode
+                && a.mtime.tv_sec == b.mtime.tv_sec && a.mtime.tv_nsec == b.mtime.tv_nsec
+        }
+
+        static func read(_ path: String) -> BundleStamp? {
+            var info = stat()
+            guard stat(path + "/Contents/Info.plist", &info) == 0 else { return nil }
+            return BundleStamp(device: info.st_dev, inode: info.st_ino, mtime: info.st_mtimespec)
+        }
+    }
+
     static func icon(for path: String) -> NSImage {
-        if let cached = cache.object(forKey: path as NSString) { return cached }
+        let stamp = BundleStamp.read(path)
+        if let cached = cache.object(forKey: path as NSString) {
+            if cached.stamp == stamp { return cached.image }
+            Log.app.info("icon stale: bundle replaced at \((path as NSString).lastPathComponent, privacy: .public), re-reading")
+        }
         // Cache miss = a synchronous disk hit on the main actor. Time it: if app
         // switches stutter, a slow icon read here is one suspect.
         let start = Date()
@@ -27,7 +72,7 @@ enum AppIconCache {
         if ms > 2 {
             Log.app.info("perf icon miss: \(ms, format: .fixed(precision: 1), privacy: .public)ms for \((path as NSString).lastPathComponent, privacy: .public)")
         }
-        cache.setObject(image, forKey: path as NSString)
+        cache.setObject(Entry(image: image, stamp: stamp), forKey: path as NSString)
         return image
     }
 
@@ -63,7 +108,7 @@ enum AppIconCache {
         prefetchTask?.cancel()
         let pending = paths.prefix(cache.countLimit)
         prefetchTask = Task(priority: .utility) {
-            for path in pending where cache.object(forKey: path as NSString) == nil {
+            for path in pending where !isFresh(path) {
                 try? await Task.sleep(for: .milliseconds(1))
                 if Task.isCancelled { return }
                 _ = icon(for: path)
@@ -72,6 +117,12 @@ enum AppIconCache {
     }
 
     private static var prefetchTask: Task<Void, Never>?
+
+    /// Cached, and read from the copy of the bundle that is at the path now.
+    private static func isFresh(_ path: String) -> Bool {
+        guard let cached = cache.object(forKey: path as NSString) else { return false }
+        return cached.stamp == BundleStamp.read(path)
+    }
 
     /// Drop the cached icon for a path so the next lookup re-reads from disk.
     /// Called after an in-place install: the bundle is replaced but its path is

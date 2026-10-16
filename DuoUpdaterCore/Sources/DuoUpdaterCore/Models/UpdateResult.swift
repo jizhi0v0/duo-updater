@@ -849,6 +849,16 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
     /// back here rather than repeating this.
     private static let licenseNeutralSources: Set<String> = ["Vendor", "GitHub", "App Store"]
 
+    /// True when this copy is the old app of a vendor rewrite
+    /// (`BundleIDMigration.isRewrite`), so the update offered replaces it with the
+    /// rewrite. `isMajorUpgrade` is then true whatever the source, which puts the
+    /// row behind the existing confirmation: it prompts, it never blocks. The UI
+    /// reads this to say "rewrite" instead of "license".
+    public var isVendorRewrite: Bool {
+        guard case .updateAvailable = status, let id = app.bundleID else { return false }
+        return BundleIDMigration.rewrite(installed: id, installedVersion: app.shortVersion) != nil
+    }
+
     /// True when the available update is a notable/major upgrade — the signal we
     /// surface to warn that a commercial app may require a new license (the same
     /// heuristic MacUpdater surfaces).
@@ -867,6 +877,10 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
     ///     Office 2024 are high-major yet paid per major, so magnitude is unsafe.
     public var isMajorUpgrade: Bool {
         guard case .updateAvailable = status else { return false }
+
+        // Ahead of every tier below, the license-neutral sources included: the
+        // question here is not a license but a different app.
+        if isVendorRewrite { return true }
 
         if let floor = remote?.minimumAutoupdateVersion?
             .trimmingCharacters(in: .whitespacesAndNewlines), !floor.isEmpty,

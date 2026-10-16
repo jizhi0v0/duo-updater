@@ -450,7 +450,40 @@ struct PopoverRowAction: View {
     // `.popover(isPresented:)` machinery that only a live, on-screen anchor can
     // drive. Nothing about the popover's on-screen behavior changes: the flags
     // still start `false`, and both buttons here still call `actions.install()`.
+    @ViewBuilder
     var majorUpgradePopover: some View {
+        if result.isVendorRewrite {
+            vendorRewritePopover
+        } else {
+            licenseBoundaryPopover
+        }
+    }
+
+    /// The same confirmation for an update that replaces this app with the
+    /// vendor's rewrite (`BundleIDMigration.isRewrite`). No license question
+    /// here; what changes is the app itself. The install path is the ordinary
+    /// one: the download replaces this copy in place, and a rollback point exists
+    /// only when backups are on.
+    private var vendorRewritePopover: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Rewritten app", systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+            Text("\(result.app.name) \(result.app.shortVersion ?? "?") → \(result.remote?.displayVersion ?? "?") replaces this app with the vendor’s rewrite. Features and settings may differ from the version you have now.")
+                .font(.callout)
+            Text("The new version replaces this copy. If “Keep a backup so updates can be rolled back” is on in Settings, you can roll back to the version you have now.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button("Update anyway") {
+                showMajorWarning = false
+                actions.install()
+            }
+            .controlSize(.small)
+        }
+        .padding(12)
+        .frame(width: 290)
+    }
+
+    private var licenseBoundaryPopover: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Major version upgrade", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)

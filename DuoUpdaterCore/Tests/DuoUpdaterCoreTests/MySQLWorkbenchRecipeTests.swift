@@ -40,72 +40,6 @@ private let workbenchMacDownloadsFixture = #"""
             </table>
 """#
 
-/// The page navigation of `news-8-0.html`, the 8.0 release-notes index, fetched
-/// 2026-10-16, verbatim, with the `<link rel="next">` from its `<head>` (whose
-/// `?ff=nopfpls` query the pattern must not take).
-private let workbench80IndexFixture = #"""
-<link rel="next" href="news-8-0-47.html?ff=nopfpls" title=" Changes in MySQL Workbench 8.0.47 (2026-04-23)" />
-    <a href="preface.html"
-        aria-label="Previous" title="Previous: Preface and Legal Notices"><span
-        class="icon-chevron-left"></span></a>
-<a href="index.html" aria-label="Start" title="Start"><span class="icon-book-open"></span></a>
-    <a href="index.html" aria-label="Up" title="Up"><span class="icon-chevron-up"></span></a>
-    <a href="news-8-0-47.html" aria-label="Next"
-        title="Next: Changes in MySQL Workbench 8.0.47 (2026-04-23)"><span
-        class="icon-chevron-right"></span></a>
-"""#
-
-/// The section of `news-8-0-47.html`, fetched 2026-10-16, verbatim up to the
-/// page navigation that ends the entry.
-private let workbench8047Fixture = #"""
-<div class="section">
-<div class="titlepage"><div><div><h3 class="title">
-<a name="news-8-0-47"></a>Changes in MySQL Workbench 8.0.47 (2026-04-23)</h3></div></div></div>
-<div class="simplesect">
-<div class="titlepage"><div><div><h4 class="title">
-<a name="workbench-8-0-47-feature"></a>Functionality Added or Changed</h4></div></div></div>
-<div class="itemizedlist"><ul class="itemizedlist" type="disc">
-<li class="listitem"><p>
-        The bundled LIBPNG library has been updated to 1.6.56.
-       (Bug #38965332)</p></li>
-<li class="listitem"><p>
-        The bundled OpenSSL library has been updated to 3.5.5.
-       (Bug #38906653)</p></li>
-<li class="listitem">
-<p>
-        MySQL HeatWave Migration Assistant now supports partial migrations, allowing users to
-        choose what schemas and objects to migrate, including individual DB
-        objects such as schemas, tables, views, routines, events, triggers,
-        libraries, and user accounts.
-      </p>
-<p>
-        For more information, see
-        <a class="ulink" href="/doc/workbench/en/heatwave-migration-assistant.html" target="_top">MySQL HeatWave Migration Assistant</a>.
-       (WL #17258)</p>
-</li>
-</ul></div>
-</div>
-</div><br />
-        </div>
-
-                <div id="docs-in-page-nav-container">
-"""#
-
-/// The section of `news-8-0-46.html`, fetched 2026-10-16, verbatim: a release
-/// with no list, only a sentence.
-private let workbench8046Fixture = #"""
-<div class="section">
-<div class="titlepage"><div><div><h3 class="title">
-<a name="news-8-0-46"></a>Changes in MySQL Workbench 8.0.46 (2026-01-21)</h3></div></div></div>
-<p>
-        This release contains no functional changes.
-      </p>
-</div><br />
-        </div>
-
-                <div id="docs-in-page-nav-container">
-"""#
-
 @Test func mysqlWorkbenchReadsTheMacDmgRowOnly() throws {
     let recipe = try #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "com.oracle.mysqlworkbench" })
@@ -129,34 +63,79 @@ private let workbench8046Fixture = #"""
         == "https://cdn.mysql.com/Downloads/MySQLGUITools/mysql-workbench-26.7.0-macos-arm64.dmg")
 }
 
-@Test func mysqlWorkbench80HasNotesButNoProbe() throws {
-    // See the recipe comment: `8.0.47.CE` against `8.0.47` would read as an update.
-    #expect(!VendorProbeRegistry.recipes.contains {
-        $0.bundleID == "com.oracle.workbench.MySQLWorkbench" })
-    let recipe = try #require(
-        ChangelogRecipeRegistry.recipe(forBundleID: "com.oracle.workbench.MySQLWorkbench"))
-    let pattern = try #require(recipe.indexLinkPattern)
-    #expect(ChangelogService.firstLink(
-        in: workbench80IndexFixture, pattern: pattern, base: recipe.source)?.absoluteString
-        == "https://dev.mysql.com/doc/relnotes/workbench/en/news-8-0-47.html")
+// MARK: - 8.0 copies: the vendor's rewrite, behind the confirmation
+
+private func workbench(id: String, version: String) -> InstalledApp {
+    InstalledApp(
+        name: "MySQLWorkbench", bundleID: id, shortVersion: version, buildVersion: "1",
+        path: URL(fileURLWithPath: "/Applications/ZZFixture-MySQLWorkbench.app"),
+        isMASApp: false, sparkleFeedURL: nil, releaseChannel: .stable)
 }
 
-@Test func mysqlWorkbench80NotesKeepSectionsAndParagraphs() throws {
-    let recipe = try #require(
-        ChangelogRecipeRegistry.recipe(forBundleID: "com.oracle.workbench.MySQLWorkbench"))
-    let log = try #require(ChangelogExtractor.extract(from: workbench8047Fixture, using: recipe))
-    let entry = try #require(log.entries.first)
-    #expect(log.entries.count == 1)
-    #expect(entry.version == "8.0.47")
-    #expect(entry.date == "2026-04-23")
-    #expect(entry.items.count == 3)
-    #expect(entry.items.first == "The bundled LIBPNG library has been updated to 1.6.56. (Bug #38965332)")
-    let headings = entry.content.compactMap { block -> String? in
-        if case .heading(let text) = block { return text }
-        return nil
-    }
-    #expect(headings == ["Functionality Added or Changed"])
+private func offer(_ version: String, source: String = "Vendor") -> RemoteVersion {
+    RemoteVersion(shortVersion: version, version: nil, downloadURL: nil, sourceName: source)
+}
 
-    let quiet = try #require(ChangelogExtractor.extract(from: workbench8046Fixture, using: recipe))
-    #expect(quiet.entries.first?.items == ["This release contains no functional changes."])
+/// 8.0.46.CE and 8.0.47.CE (the strings the real 8.0 bundles report) are filed
+/// under 26.x's id, so the 26.x probe answers them and nothing is keyed by the
+/// 8.0 id. A copy on the 8.0 id at 26.7.0 or later is not the hand-over measured.
+@Test func mysqlWorkbench80CopiesAreFiledUnderTheRewrite() {
+    for version in ["8.0.46.CE", "8.0.47.CE"] {
+        #expect(workbench(id: "com.oracle.workbench.MySQLWorkbench", version: version)
+            .recipeBundleID == "com.oracle.mysqlworkbench")
+    }
+    #expect(workbench(id: "com.oracle.workbench.MySQLWorkbench", version: "26.7.0")
+        .recipeBundleID == "com.oracle.workbench.MySQLWorkbench")
+    #expect(!VendorProbeRegistry.recipes.contains {
+        $0.bundleID == "com.oracle.workbench.MySQLWorkbench" })
+    let team = "VB5E2TV963"
+    #expect(BundleIDMigration.migration(
+        installed: "com.oracle.workbench.MySQLWorkbench", downloaded: "com.oracle.mysqlworkbench",
+        installedVersion: "8.0.47.CE", installedTeam: team, downloadedTeam: team) != nil)
+}
+
+/// The rewrite marker puts the 8.0 → 26 offer behind the major-upgrade
+/// confirmation even though the answer comes from a license-neutral source.
+@Test func aVendorRewriteIsAMajorUpgradeWhateverTheSource() {
+    let old = workbench(id: "com.oracle.workbench.MySQLWorkbench", version: "8.0.47.CE")
+    for source in ["Vendor", "GitHub", "App Store"] {
+        let result = UpdateResult(
+            app: old, remote: offer("26.7.0", source: source),
+            status: .updateAvailable(latest: "26.7.0"))
+        #expect(result.isVendorRewrite)
+        #expect(result.isMajorUpgrade)
+    }
+    // Nothing to confirm when nothing is offered.
+    let current = UpdateResult(app: old, remote: offer("26.7.0"), status: .upToDate)
+    #expect(!current.isVendorRewrite)
+    #expect(!current.isMajorUpgrade)
+    // A 26.x copy updating within 26.x is an ordinary Vendor update.
+    let new = UpdateResult(
+        app: workbench(id: "com.oracle.mysqlworkbench", version: "26.7.0"),
+        remote: offer("26.8.0"), status: .updateAvailable(latest: "26.8.0"))
+    #expect(!new.isVendorRewrite)
+    #expect(!new.isMajorUpgrade)
+}
+
+/// A plain rename keeps today's behaviour: WhatCable's old id, offered a new
+/// major from a license-neutral source, is not flagged.
+@Test func anUnmarkedMigrationIsNotARewrite() {
+    #expect(BundleIDMigration.all.filter(\.isRewrite).map(\.from)
+        == ["com.oracle.workbench.MySQLWorkbench"])
+    let renamed = InstalledApp(
+        name: "WhatCable", bundleID: "com.bitmoor.whatcable", shortVersion: "0.5.14",
+        buildVersion: "1", path: URL(fileURLWithPath: "/Applications/ZZFixture-WhatCable.app"),
+        isMASApp: false, sparkleFeedURL: nil, releaseChannel: .stable)
+    let result = UpdateResult(
+        app: renamed, remote: offer("1.0.0", source: "GitHub"),
+        status: .updateAvailable(latest: "1.0.0"))
+    #expect(renamed.recipeBundleID == "uk.whatcable.whatcable")
+    #expect(!result.isVendorRewrite)
+    #expect(!result.isMajorUpgrade)
+    let unmarked = BundleIDMigration(
+        from: "com.example.old", to: "com.example.new", teamID: "TEAM000001",
+        lastFromVersion: "1.0", firstToVersion: "2.0")
+    #expect(!unmarked.isRewrite)
+    #expect(BundleIDMigration.rewrite(
+        installed: "com.example.old", installedVersion: "1.0", in: [unmarked]) == nil)
 }

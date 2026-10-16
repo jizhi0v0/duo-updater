@@ -391,6 +391,71 @@
         }
       }
     },
+    "%@ %@ → %@ replaces this app with the vendor’s rewrite. Features and settings may differ from the version you have now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ → %@ ersetzt diese App durch die Neuentwicklung des Herstellers. Funktionen und Einstellungen können sich von deiner aktuellen Version unterscheiden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ → %@ sustituye esta app por la versión reescrita del fabricante. Las funciones y los ajustes pueden ser distintos de los de tu versión actual."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ → %@ remplace cette app par sa réécriture par l’éditeur. Les fonctionnalités et les réglages peuvent différer de ceux de votre version actuelle."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ → %@ sostituisce questa app con la versione riscritta dallo sviluppatore. Funzioni e impostazioni potrebbero essere diverse da quelle della versione attuale."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ → %@ は、このアプリをベンダーが作り直した新しいアプリに置き換えます。機能や設定が現在のバージョンと異なる場合があります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ → %@ substitui este app pela versão reescrita do fabricante. Os recursos e os ajustes podem ser diferentes dos da versão atual."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ → %@ заменяет это приложение переписанной версией от разработчика. Функции и настройки могут отличаться от текущей версии."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ → %@ bu uygulamayı üreticinin yeniden yazdığı sürümle değiştirir. Özellikler ve ayarlar şu anki sürümden farklı olabilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ → %@ 会把这个应用换成厂商的重写版。功能和设置可能与你现在的版本不同。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ → %@ 會把這個 App 換成廠商的重寫版。功能和設定可能與你目前的版本不同。"
+          }
+        }
+      }
+    },
     "%@ already downloaded %@ — relaunch to apply it": {
       "extractionState": "manual",
       "localizations": {
@@ -74290,6 +74355,136 @@
           "stringUnit": {
             "state": "translated",
             "value": "沒有失敗的更新記錄。"
+          }
+        }
+      }
+    },
+    "Rewritten app": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu entwickelte App"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App reescrita"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App réécrite"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App riscritta"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "作り直されたアプリ"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App reescrito"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переписанное приложение"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeniden yazılmış uygulama"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重写版应用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重寫版 App"
+          }
+        }
+      }
+    },
+    "The new version replaces this copy. If “Keep a backup so updates can be rolled back” is on in Settings, you can roll back to the version you have now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die neue Version ersetzt diese Kopie. Wenn „Backup aufbewahren, damit Updates rückgängig gemacht werden können“ in den Einstellungen aktiviert ist, kannst du zur aktuellen Version zurückkehren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La nueva versión sustituye a esta copia. Si “Conservar una copia de seguridad para poder revertir actualizaciones” está activado en Ajustes, puedes volver a tu versión actual."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La nouvelle version remplace cette copie. Si « Conserver une sauvegarde pour pouvoir annuler les mises à jour » est activé dans les Réglages, vous pouvez revenir à votre version actuelle."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La nuova versione sostituisce questa copia. Se “Conserva un backup per poter ripristinare gli aggiornamenti” è attivo nelle Impostazioni, puoi tornare alla versione attuale."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しいバージョンはこのコピーを置き換えます。設定で「更新をロールバックできるようバックアップを保持する」がオンなら、現在のバージョンにロールバックできます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A nova versão substitui esta cópia. Se “Manter um backup para poder reverter atualizações” estiver ativado nos Ajustes, você pode voltar à versão atual."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новая версия заменит эту копию. Если в настройках включено «Хранить резервную копию для отката обновлений», можно откатиться к текущей версии."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni sürüm bu kopyanın yerini alır. Ayarlar’da “Güncellemelerin geri alınabilmesi için yedek tut” açıksa şu anki sürüme geri dönebilirsiniz."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新版本会替换这份副本。如果设置中打开了“保留备份以便回滚更新”，可以回滚到你现在的版本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新版本會取代這份副本。如果設定中開啟了「保留備份以便還原更新」，可以還原到你目前的版本。"
           }
         }
       }

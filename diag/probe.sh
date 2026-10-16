@@ -2,7 +2,7 @@
 # Loops the CI fixtures' disk-image steps from job start; logs uptime per step.
 set +e
 DUR=${1:-480}
-boot=$(sysctl -n kern.boottime | sed -E 's/.*sec = ([0-9]+).*/\1/')
+boot=$(sysctl -n kern.boottime | awk "{print \$4}" | tr -d ,)
 up() { echo $(( $(date +%s) - boot )); }
 echo "boot=$boot uptime_at_start=$(up)s"; sw_vers; uptime
 end=$(( $(date +%s) + DUR ))

@@ -67,7 +67,7 @@ electron-builder 配置、无 MyGo feed）：xbar 的更新器在 Go 代码里�
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（运行中一轮待主会话） | 不能 |
+| 结论 | 不会 | 无（运行中一轮实测，未见下载） | 不能 |
 | 证据 | `downloadAndReplaceApp`：`os.CreateTemp("", "*-xbar.vX.zip")` 下到 `$TMPDIR` 随机名，下载完立即把旧 app 改名 `.previous`、解压替换、删旧 | — | 没有完成记录、随机文件名、下载即应用，`SelfUpdaterStash` 无布局可读 |
 
 ## Changelog
@@ -94,12 +94,17 @@ electron-builder 配置、无 MyGo feed）：xbar 的更新器在 Go 代码里�
 - 阻塞: 无（v2.0.40–v2.0.42 的副本需手动更新一次）
 
 ## 已知问题
-- **与 xbar 自更新器的碰撞未测。** 它开启「Update Automatically」时会在启动后自动下载并替换；它和 `duo` 读的是同一个
-  `/releases/latest`，装进来的是同一版本，预计无害，但运行中一轮未跑。
+- **与 xbar 自更新器的碰撞：试过一次，没碰上（2026-10-16）。** 设置在 `~/Library/Application Support/xbar/xbar.config.json` 的 `autoupdate`
+  （默认没有这个文件，即关闭）；启动 10 s 后第一次检查（`app.go`：`time.Sleep(10 * time.Second)`）。写入 `{"autoupdate": true}`、启动 v2.1.6-beta、
+  在第 9 s 起 `duo install`：16:38:54–57 装上 v2.1.7-beta（备份 v2.1.6-beta）。之后 2 分钟里 xbar 自己没有留下任何动作（无 `.previous`、`$TMPDIR` 无 zip、
+  进程没换）。按 v2.1.6-beta 源码它本该下载：自报 `v2.1.6-beta` < `v2.1.7-beta`，zip 7,692,978 B 低于 `DownloadBytesLimit`，`downloadAndReplaceApp` 不删 `os.CreateTemp` 的 zip——所以这次它的更新器没跑成或没跑，原因查不到（不写系统日志）。**真正的碰撞没被观察到**；「两边装同一版本」只是推测无害的理由。结束状态：包是 v2.1.7-beta、签名完好，运行中的进程映射的是被换走的旧二进制
+  （`lsof` 路径为已不存在的 `/Applications/.duoupdater-staged-xbar.app/…`），`duo restart` 后新进程映射当前 inode
+- 自更新器默认关闭时：v2.1.6-beta 运行中 `duo install --yes` → `installed.` + `Still running the old code`；`duo restart` 后跑新版，
+  Team `N3H5B92L5N`、`codesign --strict` 0、Notarized；登录项前后无差异
 - **上游停更。** 最后一个 release 是 2021-10-29 的 v2.1.7-beta，所以每台装最新版的副本都只会是 up to date。
 
 ## 建议下一步
-1. 主会话：装 v2.1.6-beta，跑一键端到端（不运行、运行中两轮），补进本文件。
+1. （已做）不运行、运行中两轮都跑过，见已知问题。
 2. 若上游发布不带 `-beta` 的 tag，复查 `/releases/latest` 是否指向它、pattern 读出的版本是否正确。
 
 ## 如何复验

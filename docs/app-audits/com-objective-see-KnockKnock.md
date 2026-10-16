@@ -63,7 +63,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（运行中一轮待主会话执行） | — |
+| 结论 | 不会 | 无（运行中一轮实测，只弹更新提示/权限框） | — |
 | 证据 | `Update.m` 不下载任何东西（源码） | — | — |
 
 ## Changelog
@@ -104,7 +104,7 @@
 - 以 root 运行的实例（4.1.0 偏好）在一键安装时的退出/重启行为未验证
 
 ## 建议下一步
-1. 主会话: 装 4.0.3，`duo install --yes`（不运行；运行中 + `duo restart`），补进本文件
+1. （已做）运行中一轮，2026-10-16，main `make cli`：4.0.3 运行中 `duo install --yes` → `installed.` 并提示 `Still running the old code: KnockKnock / duo restart KnockKnock`；`duo restart` 后新进程跑的是 4.1.0（`lsof` 映射 `/Applications/KnockKnock.app/Contents/MacOS/KnockKnock`），Team `VBG97UB4TA`、`codesign --strict` 0、Notarized；登录项前后无差异。每次启动在没有完全磁盘访问权限时都会弹「KnockKnock needs Full Disk Access」模态框，模态框在时 AppleScript `quit` 返回 `User canceled (-128)`
 2. 有人报 root 实例的问题再看 `AppRestarter` 对 root 进程的处理
 
 ## 如何复验

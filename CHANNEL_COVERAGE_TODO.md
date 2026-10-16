@@ -491,6 +491,7 @@ rc 目录在终版发布后仍留着，接 preview 轨需要 `detect()` 加一�
 - ✗ **Obsidian — Insider** · 付费 Catalyst 早鸟，无独立 macOS 自更新 feed
 - ✗ **Dropbox — Beta** · 论坛分发，口径混乱
 - ✗ **Bartender — Test Builds** · 同 `com.surteesstudios.Bartender`；7.0.2 / 7.0.3 的测试版说明页在（`…/Bartender7/updates/7-0-2/rnotes.html`），但不在 AppcastB7 里，测试版 feed 地址与 app 内开关都没找到（2026-10-10）。详见 [审计](docs/app-audits/com-surteesstudios-Bartender.md)
+- ✗ **Zettlr — Nightly** · 同 `com.zettlr.app`；`nightly.zettlr.com` 每周一从 `develop` 构建，版本恒为 `<stable>+nightly`（2026-10-12 的包 = `4.8.0+nightly`），build 之间没有可排序的东西。`ReleaseChannel.detect` 把它判为 nightly、不推任何东西（以前被推同号正式版）。beta 轨已接（`ZettlrChannel`）。详见 [审计](docs/app-audits/com-zettlr-app.md)
 - ✗ **Plex — Beta** · Plex Pass 应用内，非独立下载
 - ✗ **Audacity 4 prerelease（alpha/beta）** · `org.audacityteam.Audacity`（与 3.x 只差大小写），版本 `4.0.0` 无后缀；4.x stable 另起 `org.audacityteam.audacity4`；`latest.test.json` 停在 beta 4，暂无可接构建（2026-10-08）
 - ✗ **Audacity 3 经旧 `audacity` cask 安装** · Caskroom 里是 `audacity`、`.app` 只对得上 `audacity@3`，Homebrew 不应答；现在落到 3.x GitHub rule，被推 3.7.9（≤3.7.8 一键被 Team 闸拒）（2026-10-08）

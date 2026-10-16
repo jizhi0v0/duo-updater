@@ -140,6 +140,8 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///   * iTerm2   → `UserDefaults[CheckTestRelease]` (Bool: true → the bundle's own
 ///                                     `SUFeedURLForTesting`, see `bundleFeeds`)
 ///   * MonitorControl → `UserDefaults[isBetaChannel]` (Bool: true → `<sparkle:channel>beta`)
+///   * Zettlr   → `…/Application Support/Zettlr/config.json` (`checkForBeta`;
+///                                     true→beta; else nil, see the type)
 ///
 /// So there is no generic reader. `ChannelBinding` is the single authority the
 /// scanner consults; an app with no resolver returns nil and the generic
@@ -188,6 +190,7 @@ public enum ChannelBinding {
         OBSChannel.bundleID.lowercased(),
         ITerm2Channel.bundleID.lowercased(),
         MonitorControlChannel.bundleID.lowercased(),
+        ZettlrChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -301,6 +304,10 @@ public enum ChannelBinding {
         // OBS deliberately adds nothing, for the same reason: `global.ini` shares
         // its directory with the logs and scene files OBS writes while it runs.
         // See `OBSChannel`.
+        //
+        // Zettlr deliberately adds nothing, for Cindy's reason: its `config.json`
+        // sits in the app's Electron `userData` directory beside its logs and
+        // caches. See `ZettlrChannel`.
         return roots
     }
 
@@ -490,6 +497,7 @@ public enum ChannelBinding {
             return { ITerm2Channel.resolveCurrent(bundleFeeds: $0) }
         case MonitorControlChannel.bundleID.lowercased():
             return { _ in MonitorControlChannel.resolveCurrent() }
+        case ZettlrChannel.bundleID.lowercased(): return { _ in ZettlrChannel.resolveCurrent() }
         case SwiftVMChannel.bundleID.lowercased(): return { SwiftVMChannel.resolve(bundleFeeds: $0) }
         default:                       return nil
         }
@@ -585,6 +593,11 @@ public enum ChannelBinding {
     + [true, false].compactMap { flag in
         MonitorControlChannel.resolve(isBetaChannel: flag)
             .map { (bundleID: MonitorControlChannel.bundleID, resolved: $0) }
+    }
+    // Zettlr answers only for the ticked box (see the type), CotEditor's shape.
+    + [true, false].compactMap { flag in
+        ZettlrChannel.resolve(checkForBeta: flag)
+            .map { (bundleID: ZettlrChannel.bundleID, resolved: $0) }
     }
     // SwiftVM's channel is the feed its build declares (see the type); the two
     // kinds of build stand in for the bundle. The stable one answers nil.

@@ -284,6 +284,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Swifty Download Manager**](top-kyleye-swifty-download-manager-app.md) · `top.kyleye.swifty-download-manager-app` — G (one-click zip) · 真包 0.4.0/0.5.1/0.6.0 验证 ✓ · 一键端到端：0.5.1 → 0.6.0 不运行 ✓、运行中 ✓ · changelog 结构化（分节保留）· 单轨（settled from source）· 2026-10-15
 - [x] [**MC Download Manager**](com-mesutcevik-mcdownloadmanager.md) · `com.mesutcevik.mcdownloadmanager` — G (one-click dmg) · 真包 1.0.0–1.3.0 验证 ✓ · 一键端到端：1.2.0 → 1.3.0 ✓，1.0.0（ad-hoc）→ 拒绝 ✓ · changelog 结构化（加粗段落分节被平铺）· 单轨（settled from source）· 2026-10-15
 - [x] [**Loop**](com-MrKai77-Loop.md) · `com.MrKai77.Loop` — G (one-click universal zip) · 真包 1.0.0–1.4.2 验证 ✓ · **一键端到端未跑**（待主会话） · changelog 结构化（分节保留）· **Development 轨未接**（滚动 prerelease，版本只在 release 名字里；dev 副本判为 `.dev`，不再被推 stable）· 2026-10-16
+- [x] [**Zettlr**](com-zettlr-app.md) · `com.zettlr.app` — G(stable/beta，one-click arm64/x64 dmg) · 真包 4.7.0/4.8.0/4.0.0-beta.5 挂载验证 ✓ · **一键端到端待主会话** · changelog 走 ChangelogRecipe ✓ · beta 轨 ✓（`ZettlrChannel` 读 `config.json` 的 `checkForBeta`，依据源码，真机写入未观测）· nightly 只识别不推（Pattern D）· 0.x 旧 id `com.zettlr.www` 仅检测 · 2026-10-16
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

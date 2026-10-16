@@ -106,6 +106,11 @@ struct GitHubListPageSizeTests {
         // the list. All 3 releases on 2026-10-13 match (v0.3.3, v0.3.2, v0.3.1),
         // first hit at index 0, gap 0, so 1. The rule keeps the default 20.
         "dev.chekusu.yomado/stable": 1,
+        // Zettlr: the beta rule takes plain tags as well as `-beta[.N]` ones
+        // (the app's `accept-beta` endpoint serves whichever is newer). All 20
+        // newest releases on 2026-10-16 match (v4.8.0 … v4.0.0-beta.5 … v3.4.4),
+        // first hit at index 0, gap 0, so 1.
+        "com.zettlr.app/beta": 1,
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {

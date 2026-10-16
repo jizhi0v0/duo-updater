@@ -174,6 +174,19 @@ struct GitHubAssetSelectionTests {
           "RustGIS-0.1.0-windows-x86_64.msi", "RustGIS-0.1.0-windows-x86_64.msix",
           "rustgis-cli-0.1.0-macos-aarch64.tar.gz", "rustgis-cli-0.1.0-macos-x86_64.tar.gz",
           "rustgis_0.1.0_amd64.deb", "rustgis_0.1.0_arm64.deb", "SHA256SUMS"]),
+        // Zettlr stable and beta: one dmg per architecture beside the Linux and
+        // Windows packages (v4.8.0's and v4.0.0-beta.5's assets, in GitHub's order).
+        (#"^Zettlr-[0-9]+(?:\.[0-9]+)+-(?:arm64|x64)\.dmg$"#,
+         ["SHA256SUMS.txt", "Zettlr-4.8.0-aarch64.rpm", "Zettlr-4.8.0-amd64.deb",
+          "Zettlr-4.8.0-arm64.AppImage", "Zettlr-4.8.0-arm64.deb", "Zettlr-4.8.0-arm64.dmg",
+          "Zettlr-4.8.0-x64.dmg", "Zettlr-4.8.0-x64.exe", "Zettlr-4.8.0-x86_64.AppImage",
+          "Zettlr-4.8.0-x86_64.rpm"]),
+        (#"^Zettlr-[0-9]+(?:\.[0-9]+)+(?:-beta(?:\.[0-9]+)?)?-(?:arm64|x64)\.dmg$"#,
+         ["SHA256SUMS.txt", "Zettlr-4.0.0-beta.5-aarch64.rpm", "Zettlr-4.0.0-beta.5-amd64.deb",
+          "Zettlr-4.0.0-beta.5-arm64.AppImage", "Zettlr-4.0.0-beta.5-arm64.deb",
+          "Zettlr-4.0.0-beta.5-arm64.dmg", "Zettlr-4.0.0-beta.5-x64.dmg",
+          "Zettlr-4.0.0-beta.5-x64.exe", "Zettlr-4.0.0-beta.5-x86_64.AppImage",
+          "Zettlr-4.0.0-beta.5-x86_64.rpm"]),
         // AstrLink: one dmg per architecture beside the Tauri updater's
         // `.app.tar.gz` archives and the Linux/Windows packages (v0.2.6's
         // assets, in the order GitHub listed them).

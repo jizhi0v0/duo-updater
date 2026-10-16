@@ -278,6 +278,42 @@ public enum AppRestarter {
         return runningExecutablePaths().contains { isExecutable($0, insideBundlePath: bundlePath) }
     }
 
+    /// Before launching an app whose updater applies on launch: give the quit
+    /// app's helper processes up to ~5 s to exit. Its main process leaving
+    /// `runningInstances` is not the whole app — Spotify's Chromium helpers are
+    /// invisible there and may still hold its profile while they tear down, and
+    /// an old build launched into that can exit without applying anything. Both
+    /// measured swaps were opened a minute or more after the quit, so this gap
+    /// was never exercised; the cap keeps a helper that never exits from
+    /// stalling the relaunch.
+    public static func awaitBundleProcessesGone(_ app: InstalledApp) async {
+        for _ in 0..<25 where hasProcesses(insideBundle: app.path) {
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+    }
+
+    /// Bring an app back up after its own updater (or App Store) swapped the
+    /// bundle, retrying while the bundle may still be being rewritten.
+    ///
+    /// `launchApp` returns false when LaunchServices can't open the bundle — and a
+    /// bundle mid-swap is exactly that. Every caller runs at the one moment
+    /// nobody else is watching: the app is quit, the row's spinner is about to
+    /// drop, and a failed launch means the user's app is simply gone. Re-checks
+    /// `runningInstances` before each retry so an updater that *does* relaunch (or
+    /// a user reopening the app) never gets a second copy.
+    @discardableResult
+    public static func relaunchAfterSwap(_ app: InstalledApp, activates: Bool) async -> Bool {
+        for attempt in 1...5 {
+            if attempt > 1 {
+                try? await Task.sleep(for: .seconds(2))
+                guard runningInstances(of: app).isEmpty else { return true }
+            }
+            if await launchApp(app.path, activates: activates) { return true }
+            Log.app.error("relaunch: \(app.name, privacy: .public) launch failed (attempt \(attempt, privacy: .public)/5) — bundle may still be mid-swap")
+        }
+        return false
+    }
+
     /// The executable path of every process this user can see, read fresh from
     /// the kernel (`proc_listallpids` + `proc_pidpath`) — no LaunchServices
     /// snapshot, so it cannot be stale without a run loop the way

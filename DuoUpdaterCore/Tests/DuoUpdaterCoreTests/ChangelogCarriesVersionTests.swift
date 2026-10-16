@@ -54,10 +54,14 @@ struct ChangelogCarriesVersionTests {
 
     /// And the same when it is the KEY that isn't version-shaped and the page
     /// spells its entries another way — Xcode's "27.2 beta 1 (27B5019j)" under a
-    /// page titled "Xcode 27.2 Beta", and AdGuard's nightly, whose page lists
-    /// build numbers. Judging these would re-read them every provisional window.
+    /// page whose entry reads "Xcode 27" (the real `xcode-27` and `xcode-26_6`
+    /// notes decode to "Xcode 27" and "Xcode 26.6", 2026-10-16), and AdGuard's
+    /// nightly, whose page lists build numbers. Judging these would re-read them
+    /// every provisional window.
     @Test func aVersionThatIsNotVersionShapedIsNotJudgedAgainstOtherSpellings() {
         #expect(Self.log("Xcode 27.2 Beta").carries(version: "27.2 beta 1 (27B5019j)"))
+        #expect(Self.log("Xcode 27").carries(version: "27.2 beta 1 (27B5019j)"))
+        #expect(Self.log("Xcode 26.6").carries(version: "26.6 RC 2 (17F113)"))
         #expect(Self.log("2.20.0.2625", "2.20.0.2619").carries(version: "2.20 Nightly 10"))
     }
 

@@ -212,8 +212,9 @@ public struct Changelog: Codable, Sendable, Hashable {
     /// feed is product announcements with no per-entry app version, so the post
     /// title fills `version` (`com-figma-Desktop.swift`), Cursor dates its entries
     /// (`version` reads `Sep 10, 2026`, with the prose in `title`), and the version
-    /// an Xcode entry is filed under is `27.2 beta 1 (27B5019j)` while its page
-    /// titles itself `Xcode 27.2 Beta` — and neither is a page whose newest entry
+    /// an Xcode entry is filed under is `27.2 beta 1 (27B5019j)` while the entry
+    /// its page decodes to reads `Xcode 27` (`xcode-27-release-notes.json`,
+    /// 2026-10-16) — and neither is a page whose newest entry
     /// is at or ahead of `version`. Notion is NOT such a
     /// vendor, though its page recipe once was: the active `.notionPageChunk`
     /// recipe produces `7.34.0`-shaped versions, and it is one of the apps that

@@ -107,6 +107,7 @@ public enum AppRecipeIndex {
         com_kagi_kagimacOS.set,
         com_kangfenmao_CherryStudio.set,
         com_kimi_code_desktop.set,
+        com_kruszoneq_macUSB.set,
         com_lemon_lvoverseas.set,
         com_local_claudestatusbar.set,
         com_lokii_app.set,

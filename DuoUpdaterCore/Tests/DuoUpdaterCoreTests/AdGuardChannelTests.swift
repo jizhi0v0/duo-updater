@@ -113,7 +113,7 @@ import Foundation
                 at: contents, withIntermediateDirectories: true)
             let plist: [String: Any] = [
                 "CFBundleIdentifier": AdGuardChannel.bundleID,
-                "CFBundleName": "Adguard",
+                "CFBundleName": "AdGuard",
                 "CFBundleShortVersionString": short,
                 "CFBundleVersion": build,
                 "AGChannel": track,

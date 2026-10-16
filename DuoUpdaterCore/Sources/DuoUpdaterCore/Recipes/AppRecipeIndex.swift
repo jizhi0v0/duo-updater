@@ -147,6 +147,7 @@ public enum AppRecipeIndex {
         com_openai_chat.set,
         com_openai_codex.set,
         com_operasoftware_Opera.set,
+        com_oracle_mysqlworkbench.set,
         com_oray_sunlogin_macclient.set,
         com_pais_handy.set,
         com_philandro_anydesk.set,

@@ -202,6 +202,7 @@ public enum AppRecipeIndex {
         com_xd_cindy.set,
         com_xd_cindycn.set,
         com_xingyuzhong_deepseekgui.set,
+        com_xk72_Charles.set,
         com_yetone_magpie.set,
         com_youqu_todesk_mac.set,
         com_zarifpour_superconductor.set,

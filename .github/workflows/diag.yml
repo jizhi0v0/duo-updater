@@ -9,8 +9,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arm: [warmup]
-        rep: [1, 2, 3, 4]
+        arm: [simwait, simnow]
+        rep: [1, 2]
     runs-on: xcode-27
     timeout-minutes: 25
     steps:
@@ -33,11 +33,22 @@ jobs:
       - name: Force a Core rebuild (recompile arm)
         if: matrix.arm == 'recompile'
         run: echo "// diag $(date +%s)" >> DuoUpdaterCore/Sources/DuoUpdaterCore/Install/DiskImageMount.swift
-      - name: Disk-image suites once (warm-up)
+      - name: What mounts the simulator runtimes
         run: |
           set +e
-          time swift test --package-path DuoUpdaterCore -c release --build-system native --filter 'DiskImageMountDetachTests|InstallChildProcessTests|BackupDestinationProbeTests|TestDiskImagesTests' 2>&1 | grep -E '✘ Test .*recorded|Test run with'
-          true
+          log stream --style compact --level info --predicate 'process == "simdiskimaged"' > "$RUNNER_TEMP/sim.log" 2>&1 &
+          LS=$!; sleep 3
+          snap() { echo "--- $1: sim mounts=$(mount | grep -c -i simulator) simlog=$(grep -c 'Successfully mounted' "$RUNNER_TEMP/sim.log") images=$(hdiutil info | grep -c image-path)"; }
+          snap start
+          xcrun --find xctest >/dev/null; sleep 5; snap "after xcrun --find xctest"
+          swift --version >/dev/null 2>&1; sleep 5; snap "after swift --version"
+          swift test --package-path DuoUpdaterCore -c release --build-system native --filter NoSuchTestDiagXYZ >/dev/null 2>&1; sleep 5; snap "after swift test (no tests)"
+          xcrun simctl list runtimes; sleep 5; snap "after simctl list runtimes"
+          mount | grep -i simulator
+          kill $LS; grep -E 'Successfully mounted|Cryptex mounting failed' "$RUNNER_TEMP/sim.log" | sed -E 's/path=.*MobileAsset_([A-Za-z]+).*/\1/' | cut -c1-140
+      - name: Wait (simwait arm)
+        if: matrix.arm == 'simwait'
+        run: sleep 150
       - name: Core tests (Release)
         run: |
           set +e

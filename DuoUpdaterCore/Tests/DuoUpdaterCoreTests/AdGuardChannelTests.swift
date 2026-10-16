@@ -94,6 +94,47 @@ import Foundation
         #expect(AdGuardChannel.resolve(bundleStrings: ["AGChannel": "alpha"]) == nil)
     }
 
+    /// The wiring, end to end through `AppScanner.readApp(at:)`: the scanner has
+    /// to hand the bundle's own Info.plist strings to the binding, or every test
+    /// above passes while a real beta install is still labelled stable. The
+    /// plists carry the real 2.20 RC 1 / 2.20 Nightly 9 bundles' identifying keys.
+    ///
+    /// Mutation that turns this red: passing `[:]` instead of
+    /// `ChannelBinding.bundleStrings(fromInfoPlist: plist)` in `readApp`.
+    @Test func theScanReadsTheTrackFromTheBundlesOwnInfoPlist() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("duo-adguard-channel-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        func bundle(_ track: String, short: String, build: String) throws -> URL {
+            let app = root.appendingPathComponent("ZZFixture-Adguard-\(track).app")
+            let contents = app.appendingPathComponent("Contents")
+            try FileManager.default.createDirectory(
+                at: contents, withIntermediateDirectories: true)
+            let plist: [String: Any] = [
+                "CFBundleIdentifier": AdGuardChannel.bundleID,
+                "CFBundleName": "Adguard",
+                "CFBundleShortVersionString": short,
+                "CFBundleVersion": build,
+                "AGChannel": track,
+                "SUFeedURL": "https://static.adtidy.org/mac/\(track)/adguard-\(track)-appcast.xml",
+            ]
+            try PropertyListSerialization
+                .data(fromPropertyList: plist, format: .xml, options: 0)
+                .write(to: contents.appendingPathComponent("Info.plist"))
+            return app
+        }
+
+        let scanner = AppScanner(testflight: TestFlightInventory(macRows: []))
+        let beta = try #require(scanner.readApp(at: try bundle("beta", short: "2.20 RC 1", build: "2624")))
+        #expect(beta.releaseChannel == .beta)
+        #expect(beta.channelIsAuthoritative)
+        let nightly = try #require(scanner.readApp(
+            at: try bundle("nightly", short: "2.20 Nightly 9", build: "2625")))
+        #expect(nightly.releaseChannel == .nightly)
+        #expect(nightly.channelIsAuthoritative)
+    }
+
     /// No preference to watch, so not in `boundBundleIDs`, but a real resolver.
     @Test func adGuardHasAResolverButNothingToWatch() {
         #expect(ChannelBinding.hasResolver(bundleID: AdGuardChannel.bundleID))

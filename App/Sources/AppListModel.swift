@@ -1842,6 +1842,7 @@ final class AppListModel {
     @ObservationIgnored private var trustPollTask: Task<Void, Never>?
     @ObservationIgnored private var trustPollers = 0
     @ObservationIgnored private var trustObserver: NSObjectProtocol?
+    @ObservationIgnored private var activationObserver: NSObjectProtocol?
     /// Set while a drag-panel is up, so the moment we detect the corresponding grant we
     /// can dismiss that now-pointless panel. All three are detectable — Accessibility via
     /// `AXIsProcessTrusted()`, App Management via the `TCCAccessPreflight` SPI, Full
@@ -1855,8 +1856,9 @@ final class AppListModel {
     /// four file opens — measured 2026-09-10 at about 20–70 µs for the four, granted or
     /// refused. It also reads `SMAppService.status`, which the "Cheap" above used to
     /// leave out — once, and off the main thread: the query lands after this returns
-    /// (`refreshHelperStatus()`), and the Welcome and Settings panes poll this every
-    /// 1.5 s.
+    /// (`refreshHelperStatus()`). The Welcome and Settings panes poll this every
+    /// 1.5 s, but pass `queryingHelper: false` once the helper is enabled (see
+    /// `beginTrustPolling()`).
     ///
     /// Caveat we can't engineer around for *Accessibility*: TCC reflects a *grant* to a
     /// running process live, but a *revocation* is cached — `AXIsProcessTrusted()` keeps
@@ -1864,7 +1866,7 @@ final class AppListModel {
     /// relaunches. So that flips false→true on its own but true→false only after a
     /// restart. (App Management goes through `tccd` each call, so it tracks both ways
     /// better.) The distributed-notification hook below catches changes promptly.
-    func refreshPermissionStatus() {
+    func refreshPermissionStatus(queryingHelper: Bool = true) {
         let trusted = AppStoreAXInstaller.isTrusted
         accessibilityTrusted = trusted
         if trusted, awaitingAccessibilityGrant {
@@ -1907,7 +1909,7 @@ final class AppListModel {
         // Not awaited: callers are window appears and polls, and the mirror is
         // observable, so it lands a round trip later. A caller that acts on it right
         // away awaits `refreshHelperStatus()` itself (see `installAll`).
-        Task { await refreshHelperStatus() }
+        if queryingHelper { Task { await refreshHelperStatus() } }
 
         logPermissionsOnce()
     }
@@ -1946,11 +1948,32 @@ final class AppListModel {
                 }
             }
         }
+        // Coming back to DuoUpdater from System Settings is when a helper switched
+        // off in Login Items shows up, since the poll below stops asking about the
+        // helper once it is enabled.
+        if activationObserver == nil {
+            activationObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didBecomeActiveNotification,
+                object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.refreshPermissionStatus() }
+            }
+        }
         guard trustPollTask == nil else { return }
         trustPollTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1.5))
-                self?.refreshPermissionStatus()
+                guard let self else { return }
+                // The helper only while it waits for approval. Each status read
+                // is an XPC round trip to `smd`, which asks
+                // `backgroundtaskmanagementd` for the item's disposition; a
+                // Settings window left open behind other windows kept that going
+                // every 1.5 s for hours (2026-10-16, 38 a minute for two hours).
+                // Skipped only when the client AND the model's mirror both say
+                // enabled: Diagnostics' Enable… registers through the client
+                // alone, and this query is what brings `helperEnabled` along.
+                let settled = self.helperEnabled && self.helperClient.isEnabled
+                self.refreshPermissionStatus(queryingHelper: !settled)
             }
         }
     }
@@ -1963,6 +1986,10 @@ final class AppListModel {
             if let trustObserver {
                 DistributedNotificationCenter.default().removeObserver(trustObserver)
                 self.trustObserver = nil
+            }
+            if let activationObserver {
+                NotificationCenter.default.removeObserver(activationObserver)
+                self.activationObserver = nil
             }
         }
     }

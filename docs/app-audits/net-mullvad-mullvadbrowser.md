@@ -64,10 +64,10 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（推断） | 没查 | 不能（MAR 不是 app 包） |
-| 证据 | 默认 `app.update.staging.enabled = true`、`app.update.auto = true`（`browser/omni.ja` 默认 prefs）；停放目录没核实 | 本次未启动 app（第二轮由主会话真机执行） | `SelfUpdaterStash` 不读 MAR |
+| 结论 | 会 | 15.0.24 运行 30 s 内停放并预先应用成 `Updated.app`（15.0.25，实测） | 不能（MAR 不是 app 包） |
+| 证据 | 默认 `app.update.staging.enabled = true`、`app.update.auto = true`（`browser/omni.ja` 默认 prefs）；停放目录没核实 | 2026-10-16 真机：`~/Library/Application Support/MullvadBrowser/UpdateInfo/Applications/Mullvad Browser/updates/0/` 下 `update.mar`（8,802,786 B，partial）、`update.status` = `applied`、`update.version`、`Updated.app`（目录共 395 MB）；`active-update.xml` 的 `appVersion` 15.0.25 | `SelfUpdaterStash` 不读 MAR |
 
-- 记录文件与字段: 没查（Mozilla 的 `update.status` / `update.mar` 布局，路径未核实）
+- 记录文件与字段: `updates/0/update.status`（`applied` = 已预先应用、等下次启动换包）、`update.version`；`UpdateInfo/…/active-update.xml`
 - 容器: MAR
 - 两份副本会不会共用这个目录: 没查
 
@@ -103,12 +103,13 @@
 - 阻塞: 无
 
 ## 已知问题
-- 运行中更新与自带更新器的碰撞没验证（推断，未验证）: 浏览器若已停放 15.0.24→15.0.25 的 MAR，duo 先换成 15.0.25 后，
-  下次启动 Mozilla 更新器可能再应用一次（partial MAR 对新文件校验失败后回退 complete，版本不变）。由主会话真机第二轮确认。
+- 运行中更新与自带更新器会碰撞，但无害（运行中一轮实测）: 浏览器已停放 15.0.24→15.0.25 时 duo 先换成 15.0.25，`duo restart` 拉起的新进程发现停放，
+  启动 `updater.app/Contents/MacOS/org.mozilla.updater` 把它的 `Updated.app` 整个换进来（主程序 inode 变成它那份）再重启自己；结果仍是 15.0.25、签名完好，停放目录清空。
+  不是对新文件再打 MAR，而是换入预先应用好的整包。`duo check` 对这种停放显示 `[GitHub, in-place]`，不提示已停放
 - alpha 最新 release 偶尔没有 notes（16.0a13），此时 changelog 落到网页。
 
 ## 建议下一步
-1. 主会话真机：装 15.0.24，`duo install` 到 15.0.25（不运行；运行中 + `duo restart`），记录停放目录与碰撞结果。
+1. （已做）运行中一轮，2026-10-16，main `make cli`：15.0.24 运行中、已停放 15.0.25，`duo install --yes` → `installed.` 并提示 `Still running the old code: Mullvad Browser`；`duo restart` → `restarted`，随后 Mozilla 更新器换入它的 `Updated.app` 并重启（见已知问题）。Team `MADPSAYN6T`、`codesign --strict` 0、Notarized。新增 `~/Library/{Application Support/MullvadBrowser, Caches/MullvadBrowser, Preferences/net.mullvad.mullvadbrowser.plist}`，登录项前后无差异
 2. 可选：给 GitHub 结构化日志加 `skipSections: ["Build System"]` 或专门的 Tor 系 ChangeLog 解析，保留平台分组。
 
 ## 如何复验

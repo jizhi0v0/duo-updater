@@ -62,7 +62,7 @@ Settled from source（`master`）:
 v5 首次启动会把 v4 的 PotDb 数据（`~/.SwitchHosts/{data,config}`）迁到 v5 结构，并把旧目录归档到
 `~/.SwitchHosts/v4/migration-<timestamp>/`（`src-tauri/src/migration/mod.rs`；v5.0.0 release notes 也写了
 「支持首次启动从旧 PotDb 数据迁移」）。所以从 4.x 换成 5.x 就是厂商支持的升级路径，一键只是代替手动替换。
-迁移本身没有在这里跑过（未验证）。
+迁移已在真机跑过（2026-10-16，见「建议下一步」第 3 条）。
 
 ## 更新检测
 - 源: `oldj/SwitchHosts` GitHub Releases。stable 读 `/releases/latest`；beta 读 releases 列表（默认 20 条），取第一个匹配的 tag
@@ -85,8 +85,8 @@ v5 首次启动会把 v4 的 PotDb 数据（`~/.SwitchHosts/{data,config}`）迁
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会（按源码） | 没查 | — |
-| 证据 | `commands.rs` `download_update` 调的是 `download_and_install`，下载完就装，之后才发 `update_downloaded` 让用户重启；没有「已下载待装」的记录文件。`tauri-plugin-updater` 内部实现没读 | 第二轮真机运行时才能看到 | — |
+| 结论 | 不会 | 无（下完立即替换 bundle，实测） | — |
+| 证据 | `commands.rs` `download_update` 调的是 `download_and_install`，下载完就装，之后才发 `update_downloaded` 让用户重启；没有「已下载待装」的记录文件。`tauri-plugin-updater` 内部实现没读 | 2026-10-16 真机：5.0.1 的 “New Version Found … Download Update” 点下后直接原地替换 `/Applications/SwitchHosts.app`（新 inode），再提示 “Version 5.0.2 has been installed and will take effect after restart” | — |
 
 ## Changelog
 - 来源: GitHub release body，经 `GitHubMarkdownParser`（channel-verify 的 `changelog pane` 走的就是这条生产路径）
@@ -116,19 +116,20 @@ v5 首次启动会把 v4 的 PotDb 数据（`~/.SwitchHosts/{data,config}`）迁
     `identifier "net.oldj.switchhosts" and anchor apple generic and certificate leaf[subject.OU] = "J5J6USUX2F"` 的连接方
   - app 每次查状态都做一次 XPC 握手比对 `PROTOCOL_VERSION`（当前为 1），不一致报 `Outdated`，界面提示重新注册
   - 换 bundle 后：已在跑的 `swh_helper` 继续是旧代码，直到重启或重新注册；新 app 同 identifier、同 Team，连接仍被接受。
-    这与 app 自己的 Tauri updater 原地替换 bundle 后的状态完全相同，所以不因此拦一键。没有真机验证（未验证）
+    这与 app 自己的 Tauri updater 原地替换 bundle 后的状态完全相同，所以不因此拦一键。2026-10-16 真机已确认，见「建议下一步」第 2 条
 - **读的是**: 人人可手动下载的 GA（stable 走 `/releases/latest`，beta 走 release 列表；都是 release 页上直接给的 dmg）。
   beta rule 只对已经装着 beta 的副本生效，不会把 beta 推给装正式版的人
 - 端到端: 真机端到端（2026-10-16，集成分支 `make cli`）：5.0.1 → 5.0.2（含 `verifyingSignature`；未启动，`sfltool dumpbtm` 前后都无 SwitchHosts 项），`backed up … verifyingCodeSignature … installed.`；装后 Team 不变、`spctl` Notarized Developer ID，`duo check` 报 up to date
 - 阻塞: 无
 
 ## 已知问题
-- 真机端到端运行中一轮时注意: 启动旧版不会自动注册 helper；如果为了测 helper 而写 hosts，会弹管理员授权并装上
-  root daemon，测完要在偏好设置里卸载（`unregister`），否则拖进废纸篓不会移除它（`helper_admin.rs` 注释原话的意思）。
+- 换包后已在跑的 `swh_helper` 仍是旧二进制（root 进程、按需拉起、不空闲退出），直到重启或重新注册；duo 的 `Still running the old code` 只列 app，不提 helper。实测新 app 照常经旧 helper 写 hosts，无提示
+- 测 helper 要写 hosts：第一次写时 helper 还没在「允许在后台」里放行，注册报 `Operation not permitted`，app 退回一次性管理员授权；放行后要重开 app 才会用 helper（每次会话只试一次）。测完在设置 ▸ Background Helper 卸载，删 app 后 BTM 里仍留 `disabled` 记录
 
 ## 建议下一步
-1. 主会话真机端到端：装 5.0.1 → `duo install --yes`（不运行；运行中 + `duo restart`），补进本文件。
-2. 4.2.0（旧 id `SwitchHosts`）→ 5.0.2 的一键可单独跑一轮，确认 `BundleIDMigration` 换 id 与 v5 首启迁移都正常。
+1. （已做）运行中一轮，2026-10-16，main `make cli`：5.0.1 运行中，`duo install --yes` → `installed.` 并提示 `Still running the old code: SwitchHosts`；随后在旧进程里点 “Download Update”：Tauri updater 把 5.0.2 再原地装一次（新 inode），结果 Team `J5J6USUX2F`、`codesign --strict` 0、Notarized；`duo restart` → `restarted`，新进程映射 5.0.2，`duo check` 报 up to date。`/etc/hosts` 前后 SHA-256 相同。新增 `~/.SwitchHosts`、`~/Library/{Caches,Logs,WebKit}/net.oldj.switchhosts`，登录项前后无差异
+2. （已做）helper 换包，2026-10-16，main `make cli`：5.0.1 运行中、`swh_helper` 已放行并在跑（root，21:08 起），`/etc/hosts` 已写入测试行；`duo install --yes` → `installed.`，`swh_helper` 与 `switchhosts` 换成新 inode，helper 进程不变、BTM 仍 `[enabled, allowed]`、launchd `state = running`；`duo restart` → `restarted`，新 5.0.2 进程改测试行并开关一次，`/etc/hosts` 照常更新（21:11），仍由 21:08 的旧 helper 写入、无授权或「Outdated」提示。卸载 helper、关掉条目后 `/etc/hosts` 与测试前逐字节相同
+3. （已做）旧 id 一键 + v5 首启迁移，2026-10-16，main `make cli`：装 4.2.0 arm64 dmg（`SwitchHosts`，Team `J5J6USUX2F`，Notarized），启动后建一个关着的 Local 条目 `v4-migrate`（内容 `# v4 migration marker`）并退出；`duo check` 报 `4.2.0 → 5.0.2 [GitHub, in-place]`，`duo install --yes` → `verifyingSignature … verifyingCodeSignature … installed.`，结果 `net.oldj.switchhosts` 5.0.2、Team 不变、`codesign --strict` 0、Notarized，`duo check` up to date。启动 5.0.2：`~/.SwitchHosts/manifest.json` 里条目同 id、`on: false`、标题与内容都保留，旧 `data`/`config` 归档到 `~/.SwitchHosts/v4/migration-<时间戳>/`（含 `archive-metadata.json`），启动不写 `/etc/hosts`，BTM 里没有 SwitchHosts 记录。注意 v4 在条目开关时会写 `/etc/hosts`（本次多出一行空行），测前要备份
 
 ## 如何复验
 ```

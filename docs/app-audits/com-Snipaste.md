@@ -43,11 +43,15 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `com.Snipaste` | — | — | `versions` JSON 的 `mac_version` | ✓ |
-| beta    | `com.Snipaste` | 共享 | app 内偏好（键名未找到） | app 自己的 feed（地址未找到） | ○ |
+| beta    | `com.Snipaste` | 共享 | app 内偏好（2.11.3 Free 界面里没有这个开关，见下） | app 自己的 feed（地址未找到） | ○ |
 
 - beta 是 Pattern B（同 id、偏好切换）。二进制里有 `cb_betaUpdate` / `Include beta builds`，但偏好键不是字面量
   （`Update/` 段下能看到 `force_feed`、`last_feed`、`last_upack`、`changelog` 等，没有 beta 相关的键），feed 地址
-  也是运行时拼的（`https://%1`）。要接它需要启动 app 拨一下开关、读 `~/.snipaste/config.ini` 并抓包，本次没有做。
+  也是运行时拼的（`https://%1`）。
+- 真机（2026-10-16，2.11.3 Free，全新 `~/.snipaste`）：Preferences ▸ Update 页只有 “Check for updates on startup / Every 24 h”、代理设置和
+  “Check for updates” / “Restore Defaults”，**没有** “Include beta builds”。二进制里有这个复选框（`cb_betaUpdate`、提示
+  “Beta versions may contain more bugs.”），但这个构建不显示它；显示条件（Pro？beta 构建？）没查到。`config.ini` 只有
+  `first_run`、`language` 两行。所以这个版本的用户无法打开 beta 轨，没有偏好可读。
 - changelog 里最近一个不带平台限定的 beta 标题是 `v2.8.3 Beta2`（2022-12-25），之后只有
   `v2.8.8 Beta (Linux)`、`v2.8.9 Beta (Linux)`。也就是说当前没有比 stable 新的 Mac beta 在发（推断自 changelog，
   没有抓到 app 的 beta feed 来确认）。
@@ -80,8 +84,8 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 没查 | 没查 | 没查 |
-| 证据 | `Update/last_upack` 暗示会记下载过的包，但位置和完成记录没找到 | 本次没有启动 app（Phase 4 第二轮由主会话真机执行） | `SelfUpdaterStash` 没有这种布局 |
+| 结论 | 会（用户点下载后） | 完整的 2.11.3 dmg（实测） | 不需要（见下） |
+| 证据 | 2026-10-16 真机：默认配置下 2.11.2 运行 90 s、重启后 60 s 都没查更新；菜单栏菜单 “Check for updates...” → “New version available: 2.11.3” → “Download updates”（经系统代理约 5 分钟）→ 存到 `~/Downloads/Snipaste-Mac-2.11.3.dmg`（36,795,585 B，SHA-256 与厂商 2.11.3 dmg 相同），弹模态框 Cancel / Show in Finder / Install now | “Install now” 只是退出 app 并挂载这个 dmg（`/Volumes/Snipaste` 拖拽窗口），不替换 bundle | 一键自己下载厂商 dmg，不读它 |
 
 ## Changelog
 - 来源: recipe，读 `https://docs.snipaste.com/wiki/Changelog.md`（docsify 站点，`/changelog` 是它的 alias，原文是 Markdown）
@@ -105,12 +109,13 @@
 - 阻塞: 无
 
 ## 已知问题
-- app 有自己的自动安装选项，与我们的安装是否会互相覆盖：未验证（需要主会话的第二轮真机测试）。
+- app 自己的更新不会和一键互相覆盖：它的 “Install now” 只挂载 dmg 等用户拖拽（运行中一轮实测）。
+- 它的 “已下载” 模态框开着时 app 拒绝退出（AppleScript `quit` 返回 -128 且进程不退），这时 `duo restart` 报 `still running — likely a save prompt, left it alone`，属于预期
 - beta 轨没接，见 Channel 详情。
 
 ## 建议下一步
-1. 主会话真机：装 2.11.2，`duo install` 到 2.11.3（两轮，含 app 运行中、自更新器已启用）。
-2. beta：在 app 里打开「Include beta builds」，读 `~/.snipaste/config.ini` 的变化并抓 app 的更新请求；有了偏好键和 feed 再写 `ChannelBinding` + beta recipe。
+1. （已做）运行中一轮，2026-10-16，main `make cli`：2.11.2 运行中、自带更新器已下载 2.11.3 dmg 且模态框开着，`duo install --yes` → `installed.` 并提示 `Still running the old code: Snipaste`；模态框开着时 `duo restart` 退不掉 app（见已知问题）；点 “Install now” 后 app 退出、只挂载 dmg，bundle inode 不变；启动 2.11.3 后 `duo restart` → `restarted`。Team `NGTL73P583`、`codesign --strict` 0、Notarized。新增只有 `~/.snipaste`，登录项前后无差异
+2. beta：2.11.3 Free 界面里没有「Include beta builds」（2026-10-16 真机），暂无可接的偏好。等哪个版本把开关露出来（或确认 Pro 版有）再拨开关、读 `~/.snipaste/config.ini` 并抓更新请求。
 
 ## 如何复验
 

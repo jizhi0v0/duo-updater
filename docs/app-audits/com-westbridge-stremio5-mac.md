@@ -86,10 +86,10 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（下载后等安装脚本） | 没查 | 没查 |
-| 证据 | 字符串：`Fetching updates`、`Checksum verified.`、`stremio-updater.sh`（参数是 dmg 路径，装完 `rm "$DMG"`） | 第二轮没跑（不允许启动下载的 app） | — |
+| 结论 | 会（下载后等安装脚本） | 5.1.27 运行中停放了完整的 5.1.28 dmg（实测） | 不需要（见下） |
+| 证据 | 字符串：`Fetching updates`、`Checksum verified.`、`stremio-updater.sh`（参数是 dmg 路径，装完 `rm "$DMG"`） | 2026-10-16 真机：启动 5.1.27 后约 90 s 出现 `$TMPDIR/Stremio_arm64.dmg`（113,661,066 B，UDZO，内含 5.1.28）；app 运行期间、退出时、5.1.28 再启动 80 s 内都没有跑 `stremio-updater.sh`，bundle 不动 | 一键自己下载厂商 dmg，不读它 |
 
-- dmg 存放目录没确定（脚本只拿到 `$1`）。
+- dmg 存放目录: `$TMPDIR/Stremio_arm64.dmg`（2026-10-16 实测；文件名不带版本）。
 
 ## Changelog
 - 来源: 无
@@ -117,8 +117,8 @@
 
 ## 已知问题
 - Homebrew `stremio@beta` 给 macOS 15 钉 5.1.27，原因未公开；我们给 macOS 15 提供 5.1.28（跟厂商）。
-- 外壳自己的更新器也会装同一个 dmg；第二轮（运行中、更新器已暂存）没跑，碰撞行为未知。
+- 外壳自己的更新器停放的 dmg 在 duo 换包后不会被再装一次（运行中一轮实测，见建议下一步 1）；装好后它留在 `$TMPDIR` 里。
 
 ## 建议下一步
-1. 主会话真机端到端：装 5.1.27 → `duo install` → 5.1.28。
+1. （已做）运行中一轮，2026-10-16，main `make cli`：5.1.27 运行中、自带更新器已停放 5.1.28 dmg，`duo install --yes` → `installed.` 并提示 `Still running the old code: Stremio`；`duo restart` → `restarted`，新进程映射 5.1.28 的主程序；之后正常退出、再启动 5.1.28 观察 80 s，`stremio-updater.sh` 都没跑，bundle inode 不变。Team `BH62GT22G7`、`codesign --strict` 0、Notarized。新增 `~/Library/{Application Support/stremio-server, Caches/com.westbridge.stremio5-mac, Preferences/com.westbridge.stremio5-mac.plist, WebKit/com.westbridge.stremio5-mac}`，登录项前后无差异
 2. 用 `--autoupdater-endpoint` 指向本地服务抓一次外壳的真实请求，核对查询参数。

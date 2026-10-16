@@ -68,6 +68,9 @@ targets:
       - path: Sources/HomebrewGroupState.swift
       # Where the workbench sidebars' keys move the selection. Foundation only.
       - path: Sources/SidebarSelection.swift
+      # The icon cache's check that the bundle at a path is still the copy its
+      # icon came from. AppKit + Core only.
+      - path: Sources/AppIconCache.swift
       # Where the long scroll reads the padding around a version header.
       # CoreGraphics only.
       - path: Sources/HeaderBand.swift

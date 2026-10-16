@@ -49,6 +49,7 @@ public enum AppRecipeIndex {
         com_aone_keka.set,
         com_apple_dt_Xcode.set,
         com_astrlink_desktop.set,
+        com_axosoft_gitkraken.set,
         com_baidu_BaiduNetdisk_mac.set,
         com_bitwarden_desktop.set,
         com_bjango_istatmenus.set,

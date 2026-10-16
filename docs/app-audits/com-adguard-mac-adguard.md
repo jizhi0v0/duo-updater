@@ -37,7 +37,7 @@
 
 **两个没解决的点：**
 - **channel 标签**: `channel-verify` 对 beta 和 nightly 真包都报 `detected channel → stable`（`inferred stable`，没有 `ChannelBinding`）。检测和 changelog 不受影响（它们只看 bundle 自己的 feed），但这些安装在 UI 上不会标成 beta / nightly。`AGChannel` 是现成的信号，可以照 SwiftVM（「构建自带、无偏好」那一行）加一个 binding。没加：binding 一旦 resolve，`channelIsAuthoritative` 会改变 `SparkleAppcastSource.allowedChannels` 的推断，在这种无标签 feed 上的效果要先验证。
-- **app 内切轨开关**: 主程序里有 `feedURLStringForUpdater:`、`setAppUpdateChannel:`、`appUpdateChannel` 这些符号（`strings` 读出，不是看到了调用），app 可能在运行时换 feed。但英文界面字符串里没找到切轨的文案，官方资料没写明 Mac 版有没有这个开关：adguard.com/en/beta.html 笼统地说可以在设置里切到对应渠道；Mac 2.0 进 Alpha 时的博客（adguard.com/en/blog/adguard-for-mac-gets-nightly.html）说 Mac 版没有切换开关、要装单独的构建。没启动 app 去看：启动会装网络扩展和特权 helper。如果开关存在，切到 beta 的 release 构建仍会被我们按 release feed 检查（只会少报，不会跨轨推送）。要确认，需要有人在 app 设置里看一眼。
+- **app 内切轨开关**: 2.20 的设置窗口里找不到更新渠道选项（General 页确认没有；窗口里没有 Updates 之类的页），与 Mac 2.0 进 Alpha 时的博客（adguard.com/en/blog/adguard-for-mac-gets-nightly.html）一致：换轨要装对应的构建。adguard.com/en/beta.html 说可以在设置里切渠道，那是对各平台的笼统说法。主程序里虽有 `feedURLStringForUpdater:`、`setAppUpdateChannel:`、`appUpdateChannel` 符号（`strings` 读出），设置里没有入口，所以按「每个构建只读自己的 feed」处理。官网版本页 `adguard.com/en/versions/mac/{release,beta,nightly}.html` 按轨分开列版本与下载，换轨就是装那条轨的构建。
 
 ## 更新检测
 - 源: `SparkleAppcastSource`，读 bundle 声明的 feed。
@@ -76,13 +76,11 @@
 
 ## 已知问题
 - beta / nightly 安装的 channel 标签显示为 stable（见上）。
-- 是否存在 app 内切轨开关未确认（见上）。
 - **夜扫覆盖**: `duo verify` 的清单只有手写 recipe，没有通用 Sparkle 这一类。这次加的 changelog recipe 让 AdGuard 的 changelog（经 release feed 解析出的页面）进了 sweep；检测和一键仍不在 sweep 里，坏了也不会报。#1321 修安装时也是这个原因没被发现：AdGuard 当时没有 recipe、没有审计文档。
 
 ## 建议下一步
 1. channel 标签：读 `AGChannel` 的 `ChannelBinding`（SwiftVM 那一类），先验证它对无标签 feed 的 `allowedChannels` 有什么影响。
-2. 有人在 AdGuard 设置里确认有没有「更新渠道」开关；有的话，找到它写在哪，再决定是否换 feed。
-3. app 运行中的一键那一轮，等能接受启动 AdGuard（网络扩展、helper）时再跑。
+2. app 运行中的一键那一轮，等能接受启动 AdGuard（网络扩展、helper）时再跑。
 
 ## 如何复验
 

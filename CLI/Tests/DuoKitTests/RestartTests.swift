@@ -54,4 +54,60 @@ import DuoUpdaterCore
         #expect(Restart.describe(.nestedOnly(relaunched: false))
             == "wasn't running itself — its nested app(s) were cleared, but didn't come back")
     }
+
+    // MARK: - Staged self-update
+
+    private static let gitKraken = InstalledApp(
+        name: "GitKraken", bundleID: "com.axosoft.gitkraken",
+        shortVersion: "12.5.0", buildVersion: "12.5.0",
+        path: URL(fileURLWithPath: "/ZZFixture/GitKraken.app"),
+        isMASApp: false, sparkleFeedURL: nil)
+
+    private static func staged(_ version: String, _ updater: StagedUpdater = .shipIt) -> StagedSelfUpdate {
+        StagedSelfUpdate(version: version, buildVersion: version,
+                         stagedBundlePath: URL(fileURLWithPath: "/ZZFixture/update.x/GitKraken.app"),
+                         updater: updater)
+    }
+
+    /// The 2026-10-16 bug: GitKraken had 12.6.0 staged and `duo restart` took the
+    /// plain quit-and-reopen, which ShipIt aborted on. A staged build newer than
+    /// the installed one takes the Relaunch path. Mutation: `path` always
+    /// `.plain` → red.
+    @Test func aStagedNewerBuildTakesTheStagedPath() {
+        let build = Self.staged("12.6.0")
+        #expect(Restart.path(for: Self.gitKraken, staged: build) == .staged(build))
+    }
+
+    /// No staging, or a staging at or below what is installed (relaunching would
+    /// not move it forward): today's `AppRestarter.restart`, unchanged.
+    @Test func noUsefulStagingKeepsThePlainRestart() {
+        #expect(Restart.path(for: Self.gitKraken, staged: nil) == .plain)
+        #expect(Restart.path(for: Self.gitKraken, staged: Self.staged("12.5.0")) == .plain)
+        #expect(Restart.path(for: Self.gitKraken, staged: Self.staged("12.4.0")) == .plain)
+    }
+
+    /// Mozilla's actionable test needs the remote, which `duo restart` does not
+    /// fetch — so it stays on the plain restart, whose reopen is the launch that
+    /// applies its staging.
+    @Test func aMozillaStagingStaysOnThePlainRestart() {
+        #expect(Restart.path(for: Self.gitKraken, staged: Self.staged("12.6.0", .mozilla)) == .plain)
+    }
+
+    /// What gets printed, and which endings fail the run.
+    @Test func stagedEndingsDescribeWhatHappened() {
+        func line(_ o: StagedRelaunchOutcome, reopenFailed: Bool = false) -> (text: String, failed: Bool) {
+            Restart.describe(
+                StagedRelaunch.Ending(outcome: o, everQuit: o != .wontQuit, reopenFailed: reopenFailed),
+                staged: "12.6.0", disk: VersionSide(marketing: "12.6.0", build: "12.6.0"))
+        }
+        #expect(line(.applied).text == "quit — its own updater applied 12.6.0")
+        #expect(!line(.applied).failed)
+        #expect(line(.applied, reopenFailed: true).failed)
+        #expect(line(.wontQuit).text == "still running — likely a save prompt, left 12.6.0 staged")
+        #expect(line(.wontQuit).failed)
+        #expect(line(.swapDidNotLand).text == "quit, but its own updater didn't apply 12.6.0 in time")
+        #expect(line(.swapDidNotLand).failed)
+        #expect(line(.restartedWithoutUpdate).text == "restarted without applying 12.6.0")
+        #expect(line(.restartedWithoutUpdate).failed)
+    }
 }

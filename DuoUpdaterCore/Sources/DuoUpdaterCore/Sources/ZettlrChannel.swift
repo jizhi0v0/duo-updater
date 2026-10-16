@@ -14,8 +14,11 @@ import Foundation
 ///
 /// Answers only for the opted-in value, the CotEditor shape: `true` is `.beta`,
 /// anything else is nil, so `ReleaseChannel.detect()` keeps speaking for the
-/// rest. A beta build reads `4.0.0-beta.5`, which `detect` already calls beta,
-/// and a nightly build (`4.8.0+nightly`) is left to `detect` too.
+/// rest. A beta build reads `4.0.0-beta.5`, which `detect` already calls beta.
+/// A nightly build (`4.8.0+nightly`) shares the same `config.json`, so the
+/// binding declines for it whatever the box says (`resolve(checkForBeta:bundleStrings:)`)
+/// and leaves it to `detect`'s nightly rule; bound to beta, it would be offered
+/// the same-numbered release, which `VersionComparator` ranks above it.
 ///
 /// Safety, in the one direction that matters: a missing, unreadable, oversized
 /// or malformed file, or a `checkForBeta` that is not JSON `true`, resolves to
@@ -34,12 +37,23 @@ enum ZettlrChannel {
             .appendingPathComponent("config.json", isDirectory: false)
     }
 
-    static func resolve(checkForBeta: Bool) -> ResolvedChannel? {
-        checkForBeta ? ResolvedChannel(channel: .beta) : nil
+    static func resolve(checkForBeta: Bool, bundleStrings: [String: String] = [:]) -> ResolvedChannel? {
+        if isNightly(bundleStrings: bundleStrings) { return nil }
+        return checkForBeta ? ResolvedChannel(channel: .beta) : nil
     }
 
-    static func resolveCurrent() -> ResolvedChannel? {
-        resolve(checkForBeta: checksForBeta(config: readConfig(at: configFileURL)))
+    static func resolveCurrent(bundleStrings: [String: String] = [:]) -> ResolvedChannel? {
+        resolve(
+            checkForBeta: checksForBeta(config: readConfig(at: configFileURL)),
+            bundleStrings: bundleStrings)
+    }
+
+    /// The bundle's own version says nightly: the same test `ReleaseChannel.detect`
+    /// applies, so the two cannot disagree.
+    static func isNightly(bundleStrings: [String: String]) -> Bool {
+        ReleaseChannel.detect(
+            name: "Zettlr", bundleID: bundleID, keystoneChannel: nil,
+            version: bundleStrings["CFBundleShortVersionString"]) == .nightly
     }
 
     /// The parsing half. Top level only, like the app's own config.

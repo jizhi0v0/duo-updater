@@ -85,12 +85,13 @@ beta 副本的 short 版本是 `2.0.0`，所以它会被当作 stable 2.0.0，�
 - 包内没有 helper、login item、XPC、launch agent；开机启动用的是 `SMAppService.mainApp`（`LaunchAtLogin-Modern`），也就是 app 自己，所以 `.zip` 换包即可
 - 旧 bundle id 的副本：`BundleIDMigration` 让 `com.davidbures.cork` / `com.davidbures.Cork`（< 1.6.0，同一 Team）可以被 `eu.davidbures.cork` 替换。
   厂商 1.6.0 的文章说明了这次换 id：设置可能重置一次，可能要重新输入一次邮箱
-- 真机端到端（2026-10-16，集成分支 `make cli`）：**失败，4/4 次**。每次都是 `failed: ditto -x -k failed (1): ditto: Couldn't read PKZip signature`，停在 extracting，旧版 2.0.2 原样、签名完好。原因（推断）：corkmac.app 逐请求严格交替真内容/首页 HTML（同日实测 10 次，代理内外一致），一次安装里探针在前、下载在后，下载总落在 HTML 上；不是「约一半失败」。一键要等下载器认出 HTML 并重试，或改成只检测
+- 真机端到端（2026-10-16，集成分支 `make cli`）：**失败，4/4 次**。每次都是 `failed: ditto -x -k failed (1): ditto: Couldn't read PKZip signature`，停在 extracting，旧版 2.0.2 原样、签名完好。原因（推断）：corkmac.app 约一半请求回首页 HTML，多数时候严格交替（同日实测 10 次，代理内外一致），一次安装里探针在前、下载紧随其后，下载落在 HTML 上；真机上不是「约一半失败」。同日后来用 cookie jar 连发 6 次是 HTML/目录/HTML/HTML/目录/目录，**并非总是严格交替**；HTML 那次是直接 200（`x-powered-by: PHP`），没有 `Location`、没有 `Set-Cookie`，禁止重定向或带 cookie 都无用。一键要等下载器认出 HTML 并重试，或改成只检测
 - 包 URL：最新 `https://corkmac.app/RLS/2.0.3/Cork.zip`，上一版 `https://corkmac.app/RLS/2.0.2/Cork.zip`
 
 ## 已知问题
-- **下载有一半概率拿到首页**：服务器交替回答（见更新检测），下载不走 `transientBodyPattern` 的重试。
-  抽到首页时解包失败、安装失败，app 不受影响；再点一次就会抽到 zip。下载路径要不要对「200 但其实是 HTML」做重试，留给主会话决定，这次没改。
+- **一键现在用不了**：服务器约一半请求回首页（见更新检测），下载不走 `transientBodyPattern` 的重试。
+  真机 4/4 次都抽到首页：解包失败、安装失败，app 不受影响；再点一次也一样（探针总在下载前一个请求）。
+  修法待定：下载器认出「200 但其实是 HTML」后重试，或把 `install:` 去掉改为只检测。
 - 博客 RSS 只保留最近 20 篇文章，更早的版本没有条目。
 
 ## 建议下一步

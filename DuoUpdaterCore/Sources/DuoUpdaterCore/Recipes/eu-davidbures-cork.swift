@@ -21,14 +21,16 @@ enum eu_davidbures_cork {
         // the zip's `CFBundleShortVersionString` (two-, three- and four-part
         // names alike).
         //
-        // THE SERVER ANSWERS EVERY OTHER REQUEST WITH ITS HOME PAGE: HTTP 200,
-        // the full site HTML, for the index and for every zip URL. That body
-        // is recognised as transient (an HTML5 document titled `Cork: …`; the
-        // healthy index is a bare `<html>` titled `Index of /RLS/`) and retried
-        // once, which lands on the other answer. The download has no such
-        // retry: when the zip request draws the home page, unpacking fails and
-        // the install fails without touching the app; the next attempt draws
-        // the zip. See the audit's 已知问题.
+        // THE SERVER ANSWERS ABOUT HALF ITS REQUESTS WITH ITS HOME PAGE: HTTP
+        // 200 (no redirect, no cookie), the full PHP site HTML, for the index
+        // and for every zip URL. Often in strict alternation, but not always
+        // (runs of two seen on 2026-10-16). That body is recognised as
+        // transient (an HTML5 document titled `Cork: …`; the healthy index is a
+        // bare `<html>` titled `Index of /RLS/`) and retried once, which usually
+        // lands on the index. The download has no such retry, and on the real
+        // machine it drew the home page 4 times out of 4 (the probe request
+        // runs just before it): unpacking fails, the install fails, the app is
+        // untouched. One-click does not work today. See the audit's 已知问题.
         //
         // One-click via `.versionTemplate` (the resolved version, never a first
         // match on an alphabetical index). The zip holds `Cork.app`,

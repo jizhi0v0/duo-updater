@@ -122,6 +122,22 @@ struct ZettlrChannelTests {
         #expect(detect("4.8.0+nightly", "com.example.other") == .stable)
     }
 
+    /// A nightly shares the stable build's `config.json`. With the box ticked the
+    /// binding would bind it to beta, and the beta rule would offer the
+    /// same-numbered release; the binding declines for it so `detect` keeps
+    /// `.nightly`.
+    @Test func theBindingDeclinesForANightlyBuild() {
+        func strings(_ version: String) -> [String: String] { ["CFBundleShortVersionString": version] }
+        #expect(ZettlrChannel.isNightly(bundleStrings: strings("4.8.0+nightly")))
+        #expect(ZettlrChannel.isNightly(bundleStrings: strings("4.0.0-beta+nightly")))
+        // The box ticked: a nightly is still not bound; a stable or beta build is.
+        #expect(ZettlrChannel.resolve(checkForBeta: true, bundleStrings: strings("4.8.0+nightly")) == nil)
+        #expect(ZettlrChannel.resolve(checkForBeta: true, bundleStrings: strings("4.8.0"))?.channel == .beta)
+        #expect(!ZettlrChannel.isNightly(bundleStrings: strings("4.8.0")))
+        #expect(!ZettlrChannel.isNightly(bundleStrings: strings("4.0.0-beta.5")))
+        #expect(!ZettlrChannel.isNightly(bundleStrings: [:]))
+    }
+
     /// Before 1.0.0 the app was com.zettlr.www, unsigned: detection only.
     @Test func thePre1IdIsDetectionOnly() throws {
         let old = GitHubReleaseRegistry.rules.filter { $0.bundleID == "com.zettlr.www" }

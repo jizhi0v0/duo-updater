@@ -68,8 +68,9 @@
 - 修掉的问题：原先 `4.8.0+nightly` 被读成 stable，`VersionComparator` 把 `4.8.0` 排在它前面，于是 nightly 副本被推 4.8.0 正式版，
   也就是它的代码已经越过的那一版。app 自己不会这样推（semver 忽略 build metadata）。现在 `ReleaseChannel.detect` 对
   `com.zettlr.app` 的 `…+nightly` 判为 `.nightly`，没有规则服务它，状态为 unknown，不推任何东西
-- 代价：nightly 副本也不会被推下一个正式版（app 自己会推）。另一个边角：nightly 副本若同时勾选了 beta，binding 判 beta，
-  beta 规则会推同号正式版。是推理，没在真机上跑
+- 代价：nightly 副本也不会被推下一个正式版（app 自己会推）。nightly 与正式版共用 `config.json`，勾了 beta 时
+  binding 本会判 beta、让 beta 规则推同号正式版；`ZettlrChannel.resolve(checkForBeta:bundleStrings:)` 遇到 `detect` 判 nightly 的版本串就不作答，
+  nightly 仍是 unknown（`ZettlrChannelTests.theBindingDeclinesForANightlyBuild`）
 
 ## 更新检测
 - 源: `Zettlr/Zettlr` GitHub Releases。stable 读 `/releases/latest`；beta 读列表（`usePrereleases`，`listPageSize` 默认 20，

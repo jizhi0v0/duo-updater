@@ -854,9 +854,16 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
     /// rewrite. `isMajorUpgrade` is then true whatever the source, which puts the
     /// row behind the existing confirmation: it prompts, it never blocks. The UI
     /// reads this to say "rewrite" instead of "license".
+    ///
+    /// Only when the offer is the rewrite itself (at or above the migration's
+    /// `firstToVersion`): an old-line point release from another source (Homebrew
+    /// answering 8.0.47 to an 8.0.46 copy) is an ordinary update.
     public var isVendorRewrite: Bool {
-        guard case .updateAvailable = status, let id = app.bundleID else { return false }
-        return BundleIDMigration.rewrite(installed: id, installedVersion: app.shortVersion) != nil
+        guard case .updateAvailable = status, let id = app.bundleID,
+              let offered = remote?.displayVersion,
+              let migration = BundleIDMigration.rewrite(installed: id, installedVersion: app.shortVersion)
+        else { return false }
+        return VersionComparator.compare(offered, migration.firstToVersion) != .orderedAscending
     }
 
     /// True when the available update is a notable/major upgrade — the signal we

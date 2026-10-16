@@ -508,7 +508,8 @@ public enum ChannelBinding {
             return { feeds, _ in ITerm2Channel.resolveCurrent(bundleFeeds: feeds) }
         case MonitorControlChannel.bundleID.lowercased():
             return { _, _ in MonitorControlChannel.resolveCurrent() }
-        case ZettlrChannel.bundleID.lowercased(): return { _, _ in ZettlrChannel.resolveCurrent() }
+        case ZettlrChannel.bundleID.lowercased():
+            return { _, strings in ZettlrChannel.resolveCurrent(bundleStrings: strings) }
         case SwiftVMChannel.bundleID.lowercased(): return { feeds, _ in SwiftVMChannel.resolve(bundleFeeds: feeds) }
         case AdGuardChannel.bundleID.lowercased():
             return { _, strings in AdGuardChannel.resolve(bundleStrings: strings) }

@@ -109,6 +109,12 @@ private func offer(_ version: String, source: String = "Vendor") -> RemoteVersio
     let current = UpdateResult(app: old, remote: offer("26.7.0"), status: .upToDate)
     #expect(!current.isVendorRewrite)
     #expect(!current.isMajorUpgrade)
+    // An 8.0 point release (Homebrew's cask is at 8.0.47) is not the rewrite.
+    let pointRelease = UpdateResult(
+        app: workbench(id: "com.oracle.workbench.MySQLWorkbench", version: "8.0.46.CE"),
+        remote: offer("8.0.47", source: "Homebrew"), status: .updateAvailable(latest: "8.0.47"))
+    #expect(!pointRelease.isVendorRewrite)
+    #expect(!pointRelease.isMajorUpgrade)
     // A 26.x copy updating within 26.x is an ordinary Vendor update.
     let new = UpdateResult(
         app: workbench(id: "com.oracle.mysqlworkbench", version: "26.7.0"),

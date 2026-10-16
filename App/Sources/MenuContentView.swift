@@ -932,10 +932,22 @@ private struct CommandLineRow: View {
             let hint = status.kind == .claudeCode
                 ? String(localized: "New sessions use it; restart open ones")
                 : String(localized: "Takes effect the next time it runs")
-            return half([Text(String(localized: "\(status.kind.displayName) updated to \(version)")), Text(hint)],
+            return half([Text(String(localized: "\(status.kind.displayName) updated to \(version)")),
+                         stillRunningLine ?? Text(hint)],
                         mark: seal)
         }
-        return half([Text(String(localized: "Up to date"))], mark: seal)
+        return half([Text(String(localized: "Up to date")), stillRunningLine].compactMap { $0 }, mark: seal)
+    }
+
+    /// The first tool with processes still on the copy from before its update
+    /// (`CLIToolsModel.usage`): current on disk, not in those processes.
+    private var stillRunningLine: Text? {
+        for status in tools.statuses {
+            guard let usage = tools.usage[status.toolID],
+                  let line = CLIToolWording.stillRunning(usage, of: status.kind) else { continue }
+            return Text(verbatim: "\(status.name ?? status.kind.displayName): \(line)").foregroundStyle(.orange)
+        }
+        return nil
     }
 
     // MARK: Parts

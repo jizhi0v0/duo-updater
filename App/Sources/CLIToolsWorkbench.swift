@@ -192,6 +192,11 @@ struct CLIToolSidebarRow: View {
                 HStack(spacing: 6) {
                     Text(verbatim: CLIToolPresentation.title(of: status, home: homeDirectory, among: cli.statuses))
                         .font(.body).lineLimit(1).truncationMode(.middle)
+                    // Something runs this install's binary — this very file, by
+                    // path (`CLIToolProcesses`) — as an app row's dot says.
+                    if cli.usage[id]?.isRunning == true {
+                        RunningIndicator(size: 6).offset(y: RunningIndicator.opticalNudge)
+                    }
                     if showsRuntime {
                         CLIRuntimeTagSlot(path: status.path, interactive: false)
                     }
@@ -215,6 +220,10 @@ struct CLIToolSidebarRow: View {
             Text(verbatim: cli.progress[id] ?? String(localized: "Updating…"))
                 .font(.caption).foregroundStyle(.secondary)
                 .lineLimit(1).truncationMode(.middle)
+        } else if let usage = cli.usage[id], let line = CLIToolWording.stillRunning(usage, of: status.kind) {
+            // Processes started before the update are still on the old code: the
+            // check says current, they are not.
+            Text(verbatim: line).font(.caption).foregroundStyle(.orange).lineLimit(1)
         } else if let version = cli.justUpdated[id] {
             Group {
                 if status.kind == .claudeCode {
@@ -269,6 +278,33 @@ struct CLIToolSidebarRow: View {
             // would leave a 260 pt sidebar too little room for the title beside it.
             CopyCommandButton(command: command)
         }
+    }
+}
+
+// MARK: - Running
+
+/// The detail panes' Running fact: which processes run the binary, and which
+/// of them are still on a copy from before the update (`CLIToolUsage`).
+private struct CLIToolRunningValue: View {
+    let usage: CLIToolUsage
+    let kind: CLIToolKind
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if !usage.current.isEmpty {
+                Text(verbatim: String(localized: "\(usage.current.count) on this version") + " · " + pids(usage.current))
+            }
+            if let line = CLIToolWording.stillRunning(usage, of: kind) {
+                Text(verbatim: line + " · " + pids(usage.stale.map(\.pid)))
+                    .foregroundStyle(.orange)
+                Text("Restart to use the new version.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func pids(_ pids: [pid_t]) -> String {
+        "pid " + pids.map(String.init).joined(separator: ", ")
     }
 }
 
@@ -490,6 +526,12 @@ struct ClaudeCodeDetailPane: View {
                 label("Channel")
                 Text(verbatim: channel)
             }
+            if let usage = cli.usage[id] {
+                GridRow {
+                    label("Running")
+                    CLIToolRunningValue(usage: usage, kind: .claudeCode)
+                }
+            }
             GridRow {
                 label("Update")
                 updateValue
@@ -682,6 +724,12 @@ struct CLIToolDetailPane: View {
                     // bottom of the screen (2026-10-02; the Rollback notice did the
                     // same in September). Unfixed, the text still wraps in full.
                     Text(verbatim: fact.value)
+                }
+            }
+            if let usage = cli.usage[id] {
+                GridRow {
+                    label("Running")
+                    CLIToolRunningValue(usage: usage, kind: status.kind)
                 }
             }
             GridRow {

@@ -114,6 +114,19 @@ final class CLIToolsModel {
     /// pinned "Claude Code updated to 2.1.285" on the popover for good — the first
     /// thing the user saw after a real update on 2026-10-01.
     private(set) var justUpdated: [CLIToolID: String] = [:]
+    /// Who is running each install right now (`CLIToolProcesses`), for the row's
+    /// running dot and its "still on the old version" line. Only installs
+    /// something runs are in it. Re-read by `watchProcesses`, on its own clock.
+    private(set) var usage: [CLIToolID: CLIToolUsage] = [:]
+    /// The stale processes each install's banner has named, so one is posted
+    /// for each update a running copy missed, not on every read
+    /// (`onStaleProcesses`). Forgotten once the install has none left.
+    @ObservationIgnored private var announcedStale: [CLIToolID: Set<pid_t>] = [:]
+    /// Told, after a read of the process table, which installs newly have
+    /// processes left on a copy from before an update, and which no longer
+    /// have any. `AppListModel` posts and withdraws the banner.
+    @ObservationIgnored var onStaleProcesses: (@MainActor (_ newly: [CLIToolStatus], _ cleared: [CLIToolID]) -> Void)?
+    @ObservationIgnored private var processWatch: Task<Void, Never>?
     /// Update rows whose release notes mark breaking changes in the versions the
     /// update brings → those versions, oldest first
     /// (`CLIToolChangelog.breakingVersions`). A hint beside the version, never a
@@ -554,6 +567,67 @@ final class CLIToolsModel {
         }
         onReport?()
         Task { await loadBreaking() }
+        // A check that finds the tool current is when a copy it updated by
+        // itself is first known to be the new one; say now who missed it.
+        Task { await refreshUsage() }
+    }
+
+    /// How often `watchProcesses` reads the process table while one of the
+    /// app's windows (the popover, the workbench) is on screen, and while none
+    /// is. A read is one `proc_pidpath` per process — 1.2–1.4 ms for 1049 of
+    /// them, measured 2026-10-16 — so the hidden clock is there for the
+    /// banner, the visible one for the dot.
+    static let processWatchVisibleInterval: Duration = .seconds(3)
+    static let processWatchHiddenInterval: Duration = .seconds(60)
+
+    /// Read who runs each install now, and keep reading on the clocks above.
+    /// `isVisible` says whether a window of the app is on screen. Started once.
+    func watchProcesses(isVisible: @escaping @MainActor () -> Bool) {
+        guard processWatch == nil else { return }
+        processWatch = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refreshUsage()
+                let visible = isVisible()
+                try? await Task.sleep(for: visible ? Self.processWatchVisibleInterval : Self.processWatchHiddenInterval)
+            }
+        }
+    }
+
+    /// One read of the process table for every install there is a binary to
+    /// match (`CLIToolProcesses.target`): the checked installs, or before the
+    /// first check the scan's.
+    func refreshUsage() async {
+        let statuses = checked ? self.statuses : []
+        let sightings = checked ? [] : self.sightings
+        guard !statuses.isEmpty || !sightings.isEmpty else { return }
+        let found = await offCooperativePool(qos: .utility) { () -> [CLIToolID: CLIToolUsage] in
+            let targets = statuses.compactMap { status in CLIToolProcesses.target(of: status).map { (status.toolID, $0) } }
+                + sightings.compactMap { sighting in CLIToolProcesses.target(of: sighting).map { (sighting.toolID, $0) } }
+            let usage = CLIToolProcesses.usage(of: targets.map(\.1))
+            var answer: [CLIToolID: CLIToolUsage] = [:]
+            for (id, target) in targets { if let found = usage[target], found.isRunning { answer[id] = found } }
+            return answer
+        }
+        if found != usage { usage = found }
+        announceStale()
+    }
+
+    private func announceStale() {
+        var newly: [CLIToolStatus] = []
+        var cleared: [CLIToolID] = []
+        for id in announcedStale.keys where usage[id]?.stale.isEmpty ?? true {
+            announcedStale[id] = nil
+            cleared.append(id)
+        }
+        for status in statuses {
+            guard let stale = usage[status.toolID]?.stale, !stale.isEmpty else { continue }
+            let pids = Set(stale.map(\.pid))
+            let known = announcedStale[status.toolID] ?? []
+            if !pids.isSubset(of: known) { newly.append(status) }
+            announcedStale[status.toolID] = known.union(pids)
+        }
+        guard !newly.isEmpty || !cleared.isEmpty else { return }
+        onStaleProcesses?(newly, cleared)
     }
 
     /// Read the release notes of every update row whose range is new, and keep

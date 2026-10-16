@@ -133,6 +133,24 @@ enum UpdateNotifier {
              identifier: appID.map { "restart:\($0)" })
     }
 
+    /// A command-line tool updated itself — or was updated — while processes
+    /// of it were running, and they still run the old code (`CLIToolUsage.stale`).
+    /// Nothing here can restart a session in someone's terminal, so it is said
+    /// once per process that missed the update (`CLIToolsModel.announceStale`),
+    /// and withdrawn by its per-install identifier once none is left.
+    static func cliStillRunning(tool: String, line: String, version: String?, tag: String) {
+        let body = version.map { String(localized: "\(line). Restart to use \($0).") } ?? "\(line)."
+        post(title: tool, body: body, identifier: "clistale:\(tag)")
+    }
+
+    static func clearCLIStillRunning(tags: [String]) {
+        guard !tags.isEmpty else { return }
+        let ids = tags.map { "clistale:\($0)" }
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+        center.removeDeliveredNotifications(withIdentifiers: ids)
+    }
+
     private static func post(
         title: String, body: String, categoryID: String? = nil,
         identifier: String? = nil, userInfo: [String: String] = [:]

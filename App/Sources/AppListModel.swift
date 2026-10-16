@@ -2107,6 +2107,11 @@ final class AppListModel {
         Task { await cliTools.scanInstalls() }
         // Every landed check, whichever path asked, may have something new to say.
         cliTools.onReport = { [weak self] in self?.notifyNewCLIToolUpdates() }
+        // Who runs each tool's binary, for the running dot and the "still on the
+        // old version" line: every few seconds while a window of ours is on
+        // screen, once a minute otherwise (`CLIToolsModel.watchProcesses`).
+        cliTools.onStaleProcesses = { [weak self] newly, cleared in self?.notifyStaleCLIProcesses(newly, cleared) }
+        cliTools.watchProcesses(isVisible: { Self.anyWindowOnScreen() })
         // A tool's update never runs beside a brew run (`CLIConcurrency`).
         cliTools.blockedByHomebrew = { [weak self] in self?.cliBlockedReason(.tool) != nil }
         // A rejection is reported from whichever request met it; the banner hears
@@ -9406,6 +9411,32 @@ final class AppListModel {
             liveKeys: Set(cliTools.statuses.map(\.toolID.tag)))
         if ledger != prefs.cliToolAnnouncements { prefs.cliToolAnnouncements = ledger }
         announce(.commandLineTools, newly)
+    }
+
+    /// Processes left on a tool's old copy after it updated: said once per
+    /// process, under the tools' own notification switch, and withdrawn once
+    /// they are gone.
+    private func notifyStaleCLIProcesses(_ newly: [CLIToolStatus], _ cleared: [CLIToolID]) {
+        UpdateNotifier.clearCLIStillRunning(tags: cleared.map(\.tag))
+        guard prefs.notifyOnCLIToolUpdates else { return }
+        for status in newly {
+            guard let usage = cliTools.usage[status.toolID],
+                  let line = CLIToolWording.stillRunning(usage, of: status.kind) else { continue }
+            Log.app.notice("cli-tools: \(status.kind.displayName, privacy: .public) at \(status.path, privacy: .public) — \(line, privacy: .public) (pids \(usage.stale.map(\.pid).description, privacy: .public))")
+            UpdateNotifier.cliStillRunning(
+                tool: status.name ?? status.kind.displayName, line: line,
+                version: status.installedVersion, tag: status.toolID.tag)
+        }
+    }
+
+    /// Whether one of the app's own windows — the popover, the workbench,
+    /// Settings — is on screen. The status item's own window is always
+    /// visible and does not count.
+    static func anyWindowOnScreen() -> Bool {
+        NSApp.windows.contains { window in
+            window.isVisible && window.occlusionState.contains(.visible)
+                && !String(describing: type(of: window)).contains("StatusBar")
+        }
     }
 
     /// The same for Homebrew: formulae, and the casks that install no app

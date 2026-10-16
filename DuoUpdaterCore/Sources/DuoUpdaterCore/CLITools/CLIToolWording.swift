@@ -332,4 +332,28 @@ public enum CLIToolWording {
         let list = versions.joined(separator: ", ")
         return String(localized: "The release notes mark breaking changes in \(list)")
     }
+
+    /// What a row says while processes started before the tool updated are
+    /// still running the old code (`CLIToolUsage.stale`); nil when none are.
+    /// Claude Code's processes are its sessions, and its native layout names
+    /// the version each one runs.
+    public static func stillRunning(_ usage: CLIToolUsage, of kind: CLIToolKind) -> String? {
+        let count = usage.stale.count
+        guard count > 0 else { return nil }
+        let versions = usage.staleVersions
+        if kind == .claudeCode {
+            if versions.isEmpty || usage.hasUnknownStale {
+                return count == 1
+                    ? String(localized: "1 open session still runs the version from before the update")
+                    : String(localized: "\(count) open sessions still run the version from before the update")
+            }
+            let list = versions.joined(separator: ", ")
+            return count == 1
+                ? String(localized: "1 open session still runs \(list)")
+                : String(localized: "\(count) open sessions still run \(list)")
+        }
+        return count == 1
+            ? String(localized: "1 running process still runs the copy from before the update")
+            : String(localized: "\(count) running processes still run the copy from before the update")
+    }
 }

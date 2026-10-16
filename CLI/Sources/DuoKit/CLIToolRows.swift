@@ -58,6 +58,10 @@ enum CLIToolRows {
         /// The runtime's name — "Rust", "Go" — for the text output, which
         /// cannot draw the app's mark.
         var builtWith: String? = nil
+        /// Who runs the install's binary now, as the app's running dot and its
+        /// "still on the old version" line read it (`CLIToolProcesses`); nil
+        /// when nothing does, or the install is not a binary to match.
+        var running: Running? = nil
         /// What a name argument is matched against: the install's own name when
         /// it has one, else the tool's display name and raw value.
         let names: [String]
@@ -66,7 +70,28 @@ enum CLIToolRows {
 
         enum CodingKeys: String, CodingKey {
             case tool, name, path, installedVersion, latestVersion, channel, state, hasUpdate, oneClick,
-                 needsAdministrator, withheld, reason, note, command, runtime, breakingIn
+                 needsAdministrator, withheld, reason, note, command, runtime, breakingIn, running
+        }
+
+        struct Running: Encodable, Equatable {
+            /// Processes on the file on disk now.
+            let current: [Int32]
+            /// Processes still on a copy from before an update.
+            let stale: [Stale]
+            /// The app's line for them; nil when none is stale.
+            let message: String?
+
+            struct Stale: Encodable, Equatable {
+                let pid: Int32
+                /// The version it runs, when the install's layout names it.
+                let version: String?
+            }
+
+            init(_ usage: CLIToolUsage, kind: CLIToolKind) {
+                current = usage.current
+                stale = usage.stale.map { Stale(pid: $0.pid, version: $0.version) }
+                message = CLIToolWording.stillRunning(usage, of: kind)
+            }
         }
 
         init(_ status: CLIToolStatus) {
@@ -121,6 +146,31 @@ enum CLIToolRows {
         return await offCooperativePool(qos: .utility) { rows.map { $0.with(read($0.path)) } }
     }
 
+    /// `rows`, each with who runs its binary now — one read of the process
+    /// table for all of them. `read` is injected for tests.
+    static func withUsage(
+        _ rows: [Row],
+        read: @escaping @Sendable ([CLIToolProcesses.Target]) -> [CLIToolProcesses.Target: CLIToolUsage]
+            = { CLIToolProcesses.usage(of: $0) }
+    ) async -> [Row] {
+        guard !rows.isEmpty else { return rows }
+        return await offCooperativePool(qos: .utility) {
+            let targets = rows.map { row -> CLIToolProcesses.Target? in
+                if let status = row.status { return CLIToolProcesses.target(of: status) }
+                guard let kind = CLIToolKind(rawValue: row.tool) else { return nil }
+                return CLIToolProcesses.target(of: CLIToolSighting(kind: kind, path: row.path, version: nil))
+            }
+            let usage = read(targets.compactMap { $0 })
+            return zip(rows, targets).map { row, target in
+                guard let target, let found = usage[target], found.isRunning,
+                      let kind = CLIToolKind(rawValue: row.tool) else { return row }
+                var row = row
+                row.running = Row.Running(found, kind: kind)
+                return row
+            }
+        }
+    }
+
     // MARK: - Reading
 
     /// Every install the providers find, without the network: `list`'s rows.
@@ -134,11 +184,11 @@ enum CLIToolRows {
     static func checkedRows(_ providers: [any CLIToolProvider] = CLITools.providers()) async -> [Row] {
         let statuses = await check(providers)
         let breaking = await breakingVersions(of: statuses, providers: providers)
-        return await withRuntimes(statuses.map { status in
+        return await withUsage(await withRuntimes(statuses.map { status in
             var row = Row(status)
             row.breakingIn = breaking[status.kind.rawValue + ":" + status.path]
             return row
-        })
+        }))
     }
 
     /// Per update row, the versions its notes mark breaking — the app's hint
@@ -168,7 +218,7 @@ enum CLIToolRows {
 
     /// `scan`'s rows, with what each install is built with: `list`'s.
     static func scannedRows(_ providers: [any CLIToolProvider] = CLITools.providers()) async -> [Row] {
-        await withRuntimes(await scan(providers))
+        await withUsage(await withRuntimes(await scan(providers)))
     }
 
     /// Every install with its verdict, each tool's requests filed under it as
@@ -213,6 +263,7 @@ enum CLIToolRows {
                 line += "  (latest \(latest))"
             }
             if let builtWith = row.builtWith { line += "  [\(builtWith)]" }
+            if row.running != nil { line += "  (running)" }
             line += "  \(row.path)"
             if row.unchecked { line += "  — not checked: \(row.reason ?? row.note ?? "no verdict")" }
             if row.state == CLIToolState.pinned.rawValue, let status = row.status, let pinned = CLIToolWording.pinned(status) {
@@ -227,11 +278,17 @@ enum CLIToolRows {
     /// changes, why it is not offered, and the command the app hands out
     /// instead.
     static func details(_ row: Row) -> [String] {
-        if row.state == CLIToolState.pinned.rawValue {
-            return row.command.map { ["to follow new releases again: \($0)"] } ?? []
-        }
-        guard row.hasUpdate else { return [] }
+        // Said whatever the verdict: the case it is for is the copy that reads
+        // current on disk while its old processes do not.
         var lines: [String] = []
+        if let running = row.running, let message = running.message {
+            let pids = running.stale.map { String($0.pid) }.joined(separator: ", ")
+            lines.append("\(message) (pid \(pids)) — restart to use the new version")
+        }
+        if row.state == CLIToolState.pinned.rawValue {
+            return lines + (row.command.map { ["to follow new releases again: \($0)"] } ?? [])
+        }
+        guard row.hasUpdate else { return lines }
         if let breaking = row.breakingIn, !breaking.isEmpty { lines.append(CLIToolWording.breaking(breaking)) }
         if row.needsAdministrator == true {
             lines.append(administratorReason)

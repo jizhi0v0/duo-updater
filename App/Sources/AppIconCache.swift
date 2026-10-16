@@ -1,5 +1,6 @@
 import AppKit
 import DuoUpdaterCore
+import Observation
 
 /// Caches app icons by path. `NSWorkspace.icon(forFile:)` hits the disk, and rows
 /// re-render on every install-progress tick — without a cache that's one icon
@@ -34,36 +35,35 @@ enum AppIconCache {
     /// bundle read while missing or half-copied has no stamp, and gets one once the
     /// copy lands. `nil` for a path that has no Info.plist at all (a flat file, a
     /// bundle id), which then never changes and stays cached as before.
-    ///
-    /// Checked on every lookup rather than at scan time: rows repaint from many
-    /// places (`refreshRow`, `replaceRow`, both scan paths) and a check at only some
-    /// of them would leave the rest stale. The cost is one `stat`: measured
-    /// 2026-10-16 at 1.2–1.6 µs per lookup over the 185 bundles in this Mac's
-    /// /Applications (warm, -O, five runs of 1000 passes), against the 1–25 ms of a
-    /// miss; at, say, 20 rows repainting 10× a second that is ~0.3 ms a second.
-    struct BundleStamp: Equatable {
-        let device: dev_t
-        let inode: ino_t
-        let mtime: timespec
+    struct BundleStamp: Equatable, Sendable {
+        let device: Int64
+        let inode: UInt64
+        let mtimeSeconds: Int
+        let mtimeNanoseconds: Int
 
-        static func == (a: Self, b: Self) -> Bool {
-            a.device == b.device && a.inode == b.inode
-                && a.mtime.tv_sec == b.mtime.tv_sec && a.mtime.tv_nsec == b.mtime.tv_nsec
-        }
-
-        static func read(_ path: String) -> BundleStamp? {
+        nonisolated static func read(_ path: String) -> BundleStamp? {
             var info = stat()
             guard stat(path + "/Contents/Info.plist", &info) == 0 else { return nil }
-            return BundleStamp(device: info.st_dev, inode: info.st_ino, mtime: info.st_mtimespec)
+            return BundleStamp(
+                device: Int64(info.st_dev), inode: UInt64(info.st_ino),
+                mtimeSeconds: info.st_mtimespec.tv_sec, mtimeNanoseconds: info.st_mtimespec.tv_nsec)
         }
     }
 
+    /// Bumped after each icon `revalidate` re-reads. `icon(for:)` reads it, so a
+    /// view that drew an icon in `body` is redrawn once that icon is replaced —
+    /// nothing else would tell SwiftUI the cache changed under an unchanged row.
+    @Observable final class Revision { fileprivate(set) var value = 0 }
+    static let revision = Revision()
+
+    /// A hit is a dictionary lookup and nothing else: no `stat`, so no disk I/O
+    /// on the main actor for a row that repaints on every progress tick, even when
+    /// the bundle sits on a slow or hung network volume (a custom scan location
+    /// can). Whether the bundle behind an entry was replaced is `revalidate`'s job.
     static func icon(for path: String) -> NSImage {
+        _ = revision.value
+        if let cached = cache.object(forKey: path as NSString) { return cached.image }
         let stamp = BundleStamp.read(path)
-        if let cached = cache.object(forKey: path as NSString) {
-            if cached.stamp == stamp { return cached.image }
-            Log.app.info("icon stale: bundle replaced at \((path as NSString).lastPathComponent, privacy: .public), re-reading")
-        }
         // Cache miss = a synchronous disk hit on the main actor. Time it: if app
         // switches stutter, a slow icon read here is one suspect.
         let start = Date()
@@ -108,7 +108,7 @@ enum AppIconCache {
         prefetchTask?.cancel()
         let pending = paths.prefix(cache.countLimit)
         prefetchTask = Task(priority: .utility) {
-            for path in pending where !isFresh(path) {
+            for path in pending where cache.object(forKey: path as NSString) == nil {
                 try? await Task.sleep(for: .milliseconds(1))
                 if Task.isCancelled { return }
                 _ = icon(for: path)
@@ -118,10 +118,47 @@ enum AppIconCache {
 
     private static var prefetchTask: Task<Void, Never>?
 
-    /// Cached, and read from the copy of the bundle that is at the path now.
-    private static func isFresh(_ path: String) -> Bool {
-        guard let cached = cache.object(forKey: path as NSString) else { return false }
-        return cached.stamp == BundleStamp.read(path)
+    /// Re-read the icons whose bundle was replaced since they were cached. Called
+    /// on every write to `AppListModel.results` — the one place every change on
+    /// disk arrives (`refreshRow`, `replaceRow`, both scan paths) — so a swap by
+    /// the CLI, a vendor updater or Finder shows within the cycle that notices it.
+    ///
+    /// The `stat`s run off the main actor; they are plain syscalls, and a custom
+    /// scan location can sit on a volume where one blocks. Only the re-reads come
+    /// back here, under the same rules as `prefetch`: one path per step with the
+    /// run loop handed back in between, the latest call replacing the one in
+    /// flight. Measured 2026-10-16 in one long-lived process, replacing bundles in
+    /// place with `replaceItemAt` and re-reading at the same path: one re-read took
+    /// 6–130 ms (mostly 10–60); ten in one pass, 183–284 ms over three runs — what
+    /// reading them synchronously in `body` would have cost as a single stall.
+    static func revalidate(_ paths: [String]) {
+        revalidateTask?.cancel()
+        revalidateTask = Task(priority: .utility) { await revalidatePass(paths) }
+    }
+
+    private static var revalidateTask: Task<Void, Never>?
+
+    /// One `revalidate`, awaitable so tests can run it to completion.
+    static func revalidatePass(_ paths: [String]) async {
+        let cached = paths.compactMap { path in
+            cache.object(forKey: path as NSString).map { (path, $0.stamp) }
+        }
+        guard !cached.isEmpty else { return }
+        let toStat = cached.map(\.0)
+        let current = await Task.detached(priority: .utility) {
+            toStat.map(BundleStamp.read)
+        }.value
+        for ((path, old), now) in zip(cached, current) where old != now {
+            try? await Task.sleep(for: .milliseconds(1))
+            if Task.isCancelled { return }
+            // Still the entry that was checked: a miss or `invalidate` since then
+            // has already put the new copy's icon (or nothing) there.
+            guard let entry = cache.object(forKey: path as NSString), entry.stamp == old else { continue }
+            Log.app.info("icon stale: bundle replaced at \((path as NSString).lastPathComponent, privacy: .public), re-reading")
+            cache.removeObject(forKey: path as NSString)
+            _ = icon(for: path)
+            revision.value &+= 1
+        }
     }
 
     /// Drop the cached icon for a path so the next lookup re-reads from disk.

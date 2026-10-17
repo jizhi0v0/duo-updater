@@ -2613,6 +2613,7 @@ private struct DetailHeader: View {
                     result: result,
                     actions: RowActions.live(
                         install: { Task { await model.install(result) } },
+                        installBackingUpOnce: { Task { await model.install(result, backUpOnce: true) } },
                         openStagedPackage: { Task { await model.openStagedPackage(result) } },
                         retry: { Task { await model.retry(result) } },
                         restart: { Task { await model.restart(result) } },
@@ -2625,6 +2626,11 @@ private struct DetailHeader: View {
                         openTestFlightSetting: {
                             model.requestedSettingsSection = .general
                             model.requestedSettingsAnchor = .testFlightDetection
+                            openWindow(id: SettingsView.windowID)
+                            model.surfaceWindow(sceneID: SettingsView.windowID)
+                        },
+                        openBackupSetting: {
+                            model.requestedSettingsAnchor = .keepBackups
                             openWindow(id: SettingsView.windowID)
                             model.surfaceWindow(sceneID: SettingsView.windowID)
                         },

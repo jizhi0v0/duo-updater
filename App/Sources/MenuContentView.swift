@@ -1384,6 +1384,7 @@ private struct AppRow: View {
                     result: result,
                     actions: RowActions.live(
                         install: { Task { await model.install(result) } },
+                        installBackingUpOnce: { Task { await model.install(result, backUpOnce: true) } },
                         openStagedPackage: { Task { await model.openStagedPackage(result) } },
                         retry: { Task { await model.retry(result) } },
                         restart: { Task { await model.restart(result) } },
@@ -1399,10 +1400,16 @@ private struct AppRow: View {
                             openWindow(id: SettingsView.windowID)
                             model.surfaceWindow(sceneID: SettingsView.windowID)
                         },
+                        openBackupSetting: {
+                            model.requestedSettingsAnchor = .keepBackups
+                            openWindow(id: SettingsView.windowID)
+                            model.surfaceWindow(sceneID: SettingsView.windowID)
+                        },
                         signInToAppleDeveloper: { model.signInToAppleDeveloper() },
                         retryPausedUntil: model.gitHubPausedUntil),
                     runningVersion: model.runningVersion(result.id),
                     helperEnabled: model.helperEnabled,
+                    keepBackups: model.prefs.keepBackups,
                     downloadReadout: { downloadReadout },
                     showsStageLabel: showsStageLabel,
                     testFlightUnboundedReason: model.testFlightUnboundedReason)

@@ -197,6 +197,57 @@ private func cargoBundlePlist() -> [String: Any] {
     #expect(detect(bundle, isiOSAppOnMac: true, plist: [:]) == .iOSApp)
 }
 
+/// A wrapped iOS app laid out the way the App Store installs one: the inner bundle
+/// under `Wrapper/`, reached through the `WrappedBundle` link, with `files` (paths
+/// relative to that inner bundle) created inside it.
+private func wrappedIOSApp(_ builder: BundleBuilder, _ name: String, files: [String]) throws -> URL {
+    let fm = FileManager.default
+    let bundle = builder.root.appendingPathComponent("\(name).app")
+    let inner = bundle.appendingPathComponent("Wrapper/\(name).app")
+    try fm.createDirectory(at: inner, withIntermediateDirectories: true)
+    try fm.createSymbolicLink(
+        atPath: bundle.appendingPathComponent("WrappedBundle").path,
+        withDestinationPath: "Wrapper/\(name).app")
+    for file in files {
+        let url = inner.appendingPathComponent(file)
+        if file.hasSuffix(".framework") {
+            try fm.createDirectory(at: url, withIntermediateDirectories: true)
+        } else {
+            try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            fm.createFile(atPath: url.path, contents: Data())
+        }
+    }
+    return bundle
+}
+
+@Test func aWrappedIOSAppShippingReactNativeAndItsBundleIsReactNative() throws {
+    // Hy Translate's shape (Expo): React, Hermes and the app's JavaScript at the root.
+    // Each engine framework on its own is enough beside the bundle — `React.framework`
+    // only exists when React is linked dynamically, and RN 0.82 renamed Hermes's.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    for (name, engine) in [
+        ("Expo", "Frameworks/React.framework"),
+        ("Hermes", "Frameworks/hermes.framework"),
+        ("HermesVM", "Frameworks/hermesvm.framework"),
+    ] {
+        let bundle = try wrappedIOSApp(builder, name, files: [engine, "main.jsbundle"])
+        #expect(detect(bundle, isiOSAppOnMac: true, plist: [:]) == .reactNative, "\(name)")
+    }
+}
+
+@Test func aWrappedIOSAppEmbeddingReactNativeForSomeScreensStaysAnIOSApp() throws {
+    // Aqara Home's shape: Hermes ships for its device plugins, which live in their
+    // own directory, while the app itself is UIKit. No `main.jsbundle`, so the
+    // interface is not React Native's and the label does not claim it is.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try wrappedIOSApp(
+        builder, "Hybrid", files: ["Frameworks/hermes.framework", "RN/plugin.jsbundle"])
+    #expect(detect(bundle, isiOSAppOnMac: true, plist: [:]) == .iOSApp)
+    // And the JavaScript alone, with no engine shipped to run it, is not evidence either.
+    let bundleOnly = try wrappedIOSApp(builder, "BundleOnly", files: ["main.jsbundle"])
+    #expect(detect(bundleOnly, isiOSAppOnMac: true, plist: [:]) == .iOSApp)
+}
+
 // MARK: - Load-command rules
 
 @Test func detectsTauriFromCargoBundleMarkersPlusWebKitPlusTheCrate() throws {

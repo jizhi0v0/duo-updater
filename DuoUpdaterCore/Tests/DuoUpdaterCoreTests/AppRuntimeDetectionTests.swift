@@ -98,11 +98,12 @@ private func detect(
     isiOSAppOnMac: Bool = false,
     plist: [String: Any] = ["CFBundleExecutable": "Stub"],
     libraries: @escaping AppRuntimeDetector.LibraryReader = { _ in [] },
-    tauriProof: @escaping AppRuntimeDetector.TauriProof = { _ in false }
+    tauriProof: @escaping AppRuntimeDetector.TauriProof = { _ in false },
+    cstrings: @escaping AppRuntimeDetector.CStringReader = { _ in nil }
 ) -> AppRuntime? {
     AppRuntimeDetector.detect(
         bundleAt: bundle, isiOSAppOnMac: isiOSAppOnMac, infoPlist: plist,
-        linkedLibraries: libraries, carriesTauriCrate: tauriProof)
+        linkedLibraries: libraries, carriesTauriCrate: tauriProof, cstrings: cstrings)
 }
 
 /// The tauri-bundler plist pair — what admits a bundle to the proof, and on its
@@ -257,6 +258,84 @@ private func wrappedIOSApp(_ builder: BundleBuilder, _ name: String, files: [Str
         at: resources.appendingPathComponent("Wrapper/Resources.app/app.bundle"),
         withIntermediateDirectories: true)
     #expect(detect(resources, isiOSAppOnMac: true, plist: [:]) == .iOSApp)
+}
+
+// MARK: - Rust UI frameworks, from the executable's C strings
+
+/// A `__cstring` table holding `paths` the way Rust leaves panic locations in it:
+/// NUL-separated, among other strings.
+private func cstrings(_ paths: String...) -> AppRuntimeDetector.CStringReader {
+    { _ in Data((["called `Option::unwrap()` on a `None` value"] + paths).joined(separator: "\0").utf8) }
+}
+
+@Test func gpuiIsReadFromTheCratePathsInTheExecutable() throws {
+    // The three shapes found in the installed apps: Zed's own workspace, a git
+    // checkout of Zed's repo (Reviu, Waku), and the crates.io fork (Herdr, disktree).
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Editor")
+    for path in [
+        "crates/gpui/src/app.rs",
+        "/Users/ci/.cargo/git/checkouts/zed-0123456789abcdef/f5ee27f/crates/gpui/src/window.rs",
+        "/Users/ci/.cargo/registry/src/index.crates.io-0123456789abcdef/gpui-pre-0.3.6/src/app.rs",
+    ] {
+        #expect(detect(bundle, libraries: reader(appKit), cstrings: cstrings("/" + path)) == .gpui, "\(path)")
+    }
+}
+
+@Test func eguiIsReadFromTheCratePathsInTheExecutable() throws {
+    // crates.io (the *Craft apps) and a git checkout (Spotifast).
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Painter")
+    for path in [
+        "/Users/ci/.cargo/registry/src/index.crates.io-0123456789abcdef/egui-0.36.2/src/context.rs",
+        "/Users/ci/.cargo/git/checkouts/egui-0123456789abcdef/ba6790f/crates/egui/src/ui.rs",
+    ] {
+        #expect(detect(bundle, libraries: reader(appKit), cstrings: cstrings(path)) == .egui, "\(path)")
+    }
+}
+
+@Test func lookalikeCratePathsStayNative() throws {
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Plain")
+    for path in [
+        "/src/herdr-gpui/src/main.rs",      // an app's own crate merely ending in "gpui"
+        "/usr/share/gpuinfo/devices",       // "/gpui" followed by neither "/src/" nor "-"
+        "/notes/egui",                      // the name alone, at the end of a string
+    ] {
+        #expect(detect(bundle, libraries: reader(appKit), cstrings: cstrings(path)) == .native, "\(path)")
+    }
+    // And no strings at all is no evidence.
+    #expect(detect(bundle, libraries: reader(appKit), cstrings: { _ in nil }) == .native)
+}
+
+@Test func aRuntimeTheBundleShipsOutranksCratePaths() throws {
+    // An Electron app whose helper binary happened to carry egui is still Electron.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Shell", frameworks: ["Electron Framework.framework"])
+    #expect(detect(bundle, libraries: reader(appKit), cstrings: cstrings("/egui-0.36.2/src/lib.rs")) == .electron)
+}
+
+// MARK: - Python apps drawing with Qt
+
+@Test func aPythonAppShippingPyQtIsQt() throws {
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    // PyInstaller (Picard, Electrum): the binding sits beside Python in Frameworks.
+    let pyinstaller = try builder.app("Tagger", frameworks: ["Python.framework", "PyQt6"])
+    #expect(detect(pyinstaller, libraries: reader(appKit)) == .qt)
+    // Briefcase (Anki): the binding is among the app's packages in Resources.
+    let briefcase = try builder.app(
+        "Cards", frameworks: ["Python.framework"], directories: ["Resources/app_packages/PyQt6"])
+    #expect(detect(briefcase, libraries: reader(appKit)) == .qt)
+    let pyqt5 = try builder.app("Older", frameworks: ["Python.framework"], directories: ["Resources/PyQt5"])
+    #expect(detect(pyqt5, libraries: reader(appKit)) == .qt)
+}
+
+@Test func pyQtWithoutPythonOrPythonWithoutPyQtIsNotQt() throws {
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let pythonOnly = try builder.app("Script", frameworks: ["Python.framework"])
+    #expect(detect(pythonOnly, libraries: reader(appKit)) == .native)
+    let bindingOnly = try builder.app("Stray", directories: ["Resources/PyQt6"])
+    #expect(detect(bindingOnly, libraries: reader(appKit)) == .native)
 }
 
 // MARK: - Load-command rules

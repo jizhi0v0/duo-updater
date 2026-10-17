@@ -813,6 +813,12 @@ private struct CommandLineRow: View {
             }
             .buttonStyle(.plain)
             .help(String(localized: "Show in Window"))
+            // Whatever the row says: a text in this line did not fit beside the
+            // Update button in 17 of 22 language and count pairs (measured
+            // 2026-10-17), so it is a mark, as Homebrew's not-checked one is.
+            if !half.isHomebrew, !stillRunningLines.isEmpty {
+                StillRunningMark(lines: stillRunningLines, showInWindow: showInWindow)
+            }
             half.mark
             half.button
         }
@@ -932,22 +938,21 @@ private struct CommandLineRow: View {
             let hint = status.kind == .claudeCode
                 ? String(localized: "New sessions use it; restart open ones")
                 : String(localized: "Takes effect the next time it runs")
-            return half([Text(String(localized: "\(status.kind.displayName) updated to \(version)")),
-                         stillRunningLine ?? Text(hint)],
+            return half([Text(String(localized: "\(status.kind.displayName) updated to \(version)")), Text(hint)],
                         mark: seal)
         }
-        return half([Text(String(localized: "Up to date")), stillRunningLine].compactMap { $0 }, mark: seal)
+        return half([Text(String(localized: "Up to date"))], mark: seal)
     }
 
-    /// The first tool with processes still on the copy from before its update
-    /// (`CLIToolsModel.usage`): current on disk, not in those processes.
-    private var stillRunningLine: Text? {
-        for status in tools.statuses {
+    /// One line per tool with processes still on the copy from before its
+    /// update (`CLIToolsModel.usage`), as the workbench row says it, for the
+    /// row's mark (`StillRunningMark`). Empty when none has.
+    private var stillRunningLines: [String] {
+        tools.statuses.compactMap { status in
             guard let usage = tools.usage[status.toolID],
-                  let line = CLIToolWording.stillRunning(usage, of: status.kind) else { continue }
-            return Text(verbatim: "\(status.name ?? status.kind.displayName): \(line)").foregroundStyle(.orange)
+                  let line = CLIToolWording.stillRunning(usage, of: status.kind) else { return nil }
+            return "\(status.name ?? status.kind.displayName): \(line)"
         }
-        return nil
     }
 
     // MARK: Parts
@@ -978,6 +983,55 @@ private struct CommandLineRow: View {
 /// went unchecked (`BrewUncheckedPackage`). An info mark rather than a warning:
 /// nothing failed, brew just declined to read them. Clicking explains why, like
 /// `StagedVersionUnknownMark`, and offers the workbench rows that name them.
+/// The command-line tools row's mark while a tool has processes still on its
+/// old copy: what the workbench row says, on hover and on a click, and the
+/// way there.
+private struct StillRunningMark: View {
+    let lines: [String]
+    let showInWindow: () -> Void
+
+    @State private var showTip = false
+
+    private var summary: String { String(localized: "Old version still running — click for details") }
+
+    var body: some View {
+        // Not `clock.arrow.circlepath`: the footer's Release Log button is
+        // that symbol, two rows below.
+        Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
+            .foregroundStyle(.orange)
+            .contentShape(Rectangle())
+            .onTapGesture { showTip = true }
+            .help(([summary] + lines).joined(separator: "\n"))
+            .accessibilityLabel(summary)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { showTip = true }
+            .popover(isPresented: $showTip, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(lines, id: \.self) { line in
+                        Text(verbatim: line)
+                            .font(.callout)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text("Restart to use the new version.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Spacer()
+                        Button(String(localized: "Show in Window")) {
+                            showTip = false
+                            showInWindow()
+                        }
+                        .controlSize(.small)
+                    }
+                }
+                .padding(12)
+                .frame(width: 260, alignment: .leading)
+            }
+    }
+}
+
 private struct BrewUncheckedMark: View {
     /// Links Homebrew's tap-trust docs only when that is a reason in play: a
     /// package brew can't read for another reason (tap gone, broken definition)

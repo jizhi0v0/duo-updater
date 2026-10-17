@@ -601,7 +601,7 @@ final class CLIToolsModel {
                 let visible = isVisible()
                 // Said when the clock changes, so the log shows which one runs.
                 if visible != wasVisible {
-                    Log.app.info("cli-tools: process watch every \(visible ? "3" : "60", privacy: .public)s (a window is \(visible ? "on screen" : "not on screen", privacy: .public))")
+                    Log.app.notice("cli-tools: process watch every \(visible ? "3" : "60", privacy: .public)s (a window is \(visible ? "on screen" : "not on screen", privacy: .public))")
                     wasVisible = visible
                 }
                 let interval = visible ? Self.processWatchVisibleInterval : Self.processWatchHiddenInterval

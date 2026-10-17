@@ -90,19 +90,26 @@ public enum ArtifactInspection {
         }
         let downloader = Downloader(destinationDir: workDir, purpose: .other) { _ in }
         let archive: URL
+        // Every attempt's bytes, the web pages `fetchArchive` threw away included.
+        var bytes: Int64 = 0
         do {
-            let downloaded = try await downloader.download(url, headers: remote.downloadHeaders)
+            // A web page where the archive should be is fetched again, as
+            // `VendorInstaller.download` does (corkmac.app, #1372).
+            let downloaded = try await VendorInstaller.fetchArchive(
+                maxAttempts: VendorInstaller.htmlBodyMaxAttempts
+            ) {
+                defer { bytes += downloader.bytesDownloaded }
+                return try await downloader.download(url, headers: remote.downloadHeaders)
+            }
             archive = try VendorInstaller.normalizedArchive(downloaded, kind: kind, workDir: workDir)
         } catch {
             var failure = Failure(
-                stage: .download, message: error.localizedDescription,
-                bytes: downloader.bytesDownloaded)
+                stage: .download, message: error.localizedDescription, bytes: bytes)
             if case Downloader.DownloadError.httpStatus(let status) = error {
                 failure.httpStatus = status
             }
             return .failure(failure)
         }
-        let bytes = downloader.bytesDownloaded
         func failure(_ stage: Stage, _ error: Error) -> Result<Inspected, Failure> {
             .failure(Failure(stage: stage, message: error.localizedDescription, bytes: bytes))
         }

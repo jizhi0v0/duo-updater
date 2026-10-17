@@ -322,12 +322,18 @@ extension JunieInstall {
     /// the next launch. The shim also runs builds `current` does not name, on
     /// purpose (one-shot `--release`/`--eap`/…, `--use-version`,
     /// `JUNIE_VERSION`), so `current` is the layout's pointer: only a process
-    /// started before it last moved is stale. Its one-shot runs export
-    /// `JUNIE_SKIP_UPDATE_CHECK=1`, and `JUNIE_VERSION` stays in the
-    /// environment, so those are never stale, whenever the link moved. Left
-    /// over: `--use-version` is cut from `argv` and leaves no trace, so a
-    /// pinned session whose own launch applied a staged update (the shim moves
-    /// `current` before it execs the pinned build) reads as left behind.
+    /// started before it last moved is stale. Beyond that, a session never
+    /// is when it carries `JUNIE_VERSION` (the shim runs it as given, so a new
+    /// session from the same shell would run the same build), or runs a build
+    /// of another channel than `current`'s, by each build's `channel` file
+    /// (a one-shot `--release`/`--eap`/…). `JUNIE_SKIP_UPDATE_CHECK`, which
+    /// the shim exports for one-shot runs, is not taken as the sign: users set
+    /// it in their shell to turn Junie's own update check off. Left over:
+    /// `--use-version` is cut from `argv` and leaves no trace, so a session
+    /// pinned that way whose own launch applied a staged update (the shim
+    /// moves `current` before it execs the pinned build) reads as left behind;
+    /// and after a persistent channel switch (`junie update --channel=…`) a
+    /// session on the old channel's build is not called stale.
     static func processTarget(shim: String) -> CLIToolProcesses.Target? {
         let bin = (shim as NSString).deletingLastPathComponent
         guard (shim as NSString).lastPathComponent == "junie", bin.hasSuffix("/.local/bin") else { return nil }
@@ -339,6 +345,6 @@ extension JunieInstall {
         guard CLIToolProcesses.isRegularFile(launcher) else { return nil }
         return .init(executable: launcher, versions: .init(
             root: versions, binaries: [binary], pointer: data + "/current",
-            chosenBy: ["JUNIE_SKIP_UPDATE_CHECK", "JUNIE_VERSION"]))
+            chosenBy: ["JUNIE_VERSION"], channelFile: "channel"))
     }
 }

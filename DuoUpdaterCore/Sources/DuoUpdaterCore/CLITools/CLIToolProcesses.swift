@@ -86,12 +86,19 @@ public enum CLIToolProcesses {
         /// flags, `--use-version` and `JUNIE_VERSION` run a build without
         /// touching it). A process started after the link was last written
         /// chose its entry and is not stale. One started before is taken as
-        /// left behind when the link moved, unless `chosenBy` says otherwise.
+        /// left behind when the link moved, unless `chosenBy` or
+        /// `channelFile` says otherwise.
         public let pointer: String?
         /// Environment variables whose non-empty value in a process means it
-        /// runs its entry on purpose, whenever it started (Junie's one-shot
-        /// `JUNIE_SKIP_UPDATE_CHECK`, and `JUNIE_VERSION`).
+        /// runs its entry on purpose, whenever it started (Junie's
+        /// `JUNIE_VERSION`, which the shim runs as given).
         public let chosenBy: [String]
+        /// A file inside an entry naming the channel it belongs to (Junie's
+        /// `channel`). A process on an entry of another channel than the
+        /// launcher's runs that channel on purpose (Junie's one-shot
+        /// `--release`/`--eap`/…), so it is not behind. An entry without the
+        /// file is compared as usual.
+        public let channelFile: String?
 
         public enum Ordering: Sendable, Hashable {
             /// `VersionComparator`.
@@ -104,7 +111,8 @@ public enum CLIToolProcesses {
 
         public init(
             root: String, binaries: [String] = [""], nameSuffixes: [String] = [], skipsClaudeUpdate: Bool = false,
-            ordering: Ordering = .version, pointer: String? = nil, chosenBy: [String] = []
+            ordering: Ordering = .version, pointer: String? = nil, chosenBy: [String] = [],
+            channelFile: String? = nil
         ) {
             self.root = root
             self.binaries = binaries
@@ -113,6 +121,17 @@ public enum CLIToolProcesses {
             self.ordering = ordering
             self.pointer = pointer
             self.chosenBy = chosenBy
+            self.channelFile = channelFile
+        }
+
+        /// The channel `entry` names in its `channelFile`, trimmed; nil when
+        /// the layout has none or the file is missing or empty.
+        func channel(ofEntry entry: String) -> String? {
+            guard let channelFile,
+                  let text = try? String(contentsOfFile: "\(root)/\(entry)/\(channelFile)", encoding: .utf8)
+            else { return nil }
+            let channel = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return channel.isEmpty ? nil : channel
         }
 
         /// Whether `environment` carries one of `chosenBy` with a value.
@@ -269,6 +288,9 @@ public enum CLIToolProcesses {
                     guard let repointed, let started = process.started, started < repointed else { continue }
                 }
                 guard !versions.isChosen(process.environment) else { continue }
+                // Another channel's build, run on purpose for this session.
+                if let channel = versions.channel(ofEntry: entry), let launcherChannel = versions.channel(ofEntry: currentEntry),
+                   channel != launcherChannel { continue }
                 // Only an older version is one the session should leave: a newer
                 // one beside the launcher's (a custom launcher held back, a
                 // `minimumVersion` floor) is not one to leave for the launcher's.

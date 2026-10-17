@@ -293,8 +293,12 @@ struct CLIToolProcessesTests {
         defer { try? FileManager.default.removeItem(at: box.root) }
         let launcher = "Applications/junie.app/Contents/MacOS/junie"
         let versions = ".local/share/junie/versions"
-        for build in ["3579.5", "3659.4"] {
+        for build in ["3579.5", "3659.4", "3813.3"] {
             try box.file("\(versions)/\(build)/\(launcher)")
+        }
+        // Each build names its channel; 3579.5 and 3659.4 are release, 3813.3 EAP.
+        for (build, channel) in [("3579.5", "release\n"), ("3659.4", "release\n"), ("3813.3", "eap\n")] {
+            try Data(channel.utf8).write(to: box.root.appendingPathComponent("\(versions)/\(build)/channel"))
         }
         try box.link(".local/share/junie/current", to: "\(versions)/3659.4")
         let shim = try box.file(".local/bin/junie")
@@ -313,8 +317,8 @@ struct CLIToolProcessesTests {
             .init(pid: 22, path: "\(root)/3579.5/\(launcher)", file: replaced, started: repointed + 60),
             // Start time unknown: not called stale on a guess.
             .init(pid: 23, path: "\(root)/3579.5/\(launcher)", file: replaced),
-            // Started before the link moved, but chosen: a one-shot channel run
-            // (the shim exports JUNIE_SKIP_UPDATE_CHECK=1), and a JUNIE_VERSION pin.
+            // Started before the link moved, but JUNIE_SKIP_UPDATE_CHECK alone
+            // is not a choice: users export it to turn Junie's update check off.
             .init(pid: 24, path: "\(root)/3579.5/\(launcher)", file: replaced, started: repointed - 60,
                   environment: ["PATH=/usr/bin", "JUNIE_SKIP_UPDATE_CHECK=1"]),
             .init(pid: 25, path: "\(root)/3579.5/\(launcher)", file: replaced, started: repointed - 60,
@@ -326,7 +330,23 @@ struct CLIToolProcessesTests {
             .init(pid: 40, path: "\(root)/3579.5/Applications/junie.app/Contents/runtime/Contents/Home/bin/java",
                   file: replaced, started: repointed - 60),
         ], repointed: repointed)
-        #expect(usage == CLIToolUsage(current: [30], stale: [.init(pid: 21, version: "3579.5"), .init(pid: 26, version: "3579.5")]))
+        #expect(usage == CLIToolUsage(current: [30], stale: [
+            .init(pid: 21, version: "3579.5"), .init(pid: 24, version: "3579.5"), .init(pid: 26, version: "3579.5"),
+        ]))
+        // A one-shot `junie --release` while the default channel is EAP: the
+        // release build is older than `current`'s and started before the link
+        // last moved (the EAP channel updated meanwhile), yet it is another
+        // channel's, run on purpose. An EAP session left behind on an older
+        // EAP build would still be stale; a build without a channel file is
+        // compared as usual.
+        let eap = CLIToolProcesses.Target(executable: "\(root)/3813.3/\(launcher)", versions: target.versions)
+        #expect(CLIToolProcesses.usage(of: eap, current: disk, processes: [
+            .init(pid: 31, path: "\(root)/3659.4/\(launcher)", file: replaced, started: repointed - 60),
+        ], repointed: repointed) == .none)
+        try FileManager.default.removeItem(at: box.root.appendingPathComponent("\(versions)/3659.4/channel"))
+        #expect(CLIToolProcesses.usage(of: eap, current: disk, processes: [
+            .init(pid: 31, path: "\(root)/3659.4/\(launcher)", file: replaced, started: repointed - 60),
+        ], repointed: repointed).stale == [.init(pid: 31, version: "3659.4")])
         // Without the link's time nothing is called stale.
         #expect(CLIToolProcesses.usage(of: target, current: disk, processes: [
             .init(pid: 21, path: "\(root)/3579.5/\(launcher)", file: replaced, started: repointed - 60),

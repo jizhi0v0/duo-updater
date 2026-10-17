@@ -7,7 +7,7 @@ import Foundation
 /// keep a sibling product's tags out) passes every test on the day it lands and
 /// then reports "up to date" forever once `v3.0.0` ships. The onboarding
 /// benchmark (bench/onboarding, 2026-10) produced exactly that rule. Keep a
-/// sibling out the way `REVIEW.md` says: by asset name on a rule that installs,
+/// sibling out the way the app-audit skill says: by asset name on a rule that installs,
 /// and on a detection-only rule by excluding the sibling's versions
 /// (`^v((?!1\.)[0-9]+(?:\.[0-9]+)+)$`), since an asset pattern turns on one-click.
 ///
@@ -79,7 +79,7 @@ struct GitHubNextMajorTests {
     @Test func anOpenPatternPasses() {
         for pattern in [#"v?([0-9]+(?:\.[0-9]+)+)"#, #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#,
                         #"^cua-driver-rs-v([0-9]+\.[0-9]+\.[0-9]+)$"#,
-                        // REVIEW.md's detection-only sibling exclusion: 1.x is
+                        // app-audit's detection-only sibling exclusion: 1.x is
                         // another product, every later major is this one.
                         #"^v((?!1\.)[0-9]+(?:\.[0-9]+)+)$"#] {
             let result = Self.nextMajorMisses(pattern: pattern)

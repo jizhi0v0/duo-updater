@@ -132,8 +132,15 @@ struct TablePlusSubscriptionTests {
         #expect(covered.subscriptionHold == nil)
     }
 
-    @Test func theSetappEditionIsNotGated() {
-        #expect(SubscriptionWindow.current(forBundleID: "com.tinyapp.TablePlus-setapp") == nil)
+    /// The routing, independent of this Mac's licences: TablePlus (either case)
+    /// goes to its gate, its Setapp edition and everything else to none.
+    @Test func routing() {
+        #expect(SubscriptionWindow.gate(forBundleID: "com.tinyapp.TablePlus") == .tablePlus)
+        #expect(SubscriptionWindow.gate(forBundleID: "com.tinyapp.tableplus") == .tablePlus)
+        #expect(SubscriptionWindow.gate(forBundleID: "com.nssurge.surge-mac") == .surge)
+        #expect(SubscriptionWindow.gate(forBundleID: "com.tinyapp.TablePlus-setapp") == nil)
+        #expect(SubscriptionWindow.gate(forBundleID: "com.example.other") == nil)
+        #expect(SubscriptionWindow.gate(forBundleID: nil) == nil)
     }
 
     /// No licence on this Mac (the free tier): nothing to gate, whatever the cache

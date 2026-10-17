@@ -25,9 +25,21 @@ public enum SubscriptionWindow: Sendable, Equatable {
     /// The window for `bundleID` on this Mac now, or nil for every app that is
     /// not gated (and for a TablePlus copy with no licence on this Mac). Read on every check: a renewal changes it and nothing caches it.
     public static func current(forBundleID bundleID: String?) -> SubscriptionWindow? {
+        switch gate(forBundleID: bundleID) {
+        case .surge: return SurgeSubscription.currentWindow()
+        case .tablePlus: return TablePlusSubscription.currentWindow()
+        case nil: return nil
+        }
+    }
+
+    /// Which reader a bundle id goes to — the routing alone, so it can be pinned
+    /// without depending on what licence this Mac happens to hold.
+    enum Gate: Equatable { case surge, tablePlus }
+
+    static func gate(forBundleID bundleID: String?) -> Gate? {
         switch bundleID?.lowercased() {
-        case SurgeChannel.bundleID.lowercased(): return SurgeSubscription.currentWindow()
-        case TablePlusChannel.bundleID.lowercased(): return TablePlusSubscription.currentWindow()
+        case SurgeChannel.bundleID.lowercased(): return .surge
+        case TablePlusChannel.bundleID.lowercased(): return .tablePlus
         default: return nil
         }
     }

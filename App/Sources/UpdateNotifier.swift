@@ -152,14 +152,24 @@ enum UpdateNotifier {
     /// from 5 sessions to 3 under the same identifier, one record.
     ///
     /// A quiet update replaces only a banner still in the list: one the user
-    /// cleared stays cleared (review, #1374 round 8).
-    static func cliStillRunning(tool: String, line: String, tag: String, quietly: Bool = false) {
+    /// cleared stays cleared (review, #1374 round 8). The list is asked
+    /// asynchronously, so `stillWanted` is asked again on the main actor right
+    /// before posting: the last process may have exited, and the banner been
+    /// withdrawn, while the answer was on its way — posting then put back a
+    /// banner nothing would withdraw again (review, #1374 round 9).
+    static func cliStillRunning(
+        tool: String, line: String, tag: String, quietly: Bool = false,
+        stillWanted: @escaping @MainActor () -> Bool = { true }
+    ) {
         let id = "clistale:\(tag)"
         let body = String(localized: "\(line). Restart to use the version installed now.")
         guard quietly else { return post(title: tool, body: body, identifier: id) }
         UNUserNotificationCenter.current().getDeliveredNotifications { delivered in
             guard delivered.contains(where: { $0.request.identifier == id }) else { return }
-            Task { @MainActor in post(title: tool, body: body, identifier: id, quietly: true) }
+            Task { @MainActor in
+                guard stillWanted() else { return }
+                post(title: tool, body: body, identifier: id, quietly: true)
+            }
         }
     }
 

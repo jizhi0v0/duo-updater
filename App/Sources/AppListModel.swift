@@ -9442,8 +9442,12 @@ final class AppListModel {
             guard let usage = cliTools.usage[status.toolID],
                   let line = CLIToolWording.stillRunning(usage, of: status.kind) else { continue }
             Log.app.notice("cli-tools: \(status.kind.displayName, privacy: .public) at \(status.path, privacy: .public) — \(line, privacy: .public) (pids \(usage.stale.map(\.pid).description, privacy: .public))\(quietly ? " [text updated quietly, if still listed]" : "", privacy: .public)")
+            // Posted only if the banner should still say exactly this when the
+            // asynchronous check for a quiet update comes back.
+            let pids = Set(usage.stale.map(\.pid)), id = status.toolID
             UpdateNotifier.cliStillRunning(
-                tool: status.name ?? status.kind.displayName, line: line, tag: status.toolID.tag, quietly: quietly)
+                tool: status.name ?? status.kind.displayName, line: line, tag: id.tag, quietly: quietly,
+                stillWanted: { [weak self] in self?.cliTools.bannerProcesses(id) == pids })
         }
     }
 

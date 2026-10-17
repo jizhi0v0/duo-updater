@@ -155,6 +155,9 @@ final class CLIToolsModel {
     /// The stale processes each banner names now, to bring its text up to date
     /// (`changed`) when some have gone and none is new.
     @ObservationIgnored private var bannerStale: [CLIToolID: Set<pid_t>] = [:]
+
+    /// The stale processes `id`'s banner should name now; nil once withdrawn.
+    func bannerProcesses(_ id: CLIToolID) -> Set<pid_t>? { bannerStale[id] }
     @ObservationIgnored private var processWatch: Task<Void, Never>?
     /// The watch's current wait; cancelled to wake it early (`wakeProcessWatch`).
     @ObservationIgnored private var processWatchSleep: Task<Void, Never>?

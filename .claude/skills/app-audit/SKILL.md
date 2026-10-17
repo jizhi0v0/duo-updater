@@ -156,7 +156,10 @@ reason that holds. "Not checked" is not a recorded gap.
 - **Every release track.** Prereleases, betas or nightlies the vendor
   publishes, on their own bundle id or sharing the stable one. Find out how the
   app itself tells them apart (a plist value, the version string, the feed it
-  declares) so each copy is served its own track.
+  declares) so each copy is served its own track. A channel binding steps
+  aside for a copy `ReleaseChannel.detect` already calls nightly: Zettlr's
+  nightly with the beta box ticked was bound to `.beta` and offered a
+  downgrade until `ZettlrChannel` returned nil for it.
 - **Every version range.** Older copies may lack the update feed newer ones
   declare (a feed inside new bundles never reaches old copies), or be signed by
   a different team.
@@ -169,6 +172,17 @@ reason that holds. "Not checked" is not a recorded gap.
   serves and record which ones it refuses; don't drop it for everyone.
   Ad-hoc signing alone doesn't make an app detection-only: `installTrust:
   .publishedDigestOnly` covers it when the conditions on `InstallTrust` hold.
+- **A gap needs a reason that holds.** Before recording a group as a gap,
+  check the mechanisms the repository already has and write in the audit why
+  each doesn't apply: `BundleIDMigration` for an old bundle id; `OneClickGate`
+  (`.installedVersion(pattern:)`, `.asarEntry`) for another edition or major
+  version on the same id, which keeps detection and withholds only one-click;
+  `.publishedDigestOnly` for ad-hoc builds; a bundle-id-scoped branch in
+  `ReleaseChannel.detect` when only that bundle tells its tracks apart. A copy
+  the rule would offer a wrong version, or one-click would replace with
+  another edition, is never a gap: gate it first. Check every vendor fact in
+  a gap's reason ("their own updater already moves them to the latest") in
+  that version's source or release.
 - **The version pattern must read the next release.** Run it on every
   non-prerelease tag the vendor has published (two-part ones too), on the next
   major version, and on an rc/beta tag the vendor forgets to flag. Anchor it

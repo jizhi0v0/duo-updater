@@ -258,7 +258,8 @@ import DuoUpdaterCore
         Check.emitText([], tools: rows, checked: true, print: { lines.add($0) })
         let text = lines.all.joined(separator: "\n")
         #expect(text.contains("(running)  \(binary.path)"))
-        #expect(text.contains("      1 running process still runs the copy from before the update (pid 3) — restart to use the new version"))
+        #expect(text.contains("      1 running process still runs the copy from before the update — restart to use the new version:"))
+        #expect(text.contains("        1 running process still runs the copy from before the update (pid 3)"))
 
         let json = Lines()
         Check.emitJSON([], tools: rows, command: "check", print: { json.add($0) })

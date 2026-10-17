@@ -282,8 +282,13 @@ enum CLIToolRows {
         // current on disk while its old processes do not.
         var lines: [String] = []
         if let running = row.running, let message = running.message {
-            let pids = running.stale.map { String($0.pid) }.joined(separator: ", ")
-            lines.append("\(message) (pid \(pids)) — restart to use the new version")
+            lines.append("\(message) — restart to use the new version:")
+            let usage = CLIToolUsage(current: running.current, stale: running.stale.map { .init(pid: $0.pid, version: $0.version) })
+            let kind = CLIToolKind(rawValue: row.tool) ?? .codex
+            for group in usage.staleByVersion {
+                let pids = group.pids.map(String.init).joined(separator: ", ")
+                lines.append("  \(CLIToolWording.stillRunning(group.pids.count, on: group.version, of: kind)) (pid \(pids))")
+            }
         }
         if row.state == CLIToolState.pinned.rawValue {
             return lines + (row.command.map { ["to follow new releases again: \($0)"] } ?? [])

@@ -356,4 +356,16 @@ public enum CLIToolWording {
             ? String(localized: "1 running process still runs the copy from before the update")
             : String(localized: "\(count) running processes still run the copy from before the update")
     }
+
+    /// One line of `CLIToolUsage.staleByVersion`: "4 sessions on 2.1.299", or
+    /// for a copy whose version is not known, `stillRunning`'s own sentence.
+    public static func stillRunning(_ count: Int, on version: String?, of kind: CLIToolKind) -> String {
+        guard let version else {
+            return stillRunning(CLIToolUsage(current: [], stale: (0..<count).map { _ in .init(pid: 0, version: nil) }), of: kind) ?? ""
+        }
+        if kind == .claudeCode {
+            return count == 1 ? String(localized: "1 session on \(version)") : String(localized: "\(count) sessions on \(version)")
+        }
+        return count == 1 ? String(localized: "1 process on \(version)") : String(localized: "\(count) processes on \(version)")
+    }
 }

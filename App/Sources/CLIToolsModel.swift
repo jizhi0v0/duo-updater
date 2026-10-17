@@ -120,8 +120,9 @@ final class CLIToolsModel {
     /// A stale copy is in it only once two reads apart have seen it
     /// (`staleSeen`). Surfaces read it through `liveUsage`.
     private(set) var usage: [CLIToolID: CLIToolUsage] = [:]
-    /// Whether `usage` was read while a window of the app was on screen (or
-    /// in a wake's grace). A read with none on screen is for the notice only:
+    /// Whether the watch, after its last read, found a window of the app on
+    /// screen (or was in a wake's grace); reads outside the watch — after a
+    /// check, a confirm, an exit — leave it as it is. A read with none on screen is for the notice only:
     /// a popover opened later draws nothing from it, and is drawn again — this
     /// flag is observed — when the read its open wakes lands. A clock check
     /// could not do that: SwiftUI does not observe the clock, and the menu's

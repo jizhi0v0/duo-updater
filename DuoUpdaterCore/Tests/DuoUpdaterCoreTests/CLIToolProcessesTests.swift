@@ -124,6 +124,21 @@ struct CLIToolProcessesTests {
         #expect(!CLIToolUsage(current: [], stale: [.init(pid: 2, version: nil)]).keepingStale { _ in false }.isRunning)
     }
 
+    /// Ten sessions on three versions: one line per older version, oldest
+    /// first, each with its own pids; a copy of unknown version last.
+    @Test func staleCopiesAreListedByVersion() {
+        let usage = CLIToolUsage(current: [1, 2], stale: [
+            .init(pid: 30, version: "2.1.300"), .init(pid: 10, version: "2.1.299"), .init(pid: 31, version: "2.1.300"),
+            .init(pid: 11, version: "2.1.299"), .init(pid: 99, version: nil),
+        ])
+        let groups = usage.staleByVersion
+        #expect(groups.map(\.version) == ["2.1.299", "2.1.300", nil])
+        #expect(groups.map(\.pids) == [[10, 11], [30, 31], [99]])
+        #expect(CLIToolWording.stillRunning(2, on: "2.1.299", of: .claudeCode) == "2 sessions on 2.1.299")
+        #expect(CLIToolWording.stillRunning(1, on: "2.1.300", of: .claudeCode) == "1 session on 2.1.300")
+        #expect(CLIToolWording.stillRunning(1, on: nil, of: .codex) == "1 running process still runs the copy from before the update")
+    }
+
     @Test func noStaleCopyMeansNothingToSay() {
         #expect(CLIToolWording.stillRunning(CLIToolUsage(current: [1], stale: []), of: .claudeCode) == nil)
     }

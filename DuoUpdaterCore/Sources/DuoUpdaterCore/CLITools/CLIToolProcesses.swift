@@ -250,6 +250,14 @@ public struct CLIToolUsage: Sendable, Equatable {
 
     public var hasUnknownStale: Bool { stale.contains { $0.version == nil } }
 
+    /// The stale copies by the version they run, oldest first, a copy whose
+    /// version is not known last: what a surface lists one line each, so ten
+    /// sessions on three versions say which pid is on which.
+    public var staleByVersion: [(version: String?, pids: [pid_t])] {
+        let versions = staleVersions.map { Optional($0) } + (hasUnknownStale ? [nil] : [])
+        return versions.map { version in (version, stale.filter { $0.version == version }.map(\.pid)) }
+    }
+
     /// This usage with only the stale copies `keep` admits — the app shows a
     /// stale copy only once two reads apart have both seen it, so the old
     /// binary's last short-lived command at the moment of an update does not

@@ -207,7 +207,16 @@ struct CLIToolSidebarRow: View {
             trailing
         }
         .padding(.vertical, 2)
-        .help(CLIToolPresentation.explanation(status) ?? status.path)
+        .help(help)
+    }
+
+    /// The row's tooltip. The still-running sentence leads it: the mark's own
+    /// `.help` is overridden by this one (AXHelp read the path on the mark,
+    /// 2026-10-17), so the row says it for the mark.
+    private var help: String {
+        let base = CLIToolPresentation.explanation(status) ?? status.path
+        guard let usage = cli.liveUsage(id), let line = CLIToolWording.stillRunning(usage, of: status.kind) else { return base }
+        return line + "\n" + base
     }
 
     @ViewBuilder
@@ -220,10 +229,6 @@ struct CLIToolSidebarRow: View {
             Text(verbatim: cli.progress[id] ?? String(localized: "Updating…"))
                 .font(.caption).foregroundStyle(.secondary)
                 .lineLimit(1).truncationMode(.middle)
-        } else if let usage = cli.liveUsage(id), let line = CLIToolWording.stillRunning(usage, of: status.kind) {
-            // Processes started before the update are still on the old code: the
-            // check says current, they are not.
-            Text(verbatim: line).font(.caption).foregroundStyle(.orange).lineLimit(1)
         } else if let version = cli.justUpdated[id] {
             Group {
                 if status.kind == .claudeCode {
@@ -249,6 +254,19 @@ struct CLIToolSidebarRow: View {
                         .foregroundStyle(.orange)
                         .help(CLIToolWording.breaking(versions))
                         .accessibilityLabel(CLIToolWording.breaking(versions))
+                }
+                // Processes started before the update are still on the old
+                // code: the popover's mark, with how many. A sentence here was
+                // cut at ten sessions on two versions in a 260 pt sidebar, and
+                // hid the version caption it replaced.
+                if let usage = cli.liveUsage(id), let line = CLIToolWording.stillRunning(usage, of: status.kind) {
+                    HStack(spacing: 2) {
+                        Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
+                        Text(verbatim: "\(usage.stale.count)").monospacedDigit()
+                    }
+                    .foregroundStyle(.orange)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(line)
                 }
             }
             .font(.caption)
@@ -294,9 +312,15 @@ private struct CLIToolRunningValue: View {
             if !usage.current.isEmpty {
                 Text(verbatim: String(localized: "\(usage.current.count) on this version") + " · " + pids(usage.current))
             }
-            if let line = CLIToolWording.stillRunning(usage, of: kind) {
-                Text(verbatim: line + " · " + pids(usage.stale.map(\.pid)))
+            // One line per older version, so ten sessions on three versions
+            // say which pid is on which (measured 2026-10-17: one sentence of
+            // eight pids wrapped mid-list and paired none with its version).
+            ForEach(usage.staleByVersion, id: \.version) { group in
+                Text(verbatim: CLIToolWording.stillRunning(group.pids.count, on: group.version, of: kind)
+                     + " · " + pids(group.pids))
                     .foregroundStyle(.orange)
+            }
+            if !usage.stale.isEmpty {
                 Text("Restart to use the new version.")
                     .font(.caption).foregroundStyle(.secondary)
             }

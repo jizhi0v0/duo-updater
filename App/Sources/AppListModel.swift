@@ -4601,7 +4601,8 @@ final class AppListModel {
     /// `lsappinfo` call that can stall right after we relaunch apps) blocked the
     /// next install from starting. `installAll` runs it once after the whole batch.
     @discardableResult
-    func install(_ result: UpdateResult, notify: Bool = true, deferBookkeeping: Bool = false) async -> InstallAttemptOutcome {
+    func install(_ result: UpdateResult, notify: Bool = true, deferBookkeeping: Bool = false,
+                 backUpOnce: Bool = false) async -> InstallAttemptOutcome {
         let id = result.id
         // Re-entrancy / cross-path guard (matches `retry`): the popover "Update
         // anyway" button and the major-upgrade badge aren't disabled while an install
@@ -4622,7 +4623,7 @@ final class AppListModel {
         installNotes[id] = nil
         installing[id] = .queued
         guard isXcodeRow(result) else {
-            return await runInstall(result, notify: notify, deferBookkeeping: deferBookkeeping)
+            return await runInstall(result, notify: notify, deferBookkeeping: deferBookkeeping, backUpOnce: backUpOnce)
         }
         // Ask Apple before the rollback copy of a ~4 GB bundle and the download,
         // not after. Expired → the row turns to "Sign In…" and nothing starts.
@@ -4633,7 +4634,7 @@ final class AppListModel {
             installing[id] = nil
             return .notInstalled
         }
-        let outcome = await runInstall(result, notify: notify, deferBookkeeping: deferBookkeeping)
+        let outcome = await runInstall(result, notify: notify, deferBookkeeping: deferBookkeeping, backUpOnce: backUpOnce)
         // Expired mid-download: the row already says so and offers Sign In…,
         // so the downloader's copy of that message would only repeat it.
         if session.signInNeed != nil, installErrors[id] == AppleDeveloperSession.expiredMessage {
@@ -4648,7 +4649,9 @@ final class AppListModel {
     /// every target `.queued` up front (so each shows a queued spinner at once and
     /// the re-entrancy guard blocks a manual click) while the gates here still pace
     /// the actual installs.
-    private func runInstall(_ result: UpdateResult, notify: Bool, deferBookkeeping: Bool) async -> InstallAttemptOutcome {
+    private func runInstall(
+        _ result: UpdateResult, notify: Bool, deferBookkeeping: Bool, backUpOnce: Bool = false
+    ) async -> InstallAttemptOutcome {
         let id = result.id
         // Hold the list still for the duration — this row's rank is about to change
         // under whoever is clicking down the list. Every exit below clears
@@ -4723,7 +4726,7 @@ final class AppListModel {
         }
         let outcome = await performInstall(
             result, notify: notify, deferBookkeeping: deferBookkeeping,
-            releaseAfterDownload: isAppStore ? nil : hostGate)
+            releaseAfterDownload: isAppStore ? nil : hostGate, backUpOnce: backUpOnce)
         await ProcessInstallLock.shared.release()
         await hostGate.release()
         // An expired Apple session is not kept: `install` takes that line down
@@ -4761,7 +4764,7 @@ final class AppListModel {
     @discardableResult
     private func performInstall(
         _ result: UpdateResult, notify: Bool, deferBookkeeping: Bool,
-        releaseAfterDownload: GateHandle? = nil
+        releaseAfterDownload: GateHandle? = nil, backUpOnce: Bool = false
     ) async -> InstallAttemptOutcome {
         let id = result.id
         // The span in which this install may replace the bundle (`bundleChanges`).
@@ -5091,7 +5094,9 @@ final class AppListModel {
             installing[id] = nil
             return .notInstalled
         }
-        if prefs.keepBackups, InstallCoordinator.wantsBackup(backupRoute),
+        // `backUpOnce`: the major-upgrade confirmation's "Back Up & Update", for a
+        // user who keeps backups off but wants a rollback point for this one update.
+        if prefs.keepBackups || backUpOnce, InstallCoordinator.wantsBackup(backupRoute),
            !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)) {
             await backupCurrent(result, route: backupRoute)
         }

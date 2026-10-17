@@ -74684,136 +74684,6 @@
         }
       }
     },
-    "%lld open sessions still run the version from before the update": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld offene Sitzungen laufen noch mit der Version vor dem Update"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld sesiones abiertas siguen con la versión anterior a la actualización"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld sessions ouvertes tournent encore sous la version d’avant la mise à jour"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld sessioni aperte usano ancora la versione precedente all’aggiornamento"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "開いている %lld 個のセッションがまだアップデート前のバージョンで動作中"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld sessões abertas ainda usam a versão de antes da atualização"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Открытых сеансов на версии до обновления: %lld"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld açık oturum hâlâ güncelleme öncesi sürümde"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 个已打开的会话仍在运行更新前的版本"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 個已開啟的工作階段仍在執行更新前的版本"
-          }
-        }
-      }
-    },
-    "%lld running processes still run the copy from before the update": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld laufende Prozesse nutzen noch die Kopie vor dem Update"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld procesos en ejecución siguen con la copia anterior a la actualización"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld processus en cours utilisent encore la copie d’avant la mise à jour"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld processi in esecuzione usano ancora la copia precedente all’aggiornamento"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "実行中の %lld 個のプロセスがまだアップデート前のコピーで動作中"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld processos em execução ainda usam a cópia de antes da atualização"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Процессов на копии до обновления: %lld"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Çalışan %lld işlem hâlâ güncelleme öncesi kopyada"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 个运行中的进程仍在使用更新前的副本"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 個執行中的程序仍在使用更新前的副本"
-          }
-        }
-      }
-    },
     "1 open session still runs %@": {
       "extractionState": "manual",
       "localizations": {
@@ -74875,266 +74745,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "1 個已開啟的工作階段仍在執行 %@"
-          }
-        }
-      }
-    },
-    "1 open session still runs the version from before the update": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 offene Sitzung läuft noch mit der Version vor dem Update"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 sesión abierta sigue con la versión anterior a la actualización"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 session ouverte tourne encore sous la version d’avant la mise à jour"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 sessione aperta usa ancora la versione precedente all’aggiornamento"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "開いている 1 個のセッションがまだアップデート前のバージョンで動作中"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 sessão aberta ainda usa a versão de antes da atualização"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 открытый сеанс ещё на версии до обновления"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 açık oturum hâlâ güncelleme öncesi sürümde"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 个已打开的会话仍在运行更新前的版本"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 個已開啟的工作階段仍在執行更新前的版本"
-          }
-        }
-      }
-    },
-    "1 running process still runs the copy from before the update": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 laufender Prozess nutzt noch die Kopie vor dem Update"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 proceso en ejecución sigue con la copia anterior a la actualización"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 processus en cours utilise encore la copie d’avant la mise à jour"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 processo in esecuzione usa ancora la copia precedente all’aggiornamento"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "実行中の 1 個のプロセスがまだアップデート前のコピーで動作中"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 processo em execução ainda usa a cópia de antes da atualização"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 процесс ещё на копии до обновления"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Çalışan 1 işlem hâlâ güncelleme öncesi kopyada"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 个运行中的进程仍在使用更新前的副本"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 個執行中的程序仍在使用更新前的副本"
-          }
-        }
-      }
-    },
-    "Restart to use the new version.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Neu starten, um die neue Version zu nutzen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reinicia para usar la nueva versión."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relancez pour utiliser la nouvelle version."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Riavvia per usare la nuova versione."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新しいバージョンを使うには再起動してください。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reinicie para usar a nova versão."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Перезапустите, чтобы использовать новую версию."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yeni sürümü kullanmak için yeniden başlatın."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重启后即可使用新版本。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新啟動後即可使用新版本。"
-          }
-        }
-      }
-    },
-    "%@. Restart to use the new version.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@. Neu starten, um die neue Version zu nutzen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@. Reinicia para usar la nueva versión."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@. Relancez pour utiliser la nouvelle version."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@. Riavvia per usare la nuova versione."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@。新しいバージョンを使うには再起動してください。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@. Reinicie para usar a nova versão."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@. Перезапустите, чтобы использовать новую версию."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@. Yeni sürümü kullanmak için yeniden başlatın."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@。重启后即可使用新版本。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@。重新啟動後即可使用新版本。"
           }
         }
       }
@@ -75460,6 +75070,396 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$lld 個程序在 %2$@"
+          }
+        }
+      }
+    },
+    "1 open session still runs a copy that has since been replaced": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 offene Sitzung nutzt noch eine inzwischen ersetzte Kopie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 sesión abierta sigue con una copia que ya se ha reemplazado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 session ouverte utilise encore une copie remplacée depuis"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 sessione aperta usa ancora una copia nel frattempo sostituita"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開いている 1 個のセッションがまだ置き換え済みのコピーで動作中"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 sessão aberta ainda usa uma cópia que já foi substituída"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 открытый сеанс ещё на заменённой копии"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 açık oturum hâlâ değiştirilmiş bir kopyayı çalıştırıyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 个已打开的会话仍在运行已被替换的副本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 個已開啟的工作階段仍在執行已被替換的副本"
+          }
+        }
+      }
+    },
+    "%lld open sessions still run a copy that has since been replaced": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld offene Sitzungen nutzen noch eine inzwischen ersetzte Kopie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld sesiones abiertas siguen con una copia que ya se ha reemplazado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld sessions ouvertes utilisent encore une copie remplacée depuis"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld sessioni aperte usano ancora una copia nel frattempo sostituita"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開いている %lld 個のセッションがまだ置き換え済みのコピーで動作中"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld sessões abertas ainda usam uma cópia que já foi substituída"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открытых сеансов на заменённой копии: %lld"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld açık oturum hâlâ değiştirilmiş bir kopyayı çalıştırıyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个已打开的会话仍在运行已被替换的副本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個已開啟的工作階段仍在執行已被替換的副本"
+          }
+        }
+      }
+    },
+    "1 running process still runs a copy that has since been replaced": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 laufender Prozess nutzt noch eine inzwischen ersetzte Kopie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 proceso en ejecución sigue con una copia que ya se ha reemplazado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 processus en cours utilise encore une copie remplacée depuis"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 processo in esecuzione usa ancora una copia nel frattempo sostituita"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "実行中の 1 個のプロセスがまだ置き換え済みのコピーで動作中"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 processo em execução ainda usa uma cópia que já foi substituída"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 процесс ещё на заменённой копии"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çalışan 1 işlem hâlâ değiştirilmiş bir kopyayı çalıştırıyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 个运行中的进程仍在使用已被替换的副本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 個執行中的程序仍在使用已被替換的副本"
+          }
+        }
+      }
+    },
+    "%lld running processes still run a copy that has since been replaced": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld laufende Prozesse nutzen noch eine inzwischen ersetzte Kopie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld procesos en ejecución siguen con una copia que ya se ha reemplazado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld processus en cours utilisent encore une copie remplacée depuis"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld processi in esecuzione usano ancora una copia nel frattempo sostituita"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "実行中の %lld 個のプロセスがまだ置き換え済みのコピーで動作中"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld processos em execução ainda usam uma cópia que já foi substituída"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Процессов на заменённой копии: %lld"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çalışan %lld işlem hâlâ değiştirilmiş bir kopyayı çalıştırıyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个运行中的进程仍在使用已被替换的副本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個執行中的程序仍在使用已被替換的副本"
+          }
+        }
+      }
+    },
+    "Restart to use the version installed now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu starten, um die jetzt installierte Version zu nutzen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reinicia para usar la versión instalada ahora."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relancez pour utiliser la version installée maintenant."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riavvia per usare la versione installata ora."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今インストールされているバージョンを使うには再起動してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reinicie para usar a versão instalada agora."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перезапустите, чтобы использовать установленную сейчас версию."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu an yüklü sürümü kullanmak için yeniden başlatın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启后即可使用当前安装的版本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新啟動後即可使用目前安裝的版本。"
+          }
+        }
+      }
+    },
+    "%@. Restart to use the version installed now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. Neu starten, um die jetzt installierte Version zu nutzen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. Reinicia para usar la versión instalada ahora."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. Relancez pour utiliser la version installée maintenant."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. Riavvia per usare la versione installata ora."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@。今インストールされているバージョンを使うには再起動してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. Reinicie para usar a versão instalada agora."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. Перезапустите, чтобы использовать установленную сейчас версию."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. Şu an yüklü sürümü kullanmak için yeniden başlatın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@。重启后即可使用当前安装的版本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@。重新啟動後即可使用目前安裝的版本。"
           }
         }
       }

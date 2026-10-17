@@ -2113,7 +2113,9 @@ final class AppListModel {
         // Who runs each tool's binary, for the running dot and the "still on the
         // old version" line: every few seconds while a window of ours is on
         // screen, once a minute otherwise (`CLIToolsModel.watchProcesses`).
-        cliTools.onStaleProcesses = { [weak self] newly, cleared in self?.notifyStaleCLIProcesses(newly, cleared) }
+        cliTools.onStaleProcesses = { [weak self] newly, changed, cleared in
+            self?.notifyStaleCLIProcesses(newly, changed, cleared)
+        }
         cliTools.watchProcesses(isVisible: { Self.anyWindowOnScreen() })
         // A window of ours coming out from under another one: no open or focus
         // says so, and its marks are drawn only from a read made while a
@@ -9429,15 +9431,19 @@ final class AppListModel {
     /// Processes left on a tool's old copy after it updated: said once per
     /// process, under the tools' own notification switch, and withdrawn once
     /// they are gone.
-    private func notifyStaleCLIProcesses(_ newly: [CLIToolStatus], _ cleared: [CLIToolID]) {
+    ///
+    /// `changed`: fewer left and none new (some exited, or the tool was put
+    /// back on the version some of them run) — the banner's text is replaced
+    /// quietly rather than announced again.
+    private func notifyStaleCLIProcesses(_ newly: [CLIToolStatus], _ changed: [CLIToolStatus], _ cleared: [CLIToolID]) {
         UpdateNotifier.clearCLIStillRunning(tags: cleared.map(\.tag))
         guard prefs.notifyOnCLIToolUpdates else { return }
-        for status in newly {
+        for (status, quietly) in newly.map({ ($0, false) }) + changed.map({ ($0, true) }) {
             guard let usage = cliTools.usage[status.toolID],
                   let line = CLIToolWording.stillRunning(usage, of: status.kind) else { continue }
-            Log.app.notice("cli-tools: \(status.kind.displayName, privacy: .public) at \(status.path, privacy: .public) — \(line, privacy: .public) (pids \(usage.stale.map(\.pid).description, privacy: .public))")
+            Log.app.notice("cli-tools: \(status.kind.displayName, privacy: .public) at \(status.path, privacy: .public) — \(line, privacy: .public) (pids \(usage.stale.map(\.pid).description, privacy: .public))\(quietly ? " [text updated quietly]" : "", privacy: .public)")
             UpdateNotifier.cliStillRunning(
-                tool: status.name ?? status.kind.displayName, line: line, tag: status.toolID.tag)
+                tool: status.name ?? status.kind.displayName, line: line, tag: status.toolID.tag, quietly: quietly)
         }
     }
 

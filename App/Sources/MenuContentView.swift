@@ -1009,7 +1009,7 @@ private struct StillRunningMark: View {
                             .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    Text("Restart to use the new version.")
+                    Text("Restart to use the version installed now.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

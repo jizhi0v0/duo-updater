@@ -1,5 +1,14 @@
 import Foundation
 import Darwin
+import Security
+
+/// The kernel's code-signing operations on a process. Not in the SDK's
+/// headers (`<sys/codesign.h>` is in the kernel's), but exported by
+/// libsystem_kernel; `codesign` and friends use it. `CS_OPS_CDHASH` (5)
+/// copies the 20-byte cdhash the kernel validated the process's executable
+/// against when it was loaded.
+@_silgen_name("csops")
+private func csops(_ pid: pid_t, _ ops: UInt32, _ useraddr: UnsafeMutableRawPointer?, _ usersize: Int) -> Int32
 
 /// Which processes are running an install's binary right now, and whether each
 /// one runs the file on disk or a copy from before an update.
@@ -113,12 +122,22 @@ public enum CLIToolProcesses {
 
     /// Who runs `target`, from one read of the process table (`running`) and
     /// the file now on disk (`current`).
-    public static func usage(of target: Target, current: FileID?, processes: [Running]) -> CLIToolUsage {
+    ///
+    /// A process mapped from another file than the one on disk is stale only
+    /// when its build differs too (`sameBuild`, by cdhash): a tool updated and
+    /// then put back on the build a process runs — rolled back, or downgraded
+    /// by hand — leaves that process on what is installed, in a file of a new
+    /// inode. Unknown (nil) counts as different.
+    public static func usage(
+        of target: Target, current: FileID?, processes: [Running],
+        sameBuild: (pid_t, String) -> Bool? = { sameBuild(pid: $0, asFileAt: $1) }
+    ) -> CLIToolUsage {
         var live: [pid_t] = []
         var stale: [CLIToolUsage.Copy] = []
         for process in processes {
             if process.path == target.executable {
-                if let file = process.file, let current, file != current {
+                if let file = process.file, let current, file != current,
+                   sameBuild(process.pid, target.executable) != true {
                     stale.append(.init(pid: process.pid, version: nil))
                 } else {
                     live.append(process.pid)
@@ -130,7 +149,7 @@ public enum CLIToolProcesses {
                 guard !ClaudeCodeActivity.isClaudeUpdateCommand(process.arguments) else { continue }
                 // Only an older version is one the session should leave: a newer
                 // one beside the launcher's (a custom launcher held back, a
-                // `minimumVersion` floor) is not "from before the update".
+                // `minimumVersion` floor) is not one to leave for the launcher's.
                 let name = (process.path as NSString).lastPathComponent
                 let current = (target.executable as NSString).lastPathComponent
                 guard name.first?.isNumber == true,
@@ -201,6 +220,36 @@ public enum CLIToolProcesses {
         return nil
     }
 
+    /// Whether `pid` runs the build now at `path`: the cdhash the kernel
+    /// loaded it with against the file's own. Nil when either is unreadable.
+    ///
+    /// Measured 2026-10-17 on a binary replaced under a running process (mv),
+    /// then put back: `csops` kept the process's own cdhash throughout
+    /// (33a5…; the file read d6a9…, then 33a5… again). The Security
+    /// framework's dynamic code for a pid (`SecCodeCopyGuestWithAttributes`)
+    /// followed the file instead, so it cannot answer this.
+    public static func sameBuild(pid: pid_t, asFileAt path: String) -> Bool? {
+        guard let running = runningCDHash(pid), let installed = fileCDHash(path) else { return nil }
+        return running == installed
+    }
+
+    static func runningCDHash(_ pid: pid_t) -> Data? {
+        var buffer = [UInt8](repeating: 0, count: 20)
+        let result = buffer.withUnsafeMutableBytes { csops(pid, 5, $0.baseAddress, $0.count) }
+        guard result == 0, buffer.contains(where: { $0 != 0 }) else { return nil }
+        return Data(buffer)
+    }
+
+    static func fileCDHash(_ path: String) -> Data? {
+        var code: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(URL(fileURLWithPath: path) as CFURL, [], &code) == errSecSuccess,
+              let code else { return nil }
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(code, [], &info) == errSecSuccess,
+              let info = info as? [String: Any] else { return nil }
+        return info[kSecCodeInfoUnique as String] as? Data
+    }
+
     static func fileID(_ path: String) -> FileID? {
         var info = stat()
         guard stat(path, &info) == 0 else { return nil }
@@ -216,7 +265,7 @@ public enum CLIToolProcesses {
 
 /// Who is running one install right now (`CLIToolProcesses`).
 public struct CLIToolUsage: Sendable, Equatable {
-    /// A process on a copy from before the update.
+    /// A process on a copy other than the one installed now.
     public struct Copy: Sendable, Equatable, Hashable {
         public let pid: pid_t
         /// The version it runs, when the install's layout names it.

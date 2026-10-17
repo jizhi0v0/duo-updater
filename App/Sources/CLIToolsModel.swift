@@ -150,7 +150,11 @@ final class CLIToolsModel {
     /// Told, after a read of the process table, which installs newly have
     /// processes left on a copy from before an update, and which no longer
     /// have any. `AppListModel` posts and withdraws the banner.
-    @ObservationIgnored var onStaleProcesses: (@MainActor (_ newly: [CLIToolStatus], _ cleared: [CLIToolID]) -> Void)?
+    @ObservationIgnored var onStaleProcesses: (@MainActor (
+        _ newly: [CLIToolStatus], _ changed: [CLIToolStatus], _ cleared: [CLIToolID]) -> Void)?
+    /// The stale processes each banner names now, to bring its text up to date
+    /// (`changed`) when some have gone and none is new.
+    @ObservationIgnored private var bannerStale: [CLIToolID: Set<pid_t>] = [:]
     @ObservationIgnored private var processWatch: Task<Void, Never>?
     /// The watch's current wait; cancelled to wake it early (`wakeProcessWatch`).
     @ObservationIgnored private var processWatchSleep: Task<Void, Never>?
@@ -737,20 +741,27 @@ final class CLIToolsModel {
 
     private func announceStale() {
         var newly: [CLIToolStatus] = []
+        var changed: [CLIToolStatus] = []
         var cleared: [CLIToolID] = []
         for id in announcedStale.keys where usage[id]?.stale.isEmpty ?? true {
             announcedStale[id] = nil
+            bannerStale[id] = nil
             cleared.append(id)
         }
         for status in statuses {
             guard let stale = usage[status.toolID]?.stale, !stale.isEmpty else { continue }
             let pids = Set(stale.map(\.pid))
             let known = announcedStale[status.toolID] ?? []
-            if !pids.isSubset(of: known) { newly.append(status) }
+            if !pids.isSubset(of: known) {
+                newly.append(status)
+            } else if pids != bannerStale[status.toolID] {
+                changed.append(status)
+            }
             announcedStale[status.toolID] = known.union(pids)
+            bannerStale[status.toolID] = pids
         }
-        guard !newly.isEmpty || !cleared.isEmpty else { return }
-        onStaleProcesses?(newly, cleared)
+        guard !newly.isEmpty || !changed.isEmpty || !cleared.isEmpty else { return }
+        onStaleProcesses?(newly, changed, cleared)
     }
 
     /// Read the release notes of every update row whose range is new, and keep

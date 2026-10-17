@@ -143,9 +143,16 @@ enum UpdateNotifier {
     /// checked again yet, and its verdict still reads the old one — fx's own
     /// auto-update on 2026-10-16 had this say "Restart to use 0.0.13" with
     /// 0.0.14 on disk.
-    static func cliStillRunning(tool: String, line: String, tag: String) {
-        post(title: tool, body: String(localized: "\(line). Restart to use the new version."),
-             identifier: "clistale:\(tag)")
+    ///
+    /// `quietly`: the same banner with its text brought up to date — fewer
+    /// processes left, none new — replaced at `.passive`, which "adds the
+    /// notification to the notification list without lighting up the screen or
+    /// playing a sound" (developer.apple.com, read 2026-10-17), so the list
+    /// never says "5 sessions" with 3 left. Measured: the record's body went
+    /// from 5 sessions to 3 under the same identifier, one record.
+    static func cliStillRunning(tool: String, line: String, tag: String, quietly: Bool = false) {
+        post(title: tool, body: String(localized: "\(line). Restart to use the version installed now."),
+             identifier: "clistale:\(tag)", quietly: quietly)
     }
 
     static func clearCLIStillRunning(tags: [String]) {
@@ -158,7 +165,7 @@ enum UpdateNotifier {
 
     private static func post(
         title: String, body: String, categoryID: String? = nil,
-        identifier: String? = nil, userInfo: [String: String] = [:]
+        identifier: String? = nil, userInfo: [String: String] = [:], quietly: Bool = false
     ) {
         let content = UNMutableNotificationContent()
         content.title = title
@@ -168,8 +175,8 @@ enum UpdateNotifier {
         // menu-bar app you aren't watching is trivially missed. Request the
         // default sound (the system "Play sound" toggle still gates it) and the
         // .active interruption level so it presents immediately.
-        content.sound = .default
-        content.interruptionLevel = .active
+        content.sound = quietly ? nil : .default
+        content.interruptionLevel = quietly ? .passive : .active
         // A category id attaches the actionable buttons registered for it.
         if let categoryID { content.categoryIdentifier = categoryID }
         if !userInfo.isEmpty { content.userInfo = userInfo }

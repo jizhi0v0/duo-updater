@@ -302,7 +302,7 @@ struct CLIToolSidebarRow: View {
 // MARK: - Running
 
 /// The detail panes' Running fact: which processes run the binary, and which
-/// of them are still on a copy from before the update (`CLIToolUsage`).
+/// of them are still on a copy other than the one installed now (`CLIToolUsage`).
 private struct CLIToolRunningValue: View {
     let usage: CLIToolUsage
     let kind: CLIToolKind
@@ -321,7 +321,7 @@ private struct CLIToolRunningValue: View {
                     .foregroundStyle(.orange)
             }
             if !usage.stale.isEmpty {
-                Text("Restart to use the new version.")
+                Text("Restart to use the version installed now.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

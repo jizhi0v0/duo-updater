@@ -27,6 +27,28 @@ struct CLIToolProcessesTests {
         #expect(usage.hasUnknownStale)
     }
 
+    /// Updated, then put back on the build a process runs (rolled back, or
+    /// downgraded by hand): the file is a new inode, the build is the same, and
+    /// the process is on what is installed.
+    @Test func aReplacedFileOfTheSameBuildIsCurrent() {
+        let target = CLIToolProcesses.Target(executable: "/x/tool", versionedSiblings: false)
+        let processes: [CLIToolProcesses.Running] = [.init(pid: 10, path: "/x/tool", file: replaced)]
+        #expect(CLIToolProcesses.usage(of: target, current: disk, processes: processes, sameBuild: { _, _ in true })
+                == CLIToolUsage(current: [10], stale: []))
+        #expect(CLIToolProcesses.usage(of: target, current: disk, processes: processes, sameBuild: { _, _ in false }).stale.count == 1)
+        // Unreadable counts as different: the inode says it was replaced.
+        #expect(CLIToolProcesses.usage(of: target, current: disk, processes: processes, sameBuild: { _, _ in nil }).stale.count == 1)
+    }
+
+    /// The kernel half: this test process runs the build its own file holds.
+    @Test func theTestProcessIsTheBuildOnDisk() throws {
+        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        #expect(proc_pidpath(getpid(), &buffer, UInt32(buffer.count)) > 0)
+        let path = buffer.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
+        #expect(CLIToolProcesses.runningCDHash(getpid())?.count == 20)
+        #expect(CLIToolProcesses.sameBuild(pid: getpid(), asFileAt: path) == true)
+    }
+
     /// Without the kernel's word on the mapped file there is nothing to call
     /// stale: a row must not say "restart" on a guess.
     @Test func anUnreadableMappingIsNotStale() {
@@ -136,7 +158,7 @@ struct CLIToolProcessesTests {
         #expect(groups.map(\.pids) == [[10, 11], [30, 31], [99]])
         #expect(CLIToolWording.stillRunning(2, on: "2.1.299", of: .claudeCode) == "2 sessions on 2.1.299")
         #expect(CLIToolWording.stillRunning(1, on: "2.1.300", of: .claudeCode) == "1 session on 2.1.300")
-        #expect(CLIToolWording.stillRunning(1, on: nil, of: .codex) == "1 running process still runs the copy from before the update")
+        #expect(CLIToolWording.stillRunning(1, on: nil, of: .codex) == "1 running process still runs a copy that has since been replaced")
     }
 
     @Test func noStaleCopyMeansNothingToSay() {

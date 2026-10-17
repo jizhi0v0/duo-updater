@@ -344,8 +344,8 @@ public enum CLIToolWording {
         if kind == .claudeCode {
             if versions.isEmpty || usage.hasUnknownStale {
                 return count == 1
-                    ? String(localized: "1 open session still runs the version from before the update")
-                    : String(localized: "\(count) open sessions still run the version from before the update")
+                    ? String(localized: "1 open session still runs a copy that has since been replaced")
+                    : String(localized: "\(count) open sessions still run a copy that has since been replaced")
             }
             let list = versions.joined(separator: ", ")
             return count == 1
@@ -353,8 +353,8 @@ public enum CLIToolWording {
                 : String(localized: "\(count) open sessions still run \(list)")
         }
         return count == 1
-            ? String(localized: "1 running process still runs the copy from before the update")
-            : String(localized: "\(count) running processes still run the copy from before the update")
+            ? String(localized: "1 running process still runs a copy that has since been replaced")
+            : String(localized: "\(count) running processes still run a copy that has since been replaced")
     }
 
     /// One line of `CLIToolUsage.staleByVersion`: "4 sessions on 2.1.299", or

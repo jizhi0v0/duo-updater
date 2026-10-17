@@ -314,33 +314,38 @@ permission buys is stated below, including what you lose without it. The Full Di
 Access and Automation lines were measured on macOS 27 with an app that had been
 granted nothing.
 
-**Full Disk Access** — only for TestFlight betas and CotEditor. macOS never asks
+**Full Disk Access** — only for TestFlight betas, CotEditor and Open Screen
+Sharing. macOS never asks
 for it: you add DuoUpdater yourself in **System Settings → Privacy & Security →
 Full Disk Access**, and because the app is signed with a stable identity the grant
-survives every update. It covers two reads, and nothing else DuoUpdater looks at
-needs it:
+survives every update. It covers three reads, and nothing else DuoUpdater looks
+at needs it:
 
 - the builds TestFlight offers you, for a beta installed from TestFlight. Without
   it the beta is still recognized, but its row shows a question mark instead of
   the latest build. Only when TestFlight detection is on — with it *Off*, this
-  read is not one of the two, and CotEditor is the only thing left that wants the
-  permission.
+  read is not one of the three, and CotEditor and Open Screen Sharing are the
+  only things left that want the permission.
 - CotEditor's update channel, which that sandboxed app keeps in its container.
   Without it, CotEditor is checked against its stable releases even if you asked
   it for prereleases (a prerelease you already run is still recognized from its
   version).
+- Open Screen Sharing's update track, which it keeps in a database in its group
+  container. Without it, Open Screen Sharing is checked against its stable
+  releases even if you set it to nightly.
 
 Other apps' settings — the release channel of Fork, TablePlus, OrbStack, IINA,
 Tailscale, CleanShot and the rest — your App Store storefront, and files under
 Application Support are all read without it. Without Full Disk Access DuoUpdater
-does not attempt the two reads at all: every attempt would be refused, and on
+does not attempt the three reads at all: every attempt would be refused, and on
 macOS 27 a refused TestFlight read posts a "Data Access Blocked" notice. If you
-have a TestFlight beta or CotEditor, opening the menu explains this once, and at
+have a TestFlight beta, CotEditor or Open Screen Sharing, opening the menu
+explains this once, and at
 most once more if another such app appears; the welcome window and Settings →
 Diagnostics show whether it is granted, and tapping the question mark on a
 TestFlight row says why it is there — offering to grant it when that is the
-reason. A stable CotEditor carries a small lock beside its name that does the
-same. With TestFlight detection *Off* none of that mentions TestFlight: nothing
+reason. A stable CotEditor or Open Screen Sharing carries a small lock beside
+its name that does the same. With TestFlight detection *Off* none of that mentions TestFlight: nothing
 was attempted, so the permission is not what is missing, and the beta rows carry
 a minus rather than a question mark — asked-and-not-told and never-asked are
 different things to say.

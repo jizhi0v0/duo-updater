@@ -146,7 +146,7 @@ struct WelcomeView: View {
             PermissionCard(
                 systemImage: "internaldrive",
                 title: String(localized: "Full Disk Access"),
-                detail: String(localized: "Lets DuoUpdater read TestFlight’s list of builds and CotEditor’s update channel, so those apps can be checked properly. Optional — and TestFlight checking has a switch of its own in Settings → General, which needs this permission to read anything."),
+                detail: String(localized: "Lets DuoUpdater read TestFlight’s list of builds and the update channels of CotEditor and Open Screen Sharing, so those apps can be checked properly. Optional — and TestFlight checking has a switch of its own in Settings → General, which needs this permission to read anything."),
                 status: fullDiskAccessCardStatus,
                 action: { model.presentFullDiskAccessPermissionFlow() }
             )
@@ -239,7 +239,7 @@ struct WelcomeView: View {
     // MARK: - Full Disk Access (optional)
 
     /// Optional, like GitHub: without it nothing reads TestFlight's store or
-    /// CotEditor's channel, so the missing state is the subdued button, never the
+    /// the channels CotEditor and Open Screen Sharing keep in their containers, so the missing state is the subdued button, never the
     /// prominent one.
     ///
     /// The card names TestFlight's own switch because this permission is necessary

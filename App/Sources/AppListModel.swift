@@ -1899,7 +1899,8 @@ final class AppListModel {
         if TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDisk) != couldReadTestFlight {
             Task { await recheckTestFlightRows() }
             // And, on a grant, the other rows a turned-away read left stale —
-            // CotEditor's channel — whose lock goes away with this very change.
+            // CotEditor's and Open Screen Sharing's channels — whose lock goes away
+            // with this very change.
             if TCCPreflight.admitsOtherAppsData(fullDiskAccess: fullDisk) {
                 Task { await recheckRowsFullDiskAccessTurnedAway() }
             }
@@ -7168,6 +7169,8 @@ final class AppListModel {
             return String(localized: "TestFlight betas (\(names)): DuoUpdater reads the builds TestFlight offers you. Without it, their rows show a question mark.")
         case .cotEditorChannel:
             return String(localized: "CotEditor: DuoUpdater reads its update channel. Without it, CotEditor is checked against its stable releases even if you chose prereleases.")
+        case .openScreenSharingChannel:
+            return String(localized: "Open Screen Sharing: DuoUpdater reads its update track. Without it, Open Screen Sharing is checked against its stable releases even if you chose nightly.")
         }
     }
 

@@ -86,6 +86,13 @@ struct PackageArchitectureProbeTests {
             "pkgarch:io.tailscale.ipn.macsys:rc",
             "pkgarch:io.tailscale.ipn.macsys:stable",
             "pkgarch:io.tailscale.ipn.macsys:unstable",
+            // 2026-10-17: Open Screen Sharing's nightly pkg. Its declaration was
+            // read from the expanded package, not through
+            // scripts/pkg_host_architectures.py, which failed on every GitHub
+            // release URL from the measuring network (XQuartz's too):
+            // `hostArchitectures="arm64,x86_64"`, and `lipo -archs` on the
+            // payload is `x86_64 arm64`. The stable rule's pkg is the same bytes.
+            "pkgarch:io.nekohasekai.screensharing:nightly",
         ], """
             The pkg install route changed. Every one of these installs with NO \
             architecture gate, so this is worth reading rather than re-pinning: \

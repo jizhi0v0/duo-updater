@@ -411,3 +411,14 @@ public struct ClaudeCodeScanner: Sendable {
         return SecStaticCodeCheckValidity(code, [], requirement) == errSecSuccess ? .anthropic : .otherSigner
     }
 }
+
+extension ClaudeCodeInstall {
+    /// The native layout as `CLIToolProcesses` reads it: the launcher's file is
+    /// one of `~/.local/share/claude/versions/<version>`, and a session on
+    /// another is on that version. `claude update` is the updater itself.
+    static func processTarget(resolved: String) -> CLIToolProcesses.Target? {
+        let versions = (resolved as NSString).deletingLastPathComponent
+        guard versions.hasSuffix("/claude/versions") else { return nil }
+        return .init(executable: resolved, versions: .init(root: versions, skipsClaudeUpdate: true))
+    }
+}

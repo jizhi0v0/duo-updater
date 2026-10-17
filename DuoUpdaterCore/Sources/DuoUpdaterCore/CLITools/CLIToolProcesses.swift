@@ -34,13 +34,20 @@ private func csops(_ pid: pid_t, _ ops: UInt32, _ useraddr: UnsafeMutableRawPoin
 ///   is mapped from keeps the old inode (`PROC_PIDREGIONPATHINFO`), while
 ///   `stat` on the path reads the new one. Which version that copy was is not
 ///   on disk any more, so it is reported without one.
-/// - **the install keeps a file per version** (Claude Code's native
-///   `~/.local/share/claude/versions/<version>`, its launcher a symlink to
-///   one): a process on a sibling file runs that version, by name.
+/// - **the install keeps an entry per version** and repoints a symlink at the
+///   new one (`Versions`): a process on an older entry runs that version, by
+///   name. Measured 2026-10-17 with each vendor's own installer and update
+///   command, a process started before the update and read after it: Claude
+///   Code native (`versions/<version>`), Codex standalone
+///   (`releases/<version>-<target>/bin/codex`, `codex update`), Cursor Agent
+///   (`versions/<version>/node`, `agent update`) and Vite+ (`<version>/bin/vp`,
+///   `vp upgrade`). Every other tool here replaces its one file (`ls -la` /
+///   `realpath` of each install on the development Mac, and each
+///   `*Install.swift`'s layout notes).
 ///
 /// Cost, measured 2026-10-16 on 1049 processes: one `proc_pidpath` each is
 /// 1.2–1.4 ms for the whole table; the region read is only for processes whose
-/// directory is one of the installs'.
+/// directory is one of the installs', or under one's `Versions.root`.
 public enum CLIToolProcesses {
 
     /// What `stat` and the kernel's region info agree a file is.
@@ -54,17 +61,58 @@ public enum CLIToolProcesses {
         }
     }
 
+    /// An install that keeps one entry per version in a directory, its
+    /// launcher a symlink into the active one, declared by its provider
+    /// (`processTarget(resolved:)` on the install's type).
+    public struct Versions: Sendable, Hashable {
+        /// The directory of entries: Claude Code's `versions/`, Codex's `releases/`.
+        public let root: String
+        /// Where the binary sits inside an entry, as `proc_pidpath` spells it;
+        /// "" when the entry is the binary (Claude Code). Codex has two: its
+        /// package layout's `bin/codex`, and its older releases' `codex`.
+        public let binaries: [String]
+        /// Cut from an entry's name to read its version (Codex's `-<target>`).
+        public let nameSuffixes: [String]
+        /// `argv` is read and `claude update` left out: that process is the
+        /// updater itself, on its way out (Claude Code only).
+        public let skipsClaudeUpdate: Bool
+
+        public init(root: String, binaries: [String] = [""], nameSuffixes: [String] = [], skipsClaudeUpdate: Bool = false) {
+            self.root = root
+            self.binaries = binaries
+            self.nameSuffixes = nameSuffixes
+            self.skipsClaudeUpdate = skipsClaudeUpdate
+        }
+
+        /// The entry `path` is one of this layout's binaries in, or nil.
+        func entry(of path: String) -> String? {
+            guard path.hasPrefix(root + "/") else { return nil }
+            let rest = path.dropFirst(root.count + 1)
+            let entry = rest.prefix { $0 != "/" }
+            guard !entry.isEmpty else { return nil }
+            let inside = rest.dropFirst(entry.count).drop { $0 == "/" }
+            return binaries.contains(String(inside)) ? String(entry) : nil
+        }
+
+        /// The version an entry's name says, or nil when the name is not one
+        /// (the installer's scratch entries, `bin`, `current`).
+        func version(ofEntry entry: String) -> String? {
+            var name = entry
+            if let suffix = nameSuffixes.first(where: { name.hasSuffix($0) }) { name.removeLast(suffix.count) }
+            return name.first?.isNumber == true ? name : nil
+        }
+    }
+
     /// One install's binary, as the process table will spell it.
     public struct Target: Sendable, Hashable {
         /// The binary, symlinks resolved.
         public let executable: String
-        /// Other files beside it are this install's other versions, each named
-        /// by its version (Claude Code's native layout).
-        public let versionedSiblings: Bool
+        /// The install's other versions, when it keeps one entry per version.
+        public let versions: Versions?
 
-        public init(executable: String, versionedSiblings: Bool) {
+        public init(executable: String, versions: Versions? = nil) {
             self.executable = executable
-            self.versionedSiblings = versionedSiblings
+            self.versions = versions
         }
 
         var directory: String { (executable as NSString).deletingLastPathComponent }
@@ -112,12 +160,22 @@ public enum CLIToolProcesses {
     }
 
     static func target(kind: CLIToolKind, path: String) -> Target? {
-        guard let resolved = realpath(path) else { return nil }
+        // Vite+'s row is its data root; the binary is the active version's.
+        let path = kind == .vitePlus ? (path as NSString).appendingPathComponent("current/bin/vp") : path
+        guard let resolved = realpath(path), isRegularFile(resolved) else { return nil }
+        let versioned: Target? = switch kind {
+        case .claudeCode: ClaudeCodeInstall.processTarget(resolved: resolved)
+        case .codex: CodexInstall.processTarget(resolved: resolved)
+        case .cursorAgent: CursorAgentInstall.processTarget(resolved: resolved)
+        case .vitePlus: VitePlusInstall.processTarget(resolved: resolved)
+        default: nil
+        }
+        return versioned ?? Target(executable: resolved)
+    }
+
+    static func isRegularFile(_ path: String) -> Bool {
         var info = stat()
-        guard stat(resolved, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
-        let siblings = kind == .claudeCode
-            && (resolved as NSString).deletingLastPathComponent.hasSuffix("/claude/versions")
-        return Target(executable: resolved, versionedSiblings: siblings)
+        return stat(path, &info) == 0 && (info.st_mode & S_IFMT) == S_IFREG
     }
 
     /// Who runs `target`, from one read of the process table (`running`) and
@@ -142,19 +200,19 @@ public enum CLIToolProcesses {
                 } else {
                     live.append(process.pid)
                 }
-            } else if target.versionedSiblings,
-                      (process.path as NSString).deletingLastPathComponent == target.directory {
+            } else if let versions = target.versions, let entry = versions.entry(of: process.path),
+                      let currentEntry = versions.entry(of: target.executable), entry != currentEntry {
                 // `claude update` from an old session's launcher is the updater
                 // itself, on its way out — not a session left on the old code.
-                guard !ClaudeCodeActivity.isClaudeUpdateCommand(process.arguments) else { continue }
+                guard !(versions.skipsClaudeUpdate && ClaudeCodeActivity.isClaudeUpdateCommand(process.arguments))
+                else { continue }
                 // Only an older version is one the session should leave: a newer
                 // one beside the launcher's (a custom launcher held back, a
                 // `minimumVersion` floor) is not one to leave for the launcher's.
-                let name = (process.path as NSString).lastPathComponent
-                let current = (target.executable as NSString).lastPathComponent
-                guard name.first?.isNumber == true,
-                      VersionComparator.compare(name, current) == .orderedAscending else { continue }
-                stale.append(.init(pid: process.pid, version: name))
+                guard let version = versions.version(ofEntry: entry),
+                      let current = versions.version(ofEntry: currentEntry),
+                      VersionComparator.compare(version, current) == .orderedAscending else { continue }
+                stale.append(.init(pid: process.pid, version: version))
             }
         }
         return CLIToolUsage(current: live.sorted(), stale: stale.sorted { $0.pid < $1.pid })
@@ -163,8 +221,9 @@ public enum CLIToolProcesses {
     /// Every target's usage, from one read of the process table.
     public static func usage(of targets: some Collection<Target>) -> [Target: CLIToolUsage] {
         guard !targets.isEmpty else { return [:] }
-        let processes = running(in: Set(targets.map(\.directory)),
-                                readingArgumentsIn: Set(targets.filter(\.versionedSiblings).map(\.directory)))
+        let versions = targets.compactMap(\.versions)
+        let processes = running(in: Set(targets.map(\.directory)), under: Set(versions.map(\.root)),
+                                readingArgumentsUnder: Set(versions.filter(\.skipsClaudeUpdate).map(\.root)))
         var answer: [Target: CLIToolUsage] = [:]
         for target in Set(targets) {
             answer[target] = usage(of: target, current: fileID(target.executable), processes: processes)
@@ -174,10 +233,14 @@ public enum CLIToolProcesses {
 
     // MARK: - Reading the kernel
 
-    /// The processes whose executable sits in one of `directories`. `argv` is
-    /// read only for those in `readingArgumentsIn`.
-    public static func running(in directories: Set<String>, readingArgumentsIn: Set<String> = []) -> [Running] {
-        guard !directories.isEmpty else { return [] }
+    /// The processes whose executable sits in one of `directories`, or anywhere
+    /// under one of `roots`. `argv` is read only for those under
+    /// `readingArgumentsUnder`.
+    public static func running(
+        in directories: Set<String>, under roots: Set<String> = [], readingArgumentsUnder: Set<String> = []
+    ) -> [Running] {
+        guard !directories.isEmpty || !roots.isEmpty else { return [] }
+        let under = { (path: String, roots: Set<String>) in roots.contains { path.hasPrefix($0 + "/") } }
         let capacity = Int(proc_listallpids(nil, 0)) + 64
         guard capacity > 64 else { return [] }
         var pids = [pid_t](repeating: 0, count: capacity)
@@ -189,8 +252,8 @@ public enum CLIToolProcesses {
             guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { continue }
             let path = buffer.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
             let directory = (path as NSString).deletingLastPathComponent
-            guard directories.contains(directory) else { continue }
-            let arguments = readingArgumentsIn.contains(directory)
+            guard directories.contains(directory) || under(path, roots) else { continue }
+            let arguments = under(path, readingArgumentsUnder)
                 ? ClaudeCodeActivity.arguments(of: pid) ?? [] : []
             found.append(Running(pid: pid, path: path, file: mappedFile(of: pid, path: path), arguments: arguments))
         }

@@ -163,6 +163,6 @@ extension CursorAgentInstall {
               versions.hasSuffix("/cursor-agent/versions") else { return nil }
         let node = (entry as NSString).appendingPathComponent("node")
         guard CLIToolProcesses.isRegularFile(node) else { return nil }
-        return .init(executable: node, versions: .init(root: versions, binaries: ["node"]))
+        return .init(executable: node, versions: .init(root: versions, binaries: ["node"], ordering: .cursorAgentRelease))
     }
 }

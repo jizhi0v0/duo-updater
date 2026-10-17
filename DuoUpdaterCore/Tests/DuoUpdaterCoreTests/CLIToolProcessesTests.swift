@@ -269,6 +269,51 @@ struct CLIToolProcessesTests {
         #expect(usage == CLIToolUsage(current: [30], stale: [.init(pid: 21, version: "2026.10.01-e373342")]))
     }
 
+    /// Two Cursor releases of one date: the commits do not order, so another
+    /// release of the launcher's date counts as older, the CLI's own rule
+    /// (`CursorAgentRelease.compare`), whichever way the hashes sort.
+    @Test func anotherCursorReleaseOfTheSameDateIsStale() {
+        let versions = CLIToolProcesses.Versions(root: "/v", binaries: ["node"], ordering: .cursorAgentRelease)
+        for (old, new) in [("2026.10.16-0338208", "2026.10.16-e3cb207"), ("2026.10.16-e3cb207", "2026.10.16-0338208")] {
+            let target = CLIToolProcesses.Target(executable: "/v/\(new)/node", versions: versions)
+            let usage = CLIToolProcesses.usage(of: target, current: disk, processes: [
+                .init(pid: 21, path: "/v/\(old)/node", file: replaced),
+                // A later date is not one to leave for the launcher's.
+                .init(pid: 22, path: "/v/2026.10.30-abcdef0/node", file: replaced),
+            ])
+            #expect(usage == CLIToolUsage(current: [], stale: [.init(pid: 21, version: old)]))
+        }
+    }
+
+    /// Junie: the row is the shim, a bash script; the process is the build's
+    /// native launcher inside its jpackage bundle, `current` naming the build.
+    @Test func junieIsMatchedOnItsBuildsLauncher() throws {
+        let box = try Box()
+        defer { try? FileManager.default.removeItem(at: box.root) }
+        let launcher = "Applications/junie.app/Contents/MacOS/junie"
+        let versions = ".local/share/junie/versions"
+        for build in ["3579.5", "3659.4"] {
+            try box.file("\(versions)/\(build)/\(launcher)")
+            try box.file("\(versions)/\(build)/junie")
+        }
+        try box.link(".local/share/junie/current", to: "\(versions)/3659.4")
+        let shim = try box.file(".local/bin/junie")
+
+        let target = try #require(CLIToolProcesses.target(kind: .junie, path: shim.path))
+        #expect(target.executable == box.real("\(versions)/3659.4/\(launcher)"))
+        let root = box.real(versions)
+        let usage = CLIToolProcesses.usage(of: target, current: disk, processes: [
+            .init(pid: 30, path: target.executable, file: disk),
+            .init(pid: 21, path: "\(root)/3579.5/\(launcher)", file: replaced),
+            // The JRE the bundle carries is not Junie.
+            .init(pid: 40, path: "\(root)/3579.5/Applications/junie.app/Contents/runtime/Contents/Home/bin/java", file: replaced),
+        ])
+        #expect(usage == CLIToolUsage(current: [30], stale: [.init(pid: 21, version: "3579.5")]))
+        // No `current`: nothing to match, rather than the shim.
+        try FileManager.default.removeItem(at: box.root.appendingPathComponent(".local/share/junie/current"))
+        #expect(CLIToolProcesses.target(kind: .junie, path: shim.path)?.versions == nil)
+    }
+
     /// Vite+'s row is its data root; `current/bin/vp` resolves into
     /// `<version>/bin/vp`, and the runtime it manages is not `vp`.
     @Test func vitePlusProcessesOnAnOlderVersionAreStale() throws {

@@ -40,10 +40,13 @@ private func csops(_ pid: pid_t, _ ops: UInt32, _ useraddr: UnsafeMutableRawPoin
 ///   command, a process started before the update and read after it: Claude
 ///   Code native (`versions/<version>`), Codex standalone
 ///   (`releases/<version>-<target>/bin/codex`, `codex update`), Cursor Agent
-///   (`versions/<version>/node`, `agent update`) and Vite+ (`<version>/bin/vp`,
-///   `vp upgrade`). Every other tool here replaces its one file (`ls -la` /
-///   `realpath` of each install on the development Mac, and each
-///   `*Install.swift`'s layout notes).
+///   (`versions/<version>/node`, `agent update`), Vite+ (`<version>/bin/vp`,
+///   `vp upgrade`) and Junie (`versions/<build>/Applications/junie.app/…`,
+///   its shim applying a staged update). Every other tool installed on the
+///   development Mac is one file, replaced in place (`realpath` of each is the
+///   path itself: fx, uv, OpenCode, Lorca, zoxide, Atuin, GHCup, flyctl, Helm,
+///   Starship, Deno, mise); Amp, Boat, Bun, Herdr and Luvus were not
+///   installed, and their `*Install.swift` notes say the same of them.
 ///
 /// Cost, measured 2026-10-16 on 1049 processes: one `proc_pidpath` each is
 /// 1.2–1.4 ms for the whole table; the region read is only for processes whose
@@ -76,12 +79,35 @@ public enum CLIToolProcesses {
         /// `argv` is read and `claude update` left out: that process is the
         /// updater itself, on its way out (Claude Code only).
         public let skipsClaudeUpdate: Bool
+        /// How two entries' versions order.
+        public let ordering: Ordering
 
-        public init(root: String, binaries: [String] = [""], nameSuffixes: [String] = [], skipsClaudeUpdate: Bool = false) {
+        public enum Ordering: Sendable, Hashable {
+            /// `VersionComparator`.
+            case version
+            /// Cursor Agent's `<date>-<commit>`: by the date, and another
+            /// release of the launcher's own date counts as older — the CLI's
+            /// own rule (`CursorAgentRelease.compare`); the commits do not order.
+            case cursorAgentRelease
+        }
+
+        public init(
+            root: String, binaries: [String] = [""], nameSuffixes: [String] = [], skipsClaudeUpdate: Bool = false,
+            ordering: Ordering = .version
+        ) {
             self.root = root
             self.binaries = binaries
             self.nameSuffixes = nameSuffixes
             self.skipsClaudeUpdate = skipsClaudeUpdate
+            self.ordering = ordering
+        }
+
+        /// Whether a process on `version` is behind the launcher's `current`.
+        func isOlder(_ version: String, than current: String) -> Bool {
+            switch ordering {
+            case .version: VersionComparator.compare(version, current) == .orderedAscending
+            case .cursorAgentRelease: CursorAgentRelease.compare(version, current) == .orderedAscending
+            }
         }
 
         /// The entry `path` is one of this layout's binaries in, or nil.
@@ -168,6 +194,7 @@ public enum CLIToolProcesses {
         case .codex: CodexInstall.processTarget(resolved: resolved)
         case .cursorAgent: CursorAgentInstall.processTarget(resolved: resolved)
         case .vitePlus: VitePlusInstall.processTarget(resolved: resolved)
+        case .junie: JunieInstall.processTarget(shim: resolved)
         default: nil
         }
         return versioned ?? Target(executable: resolved)
@@ -211,7 +238,7 @@ public enum CLIToolProcesses {
                 // `minimumVersion` floor) is not one to leave for the launcher's.
                 guard let version = versions.version(ofEntry: entry),
                       let current = versions.version(ofEntry: currentEntry),
-                      VersionComparator.compare(version, current) == .orderedAscending else { continue }
+                      versions.isOlder(version, than: current) else { continue }
                 stale.append(.init(pid: process.pid, version: version))
             }
         }

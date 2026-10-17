@@ -309,3 +309,24 @@ public struct JunieScanner: Sendable {
         return version
     }
 }
+
+extension JunieInstall {
+    /// The layout as `CLIToolProcesses` reads it. The row is the shim, a bash
+    /// script; it execs `versions/<build>/junie`, which execs the bundle's
+    /// native launcher, so the process is
+    /// `versions/<build>/Applications/junie.app/Contents/MacOS/junie` for the
+    /// build `current` names (by its basename, as the shim reads it). A
+    /// session started before the shim applies a staged update stays on its
+    /// build's launcher.
+    static func processTarget(shim: String) -> CLIToolProcesses.Target? {
+        let bin = (shim as NSString).deletingLastPathComponent
+        guard (shim as NSString).lastPathComponent == "junie", bin.hasSuffix("/.local/bin") else { return nil }
+        let data = ((bin as NSString).deletingLastPathComponent as NSString).appendingPathComponent("share/junie")
+        guard let link = try? FileManager.default.destinationOfSymbolicLink(atPath: data + "/current"),
+              let versions = CLIToolProcesses.realpath(data + "/versions") else { return nil }
+        let binary = "Applications/junie.app/Contents/MacOS/junie"
+        let launcher = "\(versions)/\((link as NSString).lastPathComponent)/\(binary)"
+        guard CLIToolProcesses.isRegularFile(launcher) else { return nil }
+        return .init(executable: launcher, versions: .init(root: versions, binaries: [binary]))
+    }
+}

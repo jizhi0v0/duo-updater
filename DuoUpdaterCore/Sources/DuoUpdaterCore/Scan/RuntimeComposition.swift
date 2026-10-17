@@ -20,9 +20,9 @@ public struct RuntimeComponent: Sendable, Hashable {
 ///
 /// The runtime badge names the framework an app is built on, and for most
 /// frameworks that is not the whole answer: one app can carry several ways of
-/// drawing its windows. 9 of the 13 Qt apps on the development machine ship both
-/// Qt Widgets and Qt Quick; OBS is Qt Widgets with a CEF browser beside it;
-/// IntelliJ IDEA is Swing with Skiko and JCEF; a MyGo app can show a WebView
+/// drawing its windows. calibre ships both Qt Widgets and Qt Quick; OBS is Qt
+/// Widgets with a CEF browser beside it; IntelliJ IDEA is Swing with Skiko and
+/// JCEF; a MyGo app can show a WebView
 /// page, MyGo's own GPU-drawn UI, or both. `LinkedFrameworks` is the same idea
 /// for Apple's own stack, and stays where it is.
 ///
@@ -60,8 +60,8 @@ public enum RuntimeComposition {
         case .tauri:    found = tauri(context)
         case .wails:    found = wails(context)
         // Apple's stacks are `LinkedFrameworks`' job. Linking WebKit or Metal is
-        // too common to mean anything there: 70 of 169 native apps on the
-        // development machine link WebKit, many of them for one sign-in sheet.
+        // too common to mean anything there: an AppKit app links WebKit to show
+        // one sign-in sheet as readily as to draw its whole window.
         case .native, .catalyst, .iOSApp, .reactNative: found = []
         }
         var seen = Set<String>()

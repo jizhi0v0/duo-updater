@@ -1,14 +1,14 @@
 {
   "entries" : {
     "install:github:AprilNEA\/OpenLogi:stable" : {
-      "consecutiveActionable" : 6,
+      "consecutiveActionable" : 7,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1351,
       "lastCommentedAt" : "2026-10-15T20:39:13Z",
       "lastSignature" : "identityChanged: Sparkle key none → dwOe",
       "previousSignature" : "identityChanged: Sparkle key none → dwOe",
-      "sweepsSinceComment" : 4
+      "sweepsSinceComment" : 5
     },
     "install:github:BlueBubblesApp\/bluebubbles-server:stable" : {
       "consecutiveActionable" : 0,
@@ -545,6 +545,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:musescore\/MuseScore:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:nekohasekai\/open-screen-sharing:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1603,14 +1609,12 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:eu.davidbures.cork:stable" : {
-      "consecutiveActionable" : 4,
+      "closedAt" : "2026-10-17T09:49:40Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1372,
-      "lastCommentedAt" : "2026-10-16T15:42:02Z",
-      "lastSignature" : "install.unpack",
-      "previousSignature" : "install.unpack",
-      "sweepsSinceComment" : 2
+      "sweepsSinceComment" : 0
     },
     "install:vendor:im.riot.app:stable" : {
       "consecutiveActionable" : 0,
@@ -1631,6 +1635,12 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:io.dcloud.HBuilderXAlpha:alpha" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:io.nekohasekai.screensharing:nightly" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1890,5 +1900,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-17T01:36:36Z"
+  "updatedAt" : "2026-10-17T09:49:40Z"
 }

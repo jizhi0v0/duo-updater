@@ -223,7 +223,7 @@ private func wrappedIOSApp(_ builder: BundleBuilder, _ name: String, files: [Str
 @Test func aWrappedIOSAppShippingReactNativeAndItsBundleIsReactNative() throws {
     // Hy Translate's shape (Expo): React, Hermes and the app's JavaScript at the root.
     // Each engine framework on its own is enough beside the bundle — `React.framework`
-    // only exists when React is linked dynamically, and RN 0.82 renamed Hermes's.
+    // only ships with React Native's precompiled core, and RN 0.82 renamed Hermes's.
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     for (name, engine) in [
         ("Expo", "Frameworks/React.framework"),
@@ -233,7 +233,7 @@ private func wrappedIOSApp(_ builder: BundleBuilder, _ name: String, files: [Str
         let bundle = try wrappedIOSApp(builder, name, files: [engine, "main.jsbundle"])
         #expect(detect(bundle, isiOSAppOnMac: true, plist: [:]) == .reactNative, "\(name)")
     }
-    // A managed Expo app embeds its JavaScript as `app.bundle` instead.
+    // An older managed Expo app, built the classic way, embeds it as `app.bundle`.
     let managed = try wrappedIOSApp(
         builder, "Managed", files: ["Frameworks/hermes.framework", "app.bundle"])
     #expect(detect(managed, isiOSAppOnMac: true, plist: [:]) == .reactNative)
@@ -250,6 +250,13 @@ private func wrappedIOSApp(_ builder: BundleBuilder, _ name: String, files: [Str
     // And the JavaScript alone, with no engine shipped to run it, is not evidence either.
     let bundleOnly = try wrappedIOSApp(builder, "BundleOnly", files: ["main.jsbundle"])
     #expect(detect(bundleOnly, isiOSAppOnMac: true, plist: [:]) == .iOSApp)
+    // Nor is a resource *directory* that happens to be called `app.bundle`: a
+    // JavaScript bundle is a file.
+    let resources = try wrappedIOSApp(builder, "Resources", files: ["Frameworks/hermes.framework"])
+    try FileManager.default.createDirectory(
+        at: resources.appendingPathComponent("Wrapper/Resources.app/app.bundle"),
+        withIntermediateDirectories: true)
+    #expect(detect(resources, isiOSAppOnMac: true, plist: [:]) == .iOSApp)
 }
 
 // MARK: - Load-command rules

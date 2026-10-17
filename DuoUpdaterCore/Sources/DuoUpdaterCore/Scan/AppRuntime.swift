@@ -669,8 +669,9 @@ public enum AppRuntimeDetector {
 
     /// The names the app's own entry bundle has at the bundle root:
     /// `main.jsbundle` from React Native's build script (`BUNDLE_NAME="main"` in
-    /// `react-native-xcode.sh`), and `app.bundle`, which `expo-updates` embeds for a
-    /// managed Expo app (`EmbeddedAppLoader.EXUpdatesEmbeddedBundleFilename`).
+    /// `react-native-xcode.sh`), which current `expo-updates` embeds too
+    /// (`EmbeddedUpdate.swift`); and `app.bundle`, which older managed Expo apps
+    /// built the classic way embed (`EXUpdatesLegacyUpdate.m` at `sdk-46`).
     static let reactNativeEntryBundles = ["main.jsbundle", "app.bundle"]
 
     /// Whether a wrapped iOS app's interface is React Native: an engine framework
@@ -682,12 +683,17 @@ public enum AppRuntimeDetector {
     /// "something is bundled, but it is not what draws the app" trap Docker was for
     /// Electron (#208).
     ///
+    /// The entry bundle has to be a file: a JavaScript bundle is one, while a
+    /// resource bundle a native app happens to call `app.bundle` is a directory.
+    ///
     /// The entry bundle is checked first because it is the one a non-RN app lacks:
     /// those apps stop after one `stat` per name.
     static func isReactNative(wrappedBundle: URL) -> Bool {
         let fm = FileManager.default
         guard reactNativeEntryBundles.contains(where: {
-            fm.fileExists(atPath: wrappedBundle.appendingPathComponent($0).path)
+            var isDirectory: ObjCBool = false
+            return fm.fileExists(atPath: wrappedBundle.appendingPathComponent($0).path, isDirectory: &isDirectory)
+                && !isDirectory.boolValue
         }) else { return false }
         let frameworks = wrappedBundle.appendingPathComponent("Frameworks")
         return reactNativeEngines.contains {

@@ -81,6 +81,13 @@ public enum CLIToolProcesses {
         public let skipsClaudeUpdate: Bool
         /// How two entries' versions order.
         public let ordering: Ordering
+        /// The symlink that makes an entry current, when the tool also runs
+        /// other entries on purpose (Junie's `current`: its one-shot channel
+        /// flags, `--use-version` and `JUNIE_VERSION` run a build without
+        /// touching it). A process started after the link was last written
+        /// chose its entry and is not stale; one started before was left
+        /// behind when the link moved.
+        public let pointer: String?
 
         public enum Ordering: Sendable, Hashable {
             /// `VersionComparator`.
@@ -93,13 +100,14 @@ public enum CLIToolProcesses {
 
         public init(
             root: String, binaries: [String] = [""], nameSuffixes: [String] = [], skipsClaudeUpdate: Bool = false,
-            ordering: Ordering = .version
+            ordering: Ordering = .version, pointer: String? = nil
         ) {
             self.root = root
             self.binaries = binaries
             self.nameSuffixes = nameSuffixes
             self.skipsClaudeUpdate = skipsClaudeUpdate
             self.ordering = ordering
+            self.pointer = pointer
         }
 
         /// Whether a process on `version` is behind the launcher's `current`.
@@ -154,12 +162,15 @@ public enum CLIToolProcesses {
         public let file: FileID?
         /// `argv`, read only where a target asks to (`ignores`); empty otherwise.
         public let arguments: [String]
+        /// When the process started; read only under a `Versions.root`.
+        public let started: Date?
 
-        public init(pid: pid_t, path: String, file: FileID?, arguments: [String] = []) {
+        public init(pid: pid_t, path: String, file: FileID?, arguments: [String] = [], started: Date? = nil) {
             self.pid = pid
             self.path = path
             self.file = file
             self.arguments = arguments
+            self.started = started
         }
     }
 
@@ -212,9 +223,10 @@ public enum CLIToolProcesses {
     /// when its build differs too (`sameBuild`, by cdhash): a tool updated and
     /// then put back on the build a process runs — rolled back, or downgraded
     /// by hand — leaves that process on what is installed, in a file of a new
-    /// inode. Unknown (nil) counts as different.
+    /// inode. Unknown (nil) counts as different. `repointed` is when the
+    /// layout's `Versions.pointer` was last written.
     public static func usage(
-        of target: Target, current: FileID?, processes: [Running],
+        of target: Target, current: FileID?, processes: [Running], repointed: Date? = nil,
         sameBuild: (pid_t, String) -> Bool? = { sameBuild(pid: $0, asFileAt: $1) }
     ) -> CLIToolUsage {
         var live: [pid_t] = []
@@ -233,6 +245,11 @@ public enum CLIToolProcesses {
                 // itself, on its way out — not a session left on the old code.
                 guard !(versions.skipsClaudeUpdate && ClaudeCodeActivity.isClaudeUpdateCommand(process.arguments))
                 else { continue }
+                // Started after the pointer last moved: it runs this entry on
+                // purpose, not because it was left behind.
+                if versions.pointer != nil {
+                    guard let repointed, let started = process.started, started < repointed else { continue }
+                }
                 // Only an older version is one the session should leave: a newer
                 // one beside the launcher's (a custom launcher held back, a
                 // `minimumVersion` floor) is not one to leave for the launcher's.
@@ -253,7 +270,8 @@ public enum CLIToolProcesses {
                                 readingArgumentsUnder: Set(versions.filter(\.skipsClaudeUpdate).map(\.root)))
         var answer: [Target: CLIToolUsage] = [:]
         for target in Set(targets) {
-            answer[target] = usage(of: target, current: fileID(target.executable), processes: processes)
+            answer[target] = usage(of: target, current: fileID(target.executable), processes: processes,
+                                   repointed: target.versions?.pointer.flatMap(linkWritten))
         }
         return answer
     }
@@ -282,7 +300,8 @@ public enum CLIToolProcesses {
             guard directories.contains(directory) || under(path, roots) else { continue }
             let arguments = under(path, readingArgumentsUnder)
                 ? ClaudeCodeActivity.arguments(of: pid) ?? [] : []
-            found.append(Running(pid: pid, path: path, file: mappedFile(of: pid, path: path), arguments: arguments))
+            found.append(Running(pid: pid, path: path, file: mappedFile(of: pid, path: path), arguments: arguments,
+                                 started: under(path, roots) ? startTime(of: pid) : nil))
         }
         return found
     }
@@ -338,6 +357,22 @@ public enum CLIToolProcesses {
         guard SecCodeCopySigningInformation(code, [], &info) == errSecSuccess,
               let info = info as? [String: Any] else { return nil }
         return info[kSecCodeInfoUnique as String] as? Data
+    }
+
+    /// When `pid` started, from the kernel's BSD info.
+    static func startTime(of pid: pid_t) -> Date? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
+    }
+
+    /// When the symlink at `path` itself was last written (`lstat`): `ln -sfn`
+    /// makes a new link, so this is when it was last repointed.
+    static func linkWritten(_ path: String) -> Date? {
+        var info = stat()
+        guard lstat(path, &info) == 0, (info.st_mode & S_IFMT) == S_IFLNK else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec) + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
     }
 
     static func fileID(_ path: String) -> FileID? {

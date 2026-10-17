@@ -286,7 +286,8 @@ struct CLIToolProcessesTests {
     }
 
     /// Junie: the row is the shim, a bash script; the process is the build's
-    /// native launcher inside its jpackage bundle, `current` naming the build.
+    /// native launcher inside its jpackage bundle (the shim execs it directly),
+    /// `current` naming the build.
     @Test func junieIsMatchedOnItsBuildsLauncher() throws {
         let box = try Box()
         defer { try? FileManager.default.removeItem(at: box.root) }
@@ -294,21 +295,33 @@ struct CLIToolProcessesTests {
         let versions = ".local/share/junie/versions"
         for build in ["3579.5", "3659.4"] {
             try box.file("\(versions)/\(build)/\(launcher)")
-            try box.file("\(versions)/\(build)/junie")
         }
         try box.link(".local/share/junie/current", to: "\(versions)/3659.4")
         let shim = try box.file(".local/bin/junie")
 
         let target = try #require(CLIToolProcesses.target(kind: .junie, path: shim.path))
         #expect(target.executable == box.real("\(versions)/3659.4/\(launcher)"))
+        let pointer = try #require(target.versions?.pointer)
+        let repointed = try #require(CLIToolProcesses.linkWritten(pointer))
         let root = box.real(versions)
         let usage = CLIToolProcesses.usage(of: target, current: disk, processes: [
             .init(pid: 30, path: target.executable, file: disk),
-            .init(pid: 21, path: "\(root)/3579.5/\(launcher)", file: replaced),
+            // Started before `current` moved to 3659.4: left behind.
+            .init(pid: 21, path: "\(root)/3579.5/\(launcher)", file: replaced, started: repointed - 60),
+            // Started after: `junie --release`, `--use-version=3579.5` or
+            // `JUNIE_VERSION` chose that build.
+            .init(pid: 22, path: "\(root)/3579.5/\(launcher)", file: replaced, started: repointed + 60),
+            // Start time unknown: not called stale on a guess.
+            .init(pid: 23, path: "\(root)/3579.5/\(launcher)", file: replaced),
             // The JRE the bundle carries is not Junie.
-            .init(pid: 40, path: "\(root)/3579.5/Applications/junie.app/Contents/runtime/Contents/Home/bin/java", file: replaced),
-        ])
+            .init(pid: 40, path: "\(root)/3579.5/Applications/junie.app/Contents/runtime/Contents/Home/bin/java",
+                  file: replaced, started: repointed - 60),
+        ], repointed: repointed)
         #expect(usage == CLIToolUsage(current: [30], stale: [.init(pid: 21, version: "3579.5")]))
+        // Without the link's time nothing is called stale.
+        #expect(CLIToolProcesses.usage(of: target, current: disk, processes: [
+            .init(pid: 21, path: "\(root)/3579.5/\(launcher)", file: replaced, started: repointed - 60),
+        ]).stale.isEmpty)
         // No `current`: nothing to match, rather than the shim.
         try FileManager.default.removeItem(at: box.root.appendingPathComponent(".local/share/junie/current"))
         #expect(CLIToolProcesses.target(kind: .junie, path: shim.path)?.versions == nil)
@@ -364,6 +377,21 @@ struct CLIToolProcessesTests {
         let found = CLIToolProcesses.running(in: [], under: [root])
         #expect(found.contains { $0.pid == getpid() && $0.path == path })
         #expect(!CLIToolProcesses.running(in: [], under: [root + "-not"]).contains { $0.pid == getpid() })
+    }
+
+    /// The kernel half of Junie's pointer rule: this process's start time, and
+    /// a symlink's own write time rather than its target's.
+    @Test func startTimeAndLinkWriteTimeAreReadFromTheKernel() throws {
+        let started = try #require(CLIToolProcesses.startTime(of: getpid()))
+        #expect(started <= Date() && started > Date().addingTimeInterval(-3600))
+        let box = try Box()
+        defer { try? FileManager.default.removeItem(at: box.root) }
+        let file = try box.file("target")
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000_000)], ofItemAtPath: file.path)
+        let link = try box.link("current", to: "target")
+        let written = try #require(CLIToolProcesses.linkWritten(link.path))
+        #expect(abs(written.timeIntervalSinceNow) < 60)
+        #expect(CLIToolProcesses.linkWritten(file.path) == nil)
     }
 
     /// The kernel half, on this test process itself: its path as `proc_pidpath`

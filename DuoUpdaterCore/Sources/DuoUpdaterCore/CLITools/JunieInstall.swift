@@ -312,12 +312,17 @@ public struct JunieScanner: Sendable {
 
 extension JunieInstall {
     /// The layout as `CLIToolProcesses` reads it. The row is the shim, a bash
-    /// script; it execs `versions/<build>/junie`, which execs the bundle's
-    /// native launcher, so the process is
+    /// script; on macOS it execs the bundle's native launcher directly
+    /// (`get_binary_path_in`; `versions/<build>/junie` is only its fallback
+    /// when there is no `.app`), so the process is
     /// `versions/<build>/Applications/junie.app/Contents/MacOS/junie` for the
-    /// build `current` names (by its basename, as the shim reads it). A
-    /// session started before the shim applies a staged update stays on its
-    /// build's launcher.
+    /// build `current` names (by its basename, as the shim reads it).
+    /// Measured 2026-10-17: a session started on 3579.5 stayed on that
+    /// build's launcher after Junie staged 3659.7 and the shim applied it at
+    /// the next launch. The shim also runs builds `current` does not name, on
+    /// purpose (one-shot `--release`/`--eap`/…, `--use-version`,
+    /// `JUNIE_VERSION`), so `current` is the layout's pointer: only a process
+    /// started before it last moved is stale.
     static func processTarget(shim: String) -> CLIToolProcesses.Target? {
         let bin = (shim as NSString).deletingLastPathComponent
         guard (shim as NSString).lastPathComponent == "junie", bin.hasSuffix("/.local/bin") else { return nil }
@@ -327,6 +332,6 @@ extension JunieInstall {
         let binary = "Applications/junie.app/Contents/MacOS/junie"
         let launcher = "\(versions)/\((link as NSString).lastPathComponent)/\(binary)"
         guard CLIToolProcesses.isRegularFile(launcher) else { return nil }
-        return .init(executable: launcher, versions: .init(root: versions, binaries: [binary]))
+        return .init(executable: launcher, versions: .init(root: versions, binaries: [binary], pointer: data + "/current"))
     }
 }

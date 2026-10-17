@@ -139,7 +139,7 @@ struct AndroidStudioDigestTests {
         let outcome = await VendorProbeSource().probeDiagnostic(try Self.recipe(.stable).with(url: server.url))
         let remote = try #require(outcome.remote)
         #expect(remote.version == "AI-262.9437.185.2621.16467767")
-        #expect(remote.displayVersion == "2026.2.1")
+        #expect(remote.displayVersion == "2026.2.1.8")
         #expect(remote.downloadURL?.lastPathComponent == "android-studio-rabbit1-mac_arm.dmg")
         #expect(remote.expectedSHA256 == "16d4a0f8a52413b51869fc18d5bdcdf9cecd38615cd7bb7cf14d51b99d2fef54")
 
@@ -155,7 +155,7 @@ struct AndroidStudioDigestTests {
             installed: installed("2026.2", "AI-262.9437.185.2621.16467767"), remote: remote) == .upToDate)
         #expect(UpdateChecker.evaluate(
             installed: installed("2026.1", "AI-261.26222.65.2614.16379836"), remote: remote)
-            == .updateAvailable(latest: "2026.2.1"))
+            == .updateAvailable(latest: "2026.2.1.8"))
     }
 
     /// A Patch is a stable build too, and shares its Release's marketing version —
@@ -165,9 +165,26 @@ struct AndroidStudioDigestTests {
         defer { server.stop() }
         let outcome = await VendorProbeSource().probeDiagnostic(try Self.recipe(.stable).with(url: server.url))
         #expect(outcome.remote?.version == "AI-261.26222.65.2614.16379836")
-        #expect(outcome.remote?.displayVersion == "2026.1.4 Patch 1")
+        #expect(outcome.remote?.displayVersion == "2026.1.4.8")
         #expect(outcome.remote?.downloadURL?.lastPathComponent == "android-studio-quail4-patch1-mac_arm.dmg")
         #expect(outcome.remote?.expectedSHA256 == "1a3393306007f90cbf2ee73e45beb809ab09aa406c2f61ee9fe81b4ef511c066")
+    }
+
+    /// `duo verify` keeps the display string as the recipe's last good version and
+    /// reports a regression when the next one compares older. A Patch follows its
+    /// Release with the same marketing version, and `VersionComparator` ranks
+    /// "2026.1.4 Patch 1" BELOW "2026.1.4" (the missing fourth component counts as
+    /// 0, which beats text), so a name-based display reads every Patch as a step
+    /// backwards. The feed's own `version` (2026.1.4.7 → 2026.1.4.8) does not.
+    @Test func stableDisplayMovesForwardWhenAPatchFollowsItsRelease() async throws {
+        let releaseOnly = try RecipeVerificationTests.StubServer(body: Self.feed([Self.quail4]))
+        defer { releaseOnly.stop() }
+        let withPatch = try RecipeVerificationTests.StubServer(body: Self.feed([Self.quail4Patch1, Self.quail4]))
+        defer { withPatch.stop() }
+        let recipe = try Self.recipe(.stable)
+        let before = try #require(await VendorProbeSource().probeDiagnostic(recipe.with(url: releaseOnly.url)).remote?.displayVersion)
+        let after = try #require(await VendorProbeSource().probeDiagnostic(recipe.with(url: withPatch.url)).remote?.displayVersion)
+        #expect(VersionComparator.isNewer(after, than: before), "\(before) → \(after)")
     }
 
     @Test func keyOrderInsideTheDownloadObjectDoesNotMatter() throws {

@@ -29,8 +29,11 @@ enum com_google_android_studio {
                 #""build"\s*:\s*"(AI-[^"]+)","platformVersion":"[^"]*","name":"[^"]*","channel":"(?:Release|Patch)""#,
             changelogURL: URL(string: "https://developer.android.com/studio/releases"),
             versionIsBuild: true,
+            // The feed's own `version` (2026.1.4.7, then 2026.1.4.8 for its Patch 1),
+            // not the name: `duo verify` holds the display string as the last good
+            // version, and "2026.1.4 Patch 1" compares OLDER than "2026.1.4".
             displayVersionPattern:
-                #""name":"[^"]*\|\s*([^"]+)","channel":"(?:Release|Patch)""#,
+                #""channel":"(?:Release|Patch)","version":"([^"]+)""#,
             entryStartPattern: #"\{"date":""#,
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(

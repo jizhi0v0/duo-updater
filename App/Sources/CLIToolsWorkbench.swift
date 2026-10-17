@@ -194,7 +194,7 @@ struct CLIToolSidebarRow: View {
                         .font(.body).lineLimit(1).truncationMode(.middle)
                     // Something runs this install's binary — this very file, by
                     // path (`CLIToolProcesses`) — as an app row's dot says.
-                    if cli.usage[id]?.isRunning == true {
+                    if cli.liveUsage(id)?.isRunning == true {
                         RunningIndicator(size: 6).offset(y: RunningIndicator.opticalNudge)
                     }
                     if showsRuntime {
@@ -220,7 +220,7 @@ struct CLIToolSidebarRow: View {
             Text(verbatim: cli.progress[id] ?? String(localized: "Updating…"))
                 .font(.caption).foregroundStyle(.secondary)
                 .lineLimit(1).truncationMode(.middle)
-        } else if let usage = cli.usage[id], let line = CLIToolWording.stillRunning(usage, of: status.kind) {
+        } else if let usage = cli.liveUsage(id), let line = CLIToolWording.stillRunning(usage, of: status.kind) {
             // Processes started before the update are still on the old code: the
             // check says current, they are not.
             Text(verbatim: line).font(.caption).foregroundStyle(.orange).lineLimit(1)
@@ -526,7 +526,7 @@ struct ClaudeCodeDetailPane: View {
                 label("Channel")
                 Text(verbatim: channel)
             }
-            if let usage = cli.usage[id] {
+            if let usage = cli.liveUsage(id) {
                 GridRow {
                     label("Running")
                     CLIToolRunningValue(usage: usage, kind: .claudeCode)
@@ -726,7 +726,7 @@ struct CLIToolDetailPane: View {
                     Text(verbatim: fact.value)
                 }
             }
-            if let usage = cli.usage[id] {
+            if let usage = cli.liveUsage(id) {
                 GridRow {
                     label("Running")
                     CLIToolRunningValue(usage: usage, kind: status.kind)

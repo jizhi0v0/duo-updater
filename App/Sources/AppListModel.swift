@@ -2112,6 +2112,16 @@ final class AppListModel {
         // screen, once a minute otherwise (`CLIToolsModel.watchProcesses`).
         cliTools.onStaleProcesses = { [weak self] newly, cleared in self?.notifyStaleCLIProcesses(newly, cleared) }
         cliTools.watchProcesses(isVisible: { Self.anyWindowOnScreen() })
+        // A window of ours coming out from under another one, or going under:
+        // no open or focus says so, and its marks are drawn only from a fresh
+        // read (`CLIToolsModel.liveUsage`).
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let window = note.object as? NSWindow, window.occlusionState.contains(.visible),
+                  !String(describing: type(of: window)).contains("StatusBar") else { return }
+            MainActor.assumeIsolated { self?.cliTools.wakeProcessWatch() }
+        }
         // A tool's update never runs beside a brew run (`CLIConcurrency`).
         cliTools.blockedByHomebrew = { [weak self] in self?.cliBlockedReason(.tool) != nil }
         // A rejection is reported from whichever request met it; the banner hears

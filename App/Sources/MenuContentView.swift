@@ -949,7 +949,7 @@ private struct CommandLineRow: View {
     /// row's mark (`StillRunningMark`). Empty when none has.
     private var stillRunningLines: [String] {
         tools.statuses.compactMap { status in
-            guard let usage = tools.usage[status.toolID],
+            guard let usage = tools.liveUsage(status.toolID),
                   let line = CLIToolWording.stillRunning(usage, of: status.kind) else { return nil }
             return "\(status.name ?? status.kind.displayName): \(line)"
         }

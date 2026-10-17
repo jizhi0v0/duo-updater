@@ -249,4 +249,12 @@ public struct CLIToolUsage: Sendable, Equatable {
     }
 
     public var hasUnknownStale: Bool { stale.contains { $0.version == nil } }
+
+    /// This usage with only the stale copies `keep` admits — the app shows a
+    /// stale copy only once two reads apart have both seen it, so the old
+    /// binary's last short-lived command at the moment of an update does not
+    /// flash a "still running" mark or post a notice.
+    public func keepingStale(where keep: (Copy) -> Bool) -> CLIToolUsage {
+        CLIToolUsage(current: current, stale: stale.filter(keep))
+    }
 }

@@ -116,6 +116,14 @@ struct CLIToolProcessesTests {
         #expect(usage == .none)
     }
 
+    @Test func keepingStaleDropsOnlyTheUnconfirmed() {
+        let usage = CLIToolUsage(current: [1], stale: [.init(pid: 2, version: "2.1.300"), .init(pid: 3, version: nil)])
+        let kept = usage.keepingStale { $0.pid == 3 }
+        #expect(kept == CLIToolUsage(current: [1], stale: [.init(pid: 3, version: nil)]))
+        #expect(usage.keepingStale { _ in false }.isRunning)
+        #expect(!CLIToolUsage(current: [], stale: [.init(pid: 2, version: nil)]).keepingStale { _ in false }.isRunning)
+    }
+
     @Test func noStaleCopyMeansNothingToSay() {
         #expect(CLIToolWording.stillRunning(CLIToolUsage(current: [1], stale: []), of: .claudeCode) == nil)
     }

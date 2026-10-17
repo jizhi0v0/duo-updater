@@ -313,11 +313,20 @@ struct CLIToolProcessesTests {
             .init(pid: 22, path: "\(root)/3579.5/\(launcher)", file: replaced, started: repointed + 60),
             // Start time unknown: not called stale on a guess.
             .init(pid: 23, path: "\(root)/3579.5/\(launcher)", file: replaced),
+            // Started before the link moved, but chosen: a one-shot channel run
+            // (the shim exports JUNIE_SKIP_UPDATE_CHECK=1), and a JUNIE_VERSION pin.
+            .init(pid: 24, path: "\(root)/3579.5/\(launcher)", file: replaced, started: repointed - 60,
+                  environment: ["PATH=/usr/bin", "JUNIE_SKIP_UPDATE_CHECK=1"]),
+            .init(pid: 25, path: "\(root)/3579.5/\(launcher)", file: replaced, started: repointed - 60,
+                  environment: ["JUNIE_VERSION=3579.5"]),
+            // An empty value chooses nothing.
+            .init(pid: 26, path: "\(root)/3579.5/\(launcher)", file: replaced, started: repointed - 60,
+                  environment: ["JUNIE_VERSION="]),
             // The JRE the bundle carries is not Junie.
             .init(pid: 40, path: "\(root)/3579.5/Applications/junie.app/Contents/runtime/Contents/Home/bin/java",
                   file: replaced, started: repointed - 60),
         ], repointed: repointed)
-        #expect(usage == CLIToolUsage(current: [30], stale: [.init(pid: 21, version: "3579.5")]))
+        #expect(usage == CLIToolUsage(current: [30], stale: [.init(pid: 21, version: "3579.5"), .init(pid: 26, version: "3579.5")]))
         // Without the link's time nothing is called stale.
         #expect(CLIToolProcesses.usage(of: target, current: disk, processes: [
             .init(pid: 21, path: "\(root)/3579.5/\(launcher)", file: replaced, started: repointed - 60),
@@ -392,6 +401,16 @@ struct CLIToolProcessesTests {
         let written = try #require(CLIToolProcesses.linkWritten(link.path))
         #expect(abs(written.timeIntervalSinceNow) < 60)
         #expect(CLIToolProcesses.linkWritten(file.path) == nil)
+    }
+
+    /// The environment follows `argv` in the same kernel read: this test
+    /// process's own, which has a PATH and the arguments it was started with.
+    @Test func theEnvironmentIsReadAfterTheArguments() throws {
+        let read = try #require(ClaudeCodeActivity.argumentsAndEnvironment(of: getpid()))
+        #expect(read.arguments == CommandLine.arguments)
+        let path = try #require(ProcessInfo.processInfo.environment["PATH"])
+        #expect(read.environment.contains("PATH=\(path)"))
+        #expect(!read.environment.contains { $0.isEmpty })
     }
 
     /// The kernel half, on this test process itself: its path as `proc_pidpath`

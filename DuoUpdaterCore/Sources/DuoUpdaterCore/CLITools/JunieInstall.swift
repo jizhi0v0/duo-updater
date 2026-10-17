@@ -322,7 +322,12 @@ extension JunieInstall {
     /// the next launch. The shim also runs builds `current` does not name, on
     /// purpose (one-shot `--release`/`--eap`/…, `--use-version`,
     /// `JUNIE_VERSION`), so `current` is the layout's pointer: only a process
-    /// started before it last moved is stale.
+    /// started before it last moved is stale. Its one-shot runs export
+    /// `JUNIE_SKIP_UPDATE_CHECK=1`, and `JUNIE_VERSION` stays in the
+    /// environment, so those are never stale, whenever the link moved. Left
+    /// over: `--use-version` is cut from `argv` and leaves no trace, so a
+    /// pinned session whose own launch applied a staged update (the shim moves
+    /// `current` before it execs the pinned build) reads as left behind.
     static func processTarget(shim: String) -> CLIToolProcesses.Target? {
         let bin = (shim as NSString).deletingLastPathComponent
         guard (shim as NSString).lastPathComponent == "junie", bin.hasSuffix("/.local/bin") else { return nil }
@@ -332,6 +337,8 @@ extension JunieInstall {
         let binary = "Applications/junie.app/Contents/MacOS/junie"
         let launcher = "\(versions)/\((link as NSString).lastPathComponent)/\(binary)"
         guard CLIToolProcesses.isRegularFile(launcher) else { return nil }
-        return .init(executable: launcher, versions: .init(root: versions, binaries: [binary], pointer: data + "/current"))
+        return .init(executable: launcher, versions: .init(
+            root: versions, binaries: [binary], pointer: data + "/current",
+            chosenBy: ["JUNIE_SKIP_UPDATE_CHECK", "JUNIE_VERSION"]))
     }
 }

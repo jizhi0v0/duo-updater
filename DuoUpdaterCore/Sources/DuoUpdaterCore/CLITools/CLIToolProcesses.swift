@@ -85,9 +85,13 @@ public enum CLIToolProcesses {
         /// other entries on purpose (Junie's `current`: its one-shot channel
         /// flags, `--use-version` and `JUNIE_VERSION` run a build without
         /// touching it). A process started after the link was last written
-        /// chose its entry and is not stale; one started before was left
-        /// behind when the link moved.
+        /// chose its entry and is not stale. One started before is taken as
+        /// left behind when the link moved, unless `chosenBy` says otherwise.
         public let pointer: String?
+        /// Environment variables whose non-empty value in a process means it
+        /// runs its entry on purpose, whenever it started (Junie's one-shot
+        /// `JUNIE_SKIP_UPDATE_CHECK`, and `JUNIE_VERSION`).
+        public let chosenBy: [String]
 
         public enum Ordering: Sendable, Hashable {
             /// `VersionComparator`.
@@ -100,7 +104,7 @@ public enum CLIToolProcesses {
 
         public init(
             root: String, binaries: [String] = [""], nameSuffixes: [String] = [], skipsClaudeUpdate: Bool = false,
-            ordering: Ordering = .version, pointer: String? = nil
+            ordering: Ordering = .version, pointer: String? = nil, chosenBy: [String] = []
         ) {
             self.root = root
             self.binaries = binaries
@@ -108,6 +112,14 @@ public enum CLIToolProcesses {
             self.skipsClaudeUpdate = skipsClaudeUpdate
             self.ordering = ordering
             self.pointer = pointer
+            self.chosenBy = chosenBy
+        }
+
+        /// Whether `environment` carries one of `chosenBy` with a value.
+        func isChosen(_ environment: [String]) -> Bool {
+            chosenBy.contains { name in
+                environment.contains { $0.hasPrefix(name + "=") && $0.count > name.count + 1 }
+            }
         }
 
         /// Whether a process on `version` is behind the launcher's `current`.
@@ -164,13 +176,19 @@ public enum CLIToolProcesses {
         public let arguments: [String]
         /// When the process started; read only under a `Versions.root`.
         public let started: Date?
+        /// Its environment, read only under a root whose layout has `chosenBy`.
+        public let environment: [String]
 
-        public init(pid: pid_t, path: String, file: FileID?, arguments: [String] = [], started: Date? = nil) {
+        public init(
+            pid: pid_t, path: String, file: FileID?, arguments: [String] = [], started: Date? = nil,
+            environment: [String] = []
+        ) {
             self.pid = pid
             self.path = path
             self.file = file
             self.arguments = arguments
             self.started = started
+            self.environment = environment
         }
     }
 
@@ -250,6 +268,7 @@ public enum CLIToolProcesses {
                 if versions.pointer != nil {
                     guard let repointed, let started = process.started, started < repointed else { continue }
                 }
+                guard !versions.isChosen(process.environment) else { continue }
                 // Only an older version is one the session should leave: a newer
                 // one beside the launcher's (a custom launcher held back, a
                 // `minimumVersion` floor) is not one to leave for the launcher's.
@@ -267,7 +286,8 @@ public enum CLIToolProcesses {
         guard !targets.isEmpty else { return [:] }
         let versions = targets.compactMap(\.versions)
         let processes = running(in: Set(targets.map(\.directory)), under: Set(versions.map(\.root)),
-                                readingArgumentsUnder: Set(versions.filter(\.skipsClaudeUpdate).map(\.root)))
+                                readingArgumentsUnder: Set(versions.filter(\.skipsClaudeUpdate).map(\.root)),
+                                readingEnvironmentUnder: Set(versions.filter { !$0.chosenBy.isEmpty }.map(\.root)))
         var answer: [Target: CLIToolUsage] = [:]
         for target in Set(targets) {
             answer[target] = usage(of: target, current: fileID(target.executable), processes: processes,
@@ -280,9 +300,11 @@ public enum CLIToolProcesses {
 
     /// The processes whose executable sits in one of `directories`, or anywhere
     /// under one of `roots`. `argv` is read only for those under
-    /// `readingArgumentsUnder`.
+    /// `readingArgumentsUnder`, the environment for those under
+    /// `readingEnvironmentUnder`.
     public static func running(
-        in directories: Set<String>, under roots: Set<String> = [], readingArgumentsUnder: Set<String> = []
+        in directories: Set<String>, under roots: Set<String> = [], readingArgumentsUnder: Set<String> = [],
+        readingEnvironmentUnder: Set<String> = []
     ) -> [Running] {
         guard !directories.isEmpty || !roots.isEmpty else { return [] }
         let under = { (path: String, roots: Set<String>) in roots.contains { path.hasPrefix($0 + "/") } }
@@ -298,10 +320,12 @@ public enum CLIToolProcesses {
             let path = buffer.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
             let directory = (path as NSString).deletingLastPathComponent
             guard directories.contains(directory) || under(path, roots) else { continue }
-            let arguments = under(path, readingArgumentsUnder)
-                ? ClaudeCodeActivity.arguments(of: pid) ?? [] : []
-            found.append(Running(pid: pid, path: path, file: mappedFile(of: pid, path: path), arguments: arguments,
-                                 started: under(path, roots) ? startTime(of: pid) : nil))
+            let readsArguments = under(path, readingArgumentsUnder), readsEnvironment = under(path, readingEnvironmentUnder)
+            let procargs = readsArguments || readsEnvironment ? ClaudeCodeActivity.argumentsAndEnvironment(of: pid) : nil
+            found.append(Running(pid: pid, path: path, file: mappedFile(of: pid, path: path),
+                                 arguments: readsArguments ? procargs?.arguments ?? [] : [],
+                                 started: under(path, roots) ? startTime(of: pid) : nil,
+                                 environment: readsEnvironment ? procargs?.environment ?? [] : []))
         }
         return found
     }

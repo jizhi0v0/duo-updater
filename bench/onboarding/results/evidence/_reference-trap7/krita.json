@@ -1,0 +1,54 @@
+{
+  "changelogRecipes" : [
+    "changelog:org.krita:-:<6",
+    "changelog:org.krita:-:6+"
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 4,
+      "headings" : [
+
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 18,
+      "newestVersion" : "5.3.4",
+      "recipeID" : "changelog:org.krita:-:<6"
+    },
+    "channel" : "stable",
+    "download" : "krita-5.3.4.1-signed.dmg",
+    "installTrust" : "developerID",
+    "latest" : "5.3.4",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "Vendor",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 4,
+      "headings" : [
+
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 18,
+      "newestVersion" : "5.3.4",
+      "recipeID" : "changelog:org.krita:-:<6"
+    },
+    "channel" : "stable",
+    "download" : "krita-5.3.4.1-signed.dmg",
+    "installTrust" : "developerID",
+    "latest" : "5.3.4",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "Vendor",
+    "status" : "update→5.3.4"
+  },
+  "perRelease" : [
+
+  ],
+  "rules" : [
+
+  ]
+}

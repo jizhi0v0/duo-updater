@@ -64,6 +64,13 @@ SYN = {
     "cindy": ("v0.1.106", ["v0.1.105-beta"], "cindy-0.1.106-darwin-arm64-global.dmg", ["cindy-0.1.105-beta-darwin-arm64-global.dmg"]),
     "spotifast": ("v0.12.1", ["v0.13.0-rc.1"], "spotifast-v0.12.1-macos-universal.dmg", ["spotifast-v0.13.0-rc.1-macos-universal.dmg"]),
     "disktree": ("v0.11.1", ["v0.12.0-rc.1"], "disktree-0.11.1-aarch64-macos.zip", ["disktree-0.12.0-rc.1-aarch64-macos.zip"]),
+    # trap set (2026-10-17; tag shapes from each vendor's real releases). Loop's dev build is
+    # the one rolling `prerelease` tag; Picard's betas are `release-3.0.0rc4`-style. Cork,
+    # Krita and Snipaste are not read from GitHub, so they have no entry here.
+    "loop": ("1.4.3", ["prerelease", "1.5.0-beta.1"], "Loop.zip", []),
+    "switchhosts": ("v5.0.3", ["v5.0.3-beta.4"], "SwitchHosts-5.0.3-mac-universal.dmg", ["SwitchHosts-5.0.3-beta.4-mac-universal.dmg"]),
+    "picard": ("release-3.0.3", ["release-3.1.0rc1", "release-3.1.0b1"], "MusicBrainz-Picard-3.0.3-macOS-13.0-arm64.dmg", ["MusicBrainz-Picard-3.1.0rc1-macOS-13.0-arm64.dmg"]),
+    "zettlr": ("v4.8.1", ["v4.9.0-beta.1"], "Zettlr-4.8.1-arm64.dmg", ["Zettlr-4.9.0-beta.1-arm64.dmg"]),
 }
 
 

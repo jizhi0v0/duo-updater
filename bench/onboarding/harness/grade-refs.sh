@@ -1,10 +1,10 @@
 #!/bin/bash
 # grade-refs.sh [case...] — grade the reference (main, cloned at $B/ref/main) for each case,
-# one at a time. Default: every case in cases/ except the extra grade cases (fastpotify,
-# cindycn; see README). Writes $B/ref/out/<case>.json.
+# one at a time. Default: every case in cases/ except the extra grade cases (`"extra": true`,
+# see README); name those explicitly to grade them too. Writes $B/ref/out/<case>.json.
 . "$(dirname "$0")/env.sh"
 mkdir -p $B/ref/out
-cases=${*:-$(ls $BENCH_HOME/cases | sed -n 's/\.json$//p' | grep -v -x -e fastpotify -e cindycn)}
+cases=${*:-$(for f in $BENCH_HOME/cases/*.json; do python3 -c "import json,sys;d=json.load(open(sys.argv[1]));sys.exit(1 if d.get('extra') else 0)" $f && basename $f .json; done)}
 for c in $cases; do
   R=$B/ref/main
   cp $H/ZZBenchGrade.swift $R/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/

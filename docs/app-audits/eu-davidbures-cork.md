@@ -60,6 +60,10 @@ beta 副本的 short 版本是 `2.0.0`，所以它会被当作 stable 2.0.0，�
   见过 `HiHHii`。推测是服务端对所有来访者统一轮转，别人的请求会插进来，所以对单个客户端不保证交替（未验证）。
   recipe 的 `transientBodyPattern` 认出首页（HTML5 文档、`<title>Cork: …`；目录索引是裸 `<html>`、标题 `Index of /RLS/`），重试一次；
   通常拿到索引，碰上两次都是首页时这次检查报错（下次扫描再查）。重试次数是共用的 `versionFeedData` 定的一次，没为 Cork 单改。
+- **2026-10-17 起 `/RLS/` 改为 200 与 403 交替**（厂商修了 zip 被误拦之后，见历史与实测）：拦截时回 `403 Forbidden`（146 B），
+  不再回首页，`transientBodyPattern` 不再命中；`versionFeedData` 只对 502/503/504 和 2xx 错误体重试，探针收到 403 报
+  `httpStatus(403)`。推断检测约一半失败（未用 `duo check` 实测：本机当时没装 Cork）。**有意不重试 403**：这是厂商有意的反抓取拦截，
+  正常用户不会去列目录；等厂商的版本 JSON 端点（#687）。
 
 ## 增量更新（delta / binary patch）
 
@@ -92,7 +96,7 @@ beta 副本的 short 版本是 `2.0.0`，所以它会被当作 stable 2.0.0，�
 - 包 URL：最新 `https://corkmac.app/RLS/2.0.3/Cork.zip`，上一版 `https://corkmac.app/RLS/2.0.2/Cork.zip`
 
 ## 已知问题
-- **下载会抽到首页（已加重试）**：服务器约一半请求回首页（见更新检测），下载不走 `transientBodyPattern` 的重试；
+- **下载会抽到首页（已加重试；2026-10-17 厂商已修，zip 不再被拦）**：服务器约一半请求回首页（见更新检测），下载不走 `transientBodyPattern` 的重试；
   加重试前真机 4/4 次都抽到首页（解包失败、安装失败，app 不受影响）。现在 `VendorInstaller.fetchArchive` 认出下载到的是 HTML
   文档（开头 `<!DOCTYPE html` / `<html`）就删掉重下，最多 4 次（各约 1/2 时全败约 1/16）；加重试后的真机端到端（2026-10-16，集成分支 `make cli`）：2.0.2 → 2.0.3 成功，`backed up … verifyingCodeSignature … installed.`；日志 `download ok: 15038 bytes … (attempt 1)` 后接 `download ok: 7843012 bytes … (attempt 1)`，即第一次拿到首页、重下拿到 zip；装后 Team `ZSVA6DVZHM`、`codesign --verify --deep --strict` 0、`spctl` Notarized Developer ID，`duo check` 报 up to date。同一轮里装前的 `duo check` 报 `check failed: the vendor answered with an error, not a version (15038-byte body)`：探针两次都抽到首页，检测偶发失败是实测到的（下次扫描再查即可；探针重试次数是共用的一次，没为 Cork 改）。
   `duo verify-install`（`ArtifactInspection.inspect`）原来只下一次，夜扫因此连报 `install.unpack`（#1372）；现在走同一个 `fetchArchive`。2026-10-17 本机 `make cli` 后连跑 3 次，每次日志都是 `download was a web page, not an archive: retry 1/3`，结果 ✓ 2.0.3 / `ZSVA6DVZHM`。
@@ -109,7 +113,7 @@ beta 副本的 short 版本是 `2.0.0`，所以它会被当作 stable 2.0.0，�
 1. 真机：装 2.0.2，一键到 2.0.3；再装一份 `com.davidbures.cork` 1.5.7，确认迁移一键。
 2. 厂商再开 beta 时，按 `CFBundleVersion` 的 `_BETA_` 后缀评估 beta 轨。
 3. 跟踪 buresdv/Cork#687：厂商的版本 JSON 端点上线后，把检测（以及能的话下载地址）换过去，不再抓 `/RLS/`。在那之前不加大对
-   corkmac.app 的重试次数。若厂商要求不碰 corkmac.app，改读 GitHub releases（代价：GitHub 上 release 晚于官网，如 2.0.3 只有 tag）。
+   corkmac.app 的重试次数，也不对 `/RLS/` 的 403 重试。#687 已于 2026-10-17 关闭（厂商说端点做好会在该 issue 通知）。若厂商要求不碰 corkmac.app，改读 GitHub releases（代价：GitHub 上 release 晚于官网，如 2.0.3 只有 tag）。
 
 ## 如何复验
 
@@ -151,3 +155,11 @@ spctl -a -vv -t exec <Cork.app>
   1.4.1–1.4.4 是 `com.davidbures.Cork`，1.4.4.1、1.4.4.2、1.4.5、1.4.5.2、1.4.6、1.4.6.1、1.5 是 `com.davidbures.cork`。全部 Notarized Developer ID、universal。
 - GitHub：`v2.0.3` 有 tag 无 release；release 资产 `Cork.zip` 与官网同版本字节数相同（2.0.2：7,838,933）。
 - 博客 RSS：20 篇，14 篇是正式版文章（2.0.3 到 1.4.5），其余是 beta/RC 和一篇非发布文章。
+
+### 2026-10-17 · 厂商修好 zip 误拦，目录改回 403
+
+- 厂商在 #687 回复：正式下载被反 LLM 措施误伤是配置错误，已修。
+- 复测（curl 默认 UA，各 6 次）：`/RLS/2.0.3/Cork.zip` 6/6 `200 7843012 application/zip`；`/RLS/latest/Cork.zip`（`-L`）6/6 同样；
+  `/RLS/` 严格交替 `403 Forbidden`（146 B）/ `Index of /RLS/`（200，9491 B）。
+- GitHub `releases/latest` 仍是 `v2.0.2`（2026-09-14），2.0.3 仍只有 tag。
+- 决定：保持现状，不对 403 重试、不换源；回复厂商致谢后关闭 #687。

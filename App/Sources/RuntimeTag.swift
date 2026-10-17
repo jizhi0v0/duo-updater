@@ -155,9 +155,9 @@ struct RuntimeTag: View {
             // — the scan had to do it to reach the verdict at all, and this reads
             // the same cached entry back out.
             //
-            // The components are read in the same task. The slowest on the
-            // development machine took 11 ms (one section of a 32 MB Go binary);
-            // p95 over 243 apps was 0.3 ms — see `runtimeCompositionBench`.
+            // The components are read in the same task: a directory listing or
+            // one section of the executable, never the whole file. Too cheap to
+            // cache — `runtimeCompositionBench` measures it on every installed app.
             guard !versionLoaded, let bundle else { return }
             (version, components) = await Task.detached(priority: .utility) {
                 (RuntimeVersion.read(runtime, bundleAt: bundle, scanningBinaries: true),

@@ -454,6 +454,11 @@ public struct RemoteVersion: Sendable, Hashable {
     /// coin flip. nil for every other source. See `BuildLineage`.
     public let buildLineage: BuildLineage?
 
+    /// A newer release this source left out because the user's subscription does
+    /// not cover it — Surge only, see `SurgeSubscription`. nil for every other
+    /// answer.
+    public let subscriptionHold: SubscriptionHold?
+
     public init(
         shortVersion: String?,
         version: String?,
@@ -487,7 +492,8 @@ public struct RemoteVersion: Sendable, Hashable {
         releaseHistory: [ReleaseHistoryEntry] = [],
         deltas: [DeltaPatch] = [],
         releaseChannel: ReleaseChannel? = nil,
-        buildLineage: BuildLineage? = nil
+        buildLineage: BuildLineage? = nil,
+        subscriptionHold: SubscriptionHold? = nil
     ) {
         self.shortVersion = shortVersion
         self.version = version
@@ -522,6 +528,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.deltas = deltas
         self.releaseChannel = releaseChannel
         self.buildLineage = buildLineage
+        self.subscriptionHold = subscriptionHold
     }
 
     /// Best version string to show the user.
@@ -827,6 +834,13 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
     public var hasUpdate: Bool {
         if case .updateAvailable = status { return true }
         return false
+    }
+
+    /// The newer release the user's subscription keeps off this row, when there is
+    /// nothing else to offer — Surge only (`SurgeSubscription`). nil while an
+    /// update IS on offer: that one is covered, and it is what the row is about.
+    public var heldBySubscription: SubscriptionHold? {
+        hasUpdate ? nil : remote?.subscriptionHold
     }
 
     /// Source channels whose updates carry no "expired paid license" risk, so a

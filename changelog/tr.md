@@ -2,6 +2,14 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.10
+
+**Surge ve TablePlus artık lisansınızın açamayacağı bir güncellemeyi önermiyor.** İki uygulama da güncelleme süreniz bittikten sonra yayımlanan bir sürümü çalıştırmayı reddeder; bu sürüm artık güncelleme düğmesi yerine bir kilit gösteriyor ve kilit, lisansınızın ne zamana kadar kapsadığını ve uygulamada yenilemeniz gerektiğini söylüyor.
+
+**Büyük sürüm yükseltmesi yalnızca bu seferlik bir yedek tutabiliyor.** Yedekler kapalıyken büyük sürüm yükseltmesinden önceki onay artık “Yedekle ve güncelle” seçeneğini sunuyor ve içindeki “Ayarlar” bağlantısı doğrudan yedekleme ayarını açıyor.
+
+**Daha fazla uygulama doğru çalışma ortamı rozetini alıyor.** React Native ile yapılmış iPhone ve iPad uygulamaları ile GPUI, egui, Wails veya PyQt (Qt olarak gösterilir) ile yapılmış uygulamalar önceden “iOS Uygulaması”, “Yerel” gösteriyor ya da hiç rozet göstermiyordu.
+
 ## 0.5.9
 
 **21 uygulama daha destekleniyor.** Mounty for NTFS, Jellyfin Server, Stremio, MySQL Workbench, Loop, Snipaste, Krita, Zettlr, KnockKnock, Charles, Beyond Compare, GitKraken, MuseScore Studio, Mullvad Browser, macUSB, Cork, Flycut, xbar, MusicBrainz Picard, SwitchHosts ve Open Screen Sharing güncelleme denetimi ve tek tıkla güncelleme alıyor; Stremio ile MySQL Workbench dışındakilerin hepsi sürüm notlarını da gösteriyor. Zettlr kendi ayarlarındaki beta seçimini izliyor; MySQL Workbench’i 8.0’dan 26’ya geçirmek ise önce soruyor, çünkü 26 baştan yazılmış bir uygulama.

@@ -95,6 +95,7 @@ beta 副本的 short 版本是 `2.0.0`，所以它会被当作 stable 2.0.0，�
 - **下载会抽到首页（已加重试）**：服务器约一半请求回首页（见更新检测），下载不走 `transientBodyPattern` 的重试；
   加重试前真机 4/4 次都抽到首页（解包失败、安装失败，app 不受影响）。现在 `VendorInstaller.fetchArchive` 认出下载到的是 HTML
   文档（开头 `<!DOCTYPE html` / `<html`）就删掉重下，最多 4 次（各约 1/2 时全败约 1/16）；加重试后的真机端到端（2026-10-16，集成分支 `make cli`）：2.0.2 → 2.0.3 成功，`backed up … verifyingCodeSignature … installed.`；日志 `download ok: 15038 bytes … (attempt 1)` 后接 `download ok: 7843012 bytes … (attempt 1)`，即第一次拿到首页、重下拿到 zip；装后 Team `ZSVA6DVZHM`、`codesign --verify --deep --strict` 0、`spctl` Notarized Developer ID，`duo check` 报 up to date。同一轮里装前的 `duo check` 报 `check failed: the vendor answered with an error, not a version (15038-byte body)`：探针两次都抽到首页，检测偶发失败是实测到的（下次扫描再查即可；探针重试次数是共用的一次，没为 Cork 改）。
+  `duo verify-install`（`ArtifactInspection.inspect`）原来只下一次，夜扫因此连报 `install.unpack`（#1372）；现在走同一个 `fetchArchive`。2026-10-17 本机 `make cli` 后连跑 3 次，每次日志都是 `download was a web page, not an archive: retry 1/3`，结果 ✓ 2.0.3 / `ZSVA6DVZHM`。
 - 那个 HTML 是什么：与 `https://corkmac.app/` 首页逐字节相同（15038 B，同 SHA）；不存在的路径（`/RLS/no-such-file.zip`、
   `/definitely-missing`）也一半回它、一半回真 404。官网首页的 Download 按钮指向 `https://corkmac.app/RLS/latest/Cork.zip`，同样 5/10 是首页。
   **厂商说明（buresdv/Cork#687，2026-10-16）**：这是有意的反 LLM 抓取措施；列版本的「正式」方式是 GitHub releases API

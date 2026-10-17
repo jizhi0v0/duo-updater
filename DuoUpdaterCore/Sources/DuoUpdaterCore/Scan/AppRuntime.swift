@@ -17,6 +17,9 @@ import Foundation
 public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     /// A wrapped iPhone/iPad app running on Apple Silicon.
     case iOSApp = "ios"
+    /// A wrapped iPhone/iPad app whose interface is React Native: it ships the
+    /// engine (React or Hermes) and the app's own JavaScript at its root.
+    case reactNative
     /// A UIKit app built for the Mac with Mac Catalyst.
     case catalyst
     /// Chromium + Node, bundled by Electron.
@@ -48,8 +51,9 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     /// The distinction matters in exactly one place: attributing a nested bundle's
     /// runtime to the app that wraps it. A bundled runtime is evidence about that
     /// bundle and nothing else, so it travels; "links AppKit" is true of a helper
-    /// process and of the interface alike, so it does not. `.iOSApp` is decided by
-    /// a wrapper layout that cannot occur one level down inside `Contents/MacOS`.
+    /// process and of the interface alike, so it does not. `.iOSApp` and
+    /// `.reactNative` are decided inside a wrapper layout that cannot occur one
+    /// level down inside `Contents/MacOS`.
     ///
     /// `.tauri` is the case that looks like it belongs here and does not. It is not
     /// shipped beside the binary, it is *compiled into* it, which is why
@@ -61,7 +65,7 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     var isBundled: Bool {
         switch self {
         case .electron, .flutter, .qt, .java, .chromium: true
-        case .tauri, .mygo, .native, .catalyst, .iOSApp: false
+        case .tauri, .mygo, .native, .catalyst, .iOSApp, .reactNative: false
         }
     }
 }
@@ -216,7 +220,9 @@ public enum AppRuntimeDetector {
     ) -> Reading {
         // A wrapped iOS app has no `Contents/` at all, so every rule below would
         // look in the wrong place, and its own executable sits inside the wrapper
-        // rather than where the others keep theirs. Its wrapper is the evidence.
+        // rather than where the others keep theirs. Its wrapper is the evidence,
+        // and React Native is the one runtime told apart inside it, from files
+        // rather than load commands — see `isReactNative`.
         //
         // The executable is still named — not read: nothing here decides on its
         // load commands — so its SDK can be. The inner bundle is a flat iOS layout,
@@ -228,7 +234,10 @@ public enum AppRuntimeDetector {
                 let url = bundleURL.appendingPathComponent("WrappedBundle").appendingPathComponent(name)
                 if fm.fileExists(atPath: url.path) { binary = url }
             }
-            return Reading(runtime: .iOSApp, frameworks: [], binary: binary)
+            return Reading(
+                runtime: Self.isReactNative(wrappedBundle: bundleURL.appendingPathComponent("WrappedBundle"))
+                    ? .reactNative : .iOSApp,
+                frameworks: [], binary: binary)
         }
 
         let contents = bundleURL.appendingPathComponent("Contents")
@@ -650,6 +659,46 @@ public enum AppRuntimeDetector {
             goBuildInfo: goBuildInfo, followingNestedBundle: false)
         guard let runtime = reading.runtime, runtime.isBundled else { return nil }
         return (nested, reading)
+    }
+
+    /// The engine frameworks a React Native iOS app can ship: React itself, as
+    /// `React.framework`, when the app is built on React Native's precompiled core
+    /// (opt-in from 0.81; Hy Translate, an Expo build, ships it); and Hermes under both the name
+    /// it had through RN 0.81 and the one 0.82 gave it (`hermes-engine.podspec`).
+    static let reactNativeEngines = ["React.framework", "hermes.framework", "hermesvm.framework"]
+
+    /// The names the app's own entry bundle has at the bundle root:
+    /// `main.jsbundle` from React Native's build script (`BUNDLE_NAME="main"` in
+    /// `react-native-xcode.sh`), which current `expo-updates` embeds too
+    /// (`EmbeddedUpdate.swift`); and `app.bundle`, which older managed Expo apps
+    /// built the classic way embed (`EXUpdatesLegacyUpdate.m` at `sdk-46`).
+    static let reactNativeEntryBundles = ["main.jsbundle", "app.bundle"]
+
+    /// Whether a wrapped iOS app's interface is React Native: an engine framework
+    /// *and* the app's own entry bundle at the bundle root.
+    ///
+    /// The engine alone is not enough. Aqara Home ships `hermes.framework` for the
+    /// device plugins it loads from its own `RN/ios_base/base.bundle`, while the app
+    /// around them is native and has no entry bundle at its root — the same
+    /// "something is bundled, but it is not what draws the app" trap Docker was for
+    /// Electron (#208).
+    ///
+    /// The entry bundle has to be a file: a JavaScript bundle is one, while a
+    /// resource bundle a native app happens to call `app.bundle` is a directory.
+    ///
+    /// The entry bundle is checked first because it is the one a non-RN app lacks:
+    /// those apps stop after one `stat` per name.
+    static func isReactNative(wrappedBundle: URL) -> Bool {
+        let fm = FileManager.default
+        guard reactNativeEntryBundles.contains(where: {
+            var isDirectory: ObjCBool = false
+            return fm.fileExists(atPath: wrappedBundle.appendingPathComponent($0).path, isDirectory: &isDirectory)
+                && !isDirectory.boolValue
+        }) else { return false }
+        let frameworks = wrappedBundle.appendingPathComponent("Frameworks")
+        return reactNativeEngines.contains {
+            fm.fileExists(atPath: frameworks.appendingPathComponent($0).path)
+        }
     }
 
     /// Which of Apple's UI frameworks appear in a load-command list.

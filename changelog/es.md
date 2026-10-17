@@ -2,6 +2,24 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.9
+
+**Se admiten 21 apps más.** Mounty for NTFS, Jellyfin Server, Stremio, MySQL Workbench, Loop, Snipaste, Krita, Zettlr, KnockKnock, Charles, Beyond Compare, GitKraken, MuseScore Studio, Mullvad Browser, macUSB, Cork, Flycut, xbar, MusicBrainz Picard, SwitchHosts y Open Screen Sharing reciben comprobación de actualizaciones y actualizaciones con un clic, y todas salvo Stremio y MySQL Workbench muestran notas de la versión. Zettlr sigue la opción de beta de sus propios ajustes, y pasar MySQL Workbench de la 8.0 a la 26 pregunta antes, porque la 26 es una app reescrita.
+
+**Mira cuándo una herramienta de línea de comandos sigue ejecutando una copia antigua.** Cuando Claude Code, Codex, Cursor Agent, Vite+ o Junie se actualizan a sí mismos, las sesiones que iniciaste antes siguen ejecutando la versión antigua. La pestaña CLI y el menú ahora marcan las herramientas que están en ejecución e indican cuántas sesiones abiertas siguen con la versión antigua, y una notificación te avisa una sola vez.
+
+**Android Studio ya no ofrece la versión que ya tienes.** A las copias estables se les ofrecía una y otra vez su propia versión; ahora también aparecen las versiones de parche.
+
+**AdGuard muestra sus notas de la versión para release, beta y nightly,** y las copias beta y nightly ya no se etiquetan como estables.
+
+**Los iconos de las apps se actualizan cuando una app se actualiza fuera de DuoUpdater,** ya sea por la línea de comandos, con el actualizador de la propia app o desde el Finder, en lugar de conservar el icono antiguo hasta que DuoUpdater se reinicie.
+
+**Línea de comandos.** `duo restart` aplica una actualización que la app ya ha descargado, igual que Reabrir, conserva un punto de reversión y espera a que se cierre una app retenida por un aviso.
+
+**Correcciones.** La explicación de las actualizaciones a una versión mayor ya no dice que la versión antigua va a la Papelera.
+
+**Por dentro.** DuoUpdater deja de comprobar el estado de su helper cada 1,5 segundos una vez que el helper está activado, y las notas de la versión de compilaciones beta con nombres como «2.20 RC 1» ya no se quedan atascadas en una página anterior.
+
 ## 0.5.8
 
 **Ahora puedes informar de una actualización fallida con un par de clics.** Cuando una actualización falla, «Informar de este problema…» debajo del error abre un informe ya rellenado para enviarlo como incidencia de GitHub o por correo. Ajustes › Diagnóstico › Fallos recientes guarda en este Mac las actualizaciones fallidas de los últimos 30 días, y no se envía nada a menos que tú lo envíes.

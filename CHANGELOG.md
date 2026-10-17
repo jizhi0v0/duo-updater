@@ -19,6 +19,24 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.9
+
+**21 more apps are supported.** Mounty for NTFS, Jellyfin Server, Stremio, MySQL Workbench, Loop, Snipaste, Krita, Zettlr, KnockKnock, Charles, Beyond Compare, GitKraken, MuseScore Studio, Mullvad Browser, macUSB, Cork, Flycut, xbar, MusicBrainz Picard, SwitchHosts and Open Screen Sharing get update checks and one-click updates, and all but Stremio and MySQL Workbench show release notes. Zettlr follows the beta choice in its own settings, and moving MySQL Workbench from 8.0 to 26 asks first, because 26 is a rewritten app.
+
+**See when a command-line tool is still running an old copy.** When Claude Code, Codex, Cursor Agent, Vite+ or Junie updates itself, sessions you started before keep running the old version. The CLI tools tab and the menu now mark tools that are running and say how many open sessions still run the old version, and a notification tells you once.
+
+**Android Studio no longer offers the version you already have.** Stable copies used to be offered their own release again and again; patch releases now show up too.
+
+**AdGuard shows its release notes for release, beta and nightly,** and beta and nightly copies are no longer labelled stable.
+
+**App icons refresh after an app is updated outside DuoUpdater,** whether by the command line, the app's own updater or Finder, instead of keeping the old icon until DuoUpdater restarts.
+
+**Command line.** `duo restart` applies an update the app has already downloaded, the way Relaunch does, keeps a rollback point, and waits for a quit held up by a prompt.
+
+**Fixes.** The major-upgrade explanation no longer says the old version goes to the Trash.
+
+**Under the hood.** DuoUpdater stops checking its helper's status every 1.5 seconds once the helper is enabled, and release notes for beta builds named like "2.20 RC 1" no longer stay stuck on an older page.
+
 ## 0.5.8
 
 **You can now report a failed update in a couple of clicks.** When an update fails, "Report this problem…" under its error opens a report that is already filled in, to send as a GitHub issue or an email. Settings › Diagnostics › Recent failures keeps the last 30 days of failed updates on this Mac, and nothing is sent unless you send it.

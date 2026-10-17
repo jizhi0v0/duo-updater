@@ -2,6 +2,24 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.9
+
+**Mais 21 apps são compatíveis.** Mounty for NTFS, Jellyfin Server, Stremio, MySQL Workbench, Loop, Snipaste, Krita, Zettlr, KnockKnock, Charles, Beyond Compare, GitKraken, MuseScore Studio, Mullvad Browser, macUSB, Cork, Flycut, xbar, MusicBrainz Picard, SwitchHosts e Open Screen Sharing ganham verificação de atualizações e atualização com um clique, e todos, exceto Stremio e MySQL Workbench, mostram as notas da versão. O Zettlr segue a opção de beta das próprias configurações, e passar o MySQL Workbench da 8.0 para a 26 pergunta antes, porque a 26 é um app reescrito.
+
+**Veja quando uma ferramenta de linha de comando ainda está rodando uma cópia antiga.** Quando o Claude Code, o Codex, o Cursor Agent, o Vite+ ou o Junie se atualiza sozinho, as sessões que você iniciou antes continuam rodando a versão antiga. A aba CLI e o menu agora marcam as ferramentas que estão em execução e dizem quantas sessões abertas ainda rodam a versão antiga, e uma notificação avisa você uma única vez.
+
+**O Android Studio não oferece mais a versão que você já tem.** As cópias estáveis recebiam repetidamente a oferta da própria versão; agora as versões de correção também aparecem.
+
+**O AdGuard mostra as notas da versão para release, beta e nightly,** e as cópias beta e nightly não são mais rotuladas como estáveis.
+
+**Os ícones dos apps são atualizados quando um app é atualizado fora do DuoUpdater,** seja pela linha de comando, pelo atualizador do próprio app ou pelo Finder, em vez de manter o ícone antigo até o DuoUpdater reiniciar.
+
+**Linha de comando.** `duo restart` aplica uma atualização que o app já baixou, como faz Reabrir, mantém um ponto de reversão e espera por um encerramento retido por um aviso.
+
+**Correções.** A explicação da atualização para uma versão principal não diz mais que a versão antiga vai para a Lixeira.
+
+**Nos bastidores.** O DuoUpdater deixa de verificar o estado do seu helper a cada 1,5 segundo depois que o helper é ativado, e as notas da versão de builds beta com nomes como “2.20 RC 1” não ficam mais presas em uma página mais antiga.
+
 ## 0.5.8
 
 **Agora você pode relatar uma atualização com falha em poucos cliques.** Quando uma atualização falha, “Relatar este problema…” abaixo do erro abre um relatório já preenchido, para enviar como issue no GitHub ou por e-mail. Ajustes › Diagnóstico › Falhas recentes guarda neste Mac as atualizações com falha dos últimos 30 dias, e nada é enviado a menos que você envie.

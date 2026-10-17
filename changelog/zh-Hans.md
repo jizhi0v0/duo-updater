@@ -2,6 +2,24 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.5.9
+
+**多支持了 21 个 App。** Mounty for NTFS、Jellyfin Server、Stremio、MySQL Workbench、Loop、Snipaste、Krita、Zettlr、KnockKnock、Charles、Beyond Compare、GitKraken、MuseScore Studio、Mullvad Browser、macUSB、Cork、Flycut、xbar、MusicBrainz Picard、SwitchHosts、Open Screen Sharing 可以检查更新和一键更新，其中除 Stremio 和 MySQL Workbench 外都能查看更新说明。Zettlr 会跟随它自己设置里的 beta 选项；把 MySQL Workbench 从 8.0 升到 26 之前会先问你一声，因为 26 是重写过的 App。
+
+**能看出命令行工具是不是还在跑旧版本。** Claude Code、Codex、Cursor Agent、Vite+ 或 Junie 自己更新后，你之前启动的会话还会继续跑旧版本。CLI 标签页和菜单现在会标出正在运行的工具，并告诉你还有多少个打开的会话在跑旧版本，通知也只会提醒你一次。
+
+**Android Studio 不会再提示你已经装着的版本。** 稳定版的副本以前会被反复提示它自己这个版本；现在补丁版本也会显示出来。
+
+**AdGuard 的 release、beta 和 nightly 都能看到更新说明了，** beta 和 nightly 的副本也不会再被标成稳定版。
+
+**App 在 DuoUpdater 之外更新后，图标会自动刷新，** 不管是用命令行、App 自己的更新器还是在 Finder 里更新的，都不用等到 DuoUpdater 重启才换掉旧图标。
+
+**命令行。** `duo restart` 会像“重新启动”一样，应用 App 已经下载好的更新，保留一个回滚点，并等待被提示框卡住的退出完成。
+
+**修复。** 大版本升级的说明里，不会再写旧版本会被放进废纸篓。
+
+**内部改进。** 辅助程序启用后，DuoUpdater 不再每 1.5 秒检查一次它的状态；名字像“2.20 RC 1”这样的 beta 构建，更新说明也不会再停在更旧的页面上。
+
 ## 0.5.8
 
 **现在点几下就能反馈一次更新失败。** 更新失败时，错误下方的“报告此问题…”会打开一份已经填好的报告，可以作为 GitHub Issue 或邮件发出。设置 › 诊断 › 最近失败会在这台 Mac 上保留最近 30 天的失败记录，你不主动发送，就不会发出任何内容。

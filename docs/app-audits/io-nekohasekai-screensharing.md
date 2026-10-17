@@ -67,7 +67,7 @@
 ## Changelog
 - 来源: GitHub Release body，经 `GitHubMarkdownParser`。正文是 `release.yml` 用 `git log --format='* %s'` 生成的提交标题列表
 - 结构化（2026-10-17，channel-verify `changelog pane`，从 1.0.0 起）: `source structured: 1 entries; newest 1.0.1: 1 items, headings []; first items ["Fixes and improvements"]`。没有小节标题是厂商正文本来就没有，不是被压平
-- nightly: `ChangelogRecipe`（`api.github.com/repos/…/releases?per_page=20`，`.gitHubReleases`，`channel: .nightly`，`includesPromotedStable`）。channel-verify（Update Track = nightly）: `recipe changelog:io.nekohasekai.screensharing:nightly: 3 entries; newest 1.0.1: 1 items, headings []; first items ["Fixes and improvements"]`。在装好的 DuoUpdater 工作台里看到三条：`1.0.1`、`nightly`（Bump 1.0.1 / Add cache section title / We are on App Store）、`1.0.0`。nightly 那条以 tag 名 `nightly` 标，不是 build 号——release 本身不写 build
+- nightly: `ChangelogRecipe`（`api.github.com/repos/…/releases?per_page=20`，`.gitHubReleases`，`channel: .nightly`，`includesPromotedStable`，`ordersByPublishedDate`）。厂商每次构建先删 `nightly` release 再重发，GitHub 列表却仍把它排在更早的 `v1.0.1` 下面（2026-10-17 build 27 后实测：`v1.0.1` 04:21Z 在前，`nightly` 05:59Z 在后），所以按 `published_at` 排。只对这条 recipe 开：同日量了全部 29 个 `.gitHubReleases` 源，全局按发布时间排会改动 cline（100 条里 68 条换位）、element-web、diri（榜首会从 `nightly` 变成 `v0.9.7`）等的顺序。`nightly` 正文只列**自上一个 nightly 以来**的提交（`build.yml` 在挪 tag 前跑 `git log nightly..`），更早的 nightly release 已被删，所以落后好几个 nightly 的副本只看得到最新一次构建的提交。channel-verify（Update Track = nightly）: `recipe changelog:io.nekohasekai.screensharing:nightly: 3 entries; newest 1.0.1: 1 items, headings []; first items ["Fixes and improvements"]`。排序修正后（build 28），装好的 DuoUpdater 工作台打开即是 `nightly`（Fix Info.plist and string catalogs），其下 `1.0.1`、`1.0.0`；channel-verify：`3 entries; newest nightly: 1 items … ["Fix Info.plist and string catalogs"]`。nightly 那条以 tag 名 `nightly` 标，不是 build 号——release 本身不写 build
 - 跟随 channel: 是
 - Recipe 状态: 不需要
 
@@ -83,6 +83,7 @@
   - 第一轮（不运行）: 把 1.0.0 pkg 的 payload `ditto` 进 `/Applications` → `duo check` `1.0.0 → 1.0.1 [GitHub, in-place]` → `duo install --yes --json` → `outcome: openedInstaller`、`route: installer`、`bytesDownloaded: 11718841` → 人在 Installer 里输管理员密码完成 → 1.0.1（26），可执行文件 inode 变、属主变 root，`codesign --verify --deep --strict` 通过，`spctl` `accepted / Notarized Developer ID`，Team `P8XK3KHB48`，`diff -r` 与厂商 pkg payload 完全相同，`pkgutil --pkg-info` 有回执，`duo check` 报 up to date
   - 第二轮（运行中）: 再放 1.0.0 并启动 → `duo install` 同样 `openedInstaller` → Installer 完成，进程不需要先退出，磁盘 1.0.1 且与厂商 payload 相同 → `duo restart`：第一次 33 s 后报「still running — likely a save prompt」，原因是首启的「Check for Updates Automatically?」弹框拦下退出；点「Don't Check」后再 `duo restart` 1.7 s 完成，新进程启动时间在安装之后，之后 10 s 磁盘一直是 1.0.1
   - nightly 轨（Update Track = nightly，`make cli` 后的 `duo`）: 放 1.0.0 payload（24）→ `duo check` `1.0.0 → 1.0.1 [Vendor, installer]` → `duo install --yes --json` → `openedInstaller`、`bytesDownloaded: 11718841`（下的是 `releases/download/nightly/OpenScreenSharing.pkg`）→ Installer 由人完成 → 1.0.1（26），inode 变、属主 root，`codesign --verify --deep --strict` 通过，`spctl` accepted / Notarized Developer ID，`diff -r` 与厂商 payload 相同，`duo check` up to date。运行中一轮没在 nightly 轨上重跑：安装与重启走的是和 stable 同一个 pkg / Installer / `duo restart` 路径，上面两轮已覆盖
+  - nightly → nightly（营销版本不变、只涨 build；app 运行中）: 已装 1.0.1（26）→ `duo check` `1.0.1 (26) → 1.0.1 (28) [Vendor, installer]` → `duo install` → `openedInstaller`、`bytesDownloaded: 11718969` → Installer 由人完成 → 1.0.1（28），inode 变，`codesign` / `spctl` 通过，`diff -r` 与当时的 nightly pkg payload 相同，`duo check` up to date → `duo restart` 重启成功
   - nightly pkg 无摘要可校：`metadata.json` 不带 digest，走 Team-ID 闸；`metadata.json` 与 pkg 分两次取，中间若落了新构建会装上更新的那个，下一轮检查读到它的 build
 - 阻塞: 无。pkg 路线每次都要人输管理员密码（系统 Installer 的行为）
 
@@ -93,7 +94,6 @@
 
 ## 建议下一步
 1. 下一个正式版出来后复查 `/releases/latest` 指向它、版本模式读得出。
-2. 下一个 nightly 构建（build 27+）出来后，在 nightly 轨上从 26 跑一次 `duo install`，确认 nightly changelog 条目排在最前。
 
 ## 如何复验
 ```

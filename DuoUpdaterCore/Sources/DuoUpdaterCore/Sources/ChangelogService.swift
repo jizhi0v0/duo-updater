@@ -236,7 +236,8 @@ public enum ChangelogService {
                 body, format: format, channel: recipe.channel, maxEntries: recipe.maxEntries,
                 skipSections: recipe.skipSections,
                 includesPromotedStable: recipe.includesPromotedStable,
-                tagPattern: recipe.tagPattern)
+                tagPattern: recipe.tagPattern,
+                ordersByPublishedDate: recipe.ordersByPublishedDate)
         }
         return ChangelogExtractor.extract(from: body, using: recipe, version: version)
     }

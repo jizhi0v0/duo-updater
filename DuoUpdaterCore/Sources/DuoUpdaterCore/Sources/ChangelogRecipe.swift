@@ -224,6 +224,17 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// entries belong to the OTHER train and would be noise.
     public let includesPromotedStable: Bool
 
+    /// For `.gitHubReleases`: order the releases by `published_at`, newest
+    /// first, instead of the order GitHub's `/releases` list returns.
+    ///
+    /// That list is not a timestamp order (see the audits that measured it), and
+    /// for most repositories its order is what the panel should keep. Set it where
+    /// one release is recreated on every build under a fixed tag: Open Screen
+    /// Sharing deletes and republishes its `nightly` release, and GitHub still
+    /// lists it below the older `v1.0.1` (2026-10-17), so the panel opened on the
+    /// version already installed instead of the build being offered.
+    public let ordersByPublishedDate: Bool
+
     /// Channels this recipe's notes do NOT describe, so the lookup never hands it
     /// to an install on one of them — at any step of the ladder in
     /// `ChangelogRecipeRegistry.recipe(forBundleID:channel:version:)`, the
@@ -658,6 +669,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         indexLinkPattern: String? = nil,
         channel: ReleaseChannel? = nil,
         includesPromotedStable: Bool = false,
+        ordersByPublishedDate: Bool = false,
         excludedChannels: [ReleaseChannel] = [],
         sourceTemplate: String? = nil,
         versionFromTemplate: Bool = false,
@@ -690,6 +702,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.indexLinkPattern = indexLinkPattern
         self.channel = channel
         self.includesPromotedStable = includesPromotedStable
+        self.ordersByPublishedDate = ordersByPublishedDate
         self.excludedChannels = excludedChannels
         self.sourceTemplate = sourceTemplate
         self.versionFromTemplate = versionFromTemplate
@@ -854,7 +867,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         case itemPatterns
         case stripTags, decodeEntities, escapedMarkup, markdownSource, maxEntries
         case minItemLength, newestLast, indexLinkPattern, feedPagePattern, channel
-        case includesPromotedStable, excludedChannels, imagePattern, headingPattern
+        case includesPromotedStable, ordersByPublishedDate, excludedChannels, imagePattern, headingPattern
         case minimumAppVersion
         case belowAppVersion, carriesOtherTrainEntries, acknowledgedStaleEntry
         case structuredFormat, httpMethod
@@ -903,6 +916,8 @@ public struct ChangelogRecipe: Codable, Sendable {
             channel: try c.decodeOptional(ReleaseChannel.self, forKey: .channel, default: d.channel),
             includesPromotedStable: try c.decode(
                 Bool.self, forKey: .includesPromotedStable, default: d.includesPromotedStable),
+            ordersByPublishedDate: try c.decode(
+                Bool.self, forKey: .ordersByPublishedDate, default: d.ordersByPublishedDate),
             excludedChannels: try c.decode(
                 [ReleaseChannel].self, forKey: .excludedChannels, default: d.excludedChannels),
             sourceTemplate: try c.decodeOptional(
@@ -957,6 +972,7 @@ public struct ChangelogRecipe: Codable, Sendable {
             feedPagePattern, forKey: .feedPagePattern, defaultIsNil: d.feedPagePattern == nil)
         try c.encodeOptional(channel, forKey: .channel, defaultIsNil: d.channel == nil)
         try c.encode(includesPromotedStable, forKey: .includesPromotedStable)
+        try c.encode(ordersByPublishedDate, forKey: .ordersByPublishedDate)
         try c.encode(excludedChannels, forKey: .excludedChannels)
         try c.encodeOptional(imagePattern, forKey: .imagePattern, defaultIsNil: d.imagePattern == nil)
         try c.encodeOptional(

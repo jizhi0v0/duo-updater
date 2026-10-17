@@ -41,11 +41,18 @@ enum io_nekohasekai_screensharing {
             channel: .nightly),
         ],
         changelogs: [
-        // Nightly: the newest releases, prerelease and stable interleaved — the
-        // `nightly` release's body lists the commits since the last stable one,
-        // and the stable ones are what a nightly copy graduated through. The
-        // nightly entry is labelled with its tag (`nightly`), not a build number:
-        // the release states none.
+        // Nightly: the newest releases, prerelease and stable interleaved, by
+        // publish date. The vendor's CI deletes the `nightly` release and
+        // publishes a new one on every build, and GitHub's list still put it
+        // below the older `v1.0.1` (2026-10-17, build 27), hence
+        // `ordersByPublishedDate`.
+        //
+        // The `nightly` body lists only the commits since the PREVIOUS nightly
+        // (`build.yml`: `git log nightly..` before the tag moves), and the earlier
+        // nightly releases are deleted, so a copy several nightlies behind sees
+        // the newest build's commits only; the stable entries carry each release's
+        // commits since the stable before it. The nightly entry is labelled with
+        // its tag (`nightly`), not a build number: the release states none.
         ChangelogRecipe(
             bundleID: "io.nekohasekai.screensharing",
             source: URL(string: "https://api.github.com/repos/nekohasekai/open-screen-sharing/releases?per_page=20")!,
@@ -53,6 +60,7 @@ enum io_nekohasekai_screensharing {
             maxEntries: 20,
             channel: .nightly,
             includesPromotedStable: true,
+            ordersByPublishedDate: true,
             structuredFormat: .gitHubReleases),
         ],
         githubRules: [

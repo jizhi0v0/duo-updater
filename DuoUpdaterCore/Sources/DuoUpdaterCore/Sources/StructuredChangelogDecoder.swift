@@ -28,7 +28,8 @@ public enum StructuredChangelogDecoder {
     public static func decode(
         _ body: String, format: ChangelogRecipe.StructuredFormat,
         channel: ReleaseChannel?, maxEntries: Int?, skipSections: [String] = [],
-        includesPromotedStable: Bool = false, tagPattern: String? = nil
+        includesPromotedStable: Bool = false, tagPattern: String? = nil,
+        ordersByPublishedDate: Bool = false
     ) -> Changelog? {
         switch format {
         case .warpChannelVersions:
@@ -54,7 +55,8 @@ public enum StructuredChangelogDecoder {
         case .gitHubReleases:
             return decodeGitHubReleases(
                 body, channel: channel, maxEntries: maxEntries, skipSections: skipSections,
-                includesPromotedStable: includesPromotedStable, tagPattern: tagPattern)
+                includesPromotedStable: includesPromotedStable, tagPattern: tagPattern,
+                ordersByPublishedDate: ordersByPublishedDate)
         case .alcoveChangelog:
             return decodeAlcoveChangelog(body, maxEntries: maxEntries)
         case .notionPageChunk:
@@ -1029,11 +1031,19 @@ public enum StructuredChangelogDecoder {
     static func decodeGitHubReleases(
         _ body: String, channel: ReleaseChannel? = nil, maxEntries: Int?,
         skipSections: [String] = [], includesPromotedStable: Bool = false,
-        tagPattern: String? = nil
+        tagPattern: String? = nil, ordersByPublishedDate: Bool = false
     ) -> Changelog? {
         guard let data = body.data(using: .utf8),
-              let releases = try? JSONDecoder().decode([GitHubRelease].self, from: data)
+              var releases = try? JSONDecoder().decode([GitHubRelease].self, from: data)
         else { return nil }
+        // `published_at` is ISO 8601 in UTC with a fixed width, so it orders as
+        // text. Stable: releases with the same (or no) date keep the list's order.
+        if ordersByPublishedDate {
+            releases = releases.enumerated().sorted { a, b in
+                let pa = a.element.publishedAt ?? "", pb = b.element.publishedAt ?? ""
+                return pa != pb ? pa > pb : a.offset < b.offset
+            }.map(\.element)
+        }
 
         // Compiled once for the whole feed, not once per release: a GitHub page is
         // 40 releases and the pattern is the same for every one of them. An

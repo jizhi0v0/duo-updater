@@ -44,6 +44,25 @@ struct OpenScreenSharingChannelTests {
         #expect(OpenScreenSharingChannel.readTrack(at: file) == nil)
     }
 
+    /// GitHub's list on 2026-10-17, after nightly build 27: `v1.0.1` first,
+    /// although the recreated `nightly` was published 1.5 hours later.
+    @Test func theNightlyRailOpensOnTheNewestPublishedRelease() throws {
+        let body = #"""
+        [{"tag_name":"v1.0.1","prerelease":false,"draft":false,"published_at":"2026-10-17T04:21:49Z","body":"* Fixes and improvements"},
+         {"tag_name":"nightly","prerelease":true,"draft":false,"published_at":"2026-10-17T05:59:36Z","body":"* Fix Info.plist and string catalogs"},
+         {"tag_name":"v1.0.0","prerelease":false,"draft":false,"published_at":"2026-10-14T11:19:28Z","body":"* Initial release"}]
+        """#
+        let recipe = try #require(ChangelogRecipeRegistry.recipes.first {
+            $0.bundleID == OpenScreenSharingChannel.bundleID && $0.channel == .nightly })
+        #expect(recipe.ordersByPublishedDate)
+        let sorted = try #require(ChangelogService.parse(recipe, body: body))
+        #expect(sorted.entries.map(\.version) == ["nightly", "1.0.1", "1.0.0"])
+        let listOrder = try #require(StructuredChangelogDecoder.decode(
+            body, format: .gitHubReleases, channel: .nightly, maxEntries: 20,
+            includesPromotedStable: true))
+        #expect(listOrder.entries.map(\.version) == ["1.0.1", "nightly", "1.0.0"])
+    }
+
     private func write(_ url: URL, rows: [(String, Data)]) throws {
         try? FileManager.default.removeItem(at: url)
         var db: OpaquePointer?

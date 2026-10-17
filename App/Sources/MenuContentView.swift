@@ -979,10 +979,6 @@ private struct CommandLineRow: View {
     private var question: some View { Image(systemName: "questionmark.circle").foregroundStyle(.secondary) }
 }
 
-/// The trailing mark on the command-line row when nothing is outdated but some packages
-/// went unchecked (`BrewUncheckedPackage`). An info mark rather than a warning:
-/// nothing failed, brew just declined to read them. Clicking explains why, like
-/// `StagedVersionUnknownMark`, and offers the workbench rows that name them.
 /// The command-line tools row's mark while a tool has processes still on its
 /// old copy: what the workbench row says, on hover and on a click, and the
 /// way there.
@@ -1032,6 +1028,10 @@ private struct StillRunningMark: View {
     }
 }
 
+/// The trailing mark on the command-line row when nothing is outdated but some packages
+/// went unchecked (`BrewUncheckedPackage`). An info mark rather than a warning:
+/// nothing failed, brew just declined to read them. Clicking explains why, like
+/// `StagedVersionUnknownMark`, and offers the workbench rows that name them.
 private struct BrewUncheckedMark: View {
     /// Links Homebrew's tap-trust docs only when that is a reason in play: a
     /// package brew can't read for another reason (tap gone, broken definition)

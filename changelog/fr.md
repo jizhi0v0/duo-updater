@@ -2,6 +2,24 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.9
+
+**21 apps de plus sont prises en charge.** Mounty for NTFS, Jellyfin Server, Stremio, MySQL Workbench, Loop, Snipaste, Krita, Zettlr, KnockKnock, Charles, Beyond Compare, GitKraken, MuseScore Studio, Mullvad Browser, macUSB, Cork, Flycut, xbar, MusicBrainz Picard, SwitchHosts et Open Screen Sharing bénéficient de la vérification des mises à jour et des mises à jour en un clic, et toutes sauf Stremio et MySQL Workbench affichent les notes de version. Zettlr suit le choix bêta de ses propres réglages, et le passage de MySQL Workbench de la 8.0 à la 26 demande d’abord confirmation, car la 26 est une app réécrite.
+
+**Voyez quand un outil en ligne de commande exécute encore une ancienne copie.** Quand Claude Code, Codex, Cursor Agent, Vite+ ou Junie se met à jour lui-même, les sessions que vous aviez lancées avant continuent d’exécuter l’ancienne version. L’onglet CLI et le menu signalent désormais les outils en cours d’exécution et indiquent combien de sessions ouvertes exécutent encore l’ancienne version, et une notification vous prévient une seule fois.
+
+**Android Studio ne propose plus la version que vous avez déjà.** Les copies stables se voyaient proposer leur propre version encore et encore ; les versions correctives apparaissent désormais aussi.
+
+**AdGuard affiche ses notes de version pour la version finale, la bêta et la nightly,** et les copies bêta et nightly ne sont plus étiquetées comme stables.
+
+**Les icônes des apps se rafraîchissent quand une app est mise à jour en dehors de DuoUpdater,** que ce soit en ligne de commande, par le programme de mise à jour de l’app ou depuis le Finder, au lieu de garder l’ancienne icône jusqu’au redémarrage de DuoUpdater.
+
+**Ligne de commande.** `duo restart` applique une mise à jour que l’app a déjà téléchargée, comme Relancer, conserve un point de restauration et attend qu’un quitter retenu par une invite aboutisse.
+
+**Corrections.** L’explication de la mise à jour vers une version majeure ne dit plus que l’ancienne version va dans la Corbeille.
+
+**Sous le capot.** DuoUpdater cesse de vérifier l’état de son assistant toutes les 1,5 secondes une fois l’assistant activé, et les notes de version des builds bêta nommés comme « 2.20 RC 1 » ne restent plus bloquées sur une page plus ancienne.
+
 ## 0.5.8
 
 **Vous pouvez maintenant signaler une mise à jour échouée en quelques clics.** Quand une mise à jour échoue, « Signaler ce problème… » sous l’erreur ouvre un rapport déjà rempli, à envoyer comme ticket GitHub ou par e-mail. Réglages › Diagnostic › Échecs récents conserve sur ce Mac les mises à jour échouées des 30 derniers jours, et rien n’est envoyé tant que vous ne l’envoyez pas.

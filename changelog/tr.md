@@ -2,6 +2,24 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.9
+
+**21 uygulama daha destekleniyor.** Mounty for NTFS, Jellyfin Server, Stremio, MySQL Workbench, Loop, Snipaste, Krita, Zettlr, KnockKnock, Charles, Beyond Compare, GitKraken, MuseScore Studio, Mullvad Browser, macUSB, Cork, Flycut, xbar, MusicBrainz Picard, SwitchHosts ve Open Screen Sharing güncelleme denetimi ve tek tıkla güncelleme alıyor; Stremio ile MySQL Workbench dışındakilerin hepsi sürüm notlarını da gösteriyor. Zettlr kendi ayarlarındaki beta seçimini izliyor; MySQL Workbench’i 8.0’dan 26’ya geçirmek ise önce soruyor, çünkü 26 baştan yazılmış bir uygulama.
+
+**Bir komut satırı aracının hâlâ eski bir kopyayı çalıştırdığını görün.** Claude Code, Codex, Cursor Agent, Vite+ veya Junie kendini güncellediğinde, daha önce başlattığınız oturumlar eski sürümle çalışmaya devam eder. CLI sekmesi ve menü artık çalışan araçları işaretliyor ve kaç açık oturumun hâlâ eski sürümü çalıştırdığını söylüyor; bir bildirim de sizi bir kez uyarıyor.
+
+**Android Studio artık zaten sahip olduğunuz sürümü önermiyor.** Kararlı kopyalara kendi sürümleri tekrar tekrar öneriliyordu; yama sürümleri de artık görünüyor.
+
+**AdGuard sürüm notlarını release, beta ve nightly için gösteriyor,** ve beta ile nightly kopyalar artık kararlı olarak etiketlenmiyor.
+
+**Bir uygulama DuoUpdater dışında güncellendiğinde uygulama simgeleri yenileniyor;** ister komut satırıyla, ister uygulamanın kendi güncelleyicisiyle, ister Finder ile olsun, DuoUpdater yeniden başlayana kadar eski simge kalmıyor.
+
+**Komut satırı.** `duo restart`, uygulamanın zaten indirdiği bir güncellemeyi Yeniden Başlat gibi uygular, bir geri alma noktası bırakır ve bir istem yüzünden takılan çıkışı bekler.
+
+**Düzeltmeler.** Büyük sürüm yükseltmesi açıklaması artık eski sürümün Çöp Sepeti’ne gittiğini söylemiyor.
+
+**Perde arkasında.** DuoUpdater, yardımcı süreci etkinleştirildikten sonra durumunu artık her 1,5 saniyede bir denetlemiyor; “2.20 RC 1” gibi adlandırılmış beta derlemelerinin sürüm notları da artık eski bir sayfada takılı kalmıyor.
+
 ## 0.5.8
 
 **Başarısız bir güncellemeyi artık birkaç tıklamayla bildirebilirsiniz.** Bir güncelleme başarısız olduğunda, hatanın altındaki “Bu sorunu bildir…” önceden doldurulmuş bir rapor açar; bunu GitHub issue’su ya da e-posta olarak gönderebilirsiniz. Ayarlar › Tanılama › Son başarısızlıklar, son 30 günün başarısız güncellemelerini bu Mac’te saklar ve siz göndermedikçe hiçbir şey gönderilmez.

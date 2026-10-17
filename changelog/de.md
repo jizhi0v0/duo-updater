@@ -2,6 +2,24 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.9
+
+**21 weitere Apps werden unterstützt.** Mounty for NTFS, Jellyfin Server, Stremio, MySQL Workbench, Loop, Snipaste, Krita, Zettlr, KnockKnock, Charles, Beyond Compare, GitKraken, MuseScore Studio, Mullvad Browser, macUSB, Cork, Flycut, xbar, MusicBrainz Picard, SwitchHosts und Open Screen Sharing erhalten Update-Prüfungen und Updates per Klick, und alle außer Stremio und MySQL Workbench zeigen Versionshinweise. Zettlr folgt der Beta-Auswahl in seinen eigenen Einstellungen, und der Wechsel von MySQL Workbench von 8.0 auf 26 fragt vorher nach, denn 26 ist eine neu geschriebene App.
+
+**Sieh, wann ein Befehlszeilen-Tool noch eine alte Kopie ausführt.** Wenn sich Claude Code, Codex, Cursor Agent, Vite+ oder Junie selbst aktualisiert, laufen Sitzungen, die du vorher gestartet hast, mit der alten Version weiter. Der Tab CLI und das Menü markieren jetzt Tools, die gerade laufen, und nennen, wie viele offene Sitzungen noch die alte Version ausführen; eine Mitteilung sagt es dir einmalig.
+
+**Android Studio bietet nicht mehr die Version an, die du schon hast.** Stabile Kopien bekamen früher ihr eigenes Release immer wieder angeboten; Patch-Releases erscheinen jetzt auch.
+
+**AdGuard zeigt seine Versionshinweise für Release, Beta und Nightly,** und Beta- und Nightly-Kopien werden nicht mehr als stabil bezeichnet.
+
+**App-Symbole werden aktualisiert, wenn eine App außerhalb von DuoUpdater aktualisiert wurde,** ob per Befehlszeile, mit dem eigenen Updater der App oder im Finder, statt das alte Symbol bis zum Neustart von DuoUpdater zu behalten.
+
+**Befehlszeile.** `duo restart` wendet ein Update an, das die App bereits geladen hat, so wie „Neu starten“, behält einen Wiederherstellungspunkt und wartet auf ein Beenden, das durch eine Rückfrage aufgehalten wird.
+
+**Korrekturen.** Die Erklärung zu Hauptversions-Upgrades sagt nicht mehr, dass die alte Version in den Papierkorb kommt.
+
+**Unter der Haube.** DuoUpdater fragt den Status seines Hilfsprogramms nicht mehr alle 1,5 Sekunden ab, sobald das Hilfsprogramm aktiviert ist, und Versionshinweise für Beta-Builds mit Namen wie „2.20 RC 1“ bleiben nicht mehr auf einer älteren Seite hängen.
+
 ## 0.5.8
 
 **Ein fehlgeschlagenes Update lässt sich jetzt mit wenigen Klicks melden.** Schlägt ein Update fehl, öffnet „Problem melden …“ unter dem Fehler einen bereits ausgefüllten Bericht, den du als GitHub-Issue oder per E-Mail senden kannst. Einstellungen › Diagnose › Letzte Fehlschläge bewahrt die fehlgeschlagenen Updates der letzten 30 Tage auf diesem Mac auf, und nichts wird gesendet, solange du es nicht selbst sendest.

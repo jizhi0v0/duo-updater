@@ -44,7 +44,7 @@ enum io_nekohasekai_screensharing {
         // Nightly: the newest releases, prerelease and stable interleaved, by
         // publish date. The vendor's CI deletes the `nightly` release and
         // publishes a new one on every build, and GitHub's list still put it
-        // below the older `v1.0.1` (2026-10-17, build 27), hence
+        // below the older `v1.0.1` (2026-10-17, build 28), hence
         // `ordersByPublishedDate`.
         //
         // The `nightly` body lists only the commits since the PREVIOUS nightly

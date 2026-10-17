@@ -44,7 +44,7 @@ struct OpenScreenSharingChannelTests {
         #expect(OpenScreenSharingChannel.readTrack(at: file) == nil)
     }
 
-    /// GitHub's list on 2026-10-17, after nightly build 27: `v1.0.1` first,
+    /// GitHub's list on 2026-10-17, after nightly build 28: `v1.0.1` first,
     /// although the recreated `nightly` was published 1.5 hours later.
     @Test func theNightlyRailOpensOnTheNewestPublishedRelease() throws {
         let body = #"""

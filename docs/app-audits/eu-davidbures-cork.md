@@ -96,14 +96,19 @@ beta 副本的 short 版本是 `2.0.0`，所以它会被当作 stable 2.0.0，�
   加重试前真机 4/4 次都抽到首页（解包失败、安装失败，app 不受影响）。现在 `VendorInstaller.fetchArchive` 认出下载到的是 HTML
   文档（开头 `<!DOCTYPE html` / `<html`）就删掉重下，最多 4 次（各约 1/2 时全败约 1/16）；加重试后的真机端到端（2026-10-16，集成分支 `make cli`）：2.0.2 → 2.0.3 成功，`backed up … verifyingCodeSignature … installed.`；日志 `download ok: 15038 bytes … (attempt 1)` 后接 `download ok: 7843012 bytes … (attempt 1)`，即第一次拿到首页、重下拿到 zip；装后 Team `ZSVA6DVZHM`、`codesign --verify --deep --strict` 0、`spctl` Notarized Developer ID，`duo check` 报 up to date。同一轮里装前的 `duo check` 报 `check failed: the vendor answered with an error, not a version (15038-byte body)`：探针两次都抽到首页，检测偶发失败是实测到的（下次扫描再查即可；探针重试次数是共用的一次，没为 Cork 改）。
 - 那个 HTML 是什么：与 `https://corkmac.app/` 首页逐字节相同（15038 B，同 SHA）；不存在的路径（`/RLS/no-such-file.zip`、
-  `/definitely-missing`）也一半回它、一半回真 404。推测：两个后端轮流应答，一个是对任何路径都回 `index.php` 的 PHP 站，一个是放包的
-  静态 nginx（未验证）。官网首页的 Download 按钮指向 `https://corkmac.app/RLS/latest/Cork.zip`，同样 5/10 是首页。
-  公开渠道没人报过这个症状（Cork issues、homebrew-cask issues/PR 都搜过；最接近的是 buresdv/Cork#591，地区封锁，另一回事）。
+  `/definitely-missing`）也一半回它、一半回真 404。官网首页的 Download 按钮指向 `https://corkmac.app/RLS/latest/Cork.zip`，同样 5/10 是首页。
+  **厂商说明（buresdv/Cork#687，2026-10-16）**：这是有意的反 LLM 抓取措施；列版本的「正式」方式是 GitHub releases API
+  （Cork 自己降级时也用它），以后会出一个返回版本列表的 JSON 端点，做好会在 issue 里通知。
+  实测（2026-10-17）：措施不看 User-Agent，curl 默认 / Homebrew / Safari 的 UA 各 8 次请求 zip，都严格交替 zip 与首页；
+  `brew fetch --cask cork --force` 15 次里 1 次报 `Cask reports different checksum`（下到的文件 SHA-256 `940291111dd32c34…` 即首页）。
+  已在 issue 里回复这两点，并说明 duo 现在读 `/RLS/`、遇首页重试一次，JSON 端点出来就换过去。
 - 博客 RSS 只保留最近 20 篇文章，更早的版本没有条目。
 
 ## 建议下一步
 1. 真机：装 2.0.2，一键到 2.0.3；再装一份 `com.davidbures.cork` 1.5.7，确认迁移一键。
 2. 厂商再开 beta 时，按 `CFBundleVersion` 的 `_BETA_` 后缀评估 beta 轨。
+3. 跟踪 buresdv/Cork#687：厂商的版本 JSON 端点上线后，把检测（以及能的话下载地址）换过去，不再抓 `/RLS/`。在那之前不加大对
+   corkmac.app 的重试次数。若厂商要求不碰 corkmac.app，改读 GitHub releases（代价：GitHub 上 release 晚于官网，如 2.0.3 只有 tag）。
 
 ## 如何复验
 

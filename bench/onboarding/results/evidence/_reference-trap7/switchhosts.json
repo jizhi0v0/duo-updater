@@ -1,0 +1,125 @@
+{
+  "changelogRecipes" : [
+
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 1,
+      "headings" : [
+
+      ],
+      "kind" : "sourceStructured",
+      "markdown" : false,
+      "newestItems" : 3,
+      "newestVersion" : "5.0.2"
+    },
+    "channel" : "stable",
+    "download" : "SwitchHosts-5.0.2-mac-universal.dmg",
+    "installTrust" : "developerID",
+    "latest" : "5.0.2",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "GitHub",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 1,
+      "headings" : [
+
+      ],
+      "kind" : "sourceStructured",
+      "markdown" : false,
+      "newestItems" : 3,
+      "newestVersion" : "5.0.2"
+    },
+    "channel" : "stable",
+    "download" : "SwitchHosts-5.0.2-mac-universal.dmg",
+    "installTrust" : "developerID",
+    "latest" : "5.0.2",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "GitHub",
+    "status" : "update→5.0.2"
+  },
+  "perRelease" : [
+    {
+      "arm64" : "SwitchHosts-5.0.3-beta.3-mac-universal.dmg",
+      "prerelease" : true,
+      "tag" : "v5.0.3-beta.3",
+      "version" : "<no match>",
+      "x86_64" : "SwitchHosts-5.0.3-beta.3-mac-universal.dmg"
+    },
+    {
+      "arm64" : "SwitchHosts-5.0.3-beta.2-mac-universal.dmg",
+      "prerelease" : true,
+      "tag" : "v5.0.3-beta.2",
+      "version" : "<no match>",
+      "x86_64" : "SwitchHosts-5.0.3-beta.2-mac-universal.dmg"
+    },
+    {
+      "arm64" : "SwitchHosts-5.0.3-beta.1-mac-universal.dmg",
+      "prerelease" : true,
+      "tag" : "v5.0.3-beta.1",
+      "version" : "<no match>",
+      "x86_64" : "SwitchHosts-5.0.3-beta.1-mac-universal.dmg"
+    },
+    {
+      "arm64" : "SwitchHosts-5.0.2-mac-universal.dmg",
+      "prerelease" : false,
+      "tag" : "v5.0.2",
+      "version" : "5.0.2",
+      "x86_64" : "SwitchHosts-5.0.2-mac-universal.dmg"
+    },
+    {
+      "arm64" : "SwitchHosts-5.0.1-mac-universal.dmg",
+      "prerelease" : false,
+      "tag" : "v5.0.1",
+      "version" : "5.0.1",
+      "x86_64" : "SwitchHosts-5.0.1-mac-universal.dmg"
+    },
+    {
+      "arm64" : "SwitchHosts-5.0.1-beta.11-mac-universal.dmg",
+      "prerelease" : true,
+      "tag" : "v5.0.1-beta.11",
+      "version" : "<no match>",
+      "x86_64" : "SwitchHosts-5.0.1-beta.11-mac-universal.dmg"
+    },
+    {
+      "arm64" : "SwitchHosts-5.0.1-beta.9-mac-universal.dmg",
+      "prerelease" : true,
+      "tag" : "v5.0.1-beta.9",
+      "version" : "<no match>",
+      "x86_64" : "SwitchHosts-5.0.1-beta.9-mac-universal.dmg"
+    },
+    {
+      "arm64" : "SwitchHosts-5.0.1-beta.8-mac-universal.dmg",
+      "prerelease" : true,
+      "tag" : "v5.0.1-beta.8",
+      "version" : "<no match>",
+      "x86_64" : "SwitchHosts-5.0.1-beta.8-mac-universal.dmg"
+    }
+  ],
+  "rules" : [
+    {
+      "bundleID" : "net.oldj.switchhosts",
+      "channel" : "stable",
+      "installAssetPattern" : "^SwitchHosts-[0-9][0-9A-Za-z.-]*-mac-universal\\.dmg$",
+      "installerKind" : "dmg",
+      "installTrust" : "developerID",
+      "slug" : "oldj\/SwitchHosts",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+(?:\\.[0-9]+)+)$"
+    },
+    {
+      "bundleID" : "net.oldj.switchhosts",
+      "channel" : "beta",
+      "installAssetPattern" : "^SwitchHosts-[0-9][0-9A-Za-z.-]*-mac-universal\\.dmg$",
+      "installerKind" : "dmg",
+      "installTrust" : "developerID",
+      "slug" : "oldj\/SwitchHosts",
+      "usePrereleases" : true,
+      "versionPattern" : "^v([0-9]+\\.[0-9]+\\.[0-9]+(?:-beta\\.[0-9]+)?)$"
+    }
+  ]
+}

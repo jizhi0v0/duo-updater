@@ -1,0 +1,88 @@
+{
+  "changelogRecipes" : [
+    "changelog:eu.davidbures.cork:-"
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 14,
+      "headings" : [
+        "Additions",
+        "Fixes",
+        "Adjustments"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 8,
+      "newestVersion" : "2.0.3",
+      "recipeID" : "changelog:eu.davidbures.cork:-"
+    },
+    "channel" : "stable",
+    "download" : "Cork.zip",
+    "installTrust" : "developerID",
+    "latest" : "2.0.3",
+    "oneClickKind" : "zip",
+    "requiresManualInstaller" : false,
+    "source" : "Vendor",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 14,
+      "headings" : [
+        "Additions",
+        "Fixes",
+        "Adjustments"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 8,
+      "newestVersion" : "2.0.3",
+      "recipeID" : "changelog:eu.davidbures.cork:-"
+    },
+    "channel" : "stable",
+    "download" : "Cork.zip",
+    "installTrust" : "developerID",
+    "latest" : "2.0.3",
+    "oneClickKind" : "zip",
+    "requiresManualInstaller" : false,
+    "source" : "Vendor",
+    "status" : "update→2.0.3"
+  },
+  "perRelease" : [
+    {
+      "prerelease" : false,
+      "tag" : "v2.0.2"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v2.0.1"
+    },
+    {
+      "prerelease" : false,
+      "tag" : "v2.0.0"
+    },
+    {
+      "prerelease" : true,
+      "tag" : "v2.0.0-PUB-BETA-5"
+    },
+    {
+      "prerelease" : true,
+      "tag" : "v2.0.0-PUB-BETA-4"
+    },
+    {
+      "prerelease" : true,
+      "tag" : "v2.0.0-PUB-BETA-3"
+    },
+    {
+      "prerelease" : true,
+      "tag" : "v2.0.0-PUB-BETA-2"
+    },
+    {
+      "prerelease" : true,
+      "tag" : "v2.0.0-PUB-BETA-1"
+    }
+  ],
+  "rules" : [
+
+  ]
+}

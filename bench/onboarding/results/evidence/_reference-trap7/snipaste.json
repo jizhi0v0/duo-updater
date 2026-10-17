@@ -1,0 +1,53 @@
+{
+  "changelogRecipes" : [
+    "changelog:com.Snipaste:-"
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 20,
+      "headings" : [
+
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 3,
+      "newestVersion" : "2.11.3",
+      "recipeID" : "changelog:com.Snipaste:-"
+    },
+    "channel" : "stable",
+    "download" : "Snipaste-2.11.3.dmg",
+    "installTrust" : "developerID",
+    "latest" : "2.11.3",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "Vendor",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 20,
+      "headings" : [
+
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 3,
+      "newestVersion" : "2.11.3",
+      "recipeID" : "changelog:com.Snipaste:-"
+    },
+    "channel" : "stable",
+    "download" : "Snipaste-2.11.3.dmg",
+    "installTrust" : "developerID",
+    "latest" : "2.11.3",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "Vendor",
+    "status" : "update→2.11.3"
+  },
+  "perRelease" : [
+
+  ],
+  "rules" : [
+
+  ]
+}

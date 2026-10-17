@@ -1,0 +1,1 @@
+{"name": "zettlr-nightly", "bundleID": "com.zettlr.app", "owner": "Zettlr", "repo": "Zettlr", "oldVersion": "4.8.0+nightly", "newVersion": "4.8.0+nightly", "parent": "", "refCommit": "", "extra": true, "detectChannel": true}

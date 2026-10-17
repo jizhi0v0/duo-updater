@@ -1,0 +1,142 @@
+{
+  "changelogRecipes" : [
+    "changelog:com.zettlr.app:stable",
+    "changelog:com.zettlr.app:beta"
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 20,
+      "headings" : [
+        "Deprecation Note: Dropping Support for OS Versions in Next Release",
+        "GUI and Functionality",
+        "Under the Hood"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 32,
+      "newestVersion" : "4.8.0",
+      "recipeID" : "changelog:com.zettlr.app:stable"
+    },
+    "channel" : "nightly",
+    "download" : "<nil>",
+    "installTrust" : "<nil>",
+    "latest" : "<none>",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "<none>",
+    "status" : "unknown"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 20,
+      "headings" : [
+        "Deprecation Note: Dropping Support for OS Versions in Next Release",
+        "GUI and Functionality",
+        "Under the Hood"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 32,
+      "newestVersion" : "4.8.0",
+      "recipeID" : "changelog:com.zettlr.app:stable"
+    },
+    "channel" : "nightly",
+    "download" : "<nil>",
+    "installTrust" : "<nil>",
+    "latest" : "<none>",
+    "oneClickKind" : "<none>",
+    "requiresManualInstaller" : true,
+    "source" : "<none>",
+    "status" : "unknown"
+  },
+  "perRelease" : [
+    {
+      "arm64" : "Zettlr-4.8.0-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v4.8.0",
+      "version" : "4.8.0",
+      "x86_64" : "Zettlr-4.8.0-x64.dmg"
+    },
+    {
+      "arm64" : "Zettlr-4.7.0-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v4.7.0",
+      "version" : "4.7.0",
+      "x86_64" : "Zettlr-4.7.0-x64.dmg"
+    },
+    {
+      "arm64" : "Zettlr-4.6.0-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v4.6.0",
+      "version" : "4.6.0",
+      "x86_64" : "Zettlr-4.6.0-x64.dmg"
+    },
+    {
+      "arm64" : "Zettlr-4.5.0-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v4.5.0",
+      "version" : "4.5.0",
+      "x86_64" : "Zettlr-4.5.0-x64.dmg"
+    },
+    {
+      "arm64" : "Zettlr-4.4.0-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v4.4.0",
+      "version" : "4.4.0",
+      "x86_64" : "Zettlr-4.4.0-x64.dmg"
+    },
+    {
+      "arm64" : "Zettlr-4.3.1-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v4.3.1",
+      "version" : "4.3.1",
+      "x86_64" : "Zettlr-4.3.1-x64.dmg"
+    },
+    {
+      "arm64" : "Zettlr-4.3.0-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v4.3.0",
+      "version" : "4.3.0",
+      "x86_64" : "Zettlr-4.3.0-x64.dmg"
+    },
+    {
+      "arm64" : "Zettlr-4.2.1-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "v4.2.1",
+      "version" : "4.2.1",
+      "x86_64" : "Zettlr-4.2.1-x64.dmg"
+    }
+  ],
+  "rules" : [
+    {
+      "bundleID" : "com.zettlr.app",
+      "channel" : "stable",
+      "installAssetPattern" : "^Zettlr-[0-9]+(?:\\.[0-9]+)+-(?:arm64|x64)\\.dmg$",
+      "installerKind" : "dmg",
+      "installTrust" : "developerID",
+      "slug" : "Zettlr\/Zettlr",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+(?:\\.[0-9]+)+)$"
+    },
+    {
+      "bundleID" : "com.zettlr.app",
+      "channel" : "beta",
+      "installAssetPattern" : "^Zettlr-[0-9]+(?:\\.[0-9]+)+(?:-beta(?:\\.[0-9]+)?)?-(?:arm64|x64)\\.dmg$",
+      "installerKind" : "dmg",
+      "installTrust" : "developerID",
+      "slug" : "Zettlr\/Zettlr",
+      "usePrereleases" : true,
+      "versionPattern" : "^v([0-9]+(?:\\.[0-9]+)+(?:-beta(?:\\.[0-9]+)?)?)$"
+    },
+    {
+      "bundleID" : "com.zettlr.www",
+      "channel" : "stable",
+      "installAssetPattern" : "<nil>",
+      "installerKind" : "<nil>",
+      "installTrust" : "developerID",
+      "slug" : "Zettlr\/Zettlr",
+      "usePrereleases" : false,
+      "versionPattern" : "^v([0-9]+(?:\\.[0-9]+)+)$"
+    }
+  ]
+}

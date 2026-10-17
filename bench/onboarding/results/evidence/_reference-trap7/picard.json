@@ -1,0 +1,117 @@
+{
+  "changelogRecipes" : [
+    "changelog:org.musicbrainz.Picard:-"
+  ],
+  "new" : {
+    "changelogPane" : {
+      "entries" : 40,
+      "headings" : [
+        "Bugfixes"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 5,
+      "newestVersion" : "3.0.2",
+      "recipeID" : "changelog:org.musicbrainz.Picard:-"
+    },
+    "channel" : "stable",
+    "download" : "MusicBrainz-Picard-3.0.2-macOS-13.0-arm64.dmg",
+    "installTrust" : "developerID",
+    "latest" : "3.0.2",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "GitHub",
+    "status" : "upToDate"
+  },
+  "old" : {
+    "changelogPane" : {
+      "entries" : 40,
+      "headings" : [
+        "Bugfixes"
+      ],
+      "kind" : "recipe",
+      "markdown" : false,
+      "newestItems" : 5,
+      "newestVersion" : "3.0.2",
+      "recipeID" : "changelog:org.musicbrainz.Picard:-"
+    },
+    "channel" : "stable",
+    "download" : "MusicBrainz-Picard-3.0.2-macOS-13.0-arm64.dmg",
+    "installTrust" : "developerID",
+    "latest" : "3.0.2",
+    "oneClickKind" : "dmg",
+    "requiresManualInstaller" : false,
+    "source" : "GitHub",
+    "status" : "update→3.0.2"
+  },
+  "perRelease" : [
+    {
+      "arm64" : "MusicBrainz-Picard-3.0.2-macOS-13.0-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "release-3.0.2",
+      "version" : "3.0.2",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "MusicBrainz-Picard-3.0.1-macOS-13.0-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "release-3.0.1",
+      "version" : "3.0.1",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "MusicBrainz-Picard-3.0-macOS-13.0-arm64.dmg",
+      "prerelease" : false,
+      "tag" : "release-3.0",
+      "version" : "3.0",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "MusicBrainz-Picard-3.0.0rc4-macOS-13.0-arm64.dmg",
+      "prerelease" : true,
+      "tag" : "release-3.0.0rc4",
+      "version" : "<no match>",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "MusicBrainz-Picard-3.0.0rc3-macOS-13.0-arm64.dmg",
+      "prerelease" : true,
+      "tag" : "release-3.0.0rc3",
+      "version" : "<no match>",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "MusicBrainz-Picard-3.0.0rc2-macOS-13.0-arm64.dmg",
+      "prerelease" : true,
+      "tag" : "release-3.0.0rc2",
+      "version" : "<no match>",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "MusicBrainz-Picard-3.0.0rc1-macOS-13.0-arm64.dmg",
+      "prerelease" : true,
+      "tag" : "release-3.0.0rc1",
+      "version" : "<no match>",
+      "x86_64" : "<none>"
+    },
+    {
+      "arm64" : "MusicBrainz-Picard-3.0.0b9-macOS-13.0-arm64.dmg",
+      "prerelease" : true,
+      "tag" : "release-3.0.0b9",
+      "version" : "<no match>",
+      "x86_64" : "<none>"
+    }
+  ],
+  "rules" : [
+    {
+      "bundleID" : "org.musicbrainz.Picard",
+      "channel" : "stable",
+      "installAssetPattern" : "^MusicBrainz-Picard-[0-9][0-9A-Za-z.]*-macOS-[0-9.]+-arm64\\.dmg$",
+      "installerKind" : "dmg",
+      "installTrust" : "developerID",
+      "slug" : "metabrainz\/picard",
+      "usePrereleases" : false,
+      "versionPattern" : "^release-([0-9]+(?:\\.[0-9]+)+)$"
+    }
+  ]
+}

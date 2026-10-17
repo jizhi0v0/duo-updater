@@ -20,6 +20,10 @@ struct ZZBenchGrade {
         let repo: String
         let oldVersion: String
         let newVersion: String
+        /// Extra grade cases that test channel detection (Loop's `🧪` dev build, Zettlr's
+        /// `+nightly`): give the synthesized copy the channel production's scan would,
+        /// from its version string, instead of `.stable`.
+        let detectChannel: Bool?
     }
 
     struct Asset { let name: String; let url: URL; let size: Int64? }
@@ -67,7 +71,10 @@ struct ZZBenchGrade {
         let app = InstalledApp(
             name: c.repo, bundleID: c.bundleID, shortVersion: version, buildVersion: version,
             path: URL(fileURLWithPath: "/nonexistent/ZZBench-\(c.repo).app"),
-            isMASApp: false, sparkleFeedURL: nil, releaseChannel: .stable)
+            isMASApp: false, sparkleFeedURL: nil,
+            releaseChannel: c.detectChannel == true
+                ? ReleaseChannel.detect(name: c.repo, bundleID: c.bundleID, keystoneChannel: nil, version: version)
+                : .stable)
         let checker = UpdateChecker(sources: SourceStack.make(githubToken: token), toolbox: ToolboxSource())
         let r = await checker.check(app)
         let status: String
@@ -92,6 +99,7 @@ struct ZZBenchGrade {
             pane = ["kind": "webOrNone"]
         }
         return [
+            "channel": app.releaseChannel.rawValue,
             "status": status,
             "source": r.remote?.sourceName ?? "<none>",
             "latest": r.remote?.displayVersion ?? "<none>",

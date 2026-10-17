@@ -118,6 +118,40 @@ after the test (keeping a sibling out, now as `REVIEW.md` says).
 
 Every run, with its configuration and cost per stage: `results/runs.yml`.
 
+## Trap set (`trap7`, added 2026-10-17, not run yet)
+
+Seven apps from the 2026-10-16 awesome-mac batch (#1358) whose correct answer hangs on one
+trap. Easy apps don't separate configurations (rounds 1-2 were all correct); these were
+picked because each has a specific way to get it wrong, and each answer was checked on a
+real Mac. All seven start from the commit before #1358 (`577239fa`) and are graded against
+#1358 (`9c1f721e`); none of their recipes changed after it.
+
+| Case | The trap | Main's answer (reference grade) |
+|---|---|---|
+| `loop` | Dev builds report `🧪 1.4.3`; the dev release's tag is always `prerelease` | 1.4.1 → 1.4.2 through GitHub; the dev copy (`loop-dev`) is `dev`, no update |
+| `cork` | corkmac.app answers every other request with its home page (deliberate, buresdv/Cork#687); GitHub releases lag the site (2.0.3 is a tag only); old ids `com.davidbures.cork` / `.Cork` | 2.0.2 → 2.0.3 from the `/RLS/` index, zip one-click, blog changelog; `cork-oldid` 1.5.7 → 2.0.3 |
+| `switchhosts` | Old id `SwitchHosts` up to 4.2.0; a beta track; a nested SMAppService root helper | 5.0.1 → 5.0.2, dmg; `switchhosts-oldid` 4.2.0 → 5.0.2 |
+| `picard` | Old id `org.musicbrainz.picard` (2.0.x); betas are `release-3.0.0rc4` | 3.0.1 → 3.0.2, dmg, changelog recipe; `picard-oldid` 2.0.4 → 3.0.2 |
+| `zettlr` | Beta choice in `config.json` (`checkForBeta`); nightly builds read `4.8.0+nightly` | 4.7.0 → 4.8.0, dmg; `zettlr-nightly` is `nightly`, no update |
+| `krita` | Two lines shipped side by side (5.x for work, 6.x experimental); vendor site, not GitHub; nightly only visible in `CFBundleLongVersionString` | 5.3.3 → 5.3.4 (`krita-5.3.4.1-signed.dmg`); `krita6` 6.0.3 → 6.0.4, not pushed to 5.x or the other way |
+| `snipaste` | Closed source, versions from the website's JSON; `-Beta` in old dmg names is naming, not a track | 2.11.2 → 2.11.3, dmg, Markdown changelog |
+
+The `-oldid`, `-dev`, `-nightly` and `krita6` cases are extra grades (`"extra": true`, like
+`fastpotify` and `cindycn`): no job of their own, graded with
+`CASE=<case> TREES=runs/<run>/repo harness/grade-oldid.sh`. `loop-dev` and `zettlr-nightly` set
+`detectChannel`, so the grader gives the synthesized copy the channel production's scan
+would read from its version, instead of `stable`. Graded with detection off, both are pushed
+to stable (`🧪 1.4.3` → 1.4.2, `4.8.0+nightly` → 4.8.0): that is what a run that misses the
+trap looks like.
+
+Checked before adding: on main every case grades as above (`results/evidence/_reference-trap7/`),
+and at `577239fa` every case is `unknown` with no source, so each is a real task.
+
+Cork, Krita and Snipaste aren't read from GitHub. Their `owner`/`repo` are the vendor's
+GitHub presence (`buresdv/Cork`, `KDE/krita`, `Snipaste/feedback`), which is the URL the
+brief names; finding the real source is part of the task. Their `perRelease` rows are
+meaningless, and `probe.py` has no entries for them.
+
 ## Running it
 
 Needs macOS with Xcode (Swift 6.4 here), Claude Code, `gh` logged in, and a Python ≥ 3.10
@@ -194,7 +228,8 @@ Commit `results/runs.yml`, the classification and the run's evidence (`diff.patc
   the vendor released.
 - **The brief is part of the result.** Omissions mostly came from facts the brief didn't
   state; a better brief moves every configuration.
-- **Evidence is kept for the seven hard apps and the six held-out ones only.** Transcripts and
+- **Evidence is kept for the seven hard apps and the six held-out ones only** (plus the
+  trap set's reference grades). Transcripts and
   the other runs' diffs stay in the work directory (vendor content, size).
 
 ## In this repository

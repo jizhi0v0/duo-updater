@@ -1,1 +1,1 @@
-{"name": "cindycn", "bundleID": "com.xd.cindycn", "owner": "makecindy", "repo": "cindy", "oldVersion": "0.1.103", "newVersion": "0.1.104", "parent": "7bccb0b1138a4ca9de10463982205b44d2341616", "refCommit": "4a1cf442"}
+{"name": "cindycn", "bundleID": "com.xd.cindycn", "owner": "makecindy", "repo": "cindy", "oldVersion": "0.1.103", "newVersion": "0.1.104", "parent": "7bccb0b1138a4ca9de10463982205b44d2341616", "refCommit": "4a1cf442", "extra": true}

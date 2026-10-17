@@ -122,6 +122,10 @@ enum RowStateGalleryCases {
             return AnyView(
                 PopoverRowAction(state: state, result: result)
                     .orphanHintPopover(updatedCopy: copy, version: version).fixedSize())
+        case "54-subscription-hold-explanation":
+            guard case .subscriptionHold(let hold) = state else { return AnyView(EmptyView()) }
+            return AnyView(
+                PopoverRowAction(state: state, result: result).subscriptionHintPopover(hold).fixedSize())
         case "48-not-for-this-macos-ceiling-explanation", "49-not-for-this-macos-floor-explanation":
             // The refusal comes off the STATE, as the real badge reads it.
             guard case .notForThisMacOS(let refusal) = state else { return AnyView(EmptyView()) }
@@ -157,9 +161,10 @@ enum RowStateGalleryCases {
     /// silently repeating case 18/21/22's tile under a new name. That EmptyView is
     /// registered in `mayBeBlank`, the same way `.upToDate`'s workbench tile is.
     ///
-    /// The exception is 51: the workbench's "Left-over copy" label opens the SAME
-    /// `OrphanedCopyPanel` the popover badge does, so its workbench tile draws that
-    /// panel rather than claiming there is none.
+    /// The exceptions are 51 and 54: the workbench's "Left-over copy" and
+    /// subscription labels open the SAME panels (`OrphanedCopyPanel`,
+    /// `SubscriptionHoldPanel`) the popover badges do, so their workbench tiles
+    /// draw those panels rather than claiming there is none.
     @MainActor
     private static func workbenchTile(name: String, state: RowActionState, result: UpdateResult) -> AnyView {
         if name == "51-orphaned-store-copy-explanation" {
@@ -167,6 +172,10 @@ enum RowStateGalleryCases {
             return AnyView(
                 OrphanedCopyPanel(result: result, updatedCopy: copy, version: version, dismiss: {})
                     .fixedSize())
+        }
+        if name == "54-subscription-hold-explanation" {
+            guard case .subscriptionHold(let hold) = state else { return AnyView(EmptyView()) }
+            return AnyView(SubscriptionHoldPanel(result: result, hold: hold).fixedSize())
         }
         if explanationCaseNames.contains(name) {
             return AnyView(EmptyView())
@@ -303,7 +312,15 @@ enum RowStateGalleryCases {
         // vendor's rewrite (`BundleIDMigration.isRewrite`): same confirmation,
         // rewrite wording instead of the license one.
         ("52-vendor-rewrite-explanation", .updateAvailable(.majorUpgrade), rewriteApp),
+        // Current within the subscription, with a newer release it does not cover
+        // (Surge): the lock in the checkmark's place, and its panel.
+        ("53-subscription-hold", .subscriptionHold(subscriptionHold), app),
+        ("54-subscription-hold-explanation", .subscriptionHold(subscriptionHold), app),
     ]
+
+    /// A date written out, never read, for the same reason as the hosts below.
+    static let subscriptionHold = SubscriptionHold(
+        version: "1.3.0", coveredBefore: Date(timeIntervalSince1970: 1_792_162_109))
 
     /// Hosts written out, never read: the gallery must draw the same picture on any
     /// Mac. The ceiling's host keeps a ".0" patch so the tile shows the display
@@ -349,6 +366,7 @@ enum RowStateGalleryCases {
         "49-not-for-this-macos-floor-explanation",
         "51-orphaned-store-copy-explanation",
         "52-vendor-rewrite-explanation",
+        "54-subscription-hold-explanation",
     ]
 
     /// Tiles that are ALLOWED to draw nothing — keyed by SURFACE and state, not by
@@ -519,6 +537,7 @@ enum RowStateGalleryCases {
         "popover/46-not-for-this-macos-ceiling",
         "popover/47-not-for-this-macos-floor",
         "popover/50-orphaned-store-copy",
+        "popover/53-subscription-hold",
 
         // Cause 2: a plain native `ProgressView()` (indeterminate spinner) or
         // `ProgressView(value:)` (determinate bar) — `ImageRenderer` draws the

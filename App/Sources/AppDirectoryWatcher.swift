@@ -21,6 +21,7 @@ final class AppDirectoryWatcher: @unchecked Sendable {
     private let paths: [String]
     private let debounce: TimeInterval
     private let rearmInterval: TimeInterval
+    private let fileEvents: Bool
     private let onChange: @Sendable () -> Void
     private let queue = DispatchQueue(label: "com.duoupdater.appdirwatcher")
     private var stream: FSEventStreamRef?
@@ -34,15 +35,20 @@ final class AppDirectoryWatcher: @unchecked Sendable {
     ///   `rearm`). A live stream is indistinguishable from a dead one — FSEvents
     ///   reports nothing either way — so we don't try to detect the failure, we just
     ///   periodically replace the stream.
+    /// - fileEvents: report per item rather than per directory. Needed to see a
+    ///   change to a watched root's own attributes (an extended attribute), which a
+    ///   directory-level stream does not report.
     init(
         paths: [String],
         debounce: TimeInterval = 2,
         rearmInterval: TimeInterval = 900,
+        fileEvents: Bool = false,
         onChange: @escaping @Sendable () -> Void
     ) {
         self.paths = paths
         self.debounce = debounce
         self.rearmInterval = rearmInterval
+        self.fileEvents = fileEvents
         self.onChange = onChange
     }
 
@@ -111,7 +117,8 @@ final class AppDirectoryWatcher: @unchecked Sendable {
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
             1.0,
             FSEventStreamCreateFlags(
-                kFSEventStreamCreateFlagNoDefer | kFSEventStreamCreateFlagIgnoreSelf)
+                kFSEventStreamCreateFlagNoDefer | kFSEventStreamCreateFlagIgnoreSelf
+                    | (fileEvents ? kFSEventStreamCreateFlagFileEvents : 0))
         ) else { return }
         self.stream = stream
         FSEventStreamSetDispatchQueue(stream, queue)

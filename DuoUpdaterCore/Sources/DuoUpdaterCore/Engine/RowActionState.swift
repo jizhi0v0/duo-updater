@@ -97,6 +97,11 @@ public enum RowActionState: Sendable, Equatable {
     /// other copy, so it offers none. Carries the copy that does get the updates
     /// and its version (`AppStoreLeftoverCopy`).
     case orphanedStoreCopy(updatedCopy: String, version: String)
+    /// Checked and current within the user's subscription, with a newer release
+    /// the subscription does not cover (`UpdateResult.heldBySubscription`, Surge
+    /// only). Drawn where `.upToDate`'s checkmark goes: it is that verdict, with
+    /// the one thing it is not offering.
+    case subscriptionHold(SubscriptionHold)
     /// Something else owns this app's updates.
     case managedElsewhere(Manager)
     /// Checked, current, nothing pending. Carries which channel to keep naming —
@@ -132,7 +137,7 @@ public enum RowActionState: Sendable, Equatable {
     /// none of them may render as blank.
     public var needsExplanation: Bool {
         switch self {
-        case .checkFailed, .noSourceCovers, .notForThisMacOS, .orphanedStoreCopy, .ignored,
+        case .checkFailed, .noSourceCovers, .notForThisMacOS, .subscriptionHold, .orphanedStoreCopy, .ignored,
              .versionSkipped:
             return true
         case .updateAvailable(let route):
@@ -492,6 +497,8 @@ public struct RowActionFacts {
     /// orphan (`AppStoreLeftoverCopy.orphans`): its file name and version. Read
     /// only by the `.updateAvailable` rung.
     public var orphanedStoreSibling: (copy: String, version: String)?
+    /// `UpdateResult.heldBySubscription`. Read only by the `.upToDate` rung.
+    public var subscriptionHold: SubscriptionHold?
     /// Deferred on purpose. Only the `.updateAvailable` rung reads it, and the
     /// caller's route resolution is the expensive part of assembling these facts —
     /// it rebuilds an install environment several times and can stat the disk. As a
@@ -517,6 +524,7 @@ public struct RowActionFacts {
         isTestFlightApp: Bool = false,
         hasSparkleFeed: Bool = false,
         orphanedStoreSibling: (copy: String, version: String)? = nil,
+        subscriptionHold: SubscriptionHold? = nil,
         route: @autoclosure @escaping () -> UpdateRoute = .autoInstall
     ) {
         self.status = status
@@ -534,6 +542,7 @@ public struct RowActionFacts {
         self.isTestFlightApp = isTestFlightApp
         self.hasSparkleFeed = hasSparkleFeed
         self.orphanedStoreSibling = orphanedStoreSibling
+        self.subscriptionHold = subscriptionHold
         self.route = route
     }
 
@@ -589,6 +598,7 @@ public enum RowAction {
         case .toolboxManaged: return .managedElsewhere(.toolbox)
         case .testFlightManaged: return .managedElsewhere(.testFlight)
         case .upToDate:
+            if let hold = facts.subscriptionHold { return .subscriptionHold(hold) }
             // Same priority the popover's `.upToDate` branch used to apply
             // itself: a store-managed app keeps the App Store marker even when
             // it also happens to run through TestFlight-style distribution.
@@ -639,6 +649,7 @@ extension RowActionFacts {
             orphanedStoreSibling: orphanedStoreSibling.map {
                 ($0.path.lastPathComponent, $0.shortVersion ?? "?")
             },
+            subscriptionHold: result.heldBySubscription,
             route: route())
     }
 }

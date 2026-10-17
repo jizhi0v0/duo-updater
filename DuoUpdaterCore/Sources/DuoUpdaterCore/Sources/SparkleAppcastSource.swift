@@ -14,14 +14,27 @@ public struct SparkleAppcastSource: UpdateSource {
     /// session stops at these redirects, and this source recognises the 3xx it
     /// gets back. Both default to `SparkleFeedCatalog.loginWalls`.
     let loginWalls: [SparkleFeedCatalog.LoginWall]
+    /// The licence window that decides which releases this copy may be offered,
+    /// for an app whose vendor gates updates on it — Surge only
+    /// (`SurgeSubscription`); nil for every other app.
+    let subscriptionWindow: @Sendable (InstalledApp) -> SurgeSubscription.Window?
 
     public init(session: URLSession = .updates) {
         self.init(session: session, loginWalls: SparkleFeedCatalog.loginWalls)
     }
 
-    init(session: URLSession, loginWalls: [SparkleFeedCatalog.LoginWall]) {
+    init(
+        session: URLSession, loginWalls: [SparkleFeedCatalog.LoginWall],
+        subscriptionWindow: @escaping @Sendable (InstalledApp) -> SurgeSubscription.Window? = Self.subscriptionWindow(for:)
+    ) {
         self.session = session
         self.loginWalls = loginWalls
+        self.subscriptionWindow = subscriptionWindow
+    }
+
+    static func subscriptionWindow(for app: InstalledApp) -> SurgeSubscription.Window? {
+        guard app.bundleID?.lowercased() == SurgeChannel.bundleID.lowercased() else { return nil }
+        return SurgeSubscription.currentWindow()
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -60,7 +73,34 @@ public struct SparkleAppcastSource: UpdateSource {
         }
         let osVersion = Self.numericSystemVersion()
         let usable = Self.usableItems(for: app, from: items, osVersion: osVersion)
-        guard let best = Self.offerableItem(for: app, from: usable) else {
+        // Surge offers only what its subscription covers (`SurgeSubscription`),
+        // and so do we: the rest is left out of the offer AND of the notes that
+        // go with it, and the newest of it is named on the answer instead.
+        var offerable = usable
+        var subscriptionHold: SubscriptionHold?
+        if let window = subscriptionWindow(app) {
+            (offerable, subscriptionHold) = Self.subscriptionSplit(for: app, from: usable, window: window)
+            if let subscriptionHold {
+                Log.source.notice(
+                    "sparkle: \(app.bundleID ?? "?", privacy: .public) — \(subscriptionHold.logDescription, privacy: .public)")
+            }
+        }
+        guard let best = Self.offerableItem(for: app, from: offerable) else {
+            // The subscription withheld everything, the installed build included
+            // (it is older than the whole feed). Still an answer — the copy is as
+            // far as it may go, and the hold says why — not nil, which reads as
+            // "no source covers this app" and would drop the lock with the row's
+            // notes and timeline (`offerableItem`'s ⚠️).
+            if let subscriptionHold, offerable.isEmpty {
+                return RemoteVersion(
+                    shortVersion: app.shortVersion,
+                    version: app.buildVersion,
+                    marketingMatchesBundle: true,
+                    downloadURL: nil,
+                    sourceName: name,
+                    releaseHistory: Self.releaseHistory(from: usable),
+                    subscriptionHold: subscriptionHold)
+            }
             if let (refusal, missed) = Self.osWindowRefusal(for: app, from: items, osVersion: osVersion) {
                 Log.source.notice(
                     "sparkle: \(app.bundleID ?? "?", privacy: .public) — nothing to offer, \(refusal.logDescription, privacy: .public)")
@@ -79,7 +119,7 @@ public struct SparkleAppcastSource: UpdateSource {
         // backwards (see `offerableItem`). Log it with both builds: without them
         // this reads exactly like an ordinary "you are ahead of your feed" row,
         // and it is the build that made the head an OFFER rather than a no-op.
-        if let head = usable.first, head.version != best.version {
+        if let head = offerable.first, head.version != best.version {
             Log.source.info(
                 "sparkle: \(app.bundleID ?? "?", privacy: .public) — offering \(best.shortVersionString ?? "?", privacy: .public)/\(best.version ?? "?", privacy: .public) instead of the feed's newest \(head.shortVersionString ?? "?", privacy: .public)/\(head.version ?? "?", privacy: .public), which is older than the installed \(app.shortVersion ?? "?", privacy: .public)/\(app.buildVersion ?? "?", privacy: .public)")
         }
@@ -87,7 +127,7 @@ public struct SparkleAppcastSource: UpdateSource {
         // When the feed inlines Markdown notes (e.g. Surge's `<markdownDescription>`)
         // rather than HTML, parse them into a native, multi-version changelog so the
         // detail window renders entries instead of falling back to a web view.
-        let structured = Self.structuredChangelog(from: usable)
+        let structured = Self.structuredChangelog(from: offerable)
 
         // Every in-channel item that carries a date — the appcast usually keeps the
         // last N releases, so this backfills the app's whole visible history into
@@ -118,8 +158,41 @@ public struct SparkleAppcastSource: UpdateSource {
             publishedAt: bestFields.publishedAt,
             vendorDay: bestFields.vendorDay,
             releaseHistory: history,
-            deltas: best.deltas
+            deltas: best.deltas,
+            subscriptionHold: subscriptionHold
         )
+    }
+
+    /// `usable` split by the subscription `window`: what may be offered, and the
+    /// newest release left out. Only releases NEWER than the installed copy are
+    /// judged — the rest are never an offer, and keeping them is what lets the row
+    /// read "up to date" rather than lose its answer. Newer is by build, the
+    /// ranking `usableItems` sorted on; a copy with no version counts everything
+    /// as newer, the safe side.
+    static func subscriptionSplit(
+        for app: InstalledApp, from usable: [SparkleAppcastItem], window: SurgeSubscription.Window
+    ) -> (covered: [SparkleAppcastItem], hold: SubscriptionHold?) {
+        let installed = app.buildVersion ?? app.shortVersion
+        var covered: [SparkleAppcastItem] = []
+        var withheld: SparkleAppcastItem?
+        for item in usable {
+            let isNewer = installed.map {
+                VersionComparator.compare(item.comparisonKey, $0) == .orderedDescending
+            } ?? true
+            if !isNewer || SurgeSubscription.covers(pubDate: item.pubDate, under: window) {
+                covered.append(item)
+            } else if withheld == nil {
+                withheld = item
+            }
+        }
+        let hold = withheld.map { item -> SubscriptionHold in
+            let before: Date? = if case .before(let fus) = window {
+                Date(timeIntervalSince1970: TimeInterval(fus))
+            } else { nil }
+            return SubscriptionHold(
+                version: item.shortVersionString ?? item.version ?? "?", coveredBefore: before)
+        }
+        return (covered, hold)
     }
 
     /// The one request shape every appcast fetch uses — the live check and

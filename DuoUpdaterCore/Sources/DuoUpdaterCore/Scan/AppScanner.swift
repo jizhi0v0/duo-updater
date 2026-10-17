@@ -854,7 +854,8 @@ public struct AppScanner: Sendable {
         let runtimeReading = AppRuntimeDetector.read(
             bundleAt: bundleURL, isiOSAppOnMac: isiOSAppOnMac, infoPlist: plist,
             linkedLibraries: loadCommands.linkedLibraries,
-            goBuildInfo: loadCommands.goBuildInfo)
+            goBuildInfo: loadCommands.goBuildInfo,
+            cstrings: loadCommands.cstrings)
         let buildSDK = runtimeReading.binary.flatMap(loadCommands.buildSDK)
         // A MyGo app's update feed and key live in its binary, not in a file
         // (`MyGoUpdateConfig`), so they are read from the binary the detector
@@ -926,6 +927,10 @@ public struct AppScanner: Sendable {
 
         func goBuildInfo(at url: URL) -> GoBuildInfo? {
             commands(at: url)?.goBuildInfo.flatMap { GoBuildInfo.read(at: url, section: $0) }
+        }
+
+        func cstrings(at url: URL) -> Data? {
+            commands(at: url).flatMap { AppRuntimeDetector.cstrings(at: url, commands: $0) }
         }
 
         func myGoUpdate(at url: URL) -> MyGoUpdateConfig? {

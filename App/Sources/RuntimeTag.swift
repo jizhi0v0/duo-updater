@@ -11,7 +11,8 @@ import DuoUpdaterCore
 /// single path in a 24-unit box filled with the runtime's hue. Chromium's disc
 /// and MyGo's ring-in-a-square are drawn from geometry here, because they are
 /// nothing but geometry and neither has an icon to import. The rest take SF
-/// Symbols: a steaming cup for Java, which has no usable mark, and for the three
+/// Symbols: a bolt for GPUI and a lettered square for egui, which have no mark
+/// of their own, and for Wails, whose mark does not survive 12pt; a steaming cup for Java, which has no usable mark; and for the three
 /// Apple-platform cases a device silhouette — a tablet and phone for Catalyst, a
 /// phone for an iOS app, the Apple logo for native.
 struct RuntimeTag: View {
@@ -175,7 +176,10 @@ struct RuntimeTag: View {
     /// Tauri's yellow is illegible on white, so it takes the orange next to it.
     /// MyGo's is Go's cyan, which Flutter and Electron already hold between them,
     /// so it takes pink — the hue no other runtime is near. React's cyan is taken
-    /// the same way, so React Native takes the mint beside it.
+    /// the same way, so React Native takes the mint beside it. Wails keeps its own
+    /// red. That leaves no system hue unused that survives both appearances —
+    /// yellow is out for Tauri's reason — so GPUI shares Chromium's blue (Zed's
+    /// own colour) and egui shares Tauri's orange (Rust's), told apart by shape.
     ///
     /// Native is the one neutral, and it can afford to be: its mark is a solid
     /// Apple glyph, which carries at grey where a thin outline did not. That
@@ -185,6 +189,9 @@ struct RuntimeTag: View {
         case .electron:  return .teal
         case .tauri:     return .orange
         case .mygo:      return .pink
+        case .wails:     return .red
+        case .gpui:      return .blue
+        case .egui:      return .orange
         case .flutter:   return .cyan
         case .qt:        return .green
         case .java:      return .brown
@@ -205,6 +212,9 @@ struct RuntimeTag: View {
         case .electron:  return "Electron"
         case .tauri:     return "Tauri"
         case .mygo:      return "MyGo"
+        case .wails:     return "Wails"
+        case .gpui:      return "GPUI"
+        case .egui:      return "egui"
         case .flutter:   return "Flutter"
         case .qt:        return "Qt"
         case .java:      return "Java"
@@ -222,7 +232,7 @@ struct RuntimeTag: View {
         String(localized: "\(displayName(runtime)) — click for details")
     }
 
-    /// The stand-in for the four runtimes that have no vendor mark. Nil for the
+    /// The stand-in for the seven runtimes that have no usable vendor mark. Nil for the
     /// rest, which draw their own artwork.
     static func symbol(_ runtime: AppRuntime) -> String? {
         switch runtime {
@@ -230,6 +240,9 @@ struct RuntimeTag: View {
         case .catalyst:  return "ipad.and.iphone"
         case .iOSApp:    return "iphone"
         case .native:    return "applelogo"  // Apple's own frameworks, Apple's own glyph
+        case .gpui:      return "bolt.fill"       // see RuntimeArtwork: no mark of its own
+        case .egui:      return "e.square.fill"
+        case .wails:     return "w.square.fill"   // its logo is illegible at 12pt; see RuntimeArtwork
         case .electron, .tauri, .mygo, .flutter, .qt, .chromium, .reactNative: return nil
         }
     }
@@ -272,6 +285,9 @@ struct RuntimeTag: View {
         case .electron:  return String(localized: "Built with Electron — it bundles its own copy of Chromium.")
         case .tauri:     return String(localized: "Built with Tauri — a Rust app drawing into the system WebView.")
         case .mygo:      return String(localized: "Built with MyGo — a Go app showing its interface in the system WebView or drawing it itself.")
+        case .wails:     return String(localized: "Built with Wails — a Go app showing its interface in the system WebView.")
+        case .gpui:      return String(localized: "Built with GPUI — the Rust framework Zed is built on, drawing every pixel itself on the GPU.")
+        case .egui:      return String(localized: "Built with egui — a Rust app drawing its own interface.")
         case .flutter:   return String(localized: "Built with Flutter.")
         case .qt:        return String(localized: "Built with Qt.")
         case .java:      return String(localized: "A Java app, shipping the runtime it needs.")

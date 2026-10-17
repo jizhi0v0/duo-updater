@@ -32,6 +32,14 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     /// system WebView or an interface MyGo draws itself on the GPU — one binary,
     /// either way. Decided by the module list the Go toolchain records in it.
     case mygo
+    /// A Go app built with Wails (wails.io), showing its interface in the system
+    /// WebView. Decided, like MyGo, by the module list Go records in the binary.
+    case wails
+    /// A Rust app drawing its interface with GPUI, the GPU-accelerated UI framework
+    /// Zed is built on — Zed itself, and the apps built on GPUI's crates.
+    case gpui
+    /// A Rust app drawing its interface with egui, the immediate-mode UI library.
+    case egui
     /// Flutter's macOS embedder.
     case flutter
     /// Qt (5 or 6), deployed with its frameworks inside the bundle.
@@ -60,12 +68,13 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     /// `RuntimeVersion` refuses to follow the redirect for it — see the note there.
     /// A nested bundle that may not lend its version must not lend its name either,
     /// or the row would be labelled from a binary the popover is forbidden to read.
-    /// `.mygo` is compiled in the same way and stays out for the first half of that
-    /// reason: a Go module list describes the one binary it is in.
+    /// `.mygo` and `.wails` are compiled in the same way and stay out for the first
+    /// half of that reason: a Go module list describes the one binary it is in. So
+    /// do `.gpui` and `.egui`, read from the strings of the one binary they are in.
     var isBundled: Bool {
         switch self {
         case .electron, .flutter, .qt, .java, .chromium: true
-        case .tauri, .mygo, .native, .catalyst, .iOSApp, .reactNative: false
+        case .tauri, .mygo, .wails, .gpui, .egui, .native, .catalyst, .iOSApp, .reactNative: false
         }
     }
 }
@@ -163,6 +172,34 @@ public enum AppRuntimeDetector {
     /// MyGo's module path — what a MyGo app's module list names it by.
     public static let myGoModule = "github.com/egoist/mygo"
 
+    /// Wails's module paths: v1 had no major-version suffix, v2 and v3 do.
+    public static let wailsModules = [
+        "github.com/wailsapp/wails", "github.com/wailsapp/wails/v2", "github.com/wailsapp/wails/v3",
+    ]
+
+    /// The C-string table (`__TEXT,__cstring`) of an executable, nil where it has
+    /// none or it could not be read. Injected like the readers above; production
+    /// passes `cstrings(at:)`, or the scan's memo of the load commands it parsed.
+    public typealias CStringReader = (URL) -> Data?
+
+    /// The most of `__cstring` that is read: the same cap `CLIRuntimeDetector`
+    /// reads that section under. A larger section is refused, not truncated.
+    static let cstringLimit: UInt64 = 32 << 20
+
+    /// `__TEXT,__cstring` of the image at `url`, read from the slice the load
+    /// commands were parsed from.
+    public static func cstrings(at url: URL) -> Data? {
+        MachOImports.loadCommands(at: url).flatMap { cstrings(at: url, commands: $0) }
+    }
+
+    /// The same, for a caller that already has the load commands.
+    public static func cstrings(at url: URL, commands: MachOImports.LoadCommands) -> Data? {
+        guard let section = commands.section("__TEXT", "__cstring"),
+              section.range.offset > 0, section.range.size <= cstringLimit
+        else { return nil }
+        return CLIRuntimeDetector.readBytes(url, section.range.offset, Int(section.range.size))
+    }
+
     /// Everything one read of a bundle can say about how it was built.
     public struct Reading: Sendable, Equatable {
         public let runtime: AppRuntime?
@@ -192,11 +229,13 @@ public enum AppRuntimeDetector {
         infoPlist: [String: Any],
         linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) },
         carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:),
-        goBuildInfo: GoBuildInfoReader = { GoBuildInfo.read(at: $0) }
+        goBuildInfo: GoBuildInfoReader = { GoBuildInfo.read(at: $0) },
+        cstrings: CStringReader = { AppRuntimeDetector.cstrings(at: $0) }
     ) -> AppRuntime? {
         read(bundleAt: bundleURL, isiOSAppOnMac: isiOSAppOnMac,
              infoPlist: infoPlist, linkedLibraries: linkedLibraries,
-             carriesTauriCrate: carriesTauriCrate, goBuildInfo: goBuildInfo).runtime
+             carriesTauriCrate: carriesTauriCrate, goBuildInfo: goBuildInfo,
+             cstrings: cstrings).runtime
     }
 
     /// Both facts from a single pass. The executable's load commands are read at
@@ -216,6 +255,7 @@ public enum AppRuntimeDetector {
         linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) },
         carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:),
         goBuildInfo: GoBuildInfoReader = { GoBuildInfo.read(at: $0) },
+        cstrings: CStringReader = { AppRuntimeDetector.cstrings(at: $0) },
         followingNestedBundle: Bool = true
     ) -> Reading {
         // A wrapped iOS app has no `Contents/` at all, so every rule below would
@@ -286,6 +326,17 @@ public enum AppRuntimeDetector {
         // drawing its windows — CEF is embedded inside it.
         if frameworkNames.contains(where: isQtComponent) { return reading(.qt) }
 
+        // A Python app drawing with Qt through PyQt. Its Qt is inside the binding's
+        // own directory, not where the rule above looks: PyInstaller (Picard,
+        // Electrum) puts `PyQt6/` beside `Python.framework` in Frameworks, and
+        // Briefcase (Anki) puts it among the app's packages in Resources. Gated on
+        // `Python.framework`, which all three ship and which is a name already in
+        // the listing, so a bundle without Python pays nothing; one with it pays
+        // at most four `stat`s.
+        if frameworkNames.contains("Python.framework"), shipsPyQt(contents: contents, frameworkNames: frameworkNames, fm: fm) {
+            return reading(.qt)
+        }
+
         if isJavaBundle(contents: contents, infoPlist: infoPlist, fm: fm) { return reading(.java) }
 
         // A Chromium shell that isn't Electron. Chrome, its forks and CEF all name
@@ -342,7 +393,8 @@ public enum AppRuntimeDetector {
         if followingNestedBundle,
            let nested = nestedInterface(
             in: contents, linkedLibraries: linkedLibraries,
-            carriesTauriCrate: carriesTauriCrate, goBuildInfo: goBuildInfo, fm: fm) {
+            carriesTauriCrate: carriesTauriCrate, goBuildInfo: goBuildInfo,
+            cstrings: cstrings, fm: fm) {
             return nested.reading
         }
 
@@ -373,8 +425,31 @@ public enum AppRuntimeDetector {
         // `mygo build` forces `CGO_ENABLED=0`, but an app built with a plain
         // `go build` and cgo on may pull in a dependency that links AppKit,
         // without being any less MyGo — and the native rule would claim it first.
-        if let executable, goBuildInfo(executable)?.module(myGoModule) != nil {
-            return reading(.mygo)
+        if let executable, let modules = goBuildInfo(executable) {
+            if modules.module(myGoModule) != nil { return reading(.mygo) }
+            // Wails, from the same list and for the same reason: its interface is
+            // the system WebView, which the native rule below would claim.
+            if wailsModules.contains(where: { modules.module($0) != nil }) { return reading(.wails) }
+        }
+
+        // GPUI and egui, from the paths of their source files that Rust leaves in
+        // the executable's C-string table for panic messages:
+        // `…/crates/gpui/src/app.rs`, `…/gpui-pre-0.3.6/src/…`, `…/egui-0.36.2/src/…`.
+        // Neither ships anything beside the binary, and neither leaves a plist
+        // fingerprint — Zed and Reviu carry tauri-bundler's pair, Herdr, Waku and
+        // every egui app here do not — so the binary is the only evidence there is.
+        //
+        // Only `__TEXT,__cstring` is read, not the file, and that is a measurement:
+        // across the 145 bundles here that reach this line, walking every
+        // executable end to end read 7.5 GB in 11.9 s; their C-string tables are
+        // 58.5 MB, read and searched in about 85 ms beyond the load-command parse
+        // the scan already does, against a 1.6 s release scan. All 18 GPUI and egui
+        // apps had the paths in that section, so the narrower read misses none of
+        // them. GPUI before egui: an app is not expected to carry both, and a GPUI
+        // app is the one shape here that also embeds a renamed wry for web content.
+        if let executable, let strings = cstrings(executable) {
+            if Self.containsCratePath(strings, "gpui") { return reading(.gpui) }
+            if Self.containsCratePath(strings, "egui") { return reading(.egui) }
         }
 
         // Tauri — the one case decided by reading a binary's *contents*, and the
@@ -514,10 +589,10 @@ public enum AppRuntimeDetector {
             return Reading(runtime: .catalyst, frameworks: frameworks, binary: binary)
         }
         // Native covers anything drawing through Apple's own frameworks, including
-        // an app that renders its whole interface itself on top of them — Zed's
-        // GPUI links AppKit and Metal and draws every pixel with the latter. The
-        // distinction this enum makes is against *cross-platform runtimes*, not
-        // against custom renderers, and `frameworks` carries the detail.
+        // an app that renders its whole interface itself on top of them. GPUI and
+        // egui used to land here for that reason; they are named above now, from
+        // their crate paths, and `frameworks` still carries the link detail for
+        // any custom renderer no rule names.
         if frameworks.contains(.appKit) || frameworks.contains(.swiftUI) {
             return Reading(runtime: .native, frameworks: frameworks, binary: binary)
         }
@@ -605,6 +680,7 @@ public enum AppRuntimeDetector {
             linkedLibraries: { MachOImports.linkedLibraries(at: $0) },
             carriesTauriCrate: RuntimeVersion.carriesTauriCrate(bundleAt:),
             goBuildInfo: { GoBuildInfo.read(at: $0) },
+            cstrings: { AppRuntimeDetector.cstrings(at: $0) },
             fm: FileManager.default)
         else { return bundleURL }
         return nested.bundle
@@ -622,6 +698,7 @@ public enum AppRuntimeDetector {
         linkedLibraries: LibraryReader,
         carriesTauriCrate: TauriProof,
         goBuildInfo: GoBuildInfoReader,
+        cstrings: CStringReader,
         fm: FileManager
     ) -> (bundle: URL, reading: Reading)? {
         // Condition 1, and the one place in this file where "no frameworks" has to
@@ -656,7 +733,7 @@ public enum AppRuntimeDetector {
         let reading = read(
             bundleAt: nested, isiOSAppOnMac: false, infoPlist: plist ?? [:],
             linkedLibraries: linkedLibraries, carriesTauriCrate: carriesTauriCrate,
-            goBuildInfo: goBuildInfo, followingNestedBundle: false)
+            goBuildInfo: goBuildInfo, cstrings: cstrings, followingNestedBundle: false)
         guard let runtime = reading.runtime, runtime.isBundled else { return nil }
         return (nested, reading)
     }
@@ -713,6 +790,48 @@ public enum AppRuntimeDetector {
     /// `QtCore.framework`, `QtWidgets.framework`, `libQt6Core.dylib` — Qt is
     /// deployed either as frameworks or as dylibs depending on how `macdeployqt`
     /// was run, and both spellings live in `Contents/Frameworks`.
+    /// The Python bindings for Qt this recognises, by the directory they install.
+    static let pyQtPackages = ["PyQt6", "PyQt5"]
+
+    /// Whether a Python app ships PyQt: in `Contents/Frameworks` (already listed),
+    /// or in `Contents/Resources` or its `app_packages`. A directory, since that is
+    /// what a Python package is.
+    private static func shipsPyQt(contents: URL, frameworkNames: [String], fm: FileManager) -> Bool {
+        if pyQtPackages.contains(where: frameworkNames.contains) { return true }
+        for parent in ["Resources", "Resources/app_packages"] {
+            for package in pyQtPackages {
+                var isDirectory: ObjCBool = false
+                let path = contents.appendingPathComponent("\(parent)/\(package)").path
+                if fm.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue { return true }
+            }
+        }
+        return false
+    }
+
+    /// Whether `strings` holds a source path of the crate `name` — `/<name>/src/`
+    /// (a workspace or git checkout) or `/<name>-` (crates.io, with its version, or
+    /// a crate of the same family such as `gpui-pre`). The leading slash is what
+    /// keeps an app's own `herdr-gpui` crate from counting.
+    static func containsCratePath(_ strings: Data, _ name: String) -> Bool {
+        let needle = Array("/\(name)".utf8)
+        let source = Array("/src/".utf8)
+        let dash = UInt8(ascii: "-")
+        return strings.withUnsafeBytes { (raw: UnsafeRawBufferPointer) -> Bool in
+            guard let base = raw.baseAddress else { return false }
+            var offset = 0
+            while offset < raw.count,
+                  let hit = memmem(base + offset, raw.count - offset, needle, needle.count) {
+                let start = base.distance(to: UnsafeRawPointer(hit))
+                let after = start + needle.count
+                if after < raw.count, raw[after] == dash { return true }
+                if after + source.count <= raw.count,
+                   source.indices.allSatisfy({ raw[after + $0] == source[$0] }) { return true }
+                offset = start + 1
+            }
+            return false
+        }
+    }
+
     private static func isQtComponent(_ name: String) -> Bool {
         (name.hasPrefix("Qt") && name.hasSuffix(".framework"))
             || (name.hasPrefix("libQt") && name.hasSuffix(".dylib"))

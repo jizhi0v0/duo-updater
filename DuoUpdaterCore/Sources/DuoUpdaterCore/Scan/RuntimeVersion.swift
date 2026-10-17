@@ -149,7 +149,12 @@ public enum RuntimeVersion {
             // section read, not a walk, so `scanningBinaries` does not apply.
             version = executable.flatMap(GoBuildInfo.read(at:))?
                 .module(AppRuntimeDetector.myGoModule)?.builtVersion
-        case .flutter, .native, .catalyst, .iOSApp, .reactNative:
+        case .wails:
+            // The same section, under whichever of Wails's module paths the app uses.
+            let modules = executable.flatMap(GoBuildInfo.read(at:))
+            version = AppRuntimeDetector.wailsModules.lazy
+                .compactMap { modules?.module($0)?.builtVersion }.first
+        case .flutter, .native, .catalyst, .iOSApp, .reactNative, .gpui, .egui:
             version = nil
         }
         // A nil reached under `scanningBinaries: false` is not an answer about the

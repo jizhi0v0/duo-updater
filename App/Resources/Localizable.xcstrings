@@ -23394,6 +23394,201 @@
         }
       }
     },
+    "Built with Wails — a Go app showing its interface in the system WebView.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Wails gebaut – eine Go-App, die ihre Oberfläche in der System-WebView zeigt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecha con Wails: una app en Go que muestra su interfaz en el WebView del sistema."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçue avec Wails — une app Go qui affiche son interface dans la WebView du système."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creata con Wails: un’app Go che mostra la sua interfaccia nella WebView di sistema."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wails 製 — システムの WebView で画面を表示する Go アプリです。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feito com Wails — um app em Go que mostra sua interface na WebView do sistema."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделано на Wails — приложение на Go, которое показывает интерфейс в системном WebView."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wails ile geliştirildi — arayüzünü sistem WebView’unda gösteren bir Go uygulaması."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Wails 构建 —— 界面用系统 WebView 显示的 Go 程序。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以 Wails 建構——以系統 WebView 顯示介面的 Go App。"
+          }
+        }
+      }
+    },
+    "Built with GPUI — the Rust framework Zed is built on, drawing every pixel itself on the GPU.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit GPUI gebaut – dem Rust-Framework, auf dem Zed basiert; es zeichnet jedes Pixel selbst auf der GPU."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecha con GPUI: el framework de Rust sobre el que está hecho Zed, que dibuja cada píxel por sí mismo en la GPU."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçue avec GPUI — le framework Rust sur lequel repose Zed, qui dessine lui-même chaque pixel sur le GPU."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creata con GPUI: il framework Rust su cui è costruito Zed, che disegna da sé ogni pixel sulla GPU."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GPUI 製 — Zed の土台である Rust フレームワークで、すべてのピクセルを GPU で自前描画します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feito com GPUI — o framework em Rust sobre o qual o Zed é construído, que desenha cada pixel por conta própria na GPU."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделано на GPUI — фреймворке на Rust, на котором построен Zed; он сам рисует каждый пиксель на GPU."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GPUI ile geliştirildi — Zed’in üzerine kurulduğu, her pikseli GPU’da kendisi çizen Rust çatısı."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 GPUI 构建 —— Zed 所用的 Rust 框架，每个像素都由自己在 GPU 上绘制。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以 GPUI 建構——Zed 所採用的 Rust 框架，每個像素都在 GPU 上自行繪製。"
+          }
+        }
+      }
+    },
+    "Built with egui — a Rust app drawing its own interface.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit egui gebaut – eine Rust-App, die ihre Oberfläche selbst zeichnet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecha con egui: una app en Rust que dibuja su propia interfaz."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçue avec egui — une app Rust qui dessine sa propre interface."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creata con egui: un’app Rust che disegna da sé la sua interfaccia."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "egui 製 — 画面を自前で描画する Rust アプリです。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feito com egui — um app em Rust que desenha a própria interface."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделано на egui — приложение на Rust, которое само рисует свой интерфейс."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "egui ile geliştirildi — arayüzünü kendisi çizen bir Rust uygulaması."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 egui 构建 —— 界面由自己绘制的 Rust 程序。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以 egui 建構——自行繪製介面的 Rust App。"
+          }
+        }
+      }
+    },
     "Built with Tauri — a Rust app drawing into the system WebView.": {
       "extractionState": "manual",
       "localizations": {

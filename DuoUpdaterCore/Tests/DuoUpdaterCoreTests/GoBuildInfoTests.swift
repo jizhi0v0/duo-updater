@@ -291,6 +291,29 @@ private let otherGoApp = GoBuildInfo.parse(goVersion: "go1.26.0", modinfo: """
     #expect(detect(bundle, libraries: [coreFoundation], goBuildInfo: nil) == nil)
 }
 
+/// Wails, read the same way: Tiny RDM's shape (v2) and magpie's (v3), plus v1,
+/// whose module path had no major-version suffix.
+@Test func aWailsBinaryReadsAsWails() throws {
+    let scratch = try Scratch(); defer { scratch.cleanUp() }
+    let bundle = try scratch.app(Data())
+    for module in ["github.com/wailsapp/wails/v2", "github.com/wailsapp/wails/v3", "github.com/wailsapp/wails"] {
+        let info = GoBuildInfo.parse(goVersion: "go1.25.0", modinfo: """
+            path\tgithub.com/example/app
+            mod\tgithub.com/example/app\t(devel)\t
+            dep\t\(module)\tv2.12.0\th1:x=
+
+            """)
+        #expect(detect(bundle, libraries: [appKit], goBuildInfo: info) == .wails, "\(module)")
+    }
+    // A sibling module of the same organisation is not the framework.
+    let mimetype = GoBuildInfo.parse(goVersion: "go1.25.0", modinfo: """
+        mod\tgithub.com/example/app\t(devel)\t
+        dep\tgithub.com/wailsapp/mimetype\tv1.4.1\th1:x=
+
+        """)
+    #expect(detect(bundle, libraries: [appKit], goBuildInfo: mimetype) == .native)
+}
+
 /// Ahead of the link rules, so a MyGo app that does link AppKit — cgo through
 /// some dependency — is still MyGo, while another Go app linking AppKit stays
 /// native.

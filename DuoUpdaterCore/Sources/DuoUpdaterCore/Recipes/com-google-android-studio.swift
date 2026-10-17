@@ -8,30 +8,36 @@ enum com_google_android_studio {
         // Android Studio — for WEBSITE-direct installs only. Toolbox-managed
         // copies are gated out of VendorProbeSource and handled by ToolboxSource
         // (open Toolbox); this recipe fires for a hand-downloaded Android Studio.
-        // developer.android.com/studio is static HTML carrying both the version
-        // and the arm64 dmg href on the same page. Team EQHXZ8M8AV.
+        // Team EQHXZ8M8AV.
         //
-        // The download is checked against the page's "SHA-256 checksum" table, on
-        // top of the Team-ID gate: the `mac_arm.dmg` row of the table headed
-        // package / size / checksum (not the Intel `mac.dmg` row above it, nor the
-        // SDK-tools table further down, which has the same checksum column). The
-        // table names files, not URLs, so the row pairs with the download link by
-        // being the same page's only arm64 dmg; a back-reference can't tie the two
-        // names together because every capture group would be joined into the
-        // digest. If Google's table and link ever disagree, the install fails as
-        // `checksumMismatch` rather than installing unchecked.
+        // Compared on the BUILD, like the preview recipes below, because a stable
+        // bundle's `CFBundleShortVersionString` stops at YEAR.MAJOR: 2026.2.1 says
+        // "2026.2" (2025.2.3 on this Mac says "2025.2"), while its `CFBundleVersion`
+        // is the feed's `build` byte-for-byte. Reading "2026.2.1" off
+        // developer.android.com/studio and comparing marketing versions offered
+        // that release to the copy that already was it, forever (issue #1371). A
+        // `Patch` (`…-patch1-mac_arm.dmg`) shares its Release's marketing version
+        // and only the build tells them apart, so both channels count as stable.
+        // Same feed, `entryStartPattern` and checksum shape as the preview recipes:
+        // version, display, dmg and SHA-256 all come from the one item whose build
+        // compares highest.
         VendorProbeRecipe(
             bundleID: "com.google.android.studio",
-            url: URL(string: "https://developer.android.com/studio")!,
+            url: URL(string: "https://jb.gg/android-studio-releases-list.json")!,
             mode: .responseBody,
-            versionPattern: #"install/([0-9]{4}\.[0-9]+\.[0-9]+)\.[0-9]+/android-studio-[^"]*mac_arm\.dmg"#,
+            versionPattern:
+                #""build"\s*:\s*"(AI-[^"]+)","platformVersion":"[^"]*","name":"[^"]*","channel":"(?:Release|Patch)""#,
             changelogURL: URL(string: "https://developer.android.com/studio/releases"),
+            versionIsBuild: true,
+            displayVersionPattern:
+                #""name":"[^"]*\|\s*([^"]+)","channel":"(?:Release|Patch)""#,
+            entryStartPattern: #"\{"date":""#,
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
-                    #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*mac_arm\.dmg)"#),
+                    #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*-mac_arm\.dmg)"#),
                 kind: .dmg,
                 checksumPattern:
-                    #"<th>Android Studio package</th>\s*<th>Size</th>\s*<th>SHA-256 checksum</th>(?:(?!</table>)[\s\S])*?>android-studio-[^<"]*mac_arm\.dmg</button>\s*</td>\s*<td>[^<]*</td>\s*<td>([0-9a-f]{64})</td>"#,
+                    #"\A(?:(?!https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*-mac_arm\.dmg)[\s\S])*?\{(?=[^{}]*"link"\s*:\s*"https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*-mac_arm\.dmg")[^{}]*?"checksum"\s*:\s*"([0-9a-f]{64})""#,
                 checksumFormat: .sha256Hex)),
 
         // Android Studio — Canary & Beta preview installs. Both share Stable's

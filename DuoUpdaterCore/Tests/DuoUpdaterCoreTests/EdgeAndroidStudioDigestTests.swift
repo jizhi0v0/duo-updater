@@ -76,15 +76,20 @@ struct EdgeDigestTests {
     }
 }
 
-/// Android Studio: the preview feed lists six platforms' files per item, each with
-/// its own SHA-256 `checksum`; the website's table lists them by filename. The
-/// digest has to be the arm64 dmg's — the file the install patterns read.
+/// Android Studio: the releases feed lists six platforms' files per item, each
+/// with its own SHA-256 `checksum`. The digest has to be the arm64 dmg's — the
+/// file the install patterns read.
 struct AndroidStudioDigestTests {
     // Real items from `jb.gg/android-studio-releases-list.json` (2026-10-07),
     // byte-for-byte: Canary 3, the stable Release, RC 2 — in feed order.
     static let canary3 = #"{"date":"October 1, 2026","platformBuild":"262.10968.63","download":[{"size":"1.2 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.2.3/android-studio-rabbit2-canary3-cros.deb","checksum":"5ceb23c2d654cb4be6a8484c028d1b27b26de4661b1cbbc542b3fbecd8aa83dd"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.2.3/android-studio-rabbit2-canary3-mac_arm.dmg","checksum":"67a98376e8b8eb19b72b54ebd66a207d4dbc54287a4f502f267f7155510a73c1"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.2.3/android-studio-rabbit2-canary3-mac.dmg","checksum":"87c4d7d2a3959353bc214ab4b719432e8223e5d9387a8859e9c554aa55b728b4"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.2.3/android-studio-rabbit2-canary3-windows.exe","checksum":"6cee39f763a1d36f15099af531d0e300f3b2e63732b7ea6eb4a32dd26e14deae"},{"size":"1.6 GB","link":"https://edgedl.me.gvt1.com/android/studio/ide-zips/2026.2.2.3/android-studio-rabbit2-canary3-linux.tar.gz","checksum":"23505491b8241108e8c73851054799bf3fa01b810cc60af8159289cbb9b4eb61"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/ide-zips/2026.2.2.3/android-studio-rabbit2-canary3-windows.zip","checksum":"15b3846603e4c7934883aece0d941b58f0e3bb0916897f67eff4fbc6d222706e"}],"build":"AI-262.10968.63.2622.16488178","platformVersion":"2026.2.3","name":"Android Studio Rabbit 2 | 2026.2.2 Canary 3","channel":"Canary","version":"2026.2.2.3"}"#
     static let release = #"{"date":"October 1, 2026","platformBuild":"262.9437.185","download":[{"size":"1.2 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.8/android-studio-rabbit1-cros.deb","checksum":"125383bc804e07ad7111dc68cbb67b8ddeb92880b98c663cdb9e71202171632d"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.8/android-studio-rabbit1-mac_arm.dmg","checksum":"16d4a0f8a52413b51869fc18d5bdcdf9cecd38615cd7bb7cf14d51b99d2fef54"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.8/android-studio-rabbit1-mac.dmg","checksum":"9284f783ac1096af1e0612173d8b5e17693fe32cc44ef8f6bec5d1367e00c40e"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.8/android-studio-rabbit1-windows.exe","checksum":"4c26f92e0e78adb1381c9a76597dbd5f6bce13d2ff2bf88cd2b57d425d685f3d"},{"size":"1.6 GB","link":"https://edgedl.me.gvt1.com/android/studio/ide-zips/2026.2.1.8/android-studio-rabbit1-linux.tar.gz","checksum":"f8775c67cf899d9133712a2d7ee3ef7231e07fb16dbe0544c47e5f5babd5931b"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/ide-zips/2026.2.1.8/android-studio-rabbit1-windows.zip","checksum":"6e83e7ce3e0a76c4e8e78d98eb5ef538cbc9fb386c745bda425fc0bacb9de6d4"}],"build":"AI-262.9437.185.2621.16467767","platformVersion":"2026.2.1","name":"Android Studio Rabbit 1 | 2026.2.1","channel":"Release","version":"2026.2.1.8"}"#
     static let rc2 = #"{"date":"September 28, 2026","platformBuild":"262.9437.185","download":[{"size":"1.2 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.7/android-studio-rabbit1-rc2-cros.deb","checksum":"d0f11a36bd3edc82110cd4057fc579b75b7e6691a41b01fe7955724515156691"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.7/android-studio-rabbit1-rc2-mac_arm.dmg","checksum":"8fb71c27a0feb96384aa951512eba5bf58e39c1a8e8f6392fd20218f255176ca"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.7/android-studio-rabbit1-rc2-mac.dmg","checksum":"05de967d4a1bc5d1fab88736ba0ea640581c79c7f8369704926506842edca844"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.7/android-studio-rabbit1-rc2-windows.exe","checksum":"d41ccc25ed49dbfc80255f6e0c82f22282a08e56a66d35d1b7f5496cf2a1f3bf"},{"size":"1.6 GB","link":"https://edgedl.me.gvt1.com/android/studio/ide-zips/2026.2.1.7/android-studio-rabbit1-rc2-linux.tar.gz","checksum":"c08da174c858976ccf83c494dfe0f8d77ca016aac141f60c6f5ca33ac0d0d5a0"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/ide-zips/2026.2.1.7/android-studio-rabbit1-rc2-windows.zip","checksum":"27b4cd1eb8aded87a5fd74c72b7a95314ce4b2d4891ced7329e3e52643e3a33f"}],"build":"AI-262.9437.185.2621.16444166","platformVersion":"2026.2.1","name":"Android Studio Rabbit 1 | 2026.2.1 RC 2","channel":"RC","version":"2026.2.1.7"}"#
+
+    // Real items from the same feed (2026-10-17), trimmed to the two mac dmgs: the
+    // older train's Release and the Patch that followed it.
+    static let quail4 = #"{"date":"September 1, 2026","platformBuild":"261.26222.65","download":[{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.1.4.7/android-studio-quail4-mac_arm.dmg","checksum":"bbd17ed0acc689cf88017083778537660e4a71480867fde875617fbda02a0aec"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.1.4.7/android-studio-quail4-mac.dmg","checksum":"cdb74f4c2a13094ad9b35130704ad79721564651225fe9bacc801a2b64bf4c43"}],"build":"AI-261.26222.65.2614.16204760","platformVersion":"2026.1.4","name":"Android Studio Quail 4 | 2026.1.4","channel":"Release","version":"2026.1.4.7"}"#
+    static let quail4Patch1 = #"{"date":"September 18, 2026","platformBuild":"261.26222.65","download":[{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.1.4.8/android-studio-quail4-patch1-mac_arm.dmg","checksum":"1a3393306007f90cbf2ee73e45beb809ab09aa406c2f61ee9fe81b4ef511c066"},{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.1.4.8/android-studio-quail4-patch1-mac.dmg","checksum":"20a40200b63110c1ebff36960cd0ffc8aa61018c8269cc16979d5253a204f9d3"}],"build":"AI-261.26222.65.2614.16379836","platformVersion":"2026.1.4","name":"Android Studio Quail 4 | 2026.1.4 Patch 1","channel":"Patch","version":"2026.1.4.8"}"#
 
     static func feed(_ items: [String]) -> String {
         #"{"content":{"item":["# + items.joined(separator: ",") + "]}}"
@@ -122,6 +127,49 @@ struct AndroidStudioDigestTests {
         #expect(beta.remote?.expectedSHA256 == "8fb71c27a0feb96384aa951512eba5bf58e39c1a8e8f6392fd20218f255176ca")
     }
 
+    /// Issue #1371: a stable install's `CFBundleShortVersionString` stops at
+    /// YEAR.MAJOR — 2026.2.1 says "2026.2" — so a stable recipe that compares
+    /// marketing versions offers "2026.2.1" to the copy that already is 2026.2.1,
+    /// forever, and installing it changes nothing. The `build` is what matches the
+    /// bundle (`CFBundleVersion`), as it does for the preview recipes.
+    @Test func stableComparesBuildsSoTheCurrentReleaseIsUpToDate() async throws {
+        let server = try RecipeVerificationTests.StubServer(
+            body: Self.feed([Self.canary3, Self.release, Self.rc2, Self.quail4Patch1, Self.quail4]))
+        defer { server.stop() }
+        let outcome = await VendorProbeSource().probeDiagnostic(try Self.recipe(.stable).with(url: server.url))
+        let remote = try #require(outcome.remote)
+        #expect(remote.version == "AI-262.9437.185.2621.16467767")
+        #expect(remote.displayVersion == "2026.2.1")
+        #expect(remote.downloadURL?.lastPathComponent == "android-studio-rabbit1-mac_arm.dmg")
+        #expect(remote.expectedSHA256 == "16d4a0f8a52413b51869fc18d5bdcdf9cecd38615cd7bb7cf14d51b99d2fef54")
+
+        func installed(_ short: String, _ build: String) -> InstalledApp {
+            InstalledApp(
+                name: "Android Studio", bundleID: "com.google.android.studio",
+                shortVersion: short, buildVersion: build,
+                path: URL(fileURLWithPath: "/Applications/Android Studio.app"),
+                isMASApp: false, sparkleFeedURL: nil)
+        }
+        // What 2026.2.1's Info.plist carries.
+        #expect(UpdateChecker.evaluate(
+            installed: installed("2026.2", "AI-262.9437.185.2621.16467767"), remote: remote) == .upToDate)
+        #expect(UpdateChecker.evaluate(
+            installed: installed("2026.1", "AI-261.26222.65.2614.16379836"), remote: remote)
+            == .updateAvailable(latest: "2026.2.1"))
+    }
+
+    /// A Patch is a stable build too, and shares its Release's marketing version —
+    /// only the build tells them apart.
+    @Test func stablePicksUpAPatchToItsRelease() async throws {
+        let server = try RecipeVerificationTests.StubServer(body: Self.feed([Self.quail4Patch1, Self.quail4]))
+        defer { server.stop() }
+        let outcome = await VendorProbeSource().probeDiagnostic(try Self.recipe(.stable).with(url: server.url))
+        #expect(outcome.remote?.version == "AI-261.26222.65.2614.16379836")
+        #expect(outcome.remote?.displayVersion == "2026.1.4 Patch 1")
+        #expect(outcome.remote?.downloadURL?.lastPathComponent == "android-studio-quail4-patch1-mac_arm.dmg")
+        #expect(outcome.remote?.expectedSHA256 == "1a3393306007f90cbf2ee73e45beb809ab09aa406c2f61ee9fe81b4ef511c066")
+    }
+
     @Test func keyOrderInsideTheDownloadObjectDoesNotMatter() throws {
         let pattern = try #require(try Self.recipe(.canary).install?.checksumPattern)
         let reordered = Self.canary3.replacingOccurrences(
@@ -143,90 +191,5 @@ struct AndroidStudioDigestTests {
         #expect(!item.contains("67a98376"))
         #expect(VendorProbeRecipe.extractVersion(from: item, pattern: pattern) == nil)
         #expect(VendorProbeRecipe.extractVersion(from: Self.feed([item, Self.rc2]), pattern: pattern) == nil)
-    }
-
-    // The developer.android.com/studio download table and its arm64 link, trimmed
-    // from the 2026-10-07 page: the Intel row comes first, then arm64; the
-    // SDK-tools table and the download dialogs follow.
-    static let studioPage = #"""
-      <table class="download">
-        <tr>
-          <th>Platform</th>
-          <th>Android Studio package</th>
-          <th>Size</th>
-          <th>SHA-256 checksum</th>
-        </tr>
-        <tr>
-          <td>Mac<br>(64-bit)</td>
-          <td>
-          <button class="devsite-dialog-button button-white button-regular"
-                data-modal-dialog-id="studio_mac_bundle_download"
-                >android-studio-rabbit1-mac.dmg</button>
-          </td>
-          <td>1.5 GB</td>
-          <td>9284f783ac1096af1e0612173d8b5e17693fe32cc44ef8f6bec5d1367e00c40e</td>
-        </tr>
-        <tr>
-          <td>Mac<br>(64-bit, ARM)</td>
-          <td>
-          <button class="devsite-dialog-button button-white button-regular"
-                data-modal-dialog-id="studio_mac_arm_bundle_download"
-                >android-studio-rabbit1-mac_arm.dmg</button>
-          </td>
-          <td>1.5 GB</td>
-          <td>16d4a0f8a52413b51869fc18d5bdcdf9cecd38615cd7bb7cf14d51b99d2fef54</td>
-        </tr>
-      </table>
-      <table class="download">
-        <tr>
-          <th>Platform</th>
-          <th>SDK tools package</th>
-          <th>Size</th>
-          <th>SHA-256 checksum</th>
-        </tr>
-        <tr>
-          <td><nobr>Mac</nobr></td>
-          <td>
-            <button class="devsite-dialog-button button-white button-regular"
-                data-modal-dialog-id="sdk_mac_download"
-                >commandlinetools-mac-15859902_latest.zip</button>
-          </td>
-          <td>155.7 MB</td>
-          <td>\#(String(repeating: "b", count: 64))</td>
-        </tr>
-      </table>
-              <a class="button button-primary
-                   devsite-dialog-close gc-analytics-event"
-                   data-category="studio_mac_arm_bundle_download" data-action="download"
-                   href="https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.8/android-studio-rabbit1-mac_arm.dmg"
-                   id="agree-button__studio_mac_arm_bundle_download"
-                >Download Android Studio Rabbit 1 | 2026.2.1
-              </a>
-                <p><em>android-studio-rabbit1-mac_arm.dmg</em></p>
-    """#
-
-    /// Stable reads the arm64 row — the file its link downloads — not the Intel row
-    /// above it.
-    @Test func stableReadsTheArm64RowOfTheChecksumTable() throws {
-        let recipe = try Self.recipe(.stable)
-        let pattern = try #require(recipe.install?.checksumPattern)
-        #expect(VendorProbeRecipe.extractVersion(from: Self.studioPage, pattern: pattern)
-            == "16d4a0f8a52413b51869fc18d5bdcdf9cecd38615cd7bb7cf14d51b99d2fef54")
-        guard case .bodyPattern(let urlPattern) = try #require(recipe.install).urlSource else {
-            Issue.record("stable install is no longer a bodyPattern"); return
-        }
-        #expect(VendorProbeRecipe.extractVersion(from: Self.studioPage, pattern: urlPattern)?
-            .hasSuffix("/android-studio-rabbit1-mac_arm.dmg") == true)
-    }
-
-    /// No arm64 row in the Studio table: nothing is read, not an arm64-looking row
-    /// that only appears in some later table.
-    @Test func stableReadsNothingWhenTheStudioTableHasNoArm64Row() throws {
-        let pattern = try #require(try Self.recipe(.stable).install?.checksumPattern)
-        let page = Self.studioPage
-            .replacingOccurrences(of: ">android-studio-rabbit1-mac_arm.dmg</button>", with: ">android-studio-rabbit1-linux.tar.gz</button>")
-            .replacingOccurrences(of: ">commandlinetools-mac-15859902_latest.zip</button>", with: ">android-studio-rabbit1-mac_arm.dmg</button>")
-        #expect(page.contains(">android-studio-rabbit1-mac_arm.dmg</button>"))
-        #expect(VendorProbeRecipe.extractVersion(from: page, pattern: pattern) == nil)
     }
 }

@@ -137,7 +137,7 @@ private func bounds(_ segments: [PathSegment]) -> CGRect {
 }
 
 @Test func theRuntimesWithoutVendorArtworkSaySoRatherThanReturningEmpty() {
-    for runtime in [AppRuntime.chromium, .catalyst, .iOSApp, .native] {
+    for runtime in [AppRuntime.chromium, .wails, .gpui, .egui, .catalyst, .iOSApp, .native] {
         #expect(RuntimeArtwork.pathData(for: runtime) == nil)
     }
 }

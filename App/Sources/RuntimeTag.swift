@@ -12,7 +12,7 @@ import DuoUpdaterCore
 /// and MyGo's ring-in-a-square are drawn from geometry here, because they are
 /// nothing but geometry and neither has an icon to import. The rest take SF
 /// Symbols: a bolt for GPUI and a lettered square for egui, which have no mark
-/// of their own; a steaming cup for Java, which has no usable mark; and for the three
+/// of their own, and for Wails, whose mark does not survive 12pt; a steaming cup for Java, which has no usable mark; and for the three
 /// Apple-platform cases a device silhouette — a tablet and phone for Catalyst, a
 /// phone for an iOS app, the Apple logo for native.
 struct RuntimeTag: View {
@@ -232,7 +232,7 @@ struct RuntimeTag: View {
         String(localized: "\(displayName(runtime)) — click for details")
     }
 
-    /// The stand-in for the six runtimes that have no vendor mark. Nil for the
+    /// The stand-in for the seven runtimes that have no usable vendor mark. Nil for the
     /// rest, which draw their own artwork.
     static func symbol(_ runtime: AppRuntime) -> String? {
         switch runtime {
@@ -242,7 +242,8 @@ struct RuntimeTag: View {
         case .native:    return "applelogo"  // Apple's own frameworks, Apple's own glyph
         case .gpui:      return "bolt.fill"       // see RuntimeArtwork: no mark of its own
         case .egui:      return "e.square.fill"
-        case .electron, .tauri, .mygo, .wails, .flutter, .qt, .chromium, .reactNative: return nil
+        case .wails:     return "w.square.fill"   // its logo is illegible at 12pt; see RuntimeArtwork
+        case .electron, .tauri, .mygo, .flutter, .qt, .chromium, .reactNative: return nil
         }
     }
 

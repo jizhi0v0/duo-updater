@@ -9108,7 +9108,12 @@ final class AppListModel {
         // was work we could not take back.
         let prefPaths = ChannelBinding.preferenceWatchPaths
         if !prefPaths.isEmpty {
-            let prefsWatcher = AppDirectoryWatcher(paths: prefPaths, debounce: 0.25) { [weak self] in
+            // File-level events: Surge's subscription window is an extended attribute
+            // on its Application Support directory, which is itself a watched root,
+            // and a directory-level stream reports nothing when a root's own
+            // attributes change (measured 2026-10-17: `xattr -w` on the root, no
+            // event; with file events, `ItemXattrMod | ItemIsDir`).
+            let prefsWatcher = AppDirectoryWatcher(paths: prefPaths, debounce: 0.25, fileEvents: true) { [weak self] in
                 Task { @MainActor in
                     await self?.recheckChannelSwitches(trigger: "prefs-watch")
                 }
@@ -9855,7 +9860,7 @@ final class AppListModel {
     private nonisolated static func fingerprints(forBoundIDs ids: [String]) -> [String: String] {
         var out: [String: String] = [:]
         for id in ids {
-            out[id] = ChannelSwitchDetector.fingerprint(of: ChannelBinding.resolve(bundleID: id))
+            out[id] = ChannelSwitchDetector.recheckFingerprint(bundleID: id)
         }
         return out
     }

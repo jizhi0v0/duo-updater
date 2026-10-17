@@ -112,6 +112,19 @@ enum OSWindowWording {
     }
 }
 
+/// The words for a `.subscriptionHold` row, shared by both windows.
+enum SubscriptionHoldWording {
+    static var title: String { String(localized: "Not covered by your subscription") }
+
+    static func explanation(_ hold: SubscriptionHold, appName: String) -> String {
+        guard let before = hold.coveredBefore else {
+            return String(localized: "\(appName) \(hold.version) isn’t offered: \(appName)’s subscription status couldn’t be read. Check for updates in \(appName).")
+        }
+        let date = before.formatted(date: .abbreviated, time: .shortened)
+        return String(localized: "\(appName) \(hold.version) isn’t offered: your subscription covers updates released before \(date), and a newer one won’t open. Renew it in \(appName) to update.")
+    }
+}
+
 /// Tooltip for an `.appleSignIn` row's "Sign In…", shared by both windows.
 func appleSignInHelp(_ need: AppleSignInNeed) -> String {
     switch need {
@@ -360,6 +373,14 @@ struct WorkbenchRowAction: View {
                     result: result, updatedCopy: updatedCopy, version: version,
                     dismiss: { showOrphanHint = false })
             }
+
+        case .subscriptionHold(let hold):
+            // Where a current row's checkmark would be, named like
+            // `.notForThisMacOS` below; the popover's lock opens the same words.
+            Label(SubscriptionHoldWording.title, systemImage: "lock.fill")
+                .font(.callout).foregroundStyle(.orange)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .help(SubscriptionHoldWording.explanation(hold, appName: result.app.name))
 
         case .notForThisMacOS(let refusal):
             // The popover's badge opens the explanation; this window names the

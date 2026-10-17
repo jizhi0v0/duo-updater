@@ -285,7 +285,8 @@ public enum Check {
                 latestVersion: result.remote?.displayVersion,
                 latestBuild: result.remote?.version,
                 source: result.remote?.sourceName,
-                status: describe(result.status),
+                status: result.heldBySubscription.map { "\(describe(result.status)) (\($0.logDescription))" }
+                    ?? describe(result.status),
                 hasUpdate: result.hasUpdate,
                 hidden: hidden,
                 route: options.checkForUpdates

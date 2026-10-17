@@ -46,6 +46,7 @@ struct PopoverRowAction: View {
     @State private var showMacCompatHint = false
     @State private var showNeedsNewerMacOSHint = false
     @State private var showOSWindowHint = false
+    @State private var showSubscriptionHint = false
     @State private var showOrphanHint = false
     @State private var showTestFlightTip = false
 
@@ -122,6 +123,19 @@ struct PopoverRowAction: View {
             .help(OSWindowWording.help(refusal))
             .popover(isPresented: $showOSWindowHint, arrowEdge: .bottom) {
                 osWindowHintPopover(refusal)
+            }
+
+        case .subscriptionHold(let hold):
+            // In the checkmark's place: the row is current for this subscription,
+            // and the lock opens what it is not offering and why.
+            Button { showSubscriptionHint = true } label: {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(.orange)
+            }
+            .buttonStyle(.borderless)
+            .help(SubscriptionHoldWording.title)
+            .popover(isPresented: $showSubscriptionHint, arrowEdge: .bottom) {
+                subscriptionHintPopover(hold)
             }
 
         case .orphanedStoreCopy(let updatedCopy, let version):
@@ -767,6 +781,22 @@ struct PopoverRowAction: View {
             Label(OSWindowWording.title(refusal), systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
             Text(OSWindowWording.explanation(refusal, appName: result.app.name))
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))) until then.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .frame(width: 290)
+    }
+
+    // See the doc comment on `majorUpgradePopover` — same seam, same reasoning.
+    func subscriptionHintPopover(_ hold: SubscriptionHold) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(SubscriptionHoldWording.title, systemImage: "lock.fill")
+                .font(.headline)
+            Text(SubscriptionHoldWording.explanation(hold, appName: result.app.name))
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
             Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))) until then.")

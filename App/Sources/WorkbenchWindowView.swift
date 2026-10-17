@@ -2758,6 +2758,12 @@ private struct DetailHeader: View {
                 Text("\(from)  →  \(to)")
                     .font(.callout).foregroundStyle(.tint)
                     .lineLimit(1).minimumScaleFactor(0.75)
+            case .upToDate where result.heldBySubscription != nil:
+                // Current only within the subscription, and the action beside
+                // this line says what it is not offering — so not "up to date".
+                Text("v\(result.installedDisplay ?? "?")")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .lineLimit(1).minimumScaleFactor(0.75)
             case .upToDate:
                 // The only status a check answers with "current". The popover
                 // prints a bare "v<installed>" here too and puts the verdict in

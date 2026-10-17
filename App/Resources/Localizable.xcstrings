@@ -75723,6 +75723,201 @@
           }
         }
       }
+    },
+    "%@ %@ isn’t offered: %@’s subscription status couldn’t be read. Check for updates in %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ wird nicht angeboten: Der Abostatus von %3$@ konnte nicht gelesen werden. Suche in %4$@ nach Updates."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se ofrece %1$@ %2$@: no se pudo leer el estado de la suscripción de %3$@. Busca actualizaciones en %4$@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ n’est pas proposée : l’état de l’abonnement de %3$@ n’a pas pu être lu. Recherchez les mises à jour dans %4$@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ non viene offerta: non è stato possibile leggere lo stato dell’abbonamento di %3$@. Cerca gli aggiornamenti in %4$@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ は提供されません：%3$@ のサブスクリプション状態を読み取れませんでした。%4$@ でアップデートを確認してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ não é oferecido: não foi possível ler o status da assinatura do %3$@. Procure atualizações no %4$@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ не предлагается: не удалось прочитать состояние подписки %3$@. Проверьте обновления в %4$@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ sunulmuyor: %3$@ abonelik durumu okunamadı. Güncellemeleri %4$@ içinden denetleyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不提供 %1$@ %2$@：无法读取 %3$@ 的订阅状态。请在 %4$@ 中检查更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不提供 %1$@ %2$@：無法讀取 %3$@ 的訂閱狀態。請在 %4$@ 中檢查更新。"
+          }
+        }
+      }
+    },
+    "%@ %@ isn’t offered: your subscription covers updates released before %@, and a newer one won’t open. Renew it in %@ to update.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ wird nicht angeboten: Dein Abo deckt Updates ab, die vor %3$@ erschienen sind, und eine neuere Version lässt sich nicht öffnen. Verlängere es in %4$@, um zu aktualisieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se ofrece %1$@ %2$@: tu suscripción cubre las actualizaciones publicadas antes del %3$@ y una más reciente no se abrirá. Renuévala en %4$@ para actualizar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ n’est pas proposée : votre abonnement couvre les mises à jour publiées avant le %3$@, et une version plus récente ne s’ouvrira pas. Renouvelez-le dans %4$@ pour mettre à jour."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ non viene offerta: il tuo abbonamento copre gli aggiornamenti pubblicati prima del %3$@ e una versione più recente non si aprirà. Rinnovalo in %4$@ per aggiornare."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ は提供されません：サブスクリプションの対象は %3$@ より前に公開されたアップデートで、それより新しいバージョンは起動できません。アップデートするには %4$@ で更新してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ não é oferecido: sua assinatura cobre atualizações lançadas antes de %3$@, e uma versão mais nova não abrirá. Renove-a no %4$@ para atualizar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ не предлагается: подписка покрывает обновления, выпущенные до %3$@, а более новая версия не откроется. Продлите её в %4$@, чтобы обновиться."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ sunulmuyor: aboneliğiniz %3$@ tarihinden önce yayımlanan güncellemeleri kapsıyor ve daha yeni bir sürüm açılmaz. Güncellemek için aboneliği %4$@ içinden yenileyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不提供 %1$@ %2$@：你的订阅只涵盖 %3$@ 之前发布的更新，更新的版本将无法打开。请在 %4$@ 中续订后再更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不提供 %1$@ %2$@：你的訂閱只涵蓋 %3$@ 之前發佈的更新，較新的版本將無法開啟。請在 %4$@ 中續訂後再更新。"
+          }
+        }
+      }
+    },
+    "Not covered by your subscription": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht vom Abo abgedeckt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No incluido en tu suscripción"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non couvert par votre abonnement"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non coperto dal tuo abbonamento"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サブスクリプションの対象外"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não incluído na sua assinatura"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не входит в подписку"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aboneliğiniz kapsamında değil"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "订阅未涵盖"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "訂閱未涵蓋"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

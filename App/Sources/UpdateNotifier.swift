@@ -150,9 +150,17 @@ enum UpdateNotifier {
     /// playing a sound" (developer.apple.com, read 2026-10-17), so the list
     /// never says "5 sessions" with 3 left. Measured: the record's body went
     /// from 5 sessions to 3 under the same identifier, one record.
+    ///
+    /// A quiet update replaces only a banner still in the list: one the user
+    /// cleared stays cleared (review, #1374 round 8).
     static func cliStillRunning(tool: String, line: String, tag: String, quietly: Bool = false) {
-        post(title: tool, body: String(localized: "\(line). Restart to use the version installed now."),
-             identifier: "clistale:\(tag)", quietly: quietly)
+        let id = "clistale:\(tag)"
+        let body = String(localized: "\(line). Restart to use the version installed now.")
+        guard quietly else { return post(title: tool, body: body, identifier: id) }
+        UNUserNotificationCenter.current().getDeliveredNotifications { delivered in
+            guard delivered.contains(where: { $0.request.identifier == id }) else { return }
+            Task { @MainActor in post(title: tool, body: body, identifier: id, quietly: true) }
+        }
     }
 
     static func clearCLIStillRunning(tags: [String]) {

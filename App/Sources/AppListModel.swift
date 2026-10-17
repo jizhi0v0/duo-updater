@@ -9441,7 +9441,7 @@ final class AppListModel {
         for (status, quietly) in newly.map({ ($0, false) }) + changed.map({ ($0, true) }) {
             guard let usage = cliTools.usage[status.toolID],
                   let line = CLIToolWording.stillRunning(usage, of: status.kind) else { continue }
-            Log.app.notice("cli-tools: \(status.kind.displayName, privacy: .public) at \(status.path, privacy: .public) — \(line, privacy: .public) (pids \(usage.stale.map(\.pid).description, privacy: .public))\(quietly ? " [text updated quietly]" : "", privacy: .public)")
+            Log.app.notice("cli-tools: \(status.kind.displayName, privacy: .public) at \(status.path, privacy: .public) — \(line, privacy: .public) (pids \(usage.stale.map(\.pid).description, privacy: .public))\(quietly ? " [text updated quietly, if still listed]" : "", privacy: .public)")
             UpdateNotifier.cliStillRunning(
                 tool: status.name ?? status.kind.displayName, line: line, tag: status.toolID.tag, quietly: quietly)
         }

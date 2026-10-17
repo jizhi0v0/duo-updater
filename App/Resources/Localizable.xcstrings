@@ -25419,67 +25419,67 @@
         }
       }
     },
-    "Continue only if it’s free or your license covers the new version. The new version replaces this copy. If “Keep a backup so updates can be rolled back” is on in Settings, you can roll back to the version you have now.": {
+    "Continue only if it’s free or your license covers the new version. The new version replaces this copy. If “Keep a backup so updates can be rolled back” is on in [Settings](duoupdater-settings:backups), you can roll back to the version you have now.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fahre nur fort, wenn sie kostenlos ist oder deine Lizenz die neue Version abdeckt. Die neue Version ersetzt diese Kopie. Wenn „Backup aufbewahren, damit Updates rückgängig gemacht werden können“ in den Einstellungen aktiviert ist, kannst du zur aktuellen Version zurückkehren."
+            "value": "Fahre nur fort, wenn sie kostenlos ist oder deine Lizenz die neue Version abdeckt. Die neue Version ersetzt diese Kopie. Wenn „Backup aufbewahren, damit Updates rückgängig gemacht werden können“ in den [Einstellungen](duoupdater-settings:backups) aktiviert ist, kannst du zur aktuellen Version zurückkehren."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Continúa solo si es gratis o tu licencia cubre la versión nueva. La nueva versión sustituye a esta copia. Si “Conservar una copia de seguridad para poder revertir actualizaciones” está activado en Ajustes, puedes volver a tu versión actual."
+            "value": "Continúa solo si es gratis o tu licencia cubre la versión nueva. La nueva versión sustituye a esta copia. Si “Conservar una copia de seguridad para poder revertir actualizaciones” está activado en [Ajustes](duoupdater-settings:backups), puedes volver a tu versión actual."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ne continuez que si c'est gratuit ou si votre licence couvre la nouvelle version. La nouvelle version remplace cette copie. Si « Conserver une sauvegarde pour pouvoir annuler les mises à jour » est activé dans les Réglages, vous pouvez revenir à votre version actuelle."
+            "value": "Ne continuez que si c'est gratuit ou si votre licence couvre la nouvelle version. La nouvelle version remplace cette copie. Si « Conserver une sauvegarde pour pouvoir annuler les mises à jour » est activé dans les [Réglages](duoupdater-settings:backups), vous pouvez revenir à votre version actuelle."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Continua solo se è gratuita o se la tua licenza copre la nuova versione. La nuova versione sostituisce questa copia. Se “Conserva un backup per poter ripristinare gli aggiornamenti” è attivo nelle Impostazioni, puoi tornare alla versione attuale."
+            "value": "Continua solo se è gratuita o se la tua licenza copre la nuova versione. La nuova versione sostituisce questa copia. Se “Conserva un backup per poter ripristinare gli aggiornamenti” è attivo nelle [Impostazioni](duoupdater-settings:backups), puoi tornare alla versione attuale."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "無料の場合、またはライセンスが新しいバージョンをカバーしている場合のみ続行してください。新しいバージョンはこのコピーを置き換えます。設定で「更新をロールバックできるようバックアップを保持する」がオンなら、現在のバージョンにロールバックできます。"
+            "value": "無料の場合、またはライセンスが新しいバージョンをカバーしている場合のみ続行してください。新しいバージョンはこのコピーを置き換えます。[設定](duoupdater-settings:backups)で「更新をロールバックできるようバックアップを保持する」がオンなら、現在のバージョンにロールバックできます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Continue apenas se for gratuito ou se sua licença cobrir a nova versão. A nova versão substitui esta cópia. Se “Manter um backup para poder reverter atualizações” estiver ativado nos Ajustes, você pode voltar à versão atual."
+            "value": "Continue apenas se for gratuito ou se sua licença cobrir a nova versão. A nova versão substitui esta cópia. Se “Manter um backup para poder reverter atualizações” estiver ativado nos [Ajustes](duoupdater-settings:backups), você pode voltar à versão atual."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Продолжайте, только если это бесплатно или ваша лицензия покрывает новую версию. Новая версия заменит эту копию. Если в настройках включено «Хранить резервную копию для отката обновлений», можно откатиться к текущей версии."
+            "value": "Продолжайте, только если это бесплатно или ваша лицензия покрывает новую версию. Новая версия заменит эту копию. Если в [настройках](duoupdater-settings:backups) включено «Хранить резервную копию для отката обновлений», можно откатиться к текущей версии."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yalnızca ücretsizse veya lisansınız yeni sürümü kapsıyorsa devam edin. Yeni sürüm bu kopyanın yerini alır. Ayarlar’da “Güncellemelerin geri alınabilmesi için yedek tut” açıksa şu anki sürüme geri dönebilirsiniz."
+            "value": "Yalnızca ücretsizse veya lisansınız yeni sürümü kapsıyorsa devam edin. Yeni sürüm bu kopyanın yerini alır. [Ayarlar](duoupdater-settings:backups)’da “Güncellemelerin geri alınabilmesi için yedek tut” açıksa şu anki sürüme geri dönebilirsiniz."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "仅当它是免费的，或你的许可证覆盖新版本时才继续。新版本会替换这份副本。如果设置中打开了“保留备份以便回滚更新”，可以回滚到你现在的版本。"
+            "value": "仅当它是免费的，或你的许可证覆盖新版本时才继续。新版本会替换这份副本。如果[设置](duoupdater-settings:backups)中打开了“保留备份以便回滚更新”，可以回滚到你现在的版本。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "只有在它是免費的，或你的授權涵蓋新版本時才繼續。新版本會取代這份副本。如果設定中開啟了「保留備份以便還原更新」，可以還原到你目前的版本。"
+            "value": "只有在它是免費的，或你的授權涵蓋新版本時才繼續。新版本會取代這份副本。如果[設定](duoupdater-settings:backups)中開啟了「保留備份以便還原更新」，可以還原到你目前的版本。"
           }
         }
       }
@@ -74619,67 +74619,67 @@
         }
       }
     },
-    "The new version replaces this copy. If “Keep a backup so updates can be rolled back” is on in Settings, you can roll back to the version you have now.": {
+    "The new version replaces this copy. If “Keep a backup so updates can be rolled back” is on in [Settings](duoupdater-settings:backups), you can roll back to the version you have now.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die neue Version ersetzt diese Kopie. Wenn „Backup aufbewahren, damit Updates rückgängig gemacht werden können“ in den Einstellungen aktiviert ist, kannst du zur aktuellen Version zurückkehren."
+            "value": "Die neue Version ersetzt diese Kopie. Wenn „Backup aufbewahren, damit Updates rückgängig gemacht werden können“ in den [Einstellungen](duoupdater-settings:backups) aktiviert ist, kannst du zur aktuellen Version zurückkehren."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La nueva versión sustituye a esta copia. Si “Conservar una copia de seguridad para poder revertir actualizaciones” está activado en Ajustes, puedes volver a tu versión actual."
+            "value": "La nueva versión sustituye a esta copia. Si “Conservar una copia de seguridad para poder revertir actualizaciones” está activado en [Ajustes](duoupdater-settings:backups), puedes volver a tu versión actual."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La nouvelle version remplace cette copie. Si « Conserver une sauvegarde pour pouvoir annuler les mises à jour » est activé dans les Réglages, vous pouvez revenir à votre version actuelle."
+            "value": "La nouvelle version remplace cette copie. Si « Conserver une sauvegarde pour pouvoir annuler les mises à jour » est activé dans les [Réglages](duoupdater-settings:backups), vous pouvez revenir à votre version actuelle."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "La nuova versione sostituisce questa copia. Se “Conserva un backup per poter ripristinare gli aggiornamenti” è attivo nelle Impostazioni, puoi tornare alla versione attuale."
+            "value": "La nuova versione sostituisce questa copia. Se “Conserva un backup per poter ripristinare gli aggiornamenti” è attivo nelle [Impostazioni](duoupdater-settings:backups), puoi tornare alla versione attuale."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "新しいバージョンはこのコピーを置き換えます。設定で「更新をロールバックできるようバックアップを保持する」がオンなら、現在のバージョンにロールバックできます。"
+            "value": "新しいバージョンはこのコピーを置き換えます。[設定](duoupdater-settings:backups)で「更新をロールバックできるようバックアップを保持する」がオンなら、現在のバージョンにロールバックできます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "A nova versão substitui esta cópia. Se “Manter um backup para poder reverter atualizações” estiver ativado nos Ajustes, você pode voltar à versão atual."
+            "value": "A nova versão substitui esta cópia. Se “Manter um backup para poder reverter atualizações” estiver ativado nos [Ajustes](duoupdater-settings:backups), você pode voltar à versão atual."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Новая версия заменит эту копию. Если в настройках включено «Хранить резервную копию для отката обновлений», можно откатиться к текущей версии."
+            "value": "Новая версия заменит эту копию. Если в [настройках](duoupdater-settings:backups) включено «Хранить резервную копию для отката обновлений», можно откатиться к текущей версии."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yeni sürüm bu kopyanın yerini alır. Ayarlar’da “Güncellemelerin geri alınabilmesi için yedek tut” açıksa şu anki sürüme geri dönebilirsiniz."
+            "value": "Yeni sürüm bu kopyanın yerini alır. [Ayarlar](duoupdater-settings:backups)’da “Güncellemelerin geri alınabilmesi için yedek tut” açıksa şu anki sürüme geri dönebilirsiniz."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "新版本会替换这份副本。如果设置中打开了“保留备份以便回滚更新”，可以回滚到你现在的版本。"
+            "value": "新版本会替换这份副本。如果[设置](duoupdater-settings:backups)中打开了“保留备份以便回滚更新”，可以回滚到你现在的版本。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "新版本會取代這份副本。如果設定中開啟了「保留備份以便還原更新」，可以還原到你目前的版本。"
+            "value": "新版本會取代這份副本。如果[設定](duoupdater-settings:backups)中開啟了「保留備份以便還原更新」，可以還原到你目前的版本。"
           }
         }
       }
@@ -75785,6 +75785,136 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@。重新啟動後即可使用目前安裝的版本。"
+          }
+        }
+      }
+    },
+    "Back Up & Update": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern & aktualisieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copia y actualizar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sauvegarder et mettre à jour"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup e aggiorna"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップして更新"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fazer backup e atualizar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранить копию и обновить"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yedekle ve güncelle"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份并更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "備份並更新"
+          }
+        }
+      }
+    },
+    "Keeps a backup of the version you have now, for this update only, so it can be rolled back. Backups stay off in Settings.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bewahrt nur für dieses Update ein Backup deiner aktuellen Version auf, damit es rückgängig gemacht werden kann. Backups bleiben in den Einstellungen deaktiviert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda una copia de seguridad de tu versión actual solo para esta actualización, para poder revertirla. Las copias de seguridad siguen desactivadas en Ajustes."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conserve une sauvegarde de votre version actuelle, pour cette mise à jour uniquement, afin de pouvoir l’annuler. Les sauvegardes restent désactivées dans les Réglages."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conserva un backup della versione attuale, solo per questo aggiornamento, così da poterlo annullare. I backup restano disattivati nelle Impostazioni."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この更新に限り、現在のバージョンのバックアップを保持してロールバックできるようにします。設定のバックアップはオフのままです。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantém um backup da versão atual, só para esta atualização, para que ela possa ser revertida. Os backups continuam desativados nos Ajustes."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохраняет резервную копию текущей версии только для этого обновления, чтобы его можно было откатить. В настройках резервные копии остаются выключенными."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca bu güncelleme için şu anki sürümün yedeğini tutar, böylece geri alınabilir. Ayarlar’da yedekler kapalı kalır."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅为这次更新保留当前版本的备份，以便回滚。设置中的备份仍保持关闭。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅為這次更新保留目前版本的備份，以便還原。設定中的備份仍保持關閉。"
           }
         }
       }

@@ -171,6 +171,9 @@ struct RowActions {
     /// so adding an action breaks the build at both sites instead of going
     /// quiet at whichever one was forgotten.
     var install: () -> Void = {}
+    /// Install with a rollback point even though backups are off — the
+    /// major-upgrade confirmation's "Back Up & Update". Leaves the setting off.
+    var installBackingUpOnce: () -> Void = {}
     var openStagedPackage: () -> Void = {}
     var retry: () -> Void = {}
     /// Until when GitHub's API budget is closed (`AppListModel.gitHubPausedUntil`):
@@ -190,6 +193,9 @@ struct RowActions {
     /// where the user is, and the way out of the state should be one click from
     /// there.
     var openTestFlightSetting: () -> Void = {}
+    /// Deep-link to Settings → Backups, from the major-upgrade confirmation's
+    /// mention of the backup setting.
+    var openBackupSetting: () -> Void = {}
     /// Open the Apple Developer sign-in window for a row on the `.appleSignIn`
     /// route. Signing in only brings the Update button back; it starts nothing.
     var signInToAppleDeveloper: () -> Void = {}
@@ -198,6 +204,7 @@ struct RowActions {
     /// is a dead control rather than a deliberate omission.
     static func live(
         install: @escaping () -> Void,
+        installBackingUpOnce: @escaping () -> Void,
         openStagedPackage: @escaping () -> Void,
         retry: @escaping () -> Void,
         restart: @escaping () -> Void,
@@ -208,16 +215,19 @@ struct RowActions {
         openTestFlight: @escaping () -> Void,
         grantFullDiskAccess: @escaping () -> Void,
         openTestFlightSetting: @escaping () -> Void,
+        openBackupSetting: @escaping () -> Void,
         signInToAppleDeveloper: @escaping () -> Void,
         retryPausedUntil: Date?
     ) -> RowActions {
         RowActions(
-            install: install, openStagedPackage: openStagedPackage, retry: retry,
+            install: install, installBackingUpOnce: installBackingUpOnce,
+            openStagedPackage: openStagedPackage, retry: retry,
             retryPausedUntil: retryPausedUntil,
             restart: restart, relaunchStaged: relaunchStaged, confirmQuit: confirmQuit,
             openSelfUpdater: openSelfUpdater, openToolbox: openToolbox,
             openTestFlight: openTestFlight, grantFullDiskAccess: grantFullDiskAccess,
             openTestFlightSetting: openTestFlightSetting,
+            openBackupSetting: openBackupSetting,
             signInToAppleDeveloper: signInToAppleDeveloper)
     }
 }

@@ -25,9 +25,22 @@ import SQLite3
 /// A day, not a moment, so a release ON that day is withheld: whether TablePlus
 /// counts the last day as covered was not established.
 ///
-/// An HTTP cache, not an interface: missing, evicted, or reshaped → `.unreadable`,
-/// and nothing newer is offered; the user can still update from TablePlus.
+/// Only a licensed copy is gated. Registering a licence writes `.licensemac`
+/// under its Application Support folder (this Mac: the file's birth time,
+/// 2026-03-21 12:28:44 +0800, is the second the cached `v1/licenses/register`
+/// request was made). A copy without that file has no licence to lapse — the
+/// free tier runs any build — so it gets no window at all, and its updates are
+/// offered as before.
+///
+/// For a licensed copy the cache is an HTTP cache, not an interface: missing,
+/// evicted, or reshaped → `.unreadable`, and nothing newer is offered; the user
+/// can still update from TablePlus.
 public enum TablePlusSubscription {
+    static var licenseFileURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/com.tinyapp.TablePlus/.licensemac", isDirectory: false)
+    }
+
     static var cacheURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Caches/com.tinyapp.TablePlus/Cache.db", isDirectory: false)
@@ -35,8 +48,14 @@ public enum TablePlusSubscription {
 
     static let devicesRequestPrefix = "https://tableplus.com/v1/licenses/devices"
 
-    public static func currentWindow() -> SubscriptionWindow {
-        window(fromResponse: readLatestDevicesResponse(cache: cacheURL))
+    /// nil when this Mac holds no TablePlus licence: nothing to gate.
+    public static func currentWindow() -> SubscriptionWindow? {
+        window(licenseFile: licenseFileURL, cache: cacheURL)
+    }
+
+    static func window(licenseFile: URL, cache: URL) -> SubscriptionWindow? {
+        guard FileManager.default.fileExists(atPath: licenseFile.path) else { return nil }
+        return window(fromResponse: readLatestDevicesResponse(cache: cache))
     }
 
     /// Parse the devices response body. Pure and tested. Never logs: the body

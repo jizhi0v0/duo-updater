@@ -23,7 +23,7 @@ public enum SubscriptionWindow: Sendable, Equatable {
     }
 
     /// The window for `bundleID` on this Mac now, or nil for every app that is
-    /// not gated. Read on every check: a renewal changes it and nothing caches it.
+    /// not gated (and for a TablePlus copy with no licence on this Mac). Read on every check: a renewal changes it and nothing caches it.
     public static func current(forBundleID bundleID: String?) -> SubscriptionWindow? {
         switch bundleID?.lowercased() {
         case SurgeChannel.bundleID.lowercased(): return SurgeSubscription.currentWindow()

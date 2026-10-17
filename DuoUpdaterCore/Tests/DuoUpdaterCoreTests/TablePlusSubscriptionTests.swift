@@ -132,8 +132,21 @@ struct TablePlusSubscriptionTests {
         #expect(covered.subscriptionHold == nil)
     }
 
-    @Test func tablePlusIsGatedAndItsSetappEditionIsNot() {
-        #expect(SubscriptionWindow.current(forBundleID: "com.tinyapp.TablePlus") != nil)
+    @Test func theSetappEditionIsNotGated() {
         #expect(SubscriptionWindow.current(forBundleID: "com.tinyapp.TablePlus-setapp") == nil)
+    }
+
+    /// No licence on this Mac (the free tier): nothing to gate, whatever the cache
+    /// holds. A licence with no readable cache withholds instead.
+    @Test func onlyALicensedCopyIsGated() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tp-licence-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let licence = dir.appendingPathComponent(".licensemac")
+        let noCache = dir.appendingPathComponent("Cache.db")
+        #expect(TablePlusSubscription.window(licenseFile: licence, cache: noCache) == nil)
+        try Data([0x01]).write(to: licence)
+        #expect(TablePlusSubscription.window(licenseFile: licence, cache: noCache) == .unreadable)
     }
 }

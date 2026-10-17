@@ -120,11 +120,15 @@ final class CLIToolsModel {
     /// A stale copy is in it only once two reads apart have seen it
     /// (`staleSeen`). Surfaces read it through `liveUsage`.
     private(set) var usage: [CLIToolID: CLIToolUsage] = [:]
-    /// When `usage` was last read; set on every read, so a surface that asks
-    /// `liveUsage` is drawn again when a read lands.
-    private(set) var usageReadAt: Date?
+    /// Whether `usage` was read while a window of the app was on screen (or
+    /// in a wake's grace). A read with none on screen is for the notice only:
+    /// a popover opened later draws nothing from it, and is drawn again — this
+    /// flag is observed — when the read its open wakes lands. A clock check
+    /// could not do that: SwiftUI does not observe the clock, and the menu's
+    /// view tree outlives a closed popover (review, #1374 round 5).
+    private(set) var usageDrawable = false
     /// When each stale process the last read saw was first seen stale: one is
-    /// shown only once it has been for `staleConfirmDelay`. By time, not by
+    /// shown only once it has been for `staleConfirmSeconds`. By time, not by
     /// reads: a confirm read left by one short process and a tick of the clock
     /// can be under a second apart, and counting reads let a process that
     /// lived 1 s through (measured 2026-10-17, 1 of 6).
@@ -614,17 +618,10 @@ final class CLIToolsModel {
     /// left behind.
     static let staleConfirmDelay: Duration = .milliseconds(2200)  // lands past `staleConfirmSeconds`
     static let staleConfirmSeconds: TimeInterval = 2
-    /// How old a read may be and still be drawn. The hidden clock reads once a
-    /// minute; an opened popover draws nothing from such a read and waits for
-    /// the one its open wakes, so a mark for a process gone since never shows
-    /// for a frame.
-    static let usageFreshness: TimeInterval = 10
-
-    /// Who runs `id` now, or nil — also when the last read is older than
-    /// `usageFreshness`.
+    /// Who runs `id` now, or nil — also while the last read was made with no
+    /// window on screen (`usageDrawable`).
     func liveUsage(_ id: CLIToolID) -> CLIToolUsage? {
-        guard let usageReadAt, now().timeIntervalSince(usageReadAt) <= Self.usageFreshness else { return nil }
-        return usage[id]
+        usageDrawable ? usage[id] : nil
     }
 
     /// Read who runs each install now, and keep reading on the clocks above.
@@ -640,6 +637,7 @@ final class CLIToolsModel {
                     self.wakeGraceReads -= 1
                     visible = true
                 }
+                if let self, self.usageDrawable != visible { self.usageDrawable = visible }
                 // Said when the clock changes, so the log shows which one runs.
                 if visible != wasVisible {
                     Log.app.notice("cli-tools: process watch every \(visible ? "3" : "60", privacy: .public)s (a window is \(visible ? "on screen" : "not on screen", privacy: .public))")
@@ -703,7 +701,6 @@ final class CLIToolsModel {
             Log.app.notice("cli-tools: stale shown now: \(said.isEmpty ? "none" : said, privacy: .public)\(unconfirmed ? " (more to confirm)" : "", privacy: .public)")
         }
         if confirmed != usage { usage = confirmed }
-        usageReadAt = readAt
         watchExits(of: Set(found.values.flatMap { $0.current + $0.stale.map(\.pid) }))
         announceStale()
         if unconfirmed {

@@ -2115,9 +2115,9 @@ final class AppListModel {
         // screen, once a minute otherwise (`CLIToolsModel.watchProcesses`).
         cliTools.onStaleProcesses = { [weak self] newly, cleared in self?.notifyStaleCLIProcesses(newly, cleared) }
         cliTools.watchProcesses(isVisible: { Self.anyWindowOnScreen() })
-        // A window of ours coming out from under another one, or going under:
-        // no open or focus says so, and its marks are drawn only from a fresh
-        // read (`CLIToolsModel.liveUsage`).
+        // A window of ours coming out from under another one: no open or focus
+        // says so, and its marks are drawn only from a read made while a
+        // window was on screen (`CLIToolsModel.liveUsage`).
         NotificationCenter.default.addObserver(
             forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main
         ) { [weak self] note in

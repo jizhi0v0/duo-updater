@@ -114,6 +114,53 @@ final class CLIToolsModel {
     /// pinned "Claude Code updated to 2.1.285" on the popover for good — the first
     /// thing the user saw after a real update on 2026-10-01.
     private(set) var justUpdated: [CLIToolID: String] = [:]
+    /// Who is running each install right now (`CLIToolProcesses`), for the row's
+    /// running dot and its "still on the old version" line. Only installs
+    /// something runs are in it. Re-read by `watchProcesses`, on its own clock.
+    /// A stale copy is in it only once two reads apart have seen it
+    /// (`staleSeen`). Surfaces read it through `liveUsage`.
+    private(set) var usage: [CLIToolID: CLIToolUsage] = [:]
+    /// Whether the watch, after its last read, found a window of the app on
+    /// screen (or was in a wake's grace); reads outside the watch — after a
+    /// check, a confirm, an exit — leave it as it is. A read with none on screen is for the notice only:
+    /// a popover opened later draws nothing from it, and is drawn again — this
+    /// flag is observed — when the read its open wakes lands. A clock check
+    /// could not do that: SwiftUI does not observe the clock, and the menu's
+    /// view tree outlives a closed popover (review, #1374 round 5).
+    private(set) var usageDrawable = false
+    /// When each stale process the last read saw was first seen stale: one is
+    /// shown only once it has been for `staleConfirmSeconds`. By time, not by
+    /// reads: a confirm read left by one short process and a tick of the clock
+    /// can be under a second apart, and counting reads let a process that
+    /// lived 1 s through (measured 2026-10-17, 1 of 6).
+    @ObservationIgnored private var staleSeen: [StaleProcess: Date] = [:]
+    private struct StaleProcess: Hashable { let id: CLIToolID; let pid: pid_t }
+    /// Reads left on the 3 s clock after a wake, whether or not AppKit says a
+    /// window is on screen yet at that moment (review, #1374).
+    @ObservationIgnored private var wakeGraceReads = 0
+    /// One kernel exit watch per process `usage` names, so a dot, a mark and
+    /// a notice go when the process does — not at the next tick, which with no
+    /// window on screen left a notice up for 60 s after the session closed
+    /// (measured 2026-10-17).
+    @ObservationIgnored private var exitWatches: [pid_t: DispatchSourceProcess] = [:]
+    /// The stale processes each install's banner has named, so one is posted
+    /// for each update a running copy missed, not on every read
+    /// (`onStaleProcesses`). Forgotten once the install has none left.
+    @ObservationIgnored private var announcedStale: [CLIToolID: Set<pid_t>] = [:]
+    /// Told, after a read of the process table, which installs newly have
+    /// processes left on a copy from before an update, and which no longer
+    /// have any. `AppListModel` posts and withdraws the banner.
+    @ObservationIgnored var onStaleProcesses: (@MainActor (
+        _ newly: [CLIToolStatus], _ changed: [CLIToolStatus], _ cleared: [CLIToolID]) -> Void)?
+    /// The stale processes each banner names now, to bring its text up to date
+    /// (`changed`) when some have gone and none is new.
+    @ObservationIgnored private var bannerStale: [CLIToolID: Set<pid_t>] = [:]
+
+    /// The stale processes `id`'s banner should name now; nil once withdrawn.
+    func bannerProcesses(_ id: CLIToolID) -> Set<pid_t>? { bannerStale[id] }
+    @ObservationIgnored private var processWatch: Task<Void, Never>?
+    /// The watch's current wait; cancelled to wake it early (`wakeProcessWatch`).
+    @ObservationIgnored private var processWatchSleep: Task<Void, Never>?
     /// Update rows whose release notes mark breaking changes in the versions the
     /// update brings → those versions, oldest first
     /// (`CLIToolChangelog.breakingVersions`). A hint beside the version, never a
@@ -276,6 +323,14 @@ final class CLIToolsModel {
     static let unansweredRecheckInterval: TimeInterval = 60
 
     private func decide(_ trigger: RefreshTrigger) async -> RefreshDecision<Set<Int>> {
+        switch trigger {
+        case .popoverOpen, .workbenchOpen, .workbenchFocus:
+            // Who runs what, now, whatever the check decides: the process watch
+            // may be in its hidden-window sleep (`watchProcesses`), and a dot that
+            // came up to a minute after the window did read as wrong (2026-10-16).
+            wakeProcessWatch()
+        default: break
+        }
         switch trigger {
         case .popoverOpen, .workbenchOpen: return await onOpen()
         case .workbenchFocus: return await onFocus()
@@ -554,6 +609,162 @@ final class CLIToolsModel {
         }
         onReport?()
         Task { await loadBreaking() }
+        // A check that finds the tool current is when a copy it updated by
+        // itself is first known to be the new one; say now who missed it.
+        Task { await refreshUsage() }
+    }
+
+    /// How often `watchProcesses` reads the process table while one of the
+    /// app's windows (the popover, the workbench) is on screen, and while none
+    /// is. A read is one `proc_pidpath` per process — 1.2–1.4 ms for 1049 of
+    /// them, measured 2026-10-16 — so the hidden clock is there for the
+    /// banner, the visible one for the dot.
+    static let processWatchVisibleInterval: Duration = .seconds(3)
+    static let processWatchHiddenInterval: Duration = .seconds(60)
+    /// How soon a new stale copy is read again before it is shown: one that
+    /// is gone by then was the old binary's last short command, not a session
+    /// left behind.
+    static let staleConfirmDelay: Duration = .milliseconds(2200)  // lands past `staleConfirmSeconds`
+    static let staleConfirmSeconds: TimeInterval = 2
+    /// Who runs `id` now, or nil — also while the last read was made with no
+    /// window on screen (`usageDrawable`).
+    func liveUsage(_ id: CLIToolID) -> CLIToolUsage? {
+        usageDrawable ? usage[id] : nil
+    }
+
+    /// Read who runs each install now, and keep reading on the clocks above.
+    /// `isVisible` says whether a window of the app is on screen. Started once.
+    func watchProcesses(isVisible: @escaping @MainActor () -> Bool) {
+        guard processWatch == nil else { return }
+        processWatch = Task { [weak self] in
+            var wasVisible: Bool?
+            while !Task.isCancelled {
+                await self?.refreshUsage()
+                var visible = isVisible()
+                if let self, self.wakeGraceReads > 0 {
+                    self.wakeGraceReads -= 1
+                    visible = true
+                }
+                if let self, self.usageDrawable != visible { self.usageDrawable = visible }
+                // Said when the clock changes, so the log shows which one runs.
+                if visible != wasVisible {
+                    Log.app.notice("cli-tools: process watch every \(visible ? "3" : "60", privacy: .public)s (a window is \(visible ? "on screen" : "not on screen", privacy: .public))")
+                    wasVisible = visible
+                }
+                let interval = visible ? Self.processWatchVisibleInterval : Self.processWatchHiddenInterval
+                let sleep = Task { _ = try? await Task.sleep(for: interval) }
+                self?.processWatchSleep = sleep
+                await sleep.value
+            }
+        }
+    }
+
+    /// Read now and go on at the clock that fits: a window just came on
+    /// screen while the watch was in its 60 s hidden-window wait, which kept
+    /// the 3 s clock from starting for up to a minute.
+    func wakeProcessWatch() {
+        wakeGraceReads = 3
+        if let processWatchSleep { processWatchSleep.cancel() } else { Task { await refreshUsage() } }
+    }
+
+    /// One read of the process table for every install there is a binary to
+    /// match (`CLIToolProcesses.target`): the checked installs, or before the
+    /// first check the scan's.
+    func refreshUsage() async {
+        let statuses = checked ? self.statuses : []
+        let sightings = checked ? [] : self.sightings
+        guard !statuses.isEmpty || !sightings.isEmpty else { return }
+        let found = await offCooperativePool(qos: .utility) { () -> [CLIToolID: CLIToolUsage] in
+            let targets = statuses.compactMap { status in CLIToolProcesses.target(of: status).map { (status.toolID, $0) } }
+                + sightings.compactMap { sighting in CLIToolProcesses.target(of: sighting).map { (sighting.toolID, $0) } }
+            let usage = CLIToolProcesses.usage(of: targets.map(\.1))
+            var answer: [CLIToolID: CLIToolUsage] = [:]
+            for (id, target) in targets { if let found = usage[target], found.isRunning { answer[id] = found } }
+            return answer
+        }
+        // A stale copy counts once the read before saw it too; a new one is
+        // read again shortly rather than at the next tick.
+        let readAt = now()
+        var seen: [StaleProcess: Date] = [:]
+        var confirmed: [CLIToolID: CLIToolUsage] = [:]
+        var unconfirmed = false
+        for (id, found) in found {
+            for copy in found.stale {
+                let key = StaleProcess(id: id, pid: copy.pid)
+                seen[key] = staleSeen[key] ?? readAt
+            }
+            let kept = found.keepingStale {
+                guard let first = seen[StaleProcess(id: id, pid: $0.pid)] else { return false }
+                return readAt.timeIntervalSince(first) >= Self.staleConfirmSeconds
+            }
+            if kept.stale.count < found.stale.count { unconfirmed = true }
+            if kept.isRunning { confirmed[id] = kept }
+        }
+        staleSeen = seen
+        let shownStale = { (u: [CLIToolID: CLIToolUsage]) in
+            u.filter { !$0.value.stale.isEmpty }.mapValues { $0.stale.map(\.pid) }
+        }
+        if shownStale(confirmed) != shownStale(usage) {
+            let said = shownStale(confirmed).map { "\($0.key.kind.rawValue) \($0.value)" }.sorted().joined(separator: ", ")
+            Log.app.notice("cli-tools: stale shown now: \(said.isEmpty ? "none" : said, privacy: .public)\(unconfirmed ? " (more to confirm)" : "", privacy: .public)")
+        }
+        if confirmed != usage { usage = confirmed }
+        watchExits(of: Set(found.values.flatMap { $0.current + $0.stale.map(\.pid) }))
+        announceStale()
+        if unconfirmed {
+            Task {
+                try? await Task.sleep(for: Self.staleConfirmDelay)
+                await self.refreshUsage()
+            }
+        }
+    }
+
+    /// Keep an exit watch on exactly `pids`. One that exits before its watch
+    /// is armed is dropped by the next read on the clock.
+    private func watchExits(of pids: Set<pid_t>) {
+        for (pid, source) in exitWatches where !pids.contains(pid) {
+            source.cancel()
+            exitWatches[pid] = nil
+        }
+        for pid in pids where exitWatches[pid] == nil {
+            let source = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .main)
+            source.setEventHandler { [weak self] in
+                MainActor.assumeIsolated { self?.processExited(pid) }
+            }
+            exitWatches[pid] = source
+            source.resume()
+        }
+    }
+
+    private func processExited(_ pid: pid_t) {
+        exitWatches.removeValue(forKey: pid)?.cancel()
+        // Read now; the clock stays the one that fits (no wake grace).
+        if let processWatchSleep { processWatchSleep.cancel() } else { Task { await refreshUsage() } }
+    }
+
+    private func announceStale() {
+        var newly: [CLIToolStatus] = []
+        var changed: [CLIToolStatus] = []
+        var cleared: [CLIToolID] = []
+        for id in announcedStale.keys where usage[id]?.stale.isEmpty ?? true {
+            announcedStale[id] = nil
+            bannerStale[id] = nil
+            cleared.append(id)
+        }
+        for status in statuses {
+            guard let stale = usage[status.toolID]?.stale, !stale.isEmpty else { continue }
+            let pids = Set(stale.map(\.pid))
+            let known = announcedStale[status.toolID] ?? []
+            if !pids.isSubset(of: known) {
+                newly.append(status)
+            } else if pids != bannerStale[status.toolID] {
+                changed.append(status)
+            }
+            announcedStale[status.toolID] = known.union(pids)
+            bannerStale[status.toolID] = pids
+        }
+        guard !newly.isEmpty || !changed.isEmpty || !cleared.isEmpty else { return }
+        onStaleProcesses?(newly, changed, cleared)
     }
 
     /// Read the release notes of every update row whose range is new, and keep

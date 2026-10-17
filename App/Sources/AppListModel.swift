@@ -2110,6 +2110,23 @@ final class AppListModel {
         Task { await cliTools.scanInstalls() }
         // Every landed check, whichever path asked, may have something new to say.
         cliTools.onReport = { [weak self] in self?.notifyNewCLIToolUpdates() }
+        // Who runs each tool's binary, for the running dot and the "still on the
+        // old version" line: every few seconds while a window of ours is on
+        // screen, once a minute otherwise (`CLIToolsModel.watchProcesses`).
+        cliTools.onStaleProcesses = { [weak self] newly, changed, cleared in
+            self?.notifyStaleCLIProcesses(newly, changed, cleared)
+        }
+        cliTools.watchProcesses(isVisible: { Self.anyWindowOnScreen() })
+        // A window of ours coming out from under another one: no open or focus
+        // says so, and its marks are drawn only from a read made while a
+        // window was on screen (`CLIToolsModel.liveUsage`).
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let window = note.object as? NSWindow, window.occlusionState.contains(.visible),
+                  !String(describing: type(of: window)).contains("StatusBar") else { return }
+            MainActor.assumeIsolated { self?.cliTools.wakeProcessWatch() }
+        }
         // A tool's update never runs beside a brew run (`CLIConcurrency`).
         cliTools.blockedByHomebrew = { [weak self] in self?.cliBlockedReason(.tool) != nil }
         // A rejection is reported from whichever request met it; the banner hears
@@ -9409,6 +9426,39 @@ final class AppListModel {
             liveKeys: Set(cliTools.statuses.map(\.toolID.tag)))
         if ledger != prefs.cliToolAnnouncements { prefs.cliToolAnnouncements = ledger }
         announce(.commandLineTools, newly)
+    }
+
+    /// Processes left on a tool's old copy after it updated: said once per
+    /// process, under the tools' own notification switch, and withdrawn once
+    /// they are gone.
+    ///
+    /// `changed`: fewer left and none new (some exited, or the tool was put
+    /// back on the version some of them run) — the banner's text is replaced
+    /// quietly rather than announced again.
+    private func notifyStaleCLIProcesses(_ newly: [CLIToolStatus], _ changed: [CLIToolStatus], _ cleared: [CLIToolID]) {
+        UpdateNotifier.clearCLIStillRunning(tags: cleared.map(\.tag))
+        guard prefs.notifyOnCLIToolUpdates else { return }
+        for (status, quietly) in newly.map({ ($0, false) }) + changed.map({ ($0, true) }) {
+            guard let usage = cliTools.usage[status.toolID],
+                  let line = CLIToolWording.stillRunning(usage, of: status.kind) else { continue }
+            Log.app.notice("cli-tools: \(status.kind.displayName, privacy: .public) at \(status.path, privacy: .public) — \(line, privacy: .public) (pids \(usage.stale.map(\.pid).description, privacy: .public))\(quietly ? " [text updated quietly, if still listed]" : "", privacy: .public)")
+            // Posted only if the banner should still say exactly this when the
+            // asynchronous check for a quiet update comes back.
+            let pids = Set(usage.stale.map(\.pid)), id = status.toolID
+            UpdateNotifier.cliStillRunning(
+                tool: status.name ?? status.kind.displayName, line: line, tag: id.tag, quietly: quietly,
+                stillWanted: { [weak self] in self?.cliTools.bannerProcesses(id) == pids })
+        }
+    }
+
+    /// Whether one of the app's own windows — the popover, the workbench,
+    /// Settings — is on screen. The status item's own window is always
+    /// visible and does not count.
+    static func anyWindowOnScreen() -> Bool {
+        NSApp.windows.contains { window in
+            window.isVisible && window.occlusionState.contains(.visible)
+                && !String(describing: type(of: window)).contains("StatusBar")
+        }
     }
 
     /// The same for Homebrew: formulae, and the casks that install no app

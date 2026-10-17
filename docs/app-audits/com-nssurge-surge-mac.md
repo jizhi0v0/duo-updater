@@ -38,9 +38,9 @@
 ## 订阅门槛（2026-10-17）
 - Surge 是订阅制：发布时间晚于订阅更新窗口的版本装上后打不开（Surge 自己的按钮变成「Renew Subscription…」）。
 - 规则照 Surge 6.10.0 (12500) 自己的 `bestValidUpdateInAppcast:forUpdater:`：候选的 `dateString.integerValue < fusDate` 才可用。`fusDate` 存在 `~/Library/Application Support/com.nssurge.surge-mac` 的扩展属性 `com.nssurge.surge-mac.nsa.3` 里（JSON → `policy` base64 → JSON）。同一 policy 里的 `expiresOnDate` 是另一个时刻，不是这条规则。
-- 实现：`SurgeSubscription` 读窗口，`SparkleAppcastSource` 只从覆盖内的版本里挑，最新被拦下的版本挂在 `RemoteVersion.subscriptionHold` 上，行在动作列（✅ 的位置）显示橙色锁「Not covered by your subscription」，点开说明，不给 Update，`duo check` 的 status 后面带一句原因。读不到属性、格式变了、`<pubDate>` 不是纯数字时一律不提供更新版本（让用户去 Surge 里检查），不按 Surge 的 `integerValue`=0 放行。
+- 实现：`SurgeSubscription` 读窗口（2026-10-17 起和 TablePlus 共用 `SubscriptionWindow`），`SparkleAppcastSource` 只从覆盖内的版本里挑，最新被拦下的版本挂在 `RemoteVersion.subscriptionHold` 上，行在动作列（✅ 的位置）显示橙色锁「Not covered by your subscription」，点开说明，不给 Update，`duo check` 的 status 后面带一句原因。读不到属性、格式变了、`<pubDate>` 解析不出日期时一律不提供更新版本（让用户去 Surge 里检查），不按 Surge 的 `integerValue`=0 放行。
 - 续订：渠道偏好监听改成文件级 FSEvents（目录级流对被监听根目录自身的扩展属性改动没有事件，2026-10-17 实测），重检指纹带上订阅窗口，所以续订后会自动重检；Surge 启动/退出、回到 DuoUpdater 窗口这两个已有触发点也会重检。
-- 真机 2026-10-17：`fusDate`=1792162109（2026-10-16 22:48 +0800），beta feed 6.11.0 发布于 1792168472 → 动作列显示锁，日志 `6.11.0 is not covered by the Surge subscription`。续订路径没有在真实授权上演练（不改用户的授权属性），只验了事件能到达 + 单测覆盖指纹变化。
+- 真机 2026-10-17：`fusDate`=1792162109（2026-10-16 22:48 +0800），beta feed 6.11.0 发布于 1792168472 → 动作列显示锁，日志 `6.11.0 is not covered by the Surge subscription`（共用后措辞改为 `… is not covered by the subscription …`）。续订路径没有在真实授权上演练（不改用户的授权属性），只验了事件能到达 + 单测覆盖指纹变化。
 
 ## 已知问题
 - Surge 运行时用内部 `surge-data-pipe://` scheme 绕过公开 feed URL，duo-updater 改读公开 appcast 而非拦截内部请求——两者版本应一致，但若 Surge 的内部参数与公开 feed 产生分歧时可能不同步

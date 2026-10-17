@@ -34,6 +34,14 @@ CFPreferences 强制 sync（`CFPreferencesAppSynchronize`）避免长时间运�
 ## 一键安装
 - Sparkle 自更新
 
+## 订阅门槛（2026-10-17）
+- TablePlus 是一年更新授权：发布时间晚于授权更新截止日的版本激活不了。规则出自 TablePlus 27.1.0 (821) 二进制里的文案（`strings`）：「This version of TablePlus was released after the license's updates ended.」「TablePlus %@ came out after them, so the key can't activate it. Renew the license for this build, or download the last build it covers.」——比的是**发布日期**和 `TBLicenseModel.updatesAvailableUntil`。
+- 它的 `bestValidUpdateInAppcast:forUpdater:`（`UpdaterDelegate`，arm64 反汇编）按**构建号**封顶：把一个整数上限转成字符串，用 `SUStandardVersionComparator` 和条目 `versionString` 比，只留 ≤ 上限的最高条目。这个上限对应文案「Updates are approved by the license owner up to build %@.」（团队授权管理员批准），不是到期，本次未接入。
+- 截止日在本机只出现在 TablePlus 自己的 URL 缓存 `~/Library/Caches/com.tinyapp.TablePlus/Cache.db`：定期的 `GET tableplus.com/v1/licenses/devices` 响应 `Data.UpdatesAvailableUntilString`（如 `"6 June 2027"`），过期后照样返回（本机 3–5 月缓存为 `"4 May 2026"`，6 月续订后变 `"6 June 2027"`）。`.licensemac` 是加密的，请求带 `X-Tiny-License-Sign` 签名，二者都不读也不重放。
+- 实现：`TablePlusSubscription` 拷贝 Cache.db（含 -wal/-shm）后只读查询最新一条 devices 响应，截止日按 UTC 当天零点；feed `<pubDate>` 是 RFC 822，早于该时刻才覆盖——**截止日当天发布的版本也拦**（TablePlus 是否算当天未确认，取保守）。只读日的 pubDate 按当天结束算。**只对有授权的副本加闸**：以 `~/Library/Application Support/com.tinyapp.TablePlus/.licensemac` 存在为准（本机该文件创建时间 2026-03-21 12:28:44 +0800，与缓存里 `v1/licenses/register` 请求同一秒）；没有授权文件的免费版不加闸、照常提供更新（免费版没有授权可过期，也不会发授权接口请求——推断，未在无授权机器上实测）。有授权但缓存缺失/被清/格式变 → 不提供更新版本，用户可在 TablePlus 里更新。UI 与 Surge 相同（动作列锁），日期只显示到天。Setapp 版（`com.tinyapp.TablePlus-setapp`）不受此门槛。
+- 续订：TablePlus 启动/退出、回到 DuoUpdater 窗口时按指纹重检（指纹含窗口）；没有给 Cache.db 加文件监听（它一直在写）。
+- 真机 2026-10-17：读出 `before(2027-06-06 00:00 UTC)`；`duo check` 照常报 27.1.0 (821) → 27.1.0 (827)（827 发布于 2026-10-16，在窗口内）。
+
 ## 已知问题
 - Bundle id 大小写：CFBundleIdentifier 为 `com.tinyapp.TablePlus`（大写 P），但 CFPreferences 域用小写 `com.tinyapp.tableplus`；`ChannelBinding.resolve` 做小写化比对避免大小写漏匹配
 

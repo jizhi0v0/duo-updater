@@ -142,7 +142,11 @@ enum SubscriptionHoldWording {
         guard let before = hold.coveredBefore else {
             return String(localized: "\(appName) \(hold.version) isn’t offered: \(appName)’s subscription status couldn’t be read. Check for updates in \(appName).")
         }
-        let date = before.formatted(date: .abbreviated, time: .shortened)
+        // A day is shown as the day the vendor named (midnight UTC), not as that
+        // midnight in this Mac's zone.
+        let date = hold.dayOnly
+            ? before.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, timeZone: TimeZone(identifier: "UTC")!))
+            : before.formatted(date: .abbreviated, time: .shortened)
         return String(localized: "\(appName) \(hold.version) isn’t offered: your subscription covers updates released before \(date), and a newer one won’t open. Renew it in \(appName) to update.")
     }
 }

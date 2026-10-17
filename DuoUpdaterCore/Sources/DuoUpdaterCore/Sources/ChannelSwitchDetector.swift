@@ -81,13 +81,14 @@ public enum ChannelSwitchDetector {
     }
 
     /// What a recheck keys on for one bound id: its channel resolution, and for
-    /// Surge its subscription window as well (`SurgeSubscription`) — a renewal
-    /// changes which release Surge may be offered without touching its channel,
-    /// so without it a renewal would wait for the next scheduled check.
+    /// a subscription-gated app (Surge, TablePlus) its window as well
+    /// (`SubscriptionWindow`) — a renewal changes which release may be offered
+    /// without touching the channel, so without it a renewal would wait for the
+    /// next scheduled check.
     public static func recheckFingerprint(bundleID id: String) -> String {
         let channel = fingerprint(of: ChannelBinding.resolve(bundleID: id))
-        guard id.lowercased() == SurgeChannel.bundleID.lowercased() else { return channel }
-        return channel + "|subscription=" + String(describing: SurgeSubscription.currentWindow())
+        guard let window = SubscriptionWindow.current(forBundleID: id) else { return channel }
+        return channel + "|subscription=" + String(describing: window)
     }
 
     /// Not a hex digest, so it can never collide with one.

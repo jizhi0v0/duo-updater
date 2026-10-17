@@ -233,15 +233,19 @@ private func wrappedIOSApp(_ builder: BundleBuilder, _ name: String, files: [Str
         let bundle = try wrappedIOSApp(builder, name, files: [engine, "main.jsbundle"])
         #expect(detect(bundle, isiOSAppOnMac: true, plist: [:]) == .reactNative, "\(name)")
     }
+    // A managed Expo app embeds its JavaScript as `app.bundle` instead.
+    let managed = try wrappedIOSApp(
+        builder, "Managed", files: ["Frameworks/hermes.framework", "app.bundle"])
+    #expect(detect(managed, isiOSAppOnMac: true, plist: [:]) == .reactNative)
 }
 
 @Test func aWrappedIOSAppEmbeddingReactNativeForSomeScreensStaysAnIOSApp() throws {
     // Aqara Home's shape: Hermes ships for its device plugins, which live in their
-    // own directory, while the app itself is UIKit. No `main.jsbundle`, so the
-    // interface is not React Native's and the label does not claim it is.
+    // own directory, while the app itself is native. No entry bundle at the root,
+    // so the interface is not React Native's and the label does not claim it is.
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let bundle = try wrappedIOSApp(
-        builder, "Hybrid", files: ["Frameworks/hermes.framework", "RN/plugin.jsbundle"])
+        builder, "Hybrid", files: ["Frameworks/hermes.framework", "RN/ios_base/base.bundle"])
     #expect(detect(bundle, isiOSAppOnMac: true, plist: [:]) == .iOSApp)
     // And the JavaScript alone, with no engine shipped to run it, is not evidence either.
     let bundleOnly = try wrappedIOSApp(builder, "BundleOnly", files: ["main.jsbundle"])

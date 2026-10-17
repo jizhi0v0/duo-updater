@@ -661,31 +661,41 @@ public enum AppRuntimeDetector {
         return (nested, reading)
     }
 
-    /// Which of Apple's UI frameworks appear in a load-command list.
-    /// The engine frameworks a React Native iOS app can ship: React itself when it
-    /// is linked dynamically (Expo's prebuilt layout), and Hermes under both the
-    /// name it had through RN 0.81 and the one 0.82 gave it.
+    /// The engine frameworks a React Native iOS app can ship: React itself, as
+    /// `React.framework`, when the app is built on React Native's precompiled core
+    /// (opt-in from 0.81; Hy Translate, an Expo build, ships it); and Hermes under both the name
+    /// it had through RN 0.81 and the one 0.82 gave it (`hermes-engine.podspec`).
     static let reactNativeEngines = ["React.framework", "hermes.framework", "hermesvm.framework"]
 
+    /// The names the app's own entry bundle has at the bundle root:
+    /// `main.jsbundle` from React Native's build script (`BUNDLE_NAME="main"` in
+    /// `react-native-xcode.sh`), and `app.bundle`, which `expo-updates` embeds for a
+    /// managed Expo app (`EmbeddedAppLoader.EXUpdatesEmbeddedBundleFilename`).
+    static let reactNativeEntryBundles = ["main.jsbundle", "app.bundle"]
+
     /// Whether a wrapped iOS app's interface is React Native: an engine framework
-    /// *and* `main.jsbundle`, the app's own JavaScript, at the bundle root.
+    /// *and* the app's own entry bundle at the bundle root.
     ///
     /// The engine alone is not enough. Aqara Home ships `hermes.framework` for the
-    /// device plugins it loads from its own `RN/` directory, while every screen
-    /// around them is UIKit — the same "something is bundled, but it is not what
-    /// draws the app" trap Docker was for Electron (#208). `main.jsbundle` is the
-    /// name React Native's iOS template gives the entry bundle, and Expo keeps it.
+    /// device plugins it loads from its own `RN/ios_base/base.bundle`, while the app
+    /// around them is native and has no entry bundle at its root — the same
+    /// "something is bundled, but it is not what draws the app" trap Docker was for
+    /// Electron (#208).
+    ///
+    /// The entry bundle is checked first because it is the one a non-RN app lacks:
+    /// those apps stop after one `stat` per name.
     static func isReactNative(wrappedBundle: URL) -> Bool {
         let fm = FileManager.default
-        guard fm.fileExists(atPath: wrappedBundle.appendingPathComponent("main.jsbundle").path) else {
-            return false
-        }
+        guard reactNativeEntryBundles.contains(where: {
+            fm.fileExists(atPath: wrappedBundle.appendingPathComponent($0).path)
+        }) else { return false }
         let frameworks = wrappedBundle.appendingPathComponent("Frameworks")
         return reactNativeEngines.contains {
             fm.fileExists(atPath: frameworks.appendingPathComponent($0).path)
         }
     }
 
+    /// Which of Apple's UI frameworks appear in a load-command list.
     static func frameworks(in libraries: Set<String>) -> LinkedFrameworks {
         var found: LinkedFrameworks = []
         if MachOImports.links(libraries, framework: "AppKit") { found.insert(.appKit) }

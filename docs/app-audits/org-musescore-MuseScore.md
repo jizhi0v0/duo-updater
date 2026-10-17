@@ -123,9 +123,11 @@ testing 副本被推 stable 是往前走。
   手动拖 `MuseScore 4.app` 进 `/Applications` 时 Finder 只按文件名判断冲突，两者名字不同，不会提示覆盖
 - Testing 构建读成 stable（见「Channel 详情」）
 - 厂商 feed `updates.musescore.org/feed/*.xml` 对两个 UA 都 404，没有抓 app 的真实请求
+- app 自己的 “Install update” 不会和一键互相覆盖：它把 dmg 下到 `~/Library/Application Support/MuseScore/MuseScore4/update/MuseScore-Studio-<ver>.dmg`，提示 “needs to close to complete the installation” → Close 后退出 app、挂载 dmg 打开拖拽窗口，不替换 bundle、不重启（运行中一轮实测）
+- 首启 “Getting started” 向导和更新提示框开着时 app 拒绝退出（AppleScript `quit` 返回 -128），`duo restart` 报 `still running — likely a save prompt`，属于预期
 
 ## 建议下一步
-1. 主会话真机：装 4.7.4（下方 URL），一键到 4.7.5（不运行 + 运行中）
+1. （已做）运行中一轮，2026-10-16，main `make cli`：4.7.4 运行中、自带更新提示框开着，`duo install --yes` → `installed.` 并提示 `Still running the old code: MuseScore Studio`；之后在旧进程里点 “Install update”：下载 4.7.5 dmg、退出、只挂载 dmg（见已知问题），bundle inode 不变、`codesign --strict` 0。4.7.5 启动后首启向导开着，`duo restart` 退不掉 app（见已知问题）。Team `6EPAF2X3PR`、Notarized。新增 `~/Library/{Application Scripts/…QuickLookPreviewExtension, Application Support/MuseScore, Caches/MuseScore, Containers/…QuickLookPreviewExtension, Preferences/org.musescore.MuseScore(4).plist}`、`~/Documents/MuseScore4`；登录项多了 3 条（“MuseScore 4” app、“MuseScore 4 - background tasks”、QuickLook 扩展），app 进废纸篓后下一次 `sfltool dumpbtm` 里都没了
 2. 决定 3.x：给 GitHub 规则加已装版本窗口（`^4\.`），或者接受被推 4.x
 3. 5.0 正式版出来后复查 bundle id，加 5.x 规则；如果没换 id，放开主版本
 4. 可选：加 `ChangelogRecipe(.gitHubReleases)` 给历史说明

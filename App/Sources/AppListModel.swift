@@ -62,6 +62,9 @@ final class AppListModel {
             orphanedStoreCopiesCache = nil
             pruneSettledInstallErrors()
             pruneRetractedNotes()
+            // A bundle swapped under an unchanged path by anything but our own
+            // install (the CLI, a vendor updater, Finder) shows up here first.
+            AppIconCache.revalidate(results.map(\.app.path.path))
         }
     }
 

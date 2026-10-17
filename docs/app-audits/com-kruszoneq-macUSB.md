@@ -85,15 +85,18 @@ bundle 里有一个 LaunchDaemon：`Contents/Library/LaunchDaemons/com.kruszoneq
 - XPC 两端互相按代码签名要求校验（同一 Team 的 app 与 helper），换包后两边都来自新包
 - 2.5 起「操作进行中不允许关闭 app」：正在写 U 盘时退出会被 app 拒绝，运行中一键在这种时候退不掉 app，属于预期
 
-结论：helper 不阻止一键。**未验证**：重新注册后是否需要用户再次在「登录项与扩展」里批准（同一 Team、同一 label，
-我的推测是不需要），由真机端到端确认。
+结论：helper 不阻止一键，但换包后要用户重新批准（2026-10-16 真机，见建议下一步 1）：批准过、正在跑的 root helper 在换包后继续跑旧二进制，
+`duo install` 的 `Still running the old code` 只列 app、不列它；`duo restart` 后 2.5 启动时的 repair 把它 unregister（旧 helper 退出），
+随后 `Register … error: 1`，helper 变成未注册、BTM 记 `[disabled, allowed]`，要用户再批一次。任何更新都会改版本指纹、触发同样的 repair，
+所以手动拖拽更新应该也一样（推断，没测）。
 
 ## 已知问题
-- 无。
+- 换包后 helper 需重新批准（见上）。
+- 2.4 的 “Update available!” 与 2.5 的 “Full Disk Access Required” 提示开着时 app 拒绝退出，`duo restart` 报 `still running — likely a save prompt`，属于预期
+- 2.5 原包 `codesign --verify --deep --strict` 报 `resource fork, Finder information, or similar detritus`（bundle 上有 `com.apple.FinderInfo`），厂商 `macUSB.2.5.dmg` 里的也一样；`spctl` 照常 Notarized
 
 ## 建议下一步
-1. 主会话真机端到端：装 2.4 → 一键到 2.5（不运行；运行中），之后启动 2.5 看 helper 自动 repair 是否成功、是否再要批准。
-   启动会注册 root helper，前后用 `sfltool dumpbtm` 比对并在清理时一并移除。
+1. （已做）运行中一轮，2026-10-16，main `make cli`：2.4 启动后注册 helper（`[enabled, disallowed]`），用户在「登录项与扩展 → 允许在后台」批准（前两次停在 per-user 记录的 `pending authorization`，第三次生效）后 root helper 运行；`duo install --yes` → `installed.` 并提示 `Still running the old code: macUSB`，root helper 仍跑旧二进制；关掉 2.4 自己的更新提示后 `duo restart` → `restarted`；2.5 的 repair 注销旧 helper、重新注册失败（`Register … error: 1`），需再批准。Team `27NC66L8P2`、Notarized。新增 `~/Library/{Caches,HTTPStorages}/com.kruszoneq.macUSB`、`~/Library/Preferences/com.kruszoneq.macUSB.plist`；登录项多了 macUSB（app，含 `pending authorization`）与 macUSBHelper（daemon）记录，app 进废纸篓 20 秒后仍在
 
 ## 如何复验
 ```

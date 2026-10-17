@@ -64,7 +64,7 @@ Homebrew cask `jellyfin`。
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（真机第二轮由主会话执行） | — |
+| 结论 | 不会 | 无（运行中一轮实测） | — |
 | 证据 | 没有自更新器（源码） | — | — |
 
 ## Changelog
@@ -101,7 +101,7 @@ Homebrew cask `jellyfin`。
 - rc 窗口期 rc 副本不会被推下一个 rc（见 Channel 详情）。
 
 ## 建议下一步
-1. 真机端到端（主会话）：装 12.1 → `duo install` → 12.2，两轮（不运行 / 运行中），第二轮重点看 `duo restart` 后旧 `jellyfin` 子进程是否退出、新服务端是否起来、8096 端口是否由新进程监听。
+1. （已做）运行中一轮，2026-10-16，main `make cli`：12.1 运行中（启动器 + 服务端子进程 `MacOS/jellyfin` 监听 `*:8096`，`/System/Info/Public` 报 `12.1.0`），`duo install --yes` → `installed.` 并提示 `Still running the old code: Jellyfin Server`，换包后旧服务端继续应答 12.1.0；`duo restart` → `restarted`：旧服务端进程退出，新启动器与新服务端都映射 12.2 的二进制，8096 由新服务端监听，`/System/Info/Public` 报 `12.2.0`。Team `6YC6EAV7ES`、`codesign --strict` 0、Notarized。新增 `~/.aspnet`（DataProtection-Keys）、`~/Library/Application Support/jellyfin`、`~/Library/Preferences/Jellyfin.Server.plist`，登录项前后无差异
 2. 想接 rc 轨时：`ReleaseChannel.detect()` 加一条 `Jellyfin.Server` 限定的 `^[0-9]+(\.[0-9]+)+-rc[0-9]+$` 规则，probe 读 `preview/` 目录取最高 rc，再和 stable 取高。
 
 ## 如何复验

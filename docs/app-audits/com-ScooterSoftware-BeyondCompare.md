@@ -77,7 +77,7 @@
 |---|---|---|---|
 | 按设备灰度 | 请求带 `auth`、`edition`、`osver` 等参数 | `cpuarch=arm64, edition=pro`（`build` 32528 与 1）和 `cpuarch=x86_64, edition=std, osver=15` 问到的都是同一个 5.2.6 zip（实测） | 不需要 |
 | 按架构 / 按 OS 分轨 | `cpuarch=x86_64`/`arm64` 参数 | 否: 同一个 universal zip | — |
-| 自更新器会不会和我们抢 | 会: app 自己下载并替换（`download://` 链接） | 没查（没启动 app） | 一键第二轮（运行中）由主会话真机验证 |
+| 自更新器会不会和我们抢 | 会: app 自己下载并替换（`download://` 链接） | 用户点了才下（实测，见下） | 无害：在 duo 装好的 5.2.6 上再装一次同版本，签名完好（运行中一轮实测） |
 | 已停放整包 | 没查 | 没查 | 没查 |
 
 ## 已停放整包（自更新器下完、还没装的那份）
@@ -85,12 +85,12 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 没查 | 没查 | 没查 |
-| 证据 | 闭源，未启动 | 第二轮未跑 | — |
+| 结论 | 不会 | 无（下完立即换包） | — |
+| 证据 | 2026-10-16 真机：“New version available...” → “Program Updates and News” → “Click here to update”（`download://www.scootersoftware.com/BCompareOSX-5.2.6.32774.zip`），只在用户点击后下载 | 下载后解到 `$TMPDIR/BC5_<随机>/Beyond Compare.app`，随即原地替换 `/Applications/Beyond Compare.app` 并自行重启，临时目录自己删掉 | — |
 
-- 记录文件与字段: 没查
+- 记录文件与字段: 无（没有停放）
 - 容器: 厂商包是 zip，包根是 `Beyond Compare.app`
-- 两份副本会不会共用这个目录: 没查
+- 两份副本会不会共用这个目录: 不适用（临时目录用完即删）
 
 ## Changelog
 - 来源: 两条 `ChangelogRecipe`，按版本窗口分代际: `https://www.scootersoftware.com/download/v5changelog`（`minimumAppVersion 5`，
@@ -122,7 +122,7 @@
 - `/download` 是「最新代际」页，BC6 发布时 BC5 probe 会失败（有意为之，见「更新检测」）
 
 ## 建议下一步
-1. 主会话真机端到端: 装 5.2.5.32528，`duo install` 到 5.2.6.32774（两轮）
+1. （已做）运行中一轮，2026-10-16，main `make cli`：5.2.5 运行中，`duo install --yes` → `installed.` 并提示 `Still running the old code: Beyond Compare`；随后在旧进程里点 “Click here to update”：它下载 zip、原地替换成 5.2.6（同版本，新 inode）并自行重启，结果 Team `BS29TEJF86`、`codesign --strict` 0、Notarized、`duo check` 报 up to date，没有管理员授权框。它刚自行重启后那一次 `duo restart` 报 `still running — likely a save prompt`（AX 看不到任何窗口；10 秒后普通退出立即成功），重开后再试 `duo restart` → `restarted`，没再复现，原因没查。`BCFinder.appex` 从包内路径注册，没看到扩展进程。新增 `~/Library/{Application Scripts/…BCFinder, Application Support/Beyond Compare 5, Caches/…, Containers/…BCFinder, HTTPStorages/…, WebKit/…}`，登录项前后无差异
 2. BC6 发布后把 BC5 probe 改指厂商给 BC5 的下载页
 
 ## 历史与实测

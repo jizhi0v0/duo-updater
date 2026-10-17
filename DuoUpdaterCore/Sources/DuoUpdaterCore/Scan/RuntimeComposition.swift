@@ -20,8 +20,8 @@ public struct RuntimeComponent: Sendable, Hashable {
 ///
 /// The runtime badge names the framework an app is built on, and for most
 /// frameworks that is not the whole answer: one app can carry several ways of
-/// drawing its windows. calibre ships both Qt Widgets and Qt Quick; OBS is Qt
-/// Widgets with a CEF browser beside it; IntelliJ IDEA is Swing with Skiko and
+/// drawing its windows. Audacity 4 links both Qt Widgets and Qt Quick; OBS is
+/// Qt Widgets with a CEF browser beside it; IntelliJ IDEA is Swing with Skiko and
 /// JCEF; a MyGo app can show a WebView
 /// page, MyGo's own GPU-drawn UI, or both. `LinkedFrameworks` is the same idea
 /// for Apple's own stack, and stays where it is.
@@ -80,6 +80,8 @@ public enum RuntimeComposition {
         let executable: URL?
         private let fm: FileManager
         private let sectionReader: (_ segment: String?, _ name: String) -> Data?
+        private let libraryReader: () -> Set<String>?
+        private var librariesMemo: Set<String>??
         private var sectionMemo: [String: Data?] = [:]
         private var listingMemo: [String: [String]] = [:]
 
@@ -107,16 +109,29 @@ public enum RuntimeComposition {
                 else { return nil }
                 return CLIRuntimeDetector.readBytes(executable, section.range.offset, Int(section.range.size))
             }
+            self.libraryReader = { executable.flatMap { MachOImports.linkedLibraries(at: $0) } }
         }
 
         /// For tests: a bundle on disk with the executable's sections supplied.
         init(bundle: URL, executable: URL?, fm: FileManager = .default,
+             libraries: Set<String>? = nil,
              sections: @escaping (_ segment: String?, _ name: String) -> Data?) {
             self.bundle = bundle
             self.contents = bundle.appendingPathComponent("Contents")
             self.executable = executable
             self.fm = fm
             self.sectionReader = sections
+            self.libraryReader = { libraries }
+        }
+
+        /// The install names the executable links, nil where it could not be
+        /// parsed. What the app's own binary asked for, as opposed to what a
+        /// deploy tool copied into the bundle because some other piece needed it.
+        var executableLibraries: Set<String>? {
+            if let memo = librariesMemo { return memo }
+            let libraries = libraryReader()
+            librariesMemo = .some(libraries)
+            return libraries
         }
 
         /// The bytes of the executable's section `name` — in `segment`, or the

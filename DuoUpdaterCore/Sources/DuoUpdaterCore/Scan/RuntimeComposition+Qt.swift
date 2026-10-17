@@ -11,51 +11,71 @@ extension RuntimeComposition {
     /// A Chromium Embedded Framework browser, shipped beside the Qt UI.
     static let cef = RuntimeComponent(id: "cef", name: "CEF")
 
-    /// Qt, from the names in `Contents/Frameworks` and nothing else.
+    /// Qt, from what the app's executable links and what its bundle ships.
     ///
-    /// Qt is deployed either as frameworks (`QtWidgets.framework` in calibre,
-    /// OBS and Audacity) or as versioned dylibs (`libQt5Widgets.5.15.18.dylib` in
-    /// KeePassXC, `libQt6Widgets.6.dylib` in Raspberry Pi Imager), so both
+    /// Qt is deployed either as frameworks (`QtWidgets.framework` in OBS and
+    /// Audacity 4) or as versioned dylibs (`libQt5Widgets.5.15.18.dylib` in
+    /// KeePassXC, `libQt6Quick.6.dylib` in Raspberry Pi Imager), so both
     /// spellings count. A module is matched by its whole name: `QtQuick` is not
-    /// `QtQuickControls2` or `QtQuickWidgets`, which are extra pieces of an app
-    /// that already ships Quick.
+    /// `QtQuickControls2` or `QtQuickWidgets`.
     ///
-    /// **Widgets, Quick.** These are the two ways a Qt app draws its windows,
-    /// and the badge cannot tell them apart. calibre, HBuilderX, CapCut,
-    /// Audacity 4, Moonlight and Parallels Desktop ship both; OBS, Macs Fan
-    /// Control and KeePassXC ship Widgets alone. Quick alone is reported as
-    /// well, since "Qt Quick" with no Widgets is itself the answer to "how is
-    /// this drawn". Packaging is not use: Raspberry Pi Imager is a QML
-    /// application and still ships `libQt6Widgets`, which Quick Controls and the
-    /// platform dialogs can pull in — the "ships, not shows" caveat.
+    /// **Widgets, Quick — from the executable's load commands.** These are the
+    /// two ways a Qt app draws its windows, and the badge cannot tell them
+    /// apart. A listing of `Frameworks` cannot either, because a deploy tool
+    /// copies every module some other shipped piece links: the macOS style
+    /// plugin `PlugIns/styles/libqmacstyle.dylib` links QtWidgets, so Moonlight
+    /// and Raspberry Pi Imager ship it while their executables link only
+    /// QtQuick; Qt's virtual-keyboard plugins link QtQuick, so DB Browser for
+    /// SQLite ships it while its executable links only QtWidgets; and
+    /// `QtWebEngineCore` itself links QtQuick, so every WebEngine app ships
+    /// Quick. What the executable links is what the app's own code asked for:
+    /// Audacity 4, CapCut and Parallels Desktop link both; OBS, KeePassXC and
+    /// Macs Fan Control link Widgets alone; Moonlight and Raspberry Pi Imager
+    /// link Quick alone. An executable that does not link QtCore is a launcher
+    /// (calibre's starts Python, whose PyQt loads Qt), and says nothing either
+    /// way.
     ///
-    /// **WebEngine.** `QtWebEngineCore` is Qt's whole Chromium (calibre and
-    /// HBuilderX ship it, with `Helpers/QtWebEngineProcess.app`), a heavy piece
-    /// nothing links by accident. The wrapper modules `QtWebEngineWidgets` and
-    /// `QtWebEngineQuick` need the core, so the core is the one name checked.
+    /// **WebEngine, CEF — from the bundle.** Each is a whole Chromium that no Qt
+    /// module links, so shipping one is a choice the app made, and both are
+    /// often loaded at run time rather than linked: HBuilderX ships
+    /// `QtWebEngineCore.framework` (with `Helpers/QtWebEngineProcess.app`) and
+    /// its executable links no WebEngine module. The wrapper modules
+    /// `QtWebEngineWidgets` and `QtWebEngineQuick` need the core, so the core is
+    /// the one name checked. OBS and CapCut ship `Chromium Embedded
+    /// Framework.framework` beside their Qt frameworks; `AppRuntimeDetector`
+    /// files both under Qt because Qt draws the windows, which leaves the
+    /// embedded browser unmentioned anywhere else. Reported as "CEF" and not as
+    /// Chromium: it is the browser engine of a panel, a different build from Qt
+    /// WebEngine's.
     ///
-    /// **CEF.** OBS and CapCut ship `Chromium Embedded Framework.framework`
-    /// beside their Qt frameworks; `AppRuntimeDetector` files both under Qt
-    /// because Qt draws the windows, which leaves the embedded browser
-    /// unmentioned anywhere else. Reported as "CEF" and not as Chromium: it is
-    /// the browser engine of a panel, a different build from Qt WebEngine's.
-    ///
-    /// **Left out.** DingTalk ships only Qt's non-UI libraries
-    /// (`QtConcurrent`, `QtNetwork`, `QtOpenGL`, `QtXml`) and gets nothing.
-    /// PyQt apps keep Qt inside the binding's own directory
+    /// **Left out.** PyQt apps keep Qt inside the binding's own directory
     /// (`Resources/app_packages/PyQt6` in Anki, `PyQt6/` in Frameworks for
     /// PyInstaller bundles). Anki's `PyQt6` holds one `.abi3.so` per Qt module
     /// whether the app uses it or not (QtWebEngineWidgets, QtQuick3D and
     /// QtDesigner among them), so a listing says what the wheel contains and not
     /// what the app is built from. Nothing is returned for them.
     static func qt(_ context: Context) -> [RuntimeComponent] {
-        let frameworks = context.listing("Frameworks")
         var found: [RuntimeComponent] = []
-        if shipsQtModule("Widgets", in: frameworks) { found.append(qtWidgets) }
-        if shipsQtModule("Quick", in: frameworks) { found.append(qtQuick) }
+        if let linked = context.executableLibraries.map(qtModuleNames),
+           shipsQtModule("Core", in: linked) {
+            if shipsQtModule("Widgets", in: linked) { found.append(qtWidgets) }
+            if shipsQtModule("Quick", in: linked) { found.append(qtQuick) }
+        }
+        let frameworks = context.listing("Frameworks")
         if shipsQtModule("WebEngineCore", in: frameworks) { found.append(qtWebEngine) }
         if frameworks.contains("Chromium Embedded Framework.framework") { found.append(cef) }
         return found
+    }
+
+    /// The file names of linked install names, in the spelling
+    /// `shipsQtModule` reads: `@rpath/QtWidgets.framework/Versions/A/QtWidgets`
+    /// gives `QtWidgets.framework`, `@rpath/libQt6Quick.6.dylib` gives
+    /// `libQt6Quick.6.dylib`.
+    static func qtModuleNames(_ libraries: Set<String>) -> [String] {
+        libraries.map { path in
+            let parts = path.split(separator: "/")
+            return String(parts.first { $0.hasSuffix(".framework") } ?? parts.last ?? "")
+        }
     }
 
     /// Whether `names` holds Qt module `module` as `Qt<module>.framework` or as

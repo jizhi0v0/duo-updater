@@ -24,9 +24,10 @@ func compositionBundle(_ files: [String] = []) throws -> URL {
 }
 
 /// A context whose executable's sections are `sections`, keyed `"segment,name"`.
-func compositionContext(_ bundle: URL, sections: [String: String]) -> RuntimeComposition.Context {
+func compositionContext(_ bundle: URL, sections: [String: String],
+                        libraries: Set<String>? = nil) -> RuntimeComposition.Context {
     RuntimeComposition.Context(
-        bundle: bundle, executable: bundle.appendingPathComponent("Contents/MacOS/app")
+        bundle: bundle, executable: bundle.appendingPathComponent("Contents/MacOS/app"), libraries: libraries
     ) { segment, name in
         if let segment { return sections["\(segment),\(name)"].map { Data($0.utf8) } }
         return sections.first { $0.key.hasSuffix(",\(name)") }.map { Data($0.value.utf8) }

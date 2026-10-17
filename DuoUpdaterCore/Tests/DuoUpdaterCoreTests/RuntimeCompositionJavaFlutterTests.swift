@@ -115,6 +115,7 @@ private func javaComponents(_ files: [String]) throws -> [String] {
 
 private let webKit = "/System/Library/Frameworks/WebKit.framework/Versions/A/WebKit"
 private let appKit = "/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit"
+private let flutterEngine = "@rpath/FlutterMacOS.framework/Versions/A/FlutterMacOS"
 
 /// The Flutter reader over a fixture bundle, `links` giving what each framework
 /// (by name) links; a framework not listed cannot be read.
@@ -137,7 +138,7 @@ private func flutterComponents(
         links: [
             "App": [appKit],
             "url_launcher_macos": [appKit],
-            "webview_flutter_wkwebview": [appKit, webKit],
+            "webview_flutter_wkwebview": [appKit, flutterEngine, webKit],
         ]
     ) == ["flutter.webview"])
 }
@@ -157,7 +158,7 @@ private func flutterComponents(
     var reads: [String] = []
     #expect(try flutterComponents(
         ["FlutterMacOS", "App"],
-        links: ["FlutterMacOS": [appKit, webKit], "App": [appKit]],
+        links: ["FlutterMacOS": [appKit, flutterEngine, webKit], "App": [appKit]],
         reads: &reads
     ).isEmpty)
     #expect(!reads.contains("FlutterMacOS"))
@@ -175,10 +176,20 @@ private func flutterComponents(
     ).isEmpty)
 }
 
+/// Sparkle links WebKit for its release-notes window, and a Flutter app can ship
+/// it (the `auto_updater` plugin does): it is not a Flutter plugin, so it is not
+/// the app showing a web page.
+@Test func aFrameworkThatIsNotAFlutterPluginIsNotEvidence() throws {
+    #expect(try flutterComponents(
+        ["FlutterMacOS", "Sparkle", "auto_updater_macos"],
+        links: ["Sparkle": [appKit, webKit], "auto_updater_macos": [appKit, flutterEngine]]
+    ).isEmpty)
+}
+
 @Test func flutterUnreadableFrameworkIsSkippedNotFatal() throws {
     #expect(try flutterComponents(
         ["FlutterMacOS", "broken", "desktop_webview_window"],
-        links: ["desktop_webview_window": [webKit]]
+        links: ["desktop_webview_window": [flutterEngine, webKit]]
     ) == ["flutter.webview"])
 }
 
@@ -186,7 +197,7 @@ private func flutterComponents(
     var reads: [String] = []
     #expect(try flutterComponents(
         ["FlutterMacOS", "a_webview", "b_webview", "c_webview"],
-        links: ["a_webview": [webKit], "b_webview": [webKit], "c_webview": [webKit]],
+        links: ["a_webview": [flutterEngine, webKit], "b_webview": [flutterEngine, webKit], "c_webview": [flutterEngine, webKit]],
         reads: &reads
     ) == ["flutter.webview"])
     // The first hit settles it; the others are not read.
@@ -200,7 +211,7 @@ private func flutterComponents(
     var reads = 0
     let found = RuntimeComposition.flutter(compositionContext(bundle, sections: [:])) { _ in
         reads += 1
-        return [webKit]
+        return [flutterEngine, webKit]
     }
     #expect(found.isEmpty)
     #expect(reads == 0)

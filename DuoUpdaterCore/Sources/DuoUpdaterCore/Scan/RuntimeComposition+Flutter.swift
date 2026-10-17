@@ -19,8 +19,12 @@ extension RuntimeComposition {
     /// AweSun does. LocalSend, Mithka and RustDesk link WebKit from none of their
     /// frameworks. Each `Contents/Frameworks/*.framework` other than the engine is
     /// asked, header only (`MachOImports`), and the first that links WebKit
-    /// settles it. A WebView plugin linked statically into `App.framework` leaves
-    /// no framework of its own and is missed.
+    /// settles it. Only a Flutter plugin counts — one that links
+    /// `FlutterMacOS.framework`, as both of AweSun's do — because Sparkle links
+    /// WebKit too, for its release-notes window, and a Flutter app that updates
+    /// itself with the `auto_updater` plugin ships it. A WebView plugin linked
+    /// statically into `App.framework` leaves no framework of its own and is
+    /// missed.
     static func flutter(_ context: Context) -> [RuntimeComponent] {
         flutter(context, linkedLibraries: MachOImports.linkedLibraries(at:))
     }
@@ -39,6 +43,9 @@ extension RuntimeComposition {
             guard context.exists(relative),
                   let linked = linkedLibraries(context.contents.appendingPathComponent(relative))
             else { continue }
+            // A plugin links the engine; Sparkle, which a Flutter app can ship
+            // and which links WebKit for its release notes, does not.
+            guard linked.contains(where: { $0.contains("/\(engine)/") }) else { continue }
             if linked.contains(where: { $0.hasPrefix("/System/Library/Frameworks/WebKit.framework/") }) {
                 return [flutterWebView]
             }

@@ -1,14 +1,14 @@
 {
   "entries" : {
     "install:github:AprilNEA\/OpenLogi:stable" : {
-      "consecutiveActionable" : 5,
+      "consecutiveActionable" : 6,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1351,
       "lastCommentedAt" : "2026-10-15T20:39:13Z",
       "lastSignature" : "identityChanged: Sparkle key none → dwOe",
       "previousSignature" : "identityChanged: Sparkle key none → dwOe",
-      "sweepsSinceComment" : 3
+      "sweepsSinceComment" : 4
     },
     "install:github:BlueBubblesApp\/bluebubbles-server:stable" : {
       "consecutiveActionable" : 0,
@@ -1603,14 +1603,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:eu.davidbures.cork:stable" : {
-      "consecutiveActionable" : 3,
+      "consecutiveActionable" : 4,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1372,
       "lastCommentedAt" : "2026-10-16T15:42:02Z",
       "lastSignature" : "install.unpack",
       "previousSignature" : "install.unpack",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 2
     },
     "install:vendor:im.riot.app:stable" : {
       "consecutiveActionable" : 0,
@@ -1890,5 +1890,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-16T20:08:01Z"
+  "updatedAt" : "2026-10-17T01:36:36Z"
 }

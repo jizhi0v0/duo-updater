@@ -19,6 +19,14 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.10
+
+**Surge and TablePlus no longer offer an update your licence won't open.** Both apps refuse to run a version released after your updates ended; that version now shows a lock instead of an update button, and the lock says when your coverage ended and to renew in the app.
+
+**A major upgrade can keep a backup just this once.** With backups turned off, the confirmation before a major upgrade now offers "Back Up & Update", and its "Settings" link opens the backup setting directly.
+
+**More apps get the right runtime badge.** iPhone and iPad apps built with React Native, and apps built with GPUI, egui, Wails or PyQt (shown as Qt), used to show "iOS App", Native or no badge.
+
 ## 0.5.9
 
 **21 more apps are supported.** Mounty for NTFS, Jellyfin Server, Stremio, MySQL Workbench, Loop, Snipaste, Krita, Zettlr, KnockKnock, Charles, Beyond Compare, GitKraken, MuseScore Studio, Mullvad Browser, macUSB, Cork, Flycut, xbar, MusicBrainz Picard, SwitchHosts and Open Screen Sharing get update checks and one-click updates, and all but Stremio and MySQL Workbench show release notes. Zettlr follows the beta choice in its own settings, and moving MySQL Workbench from 8.0 to 26 asks first, because 26 is a rewritten app.

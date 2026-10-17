@@ -2,6 +2,14 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.10
+
+**Surge y TablePlus ya no ofrecen una actualización que tu licencia no puede abrir.** Las dos apps se niegan a abrir una versión publicada después de que terminen tus actualizaciones; esa versión ahora muestra un candado en lugar de un botón de actualizar, y el candado indica hasta cuándo cubre tu licencia y que la renueves en la app.
+
+**Una actualización a una versión mayor puede guardar una copia solo esta vez.** Con las copias de seguridad desactivadas, la confirmación previa a una actualización mayor ahora ofrece «Copia y actualizar», y su enlace «Ajustes» abre directamente el ajuste de copias de seguridad.
+
+**Más apps reciben la insignia de tecnología correcta.** Las apps de iPhone y iPad hechas con React Native, y las apps hechas con GPUI, egui, Wails o PyQt (mostradas como Qt), mostraban «App de iOS», «Nativa» o ninguna insignia.
+
 ## 0.5.9
 
 **Se admiten 21 apps más.** Mounty for NTFS, Jellyfin Server, Stremio, MySQL Workbench, Loop, Snipaste, Krita, Zettlr, KnockKnock, Charles, Beyond Compare, GitKraken, MuseScore Studio, Mullvad Browser, macUSB, Cork, Flycut, xbar, MusicBrainz Picard, SwitchHosts y Open Screen Sharing reciben comprobación de actualizaciones y actualizaciones con un clic, y todas salvo Stremio y MySQL Workbench muestran notas de la versión. Zettlr sigue la opción de beta de sus propios ajustes, y pasar MySQL Workbench de la 8.0 a la 26 pregunta antes, porque la 26 es una app reescrita.

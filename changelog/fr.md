@@ -2,6 +2,14 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.10
+
+**Surge et TablePlus ne proposent plus une mise à jour que votre licence ne peut pas ouvrir.** Les deux apps refusent de lancer une version publiée après la fin de vos mises à jour ; cette version affiche désormais un cadenas au lieu d’un bouton de mise à jour, et le cadenas indique jusqu’à quand votre licence vous couvre et qu’il faut la renouveler dans l’app.
+
+**Une mise à niveau majeure peut garder une sauvegarde rien que cette fois.** Quand les sauvegardes sont désactivées, la confirmation avant une mise à niveau majeure propose désormais « Sauvegarder et mettre à jour », et son lien « Réglages » ouvre directement le réglage des sauvegardes.
+
+**Plus d’apps reçoivent le bon badge de technologie.** Les apps iPhone et iPad faites avec React Native, et les apps faites avec GPUI, egui, Wails ou PyQt (affichées comme Qt), affichaient « App iOS », « Natif » ou aucun badge.
+
 ## 0.5.9
 
 **21 apps de plus sont prises en charge.** Mounty for NTFS, Jellyfin Server, Stremio, MySQL Workbench, Loop, Snipaste, Krita, Zettlr, KnockKnock, Charles, Beyond Compare, GitKraken, MuseScore Studio, Mullvad Browser, macUSB, Cork, Flycut, xbar, MusicBrainz Picard, SwitchHosts et Open Screen Sharing bénéficient de la vérification des mises à jour et des mises à jour en un clic, et toutes sauf Stremio et MySQL Workbench affichent les notes de version. Zettlr suit le choix bêta de ses propres réglages, et le passage de MySQL Workbench de la 8.0 à la 26 demande d’abord confirmation, car la 26 est une app réécrite.

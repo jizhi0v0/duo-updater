@@ -2,6 +2,14 @@
 
 このページは `CHANGELOG.md` の日本語訳です。英語版が権威あるバージョンであり、ここに記載されていないバージョンは自動的に英語版へフォールバックします。
 
+## 0.5.10
+
+**Surge と TablePlus は、ライセンスでは開けないアップデートを提示しなくなりました。** どちらの App も、アップデート期間が終わった後にリリースされたバージョンは起動しません。そのバージョンにはアップデートボタンの代わりに鍵が表示され、ライセンスがいつまで有効か、App 内で更新するよう案内します。
+
+**メジャーアップグレードで、今回だけバックアップを残せるようになりました。** バックアップをオフにしているとき、メジャーアップグレード前の確認に「バックアップして更新」が表示され、そこにある「設定」のリンクからバックアップの設定を直接開けます。
+
+**より多くの App に正しいランタイムバッジが付くようになりました。** React Native で作られた iPhone・iPad App や、GPUI、egui、Wails、PyQt（Qt として表示）で作られた App は、これまで「iOSアプリ」「ネイティブ」と表示されるか、バッジが付いていませんでした。
+
 ## 0.5.9
 
 **対応 App が 21 個増えました。** Mounty for NTFS、Jellyfin Server、Stremio、MySQL Workbench、Loop、Snipaste、Krita、Zettlr、KnockKnock、Charles、Beyond Compare、GitKraken、MuseScore Studio、Mullvad Browser、macUSB、Cork、Flycut、xbar、MusicBrainz Picard、SwitchHosts、Open Screen Sharing でアップデートの確認とワンクリックアップデートが使えるようになり、Stremio と MySQL Workbench を除くすべてでリリースノートも表示されます。Zettlr は自身の設定にあるベータの選択に従い、MySQL Workbench を 8.0 から 26 へ移行する前には確認が入ります。26 は作り直された App だからです。

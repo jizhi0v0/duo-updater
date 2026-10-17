@@ -2,6 +2,14 @@
 
 本文件是 CHANGELOG.md 的繁體中文翻譯，以英文版為準。本文件中未列出的版本會自動改以英文顯示。
 
+## 0.5.10
+
+**Surge 和 TablePlus 不會再提供你的授權打不開的更新。** 這兩個 App 都不會執行在你的更新期結束後發布的版本；這樣的版本現在顯示一把鎖而不是更新按鈕，鎖會告訴你授權涵蓋到哪天，並提示你在 App 裡續訂。
+
+**大版本升級可以只為這一次保留備份。** 備份關閉時，大版本升級前的確認裡現在有「備份並更新」，其中的「設定」連結會直接打開備份設定。
+
+**更多 App 顯示正確的執行環境標記。** 用 React Native 做的 iPhone 和 iPad App，以及用 GPUI、egui、Wails 或 PyQt（顯示為 Qt）做的 App，以前顯示的是「iOS App」「原生」，或者沒有標記。
+
 ## 0.5.9
 
 **多支援了 21 個 App。** Mounty for NTFS、Jellyfin Server、Stremio、MySQL Workbench、Loop、Snipaste、Krita、Zettlr、KnockKnock、Charles、Beyond Compare、GitKraken、MuseScore Studio、Mullvad Browser、macUSB、Cork、Flycut、xbar、MusicBrainz Picard、SwitchHosts、Open Screen Sharing 可以檢查更新和一鍵更新，其中除 Stremio 和 MySQL Workbench 外都能查看更新說明。Zettlr 會跟隨它自己設定裡的 Beta 選項；把 MySQL Workbench 從 8.0 升到 26 之前會先問你一聲，因為 26 是重寫過的 App。

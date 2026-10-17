@@ -6,8 +6,8 @@ import DuoUpdaterCore
 /// Electron, Tauri, Qt, native, …
 ///
 /// **Where a runtime has a mark of its own, this draws that mark**, not an
-/// imitation of it: Electron, Tauri, Flutter and Qt are Simple Icons artwork
-/// (`RuntimeArtwork`, which says why hand-drawn near-misses were replaced), a
+/// imitation of it: Electron, Tauri, Flutter, Qt and React Native are Simple
+/// Icons artwork (`RuntimeArtwork`, which says why hand-drawn near-misses were replaced), a
 /// single path in a 24-unit box filled with the runtime's hue. Chromium's disc
 /// and MyGo's ring-in-a-square are drawn from geometry here, because they are
 /// nothing but geometry and neither has an icon to import. The rest take SF
@@ -174,7 +174,8 @@ struct RuntimeTag: View {
     /// green, Flutter's light blue, Java's coffee) and dropped where it does not:
     /// Tauri's yellow is illegible on white, so it takes the orange next to it.
     /// MyGo's is Go's cyan, which Flutter and Electron already hold between them,
-    /// so it takes pink — the hue no other runtime is near.
+    /// so it takes pink — the hue no other runtime is near. React's cyan is taken
+    /// the same way, so React Native takes the mint beside it.
     ///
     /// Native is the one neutral, and it can afford to be: its mark is a solid
     /// Apple glyph, which carries at grey where a thin outline did not. That
@@ -190,6 +191,7 @@ struct RuntimeTag: View {
         case .chromium:  return .blue
         case .catalyst:  return .purple
         case .iOSApp:    return .indigo
+        case .reactNative: return .mint
         case .native:    return .gray
         }
     }
@@ -209,6 +211,7 @@ struct RuntimeTag: View {
         case .chromium:  return "Chromium"
         case .catalyst:  return "Mac Catalyst"
         case .iOSApp:    return String(localized: "iOS App", comment: "Runtime mark: an iPhone/iPad app running on Apple silicon")
+        case .reactNative: return "React Native"
         case .native:    return String(localized: "Native", comment: "Runtime mark: a native Mac app built with AppKit or SwiftUI")
         }
     }
@@ -227,7 +230,7 @@ struct RuntimeTag: View {
         case .catalyst:  return "ipad.and.iphone"
         case .iOSApp:    return "iphone"
         case .native:    return "applelogo"  // Apple's own frameworks, Apple's own glyph
-        case .electron, .tauri, .mygo, .flutter, .qt, .chromium: return nil
+        case .electron, .tauri, .mygo, .flutter, .qt, .chromium, .reactNative: return nil
         }
     }
 
@@ -275,6 +278,7 @@ struct RuntimeTag: View {
         case .chromium:  return String(localized: "Built on Chromium.")
         case .catalyst:  return String(localized: "An iPad app brought to the Mac with Mac Catalyst.")
         case .iOSApp:    return String(localized: "An iPhone or iPad app running on Apple silicon.")
+        case .reactNative: return String(localized: "An iPhone or iPad app built with React Native, running on Apple silicon.")
         case .native:    return String(localized: "A native Mac app — built straight on Apple's frameworks, not a cross-platform runtime.")
         }
     }

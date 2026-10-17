@@ -11240,6 +11240,71 @@
         }
       }
     },
+    "An iPhone or iPad app built with React Native, running on Apple silicon.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine mit React Native gebaute iPhone- oder iPad-App, die auf Apple Silicon läuft."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una app de iPhone o iPad creada con React Native, ejecutándose en Apple silicon."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une app iPhone ou iPad conçue avec React Native, exécutée sur Apple silicon."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un’app per iPhone o iPad creata con React Native, in esecuzione su Apple silicon."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "React Native で作られた、Apple シリコン上で動く iPhone / iPad アプリです。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Um app de iPhone ou iPad feito com React Native, executado em Apple silicon."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложение для iPhone или iPad на React Native, работающее на Apple silicon."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "React Native ile geliştirilmiş, Apple silicon üzerinde çalışan bir iPhone veya iPad uygulaması."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 React Native 构建、在 Apple 芯片上运行的 iPhone / iPad 应用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以 React Native 建構、在 Apple 晶片上執行的 iPhone 或 iPad App。"
+          }
+        }
+      }
+    },
     "Another update is being installed right now — by DuoUpdater or by `duo` in a terminal. Try again once it finishes.": {
       "extractionState": "manual",
       "localizations": {

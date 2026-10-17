@@ -174,7 +174,7 @@ private struct VersionBundle {
     let b = try VersionBundle("Any"); defer { b.cleanUp() }
     // Chromium, Flutter and the three Apple cases each have a number that could be
     // read and would mean something else. See `RuntimeVersion`.
-    for runtime in [AppRuntime.chromium, .flutter, .native, .catalyst, .iOSApp] {
+    for runtime in [AppRuntime.chromium, .flutter, .native, .catalyst, .iOSApp, .reactNative] {
         #expect(b.version(runtime) == nil, "\(runtime.rawValue) should report no version")
     }
 }

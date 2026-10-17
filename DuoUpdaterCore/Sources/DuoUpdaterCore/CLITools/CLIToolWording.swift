@@ -352,6 +352,12 @@ public enum CLIToolWording {
                 ? String(localized: "1 open session still runs \(list)")
                 : String(localized: "\(count) open sessions still run \(list)")
         }
+        if !versions.isEmpty, !usage.hasUnknownStale {
+            let list = versions.joined(separator: ", ")
+            return count == 1
+                ? String(localized: "1 running process still runs \(list)")
+                : String(localized: "\(count) running processes still run \(list)")
+        }
         return count == 1
             ? String(localized: "1 running process still runs a copy that has since been replaced")
             : String(localized: "\(count) running processes still run a copy that has since been replaced")

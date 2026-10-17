@@ -139,6 +139,12 @@ public enum ClaudeCodeActivity {
     /// The layout is `argc` (Int32), the executable path, NUL padding, then
     /// `argc` NUL-terminated arguments, then the environment.
     static func arguments(of pid: pid_t) -> [String]? {
+        argumentsAndEnvironment(of: pid)?.arguments
+    }
+
+    /// `argv` and the environment the process was started with, from the
+    /// same `KERN_PROCARGS2` read (the environment follows `argv`).
+    static func argumentsAndEnvironment(of pid: pid_t) -> (arguments: [String], environment: [String])? {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
         guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else { return nil }
@@ -155,6 +161,13 @@ public enum ClaudeCodeActivity {
             arguments.append(String(decoding: buffer[start..<index], as: UTF8.self))
             index += 1
         }
-        return arguments
+        var environment: [String] = []
+        while index < size, buffer[index] != 0 {
+            let start = index
+            while index < size, buffer[index] != 0 { index += 1 }
+            environment.append(String(decoding: buffer[start..<index], as: UTF8.self))
+            index += 1
+        }
+        return (arguments, environment)
     }
 }

@@ -34,13 +34,23 @@ private func csops(_ pid: pid_t, _ ops: UInt32, _ useraddr: UnsafeMutableRawPoin
 ///   is mapped from keeps the old inode (`PROC_PIDREGIONPATHINFO`), while
 ///   `stat` on the path reads the new one. Which version that copy was is not
 ///   on disk any more, so it is reported without one.
-/// - **the install keeps a file per version** (Claude Code's native
-///   `~/.local/share/claude/versions/<version>`, its launcher a symlink to
-///   one): a process on a sibling file runs that version, by name.
+/// - **the install keeps an entry per version** and repoints a symlink at the
+///   new one (`Versions`): a process on an older entry runs that version, by
+///   name. Measured 2026-10-17 with each vendor's own installer and update
+///   command, a process started before the update and read after it: Claude
+///   Code native (`versions/<version>`), Codex standalone
+///   (`releases/<version>-<target>/bin/codex`, `codex update`), Cursor Agent
+///   (`versions/<version>/node`, `agent update`), Vite+ (`<version>/bin/vp`,
+///   `vp upgrade`) and Junie (`versions/<build>/Applications/junie.app/…`,
+///   its shim applying a staged update). Every other tool installed on the
+///   development Mac is one file, replaced in place (`realpath` of each is the
+///   path itself: fx, uv, OpenCode, Lorca, zoxide, Atuin, GHCup, flyctl, Helm,
+///   Starship, Deno, mise); Amp, Boat, Bun, Herdr and Luvus were not
+///   installed, and their `*Install.swift` notes say the same of them.
 ///
 /// Cost, measured 2026-10-16 on 1049 processes: one `proc_pidpath` each is
 /// 1.2–1.4 ms for the whole table; the region read is only for processes whose
-/// directory is one of the installs'.
+/// directory is one of the installs', or under one's `Versions.root`.
 public enum CLIToolProcesses {
 
     /// What `stat` and the kernel's region info agree a file is.
@@ -54,17 +64,120 @@ public enum CLIToolProcesses {
         }
     }
 
+    /// An install that keeps one entry per version in a directory, its
+    /// launcher a symlink into the active one, declared by its provider
+    /// (`processTarget(resolved:)` on the install's type).
+    public struct Versions: Sendable, Hashable {
+        /// The directory of entries: Claude Code's `versions/`, Codex's `releases/`.
+        public let root: String
+        /// Where the binary sits inside an entry, as `proc_pidpath` spells it;
+        /// "" when the entry is the binary (Claude Code). Codex has two: its
+        /// package layout's `bin/codex`, and its older releases' `codex`.
+        public let binaries: [String]
+        /// Cut from an entry's name to read its version (Codex's `-<target>`).
+        public let nameSuffixes: [String]
+        /// `argv` is read and `claude update` left out: that process is the
+        /// updater itself, on its way out (Claude Code only).
+        public let skipsClaudeUpdate: Bool
+        /// How two entries' versions order.
+        public let ordering: Ordering
+        /// The symlink that makes an entry current, when the tool also runs
+        /// other entries on purpose (Junie's `current`: its one-shot channel
+        /// flags, `--use-version` and `JUNIE_VERSION` run a build without
+        /// touching it). A process started after the link was last written
+        /// chose its entry and is not stale. One started before is taken as
+        /// left behind when the link moved, unless `chosenBy` or
+        /// `channelFile` says otherwise.
+        public let pointer: String?
+        /// Environment variables whose non-empty value in a process means it
+        /// runs its entry on purpose, whenever it started (Junie's
+        /// `JUNIE_VERSION`, which the shim runs as given).
+        public let chosenBy: [String]
+        /// A file inside an entry naming the channel it belongs to (Junie's
+        /// `channel`). A process on an entry of another channel than the
+        /// launcher's runs that channel on purpose (Junie's one-shot
+        /// `--release`/`--eap`/…), so it is not behind. An entry without the
+        /// file is compared as usual.
+        public let channelFile: String?
+
+        public enum Ordering: Sendable, Hashable {
+            /// `VersionComparator`.
+            case version
+            /// Cursor Agent's `<date>-<commit>`: by the date, and another
+            /// release of the launcher's own date counts as older — the CLI's
+            /// own rule (`CursorAgentRelease.compare`); the commits do not order.
+            case cursorAgentRelease
+        }
+
+        public init(
+            root: String, binaries: [String] = [""], nameSuffixes: [String] = [], skipsClaudeUpdate: Bool = false,
+            ordering: Ordering = .version, pointer: String? = nil, chosenBy: [String] = [],
+            channelFile: String? = nil
+        ) {
+            self.root = root
+            self.binaries = binaries
+            self.nameSuffixes = nameSuffixes
+            self.skipsClaudeUpdate = skipsClaudeUpdate
+            self.ordering = ordering
+            self.pointer = pointer
+            self.chosenBy = chosenBy
+            self.channelFile = channelFile
+        }
+
+        /// The channel `entry` names in its `channelFile`, trimmed; nil when
+        /// the layout has none or the file is missing or empty.
+        func channel(ofEntry entry: String) -> String? {
+            guard let channelFile,
+                  let text = try? String(contentsOfFile: "\(root)/\(entry)/\(channelFile)", encoding: .utf8)
+            else { return nil }
+            let channel = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return channel.isEmpty ? nil : channel
+        }
+
+        /// Whether `environment` carries one of `chosenBy` with a value.
+        func isChosen(_ environment: [String]) -> Bool {
+            chosenBy.contains { name in
+                environment.contains { $0.hasPrefix(name + "=") && $0.count > name.count + 1 }
+            }
+        }
+
+        /// Whether a process on `version` is behind the launcher's `current`.
+        func isOlder(_ version: String, than current: String) -> Bool {
+            switch ordering {
+            case .version: VersionComparator.compare(version, current) == .orderedAscending
+            case .cursorAgentRelease: CursorAgentRelease.compare(version, current) == .orderedAscending
+            }
+        }
+
+        /// The entry `path` is one of this layout's binaries in, or nil.
+        func entry(of path: String) -> String? {
+            guard path.hasPrefix(root + "/") else { return nil }
+            let rest = path.dropFirst(root.count + 1)
+            let entry = rest.prefix { $0 != "/" }
+            guard !entry.isEmpty else { return nil }
+            let inside = rest.dropFirst(entry.count).drop { $0 == "/" }
+            return binaries.contains(String(inside)) ? String(entry) : nil
+        }
+
+        /// The version an entry's name says, or nil when the name is not one
+        /// (the installer's scratch entries, `bin`, `current`).
+        func version(ofEntry entry: String) -> String? {
+            var name = entry
+            if let suffix = nameSuffixes.first(where: { name.hasSuffix($0) }) { name.removeLast(suffix.count) }
+            return name.first?.isNumber == true ? name : nil
+        }
+    }
+
     /// One install's binary, as the process table will spell it.
     public struct Target: Sendable, Hashable {
         /// The binary, symlinks resolved.
         public let executable: String
-        /// Other files beside it are this install's other versions, each named
-        /// by its version (Claude Code's native layout).
-        public let versionedSiblings: Bool
+        /// The install's other versions, when it keeps one entry per version.
+        public let versions: Versions?
 
-        public init(executable: String, versionedSiblings: Bool) {
+        public init(executable: String, versions: Versions? = nil) {
             self.executable = executable
-            self.versionedSiblings = versionedSiblings
+            self.versions = versions
         }
 
         var directory: String { (executable as NSString).deletingLastPathComponent }
@@ -80,12 +193,21 @@ public enum CLIToolProcesses {
         public let file: FileID?
         /// `argv`, read only where a target asks to (`ignores`); empty otherwise.
         public let arguments: [String]
+        /// When the process started; read only under a `Versions.root`.
+        public let started: Date?
+        /// Its environment, read only under a root whose layout has `chosenBy`.
+        public let environment: [String]
 
-        public init(pid: pid_t, path: String, file: FileID?, arguments: [String] = []) {
+        public init(
+            pid: pid_t, path: String, file: FileID?, arguments: [String] = [], started: Date? = nil,
+            environment: [String] = []
+        ) {
             self.pid = pid
             self.path = path
             self.file = file
             self.arguments = arguments
+            self.started = started
+            self.environment = environment
         }
     }
 
@@ -112,12 +234,23 @@ public enum CLIToolProcesses {
     }
 
     static func target(kind: CLIToolKind, path: String) -> Target? {
-        guard let resolved = realpath(path) else { return nil }
+        // Vite+'s row is its data root; the binary is the active version's.
+        let path = kind == .vitePlus ? (path as NSString).appendingPathComponent("current/bin/vp") : path
+        guard let resolved = realpath(path), isRegularFile(resolved) else { return nil }
+        let versioned: Target? = switch kind {
+        case .claudeCode: ClaudeCodeInstall.processTarget(resolved: resolved)
+        case .codex: CodexInstall.processTarget(resolved: resolved)
+        case .cursorAgent: CursorAgentInstall.processTarget(resolved: resolved)
+        case .vitePlus: VitePlusInstall.processTarget(resolved: resolved)
+        case .junie: JunieInstall.processTarget(shim: resolved)
+        default: nil
+        }
+        return versioned ?? Target(executable: resolved)
+    }
+
+    static func isRegularFile(_ path: String) -> Bool {
         var info = stat()
-        guard stat(resolved, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
-        let siblings = kind == .claudeCode
-            && (resolved as NSString).deletingLastPathComponent.hasSuffix("/claude/versions")
-        return Target(executable: resolved, versionedSiblings: siblings)
+        return stat(path, &info) == 0 && (info.st_mode & S_IFMT) == S_IFREG
     }
 
     /// Who runs `target`, from one read of the process table (`running`) and
@@ -127,9 +260,10 @@ public enum CLIToolProcesses {
     /// when its build differs too (`sameBuild`, by cdhash): a tool updated and
     /// then put back on the build a process runs — rolled back, or downgraded
     /// by hand — leaves that process on what is installed, in a file of a new
-    /// inode. Unknown (nil) counts as different.
+    /// inode. Unknown (nil) counts as different. `repointed` is when the
+    /// layout's `Versions.pointer` was last written.
     public static func usage(
-        of target: Target, current: FileID?, processes: [Running],
+        of target: Target, current: FileID?, processes: [Running], repointed: Date? = nil,
         sameBuild: (pid_t, String) -> Bool? = { sameBuild(pid: $0, asFileAt: $1) }
     ) -> CLIToolUsage {
         var live: [pid_t] = []
@@ -142,19 +276,28 @@ public enum CLIToolProcesses {
                 } else {
                     live.append(process.pid)
                 }
-            } else if target.versionedSiblings,
-                      (process.path as NSString).deletingLastPathComponent == target.directory {
+            } else if let versions = target.versions, let entry = versions.entry(of: process.path),
+                      let currentEntry = versions.entry(of: target.executable), entry != currentEntry {
                 // `claude update` from an old session's launcher is the updater
                 // itself, on its way out — not a session left on the old code.
-                guard !ClaudeCodeActivity.isClaudeUpdateCommand(process.arguments) else { continue }
+                guard !(versions.skipsClaudeUpdate && ClaudeCodeActivity.isClaudeUpdateCommand(process.arguments))
+                else { continue }
+                // Started after the pointer last moved: it runs this entry on
+                // purpose, not because it was left behind.
+                if versions.pointer != nil {
+                    guard let repointed, let started = process.started, started < repointed else { continue }
+                }
+                guard !versions.isChosen(process.environment) else { continue }
+                // Another channel's build, run on purpose for this session.
+                if let channel = versions.channel(ofEntry: entry), let launcherChannel = versions.channel(ofEntry: currentEntry),
+                   channel != launcherChannel { continue }
                 // Only an older version is one the session should leave: a newer
                 // one beside the launcher's (a custom launcher held back, a
                 // `minimumVersion` floor) is not one to leave for the launcher's.
-                let name = (process.path as NSString).lastPathComponent
-                let current = (target.executable as NSString).lastPathComponent
-                guard name.first?.isNumber == true,
-                      VersionComparator.compare(name, current) == .orderedAscending else { continue }
-                stale.append(.init(pid: process.pid, version: name))
+                guard let version = versions.version(ofEntry: entry),
+                      let current = versions.version(ofEntry: currentEntry),
+                      versions.isOlder(version, than: current) else { continue }
+                stale.append(.init(pid: process.pid, version: version))
             }
         }
         return CLIToolUsage(current: live.sorted(), stale: stale.sorted { $0.pid < $1.pid })
@@ -163,21 +306,30 @@ public enum CLIToolProcesses {
     /// Every target's usage, from one read of the process table.
     public static func usage(of targets: some Collection<Target>) -> [Target: CLIToolUsage] {
         guard !targets.isEmpty else { return [:] }
-        let processes = running(in: Set(targets.map(\.directory)),
-                                readingArgumentsIn: Set(targets.filter(\.versionedSiblings).map(\.directory)))
+        let versions = targets.compactMap(\.versions)
+        let processes = running(in: Set(targets.map(\.directory)), under: Set(versions.map(\.root)),
+                                readingArgumentsUnder: Set(versions.filter(\.skipsClaudeUpdate).map(\.root)),
+                                readingEnvironmentUnder: Set(versions.filter { !$0.chosenBy.isEmpty }.map(\.root)))
         var answer: [Target: CLIToolUsage] = [:]
         for target in Set(targets) {
-            answer[target] = usage(of: target, current: fileID(target.executable), processes: processes)
+            answer[target] = usage(of: target, current: fileID(target.executable), processes: processes,
+                                   repointed: target.versions?.pointer.flatMap(linkWritten))
         }
         return answer
     }
 
     // MARK: - Reading the kernel
 
-    /// The processes whose executable sits in one of `directories`. `argv` is
-    /// read only for those in `readingArgumentsIn`.
-    public static func running(in directories: Set<String>, readingArgumentsIn: Set<String> = []) -> [Running] {
-        guard !directories.isEmpty else { return [] }
+    /// The processes whose executable sits in one of `directories`, or anywhere
+    /// under one of `roots`. `argv` is read only for those under
+    /// `readingArgumentsUnder`, the environment for those under
+    /// `readingEnvironmentUnder`.
+    public static func running(
+        in directories: Set<String>, under roots: Set<String> = [], readingArgumentsUnder: Set<String> = [],
+        readingEnvironmentUnder: Set<String> = []
+    ) -> [Running] {
+        guard !directories.isEmpty || !roots.isEmpty else { return [] }
+        let under = { (path: String, roots: Set<String>) in roots.contains { path.hasPrefix($0 + "/") } }
         let capacity = Int(proc_listallpids(nil, 0)) + 64
         guard capacity > 64 else { return [] }
         var pids = [pid_t](repeating: 0, count: capacity)
@@ -189,10 +341,13 @@ public enum CLIToolProcesses {
             guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { continue }
             let path = buffer.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
             let directory = (path as NSString).deletingLastPathComponent
-            guard directories.contains(directory) else { continue }
-            let arguments = readingArgumentsIn.contains(directory)
-                ? ClaudeCodeActivity.arguments(of: pid) ?? [] : []
-            found.append(Running(pid: pid, path: path, file: mappedFile(of: pid, path: path), arguments: arguments))
+            guard directories.contains(directory) || under(path, roots) else { continue }
+            let readsArguments = under(path, readingArgumentsUnder), readsEnvironment = under(path, readingEnvironmentUnder)
+            let procargs = readsArguments || readsEnvironment ? ClaudeCodeActivity.argumentsAndEnvironment(of: pid) : nil
+            found.append(Running(pid: pid, path: path, file: mappedFile(of: pid, path: path),
+                                 arguments: readsArguments ? procargs?.arguments ?? [] : [],
+                                 started: under(path, roots) ? startTime(of: pid) : nil,
+                                 environment: readsEnvironment ? procargs?.environment ?? [] : []))
         }
         return found
     }
@@ -248,6 +403,22 @@ public enum CLIToolProcesses {
         guard SecCodeCopySigningInformation(code, [], &info) == errSecSuccess,
               let info = info as? [String: Any] else { return nil }
         return info[kSecCodeInfoUnique as String] as? Data
+    }
+
+    /// When `pid` started, from the kernel's BSD info.
+    static func startTime(of pid: pid_t) -> Date? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
+    }
+
+    /// When the symlink at `path` itself was last written (`lstat`): `ln -sfn`
+    /// makes a new link, so this is when it was last repointed.
+    static func linkWritten(_ path: String) -> Date? {
+        var info = stat()
+        guard lstat(path, &info) == 0, (info.st_mode & S_IFMT) == S_IFLNK else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec) + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
     }
 
     static func fileID(_ path: String) -> FileID? {

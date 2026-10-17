@@ -27,9 +27,10 @@ import Foundation
 /// - **MyGo** is not in Simple Icons. Its own mark — a ring in a rounded square,
 ///   from the favicon of mygo.egoist.dev — is drawn from geometry in the app for
 ///   the same reason as Chromium's.
-/// - **GPUI** and **egui** have no mark in Simple Icons. GPUI's would be Zed's,
-///   which is the company's logo rather than the framework's, and would label every
-///   other GPUI app as Zed; egui publishes none. Both take an SF Symbol instead.
+/// - **GPUI** and **egui** have no mark in Simple Icons. GPUI's nearest would be
+///   Zed's, which is the company's logo rather than the framework's, and would label
+///   every other GPUI app as Zed; egui's repository has no logo among its media
+///   (demos, and its sponsor Rerun's logo). Both take an SF Symbol instead.
 /// - **Mac Catalyst**, **iOS App** and **Native** are not products with logos.
 public enum RuntimeArtwork {
 

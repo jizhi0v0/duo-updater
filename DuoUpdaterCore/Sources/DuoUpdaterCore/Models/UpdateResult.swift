@@ -455,7 +455,7 @@ public struct RemoteVersion: Sendable, Hashable {
     public let buildLineage: BuildLineage?
 
     /// A newer release this source left out because the user's subscription does
-    /// not cover it — Surge only, see `SurgeSubscription`. nil for every other
+    /// not cover it — Surge and TablePlus, see `SubscriptionWindow`. nil for every other
     /// answer.
     public let subscriptionHold: SubscriptionHold?
 
@@ -837,7 +837,7 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
     }
 
     /// The newer release the user's subscription keeps off this row, when there is
-    /// nothing else to offer — Surge only (`SurgeSubscription`). nil while an
+    /// nothing else to offer — Surge and TablePlus (`SubscriptionWindow`). nil while an
     /// update IS on offer: that one is covered, and it is what the row is about.
     public var heldBySubscription: SubscriptionHold? {
         hasUpdate ? nil : remote?.subscriptionHold

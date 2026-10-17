@@ -15,9 +15,9 @@ public struct SparkleAppcastSource: UpdateSource {
     /// gets back. Both default to `SparkleFeedCatalog.loginWalls`.
     let loginWalls: [SparkleFeedCatalog.LoginWall]
     /// The licence window that decides which releases this copy may be offered,
-    /// for an app whose vendor gates updates on it — Surge only
-    /// (`SurgeSubscription`); nil for every other app.
-    let subscriptionWindow: @Sendable (InstalledApp) -> SurgeSubscription.Window?
+    /// for an app whose vendor gates updates on it — Surge and TablePlus
+    /// (`SubscriptionWindow`); nil for every other app.
+    let subscriptionWindow: @Sendable (InstalledApp) -> SubscriptionWindow?
 
     public init(session: URLSession = .updates) {
         self.init(session: session, loginWalls: SparkleFeedCatalog.loginWalls)
@@ -25,16 +25,15 @@ public struct SparkleAppcastSource: UpdateSource {
 
     init(
         session: URLSession, loginWalls: [SparkleFeedCatalog.LoginWall],
-        subscriptionWindow: @escaping @Sendable (InstalledApp) -> SurgeSubscription.Window? = Self.subscriptionWindow(for:)
+        subscriptionWindow: @escaping @Sendable (InstalledApp) -> SubscriptionWindow? = Self.subscriptionWindow(for:)
     ) {
         self.session = session
         self.loginWalls = loginWalls
         self.subscriptionWindow = subscriptionWindow
     }
 
-    static func subscriptionWindow(for app: InstalledApp) -> SurgeSubscription.Window? {
-        guard app.bundleID?.lowercased() == SurgeChannel.bundleID.lowercased() else { return nil }
-        return SurgeSubscription.currentWindow()
+    static func subscriptionWindow(for app: InstalledApp) -> SubscriptionWindow? {
+        SubscriptionWindow.current(forBundleID: app.bundleID)
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -73,8 +72,8 @@ public struct SparkleAppcastSource: UpdateSource {
         }
         let osVersion = Self.numericSystemVersion()
         let usable = Self.usableItems(for: app, from: items, osVersion: osVersion)
-        // Surge offers only what its subscription covers (`SurgeSubscription`),
-        // and so do we: the rest is left out of the offer AND of the notes that
+        // Surge and TablePlus offer only what the subscription covers
+        // (`SubscriptionWindow`), and so do we: the rest is left out of the offer AND of the notes that
         // go with it, and the newest of it is named on the answer instead.
         var offerable = usable
         var subscriptionHold: SubscriptionHold?
@@ -170,7 +169,7 @@ public struct SparkleAppcastSource: UpdateSource {
     /// ranking `usableItems` sorted on; a copy with no version counts everything
     /// as newer, the safe side.
     static func subscriptionSplit(
-        for app: InstalledApp, from usable: [SparkleAppcastItem], window: SurgeSubscription.Window
+        for app: InstalledApp, from usable: [SparkleAppcastItem], window: SubscriptionWindow
     ) -> (covered: [SparkleAppcastItem], hold: SubscriptionHold?) {
         let installed = app.buildVersion ?? app.shortVersion
         var covered: [SparkleAppcastItem] = []
@@ -179,18 +178,18 @@ public struct SparkleAppcastSource: UpdateSource {
             let isNewer = installed.map {
                 VersionComparator.compare(item.comparisonKey, $0) == .orderedDescending
             } ?? true
-            if !isNewer || SurgeSubscription.covers(pubDate: item.pubDate, under: window) {
+            if !isNewer || window.covers(pubDate: item.pubDate) {
                 covered.append(item)
             } else if withheld == nil {
                 withheld = item
             }
         }
         let hold = withheld.map { item -> SubscriptionHold in
-            let before: Date? = if case .before(let fus) = window {
-                Date(timeIntervalSince1970: TimeInterval(fus))
-            } else { nil }
-            return SubscriptionHold(
-                version: item.shortVersionString ?? item.version ?? "?", coveredBefore: before)
+            let version = item.shortVersionString ?? item.version ?? "?"
+            guard case .before(let cutoff, let dayOnly) = window else {
+                return SubscriptionHold(version: version, coveredBefore: nil)
+            }
+            return SubscriptionHold(version: version, coveredBefore: cutoff, dayOnly: dayOnly)
         }
         return (covered, hold)
     }

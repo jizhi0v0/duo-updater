@@ -8,6 +8,9 @@ import Foundation
 /// `fusDate` read on the development Mac the same day.
 struct SurgeSubscriptionTests {
     static let fusDate = 1_792_162_109  // 2026-10-16 22:48:29 +0800
+    static func window(_ epoch: Int) -> SubscriptionWindow {
+        .before(Date(timeIntervalSince1970: TimeInterval(epoch)), dayOnly: false)
+    }
 
     /// The head of `appcast-signed-beta.xml`, 2026-10-17.
     static let feed = """
@@ -51,7 +54,7 @@ struct SurgeSubscriptionTests {
         let data = Self.attribute(policy: [
             "fusDate": Self.fusDate, "expiresOnDate": 1_792_833_413, "type": "x",
         ])
-        #expect(SurgeSubscription.window(fromAttribute: data) == .before(Self.fusDate))
+        #expect(SurgeSubscription.window(fromAttribute: data) == Self.window(Self.fusDate))
     }
 
     @Test func anythingElseIsUnreadable() {
@@ -63,14 +66,17 @@ struct SurgeSubscriptionTests {
     }
 
     @Test func coversOnlyReleasesStrictlyBefore() {
-        let window = SurgeSubscription.Window.before(Self.fusDate)
-        #expect(SurgeSubscription.covers(pubDate: "1792162108", under: window))
-        #expect(!SurgeSubscription.covers(pubDate: "1792162109", under: window))
-        #expect(!SurgeSubscription.covers(pubDate: "1792168472", under: window))
-        // Surge's `integerValue` would read these as 0 and admit them.
-        #expect(!SurgeSubscription.covers(pubDate: "Sat, 17 Oct 2026 00:34:32 +0800", under: window))
-        #expect(!SurgeSubscription.covers(pubDate: nil, under: window))
-        #expect(!SurgeSubscription.covers(pubDate: "1", under: .unreadable))
+        let window = Self.window(Self.fusDate)
+        #expect(window.covers(pubDate: "1792162108"))
+        #expect(!window.covers(pubDate: "1792162109"))
+        #expect(!window.covers(pubDate: "1792168472"))
+        // An RFC 822 spelling compares by its date (this one is after the cutoff).
+        #expect(!window.covers(pubDate: "Sat, 17 Oct 2026 00:34:32 +0800"))
+        #expect(!window.covers(pubDate: nil))
+        // A day-only date counts as the end of that day (cutoff is 10-16 14:48Z).
+        #expect(window.covers(pubDate: "2026-10-15"))
+        #expect(!window.covers(pubDate: "2026-10-16"))
+        #expect(!SubscriptionWindow.unreadable.covers(pubDate: "1"))
     }
 
     // MARK: - The offer
@@ -89,7 +95,7 @@ struct SurgeSubscriptionTests {
         return url
     }
 
-    static func source(_ window: SurgeSubscription.Window?) -> SparkleAppcastSource {
+    static func source(_ window: SubscriptionWindow?) -> SparkleAppcastSource {
         SparkleAppcastSource(
             session: URLSession(configuration: .ephemeral), loginWalls: [],
             subscriptionWindow: { app in
@@ -103,7 +109,7 @@ struct SurgeSubscriptionTests {
         let feed = try Self.feedFile()
         defer { try? FileManager.default.removeItem(at: feed) }
         let app = Self.app(short: "6.10.0", build: "12500", feed: feed)
-        let remote = try #require(try await Self.source(.before(Self.fusDate)).latestVersion(for: app))
+        let remote = try #require(try await Self.source(Self.window(Self.fusDate)).latestVersion(for: app))
         #expect(remote.version == "12500")
         #expect(remote.subscriptionHold == SubscriptionHold(
             version: "6.11.0", coveredBefore: Date(timeIntervalSince1970: TimeInterval(Self.fusDate))))
@@ -120,7 +126,7 @@ struct SurgeSubscriptionTests {
         let feed = try Self.feedFile()
         defer { try? FileManager.default.removeItem(at: feed) }
         let app = Self.app(short: "6.9.1", build: "12290", feed: feed)
-        let remote = try #require(try await Self.source(.before(Self.fusDate)).latestVersion(for: app))
+        let remote = try #require(try await Self.source(Self.window(Self.fusDate)).latestVersion(for: app))
         #expect(remote.version == "12500")
         let result = UpdateResult(app: app, remote: remote, status: UpdateChecker.evaluate(installed: app, remote: remote))
         #expect(result.hasUpdate)
@@ -141,8 +147,8 @@ struct SurgeSubscriptionTests {
     /// A copy older than every release in the feed, none of them covered: the
     /// answer is still "nothing newer for you, and here is why" — never nil, which
     /// would read as "no source covers this app" and lose the lock with it.
-    @Test(arguments: [SurgeSubscription.Window.unreadable, .before(1_700_000_000)])
-    func everyReleaseWithheldStillAnswers(window: SurgeSubscription.Window) async throws {
+    @Test(arguments: [SubscriptionWindow.unreadable, Self.window(1_700_000_000)])
+    func everyReleaseWithheldStillAnswers(window: SubscriptionWindow) async throws {
         let feed = try Self.feedFile()
         defer { try? FileManager.default.removeItem(at: feed) }
         let app = Self.app(short: "6.9.0", build: "12200", feed: feed)
@@ -161,7 +167,7 @@ struct SurgeSubscriptionTests {
         let feed = try Self.feedFile()
         defer { try? FileManager.default.removeItem(at: feed) }
         let app = Self.app(short: "6.10.0", build: "12500", feed: feed)
-        let remote = try #require(try await Self.source(.before(1_823_698_109)).latestVersion(for: app))
+        let remote = try #require(try await Self.source(Self.window(1_823_698_109)).latestVersion(for: app))
         #expect(remote.version == "12560")
         #expect(remote.subscriptionHold == nil)
     }

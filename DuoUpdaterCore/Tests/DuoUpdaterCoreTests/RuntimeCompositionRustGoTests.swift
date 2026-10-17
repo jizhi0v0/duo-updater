@@ -138,6 +138,27 @@ private func read(_ runtime: AppRuntime, _ sections: [String: String]) throws ->
     ]).isEmpty)
 }
 
+/// magpie's shape: Bubble Tea v1 linked beside Wails v3.
+@Test func wailsReportsBubbleTeaFromItsFunctionNames() throws {
+    #expect(try read(.wails, [
+        "__TEXT,__gopclntab": "github.com/wailsapp/wails/v3/pkg/application.(*App).Run\u{0}"
+            + "github.com/charmbracelet/bubbletea.(*Program).Run\u{0}",
+    ]).map(\.name) == ["Bubble Tea"])
+    #expect(try read(.wails, ["__TEXT,__gopclntab": "charm.land/bubbletea/v2.(*Program).Run"]).map(\.id)
+            == ["wails.bubbletea"])
+    #expect(try read(.wails, ["__TEXT,__gopclntab": "github.com/charmbracelet/bubbletea/v2.NewProgram"]).map(\.id)
+            == ["wails.bubbletea"])
+}
+
+/// Bubble Tea's siblings are not Bubble Tea, and its name outside the function
+/// table (a module-list line in read-only data) is not linked code.
+@Test func wailsBubbleTeaLookalikesDoNotCount() throws {
+    #expect(try read(.wails, [
+        "__TEXT,__gopclntab": "github.com/charmbracelet/bubbles/list.New\u{0}github.com/charmbracelet/lipgloss.NewStyle",
+        "__TEXT,__rodata": "dep\tgithub.com/charmbracelet/bubbletea.\tv1.3.10",
+    ]).isEmpty)
+}
+
 // MARK: Real bundle
 
 /// The real reader against a bundle with no executable: nothing, and no crash.

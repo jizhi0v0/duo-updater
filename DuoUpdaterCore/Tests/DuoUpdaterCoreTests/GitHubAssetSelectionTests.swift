@@ -163,6 +163,12 @@ struct GitHubAssetSelectionTests {
           "plexo-1.0.0-rc.15-arm64.dmg", "plexo-1.0.0-rc.15-arm64.dmg.blockmap",
           "plexo-1.0.0-rc.15-x64-mac.zip", "plexo-1.0.0-rc.15-x64-mac.zip.blockmap",
           "plexo-1.0.0-rc.15-x64.dmg", "plexo-1.0.0-rc.15-x64.dmg.blockmap"]),
+        // Open Screen Sharing: one pkg beside the iOS ipa, the AltStore source,
+        // the icon and `metadata.json` (v1.0.1's assets, in the order GitHub
+        // listed them).
+        (#"^OpenScreenSharing\.pkg$"#,
+         ["altstore.json", "icon.png", "metadata.json", "OpenScreenSharing.ipa",
+          "OpenScreenSharing.pkg"]),
         // RustGIS: one dmg per architecture beside the Linux/Windows packages
         // and the CLI tarballs (v0.1.0's assets, in the order GitHub listed them).
         (#"^RustGIS-[0-9][0-9A-Za-z.-]*-macos-(?:aarch64|x86_64)\.dmg$"#,

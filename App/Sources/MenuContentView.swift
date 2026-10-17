@@ -813,6 +813,12 @@ private struct CommandLineRow: View {
             }
             .buttonStyle(.plain)
             .help(String(localized: "Show in Window"))
+            // Whatever the row says: a text in this line did not fit beside the
+            // Update button in 17 of 22 language and count pairs (measured
+            // 2026-10-17), so it is a mark, as Homebrew's not-checked one is.
+            if !half.isHomebrew, !stillRunningLines.isEmpty {
+                StillRunningMark(lines: stillRunningLines, showInWindow: showInWindow)
+            }
             half.mark
             half.button
         }
@@ -938,6 +944,17 @@ private struct CommandLineRow: View {
         return half([Text(String(localized: "Up to date"))], mark: seal)
     }
 
+    /// One line per tool with processes still on the copy from before its
+    /// update (`CLIToolsModel.usage`), as the workbench row says it, for the
+    /// row's mark (`StillRunningMark`). Empty when none has.
+    private var stillRunningLines: [String] {
+        tools.statuses.compactMap { status in
+            guard let usage = tools.liveUsage(status.toolID),
+                  let line = CLIToolWording.stillRunning(usage, of: status.kind) else { return nil }
+            return "\(status.name ?? status.kind.displayName): \(line)"
+        }
+    }
+
     // MARK: Parts
 
     /// `blocked`: why it is disabled (`AppListModel.cliBlockedReason`), its
@@ -960,6 +977,55 @@ private struct CommandLineRow: View {
     private var spinner: some View { ProgressView().controlSize(.small) }
     private var seal: some View { Image(systemName: "checkmark.seal.fill").foregroundStyle(.green) }
     private var question: some View { Image(systemName: "questionmark.circle").foregroundStyle(.secondary) }
+}
+
+/// The command-line tools row's mark while a tool has processes still on its
+/// old copy: what the workbench row says, on hover and on a click, and the
+/// way there.
+private struct StillRunningMark: View {
+    let lines: [String]
+    let showInWindow: () -> Void
+
+    @State private var showTip = false
+
+    private var summary: String { String(localized: "Old version still running — click for details") }
+
+    var body: some View {
+        // Not `clock.arrow.circlepath`: the footer's Release Log button is
+        // that symbol, two rows below.
+        Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
+            .foregroundStyle(.orange)
+            .contentShape(Rectangle())
+            .onTapGesture { showTip = true }
+            .help(([summary] + lines).joined(separator: "\n"))
+            .accessibilityLabel(summary)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { showTip = true }
+            .popover(isPresented: $showTip, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(lines, id: \.self) { line in
+                        Text(verbatim: line)
+                            .font(.callout)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text("Restart to use the version installed now.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Spacer()
+                        Button(String(localized: "Show in Window")) {
+                            showTip = false
+                            showInWindow()
+                        }
+                        .controlSize(.small)
+                    }
+                }
+                .padding(12)
+                .frame(width: 260, alignment: .leading)
+            }
+    }
 }
 
 /// The trailing mark on the command-line row when nothing is outdated but some packages

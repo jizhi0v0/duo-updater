@@ -332,4 +332,46 @@ public enum CLIToolWording {
         let list = versions.joined(separator: ", ")
         return String(localized: "The release notes mark breaking changes in \(list)")
     }
+
+    /// What a row says while processes started before the tool updated are
+    /// still running the old code (`CLIToolUsage.stale`); nil when none are.
+    /// Claude Code's processes are its sessions, and its native layout names
+    /// the version each one runs.
+    public static func stillRunning(_ usage: CLIToolUsage, of kind: CLIToolKind) -> String? {
+        let count = usage.stale.count
+        guard count > 0 else { return nil }
+        let versions = usage.staleVersions
+        if kind == .claudeCode {
+            if versions.isEmpty || usage.hasUnknownStale {
+                return count == 1
+                    ? String(localized: "1 open session still runs a copy that has since been replaced")
+                    : String(localized: "\(count) open sessions still run a copy that has since been replaced")
+            }
+            let list = versions.joined(separator: ", ")
+            return count == 1
+                ? String(localized: "1 open session still runs \(list)")
+                : String(localized: "\(count) open sessions still run \(list)")
+        }
+        if !versions.isEmpty, !usage.hasUnknownStale {
+            let list = versions.joined(separator: ", ")
+            return count == 1
+                ? String(localized: "1 running process still runs \(list)")
+                : String(localized: "\(count) running processes still run \(list)")
+        }
+        return count == 1
+            ? String(localized: "1 running process still runs a copy that has since been replaced")
+            : String(localized: "\(count) running processes still run a copy that has since been replaced")
+    }
+
+    /// One line of `CLIToolUsage.staleByVersion`: "4 sessions on 2.1.299", or
+    /// for a copy whose version is not known, `stillRunning`'s own sentence.
+    public static func stillRunning(_ count: Int, on version: String?, of kind: CLIToolKind) -> String {
+        guard let version else {
+            return stillRunning(CLIToolUsage(current: [], stale: (0..<count).map { _ in .init(pid: 0, version: nil) }), of: kind) ?? ""
+        }
+        if kind == .claudeCode {
+            return count == 1 ? String(localized: "1 session on \(version)") : String(localized: "\(count) sessions on \(version)")
+        }
+        return count == 1 ? String(localized: "1 process on \(version)") : String(localized: "\(count) processes on \(version)")
+    }
 }

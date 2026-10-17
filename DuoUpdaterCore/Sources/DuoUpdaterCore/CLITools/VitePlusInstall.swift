@@ -160,3 +160,19 @@ extension UvVerifiedFiles {
     /// Vite+'s verdicts, keyed by the binary's path (`VitePlusVerifier`).
     static let vitePlus = UvVerifiedFiles(name: "vite-plus-verified-files.json")
 }
+
+extension VitePlusInstall {
+    /// The layout as `CLIToolProcesses` reads it: `current/bin/vp` resolves
+    /// into `<root>/<version>/bin/vp`. Measured 2026-10-17: `vp dev` started on
+    /// 1.2.0 stays resident on `1.2.0/bin/vp` after `vp upgrade` moved
+    /// `current` to 1.3.0. (The `node` and `npm` shims exec the runtime, so
+    /// they leave no `vp` process.)
+    static func processTarget(resolved: String) -> CLIToolProcesses.Target? {
+        let bin = (resolved as NSString).deletingLastPathComponent
+        let entry = (bin as NSString).deletingLastPathComponent
+        guard (resolved as NSString).lastPathComponent == "vp", (bin as NSString).lastPathComponent == "bin",
+              (entry as NSString).lastPathComponent.first?.isNumber == true else { return nil }
+        return .init(executable: resolved, versions: .init(
+            root: (entry as NSString).deletingLastPathComponent, binaries: ["bin/vp"]))
+    }
+}

@@ -261,3 +261,23 @@ public struct CodexScanner: Sendable {
         return FileManager.default.isExecutableFile(atPath: url.path)
     }
 }
+
+extension CodexInstall {
+    /// The standalone layout as `CLIToolProcesses` reads it: the launcher
+    /// resolves into `releases/<version>-<target>/bin/codex` (`codex` in a
+    /// release from before the package layout), and a process on another
+    /// release runs that one. Measured 2026-10-17: a TUI and its
+    /// `app-server --managed-daemon` started on 0.162.1 were still on
+    /// `releases/0.162.1-aarch64-apple-darwin/bin/codex` after `codex update`
+    /// repointed `current` at 0.163.0.
+    static func processTarget(resolved: String) -> CLIToolProcesses.Target? {
+        guard (resolved as NSString).lastPathComponent == "codex" else { return nil }
+        var entry = (resolved as NSString).deletingLastPathComponent
+        if (entry as NSString).lastPathComponent == "bin" { entry = (entry as NSString).deletingLastPathComponent }
+        let releases = (entry as NSString).deletingLastPathComponent
+        guard releases.hasSuffix("/packages/standalone/releases") else { return nil }
+        return .init(executable: resolved, versions: .init(
+            root: releases, binaries: ["bin/codex", "codex"],
+            nameSuffixes: ["-aarch64-apple-darwin", "-x86_64-apple-darwin"]))
+    }
+}

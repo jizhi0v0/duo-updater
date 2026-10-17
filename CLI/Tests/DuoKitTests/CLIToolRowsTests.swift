@@ -230,6 +230,45 @@ import DuoUpdaterCore
         #expect(row?["status"] == nil)
     }
 
+    // MARK: - Who runs it
+
+    /// A copy current on disk whose processes started before its update: the
+    /// row says so in text and JSON, though there is no update to offer.
+    @Test func aCurrentCopyWithStaleProcessesSaysSo() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-duo-running-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let binary = directory.appendingPathComponent("deno")
+        try Data("x".utf8).write(to: binary)
+        let current = Self.status(.deno, binary.path, latest: "1.0.0", state: .upToDate, oneClick: false)
+        let idle = Self.status(.uv, directory.appendingPathComponent("missing-uv").path, state: .upToDate, oneClick: false)
+
+        let rows = await CLIToolRows.withUsage([CLIToolRows.Row(current), CLIToolRows.Row(idle)]) { targets in
+            Dictionary(uniqueKeysWithValues: targets.map {
+                ($0, CLIToolUsage(current: [7], stale: [.init(pid: 3, version: nil)]))
+            })
+        }
+        #expect(rows[0].running?.current == [7])
+        #expect(rows[0].running?.stale.map(\.pid) == [3])
+        // Not a binary on disk: nothing to match, so nothing said.
+        #expect(rows[1].running == nil)
+
+        let lines = Lines()
+        Check.emitText([], tools: rows, checked: true, print: { lines.add($0) })
+        let text = lines.all.joined(separator: "\n")
+        #expect(text.contains("(running)  \(binary.path)"))
+        #expect(text.contains("      1 running process still runs a copy that has since been replaced (pid 3) — restart to use the version installed now"))
+        #expect(!text.contains("installed now:"))
+
+        let json = Lines()
+        Check.emitJSON([], tools: rows, command: "check", print: { json.add($0) })
+        let row = try JSONSerialization.jsonObject(with: Data(json.all[1].utf8)) as? [String: Any]
+        let running = row?["running"] as? [String: Any]
+        #expect(running?["current"] as? [Int] == [7])
+        #expect((running?["stale"] as? [[String: Any]])?.first?["pid"] as? Int == 3)
+    }
+
     // MARK: - What a tool is built with
 
     static let readings: [String: CLIRuntimeReading] = [

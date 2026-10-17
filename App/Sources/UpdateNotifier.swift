@@ -133,9 +133,57 @@ enum UpdateNotifier {
              identifier: appID.map { "restart:\($0)" })
     }
 
+    /// A command-line tool updated itself — or was updated — while processes
+    /// of it were running, and they still run the old code (`CLIToolUsage.stale`).
+    /// Nothing here can restart a session in someone's terminal, so it is said
+    /// once per process that missed the update (`CLIToolsModel.announceStale`),
+    /// and withdrawn by its per-install identifier once none is left.
+    ///
+    /// The new version is not named: a tool that updated itself has not been
+    /// checked again yet, and its verdict still reads the old one — fx's own
+    /// auto-update on 2026-10-16 had this say "Restart to use 0.0.13" with
+    /// 0.0.14 on disk.
+    ///
+    /// `quietly`: the same banner with its text brought up to date — fewer
+    /// processes left, none new — replaced at `.passive`, which "adds the
+    /// notification to the notification list without lighting up the screen or
+    /// playing a sound" (developer.apple.com, read 2026-10-17), so the list
+    /// never says "5 sessions" with 3 left. Measured: the record's body went
+    /// from 5 sessions to 3 under the same identifier, one record.
+    ///
+    /// A quiet update replaces only a banner still in the list: one the user
+    /// cleared stays cleared (review, #1374 round 8). The list is asked
+    /// asynchronously, so `stillWanted` is asked again on the main actor right
+    /// before posting: the last process may have exited, and the banner been
+    /// withdrawn, while the answer was on its way — posting then put back a
+    /// banner nothing would withdraw again (review, #1374 round 9).
+    static func cliStillRunning(
+        tool: String, line: String, tag: String, quietly: Bool = false,
+        stillWanted: @escaping @MainActor () -> Bool = { true }
+    ) {
+        let id = "clistale:\(tag)"
+        let body = String(localized: "\(line). Restart to use the version installed now.")
+        guard quietly else { return post(title: tool, body: body, identifier: id) }
+        UNUserNotificationCenter.current().getDeliveredNotifications { delivered in
+            guard delivered.contains(where: { $0.request.identifier == id }) else { return }
+            Task { @MainActor in
+                guard stillWanted() else { return }
+                post(title: tool, body: body, identifier: id, quietly: true)
+            }
+        }
+    }
+
+    static func clearCLIStillRunning(tags: [String]) {
+        guard !tags.isEmpty else { return }
+        let ids = tags.map { "clistale:\($0)" }
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+        center.removeDeliveredNotifications(withIdentifiers: ids)
+    }
+
     private static func post(
         title: String, body: String, categoryID: String? = nil,
-        identifier: String? = nil, userInfo: [String: String] = [:]
+        identifier: String? = nil, userInfo: [String: String] = [:], quietly: Bool = false
     ) {
         let content = UNMutableNotificationContent()
         content.title = title
@@ -145,8 +193,8 @@ enum UpdateNotifier {
         // menu-bar app you aren't watching is trivially missed. Request the
         // default sound (the system "Play sound" toggle still gates it) and the
         // .active interruption level so it presents immediately.
-        content.sound = .default
-        content.interruptionLevel = .active
+        content.sound = quietly ? nil : .default
+        content.interruptionLevel = quietly ? .passive : .active
         // A category id attaches the actionable buttons registered for it.
         if let categoryID { content.categoryIdentifier = categoryID }
         if !userInfo.isEmpty { content.userInfo = userInfo }

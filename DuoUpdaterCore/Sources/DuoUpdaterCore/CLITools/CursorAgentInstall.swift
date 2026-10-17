@@ -148,3 +148,21 @@ public struct CursorAgentScanner: Sendable {
             && checkSignature(directory.appendingPathComponent("rg"), Self.teamIdentifier) == .vendor
     }
 }
+
+extension CursorAgentInstall {
+    /// The layout as `CLIToolProcesses` reads it. The launcher is a bash script
+    /// that execs the `node` beside it, so the process is that `node`:
+    /// measured 2026-10-17, an agent started on 2026.10.01-e373342 ran
+    /// `versions/2026.10.01-e373342/node` (argv[0] `~/.local/bin/agent`), and
+    /// stayed on it after `agent update` repointed both launchers at
+    /// 2026.10.16-e3cb207.
+    static func processTarget(resolved: String) -> CLIToolProcesses.Target? {
+        let entry = (resolved as NSString).deletingLastPathComponent
+        let versions = (entry as NSString).deletingLastPathComponent
+        guard (resolved as NSString).lastPathComponent == "cursor-agent",
+              versions.hasSuffix("/cursor-agent/versions") else { return nil }
+        let node = (entry as NSString).appendingPathComponent("node")
+        guard CLIToolProcesses.isRegularFile(node) else { return nil }
+        return .init(executable: node, versions: .init(root: versions, binaries: ["node"], ordering: .cursorAgentRelease))
+    }
+}

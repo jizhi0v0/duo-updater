@@ -192,6 +192,11 @@ struct CLIToolSidebarRow: View {
                 HStack(spacing: 6) {
                     Text(verbatim: CLIToolPresentation.title(of: status, home: homeDirectory, among: cli.statuses))
                         .font(.body).lineLimit(1).truncationMode(.middle)
+                    // Something runs this install's binary — this very file, by
+                    // path (`CLIToolProcesses`) — as an app row's dot says.
+                    if cli.liveUsage(id)?.isRunning == true {
+                        RunningIndicator(size: 6).offset(y: RunningIndicator.opticalNudge)
+                    }
                     if showsRuntime {
                         CLIRuntimeTagSlot(path: status.path, interactive: false)
                     }
@@ -202,7 +207,16 @@ struct CLIToolSidebarRow: View {
             trailing
         }
         .padding(.vertical, 2)
-        .help(CLIToolPresentation.explanation(status) ?? status.path)
+        .help(help)
+    }
+
+    /// The row's tooltip. The still-running sentence leads it: the mark's own
+    /// `.help` is overridden by this one (AXHelp read the path on the mark,
+    /// 2026-10-17), so the row says it for the mark.
+    private var help: String {
+        let base = CLIToolPresentation.explanation(status) ?? status.path
+        guard let usage = cli.liveUsage(id), let line = CLIToolWording.stillRunning(usage, of: status.kind) else { return base }
+        return line + "\n" + base
     }
 
     @ViewBuilder
@@ -241,6 +255,19 @@ struct CLIToolSidebarRow: View {
                         .help(CLIToolWording.breaking(versions))
                         .accessibilityLabel(CLIToolWording.breaking(versions))
                 }
+                // Processes started before the update are still on the old
+                // code: the popover's mark, with how many. A sentence here was
+                // cut at ten sessions on two versions in a 260 pt sidebar, and
+                // hid the version caption it replaced.
+                if let usage = cli.liveUsage(id), let line = CLIToolWording.stillRunning(usage, of: status.kind) {
+                    HStack(spacing: 2) {
+                        Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
+                        Text(verbatim: "\(usage.stale.count)").monospacedDigit()
+                    }
+                    .foregroundStyle(.orange)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(line)
+                }
             }
             .font(.caption)
         }
@@ -269,6 +296,39 @@ struct CLIToolSidebarRow: View {
             // would leave a 260 pt sidebar too little room for the title beside it.
             CopyCommandButton(command: command)
         }
+    }
+}
+
+// MARK: - Running
+
+/// The detail panes' Running fact: which processes run the binary, and which
+/// of them are still on a copy other than the one installed now (`CLIToolUsage`).
+private struct CLIToolRunningValue: View {
+    let usage: CLIToolUsage
+    let kind: CLIToolKind
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if !usage.current.isEmpty {
+                Text(verbatim: String(localized: "\(usage.current.count) on this version") + " · " + pids(usage.current))
+            }
+            // One line per older version, so ten sessions on three versions
+            // say which pid is on which (measured 2026-10-17: one sentence of
+            // eight pids wrapped mid-list and paired none with its version).
+            ForEach(usage.staleByVersion, id: \.version) { group in
+                Text(verbatim: CLIToolWording.stillRunning(group.pids.count, on: group.version, of: kind)
+                     + " · " + pids(group.pids))
+                    .foregroundStyle(.orange)
+            }
+            if !usage.stale.isEmpty {
+                Text("Restart to use the version installed now.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func pids(_ pids: [pid_t]) -> String {
+        "pid " + pids.map(String.init).joined(separator: ", ")
     }
 }
 
@@ -490,6 +550,12 @@ struct ClaudeCodeDetailPane: View {
                 label("Channel")
                 Text(verbatim: channel)
             }
+            if let usage = cli.liveUsage(id) {
+                GridRow {
+                    label("Running")
+                    CLIToolRunningValue(usage: usage, kind: .claudeCode)
+                }
+            }
             GridRow {
                 label("Update")
                 updateValue
@@ -682,6 +748,12 @@ struct CLIToolDetailPane: View {
                     // bottom of the screen (2026-10-02; the Rollback notice did the
                     // same in September). Unfixed, the text still wraps in full.
                     Text(verbatim: fact.value)
+                }
+            }
+            if let usage = cli.liveUsage(id) {
+                GridRow {
+                    label("Running")
+                    CLIToolRunningValue(usage: usage, kind: status.kind)
                 }
             }
             GridRow {

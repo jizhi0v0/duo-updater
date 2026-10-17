@@ -309,3 +309,42 @@ public struct JunieScanner: Sendable {
         return version
     }
 }
+
+extension JunieInstall {
+    /// The layout as `CLIToolProcesses` reads it. The row is the shim, a bash
+    /// script; on macOS it execs the bundle's native launcher directly
+    /// (`get_binary_path_in`; `versions/<build>/junie` is only its fallback
+    /// when there is no `.app`), so the process is
+    /// `versions/<build>/Applications/junie.app/Contents/MacOS/junie` for the
+    /// build `current` names (by its basename, as the shim reads it).
+    /// Measured 2026-10-17: a session started on 3579.5 stayed on that
+    /// build's launcher after Junie staged 3659.7 and the shim applied it at
+    /// the next launch. The shim also runs builds `current` does not name, on
+    /// purpose (one-shot `--release`/`--eap`/…, `--use-version`,
+    /// `JUNIE_VERSION`), so `current` is the layout's pointer: only a process
+    /// started before it last moved is stale. Beyond that, a session never
+    /// is when it carries `JUNIE_VERSION` (the shim runs it as given, so a new
+    /// session from the same shell would run the same build), or runs a build
+    /// of another channel than `current`'s, by each build's `channel` file
+    /// (a one-shot `--release`/`--eap`/…). `JUNIE_SKIP_UPDATE_CHECK`, which
+    /// the shim exports for one-shot runs, is not taken as the sign: users set
+    /// it in their shell to turn Junie's own update check off. Left over:
+    /// `--use-version` is cut from `argv` and leaves no trace, so a session
+    /// pinned that way whose own launch applied a staged update (the shim
+    /// moves `current` before it execs the pinned build) reads as left behind;
+    /// and after a persistent channel switch (`junie update --channel=…`) a
+    /// session on the old channel's build is not called stale.
+    static func processTarget(shim: String) -> CLIToolProcesses.Target? {
+        let bin = (shim as NSString).deletingLastPathComponent
+        guard (shim as NSString).lastPathComponent == "junie", bin.hasSuffix("/.local/bin") else { return nil }
+        let data = ((bin as NSString).deletingLastPathComponent as NSString).appendingPathComponent("share/junie")
+        guard let link = try? FileManager.default.destinationOfSymbolicLink(atPath: data + "/current"),
+              let versions = CLIToolProcesses.realpath(data + "/versions") else { return nil }
+        let binary = "Applications/junie.app/Contents/MacOS/junie"
+        let launcher = "\(versions)/\((link as NSString).lastPathComponent)/\(binary)"
+        guard CLIToolProcesses.isRegularFile(launcher) else { return nil }
+        return .init(executable: launcher, versions: .init(
+            root: versions, binaries: [binary], pointer: data + "/current",
+            chosenBy: ["JUNIE_VERSION"], channelFile: "channel"))
+    }
+}

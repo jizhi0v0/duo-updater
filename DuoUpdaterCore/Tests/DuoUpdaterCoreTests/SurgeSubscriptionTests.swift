@@ -138,6 +138,24 @@ struct SurgeSubscriptionTests {
         #expect(UpdateChecker.evaluate(installed: app, remote: remote) == .upToDate)
     }
 
+    /// A copy older than every release in the feed, none of them covered: the
+    /// answer is still "nothing newer for you, and here is why" — never nil, which
+    /// would read as "no source covers this app" and lose the lock with it.
+    @Test(arguments: [SurgeSubscription.Window.unreadable, .before(1_700_000_000)])
+    func everyReleaseWithheldStillAnswers(window: SurgeSubscription.Window) async throws {
+        let feed = try Self.feedFile()
+        defer { try? FileManager.default.removeItem(at: feed) }
+        let app = Self.app(short: "6.9.0", build: "12200", feed: feed)
+        let remote = try #require(try await Self.source(window).latestVersion(for: app))
+        #expect(remote.version == "12200")
+        #expect(remote.downloadURL == nil)
+        #expect(remote.subscriptionHold?.version == "6.11.0")
+        let result = UpdateResult(app: app, remote: remote, status: UpdateChecker.evaluate(installed: app, remote: remote))
+        #expect(result.status == .upToDate)
+        #expect(result.heldBySubscription?.version == "6.11.0")
+        #expect(UpdatePolicy.laggingRemoteVersion(result) == nil)
+    }
+
     /// A renewed window covers 6.11.0 again.
     @Test func renewedWindowOffersNewest() async throws {
         let feed = try Self.feedFile()

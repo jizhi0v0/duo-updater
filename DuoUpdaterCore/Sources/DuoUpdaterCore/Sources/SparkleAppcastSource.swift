@@ -86,6 +86,21 @@ public struct SparkleAppcastSource: UpdateSource {
             }
         }
         guard let best = Self.offerableItem(for: app, from: offerable) else {
+            // The subscription withheld everything, the installed build included
+            // (it is older than the whole feed). Still an answer — the copy is as
+            // far as it may go, and the hold says why — not nil, which reads as
+            // "no source covers this app" and would drop the lock with the row's
+            // notes and timeline (`offerableItem`'s ⚠️).
+            if let subscriptionHold, offerable.isEmpty {
+                return RemoteVersion(
+                    shortVersion: app.shortVersion,
+                    version: app.buildVersion,
+                    marketingMatchesBundle: true,
+                    downloadURL: nil,
+                    sourceName: name,
+                    releaseHistory: Self.releaseHistory(from: usable),
+                    subscriptionHold: subscriptionHold)
+            }
             if let (refusal, missed) = Self.osWindowRefusal(for: app, from: items, osVersion: osVersion) {
                 Log.source.notice(
                     "sparkle: \(app.bundleID ?? "?", privacy: .public) — nothing to offer, \(refusal.logDescription, privacy: .public)")

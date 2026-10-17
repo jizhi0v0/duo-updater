@@ -136,6 +136,16 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
   `.artifact(/nightly/(super.engineering|Superconductor)-nightly-<sha8>-arm64<后缀>.dmg)`（2026-09-23 b4ff1a8d 起文件名前缀改成 `super.engineering-`）。版本是 commit hash，排序靠
   `BuildLineage`（`changelog.json`）。stable 重开时的待办见审计文档。
 
+### Pattern B/C 续 — Open Screen Sharing（2026-10-17 接 nightly）
+
+- **Open Screen Sharing** `io.nekohasekai.screensharing` — 设置 → App → Update Track（stable / nightly），选择写在 app
+  group 容器 `~/Library/Group Containers/P8XK3KHB48.io.nekohasekai.screensharing/Screen Sharing.sqlite`（GRDB），
+  表 `preferences` 的 `updateTrack` 行，`data` 是 JSON（真 app 拨到 Nightly 实测 `"nightly"`）。读这个容器要完全磁盘访问
+  （无授权探针实测 EPERM），所以 `OpenScreenSharingChannel` 和 CotEditor 一样走 `FullDiskAccessNeeds` 闸
+  （`.openScreenSharingChannel`）；`nightly` → `.nightly`，其他 → nil。门控 = channel-gated VendorProbe
+  （`releases/download/nightly/metadata.json` 的 `build`，`versionIsBuild`），一键 pkg，`ChannelProofRegistry` 登记
+  `.artifact(/releases/download/nightly/OpenScreenSharing.pkg)`。没有 FDA 时 nightly 副本按 stable 读，不会被降级。
+
 ### Pattern C 续 — CodeEdit（2026-09-12 接，`dev` 是唯一轨的标签）
 
 - **CodeEdit** `app.codeedit.CodeEdit` — Info.plist 自带 `SUFeedURL`

@@ -903,6 +903,8 @@ struct FullDiskAccessTip: View {
             Text("Without Full Disk Access, DuoUpdater can’t read the builds TestFlight offers you, so it can’t say whether this beta is current.")
         case .cotEditorChannel:
             Text("Without Full Disk Access, DuoUpdater can’t see whether you chose prereleases in CotEditor, so only its stable releases are offered.")
+        case .openScreenSharingChannel:
+            Text("Without Full Disk Access, DuoUpdater can’t see whether you chose the nightly track in Open Screen Sharing, so only its stable releases are offered.")
         }
     }
 }

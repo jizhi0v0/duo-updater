@@ -25874,6 +25874,71 @@
         }
       }
     },
+    "Open Screen Sharing: DuoUpdater reads its update track. Without it, Open Screen Sharing is checked against its stable releases even if you chose nightly.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Screen Sharing: DuoUpdater liest den Update-Kanal. Ohne den Zugriff wird Open Screen Sharing mit seinen stabilen Versionen verglichen, auch wenn du Nightly gewählt hast."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Screen Sharing: DuoUpdater lee su canal de actualización. Sin él, Open Screen Sharing se compara con sus versiones estables aunque hayas elegido Nightly."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Screen Sharing : DuoUpdater lit son canal de mise à jour. Sans cet accès, Open Screen Sharing est comparé à ses versions stables même si vous avez choisi Nightly."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Screen Sharing: DuoUpdater legge il suo canale di aggiornamento. Senza questo accesso, Open Screen Sharing viene controllato rispetto alle release stabili anche se hai scelto Nightly."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Screen Sharing：アップデートチャンネルを読み取ります。許可しない場合、Nightly を選んでいても Open Screen Sharing は安定版と比較されます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Screen Sharing: o DuoUpdater lê o canal de atualização dele. Sem isso, o Open Screen Sharing é comparado com as versões estáveis mesmo que você tenha escolhido Nightly."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Screen Sharing: DuoUpdater читает его канал обновлений. Без доступа Open Screen Sharing сравнивается со стабильными версиями, даже если вы выбрали Nightly."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Screen Sharing: DuoUpdater güncelleme kanalını okur. Bu olmadan Open Screen Sharing, Nightly’yi seçmiş olsanız bile kararlı sürümlerine göre denetlenir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Screen Sharing：DuoUpdater 会读取它的更新渠道。不授权时，即使你选择了 Nightly，Open Screen Sharing 也会按正式版检查。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Screen Sharing：DuoUpdater 會讀取它的更新通道。沒有此權限時，即使你選擇了 Nightly，Open Screen Sharing 仍會以正式版檢查。"
+          }
+        }
+      }
+    },
     "Couldn't compare with the backup": {
       "extractionState": "manual",
       "localizations": {
@@ -34226,67 +34291,67 @@
         }
       }
     },
-    "Lets DuoUpdater read TestFlight’s list of builds and CotEditor’s update channel, so those apps can be checked properly. Optional — and TestFlight checking has a switch of its own in Settings → General, which needs this permission to read anything.": {
+    "Lets DuoUpdater read TestFlight’s list of builds and the update channels of CotEditor and Open Screen Sharing, so those apps can be checked properly. Optional — and TestFlight checking has a switch of its own in Settings → General, which needs this permission to read anything.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Damit kann DuoUpdater die Build-Liste von TestFlight und den Update-Kanal von CotEditor lesen, sodass diese Apps richtig geprüft werden. Optional – und die TestFlight-Prüfung hat unter „Einstellungen“ → „Allgemein“ einen eigenen Schalter, der diese Berechtigung braucht, um überhaupt etwas lesen zu können."
+            "value": "Damit kann DuoUpdater die Build-Liste von TestFlight und die Update-Kanäle von CotEditor und Open Screen Sharing lesen, sodass diese Apps richtig geprüft werden. Optional – und die TestFlight-Prüfung hat unter „Einstellungen“ → „Allgemein“ einen eigenen Schalter, der diese Berechtigung braucht, um überhaupt etwas lesen zu können."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permite a DuoUpdater leer la lista de compilaciones de TestFlight y el canal de actualización de CotEditor, para comprobar esas apps correctamente. Opcional: además, la comprobación de TestFlight tiene su propio ajuste en Ajustes → General, que necesita este permiso para poder leer algo."
+            "value": "Permite a DuoUpdater leer la lista de compilaciones de TestFlight y los canales de actualización de CotEditor y Open Screen Sharing, para comprobar esas apps correctamente. Opcional: además, la comprobación de TestFlight tiene su propio ajuste en Ajustes → General, que necesita este permiso para poder leer algo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permet à DuoUpdater de lire la liste des versions de TestFlight et le canal de mise à jour de CotEditor, pour vérifier correctement ces apps. Facultatif — et la vérification TestFlight a son propre réglage dans Réglages → Général, qui a besoin de cette autorisation pour lire quoi que ce soit."
+            "value": "Permet à DuoUpdater de lire la liste des versions de TestFlight et les canaux de mise à jour de CotEditor et d’Open Screen Sharing, pour vérifier correctement ces apps. Facultatif — et la vérification TestFlight a son propre réglage dans Réglages → Général, qui a besoin de cette autorisation pour lire quoi que ce soit."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permette a DuoUpdater di leggere l’elenco delle build di TestFlight e il canale di aggiornamento di CotEditor, così quelle app possono essere controllate correttamente. Facoltativo; il controllo di TestFlight ha anche un proprio interruttore in Impostazioni → Generali, che richiede questa autorizzazione per leggere qualcosa."
+            "value": "Permette a DuoUpdater di leggere l’elenco delle build di TestFlight e i canali di aggiornamento di CotEditor e Open Screen Sharing, così quelle app possono essere controllate correttamente. Facoltativo; il controllo di TestFlight ha anche un proprio interruttore in Impostazioni → Generali, che richiede questa autorizzazione per leggere qualcosa."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater が TestFlight のビルド一覧と CotEditor のアップデートチャンネルを読めるようになり、これらの App を正しく確認できます。任意です。なお TestFlight の確認には 設定 → 一般 に独立したスイッチがあり、そのスイッチが何かを読み取るにはこの許可が必要です。"
+            "value": "DuoUpdater が TestFlight のビルド一覧、および CotEditor と Open Screen Sharing のアップデートチャンネルを読めるようになり、これらの App を正しく確認できます。任意です。なお TestFlight の確認には 設定 → 一般 に独立したスイッチがあり、そのスイッチが何かを読み取るにはこの許可が必要です。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permite que o DuoUpdater leia a lista de builds do TestFlight e o canal de atualização do CotEditor, para verificar esses apps corretamente. Opcional — e a verificação do TestFlight tem um controle próprio em Ajustes → Geral, que precisa desta permissão para ler qualquer coisa."
+            "value": "Permite que o DuoUpdater leia a lista de builds do TestFlight e os canais de atualização do CotEditor e do Open Screen Sharing, para verificar esses apps corretamente. Opcional — e a verificação do TestFlight tem um controle próprio em Ajustes → Geral, que precisa desta permissão para ler qualquer coisa."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Позволяет DuoUpdater читать список сборок TestFlight и канал обновлений CotEditor, чтобы правильно проверять эти приложения. Необязательно — и у проверки TestFlight есть собственный переключатель в «Настройки» → «Основные», которому этот доступ нужен, чтобы вообще что-то прочитать."
+            "value": "Позволяет DuoUpdater читать список сборок TestFlight и каналы обновлений CotEditor и Open Screen Sharing, чтобы правильно проверять эти приложения. Необязательно — и у проверки TestFlight есть собственный переключатель в «Настройки» → «Основные», которому этот доступ нужен, чтобы вообще что-то прочитать."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater’ın TestFlight’ın derleme listesini ve CotEditor’ın güncelleme kanalını okumasını sağlar; böylece bu uygulamalar doğru denetlenir. İsteğe bağlı — TestFlight denetiminin de Ayarlar → Genel’de kendi anahtarı vardır ve herhangi bir şey okuyabilmesi için bu izin gerekir."
+            "value": "DuoUpdater’ın TestFlight’ın derleme listesini ve CotEditor’ın ve Open Screen Sharing’in güncelleme kanallarını okumasını sağlar; böylece bu uygulamalar doğru denetlenir. İsteğe bağlı — TestFlight denetiminin de Ayarlar → Genel’de kendi anahtarı vardır ve herhangi bir şey okuyabilmesi için bu izin gerekir."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "让 DuoUpdater 读取 TestFlight 的版本列表和 CotEditor 的更新渠道，才能正确检查这些 App。可选——另外，TestFlight 检测在「设置」→「通用」里有自己的开关，而那个开关需要这项权限才能读到任何东西。"
+            "value": "让 DuoUpdater 读取 TestFlight 的版本列表，以及 CotEditor 和 Open Screen Sharing 的更新渠道，才能正确检查这些 App。可选——另外，TestFlight 检测在「设置」→「通用」里有自己的开关，而那个开关需要这项权限才能读到任何东西。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "讓 DuoUpdater 讀取 TestFlight 的版本列表和 CotEditor 的更新通道，才能正確檢查這些 App。此權限為選用——另外，TestFlight 檢查在「設定」→「一般」中有自己的開關，而且需要此權限才讀得到任何內容。"
+            "value": "讓 DuoUpdater 讀取 TestFlight 的版本列表，以及 CotEditor 和 Open Screen Sharing 的更新通道，才能正確檢查這些 App。此權限為選用——另外，TestFlight 檢查在「設定」→「一般」中有自己的開關，而且需要此權限才讀得到任何內容。"
           }
         }
       }
@@ -36111,67 +36176,67 @@
         }
       }
     },
-    "Needed to check TestFlight betas and CotEditor’s beta channel": {
+    "Needed to check TestFlight betas and the beta or nightly channel of CotEditor and Open Screen Sharing": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nötig, um TestFlight-Betas und den Beta-Kanal von CotEditor zu prüfen"
+            "value": "Nötig, um TestFlight-Betas und den Beta- bzw. Nightly-Kanal von CotEditor und Open Screen Sharing zu prüfen"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Necesario para comprobar las betas de TestFlight y el canal beta de CotEditor"
+            "value": "Necesario para comprobar las betas de TestFlight y el canal beta o nightly de CotEditor y Open Screen Sharing"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nécessaire pour vérifier les bêtas TestFlight et le canal bêta de CotEditor"
+            "value": "Nécessaire pour vérifier les bêtas TestFlight et le canal bêta ou nightly de CotEditor et d’Open Screen Sharing"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Necessario per controllare le beta di TestFlight e il canale beta di CotEditor"
+            "value": "Necessario per controllare le beta di TestFlight e il canale beta o nightly di CotEditor e Open Screen Sharing"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight のベータ版と CotEditor のベータチャンネルの確認に必要です"
+            "value": "TestFlight のベータ版と、CotEditor と Open Screen Sharing のベータ／Nightly チャンネルの確認に必要です"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Necessário para verificar betas do TestFlight e o canal beta do CotEditor"
+            "value": "Necessário para verificar betas do TestFlight e o canal beta ou nightly do CotEditor e do Open Screen Sharing"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Нужен для проверки бета-версий TestFlight и бета-канала CotEditor"
+            "value": "Нужен для проверки бета-версий TestFlight и бета- или nightly-канала CotEditor и Open Screen Sharing"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "TestFlight betalarını ve CotEditor’ın beta kanalını denetlemek için gerekli"
+            "value": "TestFlight betalarını ve CotEditor ile Open Screen Sharing’in beta ya da nightly kanalını denetlemek için gerekli"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "检查 TestFlight 测试版和 CotEditor 测试渠道时需要"
+            "value": "检查 TestFlight 测试版，以及 CotEditor 和 Open Screen Sharing 的测试或 Nightly 渠道时需要"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "檢查 TestFlight Beta 版和 CotEditor 的 Beta 通道時需要"
+            "value": "檢查 TestFlight Beta 版，以及 CotEditor 和 Open Screen Sharing 的 Beta 或 Nightly 通道時需要"
           }
         }
       }
@@ -52748,6 +52813,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "沒有「完全取用磁碟」權限，DuoUpdater 無法得知你是否在 CotEditor 中選擇了預先發行版，因此只會提供正式版。"
+          }
+        }
+      }
+    },
+    "Without Full Disk Access, DuoUpdater can’t see whether you chose the nightly track in Open Screen Sharing, so only its stable releases are offered.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Festplattenvollzugriff kann DuoUpdater nicht sehen, ob du in Open Screen Sharing Nightly gewählt hast, daher werden nur stabile Versionen angeboten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin acceso total al disco, DuoUpdater no puede ver si elegiste Nightly en Open Screen Sharing, así que solo se ofrecen sus versiones estables."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sans l’accès complet au disque, DuoUpdater ne peut pas voir si vous avez choisi Nightly dans Open Screen Sharing : seules ses versions stables sont proposées."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Senza l’Accesso completo al disco, DuoUpdater non può vedere se hai scelto Nightly in Open Screen Sharing, quindi vengono proposte solo le release stabili."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フルディスクアクセスがないと、Open Screen Sharing で Nightly を選んでいるかどうかを DuoUpdater が確認できないため、安定版だけが提示されます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sem Acesso Total ao Disco, o DuoUpdater não consegue ver se você escolheu Nightly no Open Screen Sharing, então só as versões estáveis são oferecidas."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без полного доступа к диску DuoUpdater не видит, выбран ли в Open Screen Sharing канал Nightly, поэтому предлагаются только стабильные версии."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tam Disk Erişimi olmadan DuoUpdater, Open Screen Sharing’de Nightly’yi seçip seçmediğinizi göremez; bu yüzden yalnızca kararlı sürümleri önerilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有完全磁盘访问权限，DuoUpdater 无法得知你是否在 Open Screen Sharing 中选择了 Nightly，因此只会提供正式版。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有「完全取用磁碟」權限，DuoUpdater 無法得知你是否在 Open Screen Sharing 中選擇了 Nightly，因此只會提供正式版。"
           }
         }
       }

@@ -142,6 +142,8 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///   * MonitorControl → `UserDefaults[isBetaChannel]` (Bool: true → `<sparkle:channel>beta`)
 ///   * Zettlr   → `…/Application Support/Zettlr/config.json` (`checkForBeta`;
 ///                                     true→beta; else nil, see the type)
+///   * Open Screen Sharing → `updateTrack` row in its group container's GRDB
+///                                     database (`"nightly"`→nightly; else nil)
 ///
 /// So there is no generic reader. `ChannelBinding` is the single authority the
 /// scanner consults; an app with no resolver returns nil and the generic
@@ -192,6 +194,7 @@ public enum ChannelBinding {
         ITerm2Channel.bundleID.lowercased(),
         MonitorControlChannel.bundleID.lowercased(),
         ZettlrChannel.bundleID.lowercased(),
+        OpenScreenSharingChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -309,6 +312,10 @@ public enum ChannelBinding {
         // Zettlr deliberately adds nothing, for Cindy's reason: its `config.json`
         // sits in the app's Electron `userData` directory beside its logs and
         // caches. See `ZettlrChannel`.
+        //
+        // Open Screen Sharing deliberately adds nothing, for Cindy's reason: its
+        // database sits in the app's group container beside its caches. See
+        // `OpenScreenSharingChannel`.
         return roots
     }
 
@@ -513,6 +520,8 @@ public enum ChannelBinding {
         case SwiftVMChannel.bundleID.lowercased(): return { feeds, _ in SwiftVMChannel.resolve(bundleFeeds: feeds) }
         case AdGuardChannel.bundleID.lowercased():
             return { _, strings in AdGuardChannel.resolve(bundleStrings: strings) }
+        case OpenScreenSharingChannel.bundleID.lowercased():
+            return { _, _ in OpenScreenSharingChannel.resolveCurrent() }
         default:                       return nil
         }
     }
@@ -681,6 +690,7 @@ public enum ChannelBinding {
         CuaDriverChannel.bundleID.lowercased(),
         CindyChannel.globalBundleID.lowercased(),
         CindyChannel.chinaBundleID.lowercased(),
+        OpenScreenSharingChannel.bundleID.lowercased(),
     ]
 
     /// Every feed address a binding hands out as its `feedOverride`, one case per

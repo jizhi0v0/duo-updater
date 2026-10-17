@@ -6,7 +6,8 @@ import Foundation
 /// Measured 2026-09-10 on macOS 27 with a never-granted probe: TestFlight's store
 /// and another app's container were refused (EPERM), while other apps' preferences
 /// through `CFPreferences` and files under Application Support or `~/Movies` read
-/// fine. So these two are the whole list today.
+/// fine. Another app's group container is refused the same way (Open Screen
+/// Sharing's, measured 2026-10-17).
 ///
 /// Adding a read that needs it means adding a case here and recording what it turns
 /// away in ``FullDiskAccessNeeds`` — through `mayRead` when the apps are known before
@@ -19,6 +20,8 @@ public enum FullDiskAccessNeed: String, CaseIterable, Sendable {
     case testFlight
     /// CotEditor's update channel, which the sandboxed app keeps in its container.
     case cotEditorChannel
+    /// Open Screen Sharing's update track, which it keeps in its group container.
+    case openScreenSharingChannel
 
     /// Whether this read, turned away, can change what a row says about a copy on
     /// `releaseChannel` — as detected from the copy's own version, since the read
@@ -27,11 +30,14 @@ public enum FullDiskAccessNeed: String, CaseIterable, Sendable {
     ///
     /// TestFlight: never — its row already says it cannot tell, with its own
     /// question mark. CotEditor: only a stable copy; a prerelease is recognized
-    /// from its version, so the setting could not change the answer.
+    /// from its version, so the setting could not change the answer. Open Screen
+    /// Sharing: only a stable copy too — every copy reads as stable from its
+    /// bundle, so the setting is the only thing that could say nightly.
     public func mayAffect(releaseChannel: ReleaseChannel) -> Bool {
         switch self {
         case .testFlight: false
         case .cotEditorChannel: releaseChannel == .stable
+        case .openScreenSharingChannel: releaseChannel == .stable
         }
     }
 }

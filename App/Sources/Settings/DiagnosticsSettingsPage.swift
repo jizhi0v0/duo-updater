@@ -93,9 +93,10 @@ struct DiagnosticsSettingsPage: View {
             }
             .settingsAnchor(.appManagement)
             SettingsDivider()
-            // Optional: without it nothing reads TestFlight's store or CotEditor's
-            // container (`TCCPreflight.admitsOtherAppsData`).
-            SettingsField(title: "Full Disk Access", detail: "Needed to check TestFlight betas and CotEditor’s beta channel") {
+            // Optional: without it nothing reads TestFlight's store, CotEditor's
+            // container or Open Screen Sharing's group container
+            // (`TCCPreflight.admitsOtherAppsData`).
+            SettingsField(title: "Full Disk Access", detail: "Needed to check TestFlight betas and the beta or nightly channel of CotEditor and Open Screen Sharing") {
                 if model.fullDiskAccessStatus == .granted {
                     Label("Granted", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)

@@ -50,6 +50,10 @@ struct RuntimeTag: View {
     /// this read. Without this the nil answer is never remembered and every re-open
     /// pays for the search again.
     @State private var versionLoaded = false
+    /// What the bundle ships beside its runtime, read with the version and for the
+    /// same reason: only once someone opens the detail. Empty until then, and
+    /// empty is also the answer for most apps.
+    @State private var components: [RuntimeComponent] = []
 
     var body: some View {
         if interactive {
@@ -122,14 +126,22 @@ struct RuntimeTag: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 2)
                 }
+                if let shipped = Self.shipsLine(components) {
+                    Text(shipped)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, Self.linkedLine(runtime, frameworks) == nil ? 2 : 0)
+                }
                 if let sdk = Self.sdkLine(buildSDK) {
                     Text(sdk)
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
                         // The same gap below the description the frameworks line
-                        // takes, whichever of the two comes first.
-                        .padding(.top, Self.linkedLine(runtime, frameworks) == nil ? 2 : 0)
+                        // takes, whichever line comes first.
+                        .padding(.top, Self.linkedLine(runtime, frameworks) == nil
+                                 && Self.shipsLine(components) == nil ? 2 : 0)
                 }
             }
         }
@@ -142,9 +154,14 @@ struct RuntimeTag: View {
             // during a scan of the whole library. Tauri's walk is already paid for
             // — the scan had to do it to reach the verdict at all, and this reads
             // the same cached entry back out.
+            //
+            // The components are read in the same task: a directory listing or
+            // one section of the executable, never the whole file. Too cheap to
+            // cache — `runtimeCompositionBench` measures it on every installed app.
             guard !versionLoaded, let bundle else { return }
-            version = await Task.detached(priority: .utility) {
-                RuntimeVersion.read(runtime, bundleAt: bundle, scanningBinaries: true)
+            (version, components) = await Task.detached(priority: .utility) {
+                (RuntimeVersion.read(runtime, bundleAt: bundle, scanningBinaries: true),
+                 RuntimeComposition.read(runtime, bundleAt: bundle))
             }.value
             versionLoaded = true
         }
@@ -263,6 +280,17 @@ struct RuntimeTag: View {
         guard !names.isEmpty else { return nil }
         let list = ListFormatter.localizedString(byJoining: names)
         return String(localized: "Links \(list).", comment: "Detail line: which Apple frameworks the app's binary links")
+    }
+
+    /// The line naming what the bundle ships beside its runtime — Qt Quick beside
+    /// Qt Widgets, a CEF browser in a Qt shell — or nil when nothing was found.
+    /// "Ships" rather than "uses": the evidence is what is packaged, not what is
+    /// on screen. See `RuntimeComposition`.
+    static func shipsLine(_ components: [RuntimeComponent]) -> String? {
+        guard !components.isEmpty else { return nil }
+        let list = ListFormatter.localizedString(byJoining: components.map(\.name))
+        return String(localized: "Ships \(list).",
+                      comment: "Detail line: which UI technologies the app's bundle ships beside its runtime, e.g. “Qt Widgets, Qt Quick and CEF”. The names stay Latin.")
     }
 
     /// The SDK line under the frameworks line, or nil when the binary recorded

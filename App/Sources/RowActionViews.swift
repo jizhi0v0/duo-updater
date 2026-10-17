@@ -112,6 +112,28 @@ enum OSWindowWording {
     }
 }
 
+/// What a `.subscriptionHold` lock opens, in both windows: the popover's lock and
+/// the workbench's label are both buttons onto this one panel.
+struct SubscriptionHoldPanel: View {
+    let result: UpdateResult
+    let hold: SubscriptionHold
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(SubscriptionHoldWording.title, systemImage: "lock.fill")
+                .font(.headline)
+            Text(SubscriptionHoldWording.explanation(hold, appName: result.app.name))
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))) until then.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .frame(width: 290)
+    }
+}
+
 /// The words for a `.subscriptionHold` row, shared by both windows.
 enum SubscriptionHoldWording {
     static var title: String { String(localized: "Not covered by your subscription") }
@@ -260,6 +282,7 @@ struct WorkbenchRowAction: View {
 
     @State private var showTestFlightTip = false
     @State private var showOrphanHint = false
+    @State private var showSubscriptionHint = false
 
     var body: some View {
         // `ui = f(state)`. The ladder that decides WHICH of these applies lives in
@@ -375,12 +398,18 @@ struct WorkbenchRowAction: View {
             }
 
         case .subscriptionHold(let hold):
-            // Where a current row's checkmark would be, named like
-            // `.notForThisMacOS` below; the popover's lock opens the same words.
-            Label(SubscriptionHoldWording.title, systemImage: "lock.fill")
-                .font(.callout).foregroundStyle(.orange)
-                .lineLimit(1).minimumScaleFactor(0.7)
-                .help(SubscriptionHoldWording.explanation(hold, appName: result.app.name))
+            // Where a current row's checkmark would be. A button, like
+            // `.orphanedStoreCopy` above: it opens the panel the popover's lock does.
+            Button { showSubscriptionHint = true } label: {
+                Label(SubscriptionHoldWording.title, systemImage: "lock.fill")
+                    .font(.callout).foregroundStyle(.orange)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .buttonStyle(.plain)
+            .help(SubscriptionHoldWording.explanation(hold, appName: result.app.name))
+            .popover(isPresented: $showSubscriptionHint, arrowEdge: .bottom) {
+                SubscriptionHoldPanel(result: result, hold: hold)
+            }
 
         case .notForThisMacOS(let refusal):
             // The popover's badge opens the explanation; this window names the

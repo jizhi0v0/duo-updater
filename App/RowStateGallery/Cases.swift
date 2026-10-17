@@ -161,9 +161,10 @@ enum RowStateGalleryCases {
     /// silently repeating case 18/21/22's tile under a new name. That EmptyView is
     /// registered in `mayBeBlank`, the same way `.upToDate`'s workbench tile is.
     ///
-    /// The exception is 51: the workbench's "Left-over copy" label opens the SAME
-    /// `OrphanedCopyPanel` the popover badge does, so its workbench tile draws that
-    /// panel rather than claiming there is none.
+    /// The exceptions are 51 and 54: the workbench's "Left-over copy" and
+    /// subscription labels open the SAME panels (`OrphanedCopyPanel`,
+    /// `SubscriptionHoldPanel`) the popover badges do, so their workbench tiles
+    /// draw those panels rather than claiming there is none.
     @MainActor
     private static func workbenchTile(name: String, state: RowActionState, result: UpdateResult) -> AnyView {
         if name == "51-orphaned-store-copy-explanation" {
@@ -171,6 +172,10 @@ enum RowStateGalleryCases {
             return AnyView(
                 OrphanedCopyPanel(result: result, updatedCopy: copy, version: version, dismiss: {})
                     .fixedSize())
+        }
+        if name == "54-subscription-hold-explanation" {
+            guard case .subscriptionHold(let hold) = state else { return AnyView(EmptyView()) }
+            return AnyView(SubscriptionHoldPanel(result: result, hold: hold).fixedSize())
         }
         if explanationCaseNames.contains(name) {
             return AnyView(EmptyView())
@@ -384,7 +389,6 @@ enum RowStateGalleryCases {
         "workbench/48-not-for-this-macos-ceiling-explanation",
         "workbench/49-not-for-this-macos-floor-explanation",
         "workbench/52-vendor-rewrite-explanation",
-        "workbench/54-subscription-hold-explanation",
     ]
 
     /// Pairs of states that legitimately draw the same picture, keyed

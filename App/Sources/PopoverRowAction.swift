@@ -793,18 +793,7 @@ struct PopoverRowAction: View {
 
     // See the doc comment on `majorUpgradePopover` — same seam, same reasoning.
     func subscriptionHintPopover(_ hold: SubscriptionHold) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(SubscriptionHoldWording.title, systemImage: "lock.fill")
-                .font(.headline)
-            Text(SubscriptionHoldWording.explanation(hold, appName: result.app.name))
-                .font(.callout)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))) until then.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(12)
-        .frame(width: 290)
+        SubscriptionHoldPanel(result: result, hold: hold)
     }
 
     // See the doc comment on `majorUpgradePopover` — same seam, same reasoning.

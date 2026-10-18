@@ -70,4 +70,37 @@ public final class InstallRowRuns {
         guard let inFlight = running[id] else { return false }
         return inFlight != latest[id]
     }
+
+    /// What a click on row `id`'s Cancel stops.
+    public enum RowCancel: Equatable, Sendable {
+        /// A target of "Update All" not started yet: taken off its queue.
+        case tookOffTheQueue
+        /// A run waiting for the row's earlier run: it stops before it starts.
+        case stopsBeforeItStarts
+        /// The row's registered job (`InstallJobs.cancel`).
+        case registeredJob
+    }
+
+    /// Row `id`'s Cancel, with `queue` the running "Update All"'s, if any.
+    /// Off the queue comes first: a target there never gets to wait for the
+    /// row's earlier run, so it need not sit out that run's wrap-up and the
+    /// queue ahead of it under "Cancelling…".
+    public func cancel(_ id: String, queue: InstallBatchQueue?) -> RowCancel {
+        if queue?.remove(id) == true { return .tookOffTheQueue }
+        if isBehindAnEarlierRun(id) { return .stopsBeforeItStarts }
+        return .registeredJob
+    }
+
+    /// For Cancel All over a batch that made `claims`: the targets whose row
+    /// was claimed again since (`reclaimed`) — the registered job is that
+    /// click's run, or the batch's own finishing ahead of it, neither the
+    /// batch's to cancel — and the targets still the batch's but waiting for
+    /// an earlier run (`behind`), which their host stops before they start.
+    public func batchCancel(
+        _ claims: [String: Claim]
+    ) -> (reclaimed: Set<String>, behind: Set<String>) {
+        let reclaimed = Set(claims.filter { !isLatest($0.key, $0.value) }.keys)
+        let behind = Set(claims.keys.filter { isBehindAnEarlierRun($0) }).subtracting(reclaimed)
+        return (reclaimed, behind)
+    }
 }

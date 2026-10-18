@@ -185,6 +185,10 @@ final class AppListModel {
     /// The running "Update All"'s targets, for its Cancel All and for a row's
     /// Cancel on a target it has not started (`InstallBatchQueue`).
     @ObservationIgnored private var batchQueue: InstallBatchQueue?
+    /// The running "Update All"'s claim on each of its targets: a row whose
+    /// latest claim is not the batch's was clicked again after the batch was
+    /// done with it, and that run is not the batch's to cancel.
+    @ObservationIgnored private var batchClaims: [String: InstallRowRuns.Claim] = [:]
     /// Installs an earlier run cut off (`InstallJournal.interruptedInstalls`),
     /// as last read — after the launch's cleanup, after each install and each
     /// Restore. Their rows offer Restore, or Reinstall, instead of Update.
@@ -4731,8 +4735,11 @@ final class AppListModel {
         // The row's previous run may still be wrapping up after it freed the
         // row: this run queues behind it with a Cancel of its own, not the
         // previous run's left-over one (`InstallRowRuns`).
+        // Live from here, through an Xcode row's sign-in check too: a click
+        // before the job registers is answered "not found" for a claimed
+        // row, which `runInstall` turns into a cancel before it starts.
         let claim = rowRuns.claim(id)
-        if rowRuns.isBehindAnEarlierRun(id) { installCancels[id] = .available }
+        installCancels[id] = .available
         guard isXcodeRow(result) else {
             return await runInstall(result, claim: claim, notify: notify, deferBookkeeping: deferBookkeeping, backUpOnce: backUpOnce)
         }
@@ -8949,10 +8956,12 @@ final class AppListModel {
         }
         let queue = InstallBatchQueue(targets.map(\.id))
         batchQueue = queue
+        batchClaims = claims
         defer {
             isInstallingAll = false
             isCancellingAll = false
             batchQueue = nil
+            batchClaims = [:]
             appManagementPermissionFlowPresentedInBatch = false
             // Not a row its own Cancel released and a click queued again
             // since: that click's claim is the row's latest now.
@@ -9085,19 +9094,18 @@ final class AppListModel {
     func cancelInstall(_ result: UpdateResult) {
         let id = result.id
         guard installCancels[id] == .available else { return }
-        // Waiting for the previous run's tail: no job of its own yet, and the
-        // registry's is the previous run's. It stops before it starts.
-        if rowRuns.isBehindAnEarlierRun(id) {
-            installCancels[id] = .cancelling
-            return
-        }
-        if batchQueue?.remove(id) == true {
+        switch rowRuns.cancel(id, queue: batchQueue) {
+        case .tookOffTheQueue:
             _ = InstallAttemptOutcome.cancelled(result.app, at: .queued)
             installing[id] = nil
             installCancels[id] = nil
-            return
+        case .stopsBeforeItStarts:
+            // Waiting for the previous run's tail: no job of its own yet, and
+            // the registry's is the previous run's.
+            installCancels[id] = .cancelling
+        case .registeredJob:
+            installCancels[id] = InstallCancelState.after(InstallJobs.cancel(id), claimed: installing[id] != nil)
         }
-        installCancels[id] = InstallCancelState.after(InstallJobs.cancel(id), claimed: installing[id] != nil)
     }
 
     /// "Cancel All" while "Update All" runs: the targets it has not started are
@@ -9106,11 +9114,14 @@ final class AppListModel {
     func cancelInstallAll() {
         guard isInstallingAll, !isCancellingAll, let queue = batchQueue else { return }
         isCancellingAll = true
-        // A target queued behind its row's earlier run has no job yet; the
+        // A target whose row was clicked again since is left to that click; one
+        // queued behind its row's earlier run has no job yet, and the
         // registered one is that earlier run's wrap-up, which must not be cut.
-        let behind = Set(installCancels.keys.filter { rowRuns.isBehindAnEarlierRun($0) })
-        let (removed, answers, spared) = queue.cancelAll(sparing: behind)
-        for id in spared where installCancels[id] == .available { installCancels[id] = .cancelling }
+        let (reclaimed, behind) = rowRuns.batchCancel(batchClaims)
+        let (removed, answers, spared) = queue.cancelAll(sparing: behind.union(reclaimed))
+        for id in spared where behind.contains(id) && installCancels[id] == .available {
+            installCancels[id] = .cancelling
+        }
         Log.app.info("update all: cancel all — \(removed.count, privacy: .public) not started, \(answers.count, privacy: .public) started")
         for id in removed {
             if let target = results.first(where: { $0.id == id }) {

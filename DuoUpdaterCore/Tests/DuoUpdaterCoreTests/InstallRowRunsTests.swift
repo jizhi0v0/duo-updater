@@ -61,4 +61,57 @@ import Testing
         runs.leave("app", next)
         #expect(!runs.isBehindAnEarlierRun("app"))
     }
+
+    /// A row's Cancel on an "Update All" target not started yet takes it off
+    /// the queue even while the row's earlier run is still wrapping up — it
+    /// does not sit under "Cancelling…" until the batch gets to it. Without a
+    /// queue the same row stops before it starts; with no earlier run, the
+    /// registered job is the one cancelled.
+    /// Mutation: check `isBehindAnEarlierRun` before `queue.remove` → red
+    /// (`.stopsBeforeItStarts`, and the batch still starts it).
+    @Test func aRowCancelTakesAQueuedTargetOffTheQueueFirst() async {
+        let runs = InstallRowRuns()
+        let earlier = runs.claim("app")
+        await runs.enter("app", earlier)
+        let queue = InstallBatchQueue(["app"])
+        _ = runs.claim("app")
+        #expect(runs.isBehindAnEarlierRun("app"))
+        #expect(runs.cancel("app", queue: queue) == .tookOffTheQueue)
+        #expect(!queue.start("app"))
+        #expect(queue.cancelledBeforeStart == 1)
+
+        #expect(runs.cancel("app", queue: nil) == .stopsBeforeItStarts)
+        runs.leave("app", earlier)
+        #expect(runs.cancel("app", queue: nil) == .registeredJob)
+    }
+
+    /// Cancel All leaves a target whose row was clicked again after the batch
+    /// was done with it — whether the batch's run has ended or is still
+    /// finishing ahead of the click — and stops one of its own queued behind
+    /// an earlier run before it starts.
+    /// Mutation: `reclaimed` always empty → red at the first check (Cancel
+    /// All would then cancel the click's run through the registry).
+    @Test func cancelAllLeavesARowClickedAgainToThatClick() async {
+        let runs = InstallRowRuns()
+        // b: an earlier run of its own in flight when the batch claims it.
+        let earlierB = runs.claim("b")
+        await runs.enter("b", earlierB)
+        let claims = ["a": runs.claim("a"), "b": runs.claim("b"), "c": runs.claim("c")]
+
+        // a: the batch's run ended, then the row was clicked again.
+        await runs.enter("a", claims["a"]!)
+        runs.leave("a", claims["a"]!)
+        let clickA = runs.claim("a")
+        // c: the batch's run still finishing when the row was clicked again.
+        await runs.enter("c", claims["c"]!)
+        _ = runs.claim("c")
+
+        let (reclaimed, behind) = runs.batchCancel(claims)
+        #expect(reclaimed == ["a", "c"])
+        #expect(behind == ["b"])
+
+        runs.leave("b", earlierB)
+        runs.leave("c", claims["c"]!)
+        #expect(runs.isLatest("a", clickA))
+    }
 }

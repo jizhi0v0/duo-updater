@@ -54,6 +54,12 @@ public enum Install {
         return .success(resolved)
     }
 
+    /// Why an app is skipped while an earlier install of it still runs.
+    static func stillRunningReason(pid: Int32) -> String {
+        "an earlier install of it is still running (process \(pid)); "
+            + "run this again once it has finished"
+    }
+
     /// The warning `install` prints for an install that was cut off and left
     /// its app missing or broken, with the command that puts it back.
     static func interruptedWarning(_ interrupted: InstallJournal.InterruptedInstall) -> String {
@@ -991,17 +997,39 @@ public enum Install {
                 continue
             }
 
+            // An earlier install of this app that is still running — an orphaned
+            // brew from a `duo` that was killed — is not raced; one that was cut
+            // off may be reinstalled over, without copying the damaged bundle
+            // over the copy that is its way back (`InstallJournal.standing`).
+            let overInterrupted: Bool
+            switch InstallJournal.standing(of: toInstall.app.path) {
+            case .stillRunning(let pid):
+                let reason = Self.stillRunningReason(pid: pid)
+                if !json { print("   \(reason)") }
+                emitSkipped(name: name, route: route, reason: reason, outcome: .skipped, json: json)
+                tally.record(.skipped)
+                continue
+            case .interrupted:
+                overInterrupted = true
+                if !json {
+                    print("   an earlier update of it was interrupted; installing without a new"
+                        + " backup, so the restore point it left stays as it is")
+                }
+            case .clear:
+                overInterrupted = false
+            }
             // Written before the backup and the install touch the app, removed
             // however this item ends — so a `duo` killed mid-install leaves a
-            // record the next run can clean up after (`InstallJournal`).
+            // record the next run can clean up after (`InstallJournal`). After
+            // the settle below (defers run last-first), which reads it.
             let journal = await InstallJournal.begin(
                 app: toInstall.app, route: route, target: toInstall.remote?.versionSide)
-            defer { journal?.finish() }
+            defer { await journal?.finish() }
             // The same rollback point the menu-bar app takes, honouring the same
             // preference. Not fatal when it fails — but said out loud, because
             // the alternative is discovering the safety net is gone only when a
             // later rollback finds nothing.
-            if keepBackups, InstallCoordinator.wantsBackup(route) {
+            if keepBackups, InstallCoordinator.wantsBackup(route), !overInterrupted {
                 switch await InstallCoordinator.backUp(toInstall.app, route: route) {
                 case .saved:
                     if !json { print("   backed up \(toInstall.app.shortVersion ?? "current")") }
@@ -1025,7 +1053,7 @@ public enum Install {
             // Without a backup, a route that hands the swap to someone else
             // (brew) still gets the menu-bar app's silent install
             // rollback point — see `wantsInstallRollbackPoint`.
-            if InstallCoordinator.wantsInstallRollbackPoint(
+            if !overInterrupted, InstallCoordinator.wantsInstallRollbackPoint(
                 route, takingUserBackup: keepBackups && InstallCoordinator.wantsBackup(route)) {
                 await InstallCoordinator.takeInstallRollbackPoint(toInstall.app, route: route)
             }

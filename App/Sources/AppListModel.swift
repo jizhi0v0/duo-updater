@@ -3171,6 +3171,10 @@ final class AppListModel {
     }
 
     @ObservationIgnored private var didRecoverSwaps = false
+    /// The launch recovery `recoverInterruptedSwapsOnce` started, which
+    /// `install` awaits: its journal processing ejects images and deletes
+    /// scratch directories an install of the same app would also use.
+    @ObservationIgnored private var launchRecovery: Task<Void, Never>?
 
     /// Run the interrupted-swap recovery sweep once per session, off the main thread.
     ///
@@ -3202,7 +3206,7 @@ final class AppListModel {
         // finds — the exact call #351 measured) hops inside
         // `InPlaceSwap.recoverInterruptedSwaps`, which is async now that it takes
         // the install lock. Nothing to do here but await it.
-        Task.detached(priority: .utility) { [weak self] in
+        launchRecovery = Task.detached(priority: .utility) { [weak self] in
             var swept = true
             for root in roots {
                 // Every root is attempted; one deferral must not skip the rest.
@@ -4732,6 +4736,11 @@ final class AppListModel {
         // The App Store gate is NOT handed over: it exists to keep two installs off
         // the single store UI (AX/mas), which spans the whole install, not the fetch.
         let hostGate = GateHandle(gate)
+        // Not before the launch recovery is through: it cleans up after an
+        // install a killed run left, which can share this one's scratch
+        // directory and disk image names. Started here if no refresh has yet.
+        recoverInterruptedSwapsOnce()
+        await launchRecovery?.value
         // Machine-wide exclusion, taken here rather than around the whole batch:
         // a row parked on the host gate must not hold it. See `ProcessInstallLock`'s
         // own doc comment for why it's reference-counted per process rather than
@@ -4747,6 +4756,16 @@ final class AppListModel {
             await hostGate.release()
             return .notInstalled
         }
+        // An earlier install of this app still running — an orphaned brew from a
+        // killed run, or `duo` — is not raced (`InstallJournal.standing`).
+        if case .stillRunning(let pid) = InstallJournal.standing(of: result.app.path) {
+            Log.install.notice("install refused: \(result.app.name, privacy: .public) — an earlier install of it is still running (pid \(pid, privacy: .public))")
+            installErrors[id] = String(localized: "An earlier update of \(result.app.name) is still running (process \(Int(pid))). Try again once it has finished.")
+            installing[id] = nil
+            await ProcessInstallLock.shared.release()
+            await hostGate.release()
+            return .notInstalled
+        }
         // Written under the lock and before anything of the app's is touched,
         // removed however the install ends — so the next launch can clean up
         // after one this process was killed in the middle of (`InstallJournal`).
@@ -4759,7 +4778,8 @@ final class AppListModel {
                 result, notify: notify, deferBookkeeping: deferBookkeeping,
                 releaseAfterDownload: isAppStore ? nil : hostGate, backUpOnce: backUpOnce)
         }
-        journal?.finish()
+        // After `performInstall`'s rollback-point settle, which reads it.
+        await journal?.finish()
         await ProcessInstallLock.shared.release()
         await hostGate.release()
         // An expired Apple session is not kept: `install` takes that line down
@@ -5131,7 +5151,11 @@ final class AppListModel {
         // user who keeps backups off but wants a rollback point for this one update.
         // Without either, a route that hands the swap to someone else still gets
         // a silent install rollback point — see `wantsInstallRollbackPoint`.
-        if !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)) {
+        // Not over an earlier install that was cut off: the bundle is the
+        // damaged one, and a copy of it would replace the good one the user
+        // would restore from (`InstallJournal.Standing.interrupted`).
+        if !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)),
+           InstallJournal.standing(of: result.app.path) != .interrupted {
             let takingUserBackup = (prefs.keepBackups || backUpOnce)
                 && InstallCoordinator.wantsBackup(backupRoute)
             if takingUserBackup {

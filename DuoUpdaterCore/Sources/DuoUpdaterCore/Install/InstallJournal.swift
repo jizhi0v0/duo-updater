@@ -7,7 +7,8 @@ import Security
 /// A `kill -9`, a crash or a power cut runs none of an install's `defer`s: its
 /// scratch directory stays, a disk image it had attached stays attached until
 /// the Mac restarts, and a third party it handed the swap to (brew) may have
-/// died on its next write to the pipe we held, leaving the app deleted. The
+/// died on its next write to the pipe we held after moving the old app aside —
+/// its revert then likely fails on that same dead pipe — leaving the app gone. The
 /// install lock cannot say any of this afterwards — measured: once the process
 /// holding `install.lock` is SIGKILLed the lock is free at once while its
 /// children keep running (ppid 1) — so a launch sweep going by the lock alone
@@ -128,6 +129,8 @@ public enum InstallJournal {
         var mounts: [Mount] = []
         /// Set by launch processing when the app was found cut off.
         var damage: Damage?
+
+        var targetSide: VersionSide { VersionSide(marketing: targetVersion, build: targetBuild) }
     }
 
     // MARK: - Recording an install
@@ -164,16 +167,131 @@ public enum InstallJournal {
             }
         }
 
-        /// The install has ended, whichever way: remove its file. Idempotent.
-        public func finish() {
-            lock.withLock {
-                guard !finished else { return }
+        /// The install has ended, whichever way. Idempotent. Call it after
+        /// `InstallCoordinator.settleInstallRollbackPoint(for:)`, which reads
+        /// the files this may remove.
+        ///
+        /// Normally its file goes. Two endings keep a record instead:
+        ///
+        /// - The app is left missing or unreadable — the ending the settle
+        ///   keeps the rollback point for. This file stays, marked interrupted,
+        ///   so the point is reachable from ``InstallJournal/interruptedInstalls()``
+        ///   and `duo backups restore`, not only from a hidden directory.
+        /// - It ran over an earlier interrupted install of the same app (a
+        ///   reinstall is a legitimate way back) and did not leave the app
+        ///   verifiably at its target. The earlier files stay: they still
+        ///   describe the way back, and nothing of this install replaced it
+        ///   (``InstallJournal/standing(of:)`` kept its backup from being
+        ///   taken). When it did leave the app verifiably good, they go.
+        public func finish() async {
+            let mine: Entry? = lock.withLock {
+                guard !finished else { return nil }
                 finished = true
-                if unlink(file.path) != 0, errno != ENOENT {
-                    Log.install.error(
-                        "install journal: could not remove \(self.file.lastPathComponent, privacy: .public) — errno \(errno, privacy: .public)")
-                }
+                return entry
             }
+            guard let mine else { return }
+            let app = URL(fileURLWithPath: mine.appPath)
+            let earlier = InstallJournal.earlierEntries(for: app, excluding: mine.job)
+            if !earlier.isEmpty,
+               await InstallJournal.isVerifiablyAt(
+                   mine.targetSide, app: app, wasSigned: mine.oldCDHash != nil) {
+                for (file, _) in earlier { unlink(file.path) }
+                Log.install.notice(
+                    "install journal: \(mine.appName, privacy: .public) reinstalled over its interrupted install; cleared")
+            }
+            if earlier.isEmpty, !BackupStore.hasReadableBundle(at: app) {
+                var kept = mine
+                kept.damage = FileManager.default.fileExists(atPath: app.path) ? .unreadable : .missing
+                kept.workDirectories = []
+                kept.mounts = []
+                kept.child = nil
+                InstallJournal.write(kept, to: file)
+                Log.install.error(
+                    "install journal: \(mine.appName, privacy: .public) is \(kept.damage?.rawValue ?? "?", privacy: .public) after its install ended; kept as an interrupted install")
+                return
+            }
+            if unlink(file.path) != 0, errno != ENOENT {
+                Log.install.error(
+                    "install journal: could not remove \(self.file.lastPathComponent, privacy: .public) — errno \(errno, privacy: .public)")
+            }
+        }
+    }
+
+    // MARK: - Standing of an app
+
+    /// Where an app stands with the journal, for a host about to install it.
+    public enum Standing: Sendable, Equatable {
+        /// No earlier install of it left anything.
+        case clear
+        /// An earlier install of it is still running: process `pid` — the
+        /// third party it started (an orphaned brew), or another process's
+        /// install. Refuse a new one until it has finished.
+        case stillRunning(pid: Int32)
+        /// An earlier install of it was cut off. A new one may go ahead — a
+        /// reinstall is a legitimate way back — but must take no backup and no
+        /// rollback point: the bundle is the damaged one, and either copy
+        /// would replace the good one the user would restore from (one slot
+        /// per app, `replaceItemAt`).
+        case interrupted
+    }
+
+    /// Where `app` stands. An entry this process wrote for an install still in
+    /// progress here, with no child running, is that install's own and does
+    /// not count; one whose child runs does, whoever wrote it.
+    public static func standing(of app: URL) -> Standing {
+        guard let root else { return .clear }
+        let wanted = standardized(app.path)
+        var interrupted = false
+        for (_, entry) in readAll(in: root) where standardized(entry.appPath) == wanted {
+            if let child = entry.child, child.isRunning { return .stillRunning(pid: child.pid) }
+            if entry.owner.isRunning {
+                if entry.owner.pid != getpid() { return .stillRunning(pid: entry.owner.pid) }
+            } else {
+                interrupted = true
+            }
+        }
+        return interrupted ? .interrupted : .clear
+    }
+
+    /// Whether `app`'s install rollback point may be discarded now that an
+    /// install of it ended with the app readable. False while an earlier
+    /// interrupted install of it is on record, unless this process's install
+    /// of it left it verifiably at that install's target: the point is the way
+    /// back the earlier one left, and a readable bundle is not yet a good one.
+    static func mayDiscardRollbackPoint(for app: URL) async -> Bool {
+        guard let root else { return true }
+        let wanted = standardized(app.path)
+        let entries = readAll(in: root).map(\.entry).filter { standardized($0.appPath) == wanted }
+        let dead = entries.filter { !$0.owner.isRunning && $0.child?.isRunning != true }
+        guard !dead.isEmpty else { return true }
+        guard let mine = entries.first(where: { $0.owner.isRunning && $0.owner.pid == getpid() })
+        else { return false }
+        return await isVerifiablyAt(mine.targetSide, app: app, wasSigned: mine.oldCDHash != nil)
+    }
+
+    /// The files of earlier installs of `app` that are over — not running
+    /// and not `job` — whatever launch processing made of them.
+    fileprivate static func earlierEntries(for app: URL, excluding job: String) -> [(file: URL, entry: Entry)] {
+        guard let root else { return [] }
+        let wanted = standardized(app.path)
+        return readAll(in: root).filter {
+            $0.entry.job != job && standardized($0.entry.appPath) == wanted
+                && !$0.entry.owner.isRunning && $0.entry.child?.isRunning != true
+        }
+    }
+
+    /// Whether `app` is readable, at `target` or later, and its code signature
+    /// holds — or it is unsigned and was unsigned before. What "verifiably
+    /// good" means wherever a damaged app's way back is at stake.
+    static func isVerifiablyAt(_ target: VersionSide, app: URL, wasSigned: Bool) async -> Bool {
+        guard BackupStore.hasReadableBundle(at: app) else { return false }
+        let onDisk = versions(at: app)
+        guard !target.isEmpty, !onDisk.isEmpty, !VersionComparator.isNewer(target, than: onDisk)
+        else { return false }
+        switch await offCooperativePool(qos: .userInitiated, { signature(of: app) }) {
+        case .valid: return true
+        case .unsigned: return !wasSigned
+        case .invalid: return false
         }
     }
 
@@ -353,7 +471,12 @@ public enum InstallJournal {
                 case .none:
                     continue
                 case .disk:
-                    if await cleanup.detach(URL(fileURLWithPath: mount.mountPoint), image) {
+                    // Read again: the lookup above can take seconds, and an
+                    // install in this process (the lock is shared) may have
+                    // attached the same image path since.
+                    if liveUse().uses(mount) {
+                        mountsLeft = true
+                    } else if await cleanup.detach(URL(fileURLWithPath: mount.mountPoint), image) {
                         Log.install.notice(
                             "install journal: detached \(image.lastPathComponent, privacy: .public), left attached by \(name, privacy: .public)'s install")
                     } else {
@@ -370,6 +493,9 @@ public enum InstallJournal {
                 continue
             }
             for path in entry.workDirectories where !liveDirectories.contains(standardized(path)) {
+                // Read again, right before the delete, for the same reason as
+                // the detach above.
+                guard !liveUse().directories.contains(standardized(path)) else { continue }
                 removeScratchDirectory(URL(fileURLWithPath: path, isDirectory: true))
             }
 
@@ -420,18 +546,22 @@ public enum InstallJournal {
         guard BackupStore.hasReadableBundle(at: app) else {
             return .damaged(FileManager.default.fileExists(atPath: app.path) ? .unreadable : .missing)
         }
+        // The target on disk is an install that landed, whatever its signature
+        // says now: a new version that writes into its own bundle fails a
+        // resource check from then on, and calling that "interrupted" would
+        // offer to put the old version back over a working one.
+        let target = entry.targetSide
+        let onDisk = versions(at: app)
+        if !target.isEmpty, !onDisk.isEmpty, !VersionComparator.isNewer(target, than: onDisk) {
+            return .resolved(.completed)
+        }
         let cdhash = await offCooperativePool(qos: .userInitiated) {
             CLIToolProcesses.fileCDHash(app.path).map(hex)
         }
         if let old = entry.oldCDHash {
             if cdhash == old { return .resolved(.unchanged) }
-            let valid = await offCooperativePool(qos: .userInitiated) { signatureHolds(at: app) }
-            if !valid { return .damaged(.signatureBroken) }
-        }
-        let target = VersionSide(marketing: entry.targetVersion, build: entry.targetBuild)
-        let onDisk = versions(at: app)
-        if !target.isEmpty, !onDisk.isEmpty, !VersionComparator.isNewer(target, than: onDisk) {
-            return .resolved(.completed)
+            let status = await offCooperativePool(qos: .userInitiated) { signature(of: app) }
+            if status != .valid { return .damaged(.signatureBroken) }
         }
         if entry.oldCDHash == nil,
            onDisk == VersionSide(marketing: entry.oldVersion, build: entry.oldBuild) {
@@ -440,14 +570,26 @@ public enum InstallJournal {
         return .resolved(.changedElsewhere)
     }
 
-    /// The bundle's signature against its own seal — executable and resources,
-    /// the default `SecStaticCodeCheckValidity`. Not strict and not deep: this
-    /// asks "was the swap cut off halfway", not the install gates' question.
-    private static func signatureHolds(at app: URL) -> Bool {
+    enum SignatureStatus: Equatable { case valid, unsigned, invalid }
+
+    /// The bundle's code signature: its executable and Info.plist against the
+    /// code directory, resources left out (`kSecCSDoNotValidateResources`).
+    /// Measured in `InstallJournalTests` on ad-hoc signed fixtures: a resource
+    /// the app rewrote passes this and fails the default check; an executable
+    /// cut short fails both. So this asks "was the code swapped halfway", and
+    /// an app that keeps state inside its own bundle does not read as broken.
+    /// Not strict and not deep — not the install gates' question.
+    static func signature(of app: URL) -> SignatureStatus {
         var code: SecStaticCode?
         guard SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess,
-              let code else { return false }
-        return SecStaticCodeCheckValidity(code, [], nil) == errSecSuccess
+              let code else { return .invalid }
+        let status = SecStaticCodeCheckValidity(
+            code, SecCSFlags(rawValue: kSecCSDoNotValidateResources), nil)
+        switch status {
+        case errSecSuccess: return .valid
+        case errSecCSUnsigned: return .unsigned
+        default: return .invalid
+        }
     }
 
     // MARK: - Interrupted installs
@@ -556,11 +698,30 @@ public enum InstallJournal {
 
     /// The scratch directories a running install has recorded, in this
     /// process or another: not the stale-scratch sweep's to take.
-    static func liveWorkDirectories() -> Set<String> {
-        guard let root else { return [] }
-        return Set(readAll(in: root)
-            .filter { $0.entry.owner.isRunning || $0.entry.child?.isRunning == true }
-            .flatMap { $0.entry.workDirectories.map(standardized) })
+    static func liveWorkDirectories() -> Set<String> { liveUse().directories }
+
+    /// What running installs use, read from disk now.
+    struct LiveUse {
+        var directories: Set<String> = []
+        var mountPoints: Set<String> = []
+        var images: Set<String> = []
+
+        func uses(_ mount: Mount) -> Bool {
+            mountPoints.contains(InstallJournal.standardized(mount.mountPoint))
+                || images.contains(InstallJournal.standardized(mount.image))
+        }
+    }
+
+    static func liveUse() -> LiveUse {
+        guard let root else { return LiveUse() }
+        var use = LiveUse()
+        for (_, entry) in readAll(in: root)
+        where entry.owner.isRunning || entry.child?.isRunning == true {
+            use.directories.formUnion(entry.workDirectories.map(standardized))
+            use.mountPoints.formUnion(entry.mounts.map { standardized($0.mountPoint) })
+            use.images.formUnion(entry.mounts.map { standardized($0.image) })
+        }
+        return use
     }
 
     // MARK: - Files
@@ -633,12 +794,21 @@ public enum InstallJournal {
         }
     }
 
+    /// Test seam: the directory scratch directories must sit directly in.
+    /// Production: the temporary directory every installer creates them in.
+    @TaskLocal static var temporaryDirectoryOverride: URL?
+
     /// Remove one of our scratch directories. Refuses anything not named like
-    /// one (`DuoUpdater-…`): the path comes from a file on disk, and a
-    /// recursive delete driven by persisted state gets a shape check, as
+    /// one (`DuoUpdater-…`) or not directly in the temporary directory: the
+    /// path comes from a file on disk, and a recursive delete driven by
+    /// persisted state gets a shape check, as
     /// `PackageInstaller.discardWorkDirectory` does.
     static func removeScratchDirectory(_ directory: URL) {
-        guard directory.lastPathComponent.hasPrefix("DuoUpdater-") else {
+        let base = (temporaryDirectoryOverride ?? FileManager.default.temporaryDirectory)
+            .resolvingSymlinksInPath().standardizedFileURL.path
+        let parent = directory.deletingLastPathComponent()
+            .resolvingSymlinksInPath().standardizedFileURL.path
+        guard directory.lastPathComponent.hasPrefix("DuoUpdater-"), parent == base else {
             Log.install.error(
                 "install journal: refused to remove \(directory.path, privacy: .public) — not a scratch directory of ours")
             return
@@ -656,6 +826,12 @@ public enum InstallJournal {
     }
 
     // MARK: - Helpers
+
+    /// Both version fields of the bundle at `app`, or nil when its Info.plist
+    /// does not read — for a surface saying what an interrupted install left.
+    public static func versionOnDisk(at app: URL) -> VersionSide? {
+        BackupStore.hasReadableBundle(at: app) ? versions(at: app) : nil
+    }
 
     /// Both version fields, from one read of the Info.plist.
     static func versions(at app: URL) -> VersionSide {

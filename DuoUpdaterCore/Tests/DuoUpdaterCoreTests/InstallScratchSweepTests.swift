@@ -133,6 +133,36 @@ struct InstallScratchSweepTests {
         }
     }
 
+    /// Re-read right before the delete (round 2, #2b): a directory a running
+    /// install journals, or touches, while the detaches run stays.
+    @Test(arguments: [true, false])
+    func aDirectoryTakenOverDuringTheDetachesStays(byJournal: Bool) async throws {
+        try await withScratch { root, journal in
+            let stale = try directory("DuoUpdater-ZZFixture-raced", in: root, ageDays: 4)
+            let canonical = stale.standardizedFileURL.path
+            let data = listing([(canonical + "/ZZFixture.dmg", canonical + "/mnt")])
+            let me = try #require(InstallJournal.ProcessStamp.of(getpid()))
+            let entry = InstallJournal.Entry(
+                job: "racer", appID: "a", appName: "ZZFixture", bundleID: nil,
+                appPath: "/ZZFixture/none.app", oldVersion: nil, oldBuild: nil, oldCDHash: nil,
+                targetVersion: nil, targetBuild: nil, route: "sparkle", backupKey: "k",
+                startedAt: now, owner: me, workDirectories: [stale.path])
+            let mounts = InstallScratchSweep.Mounts(
+                listing: { data },
+                detach: { _, _ in
+                    if byJournal {
+                        InstallJournal.write(entry, to: journal.appendingPathComponent("racer.json"))
+                    } else {
+                        try? FileManager.default.setAttributes(
+                            [.modificationDate: self.now], ofItemAtPath: stale.path)
+                    }
+                    return true
+                })
+            #expect(await InstallScratchSweep.sweep(lock: lock(root).lock, mounts: mounts) == 0)
+            #expect(FileManager.default.fileExists(atPath: stale.path))
+        }
+    }
+
     /// A listing can drop an attached image but never invent one, so the
     /// listings are merged: an image any of them shows counts as attached.
     @Test func listingsAreMergedAcrossReads() async {

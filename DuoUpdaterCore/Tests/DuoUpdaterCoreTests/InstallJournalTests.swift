@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import Security
 @testable import DuoUpdaterCore
 
 /// The install journal: what an install writes down before it touches an app,
@@ -43,6 +44,7 @@ struct InstallJournalTests {
         }
         defer { try? FileManager.default.removeItem(at: dir) }
         try await InstallJournal.$rootOverride.withValue(scratch.journal) {
+          try await InstallJournal.$temporaryDirectoryOverride.withValue(dir) {
             try await BackupStore.$rootOverride.withValue(scratch.backups) {
                 try await BackupStore.$destinationOverride.withValue(.local) {
                     try await BackupFactsLibrary.$rootOverride.withValue(
@@ -52,26 +54,38 @@ struct InstallJournalTests {
                     }
                 }
             }
+          }
         }
     }
 
     private let bundleID = "com.example.zzfixture.journal"
 
+    /// `withExecutable` copies `/usr/bin/true` in as the bundle's executable,
+    /// so `codesign` signs real code pages a test can then cut short.
     @discardableResult
     private func makeApp(
-        in dir: URL, version: String, name: String = "ZZFixture-Journal.app"
+        in dir: URL, version: String, name: String = "ZZFixture-Journal.app",
+        withExecutable: Bool = false
     ) throws -> URL {
         let app = dir.appendingPathComponent(name)
         let contents = app.appendingPathComponent("Contents")
         try? FileManager.default.removeItem(at: app)
         try FileManager.default.createDirectory(
             at: contents.appendingPathComponent("Resources"), withIntermediateDirectories: true)
-        let plist: [String: Any] = [
+        var plist: [String: Any] = [
             "CFBundleIdentifier": bundleID,
             "CFBundleName": "ZZFixture-Journal",
             "CFBundlePackageType": "APPL",
             "CFBundleShortVersionString": version,
         ]
+        if withExecutable {
+            try FileManager.default.createDirectory(
+                at: contents.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
+            try FileManager.default.copyItem(
+                at: URL(fileURLWithPath: "/usr/bin/true"),
+                to: contents.appendingPathComponent("MacOS/ZZFixture"))
+            plist["CFBundleExecutable"] = "ZZFixture"
+        }
         try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
             .write(to: contents.appendingPathComponent("Info.plist"))
         try Data(version.utf8).write(to: contents.appendingPathComponent("Resources/marker.txt"))
@@ -282,10 +296,11 @@ struct InstallJournalTests {
         try #require(signed.succeeded, "\(String(decoding: signed.standardError, as: UTF8.self))")
     }
 
-    /// Signed before the install, a new cdhash after it, and a seal that no
-    /// longer holds: a swap cut off halfway. It reads, so only the signature
-    /// can say so.
-    @Test func aBundleWhoseNewSignatureIsBrokenIsInterrupted() async throws {
+    /// The target version landed and then rewrote a resource of its own
+    /// bundle, so its seal over resources no longer holds. That is a working
+    /// app, not a cut-off swap: offering to put the old version back over it
+    /// would downgrade it.
+    @Test func aLandedVersionThatRewroteItsOwnResourceIsCompleted() async throws {
         try await withScratch { scratch in
             let app = try makeApp(in: scratch.apps, version: "1.0")
             try await adHocSign(app)
@@ -299,12 +314,71 @@ struct InstallJournalTests {
 
             try makeApp(in: scratch.apps, version: "2.0")
             try await adHocSign(app)
-            try Data("half".utf8).write(
+            try Data("state".utf8).write(
                 to: app.appendingPathComponent("Contents/Resources/marker.txt"))
             #expect(CLIToolProcesses.fileCDHash(app.path)
                 .map { $0.map { String(format: "%02x", $0) }.joined() } != old)
 
+            #expect(try await process(scratch) == [.resolved(app: "ZZFixture-Journal", .completed)])
+        }
+    }
+
+    /// Signed before the install; after it, a new signature that is not the
+    /// target, over an executable cut short — a copy that stopped halfway.
+    @Test func aSwapCutOffInTheCodeIsInterrupted() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0", withExecutable: true)
+            try await adHocSign(app)
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew,
+                target: VersionSide(marketing: "2.0")))
+            try #require(recording.snapshot.oldCDHash != nil)
+            var stale = recording.snapshot
+            stale.owner = try await deadProcess()
+            InstallJournal.write(stale, to: recording.file)
+
+            try makeApp(in: scratch.apps, version: "1.5", withExecutable: true)
+            try await adHocSign(app)
+            try cutShort(app.appendingPathComponent("Contents/MacOS/ZZFixture"))
+
             #expect(try await process(scratch) == [.interrupted(app: "ZZFixture-Journal", .signatureBroken)])
+        }
+    }
+
+    private func cutShort(_ file: URL) throws {
+        let data = try Data(contentsOf: file)
+        try data.prefix(data.count / 2).write(to: file)
+    }
+
+    /// The measurement behind `InstallJournal.signature(of:)`'s flags, on an
+    /// ad-hoc signed bundle with real code: a rewritten resource fails the
+    /// default check and passes with resources left out; code cut short fails.
+    @Test func theSignatureCheckIgnoresResourcesButNotCode() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0", withExecutable: true)
+            try await adHocSign(app)
+            // Blocking Security calls, so off the pool as the code under test does.
+            func status(_ bundle: URL) async -> InstallJournal.SignatureStatus {
+                await offCooperativePool { InstallJournal.signature(of: bundle) }
+            }
+            #expect(await status(app) == .valid)
+
+            try Data("state".utf8).write(
+                to: app.appendingPathComponent("Contents/Resources/marker.txt"))
+            let byDefault = await offCooperativePool { () -> OSStatus? in
+                var code: SecStaticCode?
+                guard SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess,
+                      let code else { return nil }
+                return SecStaticCodeCheckValidity(code, [], nil)
+            }
+            #expect(byDefault != nil && byDefault != errSecSuccess)
+            #expect(await status(app) == .valid)
+
+            try cutShort(app.appendingPathComponent("Contents/MacOS/ZZFixture"))
+            #expect(await status(app) == .invalid)
+
+            let unsigned = try makeApp(in: scratch.apps, version: "1.0", name: "ZZFixture-Unsigned.app")
+            #expect(await status(unsigned) == .unsigned)
         }
     }
 
@@ -466,7 +540,7 @@ struct InstallJournalTests {
                 image: work.appendingPathComponent("a.dmg").path)])
             #expect(written.child?.pid == pid.value)
 
-            recording.finish()
+            await recording.finish()
             #expect(!FileManager.default.fileExists(atPath: recording.file.path))
             #expect(try FileManager.default.contentsOfDirectory(atPath: scratch.journal.path).isEmpty)
         }
@@ -531,6 +605,200 @@ struct InstallJournalTests {
             let source = try #require(InstallJournal.interruptedInstalls().first?.restoreFrom)
             #expect(source.purpose == .userBackup)
             #expect(source.key == key)
+        }
+    }
+}
+
+extension InstallJournalTests {
+
+    /// A child we started that runs until `stop` is called.
+    final class LoopingChild: @unchecked Sendable {
+        let stamp: InstallJournal.ProcessStamp
+        private let stopFile: URL
+        private let task: Task<ChildProcess.Outcome, Error>
+
+        init(in dir: URL) async throws {
+            let stopFile = dir.appendingPathComponent("stop-\(UUID().uuidString)")
+            self.stopFile = stopFile
+            let pids = AsyncStream<pid_t>.makeStream()
+            task = Task {
+                try await ChildProcess.run(
+                    "/bin/sh", ["-c", "while [ ! -e \"$1\" ]; do sleep 0.02; done", "sh", stopFile.path],
+                    standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion,
+                    onLaunch: { pids.continuation.yield($0) })
+            }
+            var iterator = pids.stream.makeAsyncIterator()
+            let pid = try #require(await iterator.next())
+            stamp = try #require(InstallJournal.ProcessStamp.of(pid))
+        }
+
+        func stop() async throws {
+            FileManager.default.createFile(atPath: stopFile.path, contents: nil)
+            _ = try await task.value
+        }
+    }
+
+    // MARK: - Standing (round 2, #1)
+
+    /// An orphaned child of an earlier install, or another process's install
+    /// of the app, still running: a host refuses, naming the pid.
+    @Test(arguments: [true, false])
+    func anAppWhoseEarlierInstallStillRunsIsRefused(viaChild: Bool) async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let other = try await LoopingChild(in: scratch.dir)
+            let owner = viaChild ? try await deadProcess() : other.stamp
+            try store(entry(for: app, owner: owner, child: viaChild ? other.stamp : nil), in: scratch)
+            #expect(InstallJournal.standing(of: app) == .stillRunning(pid: other.stamp.pid))
+            try await other.stop()
+            #expect(InstallJournal.standing(of: app) == .interrupted)
+        }
+    }
+
+    /// This process's own install of the app, with no child running, is not an
+    /// earlier one; nothing at all is clear.
+    @Test func thisProcesssOwnRecordIsNotAnEarlierInstall() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            #expect(InstallJournal.standing(of: app) == .clear)
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            #expect(InstallJournal.standing(of: app) == .clear)
+            await recording.finish()
+        }
+    }
+
+    /// A reinstall over an interrupted install that leaves the app readable
+    /// but not verifiably at its target keeps the earlier way back: the
+    /// rollback point, and the interrupted record pointing at it.
+    @Test func aReinstallThatDidNotRepairKeepsTheEarlierWayBack() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: key, version: "1.0", bundleID: bundleID)
+            try makeApp(in: scratch.apps, version: "1.5")
+            let earlier = try store(entry(
+                for: app, owner: try await deadProcess(), damage: .signatureBroken), in: scratch)
+
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.5"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.5")) == .kept)
+            await recording.finish()
+
+            #expect(BackupStore.rollbackPoint(forKey: key) != nil)
+            #expect(FileManager.default.fileExists(atPath: earlier.path))
+            #expect(!FileManager.default.fileExists(atPath: recording.file.path))
+            #expect(InstallJournal.interruptedInstalls().map(\.restoreFrom?.purpose) == [.installRollbackPoint])
+        }
+    }
+
+    /// One that leaves it at its target with its signature holding repairs it:
+    /// the point and the interrupted record both go.
+    @Test func aReinstallThatRepairedClearsTheEarlierWayBack() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0", withExecutable: true)
+            try await adHocSign(app)
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: key, version: "1.0", bundleID: bundleID)
+            let earlier = try store(entry(
+                for: app, owner: try await deadProcess(), damage: .signatureBroken), in: scratch)
+
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            try makeApp(in: scratch.apps, version: "2.0", withExecutable: true)
+            try await adHocSign(app)
+            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "2.0")) == .discarded)
+            await recording.finish()
+
+            #expect(BackupStore.rollbackPoint(forKey: key) == nil)
+            #expect(!FileManager.default.fileExists(atPath: earlier.path))
+            #expect(InstallJournal.interruptedInstalls().isEmpty)
+        }
+    }
+
+    /// At the target version but with its code cut short is not repaired.
+    @Test func aReinstallAtTheTargetWithBrokenCodeDidNotRepair() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0", withExecutable: true)
+            try await adHocSign(app)
+            try store(entry(for: app, owner: try await deadProcess(), damage: .signatureBroken), in: scratch)
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            try makeApp(in: scratch.apps, version: "2.0", withExecutable: true)
+            try await adHocSign(app)
+            try cutShort(app.appendingPathComponent("Contents/MacOS/ZZFixture"))
+            #expect(await InstallJournal.mayDiscardRollbackPoint(for: app) == false)
+            await recording.finish()
+            #expect(InstallJournal.interruptedInstalls().count == 1)
+        }
+    }
+
+    // MARK: - An install that ends with the app gone (round 2, #6)
+
+    @Test func anInstallThatEndsWithTheAppGoneStaysAsInterrupted() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: key, version: "1.0", bundleID: bundleID)
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            try FileManager.default.removeItem(at: app)
+            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.0")) == .kept)
+            await recording.finish()
+
+            #expect(FileManager.default.fileExists(atPath: recording.file.path))
+            let interrupted = InstallJournal.interruptedInstalls()
+            #expect(interrupted.map(\.damage) == [.missing])
+            #expect(interrupted.first?.restoreFrom?.purpose == .installRollbackPoint)
+        }
+    }
+
+    // MARK: - Re-checked before each destructive step (round 2, #2b)
+
+    /// An install of the same app starting while processing waits on
+    /// `hdiutil`: its image is not ejected, its directory not deleted.
+    @Test(arguments: [true, false])
+    func anInstallThatStartsMidProcessingKeepsItsMountAndDirectory(attached: Bool) async throws {
+        try await withScratch { scratch in
+            let work = try scratch.workDir("raced")
+            let mount = InstallJournal.Mount(
+                mountPoint: work.appendingPathComponent("mnt-ZZFixture.dmg").path,
+                image: work.appendingPathComponent("ZZFixture.dmg").path)
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            try store(entry(
+                for: app, owner: try await deadProcess(), workDirs: [work], mounts: [mount]), in: scratch)
+            let me = try #require(InstallJournal.ProcessStamp.of(getpid()))
+            let other = scratch.apps.appendingPathComponent("ZZFixture-Other.app")
+            let racer = entry(for: other, owner: me, workDirs: [work], mounts: [mount])
+            let journal = scratch.journal
+            let detached = JournalBox(false)
+            let cleanup = InstallJournal.Cleanup(
+                attachment: { _ in
+                    // The other install writes its record while this lookup runs.
+                    InstallJournal.write(racer, to: journal.appendingPathComponent("\(racer.job).json"))
+                    return attached ? .disk("/dev/disk99") : .none
+                },
+                detach: { _, _ in detached.set(true); return true })
+            _ = try await process(scratch, cleanup: cleanup)
+            #expect(!detached.value)
+            #expect(FileManager.default.fileExists(atPath: work.path))
+        }
+    }
+
+    // MARK: - Shape of the delete (round 2, #5)
+
+    @Test func aScratchNameOutsideTheTemporaryDirectoryIsNotRemoved() async throws {
+        try await withScratch { scratch in
+            let nested = scratch.dir.appendingPathComponent("sub/DuoUpdater-ZZFixture-nested", isDirectory: true)
+            try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+            try store(entry(
+                for: try makeApp(in: scratch.apps, version: "1.0"),
+                owner: try await deadProcess(), workDirs: [nested]), in: scratch)
+            _ = try await process(scratch)
+            #expect(FileManager.default.fileExists(atPath: nested.path))
         }
     }
 }

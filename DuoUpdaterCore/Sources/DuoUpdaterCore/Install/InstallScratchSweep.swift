@@ -92,6 +92,12 @@ public enum InstallScratchSweep {
                         "scratch sweep: a disk image under \(directory.lastPathComponent, privacy: .public) would not detach; the directory stays")
                     continue
                 }
+                // Read again right before the delete: the detaches above can
+                // take seconds, and an install in this process (the lock is
+                // shared) may have taken the directory over since.
+                guard staleDirectories(in: root).contains(directory),
+                      !InstallJournal.liveWorkDirectories().contains(InstallJournal.standardized(directory.path))
+                else { continue }
                 do {
                     try FileManager.default.removeItem(at: directory)
                     removed += 1

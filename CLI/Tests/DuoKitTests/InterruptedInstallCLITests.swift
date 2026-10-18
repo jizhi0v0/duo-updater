@@ -33,25 +33,66 @@ struct InterruptedInstallCLITests {
             "\n     No backup or restore point exists for it; reinstall it."))
     }
 
-    @Test func aGoneAppIsFoundByPathBundleIDOrName() throws {
-        let item = interrupted()
-        for query in [
-            "/Applications/ZZFixture Journal.app", "/Applications/./ZZFixture Journal.app",
-            "com.example.ZZFixture.journal", "zzfixture journal",
-        ] {
-            let found = try Backups.matchInterrupted(query: query, in: [item]).get()
-            #expect(found == item, "\(query)")
-        }
-        #expect(try Backups.matchInterrupted(query: "Other", in: [item]).get() == nil)
-        #expect(try Backups.matchInterrupted(query: "ZZFixture Journal", in: []).get() == nil)
+    private func app(_ name: String, path: String, bundleID: String) -> InstalledApp {
+        InstalledApp(
+            name: name, bundleID: bundleID, shortVersion: "3.0", buildVersion: nil,
+            path: URL(fileURLWithPath: path), isMASApp: false, sparkleFeedURL: nil)
     }
 
-    @Test func twoInterruptedInstallsOfOneNameAskForThePath() {
-        let a = interrupted(path: "/Applications/ZZFixture Journal.app")
-        let b = interrupted(path: "/Users/Shared/ZZFixture Journal.app")
-        guard case .failure(let failure) = Backups.matchInterrupted(query: "ZZFixture Journal", in: [a, b])
+    /// Found by the rules installed apps are found by: path, bundle id, name.
+    @Test func aGoneAppIsFoundByPathBundleIDOrName() throws {
+        let item = interrupted()
+        let other = app("Other", path: "/Applications/Other.app", bundleID: "com.example.other")
+        for query in [
+            "/Applications/ZZFixture Journal.app",
+            "com.example.zzfixture.journal", "ZZFixture Journal",
+        ] {
+            let found = try Backups.resolveRestoreTarget(
+                query: query, installed: [other], interrupted: [item]).get()
+            #expect(found == .interrupted(item), "\(query)")
+        }
+        #expect(try Backups.resolveRestoreTarget(
+            query: "Other", installed: [other], interrupted: [item]).get() == .installed(other))
+    }
+
+    /// A query naming an installed app and an interrupted install is refused,
+    /// as two installed apps would be — the interrupted one does not win.
+    @Test func aQueryNamingAnInstalledAppAndAnInterruptedOneIsAmbiguous() {
+        let item = interrupted()
+        let sibling = app("ZZFixture Journal Beta", path: "/Applications/ZZFixture Journal Beta.app",
+                          bundleID: "com.example.zzfixture.journal.beta")
+        guard case .failure(let failure) = Backups.resolveRestoreTarget(
+            query: "ZZFixture", installed: [sibling], interrupted: [item])
         else { Issue.record("expected an ambiguity"); return }
-        #expect(failure.description.contains("matches 2 interrupted installs"))
+        #expect(failure.description.contains("matches 2 apps"))
+    }
+
+    /// The damaged bundle the scan still found counts once, as the
+    /// interrupted install.
+    @Test func aDamagedBundleTheScanFoundCountsOnceAsInterrupted() throws {
+        let item = interrupted()
+        let scanned = app("ZZFixture Journal", path: "/Applications/ZZFixture Journal.app",
+                          bundleID: "com.example.zzfixture.journal")
+        #expect(try Backups.resolveRestoreTarget(
+            query: "ZZFixture Journal", installed: [scanned], interrupted: [item]).get()
+            == .interrupted(item))
+    }
+
+    /// With the scan abandoned an interrupted install can still be named; a
+    /// miss says what an abandoned scan says.
+    @Test func anAbandonedScanStillFindsInterruptedInstalls() throws {
+        let item = interrupted()
+        #expect(try Backups.resolveRestoreTarget(
+            query: "ZZFixture Journal", installed: nil, interrupted: [item]).get() == .interrupted(item))
+        guard case .failure(let viaInterrupted) = Backups.resolveRestoreTarget(
+                query: "Other", installed: nil, interrupted: [item]),
+              case .failure(let plain) = Backups.resolveTarget(query: "Other", installed: nil)
+        else { Issue.record("expected failures"); return }
+        #expect(viaInterrupted.description == plain.description)
+    }
+
+    @Test func theStillRunningReasonNamesThePid() {
+        #expect(Install.stillRunningReason(pid: 4242).contains("process 4242"))
     }
 
     @Test func shellQuotingLeavesPlainPathsAlone() {

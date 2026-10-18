@@ -35,9 +35,17 @@ extension InstallCoordinator {
         let outcome: RollbackPointSettlement
         if BackupStore.rollbackPoint(forKey: key) == nil {
             outcome = .none
-        } else if BackupStore.hasReadableBundle(at: app.path) {
+        } else if BackupStore.hasReadableBundle(at: app.path),
+                  await InstallJournal.mayDiscardRollbackPoint(for: app.path) {
             await BackupStore.removeRollbackPoint(forKey: key)
             outcome = .discarded
+        } else if BackupStore.hasReadableBundle(at: app.path) {
+            // Readable, but over an earlier install that was cut off and not
+            // verifiably repaired by this one: the point is still that
+            // install's way back (`InstallJournal.mayDiscardRollbackPoint`).
+            Log.install.notice(
+                "rollback point: kept for \(app.path.lastPathComponent, privacy: .public) — an earlier install of it was cut off and this one did not leave it verifiably good")
+            outcome = .kept
         } else {
             // Brew can fail after removing the app and not put it back — a
             // signal skips its revert, and the revert can fail itself — and

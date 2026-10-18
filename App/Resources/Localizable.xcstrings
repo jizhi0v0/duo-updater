@@ -6403,6 +6403,71 @@
         }
       }
     },
+    "An earlier update of %@ is still running (process %lld). Try again once it has finished.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein früheres Update von %@ läuft noch (Prozess %lld). Versuche es erneut, sobald es abgeschlossen ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una actualización anterior de %@ sigue en curso (proceso %lld). Vuelve a intentarlo cuando haya terminado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une mise à jour précédente de %@ est toujours en cours (processus %lld). Réessayez une fois qu’elle sera terminée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un aggiornamento precedente di %@ è ancora in corso (processo %lld). Riprova quando sarà terminato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ の以前のアップデートがまだ実行中です（プロセス %lld）。完了してからもう一度お試しください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uma atualização anterior de %@ ainda está em andamento (processo %lld). Tente novamente quando ela terminar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предыдущее обновление %@ ещё выполняется (процесс %lld). Повторите попытку, когда оно завершится."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ için önceki bir güncelleme hâlâ çalışıyor (işlem %lld). Tamamlandığında yeniden deneyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的上一次更新仍在进行（进程 %lld）。请等它完成后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的上一次更新仍在進行（處理程序 %lld）。請等它完成後再試。"
+          }
+        }
+      }
+    },
     "Another Homebrew command is running. Try again once it has finished.": {
       "extractionState": "manual",
       "localizations": {

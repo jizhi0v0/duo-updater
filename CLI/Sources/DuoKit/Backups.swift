@@ -236,22 +236,19 @@ public enum Backups {
     // MARK: - Restore
 
     static func restore(_ query: String, assumeYes: Bool, json: Bool) async -> Int32 {
-        // An install that was cut off can have left the app gone, so it is
-        // looked for first: the scan below only finds apps that are there.
-        switch matchInterrupted(query: query, in: InstallJournal.interruptedInstalls()) {
-        case .success(let interrupted?):
-            return await restoreInterrupted(interrupted, assumeYes: assumeYes, json: json)
-        case .success(nil):
-            break
-        case .failure(let failure):
-            FileHandle.standardError.write(Data("duo: \(failure)\n".utf8))
-            return 2
-        }
+        // What a killed install left is processed first, as `duo install` does,
+        // so the interrupted installs below are today's and not a stale list:
+        // an app that reads again is no longer one. Under the install lock;
+        // skipped when another process holds it.
+        await InstallJournal.processLeftovers()
         let settings = await Settings.load()
         let installed = await Inventory.scanIfFinished(settings)
         let app: InstalledApp
-        switch resolveTarget(query: query, installed: installed) {
-        case .success(let matched): app = matched
+        switch resolveRestoreTarget(
+            query: query, installed: installed, interrupted: InstallJournal.interruptedInstalls()) {
+        case .success(.interrupted(let interrupted)):
+            return await restoreInterrupted(interrupted, assumeYes: assumeYes, json: json)
+        case .success(.installed(let matched)): app = matched
         case .failure(let failure):
             FileHandle.standardError.write(Data("duo: \(failure)\n".utf8))
             return 2
@@ -317,27 +314,62 @@ public enum Backups {
         return code
     }
 
-    /// The interrupted install `query` names — by the app's path, bundle id or
-    /// name — nil when none does, and a failure when several do.
-    static func matchInterrupted(
-        query: String, in interrupted: [InstallJournal.InterruptedInstall]
-    ) -> Result<InstallJournal.InterruptedInstall?, Inventory.SelectionFailure> {
-        let wanted = query.lowercased()
-        let path = URL(fileURLWithPath: (query as NSString).expandingTildeInPath)
-            .standardizedFileURL.path
-        let matched = interrupted.filter { item in
-            item.appPath.standardizedFileURL.path == path
-                || item.bundleID?.lowercased() == wanted
-                || item.appName.lowercased() == wanted
-                || item.appPath.deletingPathExtension().lastPathComponent.lowercased() == wanted
+    /// What a restore acts on: an installed app, or an install that was cut
+    /// off and may have left nothing at its path.
+    enum RestoreTarget: Equatable {
+        case installed(InstalledApp)
+        case interrupted(InstallJournal.InterruptedInstall)
+    }
+
+    /// `query` resolved over the installed apps and the interrupted installs
+    /// together, by `resolveTarget`'s rules — so a query that names two of
+    /// them, one of each kind included, is refused rather than resolved to the
+    /// interrupted one. An interrupted install whose damaged bundle the scan
+    /// also found counts once, as the interrupted install. With the scan
+    /// abandoned only the interrupted installs are looked at, and a miss
+    /// there says what an abandoned scan says.
+    static func resolveRestoreTarget(
+        query: String, installed: [InstalledApp]?,
+        interrupted: [InstallJournal.InterruptedInstall]
+    ) -> Result<RestoreTarget, Inventory.SelectionFailure> {
+        func key(_ url: URL) -> String { url.standardizedFileURL.path }
+        let cutOff = Dictionary(interrupted.map { (key($0.appPath), $0) }, uniquingKeysWith: { a, _ in a })
+        let stand = interrupted.map { item in
+            InstalledApp(
+                name: item.appName, bundleID: item.bundleID,
+                shortVersion: item.oldVersion, buildVersion: item.oldBuild,
+                path: item.appPath, isMASApp: false, sparkleFeedURL: nil)
         }
-        guard matched.count <= 1 else {
-            let names = matched.map { "  \($0.appName) — \($0.appPath.path)" }.joined(separator: "\n")
-            return .failure(Inventory.SelectionFailure(description:
-                "'\(query)' matches \(matched.count) interrupted installs:\n\(names)\n"
-                + "Pass the app's path."))
+        let candidates: [InstalledApp]?
+        if let installed {
+            candidates = installed.filter { cutOff[key($0.path)] == nil } + stand
+        } else {
+            candidates = stand.isEmpty ? nil : stand
         }
-        return .success(matched.first)
+        switch resolveTarget(query: query, installed: candidates) {
+        case .success(let app):
+            if let item = cutOff[key(app.path)] { return .success(.interrupted(item)) }
+            return .success(.installed(app))
+        case .failure(let failure):
+            if installed == nil, candidates != nil,
+               case .failure(let abandoned) = resolveTarget(query: query, installed: nil) {
+                return .failure(abandoned)
+            }
+            return .failure(failure)
+        }
+    }
+
+    /// What is at an interrupted install's path now, for the prompt.
+    static func describeOnDisk(_ interrupted: InstallJournal.InterruptedInstall) -> String {
+        let path = interrupted.appPath
+        guard FileManager.default.fileExists(atPath: path.path) else { return "nothing is there now" }
+        guard let version = InstallJournal.versionOnDisk(at: path) else {
+            return "a damaged bundle is there now (its Info.plist does not read)"
+        }
+        let label = version.text(withBuild: true)
+        return interrupted.damage == .signatureBroken
+            ? "\(label) is there now, with a broken code signature"
+            : "\(label) is there now"
     }
 
     /// Restore an app an interrupted install left missing or broken, from the
@@ -355,7 +387,7 @@ public enum Backups {
         if !json {
             print("Will restore \(interrupted.appName)  (interrupted update)"
                 + "  →  \(source.version ?? interrupted.oldVersion ?? "?")")
-            print("  \(interrupted.appPath.path)")
+            print("  \(interrupted.appPath.path): \(describeOnDisk(interrupted))")
         }
         guard assumeYes || confirm(app: interrupted.appName, json: json) else {
             if json {

@@ -221,8 +221,9 @@ final class ResumeProbeServer: @unchecked Sendable {
     /// after a fixed wait: a reset throws away whatever the client has not read
     /// yet, and a 0.3 s wait under load (`make test` among other sessions,
     /// 2026-10-18) let it lose all of them. WebKit then resumed from 0 bytes —
-    /// a plain GET, cut again — and that second download sometimes never
-    /// called back, so the test sat out its deadline.
+    /// a plain GET, cut again. A reset sent before the bytes had drained could
+    /// also never reach WebKit (its socket stayed ESTABLISHED), which then
+    /// waited out its 60 s idle timeout, past this test's 30 s deadline.
     func dropCut() {
         lock.lock()
         let connection = cutConnection

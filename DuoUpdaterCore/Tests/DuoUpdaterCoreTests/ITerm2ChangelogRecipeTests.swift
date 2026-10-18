@@ -28,6 +28,30 @@ Bug Fixes:
 
 """
 
+/// The same file for 3.7.6, captured 2026-10-19: its first 17 lines verbatim
+/// (the version line, a prose line, the first heading and its two items). The
+/// prose opens with `Version 3.7.5 was …`, which is not a version line.
+private let stableProseVersionFixture = """
+Version 3.7.6 was built on October 15, 2026.
+
+Version 3.7.5 was accidentally built without the
+bug fixes below. This release includes them.
+
+Improvements:
+- The Companion setup wizard no longer asks for an
+  API key when AI already works, or when you chose
+  a model manually in Settings > General > AI. If
+  that model isn’t set up yet, the wizard says so
+  and lets you finish setup anyway.
+- AI API keys are now sent automatically only to
+  their own provider’s servers. Before, the
+  Automatic API key choice could send your OpenAI
+  key to a gateway such as OpenRouter or a company
+  gateway hosted on Azure. Models you already set
+  up keep sending the key they sent before.
+
+"""
+
 /// The same file for 3.7.4, captured 2026-10-09: its first 10 lines verbatim
 /// (the version line, the heading and the first two of its 17 items). This
 /// version line ends at the year, with no period.
@@ -150,6 +174,21 @@ leaks into a copy button or a link target.
         #expect(entry.items.count == 2)
         #expect(entry.items.last == "Fixed a crash when opening a new tab next to a tab in a tab group.")
         #expect(headings(entry) == ["Bug Fixes"])
+    }
+
+    /// Mutation: end the body at any `\nVersion[ \t]+\d` again — the prose line
+    /// `Version 3.7.5 was accidentally built …` ends it, empty, and no entry is
+    /// left.
+    @Test func proseStartingWithVersionDoesNotEndTheEntry() throws {
+        let log = try #require(ChangelogExtractor.extract(
+            from: stableProseVersionFixture, using: try recipe()))
+        #expect(log.entries.count == 1)
+        let entry = try #require(log.entries.first)
+        #expect(entry.version == "3.7.6")
+        #expect(entry.date == "October 15, 2026")
+        #expect(entry.items.count == 2)
+        #expect(entry.items.first?.hasPrefix("The Companion setup wizard no longer asks") == true)
+        #expect(headings(entry) == ["Improvements"])
     }
 
     /// Mutation: item pattern `(?m)^-[ \t]+(?<item>[^\n]+)` — each item stops at

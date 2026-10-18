@@ -37,13 +37,18 @@ enum com_googlecode_iterm2 {
         // release's opening credit line) is not an item and is dropped. Tags and
         // entities are left alone: this is plain text, and it writes menu paths
         // as `Settings > Profiles`.
+        //
+        // The body ends only at another full `Version … was built on` line, not
+        // at any line starting `Version <digit>`: release prose can open that way
+        // ("Version 3.7.5 was accidentally built without the bug fixes below."),
+        // and a looser stop ends the body there, empty.
         ChangelogRecipe(
             bundleID: "com.googlecode.iterm2",
             source: URL(string: "https://iterm2.com/appcasts/final_modern.xml")!,
             entryPattern:
                 #"(?m)^Version[ \t]+(?<version>\d+(?:\.\d+)+[0-9a-z-]*)\s+(?:of\s+iTerm2\s+)?"#
                 + #"was\s+built\s+on\s+(?<date>[a-z]+\s+\d{1,2},\s+\d{4})\.?[ \t]*\n"#
-                + #"(?<body>.*?)(?=\nVersion[ \t]+\d|\z)"#,
+                + #"(?<body>.*?)(?=\nVersion[ \t]+\d+(?:\.\d+)+[0-9a-z-]*\s+(?:of\s+iTerm2\s+)?was\s+built\s+on\s|\z)"#,
             itemPatterns: [#"(?m)^-[ \t]+(?<item>[^\n]*(?:\n[ \t]+\S[^\n]*)*)"#],
             stripTags: false,
             decodeEntities: false,

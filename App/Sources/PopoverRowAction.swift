@@ -17,7 +17,9 @@ struct PopoverRowAction: View {
     let result: UpdateResult
     var actions: RowActions = .init()
     /// The version of the running process, when it differs from disk. Only feeds
-    /// the Relaunch button's help text.
+    /// the Relaunch button's help text. Formatted like the version line beside
+    /// it ("155.0.8059.80 (8059.80)"), not the bare `lsappinfo` build, which
+    /// put a build next to a marketing version in the same sentence.
     var runningVersion: String?
     /// Whether the privileged helper is approved — only affects help text.
     var helperEnabled: Bool = true

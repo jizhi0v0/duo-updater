@@ -327,16 +327,17 @@ struct RestartLineTests {
     /// Nothing running means no line at all.
     @Test func nothingRunningHasNoFromSide() {
         #expect(RestartLine.fromSide(
-            runningBuild: nil, backupMarketing: "1.0", recoveredMarketing: "1.0") == nil)
+            runningBuild: nil, backup: VersionSide(marketing: "1.0", build: "1"),
+            recoveredMarketing: "1.0") == nil)
     }
 
-    /// The backup wins: it was written by us at swap time, so it is
-    /// authoritative over the scanned history.
+    /// The backup wins when it is the running build: it was written by us at
+    /// swap time, so it is authoritative over the scanned history.
     ///
-    /// Mutation: `recoveredMarketing ?? backupMarketing`.
+    /// Mutation: prefer `recoveredMarketing` over the backup.
     @Test func theRollbackBackupOutranksTheScannedHistory() {
         let side = RestartLine.fromSide(
-            runningBuild: "3965", backupMarketing: "26.609.71450",
+            runningBuild: "3965", backup: VersionSide(marketing: "26.609.71450", build: "3965"),
             recoveredMarketing: "26.500.00000")
 
         #expect(side?.marketing == "26.609.71450")
@@ -349,8 +350,49 @@ struct RestartLineTests {
     /// Mutation: drop the `?? recoveredMarketing` fallback.
     @Test func theScannedHistoryFillsInWhenThereIsNoBackup() {
         #expect(RestartLine.fromSide(
-            runningBuild: "3965", backupMarketing: nil,
+            runningBuild: "3965", backup: nil,
             recoveredMarketing: "26.500.00000")?.marketing == "26.500.00000")
+    }
+
+    /// A backup of some OTHER build is not what is running. Chrome on the dev
+    /// Mac: our rollback backup was 153.0.8010.53 from 09-23, Keystone had since
+    /// taken it to 155.0.8059.40 (running) with .80 staged on disk, and the
+    /// hover said "Still running 153.0.8010.53 (8059.40)".
+    ///
+    /// Mutation: drop the build check and use the backup's marketing whenever
+    /// there is one.
+    @Test func aBackupOfAnotherBuildDoesNotNameTheRunningOne() {
+        let side = RestartLine.fromSide(
+            runningBuild: "8059.40",
+            backup: VersionSide(marketing: "153.0.8010.53", build: "8010.53"),
+            recoveredMarketing: "155.0.8059.40")
+
+        #expect(side?.marketing == "155.0.8059.40")
+        #expect(side?.build == "8059.40")
+    }
+
+    /// Nothing else to go on, the mismatched backup still is not borrowed: a
+    /// bare build is honest, a wrong version is not.
+    ///
+    /// Mutation: fall back to the backup's marketing after the history.
+    @Test func aMismatchedBackupIsNotAFallback() {
+        let side = RestartLine.fromSide(
+            runningBuild: "8059.40",
+            backup: VersionSide(marketing: "153.0.8010.53", build: "8010.53"),
+            recoveredMarketing: nil)
+
+        #expect(side?.marketing == nil)
+        #expect(side?.build == "8059.40")
+    }
+
+    /// A backup that recorded no build cannot be matched to the running one, so
+    /// it is not used.
+    ///
+    /// Mutation: treat a nil backup build as a match.
+    @Test func aBackupWithNoBuildIsNotUsed() {
+        #expect(RestartLine.fromSide(
+            runningBuild: "3965", backup: VersionSide(marketing: "26.609.71450", build: nil),
+            recoveredMarketing: nil)?.marketing == nil)
     }
 
     /// A marketing string that is just the build again adds nothing, and saying
@@ -360,7 +402,8 @@ struct RestartLineTests {
     /// Mutation: `marketing: marketing` without the `== build` test.
     @Test func aMarketingStringEqualToTheBuildIsDropped() {
         let side = RestartLine.fromSide(
-            runningBuild: "3965", backupMarketing: "3965", recoveredMarketing: nil)
+            runningBuild: "3965", backup: VersionSide(marketing: "3965", build: "3965"),
+            recoveredMarketing: nil)
 
         #expect(side?.marketing == nil)
         #expect(side?.build == "3965")
@@ -381,7 +424,8 @@ struct RestartLineTests {
     /// `build`; or drop `strippingBuildPrefix` entirely.
     @Test func theBuildIsStrippedBeforeItIsComparedAndShown() {
         let side = RestartLine.fromSide(
-            runningBuild: "IU-262.6653.22", backupMarketing: "262.6653.22",
+            runningBuild: "IU-262.6653.22",
+            backup: VersionSide(marketing: "262.6653.22", build: "IU-262.6653.22"),
             recoveredMarketing: nil)
 
         #expect(side?.build == "262.6653.22", "the prefix is not part of the number")

@@ -493,7 +493,6 @@ final class AppListModel {
         UpdatePolicy.isRunning(result, environment: policyEnvironment)
     }
 
-    func runningVersion(_ id: String) -> String? { runningVersionByID[id] }
     func backupVersion(_ id: String) -> String? { backupVersions[id] }
 
     /// Whether a rollback may start on this row now — what `rollback` checks, and
@@ -685,7 +684,7 @@ final class AppListModel {
     func restartFromSide(_ id: String) -> UpdateResult.VersionSide? {
         RestartLine.fromSide(
             runningBuild: runningVersionByID[id],
-            backupMarketing: backupVersions[id],
+            backup: backupSides[id],
             recoveredMarketing: recoveredRestartMarketing[id])
     }
 

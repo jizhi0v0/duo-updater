@@ -131,8 +131,16 @@ public enum PackageRestartReconciler {
 /// The marketing half is recovered from one of two records, in this order:
 ///
 ///   1. the rollback backup written right before we swapped (our own installs),
+///      but only when its build IS the running build,
 ///   2. the build→marketing history captured when we scanned that build before
 ///      it was swapped out (apps that updated through their own updater).
+///
+/// The backup is the newest one we keep, not a record of what is running: an
+/// app we updated once and that then updated itself still has our old backup.
+/// Chrome showed it — a 153.0.8010.53 backup from 09-23, Keystone since then
+/// up to 155.0.8059.40 (running) with .80 on disk, and the hover read "Still
+/// running 153.0.8010.53 (8059.40)". A backup with no build cannot be matched,
+/// so it is not used.
 ///
 /// Both survive our relaunches. The marketing half is left nil when it adds
 /// nothing — nothing recovered it, or it is the build over again — which is
@@ -141,12 +149,13 @@ public enum PackageRestartReconciler {
 public enum RestartLine {
     public static func fromSide(
         runningBuild: String?,
-        backupMarketing: String?,
+        backup: VersionSide?,
         recoveredMarketing: String?
     ) -> VersionSide? {
         guard let runningBuild else { return nil }
         let build = UpdateResult.strippingBuildPrefix(runningBuild)
-        let marketing = backupMarketing ?? recoveredMarketing
+        let backupIsRunning = backup?.build.map(UpdateResult.strippingBuildPrefix) == build
+        let marketing = (backupIsRunning ? backup?.marketing : nil) ?? recoveredMarketing
         return VersionSide(marketing: marketing == build ? nil : marketing, build: build)
     }
 }

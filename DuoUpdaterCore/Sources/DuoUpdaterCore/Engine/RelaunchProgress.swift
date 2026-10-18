@@ -91,10 +91,30 @@ public enum RelaunchLanding: Sendable, Equatable {
     /// Dropping was not even conservative: `hasReached` accepts a build newer than
     /// the target, so a marker left pointing at the old build would have relayed
     /// correctly anyway. Re-targeting just keeps the landing test exact.
-    public func retargeted(nowStaged: VersionSide?) -> RelaunchLanding? {
+    ///
+    /// "Staging is gone" has a third reading for `.stagedSwap`: **the swap
+    /// landed**. A Sparkle installer clears `Installation/` once it has moved the
+    /// new bundle in, so the sweep that runs on the bundle-replaced event sees no
+    /// staging at the very moment the marker is about to pay off. Dropping it
+    /// there left the app closed. Measured on the mini 2026-10-18: ChatGPT took
+    /// 5.73 s to quit, the wait bailed at 5.44 s, the swap landed ~0.1 s after the
+    /// quit, and nothing reopened it. So when `disk` already satisfies the marker
+    /// and the app is not running, the marker becomes `.applied`: relaunch as
+    /// soon as the app is gone. Running again means the vendor or the user
+    /// brought it back, and the marker is dropped as before. Not for
+    /// `.stagedOnLaunch`: its build lands only after a launch, so a landed build
+    /// there means the app was already reopened.
+    public func retargeted(
+        nowStaged: VersionSide?, disk: VersionSide?, appRunning: Bool
+    ) -> RelaunchLanding? {
         switch self {
         case .stagedSwap, .stagedOnLaunch:
-            guard let nowStaged, !nowStaged.isEmpty else { return nil }
+            guard let nowStaged, !nowStaged.isEmpty else {
+                if case .stagedSwap = self, !appRunning, let disk, isSatisfied(byDisk: disk) {
+                    return .applied
+                }
+                return nil
+            }
             if case .stagedOnLaunch = self { return .stagedOnLaunch(to: nowStaged) }
             return .stagedSwap(to: nowStaged)
         case .applied, .appStoreSwap:

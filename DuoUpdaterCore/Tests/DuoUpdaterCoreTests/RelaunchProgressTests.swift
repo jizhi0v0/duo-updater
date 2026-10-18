@@ -137,39 +137,74 @@ import Testing
     /// with `launchAfterInstallation=false` stays closed with nobody to reopen it.
     @Test func aMarkerSurvivesTheVendorShippingAnotherBuild() {
         let armed = RelaunchLanding.stagedSwap(to: amp("130"))
-        let after = armed.retargeted(nowStaged: amp("131"))
+        let after = armed.retargeted(nowStaged: amp("131"), disk: nil, appRunning: false)
         #expect(after != nil, "the app still has a pending swap and the user still asked for a relaunch")
         #expect(after == .stagedSwap(to: amp("131")), "and it now waits for the build that will actually land")
     }
 
     /// Staging genuinely gone: nothing will land, so the marker is dead.
     @Test func aMarkerIsDroppedWhenStagingDisappears() {
-        #expect(RelaunchLanding.stagedSwap(to: amp("130")).retargeted(nowStaged: nil) == nil)
+        #expect(RelaunchLanding.stagedSwap(to: amp("130")).retargeted(nowStaged: nil, disk: nil, appRunning: false) == nil)
         #expect(RelaunchLanding.stagedSwap(to: amp("130"))
-            .retargeted(nowStaged: VersionSide()) == nil)
+            .retargeted(nowStaged: VersionSide(), disk: nil, appRunning: false) == nil)
+    }
+
+    /// The mini 2026-10-18 bug: the installer clears its staging once the swap
+    /// is in, so "staging gone" is also what a LANDED swap looks like. That
+    /// marker must survive as `.applied`, or nobody reopens the app.
+    @Test func aLandedSwapBecomesApplied() {
+        let armed = RelaunchLanding.stagedSwap(to: VersionSide(marketing: "26.1013.40934", build: "20770"))
+        #expect(armed.retargeted(
+            nowStaged: nil, disk: VersionSide(marketing: "26.1013.40934", build: "20770"),
+            appRunning: false) == .applied)
+        // Newer than the target is landed too (`hasReached`).
+        #expect(armed.retargeted(
+            nowStaged: nil, disk: VersionSide(marketing: "26.1013.50000", build: "20800"),
+            appRunning: false) == .applied)
+    }
+
+    /// Staging gone but disk still on the old build: nothing landed. Dropped.
+    @Test func stagingGoneWithoutLandingIsStillDropped() {
+        let armed = RelaunchLanding.stagedSwap(to: amp("130"))
+        #expect(armed.retargeted(nowStaged: nil, disk: amp("129"), appRunning: false) == nil)
+        #expect(armed.retargeted(nowStaged: nil, disk: VersionSide(), appRunning: false) == nil)
+    }
+
+    /// Landed but already running again: the vendor or the user reopened it, so
+    /// a later quit is theirs and must not bring it back.
+    @Test func aLandedSwapThatIsRunningAgainIsDropped() {
+        let armed = RelaunchLanding.stagedSwap(to: amp("130"))
+        #expect(armed.retargeted(nowStaged: nil, disk: amp("130"), appRunning: true) == nil)
+    }
+
+    /// A swap-on-launch build lands only after a launch, so a landed one means the
+    /// app was reopened already. Never `.applied`.
+    @Test func aLandedSwapOnLaunchIsNotApplied() {
+        let armed = RelaunchLanding.stagedOnLaunch(to: amp("130"))
+        #expect(armed.retargeted(nowStaged: nil, disk: amp("130"), appRunning: false) == nil)
     }
 
     /// Unchanged staging keeps the same target — the ordinary case.
     @Test func anUnchangedMarkerIsKept() {
         let armed = RelaunchLanding.stagedSwap(to: amp("130"))
-        #expect(armed.retargeted(nowStaged: amp("130")) == armed)
+        #expect(armed.retargeted(nowStaged: amp("130"), disk: nil, appRunning: false) == armed)
     }
 
     /// A swap-on-launch marker is retargeted the same way but keeps its order —
     /// turning it into `.stagedSwap` would bring back the wait-before-launch hang.
     @Test func aSwapOnLaunchMarkerKeepsItsKind() {
         let armed = RelaunchLanding.stagedOnLaunch(to: amp("130"))
-        #expect(armed.retargeted(nowStaged: amp("131")) == .stagedOnLaunch(to: amp("131")))
-        #expect(armed.retargeted(nowStaged: nil) == nil)
+        #expect(armed.retargeted(nowStaged: amp("131"), disk: nil, appRunning: false) == .stagedOnLaunch(to: amp("131")))
+        #expect(armed.retargeted(nowStaged: nil, disk: nil, appRunning: false) == nil)
     }
 
     /// The other landings are not derived from the staging area at all: their
     /// build is already on disk, or is the App Store's to deliver. The sweep must
     /// not touch them.
     @Test func otherLandingsAreNeverTouchedBythisSweep() {
-        #expect(RelaunchLanding.applied.retargeted(nowStaged: nil) == .applied)
+        #expect(RelaunchLanding.applied.retargeted(nowStaged: nil, disk: nil, appRunning: false) == .applied)
         let store = RelaunchLanding.appStoreSwap(past: amp("128"))
-        #expect(store.retargeted(nowStaged: nil) == store)
+        #expect(store.retargeted(nowStaged: nil, disk: nil, appRunning: false) == store)
     }
 }
 

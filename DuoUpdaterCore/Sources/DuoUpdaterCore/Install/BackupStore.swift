@@ -447,9 +447,10 @@ public enum BackupStore {
         /// Store) changes an app, for a user who has no backup being
         /// taken. Those routes do the swap themselves and can leave the app
         /// deleted when interrupted — `brew install --cask --force` removes the
-        /// old bundle before moving the new one in, and its rescue does not put
-        /// `/Applications` back. Stored apart from the user's backup slot (see
-        /// ``rollbackPointsRoot``) and removed once the install succeeds.
+        /// old bundle before moving the new one in, and a signal skips its
+        /// revert (a dead pipe likely breaks it). Stored apart from the user's
+        /// backup slot (see ``rollbackPointsRoot``) and removed once the install
+        /// succeeds.
         case installRollbackPoint
     }
 

@@ -72,10 +72,32 @@ public enum StagedRelaunch {
         /// `ticks` goes past it — the moment the menu-bar app would have given
         /// up, so a caller that waits on can say why.
         public let onSlowQuit: (@Sendable () -> Void)?
+        /// Asked each tick while the app has not quit yet, from `quitGraceTicks`
+        /// on, and only then: true ends the wait the way an exhausted patience
+        /// does (`.wontQuit`, the staged build left to its own updater).
+        /// `duo restart`'s Ctrl-C. A closure, not task cancellation, so it still
+        /// works where the caller shields this wait from cancellation.
+        ///
+        /// Not before `quitGraceTicks`. The quit has been requested by then, and
+        /// an app still listed in its first moments is usually just shutting
+        /// down: ending there would call a normal quit a save prompt, and skip
+        /// the swap wait and the reopen after it — an app whose updater does not
+        /// reopen it would be left closed. `quitGraceTicks` is where `.grace`
+        /// gives up and where `onSlowQuit` says the quit is held up, so a stop
+        /// asked for earlier — during the rollback copy, say — is answered
+        /// there: still up, it ends the wait before `onSlowQuit` would offer a
+        /// longer one; gone, the swap wait runs. A stop asked for before then
+        /// therefore gets exactly the `.grace` wait. After the quit it is never
+        /// asked: the swap wait and the reopen always run out.
+        public let stopWaiting: @Sendable () -> Bool
 
-        public init(ticks: Int, onSlowQuit: (@Sendable () -> Void)? = nil) {
+        public init(
+            ticks: Int, onSlowQuit: (@Sendable () -> Void)? = nil,
+            stopWaiting: @escaping @Sendable () -> Bool = { false }
+        ) {
             self.ticks = max(ticks, StagedRelaunch.quitGraceTicks)
             self.onSlowQuit = onSlowQuit
+            self.stopWaiting = stopWaiting
         }
 
         /// The menu-bar app's: ~5 s, then `.wontQuit` and its quit hand-off.
@@ -84,8 +106,11 @@ public enum StagedRelaunch {
         /// `duo restart` in a terminal. A one-shot process cannot arm the
         /// menu-bar app's terminate observer, so it stays and waits for the
         /// answer itself, for as long as that hand-off would have stayed armed.
-        public static func handoff(onSlowQuit: @escaping @Sendable () -> Void) -> QuitPatience {
-            QuitPatience(ticks: Int(quitHandoffMaxAge * 5), onSlowQuit: onSlowQuit)
+        public static func handoff(
+            onSlowQuit: @escaping @Sendable () -> Void,
+            stopWaiting: @escaping @Sendable () -> Bool = { false }
+        ) -> QuitPatience {
+            QuitPatience(ticks: Int(quitHandoffMaxAge * 5), onSlowQuit: onSlowQuit, stopWaiting: stopWaiting)
         }
     }
 
@@ -264,7 +289,8 @@ public enum StagedRelaunch {
                     _ = await system.relaunch(wasFrontmost)
                     launchedAtTick = tick
                 }
-            } else if !everQuit && tick >= quitPatience.ticks {
+            } else if !everQuit && (tick >= quitPatience.ticks
+                                    || (tick >= quitGraceTicks && quitPatience.stopWaiting())) {
                 // Never quit → a save prompt (or similar) is keeping it up; the swap
                 // can't start, so don't block the long window on it. The caller
                 // decides what to arm for a quit that completes later.

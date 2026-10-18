@@ -304,4 +304,83 @@ import Testing
         #expect(ending.outcome == .applied)
         #expect(calls.count == 0)
     }
+
+    // MARK: - stopWaiting (`duo restart`'s Ctrl-C)
+
+    /// A stop asked for while the app has not quit, past the slow-quit point,
+    /// ends the wait on that tick, as an exhausted patience would: `.wontQuit`,
+    /// nothing launched — not after the 10-minute hand-off. Mutation: ignore
+    /// `stopWaiting` → the wait runs to `quitHandoffMaxAge * 5` ticks, red.
+    @Test func aStopBeforeTheQuitEndsTheWaitAsWontQuit() async {
+        let w = World(disk: old, new: new)
+        w.quitsAt = nil
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.shipIt), old: old, wasFrontmost: false,
+            quitPatience: .handoff(onSlowQuit: {}, stopWaiting: { w.now >= 50 }), system: system(w))
+        #expect(ending.outcome == .wontQuit)
+        #expect(ending.everQuit == false)
+        #expect(w.now == 50)
+        #expect(w.launches.isEmpty)
+    }
+
+    /// Once the app has quit, a stop is not consulted: the swap wait runs out and
+    /// the reopen comes after the landing. The landing is past `quitGraceTicks`,
+    /// where a stop would first be honoured. Mutation: consult `stopWaiting`
+    /// after the quit too → the wait ends at `quitGraceTicks`, before the
+    /// landing, and the fallback reopens the app mid-swap, red.
+    @Test func aStopAfterTheQuitIsIgnored() async {
+        let w = World(disk: old, new: new)
+        w.quitsAt = 1
+        w.landsAt = 40
+        w.updaterRelaunches = false
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.shipIt), old: old, wasFrontmost: false,
+            quitPatience: .handoff(onSlowQuit: {}, stopWaiting: { w.now >= 2 }), system: system(w))
+        #expect(ending.outcome == .applied)
+        #expect(w.landedAt == 40)
+        #expect(w.launches == [40])
+    }
+
+    /// A stop asked for before the quit request (during the rollback copy) and
+    /// an app that quits normally a few ticks later: the stop is not honoured
+    /// before `quitGraceTicks`, so the quit is seen, the swap is waited for, and
+    /// the app — whose updater does not reopen it — is reopened after the
+    /// landing. Mutation: drop the `quitGraceTicks` floor → `.wontQuit` on the
+    /// first tick, while the app is still shutting down, and no reopen, red.
+    @Test func aStopBeforeTheSlowQuitPointLetsANormalQuitRunOut() async {
+        let w = World(disk: old, new: new)
+        w.quitsAt = 3
+        w.landsAt = 10
+        w.updaterRelaunches = false
+        let calls = Calls()
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.shipIt), old: old, wasFrontmost: false,
+            quitPatience: .handoff(onSlowQuit: { calls.count += 1 }, stopWaiting: { true }),
+            system: system(w))
+        #expect(ending.outcome == .applied)
+        #expect(ending.everQuit)
+        #expect(w.landedAt == 10)
+        #expect(w.launches == [10], "reopened once, after the swap landed")
+        #expect(calls.count == 0)
+    }
+
+    /// The same early stop, but the app is still up at `quitGraceTicks`: the
+    /// wait ends there as `.wontQuit` — what `.grace` does — and the slow-quit
+    /// line, which offers a longer wait, is not printed. Mutations: drop
+    /// `stopWaiting` → the wait runs the whole hand-off window, red; check the
+    /// slow-quit line before the stop → `calls.count == 1`, red.
+    @Test func aStopBeforeTheSlowQuitPointEndsAStuckQuitThere() async {
+        let w = World(disk: old, new: new)
+        w.quitsAt = nil
+        let calls = Calls()
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.shipIt), old: old, wasFrontmost: false,
+            quitPatience: .handoff(onSlowQuit: { calls.count += 1 }, stopWaiting: { true }),
+            system: system(w))
+        #expect(ending.outcome == .wontQuit)
+        #expect(ending.everQuit == false)
+        #expect(w.now == StagedRelaunch.quitGraceTicks + 1)
+        #expect(w.launches.isEmpty)
+        #expect(calls.count == 0)
+    }
 }

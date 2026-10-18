@@ -465,6 +465,111 @@ import Foundation
             == "still running — likely a save prompt, left 2.0 staged")
     }
 
+    /// A signal that arrives before the slow-quit point — during the rollback
+    /// copy (`signalAt` 0: before the quit request) or just after the quit
+    /// request (1) — while the app quits normally at tick 3: the quit is seen,
+    /// the swap is waited for (it lands at tick 10), and the app, whose updater
+    /// does not reopen it, is reopened after the landing. The line is the
+    /// applied one, not "likely a save prompt".
+    ///
+    /// Mutation: drop the `quitGraceTicks` floor on `stopWaiting` in
+    /// `StagedRelaunch.quitAndAwait` → `.wontQuit` while the app is still
+    /// shutting down, no reopen, the bail line, red.
+    @Test(arguments: [0, 1])
+    func aSignalBeforeTheSlowQuitPointLetsANormalQuitRunOut(signalAt: Int) async {
+        let world = StagedWorld(quitsAt: 3, landsAt: 10)
+        let gate = SignalGate()
+        if signalAt == 0 { _ = gate.receive(SIGINT) }
+        let ending = await SignalGate.finishing {
+            await StagedRelaunch.quitAndAwait(
+                world.app, staged: world.staged, old: world.old, wasFrontmost: false,
+                quitPatience: Restart.patience(
+                    for: world.app, to: "2.0", waitsForAnswer: true, stopWaiting: { gate.stopRequested }),
+                system: world.system(onTick: { if $0 == signalAt { _ = gate.receive(SIGINT) } }))
+        }
+        #expect(gate.stopRequested)
+        #expect(ending.outcome == .applied)
+        #expect(world.launches == [10], "reopened once, after the swap landed")
+        #expect(Restart.describe(ending, staged: "2.0", disk: world.new).text
+            == "quit — its own updater applied \(world.new.text(withBuild: true))")
+    }
+
+    /// A signal after the app has quit, while its updater swaps: ignored. The
+    /// swap lands at tick 40 — past the slow-quit point, where a stop would
+    /// first be honoured — and the reopen comes after it.
+    ///
+    /// Mutation: consult `stopWaiting` after the quit too → the wait ends at
+    /// `quitGraceTicks`, the fallback reopens the app mid-swap, red.
+    @Test func aSignalAfterTheQuitIsIgnoredByAStagedRestart() async {
+        let world = StagedWorld(quitsAt: 2, landsAt: 40)
+        let gate = SignalGate()
+        let ending = await SignalGate.finishing {
+            await StagedRelaunch.quitAndAwait(
+                world.app, staged: world.staged, old: world.old, wasFrontmost: false,
+                quitPatience: Restart.patience(
+                    for: world.app, to: "2.0", waitsForAnswer: true, stopWaiting: { gate.stopRequested }),
+                system: world.system(onTick: { if $0 == 5 { _ = gate.receive(SIGINT) } }))
+        }
+        #expect(gate.stopRequested)
+        #expect(ending.outcome == .applied)
+        #expect(world.launches == [40], "reopened once, after the swap landed")
+        #expect(Restart.describe(ending, staged: "2.0", disk: world.new).text
+            == "quit — its own updater applied \(world.new.text(withBuild: true))")
+    }
+
+    /// A ShipIt-staged app that quits at `quitsAt` and whose swap lands at
+    /// `landsAt` (ticks counted from 1), without the updater reopening it.
+    final class StagedWorld: @unchecked Sendable {
+        let app = InstalledApp(
+            name: "ZZFixture", bundleID: "com.zzfixture.signalgate", shortVersion: "1.0", buildVersion: "1",
+            path: URL(fileURLWithPath: "/ZZFixture-signalgate/ZZFixture.app"), isMASApp: false,
+            sparkleFeedURL: nil)
+        let staged = StagedSelfUpdate(
+            version: "2.0", buildVersion: "2.0",
+            stagedBundlePath: URL(fileURLWithPath: "/ZZFixture-signalgate/update.x/ZZFixture.app"),
+            appliesOn: .quit, updater: .shipIt)
+        let old = VersionSide(marketing: "1.0", build: "1")
+        let new = VersionSide(marketing: "2.0", build: "2.0")
+        private let lock = NSLock()
+        private let quitsAt: Int, landsAt: Int
+        private var now = 0
+        private var terminated = false
+        private var running = true
+        private var landed = false
+        private var launchTicks: [Int] = []
+
+        init(quitsAt: Int, landsAt: Int) { self.quitsAt = quitsAt; self.landsAt = landsAt }
+
+        var launches: [Int] { lock.withLock { launchTicks } }
+
+        /// `onTick` is told each tick's number after the world has moved.
+        func system(onTick: @escaping @Sendable (Int) -> Void) -> StagedRelaunch.System {
+            StagedRelaunch.System(
+                tick: {
+                    let tick: Int = self.lock.withLock {
+                        self.now += 1
+                        if self.terminated && self.now >= self.quitsAt && !self.landed { self.running = false }
+                        if !self.landed && !self.running && self.now >= self.landsAt { self.landed = true }
+                        return self.now
+                    }
+                    onTick(tick)
+                },
+                isRunning: { self.lock.withLock { self.running } },
+                terminate: { self.lock.withLock { self.terminated = true } },
+                diskVersion: { self.lock.withLock { self.landed ? self.new : self.old } },
+                awaitBundleProcessesGone: {},
+                relaunch: { _ in
+                    self.lock.withLock {
+                        self.launchTicks.append(self.now)
+                        self.running = true
+                    }
+                    return true
+                },
+                installer: ParkedInstallerProbe.System(
+                    isAlive: { _ in false }, loadedJob: { _ in nil }, sparkleInstallerPIDs: { _ in [] }))
+        }
+    }
+
     final class Counter: @unchecked Sendable {
         private let lock = NSLock()
         private var count = 0

@@ -60,8 +60,8 @@ public enum Restart {
     /// restart would leave the app quit and never reopened, and a staged one
     /// would reopen it while its updater is still swapping — the early reopen
     /// that makes ShipIt abort. One part of the staged step still ends on a
-    /// signal: its wait for the app to quit, before anything has changed
-    /// (`patience`).
+    /// signal: its wait for an app that has not quit after ~5 s, before
+    /// anything has changed (`patience`).
     ///
     /// `restart` is the plain path's restarter, a seam for the tests.
     static func restartEach(
@@ -157,11 +157,22 @@ public enum Restart {
     /// How long a staged relaunch waits for the app to quit.
     ///
     /// In a terminal, up to the menu-bar app's 10-minute hand-off, and a signal
-    /// (`stopWaiting`, the gate's first) ends that wait at once as `.wontQuit` —
-    /// the "(Ctrl-C to stop waiting)" this prints. The step runs in
+    /// (`stopWaiting`, the gate's first) ends that wait within a tick as
+    /// `.wontQuit` — the "(Ctrl-C to stop waiting)" this prints. The step runs in
     /// `SignalGate.finishing`, so cancellation would not reach the wait; the
-    /// flag does, and only before the quit: nothing is changed on disk until the
-    /// app has quit, and from then on the swap wait and the reopen run out.
+    /// flag does, and only while the app has not quit: nothing is changed on
+    /// disk until it has, and from then on the swap wait and the reopen run out.
+    ///
+    /// Only from the point this line is printed (`quitGraceTicks`, ~5 s), not
+    /// before. A signal during the rollback copy or just after the quit request
+    /// is held until then: an app that quits meanwhile was quitting normally,
+    /// and gets its swap wait and reopen ("quit — its own updater applied …");
+    /// one still up there ends as `.wontQuit` without this line — the ~5 s and
+    /// the "likely a save prompt" a script gets (`.grace`), so neither line
+    /// offers a wait that is not going to happen. The early signal has to be the
+    /// one honoured: later ones change nothing in the gate (its "still
+    /// finishing"), so a user who pressed Ctrl-C at 2 s could not otherwise stop
+    /// the 10-minute wait at all.
     ///
     /// The plain path gets no such check, on purpose. `AppRestarter`'s quit wait
     /// is ~30 s, and cutting it short is the harm itself: the app was already

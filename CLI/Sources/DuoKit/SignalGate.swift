@@ -148,8 +148,10 @@ public final class SignalGate: @unchecked Sendable {
                 + "An install that is already replacing an app finishes first; "
                 + "duo exits when it has."
         case .stillFinishing:
+            // "Or quit and not reopened": `duo restart`'s step replaces nothing
+            // itself; what leaving it midway costs is the app's reopen.
             return "duo: still finishing the current step — stopping in the middle of it "
-                + "could leave an app half-replaced."
+                + "could leave an app half-replaced, or quit and not reopened."
         case .exitNow:
             return nil
         }
@@ -214,8 +216,15 @@ public final class SignalGate: @unchecked Sendable {
     /// `Task { }` rather than `Task.detached`: an unstructured task is not
     /// cancelled with the task that awaits it, and it still inherits task-locals
     /// (`CLIToolExit.$observer`, `RequestAttribution`) and priority, which a
-    /// detached one would drop. The Core side of the same problem — the steps
-    /// inside `InstallCoordinator.perform` after its commit point — is
+    /// detached one would drop. Apple's `Task.cancel()` says what a cancel
+    /// reaches — "It cancels any child tasks and task groups of the task" —
+    /// and The Swift Programming Language (Concurrency, "Unstructured
+    /// Concurrency") that an unstructured task "doesn't have a parent task"
+    /// and runs with "the same actor isolation, priority, and task-local state
+    /// as the current task". `aRestartCancelledInItsQuitWaitStillReopensTheApp`
+    /// and `aToolUpdateCancelledMidwayIsReportedAsApplied` go red without it.
+    /// The Core side of the same problem — the steps inside
+    /// `InstallCoordinator.perform` after its commit point — is
     /// `InstallCommit`'s (#1404); this does not depend on it.
     public static func finishing<T: Sendable>(_ step: @escaping @Sendable () async -> T) async -> T {
         await Task { await step() }.value
@@ -229,8 +238,14 @@ public final class SignalGate: @unchecked Sendable {
 
     /// Ignore `signals` (so the default action — death — never happens) and
     /// listen for them with dispatch sources instead; ignore SIGPIPE outright.
-    /// kqueue's `EVFILT_SIGNAL` sees a signal even while it is ignored, which is
-    /// how Apple's documentation pairs the two.
+    /// A source still fires for an ignored signal, and ignoring it is the
+    /// documented pairing: macOS `dispatch_source_create(3)` says a signal
+    /// source does not "alter the behavior of signal delivery", so
+    /// "applications must ignore or at least catch any signal that terminates a
+    /// process by default", with `signal(SIGTERM, SIG_IGN)` as its example;
+    /// `kqueue(2)` on `EVFILT_SIGNAL`: "The filter will record all attempts to
+    /// deliver a signal to a process, even if the signal has been marked as
+    /// SIG_IGN."
     public static func armProcessSignals(_ handler: @escaping @Sendable (Int32) -> Void) {
         signal(SIGPIPE, SIG_IGN)
         let queue = DispatchQueue(label: "duo.signals")

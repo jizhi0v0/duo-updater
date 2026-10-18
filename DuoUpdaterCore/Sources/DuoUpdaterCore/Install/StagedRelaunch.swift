@@ -72,13 +72,23 @@ public enum StagedRelaunch {
         /// `ticks` goes past it — the moment the menu-bar app would have given
         /// up, so a caller that waits on can say why.
         public let onSlowQuit: (@Sendable () -> Void)?
-        /// Asked each tick while the app has not quit yet, and only then: true
-        /// ends the wait the way an exhausted patience does (`.wontQuit`, the
-        /// staged build left to its own updater). Nothing has changed on disk
-        /// before the quit, so that phase may be cut short; after it, the swap
-        /// wait and the reopen always run out. `duo restart`'s Ctrl-C. A
-        /// closure, not task cancellation, so it still works where the caller
-        /// shields this wait from cancellation.
+        /// Asked each tick while the app has not quit yet, from `quitGraceTicks`
+        /// on, and only then: true ends the wait the way an exhausted patience
+        /// does (`.wontQuit`, the staged build left to its own updater).
+        /// `duo restart`'s Ctrl-C. A closure, not task cancellation, so it still
+        /// works where the caller shields this wait from cancellation.
+        ///
+        /// Not before `quitGraceTicks`. The quit has been requested by then, and
+        /// an app still listed in its first moments is usually just shutting
+        /// down: ending there would call a normal quit a save prompt, and skip
+        /// the swap wait and the reopen after it — an app whose updater does not
+        /// reopen it would be left closed. `quitGraceTicks` is where `.grace`
+        /// gives up and where `onSlowQuit` says the quit is held up, so a stop
+        /// asked for earlier — during the rollback copy, say — is answered
+        /// there: still up, it ends the wait before `onSlowQuit` would offer a
+        /// longer one; gone, the swap wait runs. A stop asked for before then
+        /// therefore gets exactly the `.grace` wait. After the quit it is never
+        /// asked: the swap wait and the reopen always run out.
         public let stopWaiting: @Sendable () -> Bool
 
         public init(
@@ -255,7 +265,8 @@ public enum StagedRelaunch {
                     _ = await system.relaunch(wasFrontmost)
                     launchedAtTick = tick
                 }
-            } else if !everQuit && (tick >= quitPatience.ticks || quitPatience.stopWaiting()) {
+            } else if !everQuit && (tick >= quitPatience.ticks
+                                    || (tick >= quitGraceTicks && quitPatience.stopWaiting())) {
                 // Never quit → a save prompt (or similar) is keeping it up; the swap
                 // can't start, so don't block the long window on it. The caller
                 // decides what to arm for a quit that completes later.

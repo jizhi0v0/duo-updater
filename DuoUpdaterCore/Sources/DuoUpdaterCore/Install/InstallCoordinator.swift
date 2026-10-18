@@ -521,8 +521,9 @@ public actor InstallCoordinator {
             let verifyDownload: @Sendable (URL) throws -> Data? = { file in
                 try Self.verifyInstallerDownload(file, for: result, progress: progress)
             }
-            let opened = try await permits.withDownloadPermit {
-                // Cancelled while parked on the permit: don't start the fetch.
+            let opened = try await permits.withDownloadPermit(cancellable: true) {
+                // A cancel while queued throws out of the wait itself; this
+                // catches one that landed as the permit was handed over.
                 try Task.checkCancellation()
                 return try await packages.downloadAndOpen(
                     url: result.remote?.downloadURL,
@@ -548,9 +549,12 @@ public actor InstallCoordinator {
             // brew's fetch and swap are one command we cannot split, so the whole
             // run takes the apply permit — and brew does its own downloading, so
             // those bytes are never counted rather than estimated.
-            await permits.waitForApply()
+            // Cancelled while queued: throws holding no permit, before brew starts.
+            try await permits.waitForApplyOrCancel()
             var applyHeld = true
             defer { if applyHeld { permits.signalApply() } }
+            // Still needed: a cancel landing as the permit was handed over
+            // returns normally with the permit held (see `waitForDownloadOrCancel`).
             try Task.checkCancellation()
             try await homebrew.upgrade(caskToken: token) { line in
                 progress(.runningCommand(line))
@@ -743,7 +747,8 @@ public actor InstallCoordinator {
         if spaceToApply > 0 {
             Log.install.notice("disk space: \(label, privacy: .public) watched while downloading, \(spaceToApply, privacy: .public) bytes checked before its swap")
         }
-        let downloaded = try await permits.withDownloadPermit {
+        let downloaded = try await permits.withDownloadPermit(cancellable: true) {
+            // Cancelled at the hand-over; a cancel while queued already threw.
             try Task.checkCancellation()
             guard spaceToApply > 0 else { return try await download(result, progress) }
             return try await DiskSpaceGuard.watching(sparing: backupKey) {
@@ -767,9 +772,12 @@ public actor InstallCoordinator {
         Log.install.debug(
             "\(label, privacy: .public): downloaded \(downloaded.bytesDownloaded, privacy: .public) bytes, waiting for the apply permit")
 
-        await permits.waitForApply()
+        // Cancelled while queued for the swap: throws holding no permit, and
+        // the caller's `defer` still removes the download's work directory.
+        try await permits.waitForApplyOrCancel()
         var applyHeld = true
         defer { if applyHeld { permits.signalApply() } }
+        // Cancelled at the hand-over — see the Homebrew route above.
         try Task.checkCancellation()
         // Here rather than inside the installers: an error thrown inside a
         // patch-route `apply` is wrapped as `DeltaRouteFailure` and retried with

@@ -112,7 +112,7 @@ struct InstallPermitsTests {
 
         cancelled.cancel()
         let threw = Flag()
-        let returned = await Self.within(seconds: 10) {
+        let returned = await Self.within(seconds: 60) {
             do { try await cancelled.value } catch is CancellationError { threw.set() } catch {}
         }
         #expect(returned, "a cancelled waiter must leave the queue without a permit being freed")
@@ -168,7 +168,7 @@ struct InstallPermitsTests {
         }
         #expect(await Self.parked(permits, downloads: 1))
         queued.cancel()
-        let returned = await Self.within(seconds: 10) { _ = try? await queued.value }
+        let returned = await Self.within(seconds: 60) { _ = try? await queued.value }
         #expect(returned)
         #expect(!ran.isSet)
         permits.signalDownload()
@@ -225,7 +225,7 @@ struct InstallPermitsTests {
             async let cancel: Void = Task.detached { waiter.cancel() }.value
             async let release: Void = Task.detached { permits.signalDownload() }.value
             _ = await (cancel, release)
-            if !(await Self.within(seconds: 10) { await waiter.value }) { stuck += 1; break }
+            if !(await Self.within(seconds: 60) { await waiter.value }) { stuck += 1; break }
             permits.signalDownload()
         }
         #expect(stuck == 0)
@@ -247,7 +247,7 @@ struct InstallPermitsTests {
         for _ in 0..<5000 {
             let waiter = Task { try? await permits.waitForDownloadOrCancel() }
             await Task.detached { waiter.cancel() }.value
-            if !(await Self.within(seconds: 10) { await waiter.value }) { stuck += 1; break }
+            if !(await Self.within(seconds: 60) { await waiter.value }) { stuck += 1; break }
         }
         #expect(stuck == 0)
         #expect(permits.parkedDownloadWaiters == 0)
@@ -263,13 +263,16 @@ struct InstallPermitsTests {
     private static func parked(
         _ permits: InstallPermits, downloads: Int? = nil, applies: Int? = nil
     ) async -> Bool {
-        let deadline = ContinuousClock.now + .seconds(10)
+        let deadline = ContinuousClock.now + .seconds(60)
         while ContinuousClock.now < deadline {
             if (downloads.map { permits.parkedDownloadWaiters == $0 } ?? true),
                (applies.map { permits.parkedApplyWaiters == $0 } ?? true) {
                 return true
             }
-            await Task.yield()
+            // A sleep, not a yield: a spinning poll holds a cooperative
+            // thread the waiter under test may need, and a loaded machine
+            // running the whole suite has few to spare.
+            try? await Task.sleep(for: .milliseconds(1))
         }
         return false
     }

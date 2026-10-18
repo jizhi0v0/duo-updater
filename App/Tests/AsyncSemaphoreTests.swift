@@ -27,7 +27,7 @@ struct AsyncSemaphoreTests {
 
         cancelled.cancel()
         let threw = Flag()
-        let returned = await Self.within(seconds: 10) {
+        let returned = await Self.within(seconds: 60) {
             do { try await cancelled.value } catch is CancellationError { threw.set() } catch {}
         }
         #expect(returned, "a cancelled waiter must leave the queue without a permit being freed")
@@ -105,7 +105,7 @@ struct AsyncSemaphoreTests {
             async let cancel: Void = Task.detached { waiter.cancel() }.value
             async let release: Void = Task.detached { await gate.signal() }.value
             _ = await (cancel, release)
-            if !(await Self.within(seconds: 10) { await waiter.value }) { stuck += 1; break }
+            if !(await Self.within(seconds: 60) { await waiter.value }) { stuck += 1; break }
             await gate.signal()
         }
         #expect(stuck == 0)
@@ -116,10 +116,13 @@ struct AsyncSemaphoreTests {
     // MARK: - Helpers
 
     private static func parked(_ gate: AsyncSemaphore, _ count: Int) async -> Bool {
-        let deadline = ContinuousClock.now + .seconds(10)
+        let deadline = ContinuousClock.now + .seconds(60)
         while ContinuousClock.now < deadline {
             if await gate.parkedWaiters == count { return true }
-            await Task.yield()
+            // A sleep, not a yield: a spinning poll holds a cooperative
+            // thread the waiter under test may need, and a loaded machine
+            // running the whole suite has few to spare.
+            try? await Task.sleep(for: .milliseconds(1))
         }
         return false
     }

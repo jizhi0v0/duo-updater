@@ -161,6 +161,45 @@ func appleSignInHelp(_ need: AppleSignInNeed) -> String {
     }
 }
 
+/// The word beside a running install's spinner: its stage, or "Cancelling…"
+/// once its Cancel was accepted, until the row settles. Shared so the popover
+/// row measures the text it will draw (`AppRow.showsStageLabel`).
+func installProgressLabel(_ stage: InstallStage, cancel: InstallCancelState?) -> String {
+    cancel == .cancelling ? String(localized: "Cancelling…") : installStageLabel(stage)
+}
+
+/// The Cancel beside a running install's progress, where the row's Update
+/// button stands — the Xcode download center's control
+/// (`XcodeSettingsPage`): `xmark.circle.fill`, borderless. Live while the
+/// install is queued or preparing; greyed once it is committing, with why on
+/// hover — and the same after a click that came too late, which the pointer
+/// is still on. Not drawn once a cancel was accepted: the progress says
+/// "Cancelling…" instead (`installProgressLabel`).
+struct InstallCancelButton: View {
+    let state: InstallCancelState
+    let action: () -> Void
+
+    /// What the glyph takes in the row, for a row that budgets its width.
+    static let width: CGFloat = 14
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark.circle.fill")
+        }
+        .buttonStyle(.borderless)
+        .disabled(state != .available)
+        .help(help)
+    }
+
+    private var help: String {
+        switch state {
+        case .available, .cancelling: return String(localized: "Cancel update")
+        case .committing: return String(localized: "Installing — can’t cancel now")
+        case .tooLate: return String(localized: "Already finishing — can’t cancel")
+        }
+    }
+}
+
 func installStageLabel(_ stage: InstallStage) -> String {
     switch stage {
     case .queued: return String(localized: "Queued")
@@ -173,6 +212,30 @@ func installStageLabel(_ stage: InstallStage) -> String {
     case .runningCommand: return String(localized: "Installing")
     case .done: return String(localized: "Installed")
     }
+}
+
+/// What an interrupted row's controls say, shared by both windows.
+func interruptedRestoreHelp(_ appName: String) -> String {
+    String(localized: "Its last update was interrupted. Restore \(appName) from the copy kept before that update.")
+}
+
+func interruptedReinstallHelp(_ appName: String) -> String {
+    String(localized: "Its last update was interrupted, and no copy was kept from before it. Install \(appName)’s update again.")
+}
+
+func interruptedNoWayBackHelp(_ appName: String) -> String {
+    String(localized: "The last update of \(appName) was interrupted, and no copy was kept from before it. Reinstall it from its vendor.")
+}
+
+/// Muted tag for an interrupted row with nothing to click.
+func interruptedRowLabel() -> String {
+    String(localized: "Interrupted (row status)", defaultValue: "Interrupted",
+           comment: "Muted tag on a single row whose last update was cut off, with no copy to restore and no update to run again.")
+}
+
+/// The version line of an interrupted row: the version from before the update.
+func interruptedVersionLine(_ oldVersion: String?) -> String {
+    String(localized: "v\(oldVersion ?? "?") · Last update was interrupted")
 }
 
 /// Muted tag for a row hidden from update checks. A distinct catalog key from
@@ -239,6 +302,10 @@ struct RowActions {
     /// Open the Apple Developer sign-in window for a row on the `.appleSignIn`
     /// route. Signing in only brings the Update button back; it starts nothing.
     var signInToAppleDeveloper: () -> Void = {}
+    /// The Cancel beside a running install (`InstallCancelButton`).
+    var cancelInstall: () -> Void = {}
+    /// An interrupted row's Restore (`.interruptedInstall(.restore)`).
+    var restoreInterrupted: () -> Void = {}
 
     /// The full set, with no defaults — for a real window, where a missing action
     /// is a dead control rather than a deliberate omission.
@@ -257,6 +324,8 @@ struct RowActions {
         openTestFlightSetting: @escaping () -> Void,
         openBackupSetting: @escaping () -> Void,
         signInToAppleDeveloper: @escaping () -> Void,
+        cancelInstall: @escaping () -> Void,
+        restoreInterrupted: @escaping () -> Void,
         retryPausedUntil: Date?
     ) -> RowActions {
         RowActions(
@@ -268,7 +337,8 @@ struct RowActions {
             openTestFlight: openTestFlight, grantFullDiskAccess: grantFullDiskAccess,
             openTestFlightSetting: openTestFlightSetting,
             openBackupSetting: openBackupSetting,
-            signInToAppleDeveloper: signInToAppleDeveloper)
+            signInToAppleDeveloper: signInToAppleDeveloper,
+            cancelInstall: cancelInstall, restoreInterrupted: restoreInterrupted)
     }
 }
 
@@ -294,6 +364,10 @@ struct WorkbenchRowAction: View {
     /// and what that mark explains (`TestFlightUnboundedReason`). An input for the
     /// same reason as `helperEnabled`.
     var testFlightUnboundedReason: TestFlightUnboundedReason = .storeSilent
+    /// The running install's Cancel (`AppListModel.installCancels`), nil when
+    /// the row's stage is no install of ours — a rollback, a re-check. An input
+    /// for the same reason as `helperEnabled`.
+    var installCancel: InstallCancelState? = nil
 
     @State private var showTestFlightTip = false
     @State private var showOrphanHint = false
@@ -337,7 +411,15 @@ struct WorkbenchRowAction: View {
             }
 
         case .installing(let stage):
-            installProgress(stage)
+            HStack(spacing: 8) {
+                installProgress(stage)
+                if let installCancel, installCancel != .cancelling {
+                    InstallCancelButton(state: installCancel, action: actions.cancelInstall)
+                }
+            }
+
+        case .interruptedInstall(let action):
+            interruptedAction(action)
 
         case .ignored:
             Text(ignoredRowLabel()).font(.callout).foregroundStyle(.tertiary)
@@ -687,16 +769,37 @@ struct WorkbenchRowAction: View {
     @ViewBuilder
     private func installProgress(_ stage: InstallStage) -> some View {
         HStack(spacing: 8) {
-            if case .downloading(let f) = stage {
+            if case .downloading(let f) = stage, installCancel != .cancelling {
                 ProgressView(value: f).frame(width: 80).controlSize(.small)
                 Text("\(Int(f * 100))%")
                     .font(.callout).foregroundStyle(.secondary)
                     .monospacedDigit().frame(width: 40, alignment: .trailing)
             } else {
                 ProgressView().controlSize(.small)
-                Text(installStageLabel(stage)).font(.callout).foregroundStyle(.secondary)
+                Text(installProgressLabel(stage, cancel: installCancel)).font(.callout).foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+        }
+    }
+
+    /// An interrupted row's way back, where its Update stands. Restore wears
+    /// the Rollback list's button (`WorkbenchRollbackRow`); Reinstall is the
+    /// row's own update run again, so it wears Update's.
+    @ViewBuilder
+    private func interruptedAction(_ action: RowActionState.InterruptedInstallAction) -> some View {
+        switch action {
+        case .restore:
+            Button("Restore") { actions.restoreInterrupted() }
+                .buttonStyle(.bordered)
+                .help(interruptedRestoreHelp(result.app.name))
+        case .reinstall:
+            Button("Reinstall") { actions.install() }
+                .buttonStyle(.borderedProminent)
+                .help(interruptedReinstallHelp(result.app.name))
+        case .noWayBack:
+            Text(interruptedRowLabel()).font(.callout).foregroundStyle(.tertiary)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .help(interruptedNoWayBackHelp(result.app.name))
         }
     }
 

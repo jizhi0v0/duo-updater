@@ -98,6 +98,13 @@ final class CLIToolsModel {
     /// each tool's lanes, so the popover row stays in its updating state instead
     /// of flashing back to "Update" between two copies.
     private(set) var updatingAll = false
+    /// The Cancel of each copy whose update DuoUpdater runs
+    /// (`InstallCancelState`): live while it waits its turn under `updateAll`
+    /// or runs what comes before its command, greyed once the command started
+    /// (its `InstallCommit`). Cleared with the claim (`release`).
+    private(set) var cancels: [CLIToolID: InstallCancelState] = [:]
+    /// Copies cancelled while `updateAll` had them queued: their lane skips them.
+    @ObservationIgnored private var cancelledWhileQueued: Set<CLIToolID> = []
     /// The latest output line of each running update.
     private(set) var progress: [CLIToolID: String] = [:]
     /// The last failed update of each install: the row's one line. Also an update
@@ -822,11 +829,13 @@ final class CLIToolsModel {
               let provider = provider(of: status)
         else { return }
         updating.insert(id)
+        cancels[id] = .available
         // Held until the re-check below has landed, not just until the command
         // exits: that check waits on the network, and releasing the row earlier
         // shows the old "outdated" verdict with a live Update button for its length.
         defer { release(id) }
-        let outcome = await run(status, with: provider)
+        // Cancelled before its command started: nothing ran, nothing to re-check.
+        guard let outcome = await run(status, with: provider) else { return }
         if Self.needsRecheck(outcome) {
             progress[id] = String(localized: "Checking…")
             await check([provider])
@@ -845,25 +854,71 @@ final class CLIToolsModel {
         queued.remove(id)
         awaitingCheck.remove(id)
         progress[id] = nil
+        cancels[id] = nil
+    }
+
+    /// A copy's Cancel. One `updateAll` has not reached leaves its lane at once;
+    /// one running what comes before its command is cancelled through the
+    /// registry (`InstallJobs.cancel`), which refuses once the command started —
+    /// no error then (§5.8): the registry logs it, and the row says it is
+    /// already finishing. Cancelled is not failed: no red line, no re-check.
+    func cancel(_ id: CLIToolID) {
+        guard cancels[id] == .available else { return }
+        if queued.contains(id) {
+            cancelledWhileQueued.insert(id)
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled before it started")
+            release(id)
+            return
+        }
+        cancels[id] = InstallCancelState.after(InstallJobs.cancel(Self.jobID(id)))
+        if cancels[id] == .cancelling { progress[id] = String(localized: "Cancelling…") }
+    }
+
+    /// The registry's id for a copy's update: apart from the app rows', whose
+    /// ids are bundle paths.
+    nonisolated static func jobID(_ id: CLIToolID) -> String {
+        "cli-tool:\(id.kind.rawValue):\(id.path)"
+    }
+
+    /// The Cancel moves with the job: greyed once the command started, live
+    /// again if it was refused and the tool may try again (`InstallJobs`).
+    private func followPhase(_ id: CLIToolID) {
+        guard let state = cancels[id] else { return }
+        cancels[id] = state.following(InstallJobs.phase(of: Self.jobID(id)))
     }
 
     /// The command alone, for a copy already in `updating`: its output goes to the
     /// row, a failure to the row and the log. What it means once the tool is
-    /// re-checked is `settle`'s.
-    private func run(_ status: CLIToolStatus, with provider: Int) async -> CLIToolUpdateOutcome {
+    /// re-checked is `settle`'s. Nil when its Cancel stopped it before the
+    /// command started.
+    private func run(_ status: CLIToolStatus, with provider: Int) async -> CLIToolUpdateOutcome? {
         let id = status.toolID
         errors[id] = nil
         errorLogs[id] = nil
         progress[id] = String(localized: "Starting…")
-        let outcome = await RequestAttribution.withApp(Self.attributionID(status)) {
-            await providers[provider].update(status) { [weak self] line in
-                Task { @MainActor in
-                    // A line can arrive after the update has finished and its progress
-                    // been cleared; writing it then would pin a stale line on the row.
-                    guard let self, self.updating.contains(id) else { return }
-                    self.progress[id] = line
+        let update = providers[provider]
+        // A job of its own (`InstallJobs.run`), so the row's Cancel reaches the
+        // update before its command, and the command's `InstallCommit` greys it.
+        let outcome = await InstallJobs.run(Self.jobID(id), phaseChanged: { [weak self] _ in
+            Task { @MainActor in self?.followPhase(id) }
+        }) { @MainActor [weak self] in
+            await RequestAttribution.withApp(Self.attributionID(status)) {
+                await update.update(status) { [weak self] line in
+                    Task { @MainActor in
+                        // A line can arrive after the update has finished and its progress
+                        // been cleared; writing it then would pin a stale line on the row.
+                        // Nor over "Cancelling…", which holds until the row settles.
+                        guard let self, self.updating.contains(id), self.cancels[id] != .cancelling else { return }
+                        self.progress[id] = line
+                    }
                 }
             }
+        }
+        // Accepted, so no command of it started after the click: whatever the
+        // provider made of the cancel — "could not start" — is no failure.
+        if cancels[id] == .cancelling {
+            Log.app.notice("\(status.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled before its command started")
+            return nil
         }
         switch outcome {
         case .updated:
@@ -954,6 +1009,7 @@ final class CLIToolsModel {
         for (status, _) in batch {
             updating.insert(status.toolID)
             queued.insert(status.toolID)
+            cancels[status.toolID] = .available
             progress[status.toolID] = String(localized: "Queued")
         }
         var lanes: [[(CLIToolStatus, Int)]] = []
@@ -987,7 +1043,12 @@ final class CLIToolsModel {
     private func runLane(_ lane: [(CLIToolStatus, Int)], _ run: BatchRun) async {
         for (status, provider) in lane {
             queued.remove(status.toolID)
-            let outcome = await self.run(status, with: provider)
+            // Cancelled while it waited: its row was released then.
+            if cancelledWhileQueued.remove(status.toolID) != nil { continue }
+            guard let outcome = await self.run(status, with: provider) else {
+                release(status.toolID)
+                continue
+            }
             if Self.needsRecheck(outcome) {
                 run.ran[provider, default: []].append((status, outcome))
             } else {

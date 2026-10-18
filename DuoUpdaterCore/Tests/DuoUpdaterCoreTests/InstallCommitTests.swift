@@ -351,3 +351,124 @@ import Testing
         #expect(cancelledA.value && cancelledB.value)
     }
 }
+
+/// `InstallJobs.run`: a host's job, cancellable through the registry only.
+/// Serialized like `InstallJobsTests`, for the same process-wide registry.
+/// The time limit is a hang guard, not a duration: a job its cancel never
+/// reaches waits for nothing, and the run must fail rather than stall.
+@Suite(.serialized, .timeLimit(.minutes(1))) struct InstallJobsRunTests {
+
+    typealias Signal = InstallCommitTests.Signal
+    typealias Flag = InstallCommitTests.Flag
+
+    /// The phases a job's callback reported, in order.
+    final class Phases: @unchecked Sendable {
+        private let lock = NSLock()
+        private var seen: [InstallJobs.Phase] = []
+        func append(_ phase: InstallJobs.Phase) { lock.withLock { seen.append(phase) } }
+        var value: [InstallJobs.Phase] { lock.withLock { seen } }
+    }
+
+    /// Cancelled while queued or preparing: the registry answers `.cancelled`,
+    /// the body sees its cancellation, and its commit never starts.
+    /// Mutation: drop `handle.set { task.cancel() }` → the body never sees the
+    /// cancel; its wait gives up and it answers false, red.
+    @Test func aCancelBeforeTheCommitStopsTheJob() async throws {
+        let id = InstallJobsTests.id()
+        let entered = Signal()
+        let committed = Flag()
+        let phases = Phases()
+        let job = Task {
+            await InstallJobs.run(id, phaseChanged: { phases.append($0) }) { () async -> Bool in
+                entered.fire()
+                // Stands for the queue, the re-check or the download.
+                await InstallCommitTests.untilCancelled()
+                do {
+                    try await InstallCommit.run("ZZFixture-swap") { committed.set() }
+                } catch {}
+                return Task.isCancelled
+            }
+        }
+        await entered.wait()
+        #expect(InstallJobs.phase(of: id) == .preparing)
+        #expect(InstallJobs.cancel(id) == .cancelled)
+        #expect(await job.value)
+        #expect(!committed.value)
+        #expect(phases.value.isEmpty)
+        #expect(InstallJobs.phase(of: id) == nil)
+    }
+
+    /// Cancelled while committing — by the registry or by the caller's own
+    /// task: `.tooLate`, and the wrap-up after the commit runs to its end with
+    /// no cancellation in sight.
+    /// Mutation: `onCancel: { task.cancel() }` instead of `cancel(id)` → the
+    /// wrap-up sees `Task.isCancelled` and its sleep is cut, red.
+    @Test func aCancelPastTheCommitLeavesTheWrapUpWhole() async throws {
+        let id = InstallJobsTests.id()
+        let inCommit = Signal()
+        let release = Signal()
+        let phases = Phases()
+        let caller = Task {
+            await InstallJobs.run(id, phaseChanged: { phases.append($0) }) { () async -> [Bool] in
+                _ = try? await InstallCommit.run("ZZFixture-swap") {
+                    inCommit.fire()
+                    await release.wait()
+                }
+                // The wrap-up: a re-check that a cancel would cut short.
+                let cancelledAfter = Task.isCancelled
+                let slept = (try? await Task.sleep(for: .milliseconds(50))) != nil
+                return [cancelledAfter, slept]
+            }
+        }
+        await inCommit.wait()
+        #expect(phases.value == [.committing])
+        #expect(InstallJobs.cancel(id) == .tooLate(committing: "ZZFixture-swap"))
+        caller.cancel()
+        release.fire()
+        let wrapUp = await caller.value
+        #expect(wrapUp == [false, true])
+        #expect(phases.value == [.committing])
+    }
+
+    /// The caller's cancellation before the commit still stops the job: it
+    /// goes through the registry, which is the job's only canceller.
+    @Test func theCallersCancelBeforeTheCommitStopsTheJob() async throws {
+        let id = InstallJobsTests.id()
+        let entered = Signal()
+        let caller = Task {
+            await InstallJobs.run(id) { () async -> Bool in
+                entered.fire()
+                await InstallCommitTests.untilCancelled()
+                return Task.isCancelled
+            }
+        }
+        await entered.wait()
+        caller.cancel()
+        #expect(await caller.value)
+    }
+
+    /// A commit that threw reports the job preparing again.
+    /// Mutation: drop `changed?(.preparing)` in `endCommit` → red.
+    @Test func aCommitThatDidNotLandReportsPreparingAgain() async {
+        let id = InstallJobsTests.id()
+        let phases = Phases()
+        await InstallJobs.run(id, phaseChanged: { phases.append($0) }) {
+            _ = try? await InstallCommit.run("ZZFixture-swap") { throw InstallCommitTests.ZZRefused() }
+        }
+        #expect(phases.value == [.committing, .preparing])
+    }
+}
+
+extension InstallCommitTests {
+    struct ZZRefused: Error {}
+
+    /// Stands for the queue, the re-check or the download: waits until the
+    /// task is cancelled — or 10 s, so a cancel that never arrives fails the
+    /// test (the caller reads `Task.isCancelled` after) instead of hanging it.
+    static func untilCancelled() async {
+        for _ in 0..<2000 {
+            if Task.isCancelled { return }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+    }
+}

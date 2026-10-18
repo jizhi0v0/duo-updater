@@ -39,13 +39,16 @@ struct MenuContentView: View {
     }
 
     private var visible: [UpdateResult] {
+        // The apps an interrupted install left gone first: they have no scanned
+        // row, and the way back is the most urgent thing the list offers.
+        let standIns = model.interruptedStandIns
         // While searching, look across every app (not just pending ones): typing a
         // name should find an up-to-date app too, not come back empty.
         if isSearching {
             let query = SearchMatch.trimmed(searchText)
-            return model.results.filter { matches($0, query) }
+            return (standIns + model.results).filter { matches($0, query) }
         }
-        return showAll ? model.results
+        return standIns + (showAll ? model.results
             : model.results.filter {
                 // The same predicate the menu-bar badge counts, so what the list
                 // shows and what the badge says can't drift apart — everything below
@@ -63,7 +66,10 @@ struct MenuContentView: View {
                     // before the row jumps back as "Relaunching…".
                     || model.installing[$0.id] != nil
                     || model.relaunching.contains($0.id)
-            }
+                    // Cut off by an earlier update: it offers Restore whatever
+                    // its check says (`RowActionState.interruptedInstall`).
+                    || model.interruptedInstall(for: $0) != nil
+            })
     }
 
     /// Match the query against an app's name and bundle id (so "com.google" finds
@@ -581,7 +587,19 @@ struct MenuContentView: View {
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .help(Text(statusLine))
-                if model.canUpdateAll {
+                if model.isInstallingAll {
+                    // Update All's own slot while it runs (§6). Disabled once
+                    // clicked, saying so, until the batch has ended.
+                    Button(model.isCancellingAll ? String(localized: "Cancelling…") : String(localized: "Cancel All")) {
+                        model.cancelInstallAll()
+                    }
+                    .lineLimit(1)
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .disabled(model.isCancellingAll)
+                    .help("Stop Update All: updates that haven’t started are dropped, and ones already installing finish")
+                } else if model.canUpdateAll {
                     Button("Update All") { Task { await model.installAll() } }
                         .lineLimit(1)
                         .controlSize(.small)
@@ -1303,11 +1321,19 @@ private struct AppRow: View {
         nameColumnDemand <= MenuLayoutMetrics.appRowFitBudget - width - 4
     }
 
+    /// What the install's Cancel takes beside the readout: its glyph and the 4pt
+    /// between. Nothing once the cancel was accepted — "Cancelling…" replaces
+    /// the readout and the glyph is gone (`PopoverRowAction.installCancel`).
+    private var cancelReserve: CGFloat {
+        guard let cancel = model.installCancels[result.id], cancel != .cancelling else { return 0 }
+        return InstallCancelButton.width + 4
+    }
+
     /// How much of a download readout the name leaves room for. Widest first —
     /// the number is worth keeping as long as it fits, so the bar is what goes
     /// before the percentage does.
     private var downloadReadout: DownloadReadout {
-        for style in DownloadReadout.allCases where nameFits(besideReadout: style.contentWidth) {
+        for style in DownloadReadout.allCases where nameFits(besideReadout: style.contentWidth + cancelReserve) {
             return style
         }
         return .ringOnly
@@ -1318,10 +1344,10 @@ private struct AppRow: View {
     /// "Extracting", and that difference decides the case for a long name.
     private func showsStageLabel(_ stage: InstallStage) -> Bool {
         let label = NSAttributedString(
-            string: installStageLabel(stage),
+            string: installProgressLabel(stage, cancel: model.installCancels[result.id]),
             attributes: [.font: NSFont.preferredFont(forTextStyle: .caption2)]
         ).size().width
-        return nameFits(besideReadout: max(64, DownloadReadout.spinner + 4 + label))
+        return nameFits(besideReadout: max(64, DownloadReadout.spinner + 4 + label) + cancelReserve)
     }
 
     /// The width the trailing slot reserves. 64pt is the shared one every button
@@ -1406,13 +1432,16 @@ private struct AppRow: View {
                             model.surfaceWindow(sceneID: SettingsView.windowID)
                         },
                         signInToAppleDeveloper: { model.signInToAppleDeveloper() },
+                        cancelInstall: { model.cancelInstall(result) },
+                        restoreInterrupted: { Task { await model.restoreInterrupted(result) } },
                         retryPausedUntil: model.gitHubPausedUntil),
                     runningVersion: model.restartFromVersion(result.id),
                     helperEnabled: model.helperEnabled,
                     keepBackups: model.prefs.keepBackups,
                     downloadReadout: { downloadReadout },
                     showsStageLabel: showsStageLabel,
-                    testFlightUnboundedReason: model.testFlightUnboundedReason)
+                    testFlightUnboundedReason: model.testFlightUnboundedReason,
+                    installCancel: model.installCancels[result.id])
                     .frame(minWidth: trailingSlot, alignment: .trailing)
             }
             if let installError {
@@ -1619,6 +1648,14 @@ private struct AppRow: View {
     @ViewBuilder
     private var versionLine: some View {
         switch model.versionLineState(for: result) {
+        case .interrupted(let oldVersion):
+            // The version from before the cut-off update: the copy on disk may
+            // be gone or broken, and Restore puts this one back.
+            Text(interruptedVersionLine(oldVersion))
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         case .stagedRelaunch(let staged):
             // Relaunch applies this staged build, which `actionableStaged` guarantees
             // is the latest — so the line is a plain installed → staged. (A staged

@@ -279,7 +279,8 @@ import Foundation
 
     // MARK: - Stopping before the next item
 
-    /// A cancelled `CLIToolRows.apply` starts no further tool update.
+    /// A cancelled `CLIToolRows.apply` starts no further tool update, and
+    /// counts the one it did not start as cancelled — and as nothing else.
     ///
     /// Mutation: drop the `Task.isCancelled` check → the provider is called.
     @Test func cancelledToolUpdatesStartNoFurtherTool() async {
@@ -295,7 +296,9 @@ import Foundation
         task.cancel()
         let tally = await task.value
         #expect(calls.paths.isEmpty)
-        #expect(tally == Install.Tally())
+        var cancelledOnly = Install.Tally()
+        cancelledOnly.record(.cancelled)
+        #expect(tally == cancelledOnly)
     }
 
     /// A cancelled `Install.apply` does not start the next item: it is counted

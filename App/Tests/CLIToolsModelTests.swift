@@ -169,6 +169,12 @@ struct CLIToolsModelTests {
         private var running = 0
         /// The progress callback of the latest call, kept past its return.
         private(set) var lastProgress: (@Sendable (String) -> Void)?
+        /// Run the "command" as the real runner does, inside `InstallCommit` —
+        /// held at `commitGate` while it runs — and answer as it does when a
+        /// cancel stops it first ("could not start").
+        var commits = false
+        var commitGate: Gate?
+        func setCommits(gate: Gate?) { commits = true; commitGate = gate }
 
         func set(_ id: CLIToolID, _ outcome: CLIToolUpdateOutcome) { outcomes[id] = outcome }
         func setGate(_ gate: Gate?) { self.gate = gate }
@@ -185,6 +191,15 @@ struct CLIToolsModelTests {
             for line in linesBeforeReturn { progress(line) }
             await gate?.wait()
             await gates[status.toolID]?.wait()
+            if commits {
+                let held = commitGate
+                do {
+                    try await InstallCommit.run("update command") { await held?.wait() }
+                } catch {
+                    running -= 1
+                    return .failed(message: "could not start: \(error)", output: "")
+                }
+            }
             // Long enough that a second update started alongside this one would be
             // counted as running at the same time.
             try? await Task.sleep(for: .milliseconds(20))
@@ -549,6 +564,105 @@ struct CLIToolsModelTests {
         try? await Task.sleep(for: .milliseconds(20))
 
         #expect(model.progress[Self.id(Self.native)] == nil)
+    }
+
+    // MARK: Cancel
+
+    /// A path no other case updates. The jobs are `InstallJobs`', which is
+    /// process-wide, and these cases run in parallel with the rest of the
+    /// suite: another case's update of the same path would register over
+    /// this one's job.
+    static func ownPath() -> String { "/Users/u/.local/bin/claude-\(UUID().uuidString)" }
+
+    /// Cancelled before its command started: the command never runs, and the
+    /// row is not failed — no red line, no log, no re-check — and is released.
+    /// Mutation: drop the `cancels[id] == .cancelling` return in `run` → the
+    /// "could not start" failure lands on the row, red.
+    @Test(.timeLimit(.minutes(1))) func aCopyCancelledBeforeItsCommandIsNotFailed() async {
+        let path = Self.ownPath()
+        let id = Self.id(path)
+        let check = FakeCheck([(Self.report(Self.status(path)), nil)])
+        let updater = FakeUpdater()
+        let gate = Gate()
+        await updater.setGate(gate)
+        await updater.setCommits(gate: nil)
+        let model = Self.model(check: check, updater: updater)
+        await model.refresh()
+        let checksBefore = await check.calls
+
+        let running = Task { await model.update(id) }
+        await until { await gate.arrived == 1 }
+        #expect(model.cancels[id] == .available)
+        model.cancel(id)
+        #expect(model.cancels[id] == .cancelling)
+        #expect(model.progress[id] == "Cancelling…")
+        await gate.open()
+        await running.value
+
+        #expect(model.errors[id] == nil)
+        #expect(model.errorLogs[id] == nil)
+        #expect(model.justUpdated[id] == nil)
+        #expect(model.updating.isEmpty)
+        #expect(model.cancels.isEmpty)
+        #expect(await check.calls == checksBefore)
+    }
+
+    /// Once the command started its Cancel greys out, a click does nothing,
+    /// and the update finishes as any other.
+    /// Mutation: drop the `phaseChanged` hop in `run` → the Cancel stays live,
+    /// red.
+    @Test(.timeLimit(.minutes(1))) func aCopyWhoseCommandStartedCannotBeCancelled() async {
+        let path = Self.ownPath()
+        let id = Self.id(path)
+        let check = FakeCheck([(Self.report(Self.status(path)), nil)])
+        let updater = FakeUpdater()
+        await updater.set(id, .updated(version: "2.1.285"))
+        let commitGate = Gate()
+        await updater.setCommits(gate: commitGate)
+        let model = Self.model(check: check, updater: updater)
+        await model.refresh()
+
+        let running = Task { await model.update(id) }
+        await until { await commitGate.arrived == 1 }
+        await until { model.cancels[id] == .committing }
+        model.cancel(id)
+        #expect(model.cancels[id] == .committing)
+        await commitGate.open()
+        await running.value
+
+        #expect(model.justUpdated[id] == "2.1.285")
+        #expect(model.errors[id] == nil)
+    }
+
+    /// A copy waiting its turn under Update All is cancelled at once: its row
+    /// is released, and its lane skips it.
+    /// Mutation: drop the `cancelledWhileQueued` skip in `runLane` → it runs,
+    /// red.
+    @Test(.timeLimit(.minutes(1))) func aCopyCancelledWhileQueuedIsSkipped() async {
+        let updater = FakeUpdater()
+        let gate = Gate()
+        await updater.setGate(gate)
+        let npm = FakeProvider(
+            kind: .npm,
+            checker: FakeCheck([(Self.report(.npm, [Self.status(Self.pnpmCLI, kind: .npm), Self.status(Self.tsx, kind: .npm)]), nil)]),
+            updater: updater)
+        let model = Self.model([npm])
+        await model.refresh()
+
+        let all = Task { await model.updateAll() }
+        await until { await gate.arrived == 1 }
+        let second = Self.id(Self.tsx, .npm)
+        #expect(model.cancels[second] == .available)
+        model.cancel(second)
+        #expect(!model.updating.contains(second))
+        #expect(model.queued.isEmpty)
+        #expect(model.cancels[second] == nil)
+        await gate.open()
+        await all.value
+
+        #expect(await updater.calls == [Self.id(Self.pnpmCLI, .npm)])
+        #expect(model.errors[second] == nil)
+        #expect(model.updating.isEmpty)
     }
 
     // MARK: updateAll

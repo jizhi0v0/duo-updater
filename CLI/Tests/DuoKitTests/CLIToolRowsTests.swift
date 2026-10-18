@@ -172,6 +172,27 @@ import DuoUpdaterCore
         #expect(out.all == ["→ uv  \(Self.uv.path)", "   updated: 1.0.0 → 1.1.0"])
     }
 
+    /// A cancel before a tool started: none of them runs, and each is counted
+    /// as cancelled — not dropped from the summary, and not a failure.
+    /// Mutation: `break` without recording them → `cancelled == 0`, red.
+    @Test func toolsNotStartedAfterACancelAreCountedCancelled() async {
+        let calls = Calls()
+        let provider = ScriptedProvider(kind: .uv, calls: calls) { _ in .updated(version: "1.1.0") }
+        let codex = ScriptedProvider(kind: .codex, calls: calls) { _ in .updated(version: "1.1.0") }
+        let out = Lines()
+        let tally = await Task { () -> Install.Tally in
+            withUnsafeCurrentTask { $0?.cancel() }
+            var tally = Install.Tally()
+            await CLIToolRows.apply([Self.uv, Self.codexCLI], providers: [provider, codex], json: false,
+                                    tally: &tally, out: { out.add($0) }, err: { out.add($0) })
+            return tally
+        }.value
+        #expect(calls.paths.isEmpty)
+        #expect(tally.cancelled == 2)
+        #expect(tally.failed == 0)
+        #expect(out.all.contains("   cancelled before it started — not updated"))
+    }
+
     @Test func outcomesMapToInstallsOwn() {
         #expect(CLIToolRows.result(of: .busy("rustup is running"), before: "1", after: nil, exit: nil)
             == CLIToolRows.Result(outcome: .skipped, reason: "rustup is running"))

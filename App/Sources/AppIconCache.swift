@@ -215,6 +215,17 @@ enum AppIconCache {
     /// unchanged, so the stale icon would otherwise persist until app restart.
     static func invalidate(_ path: String) { cache.removeObject(forKey: path as NSString) }
 
+    /// Draw `path`'s icon from the bundle at `source`: for an app an
+    /// interrupted install left gone, whose row has nothing at its own path to
+    /// read one from (`InstallJournal.InterruptedInstall.iconSource`). Stamped
+    /// as a missing bundle, so the app's own icon replaces it once a copy is
+    /// back at `path` (`revalidate`), or at once after a restore (`invalidate`).
+    static func standIn(for path: String, from source: String) {
+        guard BundleStamp.read(path) == nil else { return }
+        cache.setObject(Entry(image: NSWorkspace.shared.icon(forFile: source), stamp: nil), forKey: path as NSString)
+        revision.value &+= 1
+    }
+
     /// The real App Store.app icon, used as the source tag for store-managed apps.
     /// Resolved once (the path is fixed) and shared through the same icon cache.
     static let appStore = icon(for: "/System/Applications/App Store.app")

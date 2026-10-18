@@ -123,7 +123,13 @@ struct WorkbenchWindowView: View {
     ///
     /// Brew-managed casks are excluded here: they live under the Brew tree instead
     /// (the "cask 只在此面板" rule), so they never appear in both places.
-    private var apps: [UpdateResult] { sortedResults().apps }
+    ///
+    /// The apps an interrupted install left gone come first: the scan has no
+    /// row for them (`AppListModel.interruptedStandIns`).
+    private var apps: [UpdateResult] {
+        let standIns = model.interruptedStandIns
+        return standIns.isEmpty ? sortedResults().apps : standIns + sortedResults().apps
+    }
 
     /// Brew-managed casks, updates first then alphabetical — the cask half of the
     /// Brew tree. (The formula half is `model.brewFormulae` — all top-level leaves.)
@@ -286,6 +292,7 @@ struct WorkbenchWindowView: View {
     /// not the live `selection`, so fast arrow-key scrubbing doesn't rebuild it.
     private var selected: UpdateResult? {
         model.results.first { $0.id == detailSelection }
+            ?? model.interruptedStandIns.first { $0.id == detailSelection }
     }
 
     /// The Brew-tree formula selected, when the selection is a formula row (tagged
@@ -1612,6 +1619,14 @@ private struct WorkbenchSidebarRow: View {
     @ViewBuilder
     private var subtitle: some View {
         switch versionLineState {
+        case .interrupted(let oldVersion):
+            // The version from before the cut-off update: the copy on disk may
+            // be gone or broken, and Restore puts this one back.
+            Text(interruptedVersionLine(oldVersion))
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         case .stagedRelaunch(let staged):
             // The app's own updater already has the latest downloaded; Relaunch
             // just swaps to it. `actionableStaged` (upstream of this state)
@@ -2635,9 +2650,12 @@ private struct DetailHeader: View {
                             model.surfaceWindow(sceneID: SettingsView.windowID)
                         },
                         signInToAppleDeveloper: { model.signInToAppleDeveloper() },
+                        cancelInstall: { model.cancelInstall(result) },
+                        restoreInterrupted: { Task { await model.restoreInterrupted(result) } },
                         retryPausedUntil: model.gitHubPausedUntil),
                     helperEnabled: model.helperEnabled,
-                    testFlightUnboundedReason: model.testFlightUnboundedReason)
+                    testFlightUnboundedReason: model.testFlightUnboundedReason,
+                    installCancel: model.installCancels[result.id])
                 if let url = changelogURL {
                     Link(destination: url) {
                         Label("Open page", systemImage: "safari")
@@ -2730,6 +2748,10 @@ private struct DetailHeader: View {
         // pending-batch-restart branch, so it could show "up to date" on a row the
         // action button beside it already offered Restart for (#289).
         switch model.versionLineState(for: result) {
+        case .interrupted(let oldVersion):
+            Text(interruptedVersionLine(oldVersion))
+                .font(.callout).foregroundStyle(.orange)
+                .lineLimit(1).minimumScaleFactor(0.75)
         case .stagedRelaunch(let staged):
             let line = result.stagedRelaunchLine(staged)
             Text("\(line.from)  →  \(line.to)")

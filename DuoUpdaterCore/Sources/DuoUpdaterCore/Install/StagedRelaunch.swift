@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// Apply a build the app's own updater has staged (the ShipIt "Relaunch to
@@ -56,6 +57,34 @@ public enum StagedRelaunch {
     /// After our own launch (swap-on-launch), how long to let the updater's own
     /// open of the new build register before the fallback launches it.
     public static let settleTicks = 15
+    /// How long, from the quit request, an app that has closed every window it
+    /// had on screen may take to exit before the wait gives up anyway (~30 s).
+    ///
+    /// The grace above is a guess that "still up after 5 s" means a save prompt.
+    /// It guesses wrong for an app that is simply slow to exit: ChatGPT on the
+    /// loaded mini, 2026-10-18, exited 5.41–6.01 s after the request in 10 of 10
+    /// rounds, its window gone after 0.35–0.55 s. Past the grace, such an app is
+    /// given this long instead (`closedItsWindows`). The signal only ever
+    /// lengthens the wait, by at most this much, and the wait still ends the
+    /// same way: if it misreads a prompt as a slow quit, the cost is a later
+    /// `.wontQuit`, never a different one.
+    public static let slowQuitTicks = 150
+
+    /// Whether an app still running after the quit request is on its way out:
+    /// it had windows on screen when asked, and has none now.
+    ///
+    /// On-screen windows, not every window the server lists: AppKit keeps a
+    /// closed window in `.optionAll` (offscreen), measured with a test app
+    /// 2026-10-18. Measured the same day, a quit prompt is always on screen: a
+    /// save sheet un-hides and un-minimizes its window, and a windowless alert
+    /// is a window of its own. An app with nothing on screen when asked (hidden,
+    /// minimized, on another Space) gives no reading, and the grace stands.
+    /// UNVERIFIED: the other-Space case on a real Space switch. A switch during
+    /// the wait that takes the count to zero only lengthens the wait, and a
+    /// prompt brought back on screen ends it at once.
+    public static func closedItsWindows(atQuit: Int, now: Int) -> Bool {
+        atQuit > 0 && now == 0
+    }
 
     /// How long a quit we asked for may still be answered. The menu-bar app's
     /// quit hand-off stays armed this long after `.wontQuit`; `duo restart` in a
@@ -121,6 +150,8 @@ public enum StagedRelaunch {
         public var relaunch: @Sendable (_ activates: Bool) async -> Bool
         /// What `ParkedInstallerProbe.isAlive` asks.
         public var installer: ParkedInstallerProbe.System
+        /// The app's normal-level windows on screen now, every instance.
+        public var onScreenWindows: @Sendable () -> Int
 
         public init(
             tick: @escaping @Sendable () async -> Void,
@@ -129,7 +160,8 @@ public enum StagedRelaunch {
             diskVersion: @escaping @Sendable () async -> VersionSide,
             awaitBundleProcessesGone: @escaping @Sendable () async -> Void,
             relaunch: @escaping @Sendable (_ activates: Bool) async -> Bool,
-            installer: ParkedInstallerProbe.System
+            installer: ParkedInstallerProbe.System,
+            onScreenWindows: @escaping @Sendable () -> Int = { 0 }
         ) {
             self.tick = tick
             self.isRunning = isRunning
@@ -138,6 +170,7 @@ public enum StagedRelaunch {
             self.awaitBundleProcessesGone = awaitBundleProcessesGone
             self.relaunch = relaunch
             self.installer = installer
+            self.onScreenWindows = onScreenWindows
         }
 
         public static func live(for app: InstalledApp) -> System {
@@ -151,7 +184,10 @@ public enum StagedRelaunch {
                 },
                 awaitBundleProcessesGone: { await AppRestarter.awaitBundleProcessesGone(app) },
                 relaunch: { await AppRestarter.relaunchAfterSwap(app, activates: $0) },
-                installer: .live)
+                installer: .live,
+                onScreenWindows: {
+                    onScreenWindowCount(pids: Set(AppRestarter.runningInstances(of: app).map(\.processIdentifier)))
+                })
         }
     }
 
@@ -188,6 +224,9 @@ public enum StagedRelaunch {
         var installerProbe = await ParkedInstallerProbe.find(
             for: app, staged: staged, system: system.installer)
         Log.app.notice("relaunch-staged: quitting \(app.name, privacy: .public) (\(old.text(withBuild: true), privacy: .public)) — \(appliesOnLaunch ? "reopening it so its updater applies on launch" : "letting its own updater swap & relaunch (no reopen)", privacy: .public)\(installerProbe.map { ", watching installer \(String(describing: $0.target))" } ?? "", privacy: .public)")
+        // Before the request: what it had on screen is the baseline for telling a
+        // slow exit from a prompt (`closedItsWindows`).
+        let windowsAtQuit = system.onScreenWindows()
         system.terminate()
 
         // Wait for the updater. Success = on-disk version advances past `old`.
@@ -211,6 +250,8 @@ public enum StagedRelaunch {
         // `quitGraceTicks` — which only a patience past the grace allows. Before
         // the quit the loop is bounded by the `.wontQuit` bail instead.
         var swapDeadline = maxTicks
+        var slowQuitLogged = false
+        var slowQuitNoted = false
         var tick = -1
         while true {
             tick += 1
@@ -240,13 +281,23 @@ public enum StagedRelaunch {
                     _ = await system.relaunch(wasFrontmost)
                     launchedAtTick = tick
                 }
+            } else if !everQuit && tick >= quitGraceTicks && tick < slowQuitTicks
+                        && closedItsWindows(atQuit: windowsAtQuit, now: system.onScreenWindows()) {
+                // Its windows are gone: exiting slowly, not held by a prompt. Keep
+                // waiting; a window back on screen ends this branch next tick.
+                if !slowQuitLogged {
+                    slowQuitLogged = true
+                    Log.app.notice("relaunch-staged: \(app.name, privacy: .public) closed its windows but is still exiting — waiting up to \(slowQuitTicks, privacy: .public) ticks for it")
+                }
             } else if !everQuit && tick >= quitPatience.ticks {
                 // Never quit → a save prompt (or similar) is keeping it up; the swap
                 // can't start, so don't block the long window on it. The caller
                 // decides what to arm for a quit that completes later.
                 Log.app.notice("relaunch-staged: \(app.name, privacy: .public) won't quit (likely a save prompt) — leaving it staged")
                 break
-            } else if !everQuit && tick == quitGraceTicks, let onSlowQuit = quitPatience.onSlowQuit {
+            } else if !everQuit && tick >= quitGraceTicks && !slowQuitNoted,
+                      let onSlowQuit = quitPatience.onSlowQuit {
+                slowQuitNoted = true
                 Log.app.notice("relaunch-staged: \(app.name, privacy: .public) hasn't quit after the grace (likely a save prompt) — waiting up to \(quitPatience.ticks, privacy: .public) ticks for it")
                 onSlowQuit()
             }
@@ -291,6 +342,19 @@ public enum StagedRelaunch {
             reappearedWithoutLanding: reappearedWithoutLanding)
         Log.app.notice("relaunch-staged: \(app.name, privacy: .public) applied=\(applied, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)")
         return Ending(outcome: outcome, everQuit: everQuit, reopenFailed: reopenFailed)
+    }
+
+    /// Normal-level (layer 0) windows on screen owned by `pids`. Needs no
+    /// permission: only window titles do.
+    public static func onScreenWindowCount(pids: Set<pid_t>) -> Int {
+        guard !pids.isEmpty,
+              let list = CGWindowListCopyWindowInfo(
+                [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        else { return 0 }
+        return list.filter {
+            guard let owner = $0[kCGWindowOwnerPID as String] as? pid_t else { return false }
+            return pids.contains(owner) && ($0[kCGWindowLayer as String] as? Int) == 0
+        }.count
     }
 
     /// Both version fields read straight from the bundle's `Info.plist` — not

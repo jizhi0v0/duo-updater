@@ -45,6 +45,8 @@ import Testing
         // Installer probe state.
         var job: ParkedInstallerProbe.LoadedJob?
         var jobGoneAt: Int?
+        /// The app's on-screen windows at a tick (0 is before the quit request).
+        var windows: (Int) -> Int = { _ in 0 }
 
         init(disk: VersionSide, new: VersionSide) { self.disk = disk; self.new = new }
 
@@ -79,7 +81,8 @@ import Testing
             installer: ParkedInstallerProbe.System(
                 isAlive: { _ in false },
                 loadedJob: { _ in w.job },
-                sparkleInstallerPIDs: { _ in [] }))
+                sparkleInstallerPIDs: { _ in [] }),
+            onScreenWindows: { w.windows(w.now) })
     }
 
     private func run(_ w: World, _ staged: StagedSelfUpdate?) async -> StagedRelaunch.Ending {
@@ -135,6 +138,72 @@ import Testing
         #expect(ending.everQuit == false)
         #expect(w.now == StagedRelaunch.quitGraceTicks + 1)
         #expect(w.launches.isEmpty)
+    }
+
+    /// The mini 2026-10-18: ChatGPT closed its window ~0.4 s after the request and
+    /// exited at ~5.8 s, just past the grace. Its windows being gone means it is
+    /// exiting, so the wait goes on and the swap is seen to land. Mutation: drop
+    /// the `closedItsWindows` branch → `.wontQuit` at the grace, red.
+    @Test func anAppThatClosedItsWindowsIsWaitedForPastTheGrace() async {
+        let w = World(disk: old, new: new)
+        w.windows = { $0 < 2 ? 1 : 0 }
+        w.quitsAt = 29
+        w.landsAt = 31
+        w.updaterRelaunches = false
+        let ending = await run(w, staged(.sparkle))
+        #expect(ending.outcome == .applied)
+        #expect(ending.everQuit)
+        #expect(w.launches.count == 1 && w.launches.allSatisfy { $0 >= 31 }, "reopened after the landing, by the fallback")
+    }
+
+    /// A window still on screen past the grace is a prompt: the same 5 s bail
+    /// as before, however soon the app would have exited.
+    @Test func aWindowStillOnScreenEndsAtTheGrace() async {
+        let w = World(disk: old, new: new)
+        w.windows = { _ in 1 }
+        w.quitsAt = 29
+        let ending = await run(w, staged(.sparkle))
+        #expect(ending.outcome == .wontQuit)
+        #expect(w.now == StagedRelaunch.quitGraceTicks + 1)
+    }
+
+    /// Nothing on screen when asked (hidden, minimized, another Space): no
+    /// reading, so the grace stands.
+    @Test func noWindowsAtTheRequestGivesNoReading() async {
+        let w = World(disk: old, new: new)
+        w.windows = { _ in 0 }
+        w.quitsAt = 29
+        let ending = await run(w, staged(.sparkle))
+        #expect(ending.outcome == .wontQuit)
+        #expect(w.now == StagedRelaunch.quitGraceTicks + 1)
+    }
+
+    /// Windows closed, then a prompt comes up on screen: bail on that tick, not
+    /// at `slowQuitTicks`.
+    @Test func aPromptAfterTheWindowsClosedEndsTheWaitAtOnce() async {
+        let w = World(disk: old, new: new)
+        w.windows = { $0 < 2 ? 1 : ($0 < 40 ? 0 : 1) }
+        w.quitsAt = nil
+        let ending = await run(w, staged(.sparkle))
+        #expect(ending.outcome == .wontQuit)
+        #expect(w.now == 40)
+    }
+
+    /// Windows gone but the process never exits: the extension is bounded.
+    @Test func aWindowlessAppThatNeverExitsEndsAtTheSlowQuitBound() async {
+        let w = World(disk: old, new: new)
+        w.windows = { $0 < 2 ? 1 : 0 }
+        w.quitsAt = nil
+        let ending = await run(w, staged(.sparkle))
+        #expect(ending.outcome == .wontQuit)
+        #expect(w.now == StagedRelaunch.slowQuitTicks + 1)
+        #expect(w.launches.isEmpty)
+    }
+
+    @Test func closedItsWindowsNeedsWindowsAtTheRequest() {
+        #expect(StagedRelaunch.closedItsWindows(atQuit: 1, now: 0))
+        #expect(!StagedRelaunch.closedItsWindows(atQuit: 0, now: 0))
+        #expect(!StagedRelaunch.closedItsWindows(atQuit: 2, now: 1))
     }
 
     /// ShipIt: back up on the old bundle means the swap was called off — stop

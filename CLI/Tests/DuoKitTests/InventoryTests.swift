@@ -147,6 +147,9 @@ private let installed = [
         }
 
         let scanned = await Inventory.scanIfFinished(timeout: .milliseconds(200), detection: .off) { _ in
+            // offpool-lint:allow — this closure is the scan `BoundedScan.result`
+            // runs on its own `Thread`, which is the thread the test wedges on
+            // purpose; it parks no cooperative-pool thread.
             release.wait()
             scanFinishedFirst.set()
             return []
@@ -176,6 +179,8 @@ private let installed = [
         let release = DispatchSemaphore(value: 0)
         defer { release.signal() }
         let abandoned = await Inventory.scanIfFinished(timeout: .milliseconds(200), detection: .off) { _ in
+            // offpool-lint:allow — as above: the scan's own `Thread`, wedged on
+            // purpose, not a pool thread.
             release.wait()
             return []
         }

@@ -114,14 +114,11 @@ struct AutofixModelBenchmark {
         return (parts[0], parts.count > 1 ? parts[1] : nil)
     }
 
-    static func git(_ args: [String]) throws -> String {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        p.arguments = ["-C", repo.path] + args
-        let out = Pipe(); p.standardOutput = out
-        p.standardError = FileHandle.nullDevice
-        try p.run(); p.waitUntilExit()
-        return String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    static func git(_ args: [String]) async throws -> String {
+        let outcome = try await ChildProcess.run(
+            "/usr/bin/git", ["-C", repo.path] + args,
+            standardError: .discard, onCancel: .terminateChild)
+        return String(decoding: outcome.standardOutput, as: UTF8.self)
     }
 
     /// `ClaudeCLI.ask`, keeping the whole JSON document for its cost, tokens and
@@ -204,7 +201,7 @@ struct AutofixModelBenchmark {
                 let revert = RecipeLiteralEditor.Edit(
                     source: broken.source, entryPattern: broken.entryPattern,
                     itemPatterns: broken.itemPatterns)
-                let then = try git(["show", "\(c.fixCommit)^1:\(familyPath)"])
+                let then = try await git(["show", "\(c.fixCommit)^1:\(familyPath)"])
                 let family: String
                 if (try? RecipeLiteralEditor.apply(
                     revert, toChangelogAt: location.index, count: location.count,

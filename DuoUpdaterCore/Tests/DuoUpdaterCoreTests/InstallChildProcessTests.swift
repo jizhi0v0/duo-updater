@@ -784,15 +784,16 @@ import Testing
 
     // MARK: - Backups
 
-    /// A cancelled backup still stores a complete copy — its `ditto` ran to its
-    /// end. A rollback cancelled before it starts stops at its point of no return
-    /// (`InstallCommit`) and leaves the live app as it is; run uncancelled, it
-    /// puts the copy back.
+    /// A cancelled backup stores nothing: it comes before the install's commit
+    /// point, so its `ditto` is stopped (here: never started) and its staging
+    /// removed — plans/update-cancellation.md §2.3 D2. A rollback cancelled
+    /// before it starts stops at its point of no return (`InstallCommit`) and
+    /// leaves the live app as it is; run uncancelled, it puts the copy back.
     ///
-    /// Mutations: `BackupStore.runDitto` becomes `.terminateChild` → `save` throws
-    /// `copyFailed` with nothing stored; drop the restore's `InstallCommit` → the
-    /// cancelled rollback swaps, red.
-    @Test func aCancelledBackupAndRollbackStillComplete() async throws {
+    /// Mutations: drop the `!ditto.ok, Task.isCancelled` branch in
+    /// `BackupStore.write` → `save` throws `copyFailed`, red; drop the restore's
+    /// `InstallCommit` → the cancelled rollback swaps, red.
+    @Test func aCancelledBackupKeepsNothingAndACancelledRollbackStopsAtItsCommit() async throws {
         let fm = FileManager.default
         let top = try scratch("backup")
         defer { try? fm.removeItem(at: top) }
@@ -800,10 +801,17 @@ import Testing
         let app = try bundle(at: top.appendingPathComponent("ZZFixture.app"), mode: 0o755, marker: "v1")
 
         try await BackupStore.$rootOverride.withValue(store) {
-            let saved = try await cancelledBeforeStart {
-                try await BackupStore.save(
-                    appPath: app, key: "zzfixture", version: "1.0", bundleID: nil)
+            await #expect(throws: CancellationError.self) {
+                _ = try await cancelledBeforeStart {
+                    try await BackupStore.save(
+                        appPath: app, key: "zzfixture", version: "1.0", bundleID: nil)
+                }
             }
+            #expect(BackupStore.backup(forKey: "zzfixture") == nil)
+            #expect(((try? fm.contentsOfDirectory(atPath: store.path)) ?? []).isEmpty)
+
+            let saved = try await BackupStore.save(
+                appPath: app, key: "zzfixture", version: "1.0", bundleID: nil)
             #expect(fm.fileExists(atPath: saved.bundlePath.appendingPathComponent("Contents/v1").path))
 
             // The update lands.

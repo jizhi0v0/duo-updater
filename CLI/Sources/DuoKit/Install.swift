@@ -858,14 +858,16 @@ public enum Install {
         // new version on disk — `applied` is exactly the signal for that, and is
         // more precise than "the call didn't throw" (#404 review #2).
         var attempted: [Attempted] = []
-        for item in plan {
+        for (index, item) in plan.enumerated() {
             // `SignalGate`'s first signal: the item in flight finishes, the next is
             // not started. Without this a cancelled task walks every remaining
             // item anyway (read from the code, not run): its re-check asks a
             // cancelled network and the row reads "failed", or — when the re-check
             // still confirms — it can get as far as clearing the app's staged
             // update and replacing its rollback point before the coordinator's
-            // own cancellation check refuses the install.
+            // own cancellation check refuses the install. The items not started
+            // are reported as cancelled, so the summary and the `--json` stream
+            // still account for every item the user approved.
             //
             // Unlike a restart or a tool update (`SignalGate.finishing`), the item
             // in flight is NOT shielded here: `coordinator.perform` must stay
@@ -873,9 +875,19 @@ public enum Install {
             // and what follows it below is synchronous bookkeeping — the row,
             // the tally — with nothing a cancelled task changes. The steps inside
             // `perform` after its commit point are Core's (#1404, `InstallCommit`).
-            if Task.isCancelled { break }
+            if Task.isCancelled {
+                for rest in plan[index...] {
+                    if !json { print("→ \(rest.result.app.name)") }
+                    emitCancelled(rest.result.app, route: rest.route, at: .queued, json: json)
+                    tally.record(.cancelled)
+                }
+                break
+            }
             let name = item.result.app.name
             if !json { print("→ \(name)") }
+            // Where a cancel stops this item: re-checking until the backup
+            // starts, then whatever `perform` last reported.
+            let stages = InstallStageTracker(.checking)
 
             // Defensive re-check: the app may already be current — updated by its
             // own updater, or installed by hand — since the plan was built, or the
@@ -884,6 +896,13 @@ public enum Install {
             let confirmed = await recheckOne(
                 item.result, testflight: recheckTestflight, toolbox: recheckToolbox,
                 checker: recheckChecker)
+            // A re-check cut short by the cancel reads as "could not confirm",
+            // which is a failure; it is a cancel.
+            if Task.isCancelled {
+                emitCancelled(item.result.app, route: item.route, at: stages.stage, json: json)
+                tally.record(.cancelled)
+                continue
+            }
             let live = liveEnvironment(
                 for: confirmed ?? item.result, plannedElevation: elevationRequiredPaths)
             let reconsidered = reconsider(
@@ -962,6 +981,7 @@ public enum Install {
             // the alternative is discovering the safety net is gone only when a
             // later rollback finds nothing.
             if keepBackups, InstallCoordinator.wantsBackup(route) {
+                stages.enter(.backingUp)
                 switch await InstallCoordinator.backUp(toInstall.app, route: route) {
                 case .saved:
                     if !json { print("   backed up \(toInstall.app.shortVersion ?? "current")") }
@@ -978,6 +998,8 @@ public enum Install {
                     }
                 case .insufficientSpace:
                     if !json { print("   no restore point: this Mac is low on space") }
+                case .cancelled:
+                    break  // said below, where the item stops
                 case .failed:
                     if !json { print("   could not back up — installing without a restore point") }
                 }
@@ -987,11 +1009,20 @@ public enum Install {
             // rollback point — see `wantsInstallRollbackPoint`.
             if InstallCoordinator.wantsInstallRollbackPoint(
                 route, takingUserBackup: keepBackups && InstallCoordinator.wantsBackup(route)) {
+                stages.enter(.backingUp)
                 await InstallCoordinator.takeInstallRollbackPoint(toInstall.app, route: route)
             }
-            // However this item ends — installed, failed, refused — the point
-            // is settled: kept only when the app is left missing or unreadable.
+            // However this item ends — installed, failed, refused, cancelled —
+            // the point is settled: kept only when the app is left missing or
+            // unreadable.
             defer { await InstallCoordinator.settleInstallRollbackPoint(for: toInstall.app) }
+            // Cancelled during the copy (which then kept nothing) or just after
+            // it (a finished backup is kept): nothing is fetched.
+            if Task.isCancelled {
+                emitCancelled(toInstall.app, route: route, at: stages.stage, json: json)
+                tally.record(.cancelled)
+                continue
+            }
             do {
                 let installOutcome = try await coordinator.perform(
                     toInstall, route: route,
@@ -1003,7 +1034,7 @@ public enum Install {
                     // Read when `duo` started, which is this click: the CLI's
                     // offer and its install are one run.
                     digestOnlyAllowed: settings.updateSettings.allowsDigestOnlyInstalls,
-                    progress: { stage in
+                    progress: stages.recording { stage in
                         guard !json else { return }
                         if let text = describe(stage) { print("   \(text)") }
                     })
@@ -1021,6 +1052,10 @@ public enum Install {
                 }
                 tally.record(category)
                 emit(name: name, route: route, outcome: installOutcome, json: json)
+            } catch is CancellationError {
+                // Stopped before its commit point; past it, `perform` returns.
+                emitCancelled(toInstall.app, route: route, at: stages.stage, json: json)
+                tally.record(.cancelled)
             } catch let refused as NestedAppRunningError {
                 // The nested app started after the check above, during the
                 // download. Still a refusal waiting on the user to quit a process,
@@ -1142,15 +1177,21 @@ public enum Install {
     /// printed. Counting it as `installed` is wrong for that reason; folding it
     /// into `skipped` would also be wrong, in the other direction — real work
     /// (a full download, a verified package) already happened, unlike an
-    /// actual skip. Every item in the plan lands in exactly one of the five:
-    /// `installed + failed + skipped + declined + openedInstaller == plan.count`.
+    /// actual skip.
+    ///
+    /// `cancelled` is the sixth: an item a signal stopped before its commit
+    /// point, or never started. Not a failure, so not in `failed`. Every item
+    /// in the plan lands in exactly one of the six:
+    /// `installed + failed + skipped + declined + openedInstaller + cancelled == plan.count`.
     static func summaryLine(
-        installed: Int, failed: Int, skipped: Int, declined: Int, openedInstaller: Int
+        installed: Int, failed: Int, skipped: Int, declined: Int, openedInstaller: Int,
+        cancelled: Int = 0
     ) -> String {
         "\(installed) installed, \(failed) failed"
             + (skipped > 0 ? ", \(skipped) skipped" : "")
             + (declined > 0 ? ", \(declined) declined" : "")
-            + (openedInstaller > 0 ? ", \(openedInstaller) opened in the installer" : "") + "."
+            + (openedInstaller > 0 ? ", \(openedInstaller) opened in the installer" : "")
+            + (cancelled > 0 ? ", \(cancelled) cancelled" : "") + "."
     }
 
     /// Same line, from a `Tally` — the overload `apply` actually calls (#445).
@@ -1161,7 +1202,8 @@ public enum Install {
     static func summaryLine(_ tally: Tally) -> String {
         summaryLine(
             installed: tally.installed, failed: tally.failed, skipped: tally.skipped,
-            declined: tally.declined, openedInstaller: tally.openedInstaller)
+            declined: tally.declined, openedInstaller: tally.openedInstaller,
+            cancelled: tally.cancelled)
     }
 
     /// The machine-readable category every `--json` row (`emit`'s and
@@ -1184,6 +1226,9 @@ public enum Install {
         case skipped
         case declined
         case failed
+        /// Stopped by a signal before its commit point, or never started
+        /// (`InstallAttemptOutcome.cancelled`). Not a failure.
+        case cancelled
     }
 
     /// One counter per `RowOutcome`, and the ONLY place that maps a
@@ -1199,6 +1244,7 @@ public enum Install {
         private(set) var skipped = 0
         private(set) var declined = 0
         private(set) var failed = 0
+        private(set) var cancelled = 0
 
         mutating func record(_ outcome: RowOutcome) {
             switch outcome {
@@ -1207,6 +1253,7 @@ public enum Install {
             case .skipped: skipped += 1
             case .declined: declined += 1
             case .failed: failed += 1
+            case .cancelled: cancelled += 1
             }
         }
     }
@@ -1301,6 +1348,46 @@ public enum Install {
         ]
         if let route { payload["route"] = route.rawValue }
         return payload
+    }
+
+    /// Report an item a signal stopped before its commit point — or before it
+    /// started — at `stage`: the `--json` row, or the text line. Logged as
+    /// `install cancelled at <stage>` either way. Counting it is the caller's,
+    /// next to every other `tally.record`.
+    static func emitCancelled(
+        _ app: InstalledApp, route: InstallCoordinator.Route, at stage: InstallStage, json: Bool
+    ) {
+        _ = InstallAttemptOutcome.cancelled(app, at: stage)
+        if json {
+            NDJSON.emit(cancelledPayload(name: app.name, route: route, stage: stage))
+        } else {
+            print("   \(cancelledLine(stage))")
+        }
+    }
+
+    /// The `--json` row for a cancelled item: `emitSkipped`'s shape, with
+    /// `outcome: "cancelled"` and the stage's name (`InstallStage.name`) in
+    /// place of a reason.
+    static func cancelledPayload(
+        name: String, route: InstallCoordinator.Route, stage: InstallStage
+    ) -> [String: Any] {
+        [
+            "app": name, "applied": false, "route": route.rawValue,
+            "outcome": RowOutcome.cancelled.rawValue, "stage": stage.name,
+        ]
+    }
+
+    /// The text line for a cancelled item. "Not updated" rather than "nothing
+    /// changed": a stale staged update may already have been cleared, and a
+    /// backup taken, before the cancel landed.
+    static func cancelledLine(_ stage: InstallStage) -> String {
+        switch stage {
+        case .queued: return "cancelled before it started — not updated"
+        case .checking: return "cancelled while re-checking — not updated"
+        case .backingUp: return "cancelled while backing up — not updated, and no partial backup was kept"
+        case .downloading: return "cancelled while downloading — not updated"
+        default: return "cancelled at \(stage.name) — not updated"
+        }
     }
 
     /// Progress worth a line of terminal output. The fine-grained download

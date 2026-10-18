@@ -289,6 +289,11 @@ public actor InstallCoordinator {
             Log.install.notice(
                 "rollback point: saved \(app.path.lastPathComponent, privacy: .public) before \(String(describing: route), privacy: .public)")
             return true
+        } catch is CancellationError {
+            // Not "installing without one": the caller stops the install.
+            Log.install.notice(
+                "rollback point: \(app.path.lastPathComponent, privacy: .public) not saved — the install was cancelled")
+            return false
         } catch {
             Log.install.error(
                 "rollback point: \(app.path.lastPathComponent, privacy: .public) not saved, installing without one — \(error.localizedDescription, privacy: .public)")
@@ -310,6 +315,10 @@ public actor InstallCoordinator {
         /// Skipped, or stopped mid-copy, because this Mac is too low on space
         /// to hold a copy. See ``BackupStore/freeSpaceFloorBytes``.
         case insufficientSpace
+        /// Stopped mid-copy because the install was cancelled. Nothing of the
+        /// copy is kept; an earlier backup of the app is untouched. The caller
+        /// stops the install as cancelled rather than going on without one.
+        case cancelled
         case failed
     }
 
@@ -383,6 +392,9 @@ public actor InstallCoordinator {
         } catch BackupStore.BackupError.insufficientSpace {
             // `save` has already logged what it measured.
             return .insufficientSpace
+        } catch is CancellationError {
+            // `save` has already logged it and removed its staging.
+            return .cancelled
         } catch {
             // The identity of the error is the whole diagnosis, and collapsing
             // every `BackupError` into a bare `.failed` threw it away: the log
@@ -462,6 +474,10 @@ public actor InstallCoordinator {
             Log.install.notice(
                 "install returned: \(label, privacy: .public) applied=\(outcome.applied, privacy: .public) bytes=\(outcome.bytesDownloaded, privacy: .public) staged=\(outcome.stagedPackageURL != nil, privacy: .public)")
             return outcome
+        } catch let cancelled as CancellationError {
+            // Not a failure. The host logs `install cancelled at <stage>`
+            // (`InstallAttemptOutcome.cancelled`), knowing the stage.
+            throw cancelled
         } catch {
             Log.install.error(
                 "install failed: \(label, privacy: .public) via \(String(describing: route), privacy: .public) — \(error.localizedDescription, privacy: .public)")

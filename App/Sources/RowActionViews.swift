@@ -189,6 +189,9 @@ struct InstallCancelButton: View {
         .buttonStyle(.borderless)
         .disabled(state != .available)
         .help(help)
+        // The glyph alone reads as "Close" to VoiceOver (measured with AX on
+        // the running app, 2026-10-18).
+        .accessibilityLabel(help)
     }
 
     private var help: String {

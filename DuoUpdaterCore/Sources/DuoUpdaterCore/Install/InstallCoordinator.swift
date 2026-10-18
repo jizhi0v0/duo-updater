@@ -226,6 +226,73 @@ public actor InstallCoordinator {
         }
     }
 
+    /// Whether to take an install rollback point before this route runs — the
+    /// automatic one, for a user with no backup being taken (see
+    /// ``BackupStore/Purpose/installRollbackPoint``).
+    ///
+    /// Only the routes that hand the swap to someone else, because only those
+    /// can leave the app deleted when cut off: `brew install --cask --force`
+    /// removes the old bundle before it moves the new one in, and its rescue
+    /// does not put `/Applications` back (Homebrew 7.0.9, read from source).
+    /// What `mas` and App Store do inside is not known, so they count as able
+    /// to. The routes whose swap is ours (`.sparkle`, `.vendor`, `.xcode`)
+    /// cannot: unprivileged it is an atomic exchange, elevated the shell puts
+    /// the original back itself, and launch recovers either.
+    ///
+    /// What a rollback point is for is narrower than "a third party swaps":
+    /// it is OUR process dying mid-install and taking the installer down with
+    /// it — a brew child dies on its next write to the stdout pipe we held
+    /// (measured, with the parent SIGKILLed), and brew's next line falls
+    /// between deleting the old app and moving the new one in. `.installer` is
+    /// left out for that reason. A package handed to Installer.app is
+    /// installed by Installer, in its own process, which our death cannot
+    /// interrupt; and we never see it succeed — `perform` returns with the
+    /// window still open — so nothing would ever discard a point taken there.
+    /// It could only leak, growing to the app's full size once the package
+    /// replaces the blocks the clone shares.
+    ///
+    /// Never when a user backup is being taken for this install: that backup
+    /// IS the rollback point, and a second copy would buy nothing.
+    public static func wantsInstallRollbackPoint(_ route: Route, takingUserBackup: Bool) -> Bool {
+        guard !takingUserBackup else { return false }
+        // Exhaustive for the same reason as `wantsBackup`: a new route has to
+        // state whether someone else does its swap.
+        switch route {
+        case .homebrew, .appStore: return true
+        case .installer, .sparkle, .vendor, .xcode: return false
+        }
+    }
+
+    /// Take the install rollback point for `app`. Silent by design — the user
+    /// asked for no backup, and this is not one to be told about unless it is
+    /// needed — so the outcome is logged and returned, never surfaced. A copy
+    /// that fails does not stop the install, exactly as a failed backup does
+    /// not.
+    @discardableResult
+    public static func takeInstallRollbackPoint(_ app: InstalledApp, route: Route) async -> Bool {
+        let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
+        // Held until `settleInstallRollbackPoint` lets go, so the launch sweep
+        // cannot discard this point while the install it guards is running —
+        // the app is intact right up to the third party's swap, which is
+        // exactly what the sweep reads as "no longer needed".
+        await InstallRollbackPointClaims.shared.beginTaking(key)
+        do {
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app.path, key: key,
+                // The same label/comparison pair `backUp` records.
+                version: app.shortVersion ?? app.buildVersion,
+                buildVersion: app.buildVersion, bundleID: app.bundleID,
+                fromPackageInstall: route == .installer, fromAppStore: route == .appStore)
+            Log.install.notice(
+                "rollback point: saved \(app.path.lastPathComponent, privacy: .public) before \(String(describing: route), privacy: .public)")
+            return true
+        } catch {
+            Log.install.error(
+                "rollback point: \(app.path.lastPathComponent, privacy: .public) not saved, installing without one — \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
     /// What taking a rollback point did. Never fatal — the caller decides
     /// whether to proceed without a safety net — but never swallowed either, or
     /// the user finds out only when a rollback later finds nothing.
@@ -454,8 +521,9 @@ public actor InstallCoordinator {
             let verifyDownload: @Sendable (URL) throws -> Data? = { file in
                 try Self.verifyInstallerDownload(file, for: result, progress: progress)
             }
-            let opened = try await permits.withDownloadPermit {
-                // Cancelled while parked on the permit: don't start the fetch.
+            let opened = try await permits.withDownloadPermit(cancellable: true) {
+                // A cancel while queued throws out of the wait itself; this
+                // catches one that landed as the permit was handed over.
                 try Task.checkCancellation()
                 return try await packages.downloadAndOpen(
                     url: result.remote?.downloadURL,
@@ -481,9 +549,12 @@ public actor InstallCoordinator {
             // brew's fetch and swap are one command we cannot split, so the whole
             // run takes the apply permit — and brew does its own downloading, so
             // those bytes are never counted rather than estimated.
-            await permits.waitForApply()
+            // Cancelled while queued: throws holding no permit, before brew starts.
+            try await permits.waitForApplyOrCancel()
             var applyHeld = true
             defer { if applyHeld { permits.signalApply() } }
+            // Still needed: a cancel landing as the permit was handed over
+            // returns normally with the permit held (see `waitForDownloadOrCancel`).
             try Task.checkCancellation()
             try await homebrew.upgrade(caskToken: token) { line in
                 progress(.runningCommand(line))
@@ -676,7 +747,8 @@ public actor InstallCoordinator {
         if spaceToApply > 0 {
             Log.install.notice("disk space: \(label, privacy: .public) watched while downloading, \(spaceToApply, privacy: .public) bytes checked before its swap")
         }
-        let downloaded = try await permits.withDownloadPermit {
+        let downloaded = try await permits.withDownloadPermit(cancellable: true) {
+            // Cancelled at the hand-over; a cancel while queued already threw.
             try Task.checkCancellation()
             guard spaceToApply > 0 else { return try await download(result, progress) }
             return try await DiskSpaceGuard.watching(sparing: backupKey) {
@@ -700,9 +772,12 @@ public actor InstallCoordinator {
         Log.install.debug(
             "\(label, privacy: .public): downloaded \(downloaded.bytesDownloaded, privacy: .public) bytes, waiting for the apply permit")
 
-        await permits.waitForApply()
+        // Cancelled while queued for the swap: throws holding no permit, and
+        // the caller's `defer` still removes the download's work directory.
+        try await permits.waitForApplyOrCancel()
         var applyHeld = true
         defer { if applyHeld { permits.signalApply() } }
+        // Cancelled at the hand-over — see the Homebrew route above.
         try Task.checkCancellation()
         // Here rather than inside the installers: an error thrown inside a
         // patch-route `apply` is wrapped as `DeltaRouteFailure` and retried with
@@ -718,6 +793,9 @@ public actor InstallCoordinator {
         permits.signalApply()
         applyHeld = false
         Log.install.debug("\(label, privacy: .public): applied")
+        // Installed: whatever partial download this app left behind
+        // (`ResumableDownloadStore`) is for a version it no longer needs.
+        ResumableDownloadStore.discard(forApp: result.app.id)
 
         return Outcome(
             bytesDownloaded: downloaded.bytesDownloaded, finalHost: downloaded.finalHost,

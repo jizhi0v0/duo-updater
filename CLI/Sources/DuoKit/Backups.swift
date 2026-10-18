@@ -354,7 +354,7 @@ public enum Backups {
             return nil
         case .noSnapshot:
             return "\(app)'s dictionary and settings were NOT restored — "
-                + "this rollback point has no copy of them."
+                + "this restore point has no copy of them."
         case .failed(let reason):
             return "\(app)'s dictionary and settings were NOT restored — \(reason)"
         }
@@ -627,10 +627,10 @@ public enum Backups {
         print("\n  \(outcomes.count) checked, \(damaged) damaged"
             + (unchecked == 0 ? "." : ", \(unchecked) with nothing to check against."))
         if !bundleOnly.isEmpty {
-            print("\n  \(bundleOnly.count) input-method rollback point(s) marked [bundle only]:"
+            print("\n  \(bundleOnly.count) input-method restore point(s) marked [bundle only]:"
                 + " they can restore the app but not its dictionary and settings."
                 + "\n  There is nothing to repair — a snapshot taken now would hold the data the"
-                + "\n  NEWER version wrote, which is what a rollback is trying to get away from."
+                + "\n  NEWER version wrote, which is what a restore is trying to get away from."
                 + "\n  The next update of each app takes a snapshot that does travel.")
         }
     }
@@ -819,7 +819,9 @@ public enum Backups {
         } else {
             print(prompt, terminator: "")
         }
-        guard let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased()
+        // Through the gate, as `Install.confirm`.
+        guard let answer = SignalGate.process.answer({ readLine() })?
+            .trimmingCharacters(in: .whitespaces).lowercased()
         else { return false }
         return answer == "y" || answer == "yes"
     }

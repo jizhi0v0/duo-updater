@@ -90,6 +90,54 @@ import Testing
             app, staged: staged, old: old, wasFrontmost: false, system: system(w))
     }
 
+    /// The quit is this route's point of no return (`InstallCommit`): a caller
+    /// cancelled before it quits nothing, and the ending says the app never quit.
+    /// Mutation: drop the commit → terminated, red.
+    @Test func aCancelledCallerQuitsNothing() async {
+        let w = World(disk: old, new: new)
+        let system = system(w)
+        let (app, old, staged) = (app, old, staged(.shipIt))
+        let task = Task { () async -> StagedRelaunch.Ending in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await StagedRelaunch.quitAndAwait(
+                app, staged: staged, old: old, wasFrontmost: false, system: system)
+        }
+        let ending = await task.value
+        #expect(!w.terminated)
+        #expect(!ending.everQuit)
+        #expect(w.launches.isEmpty)
+    }
+
+    /// Cancelled after the quit: the wait goes on to the swap as if nothing
+    /// happened. Its ticks never see the cancel — the live tick is a `try?`
+    /// sleep, which on a cancelled task returns at once and spins the loop.
+    /// Mutation: drop the commit → a tick sees the cancel, red.
+    @Test func aCancelAfterTheQuitIsNotSeen() async {
+        let w = World(disk: old, new: new)
+        w.landsAt = 10
+        let quit = InstallCommitTests.Signal()
+        let release = InstallCommitTests.Signal()
+        let sawCancel = InstallCommitTests.Flag()
+        var system = system(w)
+        system.terminate = { w.terminated = true; quit.fire() }
+        system.tick = {
+            await release.wait()
+            if Task.isCancelled { sawCancel.set() }
+            w.advance()
+        }
+        let (app, old, staged, frozen) = (app, old, staged(.shipIt), system)
+        let task = Task { () async -> StagedRelaunch.Ending in
+            await StagedRelaunch.quitAndAwait(
+                app, staged: staged, old: old, wasFrontmost: false, system: frozen)
+        }
+        await quit.wait()
+        task.cancel()
+        release.fire()
+        let ending = await task.value
+        #expect(ending.outcome == .applied)
+        #expect(!sawCancel.value)
+    }
+
     /// The GitKraken case: quit, ShipIt swaps and reopens it. We launch nothing.
     /// Mutation: reopen right after the quit (what `AppRestarter.restart` does)
     /// → a launch before `landedAt`, red.
@@ -198,6 +246,22 @@ import Testing
         #expect(ending.outcome == .wontQuit)
         #expect(w.now == StagedRelaunch.slowQuitTicks + 1)
         #expect(w.launches.isEmpty)
+    }
+
+    /// `duo restart`'s Ctrl-C still ends the wait while the windows-gone
+    /// extension is running. Mutation: drop `!quitPatience.stopWaiting()` from
+    /// that branch → the wait runs on to `slowQuitTicks`, red.
+    @Test func aStopEndsTheWindowsGoneExtension() async {
+        let w = World(disk: old, new: new)
+        w.windows = { $0 < 2 ? 1 : 0 }
+        w.quitsAt = nil
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.sparkle), old: old, wasFrontmost: false,
+            quitPatience: StagedRelaunch.QuitPatience(
+                ticks: StagedRelaunch.slowQuitTicks * 2, stopWaiting: { w.now >= 40 }),
+            system: system(w))
+        #expect(ending.outcome == .wontQuit)
+        #expect(w.now == 40)
     }
 
     @Test func closedItsWindowsNeedsWindowsAtTheRequest() {
@@ -323,6 +387,85 @@ import Testing
         let calls = Calls()
         let ending = await runPatient(w, calls)
         #expect(ending.outcome == .applied)
+        #expect(calls.count == 0)
+    }
+
+    // MARK: - stopWaiting (`duo restart`'s Ctrl-C)
+
+    /// A stop asked for while the app has not quit, past the slow-quit point,
+    /// ends the wait on that tick, as an exhausted patience would: `.wontQuit`,
+    /// nothing launched — not after the 10-minute hand-off. Mutation: ignore
+    /// `stopWaiting` → the wait runs to `quitHandoffMaxAge * 5` ticks, red.
+    @Test func aStopBeforeTheQuitEndsTheWaitAsWontQuit() async {
+        let w = World(disk: old, new: new)
+        w.quitsAt = nil
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.shipIt), old: old, wasFrontmost: false,
+            quitPatience: .handoff(onSlowQuit: {}, stopWaiting: { w.now >= 50 }), system: system(w))
+        #expect(ending.outcome == .wontQuit)
+        #expect(ending.everQuit == false)
+        #expect(w.now == 50)
+        #expect(w.launches.isEmpty)
+    }
+
+    /// Once the app has quit, a stop is not consulted: the swap wait runs out and
+    /// the reopen comes after the landing. The landing is past `quitGraceTicks`,
+    /// where a stop would first be honoured. Mutation: consult `stopWaiting`
+    /// after the quit too → the wait ends at `quitGraceTicks`, before the
+    /// landing, and the fallback reopens the app mid-swap, red.
+    @Test func aStopAfterTheQuitIsIgnored() async {
+        let w = World(disk: old, new: new)
+        w.quitsAt = 1
+        w.landsAt = 40
+        w.updaterRelaunches = false
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.shipIt), old: old, wasFrontmost: false,
+            quitPatience: .handoff(onSlowQuit: {}, stopWaiting: { w.now >= 2 }), system: system(w))
+        #expect(ending.outcome == .applied)
+        #expect(w.landedAt == 40)
+        #expect(w.launches == [40])
+    }
+
+    /// A stop asked for before the quit request (during the rollback copy) and
+    /// an app that quits normally a few ticks later: the stop is not honoured
+    /// before `quitGraceTicks`, so the quit is seen, the swap is waited for, and
+    /// the app — whose updater does not reopen it — is reopened after the
+    /// landing. Mutation: drop the `quitGraceTicks` floor → `.wontQuit` on the
+    /// first tick, while the app is still shutting down, and no reopen, red.
+    @Test func aStopBeforeTheSlowQuitPointLetsANormalQuitRunOut() async {
+        let w = World(disk: old, new: new)
+        w.quitsAt = 3
+        w.landsAt = 10
+        w.updaterRelaunches = false
+        let calls = Calls()
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.shipIt), old: old, wasFrontmost: false,
+            quitPatience: .handoff(onSlowQuit: { calls.count += 1 }, stopWaiting: { true }),
+            system: system(w))
+        #expect(ending.outcome == .applied)
+        #expect(ending.everQuit)
+        #expect(w.landedAt == 10)
+        #expect(w.launches == [10], "reopened once, after the swap landed")
+        #expect(calls.count == 0)
+    }
+
+    /// The same early stop, but the app is still up at `quitGraceTicks`: the
+    /// wait ends there as `.wontQuit` — what `.grace` does — and the slow-quit
+    /// line, which offers a longer wait, is not printed. Mutations: drop
+    /// `stopWaiting` → the wait runs the whole hand-off window, red; check the
+    /// slow-quit line before the stop → `calls.count == 1`, red.
+    @Test func aStopBeforeTheSlowQuitPointEndsAStuckQuitThere() async {
+        let w = World(disk: old, new: new)
+        w.quitsAt = nil
+        let calls = Calls()
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.shipIt), old: old, wasFrontmost: false,
+            quitPatience: .handoff(onSlowQuit: { calls.count += 1 }, stopWaiting: { true }),
+            system: system(w))
+        #expect(ending.outcome == .wontQuit)
+        #expect(ending.everQuit == false)
+        #expect(w.now == StagedRelaunch.quitGraceTicks + 1)
+        #expect(w.launches.isEmpty)
         #expect(calls.count == 0)
     }
 }

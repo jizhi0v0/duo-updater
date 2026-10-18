@@ -44,21 +44,50 @@ public enum Restart {
         // ~5 s and the `.wontQuit` line. See `StagedRelaunch.QuitPatience`.
         let waitsForAnswer = isatty(STDIN_FILENO) != 0
 
-        var anyFailed = false
-        for app in selected.sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) {
-            switch path(for: app, staged: staged[app.id]) {
-            case .plain:
-                let outcome = await AppRestarter.restart(app)
-                print("\(app.name)  \(describe(outcome))")
-                if isFailure(outcome) { anyFailed = true }
-            case .staged(let build):
-                let line = await applyStaged(
-                    app, build, keepBackups: settings.keepBackups, waitsForAnswer: waitsForAnswer)
-                print("\(app.name)  \(line.text)")
-                if line.failed { anyFailed = true }
-            }
-        }
+        let anyFailed = await restartEach(
+            selected, staged: staged, keepBackups: settings.keepBackups, waitsForAnswer: waitsForAnswer)
         return anyFailed ? 1 : 0
+    }
+
+    /// The restarts, in name order; whether any failed.
+    ///
+    /// Once the task is cancelled (`SignalGate`'s first signal) no further app is
+    /// started — it would be sent its quit and then given up on at once — and the
+    /// one in flight runs to its end in `SignalGate.finishing`, out of reach of
+    /// that cancellation. In the cancelled task itself it would not: the quit
+    /// wait (`AppRestarter`) and the swap wait (`StagedRelaunch`) poll with
+    /// `try? await Task.sleep`, which returns at once when cancelled, so a plain
+    /// restart would leave the app quit and never reopened, and a staged one
+    /// would reopen it while its updater is still swapping — the early reopen
+    /// that makes ShipIt abort. One part of the staged step still ends on a
+    /// signal: its wait for an app that has not quit after ~5 s, before
+    /// anything has changed (`patience`).
+    ///
+    /// `restart` is the plain path's restarter, a seam for the tests.
+    static func restartEach(
+        _ apps: [InstalledApp], staged: [String: StagedSelfUpdate], keepBackups: Bool,
+        waitsForAnswer: Bool, print: (String) -> Void = { Swift.print($0) },
+        restart: @escaping @Sendable (InstalledApp) async -> AppRestarter.Outcome = { await AppRestarter.restart($0) }
+    ) async -> Bool {
+        var anyFailed = false
+        for app in apps.sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) {
+            if Task.isCancelled { break }
+            let build = staged[app.id]
+            let (text, failed) = await SignalGate.finishing { () -> (String, Bool) in
+                switch path(for: app, staged: build) {
+                case .plain:
+                    let outcome = await restart(app)
+                    return (describe(outcome), isFailure(outcome))
+                case .staged(let build):
+                    let line = await applyStaged(
+                        app, build, keepBackups: keepBackups, waitsForAnswer: waitsForAnswer)
+                    return (line.text, line.failed)
+                }
+            }
+            print("\(app.name)  \(text)")
+            if failed { anyFailed = true }
+        }
+        return anyFailed
     }
 
     /// Which restart an app gets.
@@ -116,19 +145,50 @@ public enum Restart {
         // Re-read after the copy, which can take seconds: which window is in
         // front is a question about now.
         running = AppRestarter.runningInstances(of: app)
-        let minutes = Int(StagedRelaunch.quitHandoffMaxAge / 60)
-        let patience: StagedRelaunch.QuitPatience = waitsForAnswer
-            ? .handoff(onSlowQuit: {
-                print("\(app.name)  hasn't quit yet — likely a save prompt. Answer it and its own updater applies \(to); waiting up to \(minutes) min (Ctrl-C to stop waiting)")
-                fflush(stdout)
-            })
-            : .grace
+        let patience = patience(for: app, to: to, waitsForAnswer: waitsForAnswer)
         let ending = await StagedRelaunch.quitAndAwait(
             app, staged: staged, old: app.versionSide,
             wasFrontmost: AppRestarter.isFrontmost(running), quitPatience: patience,
             system: .live(for: app))
         let disk = StagedRelaunch.diskVersionSide(app.path)
         return describe(ending, staged: to, disk: disk)
+    }
+
+    /// How long a staged relaunch waits for the app to quit.
+    ///
+    /// In a terminal, up to the menu-bar app's 10-minute hand-off, and a signal
+    /// (`stopWaiting`, the gate's first) ends that wait within a tick as
+    /// `.wontQuit` — the "(Ctrl-C to stop waiting)" this prints. The step runs in
+    /// `SignalGate.finishing`, so cancellation would not reach the wait; the
+    /// flag does, and only while the app has not quit: nothing is changed on
+    /// disk until it has, and from then on the swap wait and the reopen run out.
+    ///
+    /// Only from the point this line is printed (`quitGraceTicks`, ~5 s), not
+    /// before. A signal during the rollback copy or just after the quit request
+    /// is held until then: an app that quits meanwhile was quitting normally,
+    /// and gets its swap wait and reopen ("quit — its own updater applied …");
+    /// one still up there ends as `.wontQuit` without this line — the ~5 s and
+    /// the "likely a save prompt" a script gets (`.grace`), so neither line
+    /// offers a wait that is not going to happen. The early signal has to be the
+    /// one honoured: later ones change nothing in the gate (its "still
+    /// finishing"), so a user who pressed Ctrl-C at 2 s could not otherwise stop
+    /// the 10-minute wait at all.
+    ///
+    /// The plain path gets no such check, on purpose. `AppRestarter`'s quit wait
+    /// is ~30 s, and cutting it short is the harm itself: the app was already
+    /// asked to quit, so leaving early means a quit landing a moment later is
+    /// never followed by the reopen — quit, and not brought back.
+    static func patience(
+        for app: InstalledApp, to: String, waitsForAnswer: Bool,
+        stopWaiting: @escaping @Sendable () -> Bool = { SignalGate.process.stopRequested }
+    ) -> StagedRelaunch.QuitPatience {
+        let minutes = Int(StagedRelaunch.quitHandoffMaxAge / 60)
+        return waitsForAnswer
+            ? .handoff(onSlowQuit: {
+                print("\(app.name)  hasn't quit yet — likely a save prompt. Answer it and its own updater applies \(to); waiting up to \(minutes) min (Ctrl-C to stop waiting)")
+                fflush(stdout)
+            }, stopWaiting: stopWaiting)
+            : .grace
     }
 
     /// The line printed for a staged relaunch, and whether it fails the run.
@@ -156,18 +216,18 @@ public enum Restart {
         case .skipped, .standDown:
             return nil
         case .lockRefused:
-            return "no rollback point: another install holds the install lock — restarting without one"
+            return "no restore point: another install holds the install lock — restarting without one"
         case .attempted(.saved):
             return "backed up \(version)"
         case .attempted(.savedWithoutRuntimeState(let omitted)):
             return "backed up \(version) — without \(omitted) file(s) the app wrote inside its own"
                 + " bundle, which it will recreate"
         case .attempted(.unreadable(let path)):
-            return "no rollback point: \(path) is not readable by you"
+            return "no restore point: \(path) is not readable by you"
         case .attempted(.insufficientSpace):
-            return "no rollback point: this Mac is low on space"
+            return "no restore point: this Mac is low on space"
         case .attempted(.failed):
-            return "could not back up — restarting without a rollback point"
+            return "could not back up — restarting without a restore point"
         }
     }
 

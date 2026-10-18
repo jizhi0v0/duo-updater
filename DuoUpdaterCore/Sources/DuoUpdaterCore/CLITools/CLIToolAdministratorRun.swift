@@ -114,7 +114,28 @@ enum CLIToolAdministratorRun {
             let text = CLIToolAdministratorRun.shell(
                 command: command, directory: directory.path, proxies: CLIToolAdministratorRun.proxies(environment()))
             progress(CLIToolAdministratorRun.waitingLine)
+            // cancel-ok: one-shot pause before the commit; InstallCommit.run below refuses a cancelled caller
             try? await Task.sleep(for: beforePanel)
+            // The tool's point of no return (`InstallCommit`), from raising the
+            // panel through following the run: an authorized command is root's
+            // and cannot be stopped from here, so neither is the following of
+            // it — whose `try?` poll sleep would spin on a cancelled task. A
+            // caller cancelled before it raises no panel and runs nothing.
+            let shell = self
+            // Landed only once the command ran: a dismissed or refused panel ran
+            // nothing.
+            let result = try? await InstallCommit.run("administrator run", landed: {
+                if case .ran = $0 { return true } else { return false }
+            }) {
+                await shell.authorizeAndFollow(text, directory: directory, progress: progress)
+            }
+            return result ?? .refused("cancelled before the administrator panel was raised; nothing ran")
+        }
+
+        /// `run` from the panel on — its commit. See there.
+        private func authorizeAndFollow(
+            _ text: String, directory: URL, progress: @escaping @Sendable (String) -> Void
+        ) async -> Result {
             let authorize = self.authorize
             switch await MainActor.run(body: { authorize(text) }) {
             case .error(let number, _) where number == CLIToolAdministratorRun.userCanceled:
@@ -156,6 +177,7 @@ enum CLIToolAdministratorRun {
                 }
                 drain()
                 if clock.now >= limit { break }
+                // cancel-ok: runs inside InstallCommit.run ("administrator run"), whose body no cancel reaches
                 try? await Task.sleep(for: poll)
             }
             drain()

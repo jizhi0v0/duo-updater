@@ -101,10 +101,32 @@ public enum StagedRelaunch {
         /// `ticks` goes past it — the moment the menu-bar app would have given
         /// up, so a caller that waits on can say why.
         public let onSlowQuit: (@Sendable () -> Void)?
+        /// Asked each tick while the app has not quit yet, from `quitGraceTicks`
+        /// on, and only then: true ends the wait the way an exhausted patience
+        /// does (`.wontQuit`, the staged build left to its own updater).
+        /// `duo restart`'s Ctrl-C. A closure, not task cancellation, so it still
+        /// works where the caller shields this wait from cancellation.
+        ///
+        /// Not before `quitGraceTicks`. The quit has been requested by then, and
+        /// an app still listed in its first moments is usually just shutting
+        /// down: ending there would call a normal quit a save prompt, and skip
+        /// the swap wait and the reopen after it — an app whose updater does not
+        /// reopen it would be left closed. `quitGraceTicks` is where `.grace`
+        /// gives up and where `onSlowQuit` says the quit is held up, so a stop
+        /// asked for earlier — during the rollback copy, say — is answered
+        /// there: still up, it ends the wait before `onSlowQuit` would offer a
+        /// longer one; gone, the swap wait runs. A stop asked for before then
+        /// therefore gets exactly the `.grace` wait. After the quit it is never
+        /// asked: the swap wait and the reopen always run out.
+        public let stopWaiting: @Sendable () -> Bool
 
-        public init(ticks: Int, onSlowQuit: (@Sendable () -> Void)? = nil) {
+        public init(
+            ticks: Int, onSlowQuit: (@Sendable () -> Void)? = nil,
+            stopWaiting: @escaping @Sendable () -> Bool = { false }
+        ) {
             self.ticks = max(ticks, StagedRelaunch.quitGraceTicks)
             self.onSlowQuit = onSlowQuit
+            self.stopWaiting = stopWaiting
         }
 
         /// The menu-bar app's: ~5 s, then `.wontQuit` and its quit hand-off.
@@ -113,8 +135,11 @@ public enum StagedRelaunch {
         /// `duo restart` in a terminal. A one-shot process cannot arm the
         /// menu-bar app's terminate observer, so it stays and waits for the
         /// answer itself, for as long as that hand-off would have stayed armed.
-        public static func handoff(onSlowQuit: @escaping @Sendable () -> Void) -> QuitPatience {
-            QuitPatience(ticks: Int(quitHandoffMaxAge * 5), onSlowQuit: onSlowQuit)
+        public static func handoff(
+            onSlowQuit: @escaping @Sendable () -> Void,
+            stopWaiting: @escaping @Sendable () -> Bool = { false }
+        ) -> QuitPatience {
+            QuitPatience(ticks: Int(quitHandoffMaxAge * 5), onSlowQuit: onSlowQuit, stopWaiting: stopWaiting)
         }
     }
 
@@ -175,7 +200,7 @@ public enum StagedRelaunch {
 
         public static func live(for app: InstalledApp) -> System {
             System(
-                tick: { try? await Task.sleep(for: .milliseconds(200)) },
+                tick: { try? await Task.sleep(for: .milliseconds(200)) },  // cancel-ok: tick is called only by quitAndAwaitSwap, inside InstallCommit.run ("relaunch")
                 isRunning: { !AppRestarter.runningInstances(of: app).isEmpty },
                 terminate: { for instance in AppRestarter.runningInstances(of: app) { instance.terminate() } },
                 diskVersion: {
@@ -221,8 +246,32 @@ public enum StagedRelaunch {
         let appliesOnLaunch = staged?.appliesOn == .launch
         // The installer parked on the quit, found while the app still runs so
         // its exit later means something. See `InstallerExitWatch`.
-        var installerProbe = await ParkedInstallerProbe.find(
+        let installerProbe = await ParkedInstallerProbe.find(
             for: app, staged: staged, system: system.installer)
+        // From the quit on, the wait runs to its end (`InstallCommit`): a quit
+        // with no reopen behind it would leave the user without the app, and the
+        // live `tick` is a `try?` sleep that a cancel would turn into a spin. A
+        // caller cancelled before this point has quit nothing — classified as
+        // an app that never quit, which is what happened.
+        let ending = try? await InstallCommit.run("relaunch") {
+            await quitAndAwaitSwap(
+                app, staged: staged, old: old, wasFrontmost: wasFrontmost,
+                quitPatience: quitPatience, system: system, buildIsDerived: buildIsDerived,
+                appliesOnLaunch: appliesOnLaunch, installerProbe: installerProbe)
+        }
+        return ending ?? Ending(
+            outcome: StagedRelaunchOutcome.classify(
+                landed: false, everQuit: false, reappearedWithoutLanding: false),
+            everQuit: false, reopenFailed: false)
+    }
+
+    /// `quitAndAwait` from the quit on — its commit (`InstallCommit`).
+    private static func quitAndAwaitSwap(
+        _ app: InstalledApp, staged: StagedSelfUpdate?, old: VersionSide,
+        wasFrontmost: Bool, quitPatience: QuitPatience, system: System,
+        buildIsDerived: Bool, appliesOnLaunch: Bool, installerProbe: ParkedInstallerProbe?
+    ) async -> Ending {
+        var installerProbe = installerProbe
         Log.app.notice("relaunch-staged: quitting \(app.name, privacy: .public) (\(old.text(withBuild: true), privacy: .public)) — \(appliesOnLaunch ? "reopening it so its updater applies on launch" : "letting its own updater swap & relaunch (no reopen)", privacy: .public)\(installerProbe.map { ", watching installer \(String(describing: $0.target))" } ?? "", privacy: .public)")
         // Before the request: what it had on screen is the baseline for telling a
         // slow exit from a prompt (`closedItsWindows`).
@@ -282,14 +331,17 @@ public enum StagedRelaunch {
                     launchedAtTick = tick
                 }
             } else if !everQuit && tick >= quitGraceTicks && tick < slowQuitTicks
+                        && !quitPatience.stopWaiting()
                         && closedItsWindows(atQuit: windowsAtQuit, now: system.onScreenWindows()) {
                 // Its windows are gone: exiting slowly, not held by a prompt. Keep
-                // waiting; a window back on screen ends this branch next tick.
+                // waiting; a window back on screen ends this branch next tick, and
+                // so does a stop (`duo restart`'s Ctrl-C), checked first.
                 if !slowQuitLogged {
                     slowQuitLogged = true
                     Log.app.notice("relaunch-staged: \(app.name, privacy: .public) closed its windows but is still exiting — waiting up to \(slowQuitTicks, privacy: .public) ticks for it")
                 }
-            } else if !everQuit && tick >= quitPatience.ticks {
+            } else if !everQuit && (tick >= quitPatience.ticks
+                                    || (tick >= quitGraceTicks && quitPatience.stopWaiting())) {
                 // Never quit → a save prompt (or similar) is keeping it up; the swap
                 // can't start, so don't block the long window on it. The caller
                 // decides what to arm for a quit that completes later.

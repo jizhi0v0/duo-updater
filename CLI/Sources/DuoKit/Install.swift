@@ -71,6 +71,11 @@ public enum Install {
         }
 
         let settings = await Settings.load()
+        // Rollback points whose app reads again — left by an install whose
+        // process died, or by an app since updated some other way — are no
+        // longer the way back to anything. Silent; skipped when another process
+        // holds the install lock.
+        await InstallCoordinator.sweepSettledInstallRollbackPoints()
         let scanned = await Inventory.scanIfFinished(settings)
         // The app's command-line tool rows, checked as `duo check` checks them
         // (`CLIToolRows`). Not under `--route`: its names are the app install
@@ -227,6 +232,9 @@ public enum Install {
             // hung is worse than one that tells you who has it.
             do {
                 try await ProcessInstallLock.shared.claim()
+                // Partial downloads kept for resuming that have aged out, ours or
+                // the app's: `duo` exits when done, so it sweeps when it starts.
+                ResumableDownloadStore.sweepExpired()
                 attempted = await apply(
                     plan, settings: settings, routes: options.routes,
                     json: options.json, keepBackups: settings.keepBackups,
@@ -730,7 +738,10 @@ public enum Install {
         } else {
             print(prompt, terminator: "")
         }
-        guard let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased()
+        // Through the gate: a signal while this blocks exits at once (nothing has
+        // been changed yet), and no question is put after one already arrived.
+        guard let answer = SignalGate.process.answer({ readLine() })?
+            .trimmingCharacters(in: .whitespaces).lowercased()
         else { return false }
         return answer == "y" || answer == "yes"
     }
@@ -848,6 +859,21 @@ public enum Install {
         // more precise than "the call didn't throw" (#404 review #2).
         var attempted: [Attempted] = []
         for item in plan {
+            // `SignalGate`'s first signal: the item in flight finishes, the next is
+            // not started. Without this a cancelled task walks every remaining
+            // item anyway (read from the code, not run): its re-check asks a
+            // cancelled network and the row reads "failed", or — when the re-check
+            // still confirms — it can get as far as clearing the app's staged
+            // update and replacing its rollback point before the coordinator's
+            // own cancellation check refuses the install.
+            //
+            // Unlike a restart or a tool update (`SignalGate.finishing`), the item
+            // in flight is NOT shielded here: `coordinator.perform` must stay
+            // cancellable so its preparation (download, permits) still aborts,
+            // and what follows it below is synchronous bookkeeping — the row,
+            // the tally — with nothing a cancelled task changes. The steps inside
+            // `perform` after its commit point are Core's (#1404, `InstallCommit`).
+            if Task.isCancelled { break }
             let name = item.result.app.name
             if !json { print("→ \(name)") }
 
@@ -947,15 +973,25 @@ public enum Install {
                     }
                 case .unreadable(let path):
                     if !json {
-                        print("   no rollback point: \(path) is not readable by you")
+                        print("   no restore point: \(path) is not readable by you")
                         print("   (common for .pkg apps, which are often root-owned)")
                     }
                 case .insufficientSpace:
-                    if !json { print("   no rollback point: this Mac is low on space") }
+                    if !json { print("   no restore point: this Mac is low on space") }
                 case .failed:
-                    if !json { print("   could not back up — installing without a rollback point") }
+                    if !json { print("   could not back up — installing without a restore point") }
                 }
             }
+            // Without a backup, a route that hands the swap to someone else
+            // (brew) still gets the menu-bar app's silent install
+            // rollback point — see `wantsInstallRollbackPoint`.
+            if InstallCoordinator.wantsInstallRollbackPoint(
+                route, takingUserBackup: keepBackups && InstallCoordinator.wantsBackup(route)) {
+                await InstallCoordinator.takeInstallRollbackPoint(toInstall.app, route: route)
+            }
+            // However this item ends — installed, failed, refused — the point
+            // is settled: kept only when the app is left missing or unreadable.
+            defer { await InstallCoordinator.settleInstallRollbackPoint(for: toInstall.app) }
             do {
                 let installOutcome = try await coordinator.perform(
                     toInstall, route: route,

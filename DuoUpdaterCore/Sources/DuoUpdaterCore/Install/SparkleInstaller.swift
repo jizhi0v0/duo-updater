@@ -228,8 +228,8 @@ public actor SparkleInstaller {
         let newApp: URL
         if let patch = download.appliedPatch {
             // Awaited in place: `BinaryDelta` runs through `ChildProcess`, which
-            // waits without parking a thread and is not killed if this task is
-            // cancelled — the guarantee the `offCooperativePool` hop used to give.
+            // waits without parking a thread, and it runs to completion if this task is
+            // cancelled — see `DeltaApplier.apply`.
             newApp = try await DeltaApplier.reconstruct(
                 installedApp: result.app.path,
                 patch: patch,
@@ -290,10 +290,16 @@ public actor SparkleInstaller {
         // `ChildProcess`, and the swap runs to completion if this task is
         // cancelled. See `InPlaceSwap.replace`.
         //
+        // This route's point of no return: a cancel that lands before it stops
+        // the install with only the scratch directory to clear; one that lands
+        // after it is not seen. See `InstallCommit`.
+        //
         // The `SwapOutcome` is dropped on purpose, and said so with `_ =`: both
         // cases mean the new version is live, and a cleanup failure's reason is
         // logged by `replace` itself, in its `defer` —
         // `aCleanupFailureReasonReachesTheInstallLog` reads it back.
-        _ = try await InPlaceSwap.replace(newApp: newApp, over: target)
+        _ = try await InstallCommit.run("swap") {
+            try await InPlaceSwap.replace(newApp: newApp, over: target)
+        }
     }
 }

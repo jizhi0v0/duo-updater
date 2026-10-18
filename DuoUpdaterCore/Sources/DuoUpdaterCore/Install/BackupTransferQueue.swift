@@ -225,6 +225,7 @@ public actor BackupTransferQueue {
                 }
             }
             if attempt + 1 < maxAttempts {
+                // cancel-ok: the loop checks Task.isCancelled at its top every pass
                 try? await Task.sleep(nanoseconds: UInt64(attempt + 1) * backoffUnitNanos)
             }
         }

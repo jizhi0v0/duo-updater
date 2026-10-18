@@ -28,7 +28,7 @@ commands:
   restart       Quit and relaunch apps whose running copy is stale.
   ignore        Hide an app from update checks. unignore undoes it.
   skip          Hide the version currently offered. unskip undoes it.
-  backups       List the rollback points, put one back, move them to the
+  backups       List the restore points, put one back, move them to the
                 backup disk, or check that they are still intact.
   storage       Where DuoUpdater keeps things on this Mac and how big each part
                 is; clear the caches.
@@ -149,7 +149,7 @@ ignore / unignore / skip / unskip options:
   soon as they change, so there is nothing to restart.
 
 backups options:
-  list                Every stored rollback point: app, version, when, size,
+  list                Every stored restore point: app, version, when, size,
                       and which disk it's on.
   restore <app>       Put a backed-up bundle back over the installed one.
   sync                Move backups still on this Mac onto the backup disk.
@@ -163,13 +163,13 @@ backups options:
                       Writes nothing and changes no setting.
   --deep              verify only: unpack each archive on the disk and compare
                       the whole bundle, not just the archive's digest. As slow
-                      as a rollback, and needs room for one.
+                      as a restore, and needs room for one.
   --yes               Don't ask before overwriting.
   --json              Machine-readable form.
 
   The signature check, retention and atomic swap all live in BackupStore, which
   this calls unmodified — nothing here loosens them. Like the app's own
-  rollback, it does not refuse when the target is running; it restores and tells
+  restore, it does not refuse when the target is running; it restores and tells
   you to restart. A shared bundle id (Android Studio's channels, Thunderbird
   stable/esr) is ambiguous for a restore and is refused rather than guessed.
 
@@ -430,7 +430,7 @@ guard let args = Args(CommandLine.arguments) else {
 // Assigned by every branch, called only after the command line has been checked
 // over — see the `unrecognised()` call below. Building the options and running
 // them are deliberately two steps so that a typo costs nothing.
-let run: () async -> Int32
+let run: @Sendable () async -> Int32
 
 switch args.subcommand {
 case "list", "check":
@@ -456,7 +456,7 @@ case "list", "check":
     if options.refreshTestFlight && !options.checkForUpdates {
         die("--refresh-testflight only changes what a check can see; use `duo check --refresh-testflight`", code: 2)
     }
-    run = { await Check.run(options) }
+    run = { [options] in await Check.run(options) }
 
 case "install":
     var options = Install.Options()
@@ -469,12 +469,12 @@ case "install":
     case .success(let routes): options.routes = routes
     case .failure(let failure): die(failure.description, code: 2)
     }
-    run = { await Install.run(options) }
+    run = { [options] in await Install.run(options) }
 
 case "restart":
     var options = Restart.Options()
     options.queries = args.operands
-    run = { await Restart.run(options) }
+    run = { [options] in await Restart.run(options) }
 
 case "ignore", "unignore", "skip", "unskip":
     guard let action = Visibility.Action(rawValue: args.subcommand) else {
@@ -482,7 +482,7 @@ case "ignore", "unignore", "skip", "unskip":
     }
     var options = Visibility.Options(action: action, queries: args.operands)
     options.json = args.has("json")
-    run = { await Visibility.run(options) }
+    run = { [options] in await Visibility.run(options) }
 
 case "backups":
     // Which operation the operands name is worked out inside `run`, not here.
@@ -678,7 +678,7 @@ case "verify":
     options.baselinePath = args.value("baseline").map { URL(fileURLWithPath: $0) }
     options.jsonPath = args.value("report").map { URL(fileURLWithPath: $0) }
     options.markdownPath = args.value("markdown").map { URL(fileURLWithPath: $0) }
-    run = { await Verify.run(options) }
+    run = { [options] in await Verify.run(options) }
 
 case "verify-install":
     var options = InstallVerifyOptions()
@@ -771,7 +771,14 @@ if let problem = args.unrecognised() {
     die("\(problem)\n\ntry `duo \(args.subcommand) --help`", code: 2)
 }
 
-let status = await run()
+// The commands that change the machine run under `SignalGate`: SIGINT, SIGTERM
+// and SIGHUP stop them after the current step instead of killing `duo` — and
+// with it the pipe a running `brew` writes to. Every other command keeps the
+// default and dies at once. The status is 128 + the first signal's number when
+// one arrived.
+let status = SignalGate.handles(subcommand: args.subcommand, operands: args.operands)
+    ? await SignalGate.process.run(run)
+    : await run()
 // The store batches its writes, and a CLI process exits long before the
 // coalescing timer would fire. Only when something was actually recorded: a
 // command that touched no network should not open a database just to close it.

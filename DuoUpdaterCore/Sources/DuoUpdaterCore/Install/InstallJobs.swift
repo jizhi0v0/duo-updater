@@ -82,9 +82,17 @@ public enum InstallJobs {
     ///
     /// The body keeps its isolation (`@isolated(any)`): a main-actor host's
     /// install runs on the main actor, as it did when called directly.
+    ///
+    /// `isolation` is the caller's, so a main-actor host registers the job in
+    /// the same turn it showed the row's Cancel: no suspension between the two
+    /// for a click to land in ("guaranteed not to happen at the moments of call
+    /// and return between functions with the same isolation", SE-0420).
+    /// Nonisolated, the call hopped to the pool first, and a click in that hop
+    /// found no job and was lost while the install went on.
     public static func run<T: Sendable>(
         _ id: String,
         phaseChanged: (@Sendable (Phase) -> Void)? = nil,
+        isolation: isolated (any Actor)? = #isolation,
         _ body: @escaping @Sendable @isolated(any) () async -> T
     ) async -> T {
         let handle = TaskHandle()

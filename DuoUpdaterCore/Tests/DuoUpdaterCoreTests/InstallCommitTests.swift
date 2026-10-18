@@ -373,6 +373,34 @@ import Testing
     /// the body sees its cancellation, and its commit never starts.
     /// Mutation: drop `handle.set { task.cancel() }` → the body never sees the
     /// cancel; its wait gives up and it answers false, red.
+    /// A main-actor host — the menu-bar app's rows — has its job registered by
+    /// the time anything else runs on the main actor after the call, so a
+    /// Cancel clicked then finds it. The host marks the call on the main actor
+    /// right before making it; once the test sees the mark, the host has
+    /// reached its first suspension, and with the caller's isolation kept that
+    /// is past `register`.
+    /// Mutation: drop `isolation:` from `run` → the call hops to the pool
+    /// before registering, and the host's first suspension comes before it;
+    /// over the rounds some check runs first, red.
+    @MainActor @Test func aMainActorCallerIsRegisteredBeforeItFirstSuspends() async {
+        @MainActor final class Mark { var calling = false }
+        for _ in 0..<200 {
+            let id = InstallJobsTests.id()
+            let mark = Mark()
+            let release = Signal()
+            let job = Task { @MainActor in
+                mark.calling = true
+                await InstallJobs.run(id) { () async -> Void in await release.wait() }
+            }
+            while !mark.calling { await Task.yield() }
+            let registered = InstallJobs.phase(of: id) != nil
+            release.fire()
+            await job.value
+            #expect(registered, "no job registered for \(id) when the main actor next ran")
+            if !registered { break }
+        }
+    }
+
     @Test func aCancelBeforeTheCommitStopsTheJob() async throws {
         let id = InstallJobsTests.id()
         let entered = Signal()

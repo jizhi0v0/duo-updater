@@ -41,6 +41,23 @@ extension InstallJournal {
     static func restoreInterrupted(
         at appPath: URL, lock: ProcessInstallLock, cleanup: Cleanup
     ) async throws -> InterruptedRestore {
+        // Held from the look to the swap, so another process (`duo backups
+        // restore`, `duo install`) cannot change the app in between;
+        // `processLeftovers` joins this process's claim.
+        do { try await lock.claim() } catch { return .deferred }
+        do {
+            let result = try await restoreHoldingTheLock(at: appPath, lock: lock, cleanup: cleanup)
+            await lock.release()
+            return result
+        } catch {
+            await lock.release()
+            throw error
+        }
+    }
+
+    private static func restoreHoldingTheLock(
+        at appPath: URL, lock: ProcessInstallLock, cleanup: Cleanup
+    ) async throws -> InterruptedRestore {
         guard await processLeftovers(lock: lock, cleanup: cleanup) != nil else { return .deferred }
         switch standing(of: appPath) {
         case .clear: return .noLongerInterrupted
@@ -51,15 +68,8 @@ extension InstallJournal {
         guard let item = interruptedInstalls().first(where: { standardized($0.appPath.path) == wanted })
         else { return .noLongerInterrupted }
         guard let source = item.restoreFrom else { return .noWayBack }
-        try await lock.claim()
-        do {
-            let outcome = try await BackupStore.restoreReportingUserData(
-                forKey: source.key, over: item.appPath, from: source.purpose)
-            await lock.release()
-            return .restored(outcome)
-        } catch {
-            await lock.release()
-            throw error
-        }
+        let outcome = try await BackupStore.restoreReportingUserData(
+            forKey: source.key, over: item.appPath, from: source.purpose)
+        return .restored(outcome)
     }
 }

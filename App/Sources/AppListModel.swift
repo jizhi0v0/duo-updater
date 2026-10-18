@@ -4773,13 +4773,18 @@ final class AppListModel {
             app: result.app,
             route: InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result)),
             target: result.remote?.versionSide)
+        // Set by `performInstall` when the coordinator says the install landed:
+        // what the journal is told, since the old path cannot say it for a
+        // cask renamed in its new version (`Recording.finish(succeeded:)`).
+        var applied = false
         let outcome = await InstallJournal.recording(journal) {
             await performInstall(
                 result, notify: notify, deferBookkeeping: deferBookkeeping,
-                releaseAfterDownload: isAppStore ? nil : hostGate, backUpOnce: backUpOnce)
+                releaseAfterDownload: isAppStore ? nil : hostGate, backUpOnce: backUpOnce,
+                journal: journal, applied: &applied)
         }
         // After `performInstall`'s rollback-point settle, which reads it.
-        await journal?.finish()
+        await journal?.finish(succeeded: applied)
         await ProcessInstallLock.shared.release()
         await hostGate.release()
         // An expired Apple session is not kept: `install` takes that line down
@@ -4817,7 +4822,8 @@ final class AppListModel {
     @discardableResult
     private func performInstall(
         _ result: UpdateResult, notify: Bool, deferBookkeeping: Bool,
-        releaseAfterDownload: GateHandle? = nil, backUpOnce: Bool = false
+        releaseAfterDownload: GateHandle? = nil, backUpOnce: Bool = false,
+        journal: InstallJournal.Recording?, applied: inout Bool
     ) async -> InstallAttemptOutcome {
         let id = result.id
         // The span in which this install may replace the bundle (`bundleChanges`).
@@ -5188,7 +5194,10 @@ final class AppListModel {
         // before the download, refused, cancelled — settles the rollback point:
         // kept only when the app is left missing or unreadable. See
         // `settleInstallRollbackPoint`.
-        defer { await InstallCoordinator.settleInstallRollbackPoint(for: result.app) }
+        defer {
+            await InstallCoordinator.settleInstallRollbackPoint(
+                for: result.app, journal: journal, succeeded: applied)
+        }
         // Cancelled during the copy (which then kept nothing) or just after it
         // (a finished backup is kept): nothing is fetched.
         if Task.isCancelled {
@@ -5254,6 +5263,10 @@ final class AppListModel {
                     progress: stages.recording { stage in Task { @MainActor in self.setStage(id, stage) } },
                     releaseAfterDownload: { await releaseAfterDownload?.release() },
                     beforeInstallerOpen: { await self.retireStagedPackage(for: id) })
+                // The App Store branch below has no `applied` to report and
+                // leaves this false, so there the disk still decides (whether a
+                // store update can move an app to another path: not checked).
+                applied = outcome.applied
                 recordEffectiveHost(result, finalHost: outcome.finalHost)
                 await recordTraffic(
                     result, bytes: outcome.bytesDownloaded, applied: outcome.applied,
@@ -7753,6 +7766,14 @@ final class AppListModel {
             Log.install.notice("backup skipped: \(result.app.name, privacy: .public) — this Mac is low on space")
             installNotes[result.id] = Self.backupLowSpaceNote
         }
+        // Said, not silent: a Relaunch goes on without the copy either way, and
+        // the user should know why there is none (and whether the earlier one
+        // is still there) — what `duo restart` prints in the same case.
+        if case .skippedForEarlierInstall(let standing) = outcome,
+           let note = EarlierInstallBackupNote.text(
+               standing, hasWayBack: InstallJournal.wayBack(for: result.app.path) != nil) {
+            installNotes[result.id] = note
+        }
         if outcome == .failed {
             Log.install.error("backup failed: \(result.app.name, privacy: .public) — proceeding without a rollback point")
             // Tell the user their safety net is gone for this update, rather than
@@ -7800,6 +7821,7 @@ final class AppListModel {
                 guard let self else { return .failed }
                 // This attempt's outcome replaces whatever an earlier one said.
                 for note in [Self.backupUnreadableNote, Self.backupLowSpaceNote, Self.backupFailedNote]
+                    + EarlierInstallBackupNote.all
                 where self.installNotes[result.id] == note {
                     self.installNotes[result.id] = nil
                 }

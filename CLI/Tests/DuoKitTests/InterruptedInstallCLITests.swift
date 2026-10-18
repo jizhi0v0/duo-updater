@@ -113,6 +113,39 @@ struct InterruptedInstallCLITests {
             .attempted(.skippedForEarlierInstall(.interrupted)), version: "1.0", wayBack: nil) == none)
     }
 
+    /// Round 4, #4: `duo restart` processes the journal first, as `duo install`
+    /// does, so a dead install no launch has looked at is classified before
+    /// the restart's backup asks the app's standing. Here its app is gone, so
+    /// processing marks it missing; unprocessed it would carry no damage.
+    /// The query names no app, so nothing is restarted (exit 2).
+    @Test func restartProcessesTheJournalFirst() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-restart-journal-\(UUID().uuidString)", isDirectory: true)
+        let journal = dir.appendingPathComponent("install-journal", isDirectory: true)
+        try FileManager.default.createDirectory(at: journal, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let app = dir.appendingPathComponent("ZZFixture-Gone.app")  // never created
+        let entry = InstallJournal.Entry(
+            job: UUID().uuidString, appID: app.path, appName: "ZZFixture Gone",
+            bundleID: "com.example.zzfixture.gone", appPath: app.path,
+            oldVersion: "1.0", oldBuild: nil, oldCDHash: nil,
+            targetVersion: "2.0", targetBuild: nil, route: "homebrew",
+            backupKey: BackupStore.key(bundleID: "com.example.zzfixture.gone", path: app),
+            startedAt: Date(),
+            // This pid, but not this process: its start time is not ours.
+            owner: InstallJournal.ProcessStamp(pid: getpid(), started: 1))
+        try #require(InstallJournal.write(entry, to: journal.appendingPathComponent("\(entry.job).json")))
+
+        var options = Restart.Options()
+        options.queries = ["ZZFixture-no-such-app-\(UUID().uuidString)"]
+        let lock = ProcessInstallLock(url: dir.appendingPathComponent("install.lock"))
+        try await InstallJournal.$rootOverride.withValue(journal) {
+            try #require(InstallJournal.interruptedInstalls().isEmpty)
+            #expect(await Restart.run(options, lock: lock) == 2)
+            #expect(InstallJournal.interruptedInstalls().map(\.damage) == [.missing])
+        }
+    }
+
     @Test func theStillRunningReasonNamesThePid() {
         #expect(Install.stillRunningReason(pid: 4242).contains("process 4242"))
     }

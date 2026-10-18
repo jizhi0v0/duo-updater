@@ -191,13 +191,21 @@ public enum InstallJournal {
         }
 
         /// The install has ended, whichever way. Idempotent. Call it after
-        /// `InstallCoordinator.settleInstallRollbackPoint(for:)`, which reads
-        /// the files this may remove.
+        /// `InstallCoordinator.settleInstallRollbackPoint(for:journal:succeeded:)`,
+        /// which reads the files this may remove.
+        ///
+        /// `succeeded` is the host's own word that the install landed — the
+        /// coordinator returned `applied` — passed in, not read off the disk:
+        /// a cask whose new version installs under another name leaves the old
+        /// path empty after a success (brew's `Moved#delete` removes the whole
+        /// folder when the successor has no artifact with the same target —
+        /// Homebrew 7.0.9 `cask/artifact/moved.rb`, read from source).
         ///
         /// Normally its file goes. Two endings keep a record instead:
         ///
-        /// - It reached its commit point and the app is left missing or
-        ///   unreadable — the ending the settle keeps the rollback point for.
+        /// - It reached its commit point, did not succeed, and the app is left
+        ///   missing or unreadable — the ending the settle keeps the rollback
+        ///   point for.
         ///   This file stays, marked interrupted and ended, so the point is
         ///   reachable from ``InstallJournal/interruptedInstalls()`` and
         ///   `duo backups restore`, not only from a hidden directory. Before
@@ -215,7 +223,7 @@ public enum InstallJournal {
         ///   processing was deferred, or an image would not detach): that
         ///   file is the only thing that still names them, and
         ///   ``InstallJournal/processLeftovers(lock:)`` is what cleans them.
-        public func finish() async {
+        public func finish(succeeded: Bool) async {
             let mine: Entry? = lock.withLock {
                 guard !finished else { return nil }
                 finished = true
@@ -234,7 +242,7 @@ public enum InstallJournal {
                 Log.install.notice(
                     "install journal: \(mine.appName, privacy: .public) reinstalled over its interrupted install; cleared")
             }
-            if earlier.isEmpty, mine.committed == true, !BackupStore.hasReadableBundle(at: app) {
+            if earlier.isEmpty, !succeeded, mine.committed == true, !BackupStore.hasReadableBundle(at: app) {
                 var kept = mine
                 kept.damage = FileManager.default.fileExists(atPath: app.path) ? .unreadable : .missing
                 kept.ended = true
@@ -307,18 +315,27 @@ public enum InstallJournal {
         return await isVerifiablyAt(mine.targetSide, app: app, wasSigned: wasSigned([mine] + dead))
     }
 
-    /// Whether this process's install of `app` has not reached its commit
-    /// point, with no earlier install of it on record. Then nothing of the
-    /// app's has been touched: an app missing now was removed by someone
-    /// else, and a rollback point of it is no install's way back.
-    static func ownInstallIsBeforeItsCommit(for app: URL) -> Bool {
-        guard let root else { return false }
-        let wanted = standardized(app.path)
-        let entries = readAll(in: root).map(\.entry).filter { standardized($0.appPath) == wanted }
-        guard entries.allSatisfy({ $0.isRunning }),
-              let mine = entries.first(where: { $0.ownerIsRunning && $0.owner.pid == getpid() })
-        else { return false }
-        return mine.committed != true
+    /// Whether `recording`, this process's install of `app`, has not reached
+    /// its commit point, with no earlier install of it on record. Then nothing
+    /// of the app's has been touched: an app missing now was removed by
+    /// someone else, and a rollback point of it is no install's way back.
+    ///
+    /// The commit is read from the recording in memory — the same fact
+    /// ``Recording/finish(succeeded:)`` reads — not from its file: a note whose
+    /// write failed leaves the file saying "not yet" about a commit that ran,
+    /// and reading that would discard the only way back. No recording (the
+    /// journal is off, or could not be started) answers false: keep.
+    static func ownInstallIsBeforeItsCommit(_ recording: Recording?, for app: URL) -> Bool {
+        guard let recording else { return false }
+        let mine = recording.snapshot
+        guard standardized(mine.appPath) == standardized(app.path) else { return false }
+        return mine.committed != true && !hasEarlierInstall(of: app, excluding: recording)
+    }
+
+    /// Whether an install of `app` other than `recording`'s is on record and
+    /// over — classified or not.
+    static func hasEarlierInstall(of app: URL, excluding recording: Recording?) -> Bool {
+        !earlierEntries(for: app, excluding: recording?.snapshot.job ?? "").isEmpty
     }
 
     /// The files of earlier installs of `app` that are over — not running
@@ -343,9 +360,22 @@ public enum InstallJournal {
     /// Whether `app` is readable, at `target` or later, has the executable its
     /// Info.plist names, and its code signature holds in full — or it is
     /// unsigned and was unsigned before. What "verifiably good" means wherever
-    /// a damaged app's way back is about to be discarded, which is right after
-    /// an install, before the app has run and written into itself: so the
-    /// strict check (``signature(of:strict:)``), not launch classification's.
+    /// a damaged app's way back is about to be discarded, at the end of an
+    /// install: so the strict check (``signature(of:strict:)``), not launch
+    /// classification's.
+    ///
+    /// Not necessarily before the app has run: the menu-bar app's
+    /// `performInstall` restarts an updated app (`restart(updated)`) before
+    /// its settle and `finish` run, and an app that writes into its own
+    /// bundle fails this check from then on. The way back is then kept when
+    /// it was no longer needed; the next launch's processing classifies with
+    /// the lenient check and clears it. How often: measured by the review of
+    /// round 3 on the dev Mac (macOS 27.2, 2026-10-18), 9 of 247 installed
+    /// apps pass the lenient check and fail this one (LibreOffice, ToDesk,
+    /// WeMeeting, aTrust, JetBrains Air: -67054; EasyConnect: 100013; three
+    /// ad-hoc signed local builds: -67056). Not re-measured here. The same
+    /// review measured Xcode at 10.56 s strict against 0.01 s lenient; this
+    /// runs only when an earlier interrupted install of the app is on record.
     static func isVerifiablyAt(_ target: VersionSide, app: URL, wasSigned: Bool) async -> Bool {
         guard BackupStore.hasReadableBundle(at: app) else { return false }
         let onDisk = versions(at: app)

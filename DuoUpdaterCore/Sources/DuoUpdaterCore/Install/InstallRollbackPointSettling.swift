@@ -28,9 +28,18 @@ extension InstallCoordinator {
     /// so no exit path can miss it. Also lets go of the claim
     /// ``takeInstallRollbackPoint(_:route:)`` took, which is what lets the
     /// launch sweep see this key again.
+    ///
+    /// - Parameters:
+    ///   - journal: this attempt's journal recording, nil when there is none.
+    ///     Whether the attempt reached its commit point is read from it.
+    ///   - succeeded: the host's own word that the install landed (the
+    ///     coordinator returned `applied`). An app missing from its old path
+    ///     after a success was moved by the install (a cask renamed in its new
+    ///     version), not lost, and the point is no one's way back — unless an
+    ///     earlier install of it is on record, whose way back it may be.
     @discardableResult
     public static func settleInstallRollbackPoint(
-        for app: InstalledApp
+        for app: InstalledApp, journal: InstallJournal.Recording?, succeeded: Bool
     ) async -> RollbackPointSettlement {
         let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
         let outcome: RollbackPointSettlement
@@ -47,7 +56,12 @@ extension InstallCoordinator {
             Log.install.notice(
                 "rollback point: kept for \(app.path.lastPathComponent, privacy: .public) — an earlier install of it was cut off and this one did not leave it verifiably good")
             outcome = .kept
-        } else if InstallJournal.ownInstallIsBeforeItsCommit(for: app.path) {
+        } else if succeeded, !InstallJournal.hasEarlierInstall(of: app.path, excluding: journal) {
+            await BackupStore.removeRollbackPoint(forKey: key)
+            Log.install.notice(
+                "rollback point: discarded for \(app.path.lastPathComponent, privacy: .public) — the install succeeded and left nothing at the old path (it moved the app)")
+            outcome = .discarded
+        } else if InstallJournal.ownInstallIsBeforeItsCommit(journal, for: app.path) {
             // Gone, but not by this install, which stopped before its commit
             // point — the user trashed it while the point was being taken. The
             // journal drops this install's file (`Recording.finish`), and a

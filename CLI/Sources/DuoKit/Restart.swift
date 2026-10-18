@@ -18,12 +18,24 @@ public enum Restart {
     }
 
     public static func run(_ options: Options) async -> Int32 {
+        await run(options, lock: .shared)
+    }
+
+    /// `run`, with the install lock launch processing takes passed in — a
+    /// test's own, so it never contends for the machine's.
+    static func run(_ options: Options, lock: ProcessInstallLock) async -> Int32 {
         guard !options.queries.isEmpty else {
             FileHandle.standardError.write(Data("duo: name an app to restart\n".utf8))
             return 2
         }
 
         let settings = await Settings.load()
+        // What an earlier `duo` or app process killed mid-install left, as
+        // `duo install` does first: without it a dead install no launch has
+        // looked at keeps its app `.interrupted`, and the rollback point below
+        // is skipped with a line saying the app may be damaged — about an app
+        // that may be intact. Skipped when another process holds the lock.
+        await InstallJournal.processLeftovers(lock: lock)
         let apps = await Inventory.scanIfFinished(settings)
         let selected: [InstalledApp]
         switch Inventory.select(apps, matching: options.queries) {

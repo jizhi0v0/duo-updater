@@ -1075,9 +1075,13 @@ public enum Install {
             // however this item ends — so a `duo` killed mid-install leaves a
             // record the next run can clean up after (`InstallJournal`). After
             // the settle below (defers run last-first), which reads it.
+            // `applied` is what both are told about how the item ended: the
+            // coordinator's own word that the install landed, which the app's
+            // old path cannot say for a cask renamed in its new version.
+            var applied = false
             let journal = await InstallJournal.begin(
                 app: toInstall.app, route: route, target: toInstall.remote?.versionSide)
-            defer { await journal?.finish() }
+            defer { await journal?.finish(succeeded: applied) }
             // The same rollback point the menu-bar app takes, honouring the same
             // preference. Not fatal when it fails — but said out loud, because
             // the alternative is discovering the safety net is gone only when a
@@ -1119,7 +1123,10 @@ public enum Install {
             // However this item ends — installed, failed, refused, cancelled —
             // the point is settled: kept only when the app is left missing or
             // unreadable.
-            defer { await InstallCoordinator.settleInstallRollbackPoint(for: toInstall.app) }
+            defer {
+                await InstallCoordinator.settleInstallRollbackPoint(
+                    for: toInstall.app, journal: journal, succeeded: applied)
+            }
             // Cancelled during the copy (which then kept nothing) or just after
             // it (a finished backup is kept): nothing is fetched.
             if Task.isCancelled {
@@ -1152,6 +1159,7 @@ public enum Install {
                 // function `installedPayload` uses for `emit`'s `--json` row
                 // (#445) — one decision, not two independently-swappable copies
                 // of the same ternary.
+                applied = installOutcome.applied
                 let category = rowOutcome(forApplied: installOutcome.applied)
                 if installOutcome.applied {
                     attempted.append((name: name, path: toInstall.app.path, bundleID: toInstall.app.bundleID))

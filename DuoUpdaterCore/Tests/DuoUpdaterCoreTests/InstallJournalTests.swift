@@ -557,7 +557,7 @@ struct InstallJournalTests {
                 image: work.appendingPathComponent("a.dmg").path)])
             #expect(written.child?.pid == pid.value)
 
-            await recording.finish()
+            await recording.finish(succeeded: false)
             #expect(!FileManager.default.fileExists(atPath: recording.file.path))
             #expect(try FileManager.default.contentsOfDirectory(atPath: scratch.journal.path).isEmpty)
         }
@@ -684,7 +684,7 @@ extension InstallJournalTests {
             let recording = try #require(await InstallJournal.begin(
                 app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
             #expect(InstallJournal.standing(of: app) == .clear)
-            await recording.finish()
+            await recording.finish(succeeded: false)
         }
     }
 
@@ -703,8 +703,8 @@ extension InstallJournalTests {
 
             let recording = try #require(await InstallJournal.begin(
                 app: installed(app, version: "1.5"), route: .homebrew, target: VersionSide(marketing: "2.0")))
-            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.5")) == .kept)
-            await recording.finish()
+            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.5"), journal: recording, succeeded: false) == .kept)
+            await recording.finish(succeeded: false)
 
             #expect(BackupStore.rollbackPoint(forKey: key) != nil)
             #expect(FileManager.default.fileExists(atPath: earlier.path))
@@ -729,8 +729,8 @@ extension InstallJournalTests {
                 app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
             try makeApp(in: scratch.apps, version: "2.0", withExecutable: true)
             try await adHocSign(app)
-            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "2.0")) == .discarded)
-            await recording.finish()
+            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "2.0"), journal: recording, succeeded: false) == .discarded)
+            await recording.finish(succeeded: false)
 
             #expect(BackupStore.rollbackPoint(forKey: key) == nil)
             #expect(!FileManager.default.fileExists(atPath: earlier.path))
@@ -750,7 +750,7 @@ extension InstallJournalTests {
             try await adHocSign(app)
             try cutShort(app.appendingPathComponent("Contents/MacOS/ZZFixture"))
             #expect(await InstallJournal.mayDiscardRollbackPoint(for: app) == false)
-            await recording.finish()
+            await recording.finish(succeeded: false)
             #expect(InstallJournal.interruptedInstalls().count == 1)
         }
     }
@@ -771,8 +771,8 @@ extension InstallJournalTests {
                 try await InstallCommit.run("brew upgrade") { try FileManager.default.removeItem(at: app) }
             }
             #expect(recording.snapshot.committed == true)
-            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.0")) == .kept)
-            await recording.finish()
+            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.0"), journal: recording, succeeded: false) == .kept)
+            await recording.finish(succeeded: false)
 
             #expect(FileManager.default.fileExists(atPath: recording.file.path))
             let interrupted = InstallJournal.interruptedInstalls()
@@ -792,7 +792,7 @@ extension InstallJournalTests {
             let item = Task {
                 withUnsafeCurrentTask { $0?.cancel() }
                 #expect(Task.isCancelled)
-                await recording.finish()
+                await recording.finish(succeeded: false)
             }
             await item.value
             #expect(!FileManager.default.fileExists(atPath: recording.file.path))
@@ -957,7 +957,7 @@ extension InstallJournalTests {
                 installed(app, version: "1.5"), route: .homebrew)
             #expect(!took)
             #expect(BackupStore.rollbackPoint(forKey: key)?.version == "1.0")
-            await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.5"))
+            await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.5"), journal: nil, succeeded: false)
         }
     }
 
@@ -972,8 +972,8 @@ extension InstallJournalTests {
             let recording = try #require(await InstallJournal.begin(
                 app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
             try FileManager.default.removeItem(at: app)
-            await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.0"))
-            await recording.finish()
+            await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.0"), journal: recording, succeeded: false)
+            await recording.finish(succeeded: false)
             #expect(!FileManager.default.fileExists(atPath: recording.file.path))
             #expect(InstallJournal.interruptedInstalls().isEmpty)
             #expect(InstallJournal.standing(of: app) == .clear)
@@ -992,9 +992,9 @@ extension InstallJournalTests {
                 app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
             #expect(await InstallCoordinator.takeInstallRollbackPoint(installed(app, version: "1.0"), route: .homebrew))
             try FileManager.default.removeItem(at: app)
-            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.0")) == .discarded)
+            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.0"), journal: recording, succeeded: false) == .discarded)
             #expect(BackupStore.rollbackPoint(forKey: key) == nil)
-            await recording.finish()
+            await recording.finish(succeeded: false)
             #expect(InstallJournal.interruptedInstalls().isEmpty)
         }
     }
@@ -1013,7 +1013,7 @@ extension InstallJournalTests {
             try await InstallJournal.recording(recording) {
                 try await InstallCommit.run("swap") { try FileManager.default.removeItem(at: app) }
             }
-            await recording.finish()
+            await recording.finish(succeeded: false)
             try #require(FileManager.default.fileExists(atPath: recording.file.path))
             try store(entry(for: app, owner: try await deadProcess()), in: scratch)
 
@@ -1041,14 +1041,14 @@ extension InstallJournalTests {
             try await InstallJournal.recording(first) {
                 try await InstallCommit.run("swap") { try FileManager.default.removeItem(at: app) }
             }
-            await first.finish()
+            await first.finish(succeeded: false)
             try #require(InstallJournal.interruptedInstalls().count == 1)
 
             let second = try #require(await InstallJournal.begin(
                 app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
             try makeApp(in: scratch.apps, version: "2.0", withExecutable: true)
             try await adHocSign(app)
-            await second.finish()
+            await second.finish(succeeded: false)
             #expect(!FileManager.default.fileExists(atPath: first.file.path))
             #expect(InstallJournal.interruptedInstalls().isEmpty)
         }
@@ -1071,7 +1071,7 @@ extension InstallJournalTests {
             try await adHocSign(app)
             try FileManager.default.removeItem(at: app.appendingPathComponent("Contents/Helpers/ZZFixtureHelper"))
             #expect(await InstallJournal.mayDiscardRollbackPoint(for: app) == false)
-            await recording.finish()
+            await recording.finish(succeeded: false)
             #expect(InstallJournal.interruptedInstalls().count == 1)
         }
     }
@@ -1099,7 +1099,7 @@ extension InstallJournalTests {
             try #require(stripped.succeeded)
             #expect(await offCooperativePool { InstallJournal.signature(of: app) } == .unsigned)
             #expect(await InstallJournal.mayDiscardRollbackPoint(for: app) == false)
-            await recording.finish()
+            await recording.finish(succeeded: false)
             #expect(InstallJournal.interruptedInstalls().count == 1)
         }
     }
@@ -1115,7 +1115,7 @@ extension InstallJournalTests {
             try makeApp(in: scratch.apps, version: "2.0", withExecutable: true)
             try FileManager.default.removeItem(at: app.appendingPathComponent("Contents/MacOS/ZZFixture"))
             #expect(await InstallJournal.mayDiscardRollbackPoint(for: app) == false)
-            await recording.finish()
+            await recording.finish(succeeded: false)
             #expect(InstallJournal.interruptedInstalls().count == 1)
         }
     }
@@ -1207,7 +1207,7 @@ extension InstallJournalTests {
                 app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
             try makeApp(in: scratch.apps, version: "2.0", withExecutable: true)
             try await adHocSign(app)
-            await recording.finish()
+            await recording.finish(succeeded: false)
             #expect(FileManager.default.fileExists(atPath: earlier.path))
             #expect(try await process(scratch) == [.resolved(app: "ZZFixture-Journal", .completed)])
             #expect(!FileManager.default.fileExists(atPath: work.path))
@@ -1259,14 +1259,104 @@ extension InstallJournalTests {
                 await InstallCoordinator.takeInstallRollbackPoint(damaged, route: .homebrew)
                 withUnsafeCurrentTask { $0?.cancel() }
                 #expect(Task.isCancelled)
-                #expect(await InstallCoordinator.settleInstallRollbackPoint(for: damaged) == .kept)
-                await recording.finish()
+                #expect(await InstallCoordinator.settleInstallRollbackPoint(for: damaged, journal: recording, succeeded: false) == .kept)
+                await recording.finish(succeeded: false)
             }
             await item.value
             #expect(BackupStore.rollbackPoint(forKey: key)?.version == "1.0")
             #expect(FileManager.default.fileExists(atPath: earlier.path))
             #expect(!FileManager.default.fileExists(atPath: recording.file.path))
             #expect(InstallJournal.interruptedInstalls().map(\.restoreFrom?.purpose) == [.installRollbackPoint])
+        }
+    }
+}
+
+extension InstallJournalTests {
+
+    // MARK: - A successful install that moved the app (round 4, #1)
+
+    /// brew upgrades a cask whose new version installs under another name:
+    /// `Moved#delete` removes the whole old folder when the successor has no
+    /// artifact with the same target (Homebrew 7.0.9 `cask/artifact/moved.rb`),
+    /// so the old path is empty after a SUCCESS. The host says it succeeded;
+    /// that is not an interrupted install, and its rollback point is not the
+    /// way back to anything.
+    @Test func aSuccessfulInstallThatMovedTheAppLeavesNoInterruptedEntry() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            let old = installed(app, version: "1.0")
+            let recording = try #require(await InstallJournal.begin(
+                app: old, route: .homebrew, target: VersionSide(marketing: "2.0")))
+            #expect(await InstallCoordinator.takeInstallRollbackPoint(old, route: .homebrew))
+            let renamed = scratch.apps.appendingPathComponent("ZZFixture-Renamed.app")
+            try await InstallJournal.recording(recording) {
+                try await InstallCommit.run("brew upgrade") {
+                    try FileManager.default.moveItem(at: app, to: renamed)
+                }
+            }
+            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: old, journal: recording, succeeded: true) == .discarded)
+            #expect(BackupStore.rollbackPoint(forKey: key) == nil)
+            await recording.finish(succeeded: true)
+            #expect(!FileManager.default.fileExists(atPath: recording.file.path))
+            #expect(InstallJournal.interruptedInstalls().isEmpty)
+        }
+    }
+
+    /// A success over an earlier install of the app that was cut off: the
+    /// point may be that install's way back, so a success that left the old
+    /// path empty does not discard it, and the earlier entry stays.
+    @Test func aSuccessOverAnEarlierInterruptedInstallKeepsItsWayBack() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: key, version: "1.0", bundleID: bundleID)
+            try FileManager.default.removeItem(at: app)
+            let earlier = try store(entry(for: app, owner: try await deadProcess(), damage: .missing), in: scratch)
+            let old = installed(app, version: "1.0")
+            let recording = try #require(await InstallJournal.begin(
+                app: old, route: .homebrew, target: VersionSide(marketing: "2.0")))
+            try await InstallJournal.recording(recording) {
+                try await InstallCommit.run("brew upgrade") {}
+            }
+            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: old, journal: recording, succeeded: true) == .kept)
+            #expect(BackupStore.rollbackPoint(forKey: key) != nil)
+            await recording.finish(succeeded: true)
+            #expect(FileManager.default.fileExists(atPath: earlier.path))
+            #expect(!FileManager.default.fileExists(atPath: recording.file.path))
+        }
+    }
+
+    // MARK: - The commit fact is the recording's, not the disk's (round 4, #5)
+
+    /// The commit ran, but its note could not be written (the journal
+    /// directory refused the write). Settle and finish must agree that it ran
+    /// — the in-memory fact — and so keep the point of the app it left gone,
+    /// rather than reading "no commit" from the file and discarding it.
+    @Test func aCommitWhoseNoteFailedToWriteStillKeepsTheWayBack() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            let old = installed(app, version: "1.0")
+            let recording = try #require(await InstallJournal.begin(
+                app: old, route: .homebrew, target: VersionSide(marketing: "2.0")))
+            #expect(await InstallCoordinator.takeInstallRollbackPoint(old, route: .homebrew))
+            try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: scratch.journal.path)
+            defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scratch.journal.path) }
+            try await InstallJournal.recording(recording) {
+                try await InstallCommit.run("brew upgrade") { try FileManager.default.removeItem(at: app) }
+            }
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scratch.journal.path)
+            let onDisk = try JSONDecoder().decode(
+                InstallJournal.Entry.self, from: Data(contentsOf: recording.file))
+            try #require(onDisk.committed == nil, "the note's write was meant to fail")
+            #expect(recording.snapshot.committed == true)
+
+            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: old, journal: recording, succeeded: false) == .kept)
+            #expect(BackupStore.rollbackPoint(forKey: key) != nil)
+            await recording.finish(succeeded: false)
+            #expect(InstallJournal.interruptedInstalls().map(\.damage) == [.missing])
         }
     }
 }

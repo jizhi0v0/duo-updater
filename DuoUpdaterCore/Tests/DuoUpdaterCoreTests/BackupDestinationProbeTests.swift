@@ -193,8 +193,8 @@ import Testing
 
     // MARK: - Real filesystems
 
-    /// How long `withVolume` keeps retrying an hdiutil step that failed for a
-    /// reason known to pass. 60 s was outlasted twice on the hosted runner.
+    /// How long `withVolume` keeps retrying a failed `create` or `attach`. 60 s
+    /// was outlasted twice on the hosted runner.
     private static let transientBound: Duration = .seconds(120)
 
     /// Create, attach, and guarantee detach of a sparse image.
@@ -223,14 +223,13 @@ import Testing
             return (outcome.terminationStatus, String(decoding: outcome.standardOutput, as: UTF8.self))
         }
 
-        /// `arguments` run again, a second apart, while hdiutil's output names one
-        /// of `transient`, for up to `transientBound` from the first try. Anything
-        /// else is handed back as it is. `beforeRetry` puts back what a failed try
-        /// may have left. The tries and the time they took ride along, so a failure
-        /// that outlasts the bound says how long it was given.
+        /// `arguments` run again, a second apart, while they fail, for up to
+        /// `transientBound` from the first try. `beforeRetry` puts back what a
+        /// failed try may have left. The tries and the time they took ride along
+        /// with hdiutil's last answer, so a failure that outlasts the bound says
+        /// how long it was given.
         func retrying(
-            _ arguments: [String], on transient: [String],
-            beforeRetry: () async -> Void
+            _ arguments: [String], beforeRetry: () async -> Void
         ) async throws -> (status: Int32, output: String, tries: Int, seconds: Int) {
             let start = ContinuousClock.now
             var tries = 0
@@ -238,36 +237,34 @@ import Testing
                 tries += 1
                 let r = await run(arguments)
                 let seconds = Int((ContinuousClock.now - start).components.seconds)
-                guard r.status != 0, transient.contains(where: r.output.contains),
-                      ContinuousClock.now < start + Self.transientBound
+                guard r.status != 0, ContinuousClock.now < start + Self.transientBound
                 else { return (r.status, r.output, tries, seconds) }
                 await beforeRetry()
                 try await Task.sleep(for: .seconds(1))
             }
         }
 
-        // On the hosted runner `create` sometimes answers "create failed - Resource
-        // busy" when several run at once, and a later try works; a fixed count of
-        // tries is not a bound on time, since under load each try itself takes
-        // 1–41 s (median 7.6 s in run 38376650037). First seen 11 of 1,920
-        // creates eight at a time, none one at a time, all created on the second
-        // try (diag runs 37427083362, 37428672097, 2026-10-06). In 60 full Release
-        // suites (diag run 38376650037, macOS 27.0.1, 2026-10-13) 8 of 660 images
-        // answered busy: seven were created on the second or third try, the last
-        // 20.9 s after the first try began; the eighth was still busy on its
-        // fourth try 38.6 s in. With a 60 s bound, 60 more suites (diag run
-        // 38382272237, same day) had 19 of 660 images answer busy, and all 19
-        // were created: four only on the fifth try, the latest 50.4 s after its
-        // first try began. Still busy after 60 s twice since (runs 39013065891,
-        // 39112907666), hence `transientBound`: with it, an APFS image busy on a
-        // first try that took 32 s was created by a second try ending 77 s in
-        // (diag run 39119862740). An ExFAT `create` has also failed
-        // "create failed - No such file or directory" into a `$TMPDIR` that exists
-        // (runs 39104772469, 39111286040, 2026-10-18), and is retried alike.
+        // Any failure of `create` or `attach` is retried, not only the answers
+        // seen so far: on the hosted xcode-27 runner (macOS 27.0.1) these two
+        // steps on a fresh image have failed with a new answer almost every time
+        // one was looked at, mostly in a runner's first suite, and each answer
+        // that was retried worked on a later try ("Directory not empty", "error
+        // 0xf8da0001" and "Device not configured" were each seen once, before a
+        // retry covered them). `create`: "Resource busy" (a further
+        // try works; in diag run 38382272237 19 of 660 images answered it, the
+        // latest created 50.4 s after its first try; still busy after 60 s twice
+        // since, runs 39013065891 and 39112907666, hence `transientBound` — with
+        // it, one busy image was created by a try ending 77 s in, diag run
+        // 39119862740), "No such file or directory" into a `$TMPDIR` that exists
+        // (runs 39104772469, 39111286040, 39119862740), "Directory not empty"
+        // and "error 0xf8da0001" (39119862740). `attach`: "no mountable file
+        // systems" (also on the mini, and on a dev Mac sixteen FAT images at a
+        // time: 14 of 800, all attached on the retry), "Resource busy"
+        // (39104772469), "Device not configured" (39119862740). A step that never
+        // works still fails, `transientBound` later, with hdiutil's own answer.
         let created = try await retrying(
             ["create", "-size", "\(sizeMB)m", "-type", "SPARSE",
              "-fs", format, "-volname", volname, image.path],
-            on: ["Resource busy", "No such file or directory"],
             beforeRetry: { try? fm.removeItem(at: image) })
         try #require(created.status == 0, """
             could not create a \(format) image (\(created.status), \(created.tries) tries \
@@ -276,22 +273,9 @@ import Testing
         defer { try? fm.removeItem(at: image) }
 
         try fm.createDirectory(at: mount, withIntermediateDirectories: true)
-        // Under load, attaching a fresh FAT-family image sometimes answers "attach
-        // failed - no mountable file systems", and the same image attaches a second
-        // later. Seen on the mini in Release Core tests (runs 37875961124,
-        // 38159603414-attempt 1; 2 of ~2,150 CI runs 2026-09-04 → 10-11). On a dev
-        // Mac (macOS 27.2, 2026-10-12), sixteen at a time: MS-DOS 11 of 400, ExFAT
-        // 3 of 400, APFS 0 of 400, all 14 attached on the retry and left nothing
-        // attached; MS-DOS eight at a time 0 of 400, one at a time 0 of 120. On the
-        // hosted runner an APFS attach has also answered "attach failed - Resource
-        // busy" (run 39104772469, twice), and a Case-sensitive APFS one "attach
-        // failed - Device not configured" after 30 s (diag run 39119862740, once;
-        // not yet seen to pass on a retry). All three are retried like `create`,
-        // any other failure is reported as it is, and a disk a failed try left
-        // attached is taken off before the next.
+        // A disk a failed `attach` left attached is taken off before the next try.
         let attached = try await retrying(
             ["attach", "-nobrowse", "-mountpoint", mount.path, image.path],
-            on: ["no mountable file systems", "Resource busy", "Device not configured"],
             beforeRetry: { await TestDiskImages.detach(image) })
         try #require(attached.status == 0, """
             could not attach the \(format) image (\(attached.status), \(attached.tries) tries \

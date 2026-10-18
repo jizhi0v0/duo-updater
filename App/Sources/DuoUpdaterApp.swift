@@ -5,6 +5,9 @@ import DuoUpdaterCore
 @main
 struct DuoUpdaterApp: App {
     @State private var model = AppListModel()
+    /// For `applicationShouldTerminate`: a quit waits for installs in flight
+    /// (`QuitCoordinator`).
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
         MenuBarExtra {
@@ -162,6 +165,11 @@ private struct MenuBarLabel: View {
                 let idleSeconds = CGEventSource.secondsSinceLastEventType(
                     .combinedSessionState, eventType: .init(rawValue: ~0)!)
                 return idleSeconds >= 60
+            }
+            // What a quit must wait for — installs, relaunches, Homebrew, CLI
+            // tools, Xcode (`QuitCoordinator`).
+            QuitCoordinator.shared.workProbe = { [weak model] in
+                model?.quitGuardWork ?? QuitGuard.Work()
             }
             if hasCompletedOnboarding {
                 AppUpdater.shared.start()

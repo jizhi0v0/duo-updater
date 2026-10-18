@@ -40,7 +40,7 @@ public enum QuitGuard {
         /// Nothing of ours is in flight: terminate as usual.
         case quitNow
         /// Ask the user, naming what is in flight (may be empty: see
-        /// `Work.batchRunning`).
+        /// `Work.unnamed`).
         case ask([String])
         /// Wait for the work to finish without asking, then quit.
         case waitSilently
@@ -52,17 +52,18 @@ public enum QuitGuard {
         /// formulae upgrading, command-line tools updating, an Xcode install.
         /// Duplicates allowed — `displayNames` folds them.
         public var names: [String]
-        /// A batch is running even if no row is named right now — the moment
-        /// between one row finishing and the next being claimed. Busy, nameless.
-        public var batchRunning: Bool
+        /// Something is in flight that has no name to show: a batch between one
+        /// row finishing and the next being claimed, or a row whose result has
+        /// gone from the list. Busy all the same.
+        public var unnamed: Bool
 
-        public init(names: [String] = [], batchRunning: Bool = false) {
+        public init(names: [String] = [], unnamed: Bool = false) {
             self.names = names
-            self.batchRunning = batchRunning
+            self.unnamed = unnamed
         }
 
         /// Nothing at all is in flight.
-        public var isEmpty: Bool { names.isEmpty && !batchRunning }
+        public var isEmpty: Bool { names.isEmpty && !unnamed }
 
         /// `names` with repeats removed, first-seen order kept — the same app can be
         /// both installing and awaiting relaunch, and is named once.

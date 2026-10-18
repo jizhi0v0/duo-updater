@@ -50,7 +50,7 @@ struct QuitGuardTests {
     /// as idle, or a quit there walks straight into the next row's install.
     @Test("a nameless batch is still in flight")
     func batchWithoutNamesIsBusy() {
-        let gap = QuitGuard.Work(names: [], batchRunning: true)
+        let gap = QuitGuard.Work(names: [], unnamed: true)
         #expect(gap.isEmpty == false)
         #expect(QuitGuard.decide(gap, reason: .user) == .ask([]))
         #expect(QuitGuard.decide(gap, reason: .signal) == .waitSilently)

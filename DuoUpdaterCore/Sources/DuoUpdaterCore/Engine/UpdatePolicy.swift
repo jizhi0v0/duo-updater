@@ -487,10 +487,12 @@ public enum UpdatePolicy {
 
     /// The installed copy has no Team ID (`UpdateResult.installedLacksTeamIdentifier`)
     /// and the route would pin one: Sparkle, whose installer runs gate 3 on every
-    /// enclosure, or a Vendor/GitHub/Electron/MyGo download on
-    /// `InstallTrust.developerID`. The two ad-hoc trusts are the routes built for a
-    /// copy without a Team ID and are judged on their own setting. Homebrew and
-    /// the App Store do not run our gates.
+    /// enclosure; a Vendor/GitHub/Electron/MyGo download on
+    /// `InstallTrust.developerID`; or a Homebrew cask handed to the system
+    /// installer, which goes through `PackageInstaller`'s Team check. The two
+    /// ad-hoc trusts are the routes built for a copy without a Team ID and are
+    /// judged on their own setting. `brew install --cask` and the App Store run
+    /// none of our gates.
     static func lacksTeamIdentifierForRoute(_ result: UpdateResult) -> Bool {
         guard result.installedLacksTeamIdentifier else { return false }
         switch result.remote?.sourceName {
@@ -498,6 +500,8 @@ public enum UpdatePolicy {
             return true
         case "Vendor", "GitHub", "Electron", MyGoUpdateSource.sourceName:
             return result.remote?.installTrust == .developerID
+        case "Homebrew":
+            return result.remote?.requiresManualInstaller == true
         default:
             return false
         }
@@ -561,10 +565,15 @@ public enum UpdatePolicy {
         settings: UpdateSettings,
         environment: InstallEnvironment
     ) -> Bool {
+        // Handing the update to the app's own updater runs none of our gates, so
+        // a copy without a Team ID still defers: its Sparkle accepts an
+        // EdDSA-signed update without one. Only our own install is withheld.
+        var route = result
+        route.installedLacksTeamIdentifier = false
         guard settings.vendorInstallPolicy == .deferWhenRunning,
               isRunning(result, environment: environment),
-              canAutoInstall(result, settings: settings, environment: environment)
-                || requiresInstaller(result, environment: environment)
+              canAutoInstall(route, settings: settings, environment: environment)
+                || requiresInstaller(route, environment: environment)
         else { return false }
         switch result.remote?.sourceName {
         case "Vendor":

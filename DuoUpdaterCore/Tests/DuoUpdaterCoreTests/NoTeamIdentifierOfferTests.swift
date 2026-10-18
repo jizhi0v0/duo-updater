@@ -16,20 +16,20 @@ import Testing
             name: "ZZFixtureNoTeam", bundleID: "com.example.zzfixture-noteam",
             shortVersion: "1.0", buildVersion: "1",
             path: URL(fileURLWithPath: path), isMASApp: false,
-            sparkleFeedURL: nil, sparkleEdPublicKey: edKey)
+            sparkleFeedURL: URL(string: "https://example.com/appcast.xml"), sparkleEdPublicKey: edKey)
     }
 
     private static func result(
         source: String, url: String = "https://example.com/zz.zip",
         kind: VendorInstallerKind? = nil, trust: InstallTrust = .developerID,
-        sha: String? = nil, cask: String? = nil, lacksTeam: Bool
+        sha: String? = nil, cask: String? = nil, manualInstaller: Bool = false, lacksTeam: Bool
     ) -> UpdateResult {
         var row = UpdateResult(
             app: app(),
             remote: RemoteVersion(
                 shortVersion: "2.0", version: nil, downloadURL: URL(string: url),
                 edSignature: "sig", sourceName: source, sourceIdentifier: cask,
-                requiresManualInstaller: false, vendorInstallerKind: kind,
+                requiresManualInstaller: manualInstaller, vendorInstallerKind: kind,
                 expectedSHA256: sha, installTrust: trust),
             status: .updateAvailable(latest: "2.0"))
         row.installedLacksTeamIdentifier = lacksTeam
@@ -89,6 +89,32 @@ import Testing
     /// in `lacksTeamIdentifierForRoute` → red.
     @Test func homebrewIsStillOffered() {
         #expect(Self.offered(Self.result(source: "Homebrew", cask: "zzfixture", lacksTeam: true)))
+    }
+
+    /// A cask that needs the system installer goes through `PackageInstaller`'s
+    /// Team check. Mutation: drop the `"Homebrew"` case in
+    /// `lacksTeamIdentifierForRoute` → red.
+    @Test func aHomebrewInstallerCaskOverACopyWithoutATeamIDIsNotOffered() {
+        let pkg = "https://example.com/zz.pkg"
+        #expect(Self.installer(Self.result(
+            source: "Homebrew", url: pkg, cask: "zzfixture", manualInstaller: true, lacksTeam: false)))
+        #expect(!Self.installer(Self.result(
+            source: "Homebrew", url: pkg, cask: "zzfixture", manualInstaller: true, lacksTeam: true)))
+    }
+
+    /// Running, with "defer while running": the row hands the update to the
+    /// app's own updater, which runs none of our gates, so a missing Team ID does
+    /// not take that away. Mutation: judge the hand-off on the row as it is (drop
+    /// the cleared copy in `defersToSelfUpdater`) → red.
+    @Test func aRunningCopyWithoutATeamIDStillDefersToItsOwnUpdater() {
+        let row = Self.result(source: "Sparkle", lacksTeam: true)
+        let running = InstallEnvironment(
+            isHelperEnabled: false, runningAppPaths: [UpdatePolicy.runtimeBundlePath(row.app.path)],
+            stagedSelfUpdates: [:])
+        #expect(UpdatePolicy.defersToSelfUpdater(row, settings: Self.settings, environment: running))
+        // Not running: nothing to hand off to, and our own install is withheld.
+        #expect(!UpdatePolicy.defersToSelfUpdater(row, settings: Self.settings, environment: Self.environment))
+        #expect(!Self.offered(row))
     }
 
     /// A rescan rebuilds every row through `carriedForward`, which is how the

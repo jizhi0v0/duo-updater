@@ -825,9 +825,10 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
 
     /// For a row with an update: the installed copy carries no Team Identifier
     /// (self-signed, ad-hoc or unsigned). Every route that pins the download to
-    /// the installed app's Team ID (`InstallTrust.developerID`) then refuses at
-    /// gate 3 (`SignatureVerifier.verifyTeamIdentifierMatch`) or at the package
-    /// route's own Team check, so `UpdatePolicy` does not offer them.
+    /// the installed app's Team ID then refuses at gate 3
+    /// (`SignatureVerifier.verifyTeamIdentifierMatch`) or at the package route's
+    /// own Team check, so `UpdatePolicy` does not offer them. Which routes those
+    /// are is `UpdatePolicy.lacksTeamIdentifierForRoute`.
     ///
     /// Read by `UpdateChecker.check(_:)` only when there is an update, because a
     /// cold read costs up to ~77 ms per bundle (measured 2026-10-18 over 248

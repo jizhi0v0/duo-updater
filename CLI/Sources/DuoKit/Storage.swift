@@ -80,7 +80,7 @@ public enum Storage {
             case .caches:
                 print(cachesHeading(members))
             case .appData:
-                print("App data — needed for rollbacks, history and checks; not cleared")
+                print("App data — needed for restores, history and checks; not cleared")
             case .system:
                 print("Kept by macOS for DuoUpdater")
             }

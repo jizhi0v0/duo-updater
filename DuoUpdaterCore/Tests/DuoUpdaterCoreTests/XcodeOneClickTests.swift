@@ -404,6 +404,23 @@ import Foundation
         #expect(swaps.all == [.installing])
     }
 
+    /// The swap is this route's point of no return: cancelled before it, no
+    /// swap and `CancellationError`.
+    /// Mutation: call `swap()` instead of `InstallCommit.run("swap", swap)` → it
+    /// swaps, red.
+    @Test func aCancelBeforeTheSwapSkipsIt() async throws {
+        let swaps = StageLog()
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await XcodeInstaller.swapUnlessRunning(
+                over: URL(fileURLWithPath: "/ZZFixture/Xcode-beta.app"),
+                runningExecutables: { [] },
+                swap: { swaps.append(.installing) })
+        }
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(swaps.all.isEmpty)
+    }
+
     // MARK: - Apply phase: pure checks
 
     /// Captured from the real Xcode 27 RC xip, 2026-09-22 (fingerprint elided).

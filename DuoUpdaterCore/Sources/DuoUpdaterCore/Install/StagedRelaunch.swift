@@ -210,8 +210,32 @@ public enum StagedRelaunch {
         let appliesOnLaunch = staged?.appliesOn == .launch
         // The installer parked on the quit, found while the app still runs so
         // its exit later means something. See `InstallerExitWatch`.
-        var installerProbe = await ParkedInstallerProbe.find(
+        let installerProbe = await ParkedInstallerProbe.find(
             for: app, staged: staged, system: system.installer)
+        // From the quit on, the wait runs to its end (`InstallCommit`): a quit
+        // with no reopen behind it would leave the user without the app, and the
+        // live `tick` is a `try?` sleep that a cancel would turn into a spin. A
+        // caller cancelled before this point has quit nothing — classified as
+        // an app that never quit, which is what happened.
+        let ending = try? await InstallCommit.run("relaunch") {
+            await quitAndAwaitSwap(
+                app, staged: staged, old: old, wasFrontmost: wasFrontmost,
+                quitPatience: quitPatience, system: system, buildIsDerived: buildIsDerived,
+                appliesOnLaunch: appliesOnLaunch, installerProbe: installerProbe)
+        }
+        return ending ?? Ending(
+            outcome: StagedRelaunchOutcome.classify(
+                landed: false, everQuit: false, reappearedWithoutLanding: false),
+            everQuit: false, reopenFailed: false)
+    }
+
+    /// `quitAndAwait` from the quit on — its commit (`InstallCommit`).
+    private static func quitAndAwaitSwap(
+        _ app: InstalledApp, staged: StagedSelfUpdate?, old: VersionSide,
+        wasFrontmost: Bool, quitPatience: QuitPatience, system: System,
+        buildIsDerived: Bool, appliesOnLaunch: Bool, installerProbe: ParkedInstallerProbe?
+    ) async -> Ending {
+        var installerProbe = installerProbe
         Log.app.notice("relaunch-staged: quitting \(app.name, privacy: .public) (\(old.text(withBuild: true), privacy: .public)) — \(appliesOnLaunch ? "reopening it so its updater applies on launch" : "letting its own updater swap & relaunch (no reopen)", privacy: .public)\(installerProbe.map { ", watching installer \(String(describing: $0.target))" } ?? "", privacy: .public)")
         system.terminate()
 

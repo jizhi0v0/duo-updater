@@ -94,6 +94,17 @@ import Foundation
     #expect(!MASInstaller.isTransientNetworkFailure("Error Domain=NSURLErrorDomain Code=-1002 \"unsupported URL\""))
 }
 
+/// A log directory of the calling test's own. `runOnce` names its log after the
+/// adamID alone, and several worktrees' suites run side by side on this machine
+/// with one `$TMPDIR`: in the shared directory, the same fixture adamID in two
+/// processes read, truncated and deleted each other's logs.
+private func masLogDirectory() -> String {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ZZFixture-mas-\(UUID().uuidString)", isDirectory: true)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    return dir.path
+}
+
 /// A scripted `PrivilegedMASRunner`: returns the next (exit-status, log) pair on
 /// each call, writing the log where the installer will read it, and records how
 /// many times it was invoked so a test can assert the retry count.
@@ -140,7 +151,9 @@ private let receiptImportLog =
 /// scenario, where a plain retry cleared it.
 @Test func retriesReceiptImportFailureThenSucceeds() async throws {
     let runner = ScriptedMASRunner([(1, receiptImportLog), (0, "==> Installing")])
-    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0)
+    let logs = masLogDirectory()
+    defer { try? FileManager.default.removeItem(atPath: logs) }
+    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0, logDirectory: logs)
     try await installer.install(adamID: 900000004) { _ in }
     let calls = await runner.calls
     #expect(calls == 2)  // failed once, retried once, succeeded
@@ -151,7 +164,9 @@ private let receiptImportLog =
 /// bounded — then surfaced with the actionable guidance.
 @Test func receiptImportFailureRetriesExactlyOnce() async {
     let runner = ScriptedMASRunner([(1, receiptImportLog)])  // always fails
-    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0)
+    let logs = masLogDirectory()
+    defer { try? FileManager.default.removeItem(atPath: logs) }
+    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0, logDirectory: logs)
     await #expect(throws: MASInstaller.MASError.self) {
         try await installer.install(adamID: 900000005) { _ in }
     }
@@ -168,7 +183,9 @@ private let receiptImportLog =
 /// lands the update — the field scenario (a proxy resetting the store lookup).
 @Test func retriesTransientMasFailureThenSucceeds() async throws {
     let runner = ScriptedMASRunner([(1, transientLog), (0, "==> Installing")])
-    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0)
+    let logs = masLogDirectory()
+    defer { try? FileManager.default.removeItem(atPath: logs) }
+    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0, logDirectory: logs)
     try await installer.install(adamID: 900000001) { _ in }
     let calls = await runner.calls
     #expect(calls == 2)  // failed once, retried once, succeeded
@@ -177,7 +194,9 @@ private let receiptImportLog =
 /// A definitive store answer is surfaced on the first pass — never retried.
 @Test func doesNotRetryDefinitiveMasFailure() async {
     let runner = ScriptedMASRunner([(1, "Error: Not purchased")])
-    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0)
+    let logs = masLogDirectory()
+    defer { try? FileManager.default.removeItem(atPath: logs) }
+    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0, logDirectory: logs)
     await #expect(throws: MASInstaller.MASError.self) {
         try await installer.install(adamID: 900000002) { _ in }
     }
@@ -189,12 +208,74 @@ private let receiptImportLog =
 /// error, rather than retrying forever.
 @Test func exhaustsRetriesWhenTransientPersists() async {
     let runner = ScriptedMASRunner([(1, transientLog)])  // always transient
-    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0)
+    let logs = masLogDirectory()
+    defer { try? FileManager.default.removeItem(atPath: logs) }
+    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0, logDirectory: logs)
     await #expect(throws: MASInstaller.MASError.self) {
         try await installer.install(adamID: 900000003) { _ in }
     }
     let calls = await runner.calls
     #expect(calls == 4)  // maxAttempts
+}
+
+/// D4: cancelled while waiting out the backoff after a transient failure, the
+/// loop ends with `CancellationError` — it does not start the next `mas install`.
+/// The failed attempt installed nothing, so stopping loses nothing. The backoff
+/// is long enough (60 s) that only a cancel that ends it lets this finish.
+/// Mutation: `try?` on the backoff AND drop `InstallCommit.run`'s
+/// `checkCancellation` → the next attempts run, red (either one alone still
+/// stops the loop: the sleep throws, or the next commit refuses to start).
+@Test func aCancelDuringTheBackoffStartsNoFurtherAttempt() async throws {
+    let runner = ScriptedMASRunner([(1, transientLog)])  // always transient
+    let logs = masLogDirectory()
+    defer { try? FileManager.default.removeItem(atPath: logs) }
+    let installer = MASInstaller(runner: runner, retryBackoffNanos: 60_000_000_000, logDirectory: logs)
+    let task = Task { try await installer.install(adamID: 900000007) { _ in } }
+    while await runner.calls == 0 { try await Task.sleep(for: .milliseconds(5)) }
+    task.cancel()
+    await #expect(throws: CancellationError.self) { try await task.value }
+    let calls = await runner.calls
+    #expect(calls == 1)
+}
+
+extension InstallJobsTests {
+    /// The registry's view of the same window (review of #1404): a failed attempt
+    /// reports its status by value, not by throwing, and must still leave the job
+    /// `.preparing` — so a host's cancel during the backoff is `.cancelled`, runs
+    /// the job's own cancel, and no further `mas install` starts.
+    /// In `InstallJobsTests` (serialized) because `cancelAll` there is global.
+    /// Mutation: ignore `InstallCommit.run`'s `landed` predicate → the job stays
+    /// committing, the cancel is `.tooLate`, red.
+    @Test func aRegisteredMASJobIsCancellableDuringTheBackoff() async throws {
+        let runner = ScriptedMASRunner([(1, transientLog)])  // always transient
+        let logs = masLogDirectory()
+        defer { try? FileManager.default.removeItem(atPath: logs) }
+        let installer = MASInstaller(runner: runner, retryBackoffNanos: 60_000_000_000, logDirectory: logs)
+        let id = Self.id()
+        let handle = TaskHandle()
+        InstallJobs.register(id, cancel: { handle.cancel() })
+        defer { InstallJobs.unregister(id) }
+        let task = Task {
+            try await InstallJobs.$currentID.withValue(id) {
+                try await installer.install(adamID: 900000008) { _ in }
+            }
+        }
+        handle.set(task)
+        // The first attempt has failed and its commit has ended: the job is
+        // waiting out the backoff.
+        while await runner.calls == 0 { try await Task.sleep(for: .milliseconds(5)) }
+        let clock = ContinuousClock()
+        let limit = clock.now.advanced(by: .seconds(5))
+        while InstallJobs.phase(of: id) != .preparing, clock.now < limit {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        let answer = InstallJobs.cancel(id)
+        if answer != .cancelled { task.cancel() }  // red path: don't wait out a minute
+        #expect(answer == .cancelled)
+        await #expect(throws: CancellationError.self) { try await task.value }
+        let calls = await runner.calls
+        #expect(calls == 1)
+    }
 }
 
 @Test func installerUpgradeFailureIsTreatedAsAnAppStoreDeadEnd() {
@@ -260,7 +341,9 @@ private let adamIDNotFoundLog = "Error: No apps found in the App Store for ADAM 
 /// for this log and rerunning (calls goes from 1 to 4, the retry ceiling).
 @Test func doesNotRetryAdamIDNotFound() async {
     let runner = ScriptedMASRunner([(1, adamIDNotFoundLog)])
-    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0)
+    let logs = masLogDirectory()
+    defer { try? FileManager.default.removeItem(atPath: logs) }
+    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0, logDirectory: logs)
     await #expect(throws: MASInstaller.MASError.self) {
         try await installer.install(adamID: 900000006) { _ in }
     }

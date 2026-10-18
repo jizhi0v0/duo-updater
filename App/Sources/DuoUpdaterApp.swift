@@ -5,6 +5,9 @@ import DuoUpdaterCore
 @main
 struct DuoUpdaterApp: App {
     @State private var model = AppListModel()
+    /// For `applicationShouldTerminate`: a quit waits for installs in flight
+    /// (`QuitCoordinator`).
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
         MenuBarExtra {
@@ -147,9 +150,13 @@ private struct MenuBarLabel: View {
             AppUpdater.shared.setIdleProbe { [weak model] in
                 guard let model else { return false }
                 // Nothing of ours may be in flight: a scan, a check, any install,
-                // or an app still waiting to be relaunched. Quitting through one of
-                // those is the interruption this gate exists to prevent.
-                guard model.canRefresh, model.relaunching.isEmpty else { return false }
+                // an app still waiting to be relaunched, Homebrew, a CLI tool, an
+                // Xcode install. Quitting through one of those is the interruption
+                // this gate exists to prevent — and the quit guard would answer it
+                // with a dialog nobody asked for. Same list the guard reads.
+                guard QuitGuard.selfUpdateMayInstall(
+                    listIdle: model.canRefresh, work: model.quitGuardWork)
+                else { return false }
                 // Open windows do NOT block: macOS restores them across the quit and
                 // relaunch on its own — measured, with nothing of ours involved, so
                 // a hand-written restore would only duplicate it (and the version
@@ -162,6 +169,11 @@ private struct MenuBarLabel: View {
                 let idleSeconds = CGEventSource.secondsSinceLastEventType(
                     .combinedSessionState, eventType: .init(rawValue: ~0)!)
                 return idleSeconds >= 60
+            }
+            // What a quit must wait for — installs, relaunches, Homebrew, CLI
+            // tools, Xcode (`QuitCoordinator`).
+            QuitCoordinator.shared.workProbe = { [weak model] in
+                model?.quitGuardWork ?? QuitGuard.Work()
             }
             if hasCompletedOnboarding {
                 AppUpdater.shared.start()

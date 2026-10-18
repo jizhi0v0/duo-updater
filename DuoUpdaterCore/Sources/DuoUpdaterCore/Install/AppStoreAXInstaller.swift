@@ -399,23 +399,20 @@ public actor AppStoreAXInstaller {
         // for as long as it stays up, which is forever: no Relaunch prompt, and the
         // install dies at the 6-min poll cap.
         let sheetBeforePress = quitSheet(in: axApp) != nil
-        AXUIElementPerformAction(offer, kAXPressAction as CFString)
-        Log.install.notice("appstore-ax: \(appName, privacy: .public) pressed Update (baseline short=\(baseline.short ?? "?", privacy: .public) build=\(baseline.build ?? "?", privacy: .public))")
-        onStage(.downloading(fraction: 0))
-
-        try await driveToCompletion(
-            axApp: axApp,
-            bundleID: bundleID,
-            names: names,
-            appPath: appPath,
-            baseline: baseline,
-            viaUpdatesList: viaUpdatesList,
-            sheetBeforePress: sheetBeforePress,
-            onStage: onStage,
-            requestQuit: requestQuit,
-            quitAnswer: quitAnswer,
-            withdrawQuit: withdrawQuit
-        )
+        // This route's point of no return (`InstallCommit`), from the press through
+        // `driveToCompletion`: once pressed, App Store downloads and swaps on its
+        // own, and the drive that follows is what answers its close-to-update
+        // sheet — abandoning it halfway would leave that sheet up with nobody to
+        // answer it. A cancel before this point presses nothing; one after it is
+        // not seen. The sleeps in `driveToCompletion` are then never cut short.
+        let pressed = PressedOffer(axApp: axApp, offer: offer)
+        try await InstallCommit.run("App Store press") {
+            try await self.pressAndDrive(
+                pressed, appName: appName, bundleID: bundleID, names: names, appPath: appPath,
+                baseline: baseline, viaUpdatesList: viaUpdatesList, sheetBeforePress: sheetBeforePress,
+                onStage: onStage, requestQuit: requestQuit, quitAnswer: quitAnswer,
+                withdrawQuit: withdrawQuit)
+        }
 
         // A product-page install leaves App Store's cached "N updates available" count
         // stale: the install lands but the Updates-list count isn't recomputed, so the
@@ -433,6 +430,52 @@ public actor AppStoreAXInstaller {
             let pid = store.processIdentifier
             Task { await self.refreshUpdatesBadge(pid: pid) }
         }
+    }
+
+    /// The two AX elements `update` hands its commit: App Store's application
+    /// element and the offer button to press.
+    ///
+    /// `AXUIElement` is not `Sendable` (see `locateOfferButtonForTesting`), and
+    /// the commit's body is. Unchecked because nothing touches these concurrently:
+    /// `update` awaits the commit and uses neither element again, so the press and
+    /// the drive are their only users, in order, on this actor.
+    private struct PressedOffer: @unchecked Sendable {
+        let axApp: AXUIElement
+        let offer: AXUIElement
+    }
+
+    /// `update` from the press on — its commit. See there.
+    private func pressAndDrive(
+        _ pressed: PressedOffer,
+        appName: String,
+        bundleID: String?,
+        names: AppNames,
+        appPath: URL,
+        baseline: (short: String?, build: String?),
+        viaUpdatesList: Bool,
+        sheetBeforePress: Bool,
+        onStage: @Sendable @escaping (InstallStage) -> Void,
+        requestQuit: @Sendable @escaping (String) -> Void,
+        quitAnswer: @Sendable @escaping () async -> QuitPromptAnswer,
+        withdrawQuit: @Sendable @escaping () -> Void
+    ) async throws {
+        AXUIElementPerformAction(pressed.offer, kAXPressAction as CFString)
+        Log.install.notice("appstore-ax: \(appName, privacy: .public) pressed Update (baseline short=\(baseline.short ?? "?", privacy: .public) build=\(baseline.build ?? "?", privacy: .public))")
+        onStage(.downloading(fraction: 0))
+
+        try await driveToCompletion(
+            axApp: pressed.axApp,
+            bundleID: bundleID,
+            names: names,
+            appPath: appPath,
+            baseline: baseline,
+            viaUpdatesList: viaUpdatesList,
+            sheetBeforePress: sheetBeforePress,
+            onStage: onStage,
+            requestQuit: requestQuit,
+            quitAnswer: quitAnswer,
+            withdrawQuit: withdrawQuit
+        )
     }
 
     /// Test-only: locate a real product page's offer button end-to-end (App Store

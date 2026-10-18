@@ -28,7 +28,7 @@ commands:
   restart       Quit and relaunch apps whose running copy is stale.
   ignore        Hide an app from update checks. unignore undoes it.
   skip          Hide the version currently offered. unskip undoes it.
-  backups       List the rollback points, put one back, move them to the
+  backups       List the restore points, put one back, move them to the
                 backup disk, or check that they are still intact.
   storage       Where DuoUpdater keeps things on this Mac and how big each part
                 is; clear the caches.
@@ -149,7 +149,7 @@ ignore / unignore / skip / unskip options:
   soon as they change, so there is nothing to restart.
 
 backups options:
-  list                Every stored rollback point: app, version, when, size,
+  list                Every stored restore point: app, version, when, size,
                       and which disk it's on.
   restore <app>       Put a backed-up bundle back over the installed one.
   sync                Move backups still on this Mac onto the backup disk.
@@ -163,13 +163,13 @@ backups options:
                       Writes nothing and changes no setting.
   --deep              verify only: unpack each archive on the disk and compare
                       the whole bundle, not just the archive's digest. As slow
-                      as a rollback, and needs room for one.
+                      as a restore, and needs room for one.
   --yes               Don't ask before overwriting.
   --json              Machine-readable form.
 
   The signature check, retention and atomic swap all live in BackupStore, which
   this calls unmodified — nothing here loosens them. Like the app's own
-  rollback, it does not refuse when the target is running; it restores and tells
+  restore, it does not refuse when the target is running; it restores and tells
   you to restart. A shared bundle id (Android Studio's channels, Thunderbird
   stable/esr) is ambiguous for a restore and is refused rather than guessed.
 

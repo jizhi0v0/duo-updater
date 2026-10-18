@@ -99,6 +99,8 @@ targets:
       - path: Sources/HelperStagedVersionReader.swift
       - path: Shared/OwnTeamIdentifier.swift
       - path: Shared/MASHelperProtocol.swift
+      # The install gates' semaphore and its cancellable wait. Foundation only.
+      - path: Sources/AsyncSemaphore.swift
     dependencies:
       - package: DuoUpdaterCore
         product: DuoUpdaterCore

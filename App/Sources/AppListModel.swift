@@ -4686,14 +4686,17 @@ final class AppListModel {
         let gate: AsyncSemaphore? = isAppStore
             ? Self.appStoreInstallGate
             : result.remote?.downloadURL?.host.map { hostInstallGate(for: $0, appID: result.id) }
-        await gate?.wait()
+        // `waitOrCancel`: a row cancelled while queued leaves the queue at once,
+        // throwing with no slot taken, rather than when another install frees one.
+        var gateHeld = true
+        do { try await gate?.waitOrCancel() } catch { gateHeld = false }
         // A queued item cancelled while waiting — e.g. "Update All" was stopped
         // before this row's turn came up — releases its slots and clears its claim
         // without installing. (`installAll`'s cleanup also sweeps any claim that never
         // reached here at all.)
         if Task.isCancelled {
             installing[id] = nil
-            await gate?.signal()
+            if gateHeld { await gate?.signal() }
             return .notInstalled
         }
         // What the host gate protects is a HOST'S BANDWIDTH, so it belongs to the
@@ -5247,11 +5250,15 @@ final class AppListModel {
                 // fetch and install are one opaque call, so the permit spans both —
                 // like Homebrew's fused upgrade, and unlike the archive routes, which
                 // hand the slot back the moment the bytes are down.
-                await Self.installPermits.waitForDownload()
-                downloadPermitHeld = true
+                // Cancelled while queued: throws holding no permit, so the flag
+                // stays false and the guard below takes the exit.
+                do {
+                    try await Self.installPermits.waitForDownloadOrCancel()
+                    downloadPermitHeld = true
+                } catch {}
                 guard !Task.isCancelled else {
                     // Cancelled while parked on the permit: nothing started. The
-                    // defer above hands it back.
+                    // defer above hands it back if it was taken.
                     reopenAfterQuit[id] = nil
                     installing[id] = nil
                     return .notInstalled

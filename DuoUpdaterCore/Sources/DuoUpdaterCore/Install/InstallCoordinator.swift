@@ -226,6 +226,65 @@ public actor InstallCoordinator {
         }
     }
 
+    /// Whether to take an install rollback point before this route runs — the
+    /// automatic one, for a user with no backup being taken (see
+    /// ``BackupStore/Purpose/installRollbackPoint``).
+    ///
+    /// Only the routes that hand the swap to someone else, because only those
+    /// can leave the app deleted when cut off: `brew install --cask --force`
+    /// removes the old bundle before it moves the new one in, and its rescue
+    /// does not put `/Applications` back (Homebrew 7.0.9, read from source).
+    /// What `mas`, App Store and Installer.app do inside is not known, so they
+    /// count as able to. The routes whose swap is ours (`.sparkle`, `.vendor`,
+    /// `.xcode`) cannot: unprivileged it is an atomic exchange, elevated the
+    /// shell puts the original back itself, and launch recovers either.
+    ///
+    /// Never when a user backup is being taken for this install: that backup
+    /// IS the rollback point, and a second copy would buy nothing.
+    public static func wantsInstallRollbackPoint(_ route: Route, takingUserBackup: Bool) -> Bool {
+        guard !takingUserBackup else { return false }
+        // Exhaustive for the same reason as `wantsBackup`: a new route has to
+        // state whether someone else does its swap.
+        switch route {
+        case .homebrew, .appStore, .installer: return true
+        case .sparkle, .vendor, .xcode: return false
+        }
+    }
+
+    /// Take the install rollback point for `app`. Silent by design — the user
+    /// asked for no backup, and this is not one to be told about unless it is
+    /// needed — so the outcome is logged and returned, never surfaced. A copy
+    /// that fails does not stop the install, exactly as a failed backup does
+    /// not.
+    @discardableResult
+    public static func takeInstallRollbackPoint(_ app: InstalledApp, route: Route) async -> Bool {
+        let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
+        do {
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app.path, key: key,
+                // The same label/comparison pair `backUp` records.
+                version: app.shortVersion ?? app.buildVersion,
+                buildVersion: app.buildVersion, bundleID: app.bundleID,
+                fromPackageInstall: route == .installer, fromAppStore: route == .appStore)
+            Log.install.notice(
+                "rollback point: saved \(app.path.lastPathComponent, privacy: .public) before \(String(describing: route), privacy: .public)")
+            return true
+        } catch {
+            Log.install.error(
+                "rollback point: \(app.path.lastPathComponent, privacy: .public) not saved, installing without one — \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    /// The install of `app` succeeded: its rollback point, if one was taken —
+    /// now or by an earlier install that never finished — is no longer the way
+    /// back to anything. Hosts call this on success only; a failed or abandoned
+    /// install keeps it, since that is the case it exists for.
+    public static func discardInstallRollbackPoint(for app: InstalledApp) async {
+        await BackupStore.removeRollbackPoint(
+            forKey: BackupStore.key(bundleID: app.bundleID, path: app.path))
+    }
+
     /// What taking a rollback point did. Never fatal — the caller decides
     /// whether to proceed without a safety net — but never swallowed either, or
     /// the user finds out only when a rollback later finds nothing.

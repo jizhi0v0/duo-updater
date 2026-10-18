@@ -37,7 +37,26 @@ import Foundation
     // not the version, so a version bump doesn't silently re-arm it. Vendor and
     // changelog rows put a bundle id there; GitHub rows put `owner/repo` — an
     // entry here has to be spelled the way its own row spells it.
-    let decidedBeforeStep4: Set<String> = ["org.mozilla.firefoxdeveloperedition"]
+    //
+    // Mullvad Browser Alpha (a Tor Project build) tags its alphas `<maj>.<min>a<N>`
+    // — `16.0a13`, and the first alpha of every line is `a1` (13.0a1 … 16.0a1 in
+    // mullvad/mullvad-browser's releases) — the same shape as Firefox Nightly's
+    // `160.0a1` (product-details.mozilla.org), so no version-only rule can tell
+    // them apart and step 4 reads `.nightly`. Not a live defect: the "Alpha" in
+    // "Mullvad Browser Alpha.app" decides `.alpha` before step 4 (`detect(name:
+    // "Mullvad Browser Alpha", bundleID: "net.mullvad.mullvadbrowseralpha",
+    // version: "16.0a13")` == `.alpha`). Its rows are GitHub rows, so the subject
+    // is `owner/repo`; that also skips the stable row, whose bare versions never
+    // match step 4 anyway.
+    let decidedBeforeStep4: Set<String> = [
+        "org.mozilla.firefoxdeveloperedition",
+        "mullvad/mullvad-browser",
+    ]
+    // The exemption holds only while the name still decides it; fail here, not
+    // silently, if that ever stops being true.
+    #expect(ReleaseChannel.detect(
+        name: "Mullvad Browser Alpha", bundleID: "net.mullvad.mullvadbrowseralpha",
+        keystoneChannel: nil, version: "16.0a13") == .alpha)
 
     var contradictions: [String] = []
     var checked = 0

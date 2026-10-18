@@ -280,12 +280,14 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         // the server will not honour, a disk error — would only recur.
         var endedTransient = false
         // On any exit: a leftover partial is swept (on success it's already moved)
-        // — unless it is a kept one worth resuming, which needs a strong validator
-        // (without one the tail cannot be shown to belong to the same file).
+        // — unless it is a kept one worth resuming. The other half of "worth
+        // resuming", a strong validator, is the store's: `record` deletes the
+        // sidecar the moment a response without one starts the file, and
+        // `close` keeps nothing that has no sidecar. One place, so a killed
+        // process — which never reaches this `defer` — obeys it too.
         defer {
             if let lease {
-                ResumableDownloadStore.close(
-                    lease, keep: resumeValidator != nil && (Task.isCancelled || endedTransient))
+                ResumableDownloadStore.close(lease, keep: Task.isCancelled || endedTransient)
                 self.lease = nil
             } else {
                 try? FileManager.default.removeItem(at: partial)

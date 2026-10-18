@@ -13,10 +13,16 @@ import Network
 /// cancels the download once the client has written them.
 ///
 /// Mutations (each verified red, then restored):
-/// - `Downloader`'s keep decision ignores the validator → the weak-ETag test
-///   finds a kept partial.
+/// - `ResumableDownloadStore.record` writes a sidecar without a validator →
+///   both weak-ETag tests find something kept.
 /// - `ResumableDownloadStore.isExpired` never true → the expiry test keeps it.
 /// - `DiskSpaceGuard.reclaim` asks `BackupStore` first → the backup is deleted.
+/// - `ResumableDownloadStore.open` keeps the same app's partials under other
+///   URLs → the different-URL test finds the old one.
+/// - `Downloader` no longer drops a kept partial the server will not extend →
+///   that test's download fails.
+/// - `DiskSpaceGuard.SpaceLedger.reserve` never gives partials up → the claim
+///   test is refused.
 /// - `InstallCoordinator.swap` no longer forgets the app's partials → the
 ///   install test finds them.
 @Suite(.serialized)
@@ -217,6 +223,33 @@ struct ResumableDownloadStoreTests {
         }
     }
 
+    /// Killed with a weak ETag: whatever the dead process left on disk must not
+    /// be offered for resume.
+    @Test func aProcessKilledUnderAWeakETagLeavesNothingToResume() async throws {
+        let root = try scratch("root"), work = try scratch("work"), afterKill = try scratch("killed")
+        defer { [root, work, afterKill].forEach { try? FileManager.default.removeItem(at: $0) } }
+        let server = try Server(body: Self.body, validators: ["ETag": "W/\"zz-v1\""], stallAt: Self.stallAt)
+        defer { server.stop() }
+        let url = server.url("zz.dmg")
+
+        try await ResumableDownloadStore.$rootOverride.withValue(root) {
+            try await downloadThenCancel(url, workDir: work) {
+                for name in files(in: root) {
+                    try FileManager.default.copyItem(
+                        at: root.appendingPathComponent(name),
+                        to: afterKill.appendingPathComponent(name))
+                }
+            }
+        }
+        #expect(ResumableDownloadStore.readMeta(ResumableDownloadStore.Entry(url: url, root: afterKill)) == nil)
+        try await ResumableDownloadStore.$rootOverride.withValue(afterKill) {
+            let downloader = Downloader(destinationDir: work) { _ in }
+            let file = try await downloader.download(url)
+            #expect(try Data(contentsOf: file) == Self.body)
+        }
+        #expect(Server.header("Range", in: server.requests[1]) == nil)
+    }
+
     @Test func aServerThatAnswersTheRangeWith200StartsOver() async throws {
         let root = try scratch("root"), work = try scratch("work")
         defer { [root, work].forEach { try? FileManager.default.removeItem(at: $0) } }
@@ -235,6 +268,34 @@ struct ResumableDownloadStoreTests {
         let requests = server.requests
         #expect(requests.count == 2)
         #expect(Server.header("Range", in: requests[1]) == "bytes=\(Self.stallAt)-")
+        #expect(files(in: root).isEmpty)
+    }
+
+    /// A kept partial the server cannot extend — here every byte was already
+    /// on disk when the process died, so the range asks for nothing — is
+    /// dropped, and the same call starts over rather than failing.
+    @Test func aKeptPartialTheServerWillNotExtendIsDroppedAndTheDownloadStartsOver() async throws {
+        let root = try scratch("root"), work = try scratch("work")
+        defer { [root, work].forEach { try? FileManager.default.removeItem(at: $0) } }
+        let server = try Server(body: Self.body, validators: Self.strong, stallAt: nil)
+        defer { server.stop() }
+        let url = server.url("zz.dmg")
+        let entry = ResumableDownloadStore.Entry(url: url, root: root)
+        try Self.body.write(to: entry.partial)
+        try ResumableDownloadStore.writeMeta(
+            .init(url: url.absoluteString, validator: "\"zz-v1\"", bytesWritten: Int64(Self.body.count),
+                  appID: nil, createdAt: Date()),
+            to: entry)
+
+        try await ResumableDownloadStore.$rootOverride.withValue(root) {
+            let downloader = Downloader(destinationDir: work) { _ in }
+            let file = try await downloader.download(url)
+            #expect(try Data(contentsOf: file) == Self.body)
+        }
+        let requests = server.requests
+        #expect(requests.count == 2)
+        #expect(Server.header("Range", in: requests[0]) == "bytes=\(Self.body.count)-")
+        #expect(Server.header("Range", in: requests[1]) == nil)
         #expect(files(in: root).isEmpty)
     }
 

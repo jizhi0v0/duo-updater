@@ -63,7 +63,13 @@ public enum DeltaApplier {
     /// own, borrows the installed app's copy — the same tool, and the CLI is not
     /// worth a second 1.4 MB universal binary. A build with neither simply has no
     /// delta route and every install takes the full archive.
+    /// Test seam: the `BinaryDelta` to run instead of the one `toolURL` finds, so a
+    /// route-level test can drive a real child process through the patch route
+    /// (`reconstruct` takes no bundle). Production never binds it.
+    @TaskLocal static var toolOverride: URL?
+
     public static func toolURL(bundle: Bundle = .main) -> URL? {
+        if let toolOverride { return toolOverride }
         if let embedded = bundle.url(forAuxiliaryExecutable: "BinaryDelta"),
            FileManager.default.isExecutableFile(atPath: embedded.path) {
             return embedded
@@ -99,10 +105,23 @@ public enum DeltaApplier {
     /// — a failed patch leaves the running app exactly as it was, which is what
     /// lets the caller fall back to the full download without cleanup.
     ///
-    /// Runs to completion even if the calling task is cancelled: a `BinaryDelta`
-    /// killed partway leaves a half-written bundle at `destination`, and the
-    /// `offCooperativePool` hop this used to be called through could not be
-    /// cancelled either.
+    /// Runs to completion even if the calling task is cancelled, so the patch is
+    /// never torn down partway. Two reasons, both measured:
+    ///
+    /// - A killed `BinaryDelta` leaves its temporary diff behind. For each changed
+    ///   file Sparkle makes one with `mkstemp` under `NSTemporaryDirectory()`
+    ///   (`SUBinaryDeltaCommon.m`, `temporaryFilename`) and deletes it only after a
+    ///   successful patch. That directory is the per-user temporary directory, which
+    ///   on macOS 27.2 does not follow `TMPDIR`, so nothing of ours can point it at
+    ///   the work directory, and nothing of ours removes what a kill leaves there.
+    /// - Applying is fast: an 80 MB patch took 0.46 s. Letting it finish costs a
+    ///   cancel almost nothing.
+    ///
+    /// The bundle it writes is `destination`, inside the install's work directory
+    /// (`reconstruct` passes `workDir/patched-…`). Nothing between this call and the
+    /// bundle swap checks for cancellation, so a cancel that lands during the patch
+    /// does not stop the install there: the patched bundle goes through the gates
+    /// and the swap as it would have without the cancel.
     public static func apply(
         installedApp: URL,
         patch: URL,
@@ -264,7 +283,14 @@ public enum DeltaApplier {
 ///
 /// Lives here rather than inline in the two installers so both classify the same
 /// way and the rule can be tested without running an install.
+///
+/// A cancellation is never worth retrying. The caller stopped the install, so the
+/// full archive would be fetched only to be stopped too, and the retry would
+/// start a second download the user did not ask for. The installers rethrow it as
+/// itself, so `InstallCoordinator` (which catches `DeltaRouteFailure` alone) lets
+/// it through.
 public func deltaRouteFailureIsWorthRetrying(_ error: Error) -> Bool {
+    if error is CancellationError { return false }
     guard let verify = error as? SignatureVerifier.VerifyError else { return true }
     switch verify {
     case .unsupportedSystemVersion, .unrunnableArchitecture, .architectureDowngrade:

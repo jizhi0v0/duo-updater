@@ -116,8 +116,8 @@ import DuoUpdaterCore
     @Test func backupStepsDescribeWhatHappened() {
         #expect(Restart.describe(.attempted(.saved), version: "12.5.0") == "backed up 12.5.0")
         #expect(Restart.describe(.attempted(.failed), version: "12.5.0")
-            == "could not back up — restarting without a rollback point")
-        #expect(Restart.describe(.lockRefused, version: "12.5.0")?.hasPrefix("no rollback point") == true)
+            == "could not back up — restarting without a restore point")
+        #expect(Restart.describe(.lockRefused, version: "12.5.0")?.hasPrefix("no restore point") == true)
         #expect(Restart.describe(.skipped, version: "12.5.0") == nil)
     }
 }

@@ -89,7 +89,7 @@ public enum SparkleStagingClearance {
             // A fresh instance per pid: `NSWorkspace.runningApplications` can be a
             // stale snapshot off the main run loop, this lookup is not.
             bundleIdentifier: { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier },
-            sleep: { try? await Task.sleep(for: $0) })
+            sleep: { try? await Task.sleep(for: $0) })  // cancel-ok: the sleep removeAndWait's loop calls, capped at 30 passes (3 s)
     }
 
     /// Remove the installer parked on `app`'s quit and delete what it staged.

@@ -235,16 +235,19 @@ public enum XcodeInstaller {
     /// The last look before the disk changes: refuse if anything is running from
     /// inside `target`, otherwise `swap`. Split out so the ordering — ask, THEN
     /// swap — is testable with a fake swap.
+    ///
+    /// `swap` is this route's point of no return (`InstallCommit`): a cancel
+    /// before it means no swap, one during it is not seen.
     static func swapUnlessRunning(
         over target: URL,
         runningExecutables: @Sendable () -> [String],
-        swap: () async throws -> Void
+        swap: @escaping @Sendable () async throws -> Void
     ) async throws {
         if let refusal = runningRefusal(
             installedAt: processPath(of: target), runningExecutables: runningExecutables()) {
             throw refusal
         }
-        try await swap()
+        try await InstallCommit.run("swap", swap)
     }
 
     /// Why this Xcode cannot be replaced right now, or nil when nothing runs from

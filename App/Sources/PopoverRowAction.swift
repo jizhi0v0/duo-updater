@@ -489,7 +489,7 @@ struct PopoverRowAction: View {
                 .font(.headline)
             Text("\(result.app.name) \(result.app.shortVersion ?? "?") → \(result.remote?.displayVersion ?? "?") replaces this app with the vendor’s rewrite. Features and settings may differ from the version you have now.")
                 .font(.callout)
-            Text("The new version replaces this copy. If “Keep a backup so updates can be rolled back” is on in [Settings](duoupdater-settings:backups), you can roll back to the version you have now.")
+            Text("The new version replaces this copy. If “Keep a backup of the previous version” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .environment(\.openURL, openBackupSettingLink)
@@ -505,7 +505,7 @@ struct PopoverRowAction: View {
                 .font(.headline)
             Text("\(result.app.name) \(result.app.shortVersion ?? "?") → \(result.remote?.displayVersion ?? "?") is a major new version. If this is a commercial app, it may need a new license — with an expired subscription the update can drop into a limited/trial mode.")
                 .font(.callout)
-            Text("Continue only if it’s free or your license covers the new version. The new version replaces this copy. If “Keep a backup so updates can be rolled back” is on in [Settings](duoupdater-settings:backups), you can roll back to the version you have now.")
+            Text("Continue only if it’s free or your license covers the new version. The new version replaces this copy. If “Keep a backup of the previous version” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .environment(\.openURL, openBackupSettingLink)
@@ -528,7 +528,7 @@ struct PopoverRowAction: View {
                     showMajorWarning = false
                     actions.installBackingUpOnce()
                 }
-                .help("Keeps a backup of the version you have now, for this update only, so it can be rolled back. Backups stay off in Settings.")
+                .help("Keeps a backup of the version you have now, for this update only, so you can restore it. Backups stay off in Settings.")
             }
         }
         .controlSize(.small)

@@ -95,6 +95,7 @@ public enum InstallerWindowCloser {
         AXUIElementPerformAction(closeButton, kAXPressAction as CFString)
 
         // Closing is animated, so re-check after a beat rather than immediately.
+        // cancel-ok: one-shot re-check after the close, not in a loop
         try? await Task.sleep(nanoseconds: 400_000_000)
         if self.window(in: axApp, showing: package) != nil {
             Log.install.info(

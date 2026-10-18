@@ -372,7 +372,7 @@ private struct BackupChoiceCard: View {
                 .frame(width: 30)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("Rollback backups").font(.headline)
+                Text("Restore points").font(.headline)
                 Text("Keeps a copy of each app’s current version before updating it, so an update can be undone. Each copy takes as much disk space as the app; backups are skipped when this Mac is low on space. You can change this in Settings → Backups.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -381,7 +381,7 @@ private struct BackupChoiceCard: View {
 
             Spacer(minLength: 12)
 
-            Toggle("Rollback backups", isOn: $isOn)
+            Toggle("Restore points", isOn: $isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .frame(minWidth: 92, alignment: .trailing)

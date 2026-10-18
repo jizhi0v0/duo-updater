@@ -142,7 +142,7 @@ enum DiskImageMount {
             byMountPoint: { await DiskImageMount.detach($0, using: $1) },
             attachment: { await DiskImageMount.attachment(of: $0) },
             byDevice: { await DiskImageMount.detachDevice($0, using: $1) },
-            pause: { duration in await Task.detached { try? await Task.sleep(for: duration) }.value },
+            pause: { duration in await Task.detached { try? await Task.sleep(for: duration) }.value },  // cancel-ok: Task.detached, so the caller's cancel never reaches this sleep (see detach)
             now: { ContinuousClock.now })
     }
 

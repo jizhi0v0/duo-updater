@@ -6,10 +6,15 @@ import Testing
 /// directories — never a real app, never `/Applications`.
 ///
 /// Mostly about the one behaviour `ChildProcess` could have changed: cancellation.
-/// Every child on this path is `.runToCompletion`, because the old
+/// Most children on this path are `.runToCompletion`, because the old
 /// `offCooperativePool` hop could not be cancelled and a half-done write is worse
-/// than a finished one. Each test here runs the operation in a task that is
-/// cancelled BEFORE it starts. `.terminateChild` refuses to spawn into an
+/// than a finished one. The exceptions write only into the install's own work
+/// directory, which is removed afterwards anyway: the extraction tools
+/// (`ArchiveExtractor.run`) and the package copy (`PackageInstaller.run`), so
+/// those are `.terminateChild`. The patch (`DeltaApplier.apply`) is not one of
+/// them: a killed `BinaryDelta` leaves a temporary diff outside the work
+/// directory, so it runs to completion. Each test here runs
+/// the operation in a task that is cancelled BEFORE it starts. `.terminateChild` refuses to spawn into an
 /// already-cancelled task, so a site that picked it throws `CancellationError`
 /// before its tool ever runs — the mutations below fail by that, not by whether a
 /// SIGKILL happened to beat a millisecond `chmod`. (Before `ChildProcess` had that
@@ -83,11 +88,13 @@ import Testing
 
     // MARK: - Extract
 
-    /// A cancelled extraction still produces the app — `ditto -x -k` ran to its end.
+    /// A cancelled extraction is not run at all: `ditto -x -k` never spawns into a
+    /// task that is already cancelled, the call throws `CancellationError`, and
+    /// nothing is unpacked into the work directory.
     ///
-    /// Mutation: `ArchiveExtractor.run` becomes `.terminateChild` → `ditto` is never
-    /// allowed to finish and the call throws `CancellationError`.
-    @Test func aCancelledExtractionStillUnpacksTheApp() async throws {
+    /// Mutation: `ArchiveExtractor.run` becomes `.runToCompletion` → `ditto` runs
+    /// to its end, the call returns the app, and both expectations fail.
+    @Test func aCancelledExtractionThrowsAndUnpacksNothing() async throws {
         let fm = FileManager.default
         let top = try scratch("extract")
         defer { try? fm.removeItem(at: top) }
@@ -100,12 +107,77 @@ import Testing
         let work = top.appendingPathComponent("work", isDirectory: true)
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
 
-        let app = try await cancelledBeforeStart {
-            try await ArchiveExtractor.extractApp(from: zip, workDir: work)
+        await #expect(throws: CancellationError.self) {
+            _ = try await cancelledBeforeStart {
+                try await ArchiveExtractor.extractApp(from: zip, workDir: work)
+            }
         }
+        #expect(!fm.fileExists(atPath: work.appendingPathComponent("unzipped/ZZFixture.app").path))
+    }
 
-        #expect(app.lastPathComponent == "ZZFixture.app")
-        #expect(fm.fileExists(atPath: app.appendingPathComponent("Contents/payload").path))
+    /// A cancelled extraction that is already running is torn down, not waited on.
+    /// The archive is a FIFO with no writer, so `ditto` parks inside its own `open`
+    /// and cannot finish by itself. Cancelling must kill it, return promptly, and
+    /// leave no `ditto` behind.
+    ///
+    /// The watchdog is armed only after the cancel, and it fires 60 s later. It is a
+    /// hang detector, not a timing assertion. With `.terminateChild` the call returns
+    /// at once and the watchdog is a no-op. With `.runToCompletion` the call blocks
+    /// on the FIFO, and the watchdog writes a real archive into it, so `ditto`
+    /// finishes and the call returns the app, which the switch below records as a
+    /// failure instead of leaving the suite hung.
+    ///
+    /// Mutation: `ArchiveExtractor.run` becomes `.runToCompletion` → the call blocks
+    /// until the watchdog feeds the FIFO, then returns the app and the test fails.
+    @Test func aCancelledExtractionKillsTheRunningTool() async throws {
+        let fm = FileManager.default
+        let top = try scratch("extract-running")
+        defer { try? fm.removeItem(at: top) }
+        let source = try bundle(at: top.appendingPathComponent("ZZFixture.app"), mode: 0o755, marker: "payload")
+        let realZip = top.appendingPathComponent("ZZReal.zip")
+        let made = try await ChildProcess.run(
+            "/usr/bin/ditto", ["-c", "-k", "--keepParent", source.path, realZip.path],
+            onCancel: .runToCompletion)
+        #expect(made.succeeded)
+        let fifo = top.appendingPathComponent("ZZFixture.zip")
+        #expect(mkfifo(fifo.path, 0o600) == 0)
+        let work = top.appendingPathComponent("work", isDirectory: true)
+        try fm.createDirectory(at: work, withIntermediateDirectories: true)
+
+        let finished = FinishFlag()
+        let task = Task { try await ArchiveExtractor.extractApp(from: fifo, workDir: work) }
+        // `ditto` is running once `pgrep -f` can see it on the FIFO's path.
+        var running = false
+        for _ in 0..<100 where !running {
+            running = try await ChildProcess.run(
+                "/usr/bin/pgrep", ["-f", fifo.path], onCancel: .runToCompletion).succeeded
+            if !running { try await Task.sleep(for: .milliseconds(50)) }
+        }
+        #expect(running, "ditto never started on the FIFO")
+
+        task.cancel()
+        // Armed only now, after the cancel: see the doc comment above.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 60) {
+            guard !finished.isSet, let bytes = try? Data(contentsOf: realZip) else { return }
+            // Blocks until `ditto` opens the read end, which only a still-running
+            // `ditto` does; a torn-down one never does, so this is skipped above.
+            let fd = open(fifo.path, O_WRONLY)
+            guard fd >= 0 else { return }
+            _ = bytes.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
+            close(fd)
+        }
+        let result = await task.result
+        finished.set()
+
+        switch result {
+        case .success(let app):
+            Issue.record("the extraction returned \(app.lastPathComponent) after the cancel")
+        case .failure(let error):
+            #expect(error is CancellationError, "expected CancellationError, got \(error)")
+        }
+        let leftover = try await ChildProcess.run(
+            "/usr/bin/pgrep", ["-f", fifo.path], onCancel: .runToCompletion)
+        #expect(!leftover.succeeded, "a ditto is still running on the archive after the cancel")
     }
 
     /// A tool's failure reaches the error with its exit status and its stderr,
@@ -186,14 +258,16 @@ import Testing
 
         try fm.createDirectory(at: withApp, withIntermediateDirectories: true)
         try fm.copyItem(at: images.full, to: withApp.appendingPathComponent("ZZFixture.dmg"))
-        let app = try await cancelledBeforeStart {
-            try await ArchiveExtractor.extractApp(
-                from: withApp.appendingPathComponent("ZZFixture.dmg"), workDir: withApp)
+        await #expect(throws: CancellationError.self) {
+            _ = try await cancelledBeforeStart {
+                try await ArchiveExtractor.extractApp(
+                    from: withApp.appendingPathComponent("ZZFixture.dmg"), workDir: withApp)
+            }
         }
-        #expect(app.lastPathComponent == "ZZFixture.app")
-        #expect(fm.fileExists(atPath: app.appendingPathComponent("Contents/payload").path))
-        #expect(!isMountPoint(mounts[0]), "the image stayed mounted after the app was copied out")
-        #expect(await !TestDiskImages.isAttached(copies[0]), "the image stayed attached after the app was copied out")
+        #expect(!fm.fileExists(atPath: withApp.appendingPathComponent("ZZFixture.app").path),
+                "the copy out of the image ran although the task was cancelled")
+        #expect(!isMountPoint(mounts[0]), "the image stayed mounted after the copy was cancelled")
+        #expect(await !TestDiskImages.isAttached(copies[0]), "the image stayed attached after the copy was cancelled")
 
         try fm.createDirectory(at: without, withIntermediateDirectories: true)
         try fm.copyItem(at: images.empty, to: without.appendingPathComponent("ZZFixture.dmg"))
@@ -235,14 +309,16 @@ import Testing
         let installedApp = top.appendingPathComponent("ZZFixture.app")
 
         try fm.createDirectory(at: withPkg, withIntermediateDirectories: true)
-        let copied = try await cancelledBeforeStart {
-            try await installer.resolveInstaller(
-                from: images.full, workDir: withPkg, installedApp: installedApp)
+        await #expect(throws: CancellationError.self) {
+            _ = try await cancelledBeforeStart {
+                try await installer.resolveInstaller(
+                    from: images.full, workDir: withPkg, installedApp: installedApp)
+            }
         }
-        #expect(copied == withPkg.appendingPathComponent("ZZFixture.pkg"))
-        #expect(fm.fileExists(atPath: copied.path))
-        #expect(!isMountPoint(mounts[0]), "the image stayed mounted after the package was copied out")
-        #expect(await !TestDiskImages.isAttached(images.full), "the image stayed attached after the package was copied out")
+        #expect(!fm.fileExists(atPath: withPkg.appendingPathComponent("ZZFixture.pkg").path),
+                "the copy out of the image ran although the task was cancelled")
+        #expect(!isMountPoint(mounts[0]), "the image stayed mounted after the copy was cancelled")
+        #expect(await !TestDiskImages.isAttached(images.full), "the image stayed attached after the copy was cancelled")
 
         try fm.createDirectory(at: without, withIntermediateDirectories: true)
         await #expect(throws: PackageInstaller.PackageError.self) {
@@ -253,6 +329,78 @@ import Testing
         }
         #expect(!isMountPoint(mounts[1]), "the image stayed mounted after no package was found")
         #expect(await !TestDiskImages.isAttached(images.empty), "the image stayed attached after no package was found")
+    }
+
+    /// A cancel that lands while `ditto` is still copying the app out of the mounted
+    /// image tears the copy down and throws `CancellationError`, and the image is
+    /// still detached: the unmount is in a `defer`, and it is `.runToCompletion`.
+    /// Nothing here asserts a duration, and nothing asserts that the copy was caught
+    /// mid-way: the test waits (bounded) for `ditto` with `pgrep` and then cancels,
+    /// whether or not it saw one. What is asserted is the detach, read three times
+    /// from `hdiutil info`, and that a failure is `CancellationError`.
+    ///
+    /// Mutation: drop the `defer { await DiskImageMount.detach(…) }` in `fromDMG` →
+    /// the image is still attached after the cancelled copy.
+    @Test(arguments: InstallChildProcessTests.mountTools)
+    func aCancelledDMGCopyOutStillUnmountsTheImage(tool: DiskImageMount.Tool) async throws {
+        try await DiskImageMount.$toolOverride.withValue(tool) {
+            try await cancelledDMGCopyOutStillUnmountsTheImage()
+        }
+    }
+
+    private func cancelledDMGCopyOutStillUnmountsTheImage() async throws {
+        let fm = FileManager.default
+        let top = try scratch("dmg-copy")
+        let work = top.appendingPathComponent("work", isDirectory: true)
+        let mount = work.appendingPathComponent("mnt-ZZFixture.dmg")
+        let image = work.appendingPathComponent("ZZFixture.dmg")
+        defer {
+            await forceDetach(mount, image: image)
+            try? fm.removeItem(at: top)
+        }
+        try fm.createDirectory(at: work, withIntermediateDirectories: true)
+
+        // A payload big enough that the copy is still running when the cancel
+        // lands. It is zeros, so the image is small on disk.
+        let source = top.appendingPathComponent("src-big", isDirectory: true)
+        let app = try bundle(at: source.appendingPathComponent("ZZFixture.app"), mode: 0o755, marker: "payload")
+        let big = app.appendingPathComponent("Contents/Resources/ZZBig.bin")
+        try fm.createDirectory(at: big.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let zeros = try await ChildProcess.run(
+            "/bin/dd", ["if=/dev/zero", "of=\(big.path)", "bs=1048576", "count=300"],
+            onCancel: .runToCompletion)
+        #expect(zeros.succeeded, "dd could not write the payload")
+        let made = try await ChildProcess.run(
+            "/usr/bin/hdiutil",
+            ["makehybrid", "-quiet", "-hfs", "-hfs-volume-name", "ZZFixture",
+             "-o", image.path, source.path],
+            onCancel: .runToCompletion)
+        #expect(made.succeeded, "hdiutil makehybrid failed")
+
+        let task = Task { try await ArchiveExtractor.extractApp(from: image, workDir: work) }
+        // `ditto` is copying once it is running on the mount's app, not merely
+        // attaching the image (an `hdiutil attach` also names the mount point).
+        let pattern = "/usr/bin/ditto .*\(mount.path)"
+        // Bounded wait. On a Mac fast enough to finish the copy between two polls,
+        // the cancel lands after it and the copy completes: the detach below is
+        // still checked, but the copy was not caught mid-way. Nothing asserts
+        // which of the two happened.
+        for _ in 0..<400 {
+            if try await ChildProcess.run(
+                "/usr/bin/pgrep", ["-f", pattern], onCancel: .runToCompletion).succeeded { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+
+        task.cancel()
+        let result = await task.result
+        if case .failure(let error) = result {
+            #expect(error is CancellationError, "expected CancellationError, got \(error)")
+        }
+        // Read `hdiutil info` three times before concluding the image is gone.
+        for _ in 0..<3 {
+            #expect(!isMountPoint(mount), "the image stayed mounted after the cancelled copy")
+            #expect(await !TestDiskImages.isAttached(image), "the image stayed attached after the cancelled copy")
+        }
     }
 
     /// The tools that answer a license agreement from stdin on this Mac:
@@ -502,38 +650,148 @@ import Testing
         }
     }
 
-    /// A cancelled patch still finishes — a `BinaryDelta` killed partway leaves a
-    /// half-written bundle at the destination.
+    /// A patch that is running when its task is cancelled runs to its end. The
+    /// stand-in does what Sparkle's `BinaryDelta` does: it makes an
+    /// `apply-binary-delta.*` file under `$TMPDIR`, works a while, then deletes that
+    /// file and writes the destination. It also drops a `started` marker beside the
+    /// destination, so the test can wait for it without listing `$TMPDIR`, which is
+    /// large on a developer's Mac. The test cancels after the marker appears. The
+    /// patch finishes, `apply` returns normally, and nothing is left in the
+    /// process's temporary directory.
     ///
-    /// Mutation: `DeltaApplier.apply` becomes `.terminateChild` → the call throws
-    /// `CancellationError` and the destination is never created.
-    @Test func aCancelledPatchStillFinishes() async throws {
+    /// Mutation: `DeltaApplier.apply` becomes `.terminateChild` → the stand-in is
+    /// killed mid-work, `apply` throws `CancellationError`, the destination is never
+    /// written, and the temporary diff stays in the process's temporary directory.
+    @Test func aCancelledPatchRunsToEndAndLeavesNoTemporaryDiff() async throws {
         let fm = FileManager.default
         let top = try scratch("delta-cancel")
         defer { try? fm.removeItem(at: top) }
         // `apply <old> <new> <patch>`: $3 is the destination.
         let host = try toolBundle(in: top, script: """
-            sleep 0.2
+            touch "$(dirname "$3")/started"
+            f=$(mktemp "${TMPDIR:-/tmp}/apply-binary-delta.XXXXXXXXXX")
+            printf 'diff' > "$f"
+            sleep 0.5
+            rm -f "$f"
             mkdir -p "$3/Contents"
             """)
         let out = top.appendingPathComponent("ZZNew.app")
+        let started = top.appendingPathComponent("started")
+        let processTemp = fm.temporaryDirectory
+        let before = temporaryDiffs(in: processTemp)
 
-        try await cancelledBeforeStart {
-            try await DeltaApplier.apply(
-                installedApp: top, patch: top, destination: out, bundle: host)
+        let task = Task {
+            try await DeltaApplier.apply(installedApp: top, patch: top, destination: out, bundle: host)
         }
+        // Bounded wait for the stand-in to be running, then cancel mid-work.
+        for _ in 0..<400 where !fm.fileExists(atPath: started.path) {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(fm.fileExists(atPath: started.path), "the stand-in never started")
+        task.cancel()
+        let result = await task.result
+        let left = temporaryDiffs(in: processTemp).subtracting(before)
+        // Clean up only what this test made in the process's directory.
+        for name in left { try? fm.removeItem(at: processTemp.appendingPathComponent(name)) }
 
-        #expect(fm.fileExists(atPath: out.appendingPathComponent("Contents").path))
+        if case .failure(let error) = result {
+            Issue.record("the patch was torn down by the cancel: \(error)")
+        }
+        #expect(fm.fileExists(atPath: out.appendingPathComponent("Contents").path),
+                "the patch did not finish after the cancel")
+        #expect(left.isEmpty, "a cancelled patch left \(left.sorted()) in the process's temporary directory")
+    }
+
+    /// Names of Sparkle's `apply-binary-delta.*` temporary files in `directory`.
+    private func temporaryDiffs(in directory: URL) -> Set<String> {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        return Set(names.filter { $0.hasPrefix("apply-binary-delta.") })
+    }
+
+    // MARK: - Delta route
+
+    /// A cancellation is the caller stopping the install, not the patch failing,
+    /// so it never earns a second, full-size download.
+    ///
+    /// Mutation: delete the `CancellationError` guard in
+    /// `deltaRouteFailureIsWorthRetrying` → it answers true.
+    @Test func aCancellationIsNeverWorthRetrying() {
+        #expect(!deltaRouteFailureIsWorthRetrying(CancellationError()))
+    }
+
+    /// A cancel that lands during the patch on the real Sparkle patch route does not
+    /// stop the install there. The patch runs to its end (`DeltaApplier.apply` is
+    /// `.runToCompletion`), and then the route goes on to the bundle gate, which
+    /// refuses this fixture. That refusal is a `SignatureVerifier.VerifyError`, which
+    /// the patch route wraps as `DeltaRouteFailure`. The test pins what is true
+    /// today: no `CancellationError` comes out of the route, and the gate ran. There
+    /// is no checkpoint between the patch and the swap, so a checkpoint added there
+    /// changes this test on purpose.
+    ///
+    @Test func aCancelledPatchRouteRunsThePatchAndReachesTheGate() async throws {
+        let fm = FileManager.default
+        let top = try scratch("delta-route")
+        defer { try? fm.removeItem(at: top) }
+        // `apply <old> <new> <patch>`: $3 is the destination.
+        let host = try toolBundle(in: top, script: """
+            mkdir -p "$3/Contents"
+            """)
+        let tool = try #require(DeltaApplier.toolURL(bundle: host))
+
+        // The installed app, at the build the patch was cut against.
+        let installed = top.appendingPathComponent("ZZInstalled.app", isDirectory: true)
+        try fm.createDirectory(at: installed.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try Data("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <plist version="1.0"><dict>
+            <key>CFBundleIdentifier</key><string>com.example.zzfixture.delta</string>
+            <key>CFBundleVersion</key><string>1.1.0</string>
+            </dict></plist>
+            """.utf8).write(to: installed.appendingPathComponent("Contents/Info.plist"))
+        let app = InstalledApp(
+            name: "ZZInstalled", bundleID: "com.example.zzfixture.delta", shortVersion: "1.1",
+            buildVersion: "1.1.0", path: installed, isMASApp: false,
+            sparkleFeedURL: URL(string: "https://example.com/appcast.xml"),
+            hasSelfUpdater: false, hasSparkleUpdater: true)
+        let patchFile = top.appendingPathComponent("ZZPatch.delta")
+        try Data("patch".utf8).write(to: patchFile)
+        let patch = DeltaPatch(
+            fromBuild: "1.1.0", url: URL(string: "https://example.com/1.1.0-1.2.0.delta")!,
+            size: 5, edSignature: nil)
+        let download = DownloadedUpdate(
+            archiveURL: patchFile, bytesDownloaded: 5, workDir: top, appliedPatch: patch)
+        let remote = RemoteVersion(
+            shortVersion: "1.2", version: "1.2.0",
+            downloadURL: URL(string: "https://example.com/ZZInstalled-1.2.zip"),
+            sourceName: "Sparkle")
+        let result = UpdateResult(app: app, remote: remote, status: .updateAvailable(latest: "1.2.0"))
+
+        var routeError: Error?
+        do {
+            try await DeltaApplier.$toolOverride.withValue(tool) {
+                try await cancelledBeforeStart {
+                    try await SparkleInstaller().apply(result, download: download, onStage: { _ in })
+                }
+            }
+        } catch { routeError = error }
+
+        #expect(fm.fileExists(atPath: top.appendingPathComponent("patched-ZZInstalled.app/Contents").path),
+                "the patch did not run to its end")
+        #expect(!(routeError is CancellationError), "the cancel stopped the route before the gate")
+        let refusal = (routeError as? DeltaRouteFailure)?.underlying
+        #expect(refusal is SignatureVerifier.VerifyError, "the bundle gate did not run: \(String(describing: routeError))")
     }
 
     // MARK: - Backups
 
-    /// A cancelled backup still stores a complete copy, and a cancelled rollback
-    /// still puts it back — both `ditto`s (and the swap under the rollback) ran to
-    /// their end.
+    /// A cancelled backup still stores a complete copy — its `ditto` ran to its
+    /// end. A rollback cancelled before it starts stops at its point of no return
+    /// (`InstallCommit`) and leaves the live app as it is; run uncancelled, it
+    /// puts the copy back.
     ///
-    /// Mutation: `BackupStore.runDitto` becomes `.terminateChild` → `save` throws
-    /// `copyFailed` with nothing stored.
+    /// Mutations: `BackupStore.runDitto` becomes `.terminateChild` → `save` throws
+    /// `copyFailed` with nothing stored; drop the restore's `InstallCommit` → the
+    /// cancelled rollback swaps, red.
     @Test func aCancelledBackupAndRollbackStillComplete() async throws {
         let fm = FileManager.default
         let top = try scratch("backup")
@@ -552,9 +810,15 @@ import Testing
             try fm.removeItem(at: app.appendingPathComponent("Contents/v1"))
             try Data("v2".utf8).write(to: app.appendingPathComponent("Contents/v2"))
 
-            let restored = try await cancelledBeforeStart {
-                try await BackupStore.restore(forKey: "zzfixture", over: app)
+            await #expect(throws: CancellationError.self) {
+                _ = try await cancelledBeforeStart {
+                    try await BackupStore.restore(forKey: "zzfixture", over: app)
+                }
             }
+            #expect(fm.fileExists(atPath: app.appendingPathComponent("Contents/v2").path))
+            #expect(!fm.fileExists(atPath: app.appendingPathComponent("Contents/v1").path))
+
+            let restored = try await BackupStore.restore(forKey: "zzfixture", over: app)
             #expect(restored == "1.0")
             #expect(fm.fileExists(atPath: app.appendingPathComponent("Contents/v1").path))
             #expect(!fm.fileExists(atPath: app.appendingPathComponent("Contents/v2").path))
@@ -680,4 +944,13 @@ import Testing
     private func hasQuarantine(_ url: URL) -> Bool {
         getxattr(url.path, Self.quarantine, nil, 0, 0, XATTR_NOFOLLOW) >= 0
     }
+}
+
+/// Set once a test has its answer, so a watchdog on another thread can tell that
+/// the answer is in and it has nothing to unblock.
+private final class FinishFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    var isSet: Bool { lock.withLock { value } }
+    func set() { lock.withLock { value = true } }
 }

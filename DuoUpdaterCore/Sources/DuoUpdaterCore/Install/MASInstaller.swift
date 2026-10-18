@@ -46,16 +46,26 @@ public actor MASInstaller {
     /// 1×, 2×, 3×). Injectable so tests can exercise the retry loop without the
     /// real multi-second waits; production always uses one second.
     private let retryBackoffNanos: UInt64
+    /// Where `runOnce` puts `duo-mas-<adamID>.log`. Production: this user's
+    /// temporary directory — the helper accepts only a temporary directory and
+    /// exactly that name, so the name stays. Injectable because the name is
+    /// keyed on the adamID alone: test processes running side by side (several
+    /// worktrees' suites at once share one `$TMPDIR`) with the same fixture
+    /// adamIDs read, truncated and deleted each other's logs.
+    private let logDirectory: String
 
     public init(runner: PrivilegedMASRunner) {
         self.runner = runner
         self.retryBackoffNanos = 1_000_000_000
+        self.logDirectory = NSTemporaryDirectory()
     }
 
-    /// Test seam: same as `init(runner:)` but with a caller-chosen backoff unit.
-    init(runner: PrivilegedMASRunner, retryBackoffNanos: UInt64) {
+    /// Test seam: same as `init(runner:)` but with a caller-chosen backoff unit
+    /// and log directory.
+    init(runner: PrivilegedMASRunner, retryBackoffNanos: UInt64, logDirectory: String) {
         self.runner = runner
         self.retryBackoffNanos = retryBackoffNanos
+        self.logDirectory = logDirectory
     }
 
     public enum MASError: LocalizedError {
@@ -280,7 +290,14 @@ public actor MASInstaller {
                 Log.install.notice("mas ADAM \(adamID, privacy: .public): \(reason, privacy: .public) (exit \(code, privacy: .public)); retrying \(attempt + 1, privacy: .public)")
                 // Growing backoff (1s, 2s, 3s) so we ride over a proxy/CDN that's
                 // momentarily resetting connections rather than hammering it.
-                try? await Task.sleep(nanoseconds: UInt64(attempt + 1) * retryBackoffNanos)
+                //
+                // `try`, not `try?`: a cancel during the backoff ends the loop here
+                // with `CancellationError`. Swallowed, the sleep returned at once and
+                // the cancel STARTED the next `mas install`. Stopping is safe — the
+                // attempt that just failed installed nothing. (The commit's own check
+                // in `runOnce` would refuse that next attempt too; this says so where
+                // the wait is.)
+                try await Task.sleep(nanoseconds: UInt64(attempt + 1) * retryBackoffNanos)
             }
         }
         throw lastError
@@ -296,7 +313,7 @@ public actor MASInstaller {
         // A fresh log per attempt; created up front so the tailer can open it before
         // the (root) helper starts writing. Recreated (truncated) each attempt so a
         // prior try's error tail never bleeds into this one's output or progress.
-        let logPath = (NSTemporaryDirectory() as NSString)
+        let logPath = (logDirectory as NSString)
             .appendingPathComponent("duo-mas-\(adamID).log")
         FileManager.default.createFile(atPath: logPath, contents: nil)
         defer { try? FileManager.default.removeItem(atPath: logPath) }
@@ -316,8 +333,18 @@ public actor MASInstaller {
         tailer.start()
         defer { tailer.stop() }  // idempotent; flushes trailing lines
 
-        let status = try await runner.installMAS(
-            adamID: adamID, uid: uid, gid: gid, userName: user, logPath: logPath)
+        // Each attempt is this route's point of no return (`InstallCommit`):
+        // once `mas` has the job, the store's daemon downloads and swaps on its
+        // own, and nothing here could take that back. A cancel before it starts
+        // no attempt; one during it is not seen.
+        let runner = self.runner
+        // A non-zero exit is a refused attempt — the store installed nothing —
+        // reported by value, so it is not a landing: a cancel during the backoff
+        // before the next attempt is still a cancel (`InstallJobs`).
+        let status = try await InstallCommit.run("mas install", landed: { $0 == 0 }) {
+            try await runner.installMAS(
+                adamID: adamID, uid: uid, gid: gid, userName: user, logPath: logPath)
+        }
         tailer.stop()  // flush before reading the log for an error tail
 
         guard status == 0 else {

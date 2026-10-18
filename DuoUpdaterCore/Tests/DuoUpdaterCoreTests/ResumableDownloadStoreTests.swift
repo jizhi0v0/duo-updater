@@ -21,6 +21,8 @@ import Network
 ///   URLs → the different-URL test finds the old one.
 /// - `Downloader` no longer drops a kept partial the server will not extend →
 ///   that test's download fails.
+/// - `Downloader` ignores `ResumableDownloadStore.outOfSpace` → the
+///   out-of-space test finds the partial kept.
 /// - `DiskSpaceGuard.SpaceLedger.reserve` never gives partials up → the claim
 ///   test is refused.
 /// - `InstallCoordinator.swap` no longer forgets the app's partials → the
@@ -451,6 +453,57 @@ struct ResumableDownloadStoreTests {
             }
             #expect(FileManager.default.fileExists(
                 atPath: backups.appendingPathComponent(backupKey).path))
+        }
+    }
+
+    /// The disk runs out while a download is under way, with nothing left to
+    /// delete: the guard stops it, and its bytes — strong ETag and all — go
+    /// with it, rather than staying on the disk that just ran out. (A user's
+    /// cancel keeps them: `aStrongETagResumesFromTheKeptPartial`.)
+    @Test func aDownloadStoppedForWantOfSpaceKeepsNothing() async throws {
+        let server = try Server(body: Self.body, validators: Self.strong, stallAt: Self.stallAt)
+        defer { server.stop() }
+        let url = server.url("zz.dmg")
+        let floor = BackupStore.freeSpaceFloorBytes
+        final class Low: @unchecked Sendable {
+            private let lock = NSLock()
+            private var value = false
+            func set() { lock.withLock { value = true } }
+            var isSet: Bool { lock.withLock { value } }
+        }
+        let low = Low()
+        try await withBackupScratch { scratch, _ in
+            let root = scratch.appendingPathComponent("partials")
+            let work = scratch.appendingPathComponent("work")
+            try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+            try await ResumableDownloadStore.$rootOverride.withValue(root) {
+                try await BackupStore.$spaceWatchIntervalOverride.withValue(.milliseconds(1)) {
+                    try await BackupStore.$freeBytesOverride.withValue({
+                        low.isSet ? floor - (1 << 30) : floor + (10 << 30)
+                    }) {
+                        let downloader = Downloader(destinationDir: work) { _ in }
+                        let task = Task {
+                            try await DiskSpaceGuard.watching(sparing: "zz-not-a-key") {
+                                try await downloader.download(url)
+                            }
+                        }
+                        let deadline = Date().addingTimeInterval(10)
+                        while downloader.bytesDownloaded < Int64(Self.stallAt), Date() < deadline {
+                            try await Task.sleep(for: .milliseconds(5))
+                        }
+                        #expect(downloader.bytesDownloaded == Int64(Self.stallAt))
+                        // The bytes are on disk with a strong validator: exactly
+                        // what a cancel would keep.
+                        #expect(ResumableDownloadStore.readMeta(
+                            ResumableDownloadStore.Entry(url: url, root: root))?.validator == "\"zz-v1\"")
+                        low.set()
+                        await #expect(throws: DiskSpaceGuard.InsufficientSpace.self) {
+                            _ = try await task.value
+                        }
+                    }
+                }
+            }
+            #expect(files(in: root).isEmpty)
         }
     }
 

@@ -279,6 +279,10 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         // that ran out of attempts. Anything else — an HTTP error page, a range
         // the server will not honour, a disk error — would only recur.
         var endedTransient = false
+        // Read here, in the calling task: the one stop that keeps nothing even
+        // though it arrives as a cancellation — the disk ran out under us, and
+        // the bytes are what has to go.
+        let outOfSpace = ResumableDownloadStore.outOfSpace
         // On any exit: a leftover partial is swept (on success it's already moved)
         // — unless it is a kept one worth resuming. The other half of "worth
         // resuming", a strong validator, is the store's: `record` deletes the
@@ -287,7 +291,11 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         // process — which never reaches this `defer` — obeys it too.
         defer {
             if let lease {
-                ResumableDownloadStore.close(lease, keep: Task.isCancelled || endedTransient)
+                // One rule: keep only on a stop a retry could get past, and
+                // never when the stop was for want of space.
+                let outOfSpaceStop = outOfSpace?.isSet == true
+                ResumableDownloadStore.close(
+                    lease, keep: !outOfSpaceStop && (Task.isCancelled || endedTransient))
                 self.lease = nil
             } else {
                 try? FileManager.default.removeItem(at: partial)

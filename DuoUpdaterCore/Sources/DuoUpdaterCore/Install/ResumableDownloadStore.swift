@@ -54,6 +54,27 @@ public enum ResumableDownloadStore {
 
     static var now: Date { nowOverride?() ?? Date() }
 
+    /// Set by `DiskSpaceGuard.watching` when it stops a download because the
+    /// disk is under the floor with nothing left to delete. Bound as a task
+    /// local around that download's task.
+    ///
+    /// The reason a download stopped has to be said, not inferred: the
+    /// guard's stop arrives as a plain task cancellation, the same as the
+    /// user's. Without this, `Downloader` kept the partial — possibly
+    /// gigabytes, on the disk that just ran out — because "cancelled" is when
+    /// it keeps one; and `discardAllForSpace()` could not take it either,
+    /// since the download still held it while the guard was reclaiming.
+    @TaskLocal static var outOfSpace: OutOfSpace?
+
+    /// A one-way flag, safe to set from the guard's watcher and read from the
+    /// download's `defer`.
+    final class OutOfSpace: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+        func set() { lock.withLock { value = true } }
+        var isSet: Bool { lock.withLock { value } }
+    }
+
     /// The directory partials live in, or nil when keeping them is off.
     ///
     /// Off in a test process that did not bind ``rootOverride``. Every

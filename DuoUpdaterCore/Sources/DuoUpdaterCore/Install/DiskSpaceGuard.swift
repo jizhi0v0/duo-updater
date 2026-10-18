@@ -159,8 +159,14 @@ public enum DiskSpaceGuard {
     static func watching<T: Sendable>(
         sparing key: String, _ body: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-        let work = Task { try await body() }
-        let ranOut = Flag()
+        // Bound for `body`'s task, so a download inside it can tell this stop
+        // from any other cancellation and keep nothing (see
+        // `ResumableDownloadStore.outOfSpace`). Set before `work.cancel()`, so
+        // whatever runs on that cancellation already sees it.
+        let ranOut = ResumableDownloadStore.OutOfSpace()
+        let work = ResumableDownloadStore.$outOfSpace.withValue(ranOut) {
+            Task { try await body() }
+        }
         let interval = BackupStore.spaceWatchIntervalOverride ?? .milliseconds(500)
         let watcher = Task {
             while !Task.isCancelled {
@@ -212,12 +218,5 @@ public enum DiskSpaceGuard {
             ResumableDownloadStore.discardAllForSpace()
         }
         return await BackupStore.reclaimFreeSpace(sparing: key, target: target)
-    }
-
-    private final class Flag: @unchecked Sendable {
-        private let lock = NSLock()
-        private var value = false
-        func set() { lock.withLock { value = true } }
-        var isSet: Bool { lock.withLock { value } }
     }
 }

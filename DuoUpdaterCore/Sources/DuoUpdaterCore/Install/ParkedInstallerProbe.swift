@@ -82,6 +82,30 @@ public struct ParkedInstallerProbe: Sendable, Equatable {
                     lastExitStatus: ParkedInstallerProbe.field("LastExitStatus", inJobDescription: text))
             },
             sparkleInstallerPIDs: { await SparkleStagingClearance.parkedInstallerPIDs(for: $0) })
+
+        /// `live`, with every `launchctl` call cut off at `deadline`; a timed-out
+        /// call reads as "no such job", so `find` answers nil — no installer seen.
+        /// `live` itself keeps no deadline (the staged Relaunch's behaviour).
+        public static func live(launchctlDeadline deadline: ChildProcess.Deadline) -> System {
+            var system = live
+            system.loadedJob = { label in
+                guard let outcome = try? await ChildProcess.run(
+                    "/bin/launchctl", ["list", label],
+                    standardOutput: .capture, standardError: .discard, deadline: deadline,
+                    onCancel: .runToCompletion),
+                      outcome.succeeded
+                else { return nil }
+                let text = String(decoding: outcome.standardOutput, as: UTF8.self)
+                return LoadedJob(
+                    pid: ParkedInstallerProbe.field("PID", inJobDescription: text),
+                    lastExitStatus: ParkedInstallerProbe.field("LastExitStatus", inJobDescription: text))
+            }
+            let jobs = SparkleStagingClearance.System.live(listJobsDeadline: deadline)
+            system.sparkleInstallerPIDs = {
+                await SparkleStagingClearance.parkedInstallerPIDs(for: $0, system: jobs)
+            }
+            return system
+        }
     }
 
     public let target: Target

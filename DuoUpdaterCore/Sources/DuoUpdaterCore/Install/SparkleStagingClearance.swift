@@ -90,6 +90,14 @@ public enum SparkleStagingClearance {
             // stale snapshot off the main run loop, this lookup is not.
             bundleIdentifier: { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier },
             sleep: { try? await Task.sleep(for: $0) })  // cancel-ok: the sleep removeAndWait's loop calls, capped at 30 passes (3 s)
+
+        /// `live`, with `launchctl list` cut off at `deadline` — a timed-out
+        /// listing reads as no jobs. `live` itself keeps no deadline.
+        public static func live(listJobsDeadline deadline: ChildProcess.Deadline) -> System {
+            var system = live
+            system.listJobs = { await launchctl(["list"], deadline: deadline).map(parseJobList) }
+            return system
+        }
     }
 
     /// Remove the installer parked on `app`'s quit and delete what it staged.
@@ -355,10 +363,13 @@ public enum SparkleStagingClearance {
     }
 
     /// stdout of `/bin/launchctl`, or nil if it did not exit 0.
-    private static func launchctl(_ arguments: [String]) async -> String? {
+    private static func launchctl(
+        _ arguments: [String], deadline: ChildProcess.Deadline? = nil
+    ) async -> String? {
         guard let outcome = try? await ChildProcess.run(
             "/bin/launchctl", arguments,
-            standardOutput: .capture, standardError: .discard, onCancel: .runToCompletion),
+            standardOutput: .capture, standardError: .discard, deadline: deadline,
+            onCancel: .runToCompletion),
               outcome.succeeded
         else { return nil }
         return String(decoding: outcome.standardOutput, as: UTF8.self)

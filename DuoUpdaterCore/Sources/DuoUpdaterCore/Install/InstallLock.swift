@@ -117,7 +117,9 @@ public final class InstallLock: @unchecked Sendable {
 
     /// Who currently holds the lock, or nil if it is free. Racy by nature — a
     /// caller that intends to install should just try to `acquire`. This exists
-    /// for `duo doctor`, which reports rather than acts.
+    /// for `duo doctor`, which reports rather than acts: to test the lock it takes
+    /// it for a moment, and an `acquire` elsewhere landing in that moment is
+    /// refused. Anything that polls must use `recordedHolder` instead.
     public static func currentHolder(at url: URL = defaultURL) -> pid_t? {
         let descriptor = open(url.path, O_RDONLY)
         guard descriptor >= 0 else { return nil }
@@ -127,6 +129,28 @@ public final class InstallLock: @unchecked Sendable {
             return nil
         }
         return holderPID(at: url)
+    }
+
+    /// The pid the current holder wrote into the lock file, read WITHOUT taking
+    /// the lock — so, unlike `currentHolder`, polling it can never be the reason
+    /// a real `acquire` is refused. `release` empties the file before unlocking,
+    /// so a released lock reads nil. What it cannot tell: a holder that died
+    /// without releasing (the kernel dropped its lock, the pid stays in the file)
+    /// and a holder that has not written its pid yet. `recordedHolderElsewhere`
+    /// covers the first; the second reads as free.
+    public static func recordedHolder(at url: URL = defaultURL) -> pid_t? {
+        holderPID(at: url)
+    }
+
+    /// `recordedHolder`, when it names a process other than this one that is
+    /// still running (`kill(pid, 0)`, EPERM counting as alive) — what the
+    /// post-relaunch watch treats as "another process is installing".
+    public static func recordedHolderElsewhere(
+        at url: URL = defaultURL,
+        isAlive: (pid_t) -> Bool = { kill($0, 0) == 0 || errno == EPERM }
+    ) -> pid_t? {
+        guard let pid = recordedHolder(at: url), pid != getpid(), isAlive(pid) else { return nil }
+        return pid
     }
 
     /// Idempotent, and it has to be: `deinit` calls this too, and every real caller
@@ -143,6 +167,11 @@ public final class InstallLock: @unchecked Sendable {
         state.unlock()
 
         guard fd >= 0 else { return }
+        // Empty the pid before unlocking, so `recordedHolder` — which reads the
+        // file without the lock — never names a holder that has let go. A refused
+        // `acquire` racing this reads the empty file as `heldByAnother(pid: nil)`,
+        // which `Failure` already allows for.
+        ftruncate(fd, 0)
         flock(fd, LOCK_UN)
         close(fd)
     }

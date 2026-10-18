@@ -1821,6 +1821,136 @@
         }
       }
     },
+    "%@’s own updater replaced the version that was on disk before the restart with %@. DuoUpdater won’t reinstall over it automatically — click Update if you want the newer version back.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der eigene Updater von %@ hat die Version, die vor dem Neustart auf der Festplatte lag, durch %@ ersetzt. DuoUpdater installiert nicht automatisch erneut darüber – klicke auf „Aktualisieren“, wenn du die neuere Version zurückhaben möchtest."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El actualizador propio de %@ reemplazó la versión que había en el disco antes del reinicio por %@. DuoUpdater no volverá a instalar encima automáticamente: haz clic en Actualizar si quieres recuperar la versión más reciente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le propre outil de mise à jour de %@ a remplacé la version qui était sur le disque avant le redémarrage par %@. DuoUpdater ne la réinstallera pas automatiquement par-dessus — cliquez sur Mettre à jour si vous voulez récupérer la version plus récente."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’aggiornatore interno di %@ ha sostituito la versione che era sul disco prima del riavvio con %@. DuoUpdater non la reinstallerà sopra automaticamente: fai clic su Aggiorna se vuoi riavere la versione più recente."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 自身のアップデータが、再起動前にディスクにあったバージョンを %@ に置き換えました。DuoUpdater は自動では上書き再インストールしません。新しいバージョンに戻したい場合は「更新」をクリックしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O atualizador do próprio %@ substituiu a versão que estava no disco antes de reiniciar pela %@. O DuoUpdater não vai reinstalar por cima automaticamente — clique em Atualizar se quiser a versão mais nova de volta."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Собственный модуль обновления %@ заменил версию, которая была на диске до перезапуска, на %@. DuoUpdater не будет автоматически переустанавливать её поверх — нажмите «Обновить», если хотите вернуть более новую версию."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ uygulamasının kendi güncelleyicisi, yeniden başlatmadan önce diskte olan sürümü %@ ile değiştirdi. DuoUpdater bunun üzerine otomatik olarak yeniden yükleme yapmayacak — daha yeni sürümü geri istiyorsanız Güncelle’ye tıklayın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 自带的更新器把重新启动前磁盘上的版本换成了 %@。DuoUpdater 不会自动再装一遍去覆盖它 —— 想要回新版本，请点「更新」。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 自帶的更新程式把重新開啟前磁碟上的版本換成了 %@。DuoUpdater 不會自動再裝一次去蓋過它——想要回新版本，請點「更新」。"
+          }
+        }
+      }
+    },
+    "%@ is back on %@ after the restart — something replaced the version that was on disk before it. DuoUpdater won’t reinstall over it automatically; click Update to get %@ again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ist nach dem Neustart wieder auf %@ – etwas hat die Version ersetzt, die davor auf der Festplatte lag. DuoUpdater installiert nicht automatisch erneut darüber; klicke auf „Aktualisieren“, um wieder %@ zu bekommen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ vuelve a estar en %@ después del reinicio: algo reemplazó la versión que había en el disco antes. DuoUpdater no volverá a instalar encima automáticamente; haz clic en Actualizar para volver a tener %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ est revenu à %@ après le redémarrage — quelque chose a remplacé la version qui était sur le disque avant. DuoUpdater ne la réinstallera pas automatiquement par-dessus ; cliquez sur Mettre à jour pour retrouver %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dopo il riavvio %@ è tornato a %@: qualcosa ha sostituito la versione che era sul disco prima. DuoUpdater non la reinstallerà sopra automaticamente; fai clic su Aggiorna per riavere %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再起動後、%@ が %@ に戻っています。再起動前にディスクにあったバージョンが何かに置き換えられました。DuoUpdater は自動では上書き再インストールしません。%@ に戻すには「更新」をクリックしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depois de reiniciar, %@ voltou para %@ — algo substituiu a versão que estava no disco antes. O DuoUpdater não vai reinstalar por cima automaticamente; clique em Atualizar para ter a %@ de novo."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "После перезапуска %@ снова на версии %@ — что-то заменило версию, которая была на диске до этого. DuoUpdater не будет автоматически переустанавливать её поверх; нажмите «Обновить», чтобы снова получить %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeniden başlatmanın ardından %@ yeniden %@ sürümünde — bir şey, öncesinde diskte olan sürümü değiştirdi. DuoUpdater bunun üzerine otomatik olarak yeniden yükleme yapmayacak; yeniden %@ sürümüne geçmek için Güncelle’ye tıklayın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新启动后，%@ 回到了 %@ —— 重新启动前磁盘上的那个版本被别的东西换掉了。DuoUpdater 不会自动再装一遍去覆盖它；想重新装上 %@，请点「更新」。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新開啟後，%@ 回到了 %@——重新開啟前磁碟上的那個版本被別的東西換掉了。DuoUpdater 不會自動再裝一次去蓋過它；想重新裝上 %@，請點「更新」。"
+          }
+        }
+      }
+    },
     "%@ is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.": {
       "extractionState": "manual",
       "localizations": {

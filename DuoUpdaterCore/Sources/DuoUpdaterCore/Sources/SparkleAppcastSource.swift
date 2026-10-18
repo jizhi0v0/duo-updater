@@ -267,10 +267,15 @@ public struct SparkleAppcastSource: UpdateSource {
               let suffix = data.range(of: Data("-->".utf8), in: prefix.upperBound..<data.endIndex),
               let block = String(data: data[prefix.upperBound..<suffix.lowerBound], encoding: .utf8)
         else { return nil }
+        // Compared and cut in UTF-16 units, as `-[NSString hasPrefix:]` and
+        // `substringFromIndex:` do. Swift's `hasPrefix` compares whole characters,
+        // so "edSignature:" followed by a combining mark is a match for Sparkle
+        // and not for Swift, and the last-line-wins answer would differ.
+        let key = "edSignature:"
         var signature: String?
         block.enumerateLines { line, _ in
-            if line.hasPrefix("edSignature:") {
-                signature = String(line.dropFirst("edSignature:".count))
+            if line.utf16.starts(with: key.utf16) {
+                signature = (line as NSString).substring(from: key.utf16.count)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }

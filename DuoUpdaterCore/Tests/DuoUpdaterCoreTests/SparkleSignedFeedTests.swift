@@ -204,6 +204,26 @@ import CryptoKit
         }
     }
 
+    /// Two `edSignature:` lines in one block: the last one counts, as in
+    /// `SPUExtractAppcastContent`. A line whose key is followed by a combining
+    /// mark still counts — NSString matches the prefix in UTF-16 units. Mutation:
+    /// first line wins, or Swift's character-wise `hasPrefix` → red.
+    @Test(arguments: ["", "\u{0301}", "\u{200D}"])
+    func theLastSignatureLineWins(_ afterColon: String) async throws {
+        let key = Curve25519.Signing.PrivateKey()
+        let app = try Self.app(Self.requiring(key))
+        let content = Data(Self.feedBody.utf8)
+        let good = try key.signature(for: content).base64EncodedString()
+        let goodThenBad = content + Data(
+            "<!-- sparkle-signatures:\nedSignature: \(good)\nedSignature:\(afterColon)AAAA\n-->\n".utf8)
+        await Self.expectRefusal(.feedSignatureInvalid) {
+            _ = try SparkleAppcastSource.verifiedFeedContent(goodThenBad, for: app)
+        }
+        let badThenGood = content + Data(
+            "<!-- sparkle-signatures:\nedSignature:\(afterColon)AAAA\nedSignature: \(good)\n-->\n".utf8)
+        #expect(try SparkleAppcastSource.verifiedFeedContent(badThenGood, for: app) == content)
+    }
+
     // MARK: Not required / key absent
 
     /// No `SUPublicEDKey`: Sparkle could not start for this app, so there is no
@@ -221,9 +241,12 @@ import CryptoKit
     /// `requiresSignedFeed` guard → red.
     @Test(arguments: [Flag.absent, .bool(false), .string("NO"), .number(0)])
     func anAppThatDoesNotOptInIsUnchanged(_ flag: Flag) throws {
-        let app = try Self.app(Self.requiring(Curve25519.Signing.PrivateKey(), flag: flag))
+        let key = Curve25519.Signing.PrivateKey()
+        let app = try Self.app(Self.requiring(key, flag: flag))
         let unsigned = Data(Self.feedBody.utf8)
         #expect(try SparkleAppcastSource.verifiedFeedContent(unsigned, for: app) == unsigned)
+        let signed = try Self.signed(Self.feedBody, with: key)
+        #expect(try SparkleAppcastSource.verifiedFeedContent(signed, for: app) == signed)
     }
 
     // MARK: Fixture server

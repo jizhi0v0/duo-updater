@@ -287,6 +287,23 @@ struct InstallJournalTests {
         }
     }
 
+    /// A bundle copied into place file by file and cut off between its
+    /// Info.plist and its executable reads as the target version but does not
+    /// run: interrupted, its file kept (and with it the rollback point, which
+    /// the sweep keeps for a journaled app). One with no `CFBundleExecutable`
+    /// at all stays completed (`anAppAtTheTargetVersionResolvesAsCompleted`).
+    /// Mutation: drop the `namesAMissingExecutable` check in `classify` → red
+    /// (`.resolved(.completed)`).
+    @Test func anAppAtTheTargetVersionWithoutItsExecutableIsInterrupted() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "2.0", withExecutable: true)
+            try FileManager.default.removeItem(at: app.appendingPathComponent("Contents/MacOS/ZZFixture"))
+            let file = try store(entry(for: app, owner: try await deadProcess()), in: scratch)
+            #expect(try await process(scratch) == [.interrupted(app: "ZZFixture-Journal", .unreadable)])
+            #expect(FileManager.default.fileExists(atPath: file.path))
+        }
+    }
+
     /// Brew empties a bundle whose successor has the same name: the directory
     /// is there, its Info.plist is not.
     @Test func anEmptiedBundleIsInterruptedAsUnreadable() async throws {

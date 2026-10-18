@@ -277,6 +277,28 @@ import Foundation
         #expect(outcome.standardOutput.isEmpty)
     }
 
+    /// `nohup duo install …` starts `duo` with SIGHUP ignored, and a
+    /// background `duo install … &` in a script with SIGINT ignored: the gate
+    /// listens only for the signals not ignored already, so the hangup `nohup`
+    /// was for does not stop the batch.
+    /// Mutation: arm every one of `signals` whatever `isIgnored` says → red.
+    @Test func aSignalStartedIgnoredIsLeftIgnored() {
+        #expect(SignalGate.signalsToArm(isIgnored: { $0 == SIGHUP }) == [SIGINT, SIGTERM])
+        #expect(SignalGate.signalsToArm(isIgnored: { _ in false }) == SignalGate.signals)
+    }
+
+    /// `isIgnored` reads the disposition as it is, and changes nothing.
+    /// SIGUSR2, which nothing else here touches, so no other test races it.
+    /// Mutation: compare against `SIG_DFL` instead → red.
+    @Test func isIgnoredReadsTheDisposition() {
+        let previous = signal(SIGUSR2, SIG_IGN)
+        defer { signal(SIGUSR2, previous) }
+        #expect(SignalGate.isIgnored(SIGUSR2))
+        #expect(SignalGate.isIgnored(SIGUSR2))
+        signal(SIGUSR2, SIG_DFL)
+        #expect(!SignalGate.isIgnored(SIGUSR2))
+    }
+
     // MARK: - Stopping before the next item
 
     /// A cancelled `CLIToolRows.apply` starts no further tool update, and

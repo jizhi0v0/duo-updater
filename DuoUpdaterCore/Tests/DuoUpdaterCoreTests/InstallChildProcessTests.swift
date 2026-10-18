@@ -10,8 +10,10 @@ import Testing
 /// `offCooperativePool` hop could not be cancelled and a half-done write is worse
 /// than a finished one. The exceptions write only into the install's own work
 /// directory, which is removed afterwards anyway: the extraction tools
-/// (`ArchiveExtractor.run`), the patch (`DeltaApplier.apply`) and the package copy
-/// (`PackageInstaller.run`), so those are `.terminateChild`. Each test here runs
+/// (`ArchiveExtractor.run`) and the package copy (`PackageInstaller.run`), so
+/// those are `.terminateChild`. The patch (`DeltaApplier.apply`) is not one of
+/// them: a killed `BinaryDelta` leaves a temporary diff outside the work
+/// directory, so it runs to completion. Each test here runs
 /// the operation in a task that is cancelled BEFORE it starts. `.terminateChild` refuses to spawn into an
 /// already-cancelled task, so a site that picked it throws `CancellationError`
 /// before its tool ever runs — the mutations below fail by that, not by whether a
@@ -648,33 +650,62 @@ import Testing
         }
     }
 
-    /// A cancelled patch is not applied: `BinaryDelta` never spawns into a task that
-    /// is already cancelled, the call throws `CancellationError`, and the destination
-    /// (in the install's own work directory) is never written. The destination lives
-    /// in a work directory the install deletes afterwards, so a `BinaryDelta` killed
-    /// partway would leave nothing that outlives the install.
+    /// A patch that is running when its task is cancelled runs to its end. The
+    /// stand-in does what Sparkle's `BinaryDelta` does: it makes an
+    /// `apply-binary-delta.*` file under `$TMPDIR`, works a while, then deletes that
+    /// file and writes the destination. It also drops a `started` marker beside the
+    /// destination, so the test can wait for it without listing `$TMPDIR`, which is
+    /// large on a developer's Mac. The test cancels after the marker appears. The
+    /// patch finishes, `apply` returns normally, and nothing is left in the
+    /// process's temporary directory.
     ///
-    /// Mutation: `DeltaApplier.apply` becomes `.runToCompletion` → the tool runs to
-    /// its end, the destination is created, and the call returns normally.
-    @Test func aCancelledPatchIsNotAppliedAndThrows() async throws {
+    /// Mutation: `DeltaApplier.apply` becomes `.terminateChild` → the stand-in is
+    /// killed mid-work, `apply` throws `CancellationError`, the destination is never
+    /// written, and the temporary diff stays in the process's temporary directory.
+    @Test func aCancelledPatchRunsToEndAndLeavesNoTemporaryDiff() async throws {
         let fm = FileManager.default
         let top = try scratch("delta-cancel")
         defer { try? fm.removeItem(at: top) }
         // `apply <old> <new> <patch>`: $3 is the destination.
         let host = try toolBundle(in: top, script: """
-            sleep 0.2
+            touch "$(dirname "$3")/started"
+            f=$(mktemp "${TMPDIR:-/tmp}/apply-binary-delta.XXXXXXXXXX")
+            printf 'diff' > "$f"
+            sleep 0.5
+            rm -f "$f"
             mkdir -p "$3/Contents"
             """)
         let out = top.appendingPathComponent("ZZNew.app")
+        let started = top.appendingPathComponent("started")
+        let processTemp = fm.temporaryDirectory
+        let before = temporaryDiffs(in: processTemp)
 
-        await #expect(throws: CancellationError.self) {
-            try await cancelledBeforeStart {
-                try await DeltaApplier.apply(
-                    installedApp: top, patch: top, destination: out, bundle: host)
-            }
+        let task = Task {
+            try await DeltaApplier.apply(installedApp: top, patch: top, destination: out, bundle: host)
         }
+        // Bounded wait for the stand-in to be running, then cancel mid-work.
+        for _ in 0..<400 where !fm.fileExists(atPath: started.path) {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(fm.fileExists(atPath: started.path), "the stand-in never started")
+        task.cancel()
+        let result = await task.result
+        let left = temporaryDiffs(in: processTemp).subtracting(before)
+        // Clean up only what this test made in the process's directory.
+        for name in left { try? fm.removeItem(at: processTemp.appendingPathComponent(name)) }
 
-        #expect(!fm.fileExists(atPath: out.appendingPathComponent("Contents").path))
+        if case .failure(let error) = result {
+            Issue.record("the patch was torn down by the cancel: \(error)")
+        }
+        #expect(fm.fileExists(atPath: out.appendingPathComponent("Contents").path),
+                "the patch did not finish after the cancel")
+        #expect(left.isEmpty, "a cancelled patch left \(left.sorted()) in the process's temporary directory")
+    }
+
+    /// Names of Sparkle's `apply-binary-delta.*` temporary files in `directory`.
+    private func temporaryDiffs(in directory: URL) -> Set<String> {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        return Set(names.filter { $0.hasPrefix("apply-binary-delta.") })
     }
 
     // MARK: - Delta route
@@ -688,16 +719,16 @@ import Testing
         #expect(!deltaRouteFailureIsWorthRetrying(CancellationError()))
     }
 
-    /// A cancelled patch apply on the real Sparkle patch route surfaces as
-    /// `CancellationError` itself. It is not wrapped in `DeltaRouteFailure`, which
-    /// is the only error `InstallCoordinator` answers with a full-archive retry.
-    /// The `BinaryDelta` is a fixture (`DeltaApplier.$toolOverride`), and it must
-    /// not run: the destination is never written.
+    /// A cancel that lands during the patch on the real Sparkle patch route does not
+    /// stop the install there. The patch runs to its end (`DeltaApplier.apply` is
+    /// `.runToCompletion`), and then the route goes on to the bundle gate, which
+    /// refuses this fixture. That refusal is a `SignatureVerifier.VerifyError`, which
+    /// the patch route wraps as `DeltaRouteFailure`. The test pins what is true
+    /// today: no `CancellationError` comes out of the route, and the gate ran. There
+    /// is no checkpoint between the patch and the swap, so a checkpoint added there
+    /// changes this test on purpose.
     ///
-    /// Mutation: delete the `CancellationError` guard in
-    /// `deltaRouteFailureIsWorthRetrying` → the call throws `DeltaRouteFailure`
-    /// and this fails.
-    @Test func aCancelledSparklePatchRouteThrowsCancellationNotARetry() async throws {
+    @Test func aCancelledPatchRouteRunsThePatchAndReachesTheGate() async throws {
         let fm = FileManager.default
         let top = try scratch("delta-route")
         defer { try? fm.removeItem(at: top) }
@@ -735,15 +766,20 @@ import Testing
             sourceName: "Sparkle")
         let result = UpdateResult(app: app, remote: remote, status: .updateAvailable(latest: "1.2.0"))
 
-        await #expect(throws: CancellationError.self) {
+        var routeError: Error?
+        do {
             try await DeltaApplier.$toolOverride.withValue(tool) {
                 try await cancelledBeforeStart {
                     try await SparkleInstaller().apply(result, download: download, onStage: { _ in })
                 }
             }
-        }
-        #expect(!fm.fileExists(atPath: top.appendingPathComponent("patched-ZZInstalled.app/Contents").path),
-                "the patch tool ran although the task was cancelled")
+        } catch { routeError = error }
+
+        #expect(fm.fileExists(atPath: top.appendingPathComponent("patched-ZZInstalled.app/Contents").path),
+                "the patch did not run to its end")
+        #expect(!(routeError is CancellationError), "the cancel stopped the route before the gate")
+        let refusal = (routeError as? DeltaRouteFailure)?.underlying
+        #expect(refusal is SignatureVerifier.VerifyError, "the bundle gate did not run: \(String(describing: routeError))")
     }
 
     // MARK: - Backups

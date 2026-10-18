@@ -105,17 +105,23 @@ public enum DeltaApplier {
     /// — a failed patch leaves the running app exactly as it was, which is what
     /// lets the caller fall back to the full download without cleanup.
     ///
-    /// Cancelling the calling task tears `BinaryDelta` down and throws
-    /// `CancellationError`. The bundle it writes is `destination`, which is always
-    /// in the install's work directory (`reconstruct` passes `workDir/patched-…`),
-    /// so a half-written bundle does not outlive the install.
+    /// Runs to completion even if the calling task is cancelled, so the patch is
+    /// never torn down partway. Two reasons, both measured:
     ///
-    /// Not everything it writes is in the work directory. For each changed file,
-    /// Sparkle writes a temporary diff with `mkstemp` under `NSTemporaryDirectory()`
-    /// and deletes it only after a successful patch, so a killed run leaves one
-    /// there. That directory is the per-user temporary directory: on macOS it does
-    /// not follow `TMPDIR`, so setting `TMPDIR` for the child does not move it
-    /// (measured on macOS 27.2 with a real `BinaryDelta`).
+    /// - A killed `BinaryDelta` leaves its temporary diff behind. For each changed
+    ///   file Sparkle makes one with `mkstemp` under `NSTemporaryDirectory()`
+    ///   (`SUBinaryDeltaCommon.m`, `temporaryFilename`) and deletes it only after a
+    ///   successful patch. That directory is the per-user temporary directory, which
+    ///   on macOS 27.2 does not follow `TMPDIR`, so nothing of ours can point it at
+    ///   the work directory, and nothing of ours removes what a kill leaves there.
+    /// - Applying is fast: an 80 MB patch took 0.46 s. Letting it finish costs a
+    ///   cancel almost nothing.
+    ///
+    /// The bundle it writes is `destination`, inside the install's work directory
+    /// (`reconstruct` passes `workDir/patched-…`). Nothing between this call and the
+    /// bundle swap checks for cancellation, so a cancel that lands during the patch
+    /// does not stop the install there: the patched bundle goes through the gates
+    /// and the swap as it would have without the cancel.
     public static func apply(
         installedApp: URL,
         patch: URL,
@@ -139,7 +145,7 @@ public enum DeltaApplier {
             tool.path, ["apply", installedApp.path, destination.path, patch.path],
             standardOutput: .discard,
             deadline: .init(terminateAfter: .seconds(600), killAfter: .seconds(605)),
-            onCancel: .terminateChild)
+            onCancel: .runToCompletion)
 
         guard outcome.terminationStatus == 0 else {
             let message = String(decoding: outcome.standardError, as: UTF8.self)

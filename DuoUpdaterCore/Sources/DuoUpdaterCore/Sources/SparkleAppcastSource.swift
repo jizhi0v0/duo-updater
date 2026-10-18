@@ -267,10 +267,12 @@ public struct SparkleAppcastSource: UpdateSource {
               let suffix = data.range(of: Data("-->".utf8), in: prefix.upperBound..<data.endIndex),
               let block = String(data: data[prefix.upperBound..<suffix.lowerBound], encoding: .utf8)
         else { return nil }
-        // Compared and cut in UTF-16 units, as `-[NSString hasPrefix:]` and
-        // `substringFromIndex:` do. Swift's `hasPrefix` compares whole characters,
-        // so "edSignature:" followed by a combining mark is a match for Sparkle
-        // and not for Swift, and the last-line-wins answer would differ.
+        // Matched as a UTF-16 prefix and cut in UTF-16 units. Measured on macOS
+        // 27.2 (2026-10-18, ObjC and Swift probes): `-[NSString hasPrefix:]` (an
+        // `NSAnchoredSearch` compare, per Apple's docs) matches "edSignature:"
+        // followed by U+0301 or U+200D, and so does a UTF-16 prefix; Swift's
+        // `hasPrefix`, which compares whole characters, matches neither, so the
+        // last-line-wins answer would differ. `substringFromIndex:` counts UTF-16.
         let key = "edSignature:"
         var signature: String?
         block.enumerateLines { line, _ in

@@ -71,6 +71,11 @@ public enum Install {
         }
 
         let settings = await Settings.load()
+        // Rollback points whose app reads again — left by an install whose
+        // process died, or by an app since updated some other way — are no
+        // longer the way back to anything. Silent; skipped when another process
+        // holds the install lock.
+        await InstallCoordinator.sweepSettledInstallRollbackPoints()
         let scanned = await Inventory.scanIfFinished(settings)
         // The app's command-line tool rows, checked as `duo check` checks them
         // (`CLIToolRows`). Not under `--route`: its names are the app install
@@ -963,6 +968,9 @@ public enum Install {
                 route, takingUserBackup: keepBackups && InstallCoordinator.wantsBackup(route)) {
                 await InstallCoordinator.takeInstallRollbackPoint(toInstall.app, route: route)
             }
+            // However this item ends — installed, failed, refused — the point
+            // is settled: kept only when the app is left missing or unreadable.
+            defer { await InstallCoordinator.settleInstallRollbackPoint(for: toInstall.app) }
             do {
                 let installOutcome = try await coordinator.perform(
                     toInstall, route: route,
@@ -989,8 +997,6 @@ public enum Install {
                 let category = rowOutcome(forApplied: installOutcome.applied)
                 if installOutcome.applied {
                     attempted.append((name: name, path: toInstall.app.path, bundleID: toInstall.app.bundleID))
-                    // Landed: the install rollback point, if any, is done.
-                    await InstallCoordinator.discardInstallRollbackPoint(for: toInstall.app)
                 }
                 tally.record(category)
                 emit(name: name, route: route, outcome: installOutcome, json: json)

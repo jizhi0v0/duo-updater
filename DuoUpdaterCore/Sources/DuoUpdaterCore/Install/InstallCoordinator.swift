@@ -271,6 +271,11 @@ public actor InstallCoordinator {
     @discardableResult
     public static func takeInstallRollbackPoint(_ app: InstalledApp, route: Route) async -> Bool {
         let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
+        // Held until `settleInstallRollbackPoint` lets go, so the launch sweep
+        // cannot discard this point while the install it guards is running —
+        // the app is intact right up to the third party's swap, which is
+        // exactly what the sweep reads as "no longer needed".
+        await InstallRollbackPointClaims.shared.beginTaking(key)
         do {
             try await BackupStore.saveInstallRollbackPoint(
                 appPath: app.path, key: key,
@@ -286,15 +291,6 @@ public actor InstallCoordinator {
                 "rollback point: \(app.path.lastPathComponent, privacy: .public) not saved, installing without one — \(error.localizedDescription, privacy: .public)")
             return false
         }
-    }
-
-    /// The install of `app` succeeded: its rollback point, if one was taken —
-    /// now or by an earlier install that never finished — is no longer the way
-    /// back to anything. Hosts call this on success only; a failed or abandoned
-    /// install keeps it, since that is the case it exists for.
-    public static func discardInstallRollbackPoint(for app: InstalledApp) async {
-        await BackupStore.removeRollbackPoint(
-            forKey: BackupStore.key(bundleID: app.bundleID, path: app.path))
     }
 
     /// What taking a rollback point did. Never fatal — the caller decides

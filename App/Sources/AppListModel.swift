@@ -3197,6 +3197,10 @@ final class AppListModel {
                 // Every root is attempted; one deferral must not skip the rest.
                 if await InPlaceSwap.recoverInterruptedSwaps(in: root) == false { swept = false }
             }
+            // Install rollback points whose app reads again (see
+            // `sweepSettledInstallRollbackPoints`), retried with the rest when
+            // another process held the lock.
+            if await InstallCoordinator.sweepSettledInstallRollbackPoints() == nil { swept = false }
             guard !swept else { return }
             await MainActor.run { self?.didRecoverSwaps = false }
         }
@@ -5108,6 +5112,11 @@ final class AppListModel {
                 await InstallCoordinator.takeInstallRollbackPoint(result.app, route: backupRoute)
             }
         }
+        // Every way out of this attempt from here — installed, failed, skipped
+        // before the download, refused — settles the rollback point: kept only
+        // when the app is left missing or unreadable. See
+        // `settleInstallRollbackPoint`.
+        defer { await InstallCoordinator.settleInstallRollbackPoint(for: result.app) }
 
         do {
             // Everything except the App Store is fetched and applied by
@@ -5510,10 +5519,6 @@ final class AppListModel {
                 relaunching.remove(id)
                 return .notInstalled
             }
-
-            // It landed and reads back, so the install rollback point taken for
-            // it — or left by an earlier attempt that never finished — is done.
-            await InstallCoordinator.discardInstallRollbackPoint(for: result.app)
 
             // Tell the user it landed. If the app was running, its live process
             // is still on the old code (so it's in needsRestart) — point them at

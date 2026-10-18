@@ -1330,8 +1330,13 @@ public enum BackupStore {
         backup(forKey: key, in: rollbackPointStore)
     }
 
-    /// Every install rollback point, keyed by app key. One left here is from an
-    /// install that never finished — they are removed when one does.
+    /// Every install rollback point, keyed by app key.
+    ///
+    /// Outside an install in progress, one left here guards an app that an
+    /// install cut off left missing or unreadable: every attempt that ends
+    /// normally settles its point (``InstallCoordinator/settleInstallRollbackPoint(for:)``),
+    /// and the launch sweep drops the rest whose app is back. A point whose
+    /// app is still broken stays until it is restored or deleted.
     public static func allRollbackPoints() -> [String: Backup] {
         var out: [String: Backup] = [:]
         for key in storedKeys(in: rollbackPointsRoot) {
@@ -1360,6 +1365,31 @@ public enum BackupStore {
     public static func removeRollbackPoint(forKey key: String) async {
         await removeClearingImmutableFlagsOffPool(
             at: rollbackPointsRoot.appendingPathComponent(key, isDirectory: true))
+    }
+
+    /// Each rollback point's key and the path it was taken from. A point
+    /// without a readable sidecar is left out: nothing says where its app was,
+    /// so nothing can say it is no longer needed.
+    static func rollbackPointOrigins() -> [(key: String, appPath: URL)] {
+        storedKeys(in: rollbackPointsRoot).compactMap { key in
+            readMeta(in: rollbackPointsRoot.appendingPathComponent(key, isDirectory: true))
+                .map { (key, URL(fileURLWithPath: $0.originalPath)) }
+        }
+    }
+
+    /// Whether `app` is a bundle whose Info.plist reads — any version of it.
+    /// What decides that a rollback point is no longer needed: an install that
+    /// left this true did not leave the app deleted (brew's failure mode) or
+    /// emptied (the same, when the successor has the bundle's name). Read the
+    /// way ``installedShortVersion(atPath:)`` reads it, through `BundleLayout`,
+    /// so a wrapped iOS app counts as readable rather than holding its point
+    /// forever.
+    static func hasReadableBundle(at app: URL) -> Bool {
+        guard let data = try? Data(contentsOf: BundleLayout.infoPlistURL(for: app)),
+              let info = try? PropertyListSerialization.propertyList(
+                from: data, options: [], format: nil) as? [String: Any]
+        else { return false }
+        return !info.isEmpty
     }
 
     // MARK: - Restore
@@ -2226,9 +2256,18 @@ public enum BackupStore {
     }
 
     public static func storeSize(of root: URL) -> Int64 {
-        guard let dirs = try? FileManager.default.contentsOfDirectory(
+        guard var dirs = try? FileManager.default.contentsOfDirectory(
             at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
         else { return 0 }
+        // This Mac's figure includes the install rollback points: they are this
+        // Mac's disk too, inside the outbox, and the hidden directory that keeps
+        // every sweep off them would otherwise keep them out of the total. Not
+        // in ``listing()``'s rows, so the Clean Up sheet's sum is lower by them.
+        if root.standardizedFileURL == outboxRoot.standardizedFileURL {
+            dirs += (try? FileManager.default.contentsOfDirectory(
+                at: rollbackPointsRoot, includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles])) ?? []
+        }
         // Through the same index the listing reads, which is what makes the two
         // agree and what lets the settings page's own measurement pay for the
         // sheet's: by the time "Clean Up…" is pressed, this has already been asked.

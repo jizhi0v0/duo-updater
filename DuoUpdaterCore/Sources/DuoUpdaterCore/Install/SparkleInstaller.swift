@@ -228,8 +228,8 @@ public actor SparkleInstaller {
         let newApp: URL
         if let patch = download.appliedPatch {
             // Awaited in place: `BinaryDelta` runs through `ChildProcess`, which
-            // waits without parking a thread and is not killed if this task is
-            // cancelled — the guarantee the `offCooperativePool` hop used to give.
+            // waits without parking a thread, and it runs to completion if this task is
+            // cancelled — see `DeltaApplier.apply`.
             newApp = try await DeltaApplier.reconstruct(
                 installedApp: result.app.path,
                 patch: patch,

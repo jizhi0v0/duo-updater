@@ -107,6 +107,7 @@ public enum AppRestarter {
         // genuine hang/save-prompt, where the app stays *up* (never stranded down).
         for _ in 0..<150 {
             if allRunningInstances(of: app).isEmpty { break }
+            // cancel-ok: runs inside InstallCommit.run ("restart"), whose body no cancel reaches
             try? await Task.sleep(for: .milliseconds(200))
         }
         guard allRunningInstances(of: app).isEmpty else {
@@ -307,6 +308,7 @@ public enum AppRestarter {
     /// stalling the relaunch.
     public static func awaitBundleProcessesGone(_ app: InstalledApp) async {
         for _ in 0..<25 where hasProcesses(insideBundle: app.path) {
+            // cancel-ok: loop capped at 25 passes (~5 s); a cancelled task finishes them, no spin
             try? await Task.sleep(for: .milliseconds(200))
         }
     }
@@ -324,6 +326,7 @@ public enum AppRestarter {
     public static func relaunchAfterSwap(_ app: InstalledApp, activates: Bool) async -> Bool {
         for attempt in 1...5 {
             if attempt > 1 {
+                // cancel-ok: loop capped at 5 attempts; a cancelled task finishes them, no spin
                 try? await Task.sleep(for: .seconds(2))
                 guard runningInstances(of: app).isEmpty else { return true }
             }
@@ -579,6 +582,7 @@ public enum AppRestarter {
         let once = Once()
         return await withCheckedContinuation { (continuation: CheckedContinuation<T, Never>) in
             let timer = Task {
+                // cancel-ok: one-shot timer, not in a loop; the guard on the next line handles cancel
                 try? await Task.sleep(for: timeout)
                 guard !Task.isCancelled, once.claim() else { return }
                 onTimeout()

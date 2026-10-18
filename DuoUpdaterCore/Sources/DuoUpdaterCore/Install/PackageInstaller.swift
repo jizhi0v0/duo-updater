@@ -1157,7 +1157,7 @@ public actor PackageInstaller {
     /// able to run in a working directory (`xar -xf` extracts relative to cwd).
     /// stdout and stderr share one pipe.
     ///
-    /// `.runToCompletion`, like every child on this route, including the reads:
+    /// `.runToCompletion`, like the other reads on this route:
     /// these answers feed a fail-closed gate, and a `xar` killed by a cancellation
     /// would come back as "the package declares nothing" rather than as a
     /// cancellation. They are short; there is nothing to save by killing them.
@@ -1180,7 +1180,7 @@ public actor PackageInstaller {
     /// survive, not what it will always get), and standard error is discarded rather than merged into the
     /// output (a warning from `tar` merged into the stream would corrupt the
     /// plist it is meant to be returning). `.runToCompletion` for the same reason
-    /// as every other child here: a killed read reports "no floor declared",
+    /// as `runCapturing`: a killed read reports "no floor declared",
     /// which is this gate's fail-open answer.
     private static func runCapturingBytes(
         _ launchPath: String, _ args: [String], cwd: URL? = nil
@@ -1224,7 +1224,7 @@ public actor PackageInstaller {
         // A leftover here can be a flat package of hundreds of megabytes or a
         // bundle-format one, so its removal is off the pool.
         await removeItemOffCooperativePool(at: dest)
-        guard await run("/usr/bin/ditto", [pkg.path, dest.path]) == 0 else {
+        guard try await run("/usr/bin/ditto", [pkg.path, dest.path]) == 0 else {
             throw PackageError.downloadFailed("Could not copy the installer package out of the disk image.")
         }
         return dest
@@ -1372,14 +1372,24 @@ public actor PackageInstaller {
         return resolved == dirBase || resolved.hasPrefix(dirBase + "/")
     }
 
-    /// Exit status only; both streams are drained and dropped. Not killed on
-    /// cancellation — see `runCapturing`.
+    /// Exit status only; both streams are drained and dropped. Torn down when the
+    /// caller is cancelled, unlike `runCapturing`: its one caller copies the
+    /// package into the install's work directory, which the install removes
+    /// afterwards, and the disk image is detached by the caller's `defer`. A
+    /// cancellation is rethrown rather than folded into the `-1` a failed launch
+    /// returns, so it reaches the caller as a cancellation, not as a failed copy.
     @discardableResult
-    private nonisolated func run(_ launchPath: String, _ args: [String]) async -> Int32 {
-        guard let outcome = try? await ChildProcess.run(
-            launchPath, args,
-            standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion)
-        else { return -1 }
+    private nonisolated func run(_ launchPath: String, _ args: [String]) async throws -> Int32 {
+        let outcome: ChildProcess.Outcome
+        do {
+            outcome = try await ChildProcess.run(
+                launchPath, args,
+                standardOutput: .discard, standardError: .discard, onCancel: .terminateChild)
+        } catch let error as CancellationError {
+            throw error
+        } catch {
+            return -1
+        }
         return outcome.terminationStatus
     }
 

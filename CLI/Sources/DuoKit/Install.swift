@@ -232,6 +232,9 @@ public enum Install {
             // hung is worse than one that tells you who has it.
             do {
                 try await ProcessInstallLock.shared.claim()
+                // Partial downloads kept for resuming that have aged out, ours or
+                // the app's: `duo` exits when done, so it sweeps when it starts.
+                ResumableDownloadStore.sweepExpired()
                 attempted = await apply(
                     plan, settings: settings, routes: options.routes,
                     json: options.json, keepBackups: settings.keepBackups,

@@ -1374,7 +1374,12 @@ public enum BackupStore {
         try await offCooperativePool(qos: .userInitiated) {
             try verifyRestoreIdentity(staged: staged, over: target)
         }
-        try await InPlaceSwap.replace(newApp: staged, over: target)
+        // The restore's point of no return (`InstallCommit`): a cancel before it
+        // leaves the live app as it is and the scratch copy to the `defer`; one
+        // during it is not seen.
+        _ = try await InstallCommit.run("restore swap") {
+            try await InPlaceSwap.replace(newApp: staged, over: target)
+        }
         // An input method's settings and learned dictionary are not in the bundle,
         // so restoring the bundle alone rolls back the code and leaves the data at
         // whatever the newer version made of it. Restore the snapshot taken with

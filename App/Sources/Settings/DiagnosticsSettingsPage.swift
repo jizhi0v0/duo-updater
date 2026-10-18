@@ -270,20 +270,26 @@ struct DiagnosticsSettingsPage: View {
         .settingsRow()
     }
 
-    /// Spawn a fresh instance, then terminate this one — the standard "restart
+    /// Terminate this instance, then spawn a fresh one — the standard "restart
     /// myself" handoff. `open -n` launches a new copy that outlives our exit, so a
     /// permission granted via the drag panel takes effect without the user hunting
     /// for the app in Finder.
     ///
-    /// offpool-lint:allow — nothing waits on this `open -n`: the app terminates right after launching it, so there is no wait for `ChildProcess` to take over.
+    /// The launch waits for the quit to be certain (`QuitCoordinator`): with an
+    /// install in flight the quit waits for it, or the user keeps the app — and
+    /// launching first, as this used to, left two copies running side by side.
     private static func relaunch() {
+        QuitCoordinator.shared.terminate(thenRun: launchFreshCopy)
+    }
+
+    /// offpool-lint:allow — nothing waits on this `open -n`: it runs as the app terminates, so there is no wait for `ChildProcess` to take over.
+    private static func launchFreshCopy() {
         let bundleURL = Bundle.main.bundleURL
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         task.arguments = ["-n", bundleURL.path]
         do {
             try task.run()
-            NSApp.terminate(nil)
         } catch {
             Log.app.error("relaunch failed: \(error.localizedDescription, privacy: .public)")
         }

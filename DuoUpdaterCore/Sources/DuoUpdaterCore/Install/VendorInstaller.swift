@@ -688,11 +688,17 @@ public actor VendorInstaller {
         // `ChildProcess`, and the swap runs to completion if this task is
         // cancelled. See `InPlaceSwap.replace`.
         //
+        // This route's point of no return: a cancel that lands before it stops
+        // the install with only the scratch directory to clear; one that lands
+        // after it is not seen. See `InstallCommit`.
+        //
         // The `SwapOutcome` is dropped on purpose, and said so with `_ =`: both
         // cases mean the new version is live, and a cleanup failure's reason is
         // logged by `replace` itself, in its `defer` —
         // `aCleanupFailureReasonReachesTheInstallLog` reads it back.
-        _ = try await InPlaceSwap.replace(newApp: newApp, over: target)
+        _ = try await InstallCommit.run("swap") {
+            try await InPlaceSwap.replace(newApp: newApp, over: target)
+        }
     }
 }
 

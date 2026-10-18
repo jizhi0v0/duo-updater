@@ -57,7 +57,8 @@ import Testing
         #expect(!queue.remove(preparing))
         #expect(queue.cancelledBeforeStart == 1)
 
-        let (removed, answers) = queue.cancelAll()
+        let (removed, answers, spared) = queue.cancelAll()
+        #expect(spared.isEmpty)
         #expect(removed == [queued])
         #expect(answers[preparing] == .cancelled)
         #expect(answers[committing] == .tooLate(committing: "ZZFixture-swap"))
@@ -82,5 +83,24 @@ import Testing
         #expect(!queue.start(b))
         #expect(!queue.isCancelled)
         #expect(queue.cancelledBeforeStart == 1)
+    }
+
+    /// A started target whose row's registered job is an earlier run still
+    /// wrapping up is spared: Cancel All does not send that job a cancel, and
+    /// says which it spared so the host can stop the target itself.
+    /// Mutation: ignore `sparing` → the earlier run's job is cancelled, red.
+    @Test func aTargetBehindAnEarlierRunIsSparedTheRegistry() {
+        let behind = InstallJobsTests.id()
+        let queue = InstallBatchQueue([behind])
+        let earlierCancelled = Flag()
+        InstallJobs.register(behind, cancel: { earlierCancelled.set() })
+        defer { InstallJobs.unregister(behind) }
+        #expect(queue.start(behind))
+
+        let (removed, answers, spared) = queue.cancelAll(sparing: [behind])
+        #expect(removed.isEmpty)
+        #expect(answers.isEmpty)
+        #expect(spared == [behind])
+        #expect(!earlierCancelled.value)
     }
 }

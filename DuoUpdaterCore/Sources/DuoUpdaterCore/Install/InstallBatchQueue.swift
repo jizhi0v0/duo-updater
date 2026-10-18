@@ -51,7 +51,14 @@ public final class InstallBatchQueue: @unchecked Sendable {
     /// registry (`answers`) — `.cancelled` for one still preparing,
     /// `.tooLate` for one committing, which finishes; `.notFound` for one
     /// that already ended.
-    public func cancelAll() -> (removed: [String], answers: [String: InstallJobs.CancelResult]) {
+    ///
+    /// A started target in `sparing` is not sent to the registry but
+    /// returned in `spared`: its row's registered job is an earlier run still
+    /// wrapping up, not this target's (`InstallRowRuns`), and its host stops
+    /// the target itself.
+    public func cancelAll(
+        sparing: Set<String> = []
+    ) -> (removed: [String], answers: [String: InstallJobs.CancelResult], spared: [String]) {
         let (taken, running) = lock.withLock { () -> ([String], [String]) in
             stopped = true
             let taken = Array(unstarted)
@@ -61,7 +68,10 @@ public final class InstallBatchQueue: @unchecked Sendable {
         }
         // Outside the lock: a cancel runs the job's cancellation handlers inline.
         var answers: [String: InstallJobs.CancelResult] = [:]
-        for id in running { answers[id] = InstallJobs.cancel(id) }
-        return (taken.sorted(), answers)
+        var spared: [String] = []
+        for id in running {
+            if sparing.contains(id) { spared.append(id) } else { answers[id] = InstallJobs.cancel(id) }
+        }
+        return (taken.sorted(), answers, spared.sorted())
     }
 }

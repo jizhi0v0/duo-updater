@@ -99,10 +99,11 @@ public enum DeltaApplier {
     /// — a failed patch leaves the running app exactly as it was, which is what
     /// lets the caller fall back to the full download without cleanup.
     ///
-    /// Runs to completion even if the calling task is cancelled: a `BinaryDelta`
-    /// killed partway leaves a half-written bundle at `destination`, and the
-    /// `offCooperativePool` hop this used to be called through could not be
-    /// cancelled either.
+    /// Cancelling the calling task tears `BinaryDelta` down and throws
+    /// `CancellationError`. That is safe because `destination` is always in the
+    /// install's work directory (`reconstruct` passes `workDir/patched-…`), which
+    /// the install removes afterwards, so a bundle half-written by a killed run
+    /// never outlives it.
     public static func apply(
         installedApp: URL,
         patch: URL,
@@ -126,7 +127,7 @@ public enum DeltaApplier {
             tool.path, ["apply", installedApp.path, destination.path, patch.path],
             standardOutput: .discard,
             deadline: .init(terminateAfter: .seconds(600), killAfter: .seconds(605)),
-            onCancel: .runToCompletion)
+            onCancel: .terminateChild)
 
         guard outcome.terminationStatus == 0 else {
             let message = String(decoding: outcome.standardError, as: UTF8.self)

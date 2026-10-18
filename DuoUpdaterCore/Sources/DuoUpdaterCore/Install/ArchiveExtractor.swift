@@ -47,12 +47,14 @@ public enum ArchiveExtractor {
     /// Extract `archive` into a fresh temp dir and return the contained `.app`.
     /// `workDir` is the caller-owned scratch directory to clean up afterward.
     ///
-    /// Runs to completion once started, whatever happens to the calling task:
-    /// every tool here writes (`DiskImageMount` mounts, `ditto`/`tar` fill the
-    /// scratch directory, `DiskImageMount` unmounts), and none of it checks for
-    /// cancellation — a DMG left mounted because a cancel landed between attach and
-    /// detach is exactly what must not happen. That is also what the
-    /// `offCooperativePool` hop its callers used to make guaranteed.
+    /// Cancelling the calling task tears down the `ditto`/`tar` it is waiting on
+    /// and throws `CancellationError`. That is safe because each of those tools
+    /// writes only into `workDir`, which the caller removes whatever the outcome.
+    /// The DMG is the one thing that must not outlive a cancel, and it does not:
+    /// `DiskImageMount`'s attach and detach are `.runToCompletion` children of
+    /// their own, and `fromDMG` detaches in a `defer`, which also runs when the
+    /// copy out was cut short. A DMG left mounted because a cancel landed between
+    /// attach and detach is exactly what must not happen.
     public static func extractApp(from archive: URL, workDir: URL) async throws -> URL {
         let ext = archive.pathExtension.lowercased()
         switch ext {
@@ -82,7 +84,8 @@ public enum ArchiveExtractor {
     /// vendor ships this shape in one — an unsupported extension here is a
     /// recipe bug, and should read as one.
     ///
-    /// Runs to completion once started, for the same reason `extractApp` does.
+    /// Cancellable like `extractApp`, for the same reason: it writes only into
+    /// `dest`, which every caller passes as its own scratch directory.
     public static func unpack(_ archive: URL, into dest: URL) async throws {
         switch archive.pathExtension.lowercased() {
         case "zip":
@@ -213,7 +216,9 @@ public enum ArchiveExtractor {
     /// on a corrupt or pathological archive can emit more than a pipe
     /// buffer of stderr while stdout is still open.
     ///
-    /// Never torn down on the caller's account — see `extractApp`.
+    /// Torn down when the caller is cancelled (SIGTERM, then SIGKILL after the
+    /// grace), and throws `CancellationError` — see `extractApp` for why that is
+    /// safe for every tool it runs.
     @discardableResult
     private static func run(_ launchPath: String, _ args: [String]) async throws
         -> (code: Int32, out: String, err: String)
@@ -221,7 +226,7 @@ public enum ArchiveExtractor {
         let outcome = try await ChildProcess.run(
             launchPath, args,
             deadline: .init(terminateAfter: .seconds(300), killAfter: .seconds(305)),
-            onCancel: .runToCompletion)
+            onCancel: .terminateChild)
         return (
             outcome.terminationStatus,
             String(data: outcome.standardOutput, encoding: .utf8) ?? "",

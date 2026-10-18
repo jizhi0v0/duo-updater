@@ -6,10 +6,13 @@ import Testing
 /// directories — never a real app, never `/Applications`.
 ///
 /// Mostly about the one behaviour `ChildProcess` could have changed: cancellation.
-/// Every child on this path is `.runToCompletion`, because the old
+/// Most children on this path are `.runToCompletion`, because the old
 /// `offCooperativePool` hop could not be cancelled and a half-done write is worse
-/// than a finished one. Each test here runs the operation in a task that is
-/// cancelled BEFORE it starts. `.terminateChild` refuses to spawn into an
+/// than a finished one. The exceptions write only into the install's own work
+/// directory, which is removed afterwards anyway: the extraction tools
+/// (`ArchiveExtractor.run`), the patch (`DeltaApplier.apply`) and the package copy
+/// (`PackageInstaller.run`), so those are `.terminateChild`. Each test here runs
+/// the operation in a task that is cancelled BEFORE it starts. `.terminateChild` refuses to spawn into an
 /// already-cancelled task, so a site that picked it throws `CancellationError`
 /// before its tool ever runs — the mutations below fail by that, not by whether a
 /// SIGKILL happened to beat a millisecond `chmod`. (Before `ChildProcess` had that
@@ -83,11 +86,13 @@ import Testing
 
     // MARK: - Extract
 
-    /// A cancelled extraction still produces the app — `ditto -x -k` ran to its end.
+    /// A cancelled extraction is not run at all: `ditto -x -k` never spawns into a
+    /// task that is already cancelled, the call throws `CancellationError`, and
+    /// nothing is unpacked into the work directory.
     ///
-    /// Mutation: `ArchiveExtractor.run` becomes `.terminateChild` → `ditto` is never
-    /// allowed to finish and the call throws `CancellationError`.
-    @Test func aCancelledExtractionStillUnpacksTheApp() async throws {
+    /// Mutation: `ArchiveExtractor.run` becomes `.runToCompletion` → `ditto` runs
+    /// to its end, the call returns the app, and both expectations fail.
+    @Test func aCancelledExtractionThrowsAndUnpacksNothing() async throws {
         let fm = FileManager.default
         let top = try scratch("extract")
         defer { try? fm.removeItem(at: top) }
@@ -100,12 +105,78 @@ import Testing
         let work = top.appendingPathComponent("work", isDirectory: true)
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
 
-        let app = try await cancelledBeforeStart {
-            try await ArchiveExtractor.extractApp(from: zip, workDir: work)
+        await #expect(throws: CancellationError.self) {
+            _ = try await cancelledBeforeStart {
+                try await ArchiveExtractor.extractApp(from: zip, workDir: work)
+            }
+        }
+        #expect(!fm.fileExists(atPath: work.appendingPathComponent("unzipped/ZZFixture.app").path))
+    }
+
+    /// A cancelled extraction that is already running is torn down, not waited on.
+    /// The archive is a FIFO with no writer, so `ditto` parks inside its own `open`
+    /// and cannot finish by itself. Cancelling must kill it, return promptly, and
+    /// leave no `ditto` behind.
+    ///
+    /// A watchdog writes a real archive into the FIFO six seconds after `ditto`
+    /// starts, if the call has not returned yet. That keeps the `.runToCompletion`
+    /// mutation a failure rather than a hang: it lets `ditto` finish and returns the
+    /// app, which fails both expectations below.
+    ///
+    /// Mutation: `ArchiveExtractor.run` becomes `.runToCompletion` → the call waits
+    /// for the watchdog and returns the app.
+    @Test func aCancelledExtractionKillsTheRunningTool() async throws {
+        let fm = FileManager.default
+        let top = try scratch("extract-running")
+        defer { try? fm.removeItem(at: top) }
+        let source = try bundle(at: top.appendingPathComponent("ZZFixture.app"), mode: 0o755, marker: "payload")
+        let realZip = top.appendingPathComponent("ZZReal.zip")
+        let made = try await ChildProcess.run(
+            "/usr/bin/ditto", ["-c", "-k", "--keepParent", source.path, realZip.path],
+            onCancel: .runToCompletion)
+        #expect(made.succeeded)
+        let fifo = top.appendingPathComponent("ZZFixture.zip")
+        #expect(mkfifo(fifo.path, 0o600) == 0)
+        let work = top.appendingPathComponent("work", isDirectory: true)
+        try fm.createDirectory(at: work, withIntermediateDirectories: true)
+
+        let finished = FinishFlag()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 6) {
+            guard !finished.isSet, let bytes = try? Data(contentsOf: realZip) else { return }
+            // Blocks until `ditto` opens the read end, which only a still-running
+            // `ditto` does; a torn-down one never does, so this is skipped above.
+            let fd = open(fifo.path, O_WRONLY)
+            guard fd >= 0 else { return }
+            _ = bytes.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
+            close(fd)
         }
 
-        #expect(app.lastPathComponent == "ZZFixture.app")
-        #expect(fm.fileExists(atPath: app.appendingPathComponent("Contents/payload").path))
+        let task = Task { try await ArchiveExtractor.extractApp(from: fifo, workDir: work) }
+        // `ditto` is running once `pgrep -f` can see it on the FIFO's path.
+        var running = false
+        for _ in 0..<100 where !running {
+            running = try await ChildProcess.run(
+                "/usr/bin/pgrep", ["-f", fifo.path], onCancel: .runToCompletion).succeeded
+            if !running { try await Task.sleep(for: .milliseconds(50)) }
+        }
+        #expect(running, "ditto never started on the FIFO")
+
+        let cancelledAt = ContinuousClock.now
+        task.cancel()
+        let result = await task.result
+        finished.set()
+        let returnedIn = ContinuousClock.now - cancelledAt
+
+        switch result {
+        case .success(let app):
+            Issue.record("the extraction returned \(app.lastPathComponent) after the cancel")
+        case .failure(let error):
+            #expect(error is CancellationError, "expected CancellationError, got \(error)")
+        }
+        #expect(returnedIn < .seconds(3), "the cancelled extraction took \(returnedIn) to return")
+        let leftover = try await ChildProcess.run(
+            "/usr/bin/pgrep", ["-f", fifo.path], onCancel: .runToCompletion)
+        #expect(!leftover.succeeded, "a ditto is still running on the archive after the cancel")
     }
 
     /// A tool's failure reaches the error with its exit status and its stderr,
@@ -186,14 +257,16 @@ import Testing
 
         try fm.createDirectory(at: withApp, withIntermediateDirectories: true)
         try fm.copyItem(at: images.full, to: withApp.appendingPathComponent("ZZFixture.dmg"))
-        let app = try await cancelledBeforeStart {
-            try await ArchiveExtractor.extractApp(
-                from: withApp.appendingPathComponent("ZZFixture.dmg"), workDir: withApp)
+        await #expect(throws: CancellationError.self) {
+            _ = try await cancelledBeforeStart {
+                try await ArchiveExtractor.extractApp(
+                    from: withApp.appendingPathComponent("ZZFixture.dmg"), workDir: withApp)
+            }
         }
-        #expect(app.lastPathComponent == "ZZFixture.app")
-        #expect(fm.fileExists(atPath: app.appendingPathComponent("Contents/payload").path))
-        #expect(!isMountPoint(mounts[0]), "the image stayed mounted after the app was copied out")
-        #expect(await !TestDiskImages.isAttached(copies[0]), "the image stayed attached after the app was copied out")
+        #expect(!fm.fileExists(atPath: withApp.appendingPathComponent("ZZFixture.app").path),
+                "the copy out of the image ran although the task was cancelled")
+        #expect(!isMountPoint(mounts[0]), "the image stayed mounted after the copy was cancelled")
+        #expect(await !TestDiskImages.isAttached(copies[0]), "the image stayed attached after the copy was cancelled")
 
         try fm.createDirectory(at: without, withIntermediateDirectories: true)
         try fm.copyItem(at: images.empty, to: without.appendingPathComponent("ZZFixture.dmg"))
@@ -235,14 +308,16 @@ import Testing
         let installedApp = top.appendingPathComponent("ZZFixture.app")
 
         try fm.createDirectory(at: withPkg, withIntermediateDirectories: true)
-        let copied = try await cancelledBeforeStart {
-            try await installer.resolveInstaller(
-                from: images.full, workDir: withPkg, installedApp: installedApp)
+        await #expect(throws: CancellationError.self) {
+            _ = try await cancelledBeforeStart {
+                try await installer.resolveInstaller(
+                    from: images.full, workDir: withPkg, installedApp: installedApp)
+            }
         }
-        #expect(copied == withPkg.appendingPathComponent("ZZFixture.pkg"))
-        #expect(fm.fileExists(atPath: copied.path))
-        #expect(!isMountPoint(mounts[0]), "the image stayed mounted after the package was copied out")
-        #expect(await !TestDiskImages.isAttached(images.full), "the image stayed attached after the package was copied out")
+        #expect(!fm.fileExists(atPath: withPkg.appendingPathComponent("ZZFixture.pkg").path),
+                "the copy out of the image ran although the task was cancelled")
+        #expect(!isMountPoint(mounts[0]), "the image stayed mounted after the copy was cancelled")
+        #expect(await !TestDiskImages.isAttached(images.full), "the image stayed attached after the copy was cancelled")
 
         try fm.createDirectory(at: without, withIntermediateDirectories: true)
         await #expect(throws: PackageInstaller.PackageError.self) {
@@ -502,12 +577,15 @@ import Testing
         }
     }
 
-    /// A cancelled patch still finishes — a `BinaryDelta` killed partway leaves a
-    /// half-written bundle at the destination.
+    /// A cancelled patch is not applied: `BinaryDelta` never spawns into a task that
+    /// is already cancelled, the call throws `CancellationError`, and the destination
+    /// (in the install's own work directory) is never written. The destination lives
+    /// in a work directory the install deletes afterwards, so a `BinaryDelta` killed
+    /// partway would leave nothing that outlives the install.
     ///
-    /// Mutation: `DeltaApplier.apply` becomes `.terminateChild` → the call throws
-    /// `CancellationError` and the destination is never created.
-    @Test func aCancelledPatchStillFinishes() async throws {
+    /// Mutation: `DeltaApplier.apply` becomes `.runToCompletion` → the tool runs to
+    /// its end, the destination is created, and the call returns normally.
+    @Test func aCancelledPatchIsNotAppliedAndThrows() async throws {
         let fm = FileManager.default
         let top = try scratch("delta-cancel")
         defer { try? fm.removeItem(at: top) }
@@ -518,12 +596,14 @@ import Testing
             """)
         let out = top.appendingPathComponent("ZZNew.app")
 
-        try await cancelledBeforeStart {
-            try await DeltaApplier.apply(
-                installedApp: top, patch: top, destination: out, bundle: host)
+        await #expect(throws: CancellationError.self) {
+            try await cancelledBeforeStart {
+                try await DeltaApplier.apply(
+                    installedApp: top, patch: top, destination: out, bundle: host)
+            }
         }
 
-        #expect(fm.fileExists(atPath: out.appendingPathComponent("Contents").path))
+        #expect(!fm.fileExists(atPath: out.appendingPathComponent("Contents").path))
     }
 
     // MARK: - Backups
@@ -680,4 +760,13 @@ import Testing
     private func hasQuarantine(_ url: URL) -> Bool {
         getxattr(url.path, Self.quarantine, nil, 0, 0, XATTR_NOFOLLOW) >= 0
     }
+}
+
+/// Set once a test has its answer, so a watchdog on another thread can tell that
+/// the answer is in and it has nothing to unblock.
+private final class FinishFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    var isSet: Bool { lock.withLock { value } }
+    func set() { lock.withLock { value = true } }
 }

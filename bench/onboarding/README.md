@@ -129,7 +129,7 @@ real Mac. All seven start from the commit before #1358 (`577239fa`) and are grad
 | Case | The trap | Main's answer (reference grade) |
 |---|---|---|
 | `loop` | Dev builds report `🧪 1.4.3`; the dev release's tag is always `prerelease` | 1.4.1 → 1.4.2 through GitHub; the dev copy (`loop-dev`) is `dev`, no update |
-| `cork` | corkmac.app answers every other request with its home page (deliberate, buresdv/Cork#687); GitHub releases lag the site (2.0.3 is a tag only); old ids `com.davidbures.cork` / `.Cork` | 2.0.2 → 2.0.3 from the `/RLS/` index, zip one-click, blog changelog; `cork-oldid` 1.5.7 → 2.0.3 |
+| `cork` | corkmac.app answers every other request with its home page (deliberate, buresdv/Cork#687); GitHub releases lag the site (2.0.3 is a tag only); old ids `com.davidbures.cork` / `.Cork` | 2.0.2 → 2.0.3 from the `/RLS/` index, zip one-click, blog changelog; `cork-oldid` 1.5.7 → 2.0.3. Main reads the vendor's `releases.json` since 2026-10-18 (#1413); `/RLS/` now answers every other request with a 403 |
 | `switchhosts` | Old id `SwitchHosts` up to 4.2.0; a beta track; a nested SMAppService root helper | 5.0.1 → 5.0.2, dmg; `switchhosts-oldid` 4.2.0 → 5.0.2 |
 | `picard` | Old id `org.musicbrainz.picard` (2.0.x); betas are `release-3.0.0rc4` | 3.0.1 → 3.0.2, dmg, changelog recipe; `picard-oldid` 2.0.4 → 3.0.2 |
 | `zettlr` | Beta choice in `config.json` (`checkForBeta`); nightly builds read `4.8.0+nightly` | 4.7.0 → 4.8.0, dmg; `zettlr-nightly` is `nightly`, no update |

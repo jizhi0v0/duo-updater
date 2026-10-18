@@ -8,34 +8,27 @@ enum eu_davidbures_cork {
         // Cork — a Homebrew GUI. No self-updater: no Sparkle, no feed in the
         // bundle, and the binary's "Updates available" strings are about
         // Homebrew packages, not the app. The vendor publishes every release as
-        // `corkmac.app/RLS/<version>/Cork.zip`, and the folder index at
-        // `corkmac.app/RLS/` (nginx autoindex) is what the Homebrew cask's
-        // livecheck reads. GitHub Releases of buresdv/Cork lag the site (a
-        // version can be tagged with no release), so the site is the source.
+        // `corkmac.app/RLS/<version>/Cork.zip` and lists them all at
+        // `corkmac.app/releases.json`, an endpoint the vendor made for us
+        // (buresdv/Cork#687, 2026-10-18): a JSON array of
+        // `{"name": "<version>", "url": "<zip>"}`. GitHub Releases of
+        // buresdv/Cork lag the site (a version can be tagged with no release),
+        // so the site is the source.
         //
-        // The index also holds `latest/`, `macos-13/` (a frozen build for
-        // macOS 13, below DuoUpdater's floor) and `1.6.x%2BSonoma/` folders.
-        // The pattern takes only an all-digit dotted name right before `/"`,
-        // so none of those match, and an `-beta`-style folder could not either.
-        // The index is alphabetical, so `selectHighest`. A folder's name equals
-        // the zip's `CFBundleShortVersionString` (two-, three- and four-part
-        // names alike).
+        // The list is sorted as strings (`0.1.10` before `0.1.2`), so
+        // `selectHighest`. It also holds `latest`, `macos-13` (a frozen build
+        // for macOS 13, below DuoUpdater's floor) and `1.6.x+Sonoma`; the
+        // pattern takes only an all-digit dotted name closed by its quote, so
+        // none of those match. A name equals the zip's
+        // `CFBundleShortVersionString` (two-, three- and four-part alike).
         //
-        // THE SERVER ANSWERS ABOUT HALF ITS REQUESTS WITH ITS HOME PAGE: HTTP
-        // 200 (no redirect, no cookie), the full PHP site HTML, for the index
-        // and for every zip URL. Often in strict alternation, but not always
-        // (runs of two seen on 2026-10-16). That body is recognised as
-        // transient (an HTML5 document titled `Cork: …`; the healthy index is a
-        // bare `<html>` titled `Index of /RLS/`) and retried once, which usually
-        // lands on the index. The zip download drew the home page 4 times out of
-        // 4 on the real machine before `VendorInstaller.fetchArchive` (an archive
-        // download that is an HTML document is fetched again, up to
-        // `htmlBodyMaxAttempts`); a failure there leaves the app untouched. The
-        // home page is byte-identical to `https://corkmac.app/` and comes back
-        // for paths that do not exist too. See the audit's 已知问题.
+        // Before the endpoint the probe read the folder index `corkmac.app/RLS/`,
+        // which the vendor's anti-scraping measure answers with a 403 on every
+        // other request; the endpoint answered 20 of 20 with the JSON. See the
+        // audit's 历史与实测.
         //
-        // One-click via `.versionTemplate` (the resolved version, never a first
-        // match on an alphabetical index). The zip holds `Cork.app`,
+        // One-click via `.versionTemplate` (the resolved version, never the first
+        // name in a string-sorted list). The zip holds `Cork.app`,
         // eu.davidbures.cork, universal, notarized Developer ID, Team
         // ZSVA6DVZHM, the same Team on every release read (0.9 through 2.0.3);
         // nothing inside but the app (no helpers, login items or launch
@@ -44,10 +37,9 @@ enum eu_davidbures_cork {
         // `BundleIDMigration`.
         VendorProbeRecipe(
             bundleID: "eu.davidbures.cork",
-            url: URL(string: "https://corkmac.app/RLS/")!,
+            url: URL(string: "https://corkmac.app/releases.json")!,
             mode: .responseBody,
-            versionPattern: #"href="([0-9]+(?:\.[0-9]+)+)/""#,
-            transientBodyPattern: #"(?s)\A\s*<!DOCTYPE html>.*?<title>Cork:[^<]*</title>"#,
+            versionPattern: #""name"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
             downloadURL: URL(string: "https://corkmac.app/"),
             changelogURL: URL(string: "https://blog.corkmac.app/"),
             selectHighest: true,

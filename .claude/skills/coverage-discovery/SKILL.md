@@ -176,7 +176,7 @@ Expected outcomes, all seen in practice:
 | `verifyingSignature` as well | A Sparkle route; the EdDSA signature was checked too |
 | `Team Identifier mismatch … Refusing to install.` | The vendor changed Team. The old copy must be untouched; check it |
 | `Skipping: … detection only` | `installAssetPattern` is nil, as designed |
-| `ditto: Couldn't read PKZip signature`, or a ~15 KB download | The vendor served an HTML page. The installer refetches; if it still fails, look at the vendor (Cork) |
+| `ditto: Couldn't read PKZip signature`, or a ~15 KB download | The vendor served an HTML page. The installer refetches; if it still fails, look at the vendor (Cork did this until its 2026-10-17 fix) |
 
 **Reading the `changelog pane` line.** It names what the workbench pane shows,
 in the pane's order: a changelog recipe beats the source's structured log,

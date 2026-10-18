@@ -212,8 +212,9 @@ public actor VendorInstaller {
 
             // A web page where the archive should be is retried: some vendors
             // answer part of their requests with their home page (HTTP 200,
-            // `text/html`) — corkmac.app about one in two. Not for a patch,
-            // whose bytes are not an archive this check knows.
+            // `text/html`) — corkmac.app did about one in two until its fix
+            // (2026-10-17, buresdv/Cork#687). Not for a patch, whose bytes are
+            // not an archive this check knows.
             var downloader: Downloader!
             var bytesDownloaded: Int64 = 0
             let downloaded = try await Self.fetchArchive(
@@ -628,7 +629,8 @@ public actor VendorInstaller {
     }
 
     /// Downloads of an archive that come back as a web page before one is kept.
-    /// At one in two (Cork's server), four attempts all failing is 1 in 16.
+    /// At one in two (Cork's server before its 2026-10-17 fix), four attempts
+    /// all failing is 1 in 16.
     static let htmlBodyMaxAttempts = 4
 
     /// Runs `fetch` until the file it returns is not an HTML document, at most

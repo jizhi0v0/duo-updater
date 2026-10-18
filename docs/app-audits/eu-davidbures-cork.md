@@ -4,6 +4,7 @@ Homebrew 的图形前端（David Bureš，源码在 `buresdv/Cork`）。app 自�
 包内没有 Sparkle、没有 feed，二进制里的 "Updates available" 指的是 Homebrew 包的更新。
 厂商把每个版本放在 `corkmac.app/RLS/<version>/Cork.zip`，Homebrew cask `cork` 指向同一个地址，
 它的 livecheck 读的是目录索引 `corkmac.app/RLS/`。
+厂商应我们的请求（#687）加了版本列表端点 `corkmac.app/releases.json`，检测读它。
 
 ## 基本信息
 - Bundle ID: `eu.davidbures.cork`（1.6.0 起）；更早是 `com.davidbures.cork`（1.4.4.1–1.5.7）和 `com.davidbures.Cork`（≤ 1.4.4）
@@ -20,7 +21,7 @@ Homebrew 的图形前端（David Bureš，源码在 `buresdv/Cork`）。app 自�
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **stable**   | —       | —        | —   | ✗ 落后于官网 | ✓ 一键 zip（下载遇首页重下） |
+| **stable**   | —       | —        | —   | ✗ 落后于官网 | ✓ `releases.json`，一键 zip |
 | **beta**     | —       | —        | —   | ○ 目前没有在跑的 beta | — |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **Vendor**
@@ -40,7 +41,7 @@ Homebrew 的图形前端（David Bureš，源码在 `buresdv/Cork`）。app 自�
 
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
-| stable | `eu.davidbures.cork` | — | — | 官网目录索引 | ✓ |
+| stable | `eu.davidbures.cork` | — | — | 官网 `releases.json` | ✓ |
 | beta | 与 stable 共享 | 共享 | `CFBundleVersion` 带 `_BETA_N`（`134_BETA_5`），short 是 `2.0.0` | 只有 GitHub prerelease | — |
 
 beta：厂商只在 2.0.0 发布前发过 5 个 public beta（2026-06-20 到 08-09，GitHub prerelease + 博客文章），
@@ -50,16 +51,16 @@ beta 副本的 short 版本是 `2.0.0`，所以它会被当作 stable 2.0.0，�
 
 ## 更新检测
 - 源: `VendorProbeRecipe`，`mode: .responseBody`，`selectHighest`
-- 端点: `https://corkmac.app/RLS/`（nginx autoindex，按字母排序）
-- `versionPattern`: `href="([0-9]+(?:\.[0-9]+)+)/"`。只认全数字点分的目录名，`latest/`、`macos-13/`、
-  `1.6.1%2BSonoma/` 都不匹配。目录名等于包内 `CFBundleShortVersionString`（`1.4`、`1.5`、`1.7.3.1`、`2.0.3` 都核对过）。
+- 端点: `https://corkmac.app/releases.json`（2026-10-18 起；厂商在 buresdv/Cork#687 为我们做的）。
+  一行 JSON 数组，每项 `{"name": "<版本>", "url": "https://corkmac.app/RLS/<版本>/Cork.zip"}`，按字符串排序（`0.1.10` 在 `0.1.2` 前），
+  共 84 项，含 `latest`、`macos-13`、`1.6.1+Sonoma`/`1.6.2+Sonoma`。
+- `versionPattern`: `"name"\s*:\s*"([0-9]+(?:\.[0-9]+)+)"`。只认全数字点分、紧跟引号的名字，`latest`、`macos-13`、`1.6.1+Sonoma` 都不匹配。
+  名字等于包内 `CFBundleShortVersionString`（`1.4`、`1.5`、`1.7.3.1`、`2.0.3` 都核对过）。
+- 不设 `transientBodyPattern`：端点连发 20 次全是 `200` JSON（5417 B），没有回首页或 403。
 - 为什么不用 GitHub Releases：`v2.0.3` 只有 tag 没有 release（GitHub 最新 release 是 2.0.2，2026-09-14），
   官网 2.0.3 同日已上线；cask 也读官网。
-- **服务器约一半请求回首页**：同一 URL 交替返回目录索引和完整的首页 HTML（都是 200），zip 地址也一样。
-  本机单独顺序请求时严格交替（2026-10-16 连发 30 次 `HiHi…`，0 次连续两个 HTML）；同时有别的客户端在请求时（当时另一个 agent 也在测）
-  见过 `HiHHii`。推测是服务端对所有来访者统一轮转，别人的请求会插进来，所以对单个客户端不保证交替（未验证）。
-  recipe 的 `transientBodyPattern` 认出首页（HTML5 文档、`<title>Cork: …`；目录索引是裸 `<html>`、标题 `Index of /RLS/`），重试一次；
-  通常拿到索引，碰上两次都是首页时这次检查报错（下次扫描再查）。重试次数是共用的 `versionFeedData` 定的一次，没为 Cork 单改。
+- 以前读目录索引 `https://corkmac.app/RLS/`（`href="<版本>/"`）：厂商的反 LLM 抓取措施先是约一半请求回首页（2026-10-16，
+  当时用 `transientBodyPattern` 认出首页重试一次），2026-10-17 起改为 200 与 403 严格交替，检测约一半失败。细节见历史与实测。
 
 ## 增量更新（delta / binary patch）
 
@@ -92,7 +93,7 @@ beta 副本的 short 版本是 `2.0.0`，所以它会被当作 stable 2.0.0，�
 - 包 URL：最新 `https://corkmac.app/RLS/2.0.3/Cork.zip`，上一版 `https://corkmac.app/RLS/2.0.2/Cork.zip`
 
 ## 已知问题
-- **下载会抽到首页（已加重试）**：服务器约一半请求回首页（见更新检测），下载不走 `transientBodyPattern` 的重试；
+- **下载会抽到首页（已加重试；2026-10-17 厂商已修，zip 不再被拦）**：服务器约一半请求回首页（见更新检测），下载不走 `transientBodyPattern` 的重试；
   加重试前真机 4/4 次都抽到首页（解包失败、安装失败，app 不受影响）。现在 `VendorInstaller.fetchArchive` 认出下载到的是 HTML
   文档（开头 `<!DOCTYPE html` / `<html`）就删掉重下，最多 4 次（各约 1/2 时全败约 1/16）；加重试后的真机端到端（2026-10-16，集成分支 `make cli`）：2.0.2 → 2.0.3 成功，`backed up … verifyingCodeSignature … installed.`；日志 `download ok: 15038 bytes … (attempt 1)` 后接 `download ok: 7843012 bytes … (attempt 1)`，即第一次拿到首页、重下拿到 zip；装后 Team `ZSVA6DVZHM`、`codesign --verify --deep --strict` 0、`spctl` Notarized Developer ID，`duo check` 报 up to date。同一轮里装前的 `duo check` 报 `check failed: the vendor answered with an error, not a version (15038-byte body)`：探针两次都抽到首页，检测偶发失败是实测到的（下次扫描再查即可；探针重试次数是共用的一次，没为 Cork 改）。
   `duo verify-install`（`ArtifactInspection.inspect`）原来只下一次，夜扫因此连报 `install.unpack`（#1372）；现在走同一个 `fetchArchive`。2026-10-17 本机 `make cli` 后连跑 3 次，每次日志都是 `download was a web page, not an archive: retry 1/3`，结果 ✓ 2.0.3 / `ZSVA6DVZHM`。
@@ -108,14 +109,13 @@ beta 副本的 short 版本是 `2.0.0`，所以它会被当作 stable 2.0.0，�
 ## 建议下一步
 1. 真机：装 2.0.2，一键到 2.0.3；再装一份 `com.davidbures.cork` 1.5.7，确认迁移一键。
 2. 厂商再开 beta 时，按 `CFBundleVersion` 的 `_BETA_` 后缀评估 beta 轨。
-3. 跟踪 buresdv/Cork#687：厂商的版本 JSON 端点上线后，把检测（以及能的话下载地址）换过去，不再抓 `/RLS/`。在那之前不加大对
-   corkmac.app 的重试次数。若厂商要求不碰 corkmac.app，改读 GitHub releases（代价：GitHub 上 release 晚于官网，如 2.0.3 只有 tag）。
+3. 已换到厂商的 `releases.json`（#687）。下载地址仍用 `RLS/{version}/Cork.zip` 模板，与 JSON 里的 `url` 相同。若厂商要求不碰 corkmac.app，改读 GitHub releases（代价：GitHub 上 release 晚于官网，如 2.0.3 只有 tag）。
 
 ## 如何复验
 
 ```bash
-# 1. 目录索引与交替回答（size 9491 = 索引，15038 = 首页）
-for i in 1 2 3 4; do curl -sS -o /dev/null -w "%{size_download}\n" https://corkmac.app/RLS/; done
+# 1. 版本列表端点（应每次都是 200 JSON）
+for i in 1 2 3 4; do curl -sS -o /dev/null -w "%{http_code} %{size_download} %{content_type}\n" https://corkmac.app/releases.json; done
 
 # 2. 生产检测 + changelog
 swift run --package-path application-test channel-verify <解包后的 Cork.app> --expect stable
@@ -151,3 +151,22 @@ spctl -a -vv -t exec <Cork.app>
   1.4.1–1.4.4 是 `com.davidbures.Cork`，1.4.4.1、1.4.4.2、1.4.5、1.4.5.2、1.4.6、1.4.6.1、1.5 是 `com.davidbures.cork`。全部 Notarized Developer ID、universal。
 - GitHub：`v2.0.3` 有 tag 无 release；release 资产 `Cork.zip` 与官网同版本字节数相同（2.0.2：7,838,933）。
 - 博客 RSS：20 篇，14 篇是正式版文章（2.0.3 到 1.4.5），其余是 beta/RC 和一篇非发布文章。
+
+### 2026-10-17 · 厂商修好 zip 误拦，目录改回 403
+
+- 厂商在 #687 回复：正式下载被反 LLM 措施误伤是配置错误，已修。
+- 复测（curl 默认 UA，各 6 次）：`/RLS/2.0.3/Cork.zip` 6/6 `200 7843012 application/zip`；`/RLS/latest/Cork.zip`（`-L`）6/6 同样；
+  `/RLS/` 严格交替 `403 Forbidden`（146 B）/ `Index of /RLS/`（200，9491 B）。
+- GitHub `releases/latest` 仍是 `v2.0.2`（2026-09-14），2.0.3 仍只有 tag。
+- 决定：保持现状，不对 403 重试、不换源；回复厂商致谢后关闭 #687。
+
+### 2026-10-18 · 换到厂商的 releases.json
+
+- 厂商在 #687 给出 `https://corkmac.app/releases.json`（schema `[{name, url}]`）。
+- 实测：连发 20 次全部 `200`、5417 B、`application/json; charset=utf-8`，同一 ETag `W/"1529-jNBmBpl9xlclV6p4YdKUlmHeOyw"`；
+  同时 `/RLS/` 6 次仍是 `200 9491` / `403 146` 交替。84 项，最高的全数字版本 2.0.3。
+- `channel-verify`（官网下的 2.0.2 副本，本分支）连跑 7 次全部 `UPDATE → 2.0.3`，winning source `Vendor`，下载
+  `https://corkmac.app/RLS/2.0.3/Cork.zip`；changelog 14 条不变。
+- 真机（本分支 `make cli`，官网 2.0.2 装进 `/Applications`）：`duo check Cork` 连跑 6 次都是 `2.0.2 → 2.0.3 [Vendor, in-place]`；
+  `duo install Cork --yes`：`downloading… extracting verifyingCodeSignature installing done installed.`，装后 2.0.3、
+  `codesign --verify --deep --strict` 0、Team `ZSVA6DVZHM`、`spctl` Notarized Developer ID，`duo check` 报 up to date。

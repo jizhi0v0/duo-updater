@@ -304,6 +304,7 @@ public enum ResumableDownloadStore {
         Task.detached(priority: .utility) {
             while !Task.isCancelled {
                 sweepExpired()
+                // cancel-ok: the loop checks Task.isCancelled on every pass.
                 try? await Task.sleep(for: interval)
             }
         }

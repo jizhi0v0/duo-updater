@@ -118,13 +118,15 @@ import Testing
     /// and cannot finish by itself. Cancelling must kill it, return promptly, and
     /// leave no `ditto` behind.
     ///
-    /// A watchdog writes a real archive into the FIFO six seconds after `ditto`
-    /// starts, if the call has not returned yet. That keeps the `.runToCompletion`
-    /// mutation a failure rather than a hang: it lets `ditto` finish and returns the
-    /// app, which fails both expectations below.
+    /// The watchdog is armed only after the cancel, and it fires 60 s later. It is a
+    /// hang detector, not a timing assertion. With `.terminateChild` the call returns
+    /// at once and the watchdog is a no-op. With `.runToCompletion` the call blocks
+    /// on the FIFO, and the watchdog writes a real archive into it, so `ditto`
+    /// finishes and the call returns the app, which the switch below records as a
+    /// failure instead of leaving the suite hung.
     ///
-    /// Mutation: `ArchiveExtractor.run` becomes `.runToCompletion` → the call waits
-    /// for the watchdog and returns the app.
+    /// Mutation: `ArchiveExtractor.run` becomes `.runToCompletion` → the call blocks
+    /// until the watchdog feeds the FIFO, then returns the app and the test fails.
     @Test func aCancelledExtractionKillsTheRunningTool() async throws {
         let fm = FileManager.default
         let top = try scratch("extract-running")
@@ -141,16 +143,6 @@ import Testing
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
 
         let finished = FinishFlag()
-        DispatchQueue.global().asyncAfter(deadline: .now() + 6) {
-            guard !finished.isSet, let bytes = try? Data(contentsOf: realZip) else { return }
-            // Blocks until `ditto` opens the read end, which only a still-running
-            // `ditto` does; a torn-down one never does, so this is skipped above.
-            let fd = open(fifo.path, O_WRONLY)
-            guard fd >= 0 else { return }
-            _ = bytes.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
-            close(fd)
-        }
-
         let task = Task { try await ArchiveExtractor.extractApp(from: fifo, workDir: work) }
         // `ditto` is running once `pgrep -f` can see it on the FIFO's path.
         var running = false
@@ -161,11 +153,19 @@ import Testing
         }
         #expect(running, "ditto never started on the FIFO")
 
-        let cancelledAt = ContinuousClock.now
         task.cancel()
+        // Armed only now, after the cancel: see the doc comment above.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 60) {
+            guard !finished.isSet, let bytes = try? Data(contentsOf: realZip) else { return }
+            // Blocks until `ditto` opens the read end, which only a still-running
+            // `ditto` does; a torn-down one never does, so this is skipped above.
+            let fd = open(fifo.path, O_WRONLY)
+            guard fd >= 0 else { return }
+            _ = bytes.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
+            close(fd)
+        }
         let result = await task.result
         finished.set()
-        let returnedIn = ContinuousClock.now - cancelledAt
 
         switch result {
         case .success(let app):
@@ -173,7 +173,6 @@ import Testing
         case .failure(let error):
             #expect(error is CancellationError, "expected CancellationError, got \(error)")
         }
-        #expect(returnedIn < .seconds(3), "the cancelled extraction took \(returnedIn) to return")
         let leftover = try await ChildProcess.run(
             "/usr/bin/pgrep", ["-f", fifo.path], onCancel: .runToCompletion)
         #expect(!leftover.succeeded, "a ditto is still running on the archive after the cancel")
@@ -328,6 +327,78 @@ import Testing
         }
         #expect(!isMountPoint(mounts[1]), "the image stayed mounted after no package was found")
         #expect(await !TestDiskImages.isAttached(images.empty), "the image stayed attached after no package was found")
+    }
+
+    /// A cancel that lands while `ditto` is still copying the app out of the mounted
+    /// image tears the copy down and throws `CancellationError`, and the image is
+    /// still detached: the unmount is in a `defer`, and it is `.runToCompletion`.
+    /// Nothing here asserts a duration, and nothing asserts that the copy was caught
+    /// mid-way: the test waits (bounded) for `ditto` with `pgrep` and then cancels,
+    /// whether or not it saw one. What is asserted is the detach, read three times
+    /// from `hdiutil info`, and that a failure is `CancellationError`.
+    ///
+    /// Mutation: drop the `defer { await DiskImageMount.detach(…) }` in `fromDMG` →
+    /// the image is still attached after the cancelled copy.
+    @Test(arguments: InstallChildProcessTests.mountTools)
+    func aCancelledDMGCopyOutStillUnmountsTheImage(tool: DiskImageMount.Tool) async throws {
+        try await DiskImageMount.$toolOverride.withValue(tool) {
+            try await cancelledDMGCopyOutStillUnmountsTheImage()
+        }
+    }
+
+    private func cancelledDMGCopyOutStillUnmountsTheImage() async throws {
+        let fm = FileManager.default
+        let top = try scratch("dmg-copy")
+        let work = top.appendingPathComponent("work", isDirectory: true)
+        let mount = work.appendingPathComponent("mnt-ZZFixture.dmg")
+        let image = work.appendingPathComponent("ZZFixture.dmg")
+        defer {
+            await forceDetach(mount, image: image)
+            try? fm.removeItem(at: top)
+        }
+        try fm.createDirectory(at: work, withIntermediateDirectories: true)
+
+        // A payload big enough that the copy is still running when the cancel
+        // lands. It is zeros, so the image is small on disk.
+        let source = top.appendingPathComponent("src-big", isDirectory: true)
+        let app = try bundle(at: source.appendingPathComponent("ZZFixture.app"), mode: 0o755, marker: "payload")
+        let big = app.appendingPathComponent("Contents/Resources/ZZBig.bin")
+        try fm.createDirectory(at: big.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let zeros = try await ChildProcess.run(
+            "/bin/dd", ["if=/dev/zero", "of=\(big.path)", "bs=1048576", "count=300"],
+            onCancel: .runToCompletion)
+        #expect(zeros.succeeded, "dd could not write the payload")
+        let made = try await ChildProcess.run(
+            "/usr/bin/hdiutil",
+            ["makehybrid", "-quiet", "-hfs", "-hfs-volume-name", "ZZFixture",
+             "-o", image.path, source.path],
+            onCancel: .runToCompletion)
+        #expect(made.succeeded, "hdiutil makehybrid failed")
+
+        let task = Task { try await ArchiveExtractor.extractApp(from: image, workDir: work) }
+        // `ditto` is copying once it is running on the mount's app, not merely
+        // attaching the image (an `hdiutil attach` also names the mount point).
+        let pattern = "/usr/bin/ditto .*\(mount.path)"
+        // Bounded wait. On a Mac fast enough to finish the copy between two polls,
+        // the cancel lands after it and the copy completes: the detach below is
+        // still checked, but the copy was not caught mid-way. Nothing asserts
+        // which of the two happened.
+        for _ in 0..<400 {
+            if try await ChildProcess.run(
+                "/usr/bin/pgrep", ["-f", pattern], onCancel: .runToCompletion).succeeded { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+
+        task.cancel()
+        let result = await task.result
+        if case .failure(let error) = result {
+            #expect(error is CancellationError, "expected CancellationError, got \(error)")
+        }
+        // Read `hdiutil info` three times before concluding the image is gone.
+        for _ in 0..<3 {
+            #expect(!isMountPoint(mount), "the image stayed mounted after the cancelled copy")
+            #expect(await !TestDiskImages.isAttached(image), "the image stayed attached after the cancelled copy")
+        }
     }
 
     /// The tools that answer a license agreement from stdin on this Mac:

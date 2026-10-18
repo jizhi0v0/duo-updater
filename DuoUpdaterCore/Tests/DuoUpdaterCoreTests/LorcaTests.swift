@@ -395,6 +395,65 @@ import CryptoKit
         #expect(message.contains("is still lorca 0.1.11"))
     }
 
+    /// A cancel that lands while `lorca serve` is still putting the file in place
+    /// does not end the wait: the wait is inside the update's commit ("lorca
+    /// update"), so it runs to its end and reports the new version.
+    ///
+    /// A cancelled wait that slept nothing would reread as fast as the disk
+    /// allows, so the rereads are counted. With `settle` 10 s and `pollInterval`
+    /// 50 ms a full wait is 200 rereads; the bound is twice that. The swap is held
+    /// until the count passes the bound or 5 s have gone by — a wait that sleeps
+    /// reads about 100 times in those 5 s, so it never reaches the bound.
+    /// Mutation: call the runner and the loop without the outer `InstallCommit.run`:
+    /// the cancelled loop rereads until the hold ends, and the count fails the bound.
+    @Test func aCancelDuringTheSettleWaitRunsItToItsEnd() async throws {
+        let box = try Sandbox()
+        let hold = box.root.appendingPathComponent("hold")
+        FileManager.default.createFile(atPath: hold.path, contents: nil)
+        try box.install(version: "0.1.11", update: try box.updateBody(to: "0.1.12", served: true, held: hold))
+        let status = try await box.status()
+
+        final class Tally: @unchecked Sendable {
+            private let lock = NSLock()
+            private var count = 0
+            func add() { lock.withLock { count += 1 } }
+            var value: Int { lock.withLock { count } }
+        }
+        let tally = Tally()
+        // `isQuarantined` runs once per reread of the install.
+        let scanner = LorcaScanner(
+            home: box.home, isQuarantined: { _ in tally.add(); return false },
+            readTarget: { _ in "macos-aarch64" })
+        let updater = LorcaUpdater(
+            busy: { nil }, scanner: scanner, check: box.check(), verifier: box.verifier(),
+            environment: { [:] }, settle: .seconds(10), pollInterval: .milliseconds(50),
+            isListening: { _ in false })
+
+        // The progress line comes just before the settle wait starts.
+        let (serving, servingSignal) = AsyncStream.makeStream(of: Void.self)
+        let updating = Task {
+            let outcome = await updater.update(status, progress: { line in
+                if line == "lorca serve is installing it…" { servingSignal.yield() }
+            })
+            servingSignal.finish()
+            return outcome
+        }
+        for await _ in serving { break }
+        updating.cancel()
+
+        let bound = 400
+        let clock = ContinuousClock()
+        let limit = clock.now.advanced(by: .seconds(5))
+        while tally.value <= bound, clock.now < limit {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        try FileManager.default.removeItem(at: hold)
+        let outcome = await updating.value
+        #expect(tally.value <= bound,
+            Comment(rawValue: "rereads during and before the wait: \(tally.value), bound \(bound)"))
+        #expect(outcome == .updated(version: "0.1.12"))
+    }
+
     @Test func notRunWhenTheFileIsNotThePublishedBuild() async throws {
         let box = try Sandbox()
         try box.install(version: "0.1.11", update: try box.updateBody(to: "0.1.12"))

@@ -167,4 +167,6 @@ spctl -a -vv -t exec <Cork.app>
   同时 `/RLS/` 6 次仍是 `200 9491` / `403 146` 交替。84 项，最高的全数字版本 2.0.3。
 - `channel-verify`（官网下的 2.0.2 副本，本分支）连跑 7 次全部 `UPDATE → 2.0.3`，winning source `Vendor`，下载
   `https://corkmac.app/RLS/2.0.3/Cork.zip`；changelog 14 条不变。
-- 一键安装路径没改（同一个 `versionTemplate`），本次未重跑真机一键。
+- 真机（本分支 `make cli`，官网 2.0.2 装进 `/Applications`）：`duo check Cork` 连跑 6 次都是 `2.0.2 → 2.0.3 [Vendor, in-place]`；
+  `duo install Cork --yes`：`downloading… extracting verifyingCodeSignature installing done installed.`，装后 2.0.3、
+  `codesign --verify --deep --strict` 0、Team `ZSVA6DVZHM`、`spctl` Notarized Developer ID，`duo check` 报 up to date。

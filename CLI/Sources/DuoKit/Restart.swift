@@ -49,31 +49,41 @@ public enum Restart {
         return anyFailed ? 1 : 0
     }
 
-    /// The restarts, in name order; whether any failed. Stops before the next app
-    /// once the task is cancelled (`SignalGate`'s first signal): the one being
-    /// restarted finishes, and no other is quit. Past that point a cancelled task
-    /// is worse than none — `AppRestarter`'s quit wait polls with `try? await
-    /// Task.sleep`, which returns at once when cancelled, so the next app would be
-    /// sent its quit and then given up on as `.stillRunning` straight away: quit,
-    /// and never reopened.
+    /// The restarts, in name order; whether any failed.
+    ///
+    /// Once the task is cancelled (`SignalGate`'s first signal) no further app is
+    /// started — it would be sent its quit and then given up on at once — and the
+    /// one in flight runs to its end in `SignalGate.finishing`, out of reach of
+    /// that cancellation. In the cancelled task itself it would not: the quit
+    /// wait (`AppRestarter`) and the swap wait (`StagedRelaunch`) poll with
+    /// `try? await Task.sleep`, which returns at once when cancelled, so a plain
+    /// restart would leave the app quit and never reopened, and a staged one
+    /// would reopen it while its updater is still swapping — the early reopen
+    /// that makes ShipIt abort.
+    ///
+    /// `restart` is the plain path's restarter, a seam for the tests.
     static func restartEach(
         _ apps: [InstalledApp], staged: [String: StagedSelfUpdate], keepBackups: Bool,
-        waitsForAnswer: Bool, print: (String) -> Void = { Swift.print($0) }
+        waitsForAnswer: Bool, print: (String) -> Void = { Swift.print($0) },
+        restart: @escaping @Sendable (InstalledApp) async -> AppRestarter.Outcome = { await AppRestarter.restart($0) }
     ) async -> Bool {
         var anyFailed = false
         for app in apps.sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) {
             if Task.isCancelled { break }
-            switch path(for: app, staged: staged[app.id]) {
-            case .plain:
-                let outcome = await AppRestarter.restart(app)
-                print("\(app.name)  \(describe(outcome))")
-                if isFailure(outcome) { anyFailed = true }
-            case .staged(let build):
-                let line = await applyStaged(
-                    app, build, keepBackups: keepBackups, waitsForAnswer: waitsForAnswer)
-                print("\(app.name)  \(line.text)")
-                if line.failed { anyFailed = true }
+            let build = staged[app.id]
+            let (text, failed) = await SignalGate.finishing { () -> (String, Bool) in
+                switch path(for: app, staged: build) {
+                case .plain:
+                    let outcome = await restart(app)
+                    return (describe(outcome), isFailure(outcome))
+                case .staged(let build):
+                    let line = await applyStaged(
+                        app, build, keepBackups: keepBackups, waitsForAnswer: waitsForAnswer)
+                    return (line.text, line.failed)
+                }
             }
+            print("\(app.name)  \(text)")
+            if failed { anyFailed = true }
         }
         return anyFailed
     }

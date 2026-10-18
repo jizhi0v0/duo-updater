@@ -413,28 +413,37 @@ enum CLIToolRows {
         err: @escaping @Sendable (String) -> Void = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
     ) async {
         for status in plan {
-            // `SignalGate`'s first signal: the tool updating now finishes (its
-            // command runs to completion), the next is not started.
+            // `SignalGate`'s first signal: the next tool is not started.
             if Task.isCancelled { break }
             let name = status.name ?? status.kind.displayName
             if !json { out("→ \(name)  \(status.path)") }
             guard let provider = providers.first(where: { $0.kind == status.kind }) else { continue }
-            let exits = ExitLog()
-            let outcome = await CLIToolExit.$observer.withValue({ exits.append($0) }) {
-                await RequestAttribution.withApp(CLITools.attributionID(status)) {
-                    await provider.update(status) { line in err("   \(line)") }
+            // The one already started finishes — its update AND the re-read that
+            // verifies it — in `SignalGate.finishing`. The command itself runs to
+            // completion anyway, but the re-read after it (uv's, Deno's, fx's,
+            // mise's `--version`) is `.terminateChild`, which a cancelled task
+            // refuses to spawn: the update would be reported failed after it had
+            // succeeded.
+            let (outcome, after, exit) = await SignalGate.finishing {
+                () -> (CLIToolUpdateOutcome, String?, CLIToolExit.Status?) in
+                let exits = ExitLog()
+                let outcome = await CLIToolExit.$observer.withValue({ exits.append($0) }) {
+                    await RequestAttribution.withApp(CLITools.attributionID(status)) {
+                        await provider.update(status) { line in err("   \(line)") }
+                    }
                 }
-            }
-            var after: String?
-            if case .updated(let version) = outcome {
-                // The updater's own re-read first, a fresh check's when it had
-                // none — the app's order (`CLIToolsModel.settle`).
-                after = version
-                if after == nil {
-                    after = await provider.check().statuses.first { $0.path == status.path }?.installedVersion
+                var after: String?
+                if case .updated(let version) = outcome {
+                    // The updater's own re-read first, a fresh check's when it had
+                    // none — the app's order (`CLIToolsModel.settle`).
+                    after = version
+                    if after == nil {
+                        after = await provider.check().statuses.first { $0.path == status.path }?.installedVersion
+                    }
                 }
+                return (outcome, after, exits.last)
             }
-            let result = result(of: outcome, before: status.installedVersion, after: after, exit: exits.last)
+            let result = result(of: outcome, before: status.installedVersion, after: after, exit: exit)
             tally.record(result.outcome)
             if json {
                 NDJSON.emit(payload(status, result))

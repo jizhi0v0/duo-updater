@@ -356,6 +356,95 @@ import Foundation
         #expect(!anyFailed)
     }
 
+    // MARK: - The item in flight finishes
+
+    /// Cancelled while a restart is in its quit wait, the app is still waited
+    /// out and reopened. The injected restarter has `AppRestarter`'s shape: poll
+    /// with `try? await Task.sleep` until the app has quit (here: 300 ms after
+    /// the wait began), give up as `.stillRunning` when the polls run out.
+    ///
+    /// Mutation: call the step without `SignalGate.finishing` → the polls return
+    /// at once in the cancelled task and the line reads "still running".
+    @Test func aRestartCancelledInItsQuitWaitStillReopensTheApp() async {
+        let app = InstalledApp(
+            name: "ZZFixture", bundleID: "com.zzfixture.signalgate", shortVersion: "1.0", buildVersion: "1",
+            path: URL(fileURLWithPath: "/ZZFixture-signalgate/ZZFixture.app"), isMASApp: false,
+            sparkleFeedURL: nil)
+        let inQuitWait = Latch()
+        let cancelled = Latch()
+        let lines = Lines()
+        let task = Task {
+            await Restart.restartEach(
+                [app], staged: [:], keepBackups: false, waitsForAnswer: false, print: { lines.add($0) },
+                restart: { _ in
+                    inQuitWait.open()
+                    await cancelled.wait()
+                    let quitAt = ContinuousClock.now + .milliseconds(300)
+                    for _ in 0..<150 {
+                        if ContinuousClock.now >= quitAt { return .relaunched(true) }
+                        try? await Task.sleep(for: .milliseconds(10))
+                    }
+                    return .stillRunning
+                })
+        }
+        await inQuitWait.wait()
+        task.cancel()
+        cancelled.open()
+        let anyFailed = await task.value
+        #expect(lines.all == ["ZZFixture  restarted"])
+        #expect(!anyFailed)
+    }
+
+    /// Cancelled while a tool's update runs, the update's own verification — a
+    /// `.terminateChild` version read, as uv's, Deno's, fx's and mise's are —
+    /// still runs, and the row is installed, not failed.
+    ///
+    /// Mutation: call the step without `SignalGate.finishing` → the re-read
+    /// refuses to spawn in the cancelled task and the row is failed.
+    @Test func aToolUpdateCancelledMidwayIsReportedAsApplied() async {
+        let inUpdate = Latch()
+        let cancelled = Latch()
+        let provider = VerifyingProvider(kind: .uv, inUpdate: inUpdate, cancelled: cancelled)
+        let out = Lines(), err = Lines()
+        let task = Task {
+            var tally = Install.Tally()
+            await CLIToolRows.apply([CLIToolRowsTests.uv], providers: [provider], json: false,
+                                    tally: &tally, out: { out.add($0) }, err: { err.add($0) })
+            return tally
+        }
+        await inUpdate.wait()
+        task.cancel()
+        cancelled.open()
+        let tally = await task.value
+        #expect(tally.installed == 1)
+        #expect(tally.failed == 0)
+        #expect(out.all.contains("   updated: 1.0.0 → 1.1.0"))
+        #expect(err.all.isEmpty)
+    }
+
+    /// An update that waits for the test to cancel, then re-reads the version the
+    /// way the real updaters do: a `.terminateChild` child process.
+    struct VerifyingProvider: CLIToolProvider {
+        let kind: CLIToolKind
+        let inUpdate: Latch
+        let cancelled: Latch
+
+        func scan() async -> [CLIToolSighting] { [] }
+        func check() async -> CLIToolReport { CLIToolReport(kind: kind, statuses: [], context: .fx(FxSettings())) }
+        func update(_ status: CLIToolStatus, progress: @escaping @Sendable (String) -> Void) async -> CLIToolUpdateOutcome {
+            inUpdate.open()
+            await cancelled.wait()
+            guard let reread = try? await ChildProcess.run(
+                "/bin/sh", ["-c", "echo 1.1.0"], standardOutput: .capture, standardError: .discard,
+                onCancel: .terminateChild)
+            else { return .failed(message: "the re-read was refused", output: "") }
+            let version = String(decoding: reread.standardOutput, as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return .updated(version: version)
+        }
+        func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog { Changelog(entries: []) }
+    }
+
     // MARK: - Fixtures
 
     /// Ten lines 0.2 s apart (~2 s), then the marker, then exit 0.

@@ -192,6 +192,30 @@ public final class SignalGate: @unchecked Sendable {
         return status(after: returned)
     }
 
+    /// Run a step that has started to its end, out of reach of the root task's
+    /// cancellation, and return what it returned.
+    ///
+    /// The first signal cancels the root task, and a cancelled task does not
+    /// merely skip what comes next — it changes what the step in flight does.
+    /// Every `try? await Task.sleep` in it returns at once (`AppRestarter`'s quit
+    /// wait, `StagedRelaunch`'s swap wait: a quit app given up on and never
+    /// reopened, or reopened under ShipIt mid-swap), and every `.terminateChild`
+    /// `ChildProcess.run` refuses to spawn (a tool's version re-read after its
+    /// update, so a successful update reads as failed). So each item of a gated
+    /// command — a restart, a tool update with its verification — runs in here
+    /// once it has started; the "stop before the next item" checks stay in the
+    /// loops.
+    ///
+    /// `Task { }` rather than `Task.detached`: an unstructured task is not
+    /// cancelled with the task that awaits it, and it still inherits task-locals
+    /// (`CLIToolExit.$observer`, `RequestAttribution`) and priority, which a
+    /// detached one would drop. The Core side of the same problem — the steps
+    /// inside `InstallCoordinator.perform` after its commit point — is
+    /// `InstallCommit`'s (#1404); this does not depend on it.
+    public static func finishing<T: Sendable>(_ step: @escaping @Sendable () async -> T) async -> T {
+        await Task { await step() }.value
+    }
+
     // MARK: - The process-wide pieces
 
     /// Kept alive for the life of the process: a released source stops listening.

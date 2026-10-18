@@ -858,6 +858,13 @@ public enum Install {
             // still confirms — it can get as far as clearing the app's staged
             // update and replacing its rollback point before the coordinator's
             // own cancellation check refuses the install.
+            //
+            // Unlike a restart or a tool update (`SignalGate.finishing`), the item
+            // in flight is NOT shielded here: `coordinator.perform` must stay
+            // cancellable so its preparation (download, permits) still aborts,
+            // and what follows it below is synchronous bookkeeping — the row,
+            // the tally — with nothing a cancelled task changes. The steps inside
+            // `perform` after its commit point are Core's (#1404, `InstallCommit`).
             if Task.isCancelled { break }
             let name = item.result.app.name
             if !json { print("→ \(name)") }

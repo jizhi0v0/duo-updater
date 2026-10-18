@@ -367,6 +367,15 @@ public enum Install {
                 return .refuse("its own updater already has \(result.stagedRelaunchLine(staged).to) "
                     + "staged — \(apply), or `duo restart`", nil)
             }
+            // No Team ID on the installed copy (CmdPalm, self-signed). The source
+            // does publish an artefact; what stops us is that we cannot pin it.
+            // Not the vendor-policy refusal below: quitting the app or "always
+            // replace" would not change this, while the app's own updater, which
+            // `defersToSelfUpdater` still hands the row to, can apply it.
+            if UpdatePolicy.lacksTeamIdentifierForRoute(result) {
+                return .refuse("the installed copy has no developer Team ID to check the download "
+                    + "against — update it from the app's own updater", nil)
+            }
             // #193 originally split this into two messages — "no artefact this
             // time" for a recognised source vs. "no route wired up yet" for one
             // `UpdatePolicy` has no case for — reasoning that the two situations

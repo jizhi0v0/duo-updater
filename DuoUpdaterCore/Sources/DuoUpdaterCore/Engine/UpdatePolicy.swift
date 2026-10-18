@@ -493,7 +493,7 @@ public enum UpdatePolicy {
     /// ad-hoc trusts are the routes built for a copy without a Team ID and are
     /// judged on their own setting. `brew install --cask` and the App Store run
     /// none of our gates.
-    static func lacksTeamIdentifierForRoute(_ result: UpdateResult) -> Bool {
+    public static func lacksTeamIdentifierForRoute(_ result: UpdateResult) -> Bool {
         guard result.installedLacksTeamIdentifier else { return false }
         switch result.remote?.sourceName {
         case "Sparkle":

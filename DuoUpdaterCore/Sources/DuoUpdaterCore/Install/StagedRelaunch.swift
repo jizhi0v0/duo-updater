@@ -398,10 +398,11 @@ public enum StagedRelaunch {
 
     /// Windows on screen owned by `pids`, below the status-bar level: normal
     /// windows, panels, and alerts at the modal-panel level all count; menu-bar
-    /// extras and pop-up menus do not. Counting more only keeps the 5 s grace in
-    /// force more often. No permission needed: the probe that measured ChatGPT
-    /// ran as a fresh LaunchAgent binary with no Screen Recording grant and
-    /// counted its window; only window titles are withheld without it.
+    /// extras and pop-up menus do not. Either way a misreading only moves the
+    /// `.wontQuit` later, by at most `slowQuitTicks`. No permission needed: the
+    /// probe that measured ChatGPT ran as a fresh LaunchAgent binary with no
+    /// Screen Recording grant and counted its window; only window titles are
+    /// withheld without it.
     public static func onScreenWindowCount(pids: Set<pid_t>) -> Int {
         guard !pids.isEmpty,
               let list = CGWindowListCopyWindowInfo(

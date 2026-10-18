@@ -2,7 +2,7 @@
 
 ## 基本信息
 - Bundle ID: `dev.mayoi.editor`（0.1.0 起没变过）
-- Team ID: `KU8S35TEW8`（Developer ID Application: chen cheng），0.1.0 / 0.10.0 / 0.11.0 真包一致，`spctl` 为 Notarized Developer ID
+- Team ID: `KU8S35TEW8`（Developer ID Application: chen cheng），全部 19 个版本（0.1.0–0.11.0 的 arm64 tar.gz，2026-10-19 逐个解开看 `codesign -dv`）一致，0.11.0 amd64 也是；0.1.0 / 0.10.0 / 0.11.0 dmg 的 `spctl` 为 Notarized Developer ID
 - 观测版本: 0.11.0（`CFBundleShortVersionString` = `CFBundleVersion` = 0.11.0），取自官方 release 资产 `Mayoi.0.11.0.arm64.dmg`（2026-10-18）；另取 0.10.0、0.1.0 对照
 - 自更新机制: MyGo（Go 写的编辑器，自绘 GPU UI；`mygo.json` 的 `updates` 指向 `sorrycc/Mayoi` 的 GitHub release）
 - 架构 / OS: 按架构分包（`arm64` / `amd64` 各一个 dmg 和 tar.gz）；`LSMinimumSystemVersion` 13.0
@@ -32,7 +32,7 @@
 
 ## 更新检测
 - 源: `MyGoUpdateSource`
-- 端点: `https://github.com/sorrycc/Mayoi/releases/latest/download/update-darwin-arm64.json`（amd64 包读 `update-darwin-amd64.json`）
+- 端点: `https://github.com/sorrycc/Mayoi/releases/latest/download/update-darwin-arm64.json`（amd64 包读 `update-darwin-amd64.json`）。地址是从二进制里读出来的：19 个 arm64 版本都内嵌 `…/update-darwin-arm64.json`，0.11.0 amd64 内嵌 `…/update-darwin-amd64.json`（`grep -a` 可执行文件）
 - manifest 形状（0.11.0）: `version`、`notes`、`date`、`url`（`.tar.gz`）、`size`、`signature`（Ed25519）、`deltas`、`previous`
 - 版本: tag = `v<CFBundleShortVersionString>`，short = build
 
@@ -51,11 +51,12 @@
 | 证据 | — | 第二轮启动后 45 s，`/Applications` 下没有暂存目录 | `SelfUpdaterStash` 只读 electron-updater 和 Cindy 两种布局 |
 
 ## Changelog
-- 来源: manifest 的 `notes` 只有当前一版；GitHub release 正文与它是同一段文字（0.11.0 逐字节相同，只差末尾换行），所以加了 `Recipes/dev-mayoi-editor.swift`（`.gitHubReleases`，`sorrycc/Mayoi` 的 release 列表）补历史。
+- 来源: manifest 的 `notes` 只有当前一版，历史由 `Recipes/dev-mayoi-editor.swift` 读仓库的 `CHANGELOG.md`（`raw.githubusercontent.com/sorrycc/Mayoi/main/CHANGELOG.md`）补。文件开头写明每个 release 都必须有 `## <版本>` 一节、app 的更新窗口显示的就是这一节。19 个 release 的 manifest `notes` 与对应小节逐个比过：18 个相同，0.2.0 只差一个空行。
+- 没用 GitHub release 列表：0.3.3 起正文与 manifest 相同，但 0.1.0–0.3.2 这 6 个正文只有一行「Full Changelog」链接，而它们的 manifest 有真正的说明（252–2323 字），读 release 列表会少 6 版。
 - 结构化（channel-verify，从 0.10.0 起，2026-10-18）:
-  - 有 recipe：`recipe changelog:dev.mayoi.editor:stable: 13 entries; newest 0.11.0: 65 items, headings []; first items ["Settings sync no longer undoes a change ", "Windows: a file opened from quick open, ", "Windows: renaming refuses a name with `/"]`
+  - 有 recipe：`recipe changelog:dev.mayoi.editor:-: 19 entries; newest 0.11.0: 65 items, headings []; first items ["Settings sync no longer undoes a change ", "Windows: a file opened from quick open, ", "Windows: renaming refuses a name with / "]`。一次临时测试（已删）把 `ChangelogService.parse` 跑在真实文件上：19 条的条目数与各小节的 `- ` 数逐个相同（0.11.0=65 … 0.1.0=2），折行的条目整条保留；`## Unreleased` 不进（版本须以数字开头）。
   - 没 recipe 时：`source structured: 1 entries; newest 0.11.0: 181 items, headings [] (rendered as markdown)`。181 是 `content` 按行切的备用计数；面板用 `ChangelogMarkdown` 渲染原文，一次临时测试（已删）在真实 notes 上得到 65 个 list item，与原文 65 个 `- ` 一致，折行已并回同一条。
-  - 正文是不带标题的 `- ` 列表，所以 `headings []` 是原样。早期几版正文只有一行占位，不进历史，所以是 13 条而不是 19 条。
+  - 小节是不带 `###` 的 `- ` 列表，所以 `headings []` 是原样。`CHANGELOG.md` 不写日期，历史条目没有日期。
 - 跟随 channel: 不适用
 - Recipe 状态: ✓ 已有
 

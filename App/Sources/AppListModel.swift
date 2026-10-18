@@ -5958,15 +5958,38 @@ final class AppListModel {
         // Dropping on any difference conflated the two, so a vendor shipping
         // another build inside the marker's ten-minute life destroyed it — and
         // the marker exists precisely to reopen an app that would otherwise stay
-        // closed after the swap. See `RelaunchLanding.retargeted(nowStaged:)`.
+        // closed after the swap. See `RelaunchLanding.retargeted`.
+        //
+        // Gone can also mean LANDED: the installer clears its staging once the
+        // swap is in, so read disk for those markers and let one that has landed
+        // relay as `.applied`. Read before touching the map, so the rewrite below
+        // stays one synchronous step; a marker armed during the read gets no disk
+        // reading and is judged as before.
+        var landedDisk: [String: VersionSide] = [:]
+        for (id, handoff) in quitHandoffs where pendingSelfUpdate[id] == nil {
+            if case .stagedSwap = handoff.landing {
+                landedDisk[id] = await Self.readVersionSideOffMain(handoff.result.app.path)
+            }
+        }
+        var becameApplied = false
         quitHandoffs = quitHandoffs.compactMapValues { handoff in
             guard let landing = handoff.landing.retargeted(
-                nowStaged: pendingSelfUpdate[handoff.result.id]?.versionSide)
+                nowStaged: pendingSelfUpdate[handoff.result.id]?.versionSide,
+                disk: landedDisk[handoff.result.id],
+                appRunning: !AppRestarter.runningInstances(of: handoff.result.app).isEmpty)
             else { return nil }
-            return landing == handoff.landing ? handoff : QuitHandoff(
+            if landing == handoff.landing { return handoff }
+            if landing == .applied {
+                becameApplied = true
+                Log.app.notice("relaunch-handoff: \(handoff.result.app.name, privacy: .public) — staging cleared and the swap is on disk; relaunching once it is gone")
+            }
+            return QuitHandoff(
                 result: handoff.result, landing: landing,
                 activates: handoff.activates, armedAt: handoff.armedAt)
         }
+        // Its terminate event may already have come and gone while the marker
+        // still waited on the staging, so settle now rather than on the next one.
+        if becameApplied { settleQuitHandoffs() }
         // Dismiss delivered "Relaunch to apply it" banners for every row that is not
         // currently offering a Relaunch. The standing question ("who should have a
         // banner right now?"), NOT the transition one ("who left the set since last
@@ -6519,7 +6542,14 @@ final class AppListModel {
         relaunching.insert(result.id)
         relayRelaunchHolds.remove(result.id)  // ours now, not a relay's
         pinRowOrder()
-        defer { relaunching.remove(result.id); releaseRowOrder() }
+        defer {
+            relaunching.remove(result.id)
+            releaseRowOrder()
+            // A `.stillRunning` bail armed a hand-off; a quit that landed while
+            // this row was still `relaunching` was skipped by the settle, as in
+            // `relaunchStagedUpdate`.
+            if quitHandoffs[result.id] != nil { settleQuitHandoffs() }
+        }
         Log.app.info("restart: \(result.app.name, privacy: .public) [\(bundleID, privacy: .public)]")
         // Sampled before the quit — once the instances are gone, so is the answer —
         // so a hand-off armed below can put the app back where it was. `AppRestarter`
@@ -6706,6 +6736,12 @@ final class AppListModel {
         defer {
             relaunching.remove(result.id)
             releaseRowOrder()
+            // A `.wontQuit` bail armed a hand-off, and the app may have quit while
+            // this row was still `relaunching` (the trailing `refreshRow`):
+            // `settleQuitHandoffs` skips a relaunching row, and that terminate
+            // event was the only one coming. ChatGPT on the mini 2026-10-18 quit
+            // 0.3 s after the bail, inside that refresh.
+            if quitHandoffs[result.id] != nil { settleQuitHandoffs() }
             // Anything owed to the backup disk was held back at the
             // `backupCurrent` call below; start it only once nothing is using
             // an installer window. See `startOwedBackupTransferIfIdle`.

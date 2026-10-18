@@ -96,7 +96,10 @@ import Darwin
 /// `Contents/Resources/BTTRelaunch.app` is a background-only watchdog (parent
 /// launchd) that restarts BTT after a crash. BTT 6.943 started it by itself
 /// 5–35 s after every launch and it stays up, so these rules refused BTT nearly
-/// always. Measured with the real watchdog, swapping 6.943 → 6.944 in place,
+/// always. The watchdog is one binary across releases: BTTRelaunch 1.17 (23),
+/// the same cdhash in BTT 6.880, 6.885, 6.943, 6.944 and the 6.945/6.946 alpha
+/// builds, each `LSBackgroundOnly` and with only `BetterTouchTool` in
+/// `Contents/MacOS`. Measured with the real watchdog, swapping 6.943 → 6.944 in place,
 /// then `terminate()` and `openApplication` as `AppRestarter` does:
 ///
 /// - The old watchdog exited within 2 s of BTT's graceful quit and did not

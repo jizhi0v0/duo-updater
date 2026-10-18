@@ -361,6 +361,7 @@ class OffPool(unittest.TestCase):
     # the three source roots alone clear the floor.)
     def test_the_tests_are_scanned(self):
         self.assertIn("DuoUpdaterCore/Tests", co.ROOTS)
+        self.assertIn("CLI/Tests", co.ROOTS)
 
     def test_a_hopped_call_passes(self):
         self.write(HOPPED)

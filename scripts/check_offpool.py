@@ -78,8 +78,10 @@ import sys
 # `release` job (run 37475566844, 2026-10-06) hung for its whole 1,200 s budget
 # with all three of the runner's cooperative threads parked in test bodies — two
 # in `SecStaticCodeCheckValidity`, one in `waitUntilExit` — while this check
-# scanned only the three source roots and passed.
-ROOTS = ["DuoUpdaterCore/Sources", "App/Sources", "CLI/Sources", "DuoUpdaterCore/Tests"]
+# scanned only the three source roots and passed. `CLI/Tests` is the same suite
+# shape in the other package; it was left out until 2026-10-18 and held a raw
+# `Process()` + `waitUntilExit()` and two `DispatchSemaphore.wait()` calls.
+ROOTS = ["DuoUpdaterCore/Sources", "App/Sources", "CLI/Sources", "DuoUpdaterCore/Tests", "CLI/Tests"]
 
 # Calls that park the calling thread until something outside this process moves.
 # Deliberately a short list of exact spellings rather than a guess at intent:

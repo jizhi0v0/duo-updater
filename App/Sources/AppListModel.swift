@@ -1176,14 +1176,20 @@ final class AppListModel {
     }()
     /// The brew package list. One read at a time: an open of the popover, the
     /// workbench's open and every focus, a background tick and each brew action
-    /// all ask for one, and each read is 9 `brew` runs (`installedLeaves`,
-    /// `installedReport`, `outdated`, `outdatedCasks`), 10 when brew could not
-    /// load some package from its tap (`tap-info`, to say why; a homebrew/core
-    /// orphan alone does not need it), ~5.7 s of CPU between them. Measured 2026-10-14, one
-    /// read sampled at 20 ms: 10 `brew` children, 3.42 s; each run 0.14–0.73 s
-    /// of CPU under `/usr/bin/time`; seven popover opens in five seconds spawned
-    /// ~69. A trigger during a read is decided after it, so a re-read after an
-    /// upgrade still reads the upgraded state.
+    /// all ask for one, and each read is 9 `brew` runs (`installedLeaves`: `leaves`,
+    /// `list --formula --versions`; `installedReport`: `list --formula --full-name`,
+    /// `info --json=v2 --installed`, `list --formula --versions` again, `formulae`,
+    /// `casks`; `outdated`; `outdatedCasks`), 10 when brew could not load some
+    /// package from its tap (`tap-info`, to say why; a homebrew/core orphan alone
+    /// does not need it). CPU, user+sys from `/usr/bin/time -l`, each of those
+    /// commands run alone (`HOMEBREW_NO_AUTO_UPDATE=1`) three times on 2026-10-18,
+    /// Homebrew 7.0.9 on an M3 Max: the 9 runs sum to 2.85–3.00 s (`list --formula
+    /// --versions` counted twice), each of them 0.11–0.73 s; `tap-info` alone is
+    /// 1.71–1.82 s, so a 10-run read is 4.56–4.82 s. That is CPU, not wall time:
+    /// the commands overlap, and wall time depends on load. Seven popover opens in
+    /// five seconds spawned ~69 `brew` children (observed 2026-10-14, not
+    /// re-measured). A trigger during a read is decided after it, so a re-read
+    /// after an upgrade still reads the upgraded state.
     @ObservationIgnored private(set) lazy var brewLane = RefreshLane(
         "brew",
         decide: { [weak self] trigger in self?.brewDecision(trigger) ?? .skip(because: "model gone") },

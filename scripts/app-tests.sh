@@ -27,9 +27,14 @@ command -v xcodebuild >/dev/null 2>&1 || {
   echo "✗ App tests: xcodebuild not found — install Xcode, or point xcode-select at it."
   exit 1
 }
-# Only when the spec has actually moved. Regenerating on every `make test` would
-# rewrite project.pbxproj and so invalidate the incremental build that
-# check_localizable_keys.py runs a few lines later in the same target.
+# Only when the spec has actually moved. This is not what keeps the incremental
+# build: measured 2026-10-18 (Xcode 27.0, Swift 6.4, warm DerivedData),
+# `xcodegen generate` on an unchanged spec rewrites project.pbxproj (new mtime and
+# inode) with byte-identical content (same md5), and the `xcodebuild
+# build-for-testing` after it recompiled nothing (0 SwiftCompile steps, 2 s; a
+# no-op build with no regenerate: 0 steps, 2-5 s). A spec edit that does change the
+# pbxproj was not measured. What the guard still saves is the xcodegen run itself
+# (under a second) and the pbxproj rewrite.
 if [ ! -f App/DuoUpdater.xcodeproj/project.pbxproj ] \
    || [ App/project.yml -nt App/DuoUpdater.xcodeproj/project.pbxproj ]; then
   xcodegen generate --spec App/project.yml --project App >/dev/null

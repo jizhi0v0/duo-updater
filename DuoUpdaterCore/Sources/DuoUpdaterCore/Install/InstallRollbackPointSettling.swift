@@ -39,9 +39,9 @@ extension InstallCoordinator {
             await BackupStore.removeRollbackPoint(forKey: key)
             outcome = .discarded
         } else {
-            // Brew can fail on its own after deleting the app — its rescue
-            // restores its staging, not `/Applications` — and this copy is then
-            // the only way back.
+            // Brew can fail after removing the app and not put it back — a
+            // signal skips its revert, and the revert can fail itself — and
+            // this copy is then the only way back.
             Log.install.notice(
                 "rollback point: kept for \(app.path.lastPathComponent, privacy: .public) — the app is missing or unreadable after the install")
             outcome = .kept

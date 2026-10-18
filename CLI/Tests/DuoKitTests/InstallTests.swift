@@ -122,6 +122,45 @@ import DuoUpdaterCore
         #expect(!why.contains("publishes no installable artefact"))
     }
 
+    /// CmdPalm, self-signed: no Team ID on the installed copy. Refused with that
+    /// reason, running or not — not "publishes no installable artefact", and not
+    /// the vendor-policy refusal, whose advice (quit it, or always replace) would
+    /// not get it installed.
+    ///
+    /// Mutation: drop the `withheldForMissingTeamIdentifier` branch in `classify`
+    /// → red.
+    @Test func aCopyWithoutATeamIDIsRefusedWithThatReason() {
+        var r = result(source: "Sparkle", app: app(feed: URL(string: "https://example.com/appcast.xml")))
+        r.installedLacksTeamIdentifier = true
+        for running in [false, true] {
+            let decision = Install.classify(r, settings: settings(), environment: environment(running: running))
+            guard case .refuse(let why, _) = decision else {
+                Issue.record("expected a refusal, got \(decision)")
+                continue
+            }
+            #expect(why.hasPrefix("the installed copy has no developer Team ID"), "running=\(running)")
+            #expect(!why.contains("publishes no installable artefact"))
+            #expect(!why.contains("vendor policy"))
+        }
+    }
+
+    /// AirCard, ad-hoc and detection-only (a GitHub rule with no install spec,
+    /// `.developerID` by default): it was never installable, so the missing
+    /// Team ID is not the reason and the refusal stays "detection only".
+    ///
+    /// Mutation: fire on `lacksTeamIdentifierForRoute` alone (skip the
+    /// cleared-copy check in `withheldForMissingTeamIdentifier`) → red.
+    @Test func aDetectionOnlyRowOnACopyWithoutATeamIDStaysDetectionOnly() {
+        var r = result(source: "GitHub", vendorKind: nil)
+        r.installedLacksTeamIdentifier = true
+        guard case .refuse(let why, _) = Install.classify(r, settings: settings(), environment: environment())
+        else {
+            Issue.record("expected a refusal")
+            return
+        }
+        #expect(why == "detection only — this source publishes no installable artefact")
+    }
+
     @Test func aVendorArchiveInstalls() {
         let decision = Install.classify(
             result(source: "Vendor"), settings: settings(), environment: environment())

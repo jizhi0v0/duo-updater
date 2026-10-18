@@ -4874,11 +4874,18 @@ final class AppListModel {
         // offering a version it already has, on every click, until the next full
         // refresh rebuilt it.
         if decision == .answerRegressed, let offeredRemote = offered.remote {
-            replaceRow(UpdateResult(
+            var row = UpdateResult(
                 app: result.app,
                 remote: offeredRemote,
                 status: UpdateChecker.evaluate(installed: result.app, remote: offeredRemote),
-                provenChannel: result.provenChannel))
+                provenChannel: result.provenChannel)
+            // The re-check read the Team ID only if it found an update; the
+            // offered row's reading holds while the copy is the same one.
+            row.installedLacksTeamIdentifier = result.installedLacksTeamIdentifier
+                || (offered.installedLacksTeamIdentifier
+                    && offered.app.shortVersion == result.app.shortVersion
+                    && offered.app.buildVersion == result.app.buildVersion)
+            replaceRow(row)
         } else {
             replaceRow(result)
         }

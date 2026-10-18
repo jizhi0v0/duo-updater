@@ -175,6 +175,9 @@ public enum UpdatePolicy {
         // edition under the same id, see `OneClickGate`): detection only, every
         // source.
         if OneClickGateRegistry.withholding(result.app) != nil { return false }
+        // No Team ID on the installed copy: a route that pins one could only
+        // fail at gate 3 (CmdPalm, self-signed, 2026-10-18 user report).
+        if lacksTeamIdentifierForRoute(result) { return false }
         // An input method is registered with the system, not merely copied: the
         // vendor's installer calls `TISRegisterInputSource` on the bundle PATH
         // (WeType's installer binary carries "Registered input source from
@@ -449,6 +452,10 @@ public enum UpdatePolicy {
         // destination check does not close it either — it hard-refuses only inside
         // `/Applications` and falls back to matching a bundle name anywhere else.
         if environment.isInputMethod(result.app.path) { return false }
+        // Same gate as in `canAutoInstall`, for the same reason the input-method
+        // one is repeated: callers offer `canAutoInstall || requiresInstaller`.
+        // `PackageInstaller` refuses an installed copy without a Team ID too.
+        if lacksTeamIdentifierForRoute(result) { return false }
         switch result.remote?.sourceName {
         case "Homebrew":
             // A cask whose installer needs a person but whose download holds no
@@ -476,6 +483,43 @@ public enum UpdatePolicy {
         default:
             return false
         }
+    }
+
+    /// The installed copy has no Team ID (`UpdateResult.installedLacksTeamIdentifier`)
+    /// and the route would pin one: Sparkle, whose installer runs gate 3 on every
+    /// enclosure; a Vendor/GitHub/Electron/MyGo download on
+    /// `InstallTrust.developerID`; or a Homebrew cask handed to the system
+    /// installer, which goes through `PackageInstaller`'s Team check. The two
+    /// ad-hoc trusts are the routes built for a copy without a Team ID and are
+    /// judged on their own setting. `brew install --cask` and the App Store run
+    /// none of our gates.
+    static func lacksTeamIdentifierForRoute(_ result: UpdateResult) -> Bool {
+        guard result.installedLacksTeamIdentifier else { return false }
+        switch result.remote?.sourceName {
+        case "Sparkle":
+            return true
+        case "Vendor", "GitHub", "Electron", MyGoUpdateSource.sourceName:
+            return result.remote?.installTrust == .developerID
+        case "Homebrew":
+            return result.remote?.requiresManualInstaller == true
+        default:
+            return false
+        }
+    }
+
+    /// The missing Team ID is the only thing keeping this row from our own
+    /// install: with the flag cleared, `canAutoInstall` or `requiresInstaller`
+    /// would offer it. False for a detection-only row (no install spec, so
+    /// `.developerID` by default) that happens to sit on an ad-hoc copy — it was
+    /// never installable, and its refusal stays "detection only".
+    public static func withheldForMissingTeamIdentifier(
+        _ result: UpdateResult, settings: UpdateSettings, environment: InstallEnvironment
+    ) -> Bool {
+        guard lacksTeamIdentifierForRoute(result) else { return false }
+        var route = result
+        route.installedLacksTeamIdentifier = false
+        return canAutoInstall(route, settings: settings, environment: environment)
+            || requiresInstaller(route, environment: environment)
     }
 
     /// Whether this source appears as its own case (not the `default:` branch)
@@ -536,10 +580,15 @@ public enum UpdatePolicy {
         settings: UpdateSettings,
         environment: InstallEnvironment
     ) -> Bool {
+        // Handing the update to the app's own updater runs none of our gates, so
+        // a copy without a Team ID still defers: its Sparkle accepts an
+        // EdDSA-signed update without one. Only our own install is withheld.
+        var route = result
+        route.installedLacksTeamIdentifier = false
         guard settings.vendorInstallPolicy == .deferWhenRunning,
               isRunning(result, environment: environment),
-              canAutoInstall(result, settings: settings, environment: environment)
-                || requiresInstaller(result, environment: environment)
+              canAutoInstall(route, settings: settings, environment: environment)
+                || requiresInstaller(route, environment: environment)
         else { return false }
         switch result.remote?.sourceName {
         case "Vendor":

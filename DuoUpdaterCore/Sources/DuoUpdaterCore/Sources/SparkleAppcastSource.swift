@@ -58,7 +58,18 @@ public struct SparkleAppcastSource: UpdateSource {
             throw SparkleError.badStatus(http.statusCode)
         }
 
-        let items = SparkleAppcastParser.parse(data, relativeTo: feedURL)
+        // An app that requires a signed feed gets only the signed bytes parsed,
+        // and no offer at all when they do not verify (`verifiedFeedContent`).
+        let content: Data
+        do {
+            content = try Self.verifiedFeedContent(data, for: app)
+        } catch {
+            Log.source.error(
+                "sparkle: \(app.bundleID ?? "?", privacy: .public) — feed refused, \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+
+        let items = SparkleAppcastParser.parse(content, relativeTo: feedURL)
         // An HTML page with no items is not a feed that offers nothing — it is a
         // feed we never got. Muse's (facebook.com/endo/…/appcast.xml) answers most
         // requests with a 302 to a login page. That redirect is now a declared
@@ -192,6 +203,78 @@ public struct SparkleAppcastSource: UpdateSource {
             return SubscriptionHold(version: version, coveredBefore: cutoff, dayOnly: dayOnly)
         }
         return (covered, hold)
+    }
+
+    // MARK: Signed feeds (SURequireSignedFeed)
+
+    /// The feed bytes to parse for `app`, checked the way the app's own Sparkle
+    /// (2.9+) checks them (`SUAppcastDriver.m`, tag 2.10.0).
+    ///
+    /// Only when the installed copy's Info.plist sets `SURequireSignedFeed` AND
+    /// ships an `SUPublicEDKey`: then the feed must end in a
+    /// `<!-- sparkle-signatures:` block whose `edSignature` is Ed25519 over every
+    /// byte before it, and only those bytes are returned, so nothing appended after
+    /// the signature reaches the parser. Missing or invalid throws: no offer, like
+    /// Sparkle before its 20-day `SUSignedFeedFailureExpirationInterval` fallback,
+    /// which we do not copy — it is the vendor's key-rotation escape for its own
+    /// updater, not ours. The block's `length:` only feeds Sparkle's error text,
+    /// so it is not read here.
+    ///
+    /// Every other app gets `data` back unchanged. An app that requires a signed
+    /// feed but has no EdDSA key cannot start Sparkle at all (`SPUUpdater.m`
+    /// refuses it), so there is nothing of the vendor's to mirror.
+    ///
+    /// The plist is read fresh, as Sparkle reads it for a bundle other than its
+    /// own (`SUHost.m`, `objectForInfoDictionaryKey:ofClasses:`).
+    static func verifiedFeedContent(_ data: Data, for app: InstalledApp) throws -> Data {
+        let plist = SignatureVerifier.infoPlist(of: app.path)
+        guard requiresSignedFeed(plist),
+              let key = (plist["SUPublicEDKey"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !key.isEmpty
+        else { return data }
+        guard let (content, signature) = signedFeedParts(data), signature != nil else {
+            throw SparkleError.feedSignatureMissing
+        }
+        do {
+            try SignatureVerifier.verifyEdSignature(
+                fileData: content, signatureBase64: signature, publicKeyBase64: key)
+        } catch {
+            throw SparkleError.feedSignatureInvalid
+        }
+        return content
+    }
+
+    /// `SURequireSignedFeed` read with Sparkle's bool rules (`SUHost.m`,
+    /// `convertObjectToBoolNumber`): a number's `boolValue`, or a string's
+    /// `NSString.boolValue` (`"YES"`, `"true"`, `"1"`); anything else is false.
+    static func requiresSignedFeed(_ plist: [String: Any]) -> Bool {
+        switch plist["SURequireSignedFeed"] {
+        case let number as NSNumber: return number.boolValue
+        case let string as String: return (string as NSString).boolValue
+        default: return false
+        }
+    }
+
+    /// The signed content and the `edSignature:` value of a feed's signing block,
+    /// split the way `SPUExtractAppcastContent` (`SPUExtractSignedFeed.m`) splits
+    /// it: the LAST `<!-- sparkle-signatures:\n`, everything before it is the
+    /// content, the block runs to the next `-->`, and the last `edSignature:`
+    /// line wins. Nil when there is no complete, UTF-8 block — Sparkle then has
+    /// no signature either.
+    static func signedFeedParts(_ data: Data) -> (content: Data, edSignature: String?)? {
+        guard let prefix = data.range(of: Data("<!-- sparkle-signatures:\n".utf8), options: .backwards),
+              let suffix = data.range(of: Data("-->".utf8), in: prefix.upperBound..<data.endIndex),
+              let block = String(data: data[prefix.upperBound..<suffix.lowerBound], encoding: .utf8)
+        else { return nil }
+        var signature: String?
+        block.enumerateLines { line, _ in
+            if line.hasPrefix("edSignature:") {
+                signature = String(line.dropFirst("edSignature:".count))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        return (Data(data[data.startIndex..<prefix.lowerBound]), signature)
     }
 
     /// The one request shape every appcast fetch uses — the live check and
@@ -706,6 +789,12 @@ public struct SparkleAppcastSource: UpdateSource {
         /// The feed URL answered with a web page instead of an appcast. Carries
         /// the URL the page came from, which after a redirect is the useful half.
         case notAFeed(URL?)
+        /// The app requires a signed feed (`SURequireSignedFeed`) and this one
+        /// carries no `sparkle-signatures` block with an `edSignature`.
+        case feedSignatureMissing
+        /// The app requires a signed feed and the signature does not verify
+        /// against its `SUPublicEDKey`.
+        case feedSignatureInvalid
 
         var errorDescription: String? {
             switch self {
@@ -716,6 +805,10 @@ public struct SparkleAppcastSource: UpdateSource {
             case .notAFeed(let url):
                 let place = url.map { " (\($0.host ?? "")\($0.path))" } ?? ""
                 return "The app's update feed answered with a web page instead of an appcast\(place)."
+            case .feedSignatureMissing:
+                return "The app requires a signed update feed, and the feed carries no signature."
+            case .feedSignatureInvalid:
+                return "The app requires a signed update feed, and the feed's signature does not match the app's key."
             }
         }
     }

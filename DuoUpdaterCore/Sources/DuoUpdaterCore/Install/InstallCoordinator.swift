@@ -271,8 +271,17 @@ public actor InstallCoordinator {
     /// needed — so the outcome is logged and returned, never surfaced. A copy
     /// that fails does not stop the install, exactly as a failed backup does
     /// not.
+    ///
+    /// Not taken over an earlier install of the app that was cut off or is
+    /// still running, for the reason ``backUp(_:route:)`` gives.
     @discardableResult
     public static func takeInstallRollbackPoint(_ app: InstalledApp, route: Route) async -> Bool {
+        let standing = InstallJournal.standing(of: app.path)
+        guard standing == .clear else {
+            Log.install.notice(
+                "rollback point: \(app.path.lastPathComponent, privacy: .public) not saved — an earlier install of it \(standing == .interrupted ? "was cut off" : "is still running", privacy: .public); its way back stays as it is")
+            return false
+        }
         let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
         // Held until `settleInstallRollbackPoint` lets go, so the launch sweep
         // cannot discard this point while the install it guards is running —
@@ -319,11 +328,28 @@ public actor InstallCoordinator {
         /// copy is kept; an earlier backup of the app is untouched. The caller
         /// stops the install as cancelled rather than going on without one.
         case cancelled
+        /// Not attempted: an earlier install of the app was cut off, or is
+        /// still running (`InstallJournal.standing`). The bundle may be the
+        /// one it left damaged, or one it is halfway through swapping, and a
+        /// copy would replace the earlier backup — one slot per app — that is
+        /// the way back to the app as it was. That backup is untouched.
+        case skippedForEarlierInstall(InstallJournal.Standing)
         case failed
     }
 
     /// Store a rollback point for `app`.
+    ///
+    /// Every caller goes through here — an install's backup, and a
+    /// Relaunch's (`StagedRelaunchBackup.take`) — so the check that the copy
+    /// would not overwrite an interrupted install's way back is made here,
+    /// not at each call site.
     public static func backUp(_ app: InstalledApp, route: Route) async -> BackupOutcome {
+        let standing = InstallJournal.standing(of: app.path)
+        guard standing == .clear else {
+            Log.install.notice(
+                "backup: \(app.path.lastPathComponent, privacy: .public) not backed up — an earlier install of it \(standing == .interrupted ? "was cut off" : "is still running", privacy: .public); its backup stays as it is")
+            return .skippedForEarlierInstall(standing)
+        }
         let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
         // Recorded as a PAIR now: written marketing-first ALONE, the label was
         // "1.0" for every build of a frozen-marketing app, and the workbench's

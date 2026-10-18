@@ -129,8 +129,24 @@ public enum InstallJournal {
         var mounts: [Mount] = []
         /// Set by launch processing when the app was found cut off.
         var damage: Damage?
+        /// Set when the install entered its commit point (`InstallCommit.run`),
+        /// before the body runs: from then on the app is someone's to change.
+        /// Nil until then, and in files written before this field existed.
+        var committed: Bool? = nil
+        /// Set by ``Recording/finish()`` on a file it keeps. The install is
+        /// over, whether or not the process that wrote it still runs — the
+        /// menu-bar app goes on for days after one.
+        var ended: Bool? = nil
 
         var targetSide: VersionSide { VersionSide(marketing: targetVersion, build: targetBuild) }
+
+        /// Whether the install this describes is still running in the
+        /// process that wrote it, or in the third party it started. What every
+        /// liveness check here asks, so a file `finish` kept never reads as a
+        /// running install: its writer may live on, its install does not.
+        var ownerIsRunning: Bool { ended != true && owner.isRunning }
+        var childIsRunning: Bool { ended != true && child?.isRunning == true }
+        var isRunning: Bool { ownerIsRunning || childIsRunning }
     }
 
     // MARK: - Recording an install
@@ -157,6 +173,13 @@ public enum InstallJournal {
             update { $0.child = stamp }
         }
 
+        /// Record that the install has reached its commit point. Called by
+        /// `InstallCommit.run` while this is the current recording, before
+        /// the body starts; ``finish()`` reads it.
+        func noteCommitted() {
+            update { $0.committed = true }
+        }
+
         func update(_ change: (inout Entry) -> Void) {
             lock.withLock {
                 guard !finished else { return }
@@ -173,16 +196,25 @@ public enum InstallJournal {
         ///
         /// Normally its file goes. Two endings keep a record instead:
         ///
-        /// - The app is left missing or unreadable — the ending the settle
-        ///   keeps the rollback point for. This file stays, marked interrupted,
-        ///   so the point is reachable from ``InstallJournal/interruptedInstalls()``
-        ///   and `duo backups restore`, not only from a hidden directory.
+        /// - It reached its commit point and the app is left missing or
+        ///   unreadable — the ending the settle keeps the rollback point for.
+        ///   This file stays, marked interrupted and ended, so the point is
+        ///   reachable from ``InstallJournal/interruptedInstalls()`` and
+        ///   `duo backups restore`, not only from a hidden directory. Before
+        ///   the commit point nothing of the app's was touched, so an app
+        ///   missing then was missing already — trashed by the user after the
+        ///   scan — and offering it back would resurrect a deleted app.
         /// - It ran over an earlier interrupted install of the same app (a
         ///   reinstall is a legitimate way back) and did not leave the app
         ///   verifiably at its target. The earlier files stay: they still
         ///   describe the way back, and nothing of this install replaced it
-        ///   (``InstallJournal/standing(of:)`` kept its backup from being
-        ///   taken). When it did leave the app verifiably good, they go.
+        ///   (`InstallCoordinator.backUp` and `takeInstallRollbackPoint` skip
+        ///   an app whose ``InstallJournal/standing(of:)`` is not clear). When
+        ///   it did leave the app verifiably good, they go — except one whose
+        ///   scratch directories or mounts were never cleaned (launch
+        ///   processing was deferred, or an image would not detach): that
+        ///   file is the only thing that still names them, and
+        ///   ``InstallJournal/processLeftovers(lock:)`` is what cleans them.
         public func finish() async {
             let mine: Entry? = lock.withLock {
                 guard !finished else { return nil }
@@ -194,14 +226,18 @@ public enum InstallJournal {
             let earlier = InstallJournal.earlierEntries(for: app, excluding: mine.job)
             if !earlier.isEmpty,
                await InstallJournal.isVerifiablyAt(
-                   mine.targetSide, app: app, wasSigned: mine.oldCDHash != nil) {
-                for (file, _) in earlier { unlink(file.path) }
+                   mine.targetSide, app: app,
+                   wasSigned: InstallJournal.wasSigned([mine] + earlier.map(\.entry))) {
+                for (file, entry) in earlier where entry.workDirectories.isEmpty && entry.mounts.isEmpty {
+                    unlink(file.path)
+                }
                 Log.install.notice(
                     "install journal: \(mine.appName, privacy: .public) reinstalled over its interrupted install; cleared")
             }
-            if earlier.isEmpty, !BackupStore.hasReadableBundle(at: app) {
+            if earlier.isEmpty, mine.committed == true, !BackupStore.hasReadableBundle(at: app) {
                 var kept = mine
                 kept.damage = FileManager.default.fileExists(atPath: app.path) ? .unreadable : .missing
+                kept.ended = true
                 kept.workDirectories = []
                 kept.mounts = []
                 kept.child = nil
@@ -231,20 +267,22 @@ public enum InstallJournal {
         /// reinstall is a legitimate way back — but must take no backup and no
         /// rollback point: the bundle is the damaged one, and either copy
         /// would replace the good one the user would restore from (one slot
-        /// per app, `replaceItemAt`).
+        /// per app, `replaceItemAt`). `InstallCoordinator.backUp` and
+        /// `takeInstallRollbackPoint` refuse it themselves, for every caller.
         case interrupted
     }
 
     /// Where `app` stands. An entry this process wrote for an install still in
     /// progress here, with no child running, is that install's own and does
-    /// not count; one whose child runs does, whoever wrote it.
+    /// not count; one whose child runs does, whoever wrote it. One `finish`
+    /// kept is over, and counts as interrupted whoever wrote it.
     public static func standing(of app: URL) -> Standing {
         guard let root else { return .clear }
         let wanted = standardized(app.path)
         var interrupted = false
         for (_, entry) in readAll(in: root) where standardized(entry.appPath) == wanted {
-            if let child = entry.child, child.isRunning { return .stillRunning(pid: child.pid) }
-            if entry.owner.isRunning {
+            if entry.childIsRunning, let child = entry.child { return .stillRunning(pid: child.pid) }
+            if entry.ownerIsRunning {
                 if entry.owner.pid != getpid() { return .stillRunning(pid: entry.owner.pid) }
             } else {
                 interrupted = true
@@ -262,11 +300,25 @@ public enum InstallJournal {
         guard let root else { return true }
         let wanted = standardized(app.path)
         let entries = readAll(in: root).map(\.entry).filter { standardized($0.appPath) == wanted }
-        let dead = entries.filter { !$0.owner.isRunning && $0.child?.isRunning != true }
+        let dead = entries.filter { !$0.isRunning }
         guard !dead.isEmpty else { return true }
-        guard let mine = entries.first(where: { $0.owner.isRunning && $0.owner.pid == getpid() })
+        guard let mine = entries.first(where: { $0.ownerIsRunning && $0.owner.pid == getpid() })
         else { return false }
-        return await isVerifiablyAt(mine.targetSide, app: app, wasSigned: mine.oldCDHash != nil)
+        return await isVerifiablyAt(mine.targetSide, app: app, wasSigned: wasSigned([mine] + dead))
+    }
+
+    /// Whether this process's install of `app` has not reached its commit
+    /// point, with no earlier install of it on record. Then nothing of the
+    /// app's has been touched: an app missing now was removed by someone
+    /// else, and a rollback point of it is no install's way back.
+    static func ownInstallIsBeforeItsCommit(for app: URL) -> Bool {
+        guard let root else { return false }
+        let wanted = standardized(app.path)
+        let entries = readAll(in: root).map(\.entry).filter { standardized($0.appPath) == wanted }
+        guard entries.allSatisfy({ $0.isRunning }),
+              let mine = entries.first(where: { $0.ownerIsRunning && $0.owner.pid == getpid() })
+        else { return false }
+        return mine.committed != true
     }
 
     /// The files of earlier installs of `app` that are over — not running
@@ -275,24 +327,52 @@ public enum InstallJournal {
         guard let root else { return [] }
         let wanted = standardized(app.path)
         return readAll(in: root).filter {
-            $0.entry.job != job && standardized($0.entry.appPath) == wanted
-                && !$0.entry.owner.isRunning && $0.entry.child?.isRunning != true
+            $0.entry.job != job && standardized($0.entry.appPath) == wanted && !$0.entry.isRunning
         }
     }
 
-    /// Whether `app` is readable, at `target` or later, and its code signature
-    /// holds — or it is unsigned and was unsigned before. What "verifiably
-    /// good" means wherever a damaged app's way back is at stake.
+    /// Whether the app these entries describe was signed before any of them
+    /// touched it: the EARLIEST one's cdhash. A later one's was read from the
+    /// bundle the earlier left damaged — a main executable deleted or cut
+    /// short has no cdhash (measured, `InstallJournalTests`), so it reads as
+    /// unsigned and would let an unsigned bundle pass for the app as it was.
+    static func wasSigned(_ entries: [Entry]) -> Bool {
+        entries.min(by: { $0.startedAt < $1.startedAt })?.oldCDHash != nil
+    }
+
+    /// Whether `app` is readable, at `target` or later, has the executable its
+    /// Info.plist names, and its code signature holds in full — or it is
+    /// unsigned and was unsigned before. What "verifiably good" means wherever
+    /// a damaged app's way back is about to be discarded, which is right after
+    /// an install, before the app has run and written into itself: so the
+    /// strict check (``signature(of:strict:)``), not launch classification's.
     static func isVerifiablyAt(_ target: VersionSide, app: URL, wasSigned: Bool) async -> Bool {
         guard BackupStore.hasReadableBundle(at: app) else { return false }
         let onDisk = versions(at: app)
         guard !target.isEmpty, !onDisk.isEmpty, !VersionComparator.isNewer(target, than: onDisk)
         else { return false }
-        switch await offCooperativePool(qos: .userInitiated, { signature(of: app) }) {
+        // An unsigned bundle has no signature to say its executable is
+        // missing: one deleted reads as plain "unsigned" (measured).
+        guard hasMainExecutable(app) else { return false }
+        switch await offCooperativePool(qos: .userInitiated, { signature(of: app, strict: true) }) {
         case .valid: return true
         case .unsigned: return !wasSigned
         case .invalid: return false
         }
+    }
+
+    /// Whether the file the Info.plist's `CFBundleExecutable` names exists —
+    /// `Contents/MacOS/` for a Mac app, the bundle root of a wrapped iOS app
+    /// (``BundleLayout``). False when it names none.
+    static func hasMainExecutable(_ app: URL) -> Bool {
+        guard let data = try? Data(contentsOf: BundleLayout.infoPlistURL(for: app)),
+              let info = try? PropertyListSerialization.propertyList(
+                from: data, options: [], format: nil) as? [String: Any],
+              let name = info["CFBundleExecutable"] as? String, !name.isEmpty
+        else { return false }
+        let prefix = BundleLayout.interiorPrefix(for: app)
+        let relative = prefix == "Contents/" ? "Contents/MacOS/\(name)" : prefix + name
+        return FileManager.default.fileExists(atPath: app.appendingPathComponent(relative).path)
     }
 
     /// Start the file for an install of `app` by `route` towards `target`.
@@ -446,13 +526,13 @@ public enum InstallJournal {
         // install's directory can have the same name as a live one's: the
         // Sparkle, Vendor and Xcode routes name theirs after the app and the
         // version.
-        let live = entries.filter { $0.entry.owner.isRunning || $0.entry.child?.isRunning == true }
+        let live = entries.filter { $0.entry.isRunning }
         let liveDirectories = Set(live.flatMap { $0.entry.workDirectories.map(standardized) })
 
         var processed: [Processed] = []
         for (file, entry) in entries {
             let name = entry.appName
-            guard !entry.owner.isRunning, entry.child?.isRunning != true else {
+            guard !entry.isRunning else {
                 processed.append(.stillRunning(app: name))
                 continue
             }
@@ -579,12 +659,21 @@ public enum InstallJournal {
     /// cut short fails both. So this asks "was the code swapped halfway", and
     /// an app that keeps state inside its own bundle does not read as broken.
     /// Not strict and not deep — not the install gates' question.
-    static func signature(of app: URL) -> SignatureStatus {
+    ///
+    /// `strict` validates everything instead — sealed resources, nested code
+    /// (`kSecCSCheckNestedCode`), every architecture — for the one question
+    /// asked right after an install, before the app has run: is this bundle
+    /// whole, so the way back to the one before can go. The lenient check
+    /// passes a bundle whose sealed nested helper is deleted or cut short;
+    /// this one fails both (measured, `InstallJournalTests`).
+    static func signature(of app: URL, strict: Bool = false) -> SignatureStatus {
         var code: SecStaticCode?
         guard SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess,
               let code else { return .invalid }
-        let status = SecStaticCodeCheckValidity(
-            code, SecCSFlags(rawValue: kSecCSDoNotValidateResources), nil)
+        let flags = strict
+            ? kSecCSCheckNestedCode | kSecCSCheckAllArchitectures
+            : kSecCSDoNotValidateResources
+        let status = SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: flags), nil)
         switch status {
         case errSecSuccess: return .valid
         case errSecCSUnsigned: return .unsigned
@@ -696,6 +785,34 @@ public enum InstallJournal {
         return Set(readAll(in: root).map { standardized($0.entry.appPath) })
     }
 
+    /// The backup keys of every app with a file here — every key its restore
+    /// would look under (``restoreSource(for:)``). Not the orphan prune's or
+    /// the space reclaim's to delete: an app an install left missing is
+    /// exactly what an uninstalled one looks like, and with backups on its
+    /// user backup is its only way back (no rollback point is taken then).
+    static func journaledBackupKeys() -> Set<String> {
+        guard let root else { return [] }
+        var keys: Set<String> = []
+        for (_, entry) in readAll(in: root) {
+            keys.insert(entry.backupKey)
+            keys.formUnion(BackupStore.keyCandidates(
+                bundleID: entry.bundleID, path: URL(fileURLWithPath: entry.appPath)))
+        }
+        return keys
+    }
+
+    /// Where `app`'s interrupted install would be restored from, read from
+    /// the earliest file of an install of it that is over — classified or not.
+    /// Nil when there is no such file, or nothing to restore from.
+    public static func wayBack(for app: URL) -> RestoreSource? {
+        guard let root else { return nil }
+        let wanted = standardized(app.path)
+        return readAll(in: root).map(\.entry)
+            .filter { standardized($0.appPath) == wanted && !$0.isRunning }
+            .min(by: { $0.startedAt < $1.startedAt })
+            .flatMap(restoreSource(for:))
+    }
+
     /// The scratch directories a running install has recorded, in this
     /// process or another: not the stale-scratch sweep's to take.
     static func liveWorkDirectories() -> Set<String> { liveUse().directories }
@@ -716,7 +833,7 @@ public enum InstallJournal {
         guard let root else { return LiveUse() }
         var use = LiveUse()
         for (_, entry) in readAll(in: root)
-        where entry.owner.isRunning || entry.child?.isRunning == true {
+        where entry.isRunning {
             use.directories.formUnion(entry.workDirectories.map(standardized))
             use.mountPoints.formUnion(entry.mounts.map { standardized($0.mountPoint) })
             use.images.formUnion(entry.mounts.map { standardized($0.image) })

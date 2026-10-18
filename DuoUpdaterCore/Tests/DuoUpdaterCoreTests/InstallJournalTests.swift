@@ -62,10 +62,12 @@ struct InstallJournalTests {
 
     /// `withExecutable` copies `/usr/bin/true` in as the bundle's executable,
     /// so `codesign` signs real code pages a test can then cut short.
+    /// `withHelper` adds a second copy as nested code (`Contents/Helpers`),
+    /// which ``adHocSign(_:)`` signs before the app, as `codesign` requires.
     @discardableResult
     private func makeApp(
         in dir: URL, version: String, name: String = "ZZFixture-Journal.app",
-        withExecutable: Bool = false
+        withExecutable: Bool = false, withHelper: Bool = false
     ) throws -> URL {
         let app = dir.appendingPathComponent(name)
         let contents = app.appendingPathComponent("Contents")
@@ -85,6 +87,13 @@ struct InstallJournalTests {
                 at: URL(fileURLWithPath: "/usr/bin/true"),
                 to: contents.appendingPathComponent("MacOS/ZZFixture"))
             plist["CFBundleExecutable"] = "ZZFixture"
+        }
+        if withHelper {
+            try FileManager.default.createDirectory(
+                at: contents.appendingPathComponent("Helpers"), withIntermediateDirectories: true)
+            try FileManager.default.copyItem(
+                at: URL(fileURLWithPath: "/usr/bin/true"),
+                to: contents.appendingPathComponent("Helpers/ZZFixtureHelper"))
         }
         try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
             .write(to: contents.appendingPathComponent("Info.plist"))
@@ -291,6 +300,14 @@ struct InstallJournalTests {
     }
 
     private func adHocSign(_ app: URL) async throws {
+        let helper = app.appendingPathComponent("Contents/Helpers/ZZFixtureHelper")
+        if FileManager.default.fileExists(atPath: helper.path) {
+            let nested = try await ChildProcess.run(
+                "/usr/bin/codesign",
+                ["--force", "--sign", "-", "--identifier", "com.example.zzfixture.helper", helper.path],
+                onCancel: .runToCompletion)
+            try #require(nested.succeeded, "\(String(decoding: nested.standardError, as: UTF8.self))")
+        }
         let signed = try await ChildProcess.run(
             "/usr/bin/codesign", ["--force", "--sign", "-", app.path], onCancel: .runToCompletion)
         try #require(signed.succeeded, "\(String(decoding: signed.standardError, as: UTF8.self))")
@@ -650,6 +667,9 @@ extension InstallJournalTests {
             let owner = viaChild ? try await deadProcess() : other.stamp
             try store(entry(for: app, owner: owner, child: viaChild ? other.stamp : nil), in: scratch)
             #expect(InstallJournal.standing(of: app) == .stillRunning(pid: other.stamp.pid))
+            // Nor is it copied over meanwhile (round 3, #2): it may be mid-swap.
+            #expect(await InstallCoordinator.backUp(installed(app, version: "1.0"), route: .homebrew)
+                == .skippedForEarlierInstall(.stillRunning(pid: other.stamp.pid)))
             try await other.stop()
             #expect(InstallJournal.standing(of: app) == .interrupted)
         }
@@ -737,6 +757,7 @@ extension InstallJournalTests {
 
     // MARK: - An install that ends with the app gone (round 2, #6)
 
+    /// Past its commit point (round 3, #3: recorded by `InstallCommit.run`).
     @Test func anInstallThatEndsWithTheAppGoneStaysAsInterrupted() async throws {
         try await withScratch { scratch in
             let app = try makeApp(in: scratch.apps, version: "1.0")
@@ -745,7 +766,11 @@ extension InstallJournalTests {
                 appPath: app, key: key, version: "1.0", bundleID: bundleID)
             let recording = try #require(await InstallJournal.begin(
                 app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
-            try FileManager.default.removeItem(at: app)
+            #expect(recording.snapshot.committed == nil)
+            try await InstallJournal.recording(recording) {
+                try await InstallCommit.run("brew upgrade") { try FileManager.default.removeItem(at: app) }
+            }
+            #expect(recording.snapshot.committed == true)
             #expect(await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.0")) == .kept)
             await recording.finish()
 
@@ -818,6 +843,430 @@ extension InstallJournalTests {
                 owner: try await deadProcess(), workDirs: [nested]), in: scratch)
             _ = try await process(scratch)
             #expect(FileManager.default.fileExists(atPath: nested.path))
+        }
+    }
+}
+
+extension InstallJournalTests {
+
+    private func cdhash(_ app: URL) -> String? {
+        CLIToolProcesses.fileCDHash(app.path).map { $0.map { String(format: "%02x", $0) }.joined() }
+    }
+
+    /// Rewrite the file `finish` kept as another process sees it: written by a
+    /// process that is still running and is not this one — the menu-bar app,
+    /// seen from `duo`.
+    private func ownedByAnotherLiveProcess(_ file: URL, _ other: LoopingChild) throws {
+        var kept = try JSONDecoder().decode(InstallJournal.Entry.self, from: Data(contentsOf: file))
+        kept.owner = other.stamp
+        try #require(InstallJournal.write(kept, to: file))
+    }
+
+    // MARK: - Nothing deletes an interrupted app's way back (round 3, #1)
+
+    /// With backups on no rollback point is taken, so the user's backup is the
+    /// only way back for an app the install left missing. "Nothing at the
+    /// recorded path" is what makes a backup an orphan — and what an
+    /// interrupted install looks like. An orphan with no journal file still goes.
+    @Test func pruningOrphansKeepsTheBackupOfAnInterruptedApp() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            try await BackupStore.save(appPath: app, key: key, version: "1.0", bundleID: bundleID)
+            let gone = try makeApp(in: scratch.apps, version: "1.0", name: "ZZFixture-Uninstalled.app")
+            let goneKey = BackupStore.key(bundleID: "com.example.zzfixture.uninstalled", path: gone)
+            try await BackupStore.save(
+                appPath: gone, key: goneKey, version: "1.0", bundleID: "com.example.zzfixture.uninstalled")
+            try FileManager.default.removeItem(at: app)
+            try FileManager.default.removeItem(at: gone)
+            try store(entry(for: app, owner: try await deadProcess(), damage: .missing), in: scratch)
+
+            _ = BackupStore.pruneOrphans()
+            #expect(BackupStore.backup(forKey: key) != nil)
+            #expect(BackupStore.backup(forKey: goneKey) == nil)
+            #expect(InstallJournal.interruptedInstalls().first?.restoreFrom?.purpose == .userBackup)
+        }
+    }
+
+    /// Freeing space deletes other apps' backups oldest first; not the one an
+    /// interrupted app would be restored from, however old.
+    @Test func reclaimingSpaceKeepsTheBackupOfAnInterruptedApp() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            try await BackupStore.save(appPath: app, key: key, version: "1.0", bundleID: bundleID)
+            let other = try makeApp(in: scratch.apps, version: "1.0", name: "ZZFixture-Other.app")
+            let otherKey = BackupStore.key(bundleID: "com.example.zzfixture.other", path: other)
+            try await BackupStore.save(
+                appPath: other, key: otherKey, version: "1.0", bundleID: "com.example.zzfixture.other")
+            try FileManager.default.removeItem(at: app)
+            try store(entry(for: app, owner: try await deadProcess(), damage: .missing), in: scratch)
+
+            let recovered = await BackupStore.$freeBytesOverride.withValue({ 1 }) {
+                await BackupStore.reclaimFreeSpace(sparing: "nobody")
+            }
+            #expect(!recovered)
+            #expect(BackupStore.backup(forKey: key) != nil)
+            #expect(BackupStore.backup(forKey: otherKey) == nil)
+        }
+    }
+
+    // MARK: - The copy itself refuses to overwrite the way back (round 3, #2)
+
+    /// An app an earlier install left damaged (1.5 on disk, cut off on its way
+    /// to 2.0), whose way back is the 1.0 backup. A backup taken now — by an
+    /// install, or by a Relaunch (`StagedRelaunchBackup.take`), which never
+    /// asked the journal — would replace 1.0 with the damaged bundle.
+    @Test func aBackupOverAnInterruptedInstallKeepsTheWayBack() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            try await BackupStore.save(appPath: app, key: key, version: "1.0", bundleID: bundleID)
+            try makeApp(in: scratch.apps, version: "1.5")
+            try store(entry(for: app, owner: try await deadProcess(), damage: .signatureBroken), in: scratch)
+            let damaged = installed(app, version: "1.5")
+
+            #expect(await InstallCoordinator.backUp(damaged, route: .homebrew)
+                == .skippedForEarlierInstall(.interrupted))
+            #expect(BackupStore.backup(forKey: key)?.version == "1.0")
+
+            let taken = await StagedRelaunchBackup.take(
+                damaged, keepBackups: true, old: VersionSide(marketing: "1.5"),
+                runningBefore: [4242],
+                system: StagedRelaunchBackup.System(
+                    diskVersion: { VersionSide(marketing: "1.5") }, runningPIDs: { [4242] },
+                    claimLock: {}, releaseLock: {},
+                    backUp: { await InstallCoordinator.backUp(damaged, route: .sparkle) },
+                    remove: { Issue.record("nothing was stored, so nothing is removed") }))
+            #expect(BackupStore.backup(forKey: key)?.version == "1.0")
+            #expect(taken == .attempted(.skippedForEarlierInstall(.interrupted)))
+        }
+    }
+
+    /// The same for the install rollback point: the 1.0 point stays.
+    @Test func aRollbackPointOverAnInterruptedInstallKeepsTheWayBack() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: key, version: "1.0", bundleID: bundleID)
+            try makeApp(in: scratch.apps, version: "1.5")
+            try store(entry(for: app, owner: try await deadProcess(), damage: .signatureBroken), in: scratch)
+
+            let took = await InstallCoordinator.takeInstallRollbackPoint(
+                installed(app, version: "1.5"), route: .homebrew)
+            #expect(!took)
+            #expect(BackupStore.rollbackPoint(forKey: key)?.version == "1.0")
+            await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.5"))
+        }
+    }
+
+    // MARK: - Only an install past its commit point leaves an interrupted one (round 3, #3)
+
+    /// The user trashed the app after the scan; the install's re-check stopped
+    /// it before its commit point. It did nothing, so it leaves nothing — not
+    /// a row offering to bring back an app the user deleted.
+    @Test func anInstallStoppedBeforeItsCommitWithTheAppAlreadyGoneLeavesNoEntry() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            try FileManager.default.removeItem(at: app)
+            await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.0"))
+            await recording.finish()
+            #expect(!FileManager.default.fileExists(atPath: recording.file.path))
+            #expect(InstallJournal.interruptedInstalls().isEmpty)
+            #expect(InstallJournal.standing(of: app) == .clear)
+        }
+    }
+
+    /// The same, with the app trashed while its rollback point was taken:
+    /// the point is a copy of an app nobody's install removed. Kept, nothing
+    /// would ever list or discard it — the sweep keeps every point whose app
+    /// does not read — so the settle discards it.
+    @Test func aRollbackPointOfAnAppGoneBeforeTheCommitIsDiscarded() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            #expect(await InstallCoordinator.takeInstallRollbackPoint(installed(app, version: "1.0"), route: .homebrew))
+            try FileManager.default.removeItem(at: app)
+            #expect(await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "1.0")) == .discarded)
+            #expect(BackupStore.rollbackPoint(forKey: key) == nil)
+            await recording.finish()
+            #expect(InstallJournal.interruptedInstalls().isEmpty)
+        }
+    }
+
+    // MARK: - A kept entry is not a running install (round 3, #4)
+
+    /// What `finish` keeps, seen from another process while the one that
+    /// wrote it still runs: an interrupted install, not a running one — `duo`
+    /// installs over it (without a backup) instead of refusing, and launch
+    /// processing looks at it and at a dead entry for the same app.
+    @Test func anEntryFinishKeptReadsAsInterruptedNotRunning() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            try await InstallJournal.recording(recording) {
+                try await InstallCommit.run("swap") { try FileManager.default.removeItem(at: app) }
+            }
+            await recording.finish()
+            try #require(FileManager.default.fileExists(atPath: recording.file.path))
+            try store(entry(for: app, owner: try await deadProcess()), in: scratch)
+
+            let other = try await LoopingChild(in: scratch.dir)
+            try ownedByAnotherLiveProcess(recording.file, other)
+            #expect(InstallJournal.standing(of: app) == .interrupted)
+            let processed = try await process(scratch)
+            #expect(processed == [
+                .interrupted(app: "ZZFixture-Journal", .missing),
+                .interrupted(app: "ZZFixture-Journal", .missing),
+            ])
+            try await other.stop()
+        }
+    }
+
+    /// In the same process: a later install that leaves the app verifiably at
+    /// its target clears the entry an earlier one kept — the menu-bar app runs
+    /// for days, and its launch processing is not coming.
+    @Test func aRepairingReinstallInTheSameSessionClearsWhatFinishKept() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0", withExecutable: true)
+            try await adHocSign(app)
+            let first = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            try await InstallJournal.recording(first) {
+                try await InstallCommit.run("swap") { try FileManager.default.removeItem(at: app) }
+            }
+            await first.finish()
+            try #require(InstallJournal.interruptedInstalls().count == 1)
+
+            let second = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            try makeApp(in: scratch.apps, version: "2.0", withExecutable: true)
+            try await adHocSign(app)
+            await second.finish()
+            #expect(!FileManager.default.fileExists(atPath: first.file.path))
+            #expect(InstallJournal.interruptedInstalls().isEmpty)
+        }
+    }
+
+    // MARK: - "Verifiably good" is strict (round 3, #5)
+
+    /// A reinstall at its target whose sealed nested helper is gone: the
+    /// lenient check passes it (resources are not read), the strict one not.
+    @Test func aReinstallMissingANestedBinaryDidNotRepair() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0", withExecutable: true, withHelper: true)
+            try await adHocSign(app)
+            try store(entry(
+                for: app, owner: try await deadProcess(), oldCDHash: cdhash(app),
+                damage: .signatureBroken), in: scratch)
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            try makeApp(in: scratch.apps, version: "2.0", withExecutable: true, withHelper: true)
+            try await adHocSign(app)
+            try FileManager.default.removeItem(at: app.appendingPathComponent("Contents/Helpers/ZZFixtureHelper"))
+            #expect(await InstallJournal.mayDiscardRollbackPoint(for: app) == false)
+            await recording.finish()
+            #expect(InstallJournal.interruptedInstalls().count == 1)
+        }
+    }
+
+    /// Signed before the first install; its main executable gone by the time
+    /// of the second, whose own record therefore reads it as unsigned (no
+    /// cdhash). The second leaves an unsigned bundle: that is not the app as
+    /// it was, so it did not repair — the earliest record says it was signed.
+    @Test func signedBeforeIsJudgedFromTheEarliestRecord() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0", withExecutable: true)
+            try await adHocSign(app)
+            let signedBefore = try #require(cdhash(app))
+            try store(entry(
+                for: app, owner: try await deadProcess(), oldCDHash: signedBefore,
+                damage: .signatureBroken), in: scratch)
+            try FileManager.default.removeItem(at: app.appendingPathComponent("Contents/MacOS/ZZFixture"))
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            #expect(recording.snapshot.oldCDHash == nil)
+            try makeApp(in: scratch.apps, version: "2.0", withExecutable: true)
+            let executable = app.appendingPathComponent("Contents/MacOS/ZZFixture")
+            let stripped = try await ChildProcess.run(
+                "/usr/bin/codesign", ["--remove-signature", executable.path], onCancel: .runToCompletion)
+            try #require(stripped.succeeded)
+            #expect(await offCooperativePool { InstallJournal.signature(of: app) } == .unsigned)
+            #expect(await InstallJournal.mayDiscardRollbackPoint(for: app) == false)
+            await recording.finish()
+            #expect(InstallJournal.interruptedInstalls().count == 1)
+        }
+    }
+
+    /// Unsigned before and after, at the target — but the executable its
+    /// Info.plist names is not there. Not an app that runs.
+    @Test func aReinstallWithoutItsExecutableDidNotRepair() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            try store(entry(for: app, owner: try await deadProcess(), damage: .unreadable), in: scratch)
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            try makeApp(in: scratch.apps, version: "2.0", withExecutable: true)
+            try FileManager.default.removeItem(at: app.appendingPathComponent("Contents/MacOS/ZZFixture"))
+            #expect(await InstallJournal.mayDiscardRollbackPoint(for: app) == false)
+            await recording.finish()
+            #expect(InstallJournal.interruptedInstalls().count == 1)
+        }
+    }
+
+    /// The measurement behind the two modes of `InstallJournal.signature(of:strict:)`,
+    /// on ad-hoc signed bundles with a main executable and a nested helper
+    /// (`Contents/Helpers`), each damaged one way. `SecStaticCodeCheckValidity`
+    /// returned, on macOS 27.2 (2026-10-18), lenient
+    /// (`kSecCSDoNotValidateResources`) / strict (`kSecCSCheckNestedCode |
+    /// kSecCSCheckAllArchitectures`):
+    ///
+    /// | bundle                     | lenient | strict | cdhash |
+    /// |----------------------------|---------|--------|--------|
+    /// | intact                     | 0       | 0      | yes    |
+    /// | a resource rewritten       | 0       | -67054 | yes    |
+    /// | nested helper deleted      | 0       | -67054 | yes    |
+    /// | nested helper cut short    | 0       | -67049 | yes    |
+    /// | main executable deleted    | -67062  | -67062 | none   |
+    /// | main executable cut short  | -67049  | -67049 | none   |
+    ///
+    /// -67054 errSecCSBadResource, -67049 errSecCSBadObjectFormat, -67062
+    /// errSecCSUnsigned (CSCommon.h). The default flags (0) gave the strict
+    /// column on every row. Asserted here as the statuses they map to, not
+    /// the raw codes, which are the OS's to change.
+    @Test func theStrictCheckFailsWhatTheLenientOnePasses() async throws {
+        try await withScratch { scratch in
+            func fixture(_ name: String, damage: (URL) throws -> Void) async throws -> URL {
+                let app = try makeApp(
+                    in: scratch.apps, version: "1.0", name: "ZZFixture-\(name).app",
+                    withExecutable: true, withHelper: true)
+                try await adHocSign(app)
+                try damage(app.appendingPathComponent("Contents"))
+                return app
+            }
+            func statuses(_ app: URL) async -> [InstallJournal.SignatureStatus] {
+                await offCooperativePool {
+                    [InstallJournal.signature(of: app), InstallJournal.signature(of: app, strict: true)]
+                }
+            }
+            let fm = FileManager.default
+            let intact = try await fixture("Intact") { _ in }
+            #expect(await statuses(intact) == [.valid, .valid])
+            #expect(cdhash(intact) != nil && InstallJournal.hasMainExecutable(intact))
+
+            let resource = try await fixture("Resource") {
+                try Data("state".utf8).write(to: $0.appendingPathComponent("Resources/marker.txt"))
+            }
+            #expect(await statuses(resource) == [.valid, .invalid])
+
+            let helperGone = try await fixture("HelperGone") {
+                try fm.removeItem(at: $0.appendingPathComponent("Helpers/ZZFixtureHelper"))
+            }
+            #expect(await statuses(helperGone) == [.valid, .invalid])
+
+            let helperCut = try await fixture("HelperCut") {
+                try cutShort($0.appendingPathComponent("Helpers/ZZFixtureHelper"))
+            }
+            #expect(await statuses(helperCut) == [.valid, .invalid])
+
+            let mainGone = try await fixture("MainGone") {
+                try fm.removeItem(at: $0.appendingPathComponent("MacOS/ZZFixture"))
+            }
+            #expect(await statuses(mainGone) == [.unsigned, .unsigned])
+            #expect(cdhash(mainGone) == nil)
+            #expect(!InstallJournal.hasMainExecutable(mainGone))
+
+            let mainCut = try await fixture("MainCut") {
+                try cutShort($0.appendingPathComponent("MacOS/ZZFixture"))
+            }
+            #expect(await statuses(mainCut) == [.invalid, .invalid])
+            #expect(cdhash(mainCut) == nil)
+        }
+    }
+
+    // MARK: - Leftovers are processing's (round 3, #6b)
+
+    /// An earlier install whose leftovers were never cleaned (the lock was
+    /// busy at launch, or its image would not come off) is not unlinked by a
+    /// repairing reinstall: its directory and mount would then belong to no
+    /// file, and launch processing is what cleans them.
+    @Test func aRepairingReinstallLeavesAnEarlierEntryWithLeftovers() async throws {
+        try await withScratch { scratch in
+            let work = try scratch.workDir("unprocessed")
+            let app = try makeApp(in: scratch.apps, version: "1.0", withExecutable: true)
+            try await adHocSign(app)
+            let earlier = try store(entry(
+                for: app, owner: try await deadProcess(), oldCDHash: cdhash(app), workDirs: [work]), in: scratch)
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            try makeApp(in: scratch.apps, version: "2.0", withExecutable: true)
+            try await adHocSign(app)
+            await recording.finish()
+            #expect(FileManager.default.fileExists(atPath: earlier.path))
+            #expect(try await process(scratch) == [.resolved(app: "ZZFixture-Journal", .completed)])
+            #expect(!FileManager.default.fileExists(atPath: work.path))
+        }
+    }
+
+    /// The way back `duo` names over an install launch processing has not
+    /// looked at yet (no damage recorded): its point when there is one, and
+    /// nothing when there is nothing (round 3, #6a).
+    @Test func theWayBackOfAnUnclassifiedInstallIsWhatIsStored() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            try store(entry(for: app, owner: try await deadProcess()), in: scratch)
+            #expect(InstallJournal.standing(of: app) == .interrupted)
+            #expect(InstallJournal.wayBack(for: app) == nil)
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: BackupStore.key(bundleID: bundleID, path: app),
+                version: "1.0", bundleID: bundleID)
+            #expect(InstallJournal.wayBack(for: app)?.purpose == .installRollbackPoint)
+        }
+    }
+
+    // MARK: - A cancel over an earlier interrupted install (round 3, #7)
+
+    /// Replaces `aCancelledItemWithTheAppUntouchedLeavesNoEntry`'s blind spot:
+    /// there was no earlier entry, so `finish` returned before its only await.
+    /// Here there is one — its way back the 1.0 point, the app on disk at the
+    /// target with its code cut short — and the item is cancelled after the
+    /// rollback-point step: the point is still 1.0, and the earlier entry
+    /// stays, though `finish`'s signature read ran in a cancelled task.
+    @Test func aCancelOverAnInterruptedInstallKeepsItsWayBack() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0", withExecutable: true)
+            try await adHocSign(app)
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: key, version: "1.0", bundleID: bundleID)
+            let earlier = try store(entry(
+                for: app, owner: try await deadProcess(), oldCDHash: cdhash(app),
+                damage: .signatureBroken), in: scratch)
+            try makeApp(in: scratch.apps, version: "2.0", withExecutable: true)
+            try await adHocSign(app)
+            try cutShort(app.appendingPathComponent("Contents/MacOS/ZZFixture"))
+            let damaged = installed(app, version: "2.0")
+
+            let recording = try #require(await InstallJournal.begin(
+                app: damaged, route: .homebrew, target: VersionSide(marketing: "2.0")))
+            let item = Task {
+                await InstallCoordinator.takeInstallRollbackPoint(damaged, route: .homebrew)
+                withUnsafeCurrentTask { $0?.cancel() }
+                #expect(Task.isCancelled)
+                #expect(await InstallCoordinator.settleInstallRollbackPoint(for: damaged) == .kept)
+                await recording.finish()
+            }
+            await item.value
+            #expect(BackupStore.rollbackPoint(forKey: key)?.version == "1.0")
+            #expect(FileManager.default.fileExists(atPath: earlier.path))
+            #expect(!FileManager.default.fileExists(atPath: recording.file.path))
+            #expect(InstallJournal.interruptedInstalls().map(\.restoreFrom?.purpose) == [.installRollbackPoint])
         }
     }
 }

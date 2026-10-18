@@ -8,7 +8,8 @@ import Foundation
 /// later — and then the point is a hidden full-size copy no surface sizes,
 /// lists or reclaims. So the rule is the same at every normal end of an
 /// attempt and at launch: app readable ⇒ discard; app missing or unreadable ⇒
-/// keep, because that is the case it was taken for. A process that DIES keeps
+/// keep, because that is the case it was taken for — unless the install never
+/// reached its commit point, when something else removed the app. A process that DIES keeps
 /// it by not running any of this; the next launch's sweep then decides.
 extension InstallCoordinator {
 
@@ -46,6 +47,16 @@ extension InstallCoordinator {
             Log.install.notice(
                 "rollback point: kept for \(app.path.lastPathComponent, privacy: .public) — an earlier install of it was cut off and this one did not leave it verifiably good")
             outcome = .kept
+        } else if InstallJournal.ownInstallIsBeforeItsCommit(for: app.path) {
+            // Gone, but not by this install, which stopped before its commit
+            // point — the user trashed it while the point was being taken. The
+            // journal drops this install's file (`Recording.finish`), and a
+            // point kept now would be listed nowhere and never swept: the sweep
+            // keeps every point whose app does not read.
+            await BackupStore.removeRollbackPoint(forKey: key)
+            Log.install.notice(
+                "rollback point: discarded for \(app.path.lastPathComponent, privacy: .public) — the app went missing before the install reached its commit point")
+            outcome = .discarded
         } else {
             // Brew can fail after removing the app and not put it back — a
             // signal skips its revert, and the revert can fail itself — and

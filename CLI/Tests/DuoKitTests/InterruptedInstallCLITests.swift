@@ -91,6 +91,28 @@ struct InterruptedInstallCLITests {
         #expect(viaInterrupted.description == plain.description)
     }
 
+    /// Round 3, #6a: an earlier install that was cut off but never looked at
+    /// (the lock was busy at launch) may have left nothing to restore from.
+    /// The line says what the way back is, and that there is none when there
+    /// is none — not that "the restore point stays".
+    @Test func theNoBackupLineSaysWhatTheWayBackIs() {
+        let point = InstallJournal.RestoreSource(
+            key: "k", purpose: .installRollbackPoint, version: "1.0", bundle: nil)
+        let backup = InstallJournal.RestoreSource(key: "k", purpose: .userBackup, version: "0.9", bundle: nil)
+        #expect(Install.earlierInstallBackupNote(.interrupted, wayBack: point) == "no new backup: an earlier"
+            + " update of it was interrupted, and the app on disk may be the copy it damaged;"
+            + " the restore point saved before that update stays as it is")
+        #expect(Install.earlierInstallBackupNote(.interrupted, wayBack: backup)
+            .hasSuffix("; your backup of 0.9 stays as it is"))
+        let none = Install.earlierInstallBackupNote(.interrupted, wayBack: nil)
+        #expect(none.hasSuffix("; there is no backup or restore point of it from before that update"))
+        #expect(!none.contains("stays"))
+        #expect(Install.earlierInstallBackupNote(.stillRunning(pid: 4242), wayBack: nil)
+            == "no new backup: an earlier install of it is still running (process 4242)")
+        #expect(Restart.describe(
+            .attempted(.skippedForEarlierInstall(.interrupted)), version: "1.0", wayBack: nil) == none)
+    }
+
     @Test func theStillRunningReasonNamesThePid() {
         #expect(Install.stillRunningReason(pid: 4242).contains("process 4242"))
     }

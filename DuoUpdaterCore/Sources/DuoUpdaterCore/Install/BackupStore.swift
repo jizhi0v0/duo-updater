@@ -2220,19 +2220,25 @@ public enum BackupStore {
     /// merely plugged in may carry another Mac's backups, and every one of them
     /// would qualify — the prune would be correct about each and would empty the
     /// disk. See ``reachableDestinationRoot``.
+    ///
+    /// Never the backup of an app with an install journal file: an install
+    /// cut off after its third party removed the app leaves exactly "nothing
+    /// at the recorded path", and with backups on this backup is that app's
+    /// only way back (`InstallJournal.journaledBackupKeys`).
     @discardableResult
     public static func pruneOrphans() -> Int64 {
-        var freed = pruneOrphans(in: outboxRoot)
+        let held = InstallJournal.journaledBackupKeys()
+        var freed = pruneOrphans(in: outboxRoot, sparing: held)
         if let destination = reachableDestinationRoot {
-            freed += pruneOrphans(in: destination)
+            freed += pruneOrphans(in: destination, sparing: held)
         }
         return freed
     }
 
-    private static func pruneOrphans(in root: URL) -> Int64 {
+    private static func pruneOrphans(in root: URL, sparing held: Set<String>) -> Int64 {
         let fm = FileManager.default
         var freed: Int64 = 0
-        for key in storedKeys(in: root) {
+        for key in storedKeys(in: root) where !held.contains(key) {
             let dir = root.appendingPathComponent(key, isDirectory: true)
             guard let meta = readMeta(in: dir) else { continue }
             guard !fm.fileExists(atPath: meta.originalPath) else { continue }
@@ -2699,6 +2705,10 @@ extension BackupStore {
     /// `mayDelete` false asks only the question — is free space at `target` —
     /// and deletes nothing: the answer for a copy that is not worth anyone's
     /// backup (an install rollback point).
+    ///
+    /// Never the backup of an app with an install journal file, for the
+    /// reason `pruneOrphans` spares it: it may be the only way back for an app
+    /// an install left missing or broken.
     static func reclaimFreeSpace(
         sparing key: String, target: Int64 = freeSpaceFloorBytes, mayDelete: Bool = true
     ) async -> Bool {
@@ -2708,8 +2718,9 @@ extension BackupStore {
         guard mayDelete else { return false }
         let root = outboxRoot
         let isExternal = destination.kind == .external
+        let held = InstallJournal.journaledBackupKeys()
         let oldestFirst: [(key: String, meta: Meta)] = storedKeys(in: root)
-            .filter { $0 != key }
+            .filter { $0 != key && !held.contains($0) }
             .compactMap { candidate in
                 readMeta(in: root.appendingPathComponent(candidate, isDirectory: true))
                     .map { (candidate, $0) }

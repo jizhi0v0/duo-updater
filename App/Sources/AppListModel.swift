@@ -5167,11 +5167,10 @@ final class AppListModel {
         // user who keeps backups off but wants a rollback point for this one update.
         // Without either, a route that hands the swap to someone else still gets
         // a silent install rollback point — see `wantsInstallRollbackPoint`.
-        // Not over an earlier install that was cut off: the bundle is the
-        // damaged one, and a copy of it would replace the good one the user
-        // would restore from (`InstallJournal.Standing.interrupted`).
-        if !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)),
-           InstallJournal.standing(of: result.app.path) != .interrupted {
+        // Over an earlier install that was cut off both copy nothing: the
+        // bundle is the damaged one, and a copy of it would replace the good
+        // one the user would restore from (`InstallCoordinator.backUp`).
+        if !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)) {
             let takingUserBackup = (prefs.keepBackups || backUpOnce)
                 && InstallCoordinator.wantsBackup(backupRoute)
             if takingUserBackup {
@@ -7738,7 +7737,9 @@ final class AppListModel {
         // from the sidecars rather than from this call, so a backup taken while
         // the disk was away is picked up here too.
         // Not after a cancel either: nothing landed, and the install is stopping.
-        if transferNow, outcome != .failed, outcome != .cancelled {
+        // Nor after a skip over an earlier install, which copied nothing.
+        if transferNow, outcome != .failed, outcome != .cancelled,
+           !Self.isSkippedForEarlierInstall(outcome) {
             startOwedBackupTransfer()
         }
         if case .savedWithoutRuntimeState(let omitted) = outcome {
@@ -7759,6 +7760,11 @@ final class AppListModel {
             installNotes[result.id] = Self.backupFailedNote
         }
         return outcome
+    }
+
+    private static func isSkippedForEarlierInstall(_ outcome: InstallCoordinator.BackupOutcome) -> Bool {
+        if case .skippedForEarlierInstall = outcome { return true }
+        return false
     }
 
     /// `backupCurrent`'s two notes, named so a later attempt can take down the

@@ -60,6 +60,29 @@ public enum Install {
             + "run this again once it has finished"
     }
 
+    /// Why no backup or restore point is taken of an app an earlier install
+    /// of which was cut off, or is still running (`InstallCoordinator.backUp`
+    /// skips it). Says what is true of the way back: kept as it is when there
+    /// is one (`InstallJournal.wayBack`), and that there is none when there is
+    /// none — an install cut off before launch processing looked at it may
+    /// have left nothing to restore from.
+    static func earlierInstallBackupNote(
+        _ standing: InstallJournal.Standing, wayBack: InstallJournal.RestoreSource?
+    ) -> String {
+        switch standing {
+        case .stillRunning(let pid):
+            return "no new backup: an earlier install of it is still running (process \(pid))"
+        case .clear, .interrupted:
+            let kept = switch wayBack?.purpose {
+            case .installRollbackPoint?: "the restore point saved before that update stays as it is"
+            case .userBackup?: "your backup of \(wayBack?.version ?? "the previous version") stays as it is"
+            case nil: "there is no backup or restore point of it from before that update"
+            }
+            return "no new backup: an earlier update of it was interrupted, and the app on disk"
+                + " may be the copy it damaged; \(kept)"
+        }
+    }
+
     /// The warning `install` prints for an install that was cut off and left
     /// its app missing or broken, with the command that puts it back.
     static func interruptedWarning(_ interrupted: InstallJournal.InterruptedInstall) -> String {
@@ -1030,9 +1053,9 @@ public enum Install {
 
             // An earlier install of this app that is still running — an orphaned
             // brew from a `duo` that was killed — is not raced; one that was cut
-            // off may be reinstalled over, without copying the damaged bundle
-            // over the copy that is its way back (`InstallJournal.standing`).
-            let overInterrupted: Bool
+            // off may be reinstalled over. The backup steps below then copy
+            // nothing (`InstallCoordinator.backUp` skips an app that is not
+            // clear), which is said here once, with what the way back is.
             switch InstallJournal.standing(of: toInstall.app.path) {
             case .stillRunning(let pid):
                 let reason = Self.stillRunningReason(pid: pid)
@@ -1041,13 +1064,12 @@ public enum Install {
                 tally.record(.skipped)
                 continue
             case .interrupted:
-                overInterrupted = true
                 if !json {
-                    print("   an earlier update of it was interrupted; installing without a new"
-                        + " backup, so the restore point it left stays as it is")
+                    print("   " + Self.earlierInstallBackupNote(
+                        .interrupted, wayBack: InstallJournal.wayBack(for: toInstall.app.path)))
                 }
             case .clear:
-                overInterrupted = false
+                break
             }
             // Written before the backup and the install touch the app, removed
             // however this item ends — so a `duo` killed mid-install leaves a
@@ -1060,7 +1082,7 @@ public enum Install {
             // preference. Not fatal when it fails — but said out loud, because
             // the alternative is discovering the safety net is gone only when a
             // later rollback finds nothing.
-            if keepBackups, InstallCoordinator.wantsBackup(route), !overInterrupted {
+            if keepBackups, InstallCoordinator.wantsBackup(route) {
                 stages.enter(.backingUp)
                 switch await InstallCoordinator.backUp(toInstall.app, route: route) {
                 case .saved:
@@ -1080,6 +1102,8 @@ public enum Install {
                     if !json { print("   no restore point: this Mac is low on space") }
                 case .cancelled:
                     break  // said below, where the item stops
+                case .skippedForEarlierInstall:
+                    break  // said above
                 case .failed:
                     if !json { print("   could not back up — installing without a restore point") }
                 }
@@ -1087,7 +1111,7 @@ public enum Install {
             // Without a backup, a route that hands the swap to someone else
             // (brew) still gets the menu-bar app's silent install
             // rollback point — see `wantsInstallRollbackPoint`.
-            if !overInterrupted, InstallCoordinator.wantsInstallRollbackPoint(
+            if InstallCoordinator.wantsInstallRollbackPoint(
                 route, takingUserBackup: keepBackups && InstallCoordinator.wantsBackup(route)) {
                 stages.enter(.backingUp)
                 await InstallCoordinator.takeInstallRollbackPoint(toInstall.app, route: route)

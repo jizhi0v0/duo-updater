@@ -139,7 +139,8 @@ public enum Restart {
             let copy = discarded ? " (the copy taken meanwhile was discarded)" : ""
             return ("quit while it was being backed up — its own updater is applying \(to) on its own; left it alone\(copy)", false)
         }
-        if let note = describe(taken, version: app.shortVersion ?? "current") {
+        if let note = describe(
+            taken, version: app.shortVersion ?? "current", wayBack: InstallJournal.wayBack(for: app.path)) {
             print("\(app.name)  \(note)")
         }
         // Re-read after the copy, which can take seconds: which window is in
@@ -210,8 +211,13 @@ public enum Restart {
     }
 
     /// The progress line for the rollback point, or nil when there is nothing
-    /// to say. Worded as `duo install` words its own backup step.
-    static func describe(_ taken: StagedRelaunchBackup.Taken, version: String) -> String? {
+    /// to say. Worded as `duo install` words its own backup step. `wayBack`
+    /// is what an earlier, interrupted install of the app would be restored
+    /// from (`InstallJournal.wayBack`), for the line that says it is kept.
+    static func describe(
+        _ taken: StagedRelaunchBackup.Taken, version: String,
+        wayBack: InstallJournal.RestoreSource? = nil
+    ) -> String? {
         switch taken {
         case .skipped, .standDown:
             return nil
@@ -228,6 +234,8 @@ public enum Restart {
             return "no restore point: this Mac is low on space"
         case .attempted(.cancelled):
             return "no restore point: the backup was cancelled"
+        case .attempted(.skippedForEarlierInstall(let standing)):
+            return Install.earlierInstallBackupNote(standing, wayBack: wayBack)
         case .attempted(.failed):
             return "could not back up — restarting without a restore point"
         }

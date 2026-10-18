@@ -400,10 +400,11 @@ import CryptoKit
     /// update"), so it runs to its end and reports the new version.
     ///
     /// A cancelled wait that slept nothing would reread as fast as the disk
-    /// allows, so the rereads are counted. With `settle` 10 s and `pollInterval`
-    /// 50 ms a full wait is 200 rereads; the bound is twice that. The swap is held
-    /// until the count passes the bound or 5 s have gone by — a wait that sleeps
-    /// reads about 100 times in those 5 s, so it never reaches the bound.
+    /// allows, so the rereads are counted. The swap is held until the count
+    /// passes the bound or 2 s have gone by: a wait that sleeps 50 ms between
+    /// reads makes at most about 40 in those 2 s, so it never reaches 200 —
+    /// and a slow pool only makes it fewer. `settle` is 60 s so that the held
+    /// swap still lands well inside the wait however long the pool stalls.
     /// Mutation: call the runner and the loop without the outer `InstallCommit.run`:
     /// the cancelled loop rereads until the hold ends, and the count fails the bound.
     @Test func aCancelDuringTheSettleWaitRunsItToItsEnd() async throws {
@@ -426,7 +427,7 @@ import CryptoKit
             readTarget: { _ in "macos-aarch64" })
         let updater = LorcaUpdater(
             busy: { nil }, scanner: scanner, check: box.check(), verifier: box.verifier(),
-            environment: { [:] }, settle: .seconds(10), pollInterval: .milliseconds(50),
+            environment: { [:] }, settle: .seconds(60), pollInterval: .milliseconds(50),
             isListening: { _ in false })
 
         // The progress line comes just before the settle wait starts.
@@ -441,9 +442,9 @@ import CryptoKit
         for await _ in serving { break }
         updating.cancel()
 
-        let bound = 400
+        let bound = 200
         let clock = ContinuousClock()
-        let limit = clock.now.advanced(by: .seconds(5))
+        let limit = clock.now.advanced(by: .seconds(2))
         while tally.value <= bound, clock.now < limit {
             try? await Task.sleep(for: .milliseconds(20))
         }

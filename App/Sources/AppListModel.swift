@@ -685,7 +685,7 @@ final class AppListModel {
     func restartFromSide(_ id: String) -> UpdateResult.VersionSide? {
         RestartLine.fromSide(
             runningBuild: runningVersionByID[id],
-            backupMarketing: backupVersions[id],
+            backup: backupSides[id],
             recoveredMarketing: recoveredRestartMarketing[id])
     }
 

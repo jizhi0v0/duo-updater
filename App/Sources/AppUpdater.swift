@@ -68,6 +68,10 @@ private final class SelfUpdateInstaller: NSObject, SPUUpdaterDelegate {
     /// now", which is the safe default — Sparkle still installs a deferred update
     /// when the app quits, so a probe that never says yes costs nothing.
     var isIdle: (@MainActor () -> Bool)?
+    /// Set the moment we tell Sparkle to install and relaunch: the quit Sparkle
+    /// then sends is ours, not the user's (`QuitGuard.Reason.selfUpdate`). Cleared
+    /// if Sparkle aborts instead, so a later quit by the user is asked about again.
+    private(set) var isInstalling = false
 
     private var installNow: (() -> Void)?
     private var watch: Task<Void, Never>?
@@ -133,6 +137,12 @@ private final class SelfUpdateInstaller: NSObject, SPUUpdaterDelegate {
         EventStore.shared.stage([DuoEvent(date: now, payload: .request(event))])
     }
 
+    func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
+        guard isInstalling else { return }
+        isInstalling = false
+        Log.app.notice("self-update: aborted after install began — \(error.localizedDescription, privacy: .public)")
+    }
+
     private func installIfIdle() {
         guard let installNow else { return }
         guard isIdle?() == true else { return }
@@ -142,6 +152,7 @@ private final class SelfUpdateInstaller: NSObject, SPUUpdaterDelegate {
         // back, and that decision belongs to the process that comes up next.
         SilentSelfUpdateRelaunch.arm()
         Log.app.notice("self-update: idle — installing and relaunching now")
+        isInstalling = true
         installNow()
     }
 }
@@ -184,6 +195,10 @@ final class AppUpdater {
     func setIdleProbe(_ probe: @escaping @MainActor () -> Bool) {
         selfInstaller.isIdle = probe
     }
+
+    /// Our own update has been told to install and relaunch; the quit that
+    /// follows is Sparkle's (`QuitCoordinator`).
+    var isInstallingSelfUpdate: Bool { selfInstaller.isInstalling }
 
     /// Start Sparkle once the app is ready for its own update checks.
     func start() {

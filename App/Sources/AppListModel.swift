@@ -3200,6 +3200,10 @@ final class AppListModel {
                 // Every root is attempted; one deferral must not skip the rest.
                 if await InPlaceSwap.recoverInterruptedSwaps(in: root) == false { swept = false }
             }
+            // Install rollback points whose app reads again (see
+            // `sweepSettledInstallRollbackPoints`), retried with the rest when
+            // another process held the lock.
+            if await InstallCoordinator.sweepSettledInstallRollbackPoints() == nil { swept = false }
             guard !swept else { return }
             await MainActor.run { self?.didRecoverSwaps = false }
         }
@@ -5102,10 +5106,23 @@ final class AppListModel {
         }
         // `backUpOnce`: the major-upgrade confirmation's "Back Up & Update", for a
         // user who keeps backups off but wants a rollback point for this one update.
-        if prefs.keepBackups || backUpOnce, InstallCoordinator.wantsBackup(backupRoute),
-           !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)) {
-            await backupCurrent(result, route: backupRoute)
+        // Without either, a route that hands the swap to someone else still gets
+        // a silent install rollback point — see `wantsInstallRollbackPoint`.
+        if !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)) {
+            let takingUserBackup = (prefs.keepBackups || backUpOnce)
+                && InstallCoordinator.wantsBackup(backupRoute)
+            if takingUserBackup {
+                await backupCurrent(result, route: backupRoute)
+            } else if InstallCoordinator.wantsInstallRollbackPoint(
+                backupRoute, takingUserBackup: takingUserBackup) {
+                await InstallCoordinator.takeInstallRollbackPoint(result.app, route: backupRoute)
+            }
         }
+        // Every way out of this attempt from here — installed, failed, skipped
+        // before the download, refused — settles the rollback point: kept only
+        // when the app is left missing or unreadable. See
+        // `settleInstallRollbackPoint`.
+        defer { await InstallCoordinator.settleInstallRollbackPoint(for: result.app) }
 
         do {
             // Everything except the App Store is fetched and applied by

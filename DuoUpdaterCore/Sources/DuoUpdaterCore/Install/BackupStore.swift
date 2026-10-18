@@ -64,6 +64,29 @@ public enum BackupStore {
     /// unchanged.
     public static var root: URL { outboxRoot }
 
+    /// Where install rollback points live (``Purpose/installRollbackPoint``):
+    /// one directory per key, laid out exactly like the outbox, inside it.
+    ///
+    /// Apart because the outbox holds ONE copy per app (`save` replaces it,
+    /// retention = 1), and a rollback point written there would replace the
+    /// backup the user kept from back when backups were on. Inside the outbox
+    /// because that is always the boot volume, which is what lets `ditto`
+    /// clone rather than copy — and `.`-prefixed so every scan of the outbox,
+    /// all of which pass `.skipsHiddenFiles` (``storedKeys(in:)``, the orphan
+    /// prune, retention under low space, transfers, sizes), steps over it.
+    /// Nothing that deletes the user's backups automatically can reach it.
+    public static var rollbackPointsRoot: URL {
+        outboxRoot.appendingPathComponent(".rollback-points", isDirectory: true)
+    }
+
+    /// ``rollbackPointsRoot`` as a store: plain bundles on this Mac, so the
+    /// outbox's read and restore paths apply unchanged. Never active — new
+    /// backups are not written here.
+    static var rollbackPointStore: Store {
+        Store(root: rollbackPointsRoot, location: .outbox, identity: nil, volumeName: nil,
+              isActive: false)
+    }
+
     // MARK: - Destination
 
     private nonisolated(unsafe) static var configuredDestination: BackupDestination = .local
@@ -402,6 +425,32 @@ public enum BackupStore {
         /// nil for the whole copy in that case, and a copy we never fingerprinted
         /// is one nothing may be cached against. See ``BackupFactsLibrary``.
         public let fingerprint: String?
+        /// Whether this is the user's backup or an install rollback point. See
+        /// ``Purpose``.
+        public var purpose: Purpose = .userBackup
+    }
+
+    /// What a stored copy is for.
+    ///
+    /// Until install rollback points there was only one kind, and nothing said
+    /// so: `Meta` carried where the update came from (`fromPackageInstall`,
+    /// `fromAppStore`) and whether to leave the copy on this Mac, but nothing
+    /// about why the copy existed. Now there are two, and they differ in every
+    /// rule that matters — where they live, what deletes them, who sees them.
+    public enum Purpose: String, Codable, Sendable, Equatable {
+        /// A backup the user asked for: Keep Backups on, or "Back Up & Update"
+        /// for one install. Also what every sidecar without the field means,
+        /// which is every backup written before the field existed — so nothing
+        /// on disk needs migrating.
+        case userBackup
+        /// Taken automatically just before a third-party route (brew, the App
+        /// Store) changes an app, for a user who has no backup being
+        /// taken. Those routes do the swap themselves and can leave the app
+        /// deleted when interrupted — `brew install --cask --force` removes the
+        /// old bundle before moving the new one in, and its rescue does not put
+        /// `/Applications` back. Stored apart from the user's backup slot (see
+        /// ``rollbackPointsRoot``) and removed once the install succeeds.
+        case installRollbackPoint
     }
 
     /// JSON sidecar persisted next to a backed-up bundle.
@@ -494,6 +543,10 @@ public enum BackupStore {
         /// written only when someone is looking at a sheet naming these exact
         /// backups and presses the button that says to leave them.
         var keepOnThisMac: Bool?
+        /// What this copy is for. Optional for the same reason as the fields
+        /// above, and absent means ``Purpose/userBackup``: every sidecar written
+        /// before the field existed is one.
+        var purpose: Purpose?
     }
 
     /// A filesystem-safe directory name for one installed copy of an app. It keeps
@@ -592,12 +645,54 @@ public enum BackupStore {
         bundleID: String?,
         fromPackageInstall: Bool = false, fromAppStore: Bool = false
     ) async throws -> Backup {
+        try await write(
+            appPath: appPath, key: key, version: version, buildVersion: buildVersion,
+            bundleID: bundleID, fromPackageInstall: fromPackageInstall,
+            fromAppStore: fromAppStore, purpose: .userBackup)
+    }
+
+    /// Copy the bundle at `appPath` as an install rollback point for `key` —
+    /// see ``Purpose/installRollbackPoint``. The same copy, fingerprint and
+    /// sidecar as ``save(appPath:key:version:buildVersion:bundleID:fromPackageInstall:fromAppStore:)``,
+    /// into ``rollbackPointsRoot`` instead of the user's slot, so the user's
+    /// backup of this app — one from back when backups were on — is never the
+    /// thing it replaces. Replaces only an earlier rollback point for `key`.
+    ///
+    /// On the boot volume whatever the backup destination is: the outbox
+    /// always is, and on the same volume as the app `ditto` clones, which is
+    /// what makes taking one on every third-party install affordable (a 475 MB
+    /// app cost 4–5 MB of free space measured on the dev Mac; `--noclone` cost
+    /// 507 MB).
+    @discardableResult
+    public static func saveInstallRollbackPoint(
+        appPath: URL, key: String, version: String?, buildVersion: String? = nil,
+        bundleID: String?,
+        fromPackageInstall: Bool = false, fromAppStore: Bool = false
+    ) async throws -> Backup {
+        try await write(
+            appPath: appPath, key: key, version: version, buildVersion: buildVersion,
+            bundleID: bundleID, fromPackageInstall: fromPackageInstall,
+            fromAppStore: fromAppStore, purpose: .installRollbackPoint)
+    }
+
+    /// The copy both of the above make, into the store `purpose` names.
+    private static func write(
+        appPath: URL, key: String, version: String?, buildVersion: String?,
+        bundleID: String?,
+        fromPackageInstall: Bool, fromAppStore: Bool, purpose: Purpose
+    ) async throws -> Backup {
         let fm = FileManager.default
+        let isUserBackup = purpose == .userBackup
+        // Where this copy goes, and where its staging is built: the user's slot
+        // in the outbox, or the rollback points' own directory inside it. Both
+        // on the boot volume, so the swap at the end stays a same-volume rename.
+        let store = isUserBackup ? outboxStore : rollbackPointStore
+        let root = store.root
         // Always the outbox, never the destination — even when one is configured.
         // Writing here first is what makes an unplugged disk a delay rather than a
         // missing rollback point, and it keeps the manifest recorded below computed
         // on APFS, which is what lets the same manifest gate a restore later.
-        let dir = outboxRoot.appendingPathComponent(key, isDirectory: true)
+        let dir = root.appendingPathComponent(key, isDirectory: true)
         // Build the new backup in a hidden staging dir FIRST, then swap it into place
         // atomically. Retention = 1 must not delete the prior rollback point until the
         // new copy is fully written — otherwise a failed/interrupted re-backup (disk
@@ -679,7 +774,11 @@ public enum BackupStore {
             throw BackupError.insufficientSpace(needed: shortfall.needed, free: shortfall.free)
         }
 
-        let (ditto, outOfSpace) = await runDittoWatchingSpace(from: appPath, to: staged, key: key)
+        // A rollback point nobody asked for does not delete the user's backups
+        // of other apps to make room for itself: falling under the floor stops
+        // this copy instead, and the install goes ahead without one.
+        let (ditto, outOfSpace) = await runDittoWatchingSpace(
+            from: appPath, to: staged, key: key, mayDeleteBackups: isUserBackup)
         if outOfSpace, !ditto.ok {
             Log.install.error(
                 "backup: stopped copying \(name, privacy: .public) — this Mac fell under the free-space floor and no older backup was left to delete")
@@ -742,8 +841,10 @@ public enum BackupStore {
             // Marked from the destination *setting*, not from whether the disk
             // happens to be plugged in: the copy is owed either way, and a backup
             // taken while the disk was out would otherwise never be picked up when
-            // it came back.
-            pendingTransfer: destination.kind == .external ? true : nil)
+            // it came back. Never a rollback point: it stays on this Mac, where
+            // the clone is close to free and the restore needs no disk.
+            pendingTransfer: isUserBackup && destination.kind == .external ? true : nil,
+            purpose: purpose)
         // The sidecar is what EVERY read path keys off (`backup(forKey:)` returns nil
         // without it), so a backup whose sidecar didn't write is unusable. Fail the
         // save (leaving the prior backup intact) rather than leave an invisible bundle.
@@ -791,7 +892,8 @@ public enum BackupStore {
             // fingerprinted one sits in the store, and the update proceeds as though
             // it were unprotected. Ask what is actually on disk instead of inferring
             // it from the throw.
-            if let landed = backup(forKey: key), landed.savedAt == savedAt {
+            if let landed = isUserBackup ? backup(forKey: key) : backup(forKey: key, in: store),
+               landed.savedAt == savedAt {
                 Log.install.error(
                     "backup: \(name, privacy: .public) is stored and usable, but the copy it replaced would not delete — \(error.localizedDescription, privacy: .public)")
                 return landed
@@ -807,8 +909,10 @@ public enum BackupStore {
         // path-scoped backup exists (and `keyCandidates` would only ever fall back
         // to that orphan), drop it so retention stays at one copy on disk instead
         // of leaking a whole stale bundle per migrated app.
+        // The user's slot only: under the rollback points' root there is no
+        // legacy key, and the outbox's is not this copy's to remove.
         let legacy = legacyKey(bundleID: bundleID, path: appPath)
-        if legacy != key {
+        if isUserBackup, legacy != key {
             // Flags cleared: an orphan under the legacy key is by definition an
             // old backup, so it is exactly the generation that can still carry
             // one, and nothing ever revisits that key to try again.
@@ -817,9 +921,10 @@ public enum BackupStore {
         }
         return Backup(
             key: key, version: version, buildVersion: buildVersion,
-            bundlePath: dest, store: outboxStore, savedAt: savedAt,
+            bundlePath: dest, store: store, savedAt: savedAt,
             fromPackageInstall: fromPackageInstall, fromAppStore: fromAppStore,
-            omittedFiles: unreadable.unsealed, fingerprint: manifest?.digest)
+            omittedFiles: unreadable.unsealed, fingerprint: manifest?.digest,
+            purpose: purpose)
     }
 
     // MARK: - Transfer
@@ -1200,7 +1305,8 @@ public enum BackupStore {
             key: key, version: meta.version, buildVersion: meta.buildVersion,
             bundlePath: payload, store: store, savedAt: meta.savedAt,
             fromPackageInstall: meta.fromPackageInstall, fromAppStore: meta.fromAppStore,
-            omittedFiles: meta.omittedFiles ?? [], fingerprint: meta.manifest?.digest)
+            omittedFiles: meta.omittedFiles ?? [], fingerprint: meta.manifest?.digest,
+            purpose: meta.purpose ?? .userBackup)
     }
 
     /// The current backup for `key`, or nil if none exists.
@@ -1214,6 +1320,76 @@ public enum BackupStore {
             if let found = backup(forKey: key, in: store) { return found }
         }
         return nil
+    }
+
+    // MARK: - Install rollback points
+
+    /// The install rollback point for `key`, or nil. Never a user backup:
+    /// ``backup(forKey:)`` answers for those, and does not see these.
+    public static func rollbackPoint(forKey key: String) -> Backup? {
+        backup(forKey: key, in: rollbackPointStore)
+    }
+
+    /// Every install rollback point, keyed by app key.
+    ///
+    /// Outside an install in progress, one left here guards an app that an
+    /// install cut off left missing or unreadable: every attempt that ends
+    /// normally settles its point (``InstallCoordinator/settleInstallRollbackPoint(for:)``),
+    /// and the launch sweep drops the rest whose app is back. A point whose
+    /// app is still broken stays until it is restored or deleted.
+    public static func allRollbackPoints() -> [String: Backup] {
+        var out: [String: Backup] = [:]
+        for key in storedKeys(in: rollbackPointsRoot) {
+            if let found = rollbackPoint(forKey: key) { out[key] = found }
+        }
+        return out
+    }
+
+    /// The install rollback points, described the way ``listing()`` describes
+    /// backups, each row carrying ``Purpose/installRollbackPoint`` so a surface
+    /// can say what it is ("saved when an update was interrupted").
+    ///
+    /// A separate call rather than rows in ``listing()``: every surface that
+    /// reads that today deletes a row through ``remove(forKey:)``, which is the
+    /// user's backup of the same key. A rollback-point row there would offer to
+    /// delete one thing and delete the other.
+    public static func rollbackPointListing() -> [Listing] {
+        listing(in: rollbackPointStore)
+            .sorted { ($0.savedAt ?? .distantPast) > ($1.savedAt ?? .distantPast) }
+    }
+
+    /// Drop the install rollback point for `key`: the install it was taken for
+    /// succeeded, the user restored it, or the user deleted it. Leaves the
+    /// user's backup of the same key alone, and the recorded facts with it —
+    /// those describe that backup. A whole bundle copy, so off the pool.
+    public static func removeRollbackPoint(forKey key: String) async {
+        await removeClearingImmutableFlagsOffPool(
+            at: rollbackPointsRoot.appendingPathComponent(key, isDirectory: true))
+    }
+
+    /// Each rollback point's key and the path it was taken from. A point
+    /// without a readable sidecar is left out: nothing says where its app was,
+    /// so nothing can say it is no longer needed.
+    static func rollbackPointOrigins() -> [(key: String, appPath: URL)] {
+        storedKeys(in: rollbackPointsRoot).compactMap { key in
+            readMeta(in: rollbackPointsRoot.appendingPathComponent(key, isDirectory: true))
+                .map { (key, URL(fileURLWithPath: $0.originalPath)) }
+        }
+    }
+
+    /// Whether `app` is a bundle whose Info.plist reads — any version of it.
+    /// What decides that a rollback point is no longer needed: an install that
+    /// left this true did not leave the app deleted (brew's failure mode) or
+    /// emptied (the same, when the successor has the bundle's name). Read the
+    /// way ``installedShortVersion(atPath:)`` reads it, through `BundleLayout`,
+    /// so a wrapped iOS app counts as readable rather than holding its point
+    /// forever.
+    static func hasReadableBundle(at app: URL) -> Bool {
+        guard let data = try? Data(contentsOf: BundleLayout.infoPlistURL(for: app)),
+              let info = try? PropertyListSerialization.propertyList(
+                from: data, options: [], format: nil) as? [String: Any]
+        else { return false }
+        return !info.isEmpty
     }
 
     // MARK: - Restore
@@ -1277,11 +1453,17 @@ public enum BackupStore {
     /// ``restore(forKey:over:)``, reporting what became of the input-method user
     /// data as well as the version. The plain `restore` is this, minus the half a
     /// caller with nowhere to show it cannot use.
+    ///
+    /// `purpose` picks which copy of `key` to put back: the user's backup, or
+    /// the install rollback point. A rollback point is removed once it is back
+    /// — it exists only to undo the install that never finished, and the app
+    /// now holds exactly what it holds. A user backup stays, as it always has.
     @discardableResult
     public static func restoreReportingUserData(
-        forKey key: String, over target: URL
+        forKey key: String, over target: URL, from purpose: Purpose = .userBackup
     ) async throws -> RestoreOutcome {
-        guard let backup = backup(forKey: key) else {
+        let stored = purpose == .userBackup ? backup(forKey: key) : rollbackPoint(forKey: key)
+        guard let backup = stored else {
             throw BackupError.noBackup(key)
         }
         let fm = FileManager.default
@@ -1306,7 +1488,9 @@ public enum BackupStore {
         // Deleting a whole bundle copy, so it goes to Dispatch; flags cleared
         // because the copy carries whatever the backed-up app set on its files.
         defer { await removeClearingImmutableFlagsOffPool(at: scratch) }
-        return try await restore(backup, key: key, stagingIn: scratch, over: target)
+        let outcome = try await restore(backup, key: key, stagingIn: scratch, over: target)
+        if purpose == .installRollbackPoint { await removeRollbackPoint(forKey: key) }
+        return outcome
     }
 
     /// `restore(forKey:over:)` from the point its scratch directory exists.
@@ -1339,8 +1523,12 @@ public enum BackupStore {
         if InPlaceSwap.usesContentsRotation(target: target) {
             switch backup.location {
             case .outbox:
+                // A rollback point carries no snapshot of its own, and the one
+                // in the outbox belongs to the user's backup of this key — a
+                // different generation. Reported as `.noSnapshot` below.
                 let dir = InputMethodDataBackup.snapshotDirectory(forKey: key)
-                snapshotDirectory = InputMethodDataBackup.snapshotExists(in: dir) ? dir : nil
+                snapshotDirectory = backup.purpose == .userBackup
+                    && InputMethodDataBackup.snapshotExists(in: dir) ? dir : nil
             case .destination:
                 snapshotDirectory = try await unpackUserDataFromDestination(
                     backup, key: key, into: scratch)
@@ -1377,8 +1565,19 @@ public enum BackupStore {
         // The restore's point of no return (`InstallCommit`): a cancel before it
         // leaves the live app as it is and the scratch copy to the `defer`; one
         // during it is not seen.
-        _ = try await InstallCommit.run("restore swap") {
-            try await InPlaceSwap.replace(newApp: staged, over: target)
+        //
+        // Nothing at the target — the app vanished, as an interrupted brew
+        // install leaves it — is not something to swap with: `replace` refuses
+        // a target that does not exist, by design, before its privileged path
+        // could act on it. Put the copy where it was instead. A target that is
+        // there but emptied (brew clears a bundle's contents when the new one
+        // has the same name) is still a bundle, and takes the ordinary swap.
+        try await InstallCommit.run("restore swap") {
+            if InPlaceSwap.isAbsent(target) {
+                try await InPlaceSwap.placeBack(newApp: staged, at: target)
+            } else {
+                _ = try await InPlaceSwap.replace(newApp: staged, over: target)
+            }
         }
         // An input method's settings and learned dictionary are not in the bundle,
         // so restoring the bundle alone rolls back the code and leaves the data at
@@ -1435,6 +1634,15 @@ public enum BackupStore {
         let backupID = backup["CFBundleIdentifier"] as? String
         let installedID = installed["CFBundleIdentifier"] as? String
         guard backupID != installedID else { return }
+        // Nothing at the target names itself: it is gone, or brew emptied it.
+        // There is no other identity to refuse in favour of, and the key —
+        // path-scoped — already ties this backup to this location. Refusing
+        // here would refuse exactly the restore an interrupted install needs.
+        guard installedID != nil || !installed.isEmpty else {
+            Log.install.notice(
+                "rollback: nothing readable at \(target.lastPathComponent, privacy: .public) to compare with — restoring \(backupID ?? "?", privacy: .public) by its path-scoped key")
+            return
+        }
         guard let backupID, let installedID,
               BundleIDMigration.restoreMigration(
                 backup: backupID, installed: installedID,
@@ -1889,11 +2097,13 @@ public enum BackupStore {
         /// can say *whose* space — this Mac's, or a named disk's.
         public let store: Store
         public var location: Backup.Location { store.location }
+        /// The user's backup, or an install rollback point — see ``Purpose``.
+        public let purpose: Purpose
 
         public init(
             key: String, name: String, version: String?, currentVersion: String?,
             savedAt: Date?, sizeBytes: Int64, bundlePath: URL?, appStillInstalled: Bool,
-            isRestorable: Bool, store: Store
+            isRestorable: Bool, store: Store, purpose: Purpose = .userBackup
         ) {
             self.key = key
             self.name = name
@@ -1905,6 +2115,7 @@ public enum BackupStore {
             self.appStillInstalled = appStillInstalled
             self.isRestorable = isRestorable
             self.store = store
+            self.purpose = purpose
         }
     }
 
@@ -1965,7 +2176,8 @@ public enum BackupStore {
                 bundlePath: payload,
                 appStillInstalled: meta.map { fm.fileExists(atPath: $0.originalPath) } ?? false,
                 isRestorable: meta != nil,
-                store: store))
+                store: store,
+                purpose: meta?.purpose ?? .userBackup))
         }
         return out
     }
@@ -2050,9 +2262,18 @@ public enum BackupStore {
     }
 
     public static func storeSize(of root: URL) -> Int64 {
-        guard let dirs = try? FileManager.default.contentsOfDirectory(
+        guard var dirs = try? FileManager.default.contentsOfDirectory(
             at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
         else { return 0 }
+        // This Mac's figure includes the install rollback points: they are this
+        // Mac's disk too, inside the outbox, and the hidden directory that keeps
+        // every sweep off them would otherwise keep them out of the total. Not
+        // in ``listing()``'s rows, so the Clean Up sheet's sum is lower by them.
+        if root.standardizedFileURL == outboxRoot.standardizedFileURL {
+            dirs += (try? FileManager.default.contentsOfDirectory(
+                at: rollbackPointsRoot, includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles])) ?? []
+        }
         // Through the same index the listing reads, which is what makes the two
         // agree and what lets the settings page's own measurement pay for the
         // sheet's: by the time "Clean Up…" is pressed, this has already been asked.
@@ -2458,12 +2679,17 @@ extension BackupStore {
     /// there was nothing left to delete — the caller then gives up its copy.
     /// `target` is the floor unless an install is making room to apply; see
     /// ``DiskSpaceGuard/ensureRoom(for:sparing:)``.
+    ///
+    /// `mayDelete` false asks only the question — is free space at `target` —
+    /// and deletes nothing: the answer for a copy that is not worth anyone's
+    /// backup (an install rollback point).
     static func reclaimFreeSpace(
-        sparing key: String, target: Int64 = freeSpaceFloorBytes
+        sparing key: String, target: Int64 = freeSpaceFloorBytes, mayDelete: Bool = true
     ) async -> Bool {
         if let raw = outboxRawFreeBytes(), raw >= target { return true }
         guard var free = outboxFreeBytes() else { return true }
         if free >= target { return true }
+        guard mayDelete else { return false }
         let root = outboxRoot
         let isExternal = destination.kind == .external
         let oldestFirst: [(key: String, meta: Meta)] = storedKeys(in: root)
@@ -2522,7 +2748,7 @@ extension BackupStore {
     /// always has. Two unstructured tasks rather than a task group — see the
     /// Swift 6.4 release-build miscompile around `for await` over a group.
     static func runDittoWatchingSpace(
-        from src: URL, to dst: URL, key: String
+        from src: URL, to dst: URL, key: String, mayDeleteBackups: Bool = true
     ) async -> (outcome: DittoOutcome, outOfSpace: Bool) {
         let copy = Task { await runDitto(from: src, to: dst, onCancel: .terminateChild) }
         let interval = spaceWatchIntervalOverride ?? .milliseconds(500)
@@ -2530,7 +2756,7 @@ extension BackupStore {
             while !Task.isCancelled {
                 try? await Task.sleep(for: interval)
                 if Task.isCancelled { return false }
-                if await !reclaimFreeSpace(sparing: key) {
+                if await !reclaimFreeSpace(sparing: key, mayDelete: mayDeleteBackups) {
                     copy.cancel()
                     return true
                 }

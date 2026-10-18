@@ -22,12 +22,14 @@ import Foundation
 ///
 /// Three points, in order:
 /// 1. **Before anything is fetched** an install reserves what it is expected
-///    to use (``SpaceLedger``). With not enough room it waits for the other
+///    to use (``SpaceLedger``). With not enough room it first deletes kept
+///    partial downloads (``ResumableDownloadStore``), then waits for the other
 ///    installs to finish and give theirs back, and is refused only when none
 ///    is running and there is still not enough.
 /// 2. **While downloading** free space is watched (``watching(sparing:_:)``).
-///    A fall under the floor deletes this Mac's oldest backups until it is
-///    back above; with nothing left to delete the download is stopped.
+///    A fall under the floor deletes kept partial downloads, then this Mac's
+///    oldest backups, until it is back above; with nothing left to delete the
+///    download is stopped.
 /// 3. **Right before the swap** the room the swap needs is checked once more
 ///    (``ensureRoom(for:sparing:)``), with the same deletions if short. A
 ///    refusal here leaves nothing changed on disk.
@@ -116,6 +118,12 @@ public enum DiskSpaceGuard {
                     }
                     return reserved > 0 ? .wait : .refuse
                 }
+                // Kept partial downloads give their space up before an install
+                // is made to wait or refused for want of it. Asked again at
+                // once: what they held is free now.
+                if decision != .granted, ResumableDownloadStore.discardAllForSpace() > 0 {
+                    continue
+                }
                 switch decision {
                 case .granted:
                     if waited { Log.install.notice("disk space: room for \(bytes, privacy: .public) bytes now — install continues") }
@@ -151,15 +159,21 @@ public enum DiskSpaceGuard {
     static func watching<T: Sendable>(
         sparing key: String, _ body: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-        let work = Task { try await body() }
-        let ranOut = Flag()
+        // Bound for `body`'s task, so a download inside it can tell this stop
+        // from any other cancellation and keep nothing (see
+        // `ResumableDownloadStore.outOfSpace`). Set before `work.cancel()`, so
+        // whatever runs on that cancellation already sees it.
+        let ranOut = ResumableDownloadStore.OutOfSpace()
+        let work = ResumableDownloadStore.$outOfSpace.withValue(ranOut) {
+            Task { try await body() }
+        }
         let interval = BackupStore.spaceWatchIntervalOverride ?? .milliseconds(500)
         let watcher = Task {
             while !Task.isCancelled {
                 // cancel-ok: the loop checks Task.isCancelled every pass (its while condition)
                 try? await Task.sleep(for: interval)
                 if Task.isCancelled { return }
-                if await !BackupStore.reclaimFreeSpace(sparing: key) {
+                if await !reclaim(sparing: key) {
                     ranOut.set()
                     work.cancel()
                     return
@@ -186,16 +200,24 @@ public enum DiskSpaceGuard {
     /// Throws ``InsufficientSpace`` when it cannot be done.
     static func ensureRoom(for bytes: Int64, sparing key: String) async throws {
         let target = BackupStore.freeSpaceFloorBytes + bytes
-        if await BackupStore.reclaimFreeSpace(sparing: key, target: target) { return }
+        if await reclaim(sparing: key, target: target) { return }
         let free = BackupStore.outboxFreeBytes() ?? 0
         Log.install.error("disk space: install stopped before its swap — \(free, privacy: .public) bytes free, needs \(target, privacy: .public)")
         throw InsufficientSpace(needed: target, free: free)
     }
 
-    private final class Flag: @unchecked Sendable {
-        private let lock = NSLock()
-        private var value = false
-        func set() { lock.withLock { value = true } }
-        var isSet: Bool { lock.withLock { value } }
+    /// Free space back to `target`: kept partial downloads first
+    /// (`ResumableDownloadStore`), then this Mac's oldest backups (never
+    /// `key`'s). A partial is only kept to save a re-download; a backup is a
+    /// rollback point that cannot be fetched again, so it is never the one to
+    /// go while a partial is still holding space.
+    static func reclaim(
+        sparing key: String, target: Int64 = BackupStore.freeSpaceFloorBytes
+    ) async -> Bool {
+        if let raw = BackupStore.outboxRawFreeBytes(), raw >= target { return true }
+        if let free = BackupStore.outboxFreeBytes(), free < target {
+            ResumableDownloadStore.discardAllForSpace()
+        }
+        return await BackupStore.reclaimFreeSpace(sparing: key, target: target)
     }
 }

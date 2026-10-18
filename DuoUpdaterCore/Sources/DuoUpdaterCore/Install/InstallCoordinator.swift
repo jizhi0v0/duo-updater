@@ -793,6 +793,9 @@ public actor InstallCoordinator {
         permits.signalApply()
         applyHeld = false
         Log.install.debug("\(label, privacy: .public): applied")
+        // Installed: whatever partial download this app left behind
+        // (`ResumableDownloadStore`) is for a version it no longer needs.
+        ResumableDownloadStore.discard(forApp: result.app.id)
 
         return Outcome(
             bytesDownloaded: downloaded.bytesDownloaded, finalHost: downloaded.finalHost,

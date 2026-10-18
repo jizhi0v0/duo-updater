@@ -2075,6 +2075,9 @@ final class AppListModel {
             await eventStore.importLegacyTraffic()
             await refreshTrafficStats()
         }
+        // Delete partial downloads kept for resuming once they age out — now, for
+        // whatever an earlier run or `duo` left, and on a timer from here on.
+        ResumableDownloadStore.startSweeping()
         // Arm the background auto-check loop at launch — not on first menu open —
         // so a menu-bar app that's never clicked still checks on schedule.
         reschedule()

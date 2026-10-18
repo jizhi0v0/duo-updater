@@ -2754,6 +2754,7 @@ extension BackupStore {
         let interval = spaceWatchIntervalOverride ?? .milliseconds(500)
         let watcher = Task<Bool, Never> {
             while !Task.isCancelled {
+                // cancel-ok: the loop checks Task.isCancelled every pass (its while condition)
                 try? await Task.sleep(for: interval)
                 if Task.isCancelled { return false }
                 if await !reclaimFreeSpace(sparing: key, mayDelete: mayDeleteBackups) {

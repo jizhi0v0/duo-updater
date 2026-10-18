@@ -513,6 +513,7 @@ public actor AppStoreAXInstaller {
         try? await navigate("macappstore://showUpdatesPage")
         // Let the Updates view load before reloading it — reloading reissues the
         // server-side update check, which is what recomputes the count.
+        // cancel-ok: one-shot pause, not in a loop
         try? await Task.sleep(for: .seconds(1))
         reloadUpdatesPage(in: AXUIElementCreateApplication(pid))
     }
@@ -539,6 +540,7 @@ public actor AppStoreAXInstaller {
             collect(axApp, id: "AppStore.productPage.backButton", into: &found)
             guard let back = found.first else { return }
             AXUIElementPerformAction(back, kAXPressAction as CFString)
+            // cancel-ok: loop capped at 6 presses; a cancelled task finishes them, no spin
             try? await Task.sleep(for: .milliseconds(300))  // let the pop land
         }
     }
@@ -1290,6 +1292,7 @@ public actor AppStoreAXInstaller {
                 Log.install.notice("appstore-ax: \(appName, privacy: .public) quit — App Store can now swap in the update")
                 return
             }
+            // cancel-ok: runs inside the App Store commit (InstallCommit.run "App Store press") via driveToCompletion
             try? await Task.sleep(for: .milliseconds(200))
         }
         Log.install.error("appstore-ax: \(appName, privacy: .public) won't quit within 12s — leaving it; the swap waits on the user now")

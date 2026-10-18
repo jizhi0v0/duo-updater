@@ -114,6 +114,7 @@ enum CLIToolAdministratorRun {
             let text = CLIToolAdministratorRun.shell(
                 command: command, directory: directory.path, proxies: CLIToolAdministratorRun.proxies(environment()))
             progress(CLIToolAdministratorRun.waitingLine)
+            // cancel-ok: one-shot pause before the commit; InstallCommit.run below refuses a cancelled caller
             try? await Task.sleep(for: beforePanel)
             // The tool's point of no return (`InstallCommit`), from raising the
             // panel through following the run: an authorized command is root's
@@ -176,6 +177,7 @@ enum CLIToolAdministratorRun {
                 }
                 drain()
                 if clock.now >= limit { break }
+                // cancel-ok: runs inside InstallCommit.run ("administrator run"), whose body no cancel reaches
                 try? await Task.sleep(for: poll)
             }
             drain()

@@ -142,7 +142,7 @@ public enum StagedRelaunch {
 
         public static func live(for app: InstalledApp) -> System {
             System(
-                tick: { try? await Task.sleep(for: .milliseconds(200)) },
+                tick: { try? await Task.sleep(for: .milliseconds(200)) },  // cancel-ok: tick is called only by quitAndAwaitSwap, inside InstallCommit.run ("relaunch")
                 isRunning: { !AppRestarter.runningInstances(of: app).isEmpty },
                 terminate: { for instance in AppRestarter.runningInstances(of: app) { instance.terminate() } },
                 diskVersion: {

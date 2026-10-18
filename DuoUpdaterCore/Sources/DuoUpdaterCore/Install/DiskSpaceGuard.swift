@@ -156,6 +156,7 @@ public enum DiskSpaceGuard {
         let interval = BackupStore.spaceWatchIntervalOverride ?? .milliseconds(500)
         let watcher = Task {
             while !Task.isCancelled {
+                // cancel-ok: the loop checks Task.isCancelled every pass (its while condition)
                 try? await Task.sleep(for: interval)
                 if Task.isCancelled { return }
                 if await !BackupStore.reclaimFreeSpace(sparing: key) {

@@ -222,7 +222,8 @@ public struct SparkleAppcastSource: UpdateSource {
     ///
     /// Every other app gets `data` back unchanged. An app that requires a signed
     /// feed but has no EdDSA key cannot start Sparkle at all (`SPUUpdater.m`
-    /// refuses it), so there is nothing of the vendor's to mirror.
+    /// refuses it), so there is nothing of the vendor's to mirror. Nor is there
+    /// for an app whose bundled Sparkle predates 2.9 (`predatesSignedFeeds`).
     ///
     /// The plist is read fresh, as Sparkle reads it for a bundle other than its
     /// own (`SUHost.m`, `objectForInfoDictionaryKey:ofClasses:`).
@@ -231,7 +232,8 @@ public struct SparkleAppcastSource: UpdateSource {
         guard requiresSignedFeed(plist),
               let key = (plist["SUPublicEDKey"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
-              !key.isEmpty
+              !key.isEmpty,
+              !predatesSignedFeeds(AppScanner.sparkleFrameworks(in: app.path))
         else { return data }
         guard let (content, signature) = signedFeedParts(data), signature != nil else {
             throw SparkleError.feedSignatureMissing
@@ -243,6 +245,41 @@ public struct SparkleAppcastSource: UpdateSource {
             throw SparkleError.feedSignatureInvalid
         }
         return content
+    }
+
+    /// True when every `Sparkle.framework` the app could update from is older than
+    /// 2.9, the release that added feed signing. Such an app's own updater ignores
+    /// `SURequireSignedFeed` and verifies no feed signature, so checking one here
+    /// would refuse a feed the app itself accepts, and its vendor's tools of that
+    /// era wrote none. (The archive is still EdDSA-checked against the installed
+    /// key, and an older build is still refused by the downgrade gate, #1410.)
+    ///
+    /// Checked against Sparkle's source on 2026-10-18: tag 2.8.1 has no
+    /// `SURequireSignedFeed`, `sparkle-signatures` or `requiresSignedAppcast`
+    /// anywhere; 2.9.0's CHANGELOG opens with "Add support for signing and
+    /// verifying appcast feeds" (#2822, #2828); `SPUExtractSignedFeed.m` and the
+    /// `requiresSignedAppcast` check in `SUAppcastDriver.m` are already in
+    /// 2.9.0-beta.1. So the cutoff is major.minor 2.9, betas included.
+    ///
+    /// False — check the feed — when there is no framework to read or any one's
+    /// version is missing or not a number: an unreadable version is not evidence
+    /// that the vendor's updater skips the check.
+    static func predatesSignedFeeds(_ frameworks: [URL]) -> Bool {
+        guard !frameworks.isEmpty else { return false }
+        return frameworks.allSatisfy { framework in
+            // `Resources` is the framework's symlink into `Versions/Current`.
+            guard let data = try? Data(contentsOf: framework.appendingPathComponent("Resources/Info.plist")),
+                  let info = try? PropertyListSerialization.propertyList(from: data, format: nil)
+                    as? [String: Any],
+                  let version = info["CFBundleShortVersionString"] as? String
+            else { return false }
+            let parts = version.split(separator: ".", omittingEmptySubsequences: false)
+            guard parts.count >= 2,
+                  let major = Int(parts[0]),
+                  let minor = Int(parts[1].prefix { $0.isNumber })
+            else { return false }
+            return (major, minor) < (2, 9)
+        }
     }
 
     /// `SURequireSignedFeed` read with Sparkle's bool rules (`SUHost.m`,

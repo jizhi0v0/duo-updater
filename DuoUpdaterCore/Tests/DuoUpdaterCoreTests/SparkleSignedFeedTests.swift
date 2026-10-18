@@ -32,13 +32,14 @@ import CryptoKit
 
     /// An installed copy on disk with `info` as its Info.plist — the check reads
     /// the plist fresh, as Sparkle does.
-    private static func app(_ info: [String: Any]) throws -> InstalledApp {
+    private static func app(_ info: [String: Any], sparkle frameworks: [Framework] = []) throws -> InstalledApp {
         let bundle = FileManager.default.temporaryDirectory
             .appendingPathComponent("SparkleSignedFeedTests-\(UUID().uuidString)/Subject.app")
         let contents = bundle.appendingPathComponent("Contents")
         try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
         let plist = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
         try plist.write(to: contents.appendingPathComponent("Info.plist"))
+        for framework in frameworks { try framework.write(into: bundle) }
         return InstalledApp(
             name: "Subject", bundleID: "com.example.subject", shortVersion: "1.0",
             buildVersion: "100", path: bundle, isMASApp: false,
@@ -57,6 +58,44 @@ import CryptoKit
             }
         }
         var testDescription: String { "\(self)" }
+    }
+
+    /// A bundled `Sparkle.framework`, laid out as Sparkle ships it: the plist in
+    /// `Versions/B/Resources`, reached through the `Versions/Current` and
+    /// `Resources` symlinks.
+    struct Framework: Sendable, CustomTestStringConvertible {
+        enum Version: Sendable { case short(String), noVersionKey, noPlist }
+        var version: Version
+        /// Helium's layout: inside another framework rather than at the top.
+        var nested = false
+
+        static func sparkle(_ v: String, nested: Bool = false) -> Framework {
+            Framework(version: .short(v), nested: nested)
+        }
+
+        func write(into bundle: URL) throws {
+            let fm = FileManager.default
+            let framework = nested
+                ? bundle.appendingPathComponent("Contents/Frameworks/Host Framework.framework/Frameworks/Sparkle.framework")
+                : bundle.appendingPathComponent("Contents/Frameworks/Sparkle.framework")
+            let resources = framework.appendingPathComponent("Versions/B/Resources")
+            try fm.createDirectory(at: resources, withIntermediateDirectories: true)
+            try fm.createSymbolicLink(
+                atPath: framework.appendingPathComponent("Versions/Current").path, withDestinationPath: "B")
+            try fm.createSymbolicLink(
+                atPath: framework.appendingPathComponent("Resources").path,
+                withDestinationPath: "Versions/Current/Resources")
+            var info: [String: Any] = ["CFBundleIdentifier": "org.sparkle-project.Sparkle"]
+            switch version {
+            case .noPlist: return
+            case .noVersionKey: break
+            case .short(let v): info["CFBundleShortVersionString"] = v
+            }
+            try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+                .write(to: resources.appendingPathComponent("Info.plist"))
+        }
+
+        var testDescription: String { "\(version)\(nested ? " nested" : "")" }
     }
 
     private static func requiring(_ key: Curve25519.Signing.PrivateKey, flag: Flag = .bool(true)) -> [String: Any] {
@@ -247,6 +286,65 @@ import CryptoKit
         #expect(try SparkleAppcastSource.verifiedFeedContent(unsigned, for: app) == unsigned)
         let signed = try Self.signed(Self.feedBody, with: key)
         #expect(try SparkleAppcastSource.verifiedFeedContent(signed, for: app) == signed)
+    }
+
+    // MARK: Bundled Sparkle older than 2.9
+
+    /// Sparkle before 2.9 has no feed signing at all (tag 2.8.1 has no
+    /// `SURequireSignedFeed` anywhere), so its updater reads the feed unchecked
+    /// and so do we. Mutation: drop the `predatesSignedFeeds` guard → red.
+    @Test(arguments: [
+        [Framework.sparkle("2.8.1")],
+        [.sparkle("1.27.3")],
+        [.sparkle("2.8.1"), .sparkle("2.6.4", nested: true)],
+    ])
+    func anAppOnSparkleOlderThan29IsNotChecked(_ frameworks: [Framework]) async throws {
+        let key = Curve25519.Signing.PrivateKey()
+        let app = try Self.app(Self.requiring(key), sparkle: frameworks)
+        FeedProtocol.serve(Data(Self.feedBody.utf8), at: app.sparkleFeedURL!)
+        let remote = try await Self.source().latestVersion(for: app)
+        #expect(remote?.version == "200")
+    }
+
+    /// 2.9 and later, the 2.9.0 betas included (`SPUExtractSignedFeed.m` is in
+    /// 2.9.0-beta.1), are checked; so is a mix where any one framework is 2.9+.
+    /// Mutation: compare against "2.9" with `VersionComparator` (a beta sorts
+    /// below it), or skip when ANY framework is old → red.
+    @Test(arguments: [
+        [Framework.sparkle("2.9.0-beta.1")],
+        [.sparkle("2.9.0")],
+        [.sparkle("2.9.5")],
+        [.sparkle("2.10.0")],
+        [.sparkle("3.0")],
+        [.sparkle("2.8.1"), .sparkle("2.9.5", nested: true)],
+        [.sparkle("2.9.5", nested: true)],
+    ])
+    func anAppOnSparkle29OrLaterIsChecked(_ frameworks: [Framework]) async throws {
+        let key = Curve25519.Signing.PrivateKey()
+        let app = try Self.app(Self.requiring(key), sparkle: frameworks)
+        await Self.expectRefusal(.feedSignatureMissing) {
+            _ = try SparkleAppcastSource.verifiedFeedContent(Data(Self.feedBody.utf8), for: app)
+        }
+    }
+
+    /// No framework found, or a version that cannot be read, is not evidence the
+    /// app's updater skips the check: checked. Mutation: treat an unreadable
+    /// version as old → red.
+    @Test(arguments: [
+        [Framework](),
+        [Framework(version: .noPlist)],
+        [Framework(version: .noVersionKey)],
+        [.sparkle("")],
+        [.sparkle("2")],
+        [.sparkle("beta")],
+        [.sparkle("2.8.1"), Framework(version: .noVersionKey, nested: true)],
+    ])
+    func anUnreadableSparkleVersionIsChecked(_ frameworks: [Framework]) async throws {
+        let key = Curve25519.Signing.PrivateKey()
+        let app = try Self.app(Self.requiring(key), sparkle: frameworks)
+        await Self.expectRefusal(.feedSignatureMissing) {
+            _ = try SparkleAppcastSource.verifiedFeedContent(Data(Self.feedBody.utf8), for: app)
+        }
     }
 
     // MARK: Fixture server

@@ -111,7 +111,9 @@ final class QuitCoordinator {
         }
         let reason: QuitGuard.Reason = fromSignal
             ? .signal
-            : QuitGuard.reason(quitEventReason: quitReason, isQuitEvent: isQuitEvent)
+            : QuitGuard.reason(
+                quitEventReason: quitReason, isQuitEvent: isQuitEvent,
+                selfUpdateInstalling: AppUpdater.shared.isInstallingSelfUpdate)
         let decision = QuitGuard.decide(work, reason: reason)
         Log.app.notice("quit: \(String(describing: reason), privacy: .public) with \(work.displayNames.joined(separator: ", "), privacy: .public)\(work.unnamed ? " (+ unnamed)" : "", privacy: .public) in flight → \(String(describing: decision), privacy: .public)")
         switch decision {
@@ -211,32 +213,28 @@ extension AppListModel {
     /// `canRefresh` also counts scans and checks, which a quit interrupts
     /// harmlessly — and nothing outside this model. This one adds what runs
     /// beside it: Homebrew, command-line tools, the Xcode download center.
+    ///
+    /// Also what the silent self-update waits out (`QuitGuard.selfUpdateMayInstall`).
     var quitGuardWork: QuitGuard.Work {
-        var unnamed = isInstallingAll || cliTools.updatingAll
-        var names: [String] = []
         func name(_ id: String) -> String? {
-            guard let row = results.first(where: { $0.id == id }) else {
-                unnamed = true
-                return nil
-            }
-            return row.app.name
+            results.first(where: { $0.id == id })?.app.name
         }
-        // Any stage, `.queued` and `.checking` included: a rollback also writes
-        // `.installing` here, and the stage cannot tell a real install's opening
-        // check from a recheck (see `bundleChanges`). A recheck makes the dialog
-        // appear for a second or two; missing an install deletes an app.
-        names += installing.keys.sorted().compactMap(name)
-        names += relaunching.sorted().compactMap(name)
-        if brewUpgrading || homebrewUpdating { names.append("Homebrew") }
-        names += upgradingFormulae.sorted()
-        // `awaitingCheck`: the update has run, only the re-check is left.
-        names += cliTools.updating.subtracting(cliTools.awaitingCheck)
-            .map(\.kind.displayName).sorted()
         let xcode = XcodeDownloadCenter.shared
-        if let active = xcode.activeID {
-            names.append(xcode.items.first { $0.id == active }
-                .map { "Xcode \($0.displayVersion)" } ?? "Xcode")
-        }
-        return QuitGuard.Work(names: names, unnamed: unnamed)
+        return QuitGuard.work(
+            // Any stage, `.queued` and `.checking` included: a rollback also writes
+            // `.installing` here, and the stage cannot tell a real install's opening
+            // check from a recheck (see `bundleChanges`). A recheck makes the dialog
+            // appear for a second or two; missing an install deletes an app.
+            rowNames: installing.keys.sorted().map(name) + relaunching.sorted().map(name),
+            batchRunning: isInstallingAll || cliTools.updatingAll,
+            homebrewRunning: brewUpgrading || homebrewUpdating,
+            formulae: upgradingFormulae.sorted(),
+            // `awaitingCheck`: the update has run, only the re-check is left.
+            cliTools: cliTools.updating.subtracting(cliTools.awaitingCheck)
+                .map(\.kind.displayName).sorted(),
+            xcode: xcode.activeID.map { active in
+                xcode.items.first { $0.id == active }
+                    .map { "Xcode \($0.displayVersion)" } ?? "Xcode"
+            })
     }
 }

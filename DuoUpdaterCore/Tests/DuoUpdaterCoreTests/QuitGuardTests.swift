@@ -104,4 +104,76 @@ struct QuitGuardTests {
     func reasonOnOtherEventIgnored() {
         #expect(QuitGuard.reason(quitEventReason: Self.code("shut"), isQuitEvent: false) == .user)
     }
+
+    // MARK: - Our own silent self-update
+
+    /// Sparkle's installer quits us with a quit Apple event that carries no
+    /// reason — the same shape as Activity Monitor's Quit. Nobody asked for it,
+    /// so it must never put up the dialog (or activate the app): wait, then go.
+    @Test("a self-update quit mid-work waits without asking")
+    func selfUpdateWaits() {
+        let work = QuitGuard.Work(names: ["ripgrep"])
+        #expect(QuitGuard.decide(work, reason: .selfUpdate) == .waitSilently)
+    }
+
+    @Test("a self-update quit while idle quits now")
+    func selfUpdateIdleQuitsNow() {
+        #expect(QuitGuard.decide(QuitGuard.Work(), reason: .selfUpdate) == .quitNow)
+    }
+
+    /// While our self-update is installing, a reasonless quit event is Sparkle's,
+    /// not the user's — and so is any other quit in that window.
+    @Test("any quit during our self-update install is the self-update", arguments: [
+        (UInt32?.none, true), (UInt32?.none, false),
+    ])
+    func selfUpdateReason(code: UInt32?, isQuitEvent: Bool) {
+        #expect(QuitGuard.reason(quitEventReason: code, isQuitEvent: isQuitEvent,
+                                 selfUpdateInstalling: true) == .selfUpdate)
+        #expect(QuitGuard.reason(quitEventReason: code, isQuitEvent: isQuitEvent,
+                                 selfUpdateInstalling: false) == .user)
+    }
+
+    // MARK: - What the self-update idle probe waits for
+
+    /// The bug the review found: the self-update probe only read the list's own
+    /// activity, so a Homebrew, CLI-tool or Xcode job alone looked idle, and the
+    /// self-update quit walked into it. Each of them alone must block it.
+    @Test("each job beside the list blocks the self-update on its own", arguments: [
+        QuitGuard.work(rowNames: [], batchRunning: false, homebrewRunning: true,
+                       formulae: [], cliTools: [], xcode: nil),
+        QuitGuard.work(rowNames: [], batchRunning: false, homebrewRunning: false,
+                       formulae: ["ripgrep"], cliTools: [], xcode: nil),
+        QuitGuard.work(rowNames: [], batchRunning: false, homebrewRunning: false,
+                       formulae: [], cliTools: ["Claude Code"], xcode: nil),
+        QuitGuard.work(rowNames: [], batchRunning: false, homebrewRunning: false,
+                       formulae: [], cliTools: [], xcode: "Xcode 27.1"),
+        QuitGuard.work(rowNames: [nil], batchRunning: false, homebrewRunning: false,
+                       formulae: [], cliTools: [], xcode: nil),
+        QuitGuard.work(rowNames: [], batchRunning: true, homebrewRunning: false,
+                       formulae: [], cliTools: [], xcode: nil),
+    ])
+    func sideJobsBlockSelfUpdate(work: QuitGuard.Work) {
+        #expect(work.isEmpty == false)
+        #expect(QuitGuard.selfUpdateMayInstall(listIdle: true, work: work) == false)
+    }
+
+    @Test("the self-update installs only when the list and the work are both idle")
+    func selfUpdateNeedsBothIdle() {
+        let none = QuitGuard.work(rowNames: [], batchRunning: false, homebrewRunning: false,
+                                  formulae: [], cliTools: [], xcode: nil)
+        #expect(none.isEmpty)
+        #expect(QuitGuard.selfUpdateMayInstall(listIdle: true, work: none))
+        #expect(QuitGuard.selfUpdateMayInstall(listIdle: false, work: none) == false)
+    }
+
+    /// Names in the order the dialog reads them; a row gone from the list is
+    /// still busy, just nameless.
+    @Test("gathered names keep their sources' order")
+    func gatheredNames() {
+        let work = QuitGuard.work(rowNames: ["Arc", nil], batchRunning: false,
+                                  homebrewRunning: true, formulae: ["jq"],
+                                  cliTools: ["uv"], xcode: "Xcode 27.1")
+        #expect(work.names == ["Arc", "Homebrew", "jq", "uv", "Xcode 27.1"])
+        #expect(work.unnamed)
+    }
 }

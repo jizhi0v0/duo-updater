@@ -28,6 +28,15 @@ public enum QuitGuard {
         case sessionEnding
         /// SIGTERM — `kill <pid>`, launchd stopping a job.
         case signal
+        /// Our own silent self-update is installing. Sparkle's installer quits us
+        /// with a quit Apple event that carries no reason (Sparkle 2.10.0,
+        /// `InstallerProgressAppController.sendTerminationSignal` →
+        /// `-[NSRunningApplication terminate]`) — indistinguishable by the event
+        /// from Activity Monitor's Quit, so it is told apart by our own flag
+        /// (`reason(…selfUpdateInstalling:)`). Nobody asked for this quit, so it
+        /// must never raise the dialog or activate the app, and after "Don't
+        /// Quit" Sparkle would only send it again a minute later.
+        case selfUpdate
     }
 
     /// The answer.
@@ -77,7 +86,7 @@ public enum QuitGuard {
         guard !work.isEmpty else { return .quitNow }
         switch reason {
         case .user: return .ask(work.displayNames)
-        case .sessionEnding, .signal: return .waitSilently
+        case .sessionEnding, .signal, .selfUpdate: return .waitSilently
         }
     }
 
@@ -113,9 +122,51 @@ public enum QuitGuard {
     ///
     /// An unrecognized reason counts as the user: the user can still say no to
     /// the dialog, while a wrong "session ending" would wait without a word.
-    public static func reason(quitEventReason: UInt32?, isQuitEvent: Bool) -> Reason {
+    ///   - selfUpdateInstalling: our own self-update has been told to install and
+    ///     relaunch. Wins over everything else: any quit in that window is either
+    ///     Sparkle's or comes too late to be worth a question.
+    public static func reason(
+        quitEventReason: UInt32?, isQuitEvent: Bool, selfUpdateInstalling: Bool = false
+    ) -> Reason {
+        if selfUpdateInstalling { return .selfUpdate }
         guard isQuitEvent, let code = quitEventReason,
               sessionEndingReasons.contains(code) else { return .user }
         return .sessionEnding
+    }
+
+    // MARK: - Gathering the work, and the self-update's gate
+
+    /// Build `Work` from what the app has in flight, in the order the dialog
+    /// names it. Here rather than in the app so the one list both the quit guard
+    /// and the self-update gate read is under test.
+    ///
+    /// - Parameters:
+    ///   - rowNames: one entry per app row installing or relaunching; nil for a
+    ///     row whose result has gone from the list (busy, nameless).
+    ///   - batchRunning: an Update All, app or CLI tool, is running — covers the
+    ///     moment between one row finishing and the next being claimed.
+    ///   - homebrewRunning: `brew upgrade` of every formula, or `brew update`.
+    ///   - formulae: formulae with a per-row `brew upgrade` in flight.
+    ///   - cliTools: command-line tools whose update command is running.
+    ///   - xcode: the Xcode download center's active item, if any.
+    public static func work(
+        rowNames: [String?], batchRunning: Bool, homebrewRunning: Bool,
+        formulae: [String], cliTools: [String], xcode: String?
+    ) -> Work {
+        var names = rowNames.compactMap { $0 }
+        if homebrewRunning { names.append("Homebrew") }
+        names += formulae
+        names += cliTools
+        if let xcode { names.append(xcode) }
+        return Work(names: names, unnamed: batchRunning || rowNames.contains(nil))
+    }
+
+    /// Whether the silent self-update may quit us now: the list is idle
+    /// (`ListActivity.canRefresh`) AND nothing the quit guard counts is in
+    /// flight. The list alone missed Homebrew, CLI tools and Xcode — the
+    /// self-update then quit into them, and the guard put up a dialog nobody
+    /// asked for.
+    public static func selfUpdateMayInstall(listIdle: Bool, work: Work) -> Bool {
+        listIdle && work.isEmpty
     }
 }

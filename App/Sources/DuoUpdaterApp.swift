@@ -150,9 +150,13 @@ private struct MenuBarLabel: View {
             AppUpdater.shared.setIdleProbe { [weak model] in
                 guard let model else { return false }
                 // Nothing of ours may be in flight: a scan, a check, any install,
-                // or an app still waiting to be relaunched. Quitting through one of
-                // those is the interruption this gate exists to prevent.
-                guard model.canRefresh, model.relaunching.isEmpty else { return false }
+                // an app still waiting to be relaunched, Homebrew, a CLI tool, an
+                // Xcode install. Quitting through one of those is the interruption
+                // this gate exists to prevent — and the quit guard would answer it
+                // with a dialog nobody asked for. Same list the guard reads.
+                guard QuitGuard.selfUpdateMayInstall(
+                    listIdle: model.canRefresh, work: model.quitGuardWork)
+                else { return false }
                 // Open windows do NOT block: macOS restores them across the quit and
                 // relaunch on its own — measured, with nothing of ours involved, so
                 // a hand-written restore would only duplicate it (and the version

@@ -230,7 +230,7 @@ jobs:
       - name: Stop simdiskimaged
         if: runner.environment == 'github-hosted'
         run: |
-          sudo launchctl disable system/com.apple.CoreSimulator.simdiskimaged
+          sudo launchctl disable system/com.apple.CoreSimulator.simdiskimaged || true
           sudo launchctl bootout system/com.apple.CoreSimulator.simdiskimaged || true
           sleep 2
           if pgrep -lf simdiskimaged; then echo "::warning::simdiskimaged is still running"; fi
@@ -450,7 +450,7 @@ jobs:
       - name: Stop simdiskimaged
         if: runner.environment == 'github-hosted'
         run: |
-          sudo launchctl disable system/com.apple.CoreSimulator.simdiskimaged
+          sudo launchctl disable system/com.apple.CoreSimulator.simdiskimaged || true
           sudo launchctl bootout system/com.apple.CoreSimulator.simdiskimaged || true
           sleep 2
           if pgrep -lf simdiskimaged; then echo "::warning::simdiskimaged is still running"; fi

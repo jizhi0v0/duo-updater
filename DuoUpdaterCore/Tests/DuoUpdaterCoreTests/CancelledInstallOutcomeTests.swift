@@ -152,7 +152,7 @@ import Testing
             let pointsLeft = BackupStore.allRollbackPoints()
             let entriesLeft = Self.entries(BackupStore.rollbackPointsRoot)
             // Ends the claim `takeInstallRollbackPoint` began, as the hosts' defer does.
-            await InstallCoordinator.settleInstallRollbackPoint(for: installed)
+            await InstallCoordinator.settleInstallRollbackPoint(for: installed, journal: nil, succeeded: false)
             try #require(cut.fired, "the copy finished before the watcher's first tick — nothing was cancelled mid-copy")
             #expect(!saved)
             #expect(pointsLeft.isEmpty)

@@ -368,8 +368,13 @@ Store updates fail and DuoUpdater says where to switch it on.
 installs to the GUI route in Settings, and to close Installer's window after a
 package update; without it that window stays open for you to close.
 
-**Automation** — not requested. Quitting and relaunching an app after updating it
-does not ask for it.
+**Automation** — DuoUpdater's own code never asks for it: quitting and
+relaunching an app after updating it does not. Apps updated through Homebrew are the
+exception: when the cask names something to quit (`uninstall quit:`) and it is
+still running, Homebrew quits it with `osascript`. macOS may then ask whether
+DuoUpdater can control that app, or refuse without asking (DuoUpdater doesn't
+carry the Apple Events entitlement); if refused, Homebrew gives up after 10 s,
+warns that the app did not quit, and goes on. Neither outcome was measured.
 
 ## `duo`, the command line
 

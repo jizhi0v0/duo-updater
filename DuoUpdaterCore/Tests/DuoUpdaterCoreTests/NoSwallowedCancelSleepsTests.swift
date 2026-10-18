@@ -40,11 +40,7 @@ struct NoSwallowedCancelSleepsTests {
     /// Known spins this package does not fix. `path` is relative to
     /// `DuoUpdaterCore/Sources/DuoUpdaterCore`; `line` is a substring of the
     /// offending line.
-    private static let pendingSpins: [(path: String, line: String, reason: String)] = [
-        (path: "CLITools/LorcaUpdater.swift",
-         line: "try? await Task.sleep(for: pollInterval)",
-         reason: "settle wait (up to 5 min) runs after the command's commit with no cancel check; a cancelled update keeps polling"),
-    ]
+    private static let pendingSpins: [(path: String, line: String, reason: String)] = []
 
     @Test func everySwallowedSleepIsCancelSafeOrPending() throws {
         let sourcesRoot = Self.repoRoot

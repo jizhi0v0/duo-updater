@@ -54,6 +54,58 @@ public enum Install {
         return .success(resolved)
     }
 
+    /// Why an app is skipped while an earlier install of it still runs.
+    static func stillRunningReason(pid: Int32) -> String {
+        "an earlier install of it is still running (process \(pid)); "
+            + "run this again once it has finished"
+    }
+
+    /// Why no backup or restore point is taken of an app an earlier install
+    /// of which was cut off, or is still running (`InstallCoordinator.backUp`
+    /// skips it). Says what is true of the way back: kept as it is when there
+    /// is one (`InstallJournal.wayBack`), and that there is none when there is
+    /// none — an install cut off before launch processing looked at it may
+    /// have left nothing to restore from.
+    static func earlierInstallBackupNote(
+        _ standing: InstallJournal.Standing, wayBack: InstallJournal.RestoreSource?
+    ) -> String {
+        switch standing {
+        case .stillRunning(let pid):
+            return "no new backup: an earlier install of it is still running (process \(pid))"
+        case .clear, .interrupted:
+            let kept = switch wayBack?.purpose {
+            case .installRollbackPoint?: "the restore point saved before that update stays as it is"
+            case .userBackup?: "your backup of \(wayBack?.version ?? "the previous version") stays as it is"
+            case nil: "there is no backup or restore point of it from before that update"
+            }
+            return "no new backup: an earlier update of it was interrupted, and the app on disk"
+                + " may be the copy it damaged; \(kept)"
+        }
+    }
+
+    /// The warning `install` prints for an install that was cut off and left
+    /// its app missing or broken, with the command that puts it back.
+    static func interruptedWarning(_ interrupted: InstallJournal.InterruptedInstall) -> String {
+        let state = switch interrupted.damage {
+        case .missing: "is missing"
+        case .unreadable: "is damaged"
+        case .signatureBroken: "has a broken code signature"
+        }
+        var lines = [
+            "duo: warning: an update of \(interrupted.appName) was interrupted, and the app "
+                + "\(state) at \(interrupted.appPath.path)."
+        ]
+        if let source = interrupted.restoreFrom {
+            let from = source.purpose == .installRollbackPoint
+                ? "the restore point saved before the update" : "your backup"
+            lines.append("     Restore \(source.version ?? interrupted.oldVersion ?? "the previous version") "
+                + "(from \(from)) with: duo backups restore \(Backups.shellQuoted(interrupted.appPath.path))")
+        } else {
+            lines.append("     No backup or restore point exists for it; reinstall it.")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// What `install` says when there is nothing to do. After an abandoned scan
     /// nothing was checked, and "Nothing to install." would be a claim about apps
     /// no one looked at; the exit status stays 0 either way.
@@ -71,11 +123,22 @@ public enum Install {
         }
 
         let settings = await Settings.load()
+        // What an earlier `duo` or app process killed mid-install left behind:
+        // cleaned up, and each app it left missing or broken reported, with the
+        // way back. Before the rollback sweep below, which keeps those apps'
+        // points. Skipped when another process holds the install lock.
+        await InstallJournal.processLeftovers()
+        for interrupted in InstallJournal.interruptedInstalls() {
+            FileHandle.standardError.write(Data((interruptedWarning(interrupted) + "\n").utf8))
+        }
         // Rollback points whose app reads again — left by an install whose
         // process died, or by an app since updated some other way — are no
         // longer the way back to anything. Silent; skipped when another process
         // holds the install lock.
         await InstallCoordinator.sweepSettledInstallRollbackPoints()
+        // The backstop for scratch directories no journal accounts for. The
+        // app runs it daily; `duo` exits, so it runs it each time it starts.
+        await InstallScratchSweep.sweep()
         let scanned = await Inventory.scanIfFinished(settings)
         // The app's command-line tool rows, checked as `duo check` checks them
         // (`CLIToolRows`). Not under `--route`: its names are the app install
@@ -988,6 +1051,37 @@ public enum Install {
                 continue
             }
 
+            // An earlier install of this app that is still running — an orphaned
+            // brew from a `duo` that was killed — is not raced; one that was cut
+            // off may be reinstalled over. The backup steps below then copy
+            // nothing (`InstallCoordinator.backUp` skips an app that is not
+            // clear), which is said here once, with what the way back is.
+            switch InstallJournal.standing(of: toInstall.app.path) {
+            case .stillRunning(let pid):
+                let reason = Self.stillRunningReason(pid: pid)
+                if !json { print("   \(reason)") }
+                emitSkipped(name: name, route: route, reason: reason, outcome: .skipped, json: json)
+                tally.record(.skipped)
+                continue
+            case .interrupted:
+                if !json {
+                    print("   " + Self.earlierInstallBackupNote(
+                        .interrupted, wayBack: InstallJournal.wayBack(for: toInstall.app.path)))
+                }
+            case .clear:
+                break
+            }
+            // Written before the backup and the install touch the app, removed
+            // however this item ends — so a `duo` killed mid-install leaves a
+            // record the next run can clean up after (`InstallJournal`). After
+            // the settle below (defers run last-first), which reads it.
+            // `applied` is what both are told about how the item ended: the
+            // coordinator's own word that the install landed, which the app's
+            // old path cannot say for a cask renamed in its new version.
+            var applied = false
+            let journal = await InstallJournal.begin(
+                app: toInstall.app, route: route, target: toInstall.remote?.versionSide)
+            defer { await journal?.finish(succeeded: applied) }
             // The same rollback point the menu-bar app takes, honouring the same
             // preference. Not fatal when it fails — but said out loud, because
             // the alternative is discovering the safety net is gone only when a
@@ -1012,6 +1106,8 @@ public enum Install {
                     if !json { print("   no restore point: this Mac is low on space") }
                 case .cancelled:
                     break  // said below, where the item stops
+                case .skippedForEarlierInstall:
+                    break  // said above
                 case .failed:
                     if !json { print("   could not back up — installing without a restore point") }
                 }
@@ -1027,7 +1123,10 @@ public enum Install {
             // However this item ends — installed, failed, refused, cancelled —
             // the point is settled: kept only when the app is left missing or
             // unreadable.
-            defer { await InstallCoordinator.settleInstallRollbackPoint(for: toInstall.app) }
+            defer {
+                await InstallCoordinator.settleInstallRollbackPoint(
+                    for: toInstall.app, journal: journal, succeeded: applied)
+            }
             // Cancelled during the copy (which then kept nothing) or just after
             // it (a finished backup is kept): nothing is fetched.
             if Task.isCancelled {
@@ -1036,7 +1135,8 @@ public enum Install {
                 continue
             }
             do {
-                let installOutcome = try await coordinator.perform(
+                let installOutcome = try await InstallJournal.recording(journal) {
+                    try await coordinator.perform(
                     toInstall, route: route,
                     // Nil (an abandoned scan) is passed straight through:
                     // `SelfUpdaterStash` refuses it rather than guessing there is
@@ -1050,6 +1150,7 @@ public enum Install {
                         guard !json else { return }
                         if let text = describe(stage) { print("   \(text)") }
                     })
+                }
                 // Only when the bundle is actually on disk now: an `.installer`
                 // route returns here with `applied == false` while the system
                 // installer window is still open, and the "still running the old
@@ -1058,6 +1159,7 @@ public enum Install {
                 // function `installedPayload` uses for `emit`'s `--json` row
                 // (#445) — one decision, not two independently-swappable copies
                 // of the same ternary.
+                applied = installOutcome.applied
                 let category = rowOutcome(forApplied: installOutcome.applied)
                 if installOutcome.applied {
                     attempted.append((name: name, path: toInstall.app.path, bundleID: toInstall.app.bundleID))

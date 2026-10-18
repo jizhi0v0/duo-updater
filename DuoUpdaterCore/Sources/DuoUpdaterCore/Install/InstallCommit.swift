@@ -81,6 +81,10 @@ public enum InstallCommit {
         // Throws if the registry already answered a cancel for this job, and
         // marks it committing in the same critical section otherwise.
         try InstallJobs.beginCommit(job, label: label)
+        // Written down (fsync'd) before the body touches the app: an install
+        // that ends with its app missing was the cause only if it got here
+        // (`InstallJournal.Recording.finish`).
+        InstallJournal.current?.noteCommitted()
         counter.begin(label)
         Log.install.debug("commit start: \(label, privacy: .public)")
         // SE-0504 `withTaskCancellationShield { … }` belongs here once the

@@ -155,7 +155,8 @@ final class StreamedLines: @unchecked Sendable {
         _ executablePath: String,
         _ arguments: [String],
         environment: [String: String],
-        onOutput: @Sendable @escaping (String) -> Void
+        onOutput: @Sendable @escaping (String) -> Void,
+        onLaunch: (@Sendable (pid_t) -> Void)? = nil
     ) async throws -> (outcome: ChildProcess.Outcome, text: String) {
         let collected = StreamedLines()
         let outcome = try await ChildProcess.run(
@@ -166,7 +167,8 @@ final class StreamedLines: @unchecked Sendable {
                 for line in collected.append(chunk) {
                     onOutput(line)
                 }
-            })
+            },
+            onLaunch: onLaunch)
         if let tail = collected.finish() { onOutput(tail) }
         return (outcome, collected.text)
     }

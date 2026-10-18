@@ -8,7 +8,8 @@ import Foundation
 /// later — and then the point is a hidden full-size copy no surface sizes,
 /// lists or reclaims. So the rule is the same at every normal end of an
 /// attempt and at launch: app readable ⇒ discard; app missing or unreadable ⇒
-/// keep, because that is the case it was taken for. A process that DIES keeps
+/// keep, because that is the case it was taken for — unless the install never
+/// reached its commit point, when something else removed the app. A process that DIES keeps
 /// it by not running any of this; the next launch's sweep then decides.
 extension InstallCoordinator {
 
@@ -27,16 +28,48 @@ extension InstallCoordinator {
     /// so no exit path can miss it. Also lets go of the claim
     /// ``takeInstallRollbackPoint(_:route:)`` took, which is what lets the
     /// launch sweep see this key again.
+    ///
+    /// - Parameters:
+    ///   - journal: this attempt's journal recording, nil when there is none.
+    ///     Whether the attempt reached its commit point is read from it.
+    ///   - succeeded: the host's own word that the install landed (the
+    ///     coordinator returned `applied`). An app missing from its old path
+    ///     after a success was moved by the install (a cask renamed in its new
+    ///     version), not lost, and the point is no one's way back — unless an
+    ///     earlier install of it is on record, whose way back it may be.
     @discardableResult
     public static func settleInstallRollbackPoint(
-        for app: InstalledApp
+        for app: InstalledApp, journal: InstallJournal.Recording?, succeeded: Bool
     ) async -> RollbackPointSettlement {
         let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
         let outcome: RollbackPointSettlement
         if BackupStore.rollbackPoint(forKey: key) == nil {
             outcome = .none
-        } else if BackupStore.hasReadableBundle(at: app.path) {
+        } else if BackupStore.hasReadableBundle(at: app.path),
+                  await InstallJournal.mayDiscardRollbackPoint(for: app.path) {
             await BackupStore.removeRollbackPoint(forKey: key)
+            outcome = .discarded
+        } else if BackupStore.hasReadableBundle(at: app.path) {
+            // Readable, but over an earlier install that was cut off and not
+            // verifiably repaired by this one: the point is still that
+            // install's way back (`InstallJournal.mayDiscardRollbackPoint`).
+            Log.install.notice(
+                "rollback point: kept for \(app.path.lastPathComponent, privacy: .public) — an earlier install of it was cut off and this one did not leave it verifiably good")
+            outcome = .kept
+        } else if succeeded, !InstallJournal.hasEarlierInstall(of: app.path, excluding: journal) {
+            await BackupStore.removeRollbackPoint(forKey: key)
+            Log.install.notice(
+                "rollback point: discarded for \(app.path.lastPathComponent, privacy: .public) — the install succeeded and left nothing at the old path (it moved the app)")
+            outcome = .discarded
+        } else if InstallJournal.ownInstallIsBeforeItsCommit(journal, for: app.path) {
+            // Gone, but not by this install, which stopped before its commit
+            // point — the user trashed it while the point was being taken. The
+            // journal drops this install's file (`Recording.finish`), and a
+            // point kept now would be listed nowhere and never swept: the sweep
+            // keeps every point whose app does not read.
+            await BackupStore.removeRollbackPoint(forKey: key)
+            Log.install.notice(
+                "rollback point: discarded for \(app.path.lastPathComponent, privacy: .public) — the app went missing before the install reached its commit point")
             outcome = .discarded
         } else {
             // Brew can fail after removing the app and not put it back — a
@@ -73,7 +106,12 @@ extension InstallCoordinator {
             return nil
         }
         var discarded = 0
+        // An app with an install journal file is one whose install is running,
+        // was cut off and not yet looked at, or was found cut off — readable
+        // or not (a broken signature reads). Its point is that app's way back.
+        let journaled = InstallJournal.journaledAppPaths()
         for (key, appPath) in BackupStore.rollbackPointOrigins() {
+            guard !journaled.contains(InstallJournal.standardized(appPath.path)) else { continue }
             guard await InstallRollbackPointClaims.shared.beginSweeping(key) else { continue }
             if BackupStore.hasReadableBundle(at: appPath) {
                 await BackupStore.removeRollbackPoint(forKey: key)

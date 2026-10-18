@@ -210,6 +210,7 @@ public actor PackageInstaller {
         // or remove a package an already-open Installer window is still reading.
         let workDir = Self.workDirectory(forInstalledApp: installedApp)
         try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        InstallJournal.noteWorkDirectory(workDir)
         var keepWorkDirectory = false
         defer {
             // Installer keeps reading a successfully opened package after this
@@ -1202,6 +1203,7 @@ public actor PackageInstaller {
 
         let mountPoint = workDir.appendingPathComponent("mnt")
         try? FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
+        InstallJournal.noteMount(mountPoint, image: file)
         guard case .success = try? await DiskImageMount.attach(file, at: mountPoint) else {
             throw PackageError.noInstallablePackage
         }

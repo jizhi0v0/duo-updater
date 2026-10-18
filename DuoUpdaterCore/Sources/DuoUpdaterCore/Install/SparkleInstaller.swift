@@ -136,6 +136,7 @@ public actor SparkleInstaller {
                 "DuoUpdater-\(result.app.scratchSlug)-\((remote.displayVersion ?? "new").filesystemSafeToken)")
         try? FileManager.default.removeItem(at: workDir)
         try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        InstallJournal.noteWorkDirectory(workDir)
         do {
             let downloader = Downloader(destinationDir: workDir) { fraction in
                 onStage(.downloading(fraction: fraction))

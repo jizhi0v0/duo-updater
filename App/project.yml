@@ -101,6 +101,9 @@ targets:
       - path: Shared/MASHelperProtocol.swift
       # The install gates' semaphore and its cancellable wait. Foundation only.
       - path: Sources/AsyncSemaphore.swift
+      # The row note for a backup skipped over an earlier install. Foundation
+      # and Core only.
+      - path: Sources/EarlierInstallBackupNote.swift
     dependencies:
       - package: DuoUpdaterCore
         product: DuoUpdaterCore

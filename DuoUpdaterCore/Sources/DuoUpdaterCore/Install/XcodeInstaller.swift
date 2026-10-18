@@ -115,6 +115,7 @@ public enum XcodeInstaller {
             isDirectory: true)
         await removeItemOffCooperativePool(at: workDir)
         try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        InstallJournal.noteWorkDirectory(workDir)
         do {
             let fetched = try await downloader.downloadXcodeArchive(
                 from: url, into: workDir,

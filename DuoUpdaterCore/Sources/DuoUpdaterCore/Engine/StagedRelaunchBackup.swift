@@ -182,13 +182,14 @@ extension StagedRelaunchBackup {
         if !intact {
             Log.install.notice("relaunch-staged: \(app.name, privacy: .public) quit or changed during its backup — standing down")
             // Only a copy this attempt stored is suspect. A failed or unreadable
-            // one never replaced the previous backup, which must survive.
+            // one never replaced the previous backup, which must survive; nor
+            // did one skipped over an earlier install.
             switch outcome {
             case .saved, .savedWithoutRuntimeState:
                 await system.remove()
                 discarded = true
                 Log.install.error("relaunch-staged: discarded \(app.name, privacy: .public)'s backup — its bundle may have been swapped mid-copy")
-            case .unreadable, .insufficientSpace, .cancelled, .failed:
+            case .unreadable, .insufficientSpace, .cancelled, .skippedForEarlierInstall, .failed:
                 break
             }
         }

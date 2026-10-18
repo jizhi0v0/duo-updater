@@ -422,6 +422,56 @@ import Foundation
         #expect(err.all.isEmpty)
     }
 
+    /// A signal while a staged restart waits for the app to quit ends that wait —
+    /// the "(Ctrl-C to stop waiting)" the slow-quit line promises — with the
+    /// bail line, although the step runs where cancellation does not reach. The
+    /// app here never quits; the signal arrives at tick 40 of a 3000-tick wait.
+    ///
+    /// Mutation: drop `stopWaiting` from `Restart.patience` → the wait runs the
+    /// whole hand-off window, red.
+    @Test func aSignalDuringAStagedRestartsQuitWaitEndsItWithTheBailLine() async {
+        let app = InstalledApp(
+            name: "ZZFixture", bundleID: "com.zzfixture.signalgate", shortVersion: "1.0", buildVersion: "1",
+            path: URL(fileURLWithPath: "/ZZFixture-signalgate/ZZFixture.app"), isMASApp: false,
+            sparkleFeedURL: nil)
+        let staged = StagedSelfUpdate(
+            version: "2.0", buildVersion: "2.0",
+            stagedBundlePath: URL(fileURLWithPath: "/ZZFixture-signalgate/update.x/ZZFixture.app"),
+            appliesOn: .quit, updater: .shipIt)
+        let old = VersionSide(marketing: "1.0", build: "1")
+        let gate = SignalGate()
+        let ticks = Counter()
+        let system = StagedRelaunch.System(
+            tick: {
+                if ticks.increment() == 40 { _ = gate.receive(SIGINT) }
+            },
+            isRunning: { true },
+            terminate: {},
+            diskVersion: { old },
+            awaitBundleProcessesGone: {},
+            relaunch: { _ in Issue.record("nothing may be launched"); return true },
+            installer: ParkedInstallerProbe.System(
+                isAlive: { _ in false }, loadedJob: { _ in nil }, sparkleInstallerPIDs: { _ in [] }))
+        let ending = await SignalGate.finishing {
+            await StagedRelaunch.quitAndAwait(
+                app, staged: staged, old: old, wasFrontmost: false,
+                quitPatience: Restart.patience(
+                    for: app, to: "2.0", waitsForAnswer: true, stopWaiting: { gate.stopRequested }),
+                system: system)
+        }
+        #expect(ending.outcome == .wontQuit)
+        #expect(ticks.value == 40)
+        #expect(Restart.describe(ending, staged: "2.0", disk: old).text
+            == "still running — likely a save prompt, left 2.0 staged")
+    }
+
+    final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+        func increment() -> Int { lock.withLock { count += 1; return count } }
+        var value: Int { lock.withLock { count } }
+    }
+
     /// An update that waits for the test to cancel, then re-reads the version the
     /// way the real updaters do: a `.terminateChild` child process.
     struct VerifyingProvider: CLIToolProvider {

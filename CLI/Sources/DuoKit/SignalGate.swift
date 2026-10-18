@@ -115,6 +115,11 @@ public final class SignalGate: @unchecked Sendable {
         }
     }
 
+    /// Whether a stop has been asked for — for a wait that is safe to cut short
+    /// but runs where the root task's cancellation does not reach
+    /// (`Restart.patience`).
+    public var stopRequested: Bool { lock.withLock { first != nil } }
+
     /// The process's exit status once the command has returned `commandStatus`.
     public func status(after commandStatus: Int32) -> Int32 {
         lock.withLock { first.map { 128 + $0 } ?? commandStatus }

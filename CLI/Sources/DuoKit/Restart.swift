@@ -59,7 +59,9 @@ public enum Restart {
     /// `try? await Task.sleep`, which returns at once when cancelled, so a plain
     /// restart would leave the app quit and never reopened, and a staged one
     /// would reopen it while its updater is still swapping — the early reopen
-    /// that makes ShipIt abort.
+    /// that makes ShipIt abort. One part of the staged step still ends on a
+    /// signal: its wait for the app to quit, before anything has changed
+    /// (`patience`).
     ///
     /// `restart` is the plain path's restarter, a seam for the tests.
     static func restartEach(
@@ -143,19 +145,39 @@ public enum Restart {
         // Re-read after the copy, which can take seconds: which window is in
         // front is a question about now.
         running = AppRestarter.runningInstances(of: app)
-        let minutes = Int(StagedRelaunch.quitHandoffMaxAge / 60)
-        let patience: StagedRelaunch.QuitPatience = waitsForAnswer
-            ? .handoff(onSlowQuit: {
-                print("\(app.name)  hasn't quit yet — likely a save prompt. Answer it and its own updater applies \(to); waiting up to \(minutes) min (Ctrl-C to stop waiting)")
-                fflush(stdout)
-            })
-            : .grace
+        let patience = patience(for: app, to: to, waitsForAnswer: waitsForAnswer)
         let ending = await StagedRelaunch.quitAndAwait(
             app, staged: staged, old: app.versionSide,
             wasFrontmost: AppRestarter.isFrontmost(running), quitPatience: patience,
             system: .live(for: app))
         let disk = StagedRelaunch.diskVersionSide(app.path)
         return describe(ending, staged: to, disk: disk)
+    }
+
+    /// How long a staged relaunch waits for the app to quit.
+    ///
+    /// In a terminal, up to the menu-bar app's 10-minute hand-off, and a signal
+    /// (`stopWaiting`, the gate's first) ends that wait at once as `.wontQuit` —
+    /// the "(Ctrl-C to stop waiting)" this prints. The step runs in
+    /// `SignalGate.finishing`, so cancellation would not reach the wait; the
+    /// flag does, and only before the quit: nothing is changed on disk until the
+    /// app has quit, and from then on the swap wait and the reopen run out.
+    ///
+    /// The plain path gets no such check, on purpose. `AppRestarter`'s quit wait
+    /// is ~30 s, and cutting it short is the harm itself: the app was already
+    /// asked to quit, so leaving early means a quit landing a moment later is
+    /// never followed by the reopen — quit, and not brought back.
+    static func patience(
+        for app: InstalledApp, to: String, waitsForAnswer: Bool,
+        stopWaiting: @escaping @Sendable () -> Bool = { SignalGate.process.stopRequested }
+    ) -> StagedRelaunch.QuitPatience {
+        let minutes = Int(StagedRelaunch.quitHandoffMaxAge / 60)
+        return waitsForAnswer
+            ? .handoff(onSlowQuit: {
+                print("\(app.name)  hasn't quit yet — likely a save prompt. Answer it and its own updater applies \(to); waiting up to \(minutes) min (Ctrl-C to stop waiting)")
+                fflush(stdout)
+            }, stopWaiting: stopWaiting)
+            : .grace
     }
 
     /// The line printed for a staged relaunch, and whether it fails the run.

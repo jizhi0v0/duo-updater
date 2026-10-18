@@ -256,4 +256,39 @@ import Testing
         #expect(ending.outcome == .applied)
         #expect(calls.count == 0)
     }
+
+    // MARK: - stopWaiting (`duo restart`'s Ctrl-C)
+
+    /// A stop asked for while the app has not quit ends the wait on that tick, as
+    /// an exhausted patience would: `.wontQuit`, nothing launched — not after the
+    /// 10-minute hand-off. Mutation: ignore `stopWaiting` → the wait runs to
+    /// `quitHandoffMaxAge * 5` ticks, red.
+    @Test func aStopBeforeTheQuitEndsTheWaitAsWontQuit() async {
+        let w = World(disk: old, new: new)
+        w.quitsAt = nil
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.shipIt), old: old, wasFrontmost: false,
+            quitPatience: .handoff(onSlowQuit: {}, stopWaiting: { w.now >= 50 }), system: system(w))
+        #expect(ending.outcome == .wontQuit)
+        #expect(ending.everQuit == false)
+        #expect(w.now == 50)
+        #expect(w.launches.isEmpty)
+    }
+
+    /// Once the app has quit, a stop is not consulted: the swap wait runs out and
+    /// the reopen comes after the landing. Mutation: consult `stopWaiting` after
+    /// the quit too → the wait ends before the landing and the fallback reopens
+    /// the app mid-swap, red.
+    @Test func aStopAfterTheQuitIsIgnored() async {
+        let w = World(disk: old, new: new)
+        w.quitsAt = 1
+        w.landsAt = 10
+        w.updaterRelaunches = false
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.shipIt), old: old, wasFrontmost: false,
+            quitPatience: .handoff(onSlowQuit: {}, stopWaiting: { w.now >= 2 }), system: system(w))
+        #expect(ending.outcome == .applied)
+        #expect(w.landedAt == 10)
+        #expect(w.launches == [10])
+    }
 }

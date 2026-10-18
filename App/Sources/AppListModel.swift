@@ -177,6 +177,9 @@ final class AppListModel {
     /// from the moment the install is registered — or claimed by "Update All" —
     /// until it returns. A row with no entry offers none: a rollback, a re-check.
     private(set) var installCancels: [String: InstallCancelState] = [:]
+    /// One `runInstall` per row at a time: a click in the previous run's tail
+    /// waits for it (`InstallRowRuns`).
+    private let rowRuns = InstallRowRuns()
     /// From a click on Cancel All until the batch ends: the button says so.
     private(set) var isCancellingAll = false
     /// The running "Update All"'s targets, for its Cancel All and for a row's
@@ -4762,8 +4765,14 @@ final class AppListModel {
         // committing install's wrap-up short. The registry tells the row when
         // to grey its Cancel; the hop can trail the install, which is what the
         // `.tooLate` answer is for.
+        // The row's previous run may still be wrapping up after it freed the
+        // row: wait for it, with a Cancel of this run's own (`InstallRowRuns`).
+        if rowRuns.isRunning(id) { installCancels[id] = .available }
+        await rowRuns.enter(id)
+        defer { rowRuns.leave(id) }
         // Cancelled between Update All starting it and this task running,
-        // before there was a job to cancel (`InstallCancelState.after`).
+        // before there was a job to cancel (`InstallCancelState.after`), or
+        // while it waited for the previous run.
         if installCancels[id] == .cancelling {
             installCancels[id] = nil
             installing[id] = nil
@@ -4776,7 +4785,8 @@ final class AppListModel {
             await self.runInstallJob(
                 result, notify: notify, deferBookkeeping: deferBookkeeping, backUpOnce: backUpOnce)
         }
-        installCancels[id] = nil
+        // A next run waiting for this one owns the row's Cancel by now.
+        if !rowRuns.isWaiting(id) { installCancels[id] = nil }
         // The install's own journal entry is settled by now: one that left the
         // app cut off is an interrupted install from here, and a reinstall that
         // repaired one cleared it.
@@ -9064,6 +9074,12 @@ final class AppListModel {
     func cancelInstall(_ result: UpdateResult) {
         let id = result.id
         guard installCancels[id] == .available else { return }
+        // Waiting for the previous run's tail: no job of its own yet, and the
+        // registry's is the previous run's. It stops before it starts.
+        if rowRuns.isWaiting(id) {
+            installCancels[id] = .cancelling
+            return
+        }
         if batchQueue?.remove(id) == true {
             _ = InstallAttemptOutcome.cancelled(result.app, at: .queued)
             installing[id] = nil
@@ -9091,7 +9107,8 @@ final class AppListModel {
         // A committing one's Cancel is greyed already and stays so; one whose
         // grey had not landed yet says it is finishing.
         for (id, answer) in answers where installCancels[id] == .available {
-            installCancels[id] = InstallCancelState.after(answer, claimed: installing[id] != nil)
+            installCancels[id] = rowRuns.isWaiting(id)
+                ? .cancelling : InstallCancelState.after(answer, claimed: installing[id] != nil)
         }
     }
 

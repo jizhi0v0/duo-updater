@@ -592,9 +592,13 @@ extension UpdateResult {
             && app.buildVersion == rescanned.buildVersion
         var carried = remote
         if !sameCopy { carried?.releaseChannel = nil }
-        return UpdateResult(
+        var row = UpdateResult(
             app: rescanned, remote: carried, status: status,
             provenChannel: proven ?? (sameCopy ? provenChannel : nil))
+        // Also about the copy, so also only while it is unchanged. A new copy
+        // is read again by the next check.
+        row.installedLacksTeamIdentifier = sameCopy && installedLacksTeamIdentifier
+        return row
     }
 
     /// What to call the INSTALLED build in any UI — the menu bar, the workbench row,
@@ -818,6 +822,19 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
     /// row. Only
     /// `CheckFailureRules.automaticRetryTargets` reads it.
     public var failureIsTransient = false
+
+    /// For a row with an update: the installed copy carries no Team Identifier
+    /// (self-signed, ad-hoc or unsigned). Every route that pins the download to
+    /// the installed app's Team ID then refuses at gate 3
+    /// (`SignatureVerifier.verifyTeamIdentifierMatch`) or at the package route's
+    /// own Team check, so `UpdatePolicy` does not offer them. Which routes those
+    /// are is `UpdatePolicy.lacksTeamIdentifierForRoute`.
+    ///
+    /// Read by `UpdateChecker.check(_:)` only when there is an update, because a
+    /// cold read costs up to ~77 ms per bundle (measured 2026-10-18 over 248
+    /// installed apps: 19.2 s cold, 0.7 s warm). False for every row that did
+    /// not come out of `UpdateChecker`, which leaves the offer as it was.
+    public var installedLacksTeamIdentifier = false
 
     public var id: String { app.id }
 

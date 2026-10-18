@@ -4722,7 +4722,7 @@ final class AppListModel {
         if Task.isCancelled {
             installing[id] = nil
             if gateHeld { await gate?.signal() }
-            return .notInstalled
+            return .cancelled(result.app, at: .queued)
         }
         // What the host gate protects is a HOST'S BANDWIDTH, so it belongs to the
         // download phase and nothing after it — see
@@ -4860,6 +4860,15 @@ final class AppListModel {
         // value is gone. See `PreInstallDecision.answerRegressed`.
         let offered = result
         let confirmed = await recheck(result)
+        // Where a cancel stops this install, for its outcome: re-checking until
+        // the backup starts, then whatever `perform` last reported.
+        let stages = InstallStageTracker(.checking)
+        // A re-check cut short by the cancel answers "could not confirm", which
+        // would be filed as a failure; it is a cancel, and nothing has started.
+        if Task.isCancelled {
+            installing[id] = nil
+            return .cancelled(offered.app, at: stages.stage)
+        }
         // Only `.updateAvailable` installs. The other endings all stop here, but
         // they are NOT the same ending, and this used to report them as if they
         // were: a source that timed out while you clicked Update was logged as
@@ -4903,11 +4912,18 @@ final class AppListModel {
         // offering a version it already has, on every click, until the next full
         // refresh rebuilt it.
         if decision == .answerRegressed, let offeredRemote = offered.remote {
-            replaceRow(UpdateResult(
+            var row = UpdateResult(
                 app: result.app,
                 remote: offeredRemote,
                 status: UpdateChecker.evaluate(installed: result.app, remote: offeredRemote),
-                provenChannel: result.provenChannel))
+                provenChannel: result.provenChannel)
+            // The re-check read the Team ID only if it found an update; the
+            // offered row's reading holds while the copy is the same one.
+            row.installedLacksTeamIdentifier = result.installedLacksTeamIdentifier
+                || (offered.installedLacksTeamIdentifier
+                    && offered.app.shortVersion == result.app.shortVersion
+                    && offered.app.buildVersion == result.app.buildVersion)
+            replaceRow(row)
         } else {
             replaceRow(result)
         }
@@ -5159,17 +5175,27 @@ final class AppListModel {
             let takingUserBackup = (prefs.keepBackups || backUpOnce)
                 && InstallCoordinator.wantsBackup(backupRoute)
             if takingUserBackup {
+                stages.enter(.backingUp)
+                installing[id] = .backingUp
                 await backupCurrent(result, route: backupRoute)
             } else if InstallCoordinator.wantsInstallRollbackPoint(
                 backupRoute, takingUserBackup: takingUserBackup) {
+                stages.enter(.backingUp)
+                installing[id] = .backingUp
                 await InstallCoordinator.takeInstallRollbackPoint(result.app, route: backupRoute)
             }
         }
         // Every way out of this attempt from here — installed, failed, skipped
-        // before the download, refused — settles the rollback point: kept only
-        // when the app is left missing or unreadable. See
+        // before the download, refused, cancelled — settles the rollback point:
+        // kept only when the app is left missing or unreadable. See
         // `settleInstallRollbackPoint`.
         defer { await InstallCoordinator.settleInstallRollbackPoint(for: result.app) }
+        // Cancelled during the copy (which then kept nothing) or just after it
+        // (a finished backup is kept): nothing is fetched.
+        if Task.isCancelled {
+            installing[id] = nil
+            return .cancelled(result.app, at: stages.stage)
+        }
 
         do {
             // Everything except the App Store is fetched and applied by
@@ -5226,7 +5252,7 @@ final class AppListModel {
                     // Read now, after the re-check: the row's offer may predate
                     // the user turning this off.
                     digestOnlyAllowed: prefs.allowsDigestOnlyInstalls,
-                    progress: { stage in Task { @MainActor in self.setStage(id, stage) } },
+                    progress: stages.recording { stage in Task { @MainActor in self.setStage(id, stage) } },
                     releaseAfterDownload: { await releaseAfterDownload?.release() },
                     beforeInstallerOpen: { await self.retireStagedPackage(for: id) })
                 recordEffectiveHost(result, finalHost: outcome.finalHost)
@@ -5308,6 +5334,10 @@ final class AppListModel {
                     appStoreQuitNotes[id] = note
                     inFlightNotes[id] = note
                 }
+                // The store's own stages are not tracked: a cancel once the
+                // permit below is held is named as during the download, which
+                // the store's fetch is.
+                stages.enter(.downloading(fraction: 0))
                 installing[id] = .downloading(fraction: 0)
                 // Both routes download through the App Store daemon, so we never see
                 // those bytes — intentionally not recorded (we only count measured).
@@ -5329,7 +5359,7 @@ final class AppListModel {
                     // defer above hands it back if it was taken.
                     reopenAfterQuit[id] = nil
                     installing[id] = nil
-                    return .notInstalled
+                    return .cancelled(result.app, at: .queued)
                 }
                 // Pre-flight before we drive the store: the row may have gone current
                 // since the install-time re-check ran — the App Store's own background
@@ -5634,8 +5664,8 @@ final class AppListModel {
             // silently instead of the red "cancelled" error the generic catch
             // would leave. All permits are already back in their pools (the
             // `with*` helpers release on throw; the flag+defer covers the
-            // apply side).
-            Log.install.info("install cancelled: \(result.app.name, privacy: .public)")
+            // apply side). Only a cancel before the commit point gets here: past
+            // it, the route's commit runs to its end and returns.
             // The fifth arm/consume site, and the one the earlier sweep missed:
             // this returns before the trailing `reopenIfQuitForUpdate`, so a
             // cancelled App Store install would leave its entry behind for some
@@ -5643,7 +5673,7 @@ final class AppListModel {
             reopenAfterQuit[id] = nil
             installing[id] = nil
             relaunching.remove(id)
-            return .notInstalled
+            return .cancelled(result.app, at: stages.stage)
         } catch let error as AppManagementRequiredError {
             // The swap was blocked by the App Management privacy gate. There's no
             // API to request it, so guide the user to the right Settings pane with
@@ -7707,7 +7737,8 @@ final class AppListModel {
         // Anything that landed is owed to the disk. Draining reads what is owed
         // from the sidecars rather than from this call, so a backup taken while
         // the disk was away is picked up here too.
-        if transferNow, outcome != .failed {
+        // Not after a cancel either: nothing landed, and the install is stopping.
+        if transferNow, outcome != .failed, outcome != .cancelled {
             startOwedBackupTransfer()
         }
         if case .savedWithoutRuntimeState(let omitted) = outcome {
@@ -8557,9 +8588,9 @@ final class AppListModel {
         }
     }
 
-    private func installInParallel(_ targets: [UpdateResult], limit: Int) async -> Int {
-        guard !targets.isEmpty, limit > 0 else { return 0 }
-        var installed = 0
+    private func installInParallel(_ targets: [UpdateResult], limit: Int) async -> InstallBatchSummary {
+        var summary = InstallBatchSummary()
+        guard !targets.isEmpty, limit > 0 else { return summary }
         await withTaskGroup(of: InstallAttemptOutcome.self) { group in
             var next = 0
             var inFlight = 0
@@ -8581,7 +8612,7 @@ final class AppListModel {
                 inFlight += 1
             }
             while let outcome = await group.next() {
-                if outcome.countsAsUpdatedApp { installed += 1 }
+                summary.record(outcome)
                 inFlight -= 1
                 if Task.isCancelled {
                     group.cancelAll()
@@ -8592,7 +8623,7 @@ final class AppListModel {
                 }
             }
         }
-        return installed
+        return summary
     }
 
     private func hitAppManagementGate(_ result: UpdateResult) -> Bool {
@@ -8683,16 +8714,13 @@ final class AppListModel {
         // Count only the installs that actually happened — `runInstall` reports
         // `.notInstalled` for already-current/early-out/error and
         // `.handedOffToSystemInstaller` for a `.pkg` whose Installer window the user
-        // has yet to drive — so the summary banner is exact.
-        var installed = 0
-        installed += await installInParallel(parallelTargets, limit: limit)
+        // has yet to drive — so the summary banner is exact. Cancelled ones are
+        // counted apart, with the targets a cancel kept from starting at all.
+        var summary = await installInParallel(parallelTargets, limit: limit)
         for target in serialTargets + installerTargets {
             if Task.isCancelled { break }
             // `runInstall`, not `install`: the target is already claimed above.
-            if await runInstall(target, notify: false, deferBookkeeping: true)
-                .countsAsUpdatedApp {
-                installed += 1
-            }
+            summary.record(await runInstall(target, notify: false, deferBookkeeping: true))
             if hitAppManagementGate(target) {
                 Log.app.info("update all: stopping serial batch after App Management gate")
                 break
@@ -8750,8 +8778,10 @@ final class AppListModel {
             batchRelaunchInFlight = false
             startOwedBackupTransferIfIdle()
         }
-        if prefs.notifyOnUpdates && installed > 0 {
-            UpdateNotifier.batchUpdated(count: installed)
+        if Task.isCancelled { summary.recordCancelledBeforeStart(targets.count - summary.attempted) }
+        // Nothing updated, nothing to announce: a cancel posts no banner.
+        if prefs.notifyOnUpdates && summary.updated > 0 {
+            UpdateNotifier.batchUpdated(count: summary.updated, cancelled: summary.cancelled)
         }
     }
 

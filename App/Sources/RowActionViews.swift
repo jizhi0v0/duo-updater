@@ -165,6 +165,7 @@ func installStageLabel(_ stage: InstallStage) -> String {
     switch stage {
     case .queued: return String(localized: "Queued")
     case .checking: return String(localized: "Checking")
+    case .backingUp: return String(localized: "Backing Up")
     case .downloading(let f): return String(localized: "\(Int(f * 100))%")
     case .verifyingSignature, .verifyingCodeSignature: return String(localized: "Verifying")
     case .extracting: return String(localized: "Extracting")

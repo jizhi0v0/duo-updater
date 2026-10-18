@@ -226,6 +226,8 @@ public enum Restart {
             return "no restore point: \(path) is not readable by you"
         case .attempted(.insufficientSpace):
             return "no restore point: this Mac is low on space"
+        case .attempted(.cancelled):
+            return "no restore point: the backup was cancelled"
         case .attempted(.failed):
             return "could not back up — restarting without a restore point"
         }

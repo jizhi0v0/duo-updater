@@ -91,6 +91,11 @@ public enum InstallJobs {
         // Outside the lock: the closure is the host's, and cancelling a task
         // runs its cancellation handlers inline.
         toCall?()
+        // Not an error: the job finishes, which is the rule past the commit.
+        if case .tooLate(let label) = answer {
+            Log.install.notice(
+                "cancel requested after commit point — ignored: \(id, privacy: .public) is in \(label, privacy: .public)")
+        }
         return answer
     }
 

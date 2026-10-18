@@ -46,9 +46,16 @@ enum UpdateNotifier {
 
     /// "Update All" finished — one summary instead of a banner per app. Apps that
     /// were running show a Restart badge in the menu, so we don't enumerate them.
-    static func batchUpdated(count: Int) {
+    /// Apps a cancel stopped are named only when there were some.
+    static func batchUpdated(count: Int, cancelled: Int) {
         post(title: String(localized: "Updates installed"),
-             body: String(localized: "\(count) apps were updated."))
+             body: batchUpdatedBody(count: count, cancelled: cancelled))
+    }
+
+    static func batchUpdatedBody(count: Int, cancelled: Int) -> String {
+        cancelled > 0
+            ? String(localized: "\(count) apps were updated, \(cancelled) cancelled.")
+            : String(localized: "\(count) apps were updated.")
     }
 
     /// A running app was updated on disk, but its live process is still on the

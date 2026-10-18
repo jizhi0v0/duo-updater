@@ -188,7 +188,7 @@ extension StagedRelaunchBackup {
                 await system.remove()
                 discarded = true
                 Log.install.error("relaunch-staged: discarded \(app.name, privacy: .public)'s backup — its bundle may have been swapped mid-copy")
-            case .unreadable, .insufficientSpace, .failed:
+            case .unreadable, .insufficientSpace, .cancelled, .failed:
                 break
             }
         }

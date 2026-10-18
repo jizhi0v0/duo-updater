@@ -7,6 +7,10 @@ public enum InstallStage: Sendable, Equatable {
     case queued
     /// Re-verifying the app still needs updating before acting on it.
     case checking
+    /// Copying the bundle as it is now into a restore point, before anything
+    /// is fetched. Set by the host, which takes the backup; no installer
+    /// reports it.
+    case backingUp
     case downloading(fraction: Double)
     case verifyingSignature
     case extracting
@@ -16,6 +20,24 @@ public enum InstallStage: Sendable, Equatable {
     /// output line.
     case runningCommand(String)
     case done
+
+    /// The case's name without its payload — `downloading`, not
+    /// `downloading(fraction: 0.4)`. What a log line and `duo install --json`
+    /// call the stage.
+    public var name: String {
+        switch self {
+        case .queued: return "queued"
+        case .checking: return "checking"
+        case .backingUp: return "backingUp"
+        case .downloading: return "downloading"
+        case .verifyingSignature: return "verifyingSignature"
+        case .extracting: return "extracting"
+        case .verifyingCodeSignature: return "verifyingCodeSignature"
+        case .installing: return "installing"
+        case .runningCommand: return "runningCommand"
+        case .done: return "done"
+        }
+    }
 }
 
 /// Drives the full Sparkle update pipeline for a single app:

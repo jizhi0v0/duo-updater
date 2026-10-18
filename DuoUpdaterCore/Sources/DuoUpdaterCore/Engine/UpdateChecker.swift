@@ -187,6 +187,14 @@ public struct UpdateChecker: Sendable {
                let proven = await channelStore?.channel(for: app) {
                 result.provenChannel = proven
             }
+            if result.hasUpdate {
+                // Security calls block, so they hop (#351). A bundle whose
+                // signature cannot be read fails gate 3 the same way.
+                let path = app.path
+                result.installedLacksTeamIdentifier = await offCooperativePool {
+                    ((try? SignatureVerifier.teamIdentifier(at: path)) ?? nil) == nil
+                }
+            }
             return result
         }
     }

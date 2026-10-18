@@ -756,6 +756,25 @@ extension InstallJournalTests {
         }
     }
 
+    /// A cancel before the commit point (package J) ends the item with the app
+    /// untouched: that is "nothing happened", so the entry goes, even though
+    /// `finish` runs in the cancelled task.
+    @Test func aCancelledItemWithTheAppUntouchedLeavesNoEntry() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            let item = Task {
+                withUnsafeCurrentTask { $0?.cancel() }
+                #expect(Task.isCancelled)
+                await recording.finish()
+            }
+            await item.value
+            #expect(!FileManager.default.fileExists(atPath: recording.file.path))
+            #expect(InstallJournal.interruptedInstalls().isEmpty)
+        }
+    }
+
     // MARK: - Re-checked before each destructive step (round 2, #2b)
 
     /// An install of the same app starting while processing waits on

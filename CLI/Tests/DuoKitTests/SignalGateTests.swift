@@ -298,11 +298,15 @@ import Foundation
         #expect(tally == Install.Tally())
     }
 
-    /// A cancelled `Install.apply` does not start the next item: no re-check, no
-    /// row, nothing counted. The item's bundle is invented, so without the check
-    /// the re-check finds nothing there and the row is counted.
+    /// A cancelled `Install.apply` does not start the next item: it is counted
+    /// as cancelled, and as nothing else. The item's bundle is invented, so
+    /// without the checks the re-check finds nothing there and the row is
+    /// counted as skipped.
     ///
-    /// Mutation: drop the `Task.isCancelled` check → the tally is not empty.
+    /// Mutation: drop both `Task.isCancelled` checks (before the item, after
+    /// its re-check) → counted as skipped, not cancelled, red. Dropping only
+    /// the first is caught by the second, which counts it the same way; the
+    /// stage they report differs, which this test cannot see.
     @Test func cancelledInstallStartsNoFurtherItem() async {
         let app = InstalledApp(
             name: "ZZFixture", bundleID: "com.zzfixture.signalgate", shortVersion: "1.0", buildVersion: "1",
@@ -330,7 +334,9 @@ import Foundation
         }
         task.cancel()
         let (tally, attempted) = await task.value
-        #expect(tally == Install.Tally())
+        var cancelledOnly = Install.Tally()
+        cancelledOnly.record(.cancelled)
+        #expect(tally == cancelledOnly)
         #expect(attempted == 0)
     }
 

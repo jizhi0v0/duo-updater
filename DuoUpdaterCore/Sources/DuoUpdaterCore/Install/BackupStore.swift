@@ -786,6 +786,16 @@ public enum BackupStore {
             throw BackupError.insufficientSpace(
                 needed: estimate + freeSpaceFloorBytes, free: outboxFreeBytes() ?? 0)
         }
+        // Stopped by the install's cancel (`runDittoWatchingSpace`), or refused
+        // to start because it already was. Nothing of this copy is kept, and
+        // the backup it would have replaced was never touched. A copy that
+        // finished before the cancel landed goes on and is stored.
+        if !ditto.ok, Task.isCancelled {
+            Log.install.notice(
+                "backup: stopped copying \(name, privacy: .public) — the install was cancelled; nothing of this copy is kept")
+            await removeItemOffCooperativePool(at: staging)
+            throw CancellationError()
+        }
         if !ditto.ok {
             Log.install.error(
                 "backup: ditto exited \(ditto.status, privacy: .public) copying \(name, privacy: .public) — \(ditto.stderrTail, privacy: .public)")
@@ -2568,8 +2578,10 @@ public enum BackupStore {
     /// stderr used to go to a temporary file because nothing drained a `Pipe`
     /// while `ditto` ran, and a bundle noisy enough to fill the buffer would have
     /// blocked it forever. `ChildProcess` drains both pipes as the child writes, so
-    /// it is captured directly now. Runs to completion on cancellation: a half
-    /// copy is what `save` and `restore` both exist to avoid.
+    /// it is captured directly now. Runs to completion on cancellation by
+    /// default: a half copy is what `restore` exists to avoid. `save` passes
+    /// `.terminateChild` (`runDittoWatchingSpace`) because its half copy is only
+    /// ever staging, which it deletes.
     private static func runDitto(
         from src: URL, to dst: URL,
         onCancel: ChildProcess.Cancellation = .runToCompletion
@@ -2743,10 +2755,12 @@ extension BackupStore {
     /// ``reclaimFreeSpace(sparing:)``. When that runs out of backups to delete
     /// the copy is stopped, and `outOfSpace` says why it failed.
     ///
-    /// The copy runs in its own task so that only the watcher can stop it: a
-    /// cancellation from the caller still runs it to completion, as `runDitto`
-    /// always has. Two unstructured tasks rather than a task group — see the
-    /// Swift 6.4 release-build miscompile around `for await` over a group.
+    /// The caller's cancellation stops the copy too: the backup comes before
+    /// an install's commit point, so a cancelled install must not sit through
+    /// a copy of the whole bundle first. What it leaves is staging only, which
+    /// the caller removes (`write`). Two unstructured tasks rather than a task
+    /// group — see the Swift 6.4 release-build miscompile around `for await`
+    /// over a group.
     static func runDittoWatchingSpace(
         from src: URL, to dst: URL, key: String, mayDeleteBackups: Bool = true
     ) async -> (outcome: DittoOutcome, outOfSpace: Bool) {
@@ -2764,7 +2778,13 @@ extension BackupStore {
             }
             return false
         }
-        let outcome = await copy.value
+        // An unstructured task is no one's child, so the caller's cancel is
+        // forwarded by hand; `.terminateChild` then ends the `ditto`.
+        let outcome = await withTaskCancellationHandler {
+            await copy.value
+        } onCancel: {
+            copy.cancel()
+        }
         watcher.cancel()
         return (outcome, await watcher.value)
     }

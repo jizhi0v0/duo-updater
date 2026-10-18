@@ -52,7 +52,7 @@ struct BackupsSheet: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Delete backups").font(.headline)
-            Text("Each backup lets one update be restored. Deleting it frees the space and gives up that option — the app itself is untouched.")
+            Text("Each backup lets you restore the version from before one update. Deleting it frees the space and gives up that option — the app itself is untouched.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

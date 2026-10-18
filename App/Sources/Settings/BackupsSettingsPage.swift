@@ -259,10 +259,10 @@ struct BackupsSettingsPage: View {
 
     private var rollbackCard: some View {
         SettingsCard(
-            header: "Rollback points",
+            header: "Restore points",
             footer: "Backups keep one previous version of each app, so an update can be undone. Retention is one per app — the previous version is replaced, not accumulated."
         ) {
-            Toggle("Keep a backup so updates can be restored", isOn: $prefs.keepBackups)
+            Toggle("Keep a backup of the previous version", isOn: $prefs.keepBackups)
                 .settingsRow()
                 .settingsAnchor(.keepBackups)
             SettingsDivider()
@@ -1031,7 +1031,7 @@ struct BackupsSettingsPage: View {
             }
             return String(localized: "Backups are copied here in the background, after an update is installed, so nothing waits on the disk.")
         case .volumeNotMounted, .notWritable:
-            return String(localized: "New backups stay on this Mac until the disk is back, then move on their own. If this Mac runs low on space while the disk is away, updates are installed without a rollback point rather than filling the startup disk.")
+            return String(localized: "New backups stay on this Mac until the disk is back, then move on their own. If this Mac runs low on space while the disk is away, updates are installed without a restore point rather than filling the startup disk.")
         case .identityMismatch:
             return String(localized: "The disk mounted at this path isn’t the one the backups were set up on. Nothing has been written to it. Reconnect the original disk, or choose this one to start using it instead.")
         case .localOnly:

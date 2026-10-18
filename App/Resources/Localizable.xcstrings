@@ -19105,7 +19105,7 @@
         }
       }
     },
-    "No rollback point: this Mac is low on space, so this update will be applied without a backup.": {
+    "No restore point: this Mac is low on space, so this update will be applied without a backup.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -19117,7 +19117,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sin punto de reversión: a este Mac le queda poco espacio, así que esta actualización se aplicará sin copia de seguridad."
+            "value": "Sin punto de restauración: a este Mac le queda poco espacio, así que esta actualización se aplicará sin copia de seguridad."
           }
         },
         "fr": {
@@ -19135,31 +19135,31 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "巻き戻しポイントはありません: この Mac の空き容量が少ないため、この更新はバックアップなしで適用されます。"
+            "value": "復元ポイントはありません: この Mac の空き容量が少ないため、この更新はバックアップなしで適用されます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sem ponto de reversão: este Mac está com pouco espaço, então esta atualização será aplicada sem backup."
+            "value": "Sem ponto de restauração: este Mac está com pouco espaço, então esta atualização será aplicada sem backup."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Точки отката нет: на этом Mac мало свободного места, поэтому обновление будет установлено без резервной копии."
+            "value": "Точки восстановления нет: на этом Mac мало свободного места, поэтому обновление будет установлено без резервной копии."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geri alma noktası yok: bu Mac’te yer az, bu yüzden bu güncelleme yedek alınmadan uygulanacak."
+            "value": "Geri yükleme noktası yok: bu Mac’te yer az, bu yüzden bu güncelleme yedek alınmadan uygulanacak."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "没有回滚点：这台 Mac 剩余空间不足，这次更新将不做备份直接安装。"
+            "value": "没有恢复点：这台 Mac 剩余空间不足，这次更新将不做备份直接安装。"
           }
         },
         "zh-Hant": {
@@ -20726,71 +20726,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 重設"
-          }
-        }
-      }
-    },
-    "Rollback backups": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Backups zur Wiederherstellung"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copias para revertir"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sauvegardes de restauration"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Backup di ripristino"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ロールバック用バックアップ"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Backups para reversão"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Резервные копии для отката"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Geri alma yedekleri"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "回滚备份"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "還原備份"
           }
         }
       }
@@ -25680,67 +25615,67 @@
         }
       }
     },
-    "Continue only if it’s free or your license covers the new version. The new version replaces this copy. If “Keep a backup so updates can be restored” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.": {
+    "Continue only if it’s free or your license covers the new version. The new version replaces this copy. If “Keep a backup of the previous version” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fahre nur fort, wenn sie kostenlos ist oder deine Lizenz die neue Version abdeckt. Die neue Version ersetzt diese Kopie. Wenn „Backup aufbewahren, damit Updates wiederhergestellt werden können“ in den [Einstellungen](duoupdater-settings:backups) aktiviert ist, kannst du die aktuelle Version wiederherstellen."
+            "value": "Fahre nur fort, wenn sie kostenlos ist oder deine Lizenz die neue Version abdeckt. Die neue Version ersetzt diese Kopie. Wenn „Backup der vorherigen Version aufbewahren“ in den [Einstellungen](duoupdater-settings:backups) aktiviert ist, kannst du die aktuelle Version wiederherstellen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Continúa solo si es gratis o tu licencia cubre la versión nueva. La nueva versión sustituye a esta copia. Si “Conservar una copia de seguridad para poder restaurar actualizaciones” está activado en [Ajustes](duoupdater-settings:backups), puedes restaurar tu versión actual."
+            "value": "Continúa solo si es gratis o tu licencia cubre la versión nueva. La nueva versión sustituye a esta copia. Si “Conservar una copia de seguridad de la versión anterior” está activado en [Ajustes](duoupdater-settings:backups), puedes restaurar tu versión actual."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ne continuez que si c'est gratuit ou si votre licence couvre la nouvelle version. La nouvelle version remplace cette copie. Si « Conserver une sauvegarde pour pouvoir restaurer les mises à jour » est activé dans les [Réglages](duoupdater-settings:backups), vous pouvez restaurer votre version actuelle."
+            "value": "Ne continuez que si c'est gratuit ou si votre licence couvre la nouvelle version. La nouvelle version remplace cette copie. Si « Conserver une sauvegarde de la version précédente » est activé dans les [Réglages](duoupdater-settings:backups), vous pouvez restaurer votre version actuelle."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Continua solo se è gratuita o se la tua licenza copre la nuova versione. La nuova versione sostituisce questa copia. Se “Conserva un backup per poter ripristinare gli aggiornamenti” è attivo nelle [Impostazioni](duoupdater-settings:backups), puoi ripristinare la versione attuale."
+            "value": "Continua solo se è gratuita o se la tua licenza copre la nuova versione. La nuova versione sostituisce questa copia. Se “Conserva un backup della versione precedente” è attivo nelle [Impostazioni](duoupdater-settings:backups), puoi ripristinare la versione attuale."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "無料の場合、またはライセンスが新しいバージョンをカバーしている場合のみ続行してください。新しいバージョンはこのコピーを置き換えます。[設定](duoupdater-settings:backups)で「更新を復元できるようバックアップを保持する」がオンなら、現在のバージョンに復元できます。"
+            "value": "無料の場合、またはライセンスが新しいバージョンをカバーしている場合のみ続行してください。新しいバージョンはこのコピーを置き換えます。[設定](duoupdater-settings:backups)で「1つ前のバージョンのバックアップを保持する」がオンなら、現在のバージョンに復元できます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Continue apenas se for gratuito ou se sua licença cobrir a nova versão. A nova versão substitui esta cópia. Se “Manter um backup para poder restaurar atualizações” estiver ativado nos [Ajustes](duoupdater-settings:backups), você pode restaurar a versão atual."
+            "value": "Continue apenas se for gratuito ou se sua licença cobrir a nova versão. A nova versão substitui esta cópia. Se “Manter um backup da versão anterior” estiver ativado nos [Ajustes](duoupdater-settings:backups), você pode restaurar a versão atual."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Продолжайте, только если это бесплатно или ваша лицензия покрывает новую версию. Новая версия заменит эту копию. Если в [настройках](duoupdater-settings:backups) включено «Хранить резервную копию для восстановления обновлений», можно восстановить текущую версию."
+            "value": "Продолжайте, только если это бесплатно или ваша лицензия покрывает новую версию. Новая версия заменит эту копию. Если в [настройках](duoupdater-settings:backups) включено «Хранить резервную копию предыдущей версии», можно восстановить текущую версию."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yalnızca ücretsizse veya lisansınız yeni sürümü kapsıyorsa devam edin. Yeni sürüm bu kopyanın yerini alır. [Ayarlar](duoupdater-settings:backups)’da “Güncellemelerin geri yüklenebilmesi için yedek tut” açıksa şu anki sürümü geri yükleyebilirsiniz."
+            "value": "Yalnızca ücretsizse veya lisansınız yeni sürümü kapsıyorsa devam edin. Yeni sürüm bu kopyanın yerini alır. [Ayarlar](duoupdater-settings:backups)’da “Önceki sürümün yedeğini tut” açıksa şu anki sürümü geri yükleyebilirsiniz."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "仅当它是免费的，或你的许可证覆盖新版本时才继续。新版本会替换这份副本。如果[设置](duoupdater-settings:backups)中打开了“保留备份以便恢复更新”，可以恢复到你现在的版本。"
+            "value": "仅当它是免费的，或你的许可证覆盖新版本时才继续。新版本会替换这份副本。如果[设置](duoupdater-settings:backups)中打开了“保留上一版本的备份”，可以恢复到你现在的版本。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "只有在它是免費的，或你的授權涵蓋新版本時才繼續。新版本會取代這份副本。如果[設定](duoupdater-settings:backups)中開啟了「保留備份以便還原更新」，可以還原到你目前的版本。"
+            "value": "只有在它是免費的，或你的授權涵蓋新版本時才繼續。新版本會取代這份副本。如果[設定](duoupdater-settings:backups)中開啟了「保留上一版本的備份」，可以還原到你目前的版本。"
           }
         }
       }
@@ -26395,7 +26330,7 @@
         }
       }
     },
-    "Couldn’t back up the current version — this update will be applied without a rollback point.": {
+    "Couldn’t back up the current version — this update will be applied without a restore point.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -26407,7 +26342,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No se pudo hacer una copia de seguridad de la versión actual: esta actualización se aplicará sin punto de reversión."
+            "value": "No se pudo hacer una copia de seguridad de la versión actual: esta actualización se aplicará sin punto de restauración."
           }
         },
         "fr": {
@@ -26425,31 +26360,31 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "現在のバージョンをバックアップできませんでした。この更新はロールバック先なしで適用されます。"
+            "value": "現在のバージョンをバックアップできませんでした。この更新は復元ポイントなしで適用されます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Não foi possível fazer backup da versão atual — esta atualização será aplicada sem ponto de reversão."
+            "value": "Não foi possível fazer backup da versão atual — esta atualização será aplicada sem ponto de restauração."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не удалось сделать резервную копию текущей версии — обновление будет установлено без точки отката."
+            "value": "Не удалось сделать резервную копию текущей версии — обновление будет установлено без точки восстановления."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geçerli sürüm yedeklenemedi — bu güncelleme bir geri alma noktası olmadan uygulanacak."
+            "value": "Geçerli sürüm yedeklenemedi — bu güncelleme bir geri yükleme noktası olmadan uygulanacak."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "没能备份当前版本 —— 这次更新将在没有回滚点的情况下安装。"
+            "value": "没能备份当前版本 —— 这次更新将在没有恢复点的情况下安装。"
           }
         },
         "zh-Hant": {
@@ -29345,67 +29280,67 @@
         }
       }
     },
-    "Each backup lets one update be restored. Deleting it frees the space and gives up that option — the app itself is untouched.": {
+    "Each backup lets you restore the version from before one update. Deleting it frees the space and gives up that option — the app itself is untouched.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mit jedem Backup lässt sich ein Update wiederherstellen. Es zu löschen gibt Speicherplatz frei, verzichtet aber auf diese Option – die App selbst bleibt unberührt."
+            "value": "Mit jedem Backup lässt sich die Version von vor einem Update wiederherstellen. Es zu löschen gibt Speicherplatz frei, verzichtet aber auf diese Option – die App selbst bleibt unberührt."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cada copia de seguridad permite restaurar una actualización. Eliminarla libera espacio y renuncia a esa opción; la app en sí no se ve afectada."
+            "value": "Cada copia de seguridad permite restaurar la versión anterior a una actualización. Eliminarla libera espacio y renuncia a esa opción; la app en sí no se ve afectada."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chaque sauvegarde permet de restaurer une mise à jour. La supprimer libère de l'espace mais fait perdre cette option — l'application elle-même n'est pas touchée."
+            "value": "Chaque sauvegarde permet de restaurer la version d'avant une mise à jour. La supprimer libère de l'espace mais fait perdre cette option — l'application elle-même n'est pas touchée."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ogni backup permette di ripristinare un aggiornamento. Eliminarlo libera spazio e rinuncia a quella possibilità; l’app in sé non viene toccata."
+            "value": "Ogni backup permette di ripristinare la versione precedente a un aggiornamento. Eliminarlo libera spazio e rinuncia a quella possibilità; l’app in sé non viene toccata."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "各バックアップにより1回分の更新を復元できます。削除すると容量は解放されますがそのオプションは失われます — アプリ自体には影響しません。"
+            "value": "各バックアップにより、1回の更新前のバージョンに復元できます。削除すると容量は解放されますがそのオプションは失われます — アプリ自体には影響しません。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cada backup permite restaurar uma atualização. Apagá-lo libera espaço e abre mão dessa opção — o app em si não é afetado."
+            "value": "Cada backup permite restaurar a versão anterior a uma atualização. Apagá-lo libera espaço e abre mão dessa opção — o app em si não é afetado."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Каждая резервная копия позволяет восстановить одно обновление. Удаление освобождает место и лишает этой возможности — само приложение не затрагивается."
+            "value": "Каждая резервная копия позволяет восстановить версию до одного обновления. Удаление освобождает место и лишает этой возможности — само приложение не затрагивается."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Her yedek, bir güncellemenin geri yüklenmesini sağlar. Silmek yer açar ve bu seçenekten vazgeçer — uygulamanın kendisine dokunulmaz."
+            "value": "Her yedek, bir güncellemeden önceki sürümü geri yüklemenizi sağlar. Silmek yer açar ve bu seçenekten vazgeçer — uygulamanın kendisine dokunulmaz."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "每个备份都可用于恢复一次更新。删除它会释放空间并放弃该选项 — 应用本身不受影响。"
+            "value": "每个备份都可用于恢复一次更新之前的版本。删除它会释放空间并放弃该选项 — 应用本身不受影响。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "每個備份可讓一次更新還原。刪除它會釋放空間，但也會失去這個選項——App 本身不受影響。"
+            "value": "每個備份可讓你還原一次更新之前的版本。刪除它會釋放空間，但也會失去這個選項——App 本身不受影響。"
           }
         }
       }
@@ -34032,67 +33967,67 @@
         }
       }
     },
-    "Keep a backup so updates can be restored": {
+    "Keep a backup of the previous version": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Backup aufbewahren, damit Updates wiederhergestellt werden können"
+            "value": "Backup der vorherigen Version aufbewahren"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conservar una copia de seguridad para poder restaurar actualizaciones"
+            "value": "Conservar una copia de seguridad de la versión anterior"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conserver une sauvegarde pour pouvoir restaurer les mises à jour"
+            "value": "Conserver une sauvegarde de la version précédente"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conserva un backup per poter ripristinare gli aggiornamenti"
+            "value": "Conserva un backup della versione precedente"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "更新を復元できるようバックアップを保持する"
+            "value": "1つ前のバージョンのバックアップを保持する"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manter um backup para poder restaurar atualizações"
+            "value": "Manter um backup da versão anterior"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Хранить резервную копию для восстановления обновлений"
+            "value": "Хранить резервную копию предыдущей версии"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Güncellemelerin geri yüklenebilmesi için yedek tut"
+            "value": "Önceki sürümün yedeğini tut"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "保留备份以便恢复更新"
+            "value": "保留上一版本的备份"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "保留備份以便還原更新"
+            "value": "保留上一版本的備份"
           }
         }
       }
@@ -37737,7 +37672,7 @@
         }
       }
     },
-    "No rollback point: parts of this app aren’t readable by you (common for apps installed by a .pkg, which are often root-owned).": {
+    "No restore point: parts of this app aren’t readable by you (common for apps installed by a .pkg, which are often root-owned).": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -37749,7 +37684,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sin punto de reversión: hay partes de esta app que no puedes leer (habitual en apps instaladas con un .pkg, que suelen pertenecer a root)."
+            "value": "Sin punto de restauración: hay partes de esta app que no puedes leer (habitual en apps instaladas con un .pkg, que suelen pertenecer a root)."
           }
         },
         "fr": {
@@ -37767,31 +37702,31 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ロールバック先はありません。このアプリの一部があなたの権限では読み取れません（.pkg でインストールされ root 所有になっているアプリでよくあります）。"
+            "value": "復元ポイントはありません。このアプリの一部があなたの権限では読み取れません（.pkg でインストールされ root 所有になっているアプリでよくあります）。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sem ponto de reversão: partes deste app não podem ser lidas por você (comum em apps instalados por .pkg, que muitas vezes pertencem ao root)."
+            "value": "Sem ponto de restauração: partes deste app não podem ser lidas por você (comum em apps instalados por .pkg, que muitas vezes pertencem ao root)."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Точки отката нет: часть файлов этой программы недоступна вам для чтения (обычное дело для программ, установленных через .pkg — они часто принадлежат root)."
+            "value": "Точки восстановления нет: часть файлов этой программы недоступна вам для чтения (обычное дело для программ, установленных через .pkg — они часто принадлежат root)."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geri alma noktası yok: bu uygulamanın bazı bölümleri sizin tarafınızdan okunamıyor (.pkg ile yüklenen ve genellikle root’a ait olan uygulamalarda yaygındır)."
+            "value": "Geri yükleme noktası yok: bu uygulamanın bazı bölümleri sizin tarafınızdan okunamıyor (.pkg ile yüklenen ve genellikle root’a ait olan uygulamalarda yaygındır)."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "没有回滚点：这个 app 有部分文件你无权读取（用 .pkg 安装的 app 常常属于 root，容易这样）。"
+            "value": "没有恢复点：这个 app 有部分文件你无权读取（用 .pkg 安装的 app 常常属于 root，容易这样）。"
           }
         },
         "zh-Hant": {
@@ -50283,67 +50218,67 @@
         }
       }
     },
-    "Turn them on to restore an update and compare what it changed.": {
+    "Turn them on to restore the version from before an update and compare what it changed.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aktiviere sie, um ein Update wiederherzustellen und zu vergleichen, was es geändert hat."
+            "value": "Aktiviere sie, um die Version von vor einem Update wiederherzustellen und zu vergleichen, was es geändert hat."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Actívalas para restaurar una actualización y comparar lo que cambió."
+            "value": "Actívalas para restaurar la versión de antes de una actualización y comparar lo que cambió."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Activez-les pour restaurer une mise à jour et comparer ce qu'elle a modifié."
+            "value": "Activez-les pour restaurer la version d'avant une mise à jour et comparer ce qu'elle a modifié."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Attivali per ripristinare un aggiornamento e confrontare cosa ha cambiato."
+            "value": "Attivali per ripristinare la versione precedente a un aggiornamento e confrontare cosa ha cambiato."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "オンにすると、更新を復元したり、変更内容を比較したりできます。"
+            "value": "オンにすると、更新前のバージョンに復元したり、変更内容を比較したりできます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ative-os para restaurar uma atualização e comparar o que ela mudou."
+            "value": "Ative-os para restaurar a versão de antes de uma atualização e comparar o que ela mudou."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Включите их, чтобы восстанавливать обновления и сравнивать, что в них изменилось."
+            "value": "Включите их, чтобы восстанавливать версию до обновления и сравнивать, что оно изменило."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bir güncellemeyi geri yüklemek ve neyi değiştirdiğini karşılaştırmak için açın."
+            "value": "Bir güncellemeden önceki sürümü geri yüklemek ve neyi değiştirdiğini karşılaştırmak için açın."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "开启后可恢复更新，并比较更新改动了什么。"
+            "value": "开启后可恢复到更新前的版本，并比较更新改动了什么。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "開啟後即可還原更新，並比對更新改了什麼。"
+            "value": "開啟後即可還原到更新前的版本，並比對更新改了什麼。"
           }
         }
       }
@@ -58942,7 +58877,7 @@
         }
       }
     },
-    "New backups stay on this Mac until the disk is back, then move on their own. If this Mac runs low on space while the disk is away, updates are installed without a rollback point rather than filling the startup disk.": {
+    "New backups stay on this Mac until the disk is back, then move on their own. If this Mac runs low on space while the disk is away, updates are installed without a restore point rather than filling the startup disk.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -58954,7 +58889,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Las copias nuevas se quedan en este Mac hasta que vuelva el disco y luego se trasladan solas. Si a este Mac le queda poco espacio mientras el disco no está, las actualizaciones se instalan sin punto de reversión en lugar de llenar el disco de arranque."
+            "value": "Las copias nuevas se quedan en este Mac hasta que vuelva el disco y luego se trasladan solas. Si a este Mac le queda poco espacio mientras el disco no está, las actualizaciones se instalan sin punto de restauración en lugar de llenar el disco de arranque."
           }
         },
         "fr": {
@@ -58972,31 +58907,31 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "新しいバックアップは、ディスクが戻るまでこの Mac に残り、その後は自動的に移動します。ディスクがない間にこの Mac の空き容量が少なくなった場合は、起動ディスクを埋めるのではなく、巻き戻しポイントなしで更新をインストールします。"
+            "value": "新しいバックアップは、ディスクが戻るまでこの Mac に残り、その後は自動的に移動します。ディスクがない間にこの Mac の空き容量が少なくなった場合は、起動ディスクを埋めるのではなく、復元ポイントなしで更新をインストールします。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Novos backups ficam neste Mac até o disco voltar e depois são movidos sozinhos. Se este Mac ficar com pouco espaço enquanto o disco estiver desconectado, as atualizações são instaladas sem ponto de reversão em vez de lotar o disco de inicialização."
+            "value": "Novos backups ficam neste Mac até o disco voltar e depois são movidos sozinhos. Se este Mac ficar com pouco espaço enquanto o disco estiver desconectado, as atualizações são instaladas sem ponto de restauração em vez de lotar o disco de inicialização."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Новые копии остаются на этом Mac, пока диск не вернётся, а затем переносятся сами. Если места на этом Mac станет мало, пока диска нет, обновления будут устанавливаться без точки отката, вместо того чтобы заполнять загрузочный диск."
+            "value": "Новые копии остаются на этом Mac, пока диск не вернётся, а затем переносятся сами. Если места на этом Mac станет мало, пока диска нет, обновления будут устанавливаться без точки восстановления, вместо того чтобы заполнять загрузочный диск."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yeni yedekler disk geri gelene kadar bu Mac’te kalır, ardından kendiliğinden taşınır. Disk yokken bu Mac’te yer azalırsa, güncellemeler başlangıç diskini doldurmak yerine geri alma noktası olmadan yüklenir."
+            "value": "Yeni yedekler disk geri gelene kadar bu Mac’te kalır, ardından kendiliğinden taşınır. Disk yokken bu Mac’te yer azalırsa, güncellemeler başlangıç diskini doldurmak yerine geri yükleme noktası olmadan yüklenir."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "新的备份会先留在这台 Mac 上，等磁盘回来后自动搬走。如果磁盘不在期间本机空间告急，更新会在没有回滚点的情况下安装，而不是把启动磁盘塞满。"
+            "value": "新的备份会先留在这台 Mac 上，等磁盘回来后自动搬走。如果磁盘不在期间本机空间告急，更新会在没有恢复点的情况下安装，而不是把启动磁盘塞满。"
           }
         },
         "zh-Hant": {
@@ -59397,7 +59332,7 @@
         }
       }
     },
-    "Rollback points": {
+    "Restore points": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -59409,7 +59344,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Puntos de reversión"
+            "value": "Puntos de restauración"
           }
         },
         "fr": {
@@ -59427,31 +59362,31 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "巻き戻しポイント"
+            "value": "復元ポイント"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pontos de reversão"
+            "value": "Pontos de restauração"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Точки отката"
+            "value": "Точки восстановления"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geri alma noktaları"
+            "value": "Geri yükleme noktaları"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "回滚点"
+            "value": "恢复点"
           }
         },
         "zh-Hant": {
@@ -61416,7 +61351,7 @@
         }
       }
     },
-    "%@ is back at the earlier version, but its dictionary and settings are not — this rollback point has no copy of them.": {
+    "%@ is back at the earlier version, but its dictionary and settings are not — this restore point has no copy of them.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -61446,31 +61381,31 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ は以前のバージョンに戻りましたが、辞書と設定は戻っていません。このロールバックポイントにはそれらのコピーがありません。"
+            "value": "%@ は以前のバージョンに戻りましたが、辞書と設定は戻っていません。この復元ポイントにはそれらのコピーがありません。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ voltou à versão anterior, mas o dicionário e os ajustes dele não — este ponto de reversão não tem cópia deles."
+            "value": "%@ voltou à versão anterior, mas o dicionário e os ajustes dele não — este ponto de restauração não tem cópia deles."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ вернулся к прежней версии, а его словарь и настройки — нет: в этой точке отката их копии нет."
+            "value": "%@ вернулся к прежней версии, а его словарь и настройки — нет: в этой точке восстановления их копии нет."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ önceki sürüme döndü, ancak sözlüğü ve ayarları dönmedi — bu geri alma noktasında onların kopyası yok."
+            "value": "%@ önceki sürüme döndü, ancak sözlüğü ve ayarları dönmedi — bu geri yükleme noktasında onların kopyası yok."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 已回退到旧版本，但词库和设置没有——这个回退点里没有它们的副本。"
+            "value": "%@ 已恢复到旧版本，但词库和设置没有——这个恢复点里没有它们的副本。"
           }
         },
         "zh-Hant": {
@@ -74815,67 +74750,67 @@
         }
       }
     },
-    "The new version replaces this copy. If “Keep a backup so updates can be restored” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.": {
+    "The new version replaces this copy. If “Keep a backup of the previous version” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die neue Version ersetzt diese Kopie. Wenn „Backup aufbewahren, damit Updates wiederhergestellt werden können“ in den [Einstellungen](duoupdater-settings:backups) aktiviert ist, kannst du die aktuelle Version wiederherstellen."
+            "value": "Die neue Version ersetzt diese Kopie. Wenn „Backup der vorherigen Version aufbewahren“ in den [Einstellungen](duoupdater-settings:backups) aktiviert ist, kannst du die aktuelle Version wiederherstellen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La nueva versión sustituye a esta copia. Si “Conservar una copia de seguridad para poder restaurar actualizaciones” está activado en [Ajustes](duoupdater-settings:backups), puedes restaurar tu versión actual."
+            "value": "La nueva versión sustituye a esta copia. Si “Conservar una copia de seguridad de la versión anterior” está activado en [Ajustes](duoupdater-settings:backups), puedes restaurar tu versión actual."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La nouvelle version remplace cette copie. Si « Conserver une sauvegarde pour pouvoir restaurer les mises à jour » est activé dans les [Réglages](duoupdater-settings:backups), vous pouvez restaurer votre version actuelle."
+            "value": "La nouvelle version remplace cette copie. Si « Conserver une sauvegarde de la version précédente » est activé dans les [Réglages](duoupdater-settings:backups), vous pouvez restaurer votre version actuelle."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "La nuova versione sostituisce questa copia. Se “Conserva un backup per poter ripristinare gli aggiornamenti” è attivo nelle [Impostazioni](duoupdater-settings:backups), puoi ripristinare la versione attuale."
+            "value": "La nuova versione sostituisce questa copia. Se “Conserva un backup della versione precedente” è attivo nelle [Impostazioni](duoupdater-settings:backups), puoi ripristinare la versione attuale."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "新しいバージョンはこのコピーを置き換えます。[設定](duoupdater-settings:backups)で「更新を復元できるようバックアップを保持する」がオンなら、現在のバージョンに復元できます。"
+            "value": "新しいバージョンはこのコピーを置き換えます。[設定](duoupdater-settings:backups)で「1つ前のバージョンのバックアップを保持する」がオンなら、現在のバージョンに復元できます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "A nova versão substitui esta cópia. Se “Manter um backup para poder restaurar atualizações” estiver ativado nos [Ajustes](duoupdater-settings:backups), você pode restaurar a versão atual."
+            "value": "A nova versão substitui esta cópia. Se “Manter um backup da versão anterior” estiver ativado nos [Ajustes](duoupdater-settings:backups), você pode restaurar a versão atual."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Новая версия заменит эту копию. Если в [настройках](duoupdater-settings:backups) включено «Хранить резервную копию для восстановления обновлений», можно восстановить текущую версию."
+            "value": "Новая версия заменит эту копию. Если в [настройках](duoupdater-settings:backups) включено «Хранить резервную копию предыдущей версии», можно восстановить текущую версию."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yeni sürüm bu kopyanın yerini alır. [Ayarlar](duoupdater-settings:backups)’da “Güncellemelerin geri yüklenebilmesi için yedek tut” açıksa şu anki sürümü geri yükleyebilirsiniz."
+            "value": "Yeni sürüm bu kopyanın yerini alır. [Ayarlar](duoupdater-settings:backups)’da “Önceki sürümün yedeğini tut” açıksa şu anki sürümü geri yükleyebilirsiniz."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "新版本会替换这份副本。如果[设置](duoupdater-settings:backups)中打开了“保留备份以便恢复更新”，可以恢复到你现在的版本。"
+            "value": "新版本会替换这份副本。如果[设置](duoupdater-settings:backups)中打开了“保留上一版本的备份”，可以恢复到你现在的版本。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "新版本會取代這份副本。如果[設定](duoupdater-settings:backups)中開啟了「保留備份以便還原更新」，可以還原到你目前的版本。"
+            "value": "新版本會取代這份副本。如果[設定](duoupdater-settings:backups)中開啟了「保留上一版本的備份」，可以還原到你目前的版本。"
           }
         }
       }
@@ -76050,43 +75985,43 @@
         }
       }
     },
-    "Keeps a backup of the version you have now, for this update only, so it can be restored. Backups stay off in Settings.": {
+    "Keeps a backup of the version you have now, for this update only, so you can restore it. Backups stay off in Settings.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bewahrt nur für dieses Update ein Backup deiner aktuellen Version auf, damit es wiederhergestellt werden kann. Backups bleiben in den Einstellungen deaktiviert."
+            "value": "Bewahrt nur für dieses Update ein Backup deiner aktuellen Version auf, damit du sie wiederherstellen kannst. Backups bleiben in den Einstellungen deaktiviert."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Guarda una copia de seguridad de tu versión actual solo para esta actualización, para poder restaurarla. Las copias de seguridad siguen desactivadas en Ajustes."
+            "value": "Guarda una copia de seguridad de tu versión actual solo para esta actualización, para que puedas restaurarla. Las copias de seguridad siguen desactivadas en Ajustes."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conserve une sauvegarde de votre version actuelle, pour cette mise à jour uniquement, afin de pouvoir la restaurer. Les sauvegardes restent désactivées dans les Réglages."
+            "value": "Conserve une sauvegarde de votre version actuelle, pour cette mise à jour uniquement, afin que vous puissiez la restaurer. Les sauvegardes restent désactivées dans les Réglages."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conserva un backup della versione attuale, solo per questo aggiornamento, così da poterlo ripristinare. I backup restano disattivati nelle Impostazioni."
+            "value": "Conserva un backup della versione attuale, solo per questo aggiornamento, così da poterla ripristinare. I backup restano disattivati nelle Impostazioni."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "この更新に限り、現在のバージョンのバックアップを保持して復元できるようにします。設定のバックアップはオフのままです。"
+            "value": "この更新に限り、現在のバージョンのバックアップを保持して、復元できるようにします。設定のバックアップはオフのままです。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mantém um backup da versão atual, só para esta atualização, para que ela possa ser restaurada. Os backups continuam desativados nos Ajustes."
+            "value": "Mantém um backup da versão atual, só para esta atualização, para que você possa restaurá-la. Os backups continuam desativados nos Ajustes."
           }
         },
         "ru": {

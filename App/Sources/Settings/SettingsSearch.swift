@@ -43,7 +43,7 @@ enum SettingsSearch {
     private static func catalog(prefs: Preferences) -> [Setting] {
         let routing = String(localized: "Install routing")
         let notify = String(localized: "Notify me about updates to")
-        let rollback = String(localized: "Rollback points")
+        let rollback = String(localized: "Restore points")
         let permissions = String(localized: "Permissions")
         let signIn = String(localized: "Apple Developer sign-in")
         return [
@@ -63,7 +63,7 @@ enum SettingsSearch {
             Setting(anchor: .notifyCLITools, title: String(localized: "Command-line tools"), card: notify),
             Setting(anchor: .notifyHomebrew, title: String(localized: "Homebrew packages"), card: notify),
 
-            Setting(anchor: .keepBackups, title: String(localized: "Keep a backup so updates can be restored"), card: rollback),
+            Setting(anchor: .keepBackups, title: String(localized: "Keep a backup of the previous version"), card: rollback),
             Setting(anchor: .pruneOrphanBackups, title: String(localized: "Delete a backup once its app is uninstalled"), card: rollback),
             Setting(anchor: .backupLocation, title: String(localized: "Where backups are kept"), card: nil),
 

@@ -7616,13 +7616,13 @@ final class AppListModel {
     /// a Relaunch cannot (the row carries notes it does not own — see
     /// `restartHoldBackNotes`), so it retracts exactly these texts and nothing else.
     private static var backupUnreadableNote: String {
-        String(localized: "No rollback point: parts of this app aren’t readable by you (common for apps installed by a .pkg, which are often root-owned).")
+        String(localized: "No restore point: parts of this app aren’t readable by you (common for apps installed by a .pkg, which are often root-owned).")
     }
     private static var backupLowSpaceNote: String {
-        String(localized: "No rollback point: this Mac is low on space, so this update will be applied without a backup.")
+        String(localized: "No restore point: this Mac is low on space, so this update will be applied without a backup.")
     }
     private static var backupFailedNote: String {
-        String(localized: "Couldn’t back up the current version — this update will be applied without a rollback point.")
+        String(localized: "Couldn’t back up the current version — this update will be applied without a restore point.")
     }
 
     /// Take the rollback point a Relaunch owes the user before it quits the app
@@ -8260,7 +8260,7 @@ final class AppListModel {
             switch outcome.userData {
             case .noSnapshot:
                 installNotes[id] = String(
-                    localized: "\(updated.app.name) is back at the earlier version, but its dictionary and settings are not — this rollback point has no copy of them.")
+                    localized: "\(updated.app.name) is back at the earlier version, but its dictionary and settings are not — this restore point has no copy of them.")
             case .failed:
                 installNotes[id] = String(
                     localized: "\(updated.app.name) is back at the earlier version, but restoring its dictionary and settings failed — they are still what the newer version left.")

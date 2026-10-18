@@ -1468,7 +1468,7 @@ private struct WorkbenchRollbackList: View, @MainActor Equatable {
             ContentUnavailableView {
                 Label("Backups are off", systemImage: "arrow.uturn.backward")
             } description: {
-                Text("Turn them on to restore an update and compare what it changed.")
+                Text("Turn them on to restore the version from before an update and compare what it changed.")
             } actions: {
                 Button("Open Settings") {
                     model.requestedSettingsAnchor = .backups

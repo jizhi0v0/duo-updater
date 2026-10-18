@@ -947,13 +947,13 @@ public enum Install {
                     }
                 case .unreadable(let path):
                     if !json {
-                        print("   no rollback point: \(path) is not readable by you")
+                        print("   no restore point: \(path) is not readable by you")
                         print("   (common for .pkg apps, which are often root-owned)")
                     }
                 case .insufficientSpace:
-                    if !json { print("   no rollback point: this Mac is low on space") }
+                    if !json { print("   no restore point: this Mac is low on space") }
                 case .failed:
-                    if !json { print("   could not back up — installing without a rollback point") }
+                    if !json { print("   could not back up — installing without a restore point") }
                 }
             }
             do {

@@ -126,7 +126,7 @@ public enum Doctor {
             line(false, "install lock", "held by pid \(holder) — installs will be refused")
         }
         let rollback = rollbackLine(report.unbackupable)
-        line(rollback.ok, "rollback points", rollback.detail)
+        line(rollback.ok, "restore points", rollback.detail)
         if let unbackupable = report.unbackupable, !unbackupable.isEmpty {
             for entry in unbackupable {
                 print("      \(entry.app) — \(entry.blockedBy) is not readable by you")

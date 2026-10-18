@@ -241,6 +241,34 @@ struct PackageInstallerTests {
         #expect(await opened.urls == [bundle])
     }
 
+    /// The hand-off to Installer is this route's point of no return
+    /// (`InstallCommit`): a caller cancelled before it opens nothing.
+    /// Mutation: call `handOff` without `InstallCommit.run` → opened, red.
+    @Test func aCancelledCallerHandsNothingToInstaller() async throws {
+        let fm = FileManager.default
+        let bundle = fm.temporaryDirectory
+            .appendingPathComponent("ZZFixture-Bundle-\(UUID().uuidString).pkg", isDirectory: true)
+        try fm.createDirectory(
+            at: bundle.appendingPathComponent("Contents", isDirectory: true),
+            withIntermediateDirectories: true)
+        try Data("legacy package payload".utf8).write(
+            to: bundle.appendingPathComponent("Contents/Archive.pax.gz"))
+        defer { try? fm.removeItem(at: bundle) }
+
+        let opened = Recorder()
+        let installer = PackageInstaller(
+            opener: { await opened.record($0) },
+            packageGate: { _, _ in })
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await installer.reopen(
+                package: bundle,
+                installedApp: URL(fileURLWithPath: "/Applications/ZZFixture.app"))
+        }
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(await opened.urls.isEmpty)
+    }
+
     @Test func verifierFailureImmediatelyRemovesTheScratchDirectory() async throws {
         enum FixtureError: Error { case rejected }
 

@@ -197,6 +197,24 @@ private let receiptImportLog =
     #expect(calls == 4)  // maxAttempts
 }
 
+/// D4: cancelled while waiting out the backoff after a transient failure, the
+/// loop ends with `CancellationError` — it does not start the next `mas install`.
+/// The failed attempt installed nothing, so stopping loses nothing. The backoff
+/// is long enough (60 s) that only a cancel that ends it lets this finish.
+/// Mutation: `try?` on the backoff AND drop `InstallCommit.run`'s
+/// `checkCancellation` → the next attempts run, red (either one alone still
+/// stops the loop: the sleep throws, or the next commit refuses to start).
+@Test func aCancelDuringTheBackoffStartsNoFurtherAttempt() async throws {
+    let runner = ScriptedMASRunner([(1, transientLog)])  // always transient
+    let installer = MASInstaller(runner: runner, retryBackoffNanos: 60_000_000_000)
+    let task = Task { try await installer.install(adamID: 900000006) { _ in } }
+    while await runner.calls == 0 { try await Task.sleep(for: .milliseconds(5)) }
+    task.cancel()
+    await #expect(throws: CancellationError.self) { try await task.value }
+    let calls = await runner.calls
+    #expect(calls == 1)
+}
+
 @Test func installerUpgradeFailureIsTreatedAsAnAppStoreDeadEnd() {
     // TestFlight 4.2.2 → 4.3.0: mas downloaded the package, then macOS's own
     // `installer` refused to replace the bundle. Retrying re-downloads and fails

@@ -43,13 +43,75 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: workDir.path))
     }
 
+    // MARK: - Cancelled around the commit
+
+    /// Cancelled inside the apply phase, after its preparation and just before
+    /// its swap: the swap — wrapped in `InstallCommit` exactly as the installers
+    /// wrap `InPlaceSwap.replace` — never starts, the scratch directory goes, and
+    /// both permits are back.
+    /// Mutation: drop `InstallCommit.run`'s `checkCancellation` → swapped, red.
+    @Test func aCancelJustBeforeTheSwapAppliesNothing() async throws {
+        let workDir = try Self.workDir()
+        defer { try? FileManager.default.removeItem(at: workDir) }
+        let permits = InstallPermits(downloads: 1, applies: 1)
+        let swapped = Counter()
+        let task = Task {
+            try await Self.run(workDir: workDir, permits: permits, applyAsync: {
+                // The preparation part of an apply (extract, verify) ends here.
+                withUnsafeCurrentTask { $0?.cancel() }
+                try await InstallCommit.run("swap") { swapped.bump() }
+            })
+        }
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+        #expect(swapped.value == 0)
+        #expect(!FileManager.default.fileExists(atPath: workDir.path))
+        #expect(permits.availableDownloadPermits == 1)
+        #expect(permits.availableApplyPermits == 1)
+    }
+
+    /// Cancelled while the swap runs: the swap finishes, the install reports it
+    /// applied, the scratch directory goes and both permits are back.
+    /// Mutation: call the commit's body directly instead of in its unstructured
+    /// task → the swap's `Task.sleep` throws, nothing reports applied, red.
+    @Test func aCancelDuringTheSwapStillApplies() async throws {
+        let workDir = try Self.workDir()
+        defer { try? FileManager.default.removeItem(at: workDir) }
+        let permits = InstallPermits(downloads: 1, applies: 1)
+        let swapped = Counter()
+        let entered = InstallCommitTests.Signal()
+        let release = InstallCommitTests.Signal()
+        let task = Task {
+            try await Self.run(workDir: workDir, permits: permits, applyAsync: {
+                try await InstallCommit.run("swap") {
+                    entered.fire()
+                    await release.wait()
+                    // Stands in for the swap's own awaits, which a cancel that
+                    // reached it would cut short.
+                    try await Task.sleep(for: .milliseconds(20))
+                    swapped.bump()
+                }
+            })
+        }
+        await entered.wait()
+        task.cancel()
+        release.fire()
+        let outcome = try await task.value
+        #expect(outcome.applied)
+        #expect(swapped.value == 1)
+        #expect(!FileManager.default.fileExists(atPath: workDir.path))
+        #expect(permits.availableDownloadPermits == 1)
+        #expect(permits.availableApplyPermits == 1)
+    }
+
     // MARK: - Helpers
 
     private static func run(
         workDir: URL, cancelDuringDownload: Bool = false,
-        apply: @escaping @Sendable () throws -> Void
+        permits: InstallPermits = InstallPermits(downloads: 1, applies: 1),
+        apply: @escaping @Sendable () throws -> Void = {},
+        applyAsync: @escaping @Sendable () async throws -> Void = {}
     ) async throws -> InstallCoordinator.Outcome {
-        let coordinator = InstallCoordinator(permits: InstallPermits(downloads: 1, applies: 1))
+        let coordinator = InstallCoordinator(permits: permits)
         let archive = workDir.appendingPathComponent("ZZFixture.zip")
         return try await coordinator.fetchThenSwap(
             Self.result(), spaceToApply: 0, progress: { _ in }, releaseAfterDownload: {},
@@ -57,7 +119,10 @@ import Testing
                 if cancelDuringDownload { withUnsafeCurrentTask { $0?.cancel() } }
                 return DownloadedUpdate(archiveURL: archive, bytesDownloaded: 1, workDir: workDir)
             },
-            apply: { _, _, _ in try apply() })
+            apply: { _, _, _ in
+                try apply()
+                try await applyAsync()
+            })
     }
 
     private static func workDir() throws -> URL {

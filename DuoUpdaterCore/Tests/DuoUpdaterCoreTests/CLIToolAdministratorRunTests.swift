@@ -195,6 +195,59 @@ import Foundation
         #expect(!FileManager.default.fileExists(atPath: marker))
     }
 
+    /// Cancelled before the panel: no panel, nothing run, nothing left behind.
+    /// The panel is the tool's point of no return (`InstallCommit`).
+    /// Mutation: drop the commit → the panel is raised and the command runs, red.
+    @Test func aCancelledCallerRaisesNoPanel() async throws {
+        let box = try Sandbox()
+        let marker = box.root.appendingPathComponent("RAN").path
+        let shell = box.shell()
+        let task = Task { () async -> CLIToolAdministratorRun.Result in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await shell.run("touch \(CLIToolAdministratorRun.quote(marker))") { _ in }
+        }
+        let result = await task.value
+        guard case .refused = result else { Issue.record("expected refused, got \(result)"); return }
+        #expect(box.given.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: marker))
+        #expect(box.leftovers.isEmpty)
+    }
+
+    /// Cancelled once the panel has authorized: the command is root's and is
+    /// followed to its status as if nothing happened. The following runs where
+    /// the cancel does not reach — its `try?` poll sleep would spin on a
+    /// cancelled task, returning at once on every turn until the status lands.
+    /// Mutation: drop the commit → the lines arrive in a cancelled task, red.
+    @Test func aCancelAfterThePanelIsNotSeenByTheFollowing() async throws {
+        let box = try Sandbox()
+        let hold = box.root.appendingPathComponent("hold")
+        FileManager.default.createFile(atPath: hold.path, contents: nil)
+        let held = CLIToolAdministratorRun.quote(hold.path)
+        let sawCancel = InstallCommitTests.Flag()
+        let started = InstallCommitTests.Signal()
+        let shell = box.shell()
+        let task = Task { () async -> CLIToolAdministratorRun.Result in
+            await shell.run(
+                "echo started; n=0; while [ -e \(held) ] && [ $n -lt 3000 ]; do sleep 0.02; n=$((n+1)); done; echo done"
+            ) { line in
+                if line == CLIToolAdministratorRun.waitingLine { return }
+                if Task.isCancelled { sawCancel.set() }
+                if line == "started" { started.fire() }
+            }
+        }
+        await started.wait()
+        task.cancel()
+        // A few polls' worth while cancelled, then let the command end.
+        try await Task.sleep(for: .milliseconds(100))
+        try FileManager.default.removeItem(at: hold)
+        let run = try #require(Self.ran(await task.value))
+        #expect(run.lines == ["started", "done"])
+        let outcome = try #require(Self.outcome(run))
+        #expect(outcome.terminationStatus == 0)
+        #expect(!outcome.timedOut)
+        #expect(!sawCancel.value)
+    }
+
     /// The line survives both quotings: the shell's and AppleScript's.
     /// Mutations: drop either escape in `appleScript(for:)`; drop `quote`'s.
     @Test func quotesSurviveBothLanguages() {

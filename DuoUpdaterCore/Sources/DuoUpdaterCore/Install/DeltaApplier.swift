@@ -106,10 +106,16 @@ public enum DeltaApplier {
     /// lets the caller fall back to the full download without cleanup.
     ///
     /// Cancelling the calling task tears `BinaryDelta` down and throws
-    /// `CancellationError`. That is safe because `destination` is always in the
-    /// install's work directory (`reconstruct` passes `workDir/patched-…`), which
-    /// the install removes afterwards, so a bundle half-written by a killed run
-    /// never outlives it.
+    /// `CancellationError`. The bundle it writes is `destination`, which is always
+    /// in the install's work directory (`reconstruct` passes `workDir/patched-…`),
+    /// so a half-written bundle does not outlive the install.
+    ///
+    /// Not everything it writes is in the work directory. For each changed file,
+    /// Sparkle writes a temporary diff with `mkstemp` under `NSTemporaryDirectory()`
+    /// and deletes it only after a successful patch, so a killed run leaves one
+    /// there. That directory is the per-user temporary directory: on macOS it does
+    /// not follow `TMPDIR`, so setting `TMPDIR` for the child does not move it
+    /// (measured on macOS 27.2 with a real `BinaryDelta`).
     public static func apply(
         installedApp: URL,
         patch: URL,

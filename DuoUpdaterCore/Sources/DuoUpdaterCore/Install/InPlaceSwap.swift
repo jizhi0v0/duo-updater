@@ -403,6 +403,137 @@ public enum InPlaceSwap {
         return elevatedOutcome
     }
 
+    // MARK: - Place back
+
+    /// Whether nothing at all is at `target` — not a bundle, not a symlink, not
+    /// a file. `lstat`, not `fileExists`: a dangling symlink is something, and
+    /// it belongs to `replace`, whose validation refuses it.
+    static func isAbsent(_ target: URL) -> Bool {
+        (try? FileManager.default.attributesOfItem(atPath: target.path)) == nil
+    }
+
+    /// Put `newApp` at `target`, where there is nothing — a restore whose app
+    /// vanished. `brew install --cask --force` deletes the old bundle before it
+    /// moves the new one in, and its rescue restores Homebrew's own staging, not
+    /// `/Applications`; cut off between the two, the app is simply gone. There is
+    /// nothing to exchange with, and `replace` refuses a missing target on
+    /// purpose (`validateTarget`), so this is the separate, smaller operation.
+    ///
+    /// Never overwrites: a target that appears in the meantime makes this fail
+    /// rather than be replaced or, worse, have the copy moved inside it.
+    ///
+    /// Runs to completion once started, as `replace` does: nothing checks for
+    /// cancellation and the privileged shell is `.runToCompletion`.
+    static func placeBack(newApp: URL, at target: URL) async throws {
+        try validatePlacement(target)
+        await stripQuarantine(newApp)
+        let elevated = placeBackNeedsElevation(at: target)
+        Log.install.notice(
+            "place back start: \(target.lastPathComponent, privacy: .public) elevated=\(elevated, privacy: .public)")
+        if elevated {
+            try await privilegedPlaceBack(newApp: newApp, target: target)
+        } else {
+            // Off the pool: the first move can be a whole-bundle copy when the
+            // scratch copy is on another volume.
+            try await offCooperativePool(qos: .userInitiated) {
+                try placeUnprivileged(newApp: newApp, at: target)
+            }
+        }
+        Log.install.notice("place back done: \(target.lastPathComponent, privacy: .public)")
+    }
+
+    /// Whether putting a bundle at `target` has to go through the administrator
+    /// prompt. Only the enclosing directory is asked: there is no bundle to
+    /// unlink, which is the other half of `needsElevatedReplace`'s question.
+    static func placeBackNeedsElevation(at target: URL) -> Bool {
+        !FileManager.default.isWritableFile(atPath: target.deletingLastPathComponent().path)
+    }
+
+    /// `validateTarget`'s path rules, for a target that must NOT exist, in a
+    /// directory that must.
+    static func validatePlacement(_ target: URL) throws {
+        let path = target.path
+        guard target.isFileURL, path.hasPrefix("/"), path.hasSuffix(".app"), path.count > 4 else {
+            throw SwapError.invalidTarget("“\(path)” is not an absolute .app path.")
+        }
+        guard isAbsent(target) else {
+            throw SwapError.invalidTarget("“\(path)” already exists.")
+        }
+        let parent = target.deletingLastPathComponent()
+        let vals = try? parent.resourceValues(forKeys: [.isDirectoryKey])
+        guard vals?.isDirectory == true else {
+            throw SwapError.invalidTarget("“\(parent.path)” is not an existing folder.")
+        }
+    }
+
+    /// The unprivileged place-back: stage beside the target under the name the
+    /// launch sweep already clears (`.duoupdater-staged-`), then one rename. So
+    /// the app appears whole or not at all — a copy cut off across volumes
+    /// leaves only a hidden leftover — and `moveItem` refuses to overwrite.
+    private static func placeUnprivileged(newApp: URL, at target: URL) throws {
+        let fm = FileManager.default
+        let staged = target.deletingLastPathComponent()
+            .appendingPathComponent(".duoupdater-staged-\(target.lastPathComponent)")
+        try? fm.removeItem(at: staged)
+        do {
+            try fm.moveItem(at: newApp, to: staged)
+            try fm.moveItem(at: staged, to: target)
+        } catch {
+            try? fm.removeItem(at: staged)
+            Log.install.error(
+                "place back: \(target.lastPathComponent, privacy: .public) was not put back — \(error.localizedDescription, privacy: .public)")
+            if isAppManagementDenial(error) {
+                throw AppManagementRequiredError(targetPath: target.path)
+            }
+            throw SwapError.notReplaceable(error.localizedDescription)
+        }
+    }
+
+    /// The administrator half: one `osascript` shell, behind the same one-panel
+    /// lock as `privilegedReplace`, and declining it reads the same way.
+    private static func privilegedPlaceBack(newApp: URL, target: URL) async throws {
+        let shell = privilegedPlacementShell(newApp: newApp, target: target)
+        let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
+        let outcome = try await elevationPanel.withApplyPermit {
+            try await ChildProcess.run(
+                "/usr/bin/osascript", ["-e", appleScript],
+                standardOutput: .discard, onCancel: .runToCompletion)
+        }
+        guard outcome.terminationStatus == 0 else {
+            let msg = String(data: outcome.standardError, encoding: .utf8) ?? "unknown error"
+            if isAuthorizationDeclined(msg) {
+                throw AuthorizationDeclinedError(targetPath: target.path)
+            }
+            throw SwapError.notReplaceable(msg)
+        }
+    }
+
+    /// The authenticated shell for a place-back, split out so it can be run in a
+    /// temporary directory without a password panel.
+    ///
+    /// The copy is materialised beside the target first (`.duoupdater-new`,
+    /// which the launch sweep clears if this is cut off), then renamed in. The
+    /// rename is guarded by `test ! -e` and `test ! -L`: `mv` onto an existing
+    /// directory does not fail, it moves the source INSIDE it, so without the
+    /// guard a bundle that appeared in the meantime would get a second app
+    /// nested in it. Any failure removes the staged copy.
+    ///
+    /// Ownership is left as `ditto` makes it — the source's, i.e. the user's.
+    /// `privilegedReplacementShell` copies the owner off the bundle it replaces;
+    /// here there is none to copy from, and inventing one is not this
+    /// function's call.
+    static func privilegedPlacementShell(newApp: URL, target: URL) -> String {
+        let new = shellQuote(target.path + ".duoupdater-new")
+        let tgt = shellQuote(target.path)
+        let src = shellQuote(newApp.path)
+        return """
+        /bin/rm -rf \(new); \
+        /usr/bin/ditto \(src) \(new) && \
+        /bin/test ! -e \(tgt) && /bin/test ! -L \(tgt) && \
+        /bin/mv \(new) \(tgt) || { /bin/rm -rf \(new); false; }
+        """
+    }
+
     /// The unprivileged whole-bundle exchange — `replace`'s non-elevated route,
     /// synchronous so it can run in one `offCooperativePool` hop. Returns
     /// `.replaced`, or `.replacedButCleanupFailed` when the exchange landed and its

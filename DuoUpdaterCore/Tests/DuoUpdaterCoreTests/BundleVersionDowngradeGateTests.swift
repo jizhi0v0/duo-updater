@@ -58,8 +58,9 @@ import Testing
 
     // MARK: - The rule
 
-    /// The relabelled-feed case: Arc's real builds, installed 88758 and an
-    /// archive of 88413 offered as newer.
+    /// The relabelled-feed case: an archive of build 88413 offered as newer over
+    /// an installed 88758. The numbers are Arc's two builds from one
+    /// `duo check` (88413 installed, 88758 offered), swapped to make the attack.
     /// Mutation: drop the `throw` or invert the comparison → it passes.
     @Test func anOlderBuildIsRefusedNamingBothBuilds() throws {
         let error = try Self.gate(installed: "88758", downloaded: "88413")

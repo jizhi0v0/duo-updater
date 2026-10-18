@@ -35,7 +35,15 @@ enum CLIToolCommandRunner {
             // The tool's point of no return (`InstallCommit`): a caller cancelled
             // before it starts nothing, and the `CancellationError` is reported as
             // a run that could not start; once started, the command finishes.
-            result = .finished(try await InstallCommit.run("update command") {
+            //
+            // Landed unless the command exited by itself with a failure status:
+            // that is the tool refusing (a rejected token, a 403 — the cases
+            // uv, bun and mise run again), and a cancel before such a retry must
+            // still be a cancel. A command killed by a signal or by our deadline
+            // stopped partway, possibly mid-write, so it counts as landed.
+            result = .finished(try await InstallCommit.run(
+                "update command", landed: { $0.succeeded || $0.uncaughtSignal || $0.timedOut }
+            ) {
                 try await ChildProcess.run(
                     command.executable, command.arguments, environment: environment, standardInput: standardInput,
                     standardOutput: .discard, standardError: .mergeIntoOutput,

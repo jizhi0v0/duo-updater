@@ -121,7 +121,11 @@ enum CLIToolAdministratorRun {
             // it — whose `try?` poll sleep would spin on a cancelled task. A
             // caller cancelled before it raises no panel and runs nothing.
             let shell = self
-            let result = try? await InstallCommit.run("administrator run") {
+            // Landed only once the command ran: a dismissed or refused panel ran
+            // nothing.
+            let result = try? await InstallCommit.run("administrator run", landed: {
+                if case .ran = $0 { return true } else { return false }
+            }) {
                 await shell.authorizeAndFollow(text, directory: directory, progress: progress)
             }
             return result ?? .refused("cancelled before the administrator panel was raised; nothing ran")

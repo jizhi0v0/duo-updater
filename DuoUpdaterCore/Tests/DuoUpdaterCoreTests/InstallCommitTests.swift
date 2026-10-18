@@ -154,6 +154,30 @@ import Testing
 
     static func id() -> String { "ZZFixture-job-\(UUID().uuidString)" }
 
+    /// The job's task, for a cancel closure registered before the task exists.
+    /// A cancel that arrives first is applied when the task is set.
+    final class TaskHandle: @unchecked Sendable {
+        private let lock = NSLock()
+        private var task: Task<Void, Error>?
+        private var cancelled = false
+
+        func set(_ task: Task<Void, Error>) {
+            let cancelNow = lock.withLock { () -> Bool in
+                self.task = task
+                return cancelled
+            }
+            if cancelNow { task.cancel() }
+        }
+
+        func cancel() {
+            let task = lock.withLock { () -> Task<Void, Error>? in
+                cancelled = true
+                return self.task
+            }
+            task?.cancel()
+        }
+    }
+
     /// Unknown → nil; registered → preparing; inside a commit → committing; a
     /// commit that returned keeps it committing (past the point of no return);
     /// one that threw puts it back to preparing (nothing changed).
@@ -236,6 +260,78 @@ import Testing
         release.fire()
         #expect(try await task.value == "landed")
         #expect(!cancelled.value)
+    }
+
+    /// A body that reports "refused, nothing changed" by value: `landed` says
+    /// no, the value still comes back, and the job is preparing again. One whose
+    /// value lands keeps it committing.
+    /// Mutation: ignore the predicate → the first job stays committing, red.
+    @Test func aCommitWhoseValueDidNotLandLeavesTheJobPreparing() async throws {
+        let refused = Self.id()
+        InstallJobs.register(refused, cancel: {})
+        defer { InstallJobs.unregister(refused) }
+        let status = try await InstallJobs.$currentID.withValue(refused) {
+            try await InstallCommit.run("ZZFixture-mas", landed: { $0 == 0 }) { () -> Int32 in 1 }
+        }
+        #expect(status == 1)
+        #expect(InstallJobs.phase(of: refused) == .preparing)
+
+        let took = Self.id()
+        InstallJobs.register(took, cancel: {})
+        defer { InstallJobs.unregister(took) }
+        _ = try await InstallJobs.$currentID.withValue(took) {
+            try await InstallCommit.run("ZZFixture-mas", landed: { $0 == 0 }) { () -> Int32 in 0 }
+        }
+        #expect(InstallJobs.phase(of: took) == .committing)
+    }
+
+    /// The shape of uv's, bun's and mise's retry (a rejected token, a 403): the
+    /// vendor command exits with a failure status, the job is preparing again,
+    /// a cancel then is `.cancelled`, and the retry starts nothing. A command
+    /// that exits 0 keeps the job committing.
+    /// Mutation: ignore the predicate → `.tooLate` and the retry runs, red.
+    @Test func aRegisteredCLIJobIsCancellableBetweenARefusedRunAndItsRetry() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-cli-retry-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let runs = dir.appendingPathComponent("RUNS")
+        let deadline = ChildProcess.Deadline(terminateAfter: .seconds(30), killAfter: .seconds(35))
+        func command(exit code: Int) -> CLIToolCommand {
+            CLIToolCommand(
+                executable: "/bin/sh", arguments: ["-c", "echo run >> \"$0\"; exit \(code)", runs.path],
+                pathPrefix: nil)
+        }
+        func runCount() -> Int {
+            ((try? String(contentsOf: runs, encoding: .utf8)) ?? "").split(separator: "\n").count
+        }
+
+        let id = Self.id()
+        let cancelled = Flag()
+        InstallJobs.register(id, cancel: { cancelled.set() })
+        defer { InstallJobs.unregister(id) }
+        let (answer, second) = await InstallJobs.$currentID.withValue(id) {
+            () async -> (InstallJobs.CancelResult, CLIToolCommandRunner.Run) in
+            _ = await CLIToolCommandRunner.run(
+                command(exit: 2), environment: ["PATH": "/usr/bin:/bin"], deadline: deadline, progress: { _ in })
+            let answer = InstallJobs.cancel(id)
+            let second = await CLIToolCommandRunner.run(
+                command(exit: 2), environment: ["PATH": "/usr/bin:/bin"], deadline: deadline, progress: { _ in })
+            return (answer, second)
+        }
+        #expect(answer == .cancelled)
+        #expect(cancelled.value)
+        if case .couldNotStart = second.result {} else { Issue.record("the retry ran: \(second.result)") }
+        #expect(runCount() == 1)
+
+        let landed = Self.id()
+        InstallJobs.register(landed, cancel: {})
+        defer { InstallJobs.unregister(landed) }
+        await InstallJobs.$currentID.withValue(landed) {
+            _ = await CLIToolCommandRunner.run(
+                command(exit: 0), environment: ["PATH": "/usr/bin:/bin"], deadline: deadline, progress: { _ in })
+        }
+        #expect(InstallJobs.cancel(landed) == .tooLate(committing: "update command"))
     }
 
     @Test func anUnknownJobIsNotFound() {

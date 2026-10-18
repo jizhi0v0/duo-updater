@@ -328,7 +328,10 @@ public actor MASInstaller {
         // own, and nothing here could take that back. A cancel before it starts
         // no attempt; one during it is not seen.
         let runner = self.runner
-        let status = try await InstallCommit.run("mas install") {
+        // A non-zero exit is a refused attempt — the store installed nothing —
+        // reported by value, so it is not a landing: a cancel during the backoff
+        // before the next attempt is still a cancel (`InstallJobs`).
+        let status = try await InstallCommit.run("mas install", landed: { $0 == 0 }) {
             try await runner.installMAS(
                 adamID: adamID, uid: uid, gid: gid, userName: user, logPath: logPath)
         }

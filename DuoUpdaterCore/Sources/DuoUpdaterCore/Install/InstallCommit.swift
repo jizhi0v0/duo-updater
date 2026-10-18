@@ -62,8 +62,18 @@ public enum InstallCommit {
     /// its registered job) is already cancelled; otherwise returns what `body`
     /// returns, or throws what it throws, however the caller's cancellation
     /// changes meanwhile.
+    ///
+    /// `landed` says whether the value `body` returned means the hand-over
+    /// took: false for a body that reports "refused, nothing changed" by value
+    /// rather than by throwing — a `mas install` that exited non-zero, a vendor
+    /// command that exited with a failure status. For the job's phase such a
+    /// value counts like a throw (`InstallJobs`: back to `.preparing`, so a
+    /// cancel before the caller's retry is still a cancel); the value is
+    /// returned to the caller either way.
     public static func run<T: Sendable>(
-        _ label: String, _ body: @escaping @Sendable () async throws -> T
+        _ label: String,
+        landed isLanded: @escaping @Sendable (T) -> Bool = { _ in true },
+        _ body: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         if isInside { return try await body() }
         try Task.checkCancellation()
@@ -85,7 +95,7 @@ public enum InstallCommit {
                 Log.install.debug("commit end: \(label, privacy: .public) landed=\(landed, privacy: .public)")
             }
             let value = try await $isInside.withValue(true) { try await body() }
-            landed = true
+            landed = isLanded(value)
             return value
         }
         return try await task.value

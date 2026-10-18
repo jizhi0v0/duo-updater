@@ -207,12 +207,50 @@ private let receiptImportLog =
 @Test func aCancelDuringTheBackoffStartsNoFurtherAttempt() async throws {
     let runner = ScriptedMASRunner([(1, transientLog)])  // always transient
     let installer = MASInstaller(runner: runner, retryBackoffNanos: 60_000_000_000)
-    let task = Task { try await installer.install(adamID: 900000006) { _ in } }
+    let task = Task { try await installer.install(adamID: 900000007) { _ in } }
     while await runner.calls == 0 { try await Task.sleep(for: .milliseconds(5)) }
     task.cancel()
     await #expect(throws: CancellationError.self) { try await task.value }
     let calls = await runner.calls
     #expect(calls == 1)
+}
+
+extension InstallJobsTests {
+    /// The registry's view of the same window (review of #1404): a failed attempt
+    /// reports its status by value, not by throwing, and must still leave the job
+    /// `.preparing` — so a host's cancel during the backoff is `.cancelled`, runs
+    /// the job's own cancel, and no further `mas install` starts.
+    /// In `InstallJobsTests` (serialized) because `cancelAll` there is global.
+    /// Mutation: ignore `InstallCommit.run`'s `landed` predicate → the job stays
+    /// committing, the cancel is `.tooLate`, red.
+    @Test func aRegisteredMASJobIsCancellableDuringTheBackoff() async throws {
+        let runner = ScriptedMASRunner([(1, transientLog)])  // always transient
+        let installer = MASInstaller(runner: runner, retryBackoffNanos: 60_000_000_000)
+        let id = Self.id()
+        let handle = TaskHandle()
+        InstallJobs.register(id, cancel: { handle.cancel() })
+        defer { InstallJobs.unregister(id) }
+        let task = Task {
+            try await InstallJobs.$currentID.withValue(id) {
+                try await installer.install(adamID: 900000008) { _ in }
+            }
+        }
+        handle.set(task)
+        // The first attempt has failed and its commit has ended: the job is
+        // waiting out the backoff.
+        while await runner.calls == 0 { try await Task.sleep(for: .milliseconds(5)) }
+        let clock = ContinuousClock()
+        let limit = clock.now.advanced(by: .seconds(5))
+        while InstallJobs.phase(of: id) != .preparing, clock.now < limit {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        let answer = InstallJobs.cancel(id)
+        if answer != .cancelled { task.cancel() }  // red path: don't wait out a minute
+        #expect(answer == .cancelled)
+        await #expect(throws: CancellationError.self) { try await task.value }
+        let calls = await runner.calls
+        #expect(calls == 1)
+    }
 }
 
 @Test func installerUpgradeFailureIsTreatedAsAnAppStoreDeadEnd() {

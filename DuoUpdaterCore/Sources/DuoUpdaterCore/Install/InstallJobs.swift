@@ -12,10 +12,16 @@ import Foundation
 /// **Phases.** `.preparing` until a commit starts; `.committing` while one runs
 /// AND after one returned — past the point of no return a job stays there
 /// (the design's rule: cancellable up to the commit, never after it). A commit
-/// that THREW puts the job back to `.preparing`: the routes' commits throw only
-/// when what they hand over refused it (a swap that did not land, a `mas` run
-/// that failed), so nothing was installed and stopping now loses nothing — the
-/// retry loop between two `mas install` attempts is exactly that window.
+/// that did NOT land puts the job back to `.preparing`: one that threw, or one
+/// whose value its `landed` predicate rejected (`InstallCommit.run`). The
+/// routes report "refused, nothing installed" one of those two ways — a swap
+/// that did not land throws; a `mas install` attempt that exited non-zero, or
+/// a vendor update command that exited with a failure status, returns that
+/// status — so stopping then loses nothing. The backoff between two
+/// `mas install` attempts, and a CLI runner's second try after a rejected
+/// token, are exactly that window. A failed commit can still have changed
+/// something on the way (a brew run that failed halfway); `.preparing` then
+/// means only "this job will start nothing further".
 ///
 /// **A truthful answer.** `cancel` answering `.cancelled` means no commit of
 /// that job will start: the request is recorded under the lock that

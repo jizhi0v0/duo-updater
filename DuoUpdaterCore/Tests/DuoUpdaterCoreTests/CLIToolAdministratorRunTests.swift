@@ -282,3 +282,26 @@ final class LockedLines: @unchecked Sendable {
     func append(_ line: String) { lock.withLock { lines.append(line) } }
     var all: [String] { lock.withLock { lines } }
 }
+
+extension InstallJobsTests {
+    /// A dismissed panel ran nothing, so the job is preparing again; a panel
+    /// that authorized ran root's command, and the job stays committing.
+    /// Mutation: drop the run's `landed` predicate → the dismissed job stays
+    /// committing, red.
+    @Test func aDismissedAdministratorPanelLeavesTheJobPreparing() async throws {
+        let box = try CLIToolAdministratorRunTests.Sandbox()
+        let declined = Self.id()
+        InstallJobs.register(declined, cancel: {})
+        defer { InstallJobs.unregister(declined) }
+        let shell = box.shell(answer: .error(number: -128, message: "User canceled."))
+        _ = await InstallJobs.$currentID.withValue(declined) { await shell.run("true") { _ in } }
+        #expect(InstallJobs.phase(of: declined) == .preparing)
+
+        let ran = Self.id()
+        InstallJobs.register(ran, cancel: {})
+        defer { InstallJobs.unregister(ran) }
+        let authorized = box.shell()
+        _ = await InstallJobs.$currentID.withValue(ran) { await authorized.run("true") { _ in } }
+        #expect(InstallJobs.phase(of: ran) == .committing)
+    }
+}

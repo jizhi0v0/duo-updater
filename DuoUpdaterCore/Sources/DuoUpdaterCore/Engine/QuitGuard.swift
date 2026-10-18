@@ -6,10 +6,12 @@ import Foundation
 /// Why this exists: before it, every quit ended the process at once, installs or
 /// not. A Homebrew child outlives us in its own process group, but its stdout is
 /// a pipe we held, and its next progress line — `==> Moving App`, printed between
-/// deleting the old app and moving the new one in — dies on EPIPE. Its rescue
-/// restores the Caskroom and exits, and the app is simply gone from
-/// /Applications (plans/update-cancellation.md §2.5). Waiting for the in-flight
-/// work is the fix; cancelling it is a later step (see `Decision`).
+/// removing the old app and moving the new one in — dies on EPIPE. Its rescue
+/// would put the old app back, but the revert starts by printing to the same
+/// dead pipe (Homebrew 7.0.9, read from source; not measured), so the app is
+/// left gone from /Applications, the old copy only in the Caskroom backup.
+/// Waiting for the in-flight work is the fix; cancelling it is a later step
+/// (see `Decision`).
 ///
 /// The policy, as decided (§9 Q4):
 ///   • nothing in flight → quit now, exactly as before;

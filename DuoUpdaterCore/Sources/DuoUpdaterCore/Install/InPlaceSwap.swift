@@ -413,11 +413,12 @@ public enum InPlaceSwap {
     }
 
     /// Put `newApp` at `target`, where there is nothing — a restore whose app
-    /// vanished. `brew install --cask --force` deletes the old bundle before it
-    /// moves the new one in, and its rescue restores Homebrew's own staging, not
-    /// `/Applications`; cut off between the two, the app is simply gone. There is
-    /// nothing to exchange with, and `replace` refuses a missing target on
-    /// purpose (`validateTarget`), so this is the separate, smaller operation.
+    /// vanished. `brew install --cask --force` removes the old bundle from
+    /// `/Applications` before it moves the new one in; cut off between the two
+    /// (a signal skips its revert, and a dead pipe likely breaks it), the app is
+    /// simply gone. There is nothing to exchange with, and `replace` refuses a
+    /// missing target on purpose (`validateTarget`), so this is the separate,
+    /// smaller operation.
     ///
     /// Never overwrites: a target that appears in the meantime makes this fail
     /// rather than be replaced or, worse, have the copy moved inside it.

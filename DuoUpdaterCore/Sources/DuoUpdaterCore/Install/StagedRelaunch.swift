@@ -150,7 +150,7 @@ public enum StagedRelaunch {
         public var relaunch: @Sendable (_ activates: Bool) async -> Bool
         /// What `ParkedInstallerProbe.isAlive` asks.
         public var installer: ParkedInstallerProbe.System
-        /// The app's normal-level windows on screen now, every instance.
+        /// The app's windows on screen now, every instance (`onScreenWindowCount`).
         public var onScreenWindows: @Sendable () -> Int
 
         public init(
@@ -344,8 +344,12 @@ public enum StagedRelaunch {
         return Ending(outcome: outcome, everQuit: everQuit, reopenFailed: reopenFailed)
     }
 
-    /// Normal-level (layer 0) windows on screen owned by `pids`. Needs no
-    /// permission: only window titles do.
+    /// Windows on screen owned by `pids`, below the status-bar level: normal
+    /// windows, panels, and alerts at the modal-panel level all count; menu-bar
+    /// extras and pop-up menus do not. Counting more only keeps the 5 s grace in
+    /// force more often. No permission needed: the probe that measured ChatGPT
+    /// ran as a fresh LaunchAgent binary with no Screen Recording grant and
+    /// counted its window; only window titles are withheld without it.
     public static func onScreenWindowCount(pids: Set<pid_t>) -> Int {
         guard !pids.isEmpty,
               let list = CGWindowListCopyWindowInfo(
@@ -353,7 +357,8 @@ public enum StagedRelaunch {
         else { return 0 }
         return list.filter {
             guard let owner = $0[kCGWindowOwnerPID as String] as? pid_t else { return false }
-            return pids.contains(owner) && ($0[kCGWindowLayer as String] as? Int) == 0
+            guard let layer = $0[kCGWindowLayer as String] as? Int else { return false }
+            return pids.contains(owner) && layer >= 0 && layer < Int(CGWindowLevelForKey(.statusWindow))
         }.count
     }
 

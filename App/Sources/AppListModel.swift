@@ -272,6 +272,12 @@ final class AppListModel {
     /// `computeSelfUpdateStaging` when the staging it was armed for goes away,
     /// and consumed (at most once) by `settleQuitHandoffs`.
     private var quitHandoffs: [String: QuitHandoff] = [:]
+    /// Hand-offs taken out of `quitHandoffs` whose relay has not returned yet.
+    /// `settleQuitHandoffs` empties the marker synchronously but the relay
+    /// claims `relaunching` only inside its `Task`, so without this the backup
+    /// gate (`startOwedBackupTransferIfIdle`) saw nothing in flight in between,
+    /// right as the app's own installer starts swapping.
+    private var settlingQuitHandoffs: Set<String> = []
     /// How long an armed quit hand-off stays live. In Core, because `duo
     /// restart` waits this long for the same answer (`StagedRelaunch.QuitPatience`).
     private static let quitHandoffMaxAge = StagedRelaunch.quitHandoffMaxAge
@@ -6901,6 +6907,7 @@ final class AppListModel {
                 continue
             }
             let quitAt = Date()
+            settlingQuitHandoffs.insert(id)
             Task { @MainActor [weak self] in await self?.relayQuitHandoff(handoff, quitAt: quitAt) }
         }
     }
@@ -6942,6 +6949,13 @@ final class AppListModel {
     private func relayQuitHandoff(_ handoff: QuitHandoff, quitAt: Date) async {
         let app = handoff.result.app
         let id = handoff.result.id
+        // Registered before the defer below, so it runs after it, and it also
+        // covers every early return before that one: the transfer the gate held
+        // back starts only once this relay is done with the installer window.
+        defer {
+            settlingQuitHandoffs.remove(id)
+            startOwedBackupTransferIfIdle()
+        }
         let bundleChangeDeadline = quitAt.addingTimeInterval(Self.quitHandoffBundleChangePatience)
         // Waited out before taking the row, so the row keeps showing the rollback
         // or install (`.relaunching` ranks above `.installing` in `RowAction`).
@@ -7595,7 +7609,8 @@ final class AppListModel {
     ///  • **A quit hand-off still armed.** The `.wontQuit` path ends the wait
     ///    *before* the app has quit (a save prompt is up). Its installer's
     ///    window is in the future, not the past; `relayQuitHandoff` starts the
-    ///    transfer once that hand-off settles.
+    ///    transfer once that hand-off settles. Until its relay returns the id
+    ///    sits in `settlingQuitHandoffs`, not `quitHandoffs`.
     ///
     ///  • **A window pending from an earlier row.** `installerWindowPendingIds`
     ///    — standing down because the app quit on its own mid-backup (its
@@ -7605,7 +7620,7 @@ final class AppListModel {
     ///    which a local could not.
     private func startOwedBackupTransferIfIdle() {
         guard !batchRelaunchInFlight, relaunching.isEmpty, quitHandoffs.isEmpty,
-              installerWindowPendingIds.isEmpty
+              settlingQuitHandoffs.isEmpty, installerWindowPendingIds.isEmpty
         else { return }
         startOwedBackupTransfer()
     }

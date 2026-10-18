@@ -13,8 +13,8 @@ release note is debugging our code:
   call sites there were, what a reviewer caught.
 - No numbers from a developer's machine, no file or symbol names, no issue numbers.
 - Changes a user cannot perceive (refactors, internal hardening, most performance
-  work) go in a single closing "Under the hood:" line, or nowhere. A speed-up
-  belongs on its own only if someone would actually feel it.
+  work) go in a single closing paragraph that starts `**Under the hood.**`, or
+  nowhere. A speed-up belongs on its own only if someone would actually feel it.
 - Ordered by how much the reader cares, not by when it was merged.
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.

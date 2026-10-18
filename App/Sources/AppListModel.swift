@@ -139,9 +139,14 @@ final class AppListModel {
             notes: installNotes, writtenByUs: inFlightNotes,
             results: results, installing: Set(installing.keys)
         ) {
-            installNotes[id] = nil
+            if let revert = relaunchRevertNotes.removeValue(forKey: id), installNotes[id] == revert.text {
+                restoreCoveredNote(revert, id)
+            } else {
+                installNotes[id] = nil
+            }
         }
         inFlightNotes = inFlightNotes.filter { installNotes[$0.key] == $0.value }
+        relaunchRevertNotes = relaunchRevertNotes.filter { installNotes[$0.key] == $0.value.text }
     }
     private(set) var isScanning = false
     private(set) var isChecking = false
@@ -266,6 +271,13 @@ final class AppListModel {
         /// of relayed: past that, a quit is the user closing the app, not a late
         /// answer to the dialog our relaunch attempt put up.
         let armedAt: Date
+        /// For `restart`'s `.applied` hand-off only: the bundle and the parked
+        /// installer as they stood before the quit the user is being asked for,
+        /// so the relay can run the same post-relaunch recheck `restart` does.
+        /// Cleared by `beginBundleChange` — after an install or rollback of ours
+        /// it no longer describes the bundle.
+        var recheckFrom: RelaunchRecheck.Reading? = nil
+        var recheckInstaller: ParkedInstallerProbe? = nil
     }
     /// Armed quit hand-offs by row id. In-memory only (the window is minutes);
     /// reset by the next relaunch attempt for the row, dropped by
@@ -420,6 +432,14 @@ final class AppListModel {
     /// id → the post-relaunch watch `scheduleRelaunchRecheck` started. Kept only
     /// so a later restart or bundle change of the row can cancel it.
     @ObservationIgnored private var relaunchRechecks: [String: Task<Void, Never>] = [:]
+    /// id → the "went back to an older build after the restart" note on screen
+    /// and the note it covered, in `BusyNote`'s shape and for its reason: the
+    /// note it lands on can be `backupCurrent`'s "no rollback point" warning from
+    /// the install just before the auto-restart. Registered in `inFlightNotes`
+    /// too, so it is retracted once the row settles (`.upToDate`: the app's
+    /// updater moved on past ours, or the user reinstalled), and what it
+    /// covered is put back then (`pruneRetractedNotes`).
+    @ObservationIgnored private var relaunchRevertNotes: [String: BusyNote] = [:]
     /// id → the "App Store can't replace this while it's open" text this model wrote
     /// into `installNotes`, so the install can retract exactly its own note when it
     /// finishes. Same discipline as `restartHoldBackNotes`, and for the same reason:
@@ -604,6 +624,12 @@ final class AppListModel {
     private func retractBusyNote(_ id: String) {
         guard let busy = bundleBusyNotes.removeValue(forKey: id),
               installNotes[id] == busy.text else { return }
+        restoreCoveredNote(busy, id)
+    }
+
+    /// Put back what `busy` covered, by the rule `retractBusyNote` describes.
+    /// The caller has checked that `busy.text` is still what the row shows.
+    private func restoreCoveredNote(_ busy: BusyNote, _ id: String) {
         guard let prior = busy.prior,
               !(busy.priorOwned && !ownsNote(id, prior)) else {
             installNotes[id] = nil
@@ -615,6 +641,7 @@ final class AppListModel {
 
     private func beginBundleChange(_ id: String, _ kind: BundleChange) -> Int {
         relaunchRechecks.removeValue(forKey: id)?.cancel()
+        quitHandoffs[id]?.recheckFrom = nil
         bundleChangeTokens += 1
         bundleChanges[id] = (bundleChangeTokens, kind)
         return bundleChangeTokens
@@ -6698,7 +6725,7 @@ final class AppListModel {
         // installer parked on this quit — found now or not at all.
         let beforeQuit = RelaunchRecheck.read(result.app.path)
         let installerAtQuit = await ParkedInstallerProbe.find(
-            for: result.app, staged: pendingSelfUpdate[result.id])
+            for: result.app, staged: pendingSelfUpdate[result.id], system: Self.recheckInstallerSystem)
         switch await AppRestarter.restart(result.app) {
         case .noBundleID, .notRunning:
             needsRestart.remove(result.id)
@@ -6720,7 +6747,8 @@ final class AppListModel {
                 // means it holds the front spot — and that is where it should return.
                 activates: wasFrontmost
                     || AppRestarter.isFrontmost(AppRestarter.runningInstances(of: result.app)),
-                armedAt: Date())
+                armedAt: Date(),
+                recheckFrom: beforeQuit, recheckInstaller: installerAtQuit)
             Log.app.notice("relaunch-handoff: armed for \(result.app.name, privacy: .public) (won't quit — relaunch if it does)")
             // Say so. Without this the row is indistinguishable from a click that
             // did nothing: 30 seconds of spinner, then the same button back. The
@@ -6770,7 +6798,15 @@ final class AppListModel {
     /// cannot see when the installer only appears after the quit (Sparkle 1).
     /// Nothing is reinstalled: a second install would only race the same updater.
     /// A newer restart, install or rollback of the row cancels the watch
-    /// (`beginBundleChange`), so a rollback is never reported as a revert.
+    /// (`beginBundleChange`), so a rollback is never reported as a revert; a
+    /// restore or install by another process (`duo backups restore`) ends it
+    /// silently through the install lock (`RelaunchRecheck.System`).
+    ///
+    /// Reached also for rows we did not install — a self-updated row's Restart,
+    /// Update All restarting a target whose install failed — so the note names
+    /// "the version that was on disk before the restart", never "the version
+    /// just installed". It names the app's own updater only when Core found
+    /// evidence for it (`byOwnUpdater`).
     private func scheduleRelaunchRecheck(
         _ result: UpdateResult, expected: RelaunchRecheck.Reading?, installer: ParkedInstallerProbe?
     ) {
@@ -6780,7 +6816,8 @@ final class AppListModel {
         let id = result.id
         relaunchRechecks[id] = Task { [weak self] in
             let verdict = await RelaunchRecheck.watch(
-                expected: expected, installer: installer, system: .live(bundle: app.path))
+                expected: expected, installer: installer,
+                system: .live(bundle: app.path, installer: Self.recheckInstallerSystem))
             guard let self, !Task.isCancelled else { return }
             let ours = expected.side.text(withBuild: true)
             switch verdict {
@@ -6788,14 +6825,39 @@ final class AppListModel {
                 Log.app.notice("relaunch recheck: \(app.name, privacy: .public) held \(ours, privacy: .public)")
             case .unknown:
                 Log.app.notice("relaunch recheck: \(app.name, privacy: .public) — no verdict for \(ours, privacy: .public) within the window (installer still running, or bundle unreadable)")
-            case .reverted(let theirs, let swapped):
+            case .reverted(let theirs, let swapped, let byOwnUpdater):
                 let version = theirs.text(withBuild: true)
-                Log.app.notice("relaunch recheck: \(app.name, privacy: .public) went back from \(ours, privacy: .public) to \(version, privacy: .public) after the relaunch (bundle swapped=\(swapped, privacy: .public)) — its own updater replaced it; not reinstalling")
-                installNotes[id] = String(localized: "\(app.name)’s own updater replaced the version just installed with \(version) after the restart. DuoUpdater won’t reinstall over it automatically — click Update if you want the newer version back.")
+                Log.app.notice("relaunch recheck: \(app.name, privacy: .public) went back from \(ours, privacy: .public) to \(version, privacy: .public) after the relaunch (bundle swapped=\(swapped, privacy: .public), own updater=\(byOwnUpdater, privacy: .public)) — not reinstalling")
+                let note = byOwnUpdater
+                    ? String(localized: "\(app.name)’s own updater replaced the version that was on disk before the restart with \(version). DuoUpdater won’t reinstall over it automatically — click Update if you want the newer version back.")
+                    : String(localized: "\(app.name) is back on \(version) after the restart — something replaced the version that was on disk before it. DuoUpdater won’t reinstall over it automatically; click Update to get \(ours) again.")
+                // Covers, not replaces, what the row was showing — `BusyNote`'s
+                // rule, including a repeat over our own earlier revert note.
+                if let mine = relaunchRevertNotes[id], installNotes[id] == mine.text {
+                    relaunchRevertNotes[id] = BusyNote(
+                        text: note, prior: mine.prior,
+                        priorOwned: mine.priorOwned, priorInFlight: mine.priorInFlight)
+                } else {
+                    let prior = installNotes[id]
+                    relaunchRevertNotes[id] = BusyNote(
+                        text: note, prior: prior,
+                        priorOwned: prior.map { ownsNote(id, $0) } ?? false,
+                        priorInFlight: prior != nil && inFlightNotes[id] == prior)
+                }
+                installNotes[id] = note
+                inFlightNotes[id] = note
                 await refreshLocal(unattended: true)
             }
         }
     }
+
+    /// The installer probe for the restart path and its recheck: every
+    /// `launchctl` call cut off at the deadline `runningBuildVersions` gives
+    /// `lsappinfo` (SIGTERM 5 s, SIGKILL 8 s), because `restart` now waits on it
+    /// before every quit. A timeout reads as no installer seen. The staged
+    /// Relaunch keeps `.live`.
+    nonisolated private static let recheckInstallerSystem = ParkedInstallerProbe.System.live(
+        launchctlDeadline: .init(terminateAfter: .seconds(5), killAfter: .seconds(8)))
 
     /// Apply a self-updater-staged build (the ShipIt "Relaunch to update" state).
     ///
@@ -7136,6 +7198,12 @@ final class AppListModel {
         Log.app.notice("relaunch-handoff: \(app.name, privacy: .public) relaunching (landed=\(landed, privacy: .public))")
         let relaunched = await AppRestarter.relaunchAfterSwap(
             app, activates: handoff.activates && !waitedOnBundleChange)
+        // `restart`'s hand-off: the user's quit is the same signal a parked
+        // installer acts on. Not after waiting out a bundle change of ours — the
+        // reading taken before the quit no longer describes the bundle.
+        if handoff.landing == .applied, !waitedOnBundleChange, let from = handoff.recheckFrom {
+            scheduleRelaunchRecheck(handoff.result, expected: from, installer: handoff.recheckInstaller)
+        }
         if handoff.landing.landsAfterLaunch && relaunched {
             // Our launch is what applies it (Spotify); the swap follows within
             // seconds. Same ceiling as `relaunchStagedUpdate`'s post-launch wait.

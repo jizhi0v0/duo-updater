@@ -15,6 +15,12 @@ import Foundation
 ///
 /// It watches the bundle for a bounded window after the relaunch and answers
 /// one of three things; see `Verdict`.
+///
+/// Known limit: "older" is `VersionComparator`'s ordering, so a vendor whose
+/// version field is not a version — a commit hash where the marketing string
+/// goes, like Ghostty's tip builds (`663205b5 (2024-12-20)`) — can order a
+/// newer build below an older one, and a relaunch onto it would read as a
+/// revert. Not handled here.
 public enum RelaunchRecheck {
 
     /// One read of the bundle: both version fields off its `Info.plist`, and
@@ -32,13 +38,22 @@ public enum RelaunchRecheck {
     public enum Verdict: Sendable, Equatable {
         /// What we installed (or something newer) stayed on disk.
         case held
-        /// The disk went backwards: it now holds `to`, older than what we
-        /// installed. `bundleSwapped` says the bundle directory itself was
-        /// replaced (ShipIt's swap) rather than written over.
-        case reverted(to: VersionSide, bundleSwapped: Bool)
+        /// The disk went backwards: it now holds `to`, older than what was on
+        /// disk before the quit. `bundleSwapped` says the bundle directory itself
+        /// was replaced (ShipIt's swap) rather than written over.
+        ///
+        /// `byOwnUpdater` is whether this can be put down to the app's own
+        /// updater: an installer was seen parked on the quit, or the bundle was
+        /// swapped whole. Without either there is no evidence of who wrote it —
+        /// a hand-copied older bundle written in place reads the same — and the
+        /// caller must not name the updater.
+        case reverted(to: VersionSide, bundleSwapped: Bool, byOwnUpdater: Bool)
         /// The window ran out with nothing decisive — the installer was still
-        /// alive, or the bundle could not be read at the end. Nothing is said
-        /// to the user on this.
+        /// alive, or the bundle could not be read at the end — or another
+        /// process took the install lock during the watch (`duo backups
+        /// restore`, `duo install`), which makes any change it sees that
+        /// process's, not the app's updater's. Nothing is said to the user on
+        /// this.
         case unknown
     }
 
@@ -70,23 +85,39 @@ public enum RelaunchRecheck {
     public struct System: Sendable {
         public var read: @Sendable () async -> Reading?
         public var sleep: @Sendable (Duration) async -> Void
+        /// Whether a process other than this one holds the machine-wide install
+        /// lock (`InstallLock`).
+        public var installLockHeldElsewhere: @Sendable () -> Bool
         public var installer: ParkedInstallerProbe.System
 
         public init(
             read: @escaping @Sendable () async -> Reading?,
             sleep: @escaping @Sendable (Duration) async -> Void,
+            installLockHeldElsewhere: @escaping @Sendable () -> Bool = { false },
             installer: ParkedInstallerProbe.System
         ) {
             self.read = read
             self.sleep = sleep
+            self.installLockHeldElsewhere = installLockHeldElsewhere
             self.installer = installer
         }
 
-        public static func live(bundle: URL) -> System {
+        /// `installer` is passed in so the caller's deadline on `launchctl`
+        /// (`ParkedInstallerProbe.System.live(launchctlDeadline:)`) also covers
+        /// the liveness checks made here.
+        public static func live(bundle: URL, installer: ParkedInstallerProbe.System) -> System {
             System(
                 read: { RelaunchRecheck.read(bundle) },
                 sleep: { try? await Task.sleep(for: $0) },
-                installer: .live)
+                installLockHeldElsewhere: {
+                    // `currentHolder` reads the pid the holder wrote; this
+                    // process holding it (an install of another row) is not
+                    // "elsewhere". A holder that has not written its pid yet
+                    // reads as free — best-effort, as that function says.
+                    guard let holder = InstallLock.currentHolder() else { return false }
+                    return holder != getpid()
+                },
+                installer: installer)
         }
     }
 
@@ -141,9 +172,13 @@ public enum RelaunchRecheck {
                 lastHeld = false
                 continue
             }
+            // After the read, so a change the read saw is judged against the
+            // lock as it stood then.
+            if system.installLockHeldElsewhere() { return .unknown }
             let swapped = expected.inode != nil && now.inode != nil && now.inode != expected.inode
             if VersionComparator.isNewer(expected.side, than: now.side) {
-                return .reverted(to: now.side, bundleSwapped: swapped)
+                return .reverted(
+                    to: now.side, bundleSwapped: swapped, byOwnUpdater: installer != nil || swapped)
             }
             guard VersionComparator.hasReached(expected.side, disk: now.side) else {
                 settled = 0

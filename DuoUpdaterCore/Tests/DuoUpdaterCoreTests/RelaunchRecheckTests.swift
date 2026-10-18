@@ -22,6 +22,9 @@ struct RelaunchRecheckTests {
         var diesAfterRead: [pid_t: Int] = [:]
         var readCount = 0
         var sleeps = 0
+        /// Another process (`duo backups restore`, `duo install`) holds the
+        /// install lock from this read on.
+        var lockHeldElsewhereFromRead: Int?
         init(_ reads: [RelaunchRecheck.Reading?]) { self.reads = reads }
     }
 
@@ -36,6 +39,7 @@ struct RelaunchRecheckTests {
                 return w.reads.isEmpty ? nil : w.reads[min(w.readCount, w.reads.count - 1)]
             },
             sleep: { _ in w.sleeps += 1 },
+            installLockHeldElsewhere: { w.lockHeldElsewhereFromRead.map { w.readCount >= $0 } ?? false },
             installer: ParkedInstallerProbe.System(
                 isAlive: { w.alive.contains($0) },
                 loadedJob: { _ in nil },
@@ -54,18 +58,42 @@ struct RelaunchRecheckTests {
 
     // MARK: - reverted
 
-    /// The measured shape: ours holds for a while, then Autoupdate writes the
-    /// older build in place (same inode). Decided on the first backward read,
-    /// not at the end of the window. Mutation: compare by string inequality →
-    /// a respelt "41705.0" would read as reverted; compare marketing only →
-    /// held, red.
+    /// The measured shape: an `Autoupdate` was parked at the quit, ours holds
+    /// for a while, then it writes the older build in place (same inode).
+    /// Decided on the first backward read, not at the end of the window, and
+    /// put down to the app's own updater because one was seen. Mutation:
+    /// compare by string inequality → a respelt "41705.0" would read as
+    /// reverted; compare marketing only → held, red.
     @Test func revertToTheOlderBuildIsReported() async {
         var script = Array(repeating: Optional(ours), count: 17)
         script.append(reading("1.0", "41509"))
         let w = World(script)
-        let verdict = await RelaunchRecheck.watch(expected: ours, installer: nil, system: system(w))
-        #expect(verdict == .reverted(to: VersionSide(marketing: "1.0", build: "41509"), bundleSwapped: false))
+        w.alive = [50656]
+        let probe = await ParkedInstallerProbe.find(for: chatGPT, staged: nil, system: system(w).installer)
+        let verdict = await RelaunchRecheck.watch(expected: ours, installer: probe, system: system(w))
+        #expect(verdict == .reverted(
+            to: VersionSide(marketing: "1.0", build: "41509"), bundleSwapped: false, byOwnUpdater: true))
         #expect(w.readCount == 18, "stops on the backward read")
+    }
+
+    /// Older again, but with no installer seen and the bundle written in place:
+    /// nothing says who did it, so the verdict does not name the app's updater.
+    /// Mutation: always attribute → red.
+    @Test func aRevertWithNoInstallerAndNoSwapIsNotPinnedOnTheUpdater() async {
+        let w = World([ours, reading("1.0", "41509")])
+        let verdict = await RelaunchRecheck.watch(expected: ours, installer: nil, system: system(w))
+        #expect(verdict == .reverted(
+            to: VersionSide(marketing: "1.0", build: "41509"), bundleSwapped: false, byOwnUpdater: false))
+    }
+
+    /// `duo backups restore` (or any other process's install) holds the install
+    /// lock when the older build shows up: that is not the app's updater, and
+    /// the watch says nothing. Mutation: drop the lock check → reverted, red.
+    @Test func anotherProcessHoldingTheInstallLockEndsTheWatchSilently() async {
+        let w = World([ours, ours, reading("1.0", "41509")])
+        w.lockHeldElsewhereFromRead = 2
+        let verdict = await RelaunchRecheck.watch(expected: ours, installer: nil, system: system(w))
+        #expect(verdict == .unknown)
     }
 
     /// ShipIt's shape: the bundle is moved away (unreadable for a read), then
@@ -75,7 +103,7 @@ struct RelaunchRecheckTests {
         let mine = reading("0.14.4", "0.14.4", inode: 1)
         let w = World([mine, mine, nil, theirs])
         let verdict = await RelaunchRecheck.watch(expected: mine, installer: nil, system: system(w))
-        #expect(verdict == .reverted(to: theirs.side, bundleSwapped: true))
+        #expect(verdict == .reverted(to: theirs.side, bundleSwapped: true, byOwnUpdater: true))
     }
 
     /// A newer build showing up (the app moved on by itself) is not a revert;

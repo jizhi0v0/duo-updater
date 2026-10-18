@@ -148,6 +148,11 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     /// never a weak (`W/`) one; `Last-Modified` only when there is no `ETag` at
     /// all. Reset per `download`, and whenever the file on disk starts over.
     private var resumeValidator: String?
+    /// This call's hold on its URL's kept partial (`ResumableDownloadStore`),
+    /// or nil when the partial is a scratch file of this call's own. Set by
+    /// `download` before the first request and read by the response callback,
+    /// which records the validator beside the bytes as soon as headers arrive.
+    private var lease: ResumableDownloadStore.Lease?
     private var suggestedFilename: String?
     /// Last whole-percent handed to `onProgress`, so the delegate only reports a
     /// visible change. `-1` means "nothing reported yet this attempt".
@@ -254,18 +259,41 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
             self.session = nil
         }
 
-        // The partial file we accumulate into across resume attempts, in the dir
-        // we own. A fresh name per call means attempt 1 always starts at zero (no
-        // stale-partial range that could land us on a 416).
-        let partial = destinationDir
+        // The partial file we accumulate into across resume attempts. Normally
+        // the kept one for this exact URL (`ResumableDownloadStore`), which an
+        // earlier call — cancelled, out of retries, or killed — may have left
+        // with bytes and a strong validator to resume from. When the store is
+        // off or the URL is already being fetched in this process, a scratch
+        // file in the dir we own, with a fresh name so attempt 1 starts at zero.
+        let lease = ResumableDownloadStore.open(for: url, appID: attributedApp)
+        self.lease = lease
+        let partial = lease?.entry.partial ?? destinationDir
             .appendingPathComponent(".duo-download-\(UUID().uuidString).partial", isDirectory: false)
-        try? FileManager.default.removeItem(at: partial)
+        if lease == nil { try? FileManager.default.removeItem(at: partial) }
         partialURL = partial
         suggestedFilename = nil
-        resumeValidator = nil
+        resumeValidator = lease?.validator
         fallbackFilename = Self.safeSuggestedFilename(url.lastPathComponent)
-        // On any exit: a leftover partial is swept (on success it's already moved).
-        defer { try? FileManager.default.removeItem(at: partial) }
+        // Whether the call ended on a stop a later call could get past: a
+        // cancellation (asked of the task in the `defer`), or transient failures
+        // that ran out of attempts. Anything else — an HTTP error page, a range
+        // the server will not honour, a disk error — would only recur.
+        var endedTransient = false
+        // On any exit: a leftover partial is swept (on success it's already moved)
+        // — unless it is a kept one worth resuming, which needs a strong validator
+        // (without one the tail cannot be shown to belong to the same file).
+        defer {
+            if let lease {
+                ResumableDownloadStore.close(
+                    lease, keep: resumeValidator != nil && (Task.isCancelled || endedTransient))
+                self.lease = nil
+            } else {
+                try? FileManager.default.removeItem(at: partial)
+            }
+        }
+        // True while the bytes on disk came from an earlier call; cleared after
+        // the first attempt either way.
+        var resumingKept = lease?.validator != nil
 
         // `.notice`, not `.debug`: this is the longest and least reliable step in
         // the whole app, and the report it has to answer — "it said it updated and
@@ -299,6 +327,19 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                 // `CancellationError` so every caller up the chain (the coordinator,
                 // `installAll`) reads it as "stopped", not "failed".
                 try Task.checkCancellation()
+                // A kept partial the server will not extend — a 416 because the
+                // earlier call had every byte but was killed before finishing, a
+                // 206 from some other offset — is not this download's failure:
+                // drop it and start from zero, as an in-call resume would.
+                if resumingKept, !Self.isTransient(error) {
+                    resumingKept = false
+                    try? FileManager.default.removeItem(at: partial)
+                    resumeValidator = nil
+                    Log.install.notice(
+                        "download: the kept partial could not be resumed (\(error.localizedDescription, privacy: .public)) — starting over")
+                    continue
+                }
+                resumingKept = false
                 // Bytes already on disk: the next attempt resumes from here, so it
                 // is the one number that says whether a retry is making progress.
                 let attrs = try? FileManager.default.attributesOfItem(atPath: partial.path)
@@ -306,6 +347,7 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                 // Only transient mid-transfer failures are worth another pass; the
                 // partial file persists so the next attempt resumes from it.
                 guard attempt < maxAttempts - 1, Self.isTransient(error) else {
+                    endedTransient = Self.isTransient(error)
                     Log.install.error(
                         "download failed: \(Redactor.host(url), privacy: .public) after attempt \(attempt + 1, privacy: .public)/\(self.maxAttempts, privacy: .public), \(onDisk, privacy: .public) bytes on disk, transient=\(Self.isTransient(error), privacy: .public) — \(error.localizedDescription, privacy: .public)")
                     throw error
@@ -456,6 +498,12 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                 pendingError = DownloadError.httpStatus(status)
                 completionHandler(.cancel)
                 return
+            }
+            // Headers are in and the file on disk is settled, so the validator it
+            // was started under goes to disk now — fsync'ed — not when the call
+            // ends: a process killed mid-transfer never reaches that.
+            if let lease {
+                ResumableDownloadStore.record(lease, validator: resumeValidator, bytesWritten: writtenOffset)
             }
             completionHandler(.allow)
         } catch {

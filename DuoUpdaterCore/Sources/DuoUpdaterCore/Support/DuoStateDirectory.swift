@@ -33,6 +33,31 @@ public enum DuoStateDirectory {
             ?? FileManager.default.temporaryDirectory
     }
 
+    /// The caches counterpart of ``base``: `~/Library/Caches`, or
+    /// `$DUO_STATE_DIR/Caches` when the state directory is redirected.
+    ///
+    /// For data we can lose at any moment and simply fetch again — today only
+    /// the half-finished downloads `ResumableDownloadStore` keeps. Apple's file
+    /// system guide describes Caches as "cached data that can be regenerated as
+    /// needed" that "apps should never rely on", which is exactly a partial
+    /// download's contract: losing one costs a re-download, never correctness.
+    /// The app and `duo` resolve the same directory (neither is sandboxed, so
+    /// there is no per-app container), which is what lets one resume what the
+    /// other left behind.
+    ///
+    /// Redirected with ``base`` rather than on its own so the nightly `duo
+    /// verify` sweep, pointed elsewhere by `DUO_STATE_DIR`, keeps its partials
+    /// out of the running app's directory too.
+    public static var cachesBase: URL {
+        if let override = ProcessInfo.processInfo.environment["DUO_STATE_DIR"],
+           !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+                .appendingPathComponent("Caches", isDirectory: true)
+        }
+        return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+    }
+
     /// The one directory a test process's stores write their scratch state under,
     /// removed when the process exits.
     ///

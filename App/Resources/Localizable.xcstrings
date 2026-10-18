@@ -14100,6 +14100,136 @@
         }
       }
     },
+    "The download has no build number, so DuoUpdater can’t confirm it isn’t older than the installed copy. Refusing to install it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Download hat keine Build-Nummer, daher kann DuoUpdater nicht bestätigen, dass er nicht älter als die installierte Kopie ist. Er wird nicht installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La descarga no tiene número de compilación, así que DuoUpdater no puede confirmar que no sea más antigua que la copia instalada. No se instalará."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le téléchargement n’a pas de numéro de build, DuoUpdater ne peut donc pas confirmer qu’il n’est pas plus ancien que la copie installée. Installation refusée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il download non ha un numero di build, quindi DuoUpdater non può confermare che non sia più vecchio della copia installata. Non verrà installato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードにビルド番号がないため、インストール済みのものより古くないことを DuoUpdater が確認できません。インストールしません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O download não tem número de build, então o DuoUpdater não consegue confirmar que ele não é mais antigo que a cópia instalada. Não será instalado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У загрузки нет номера сборки, поэтому DuoUpdater не может убедиться, что она не старее установленной копии. Установка не выполняется."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndirilen dosyanın derleme numarası yok, bu yüzden DuoUpdater onun yüklü kopyadan daha eski olmadığını doğrulayamıyor. Yüklenmeyecek."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载的文件没有构建号，DuoUpdater 无法确认它不比已安装的旧。不会安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載的檔案沒有組建編號，DuoUpdater 無法確認它不比已安裝的舊。不會安裝。"
+          }
+        }
+      }
+    },
+    "The download is an older build (%@) than the installed one (%@), though the update feed offered it as newer. Refusing to install it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Download ist ein älterer Build (%1$@) als der installierte (%2$@), obwohl der Update-Feed ihn als neuer angeboten hat. Er wird nicht installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La descarga es una compilación más antigua (%1$@) que la instalada (%2$@), aunque el feed de actualizaciones la ofrecía como más reciente. No se instalará."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le téléchargement est un build plus ancien (%1$@) que celui installé (%2$@), alors que le flux de mises à jour le présentait comme plus récent. Installation refusée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il download è una build più vecchia (%1$@) di quella installata (%2$@), anche se il feed degli aggiornamenti la offriva come più recente. Non verrà installato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードしたビルド（%1$@）は、インストール済みのビルド（%2$@）より古いものです。アップデートのフィードでは新しい版として提供されていました。インストールしません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O download é um build mais antigo (%1$@) que o instalado (%2$@), embora o feed de atualizações o tenha oferecido como mais recente. Não será instalado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загрузка — более старая сборка (%1$@), чем установленная (%2$@), хотя лента обновлений предлагала её как более новую. Установка не выполняется."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndirilen dosya, yüklü olandan (%2$@) daha eski bir derleme (%1$@); oysa güncelleme akışı onu daha yeni olarak sundu. Yüklenmeyecek."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载的构建（%1$@）比已安装的（%2$@）旧，但更新源把它当作更新的版本提供。不会安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載的組建（%1$@）比已安裝的（%2$@）舊，但更新來源把它當作更新的版本提供。不會安裝。"
+          }
+        }
+      }
+    },
     "checking upstream…": {
       "extractionState": "manual",
       "localizations": {

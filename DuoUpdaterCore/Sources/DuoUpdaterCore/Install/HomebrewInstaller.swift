@@ -84,11 +84,17 @@ public actor HomebrewInstaller {
         // brew replacing what is installed, and a SIGKILL halfway is worse than
         // letting it finish (the `terminationHandler` wait it replaced was not
         // cancellable either).
-        let (outcome, output) = try await StreamedLines.run(
-            brew, arguments, environment: env, onOutput: onOutput)
+        //
+        // The whole brew run is this route's point of no return (`InstallCommit`):
+        // brew's fetch and its swap are one command we cannot split, so a cancel
+        // either stops the install before brew starts or is not seen at all.
+        try await InstallCommit.run("brew upgrade") { [env] in
+            let (outcome, output) = try await StreamedLines.run(
+                brew, arguments, environment: env, onOutput: onOutput)
 
-        guard outcome.succeeded else {
-            throw BrewError.failed(code: outcome.terminationStatus, output: output)
+            guard outcome.succeeded else {
+                throw BrewError.failed(code: outcome.terminationStatus, output: output)
+            }
         }
     }
 

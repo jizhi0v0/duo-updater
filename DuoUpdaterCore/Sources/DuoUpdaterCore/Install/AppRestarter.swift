@@ -81,6 +81,25 @@ public enum AppRestarter {
         // relaunch is its live location.
         let nestedBundles = nested.compactMap(\.bundleURL)
             .map { URL(fileURLWithPath: UpdatePolicy.runtimeBundlePath($0)) }
+        // From the first `terminate()` on, the restart runs to its end
+        // (`InstallCommit`): a quit with no relaunch behind it would leave the
+        // user without the app, and the wait below is a `try?` sleep that a
+        // cancel would turn into a spin. A caller cancelled before this point
+        // has quit nothing — the app is left running, untouched, which is what
+        // `.stillRunning` says.
+        let outcome = try? await InstallCommit.run("restart") {
+            await quitAndRelaunch(
+                app, main: main, running: running, frontmostPath: frontmostPath,
+                parentPath: parentPath, nestedBundles: nestedBundles)
+        }
+        return outcome ?? .stillRunning
+    }
+
+    /// `restart` from the quit on — its commit (`InstallCommit`).
+    private static func quitAndRelaunch(
+        _ app: InstalledApp, main: [NSRunningApplication], running: [NSRunningApplication],
+        frontmostPath: String?, parentPath: String, nestedBundles: [URL]
+    ) async -> Outcome {
         for instance in running { instance.terminate() }
         // Wait up to ~30s for a graceful quit. A heavy app (large workspace) can
         // take well over the old 6s to actually exit; bailing early would leave

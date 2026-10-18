@@ -332,6 +332,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] [**Pulse**](com-egoist-pulse.md) · `com.egoist.pulse` — C（历史走 GitHub release 列表）· 检测与 tar.gz 一键走 MyGoUpdateSource · MyGo delta ✓（dmg 副本缺公证票据文件，首次退回全量）· 厂商 Ed25519 签名 + Team ID · 真包 0.1.11/0.1.12 ✓ · 一键端到端 ✓（dmg 布局 / tar.gz 布局 / 运行中）· `install.sh` 只装 Linux，无 macOS CLI · 2026-10-13
 - [x] [**Leafmark**](dev-leafmark-app.md) · `dev.leafmark.app` — 检测与 tar.gz 一键走 MyGoUpdateSource（无 recipe）· ad-hoc 签名，一键要打开「无开发者签名」设置 · MyGo delta ✓（未公证，dmg 副本也能吃）· changelog 结构化 ✓（manifest notes 按版本拆）· 一键端到端 ✓（设置开 / 运行中 / 设置关→拒绝）· 2026-10-13
+- [x] [**Mayoi**](dev-mayoi-editor.md) · `dev.mayoi.editor` — C（历史走 GitHub release 列表）· 检测与 tar.gz/delta 一键走 MyGoUpdateSource · Developer ID + 公证 · MyGo delta ✓ · 真包 0.1.0/0.10.0/0.11.0 ✓ · 一键端到端 ✓ · 2026-10-18
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 

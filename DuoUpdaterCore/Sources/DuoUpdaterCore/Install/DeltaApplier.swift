@@ -63,7 +63,13 @@ public enum DeltaApplier {
     /// own, borrows the installed app's copy — the same tool, and the CLI is not
     /// worth a second 1.4 MB universal binary. A build with neither simply has no
     /// delta route and every install takes the full archive.
+    /// Test seam: the `BinaryDelta` to run instead of the one `toolURL` finds, so a
+    /// route-level test can drive a real child process through the patch route
+    /// (`reconstruct` takes no bundle). Production never binds it.
+    @TaskLocal static var toolOverride: URL?
+
     public static func toolURL(bundle: Bundle = .main) -> URL? {
+        if let toolOverride { return toolOverride }
         if let embedded = bundle.url(forAuxiliaryExecutable: "BinaryDelta"),
            FileManager.default.isExecutableFile(atPath: embedded.path) {
             return embedded
@@ -265,7 +271,14 @@ public enum DeltaApplier {
 ///
 /// Lives here rather than inline in the two installers so both classify the same
 /// way and the rule can be tested without running an install.
+///
+/// A cancellation is never worth retrying. The caller stopped the install, so the
+/// full archive would be fetched only to be stopped too, and the retry would
+/// start a second download the user did not ask for. The installers rethrow it as
+/// itself, so `InstallCoordinator` (which catches `DeltaRouteFailure` alone) lets
+/// it through.
 public func deltaRouteFailureIsWorthRetrying(_ error: Error) -> Bool {
+    if error is CancellationError { return false }
     guard let verify = error as? SignatureVerifier.VerifyError else { return true }
     switch verify {
     case .unsupportedSystemVersion, .unrunnableArchitecture, .architectureDowngrade:

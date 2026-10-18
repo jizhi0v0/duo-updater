@@ -606,6 +606,75 @@ import Testing
         #expect(!fm.fileExists(atPath: out.appendingPathComponent("Contents").path))
     }
 
+    // MARK: - Delta route
+
+    /// A cancellation is the caller stopping the install, not the patch failing,
+    /// so it never earns a second, full-size download.
+    ///
+    /// Mutation: delete the `CancellationError` guard in
+    /// `deltaRouteFailureIsWorthRetrying` → it answers true.
+    @Test func aCancellationIsNeverWorthRetrying() {
+        #expect(!deltaRouteFailureIsWorthRetrying(CancellationError()))
+    }
+
+    /// A cancelled patch apply on the real Sparkle patch route surfaces as
+    /// `CancellationError` itself. It is not wrapped in `DeltaRouteFailure`, which
+    /// is the only error `InstallCoordinator` answers with a full-archive retry.
+    /// The `BinaryDelta` is a fixture (`DeltaApplier.$toolOverride`), and it must
+    /// not run: the destination is never written.
+    ///
+    /// Mutation: delete the `CancellationError` guard in
+    /// `deltaRouteFailureIsWorthRetrying` → the call throws `DeltaRouteFailure`
+    /// and this fails.
+    @Test func aCancelledSparklePatchRouteThrowsCancellationNotARetry() async throws {
+        let fm = FileManager.default
+        let top = try scratch("delta-route")
+        defer { try? fm.removeItem(at: top) }
+        // `apply <old> <new> <patch>`: $3 is the destination.
+        let host = try toolBundle(in: top, script: """
+            mkdir -p "$3/Contents"
+            """)
+        let tool = try #require(DeltaApplier.toolURL(bundle: host))
+
+        // The installed app, at the build the patch was cut against.
+        let installed = top.appendingPathComponent("ZZInstalled.app", isDirectory: true)
+        try fm.createDirectory(at: installed.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try Data("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <plist version="1.0"><dict>
+            <key>CFBundleIdentifier</key><string>com.example.zzfixture.delta</string>
+            <key>CFBundleVersion</key><string>1.1.0</string>
+            </dict></plist>
+            """.utf8).write(to: installed.appendingPathComponent("Contents/Info.plist"))
+        let app = InstalledApp(
+            name: "ZZInstalled", bundleID: "com.example.zzfixture.delta", shortVersion: "1.1",
+            buildVersion: "1.1.0", path: installed, isMASApp: false,
+            sparkleFeedURL: URL(string: "https://example.com/appcast.xml"),
+            hasSelfUpdater: false, hasSparkleUpdater: true)
+        let patchFile = top.appendingPathComponent("ZZPatch.delta")
+        try Data("patch".utf8).write(to: patchFile)
+        let patch = DeltaPatch(
+            fromBuild: "1.1.0", url: URL(string: "https://example.com/1.1.0-1.2.0.delta")!,
+            size: 5, edSignature: nil)
+        let download = DownloadedUpdate(
+            archiveURL: patchFile, bytesDownloaded: 5, workDir: top, appliedPatch: patch)
+        let remote = RemoteVersion(
+            shortVersion: "1.2", version: "1.2.0",
+            downloadURL: URL(string: "https://example.com/ZZInstalled-1.2.zip"),
+            sourceName: "Sparkle")
+        let result = UpdateResult(app: app, remote: remote, status: .updateAvailable(latest: "1.2.0"))
+
+        await #expect(throws: CancellationError.self) {
+            try await DeltaApplier.$toolOverride.withValue(tool) {
+                try await cancelledBeforeStart {
+                    try await SparkleInstaller().apply(result, download: download, onStage: { _ in })
+                }
+            }
+        }
+        #expect(!fm.fileExists(atPath: top.appendingPathComponent("patched-ZZInstalled.app/Contents").path),
+                "the patch tool ran although the task was cancelled")
+    }
+
     // MARK: - Backups
 
     /// A cancelled backup still stores a complete copy, and a cancelled rollback

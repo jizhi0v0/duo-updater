@@ -394,8 +394,8 @@ public actor VendorInstaller {
             // up better proven than its full-archive path, which has no signature
             // to check; a MyGo archive does (`remote.myGoSignature`, below).
             // Awaited in place: `BinaryDelta` runs through `ChildProcess`, which
-            // waits without parking a thread and is not killed if this task is
-            // cancelled — the guarantee the `offCooperativePool` hop used to give.
+            // waits without parking a thread and is torn down if this task is
+            // cancelled, throwing `CancellationError` — see `DeltaApplier.apply`.
             newApp = try await DeltaApplier.reconstruct(
                 installedApp: result.app.path,
                 patch: patch,
@@ -484,8 +484,8 @@ public actor VendorInstaller {
 
         // 3. Unpack the .app.
         onStage(.extracting)
-        // Awaited in place: see `extractApp` for why it needs no hop and runs
-        // to completion.
+        // Awaited in place: see `extractApp` for why it needs no hop; a cancel
+        // tears the tool down and throws `CancellationError`.
         if let pattern = remote.contentsArchivePattern, download.localStash == nil {
             // A package that carries the app's INSIDE rather than the app —
             // see `ContentsPayload`, which unpacks both levels and assembles a

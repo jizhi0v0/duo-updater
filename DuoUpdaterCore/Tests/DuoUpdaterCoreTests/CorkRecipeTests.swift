@@ -3,42 +3,23 @@ import Testing
 
 @testable import DuoUpdaterCore
 
-/// `corkmac.app/RLS/`, the nginx index, fetched 2026-10-16. The head, the tail
-/// and the rows that matter are verbatim; the other 70-odd version rows are cut.
-/// Kept: two-part, three-part and four-part versions, the alphabetically-last
-/// release before the newest, and the three non-version siblings (`latest/`,
-/// `macos-13/`, `1.6.1%2BSonoma/`).
-private let corkIndexFixture = #"""
-<html>
-<head><title>Index of /RLS/</title></head>
-<body>
-<h1>Index of /RLS/</h1><hr><pre><a href="../">../</a>
-<a href="0.1.1/">0.1.1/</a>                                             07-Mar-2023 11:15                   -
-<a href="0.1.10/">0.1.10/</a>                                            16-Mar-2023 21:06                   -
-<a href="0.12/">0.12/</a>                                              11-May-2023 15:20                   -
-<a href="0.9/">0.9/</a>                                               21-Apr-2023 09:45                   -
-<a href="1.4/">1.4/</a>                                               24-May-2024 11:39                   -
-<a href="1.6.1%2BSonoma/">1.6.1+Sonoma/</a>                                      09-Sep-2025 12:46                   -
-<a href="1.7.3.1/">1.7.3.1/</a>                                           07-Jan-2026 14:23                   -
-<a href="2.0.2/">2.0.2/</a>                                             14-Sep-2026 00:29                   -
-<a href="2.0.3/">2.0.3/</a>                                             14-Sep-2026 11:05                   -
-<a href="latest/">latest/</a>                                            14-Sep-2026 11:05                   -
-<a href="macos-13/">macos-13/</a>                                          24-Jul-2025 18:33                   -
-</pre><hr></body>
-</html>
-"""#
-
-/// The start of what the same URL answers on every other request: the site's
-/// home page, HTTP 200 (2026-10-16, verbatim up to the title).
-private let corkHomePageFixture = #"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cork: The Homebrew GUI for macOS free of AI</title>
-    <a class="download" href="https://corkmac.app/RLS/latest/Cork.zip">Download</a>
+/// `corkmac.app/releases.json`, fetched 2026-10-18. The rows that matter are
+/// verbatim (the endpoint answers one line; line breaks added here); the other
+/// 70-odd version rows are cut. Kept: two-part, three-part and four-part
+/// versions, the string-sorted-last release before the newest, and the three
+/// non-version names (`latest`, `macos-13`, `1.6.1+Sonoma`).
+private let corkReleasesFixture = #"""
+[{"name":"0.1.1","url":"https://corkmac.app/RLS/0.1.1/Cork.zip"},
+{"name":"0.1.10","url":"https://corkmac.app/RLS/0.1.10/Cork.zip"},
+{"name":"0.12","url":"https://corkmac.app/RLS/0.12/Cork.zip"},
+{"name":"0.9","url":"https://corkmac.app/RLS/0.9/Cork.zip"},
+{"name":"1.4","url":"https://corkmac.app/RLS/1.4/Cork.zip"},
+{"name":"1.6.1+Sonoma","url":"https://corkmac.app/RLS/1.6.1+Sonoma/Cork.zip"},
+{"name":"1.7.3.1","url":"https://corkmac.app/RLS/1.7.3.1/Cork.zip"},
+{"name":"2.0.2","url":"https://corkmac.app/RLS/2.0.2/Cork.zip"},
+{"name":"2.0.3","url":"https://corkmac.app/RLS/2.0.3/Cork.zip"},
+{"name":"latest","url":"https://corkmac.app/RLS/latest/Cork.zip"},
+{"name":"macos-13","url":"https://corkmac.app/RLS/macos-13/Cork.zip"}]
 """#
 
 /// Three items of `blog.corkmac.app/feed`, fetched 2026-10-16: the 1.7.4 post
@@ -52,29 +33,19 @@ private func corkProbe() throws -> VendorProbeRecipe {
     try #require(VendorProbeRegistry.recipes.first { $0.bundleID == "eu.davidbures.cork" })
 }
 
-@Test func corkReadsTheHighestReleaseFolderOnly() throws {
+@Test func corkReadsTheHighestReleaseOnly() throws {
     let recipe = try corkProbe()
+    #expect(recipe.url.absoluteString == "https://corkmac.app/releases.json")
     #expect(recipe.selectHighest)
     #expect(VendorProbeRecipe.highestVersion(
-        from: corkIndexFixture, pattern: recipe.versionPattern) == "2.0.3")
-    // `latest/`, `macos-13/` and `1.6.1%2BSonoma/` never match.
+        from: corkReleasesFixture, pattern: recipe.versionPattern) == "2.0.3")
+    // `latest`, `macos-13` and `1.6.1+Sonoma` never match.
     let regex = try NSRegularExpression(pattern: recipe.versionPattern)
-    let range = NSRange(corkIndexFixture.startIndex..., in: corkIndexFixture)
-    #expect(regex.numberOfMatches(in: corkIndexFixture, range: range) == 8)
-    // Alphabetical order: the first match is not the newest.
+    let range = NSRange(corkReleasesFixture.startIndex..., in: corkReleasesFixture)
+    #expect(regex.numberOfMatches(in: corkReleasesFixture, range: range) == 8)
+    // Sorted as strings: the first match is not the newest.
     #expect(VendorProbeRecipe.extractVersion(
-        from: corkIndexFixture, pattern: recipe.versionPattern) == "0.1.1")
-}
-
-/// The home page the server answers every other request with is transient, and
-/// the healthy index is not. Mutation: drop `transientBodyPattern` → the first
-/// expectation fails.
-@Test func corkHomePageIsTransientAndTheIndexIsNot() throws {
-    let recipe = try corkProbe()
-    #expect(recipe.matchesTransientBody(corkHomePageFixture))
-    #expect(!recipe.matchesTransientBody(corkIndexFixture))
-    #expect(VendorProbeRecipe.extractVersion(
-        from: corkHomePageFixture, pattern: recipe.versionPattern) == nil)
+        from: corkReleasesFixture, pattern: recipe.versionPattern) == "0.1.1")
 }
 
 @Test func corkInstallsTheResolvedVersionsZip() throws {

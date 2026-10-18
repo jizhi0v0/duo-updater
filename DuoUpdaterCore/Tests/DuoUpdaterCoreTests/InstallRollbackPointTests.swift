@@ -313,6 +313,16 @@ struct InstallRollbackPointTests {
             #expect(await InstallCoordinator.settleInstallRollbackPoint(
                 for: installed(app, version: "v1")) == .kept)
             #expect(BackupStore.rollbackPoint(forKey: key) != nil)
+
+            // A plist that parses and says nothing is not an app either.
+            let contents = app.appendingPathComponent("Contents")
+            try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: false)
+            try PropertyListSerialization.data(
+                fromPropertyList: [String: Any](), format: .xml, options: 0)
+                .write(to: contents.appendingPathComponent("Info.plist"))
+            #expect(await InstallCoordinator.settleInstallRollbackPoint(
+                for: installed(app, version: "v1")) == .kept)
+            #expect(BackupStore.rollbackPoint(forKey: key) != nil)
         }
     }
 

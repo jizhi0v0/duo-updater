@@ -259,7 +259,9 @@ import Testing
         // 38382272237, same day) had 19 of 660 images answer busy, and all 19
         // were created: four only on the fifth try, the latest 50.4 s after its
         // first try began. Still busy after 60 s twice since (runs 39013065891,
-        // 39112907666), hence `transientBound`. An ExFAT `create` has also failed
+        // 39112907666), hence `transientBound`: with it, an APFS image busy on a
+        // first try that took 32 s was created by a second try ending 77 s in
+        // (diag run 39119862740). An ExFAT `create` has also failed
         // "create failed - No such file or directory" into a `$TMPDIR` that exists
         // (runs 39104772469, 39111286040, 2026-10-18), and is retried alike.
         let created = try await retrying(
@@ -282,12 +284,14 @@ import Testing
         // 3 of 400, APFS 0 of 400, all 14 attached on the retry and left nothing
         // attached; MS-DOS eight at a time 0 of 400, one at a time 0 of 120. On the
         // hosted runner an APFS attach has also answered "attach failed - Resource
-        // busy" (run 39104772469, twice). Both are retried like `create`, any
-        // other failure is reported as it is, and a disk a failed try left
+        // busy" (run 39104772469, twice), and a Case-sensitive APFS one "attach
+        // failed - Device not configured" after 30 s (diag run 39119862740, once;
+        // not yet seen to pass on a retry). All three are retried like `create`,
+        // any other failure is reported as it is, and a disk a failed try left
         // attached is taken off before the next.
         let attached = try await retrying(
             ["attach", "-nobrowse", "-mountpoint", mount.path, image.path],
-            on: ["no mountable file systems", "Resource busy"],
+            on: ["no mountable file systems", "Resource busy", "Device not configured"],
             beforeRetry: { await TestDiskImages.detach(image) })
         try #require(attached.status == 0, """
             could not attach the \(format) image (\(attached.status), \(attached.tries) tries \

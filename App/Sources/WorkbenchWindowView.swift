@@ -721,7 +721,7 @@ struct WorkbenchWindowView: View {
                           count: cliItemCount(lists), reservedCount: lists.cliTotal,
                           shown: shown, stacked: stacked)
             }
-            tabButton(.rollback, title: String(localized: "Rollback"), systemImage: "arrow.uturn.backward",
+            tabButton(.rollback, title: String(localized: "Restore"), systemImage: "arrow.uturn.backward",
                       count: lists.rollbackable.count, reservedCount: lists.rollbackTotal,
                       shown: shown, stacked: stacked)
         }
@@ -1434,7 +1434,7 @@ private struct WorkbenchRollbackList: View, @MainActor Equatable {
 
     var body: some View {
         SidebarList(selection: $selection, order: apps.map(\.id),
-                    label: String(localized: "Rollback"), focus: focus, focusValue: .rollback,
+                    label: String(localized: "Restore"), focus: focus, focusValue: .rollback,
                     isShown: isShown) {
             ForEach(apps) { result in
                 WorkbenchRollbackRow(result: result, model: model)
@@ -1460,7 +1460,7 @@ private struct WorkbenchRollbackList: View, @MainActor Equatable {
     private var emptyState: some View {
         if model.prefs.keepBackups {
             ContentUnavailableView {
-                Label("Nothing to roll back yet", systemImage: "arrow.uturn.backward")
+                Label("Nothing to restore yet", systemImage: "arrow.uturn.backward")
             } description: {
                 Text("A backup is kept each time DuoUpdater updates an app. Apps that update themselves are not backed up.")
             }
@@ -1468,7 +1468,7 @@ private struct WorkbenchRollbackList: View, @MainActor Equatable {
             ContentUnavailableView {
                 Label("Backups are off", systemImage: "arrow.uturn.backward")
             } description: {
-                Text("Turn them on to roll back an update and compare what it changed.")
+                Text("Turn them on to restore the version from before an update and compare what it changed.")
             } actions: {
                 Button("Open Settings") {
                     model.requestedSettingsAnchor = .backups
@@ -1736,7 +1736,7 @@ private struct WorkbenchRollbackRow: View {
             if inFlight {
                 ProgressView().controlSize(.small)
             } else {
-                Button("Roll back") { Task { await model.rollback(result) } }
+                Button("Restore") { Task { await model.rollback(result) } }
                     .controlSize(.small)
                     .buttonStyle(.bordered)
                     // `rollback` refuses while the row is busy (`canRollback`) —

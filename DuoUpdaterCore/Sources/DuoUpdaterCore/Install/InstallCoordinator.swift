@@ -234,10 +234,22 @@ public actor InstallCoordinator {
     /// can leave the app deleted when cut off: `brew install --cask --force`
     /// removes the old bundle before it moves the new one in, and its rescue
     /// does not put `/Applications` back (Homebrew 7.0.9, read from source).
-    /// What `mas`, App Store and Installer.app do inside is not known, so they
-    /// count as able to. The routes whose swap is ours (`.sparkle`, `.vendor`,
-    /// `.xcode`) cannot: unprivileged it is an atomic exchange, elevated the
-    /// shell puts the original back itself, and launch recovers either.
+    /// What `mas` and App Store do inside is not known, so they count as able
+    /// to. The routes whose swap is ours (`.sparkle`, `.vendor`, `.xcode`)
+    /// cannot: unprivileged it is an atomic exchange, elevated the shell puts
+    /// the original back itself, and launch recovers either.
+    ///
+    /// What a rollback point is for is narrower than "a third party swaps":
+    /// it is OUR process dying mid-install and taking the installer down with
+    /// it — a brew child dies on its next write to the stdout pipe we held
+    /// (measured, with the parent SIGKILLed), and brew's next line falls
+    /// between deleting the old app and moving the new one in. `.installer` is
+    /// left out for that reason. A package handed to Installer.app is
+    /// installed by Installer, in its own process, which our death cannot
+    /// interrupt; and we never see it succeed — `perform` returns with the
+    /// window still open — so nothing would ever discard a point taken there.
+    /// It could only leak, growing to the app's full size once the package
+    /// replaces the blocks the clone shares.
     ///
     /// Never when a user backup is being taken for this install: that backup
     /// IS the rollback point, and a second copy would buy nothing.
@@ -246,8 +258,8 @@ public actor InstallCoordinator {
         // Exhaustive for the same reason as `wantsBackup`: a new route has to
         // state whether someone else does its swap.
         switch route {
-        case .homebrew, .appStore, .installer: return true
-        case .sparkle, .vendor, .xcode: return false
+        case .homebrew, .appStore: return true
+        case .installer, .sparkle, .vendor, .xcode: return false
         }
     }
 

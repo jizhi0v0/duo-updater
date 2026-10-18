@@ -957,7 +957,7 @@ public enum Install {
                 }
             }
             // Without a backup, a route that hands the swap to someone else
-            // (brew, a pkg) still gets the menu-bar app's silent install
+            // (brew) still gets the menu-bar app's silent install
             // rollback point — see `wantsInstallRollbackPoint`.
             if InstallCoordinator.wantsInstallRollbackPoint(
                 route, takingUserBackup: keepBackups && InstallCoordinator.wantsBackup(route)) {

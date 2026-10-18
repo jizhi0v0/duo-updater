@@ -3,7 +3,7 @@ import Foundation
 @testable import DuoUpdaterCore
 
 /// Install rollback points: the copy taken automatically before a third-party
-/// route (brew, the App Store, a `.pkg`) changes an app, for a user who has no
+/// route (brew, the App Store) changes an app, for a user who has no
 /// backup being taken. They live apart from the user's one-per-app backup slot,
 /// are not backups as far as every existing read path is concerned, survive
 /// every automatic sweep, and go when the install succeeds.
@@ -263,15 +263,17 @@ struct InstallRollbackPointTests {
 
     // MARK: - Which installs take one
 
-    /// Only the routes that hand the swap to someone else — the ones that can
-    /// leave the app deleted — and only when no user backup is being taken for
-    /// this install: that backup is the rollback point then.
+    /// Only brew and the App Store — third parties our own death can cut off
+    /// mid-swap — and only when no user backup is being taken for this
+    /// install: that backup is the rollback point then. Not a `.pkg`:
+    /// Installer.app finishes it whatever happens to us, and we never see it
+    /// succeed, so a point taken there would never be discarded.
     @Test func onlyThirdPartyRoutesWithoutAUserBackupTakeOne() {
         for route in InstallCoordinator.Route.allCases {
             let thirdParty: Bool
             switch route {
-            case .homebrew, .appStore, .installer: thirdParty = true
-            case .vendor, .sparkle, .xcode: thirdParty = false
+            case .homebrew, .appStore: thirdParty = true
+            case .installer, .vendor, .sparkle, .xcode: thirdParty = false
             }
             #expect(InstallCoordinator.wantsInstallRollbackPoint(
                 route, takingUserBackup: false) == thirdParty, "\(route)")

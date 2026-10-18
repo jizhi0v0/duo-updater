@@ -444,7 +444,7 @@ public enum BackupStore {
         /// on disk needs migrating.
         case userBackup
         /// Taken automatically just before a third-party route (brew, the App
-        /// Store, a `.pkg`) changes an app, for a user who has no backup being
+        /// Store) changes an app, for a user who has no backup being
         /// taken. Those routes do the swap themselves and can leave the app
         /// deleted when interrupted — `brew install --cask --force` removes the
         /// old bundle before moving the new one in, and its rescue does not put

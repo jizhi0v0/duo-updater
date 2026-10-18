@@ -26,6 +26,9 @@ import Security
 /// plist, which `PackageInstaller` reads out of the payload, so that route does
 /// run it (#639). `PackageInstaller`'s own header carries the one table of which
 /// gates that route runs; do not restate the list here.
+///
+/// Gate 7 (`verifyNoBundleVersionDowngrade`) is Sparkle's own downgrade check,
+/// run by `SparkleInstaller` alone, after `verifyInstallArtifact`.
 public enum SignatureVerifier {
 
     public enum VerifyError: LocalizedError {
@@ -61,6 +64,11 @@ public enum SignatureVerifier {
         /// Digest-only route: the download's `CFBundleShortVersionString` is not
         /// the release the digest was published for.
         case infoPlistVersionMismatch(expected: String, downloaded: String)
+        /// Sparkle route, gate 7: the download's `CFBundleVersion` is older than
+        /// the installed copy's.
+        case bundleVersionDowngrade(installed: String, downloaded: String)
+        /// Sparkle route, gate 7: the download has no `CFBundleVersion` to compare.
+        case bundleVersionMissing
 
         public var errorDescription: String? {
             switch self {
@@ -104,6 +112,10 @@ public enum SignatureVerifier {
                 return "Bundle identifier mismatch: expected “\(expected)”, installed “\(installed)”, downloaded “\(downloaded)”. Refusing to install."
             case .infoPlistVersionMismatch(let expected, let downloaded):
                 return "The download says it is version “\(downloaded)”, not the “\(expected)” it was published as. Refusing to install."
+            case .bundleVersionDowngrade(let installed, let downloaded):
+                return String(localized: "The download is an older build (\(downloaded)) than the installed one (\(installed)), though the update feed offered it as newer. Refusing to install it.")
+            case .bundleVersionMissing:
+                return String(localized: "The download has no build number, so DuoUpdater can’t confirm it isn’t older than the installed copy. Refusing to install it.")
             }
         }
     }
@@ -834,6 +846,59 @@ public enum SignatureVerifier {
         // `declared` is non-nil here: a nil floor is runnable by definition above.
         throw VerifyError.unsupportedSystemVersion(
             required: declared ?? "?", host: osVersion)
+    }
+
+    // MARK: Gate 7 — a Sparkle download must not be an older build
+
+    /// Sparkle's own downgrade check, which our Sparkle route otherwise lacks.
+    ///
+    /// What it stops: EdDSA proves the archive is one the vendor signed, not
+    /// that it is the release the feed says it is. We read no signed feed
+    /// (`SURequireSignedFeed`), so whoever controls the feed host can label an
+    /// older, validly signed archive as the newest version, and every other gate
+    /// passes it. Sparkle refuses that swap itself, in
+    /// `SUPlainInstaller performInitialInstallation:` (read at 2.x,
+    /// 2026-10-18): the update must have a `CFBundleVersion`, and the installed
+    /// one must not compare above it. An equal build passes there and here.
+    ///
+    /// Sparkle route only, called by `SparkleInstaller` after
+    /// `verifyInstallArtifact`. On that route this cannot refuse an update the
+    /// app's own updater would install, because the app's Sparkle runs the
+    /// same check. The vendor, GitHub and Xcode routes have no such guarantee:
+    /// nothing promises their `CFBundleVersion` only rises, and refusing on an
+    /// unproven rule is how an app stops updating.
+    ///
+    /// Compared up to the first `-`, because Sparkle's `SUStandardVersionComparator`
+    /// stops reading there (`splitVersionString` breaks on `kDashType`) and
+    /// `VersionComparator` would keep going: `1234-def` over `1234-abc` is equal to
+    /// Sparkle and would read as a downgrade here.
+    ///
+    /// An installed copy with no `CFBundleVersion` is let through, with a log
+    /// line: there is nothing to compare, the feed cannot change the installed
+    /// bundle, and Sparkle cannot run in such an app anyway (`SUHost.version`
+    /// raises without one).
+    static func verifyNoBundleVersionDowngrade(installedApp: URL, downloadedApp: URL) throws {
+        func bundleVersion(_ app: URL) -> String? {
+            guard let raw = infoPlist(of: app)["CFBundleVersion"] as? String,
+                  !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else { return nil }
+            return raw
+        }
+        guard let downloaded = bundleVersion(downloadedApp) else {
+            throw VerifyError.bundleVersionMissing
+        }
+        guard let installed = bundleVersion(installedApp) else {
+            Log.install.info(
+                "gate 7 installed \(installedApp.lastPathComponent, privacy: .public) has no CFBundleVersion — allowing")
+            return
+        }
+        func beforeDash(_ version: String) -> String {
+            String(version.prefix { $0 != "-" })
+        }
+        guard VersionComparator.compare(beforeDash(installed), beforeDash(downloaded))
+                == .orderedDescending
+        else { return }
+        throw VerifyError.bundleVersionDowngrade(installed: installed, downloaded: downloaded)
     }
 
 }

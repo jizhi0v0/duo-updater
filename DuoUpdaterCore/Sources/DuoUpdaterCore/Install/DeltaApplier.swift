@@ -298,6 +298,12 @@ public func deltaRouteFailureIsWorthRetrying(_ error: Error) -> Bool {
         // property of the VERSION, so the full archive carries the identical
         // set and would be refused for the identical reason (issue #196).
         return false
+    case .bundleVersionDowngrade, .bundleVersionMissing:
+        // Not a broken patch: gate 7 runs after gate 2 has verified the rebuilt
+        // bundle's seal, so this is a whole vendor build that is older than the
+        // installed one. The feed entry is wrong, not the bytes, and the full
+        // archive comes from the same entry. Retrying only spends the download.
+        return false
     case .edSignatureMissing, .edSignatureInvalid, .myGoSignatureMissing, .myGoSignatureInvalid,
          .codeSignatureInvalid,
          .noTeamIdentifier, .teamIdentifierMismatch,

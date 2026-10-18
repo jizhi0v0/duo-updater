@@ -267,6 +267,10 @@ public actor SparkleInstaller {
             downloadedApp: newApp,
             installedApp: result.app.path
         )
+        // Gate 7: no older build than the installed one, whatever the feed called
+        // it. Sparkle-only; see `verifyNoBundleVersionDowngrade`.
+        try SignatureVerifier.verifyNoBundleVersionDowngrade(
+            installedApp: result.app.path, downloadedApp: newApp)
 
         // 5. Swap the bundle into place. We do this even while the app is
         // running: macOS keeps the live process on the code it already mapped,

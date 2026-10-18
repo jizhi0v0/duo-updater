@@ -417,6 +417,9 @@ final class AppListModel {
     /// landing while the app is still up, after which its "the new version is
     /// already installed" is no longer true (`rollback`).
     @ObservationIgnored private var restartWontQuitNotes: [String: String] = [:]
+    /// id → the post-relaunch watch `scheduleRelaunchRecheck` started. Kept only
+    /// so a later restart or bundle change of the row can cancel it.
+    @ObservationIgnored private var relaunchRechecks: [String: Task<Void, Never>] = [:]
     /// id → the "App Store can't replace this while it's open" text this model wrote
     /// into `installNotes`, so the install can retract exactly its own note when it
     /// finishes. Same discipline as `restartHoldBackNotes`, and for the same reason:
@@ -611,6 +614,7 @@ final class AppListModel {
     }
 
     private func beginBundleChange(_ id: String, _ kind: BundleChange) -> Int {
+        relaunchRechecks.removeValue(forKey: id)?.cancel()
         bundleChangeTokens += 1
         bundleChanges[id] = (bundleChangeTokens, kind)
         return bundleChangeTokens
@@ -6689,6 +6693,12 @@ final class AppListModel {
         // note in between — `backupCurrent`'s "no rollback point", say — theirs
         // stands.
         retractRestartNote(result.id, from: &restartHoldBackNotes)
+        // For the recheck after the relaunch (`RelaunchRecheck`), both taken while
+        // the app still runs: the bundle we mean to put into effect, and any
+        // installer parked on this quit — found now or not at all.
+        let beforeQuit = RelaunchRecheck.read(result.app.path)
+        let installerAtQuit = await ParkedInstallerProbe.find(
+            for: result.app, staged: pendingSelfUpdate[result.id])
         switch await AppRestarter.restart(result.app) {
         case .noBundleID, .notRunning:
             needsRestart.remove(result.id)
@@ -6737,6 +6747,9 @@ final class AppListModel {
                     app: result.app.name, version: onDisk.short ?? result.app.shortVersion,
                     appID: result.app.bundleID)
             }
+            // Whether or not the reopen worked, the quit happened, and the quit is
+            // what a parked installer acts on.
+            scheduleRelaunchRecheck(result, expected: beforeQuit, installer: installerAtQuit)
         case .nestedOnly(let relaunched):
             // The app itself was never running — only a stranded nested app (e.g.
             // Surge's Dashboard) needed clearing — so the update still applies the
@@ -6748,6 +6761,39 @@ final class AppListModel {
             runningVersionByID[result.id] = nil
             settlePackageRestart(result.id)
             Log.app.info("restart: \(result.app.name, privacy: .public) was not running itself — nested app(s) cleared, relaunched=\(relaunched, privacy: .public)")
+        }
+    }
+
+    /// Watch the bundle for a minute after `restart` relaunched it, and say so on
+    /// the row if the app's own updater put an older build back over ours — the
+    /// ChatGPT/Sparkle collision in `RelaunchRecheck`'s doc, which `RestartStandoff`
+    /// cannot see when the installer only appears after the quit (Sparkle 1).
+    /// Nothing is reinstalled: a second install would only race the same updater.
+    /// A newer restart, install or rollback of the row cancels the watch
+    /// (`beginBundleChange`), so a rollback is never reported as a revert.
+    private func scheduleRelaunchRecheck(
+        _ result: UpdateResult, expected: RelaunchRecheck.Reading?, installer: ParkedInstallerProbe?
+    ) {
+        relaunchRechecks.removeValue(forKey: result.id)?.cancel()
+        guard let expected else { return }
+        let app = result.app
+        let id = result.id
+        relaunchRechecks[id] = Task { [weak self] in
+            let verdict = await RelaunchRecheck.watch(
+                expected: expected, installer: installer, system: .live(bundle: app.path))
+            guard let self, !Task.isCancelled else { return }
+            let ours = expected.side.text(withBuild: true)
+            switch verdict {
+            case .held:
+                Log.app.notice("relaunch recheck: \(app.name, privacy: .public) held \(ours, privacy: .public)")
+            case .unknown:
+                Log.app.notice("relaunch recheck: \(app.name, privacy: .public) — no verdict for \(ours, privacy: .public) within the window (installer still running, or bundle unreadable)")
+            case .reverted(let theirs, let swapped):
+                let version = theirs.text(withBuild: true)
+                Log.app.notice("relaunch recheck: \(app.name, privacy: .public) went back from \(ours, privacy: .public) to \(version, privacy: .public) after the relaunch (bundle swapped=\(swapped, privacy: .public)) — its own updater replaced it; not reinstalling")
+                installNotes[id] = String(localized: "\(app.name)’s own updater replaced the version just installed with \(version) after the restart. DuoUpdater won’t reinstall over it automatically — click Update if you want the newer version back.")
+                await refreshLocal(unattended: true)
+            }
         }
     }
 

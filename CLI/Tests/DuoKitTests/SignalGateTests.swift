@@ -216,6 +216,7 @@ import Foundation
             return 0
         }
         #expect(status == 130)
+        #expect(harness.exits.all.isEmpty)
         #expect(harness.notices.all.count == 1)
         #expect(lines.all == (1...10).map { "line \($0)" })
         #expect(outcome.value?.succeeded == true)

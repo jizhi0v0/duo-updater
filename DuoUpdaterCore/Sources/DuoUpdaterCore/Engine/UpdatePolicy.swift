@@ -175,6 +175,9 @@ public enum UpdatePolicy {
         // edition under the same id, see `OneClickGate`): detection only, every
         // source.
         if OneClickGateRegistry.withholding(result.app) != nil { return false }
+        // No Team ID on the installed copy: a route that pins one could only
+        // fail at gate 3 (CmdPalm, self-signed, 2026-10-18 user report).
+        if lacksTeamIdentifierForRoute(result) { return false }
         // An input method is registered with the system, not merely copied: the
         // vendor's installer calls `TISRegisterInputSource` on the bundle PATH
         // (WeType's installer binary carries "Registered input source from
@@ -449,6 +452,10 @@ public enum UpdatePolicy {
         // destination check does not close it either — it hard-refuses only inside
         // `/Applications` and falls back to matching a bundle name anywhere else.
         if environment.isInputMethod(result.app.path) { return false }
+        // Same gate as in `canAutoInstall`, for the same reason the input-method
+        // one is repeated: callers offer `canAutoInstall || requiresInstaller`.
+        // `PackageInstaller` refuses an installed copy without a Team ID too.
+        if lacksTeamIdentifierForRoute(result) { return false }
         switch result.remote?.sourceName {
         case "Homebrew":
             // A cask whose installer needs a person but whose download holds no
@@ -473,6 +480,24 @@ public enum UpdatePolicy {
                   result.app.sparkleEdPublicKey?.isEmpty == false,
                   result.remote?.edSignature?.isEmpty == false else { return false }
             return true
+        default:
+            return false
+        }
+    }
+
+    /// The installed copy has no Team ID (`UpdateResult.installedLacksTeamIdentifier`)
+    /// and the route would pin one: Sparkle, whose installer runs gate 3 on every
+    /// enclosure, or a Vendor/GitHub/Electron/MyGo download on
+    /// `InstallTrust.developerID`. The two ad-hoc trusts are the routes built for a
+    /// copy without a Team ID and are judged on their own setting. Homebrew and
+    /// the App Store do not run our gates.
+    static func lacksTeamIdentifierForRoute(_ result: UpdateResult) -> Bool {
+        guard result.installedLacksTeamIdentifier else { return false }
+        switch result.remote?.sourceName {
+        case "Sparkle":
+            return true
+        case "Vendor", "GitHub", "Electron", MyGoUpdateSource.sourceName:
+            return result.remote?.installTrust == .developerID
         default:
             return false
         }

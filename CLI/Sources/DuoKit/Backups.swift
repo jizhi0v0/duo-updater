@@ -236,6 +236,17 @@ public enum Backups {
     // MARK: - Restore
 
     static func restore(_ query: String, assumeYes: Bool, json: Bool) async -> Int32 {
+        // An install that was cut off can have left the app gone, so it is
+        // looked for first: the scan below only finds apps that are there.
+        switch matchInterrupted(query: query, in: InstallJournal.interruptedInstalls()) {
+        case .success(let interrupted?):
+            return await restoreInterrupted(interrupted, assumeYes: assumeYes, json: json)
+        case .success(nil):
+            break
+        case .failure(let failure):
+            FileHandle.standardError.write(Data("duo: \(failure)\n".utf8))
+            return 2
+        }
         let settings = await Settings.load()
         let installed = await Inventory.scanIfFinished(settings)
         let app: InstalledApp
@@ -306,13 +317,86 @@ public enum Backups {
         return code
     }
 
+    /// The interrupted install `query` names — by the app's path, bundle id or
+    /// name — nil when none does, and a failure when several do.
+    static func matchInterrupted(
+        query: String, in interrupted: [InstallJournal.InterruptedInstall]
+    ) -> Result<InstallJournal.InterruptedInstall?, Inventory.SelectionFailure> {
+        let wanted = query.lowercased()
+        let path = URL(fileURLWithPath: (query as NSString).expandingTildeInPath)
+            .standardizedFileURL.path
+        let matched = interrupted.filter { item in
+            item.appPath.standardizedFileURL.path == path
+                || item.bundleID?.lowercased() == wanted
+                || item.appName.lowercased() == wanted
+                || item.appPath.deletingPathExtension().lastPathComponent.lowercased() == wanted
+        }
+        guard matched.count <= 1 else {
+            let names = matched.map { "  \($0.appName) — \($0.appPath.path)" }.joined(separator: "\n")
+            return .failure(Inventory.SelectionFailure(description:
+                "'\(query)' matches \(matched.count) interrupted installs:\n\(names)\n"
+                + "Pass the app's path."))
+        }
+        return .success(matched.first)
+    }
+
+    /// Restore an app an interrupted install left missing or broken, from the
+    /// copy the journal points at (`InstallJournal.InterruptedInstall.restoreFrom`).
+    /// `BackupStore`'s restore puts it back where nothing is
+    /// (`InPlaceSwap.placeBack`) and clears the interrupted install.
+    private static func restoreInterrupted(
+        _ interrupted: InstallJournal.InterruptedInstall, assumeYes: Bool, json: Bool
+    ) async -> Int32 {
+        guard let source = interrupted.restoreFrom else {
+            FileHandle.standardError.write(Data(
+                "duo: no backup or restore point exists for \(interrupted.appName); reinstall it\n".utf8))
+            return 1
+        }
+        if !json {
+            print("Will restore \(interrupted.appName)  (interrupted update)"
+                + "  →  \(source.version ?? interrupted.oldVersion ?? "?")")
+            print("  \(interrupted.appPath.path)")
+        }
+        guard assumeYes || confirm(app: interrupted.appName, json: json) else {
+            if json {
+                FileHandle.standardError.write(Data("duo: cancelled\n".utf8))
+            } else {
+                print("Cancelled.")
+            }
+            return 0
+        }
+        do {
+            try await ProcessInstallLock.shared.claim()
+        } catch {
+            FileHandle.standardError.write(Data("duo: \(error)\n".utf8))
+            return 1
+        }
+        let app = InstalledApp(
+            name: interrupted.appName, bundleID: interrupted.bundleID,
+            shortVersion: interrupted.oldVersion, buildVersion: interrupted.oldBuild,
+            path: interrupted.appPath, isMASApp: false, sparkleFeedURL: nil)
+        let code = await performRestore(
+            app: app, key: source.key, from: source.purpose, json: json)
+        await ProcessInstallLock.shared.release()
+        return code
+    }
+
+    /// `path` as one shell word, for a command printed for the user to run.
+    static func shellQuoted(_ path: String) -> String {
+        let plain = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "/._-+"))
+        guard path.unicodeScalars.contains(where: { !plain.contains($0) }) else { return path }
+        return "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
     /// Everything on either side of the actual restore call — argument
     /// resolution, confirmation, the lock — is deliberately pure or CLI-only,
     /// so this is the one place `BackupStore.restore` (and therefore its
     /// signature check) actually runs. Held to its own function mainly so
     /// `run` reads as claim → do the one destructive thing → release, matching
     /// `Install.run`'s shape.
-    private static func performRestore(app: InstalledApp, key: String, json: Bool) async -> Int32 {
+    private static func performRestore(
+        app: InstalledApp, key: String, from purpose: BackupStore.Purpose = .userBackup, json: Bool
+    ) async -> Int32 {
         do {
             // Awaited in place: the restore's `ditto` and swap go through
             // `ChildProcess`, and it hops its own `SecStaticCode…` check. See
@@ -322,7 +406,7 @@ public enum Backups {
             // rollback that put the bundle back can still have left them behind.
             // A log line is not an answer for a command that printed "restored".
             let outcome = try await BackupStore.restoreReportingUserData(
-                forKey: key, over: app.path)
+                forKey: key, over: app.path, from: purpose)
             let restored = outcome.version
             if json {
                 emitRestoreJSON(

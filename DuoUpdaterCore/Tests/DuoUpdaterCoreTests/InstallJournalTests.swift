@@ -84,12 +84,27 @@ struct InstallJournalTests {
             buildVersion: nil, path: app, isMASApp: false, sparkleFeedURL: nil)
     }
 
-    /// A process that has exited: a `true` we started, stamped while it ran.
+    /// Run a child that waits until `onLaunch` has had `stamp` called with its
+    /// pid, then exits. A child that exits at once can be gone before
+    /// `onLaunch` reads it — seen under the full parallel suite, where a
+    /// `/usr/bin/true` child no longer answered `proc_pidinfo` by then.
+    private func runWaitingChild(_ stamp: @escaping @Sendable (pid_t) -> Void) async throws {
+        let go = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-journal-go-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: go) }
+        _ = try await ChildProcess.run(
+            "/bin/sh", ["-c", "while [ ! -e \"$1\" ]; do sleep 0.01; done", "sh", go.path],
+            standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion,
+            onLaunch: { pid in
+                stamp(pid)
+                FileManager.default.createFile(atPath: go.path, contents: nil)
+            })
+    }
+
+    /// A process that has exited: one we started, stamped while it ran.
     private func deadProcess() async throws -> InstallJournal.ProcessStamp {
         let stamp = JournalBox<InstallJournal.ProcessStamp?>(nil)
-        _ = try await ChildProcess.run(
-            "/usr/bin/true", onCancel: .runToCompletion,
-            onLaunch: { stamp.set(InstallJournal.ProcessStamp.of($0)) })
+        try await runWaitingChild { stamp.set(InstallJournal.ProcessStamp.of($0)) }
         let dead = try #require(stamp.value)
         try #require(!dead.isRunning)
         return dead
@@ -441,9 +456,7 @@ struct InstallJournalTests {
                 InstallJournal.noteWorkDirectory(work)
                 InstallJournal.noteMount(work.appendingPathComponent("mnt"), image: work.appendingPathComponent("a.dmg"))
                 let journal = InstallJournal.current
-                _ = try await ChildProcess.run(
-                    "/usr/bin/true", onCancel: .runToCompletion,
-                    onLaunch: { pid.set($0); journal?.noteChild($0) })
+                try await runWaitingChild { pid.set($0); journal?.noteChild($0) }
             }
             InstallJournal.noteWorkDirectory(scratch.dir)  // outside: not recorded
             written = try onDisk()

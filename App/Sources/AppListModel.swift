@@ -2083,6 +2083,9 @@ final class AppListModel {
         // Delete partial downloads kept for resuming once they age out — now, for
         // whatever an earlier run or `duo` left, and on a timer from here on.
         ResumableDownloadStore.startSweeping()
+        // Stale `$TMPDIR` scratch no install journal accounts for, and disk
+        // images still attached under it: now, and once a day from here on.
+        InstallScratchSweep.startSweeping()
         // Arm the background auto-check loop at launch — not on first menu open —
         // so a menu-bar app that's never clicked still checks on schedule.
         reschedule()
@@ -3205,6 +3208,11 @@ final class AppListModel {
                 // Every root is attempted; one deferral must not skip the rest.
                 if await InPlaceSwap.recoverInterruptedSwaps(in: root) == false { swept = false }
             }
+            // What an install killed mid-way left (`InstallJournal`): its scratch
+            // directories and disk images cleaned up, its app classified. Before
+            // the rollback sweep, which keeps the points of the apps it found cut
+            // off. Retried with the rest when another process held the lock.
+            if await InstallJournal.processLeftovers() == nil { swept = false }
             // Install rollback points whose app reads again (see
             // `sweepSettledInstallRollbackPoints`), retried with the rest when
             // another process held the lock.
@@ -4739,9 +4747,19 @@ final class AppListModel {
             await hostGate.release()
             return .notInstalled
         }
-        let outcome = await performInstall(
-            result, notify: notify, deferBookkeeping: deferBookkeeping,
-            releaseAfterDownload: isAppStore ? nil : hostGate, backUpOnce: backUpOnce)
+        // Written under the lock and before anything of the app's is touched,
+        // removed however the install ends — so the next launch can clean up
+        // after one this process was killed in the middle of (`InstallJournal`).
+        let journal = await InstallJournal.begin(
+            app: result.app,
+            route: InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result)),
+            target: result.remote?.versionSide)
+        let outcome = await InstallJournal.recording(journal) {
+            await performInstall(
+                result, notify: notify, deferBookkeeping: deferBookkeeping,
+                releaseAfterDownload: isAppStore ? nil : hostGate, backUpOnce: backUpOnce)
+        }
+        journal?.finish()
         await ProcessInstallLock.shared.release()
         await hostGate.release()
         // An expired Apple session is not kept: `install` takes that line down

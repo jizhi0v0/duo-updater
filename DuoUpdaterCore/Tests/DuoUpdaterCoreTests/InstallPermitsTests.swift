@@ -206,10 +206,9 @@ struct InstallPermitsTests {
     /// end at its capacity either way. Half the rounds cancel before the waiter
     /// has even queued, which drives the "cancelled before it parked" path.
     ///
-    /// Mutation: in the handler, drop the waiter from the queue without
-    /// resuming it → `waiter.value` never returns and the round's bound fails;
-    /// or resume it without removing it → the next release resumes the same
-    /// continuation twice and the process traps.
+    /// Mutation: in the handler, resume the waiter without removing it from
+    /// the queue → a later release resumes the same continuation again and the
+    /// process traps ("tried to resume its continuation more than once").
     @Test func cancelRacingARelease_neverLeaksAPermit() async {
         let permits = InstallPermits(downloads: 2, applies: 1)
         var stuck = 0
@@ -232,6 +231,28 @@ struct InstallPermitsTests {
         #expect(stuck == 0)
         #expect(permits.availableDownloadPermits == 2)
         #expect(permits.parkedDownloadWaiters == 0)
+    }
+
+    /// A cancel that lands while the waiter is between "no permit free" and
+    /// "queued", with no release coming to rescue it: the handler runs before
+    /// there is a queue entry to remove, so the waiter must see the mark it
+    /// left and throw instead of queueing — or it waits forever.
+    ///
+    /// Mutation: drop the `.cancelled` check before queueing → some round's
+    /// waiter queues after its handler already ran and the bound fails.
+    @Test func cancelRacingTheQueueing_neverStrandsAWaiter() async {
+        let permits = InstallPermits(downloads: 1, applies: 1)
+        await permits.waitForDownload()                       // pool exhausted for the whole test
+        var stuck = 0
+        for _ in 0..<5000 {
+            let waiter = Task { try? await permits.waitForDownloadOrCancel() }
+            await Task.detached { waiter.cancel() }.value
+            if !(await Self.within(seconds: 10) { await waiter.value }) { stuck += 1; break }
+        }
+        #expect(stuck == 0)
+        #expect(permits.parkedDownloadWaiters == 0)
+        if stuck > 0 { permits.signalDownload() }            // a mutant: free the stranded one
+        permits.signalDownload()
     }
 
     // MARK: - Helpers

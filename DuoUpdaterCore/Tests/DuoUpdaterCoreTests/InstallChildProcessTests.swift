@@ -600,15 +600,6 @@ import Testing
                 at: URL(fileURLWithPath: volume).appendingPathComponent("ZZFixture.app"),
                 mode: 0o755, marker: "payload")
         }
-        // Unmounted before the detach, so the apps just written are on the image:
-        // once the image came out with no app on the volume the extraction
-        // mounted (`noAppFound`, run 39111286040), and a forced detach of a
-        // volume written a moment ago is the suspect (unverified).
-        if let unmountError = try await retrying(
-            "/usr/sbin/diskutil", ["unmountDisk", device], for: .seconds(30)) {
-            Issue.record("diskutil unmountDisk still failing after 30 s: \(unmountError)")
-            throw FixtureFailed()
-        }
         if let detachError = try await retrying(
             "/usr/bin/hdiutil", ["detach", device, "-force"], for: .seconds(60)) {
             Issue.record("hdiutil detach still failing after 60 s: \(detachError)")

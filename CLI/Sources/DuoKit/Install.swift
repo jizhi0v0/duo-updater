@@ -956,6 +956,13 @@ public enum Install {
                     if !json { print("   could not back up — installing without a rollback point") }
                 }
             }
+            // Without a backup, a route that hands the swap to someone else
+            // (brew, a pkg) still gets the menu-bar app's silent install
+            // rollback point — see `wantsInstallRollbackPoint`.
+            if InstallCoordinator.wantsInstallRollbackPoint(
+                route, takingUserBackup: keepBackups && InstallCoordinator.wantsBackup(route)) {
+                await InstallCoordinator.takeInstallRollbackPoint(toInstall.app, route: route)
+            }
             do {
                 let installOutcome = try await coordinator.perform(
                     toInstall, route: route,
@@ -982,6 +989,8 @@ public enum Install {
                 let category = rowOutcome(forApplied: installOutcome.applied)
                 if installOutcome.applied {
                     attempted.append((name: name, path: toInstall.app.path, bundleID: toInstall.app.bundleID))
+                    // Landed: the install rollback point, if any, is done.
+                    await InstallCoordinator.discardInstallRollbackPoint(for: toInstall.app)
                 }
                 tally.record(category)
                 emit(name: name, route: route, outcome: installOutcome, json: json)

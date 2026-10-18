@@ -5096,9 +5096,17 @@ final class AppListModel {
         }
         // `backUpOnce`: the major-upgrade confirmation's "Back Up & Update", for a
         // user who keeps backups off but wants a rollback point for this one update.
-        if prefs.keepBackups || backUpOnce, InstallCoordinator.wantsBackup(backupRoute),
-           !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)) {
-            await backupCurrent(result, route: backupRoute)
+        // Without either, a route that hands the swap to someone else still gets
+        // a silent install rollback point — see `wantsInstallRollbackPoint`.
+        if !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)) {
+            let takingUserBackup = (prefs.keepBackups || backUpOnce)
+                && InstallCoordinator.wantsBackup(backupRoute)
+            if takingUserBackup {
+                await backupCurrent(result, route: backupRoute)
+            } else if InstallCoordinator.wantsInstallRollbackPoint(
+                backupRoute, takingUserBackup: takingUserBackup) {
+                await InstallCoordinator.takeInstallRollbackPoint(result.app, route: backupRoute)
+            }
         }
 
         do {
@@ -5502,6 +5510,10 @@ final class AppListModel {
                 relaunching.remove(id)
                 return .notInstalled
             }
+
+            // It landed and reads back, so the install rollback point taken for
+            // it — or left by an earlier attempt that never finished — is done.
+            await InstallCoordinator.discardInstallRollbackPoint(for: result.app)
 
             // Tell the user it landed. If the app was running, its live process
             // is still on the old code (so it's in needsRestart) — point them at

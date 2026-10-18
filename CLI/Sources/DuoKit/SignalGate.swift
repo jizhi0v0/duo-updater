@@ -17,8 +17,8 @@ import Foundation
 /// into the Caskroom backup, removes it from /Applications (`==> Removing
 /// App`), then moves the new one in (`==> Moving App`). Its rescue restores
 /// the backup only for a StandardError: a signal skips it, and an
-/// `Errno::EPIPE` reaches it but the revert starts by printing to the same
-/// dead pipe (Homebrew 7.0.9, read from source; the EPIPE path is not
+/// `Errno::EPIPE` reaches it but writes to the same dead pipe before the
+/// revert (Homebrew 7.0.9, read from source; the EPIPE path is not
 /// measured). A cut landing there leaves /Applications without the app, the
 /// old copy only in the Caskroom backup.
 ///

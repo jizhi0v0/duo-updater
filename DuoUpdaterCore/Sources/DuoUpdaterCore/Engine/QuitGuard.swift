@@ -7,8 +7,8 @@ import Foundation
 /// not. A Homebrew child outlives us in its own process group, but its stdout is
 /// a pipe we held, and its next progress line — `==> Moving App`, printed between
 /// removing the old app and moving the new one in — dies on EPIPE. Its rescue
-/// would put the old app back, but the revert starts by printing to the same
-/// dead pipe (Homebrew 7.0.9, read from source; not measured), so the app is
+/// would put the old app back, but it writes to the same dead pipe before the
+/// revert (Homebrew 7.0.9, read from source; not measured), so the app is
 /// left gone from /Applications, the old copy only in the Caskroom backup.
 /// Waiting for the in-flight work is the fix; cancelling it is a later step
 /// (see `Decision`).

@@ -87,6 +87,54 @@ import Testing
             app, staged: staged, old: old, wasFrontmost: false, system: system(w))
     }
 
+    /// The quit is this route's point of no return (`InstallCommit`): a caller
+    /// cancelled before it quits nothing, and the ending says the app never quit.
+    /// Mutation: drop the commit → terminated, red.
+    @Test func aCancelledCallerQuitsNothing() async {
+        let w = World(disk: old, new: new)
+        let system = system(w)
+        let (app, old, staged) = (app, old, staged(.shipIt))
+        let task = Task { () async -> StagedRelaunch.Ending in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await StagedRelaunch.quitAndAwait(
+                app, staged: staged, old: old, wasFrontmost: false, system: system)
+        }
+        let ending = await task.value
+        #expect(!w.terminated)
+        #expect(!ending.everQuit)
+        #expect(w.launches.isEmpty)
+    }
+
+    /// Cancelled after the quit: the wait goes on to the swap as if nothing
+    /// happened. Its ticks never see the cancel — the live tick is a `try?`
+    /// sleep, which on a cancelled task returns at once and spins the loop.
+    /// Mutation: drop the commit → a tick sees the cancel, red.
+    @Test func aCancelAfterTheQuitIsNotSeen() async {
+        let w = World(disk: old, new: new)
+        w.landsAt = 10
+        let quit = InstallCommitTests.Signal()
+        let release = InstallCommitTests.Signal()
+        let sawCancel = InstallCommitTests.Flag()
+        var system = system(w)
+        system.terminate = { w.terminated = true; quit.fire() }
+        system.tick = {
+            await release.wait()
+            if Task.isCancelled { sawCancel.set() }
+            w.advance()
+        }
+        let (app, old, staged, frozen) = (app, old, staged(.shipIt), system)
+        let task = Task { () async -> StagedRelaunch.Ending in
+            await StagedRelaunch.quitAndAwait(
+                app, staged: staged, old: old, wasFrontmost: false, system: frozen)
+        }
+        await quit.wait()
+        task.cancel()
+        release.fire()
+        let ending = await task.value
+        #expect(ending.outcome == .applied)
+        #expect(!sawCancel.value)
+    }
+
     /// The GitKraken case: quit, ShipIt swaps and reopens it. We launch nothing.
     /// Mutation: reopen right after the quit (what `AppRestarter.restart` does)
     /// → a launch before `landedAt`, red.

@@ -339,10 +339,16 @@ public actor PackageInstaller {
             throw PackageError.downloadFailed(
                 "The installer changed after verification. Nothing was opened.")
         }
-        try await handOff(toOpen) {
-            guard try Self.integritySnapshot(of: toOpen) == finalSeal.snapshot else {
-                throw PackageError.downloadFailed(
-                    "The installer changed after verification. Nothing was opened.")
+        // This route's point of no return (`InstallCommit`): once Installer has
+        // the package, the install is the user's and Installer's. A cancel before
+        // it opens nothing; one during it is not seen.
+        let handOff = self.handOff
+        try await InstallCommit.run("installer hand-off") {
+            try await handOff(toOpen) {
+                guard try Self.integritySnapshot(of: toOpen) == finalSeal.snapshot else {
+                    throw PackageError.downloadFailed(
+                        "The installer changed after verification. Nothing was opened.")
+                }
             }
         }
     }

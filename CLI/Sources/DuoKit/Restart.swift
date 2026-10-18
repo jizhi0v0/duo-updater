@@ -156,18 +156,18 @@ public enum Restart {
         case .skipped, .standDown:
             return nil
         case .lockRefused:
-            return "no rollback point: another install holds the install lock — restarting without one"
+            return "no restore point: another install holds the install lock — restarting without one"
         case .attempted(.saved):
             return "backed up \(version)"
         case .attempted(.savedWithoutRuntimeState(let omitted)):
             return "backed up \(version) — without \(omitted) file(s) the app wrote inside its own"
                 + " bundle, which it will recreate"
         case .attempted(.unreadable(let path)):
-            return "no rollback point: \(path) is not readable by you"
+            return "no restore point: \(path) is not readable by you"
         case .attempted(.insufficientSpace):
-            return "no rollback point: this Mac is low on space"
+            return "no restore point: this Mac is low on space"
         case .attempted(.failed):
-            return "could not back up — restarting without a rollback point"
+            return "could not back up — restarting without a restore point"
         }
     }
 

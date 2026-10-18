@@ -1562,16 +1562,22 @@ public enum BackupStore {
         try await offCooperativePool(qos: .userInitiated) {
             try verifyRestoreIdentity(staged: staged, over: target)
         }
+        // The restore's point of no return (`InstallCommit`): a cancel before it
+        // leaves the live app as it is and the scratch copy to the `defer`; one
+        // during it is not seen.
+        //
         // Nothing at the target — the app vanished, as an interrupted brew
         // install leaves it — is not something to swap with: `replace` refuses
         // a target that does not exist, by design, before its privileged path
         // could act on it. Put the copy where it was instead. A target that is
         // there but emptied (brew clears a bundle's contents when the new one
         // has the same name) is still a bundle, and takes the ordinary swap.
-        if InPlaceSwap.isAbsent(target) {
-            try await InPlaceSwap.placeBack(newApp: staged, at: target)
-        } else {
-            try await InPlaceSwap.replace(newApp: staged, over: target)
+        try await InstallCommit.run("restore swap") {
+            if InPlaceSwap.isAbsent(target) {
+                try await InPlaceSwap.placeBack(newApp: staged, at: target)
+            } else {
+                _ = try await InPlaceSwap.replace(newApp: staged, over: target)
+            }
         }
         // An input method's settings and learned dictionary are not in the bundle,
         // so restoring the bundle alone rolls back the code and leaves the data at

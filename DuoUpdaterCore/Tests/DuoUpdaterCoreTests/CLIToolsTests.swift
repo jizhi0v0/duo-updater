@@ -109,6 +109,38 @@ struct CLIToolsTests {
         #expect(seen.all == [CLIToolExit.Status(executable: "/bin/sh", status: 3, signal: false, timedOut: false)])
     }
 
+    /// A caller cancelled before the vendor's command starts runs nothing — the
+    /// command is the tool's point of no return (`InstallCommit`) — and the run
+    /// reads as one that could not start. Both runners: the shared one and npm's.
+    /// Mutation: drop the commit in either → the command runs, red.
+    @Test func aCancelledCallerStartsNoUpdateCommand() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-cli-cancel-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let deadline = ChildProcess.Deadline(terminateAfter: .seconds(30), killAfter: .seconds(35))
+        for runner in ["shared", "npm"] {
+            let marker = dir.appendingPathComponent("RAN-\(runner)")
+            let command = CLIToolCommand(
+                executable: "/bin/sh", arguments: ["-c", "/usr/bin/touch \"$0\"", marker.path], pathPrefix: nil)
+            let task = Task { () async -> CLIToolCommandRunner.Run in
+                withUnsafeCurrentTask { $0?.cancel() }
+                if runner == "npm" {
+                    return await NpmUpdater.run(
+                        command, environment: ["PATH": "/usr/bin:/bin"], deadline: deadline, progress: { _ in })
+                }
+                return await CLIToolCommandRunner.run(
+                    command, environment: ["PATH": "/usr/bin:/bin"], deadline: deadline, progress: { _ in })
+            }
+            let run = await task.value
+            guard case .couldNotStart = run.result else {
+                Issue.record("\(runner): expected couldNotStart, got \(run.result)")
+                continue
+            }
+            #expect(!FileManager.default.fileExists(atPath: marker.path), "\(runner)")
+        }
+    }
+
     /// Every provider asked answers, in `providers` order whichever finishes
     /// first. Run under `-c release` too: a task group's `for await` has been
     /// miscompiled there before (swift64-release-taskgroup-miscompile).

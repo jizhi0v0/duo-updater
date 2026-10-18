@@ -634,7 +634,7 @@ final class AppListModel {
             note = String(localized: "\(result.app.name) wasn’t relaunched: an update to it is being installed right now. Try again once that finishes.")
         case .rollback:
             Log.app.notice("\(logPrefix, privacy: .public): \(result.app.name, privacy: .public) is being rolled back right now — not relaunching it")
-            note = String(localized: "\(result.app.name) wasn’t relaunched: it is being rolled back right now. Try again once that finishes.")
+            note = String(localized: "\(result.app.name) wasn’t relaunched: it is being restored right now. Try again once that finishes.")
         }
         let id = result.id
         if let mine = bundleBusyNotes[id], installNotes[id] == mine.text {
@@ -7067,7 +7067,7 @@ final class AppListModel {
                 // describes something that happened, so it stays until the next
                 // action on the row replaces it. A refusal note it covers is not
                 // put back over it (`retractBusyNote` sees different text).
-                installNotes[id] = String(localized: "\(handoff.result.app.name) wasn’t reopened after it quit: an update or rollback of it was still in progress. Open it yourself when you’re ready.")
+                installNotes[id] = String(localized: "\(handoff.result.app.name) wasn’t reopened after it quit: an update or restore of it was still in progress. Open it yourself when you’re ready.")
                 return false
             }
             try? await Task.sleep(for: .milliseconds(200))
@@ -7640,13 +7640,13 @@ final class AppListModel {
     /// a Relaunch cannot (the row carries notes it does not own — see
     /// `restartHoldBackNotes`), so it retracts exactly these texts and nothing else.
     private static var backupUnreadableNote: String {
-        String(localized: "No rollback point: parts of this app aren’t readable by you (common for apps installed by a .pkg, which are often root-owned).")
+        String(localized: "No restore point: parts of this app aren’t readable by you (common for apps installed by a .pkg, which are often root-owned).")
     }
     private static var backupLowSpaceNote: String {
-        String(localized: "No rollback point: this Mac is low on space, so this update will be applied without a backup.")
+        String(localized: "No restore point: this Mac is low on space, so this update will be applied without a backup.")
     }
     private static var backupFailedNote: String {
-        String(localized: "Couldn’t back up the current version — this update will be applied without a rollback point.")
+        String(localized: "Couldn’t back up the current version — this update will be applied without a restore point.")
     }
 
     /// Take the rollback point a Relaunch owes the user before it quits the app
@@ -8257,7 +8257,7 @@ final class AppListModel {
                 Log.install.error(
                     "rollback done, but could not read back: \(result.app.name, privacy: .public) at \(result.app.path.path, privacy: .public)")
                 installErrors[id] = String(
-                    localized: "\(result.app.name) could not be read back at its path after the rollback.")
+                    localized: "\(result.app.name) could not be read back at its path after the restore.")
                 await computeRestartInfo()
                 await computeSelfUpdateStaging()
                 await refreshBackupIndex()
@@ -8284,14 +8284,14 @@ final class AppListModel {
             switch outcome.userData {
             case .noSnapshot:
                 installNotes[id] = String(
-                    localized: "\(updated.app.name) is back at the earlier version, but its dictionary and settings are not — this rollback point has no copy of them.")
+                    localized: "\(updated.app.name) is back at the earlier version, but its dictionary and settings are not — this restore point has no copy of them.")
             case .failed:
                 installNotes[id] = String(
                     localized: "\(updated.app.name) is back at the earlier version, but restoring its dictionary and settings failed — they are still what the newer version left.")
             case .notApplicable, .restored:
                 if wasFromAppStore {
                     installNotes[id] = String(
-                        localized: "Rolled back, but \(updated.app.name) updates through the App Store — it will offer this update again, and re-install it on its own if automatic app updates are on.")
+                        localized: "Restored, but \(updated.app.name) updates through the App Store — it will offer this update again, and re-install it on its own if automatic app updates are on.")
                 }
             }
             Log.install.info("rollback done: \(updated.app.name, privacy: .public) → \(restored ?? "?", privacy: .public)")

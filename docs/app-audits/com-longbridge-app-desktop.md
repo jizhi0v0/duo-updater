@@ -104,7 +104,7 @@ Longbridge 归到 `native`。见 `AppRuntimeDetector`。
 
 夜扫 2026-10-18 报 `noEntriesExtracted`（`verify/baseline.json` 记的上次正常 2026-10-15T14:32Z，`1.0.0`），抓到的响应是 455 B 的跳转壳。只读 GET，浏览器样式 User-Agent：
 
-- `/en/changelog/longbridge-pro/1.0`、`…/0.19`、`…/0.20` 都是 HTTP 200、约 455–460 B 的页面，只有 `<meta http-equiv="refresh">` + `location.replace` 指向 `…/v1.0`、`…/v0.19`、`…/v0.20`，没有 `release-section`。`ChangelogService` 不跟 meta-refresh，所以抽出 0 条。
+- `/en/changelog/longbridge-pro/1.0`、`…/0.19`、`…/0.20` 都是 HTTP 200、453–458 B 的页面，只有 `<meta http-equiv="refresh">` + `location.replace` 指向 `…/v1.0`、`…/v0.19`、`…/v0.20`，没有 `release-section`。`ChangelogService` 不跟 meta-refresh，所以抽出 0 条。
 - 产品页 `/en/changelog/longbridge-pro/` 列出的 21 条小版本线（v0.1–v0.20、v1.0）全部复算（Python，recipe 同一正则）：带 `v` 的页 28–50 KB，每页 ≥1 个 `release-section`，第一节都抽到 ≥1 项（如 `v1.0` → 1.0.0、2026-10-13、11 项；`v0.19` → 0.19.1、2 项；`v0.18` → 0.18.4、2 项，共 5 节）；不带 `v` 的 21 页全是 453–458 B 跳转壳、0 节，`meta refresh` 都指向对应的 `v` 页。`v1.0`/`v0.19`/`v0.20` 的条目数与 10-14 用生产解析器测到的一致。
 - 旧 URL `/desktop/release-notes/v1.0.0` 仍 301 到不带 `v` 的 `…/1.0#v1.0.0`（再经跳转壳到 `v1.0`）。
 - 修法：`sourceTemplate` 改成 `…/longbridge-pro/v{majorMinor}`。

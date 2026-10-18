@@ -413,6 +413,9 @@ enum CLIToolRows {
         err: @escaping @Sendable (String) -> Void = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
     ) async {
         for status in plan {
+            // `SignalGate`'s first signal: the tool updating now finishes (its
+            // command runs to completion), the next is not started.
+            if Task.isCancelled { break }
             let name = status.name ?? status.kind.displayName
             if !json { out("→ \(name)  \(status.path)") }
             guard let provider = providers.first(where: { $0.kind == status.kind }) else { continue }

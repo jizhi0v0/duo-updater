@@ -730,7 +730,10 @@ public enum Install {
         } else {
             print(prompt, terminator: "")
         }
-        guard let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased()
+        // Through the gate: a signal while this blocks exits at once (nothing has
+        // been changed yet), and no question is put after one already arrived.
+        guard let answer = SignalGate.process.answer({ readLine() })?
+            .trimmingCharacters(in: .whitespaces).lowercased()
         else { return false }
         return answer == "y" || answer == "yes"
     }
@@ -848,6 +851,14 @@ public enum Install {
         // more precise than "the call didn't throw" (#404 review #2).
         var attempted: [Attempted] = []
         for item in plan {
+            // `SignalGate`'s first signal: the item in flight finishes, the next is
+            // not started. Without this a cancelled task walks every remaining
+            // item anyway (read from the code, not run): its re-check asks a
+            // cancelled network and the row reads "failed", or — when the re-check
+            // still confirms — it can get as far as clearing the app's staged
+            // update and replacing its rollback point before the coordinator's
+            // own cancellation check refuses the install.
+            if Task.isCancelled { break }
             let name = item.result.app.name
             if !json { print("→ \(name)") }
 

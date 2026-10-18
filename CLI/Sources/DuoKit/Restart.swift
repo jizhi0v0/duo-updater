@@ -44,8 +44,25 @@ public enum Restart {
         // ~5 s and the `.wontQuit` line. See `StagedRelaunch.QuitPatience`.
         let waitsForAnswer = isatty(STDIN_FILENO) != 0
 
+        let anyFailed = await restartEach(
+            selected, staged: staged, keepBackups: settings.keepBackups, waitsForAnswer: waitsForAnswer)
+        return anyFailed ? 1 : 0
+    }
+
+    /// The restarts, in name order; whether any failed. Stops before the next app
+    /// once the task is cancelled (`SignalGate`'s first signal): the one being
+    /// restarted finishes, and no other is quit. Past that point a cancelled task
+    /// is worse than none — `AppRestarter`'s quit wait polls with `try? await
+    /// Task.sleep`, which returns at once when cancelled, so the next app would be
+    /// sent its quit and then given up on as `.stillRunning` straight away: quit,
+    /// and never reopened.
+    static func restartEach(
+        _ apps: [InstalledApp], staged: [String: StagedSelfUpdate], keepBackups: Bool,
+        waitsForAnswer: Bool, print: (String) -> Void = { Swift.print($0) }
+    ) async -> Bool {
         var anyFailed = false
-        for app in selected.sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) {
+        for app in apps.sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) {
+            if Task.isCancelled { break }
             switch path(for: app, staged: staged[app.id]) {
             case .plain:
                 let outcome = await AppRestarter.restart(app)
@@ -53,12 +70,12 @@ public enum Restart {
                 if isFailure(outcome) { anyFailed = true }
             case .staged(let build):
                 let line = await applyStaged(
-                    app, build, keepBackups: settings.keepBackups, waitsForAnswer: waitsForAnswer)
+                    app, build, keepBackups: keepBackups, waitsForAnswer: waitsForAnswer)
                 print("\(app.name)  \(line.text)")
                 if line.failed { anyFailed = true }
             }
         }
-        return anyFailed ? 1 : 0
+        return anyFailed
     }
 
     /// Which restart an app gets.

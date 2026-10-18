@@ -819,7 +819,9 @@ public enum Backups {
         } else {
             print(prompt, terminator: "")
         }
-        guard let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased()
+        // Through the gate, as `Install.confirm`.
+        guard let answer = SignalGate.process.answer({ readLine() })?
+            .trimmingCharacters(in: .whitespaces).lowercased()
         else { return false }
         return answer == "y" || answer == "yes"
     }

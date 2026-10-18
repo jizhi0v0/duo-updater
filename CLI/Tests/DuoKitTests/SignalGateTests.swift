@@ -1,0 +1,464 @@
+import Testing
+import Foundation
+@testable import DuoKit
+@testable import DuoUpdaterCore
+
+/// `SignalGate`: what SIGINT/SIGTERM/SIGHUP do to `duo install`, `backups
+/// restore` and `restart`. Signals are injected through `run`'s `arm` seam —
+/// nothing here signals the test process with INT/TERM/HUP — and the children are
+/// `/bin/sh` scripts writing into a scratch directory.
+@Suite struct SignalGateTests {
+
+    // MARK: - The state machine
+
+    /// The first signal cancels the command and says so once; every later one,
+    /// of any kind, only says "still finishing". Nothing exits early: `run`
+    /// returns only after the command has, with 128 + the FIRST signal.
+    ///
+    /// Mutation: make the first signal call `exitNow` (or return from `run`
+    /// without awaiting the task) → `exits` is not empty / `returned` is set
+    /// while the command is still finishing.
+    @Test func firstSignalCancelsLaterOnesOnlySaySoAndRunWaitsForTheCommand() async {
+        let harness = Harness()
+        let gate = SignalGate()
+        let returned = Flag()
+        let finish = Latch()
+        let steps = Lines()
+        let runner = Task {
+            let status = await harness.run(gate) {
+                harness.started.open()
+                // The step in flight: notices the cancellation, then takes its time.
+                await sleepUntilCancelled()
+                steps.add("command saw cancellation")
+                await finish.wait()
+                steps.add("command returned")
+                return 0
+            }
+            returned.set()
+            return status
+        }
+        await harness.started.wait()
+        harness.deliver(SIGINT)
+        harness.deliver(SIGTERM)
+        harness.deliver(SIGINT)
+        // Long enough for the command to have seen its cancellation.
+        try? await Task.sleep(for: .milliseconds(200))
+        #expect(!returned.isSet, "run must not return while the command is still finishing")
+        finish.open()
+        let status = await runner.value
+
+        #expect(status == 130)
+        #expect(harness.exits.all.isEmpty)
+        #expect(harness.notices.all.count == 3)
+        #expect(harness.notices.all.first?.contains("SIGINT received — stopping after the current step") == true)
+        #expect(harness.notices.all.first?.contains("already replacing an app finishes first") == true)
+        #expect(harness.notices.all.dropFirst().allSatisfy { $0.hasPrefix("duo: still finishing") })
+        #expect(steps.all == ["command saw cancellation", "command returned"])
+        #expect(harness.hangUps.all.isEmpty)
+    }
+
+    /// 128 + the first signal; the command's own status when none arrived.
+    @Test(arguments: [(SIGINT, 130), (SIGTERM, 143), (SIGHUP, 129)] as [(Int32, Int32)])
+    func exitStatusIsOneHundredTwentyEightPlusTheFirstSignal(signo: Int32, expected: Int32) async {
+        let harness = Harness()
+        let status = await harness.run(SignalGate()) {
+            harness.deliver(signo)
+            harness.deliver(SIGINT)
+            return 1
+        }
+        #expect(status == expected)
+        #expect(harness.exits.all.isEmpty)
+    }
+
+    @Test func noSignalLeavesTheCommandsStatus() async {
+        let harness = Harness()
+        #expect(await harness.run(SignalGate()) { 1 } == 1)
+        #expect(await harness.run(SignalGate()) { 0 } == 0)
+        #expect(harness.notices.all.isEmpty)
+    }
+
+    /// A signal before the root task exists still cancels it.
+    @Test func aSignalBeforeTheTaskStartsCancelsItWhenItDoes() async {
+        let gate = SignalGate()
+        #expect(gate.receive(SIGTERM) == .stop)
+        let saw = Flag()
+        let status = await gate.run({
+            // Bounded: the cancel can land just after the task starts. A
+            // cancelled sleep throws at once.
+            try? await Task.sleep(for: .seconds(5))
+            if Task.isCancelled { saw.set() }
+            return 0
+        }, arm: { _ in }, say: { _ in }, hangUp: {}, exitNow: { _ in })
+        #expect(saw.isSet)
+        #expect(status == 143)
+    }
+
+    /// SIGHUP detaches the dead terminal's outputs BEFORE the notice is written:
+    /// written first, the notice is the write that aborts `duo`. Other signals
+    /// leave the outputs alone.
+    ///
+    /// Mutation: move `hangUp()` after `say` → the order flips.
+    @Test func hangUpDetachesOutputsBeforeTheNotice() async {
+        let harness = Harness()
+        _ = await harness.run(SignalGate()) {
+            harness.deliver(SIGINT)
+            harness.deliver(SIGHUP)
+            return 0
+        }
+        #expect(harness.events.all == ["say", "hangUp", "say"])
+    }
+
+    // MARK: - Which commands
+
+    /// Only the commands that change the machine. Every read-only command keeps
+    /// the default disposition, so a `duo check` can always be killed.
+    ///
+    /// Mutation: answer true for everything → the read-only rows go red.
+    @Test func onlyCommandsThatChangeTheMachineAreHandled() {
+        #expect(SignalGate.handles(subcommand: "install", operands: ["Fixture"]))
+        #expect(SignalGate.handles(subcommand: "install", operands: []))
+        #expect(SignalGate.handles(subcommand: "restart", operands: ["Fixture"]))
+        #expect(SignalGate.handles(subcommand: "backups", operands: ["restore", "Fixture"]))
+        for (command, operands) in [
+            ("check", []), ("list", []), ("doctor", []), ("verify", []), ("events", []),
+            ("requests", []), ("storage", []), ("claude-code", []), ("ignore", ["Fixture"]),
+            ("backups", []), ("backups", ["list"]), ("backups", ["verify"]),
+            ("backups", ["disks"]), ("backups", ["probe", "/ZZFixture"]),
+        ] as [(String, [String])] {
+            #expect(!SignalGate.handles(subcommand: command, operands: operands), "\(command) \(operands)")
+        }
+    }
+
+    // MARK: - The prompt
+
+    /// While a y/N prompt blocks, any signal exits at once with 128 + it:
+    /// nothing has been changed yet, and `readLine` cannot be cancelled.
+    ///
+    /// Mutation: drop the `prompting` branch → the reaction is `.stop` and the
+    /// user is left pressing Ctrl-C at a prompt that ignores it.
+    @Test func aSignalAtThePromptExitsAtOnce() {
+        let gate = SignalGate()
+        var reaction: SignalGate.Reaction?
+        let answer = gate.answer {
+            reaction = gate.receive(SIGINT)
+            return "y"
+        }
+        #expect(reaction == .exitNow(status: 130))
+        #expect(answer == "y")
+    }
+
+    /// After a stop the question is not put at all, and reads as "no".
+    @Test func noQuestionIsPutAfterAStop() {
+        let gate = SignalGate()
+        _ = gate.receive(SIGTERM)
+        let asked = Flag()
+        let answer = gate.answer {
+            asked.set()
+            return "y"
+        }
+        #expect(answer == nil)
+        #expect(!asked.isSet)
+        // And a later signal is back to "still finishing", not an exit.
+        #expect(gate.receive(SIGINT) == .stillFinishing)
+    }
+
+    // MARK: - Outputs after a hangup
+
+    /// A pipe goes (its reader got the same hangup); a file on disk stays.
+    /// A terminal goes too — `isatty` still answers 1 after the hangup (measured
+    /// with a pty), but this suite does not open one.
+    @Test func whichOutputsWentWithTheTerminal() throws {
+        var ends: [Int32] = [-1, -1]
+        #expect(pipe(&ends) == 0)
+        defer { close(ends[0]); close(ends[1]) }
+        #expect(SignalGate.wentWithTheTerminal(ends[1]))
+
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SignalGate-\(UUID().uuidString).log")
+        let descriptor = open(file.path, O_WRONLY | O_CREAT, 0o600)
+        #expect(descriptor >= 0)
+        defer { close(descriptor); try? FileManager.default.removeItem(at: file) }
+        #expect(!SignalGate.wentWithTheTerminal(descriptor))
+    }
+
+    // MARK: - The property that matters: the child finishes
+
+    /// A child printing a line every 0.2 s, run the way brew is run
+    /// (`StreamedLines.run`: `.runToCompletion`, stdout and stderr on one pipe),
+    /// under `SignalGate.run` with SIGINT delivered after its first line: every
+    /// line is read, it exits 0, and `run` returns only after it has — with 130.
+    ///
+    /// Mutation: make the first signal return from `run` at once → the lines are
+    /// cut short and the `finished` marker is missing when it returns.
+    @Test func aChildRunToCompletionPrintsEveryLineAfterTheSignal() async throws {
+        let scratch = try Scratch()
+        let marker = scratch.url.appendingPathComponent("finished").path
+        let harness = Harness()
+        let lines = Lines()
+        let firstLine = Latch()
+        let outcome = OutcomeBox()
+        let status = await harness.run(SignalGate()) {
+            let started = Task {
+                await firstLine.wait()
+                harness.deliver(SIGINT)
+            }
+            defer { started.cancel() }
+            do {
+                let (result, _) = try await StreamedLines.run(
+                    "/bin/sh", ["-c", Self.tenLines(marker: marker)], environment: [:]) { line in
+                        lines.add(line)
+                        firstLine.open()
+                    }
+                outcome.set(result)
+            } catch {
+                Issue.record("StreamedLines.run threw \(error)")
+            }
+            return 0
+        }
+        #expect(status == 130)
+        #expect(harness.notices.all.count == 1)
+        #expect(lines.all == (1...10).map { "line \($0)" })
+        #expect(outcome.value?.succeeded == true)
+        #expect(FileManager.default.fileExists(atPath: marker),
+                "run returned before the child had finished")
+    }
+
+    /// The same through `ChildProcess.run` directly, in a task cancelled after
+    /// the first chunk: the awaiting call returns only after the child exited —
+    /// its pid is reaped by then and its last act (the marker) is on disk.
+    @Test func aCancelledRunToCompletionCallReturnsOnlyAfterTheChildExits() async throws {
+        let scratch = try Scratch()
+        let marker = scratch.url.appendingPathComponent("finished").path
+        let output = Lines()
+        let pid = PidBox()
+        let firstChunk = Latch()
+        let call = Task {
+            try await ChildProcess.run(
+                "/bin/sh", ["-c", Self.tenLines(marker: marker)],
+                standardOutput: .capture, standardError: .discard,
+                onCancel: .runToCompletion,
+                onOutputChunk: { chunk in
+                    output.add(String(decoding: chunk, as: UTF8.self))
+                    firstChunk.open()
+                },
+                onLaunch: { pid.set($0) })
+        }
+        await firstChunk.wait()
+        call.cancel()
+        let started = ContinuousClock.now
+        let outcome = try await call.value
+        #expect(ContinuousClock.now - started > .milliseconds(1000), "returned before the child could have finished")
+        #expect(outcome.succeeded)
+        #expect(String(decoding: outcome.standardOutput, as: UTF8.self)
+            == (1...10).map { "line \($0)\n" }.joined())
+        #expect(FileManager.default.fileExists(atPath: marker))
+        // Reaped: no process left under that pid (pid reuse within the test is
+        // possible in principle; ESRCH is what an exited, reaped child gives).
+        if let child = pid.value {
+            #expect(kill(child, 0) == -1 && errno == ESRCH)
+        }
+    }
+
+    /// The gate ignores SIGPIPE (and its three signals) in `duo`; a child must
+    /// not inherit that. swift-subprocess resets every signal to default in the
+    /// child (`POSIX_SPAWN_SETSIGDEF` over a full set): a `/bin/sh` that signals
+    /// itself dies of it, where an inherited SIG_IGN would let it print
+    /// `survived`.
+    @Test(arguments: [SIGINT, SIGPIPE])
+    func childrenGetDefaultDispositionsBack(signo: Int32) async throws {
+        let previous = signal(signo, SIG_IGN)
+        defer { signal(signo, previous) }
+        let outcome = try await ChildProcess.run(
+            "/bin/sh", ["-c", "kill -\(signo) $$; echo survived"],
+            standardOutput: .capture, standardError: .discard, onCancel: .terminateChild)
+        #expect(outcome.uncaughtSignal)
+        #expect(outcome.terminationStatus == signo)
+        #expect(outcome.standardOutput.isEmpty)
+    }
+
+    // MARK: - Stopping before the next item
+
+    /// A cancelled `CLIToolRows.apply` starts no further tool update.
+    ///
+    /// Mutation: drop the `Task.isCancelled` check → the provider is called.
+    @Test func cancelledToolUpdatesStartNoFurtherTool() async {
+        let calls = CLIToolRowsTests.Calls()
+        let provider = CLIToolRowsTests.ScriptedProvider(kind: .uv, calls: calls) { _ in .updated(version: "1.1.0") }
+        let task = Task {
+            await sleepUntilCancelled()
+            var tally = Install.Tally()
+            await CLIToolRows.apply([CLIToolRowsTests.uv], providers: [provider], json: false,
+                                    tally: &tally, out: { _ in }, err: { _ in })
+            return tally
+        }
+        task.cancel()
+        let tally = await task.value
+        #expect(calls.paths.isEmpty)
+        #expect(tally == Install.Tally())
+    }
+
+    /// A cancelled `Install.apply` does not start the next item: no re-check, no
+    /// row, nothing counted. The item's bundle is invented, so without the check
+    /// the re-check finds nothing there and the row is counted.
+    ///
+    /// Mutation: drop the `Task.isCancelled` check → the tally is not empty.
+    @Test func cancelledInstallStartsNoFurtherItem() async {
+        let app = InstalledApp(
+            name: "ZZFixture", bundleID: "com.zzfixture.signalgate", shortVersion: "1.0", buildVersion: "1",
+            path: URL(fileURLWithPath: "/ZZFixture-signalgate/ZZFixture.app"), isMASApp: false,
+            sparkleFeedURL: nil)
+        let result = UpdateResult(
+            app: app,
+            remote: RemoteVersion(
+                shortVersion: "2.0", version: nil,
+                downloadURL: URL(string: "https://zz.invalid/fixture.dmg"),
+                sourceName: "Sparkle", appStore: nil,
+                requiresManualInstaller: false, vendorInstallerKind: .dmg),
+            status: .updateAvailable(latest: "2.0"))
+        let settings = Settings(
+            updateSettings: UpdateSettings(appStoreUpdateStrategy: .full, vendorInstallPolicy: .deferWhenRunning),
+            ignoredKeys: [], skippedVersions: [:], customScanPaths: [], maxConcurrency: 1,
+            testFlightDetection: .off, keepBackups: false, githubToken: nil, alcove: nil)
+        let task = Task {
+            await sleepUntilCancelled()
+            var tally = Install.Tally()
+            let attempted = await Install.apply(
+                [Install.Planned(result: result, route: .sparkle)], settings: settings, routes: [],
+                json: true, keepBackups: false, installedPopulation: nil, tally: &tally)
+            return (tally, attempted.count)
+        }
+        task.cancel()
+        let (tally, attempted) = await task.value
+        #expect(tally == Install.Tally())
+        #expect(attempted == 0)
+    }
+
+    /// A cancelled `duo restart` quits no further app. The app has no bundle id,
+    /// so without the check it is answered `.noBundleID` without touching
+    /// anything — and a line is printed.
+    ///
+    /// Mutation: drop the `Task.isCancelled` check → a line is printed.
+    @Test func cancelledRestartQuitsNoFurtherApp() async {
+        let app = InstalledApp(
+            name: "ZZFixture", bundleID: nil, shortVersion: "1.0", buildVersion: "1",
+            path: URL(fileURLWithPath: "/ZZFixture-signalgate/ZZFixture.app"), isMASApp: false,
+            sparkleFeedURL: nil)
+        let lines = Lines()
+        let task = Task {
+            await sleepUntilCancelled()
+            return await Restart.restartEach(
+                [app], staged: [:], keepBackups: false, waitsForAnswer: false, print: { lines.add($0) })
+        }
+        task.cancel()
+        let anyFailed = await task.value
+        #expect(lines.all.isEmpty)
+        #expect(!anyFailed)
+    }
+
+    // MARK: - Fixtures
+
+    /// Ten lines 0.2 s apart (~2 s), then the marker, then exit 0.
+    static func tenLines(marker: String) -> String {
+        "i=1; while [ $i -le 10 ]; do echo \"line $i\"; i=$((i+1)); sleep 0.2; done; : > '\(marker)'; exit 0"
+    }
+
+    /// Drives `SignalGate.run` with every process-wide seam replaced.
+    final class Harness: Sendable {
+        let notices = Lines()
+        let exits = Lines()
+        let hangUps = Lines()
+        let events = Lines()
+        let started = Latch()
+        private let handler = HandlerBox()
+
+        func run(_ gate: SignalGate, _ command: @escaping @Sendable () async -> Int32) async -> Int32 {
+            await gate.run(
+                command,
+                arm: { self.handler.set($0) },
+                say: { self.notices.add($0); self.events.add("say") },
+                hangUp: { self.hangUps.add("hangUp"); self.events.add("hangUp") },
+                exitNow: { self.exits.add("\($0)") })
+        }
+
+        /// What a dispatch source does: call the armed handler with the signal.
+        func deliver(_ signo: Int32) { handler.value?(signo) }
+    }
+
+    final class HandlerBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var handler: (@Sendable (Int32) -> Void)?
+        func set(_ handler: @escaping @Sendable (Int32) -> Void) { lock.withLock { self.handler = handler } }
+        var value: (@Sendable (Int32) -> Void)? { lock.withLock { handler } }
+    }
+
+    final class Lines: @unchecked Sendable {
+        private let lock = NSLock()
+        private var lines: [String] = []
+        func add(_ line: String) { lock.withLock { lines.append(line) } }
+        var all: [String] { lock.withLock { lines } }
+    }
+
+    final class Flag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var raised = false
+        func set() { lock.withLock { raised = true } }
+        var isSet: Bool { lock.withLock { raised } }
+    }
+
+    final class PidBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var pid: pid_t?
+        func set(_ pid: pid_t) { lock.withLock { self.pid = pid } }
+        var value: pid_t? { lock.withLock { pid } }
+    }
+
+    final class OutcomeBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var outcome: ChildProcess.Outcome?
+        func set(_ outcome: ChildProcess.Outcome) { lock.withLock { self.outcome = outcome } }
+        var value: ChildProcess.Outcome? { lock.withLock { outcome } }
+    }
+
+    /// Opened once; every waiter, before or after, goes through.
+    final class Latch: @unchecked Sendable {
+        private let lock = NSLock()
+        private var isOpen = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+        func open() {
+            let resumed: [CheckedContinuation<Void, Never>] = lock.withLock {
+                guard !isOpen else { return [] }
+                isOpen = true
+                defer { waiters = [] }
+                return waiters
+            }
+            for waiter in resumed { waiter.resume() }
+        }
+        func wait() async {
+            await withCheckedContinuation { continuation in
+                let now: Bool = lock.withLock {
+                    if isOpen { return true }
+                    waiters.append(continuation)
+                    return false
+                }
+                if now { continuation.resume() }
+            }
+        }
+    }
+
+    final class Scratch {
+        let url: URL
+        deinit { try? FileManager.default.removeItem(at: url) }
+        init() throws {
+            url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("SignalGate-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        }
+    }
+}
+
+/// Returns once the current task is cancelled (at once if it already is).
+private func sleepUntilCancelled() async {
+    while !Task.isCancelled {
+        do { try await Task.sleep(for: .seconds(60)) } catch { return }
+    }
+}

@@ -6846,7 +6846,7 @@ final class AppListModel {
             case .held:
                 Log.app.notice("relaunch recheck: \(app.name, privacy: .public) held \(ours, privacy: .public)")
             case .unknown:
-                Log.app.notice("relaunch recheck: \(app.name, privacy: .public) — no verdict for \(ours, privacy: .public) within the window (installer still running, or bundle unreadable)")
+                Log.app.notice("relaunch recheck: \(app.name, privacy: .public) — no verdict for \(ours, privacy: .public) within the window (installer still running, bundle unreadable, or another process held the install lock)")
             case .reverted(let theirs, let swapped, let byOwnUpdater):
                 let version = theirs.text(withBuild: true)
                 Log.app.notice("relaunch recheck: \(app.name, privacy: .public) went back from \(ours, privacy: .public) to \(version, privacy: .public) after the relaunch (bundle swapped=\(swapped, privacy: .public), own updater=\(byOwnUpdater, privacy: .public)) — not reinstalling")

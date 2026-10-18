@@ -63,7 +63,7 @@ enum SettingsSearch {
             Setting(anchor: .notifyCLITools, title: String(localized: "Command-line tools"), card: notify),
             Setting(anchor: .notifyHomebrew, title: String(localized: "Homebrew packages"), card: notify),
 
-            Setting(anchor: .keepBackups, title: String(localized: "Keep a backup so updates can be rolled back"), card: rollback),
+            Setting(anchor: .keepBackups, title: String(localized: "Keep a backup so updates can be restored"), card: rollback),
             Setting(anchor: .pruneOrphanBackups, title: String(localized: "Delete a backup once its app is uninstalled"), card: rollback),
             Setting(anchor: .backupLocation, title: String(localized: "Where backups are kept"), card: nil),
 

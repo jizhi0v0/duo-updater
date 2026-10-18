@@ -163,13 +163,13 @@ backups options:
                       Writes nothing and changes no setting.
   --deep              verify only: unpack each archive on the disk and compare
                       the whole bundle, not just the archive's digest. As slow
-                      as a rollback, and needs room for one.
+                      as a restore, and needs room for one.
   --yes               Don't ask before overwriting.
   --json              Machine-readable form.
 
   The signature check, retention and atomic swap all live in BackupStore, which
   this calls unmodified — nothing here loosens them. Like the app's own
-  rollback, it does not refuse when the target is running; it restores and tells
+  restore, it does not refuse when the target is running; it restores and tells
   you to restart. A shared bundle id (Android Studio's channels, Thunderbird
   stable/esr) is ambiguous for a restore and is refused rather than guessed.
 

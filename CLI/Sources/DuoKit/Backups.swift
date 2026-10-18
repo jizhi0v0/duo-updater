@@ -630,7 +630,7 @@ public enum Backups {
             print("\n  \(bundleOnly.count) input-method rollback point(s) marked [bundle only]:"
                 + " they can restore the app but not its dictionary and settings."
                 + "\n  There is nothing to repair — a snapshot taken now would hold the data the"
-                + "\n  NEWER version wrote, which is what a rollback is trying to get away from."
+                + "\n  NEWER version wrote, which is what a restore is trying to get away from."
                 + "\n  The next update of each app takes a snapshot that does travel.")
         }
     }

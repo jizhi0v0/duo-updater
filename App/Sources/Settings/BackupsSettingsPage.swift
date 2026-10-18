@@ -262,7 +262,7 @@ struct BackupsSettingsPage: View {
             header: "Rollback points",
             footer: "Backups keep one previous version of each app, so an update can be undone. Retention is one per app — the previous version is replaced, not accumulated."
         ) {
-            Toggle("Keep a backup so updates can be rolled back", isOn: $prefs.keepBackups)
+            Toggle("Keep a backup so updates can be restored", isOn: $prefs.keepBackups)
                 .settingsRow()
                 .settingsAnchor(.keepBackups)
             SettingsDivider()

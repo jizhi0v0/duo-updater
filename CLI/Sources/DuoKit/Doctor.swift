@@ -135,7 +135,7 @@ public enum Doctor {
                     These are files the app's signature covers, so a copy without
                     them would be a broken app — there is nothing honest to store.
                     Nothing else is wrong: the update still installs, it just
-                    cannot be rolled back.
+                    cannot be restored.
                 """)
         }
         print("""

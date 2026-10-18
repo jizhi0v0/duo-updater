@@ -634,7 +634,7 @@ final class AppListModel {
             note = String(localized: "\(result.app.name) wasn’t relaunched: an update to it is being installed right now. Try again once that finishes.")
         case .rollback:
             Log.app.notice("\(logPrefix, privacy: .public): \(result.app.name, privacy: .public) is being rolled back right now — not relaunching it")
-            note = String(localized: "\(result.app.name) wasn’t relaunched: it is being rolled back right now. Try again once that finishes.")
+            note = String(localized: "\(result.app.name) wasn’t relaunched: it is being restored right now. Try again once that finishes.")
         }
         let id = result.id
         if let mine = bundleBusyNotes[id], installNotes[id] == mine.text {
@@ -7043,7 +7043,7 @@ final class AppListModel {
                 // describes something that happened, so it stays until the next
                 // action on the row replaces it. A refusal note it covers is not
                 // put back over it (`retractBusyNote` sees different text).
-                installNotes[id] = String(localized: "\(handoff.result.app.name) wasn’t reopened after it quit: an update or rollback of it was still in progress. Open it yourself when you’re ready.")
+                installNotes[id] = String(localized: "\(handoff.result.app.name) wasn’t reopened after it quit: an update or restore of it was still in progress. Open it yourself when you’re ready.")
                 return false
             }
             try? await Task.sleep(for: .milliseconds(200))
@@ -8233,7 +8233,7 @@ final class AppListModel {
                 Log.install.error(
                     "rollback done, but could not read back: \(result.app.name, privacy: .public) at \(result.app.path.path, privacy: .public)")
                 installErrors[id] = String(
-                    localized: "\(result.app.name) could not be read back at its path after the rollback.")
+                    localized: "\(result.app.name) could not be read back at its path after the restore.")
                 await computeRestartInfo()
                 await computeSelfUpdateStaging()
                 await refreshBackupIndex()
@@ -8267,7 +8267,7 @@ final class AppListModel {
             case .notApplicable, .restored:
                 if wasFromAppStore {
                     installNotes[id] = String(
-                        localized: "Rolled back, but \(updated.app.name) updates through the App Store — it will offer this update again, and re-install it on its own if automatic app updates are on.")
+                        localized: "Restored, but \(updated.app.name) updates through the App Store — it will offer this update again, and re-install it on its own if automatic app updates are on.")
                 }
             }
             Log.install.info("rollback done: \(updated.app.name, privacy: .public) → \(restored ?? "?", privacy: .public)")

@@ -2,10 +2,9 @@ import Testing
 import Foundation
 @testable import DuoUpdaterCore
 
-/// Work package C of the update-cancellation design (plans/update-cancellation.md
-/// §2.3 D3, §5.6).
-///
-/// `Task.sleep` throws `CancellationError` once its task is cancelled, and
+/// `Task.sleep` throws `CancellationError` once its task is cancelled ("If the
+/// task is canceled before the time ends, this function throws
+/// CancellationError." — Apple, `Task.sleep(for:tolerance:clock:)`), and
 /// `try? await Task.sleep(...)` swallows that. Inside a loop a cancelled task
 /// then stops sleeping and spins. So every `try? await Task.sleep` under
 /// `Install/` and `CLITools/` must be one of:

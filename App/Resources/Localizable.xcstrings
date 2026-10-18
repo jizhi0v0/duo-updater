@@ -7054,6 +7054,71 @@
         }
       }
     },
+    "An earlier update of %@ is still running (process %lld). Try again once it has finished.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein früheres Update von %@ läuft noch (Prozess %lld). Versuche es erneut, sobald es abgeschlossen ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una actualización anterior de %@ sigue en curso (proceso %lld). Vuelve a intentarlo cuando haya terminado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une mise à jour précédente de %@ est toujours en cours (processus %lld). Réessayez une fois qu’elle sera terminée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un aggiornamento precedente di %@ è ancora in corso (processo %lld). Riprova quando sarà terminato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ の以前のアップデートがまだ実行中です（プロセス %lld）。完了してからもう一度お試しください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uma atualização anterior de %@ ainda está em andamento (processo %lld). Tente novamente quando ela terminar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предыдущее обновление %@ ещё выполняется (процесс %lld). Повторите попытку, когда оно завершится."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ için önceki bir güncelleme hâlâ çalışıyor (işlem %lld). Tamamlandığında yeniden deneyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的上一次更新仍在进行（进程 %lld）。请等它完成后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的上一次更新仍在進行（處理程序 %lld）。請等它完成後再試。"
+          }
+        }
+      }
+    },
     "Another Homebrew command is running. Try again once it has finished.": {
       "extractionState": "manual",
       "localizations": {
@@ -13642,6 +13707,201 @@
           "stringUnit": {
             "state": "translated",
             "value": "這台 Mac 上沒有設定郵件 App。請把報告寄到 %@，或改在 GitHub 上建立 Issue。"
+          }
+        }
+      }
+    },
+    "No new restore point: an earlier update of this app is still running.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein neuer Wiederherstellungspunkt: Ein früheres Update dieser App läuft noch."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin nuevo punto de restauración: una actualización anterior de esta app sigue en curso."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun nouveau point de restauration : une mise à jour précédente de cette app est toujours en cours."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun nuovo punto di ripristino: un aggiornamento precedente di questa app è ancora in corso."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい復元ポイントはありません: このアプリの以前のアップデートがまだ実行中です。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nenhum novo ponto de restauração: uma atualização anterior deste app ainda está em andamento."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новой точки восстановления нет: предыдущее обновление этого приложения ещё выполняется."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni geri yükleme noktası yok: bu uygulama için önceki bir güncelleme hâlâ çalışıyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有新的恢复点：这个 App 的上一次更新仍在进行。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有新的還原點：這個 App 的上一次更新仍在進行。"
+          }
+        }
+      }
+    },
+    "No new restore point: an earlier update of this app was interrupted, and the copy on disk may be damaged. The restore point from before that update is kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein neuer Wiederherstellungspunkt: Ein früheres Update dieser App wurde unterbrochen, die Kopie auf dem Datenträger ist womöglich beschädigt. Der Wiederherstellungspunkt von vor diesem Update bleibt erhalten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin nuevo punto de restauración: una actualización anterior de esta app se interrumpió y la copia en el disco puede estar dañada. Se conserva el punto de restauración de antes de esa actualización."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun nouveau point de restauration : une mise à jour précédente de cette app a été interrompue, et la copie sur le disque est peut-être endommagée. Le point de restauration d’avant cette mise à jour est conservé."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun nuovo punto di ripristino: un aggiornamento precedente di questa app è stato interrotto e la copia sul disco potrebbe essere danneggiata. Il punto di ripristino precedente a quell’aggiornamento viene conservato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい復元ポイントはありません: このアプリの以前のアップデートが中断されたため、ディスク上のコピーが破損している可能性があります。そのアップデート前の復元ポイントは保持されます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nenhum novo ponto de restauração: uma atualização anterior deste app foi interrompida, e a cópia no disco pode estar danificada. O ponto de restauração de antes dessa atualização é mantido."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новой точки восстановления нет: предыдущее обновление этого приложения было прервано, и копия на диске может быть повреждена. Точка восстановления, созданная до того обновления, сохраняется."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni geri yükleme noktası yok: bu uygulama için önceki bir güncelleme yarıda kesildi ve diskteki kopya hasarlı olabilir. O güncellemeden önceki geri yükleme noktası korunuyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有新的恢复点：这个 App 的上一次更新被中断，磁盘上的副本可能已损坏。那次更新之前的恢复点会保留。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有新的還原點：這個 App 的上一次更新被中斷，磁碟上的副本可能已損壞。那次更新之前的還原點會保留。"
+          }
+        }
+      }
+    },
+    "No new restore point: an earlier update of this app was interrupted, and the copy on disk may be damaged. There is no restore point from before that update.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein neuer Wiederherstellungspunkt: Ein früheres Update dieser App wurde unterbrochen, die Kopie auf dem Datenträger ist womöglich beschädigt. Von vor diesem Update gibt es keinen Wiederherstellungspunkt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin nuevo punto de restauración: una actualización anterior de esta app se interrumpió y la copia en el disco puede estar dañada. No hay ningún punto de restauración de antes de esa actualización."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun nouveau point de restauration : une mise à jour précédente de cette app a été interrompue, et la copie sur le disque est peut-être endommagée. Il n’existe aucun point de restauration d’avant cette mise à jour."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun nuovo punto di ripristino: un aggiornamento precedente di questa app è stato interrotto e la copia sul disco potrebbe essere danneggiata. Non esiste un punto di ripristino precedente a quell’aggiornamento."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい復元ポイントはありません: このアプリの以前のアップデートが中断されたため、ディスク上のコピーが破損している可能性があります。そのアップデート前の復元ポイントはありません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nenhum novo ponto de restauração: uma atualização anterior deste app foi interrompida, e a cópia no disco pode estar danificada. Não há ponto de restauração de antes dessa atualização."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новой точки восстановления нет: предыдущее обновление этого приложения было прервано, и копия на диске может быть повреждена. Точки восстановления, созданной до того обновления, нет."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni geri yükleme noktası yok: bu uygulama için önceki bir güncelleme yarıda kesildi ve diskteki kopya hasarlı olabilir. O güncellemeden önceye ait bir geri yükleme noktası yok."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有新的恢复点：这个 App 的上一次更新被中断，磁盘上的副本可能已损坏。那次更新之前没有恢复点。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有新的還原點：這個 App 的上一次更新被中斷，磁碟上的副本可能已損壞。那次更新之前沒有還原點。"
           }
         }
       }

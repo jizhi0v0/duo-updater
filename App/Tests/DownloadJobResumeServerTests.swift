@@ -24,7 +24,7 @@ struct DownloadJobResumeServerTests {
         let directory = try Self.scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         var authorized = false
-        let job = Self.job(into: directory, onAuthorized: { authorized = true })
+        let job = Self.job(into: directory, server: server, onAuthorized: { authorized = true })
 
         let result = try await Self.run(job, from: server.url)
 
@@ -41,7 +41,7 @@ struct DownloadJobResumeServerTests {
         let directory = try Self.scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         var authorized = false
-        let job = Self.job(into: directory, onAuthorized: { authorized = true })
+        let job = Self.job(into: directory, server: server, onAuthorized: { authorized = true })
 
         do {
             let result = try await Self.run(job, from: server.url)
@@ -60,13 +60,20 @@ struct DownloadJobResumeServerTests {
 
     // MARK: - Helpers
 
-    private static func job(into directory: URL, onAuthorized: @escaping () -> Void) -> DownloadJob {
+    private static func job(
+        into directory: URL, server: ResumeProbeServer, onAuthorized: @escaping () -> Void
+    ) -> DownloadJob {
         // A throwaway store and no-op session hooks: nothing here may touch the
         // real Apple sign-in, whose save writes the Keychain.
         DownloadJob(
             dataStore: .nonPersistent(),
             directory: directory,
-            progress: { _ in },
+            // The drop waits for WebKit to have the cut bytes — see `dropCut()`.
+            progress: { fraction in
+                if fraction >= Double(ResumeProbeServer.cut) / Double(ResumeProbeServer.length) {
+                    server.dropCut()
+                }
+            },
             onExpired: {},
             onAuthorized: { onAuthorized() })
     }
@@ -92,8 +99,8 @@ struct DownloadJobResumeServerTests {
 }
 
 /// A one-file HTTP server on loopback. The first GET declares the full length,
-/// sends `cut` bytes and drops the connection; a GET with `Range` is answered
-/// per `resume`.
+/// sends `cut` bytes and drops the connection on `dropCut()`; a GET with `Range`
+/// is answered per `resume`.
 final class ResumeProbeServer: @unchecked Sendable {
     enum ResumeAnswer {
         /// 206 with the rest of the file.
@@ -111,6 +118,7 @@ final class ResumeProbeServer: @unchecked Sendable {
     private let queue = DispatchQueue(label: "ResumeProbeServer")
     private let lock = NSLock()
     private var ranges: [String] = []
+    private var cutConnection: NWConnection?
 
     var url: URL { URL(string: "http://127.0.0.1:\(listener.port!.rawValue)/Xcode_probe.xip")! }
 
@@ -186,7 +194,8 @@ final class ResumeProbeServer: @unchecked Sendable {
         guard let range else {
             let header = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n"
                 + "Content-Length: \(Self.length)\r\nAccept-Ranges: bytes\r\nETag: \"probe-1\"\r\n\r\n"
-            send(Data(header.utf8) + body.prefix(Self.cut), on: connection, thenDrop: true)
+            lock.lock(); cutConnection = connection; lock.unlock()
+            connection.send(content: Data(header.utf8) + body.prefix(Self.cut), completion: .contentProcessed { _ in })
             return
         }
         lock.lock(); ranges.append(range); lock.unlock()
@@ -197,26 +206,36 @@ final class ResumeProbeServer: @unchecked Sendable {
             let header = "HTTP/1.1 206 Partial Content\r\nContent-Type: application/octet-stream\r\n"
                 + "Content-Range: bytes \(start)-\(Self.length - 1)/\(Self.length)\r\n"
                 + "Content-Length: \(rest.count)\r\nETag: \"probe-1\"\r\nConnection: close\r\n\r\n"
-            send(Data(header.utf8) + rest, on: connection, thenDrop: false)
+            send(Data(header.utf8) + rest, on: connection)
         case .forbiddenPage:
             var page = Data("<html><head><title>403 Forbidden</title></head><body><h1>Forbidden</h1></body></html>".utf8)
             page.append(Data(repeating: 0x20, count: 203 - page.count))
             let header = "HTTP/1.1 403 Forbidden\r\nContent-Type: text/html\r\n"
                 + "Content-Length: \(page.count)\r\nConnection: close\r\n\r\n"
-            send(Data(header.utf8) + page, on: connection, thenDrop: false)
+            send(Data(header.utf8) + page, on: connection)
         }
     }
 
-    private func send(_ data: Data, on connection: NWConnection, thenDrop: Bool) {
-        connection.send(content: data, completion: .contentProcessed { [queue] _ in
-            guard thenDrop else {
-                connection.cancel()
-                return
-            }
-            // A forced cancel resets the connection mid-body, the way a proxy
-            // or CDN dropping a transfer does. "Processed" is not "sent": a
-            // cancel right away can throw the unsent bytes away, so wait first.
-            queue.asyncAfter(deadline: .now() + 0.3) { connection.forceCancel() }
+    /// Resets the first transfer mid-body, the way a proxy or CDN dropping it
+    /// does. Called once WebKit's progress shows it has all `cut` bytes, not
+    /// after a fixed wait: a reset throws away whatever the client has not read
+    /// yet, and a 0.3 s wait under load (`make test` among other sessions,
+    /// 2026-10-18) let it lose all of them. WebKit then resumed from 0 bytes —
+    /// a plain GET, cut again. A reset sent before the bytes had drained could
+    /// also never reach WebKit (its socket stayed ESTABLISHED), which then
+    /// waited out its 60 s idle timeout, past this test's 30 s deadline.
+    func dropCut() {
+        lock.lock()
+        let connection = cutConnection
+        cutConnection = nil
+        lock.unlock()
+        guard let connection else { return }
+        queue.async { connection.forceCancel() }
+    }
+
+    private func send(_ data: Data, on connection: NWConnection) {
+        connection.send(content: data, completion: .contentProcessed { _ in
+            connection.cancel()
         })
     }
 }

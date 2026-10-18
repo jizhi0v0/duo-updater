@@ -150,7 +150,37 @@ public struct LorcaUpdater: Sendable {
         // lorca's folder is `$HOME/.lorca`: the one the scanner read the setting from.
         environment["HOME"] = scanner.home.path
         environment["PATH"] = CLIToolCommandRunner.systemPath
-        let run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
+        let childEnvironment = environment
+        // The command, and the wait for a `lorca serve` that took it to put the
+        // file in place, are one commit: that wait decides what the update reports,
+        // so a cancel must not end it early.
+        let committed: (run: CLIToolCommandRunner.Run, after: LorcaInstall?)
+        do {
+            committed = try await InstallCommit.run("lorca update", landed: { value in
+                // The runner's rule (`CLIToolCommandRunner.run`).
+                guard case .finished(let outcome) = value.run.result else { return false }
+                return outcome.succeeded || outcome.uncaughtSignal || outcome.timedOut
+            }) { () async -> (run: CLIToolCommandRunner.Run, after: LorcaInstall?) in
+                let run = await CLIToolCommandRunner.run(
+                    command, environment: childEnvironment, deadline: deadline, progress: progress)
+                guard case .finished(let outcome) = run.result, outcome.succeeded else { return (run, nil) }
+                var after = await offCooperativePool({ scanner.reread(install.path) })
+                if after?.version == before, run.text.contains(Self.handedToServe) {
+                    progress("lorca serve is installing it…")
+                    let clock = ContinuousClock()
+                    let end = clock.now.advanced(by: settle)
+                    while after?.version == before, clock.now < end {
+                        // cancel-ok: runs inside InstallCommit.run ("lorca update"), whose body no cancel reaches
+                        try? await Task.sleep(for: pollInterval)
+                        after = await offCooperativePool({ scanner.reread(install.path) })
+                    }
+                }
+                return (run, after)
+            }
+        } catch {
+            return .failed(message: "could not run \(command.executable): \(error)", output: "")
+        }
+        let run = committed.run
         let outcome: ChildProcess.Outcome
         switch run.result {
         case .couldNotStart(let error):
@@ -162,19 +192,8 @@ public struct LorcaUpdater: Sendable {
             return .failed(message: Self.failureMessage(run.lines, outcome, deadline: deadline), output: run.text)
         }
 
-        var after = await offCooperativePool({ scanner.reread(install.path) })
-        if after?.version == before, run.text.contains(Self.handedToServe) {
-            progress("lorca serve is installing it…")
-            let clock = ContinuousClock()
-            let end = clock.now.advanced(by: settle)
-            while after?.version == before, clock.now < end {
-                try? await Task.sleep(for: pollInterval)
-                after = await offCooperativePool({ scanner.reread(install.path) })
-            }
-        }
-
         // The trust rule again, on the file the update left.
-        guard let after, after.problem == nil, let version = after.version, let newBinary = after.binary,
+        guard let after = committed.after, after.problem == nil, let version = after.version, let newBinary = after.binary,
               let newTarget = after.target
         else {
             return .failed(message: "lorca update finished, but \(install.path) no longer reads as lorca", output: run.text)

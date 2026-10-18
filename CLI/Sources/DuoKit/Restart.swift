@@ -18,12 +18,24 @@ public enum Restart {
     }
 
     public static func run(_ options: Options) async -> Int32 {
+        await run(options, lock: .shared)
+    }
+
+    /// `run`, with the install lock launch processing takes passed in — a
+    /// test's own, so it never contends for the machine's.
+    static func run(_ options: Options, lock: ProcessInstallLock) async -> Int32 {
         guard !options.queries.isEmpty else {
             FileHandle.standardError.write(Data("duo: name an app to restart\n".utf8))
             return 2
         }
 
         let settings = await Settings.load()
+        // What an earlier `duo` or app process killed mid-install left, as
+        // `duo install` does first: without it a dead install no launch has
+        // looked at keeps its app `.interrupted`, and the rollback point below
+        // is skipped with a line saying the app may be damaged — about an app
+        // that may be intact. Skipped when another process holds the lock.
+        await InstallJournal.processLeftovers(lock: lock)
         let apps = await Inventory.scanIfFinished(settings)
         let selected: [InstalledApp]
         switch Inventory.select(apps, matching: options.queries) {
@@ -139,7 +151,8 @@ public enum Restart {
             let copy = discarded ? " (the copy taken meanwhile was discarded)" : ""
             return ("quit while it was being backed up — its own updater is applying \(to) on its own; left it alone\(copy)", false)
         }
-        if let note = describe(taken, version: app.shortVersion ?? "current") {
+        if let note = describe(
+            taken, version: app.shortVersion ?? "current", wayBack: InstallJournal.wayBack(for: app.path)) {
             print("\(app.name)  \(note)")
         }
         // Re-read after the copy, which can take seconds: which window is in
@@ -210,8 +223,13 @@ public enum Restart {
     }
 
     /// The progress line for the rollback point, or nil when there is nothing
-    /// to say. Worded as `duo install` words its own backup step.
-    static func describe(_ taken: StagedRelaunchBackup.Taken, version: String) -> String? {
+    /// to say. Worded as `duo install` words its own backup step. `wayBack`
+    /// is what an earlier, interrupted install of the app would be restored
+    /// from (`InstallJournal.wayBack`), for the line that says it is kept.
+    static func describe(
+        _ taken: StagedRelaunchBackup.Taken, version: String,
+        wayBack: InstallJournal.RestoreSource? = nil
+    ) -> String? {
         switch taken {
         case .skipped, .standDown:
             return nil
@@ -228,6 +246,8 @@ public enum Restart {
             return "no restore point: this Mac is low on space"
         case .attempted(.cancelled):
             return "no restore point: the backup was cancelled"
+        case .attempted(.skippedForEarlierInstall(let standing)):
+            return Install.earlierInstallBackupNote(standing, wayBack: wayBack)
         case .attempted(.failed):
             return "could not back up — restarting without a restore point"
         }

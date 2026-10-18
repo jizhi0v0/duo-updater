@@ -31,7 +31,7 @@ Read by the Claude review workflow (`.github/workflows/claude-review.yml`) and b
 ## Cancellation
 
 - **Once an install passes its commit point, everything after it runs to the end.** The swap and the steps after it (re-reading the version, reopening the app, settling the rollback point) run inside `InstallCommit.run`, or under a caller that shields the whole item. Code after the commit point that still runs in the cancelled task has its `.terminateChild` reads refused and its `try? Task.sleep` returning at once: a finished update is reported as failed, or a quit app is never reopened.
-- **Before the commit point, an install writes only into its own workDir, the resumable-download store or the backup store.** A cancel cleans up by deleting the workDir and returning permits and space reservations; anything written elsewhere is left behind.
+- **Before the commit point, an install writes only into its own workDir, the resumable-download store, the backup store or the install journal.** A cancel cleans up by deleting the workDir and returning permits and space reservations; anything written elsewhere is left behind.
 - **A `try? await Task.sleep` in a loop must check `Task.isCancelled` on every pass.** Once the task is cancelled the sleep throws at once and `try?` swallows it, so the loop spins. `NoSwallowedCancelSleepsTests` enforces this under `Install/` and `CLITools/`; a site that cannot spin carries `// cancel-ok: <reason>`.
 - **A child killed on cancel (`.terminateChild`) must write only inside the workDir.** Teardown signals the child's pid only, so grandchildren survive, and so do files it writes elsewhere: BinaryDelta writes its per-file diffs into `NSTemporaryDirectory()`, which ignores `TMPDIR`, so it stays `.runToCompletion`.
 

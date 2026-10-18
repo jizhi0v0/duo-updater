@@ -231,9 +231,12 @@ public actor InstallCoordinator {
     /// ``BackupStore/Purpose/installRollbackPoint``).
     ///
     /// Only the routes that hand the swap to someone else, because only those
-    /// can leave the app deleted when cut off: `brew install --cask --force`
-    /// removes the old bundle before it moves the new one in, and its rescue
-    /// does not put `/Applications` back (Homebrew 7.0.9, read from source).
+    /// can leave the app missing when cut off: `brew install --cask --force`
+    /// on an installed cask copies the old bundle into the Caskroom backup and
+    /// removes it from `/Applications` before it moves the new one in, and its
+    /// rescue restores it only for a StandardError — not for a signal, and an
+    /// EPIPE's rescue writes to the dead pipe before the revert (Homebrew
+    /// 7.0.9, read from source; the EPIPE path is not measured).
     /// What `mas` and App Store do inside is not known, so they count as able
     /// to. The routes whose swap is ours (`.sparkle`, `.vendor`, `.xcode`)
     /// cannot: unprivileged it is an atomic exchange, elevated the shell puts

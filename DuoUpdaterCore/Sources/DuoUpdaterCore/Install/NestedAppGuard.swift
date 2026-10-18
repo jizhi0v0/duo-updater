@@ -90,6 +90,30 @@ import Darwin
 /// `Contents/Library/LaunchAgents/`, Backdrop's was the only agent the other
 /// rules did not already pass (the rest run from `LoginItems`, `Frameworks`,
 /// `Contents/MacOS` or outside any nested `.app`).
+///
+/// `nestedAppsThatExitWithHost` came on 2026-10-18, for BetterTouchTool, after a
+/// user report of a refused 6.885 → 6.944 update. BTT's
+/// `Contents/Resources/BTTRelaunch.app` is a background-only watchdog (parent
+/// launchd) that restarts BTT after a crash. BTT 6.943 started it by itself
+/// 5–35 s after every launch and it stays up, so these rules refused BTT nearly
+/// always. The watchdog is one binary across releases: BTTRelaunch 1.17 (23),
+/// the same cdhash in BTT 6.880, 6.885, 6.943, 6.944 and the 6.945/6.946 alpha
+/// builds, each `LSBackgroundOnly` and with only `BetterTouchTool` in
+/// `Contents/MacOS`. Measured with the real watchdog, swapping 6.943 → 6.944 in place,
+/// then `terminate()` and `openApplication` as `AppRestarter` does:
+///
+/// - The old watchdog exited within 2 s of BTT's graceful quit and did not
+///   restart BTT. The reopened 6.944 started its own watchdog from the new
+///   bundle. The same with BTT's "don't force-terminate" setting on.
+/// - BTT killed right after the swap: the old watchdog started the new BTT
+///   from `/Applications` but itself kept running from the moved-aside
+///   bundle. The restart afterwards cleared it like the case above.
+/// - BTT stopped (`SIGSTOP`) through the 30 s quit wait: the watchdog did
+///   nothing. `AppRestarter` gave up as for any app that won't quit.
+/// - Crashed twice in a row, BTT waits about 30 s for its restart, with only
+///   the watchdog running. A swap then leaves the old watchdog running beside
+///   the new BTT, because nothing quits it. That is why the exception needs the
+///   host's main app running.
 public enum NestedAppGuard {
 
     /// One process, as much as this guard needs to know about it.
@@ -132,15 +156,45 @@ public enum NestedAppGuard {
         let fromThisBundle = Set(processes.lazy
             .filter { $0.executablePath.hasPrefix(prefix) }
             .map(\.pid))
+        let hostIsRunning = processes.contains {
+            isMainAppExecutable($0.executablePath, insideBundle: prefix)
+        }
         return processes
             .compactMap { process -> Blocker? in
                 guard !process.isRegularApp, !fromThisBundle.contains(process.parentPID),
                       !launchAgentPrograms.contains(process.executablePath),
+                      !(hostIsRunning
+                        && exitsWithHost(executablePath: process.executablePath, insideBundle: prefix)),
                       let name = nestedAppName(executablePath: process.executablePath, insideBundle: prefix)
                 else { return nil }
                 return Blocker(name: name, pid: process.pid)
             }
             .sorted { $0.pid < $1.pid }
+    }
+
+    /// Nested apps measured to exit on their own when their host quits
+    /// gracefully, as paths relative to the host bundle. Each one is let through
+    /// only while the host's main app is running: the restart after the swap
+    /// quits the host, and the nested app goes with it. Without a running host
+    /// nothing quits it, so it stays refused. See BetterTouchTool in the type's
+    /// comment.
+    static let nestedAppsThatExitWithHost: [String] = [
+        "Contents/Resources/BTTRelaunch.app",
+    ]
+
+    /// Whether `executablePath` is code from one of `nestedAppsThatExitWithHost`.
+    /// `bundlePrefix` ends in `/`.
+    static func exitsWithHost(executablePath: String, insideBundle bundlePrefix: String) -> Bool {
+        guard executablePath.hasPrefix(bundlePrefix) else { return false }
+        let relative = executablePath.dropFirst(bundlePrefix.count)
+        return nestedAppsThatExitWithHost.contains { relative.hasPrefix($0 + "/") }
+    }
+
+    /// Whether `executablePath` is directly in the bundle's own `Contents/MacOS/`.
+    /// `bundlePrefix` ends in `/`.
+    static func isMainAppExecutable(_ executablePath: String, insideBundle bundlePrefix: String) -> Bool {
+        guard executablePath.hasPrefix(bundlePrefix + "Contents/MacOS/") else { return false }
+        return !executablePath.dropFirst((bundlePrefix + "Contents/MacOS/").count).contains("/")
     }
 
     /// The name of the nested `.app` whose code `executablePath` is, or nil when

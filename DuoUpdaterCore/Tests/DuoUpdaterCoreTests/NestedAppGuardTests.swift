@@ -94,6 +94,38 @@ import Testing
         #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [agent]).count == 1)
     }
 
+    /// The BetterTouchTool shape: `BTTRelaunch.app`, started by launchd, quits
+    /// when its host does. It passes while the host's main app runs, since the
+    /// restart quits both. A nested app not on the list still blocks beside it.
+    /// Mutation: drop the `exitsWithHost` check → red.
+    @Test func aNestedAppThatExitsWithItsHostPassesWhileTheHostRuns() {
+        let watchdog = Self.process(
+            717, "Contents/Resources/BTTRelaunch.app/Contents/MacOS/BTTRelaunch")
+        let machine = Self.process(
+            718, "Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine")
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [Self.main, watchdog]).isEmpty)
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [Self.main, watchdog, machine])
+            == [.init(name: "ZZFixtureMachine", pid: 718)])
+    }
+
+    /// Between crash restarts only the watchdog runs, and nothing would quit it
+    /// across the swap. Mutation: drop the `hostIsRunning` condition → red.
+    @Test func aNestedAppThatExitsWithItsHostBlocksWhenTheHostIsNotRunning() {
+        let watchdog = Self.process(
+            719, "Contents/Resources/BTTRelaunch.app/Contents/MacOS/BTTRelaunch")
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [watchdog])
+            == [.init(name: "BTTRelaunch", pid: 719)])
+        // Code deeper than `Contents/MacOS/` is not the host's main app.
+        let helper = Self.process(720, "Contents/MacOS/Helpers/zzfixture-helper")
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [helper, watchdog])
+            == [.init(name: "BTTRelaunch", pid: 719)])
+        // Another bundle's main app does not count as this one's.
+        let otherMain = Self.process(
+            721, "Contents/MacOS/ZZFixtureOther", bundle: "/Applications/ZZFixtureOther.app")
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [otherMain, watchdog])
+            == [.init(name: "BTTRelaunch", pid: 719)])
+    }
+
     /// A bare executable that is not part of any nested `.app` (an XPC service,
     /// a command-line helper) is out of scope.
     @Test func codeOutsideANestedAppNeverBlocks() {

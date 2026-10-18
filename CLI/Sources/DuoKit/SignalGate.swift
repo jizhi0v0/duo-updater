@@ -12,10 +12,15 @@ import Foundation
 /// their stdout is a pipe whose only reader is `duo`. With `duo` gone, the
 /// child dies on its next write: simulated with a python parent spawning the
 /// way `ChildProcess` does, Homebrew's ruby died of `Errno::EPIPE` and `/bin/sh`
-/// of SIGPIPE, neither finished. `brew install --cask --force` (what
-/// `HomebrewInstaller` runs) deletes the old app, prints `==> Moving App`, then
-/// moves the new one in, and its rescue does not restore /Applications — so a
-/// Ctrl-C landing there left the app gone. See plans/update-cancellation.md §2.5.
+/// of SIGPIPE, neither finished. `brew install --cask --force` on an installed
+/// cask (what `HomebrewInstaller` runs) is an upgrade: it copies the old app
+/// into the Caskroom backup, removes it from /Applications (`==> Removing
+/// App`), then moves the new one in (`==> Moving App`). Its rescue restores
+/// the backup only for a StandardError: a signal skips it, and an
+/// `Errno::EPIPE` reaches it but the revert starts by printing to the same
+/// dead pipe (Homebrew 7.0.9, read from source; the EPIPE path is not
+/// measured). A cut landing there leaves /Applications without the app, the
+/// old copy only in the Caskroom backup.
 ///
 /// ## What happens instead
 ///

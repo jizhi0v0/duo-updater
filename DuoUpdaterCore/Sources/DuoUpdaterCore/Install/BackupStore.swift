@@ -1579,6 +1579,9 @@ public enum BackupStore {
                 _ = try await InPlaceSwap.replace(newApp: staged, over: target)
             }
         }
+        // The app is back, so an install recorded as having cut it off no
+        // longer describes it.
+        InstallJournal.resolveInterrupted(at: target)
         // An input method's settings and learned dictionary are not in the bundle,
         // so restoring the bundle alone rolls back the code and leaves the data at
         // whatever the newer version made of it. Restore the snapshot taken with

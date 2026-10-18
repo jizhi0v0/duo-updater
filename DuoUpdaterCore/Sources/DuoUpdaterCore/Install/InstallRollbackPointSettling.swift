@@ -73,7 +73,12 @@ extension InstallCoordinator {
             return nil
         }
         var discarded = 0
+        // An app with an install journal file is one whose install is running,
+        // was cut off and not yet looked at, or was found cut off — readable
+        // or not (a broken signature reads). Its point is that app's way back.
+        let journaled = InstallJournal.journaledAppPaths()
         for (key, appPath) in BackupStore.rollbackPointOrigins() {
+            guard !journaled.contains(InstallJournal.standardized(appPath.path)) else { continue }
             guard await InstallRollbackPointClaims.shared.beginSweeping(key) else { continue }
             if BackupStore.hasReadableBundle(at: appPath) {
                 await BackupStore.removeRollbackPoint(forKey: key)

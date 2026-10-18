@@ -88,9 +88,15 @@ public actor HomebrewInstaller {
         // The whole brew run is this route's point of no return (`InstallCommit`):
         // brew's fetch and its swap are one command we cannot split, so a cancel
         // either stops the install before brew starts or is not seen at all.
+        // The journal learns brew's pid, so a launch after this process was
+        // killed leaves alone what a still-running brew is writing. Read here:
+        // `onLaunch` runs in `ChildProcess`'s detached task, which has no
+        // task-locals.
+        let journal = InstallJournal.current
         try await InstallCommit.run("brew upgrade") { [env] in
             let (outcome, output) = try await StreamedLines.run(
-                brew, arguments, environment: env, onOutput: onOutput)
+                brew, arguments, environment: env, onOutput: onOutput,
+                onLaunch: { journal?.noteChild($0) })
 
             guard outcome.succeeded else {
                 throw BrewError.failed(code: outcome.terminationStatus, output: output)

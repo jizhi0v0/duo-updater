@@ -202,6 +202,7 @@ public actor VendorInstaller {
                 "DuoUpdater-vendor-\(result.app.scratchSlug)-\((remote.displayVersion ?? "new").filesystemSafeToken)")
         try? FileManager.default.removeItem(at: workDir)
         try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        InstallJournal.noteWorkDirectory(workDir)
         do {
             if let stash {
                 // No `.downloading` stage: nothing is fetched, and reporting one

@@ -184,7 +184,7 @@ struct InstallRollbackPointTests {
             #expect(BackupStore.rollbackPoint(forKey: key) != nil)
 
             #expect(await InstallCoordinator.settleInstallRollbackPoint(
-                for: installed(app, version: "v1")) == .discarded)
+                for: installed(app, version: "v1"), journal: nil, succeeded: false) == .discarded)
             #expect(BackupStore.rollbackPoint(forKey: key) == nil)
             #expect(BackupStore.backup(forKey: key) != nil)
         }
@@ -277,7 +277,7 @@ struct InstallRollbackPointTests {
             try makeApp(in: apps, marker: "v2")  // updated out of band
 
             #expect(await InstallCoordinator.settleInstallRollbackPoint(
-                for: installed(app, version: "v1")) == .discarded)
+                for: installed(app, version: "v1"), journal: nil, succeeded: false) == .discarded)
             #expect(BackupStore.rollbackPoint(forKey: key) == nil)
         }
     }
@@ -291,7 +291,7 @@ struct InstallRollbackPointTests {
                 installed(app, version: "v1"), route: .homebrew))
 
             #expect(await InstallCoordinator.settleInstallRollbackPoint(
-                for: installed(app, version: "v1")) == .discarded)
+                for: installed(app, version: "v1"), journal: nil, succeeded: false) == .discarded)
             #expect(BackupStore.rollbackPoint(forKey: key) == nil)
         }
     }
@@ -306,12 +306,12 @@ struct InstallRollbackPointTests {
                 installed(app, version: "v1"), route: .homebrew))
             try FileManager.default.removeItem(at: app)
             #expect(await InstallCoordinator.settleInstallRollbackPoint(
-                for: installed(app, version: "v1")) == .kept)
+                for: installed(app, version: "v1"), journal: nil, succeeded: false) == .kept)
             #expect(BackupStore.rollbackPoint(forKey: key) != nil)
 
             try FileManager.default.createDirectory(at: app, withIntermediateDirectories: false)
             #expect(await InstallCoordinator.settleInstallRollbackPoint(
-                for: installed(app, version: "v1")) == .kept)
+                for: installed(app, version: "v1"), journal: nil, succeeded: false) == .kept)
             #expect(BackupStore.rollbackPoint(forKey: key) != nil)
 
             // A plist that parses and says nothing is not an app either.
@@ -321,7 +321,7 @@ struct InstallRollbackPointTests {
                 fromPropertyList: [String: Any](), format: .xml, options: 0)
                 .write(to: contents.appendingPathComponent("Info.plist"))
             #expect(await InstallCoordinator.settleInstallRollbackPoint(
-                for: installed(app, version: "v1")) == .kept)
+                for: installed(app, version: "v1"), journal: nil, succeeded: false) == .kept)
             #expect(BackupStore.rollbackPoint(forKey: key) != nil)
         }
     }
@@ -372,7 +372,7 @@ struct InstallRollbackPointTests {
             #expect(await InstallCoordinator.sweepSettledInstallRollbackPoints(lock: lock) == 0)
             #expect(BackupStore.rollbackPoint(forKey: key) != nil)
 
-            await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "v1"))
+            await InstallCoordinator.settleInstallRollbackPoint(for: installed(app, version: "v1"), journal: nil, succeeded: false)
         }
     }
 

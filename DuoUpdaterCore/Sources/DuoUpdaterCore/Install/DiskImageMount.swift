@@ -278,6 +278,53 @@ enum DiskImageMount {
         return device.map(Attachment.disk) ?? .unknown
     }
 
+    /// An image `hdiutil info` lists: its file and where its volumes are
+    /// mounted (none for a disk whose volume was unmounted and the disk left).
+    struct AttachedImage: Equatable, Sendable {
+        let image: String
+        let mountPoints: [String]
+    }
+
+    /// Every image in one `hdiutil info -plist` listing, paths canonical; nil
+    /// when the listing is missing or does not parse.
+    static func attachedImages(in listing: Data?) -> [AttachedImage]? {
+        guard let listing,
+              let plist = try? PropertyListSerialization.propertyList(from: listing, format: nil)
+                as? [String: Any]
+        else { return nil }
+        let images = plist["images"] as? [[String: Any]] ?? []
+        return images.compactMap { entry in
+            guard let path = entry["image-path"] as? String else { return nil }
+            let entities = entry["system-entities"] as? [[String: Any]] ?? []
+            return AttachedImage(
+                image: canonicalPath(path),
+                mountPoints: entities.compactMap { ($0["mount-point"] as? String).map(canonicalPath) })
+        }
+    }
+
+    /// The images attached now, by `absentListings` listings merged: a listing
+    /// can leave out an image that is attached (see `attachment(of:)`), never
+    /// add one that is not, so an image in any of them is taken as attached.
+    /// Nil when no listing could be read at all.
+    static func attachedImages(listing: () async -> Data?) async -> [AttachedImage]? {
+        var merged: [String: AttachedImage] = [:]
+        var readAny = false
+        for _ in 0..<absentListings {
+            guard let images = attachedImages(in: await listing()) else { continue }
+            readAny = true
+            for image in images where merged[image.image] == nil { merged[image.image] = image }
+        }
+        return readAny ? merged.values.sorted { $0.image < $1.image } : nil
+    }
+
+    /// `hdiutil info -plist`, or nil when it cannot be run.
+    static func infoListing() async -> Data? {
+        guard let r = try? await run("/usr/bin/hdiutil", ["info", "-plist"], capturingOutput: true),
+              r.code == 0
+        else { return nil }
+        return r.out
+    }
+
     /// `hdiutil info` reports the path as it was passed to the attach, `/var/…`
     /// or `/private/var/…` for the same `$TMPDIR` file (measured on 27.2, either
     /// tool). Standardizing drops the `/private` while the file exists, which it

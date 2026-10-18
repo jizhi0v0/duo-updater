@@ -2083,6 +2083,9 @@ final class AppListModel {
         // Delete partial downloads kept for resuming once they age out — now, for
         // whatever an earlier run or `duo` left, and on a timer from here on.
         ResumableDownloadStore.startSweeping()
+        // Stale `$TMPDIR` scratch no install journal accounts for, and disk
+        // images still attached under it: now, and once a day from here on.
+        InstallScratchSweep.startSweeping()
         // Arm the background auto-check loop at launch — not on first menu open —
         // so a menu-bar app that's never clicked still checks on schedule.
         reschedule()
@@ -3168,6 +3171,10 @@ final class AppListModel {
     }
 
     @ObservationIgnored private var didRecoverSwaps = false
+    /// The launch recovery `recoverInterruptedSwapsOnce` started, which
+    /// `install` awaits: its journal processing ejects images and deletes
+    /// scratch directories an install of the same app would also use.
+    @ObservationIgnored private var launchRecovery: Task<Void, Never>?
 
     /// Run the interrupted-swap recovery sweep once per session, off the main thread.
     ///
@@ -3199,12 +3206,17 @@ final class AppListModel {
         // finds — the exact call #351 measured) hops inside
         // `InPlaceSwap.recoverInterruptedSwaps`, which is async now that it takes
         // the install lock. Nothing to do here but await it.
-        Task.detached(priority: .utility) { [weak self] in
+        launchRecovery = Task.detached(priority: .utility) { [weak self] in
             var swept = true
             for root in roots {
                 // Every root is attempted; one deferral must not skip the rest.
                 if await InPlaceSwap.recoverInterruptedSwaps(in: root) == false { swept = false }
             }
+            // What an install killed mid-way left (`InstallJournal`): its scratch
+            // directories and disk images cleaned up, its app classified. Before
+            // the rollback sweep, which keeps the points of the apps it found cut
+            // off. Retried with the rest when another process held the lock.
+            if await InstallJournal.processLeftovers() == nil { swept = false }
             // Install rollback points whose app reads again (see
             // `sweepSettledInstallRollbackPoints`), retried with the rest when
             // another process held the lock.
@@ -4724,6 +4736,11 @@ final class AppListModel {
         // The App Store gate is NOT handed over: it exists to keep two installs off
         // the single store UI (AX/mas), which spans the whole install, not the fetch.
         let hostGate = GateHandle(gate)
+        // Not before the launch recovery is through: it cleans up after an
+        // install a killed run left, which can share this one's scratch
+        // directory and disk image names. Started here if no refresh has yet.
+        recoverInterruptedSwapsOnce()
+        await launchRecovery?.value
         // Machine-wide exclusion, taken here rather than around the whole batch:
         // a row parked on the host gate must not hold it. See `ProcessInstallLock`'s
         // own doc comment for why it's reference-counted per process rather than
@@ -4739,9 +4756,35 @@ final class AppListModel {
             await hostGate.release()
             return .notInstalled
         }
-        let outcome = await performInstall(
-            result, notify: notify, deferBookkeeping: deferBookkeeping,
-            releaseAfterDownload: isAppStore ? nil : hostGate, backUpOnce: backUpOnce)
+        // An earlier install of this app still running — an orphaned brew from a
+        // killed run, or `duo` — is not raced (`InstallJournal.standing`).
+        if case .stillRunning(let pid) = InstallJournal.standing(of: result.app.path) {
+            Log.install.notice("install refused: \(result.app.name, privacy: .public) — an earlier install of it is still running (pid \(pid, privacy: .public))")
+            installErrors[id] = String(localized: "An earlier update of \(result.app.name) is still running (process \(Int(pid))). Try again once it has finished.")
+            installing[id] = nil
+            await ProcessInstallLock.shared.release()
+            await hostGate.release()
+            return .notInstalled
+        }
+        // Written under the lock and before anything of the app's is touched,
+        // removed however the install ends — so the next launch can clean up
+        // after one this process was killed in the middle of (`InstallJournal`).
+        let journal = await InstallJournal.begin(
+            app: result.app,
+            route: InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result)),
+            target: result.remote?.versionSide)
+        // Set by `performInstall` when the coordinator says the install landed:
+        // what the journal is told, since the old path cannot say it for a
+        // cask renamed in its new version (`Recording.finish(succeeded:)`).
+        var applied = false
+        let outcome = await InstallJournal.recording(journal) {
+            await performInstall(
+                result, notify: notify, deferBookkeeping: deferBookkeeping,
+                releaseAfterDownload: isAppStore ? nil : hostGate, backUpOnce: backUpOnce,
+                journal: journal, applied: &applied)
+        }
+        // After `performInstall`'s rollback-point settle, which reads it.
+        await journal?.finish(succeeded: applied)
         await ProcessInstallLock.shared.release()
         await hostGate.release()
         // An expired Apple session is not kept: `install` takes that line down
@@ -4779,7 +4822,8 @@ final class AppListModel {
     @discardableResult
     private func performInstall(
         _ result: UpdateResult, notify: Bool, deferBookkeeping: Bool,
-        releaseAfterDownload: GateHandle? = nil, backUpOnce: Bool = false
+        releaseAfterDownload: GateHandle? = nil, backUpOnce: Bool = false,
+        journal: InstallJournal.Recording?, applied: inout Bool
     ) async -> InstallAttemptOutcome {
         let id = result.id
         // The span in which this install may replace the bundle (`bundleChanges`).
@@ -5129,6 +5173,9 @@ final class AppListModel {
         // user who keeps backups off but wants a rollback point for this one update.
         // Without either, a route that hands the swap to someone else still gets
         // a silent install rollback point — see `wantsInstallRollbackPoint`.
+        // Over an earlier install that was cut off both copy nothing: the
+        // bundle is the damaged one, and a copy of it would replace the good
+        // one the user would restore from (`InstallCoordinator.backUp`).
         if !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)) {
             let takingUserBackup = (prefs.keepBackups || backUpOnce)
                 && InstallCoordinator.wantsBackup(backupRoute)
@@ -5147,7 +5194,10 @@ final class AppListModel {
         // before the download, refused, cancelled — settles the rollback point:
         // kept only when the app is left missing or unreadable. See
         // `settleInstallRollbackPoint`.
-        defer { await InstallCoordinator.settleInstallRollbackPoint(for: result.app) }
+        defer {
+            await InstallCoordinator.settleInstallRollbackPoint(
+                for: result.app, journal: journal, succeeded: applied)
+        }
         // Cancelled during the copy (which then kept nothing) or just after it
         // (a finished backup is kept): nothing is fetched.
         if Task.isCancelled {
@@ -5213,6 +5263,10 @@ final class AppListModel {
                     progress: stages.recording { stage in Task { @MainActor in self.setStage(id, stage) } },
                     releaseAfterDownload: { await releaseAfterDownload?.release() },
                     beforeInstallerOpen: { await self.retireStagedPackage(for: id) })
+                // The App Store branch below has no `applied` to report and
+                // leaves this false, so there the disk still decides (whether a
+                // store update can move an app to another path: not checked).
+                applied = outcome.applied
                 recordEffectiveHost(result, finalHost: outcome.finalHost)
                 await recordTraffic(
                     result, bytes: outcome.bytesDownloaded, applied: outcome.applied,
@@ -7696,7 +7750,9 @@ final class AppListModel {
         // from the sidecars rather than from this call, so a backup taken while
         // the disk was away is picked up here too.
         // Not after a cancel either: nothing landed, and the install is stopping.
-        if transferNow, outcome != .failed, outcome != .cancelled {
+        // Nor after a skip over an earlier install, which copied nothing.
+        if transferNow, outcome != .failed, outcome != .cancelled,
+           !Self.isSkippedForEarlierInstall(outcome) {
             startOwedBackupTransfer()
         }
         if case .savedWithoutRuntimeState(let omitted) = outcome {
@@ -7710,6 +7766,14 @@ final class AppListModel {
             Log.install.notice("backup skipped: \(result.app.name, privacy: .public) — this Mac is low on space")
             installNotes[result.id] = Self.backupLowSpaceNote
         }
+        // Said, not silent: a Relaunch goes on without the copy either way, and
+        // the user should know why there is none (and whether the earlier one
+        // is still there) — what `duo restart` prints in the same case.
+        if case .skippedForEarlierInstall(let standing) = outcome,
+           let note = EarlierInstallBackupNote.text(
+               standing, hasWayBack: InstallJournal.wayBack(for: result.app.path) != nil) {
+            installNotes[result.id] = note
+        }
         if outcome == .failed {
             Log.install.error("backup failed: \(result.app.name, privacy: .public) — proceeding without a rollback point")
             // Tell the user their safety net is gone for this update, rather than
@@ -7717,6 +7781,11 @@ final class AppListModel {
             installNotes[result.id] = Self.backupFailedNote
         }
         return outcome
+    }
+
+    private static func isSkippedForEarlierInstall(_ outcome: InstallCoordinator.BackupOutcome) -> Bool {
+        if case .skippedForEarlierInstall = outcome { return true }
+        return false
     }
 
     /// `backupCurrent`'s two notes, named so a later attempt can take down the
@@ -7752,6 +7821,7 @@ final class AppListModel {
                 guard let self else { return .failed }
                 // This attempt's outcome replaces whatever an earlier one said.
                 for note in [Self.backupUnreadableNote, Self.backupLowSpaceNote, Self.backupFailedNote]
+                    + EarlierInstallBackupNote.all
                 where self.installNotes[result.id] == note {
                     self.installNotes[result.id] = nil
                 }

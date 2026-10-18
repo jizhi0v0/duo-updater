@@ -107,6 +107,7 @@ public enum ArchiveExtractor {
         let mountPoint = workDir.appendingPathComponent("mnt-\(dmg.lastPathComponent)")
         try? FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
 
+        InstallJournal.noteMount(mountPoint, image: dmg)
         if case .failure(let failure) = try await DiskImageMount.attach(dmg, at: mountPoint) {
             throw ExtractError.toolFailed(failure.tool, failure.code, failure.stderr)
         }

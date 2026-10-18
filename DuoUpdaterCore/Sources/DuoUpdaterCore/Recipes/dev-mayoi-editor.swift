@@ -19,12 +19,17 @@ enum dev_mayoi_editor {
         //
         // Sections are a `- ` list with hard-wrapped items and no `###` headings.
         // The version must start with a digit, which skips `## Unreleased`.
+        // Markdown, not HTML: `stripTags` is off because the notes write
+        // placeholders in angle brackets (`Mayoi.<version>.<arch>.dmg`,
+        // `mayoi <dir>`), which a tag sweep would delete.
         ChangelogRecipe(
             bundleID: "dev.mayoi.editor",
             source: URL(string: "https://raw.githubusercontent.com/sorrycc/Mayoi/main/CHANGELOG.md")!,
             entryPattern:
                 #"(?:^|\n)##[ \t]+(?<version>[0-9]+(?:\.[0-9]+)+)[ \t]*\n(?<body>.*?)(?=\n##[ \t]|\z)"#,
             itemPatterns: [#"(?:^|\n)-[ \t]+(?<item>.+?)(?=\n-[ \t]|\n##[ \t]|\z)"#],
+            stripTags: false,
+            decodeEntities: false,
             markdownSource: true,
             maxEntries: 40),
         ])

@@ -57,6 +57,8 @@
   - 有 recipe：`recipe changelog:dev.mayoi.editor:-: 19 entries; newest 0.11.0: 65 items, headings []; first items ["Settings sync no longer undoes a change ", "Windows: a file opened from quick open, ", "Windows: renaming refuses a name with / "]`。一次临时测试（已删）把 `ChangelogService.parse` 跑在真实文件上：19 条的条目数与各小节的 `- ` 数逐个相同（0.11.0=65 … 0.1.0=2），折行的条目整条保留；`## Unreleased` 不进（版本须以数字开头）。
   - 没 recipe 时：`source structured: 1 entries; newest 0.11.0: 181 items, headings [] (rendered as markdown)`。181 是 `content` 按行切的备用计数；面板用 `ChangelogMarkdown` 渲染原文，一次临时测试（已删）在真实 notes 上得到 65 个 list item，与原文 65 个 `- ` 一致，折行已并回同一条。
   - 小节是不带 `###` 的 `- ` 列表，所以 `headings []` 是原样。`CHANGELOG.md` 不写日期，历史条目没有日期。
+  - `stripTags: false`、`decodeEntities: false`：这是 markdown 不是 HTML，说明里用尖括号写占位符（0.3.1 `Mayoi.<version>.<arch>.dmg`、0.3.2 `mayoi <dir>`、0.10.0 `mayoi <path>`），默认的 `<[^>]+>` 清洗会把它们删掉（review round 2 指出，`MayoiChangelogRecipeTests` 用这三段原文钉住：打开 `stripTags` 时四个占位符全丢）。文件里没有 HTML 实体。
+  - 一处外观残留：0.10.0 那条的行内代码跨了行（`` `mayoi`` 换行 ``<path>` ``），`ChangelogExtractor.clean` 先去反引号（只认单行）再折叠空白，所以显示为 `` `mayoi <path>` ``，反引号还在、字没丢。要改得动共用的清洗顺序，不在这次范围。
 - 跟随 channel: 不适用
 - Recipe 状态: ✓ 已有
 

@@ -15,8 +15,8 @@ changelogs[0].mode = .html
 changelogs[0].entryPattern = "(?:^|\\n)##[ \\t]+(?<version>[0-9]+(?:\\.[0-9]+)+)[ \\t]*\\n(?<body>.*?)(?=\\n##[ \\t]|\\z)"
 changelogs[0].itemPatterns = Array(count: 1)
 changelogs[0].itemPatterns[0] = "(?:^|\\n)-[ \\t]+(?<item>.+?)(?=\\n-[ \\t]|\\n##[ \\t]|\\z)"
-changelogs[0].stripTags = true
-changelogs[0].decodeEntities = true
+changelogs[0].stripTags = false
+changelogs[0].decodeEntities = false
 changelogs[0].escapedMarkup = false
 changelogs[0].markdownSource = true
 changelogs[0].maxEntries? = 40

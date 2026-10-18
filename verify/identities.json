@@ -33,9 +33,9 @@
       "bundleIdentifier" : "com.astrlink.desktop",
       "firstSeenAt" : "2026-10-13T13:02:05Z",
       "firstSeenVersion" : "0.2.9",
-      "lastSeenAt" : "2026-10-17T09:49:39Z",
-      "lastSeenURL" : "https:\/\/github.com\/Calcium-Ion\/AstrLink\/releases\/download\/v0.2.11\/AstrLink_0.2.11_aarch64.dmg",
-      "lastSeenVersion" : "0.2.11",
+      "lastSeenAt" : "2026-10-18T20:23:00Z",
+      "lastSeenURL" : "https:\/\/github.com\/Calcium-Ion\/AstrLink\/releases\/download\/v0.2.12\/AstrLink_0.2.12_aarch64.dmg",
+      "lastSeenVersion" : "0.2.12",
       "signedIdentifier" : "com.astrlink.desktop",
       "teamIdentifier" : "7XWQYGN832"
     },
@@ -678,9 +678,9 @@
       "bundleIdentifier" : "org.jkiss.dbeaver.core.product",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "26.2.2",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURL" : "https:\/\/github.com\/dbeaver\/dbeaver\/releases\/download\/26.2.2\/dbeaver-ce-26.2.2-macos-aarch64.dmg",
-      "lastSeenVersion" : "26.2.2",
+      "lastSeenAt" : "2026-10-18T20:23:00Z",
+      "lastSeenURL" : "https:\/\/github.com\/dbeaver\/dbeaver\/releases\/download\/26.2.3\/dbeaver-ce-26.2.3-macos-aarch64.dmg",
+      "lastSeenVersion" : "26.2.3",
       "signedIdentifier" : "org.jkiss.dbeaver.core.product",
       "teamIdentifier" : "42B6MDKMW8"
     },
@@ -1823,9 +1823,9 @@
       "bundleIdentifier" : "com.yetone.magpie",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.1133",
-      "lastSeenAt" : "2026-10-18T01:34:35Z",
-      "lastSeenURL" : "https:\/\/github.com\/yetone\/magpie-releases\/releases\/download\/v0.1.1285\/magpie-darwin-arm64.zip",
-      "lastSeenVersion" : "0.1.1285",
+      "lastSeenAt" : "2026-10-18T20:23:00Z",
+      "lastSeenURL" : "https:\/\/github.com\/yetone\/magpie-releases\/releases\/download\/v0.1.1287\/magpie-darwin-arm64.zip",
+      "lastSeenVersion" : "0.1.1287",
       "signedIdentifier" : "com.yetone.magpie",
       "teamIdentifier" : "LY7MVTUDZG"
     },
@@ -2818,9 +2818,9 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.42.0",
-      "lastSeenAt" : "2026-10-18T14:52:41Z",
-      "lastSeenURL" : "https:\/\/a56.gdl.netease.com\/uuyc_4.43.1_nochannel.pkg?key1=ab65f707e1b91dd2d952f13b445e3bab&key2=6ad585c4&n=uuyc_4.43.1.pkg",
-      "lastSeenVersion" : "4.43.0",
+      "lastSeenAt" : "2026-10-18T20:23:00Z",
+      "lastSeenURL" : "https:\/\/a56.gdl.netease.com\/uuyc_4.43.1_nochannel.pkg?key1=d3b5d8704cd126fc3a1512e3c2756ad8&key2=6ad5ce8d&n=uuyc_4.43.1.pkg",
+      "lastSeenVersion" : "4.43.1",
       "packageTeamIdentifier" : "PU9BNSBJW7"
     },
     "vendor:com.operasoftware.Opera:stable" : {
@@ -2925,8 +2925,8 @@
       "bundleIdentifier" : "com.raycast.macos",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.104.31",
-      "lastSeenAt" : "2026-10-18T14:52:41Z",
-      "lastSeenURL" : "https:\/\/worker.raycast-releases.com\/?url=https%3A%2F%2Fraycast-releases.9a8adc978cc22e82f2df4dd5f45c4ef2.r2.cloudflarestorage.com%2FRaycast_v1.104.31_573af210bd29804bc886c7bbbc28ec65772198da_universal.dmg%3Fresponse-content-disposition%3Dattachment%253B%2520filename%253D%2522Raycast.dmg%2522%26X-Amz-Algorithm%3DAWS4-HMAC-SHA256%26X-Amz-Credential%3Db3c053179dd07241f8271dbe9002b57e%252F20261018%252Fauto%252Fs3%252Faws4_request%26X-Amz-Date%3D20261018T145214Z%26X-Amz-Expires%3D3600%26X-Amz-SignedHeaders%3Dhost%26X-Amz-Signature%3De44763d1ad686408f9bf28acad81657be80a7e9a9beaec3d05e98f3b08eac94c",
+      "lastSeenAt" : "2026-10-18T20:23:00Z",
+      "lastSeenURL" : "https:\/\/worker.raycast-releases.com\/?url=https%3A%2F%2Fraycast-releases.9a8adc978cc22e82f2df4dd5f45c4ef2.r2.cloudflarestorage.com%2FRaycast_v1.104.31_573af210bd29804bc886c7bbbc28ec65772198da_universal.dmg%3Fresponse-content-disposition%3Dattachment%253B%2520filename%253D%2522Raycast.dmg%2522%26X-Amz-Algorithm%3DAWS4-HMAC-SHA256%26X-Amz-Credential%3Db3c053179dd07241f8271dbe9002b57e%252F20261018%252Fauto%252Fs3%252Faws4_request%26X-Amz-Date%3D20261018T201818Z%26X-Amz-Expires%3D3600%26X-Amz-SignedHeaders%3Dhost%26X-Amz-Signature%3D5a57d4588d8b53394e925cb7b84b8e7cc5d1031eba8aab48f210be52a224acec",
       "lastSeenVersion" : "1.104.31",
       "signedIdentifier" : "com.raycast.macos",
       "teamIdentifier" : "SY64MV22J9"
@@ -2980,8 +2980,8 @@
       "bundleIdentifier" : "com.sogou.inputmethod.sogou",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "6.25.1.11973",
-      "lastSeenAt" : "2026-10-18T10:01:51Z",
-      "lastSeenURL" : "https:\/\/pro.cdn2.ime.sogou.com\/autosetup6.25.1.11973_V10003_20260914_150515.zip",
+      "lastSeenAt" : "2026-10-18T20:23:00Z",
+      "lastSeenURL" : "https:\/\/pro.cdn.ime.sogou.com\/autosetup6.25.1.11973_V10003_20260914_150515.zip",
       "lastSeenVersion" : "6.25.1.11973",
       "signedIdentifier" : "com.sogou.inputmethod.sogou",
       "teamIdentifier" : "DFD88F82SU"
@@ -3379,9 +3379,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop.canary",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b292",
-      "lastSeenAt" : "2026-10-18T10:01:51Z",
-      "lastSeenURL" : "https:\/\/static.heygen.ai\/hyperframes-oss\/desktop\/canary\/HyperFrames-b417-9038fda2a.zip",
-      "lastSeenVersion" : "b417",
+      "lastSeenAt" : "2026-10-18T20:23:00Z",
+      "lastSeenURL" : "https:\/\/static.heygen.ai\/hyperframes-oss\/desktop\/canary\/HyperFrames-b420-08fa07eb5.zip",
+      "lastSeenVersion" : "b420",
       "signedIdentifier" : "dev.hyperframes.desktop.canary",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -3393,9 +3393,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b290",
-      "lastSeenAt" : "2026-10-18T10:01:51Z",
-      "lastSeenURL" : "https:\/\/static.heygen.ai\/hyperframes-oss\/desktop\/HyperFrames-b417-9038fda2a.zip",
-      "lastSeenVersion" : "b417",
+      "lastSeenAt" : "2026-10-18T20:23:00Z",
+      "lastSeenURL" : "https:\/\/static.heygen.ai\/hyperframes-oss\/desktop\/HyperFrames-b419-85b55183e.zip",
+      "lastSeenVersion" : "b419",
       "signedIdentifier" : "dev.hyperframes.desktop",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -3687,8 +3687,8 @@
       "bundleIdentifier" : "net.whatsapp.WhatsApp",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "26.40.20",
-      "lastSeenAt" : "2026-10-18T14:52:41Z",
-      "lastSeenURL" : "https:\/\/scontent.xx.fbcdn.net\/v\/t39.16592-6\/10000000_1140917438372818_4394739945851211200_n.dmg\/WhatsApp-2.26.41.28.dmg?_nc_cat=111&ccb=1-7&_nc_sid=8f3826&_nc_ohc=wNFXHJh9EN0Q7kNvwH9X2s9&_nc_oc=AdrQ_QWYLvMSgYIPGwoZfaQrgQbg7_AMmDuuPP2JSEAGjsvfAXDiLifDYc3WxCy_z6g&_nc_zt=14&_nc_ht=scontent.xx&_nc_gid=CCl5SBjy_wESpALos9lynQ&_nc_ss=7b20f&oh=00_AQOvNRuXqzUct61usaZfMBDLlfleBmS4rQWLpeZm4X2UNw&oe=6ADAC677",
+      "lastSeenAt" : "2026-10-18T20:23:00Z",
+      "lastSeenURL" : "https:\/\/scontent.xx.fbcdn.net\/v\/t39.16592-6\/10000000_1140917438372818_4394739945851211200_n.dmg\/WhatsApp-2.26.41.28.dmg?_nc_cat=111&ccb=1-7&_nc_sid=8f3826&_nc_ohc=wNFXHJh9EN0Q7kNvwH9X2s9&_nc_oc=AdrQ_QWYLvMSgYIPGwoZfaQrgQbg7_AMmDuuPP2JSEAGjsvfAXDiLifDYc3WxCy_z6g&_nc_zt=14&_nc_ht=scontent.xx&_nc_gid=rF1ezCcuQQDpuWjMo_0HcA&_nc_ss=7b20f&oh=00_AQNSZNyKiEpO7eiQJecDOPUxvxO2shfRl4W-ams2XVWWlw&oe=6ADAFEB7",
       "lastSeenVersion" : "26.41.28",
       "signedIdentifier" : "net.whatsapp.WhatsApp",
       "sparklePublicKey" : "2jE1ZmLwrfk0yprKc8DTdt5YlKRGI7lGmnf3EJqBA5A=",
@@ -4130,6 +4130,6 @@
       "teamIdentifier" : "YJ5GSB3AMW"
     }
   },
-  "lastFullPassAt" : "2026-10-11T17:17:49Z",
+  "lastFullPassAt" : "2026-10-18T20:23:00Z",
   "schemaVersion" : 1
 }

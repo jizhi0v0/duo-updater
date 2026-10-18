@@ -280,7 +280,14 @@ public actor MASInstaller {
                 Log.install.notice("mas ADAM \(adamID, privacy: .public): \(reason, privacy: .public) (exit \(code, privacy: .public)); retrying \(attempt + 1, privacy: .public)")
                 // Growing backoff (1s, 2s, 3s) so we ride over a proxy/CDN that's
                 // momentarily resetting connections rather than hammering it.
-                try? await Task.sleep(nanoseconds: UInt64(attempt + 1) * retryBackoffNanos)
+                //
+                // `try`, not `try?`: a cancel during the backoff ends the loop here
+                // with `CancellationError`. Swallowed, the sleep returned at once and
+                // the cancel STARTED the next `mas install`. Stopping is safe — the
+                // attempt that just failed installed nothing. (The commit's own check
+                // in `runOnce` would refuse that next attempt too; this says so where
+                // the wait is.)
+                try await Task.sleep(nanoseconds: UInt64(attempt + 1) * retryBackoffNanos)
             }
         }
         throw lastError
@@ -316,8 +323,15 @@ public actor MASInstaller {
         tailer.start()
         defer { tailer.stop() }  // idempotent; flushes trailing lines
 
-        let status = try await runner.installMAS(
-            adamID: adamID, uid: uid, gid: gid, userName: user, logPath: logPath)
+        // Each attempt is this route's point of no return (`InstallCommit`):
+        // once `mas` has the job, the store's daemon downloads and swaps on its
+        // own, and nothing here could take that back. A cancel before it starts
+        // no attempt; one during it is not seen.
+        let runner = self.runner
+        let status = try await InstallCommit.run("mas install") {
+            try await runner.installMAS(
+                adamID: adamID, uid: uid, gid: gid, userName: user, logPath: logPath)
+        }
         tailer.stop()  // flush before reading the log for an error tail
 
         guard status == 0 else {

@@ -32,11 +32,16 @@ enum CLIToolCommandRunner {
         let log = OutputLog(onLine: progress)
         let result: Run.Result
         do {
-            result = .finished(try await ChildProcess.run(
-                command.executable, command.arguments, environment: environment, standardInput: standardInput,
-                standardOutput: .discard, standardError: .mergeIntoOutput,
-                deadline: deadline, onCancel: .runToCompletion,
-                onOutputChunk: { log.append($0) }))
+            // The tool's point of no return (`InstallCommit`): a caller cancelled
+            // before it starts nothing, and the `CancellationError` is reported as
+            // a run that could not start; once started, the command finishes.
+            result = .finished(try await InstallCommit.run("update command") {
+                try await ChildProcess.run(
+                    command.executable, command.arguments, environment: environment, standardInput: standardInput,
+                    standardOutput: .discard, standardError: .mergeIntoOutput,
+                    deadline: deadline, onCancel: .runToCompletion,
+                    onOutputChunk: { log.append($0) })
+            })
         } catch {
             result = .couldNotStart("\(error)")
         }

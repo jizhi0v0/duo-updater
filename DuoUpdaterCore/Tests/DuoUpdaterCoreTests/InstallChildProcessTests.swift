@@ -528,12 +528,14 @@ import Testing
 
     // MARK: - Backups
 
-    /// A cancelled backup still stores a complete copy, and a cancelled rollback
-    /// still puts it back — both `ditto`s (and the swap under the rollback) ran to
-    /// their end.
+    /// A cancelled backup still stores a complete copy — its `ditto` ran to its
+    /// end. A rollback cancelled before it starts stops at its point of no return
+    /// (`InstallCommit`) and leaves the live app as it is; run uncancelled, it
+    /// puts the copy back.
     ///
-    /// Mutation: `BackupStore.runDitto` becomes `.terminateChild` → `save` throws
-    /// `copyFailed` with nothing stored.
+    /// Mutations: `BackupStore.runDitto` becomes `.terminateChild` → `save` throws
+    /// `copyFailed` with nothing stored; drop the restore's `InstallCommit` → the
+    /// cancelled rollback swaps, red.
     @Test func aCancelledBackupAndRollbackStillComplete() async throws {
         let fm = FileManager.default
         let top = try scratch("backup")
@@ -552,9 +554,15 @@ import Testing
             try fm.removeItem(at: app.appendingPathComponent("Contents/v1"))
             try Data("v2".utf8).write(to: app.appendingPathComponent("Contents/v2"))
 
-            let restored = try await cancelledBeforeStart {
-                try await BackupStore.restore(forKey: "zzfixture", over: app)
+            await #expect(throws: CancellationError.self) {
+                _ = try await cancelledBeforeStart {
+                    try await BackupStore.restore(forKey: "zzfixture", over: app)
+                }
             }
+            #expect(fm.fileExists(atPath: app.appendingPathComponent("Contents/v2").path))
+            #expect(!fm.fileExists(atPath: app.appendingPathComponent("Contents/v1").path))
+
+            let restored = try await BackupStore.restore(forKey: "zzfixture", over: app)
             #expect(restored == "1.0")
             #expect(fm.fileExists(atPath: app.appendingPathComponent("Contents/v1").path))
             #expect(!fm.fileExists(atPath: app.appendingPathComponent("Contents/v2").path))

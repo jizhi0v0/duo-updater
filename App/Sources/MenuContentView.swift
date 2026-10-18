@@ -1407,7 +1407,7 @@ private struct AppRow: View {
                         },
                         signInToAppleDeveloper: { model.signInToAppleDeveloper() },
                         retryPausedUntil: model.gitHubPausedUntil),
-                    runningVersion: model.runningVersion(result.id),
+                    runningVersion: model.restartFromVersion(result.id),
                     helperEnabled: model.helperEnabled,
                     keepBackups: model.prefs.keepBackups,
                     downloadReadout: { downloadReadout },

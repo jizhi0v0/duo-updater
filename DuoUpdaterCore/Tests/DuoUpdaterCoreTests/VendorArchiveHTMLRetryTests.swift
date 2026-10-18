@@ -3,9 +3,10 @@ import Network
 import Testing
 @testable import DuoUpdaterCore
 
-/// A vendor that answers part of its requests with its home page (corkmac.app:
-/// HTTP 200, the site's HTML, for any URL including the zip) gets the archive
-/// download retried instead of handing the page to the extractor.
+/// A vendor that answers part of its requests with its home page (corkmac.app
+/// until 2026-10-17: HTTP 200, the site's HTML, for any URL including the zip)
+/// gets the archive download retried instead of handing the page to the
+/// extractor.
 struct VendorArchiveHTMLRetryTests {
     private func file(_ bytes: [UInt8]) throws -> URL {
         let url = FileManager.default.temporaryDirectory
@@ -72,7 +73,7 @@ struct VendorArchiveHTMLRetryTests {
 
     /// Loopback HTTP/1.1 server answering its Nth request with `bodies[N]` (the
     /// last one again once they run out), every one a 200 — the way corkmac.app
-    /// answers its zip URL with its home page.
+    /// answered its zip URL with its home page.
     private final class Server: @unchecked Sendable {
         private final class State: @unchecked Sendable {
             let lock = NSLock()

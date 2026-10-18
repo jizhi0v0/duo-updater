@@ -120,6 +120,61 @@ import Foundation
         #expect(fcntl(probe, F_GETFD) != -1,
                 "InstallLock closed a descriptor it no longer owned")
     }
+
+    /// `recordedHolder` reads the pid file without locking, so the file has to
+    /// stop naming a holder once it lets go. Mutation: drop the truncate in
+    /// `release` → the second expectation is red.
+    @Test func aReleasedLockLeavesNoRecordedHolder() throws {
+        let url = scratch()
+        let lock = try InstallLock.acquire(at: url)
+        #expect(InstallLock.recordedHolder(at: url) == getpid())
+        lock.release()
+        #expect(InstallLock.recordedHolder(at: url) == nil)
+    }
+
+    /// The probe the post-relaunch watch polls must never be what makes a real
+    /// install fail: `currentHolder` takes the lock for a moment to test it, and
+    /// an `acquire` landing in that moment is refused. Mutation: implement
+    /// `recordedHolder` through `currentHolder` → refusals, red.
+    @Test func probingTheRecordedHolderNeverRefusesAnAcquire() throws {
+        let url = scratch()
+        try InstallLock.acquire(at: url).release()   // the file exists
+        let stop = ManagedAtomicFlag()
+        let prober = Thread {
+            while !stop.isSet { _ = InstallLock.recordedHolder(at: url) }
+        }
+        prober.start()
+        defer { stop.set() }
+        var refusals = 0
+        for _ in 0..<5_000 {
+            do { try InstallLock.acquire(at: url).release() } catch { refusals += 1 }
+        }
+        #expect(refusals == 0)
+    }
+
+    /// Who the watch counts as "another process installing": a recorded pid that
+    /// is not ours and still runs. A pid left by a holder that died without
+    /// releasing is not.
+    @Test func recordedHolderElsewhereIgnoresUsAndTheDead() throws {
+        let url = scratch()
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "\(getpid())\n".write(to: url, atomically: false, encoding: .utf8)
+        #expect(InstallLock.recordedHolderElsewhere(at: url) == nil, "this process")
+        try "4242\n".write(to: url, atomically: false, encoding: .utf8)
+        #expect(InstallLock.recordedHolderElsewhere(at: url, isAlive: { _ in true }) == 4242)
+        #expect(InstallLock.recordedHolderElsewhere(at: url, isAlive: { _ in false }) == nil, "dead holder")
+        try "".write(to: url, atomically: false, encoding: .utf8)
+        #expect(InstallLock.recordedHolderElsewhere(at: url, isAlive: { _ in true }) == nil, "released")
+    }
+}
+
+/// A stop flag the prober thread above polls.
+private final class ManagedAtomicFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    var isSet: Bool { lock.withLock { value } }
+    func set() { lock.withLock { value = true } }
 }
 
 /// Which routes get a rollback point, and whether the store remembers where a

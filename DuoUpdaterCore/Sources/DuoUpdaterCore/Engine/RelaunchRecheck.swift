@@ -109,16 +109,22 @@ public enum RelaunchRecheck {
             System(
                 read: { RelaunchRecheck.read(bundle) },
                 sleep: { try? await Task.sleep(for: $0) },
-                installLockHeldElsewhere: {
-                    // `currentHolder` reads the pid the holder wrote; this
-                    // process holding it (an install of another row) is not
-                    // "elsewhere". A holder that has not written its pid yet
-                    // reads as free — best-effort, as that function says.
-                    guard let holder = InstallLock.currentHolder() else { return false }
-                    return holder != getpid()
-                },
+                // Lock-free: `currentHolder` would take the lock for a moment
+                // to test it and could make a real install's `acquire` fail.
+                installLockHeldElsewhere: { InstallLock.recordedHolderElsewhere() != nil },
                 installer: installer)
         }
+    }
+
+    /// Whether a "went back to an older build" note still describes the disk:
+    /// `disk` (read now) is older than `expected` (read before the quit). The
+    /// note's own retraction asks this rather than trusting the row, because a
+    /// check round can publish a row scanned before the revert (`.upToDate`)
+    /// while the older build sits on disk. An unreadable bundle keeps the note —
+    /// a swap in progress is no evidence the revert is gone.
+    public static func revertStillOnDisk(expected: Reading, disk: Reading?) -> Bool {
+        guard let disk else { return true }
+        return VersionComparator.isNewer(expected.side, than: disk.side)
     }
 
     /// The bundle as it stands now; nil while its `Info.plist` cannot be read

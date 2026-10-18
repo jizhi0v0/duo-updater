@@ -50,10 +50,12 @@ struct RelaunchRecheckTests {
         .init(side: VersionSide(marketing: marketing, build: build), inode: inode)
     }
 
-    /// ChatGPT's builds as measured on the mini 2026-08-22 (41705 installed,
-    /// 41509 back on disk after the relaunch). The marketing strings are not
-    /// from that log; both sides carry the same one so the builds decide, as
-    /// they did for a frozen-marketing app.
+    /// The numbers from the mini 2026-08-22 collision: 41705 installed, 41509
+    /// back on disk after the relaunch. In the repo's records those are the
+    /// tails of ChatGPT's marketing versions (26.818.41705 / 26.818.41509, builds
+    /// 6971 / 6962 — `SelfUpdaterStaging.swift`, `StagedBlocksInstallTests`);
+    /// here they stand in as builds under one shared placeholder marketing
+    /// string, so the build tie-break is what decides.
     private let ours = RelaunchRecheck.Reading(side: VersionSide(marketing: "1.0", build: "41705"), inode: 1)
 
     // MARK: - reverted
@@ -189,5 +191,22 @@ struct RelaunchRecheckTests {
         }
         #expect(await task.value == .unknown)
         #expect(w.readCount == 0)
+    }
+
+    // MARK: - retracting the note
+
+    /// The note may only come down when the disk, read now, no longer holds the
+    /// older build — not because a row snapshot from before the revert says
+    /// `.upToDate`. Mutation: always retract → the first expectation is red;
+    /// keep on a newer build → the second.
+    @Test func theRevertNoteStaysWhileTheOlderBuildIsOnDisk() {
+        let older = reading("1.0", "41509")
+        #expect(RelaunchRecheck.revertStillOnDisk(expected: ours, disk: older))
+        #expect(!RelaunchRecheck.revertStillOnDisk(expected: ours, disk: reading("1.1", "41800")),
+                "their updater moved past ours: nothing to warn about")
+        #expect(!RelaunchRecheck.revertStillOnDisk(expected: ours, disk: ours),
+                "ours is back (reinstalled)")
+        #expect(RelaunchRecheck.revertStillOnDisk(expected: ours, disk: nil),
+                "unreadable mid-swap is no evidence the revert is gone")
     }
 }

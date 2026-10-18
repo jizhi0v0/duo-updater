@@ -139,14 +139,19 @@ final class AppListModel {
             notes: installNotes, writtenByUs: inFlightNotes,
             results: results, installing: Set(installing.keys)
         ) {
-            if let revert = relaunchRevertNotes.removeValue(forKey: id), installNotes[id] == revert.text {
-                restoreCoveredNote(revert, id)
+            if let revert = relaunchRevertNotes[id], installNotes[id] == revert.busy.text {
+                // Same moment as the disk, not as the row: one `Info.plist` read,
+                // only for a revert note the settle rule wants down.
+                guard !RelaunchRecheck.revertStillOnDisk(
+                    expected: revert.expected, disk: RelaunchRecheck.read(revert.bundle)) else { continue }
+                relaunchRevertNotes[id] = nil
+                restoreCoveredNote(revert.busy, id)
             } else {
                 installNotes[id] = nil
             }
         }
         inFlightNotes = inFlightNotes.filter { installNotes[$0.key] == $0.value }
-        relaunchRevertNotes = relaunchRevertNotes.filter { installNotes[$0.key] == $0.value.text }
+        relaunchRevertNotes = relaunchRevertNotes.filter { installNotes[$0.key] == $0.value.busy.text }
     }
     private(set) var isScanning = false
     private(set) var isChecking = false
@@ -439,7 +444,19 @@ final class AppListModel {
     /// too, so it is retracted once the row settles (`.upToDate`: the app's
     /// updater moved on past ours, or the user reinstalled), and what it
     /// covered is put back then (`pruneRetractedNotes`).
-    @ObservationIgnored private var relaunchRevertNotes: [String: BusyNote] = [:]
+    ///
+    /// The settle rule alone is not enough for this one: a check round publishes
+    /// rows it scanned before the revert, so the row can read `.upToDate` while
+    /// the older build is on disk. Retraction therefore re-reads the bundle and
+    /// asks Core whether the revert is still there (`RelaunchRecheck
+    /// .revertStillOnDisk`), against the reading taken before the quit.
+    @ObservationIgnored private var relaunchRevertNotes: [String: RelaunchRevertNote] = [:]
+    private struct RelaunchRevertNote {
+        let busy: BusyNote
+        /// The bundle as read before the quit, and where it lives.
+        let expected: RelaunchRecheck.Reading
+        let bundle: URL
+    }
     /// id → the "App Store can't replace this while it's open" text this model wrote
     /// into `installNotes`, so the install can retract exactly its own note when it
     /// finishes. Same discipline as `restartHoldBackNotes`, and for the same reason:
@@ -3695,6 +3712,11 @@ final class AppListModel {
         }.value
         await refreshBackupIndex()
         isChecking = false
+        // A rescan asked for while the round ran (a post-relaunch revert note's,
+        // say) left `localRescanDeferred` set; run it now rather than leave the
+        // round's pre-revert rows up until the 180 s backstop. A no-op when
+        // nothing was deferred — the retry path does the same.
+        await drainDeferredLocalRescan()
         // Whether this round's token was rejected; one that was not clears the
         // banner the last round left up.
         gitHubTokenRejected = GitHubCredentials.shared.isRejected
@@ -6833,19 +6855,26 @@ final class AppListModel {
                     : String(localized: "\(app.name) is back on \(version) after the restart — something replaced the version that was on disk before it. DuoUpdater won’t reinstall over it automatically; click Update to get \(ours) again.")
                 // Covers, not replaces, what the row was showing — `BusyNote`'s
                 // rule, including a repeat over our own earlier revert note.
-                if let mine = relaunchRevertNotes[id], installNotes[id] == mine.text {
-                    relaunchRevertNotes[id] = BusyNote(
+                let busy: BusyNote
+                if let mine = relaunchRevertNotes[id]?.busy, installNotes[id] == mine.text {
+                    busy = BusyNote(
                         text: note, prior: mine.prior,
                         priorOwned: mine.priorOwned, priorInFlight: mine.priorInFlight)
                 } else {
                     let prior = installNotes[id]
-                    relaunchRevertNotes[id] = BusyNote(
+                    busy = BusyNote(
                         text: note, prior: prior,
                         priorOwned: prior.map { ownsNote(id, $0) } ?? false,
                         priorInFlight: prior != nil && inFlightNotes[id] == prior)
                 }
+                relaunchRevertNotes[id] = RelaunchRevertNote(busy: busy, expected: expected, bundle: app.path)
                 installNotes[id] = note
                 inFlightNotes[id] = note
+                // Deferred first: `refreshLocal` returns without a trace during a
+                // check round or an install, and then nothing re-reads this row
+                // until the 180 s backstop. The flag is drained when either ends
+                // (`drainDeferredLocalRescan`); a rescan that does run clears it.
+                localRescanDeferred = true
                 await refreshLocal(unattended: true)
             }
         }

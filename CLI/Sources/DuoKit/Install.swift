@@ -367,14 +367,17 @@ public enum Install {
                 return .refuse("its own updater already has \(result.stagedRelaunchLine(staged).to) "
                     + "staged — \(apply), or `duo restart`", nil)
             }
-            // No Team ID on the installed copy (CmdPalm, self-signed). The source
-            // does publish an artefact; what stops us is that we cannot pin it.
-            // Not the vendor-policy refusal below: quitting the app or "always
-            // replace" would not change this, while the app's own updater, which
-            // `defersToSelfUpdater` still hands the row to, can apply it.
-            if UpdatePolicy.lacksTeamIdentifierForRoute(result) {
+            // No Team ID on the installed copy (CmdPalm, self-signed), on a row
+            // that would otherwise install: the source publishes an artefact and
+            // what stops us is that we cannot pin it. Not the vendor-policy
+            // refusal below, whose advice (quit it, or always replace) would not
+            // change this. A detection-only row on an ad-hoc copy (AirCard) is
+            // not this case and keeps its own refusal.
+            if UpdatePolicy.withheldForMissingTeamIdentifier(
+                result, settings: settings.updateSettings, environment: environment) {
                 return .refuse("the installed copy has no developer Team ID to check the download "
-                    + "against — update it from the app's own updater", nil)
+                    + "against — update it outside DuoUpdater (its own updater, or the vendor's download)",
+                    nil)
             }
             // #193 originally split this into two messages — "no artefact this
             // time" for a recognised source vs. "no route wired up yet" for one

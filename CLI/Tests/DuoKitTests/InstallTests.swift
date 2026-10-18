@@ -127,8 +127,8 @@ import DuoUpdaterCore
     /// the vendor-policy refusal, whose advice (quit it, or always replace) would
     /// not get it installed.
     ///
-    /// Mutation: drop the `lacksTeamIdentifierForRoute` branch in `classify` →
-    /// red.
+    /// Mutation: drop the `withheldForMissingTeamIdentifier` branch in `classify`
+    /// → red.
     @Test func aCopyWithoutATeamIDIsRefusedWithThatReason() {
         var r = result(source: "Sparkle", app: app(feed: URL(string: "https://example.com/appcast.xml")))
         r.installedLacksTeamIdentifier = true
@@ -142,6 +142,23 @@ import DuoUpdaterCore
             #expect(!why.contains("publishes no installable artefact"))
             #expect(!why.contains("vendor policy"))
         }
+    }
+
+    /// AirCard, ad-hoc and detection-only (a GitHub rule with no install spec,
+    /// `.developerID` by default): it was never installable, so the missing
+    /// Team ID is not the reason and the refusal stays "detection only".
+    ///
+    /// Mutation: fire on `lacksTeamIdentifierForRoute` alone (skip the
+    /// cleared-copy check in `withheldForMissingTeamIdentifier`) → red.
+    @Test func aDetectionOnlyRowOnACopyWithoutATeamIDStaysDetectionOnly() {
+        var r = result(source: "GitHub", vendorKind: nil)
+        r.installedLacksTeamIdentifier = true
+        guard case .refuse(let why, _) = Install.classify(r, settings: settings(), environment: environment())
+        else {
+            Issue.record("expected a refusal")
+            return
+        }
+        #expect(why == "detection only — this source publishes no installable artefact")
     }
 
     @Test func aVendorArchiveInstalls() {

@@ -493,7 +493,7 @@ public enum UpdatePolicy {
     /// ad-hoc trusts are the routes built for a copy without a Team ID and are
     /// judged on their own setting. `brew install --cask` and the App Store run
     /// none of our gates.
-    public static func lacksTeamIdentifierForRoute(_ result: UpdateResult) -> Bool {
+    static func lacksTeamIdentifierForRoute(_ result: UpdateResult) -> Bool {
         guard result.installedLacksTeamIdentifier else { return false }
         switch result.remote?.sourceName {
         case "Sparkle":
@@ -505,6 +505,21 @@ public enum UpdatePolicy {
         default:
             return false
         }
+    }
+
+    /// The missing Team ID is the only thing keeping this row from our own
+    /// install: with the flag cleared, `canAutoInstall` or `requiresInstaller`
+    /// would offer it. False for a detection-only row (no install spec, so
+    /// `.developerID` by default) that happens to sit on an ad-hoc copy — it was
+    /// never installable, and its refusal stays "detection only".
+    public static func withheldForMissingTeamIdentifier(
+        _ result: UpdateResult, settings: UpdateSettings, environment: InstallEnvironment
+    ) -> Bool {
+        guard lacksTeamIdentifierForRoute(result) else { return false }
+        var route = result
+        route.installedLacksTeamIdentifier = false
+        return canAutoInstall(route, settings: settings, environment: environment)
+            || requiresInstaller(route, environment: environment)
     }
 
     /// Whether this source appears as its own case (not the `default:` branch)

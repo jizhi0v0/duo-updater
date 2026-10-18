@@ -223,7 +223,10 @@ jobs:
       # the mounts above (the runtimes stay mounted), in diag run 39162841326:
       # 0 failed of 30 full Release suites and no such write, against 2 failed
       # of 30 (both a runner's first suite) and 8 such writes in 5 suites with
-      # it left running. Hosted only: the mini is a real Mac.
+      # it left running; on main's own code (diag run 39168640317), a runner's
+      # first suite failed 4 of 12 times with it running (one a 17-minute hang
+      # in `hdiutil attach`) and 0 of 12 with it stopped. Hosted only: the mini
+      # is a real Mac.
       - name: Stop simdiskimaged
         if: runner.environment == 'github-hosted'
         run: |

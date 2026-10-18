@@ -178,8 +178,17 @@ public final class SignalGate: @unchecked Sendable {
     /// ignores the signals and listens with dispatch sources, and ignores
     /// SIGPIPE), `say` writes a notice, `hangUp` detaches outputs that went with
     /// the terminal, `exitNow` ends the process from a prompt.
+    ///
+    /// `startedIgnored`: the signals `duo` was started ignoring, read before
+    /// `arm` ignores them itself. `nohup duo install …`, or `duo install … &`
+    /// in a script (POSIX starts a background command of a non-interactive
+    /// shell with SIGINT and SIGQUIT ignored), asked for exactly that, and a
+    /// source fires for an ignored signal all the same: such a signal stops
+    /// nothing and says nothing. A hangup still detaches the outputs that went
+    /// with the terminal — the hazard above does not care why `duo` lives on.
     public func run(
         _ command: @escaping @Sendable () async -> Int32,
+        startedIgnored: Set<Int32> = SignalGate.ignoredNow(),
         arm: (@escaping @Sendable (Int32) -> Void) -> Void = SignalGate.armProcessSignals,
         say: @escaping @Sendable (String) -> Void = SignalGate.writeToStandardError,
         hangUp: @escaping @Sendable () -> Void = SignalGate.detachHungUpOutputs,
@@ -191,6 +200,7 @@ public final class SignalGate: @unchecked Sendable {
         arm { [self] signo in
             // Before the notice, which would otherwise be the write that aborts.
             if signo == SIGHUP { hangUp() }
+            guard !startedIgnored.contains(signo) else { return }
             let reaction = receive(signo)
             if case .exitNow(let status) = reaction { exitNow(status) }
             if let line = Self.notice(for: reaction, signal: signo) { say(line) }
@@ -251,17 +261,11 @@ public final class SignalGate: @unchecked Sendable {
     /// `kqueue(2)` on `EVFILT_SIGNAL`: "The filter will record all attempts to
     /// deliver a signal to a process, even if the signal has been marked as
     /// SIG_IGN."
-    ///
-    /// A signal `duo` was started ignoring is left so (`signalsToArm`):
-    /// `nohup duo install …`, or `duo install … &` in a script (POSIX starts
-    /// a background command of a non-interactive shell with SIGINT and SIGQUIT
-    /// ignored), asked for exactly that, and a source would fire for it all the
-    /// same — the hangup that `nohup` was for would cut the batch short.
     public static func armProcessSignals(_ handler: @escaping @Sendable (Int32) -> Void) {
         signal(SIGPIPE, SIG_IGN)
         let queue = DispatchQueue(label: "duo.signals")
         sourcesLock.withLock {
-            for signo in signalsToArm() {
+            for signo in signals {
                 signal(signo, SIG_IGN)
                 let source = DispatchSource.makeSignalSource(signal: signo, queue: queue)
                 // Two signals between handler runs coalesce into one event whose
@@ -275,15 +279,15 @@ public final class SignalGate: @unchecked Sendable {
         }
     }
 
-    /// The `signals` to listen for: those this process was not started
-    /// ignoring.
-    static func signalsToArm(isIgnored: (Int32) -> Bool = SignalGate.isIgnored) -> [Int32] {
-        signals.filter { !isIgnored($0) }
+    /// The `signals` this process is ignoring now — before `armProcessSignals`,
+    /// the ones it was started ignoring.
+    public static func ignoredNow(isIgnored: (Int32) -> Bool = SignalGate.isIgnored) -> Set<Int32> {
+        Set(signals.filter(isIgnored))
     }
 
     /// Whether `signo`'s disposition is `SIG_IGN` now. Read with `sigaction`,
     /// which changes nothing.
-    static func isIgnored(_ signo: Int32) -> Bool {
+    public static func isIgnored(_ signo: Int32) -> Bool {
         var current = sigaction()
         guard sigaction(signo, nil, &current) == 0 else { return false }
         return unsafeBitCast(current.__sigaction_u.__sa_handler, to: Int.self)

@@ -277,14 +277,39 @@ import Foundation
         #expect(outcome.standardOutput.isEmpty)
     }
 
-    /// `nohup duo install …` starts `duo` with SIGHUP ignored, and a
-    /// background `duo install … &` in a script with SIGINT ignored: the gate
-    /// listens only for the signals not ignored already, so the hangup `nohup`
-    /// was for does not stop the batch.
-    /// Mutation: arm every one of `signals` whatever `isIgnored` says → red.
-    @Test func aSignalStartedIgnoredIsLeftIgnored() {
-        #expect(SignalGate.signalsToArm(isIgnored: { $0 == SIGHUP }) == [SIGINT, SIGTERM])
-        #expect(SignalGate.signalsToArm(isIgnored: { _ in false }) == SignalGate.signals)
+    /// `nohup duo install …` starts `duo` with SIGHUP ignored: the hangup
+    /// `nohup` was for stops nothing and says nothing — the command runs to its
+    /// own end and status — but still detaches the outputs, or the next stderr
+    /// line through `FileHandle` would abort `duo` on a dead terminal. A signal
+    /// not started ignored still stops it.
+    /// Mutations: drop the `startedIgnored` guard → red (cancelled, 129, a
+    /// notice); move it above `hangUp()` → red (no hang-up).
+    @Test func aSignalStartedIgnoredStopsNothingButAHangUpStillDetaches() async {
+        let harness = Harness()
+        let sawCancel = Lines()
+        let status = await harness.run(SignalGate(), startedIgnored: [SIGHUP]) {
+            harness.deliver(SIGHUP)
+            if Task.isCancelled { sawCancel.add("cancelled") }
+            return 3
+        }
+        #expect(status == 3)
+        #expect(sawCancel.all.isEmpty)
+        #expect(harness.hangUps.all == ["hangUp"])
+        #expect(harness.notices.all.isEmpty)
+
+        let other = Harness()
+        let stopped = await other.run(SignalGate(), startedIgnored: [SIGHUP]) {
+            other.deliver(SIGINT)
+            return 0
+        }
+        #expect(stopped == 130)
+        #expect(other.notices.all.count == 1)
+    }
+
+    /// The default reads the dispositions as they are before arming.
+    @Test func ignoredNowIsWhatIsIgnored() {
+        #expect(SignalGate.ignoredNow(isIgnored: { $0 == SIGHUP }) == [SIGHUP])
+        #expect(SignalGate.ignoredNow(isIgnored: { _ in false }).isEmpty)
     }
 
     /// `isIgnored` reads the disposition as it is, and changes nothing.
@@ -647,9 +672,13 @@ import Foundation
         let started = Latch()
         private let handler = HandlerBox()
 
-        func run(_ gate: SignalGate, _ command: @escaping @Sendable () async -> Int32) async -> Int32 {
+        func run(
+            _ gate: SignalGate, startedIgnored: Set<Int32> = [],
+            _ command: @escaping @Sendable () async -> Int32
+        ) async -> Int32 {
             await gate.run(
                 command,
+                startedIgnored: startedIgnored,
                 arm: { self.handler.set($0) },
                 say: { self.notices.add($0); self.events.add("say") },
                 hangUp: { self.hangUps.add("hangUp"); self.events.add("hangUp") },

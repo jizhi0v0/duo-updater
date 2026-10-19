@@ -1791,7 +1791,7 @@ private struct BrewFormulaSidebarRow: View {
 
     private var upgrading: Bool { model.isUpgrading(formula) }
     private var error: String? { model.formulaUpgradeErrors[formula.name] }
-    private var progressNote: String? { model.formulaUpgradeNotes[formula.name] }
+    private var progressNote: String? { model.formulaProgressLine(formula.name) }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -1834,7 +1834,10 @@ private struct BrewFormulaSidebarRow: View {
             }
             Spacer()
             if upgrading {
-                ProgressView().controlSize(.small)
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.small)
+                    BrewFormulaCancelButton(name: formula.name, model: model)
+                }
             } else if formula.hasUpdate {
                 let blocked = model.cliBlockedReason(.upgradeFormula)
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
@@ -1845,6 +1848,23 @@ private struct BrewFormulaSidebarRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// A formula row's Cancel beside its progress (`InstallCancelButton`), while
+/// its own row's upgrade runs — not during Upgrade All, which has none. Gone
+/// once the cancel was accepted: the progress line says "Cancelling…" until
+/// the row settles (`AppListModel.cancelFormulaUpgrade`).
+private struct BrewFormulaCancelButton: View {
+    let name: String
+    let model: AppListModel
+
+    var body: some View {
+        if let state = model.formulaCancelRows.cancels[name], state != .cancelling {
+            InstallCancelButton(state: state, pending: model.formulaCancelRows.cancelPending.contains(name)) {
+                model.cancelFormulaUpgrade(name)
+            }
+        }
     }
 }
 
@@ -2225,12 +2245,13 @@ private struct FormulaDetailPane: View {
             if upgrading {
                 HStack(spacing: 7) {
                     ProgressView().controlSize(.small)
-                    Text(model.formulaUpgradeNotes[formula.name] ?? String(localized: "Updating…"))
+                    Text(model.formulaProgressLine(formula.name) ?? String(localized: "Updating…"))
                         .font(.callout).foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(.quaternary, in: Capsule())
+                BrewFormulaCancelButton(name: formula.name, model: model)
             } else if formula.hasUpdate {
                 let blocked = model.cliBlockedReason(.upgradeFormula)
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }

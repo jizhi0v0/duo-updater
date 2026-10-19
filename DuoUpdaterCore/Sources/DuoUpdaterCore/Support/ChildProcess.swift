@@ -92,6 +92,13 @@ internal import SystemPackage
 ///   deadline's ladder if there is one, otherwise SIGKILL straight away) and this
 ///   throws `CancellationError`; a task already cancelled does not spawn at all.
 ///   For read-only queries, where nobody is left to want the answer.
+/// - `.interruptChild` — cancelling the calling task does what a terminal's
+///   Ctrl-C does: SIGINT to the child's whole process group (`interruptLadder`),
+///   then throws `CancellationError` once the child has exited. For a child
+///   that handles the interrupt itself and must be let to: `brew fetch`, whose
+///   download queue stops its curl workers and keeps only `.incomplete` files,
+///   and `brew update`, which rolls its repository back on SIGINT. A task
+///   already cancelled does not spawn at all. Any deadline uses the same ladder.
 ///
 /// ## Two things it does not protect against
 ///
@@ -128,7 +135,21 @@ public enum ChildProcess {
     public enum Cancellation: Sendable {
         case runToCompletion
         case terminateChild
+        case interruptChild
     }
+
+    /// `.interruptChild`'s teardown. SIGINT to the group, as a terminal sends
+    /// Ctrl-C to its foreground group: brew forwards it to its curl workers
+    /// itself, and the group reaches any other child (`brew update`'s `git`).
+    ///
+    /// Sent twice. `brew update` ignores SIGINT while it puts back what it
+    /// stashed (`trap '' SIGINT` in `cmd/update.sh`, Homebrew 7.0.9) and then
+    /// carries on, so a first one landing there is lost. SIGKILL only after a
+    /// minute without an exit: a kill cuts brew short with no cleanup at all.
+    static let interruptLadder: [TeardownStep] = [
+        .send(signal: .interrupt, toProcessGroup: true, allowedDurationToNextStep: .seconds(15)),
+        .send(signal: .interrupt, toProcessGroup: true, allowedDurationToNextStep: .seconds(45)),
+    ]
 
     public struct Deadline: Sendable, Equatable {
         public let terminateAfter: Duration
@@ -276,6 +297,12 @@ public enum ChildProcess {
             let outcome = try await request.raceDeadline(teardownOnCancel: request.ladder)
             try Task.checkCancellation()
             return outcome
+        case .interruptChild:
+            // As `.terminateChild`, with the interrupt in place of the kill.
+            try Task.checkCancellation()
+            let outcome = try await request.raceDeadline(teardownOnCancel: Self.interruptLadder)
+            try Task.checkCancellation()
+            return outcome
         }
     }
 
@@ -399,7 +426,8 @@ public enum ChildProcess {
             // Its own group (pgid = its pid), as `Process` gave it: a terminal's
             // Ctrl-C goes to our foreground group and must not reach a `ditto` or an
             // `osascript` halfway through a swap. Teardown signals the pid alone, so
-            // nothing else changes.
+            // nothing else changes — except `.interruptChild`'s, which signals this
+            // group, the child's own and never ours.
             options.processGroupID = 0
             let env: Subprocess.Environment
             if let environment {

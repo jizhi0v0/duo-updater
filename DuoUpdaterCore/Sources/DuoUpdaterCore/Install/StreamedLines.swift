@@ -150,11 +150,14 @@ final class StreamedLines: @unchecked Sendable {
     /// version, on `Process`, waited up to `eofCap` seconds after exit for a
     /// straggler's EOF; `ChildProcess` stops at the drain instead.)
     ///
-    /// `.runToCompletion`: both callers are brew changing what is installed.
+    /// `.runToCompletion` unless said otherwise: brew changing what is
+    /// installed. Only what comes before that — `BrewFormulaService`'s dry run
+    /// and `brew fetch` — passes `.interruptChild`.
     static func run(
         _ executablePath: String,
         _ arguments: [String],
         environment: [String: String],
+        onCancel: ChildProcess.Cancellation = .runToCompletion,
         onOutput: @Sendable @escaping (String) -> Void,
         onLaunch: (@Sendable (pid_t) -> Void)? = nil
     ) async throws -> (outcome: ChildProcess.Outcome, text: String) {
@@ -162,7 +165,7 @@ final class StreamedLines: @unchecked Sendable {
         let outcome = try await ChildProcess.run(
             executablePath, arguments, environment: environment,
             standardOutput: .discard, standardError: .mergeIntoOutput,
-            onCancel: .runToCompletion,
+            onCancel: onCancel,
             onOutputChunk: { chunk in
                 for line in collected.append(chunk) {
                     onOutput(line)

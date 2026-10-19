@@ -1188,6 +1188,19 @@ final class AppListModel {
     /// line), keyed by formula name — so the row shows real progress instead of a bare
     /// spinner. Cleared when the upgrade finishes.
     private(set) var formulaUpgradeNotes: [String: String] = [:]
+    /// The Cancel of each per-row formula upgrade (`InstallCancelState`): live
+    /// while it waits out a background `brew update` and while brew downloads
+    /// ahead (`BrewFormulaService.upgrade(formula:)`), greyed once the upgrade
+    /// itself started (its `InstallCommit`). Cleared when the row's run ends.
+    private(set) var formulaCancels: [String: InstallCancelState] = [:] {
+        didSet { smoothFormulaCancelRows() }
+    }
+    /// `formulaCancels` as the rows draw them (`InstallRowSmoothing`): an
+    /// accepted cancel says "Cancelling…" only once it has lasted
+    /// `InstallRowSmoothing.cancellingDelay`, as a tool row's does.
+    private(set) var formulaCancelRows = InstallRowSmoothing<String>.Output()
+    @ObservationIgnored private var formulaCancelSmoothing = InstallRowSmoothing<String>()
+    @ObservationIgnored private var formulaCancelWake: Task<Void, Never>?
 
     /// A newer Homebrew release to offer `brew update` for, at the top of the
     /// workbench Brew tree. nil = show nothing — including when the user disabled
@@ -4488,9 +4501,20 @@ final class AppListModel {
 
     /// Wait out a background `brew update` already running before one of our own
     /// brew runs starts: it would fail on brew's lock. One not yet started sees
-    /// the caller's flag and stands down (`brewIsIdle`).
+    /// the caller's flag and stands down (`brewIsIdle`). A cancel ends the wait
+    /// at once — a formula row's Cancel during it — and leaves the update, which
+    /// is not the row's, to run.
     private func afterBackgroundHomebrewUpdate() async {
-        _ = await backgroundHomebrewUpdateTask?.value
+        guard let task = backgroundHomebrewUpdateTask else { return }
+        let wait = BackgroundUpdateWait()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                wait.park(continuation)
+                Task { _ = await task.value; wait.end() }
+            }
+        } onCancel: {
+            wait.end()
+        }
     }
 
     /// Run `brew update` for the offered release, then re-check and re-read the
@@ -4579,22 +4603,88 @@ final class AppListModel {
         upgradingFormulae.insert(name)
         formulaUpgradeErrors[name] = nil
         formulaUpgradeNotes[name] = String(localized: "Starting…")
+        formulaCancels[name] = .available
         defer {
             upgradingFormulae.remove(name)
             formulaUpgradeNotes[name] = nil
+            formulaCancels[name] = nil
         }
-        await afterBackgroundHomebrewUpdate()
-        do {
-            try await brewFormulaService.upgrade(formula: name) { [weak self] line in
-                // Map brew's noisy raw output to a clean phase word; ignore lines we
-                // don't recognize so the label stays stable instead of flickering
-                // through dependency chatter ("✔ Bottle graphite2 …").
-                guard let phase = Self.brewUpgradePhase(from: line) else { return }
-                Task { @MainActor in self?.formulaUpgradeNotes[name] = phase }
+        // A job of its own (`InstallJobs.run`), so the row's Cancel reaches the
+        // wait for a background `brew update` and brew's downloads ahead of the
+        // upgrade, and the upgrade's `InstallCommit` greys it.
+        let jobID = Self.formulaJobID(name)
+        let (failure, cancelStopped) = await InstallJobs.run(jobID, phaseChanged: { [weak self] _ in
+            Task { @MainActor in self?.followFormulaPhase(name) }
+        }) { @MainActor [weak self] () -> ((any Error)?, Bool) in
+            guard let self else { return (nil, false) }
+            await self.afterBackgroundHomebrewUpdate()
+            var failure: (any Error)?
+            do {
+                try await self.brewFormulaService.upgrade(formula: name) { [weak self] line in
+                    // Map brew's noisy raw output to a clean phase word; ignore lines we
+                    // don't recognize so the label stays stable instead of flickering
+                    // through dependency chatter ("✔ Bottle graphite2 …").
+                    guard let phase = Self.brewUpgradePhase(from: line) else { return }
+                    Task { @MainActor in self?.formulaUpgradeNotes[name] = phase }
+                }
+            } catch {
+                failure = error
             }
-            await brewLane.handle(.afterAction("brew upgrade \(name)"))
-        } catch {
-            formulaUpgradeErrors[name] = error.localizedDescription
+            // Asked while the job is still registered: it is forgotten when it ends.
+            return (failure, InstallJobs.cancelStoppedSomething(jobID))
+        }
+        // Stopped before the upgrade started: nothing changed, so no error and
+        // no re-read.
+        if cancelStopped {
+            Log.app.notice("brew upgrade \(name, privacy: .public): cancelled before the upgrade started")
+            return
+        }
+        if let failure {
+            formulaUpgradeErrors[name] = failure.localizedDescription
+            return
+        }
+        await brewLane.handle(.afterAction("brew upgrade \(name)"))
+    }
+
+    /// The registry's id for a formula row's upgrade: apart from the app rows',
+    /// whose ids are bundle paths, and the tool rows' (`CLIToolsModel.jobID`).
+    nonisolated static func formulaJobID(_ name: String) -> String {
+        "brew-formula:\(name)"
+    }
+
+    /// A formula row's Cancel: through the registry (`InstallJobs.cancel`),
+    /// which refuses once the upgrade itself started — no error then (§5.8),
+    /// the row says it is already finishing. Cancelled is not failed: no red
+    /// line, no re-read.
+    func cancelFormulaUpgrade(_ name: String) {
+        guard formulaCancels[name] == .available else { return }
+        formulaCancels[name] = InstallCancelState.after(InstallJobs.cancel(Self.formulaJobID(name)))
+    }
+
+    /// The line under a formula row's name while it upgrades: brew's phase, or
+    /// "Cancelling…" once that is due (`formulaCancelRows`).
+    func formulaProgressLine(_ name: String) -> String? {
+        if formulaCancelRows.cancels[name] == .cancelling { return String(localized: "Cancelling…") }
+        return formulaUpgradeNotes[name]
+    }
+
+    /// The Cancel moves with the job: greyed once the upgrade started.
+    private func followFormulaPhase(_ name: String) {
+        guard let state = formulaCancels[name] else { return }
+        formulaCancels[name] = state.following(InstallJobs.phase(of: Self.formulaJobID(name)))
+    }
+
+    private func smoothFormulaCancelRows() {
+        let rows = formulaCancelSmoothing.update(stages: [:], cancels: formulaCancels, now: .now)
+        if rows != formulaCancelRows { formulaCancelRows = rows }
+        formulaCancelWake?.cancel()
+        formulaCancelWake = rows.nextWake.map { due in
+            Task { @MainActor [weak self] in
+                // cancel-ok: one-shot; a superseded wake is cancelled on purpose.
+                try? await Task.sleep(until: due, clock: .continuous)
+                guard !Task.isCancelled else { return }
+                self?.smoothFormulaCancelRows()
+            }
         }
     }
 
@@ -10839,4 +10929,30 @@ struct BackupVolumeSpace: Equatable, Sendable {
     let free: Int64
     let total: Int64
     var used: Int64 { max(total - free, 0) }
+}
+
+/// One wait for a background `brew update`, ended by the update or by the
+/// waiter's cancel, whichever comes first (`afterBackgroundHomebrewUpdate`).
+private final class BackgroundUpdateWait: @unchecked Sendable {
+    private let lock = NSLock()
+    private var ended = false
+    private var waiter: CheckedContinuation<Void, Never>?
+
+    func park(_ continuation: CheckedContinuation<Void, Never>) {
+        let now: Bool = lock.withLock {
+            if ended { return true }
+            waiter = continuation
+            return false
+        }
+        if now { continuation.resume() }
+    }
+
+    func end() {
+        let resume: CheckedContinuation<Void, Never>? = lock.withLock {
+            ended = true
+            defer { waiter = nil }
+            return waiter
+        }
+        resume?.resume()
+    }
 }

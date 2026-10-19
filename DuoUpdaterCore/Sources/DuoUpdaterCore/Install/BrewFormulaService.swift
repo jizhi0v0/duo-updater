@@ -303,7 +303,8 @@ public struct BrewUncheckedPackage: Sendable, Identifiable, Equatable {
 /// an acceptable trade for a CLI-tools convenience: no subprocess writes to the
 /// user's tap on a mere check, and `brew` itself auto-updates on the actual
 /// `brew upgrade` (>24h since last update) — so clicking Upgrade still lands the
-/// real latest even if the pre-count was conservative.
+/// real latest even if the pre-count was conservative. For a single formula that
+/// is its dry run (`prefetch`), which runs before the upgrade itself.
 public actor BrewFormulaService {
 
     /// A read-only `brew` invocation, factored out so tests can control timing and
@@ -333,11 +334,15 @@ public actor BrewFormulaService {
     private let executor: Executor
     private let caskReceiptTap: CaskReceiptTap
     private let caskInstallsAnApp: CaskInstallsAnApp
+    /// Where `run` finds brew for the upgrades and `brew update`. A seam for the
+    /// same reason as `Executor`: a test hands in a script, never the host's brew.
+    private let brewPath: @Sendable () -> String?
 
     public init() {
         self.executor = Self.executor(brewPath: HomebrewInstaller.brewPath)
         self.caskReceiptTap = { Self.realCaskReceiptTap($0) }
         self.caskInstallsAnApp = { Self.installsAnApp(caskToken: $0) }
+        self.brewPath = HomebrewInstaller.brewPath
     }
 
     /// Test seam — not public, this is a harness detail. `BrewFormulaServiceTests`
@@ -347,11 +352,13 @@ public actor BrewFormulaService {
     init(
         executor: @escaping Executor,
         caskReceiptTap: @escaping CaskReceiptTap = { _ in nil },
-        caskInstallsAnApp: @escaping CaskInstallsAnApp = { _ in false }
+        caskInstallsAnApp: @escaping CaskInstallsAnApp = { _ in false },
+        brewPath: @escaping @Sendable () -> String? = { nil }
     ) {
         self.executor = executor
         self.caskReceiptTap = caskReceiptTap
         self.caskInstallsAnApp = caskInstallsAnApp
+        self.brewPath = brewPath
     }
 
     public enum BrewError: LocalizedError {
@@ -976,12 +983,108 @@ public actor BrewFormulaService {
     /// Upgrade a single formula by name (`brew upgrade --formula <name>`). The
     /// `--formula` flag disambiguates a token that also names a cask, so this can
     /// never touch the cask channel.
+    ///
+    /// In two parts, so a cancel can stop it while it downloads. First
+    /// `prefetch`: brew's dry run and a `brew fetch` of what it lists, which a
+    /// cancel interrupts as Ctrl-C would. Then the upgrade itself, the point of
+    /// no return (`InstallCommit`): it finds its bottles downloaded and runs to
+    /// its end. brew's auto-update ran before the dry run, so it is not run a
+    /// second time here, inside the commit.
     public func upgrade(
         formula name: String,
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws {
-        try await run(["upgrade", "--formula", name], onOutput: onOutput)
+        let upgrade = ["upgrade", "--formula", name]
+        try await prefetch(upgrade, kind: "--formula", onOutput: onOutput)
+        try await InstallCommit.run("brew upgrade") {
+            try await self.run(upgrade, environment: ["HOMEBREW_NO_AUTO_UPDATE": "1"], onOutput: onOutput)
+        }
     }
+
+    /// What comes before an upgrade's commit, and a cancel stops:
+    /// `brew <upgrade> --dry-run`, with the auto-update brew runs before any
+    /// `upgrade`, then `brew fetch` of every package the dry run says it would
+    /// upgrade or install (`packagesToFetch`). Both are interrupted as a
+    /// terminal's Ctrl-C would (`.interruptChild`): brew's download queue stops
+    /// its curl workers and leaves `.incomplete` files, never a package in the
+    /// cache, and `brew update` rolls its repository back (Homebrew 7.0.9,
+    /// `download_queue.rb` `cancel`, `cmd/update.sh` `reset_on_interrupt`).
+    ///
+    /// Nothing here is needed for the upgrade to work: a dry run or fetch that
+    /// fails is logged and the upgrade downloads what is missing itself, as it
+    /// always did. Only a cancel ends it, by throwing `CancellationError`.
+    private func prefetch(
+        _ upgrade: [String],
+        kind: String,
+        onOutput: @Sendable @escaping (String) -> Void
+    ) async throws {
+        let (plan, planText) = try await launch(
+            upgrade + ["--dry-run"], onCancel: .interruptChild, onOutput: onOutput)
+        guard plan.succeeded else {
+            Log.install.notice("brew \(upgrade.joined(separator: " "), privacy: .public) --dry-run exited \(plan.terminationStatus, privacy: .public): nothing downloaded ahead")
+            return
+        }
+        let packages = Self.packagesToFetch(dryRun: planText)
+        guard !packages.isEmpty else { return }
+        let (fetch, _) = try await launch(
+            ["fetch", kind, "--"] + packages, environment: ["HOMEBREW_NO_AUTO_UPDATE": "1"],
+            onCancel: .interruptChild, onOutput: onOutput)
+        if !fetch.succeeded {
+            Log.install.notice("brew fetch \(packages.joined(separator: " "), privacy: .public) exited \(fetch.terminationStatus, privacy: .public): the upgrade downloads what is missing")
+        }
+    }
+
+    /// The packages a `brew upgrade --dry-run` says it would upgrade or install,
+    /// in its order, each once.
+    ///
+    /// They are the lines under each `==> Would upgrade …` and
+    /// `==> Would install …` heading, one package a line, as
+    /// `Formatter.version_changes` writes it: `name [old ->] new [(size)]`, the
+    /// columns padded with spaces (Homebrew 7.0.9 `utils/formatter.rb`). The
+    /// name is the formula's `full_specified_name`, which `brew fetch` takes.
+    /// Lines under other headings — pinned packages, deprecated ones, core
+    /// formulae that would build from source (listed above them already) — are
+    /// not taken, nor a line not of that shape, so prose brew prints between
+    /// sections is never read as a name.
+    static func packagesToFetch(dryRun output: String) -> [String] {
+        var names: [String] = []
+        var inSection = false
+        for raw in output.split(whereSeparator: \.isNewline) {
+            let line = MASInstaller.stripANSI(String(raw))
+            if line.hasPrefix("==> ") {
+                let heading = line.dropFirst(4)
+                inSection = heading.hasPrefix("Would upgrade ") || heading.hasPrefix("Would install ")
+                continue
+            }
+            guard inSection else { continue }
+            let fields = line.split(whereSeparator: \.isWhitespace).map(String.init)
+            guard let name = fields.first, Self.isVersionChangeLine(fields),
+                  Self.isPackageName(name)
+            else { continue }
+            if !names.contains(name) { names.append(name) }
+        }
+        return names
+    }
+
+    /// `name new`, `name new (size)`, `name old -> new` or `name old -> new (size)`.
+    private static func isVersionChangeLine(_ fields: [String]) -> Bool {
+        let sized = fields.last.map { $0.hasPrefix("(") && $0.hasSuffix(")") } ?? false
+        let core = sized ? fields.dropLast() : fields[...]
+        switch core.count {
+        case 2: return true
+        case 4: return core[core.startIndex + 2] == "->"
+        default: return false
+        }
+    }
+
+    /// A formula or cask name, bare or `user/tap/name`.
+    private static func isPackageName(_ s: String) -> Bool {
+        let ns = s as NSString
+        return packageNamePattern.firstMatch(in: s, range: NSRange(location: 0, length: ns.length)) != nil
+    }
+
+    private static let packageNamePattern = try! NSRegularExpression(
+        pattern: #"^[A-Za-z0-9][A-Za-z0-9@+._-]*(?:/[A-Za-z0-9][A-Za-z0-9@+._-]*){0,2}$"#)
 
     /// Name of the formula a `brew upgrade` success line reports, or nil for any
     /// other line. brew prints exactly one such line per formula it finishes
@@ -1019,32 +1122,45 @@ public actor BrewFormulaService {
     }
 
     /// Shared streaming runner for the `brew upgrade …` / `brew update` variants above.
+    ///
+    /// Runs to completion if the caller is cancelled: this is brew replacing what
+    /// is installed, and a SIGKILL halfway is worse than letting it finish (the
+    /// `terminationHandler` wait it replaced was not cancellable either). Inside
+    /// a commit, brew having run is the hand-over (`InstallCommit.handedOver`):
+    /// a failed upgrade may still have poured some of what it was asked for.
     private func run(
         _ arguments: [String],
         environment extra: [String: String] = [:],
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws {
-        guard let brew = HomebrewInstaller.brewPath() else { throw BrewError.brewNotFound }
+        let (outcome, output) = try await launch(
+            arguments, environment: extra, onCancel: .runToCompletion, onOutput: onOutput)
+        InstallCommit.handedOver()
+        guard outcome.succeeded else {
+            throw BrewError.failed(code: outcome.terminationStatus, output: output)
+        }
+    }
 
-        // Non-interactive so brew never blocks on a prompt we can't answer. We do
-        // NOT set HOMEBREW_NO_AUTO_UPDATE here: on the real upgrade, letting brew
-        // refresh first is correct — it's what a terminal `brew upgrade` does, and
-        // it ensures we land the genuine latest even if the pre-count was stale.
+    /// Spawn brew and stream its lines; a non-zero exit is returned, not thrown.
+    private func launch(
+        _ arguments: [String],
+        environment extra: [String: String] = [:],
+        onCancel: ChildProcess.Cancellation,
+        onOutput: @Sendable @escaping (String) -> Void
+    ) async throws -> (outcome: ChildProcess.Outcome, text: String) {
+        guard let brew = brewPath() else { throw BrewError.brewNotFound }
+
+        // Non-interactive so brew never blocks on a prompt we can't answer.
+        // HOMEBREW_NO_AUTO_UPDATE is the caller's: a terminal `brew upgrade`
+        // refreshes first, and so does the first brew an upgrade runs.
         var env = ProcessInfo.processInfo.environmentWithSystemProxy
         env.merge(extra) { _, user in user }
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["NONINTERACTIVE"] = "1"
 
         // Lines, not chunks, and until the output ends, not just the exit — see
-        // `StreamedLines`. Runs to completion if the caller is cancelled: this is
-        // brew replacing what is installed, and a SIGKILL halfway is worse than
-        // letting it finish (the `terminationHandler` wait it replaced was not
-        // cancellable either).
-        let (outcome, output) = try await StreamedLines.run(
-            brew, arguments, environment: env, onOutput: onOutput)
-
-        guard outcome.succeeded else {
-            throw BrewError.failed(code: outcome.terminationStatus, output: output)
-        }
+        // `StreamedLines`.
+        return try await StreamedLines.run(
+            brew, arguments, environment: env, onCancel: onCancel, onOutput: onOutput)
     }
 }

@@ -136,9 +136,21 @@ public enum InstallJobs {
         }
     }
 
+    /// A job id as the log shows it: its leaf. An app row's id is the bundle's
+    /// path and a command-line tool's ends in the binary's, both under the
+    /// user's home, where the prefix is only their account name — the same
+    /// rule as the install log's other paths (`InstallCoordinator`).
+    static func logName(_ id: String) -> String {
+        (id as NSString).lastPathComponent
+    }
+
     /// Forget job `id`, whatever its phase. Call it when the job's task ends.
     public static func unregister(_ id: String) {
-        registry.withLock { $0[id] = nil }
+        let cancelledAt = registry.withLock { jobs in jobs.removeValue(forKey: id)?.cancelRequestedAt }
+        if let cancelledAt {
+            Log.install.notice(
+                "job \(logName(id), privacy: .public) ended \(Log.seconds(.now - cancelledAt), privacy: .public) after its cancel was requested")
+        }
     }
 
     /// Where job `id` stands, or nil when it is not registered.
@@ -159,16 +171,20 @@ public enum InstallJobs {
             if let label = job.committing { return (.tooLate(committing: label), nil) }
             let first = !job.cancelRequested
             job.cancelRequested = true
+            if first { job.cancelRequestedAt = .now }
             jobs[id] = job
             return (.cancelled, first ? job.cancel : nil)
         }
         // Outside the lock: the closure is the host's, and cancelling a task
         // runs its cancellation handlers inline.
+        if toCall != nil {
+            Log.install.notice("cancel requested: \(logName(id), privacy: .public) is preparing")
+        }
         toCall?()
         // Not an error: the job finishes, which is the rule past the commit.
         if case .tooLate(let label) = answer {
             Log.install.notice(
-                "cancel requested after commit point — ignored: \(id, privacy: .public) is in \(label, privacy: .public)")
+                "cancel requested after commit point — ignored: \(logName(id), privacy: .public) is in \(label, privacy: .public)")
         }
         return answer
     }
@@ -251,6 +267,13 @@ public enum InstallJobs {
         let cancel: @Sendable () -> Void
         let phaseChanged: (@Sendable (Phase) -> Void)?
         var cancelRequested = false
+        /// When the first cancel of this job was asked for, so its end can say
+        /// how long the row read "Cancelling…". The job ends after the install's
+        /// wrap-up (its journal entry and rollback point), which comes after the
+        /// `install cancelled at` line. On the download-and-swap routes the work
+        /// directory is removed before that line (`fetchThenSwap`'s `defer`), so
+        /// that removal is inside "cancel requested → install cancelled at".
+        var cancelRequestedAt: ContinuousClock.Instant?
         /// The label of the commit that moved the job past preparing.
         var committing: String?
         /// Commits of this job running now (two can, from a task group).

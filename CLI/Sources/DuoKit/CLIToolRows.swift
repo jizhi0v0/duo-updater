@@ -442,38 +442,60 @@ enum CLIToolRows {
             // fx's, mise's `--version`), which is `.terminateChild` and which a
             // cancelled task would refuse to spawn: the update would be reported
             // failed after it had succeeded.
+            //
+            // A signal refused while a command ran still stands. When that
+            // command did not land — uv's, bun's, mise's run with a rejected
+            // token — the job is preparing again before its retry, and the
+            // signal is applied then: the retry does not start. The app's row
+            // re-arms its Cancel at that point (`CLIToolsModel.followPhase`);
+            // `duo` has no second press to wait for.
             let jobID = "cli-tool:\(status.kind.rawValue):\(status.path)"
-            let (outcome, after, exit, cancelStopped) = await InstallJobs.run(jobID) {
-                () -> (CLIToolUpdateOutcome, String?, CLIToolExit.Status?, Bool) in
-                let exits = ExitLog()
-                let outcome = await CLIToolExit.$observer.withValue({ exits.append($0) }) {
-                    await RequestAttribution.withApp(CLITools.attributionID(status)) {
-                        await provider.update(status) { line in err("   \(line)") }
+            let stop = StopRequest()
+            let (outcome, after, exit, cancelStopped) = await withTaskCancellationHandler {
+                await InstallJobs.run(jobID, phaseChanged: { phase in
+                    if phase == .preparing, stop.isSet { InstallJobs.cancel(jobID) }
+                }) { () -> (CLIToolUpdateOutcome, String?, CLIToolExit.Status?, Bool) in
+                    let exits = ExitLog()
+                    let outcome = await CLIToolExit.$observer.withValue({ exits.append($0) }) {
+                        await RequestAttribution.withApp(CLITools.attributionID(status)) {
+                            await provider.update(status) { line in err("   \(line)") }
+                        }
                     }
-                }
-                var after: String?
-                if case .updated(let version) = outcome {
-                    // The updater's own re-read first, a fresh check's when it had
-                    // none — the app's order (`CLIToolsModel.settle`).
-                    after = version
-                    if after == nil {
-                        after = await provider.check().statuses.first { $0.path == status.path }?.installedVersion
+                    var after: String?
+                    if case .updated(let version) = outcome {
+                        // The updater's own re-read first, a fresh check's when it had
+                        // none — the app's order (`CLIToolsModel.settle`).
+                        after = version
+                        if after == nil {
+                            after = await provider.check().statuses.first { $0.path == status.path }?.installedVersion
+                        }
                     }
+                    // Asked while the job is still registered: it is forgotten when it ends.
+                    return (outcome, after, exits.last, InstallJobs.cancelStoppedSomething(jobID))
                 }
-                // Asked while the job is still registered: it is forgotten when it ends.
-                return (outcome, after, exits.last, InstallJobs.cancelStoppedSomething(jobID))
+            } onCancel: {
+                // Set, then the phase read: if the job went back to preparing
+                // before the flag was set, its `phaseChanged` read the flag unset
+                // and this read sees `.preparing`; one of the two cancels it.
+                stop.set()
+                if InstallJobs.phase(of: jobID) == .preparing { InstallJobs.cancel(jobID) }
             }
-            // The signal kept the command from starting: whatever the provider
-            // made of the refused commit ("could not start") is no failure. A
-            // cancel accepted only after the command had run and failed stopped
-            // nothing, and that failure is the result.
+            // The signal kept a command from starting — the first, or a retry
+            // after a refused run: whatever the provider made of the refused
+            // commit ("could not start") is no failure, and nothing was updated.
+            // A cancel accepted only after the command had run and failed, with
+            // nothing left to start, stopped nothing, and that failure is the
+            // result.
             if cancelStopped {
                 if json {
                     var row = payload(status, Result(outcome: .cancelled))
                     row["stage"] = InstallStage.runningCommand("").name
                     NDJSON.emit(row)
                 } else {
-                    out("   cancelled before its command started — not updated")
+                    // A command that ran reported its exit (`CLIToolExit`).
+                    out(exit == nil
+                        ? "   cancelled before its command started — not updated"
+                        : "   cancelled before its retry started — not updated")
                 }
                 tally.record(.cancelled)
                 continue
@@ -520,6 +542,15 @@ enum CLIToolRows {
         ]
         if let command { payload["command"] = command }
         return payload
+    }
+
+    /// Whether the signal reached the tool's update, from its cancellation
+    /// handler — read when the job is preparing again after a refused cancel.
+    private final class StopRequest: @unchecked Sendable {
+        private let lock = NSLock()
+        private var requested = false
+        func set() { lock.withLock { requested = true } }
+        var isSet: Bool { lock.withLock { requested } }
     }
 
     /// The exit statuses an update's commands ended with, gathered from

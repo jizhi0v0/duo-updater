@@ -512,6 +512,39 @@ import Foundation
         #expect(err.all.isEmpty)
     }
 
+    /// A signal while a command runs is refused — but when that command does
+    /// not land (uv's, bun's, mise's run with a rejected token) and the update
+    /// goes on to a retry, the signal still stands: the retry does not start,
+    /// and the row is cancelled, saying it was the retry that was stopped.
+    ///
+    /// Mutation: drop the re-applied cancel (`phaseChanged` and the `onCancel`
+    /// phase read in `CLIToolRows.apply`) → the retry runs and the row is
+    /// installed.
+    @Test func aRetryAfterARefusedCommandDoesNotStartOnceSignalled() async {
+        let inCommand = Latch()
+        let cancelled = Latch()
+        let retryRan = Flag()
+        let provider = RetryingProvider(
+            kind: .uv, inCommand: inCommand, cancelled: cancelled, retryRan: retryRan)
+        let out = Lines(), err = Lines()
+        let task = Task {
+            var tally = Install.Tally()
+            await CLIToolRows.apply([Self.uvRetry], providers: [provider], json: false,
+                                    tally: &tally, out: { out.add($0) }, err: { err.add($0) })
+            return tally
+        }
+        await inCommand.wait()
+        task.cancel()
+        cancelled.open()
+        let tally = await task.value
+        #expect(!retryRan.isSet)
+        #expect(tally.cancelled == 1)
+        #expect(tally.installed == 0)
+        #expect(tally.failed == 0)
+        #expect(out.all.contains("   cancelled before its retry started — not updated"))
+        #expect(err.all.isEmpty)
+    }
+
     /// A signal while a staged restart waits for the app to quit ends that wait —
     /// the "(Ctrl-C to stop waiting)" the slow-quit line promises — with the
     /// bail line, although the step runs where cancellation does not reach. The
@@ -721,6 +754,36 @@ import Foundation
         func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog { Changelog(entries: []) }
     }
 
+    /// A tool whose first command is refused (exits non-zero, so it does not
+    /// land) while the signal arrives, and which then retries, as uv, bun and
+    /// mise do after a rejected token.
+    struct RetryingProvider: CLIToolProvider {
+        let kind: CLIToolKind
+        let inCommand: Latch
+        let cancelled: Latch
+        let retryRan: Flag
+
+        func scan() async -> [CLIToolSighting] { [] }
+        func check() async -> CLIToolReport { CLIToolReport(kind: kind, statuses: [], context: .fx(FxSettings())) }
+        func update(_ status: CLIToolStatus, progress: @escaping @Sendable (String) -> Void) async -> CLIToolUpdateOutcome {
+            let first = try? await InstallCommit.run("update command", landed: { (code: Int32) in code == 0 }) {
+                inCommand.open()
+                await cancelled.wait()
+                return Int32(1)
+            }
+            guard first != nil else { return .failed(message: "the command could not start", output: "") }
+            CLIToolExit.observer?(CLIToolExit.Status(
+                executable: "/ZZFixture-home/signalgate-retry/uv", status: 1, signal: false, timedOut: false))
+            do {
+                try await InstallCommit.run("update command") { retryRan.set() }
+            } catch {
+                return .failed(message: "the retry could not start", output: "")
+            }
+            return .updated(version: "1.1.0")
+        }
+        func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog { Changelog(entries: []) }
+    }
+
     // MARK: - Fixtures
 
     /// A `uv` copy of its own for each test that cancels a running tool update:
@@ -728,6 +791,7 @@ import Foundation
     /// parallel test on the same path would share that job.
     static let uvMidway = CLIToolRowsTests.status(.uv, "/ZZFixture-home/signalgate-midway/uv")
     static let uvPreparing = CLIToolRowsTests.status(.uv, "/ZZFixture-home/signalgate-preparing/uv")
+    static let uvRetry = CLIToolRowsTests.status(.uv, "/ZZFixture-home/signalgate-retry/uv")
 
     /// Ten lines 0.2 s apart (~2 s), then the marker, then exit 0.
     static func tenLines(marker: String) -> String {

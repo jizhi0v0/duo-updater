@@ -138,9 +138,10 @@ struct InstallJournalTests {
         child: InstallJournal.ProcessStamp? = nil,
         oldVersion: String = "1.0", target: String? = "2.0",
         oldCDHash: String? = nil, workDirs: [URL] = [],
-        mounts: [InstallJournal.Mount] = [], damage: InstallJournal.Damage? = nil
+        mounts: [InstallJournal.Mount] = [], damage: InstallJournal.Damage? = nil,
+        siblings: [String]? = []
     ) -> InstallJournal.Entry {
-        InstallJournal.Entry(
+        var made = InstallJournal.Entry(
             job: UUID().uuidString, appID: app.path, appName: "ZZFixture-Journal",
             bundleID: bundleID, appPath: app.path,
             oldVersion: oldVersion, oldBuild: nil, oldCDHash: oldCDHash,
@@ -148,6 +149,8 @@ struct InstallJournalTests {
             backupKey: BackupStore.key(bundleID: bundleID, path: app),
             startedAt: Date(), owner: owner, child: child,
             workDirectories: workDirs.map(\.path), mounts: mounts, damage: damage)
+        made.sameIDSiblings = siblings
+        return made
     }
 
     @discardableResult
@@ -1127,20 +1130,32 @@ extension InstallJournalTests {
     /// new one), the file goes, and so does the old path's rollback point,
     /// which the sweep would otherwise keep for good. A same-ID app below the
     /// target is no such move: still missing, point kept.
+    /// A same-ID app that was already beside it when the install began — a
+    /// channel sibling (DB Browser for SQLite Nightly, Android Studio's
+    /// previews), however new — is no move either: the app is missing and its
+    /// rollback point stays. Neither is anything for a file written before the
+    /// siblings were recorded.
     /// Mutations: drop the `movedCopy` check in `classify` → `.missing`, red;
     /// drop the point's removal → the point stays, red; drop the version
-    /// floor in `movedCopy` → the second case resolves, red.
+    /// floor in `movedCopy` → the second case resolves, red; drop the
+    /// `siblings` exclusion → the third resolves, red; treat nil as none → the
+    /// fourth resolves, red.
     @Test func aCaskRenamedByItsUpdateIsMovedNotMissing() async throws {
-        for (renamedVersion, moved) in [("2.0", true), ("1.0", false)] {
+        let sibling = "ZZFixture-Journal Pro.app"
+        for (renamedVersion, siblingsAtStart, moved) in [
+            ("2.0", [] as [String]?, true), ("1.0", [], false), ("3.0", [sibling], false), ("2.0", nil, false),
+        ] {
             try await withScratch { scratch in
                 let app = try makeApp(in: scratch.apps, version: "1.0")
                 let key = BackupStore.key(bundleID: bundleID, path: app)
                 try await BackupStore.saveInstallRollbackPoint(
                     appPath: app, key: key, version: "1.0", bundleID: bundleID)
                 try FileManager.default.removeItem(at: app)
-                try makeApp(in: scratch.apps, version: renamedVersion, name: "ZZFixture-Journal Pro.app",
-                            withExecutable: true)
-                let file = try store(entry(for: app, owner: try await deadProcess()), in: scratch)
+                let renamed = try makeApp(in: scratch.apps, version: renamedVersion, name: sibling, withExecutable: true)
+                let file = try store(
+                    entry(for: app, owner: try await deadProcess(),
+                          siblings: siblingsAtStart?.map { _ in renamed.path }),
+                    in: scratch)
 
                 let processed = try await process(scratch)
                 if moved {
@@ -1175,8 +1190,22 @@ extension InstallJournalTests {
     /// A reinstall over an interrupted install that moves the app (a renamed
     /// cask) repaired it: the earlier file is cleared, verified where the app
     /// went, and the old path's rollback point goes with it.
-    /// Mutation: verify at the old path only → the interrupted row stays, red.
+    /// One that was there before the reinstall began (`begin` records it) is
+    /// not where the app went.
+    /// Mutations: verify at the old path only → the interrupted row stays,
+    /// red; `begin` records no siblings → the second case clears, red.
     @Test func aReinstallThatMovedTheAppClearsTheInterruptedOne() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            try await adHocSign(try makeApp(
+                in: scratch.apps, version: "3.0", name: "ZZFixture-Journal Nightly.app", withExecutable: true))
+            try FileManager.default.removeItem(at: app)
+            try store(entry(for: app, owner: try await deadProcess(), damage: .missing), in: scratch)
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            await recording.finish(succeeded: true)
+            #expect(InstallJournal.interruptedInstalls().count == 1)
+        }
         try await withScratch { scratch in
             let app = try makeApp(in: scratch.apps, version: "1.0")
             let key = BackupStore.key(bundleID: bundleID, path: app)

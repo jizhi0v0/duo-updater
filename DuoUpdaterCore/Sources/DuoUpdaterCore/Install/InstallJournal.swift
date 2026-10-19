@@ -133,6 +133,12 @@ public enum InstallJournal {
         /// before the body runs: from then on the app is someone's to change.
         /// Nil until then, and in files written before this field existed.
         var committed: Bool? = nil
+        /// The other apps with this bundle ID in the app's folder when the
+        /// install began — channel siblings such as "DB Browser for SQLite
+        /// Nightly.app" or Android Studio's previews. Never taken for where
+        /// the update moved the app (`movedCopy`). Nil in files written before
+        /// this existed: no app is then taken for a moved one.
+        var sameIDSiblings: [String]? = nil
         /// Set by ``Recording/finish()`` on a file it keeps. The install is
         /// over, whether or not the process that wrote it still runs — the
         /// menu-bar app goes on for days after one.
@@ -235,7 +241,9 @@ public enum InstallJournal {
             // A reinstall that moved the app (a renamed cask) left nothing at
             // the old path to verify: verify where it went.
             let moved = succeeded && !BackupStore.hasReadableBundle(at: app)
-                ? InstallJournal.movedCopy(of: app, bundleID: mine.bundleID, atLeast: mine.targetSide) : nil
+                ? InstallJournal.movedCopy(
+                    of: app, bundleID: mine.bundleID, atLeast: mine.targetSide, excluding: mine.sameIDSiblings)
+                : nil
             if !earlier.isEmpty,
                await InstallJournal.isVerifiablyAt(
                    mine.targetSide, app: moved ?? app,
@@ -408,23 +416,41 @@ public enum InstallJournal {
     /// beside the old path, and the old one is gone. Another app in the same
     /// folder with `bundleID`, readable, with its executable, at `target` or
     /// newer. Nil without a bundle ID or a target to go by.
-    static func movedCopy(of app: URL, bundleID: String?, atLeast target: VersionSide) -> URL? {
-        guard let bundleID, !bundleID.isEmpty, !target.isEmpty else { return nil }
-        let folder = app.deletingLastPathComponent()
-        guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return nil }
-        for name in names.sorted() where name.hasSuffix(".app") && name != app.lastPathComponent {
-            let candidate = folder.appendingPathComponent(name, isDirectory: true)
-            // Read from the file: `Bundle(url:)` caches per URL, and this one
-            // was just written.
-            guard BackupStore.hasReadableBundle(at: candidate), !namesAMissingExecutable(candidate),
-                  let data = try? Data(contentsOf: BundleLayout.infoPlistURL(for: candidate)),
-                  let info = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-                  info["CFBundleIdentifier"] as? String == bundleID
-            else { continue }
+    ///
+    /// `siblings` are the same-ID apps the folder held when the install began
+    /// (``Entry/sameIDSiblings``): a channel sibling already there is never
+    /// the moved copy — taking it for one would resolve a missing app as
+    /// moved and discard its only way back. Nil (a file from before that was
+    /// recorded): nothing is.
+    static func movedCopy(
+        of app: URL, bundleID: String?, atLeast target: VersionSide, excluding siblings: [String]?
+    ) -> URL? {
+        guard let siblings, !target.isEmpty else { return nil }
+        let before = Set(siblings.map(standardized))
+        for candidate in sameIDApps(beside: app, bundleID: bundleID) where !before.contains(standardized(candidate.path)) {
+            guard BackupStore.hasReadableBundle(at: candidate), !namesAMissingExecutable(candidate) else { continue }
             let onDisk = versions(at: candidate)
             if !onDisk.isEmpty, !VersionComparator.isNewer(target, than: onDisk) { return candidate }
         }
         return nil
+    }
+
+    /// The other apps in `app`'s folder whose Info.plist says `bundleID`.
+    /// Read from the file: `Bundle(url:)` caches per URL, and a moved copy was
+    /// just written.
+    static func sameIDApps(beside app: URL, bundleID: String?) -> [URL] {
+        guard let bundleID, !bundleID.isEmpty else { return [] }
+        let folder = app.deletingLastPathComponent()
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return [] }
+        return names.sorted().compactMap { name -> URL? in
+            guard name.hasSuffix(".app"), name != app.lastPathComponent else { return nil }
+            let candidate = folder.appendingPathComponent(name, isDirectory: true)
+            guard let data = try? Data(contentsOf: BundleLayout.infoPlistURL(for: candidate)),
+                  let info = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+                  info["CFBundleIdentifier"] as? String == bundleID
+            else { return nil }
+            return candidate
+        }
     }
 
     /// Whether the Info.plist names a `CFBundleExecutable` the bundle does not
@@ -474,7 +500,7 @@ public enum InstallJournal {
         }
         let onDisk = versions(at: path)
         let job = UUID().uuidString
-        let entry = Entry(
+        var entry = Entry(
             job: job, appID: app.id, appName: app.name, bundleID: app.bundleID,
             appPath: path.path,
             oldVersion: onDisk.marketing ?? app.shortVersion,
@@ -484,6 +510,7 @@ public enum InstallJournal {
             route: route.rawValue,
             backupKey: BackupStore.key(bundleID: app.bundleID, path: path),
             startedAt: Date(), owner: owner)
+        entry.sameIDSiblings = sameIDApps(beside: path, bundleID: app.bundleID).map(\.path)
         do {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         } catch {
@@ -670,7 +697,9 @@ public enum InstallJournal {
                 // it could report one. `.notice`, like `install returned`.
                 // A moved app is read where it went, not at the empty old path.
                 let readAt = resolution == .moved
-                    ? movedCopy(of: URL(fileURLWithPath: entry.appPath), bundleID: entry.bundleID, atLeast: entry.targetSide)
+                    ? movedCopy(
+                        of: URL(fileURLWithPath: entry.appPath), bundleID: entry.bundleID,
+                        atLeast: entry.targetSide, excluding: entry.sameIDSiblings)
                     : nil
                 let at = readAt ?? URL(fileURLWithPath: entry.appPath)
                 Log.install.notice(
@@ -717,7 +746,9 @@ public enum InstallJournal {
             if !FileManager.default.fileExists(atPath: app.path) {
                 // Not missing: moved. Offering the old version back at the
                 // old path would leave two copies and spend the way back.
-                if movedCopy(of: app, bundleID: entry.bundleID, atLeast: entry.targetSide) != nil {
+                if movedCopy(
+                    of: app, bundleID: entry.bundleID, atLeast: entry.targetSide, excluding: entry.sameIDSiblings
+                ) != nil {
                     return .resolved(.moved)
                 }
                 return .damaged(.missing)

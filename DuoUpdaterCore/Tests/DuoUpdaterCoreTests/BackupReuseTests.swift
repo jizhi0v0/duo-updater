@@ -333,6 +333,50 @@ import Testing
         }
     }
 
+    /// What a process could have been started from: executables and
+    /// symlinks, by file name, anywhere in the bundle.
+    @Test func executableNamesAreWhatAProcessCouldBeNamedFor() throws {
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DuoExecNames-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: base) }
+        let app = try makeApp(in: base)
+        let macOS = app.appendingPathComponent("Contents/MacOS")
+        try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
+        let main = macOS.appendingPathComponent("service")
+        try Data("x".utf8).write(to: main)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: main.path)
+        try FileManager.default.createSymbolicLink(
+            atPath: macOS.appendingPathComponent("alias").path, withDestinationPath: "service")
+        let names = Set(BackupStore.executableNames(in: app))
+        #expect(names.contains("service"))
+        #expect(names.contains("alias"))
+        #expect(!names.contains("marker.txt"))
+        #expect(!names.contains("Info.plist"))
+
+        // A process the kernel cannot place (its bundle replaced under it, as
+        // RustDesk's root `service` was) counts when its name is one of these.
+        let unplaced = { (names: [String]) in
+            BackupStore.mayHaveProcesses(
+                insideBundle: app, hasProcesses: { _ in false }, unplacedNames: { names })
+        }
+        #expect(unplaced(["service"]))
+        #expect(unplaced(["alias"]))
+        #expect(!unplaced(["marker.txt"]))
+        #expect(!unplaced([]))
+        #expect(BackupStore.mayHaveProcesses(
+            insideBundle: app, hasProcesses: { _ in true }, unplacedNames: { [] }))
+    }
+
+    @Test func aShortNameMatchesTheExecutableItWasCutFrom() {
+        // 15 bytes kept: a cut name matches the executable it begins.
+        #expect(BackupStore.anyExecutable(["SourceKitService"], isNamed: ["SourceKitServic"]))
+        #expect(BackupStore.anyExecutable(["service", "Foo"], isNamed: ["service"]))
+        // A shorter name is the whole name.
+        #expect(!BackupStore.anyExecutable(["service-helper"], isNamed: ["service"]))
+        #expect(!BackupStore.anyExecutable(["Foo"], isNamed: ["Bar"]))
+        #expect(!BackupStore.anyExecutable([], isNamed: ["Foo"]))
+    }
+
     /// An input method's user-data snapshot is attached to the fresh outbox
     /// generation after the save, so its bundle is always copied.
     @Test func anInputMethodIsCopiedAgain() async throws {

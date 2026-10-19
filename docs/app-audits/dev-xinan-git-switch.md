@@ -7,7 +7,7 @@
 - Team ID: `9FX2RB5LD6`（Developer ID + 公证）
 - 观测版本: 1.0.1（`CFBundleVersion` 1）；观测日期: 2026-10-19
 - 自更新机制: 无。没有 `SUFeedURL`、没有 Sparkle，主执行文件里没有 GitHub / 更新检查地址
-- 分发: 只有 GitHub Releases。没有 Homebrew cask（`brew search --cask git-switch` 无结果），没有 MAS
+- 分发: 只有 GitHub Releases。没有 Homebrew cask（`brew search --cask git-switch` 只返回无关的 `git-it`），没有 MAS
 
 ## 覆盖矩阵
 
@@ -63,7 +63,7 @@
     Notarized Developer ID，Team `9FX2RB5LD6`，`diff -r --no-dereference` 与厂商包一致
   - 第二轮（运行中）：改过版本号的副本封印已破、不能启动；app 没有自更新器，不存在碰撞。装好的 1.0.1 启动后
     `duo restart "Git Switch"` → `restarted`，进程换了新 PID
-- 格式: zip（包根就是 `Git Switch.app`）。同一 release 还有一个 dmg（app + `/Applications` 链接 + `Install Guide.txt`），规则不用它
+- 格式: zip（包根就是 `Git Switch.app`）。同一 release 还有一个 dmg（v1.0.1 的 dmg 里只有 `Git Switch.app`；仓库里加 `/Applications` 链接和 `Install Guide.txt` 的 `package.sh` 改动晚于这个 release），规则不用它
 - Pattern: `^Git-Switch-v[0-9]+(?:\.[0-9]+)+\.zip$`，kind `.zip`
 - 校验: GitHub 资产 `digest`（`sha256:48fc9723…994a2a`）与下载文件 `shasum -a 256` 相等；规则无需额外配置
 - **读的是**: 人人可手动下载的 GA（GitHub latest release）

@@ -7,8 +7,8 @@ enum dev_xinan_git_switch {
         // Git Switch (anxndsgn/git-switch, Team 9FX2RB5LD6) — a menu-bar app
         // that switches the global git user.name/user.email. No SUFeedURL and no
         // updater of its own; no Homebrew cask. Each release carries
-        // `Git-Switch-v<version>.zip` (root is `Git Switch.app`) and a dmg of the
-        // same app beside an install guide; the rule takes the zip.
+        // `Git-Switch-v<version>.zip` (root is `Git Switch.app`) and a dmg holding
+        // the same app; the rule takes the zip.
         //
         // The version is `MARKETING_VERSION` in the Xcode project, not stamped
         // from the tag, so the two agree only as long as the vendor bumps both

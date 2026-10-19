@@ -136,6 +136,10 @@ public enum Install {
         // longer the way back to anything. Silent; skipped when another process
         // holds the install lock.
         await InstallCoordinator.sweepSettledInstallRollbackPoints()
+        // Install backups a killed run left pending: the copy of an app that
+        // changed since becomes its backup (`sweepPendingBackups`). Silent;
+        // skipped when another process holds the install lock.
+        await InstallCoordinator.sweepPendingBackups()
         // The backstop for scratch directories no journal accounts for. The
         // app runs it daily; `duo` exits, so it runs it each time it starts.
         await InstallScratchSweep.sweep()
@@ -1123,6 +1127,11 @@ public enum Install {
             defer {
                 await InstallCoordinator.settleInstallRollbackPoint(
                     for: toInstall.app, journal: journal, succeeded: applied)
+                // The backup taken above waited in the pending slot; it
+                // replaces the earlier one only if the app changed — what the
+                // menu-bar app's install does.
+                await InstallCoordinator.settlePendingBackup(
+                    for: toInstall.app, succeeded: applied)
             }
             // Cancelled during the copy (which then kept nothing) or just after
             // it (a finished backup is kept): nothing is fetched.

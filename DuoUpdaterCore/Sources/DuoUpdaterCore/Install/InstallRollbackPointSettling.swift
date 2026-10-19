@@ -135,6 +135,11 @@ extension InstallCoordinator {
 actor InstallRollbackPointClaims {
     static let shared = InstallRollbackPointClaims()
 
+    /// The same claims for an install's pending backup
+    /// (`InstallCoordinator.backUp` → `settlePendingBackup`) against
+    /// `sweepPendingBackups`.
+    static let pendingBackups = InstallRollbackPointClaims()
+
     private var taking: [String: Int] = [:]
     private var sweeping: Set<String> = []
     private var waiting: [String: [CheckedContinuation<Void, Never>]] = [:]

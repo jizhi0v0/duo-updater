@@ -562,7 +562,13 @@ import Testing
         var partitionError: String?
         for round in 1...3 {
             if round > 1 {
-                await TestDiskImages.detach(raw)
+                // By the device this fixture attached, through `launch`, so this
+                // detach is bounded like every other child here.
+                if let detachError = try await retrying(
+                    "/usr/bin/hdiutil", ["detach", device, "-force"], for: .seconds(30)) {
+                    Issue.record("hdiutil detach of the given-up disk still failing after 30 s: \(detachError)")
+                    throw FixtureFailed()
+                }
                 try? FileManager.default.removeItem(at: raw)
             }
             _ = try await sh("/usr/bin/hdiutil", [

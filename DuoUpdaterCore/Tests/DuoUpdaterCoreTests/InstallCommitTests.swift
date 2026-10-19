@@ -262,6 +262,35 @@ import Testing
         #expect(!cancelled.value)
     }
 
+    /// A body that handed the install over — App Store's button pressed, brew
+    /// run — and then threw has not undone it: the job stays committing and a
+    /// cancel is too late, so the row's Cancel stays greyed through the
+    /// wrap-up. The mark set by a nested commit (a pass-through) is the outer
+    /// one's. Outside any commit `handedOver()` does nothing.
+    /// Mutation: ignore the mark on a throw → `.preparing` and `.cancelled`, red.
+    @Test func aCommitThatThrowsAfterHandingOverStaysCommitting() async throws {
+        InstallCommit.handedOver()
+        for nested in [false, true] {
+            let id = Self.id()
+            InstallJobs.register(id, cancel: {})
+            defer { InstallJobs.unregister(id) }
+            await #expect(throws: ZZBodyFailed.self) {
+                try await InstallJobs.$currentID.withValue(id) {
+                    _ = try await InstallCommit.run("ZZFixture-press") { () throws -> Int in
+                        if nested {
+                            try await InstallCommit.run("ZZFixture-inner") { InstallCommit.handedOver() }
+                        } else {
+                            InstallCommit.handedOver()
+                        }
+                        throw ZZBodyFailed()
+                    }
+                }
+            }
+            #expect(InstallJobs.phase(of: id) == .committing, "nested: \(nested)")
+            #expect(InstallJobs.cancel(id) == .tooLate(committing: "ZZFixture-press"), "nested: \(nested)")
+        }
+    }
+
     /// A body that reports "refused, nothing changed" by value: `landed` says
     /// no, the value still comes back, and the job is preparing again. One whose
     /// value lands keeps it committing.

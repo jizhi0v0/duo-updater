@@ -460,6 +460,9 @@ public actor AppStoreAXInstaller {
         withdrawQuit: @Sendable @escaping () -> Void
     ) async throws {
         AXUIElementPerformAction(pressed.offer, kAXPressAction as CFString)
+        // App Store downloads and swaps on its own from here: a drive that
+        // throws (timed out, the store gave up) has not undone the press.
+        InstallCommit.handedOver()
         Log.install.notice("appstore-ax: \(appName, privacy: .public) pressed Update (baseline short=\(baseline.short ?? "?", privacy: .public) build=\(baseline.build ?? "?", privacy: .public))")
         onStage(.downloading(fraction: 0))
 

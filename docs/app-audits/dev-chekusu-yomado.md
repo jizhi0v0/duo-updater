@@ -7,9 +7,11 @@
 - Team ID: `FKSR2JD63B`（CHEKUSU INC.，Developer ID + 公证，ticket 已 staple）——**从 v0.3.3 起**。
   v0.3.1、v0.3.2 是 ad-hoc 签名（`TeamIdentifier=not set`，`spctl` rejected，没有 ticket）
 - 观测版本: 0.3.3（`CFBundleVersion` 9）；0.3.2（8）、0.3.1（7）；观测日期: 2026-10-13
-- 自更新机制: 只提醒，不下载。`app/UpdateChecker.m` 在用户点「检查更新…」时读
+- 自更新机制（0.3.5 及以前）: 只提醒，不下载。`app/UpdateChecker.m` 在用户点「检查更新…」时读
   `api.github.com/repos/chekusu/yomado/releases?per_page=100`（包括 prerelease），取最高 SemVer tag，
   弹窗只给 release 页链接；头文件注释写明 "never downloads/installs an update"
+- 自更新机制（0.3.6 起）: 内嵌 Sparkle（`Contents/Frameworks/Sparkle.framework`），`SUFeedURL` =
+  `https://raw.githubusercontent.com/chekusu/yomado/main/appcast.xml`，有 `SUPublicEDKey`；feed 的 enclosure 指向同一个 GitHub 资产
 - 分发: 只有 GitHub Releases。没有 Homebrew cask（`brew search --cask yomado` 无结果），没有 MAS
 
 ## 覆盖矩阵
@@ -18,9 +20,9 @@
 
 |            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |------------|---------|----------|-----|--------|-------------|
-| **stable** | —       | —        | —   | ✓      | —           |
+| **stable** | ✓（0.3.6 起） | —        | —   | ✓      | —           |
 
-当前生效源: **GitHub**（channel-verify 实测）。`feed-discover` 给出 `no Sparkle and no electron-builder update config`。
+当前生效源: 0.3.5 及以前的副本是 **GitHub**（没有 `SUFeedURL`）；0.3.6 起的副本是 **Sparkle**（自带 feed）。两者 channel-verify 实测见「历史与实测」2026-10-19。
 
 ## Channel 详情
 
@@ -43,7 +45,7 @@
 - 实测（2026-10-13，channel-verify）: 0.3.1 → `UPDATE → 0.3.3`；0.3.2 → `UPDATE → 0.3.3`；0.3.3 → `up to date`
 
 ## 按架构 / 按 OS 分轨
-- 每个 release 一个 `Yomado-v<ver>.zip`，`Yomado` 与 `YomadoWatchdog` 都只有 arm64（`lipo -archs`），release 正文写明
+- 每个 release 一个 app zip（0.3.5 及以前 `Yomado-v<ver>.zip`，0.3.6 起 `Yomado.zip`），`Yomado` 与 `YomadoWatchdog` 都只有 arm64（`lipo -archs`），release 正文写明
   不含 Intel。资产名不带架构标记，Intel 机器由安装时 gate 5（读主执行文件的 slice）拒绝；不需要
   `architectureRequirement`（那是给主执行文件仍是 universal 的情形）
 - `LSMinimumSystemVersion` = `14.0`（三个版本相同）；release 不声明 OS 上下限
@@ -75,7 +77,7 @@
   用 `unzip` 解包则会把 `._*` 留成 bundle 里的文件，签名报 "a sealed resource is missing or invalid"——不是本链路
 - 嵌套: `Contents/MacOS/YomadoWatchdog` 是普通可执行文件，不是嵌套 app、不是 LoginItem/LaunchAgent。app 用
   `NSTask` 按需拉起它并传入自己的 PID；父进程正常退出写 `end` 后它退出，父进程消失时它恢复物理屏后退出。不常驻
-- Pattern: `^Yomado-v[0-9]+\.[0-9]+\.[0-9]+\.zip$`, kind `.zip`；不匹配 `Yomado-source-v*.zip` / `yomado-source-v*.zip`
+- Pattern: `^Yomado(?:-v[0-9]+\.[0-9]+\.[0-9]+)?\.zip$`, kind `.zip`（0.3.5 及以前叫 `Yomado-v<ver>.zip`，0.3.6 起叫 `Yomado.zip`）；不匹配 `Yomado-source-v*.zip` / `yomado-source-v*.zip`
   与 `yomado-v*-SHA256SUMS.txt`
 - 校验: GitHub 资产 `digest`（sha256）。下载后 `shasum -a 256`: 0.3.3 = `0902b848…fdd8c3ec`、0.3.2 = `7e64ba9e…a95bef48`、
   0.3.1 = `44655ddb…2f035b2c`，三个都与各自 `digest` 和 release 附带的 `SHA256SUMS.txt` 相同
@@ -116,3 +118,21 @@ codesign -dvv <0.3.3 Yomado.app>    # → TeamIdentifier=FKSR2JD63B, flags=0x100
 codesign -dvv <0.3.2 Yomado.app>    # → Signature=adhoc, TeamIdentifier=not set
 spctl -a -vv -t exec <0.3.3 Yomado.app>   # → accepted, source=Notarized Developer ID
 ```
+
+## 历史与实测
+
+### Recipes/dev-chekusu-yomado.swift — app zip 改名为 `Yomado.zip`（2026-10-19 实测，#1430）
+
+夜扫报 `installAssetMissing`：v0.3.7 没有匹配 `^Yomado-v…\.zip$` 的资产，规则停在 0.3.5。`gh api repos/chekusu/yomado/releases`：
+
+- v0.3.7（2026-10-17）: `yomado-v0.3.7-SHA256SUMS.txt`、`Yomado.zip`；v0.3.6（2026-10-16）: `Yomado.zip`；v0.3.5: `Yomado-source-v0.3.5.zip`、`yomado-v0.3.5-SHA256SUMS.txt`、`Yomado-v0.3.5.zip`。
+  三个都不再是 prerelease（`prerelease=false`），规则读列表接口，不受影响。
+- 下载 v0.3.7 `Yomado.zip`（2,684,825 B），`shasum -a 256` = `e88406ae…3476f4b8`，与 SHA256SUMS 一致；`ditto -x -k` 解出 `Yomado.app`：
+  `dev.chekusu.yomado` 0.3.7（build 13），`TeamIdentifier=FKSR2JD63B`，`spctl` accepted / Notarized Developer ID，主执行文件 arm64。
+  `SUFeedURL` = `https://raw.githubusercontent.com/chekusu/yomado/main/appcast.xml`，`SUPublicEDKey` = `knahaNLE…ILgZI=`，带 `Sparkle.framework`。
+  v0.3.6 的 `Yomado.zip` 同样有这个 `SUFeedURL`、同一 Team；v0.3.5 没有 `SUFeedURL`。
+- appcast 只有一项：0.3.7（`sparkle:version` 13），enclosure = GitHub 上的 `v0.3.7/Yomado.zip`，`length` 2684825，带 `edSignature`。
+- 修法：资产 pattern 改成 `^Yomado(?:-v[0-9]+\.[0-9]+\.[0-9]+)?\.zip$`（`Yomado-source-v0.3.5.zip`、SHA256SUMS 仍不匹配）。
+- `channel-verify`（本分支构建）：0.3.5 副本 → winning source GitHub、latest 0.3.7、download `…/v0.3.7/Yomado.zip`、`UPDATE → 0.3.7`；
+  0.3.7 副本 → winning source Sparkle、latest 0.3.7、`up to date`。一键安装（GitHub zip 路径）没有端到端跑。
+

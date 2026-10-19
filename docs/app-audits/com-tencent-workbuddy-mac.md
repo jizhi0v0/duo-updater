@@ -164,7 +164,7 @@ app 的 changelog recipe 在同一份 `verify/baseline.json` 里、隔几行写�
   端点 JSON 的 `url`（一个 `.zip`）把扩展名换成 `.dmg`（同路径同名），`sha256hash` 描述的是这个 dmg（见下「校验」）。
   （国际站 dmg 自 2026-10-07 起；国内站 2026-10-07 至 5.7.7 都是 dmg，之前装 zip）
 - 签名闸：Team `FN2V63AD2J`，两站同一个，与已装包一致 → `VendorInstaller` 放行
-- **install 正则钉死各自的下载 host**（intl `codebuddy-1328495429.cos.accelerate.myqcloud.com`，
+- **install 正则钉死各自的下载 host**（intl `download.codebuddy.ai`（2026-10-15 前 `codebuddy-1328495429.cos.accelerate.myqcloud.com`），
   CN `download.codebuddy.cn`）：两站的产物**路径完全相同**（`/workbuddy/saas/darwin-<arch>/`），
   host 是解析结果里唯一能说明"这包来自哪一站"的东西。不钉的话，一次改错 host 的编辑、
   或 vendor 把一站的 `/v2/update` 指到另一站 CDN，就会让一键把国际版悄悄换成国内版 ——

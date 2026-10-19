@@ -652,6 +652,45 @@ extension UpdateResult {
         return String(build[build.index(after: dash)...])
     }
 
+    /// The two sides of the update line, before ``buildBump(latest:)`` adds the
+    /// builds of a same-marketing bump: `installedDisplay` and `latest`, each
+    /// without a trailing " (<its own build>)" when only ONE side carries one.
+    ///
+    /// A build on one side only reads as a mismatch. Arc's feed writes
+    /// `shortVersionString` "1.169.0 (88758)" beside `sparkle:version` 88758,
+    /// while its bundle says "1.169.0": "1.168.0 → 1.169.0 (88758)". The scanner
+    /// names Xcode "27.0 (27A266a)" so two Xcodes side by side can be told apart,
+    /// and the App Store answers "27.1": "27.0 (27A266a) → 27.1". When both sides
+    /// carry their build, as Xcode Releases' "27.0 beta 1 (…) → 27.0 beta 5 (…)"
+    /// does on purpose, both stay. Display only: the comparison and the skip keys
+    /// keep the strings the source sent.
+    public func updateLineSides(latest: String) -> (installed: String, offered: String) {
+        Self.updateLineSides(
+            installed: installedDisplay ?? "?",
+            installedBuild: app.buildVersion(in: remote?.buildNamespace ?? .bundle),
+            offered: latest, offeredBuild: remote?.version)
+    }
+
+    /// ``updateLineSides(latest:)`` for a host that holds the strings rather than
+    /// an `UpdateResult` (`duo check`'s row).
+    public static func updateLineSides(
+        installed: String, installedBuild: String?, offered: String, offeredBuild: String?
+    ) -> (installed: String, offered: String) {
+        let bareInstalled = droppingTrailingBuild(installed, build: installedBuild)
+        let bareOffered = droppingTrailingBuild(offered, build: offeredBuild)
+        guard (bareInstalled != installed) != (bareOffered != offered) else {
+            return (installed, offered)
+        }
+        return (bareInstalled, bareOffered)
+    }
+
+    /// `version` without a trailing " (<build>)" naming exactly `build`.
+    public static func droppingTrailingBuild(_ version: String, build: String?) -> String {
+        guard let build, !build.isEmpty, version.hasSuffix(" (\(build))") else { return version }
+        let marketing = version.dropLast(build.count + 3)
+        return marketing.isEmpty ? version : String(marketing)
+    }
+
     /// When an update keeps the same marketing version but bumps the build — Surge
     /// "6.6.0 (11270)" over "6.6.0 (11260)", or a JetBrains EAP "2026.2 → 2026.2"
     /// that's really 262.6653.22 → 262.7132.23 — return the cleaned (installed,
@@ -664,7 +703,7 @@ extension UpdateResult {
         // its remote half is `application.ini`'s BuildID — beside a
         // `CFBundleVersion` it would read "15726.8.29 → 20260829211045", two
         // numbers with nothing to do with each other.
-        guard latest == app.shortVersion,
+        guard Self.droppingTrailingBuild(latest, build: remote?.version) == app.shortVersion,
               let remote, let remoteBuild = remote.version,
               let installedBuild = app.buildVersion(in: remote.buildNamespace)
         else { return nil }

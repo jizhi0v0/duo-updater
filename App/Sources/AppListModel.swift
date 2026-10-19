@@ -3273,6 +3273,34 @@ final class AppListModel {
     /// lock — a deferred sweep has recovered nothing, and latching on it would
     /// leave a genuine leftover from an earlier crash sitting there until the next
     /// launch.
+    /// The watch `processOrphanedInstallsOnceTheirChildExits` runs, nil when none.
+    @ObservationIgnored private var orphanWatch: Task<Void, Never>?
+
+    /// Launch processing leaves alone an install whose process is gone but
+    /// whose brew still runs (`InstallJournal.hasOrphanedChild`): the app is
+    /// brew's until it exits. Checked every 5 s; once no such child runs, the
+    /// journal is processed again — only it and the rollback-point sweep, not
+    /// the swap-leftover sweep, which must not run beside this session's own
+    /// swaps — so an app that brew left cut off gets its Restore row now, not
+    /// at the next launch. A held install lock (another process) waits for the
+    /// next tick.
+    private func processOrphanedInstallsOnceTheirChildExits() {
+        guard orphanWatch == nil else { return }
+        orphanWatch = Task.detached(priority: .utility) { [weak self] in
+            while true {
+                do { try await Task.sleep(for: .seconds(5)) } catch { break }
+                guard !InstallJournal.hasOrphanedChild() else { continue }
+                guard await InstallJournal.processLeftovers() != nil else { continue }
+                _ = await InstallCoordinator.sweepSettledInstallRollbackPoints()
+                break
+            }
+            await MainActor.run {
+                self?.orphanWatch = nil
+                self?.refreshInterruptedInstalls()
+            }
+        }
+    }
+
     private func recoverInterruptedSwapsOnce() {
         guard !didRecoverSwaps else { return }
         didRecoverSwaps = true
@@ -3302,6 +3330,9 @@ final class AppListModel {
             // another process held the lock.
             if await InstallCoordinator.sweepSettledInstallRollbackPoints() == nil { swept = false }
             await MainActor.run { self?.refreshInterruptedInstalls() }
+            // An install of the last session whose brew outlived it is left
+            // for its brew to finish; look again once it has.
+            if InstallJournal.hasOrphanedChild() { await MainActor.run { self?.processOrphanedInstallsOnceTheirChildExits() } }
             guard !swept else { return }
             await MainActor.run { self?.didRecoverSwaps = false }
         }

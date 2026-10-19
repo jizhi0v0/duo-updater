@@ -827,6 +827,16 @@ public enum InstallJournal {
     /// The app paths that have a file here — a running install, one not yet
     /// processed, or an interrupted one. Their rollback points are not the
     /// rollback sweep's to discard.
+    /// Whether a file here is an install whose own process is gone while the
+    /// third party it started (brew) still runs: processing leaves it alone
+    /// (`.stillRunning`) until that child exits, and a host that ran it at
+    /// launch should run it again then, or the app the child leaves cut off
+    /// has no row until the next launch.
+    public static func hasOrphanedChild() -> Bool {
+        guard let root else { return false }
+        return readAll(in: root).contains { !$0.entry.ownerIsRunning && $0.entry.childIsRunning }
+    }
+
     static func journaledAppPaths() -> Set<String> {
         guard let root else { return [] }
         return Set(readAll(in: root).map { standardized($0.entry.appPath) })

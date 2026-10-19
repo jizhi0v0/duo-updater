@@ -357,7 +357,8 @@ import Testing
         // RustDesk's root `service` was) counts when its name is one of these.
         let unplaced = { (names: [String]) in
             BackupStore.mayHaveProcesses(
-                insideBundle: app, hasProcesses: { _ in false }, unplacedNames: { names })
+                insideBundle: app, hasProcesses: { _ in false },
+                unplacedNames: { names.map { Array($0.utf8) } })
         }
         #expect(unplaced(["service"]))
         #expect(unplaced(["alias"]))
@@ -368,13 +369,20 @@ import Testing
     }
 
     @Test func aShortNameMatchesTheExecutableItWasCutFrom() {
+        /// The kernel's cut: the first 15 bytes, wherever they end.
+        func cut(_ name: String) -> [UInt8] { Array(name.utf8.prefix(15)) }
         // 15 bytes kept: a cut name matches the executable it begins.
-        #expect(BackupStore.anyExecutable(["SourceKitService"], isNamed: ["SourceKitServic"]))
-        #expect(BackupStore.anyExecutable(["service", "Foo"], isNamed: ["service"]))
+        #expect(BackupStore.anyExecutable(["SourceKitService"], isNamed: [cut("SourceKitService")]))
+        #expect(BackupStore.anyExecutable(["service", "Foo"], isNamed: [cut("service")]))
+        // Cut inside a character: 助手 straddles bytes 13-18, Cyrillic is two
+        // bytes a letter. Bytes, not a decoded string, still match.
+        #expect(Array("QQ浏览器助手".utf8).count == 17)
+        #expect(BackupStore.anyExecutable(["QQ浏览器助手"], isNamed: [cut("QQ浏览器助手")]))
+        #expect(BackupStore.anyExecutable(["Приложение"], isNamed: [cut("Приложение")]))
         // A shorter name is the whole name.
-        #expect(!BackupStore.anyExecutable(["service-helper"], isNamed: ["service"]))
-        #expect(!BackupStore.anyExecutable(["Foo"], isNamed: ["Bar"]))
-        #expect(!BackupStore.anyExecutable([], isNamed: ["Foo"]))
+        #expect(!BackupStore.anyExecutable(["service-helper"], isNamed: [cut("service")]))
+        #expect(!BackupStore.anyExecutable(["Foo"], isNamed: [cut("Bar")]))
+        #expect(!BackupStore.anyExecutable([], isNamed: [cut("Foo")]))
     }
 
     /// An input method's user-data snapshot is attached to the fresh outbox

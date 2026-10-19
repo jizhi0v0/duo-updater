@@ -1041,7 +1041,7 @@ public enum BackupStore {
     static func mayHaveProcesses(
         insideBundle bundle: URL,
         hasProcesses: (URL) -> Bool = AppRestarter.hasProcesses(insideBundle:),
-        unplacedNames: () -> [String] = AppRestarter.processNamesWithoutPath
+        unplacedNames: () -> [[UInt8]] = AppRestarter.processNamesWithoutPath
     ) -> Bool {
         if hasProcesses(bundle) { return true }
         let unplaced = unplacedNames()
@@ -1051,13 +1051,13 @@ public enum BackupStore {
 
     /// Whether one of `executables` (file names) is what a process with one of
     /// these short names was started from. The kernel keeps 15 bytes of the
-    /// name, so a 15-byte name matches any executable it begins; a shorter one
-    /// is the whole name.
-    static func anyExecutable(_ executables: [String], isNamed names: [String]) -> Bool {
+    /// name, so a 15-byte name matches any executable whose UTF-8 bytes it
+    /// begins — compared as bytes, since the cut can split a character; a
+    /// shorter one is the whole name.
+    static func anyExecutable(_ executables: [String], isNamed names: [[UInt8]]) -> Bool {
         let cut = 15
-        return names.contains { name in
-            let short = Array(name.utf8)
-            return executables.contains { executable in
+        return names.contains { short in
+            executables.contains { executable in
                 let full = Array(executable.utf8)
                 return short.count >= cut ? full.starts(with: short) : full == short
             }

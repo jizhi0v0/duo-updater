@@ -3256,23 +3256,6 @@ final class AppListModel {
     /// scratch directories an install of the same app would also use.
     @ObservationIgnored private var launchRecovery: Task<Void, Never>?
 
-    /// Run the interrupted-swap recovery sweep once per session, off the main thread.
-    ///
-    /// `/Applications` is where the privileged, non-atomic whole-bundle swap can
-    /// leave an orphan — user-writable locations take the atomic path. The input
-    /// method directories are here for a different leftover: those installs
-    /// exchange the bundle's `Contents` in place, and an exchange interrupted
-    /// between its two renames leaves `<App>.app` with no `Contents` at all, which
-    /// is an input method macOS can no longer load. Sweeping only `/Applications`
-    /// would have left exactly that state unrecoverable, because a rotation's
-    /// leftovers sit INSIDE the bundle rather than beside it.
-    ///
-    /// "Once" means once it has actually run. The flag is set before the task so a
-    /// second refresh cannot start a second sweep beside the first, and cleared
-    /// again if any root was skipped because another process held the install
-    /// lock — a deferred sweep has recovered nothing, and latching on it would
-    /// leave a genuine leftover from an earlier crash sitting there until the next
-    /// launch.
     /// The watch `processOrphanedInstallsOnceTheirChildExits` runs, nil when none.
     @ObservationIgnored private var orphanWatch: Task<Void, Never>?
 
@@ -3301,6 +3284,23 @@ final class AppListModel {
         }
     }
 
+    /// Run the interrupted-swap recovery sweep once per session, off the main thread.
+    ///
+    /// `/Applications` is where the privileged, non-atomic whole-bundle swap can
+    /// leave an orphan — user-writable locations take the atomic path. The input
+    /// method directories are here for a different leftover: those installs
+    /// exchange the bundle's `Contents` in place, and an exchange interrupted
+    /// between its two renames leaves `<App>.app` with no `Contents` at all, which
+    /// is an input method macOS can no longer load. Sweeping only `/Applications`
+    /// would have left exactly that state unrecoverable, because a rotation's
+    /// leftovers sit INSIDE the bundle rather than beside it.
+    ///
+    /// "Once" means once it has actually run. The flag is set before the task so a
+    /// second refresh cannot start a second sweep beside the first, and cleared
+    /// again if any root was skipped because another process held the install
+    /// lock — a deferred sweep has recovered nothing, and latching on it would
+    /// leave a genuine leftover from an earlier crash sitting there until the next
+    /// launch.
     private func recoverInterruptedSwapsOnce() {
         guard !didRecoverSwaps else { return }
         didRecoverSwaps = true

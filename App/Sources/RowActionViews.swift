@@ -182,8 +182,16 @@ struct InstallCancelButton: View {
     var pending = false
     let action: () -> Void
 
-    /// What the glyph takes in the row, for a row that budgets its width.
-    static let width: CGFloat = 14
+    /// Room kept between the glyph and the row's trailing edge. Rows end 12pt
+    /// from their list's edge, and the overlay scroller takes 17pt there
+    /// (`NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay)`,
+    /// read 2026-10-19), so a glyph flush with the edge sat against the
+    /// scroller. A button reads fine there; a small grey disc read as touching.
+    static let trailingInset: CGFloat = 5
+
+    /// What the glyph takes in the row, inset included, for a row that budgets
+    /// its width.
+    static let width: CGFloat = 14 + trailingInset
 
     var body: some View {
         Button(action: action) {
@@ -195,6 +203,7 @@ struct InstallCancelButton: View {
         // The glyph alone has the accessibility title "Close" (read from the
         // running app's AX tree, 2026-10-18).
         .accessibilityLabel(help)
+        .padding(.trailing, Self.trailingInset)
     }
 
     private var help: String {

@@ -15269,6 +15269,70 @@
         }
       }
     },
+    "This version no longer carries an update signing key, so once installed DuoUpdater couldn’t check its future updates. Refusing to install it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Version enthält keinen Update-Schlüssel mehr, sodass DuoUpdater nach der Installation ihre künftigen Updates nicht prüfen könnte. Sie wird nicht installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versión ya no incluye una clave de firma de actualizaciones, así que, una vez instalada, DuoUpdater no podría comprobar sus próximas actualizaciones. No se instalará."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette version ne contient plus de clé de signature des mises à jour : une fois installée, DuoUpdater ne pourrait plus vérifier ses prochaines mises à jour. Installation refusée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa versione non contiene più una chiave di firma degli aggiornamenti, quindi una volta installata DuoUpdater non potrebbe verificarne gli aggiornamenti futuri. Non verrà installata."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このバージョンにはアップデートの署名鍵が含まれていないため、インストールすると DuoUpdater は今後のアップデートを確認できなくなります。インストールしません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versão não traz mais uma chave de assinatura de atualizações, então, depois de instalada, o DuoUpdater não conseguiria verificar as próximas atualizações. Não será instalada."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этой версии больше нет ключа подписи обновлений, поэтому после установки DuoUpdater не сможет проверять её будущие обновления. Установка не выполняется."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sürüm artık bir güncelleme imzalama anahtarı içermiyor; yüklenirse DuoUpdater sonraki güncellemelerini denetleyemez. Yüklenmeyecek."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个版本不再带有更新签名密钥，装上后 DuoUpdater 将无法核对它以后的更新。不会安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個版本不再帶有更新簽署金鑰，安裝後 DuoUpdater 將無法核對它以後的更新。不會安裝。"
+          }
+        }
+      }
+    },
     "checking upstream…": {
       "extractionState": "manual",
       "localizations": {

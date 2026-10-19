@@ -190,6 +190,38 @@ struct InstallRollbackPointTests {
         }
     }
 
+    /// A rollback point's staging that a killed process left (no `defer` ran)
+    /// goes with the stale-scratch sweep once it is a day old; a fresh one —
+    /// maybe another process's copy in progress — stays, and so does every
+    /// point, however old.
+    /// Mutation: drop `sweepStaleRollbackPointStaging` from `sweepStaleScratch`
+    /// → the old staging stays, red.
+    @Test func aStagingLeftByAKilledInstallIsSweptOnceStale() async throws {
+        try await withScratch { _, apps in
+            let app = try makeApp(in: apps, marker: "v1")
+            let key = BackupStore.key(bundleID: "com.example.zzfixture.rollback", path: app)
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: key, version: "v1", bundleID: "com.example.zzfixture.rollback")
+            let root = BackupStore.rollbackPointsRoot
+            let old = root.appendingPathComponent("\(BackupStore.stagingPrefix(key: key))-\(UUID().uuidString)")
+            let fresh = root.appendingPathComponent("\(BackupStore.stagingPrefix(key: key))-\(UUID().uuidString)")
+            for dir in [old, fresh] {
+                try FileManager.default.createDirectory(
+                    at: dir.appendingPathComponent("ZZFixture.app/Contents"), withIntermediateDirectories: true)
+            }
+            let twoDaysAgo = Date().addingTimeInterval(-2 * 24 * 60 * 60)
+            try FileManager.default.setAttributes([.modificationDate: twoDaysAgo], ofItemAtPath: old.path)
+            try FileManager.default.setAttributes(
+                [.modificationDate: twoDaysAgo], ofItemAtPath: root.appendingPathComponent(key).path)
+
+            BackupStore.sweepStaleScratch()
+
+            #expect(!FileManager.default.fileExists(atPath: old.path))
+            #expect(FileManager.default.fileExists(atPath: fresh.path))
+            #expect(BackupStore.rollbackPoint(forKey: key) != nil)
+        }
+    }
+
     /// Freeing space never deletes one: it is the only way back for an app an
     /// interrupted install may have left broken.
     @Test func reclaimingSpaceSkipsRollbackPoints() async throws {

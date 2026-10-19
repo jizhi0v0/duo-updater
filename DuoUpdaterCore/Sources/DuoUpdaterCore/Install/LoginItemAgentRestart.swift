@@ -44,8 +44,10 @@ import Foundation
 ///   alike — and nothing relaunches an agent started that way: measured on
 ///   2.4.1, whose agent had the label `application.…` and was not back 15 s
 ///   after `SIGTERM`. Ending it would turn "signing may hang later" into "no
-///   agent at all". Opening the host after the update replaces it (the vendor's
-///   `justUpdatedBuild` path), which is what the report tells the user.
+///   agent at all". Opening the host after the update registers the login
+///   item again, and launchd's new agent takes over the socket — measured on
+///   3.0.4 → 4.0.0 with an agent started through LaunchServices — which is
+///   what the report tells the user to do.
 ///
 /// An agent outside the swapped bundle is never touched, even with a declared
 /// bundle id: only processes whose executable was inside this bundle's

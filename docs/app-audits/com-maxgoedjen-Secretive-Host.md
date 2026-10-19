@@ -144,6 +144,18 @@ nightly 不是可订阅的轨道，但装上了必须认得出来:
     `launchctl print gui/<uid>/<agent bundle id>`，只有作业的 `pid` 正是快照里的旧进程才结束它；否则不动它、
     报 `agentsNotRestarted`（用户打开 Secretive 时它会按 `justUpdatedBuild` 自己换掉 agent）。不按版本分：
     同一版本两种状态都可能出现。
+  - **复测（2026-10-19，commit 96d735c1 的 `make install` + `make cli`）**：
+    - launchd 作业的 agent：装 3.0.4、Start Agent、建测试密钥（Notify）、退出主 app。换包前
+      `launchctl print gui/501/com.maxgoedjen.Secretive.SecretAgent` 有一行 `\tpid = 77600`。`duo install` →
+      `installed`，作业 pid 77600 → 78398、`runs` 1 → 2，日志 `restarted from the new bundle (pid 78398)`；签名成功，
+      杀两次 XPC 后仍成功。
+    - LaunchServices 拉起的 agent：放回 3.0.4，`launchctl bootout gui/501/com.maxgoedjen.Secretive.SecretAgent`，
+      `open …/LoginItems/SecretAgent.app`（标签 `application.com.maxgoedjen.Secretive.SecretAgent.…`），签名成功。
+      `duo install --json` → `{"agentsNotRestarted":["com.maxgoedjen.Secretive.SecretAgent"],…,"outcome":"installed"}`，
+      stderr 警告，日志 `not running as its launchd job (job pid none) — left running`，agent pid 不变。杀 XPC 后
+      `ssh-add -L` 超时（exit 124），即 #1457 的挂死。打开 Secretive：它重新注册登录项，launchd 拉起新 agent
+      （pid 80844），签名成功，再杀 XPC 仍成功；旧 agent（可执行文件已删）还在跑但不再接 socket，测试后手动结束。
+    - 清理：删除测试密钥、Disable Agent（BTM `disabled`）、app 与 4 个容器移入废纸篓；`~/.ssh/config` 字节一致。
 - 端到端（2026-10-19）: 装 3.0.4 → `duo check` 报 `3.0.4 → 4.0.0 [GitHub, in-place]` → `duo install` 装上，
   agent 随之重启（见上）。2026-09-29 只检测时是 `Skipping: Secretive — detection only`。
 

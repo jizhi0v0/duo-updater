@@ -47,8 +47,8 @@ feed 3 条 item 都没有 `<sparkle:channel>`；产品页只有一个下载。
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 没查 | 没查 | 没查 |
-| 证据 | 第二轮（运行中）没跑，见「一键安装」 | — | — |
+| 结论 | 没查 | 无 | 不适用 |
+| 证据 | — | 第二轮启动后 Sparkle 只弹提示窗口，Caches / Application Support 下没有 TrellisWM 的新文件 | — |
 
 ## Changelog
 - 来源: feed 只给 `releaseNotesLink`。`Recipes/app-trellisui-trelliswm.swift` 按 `sourceTemplate` 取所提供版本的 `releases/TrellisWM-<version>.html`：每个版本一个 `<h1>`，下面是 `<h2>` 分节和 `<li>` 条目。0.9.5 的页面还带着 0.9.4 那一节，所以版本取自每个 `<h1>`，每节一条。
@@ -60,7 +60,7 @@ feed 3 条 item 都没有 `<sparkle:channel>`；产品页只有一个下载。
 - 状态: 支持（Sparkle 通用路径，dmg，EdDSA + Team ID 闸）
 - 端到端（2026-10-19）:
   - 第一轮（未运行）：0.9.4（官方 dmg）放进 `/Applications`。`duo check TrellisWM` → `0.9.4 → 0.9.5 [Sparkle, in-place]`；`duo install TrellisWM --yes --json` → `outcome: installed`，`route: sparkle`，`bytesDownloaded: 12462`（delta），7.0 s。之后为 0.9.5 (200)，inode 变了，`codesign --verify --deep --strict` 通过，`spctl` accepted / Notarized Developer ID，与厂商 0.9.5 `diff -r --no-dereference` 一致。
-  - 第二轮（运行中）未跑：它是窗口管理器，启动就接管并重排屏幕上的窗口，首次设置还会关掉一些 macOS 功能（它的 0.9.4 说明写「设置可以把被关掉的 macOS 功能重新打开」），超出验证该动的范围。
+  - 第二轮（运行中，2026-10-19）：重新放入 0.9.4 并启动，**不授予辅助功能权限、不走设置向导**。它碰的系统设置是 `com.apple.WindowManager` 的 `EnableTilingByEdgeDrag` / `EnableTopTilingByEdgeDrag` / `EnableStandardClickToShowDesktop` / `GloballyEnabled`（二进制里，旁边是 `macFeaturesBefore`，即它会记下原值），而移动窗口要 `AXIsProcessTrusted`。启动后它只开出自己 Sparkle 的「Software Update」窗口，没有动窗口；`com.apple.WindowManager` 启动前、运行中、退出后 `defaults export` 三次逐项相同。`duo install` → `installed`（12462 B，delta）→ `duo restart TrellisWM` → `restarted`，进程换新，之后 10 s 磁盘一直是 0.9.5，`codesign --verify --deep --strict` 通过。授予权限、走完设置向导后的行为没有测。
 - 格式: dmg
 - 校验: 只有 EdDSA 签名，没有 SHA 摘要
 - **读的是**: 人人可手动下载的 GA。enclosure 就是产品页下载按钮指向的 dmg，feed 无 `phasedRolloutInterval`
@@ -82,4 +82,4 @@ curl -sSL https://trelliswm.app/releases/TrellisWM-0.9.5.html | grep -oE '<h1>[^
 2026-10-19：channel-verify（0.9.5 dmg）`winning source Sparkle`、`latest 0.9.5`、`release history 3 entries`、`deltas 5`、`status up to date`。
 
 ## 建议下一步
-1. 第二轮（运行中，自更新器已暂存）征得同意后再跑。
+1. 无代码待办。

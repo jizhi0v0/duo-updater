@@ -401,15 +401,14 @@ import Testing
         }
     }
 
-    /// Not an orphan while its app is gone, not listed, not a victim of the
-    /// low-space prune — but counted in this Mac's total.
+    /// Not listed, not a victim of the low-space prune or of the orphan prune
+    /// while its app is there — but counted in this Mac's total.
     @Test func noSweepOrListingTouchesAPendingCopy() async throws {
         try await withStore { apps, outbox, _ in
             let app = try install(in: apps, version: "2.0")
             try await BackupStore.savePending(
                 appPath: app, key: key(app), version: "2.0", buildVersion: "1",
                 bundleID: Self.bundleID)
-            try FileManager.default.removeItem(at: app)
 
             #expect(BackupStore.listing().isEmpty)
             #expect(BackupStore.pruneOrphans() == 0)
@@ -422,6 +421,26 @@ import Testing
             #expect(FileManager.default.fileExists(
                 atPath: pendingDir(app).appendingPathComponent("backup.json").path))
             #expect(BackupStore.storeSize(of: outbox) > 0)
+        }
+    }
+
+    /// The app is uninstalled after an install of it was cancelled: the sweep
+    /// keeps the copy (an app that is not there may be on a volume that is not
+    /// mounted), so the orphan prune — the "delete a backup once its app is
+    /// uninstalled" setting — removes it with the app's backup.
+    /// Mutation: drop the pending root from `pruneOrphans` → the copy stays,
+    /// red.
+    @Test func theOrphanPruneRemovesThePendingCopyOfAnUninstalledApp() async throws {
+        try await withStore { apps, outbox, _ in
+            let app = try await appAtNWithBackupOfNMinus1(in: apps)
+            try await BackupStore.savePending(
+                appPath: app, key: key(app), version: "2.0", buildVersion: "1",
+                bundleID: Self.bundleID)
+            try FileManager.default.removeItem(at: app)
+            #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 0)
+            #expect(BackupStore.pruneOrphans() > 0)
+            #expect(!FileManager.default.fileExists(atPath: pendingDir(app).path))
+            #expect(BackupStore.backup(forKey: key(app)) == nil)
         }
     }
 

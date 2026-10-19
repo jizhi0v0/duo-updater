@@ -37,8 +37,10 @@ extension InstallCoordinator {
 
     /// Settle every pending backup no install is holding: the copy of an app
     /// that changed since — an install whose process died after its swap, an
-    /// app that updated itself, one that was removed — becomes that app's
-    /// backup; one whose app is unchanged stays, for a retry to reuse. Run by
+    /// app that updated itself — becomes that app's backup; one whose app is
+    /// unchanged stays, for a retry to reuse. One whose app is simply gone
+    /// stays too (see below); `BackupStore.pruneOrphans` removes it with the
+    /// app's backups. Run by
     /// the app at launch and whenever it re-reads its backups, and at the start
     /// of `duo install`, `duo restart` and `duo backups restore`. Returns how
     /// many were promoted.

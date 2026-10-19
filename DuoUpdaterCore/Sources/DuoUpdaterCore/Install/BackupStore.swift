@@ -2689,6 +2689,11 @@ public enum BackupStore {
     public static func pruneOrphans() -> Int64 {
         let held = InstallJournal.journaledBackupKeys()
         var freed = pruneOrphans(in: outboxRoot, sparing: held)
+        // An install's copy of an app removed since: the sweep keeps it (an
+        // app that is not there may be on a volume that is not mounted), and
+        // nothing lists it, so this is the one place it goes — under the
+        // same setting and the same journal guard as the backups themselves.
+        freed += pruneOrphans(in: pendingBackupsRoot, sparing: held)
         if let destination = reachableDestinationRoot {
             freed += pruneOrphans(in: destination, sparing: held)
         }

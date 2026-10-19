@@ -3,9 +3,9 @@ import Testing
 @testable import DuoUpdaterCore
 
 /// `OneClickGate`: a recipe family names which installed copies may take the
-/// one-click; everything else keeps detection only. Exercised through the two
-/// gates registered today (MuseScore by installed version, GitKraken by an asar
-/// entry) and through both places that enforce them.
+/// one-click; everything else keeps detection only. Exercised through the
+/// gates registered today (MuseScore and Memoh by installed version, GitKraken
+/// by an asar entry) and through both places that enforce them.
 struct OneClickGateTests {
     /// A bundle at a fresh path whose `app.asar` packs `files` (path → contents),
     /// in Electron's layout: `[4][header pickle size]`, then
@@ -68,9 +68,9 @@ struct OneClickGateTests {
             status: .updateAvailable(latest: "99.0"))
     }
 
-    @Test func theRegisteredGatesAreTheTwoMeasuredCases() {
+    @Test func theRegisteredGatesAreTheMeasuredCases() {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
-            == ["org.musescore.MuseScore", "com.axosoft.gitkraken"])
+            == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop"])
     }
 
     @Test func museScoreOneClickIsFor4xCopiesOnly() {
@@ -78,6 +78,19 @@ struct OneClickGateTests {
         #expect(OneClickGateRegistry.withholding(app("org.musescore.MuseScore", nil)) != nil)
         #expect(OneClickGateRegistry.withholding(app("org.musescore.MuseScore", "4.7.4")) == nil)
         #expect(OneClickGateRegistry.withholding(app("org.musescore.MuseScore", "4.0")) == nil)
+    }
+
+    /// The versions of the real bundles: the vendor's CDN builds, and the OSS
+    /// repo's GitHub builds (Memoh 0.16.0, Memoh Local 0.13.0, Memoh-Desktop
+    /// 0.9.0, the 0.7.0 one) — all `ai.memoh.desktop`, Team P9R669C27U.
+    @Test func memohOneClickIsForTheVendorsDatedBuildsOnly() {
+        for version in ["2026.10.19-1", "2026.9.16-1", "2027.1.2-3"] {
+            #expect(OneClickGateRegistry.withholding(app("ai.memoh.desktop", version)) == nil, "\(version)")
+        }
+        for version in ["0.16.0", "0.13.0", "0.9.0", "0.7.0", "1.0.0"] {
+            #expect(OneClickGateRegistry.withholding(app("ai.memoh.desktop", version)) != nil, "\(version)")
+        }
+        #expect(OneClickGateRegistry.withholding(app("ai.memoh.desktop", nil)) != nil)
     }
 
     @Test func gitKrakenOneClickIsForAProvenNormalEditionOnly() throws {

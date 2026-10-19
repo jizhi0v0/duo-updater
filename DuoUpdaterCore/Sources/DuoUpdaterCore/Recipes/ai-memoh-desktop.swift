@@ -83,5 +83,21 @@ enum ai_memoh_desktop {
             maxEntries: 10,
             structuredFormat: .gitHubReleases,
             tagPattern: #"^(v[0-9]+(?:\.[0-9]+){2})$"#),
+        ],
+        // One-click only for the vendor's dated builds (`YYYY.M.D-N`). The
+        // OSS repo's own GitHub releases shipped Mac installers up to v0.16.0
+        // under the same bundle id and Team, numbered `0.x`, and their own
+        // updater reads GitHub, which has carried no Mac installer since
+        // v0.17.0. Some of them are a different product: Memoh-Desktop 0.9.0
+        // and `Memoh Local.app` (0.10–0.14) bundle and run `memoh-server`,
+        // which the desktop build no longer does ("remove sqlite and local
+        // desktop", felinics/Memoh#748), so this build would turn a local
+        // install into a client of Memoh Cloud. A `0.x` copy keeps detection
+        // and is updated by hand from memoh.ai.
+        oneClickGates: [
+            OneClickGate(
+                bundleID: "ai.memoh.desktop",
+                requirement: .installedVersion(pattern: #"^20[0-9]{2}\."#),
+                reason: "a Memoh build from GitHub, which may run its own local server; download the current build from memoh.ai"),
         ])
 }

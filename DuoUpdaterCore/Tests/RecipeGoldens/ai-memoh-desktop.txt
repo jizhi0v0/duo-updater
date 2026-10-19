@@ -96,6 +96,11 @@ loginWalls = Dictionary(count: 0)
 
 changelogPages = Dictionary(count: 0)
 
-oneClickGates = Array(count: 0)
+oneClickGates = Array(count: 1)
+oneClickGates[0] = struct OneClickGate
+oneClickGates[0].bundleID = "ai.memoh.desktop"
+oneClickGates[0].requirement = .installedVersion(pattern:)
+oneClickGates[0].requirement.pattern = "^20[0-9]{2}\\."
+oneClickGates[0].reason = "a Memoh build from GitHub, which may run its own local server; download the current build from memoh.ai"
 
 loginItemAgentRestarts = Dictionary(count: 0)

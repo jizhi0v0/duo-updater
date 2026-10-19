@@ -83,14 +83,15 @@ nightly 不是可订阅的轨道，但装上了必须认得出来:
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **仅检测**（`installAssetPattern` 为 nil）
+- 状态: ✓ **一键**（`installAssetPattern: ^Secretive\.zip$`、`installerKind: .zip`；换包后由
+  `loginItemAgentRestarts` 重启内嵌 SSH agent，见下）
 - 格式: zip — `Secretive.zip`，universal（`x86_64 arm64 arm64e`）
 - **读的是**: 人人可手动下载的 GA（官方 repo 公开资产）
 - 包验（2026-09-29，v4.0.0 与 v3.0.4 解压）: 主 app 与 `SecretAgent.app` 都是
   `Developer ID Application: Max Goedjen (Z72PRUAWF6)`，`spctl` 均为
   `accepted / Notarized Developer ID`，`codesign --verify --deep --strict` 通过。
   也就是说，装包本身能过安装闸。
-- 阻塞: 替换 bundle 时 SSH agent 还在跑。
+- 换包时 SSH agent 还在跑（为什么曾经只检测、现在怎么解决）：
   - `SecretAgent.app` 由主 app 用 `SMAppService.loginItem` 注册为登录项，`LSUIElement=true`。
     日常情况是主 app 关着、agent 常驻，所有 `ssh` 签名都走它的 socket。
   - `AppRestarter.isStandaloneNestedApp` 只认 `.regular` 激活策略的内嵌 app，所以一键更新既不退出
@@ -98,15 +99,87 @@ nightly 不是可订阅的轨道，但装上了必须认得出来:
   - 厂商自己的做法（`Sources/Secretive/App.swift`）是主 app 下一次激活时，若
     `justUpdatedBuild` 为真就 `forceLaunch()` 重拉 agent，注释写的是 agent "will be running
     from earlier update still"。我们的一键更新只在主 app 原本就开着时才重开它，而日常主 app 是关着的。
-  - 换包后旧 agent 还能不能正常签名（比如它按需拉起的 `SecretAgentInputParser.xpc` 在 bundle
-    被替换后能否启动）**未验证**。按规定没有启动真包去测，所以这条风险证明不了是安全的，只好不接一键。
-- 端到端（2026-09-29）: 装 3.0.4 → `duo check` 报 `3.0.4 → 4.0.0 [GitHub]`（无 in-place）→
-  `duo install --yes` 输出 `Skipping: Secretive — detection only`，未改动已装副本
+  - **实测（2026-10-19）：换包后，签名会在 XPC 重新拉起时挂死。** 装 3.0.4、启动、装上 agent（登录项）、
+    在 Secretive 里建一把不需认证的测试密钥；主 app 退出、agent 常驻；在测试分支上临时给规则加
+    `installAssetPattern: ^Secretive\.zip$` + `.zip`，`duo install Secretive --yes --json` → `installed`（22831028 B），
+    磁盘上主 app 与 agent 都成了 4.0.0，agent 可执行文件 inode 变了，旧 agent（3.0.4）的 pid 与两个 XPC 不变。
+    用 `SSH_AUTH_SOCK=~/Library/Containers/com.maxgoedjen.Secretive.SecretAgent/Data/socket.ssh` 跑
+    `ssh-keygen -Y sign`（只签本地文件，`-Y verify` 校验）：
+    - 旧 agent + 旧 XPC：签名成功。
+    - 让 `SecretAgentInputParser.xpc` 退出（SIGKILL，模拟它空闲退出），它从**新**包被拉起（4.0.0）：
+      签名 **20 s 超时、两次都挂住**，`ssh-add -L` 也列不出。日志：新 XPC
+      `Received message forbidden due to code signing requirement`（`xpc_support_check_token` -67065），
+      旧 agent `SWIFT TASK CONTINUATION MISUSE: send(_:) leaked its continuation without resuming it`。
+      也就是新 XPC 拒收旧 agent 的消息，旧 agent 不处理失败，`ssh` 永远等。
+    - 结束旧 agent：launchd 立刻从新包把 agent 拉起（4.0.0），签名恢复。
+    - 测完删除测试密钥、Disable Agent（BTM 变 disabled）、app 与容器移入废纸篓；`~/.ssh/config` 与 shell
+      配置前后校验和不变。
+  - 所以直接开一键会在主 app 关着时让 SSH 签名在某个时刻开始挂死，直到用户打开 Secretive 或重新登录。
+    补救办法已证实：换包后重启 agent（结束旧 agent 进程即可，launchd 会从新包拉起）。DuoUpdater 现在
+    没有这个机制（`AppRestarter` 只重启 `.regular` 内嵌 app，`NestedAppGuard` 跳过 `LoginItems`），
+    要接一键需要先加「换包后重启指定后台登录项」。
+  - **现在的做法**：recipe 的 `loginItemAgentRestarts` 声明 `com.maxgoedjen.Secretive.SecretAgent`。
+    `InstallCoordinator` 在换包前记下从本 bundle `Contents/Library/LoginItems/SecretAgent.app/Contents/MacOS/`
+    跑着的进程（pid + 启动时间），换包后确认它是 launchd 作业（见下）再发 `SIGTERM`，再在 10 s 内等 launchd 从新包拉起新进程；
+    没回来就记日志、`duo install` 打警告、`--json` 带 `agentsNotRestarted`（`LoginItemAgentRestart`）。
+    agent 原本没在跑就不动它。
+  - **真机端到端（2026-10-19，本分支 `make install` + `make cli`）**：装 3.0.4、Start Agent、建不需认证（Notify）
+    的测试密钥，基线签名成功。
+    - 主 app 关着：`duo install Secretive --yes --json` → `{"applied":true,"bytesDownloaded":22831028,"outcome":"installed","route":"vendor"}`
+      （15.4 s）。agent pid 15780 → 21340（11:40:04 启动，`launchctl print` 的 `runs` 1 → 2），日志
+      `login-item agent com.maxgoedjen.Secretive.SecretAgent: restarted from the new bundle (pid 21340)`。
+      签名成功；`kill -KILL` `SecretAgentInputParser` 后它从新包重新拉起，再签两次都成功（修复前这一步挂死）。
+    - 主 app 开着：重新放回 3.0.4、让 launchd 拉起 3.0.4 的 agent、打开主 app，签名成功；`duo install` → `installed`，
+      agent pid 22654 → 23168，日志同上；杀 XPC 后签名成功；`duo restart Secretive` → `restarted`，签名成功，
+      再杀 XPC 签名仍成功。Secretive 的 agent 面板显示 agent 版本 4.0.0。
+    - 清理：删除测试密钥、Disable Agent（BTM `disabled`）、app 与 4 个容器移入废纸篓（含上一轮留下的两个 XPC
+      容器）；`~/.ssh/config` 与 shell 配置字节一致。
+  - **只重启 launchd 管着的 agent**。Secretive 2.x 和 3.x 都是先注册登录项（2.x `SMLoginItemSetEnabled`，3.x
+    `SMAppService`），登录项没在跑时都回退成 LaunchServices 直接拉起（`App.swift` 的 `forceLaunchAgent()`，
+    读源码 v2.4.1 / v3.0.0 / v3.0.2；3.0.3 起先 `register()` 再回退）。LaunchServices 拉起的 agent 没有
+    launchd 作业，结束它就没人再拉起。2026-10-19 实测 2.4.1 首次打开：`launchctl list` 里 agent 的标签是
+    `application.com.maxgoedjen.Secretive.SecretAgent.…`，没有 `com.maxgoedjen.Secretive.SecretAgent` 作业；
+    退出主 app、`SIGTERM` 后 15 s 内没有新 agent。BTM 清空后（app 进废纸篓后 `sfltool dumpbtm` 里已无 Secretive
+    条目）重装 2.4.1 再打开，结果一样：BTM 新建的条目是 `[disabled, allowed, notified]`，agent 仍是
+    `application.…`；走完它自己的 Help ▸ Setup Secretive ▸ Install 之后才有 `com.maxgoedjen.Secretive.SecretAgent`
+    作业。所以 2.4.1 首次打开就走回退路径，不是上一轮残留造成的。所以 `LoginItemAgentRestart` 在发信号前先
+    `launchctl print gui/<uid>/<agent bundle id>`，只有作业的 `pid` 正是快照里的旧进程才结束它；否则不动它、
+    报 `agentsNotRestarted`（用户打开 Secretive 时它会按 `justUpdatedBuild` 自己换掉 agent）。不按版本分：
+    同一版本两种状态都可能出现。
+  - **按版本与位置补测（2026-10-19，commit b7d32728 的 `make cli`）**。同一把 Notify 测试密钥（2.4.1 建的，
+    升级后 4.0.0 照样能用）；每个版本：放进去、结束旧作业让 launchd 从新放的包拉起、开关一次主 app、基线签名、
+    `duo install Secretive --yes --json`、签名后杀 XPC，共签三次：
+    | 起点 | 换包前作业 | `duo install` | 作业 pid（`runs`） | 换包后签名（含两次杀 XPC） |
+    |---|---|---|---|---|
+    | 2.4.1，`/Applications`（Setup ▸ Install 之后） | `\tpid = 69232`，`SMLoginItemSetEnabled` | `installed` | 69232 → 76355（1 → 2） | 3/3 成功 |
+    | 3.0.0，`/Applications` | 77374，`parent bundle version` = 3.0.0 的 build | `installed` | 77374 → 77920（1 → 2） | 3/3 成功 |
+    | 3.0.3，`/Applications` | 78640（agent 是放进 3.0.3 之后拉起的） | `installed` | 78640 → 80666（3 → 4） | 3/3 成功 |
+    | 3.0.4，`~/Applications`（Start Agent 重新注册） | 82108；`proc_pidpath` 给出的 agent 路径与 `realpath` 拼法逐字一致 | `installed` | 82108 → 82966（1 → 2） | 3/3 成功 |
+    每次 duo 的日志都是 `restarted from the new bundle (pid …)`。2.x 的 launchd 作业标签就是 agent 的 bundle id，
+    launchd 结束后会重新拉起（last exit −15），所以 2.x 不需要版本闸。3.0.3 那一行的作业是 3.0.0 注册的（3.0.3 主 app
+    没有重新注册），agent 跑的是 3.0.3 的二进制。`~/Applications` 不是 firmlink（firmlink 是 `/Applications` ↔
+    `/System/Volumes/Data/Applications`，已在上面测过）；`/private/var` 一类靠 `realpath` 的拼法由单测覆盖。
+    清理：app、4 个容器进废纸篓；Disable Agent 没生效，用 `launchctl bootout` 停掉作业，之后无 Secretive 进程；
+    `~/.ssh/config` 与 shell 配置字节一致。
+  - **复测（2026-10-19，commit 96d735c1 的 `make install` + `make cli`）**：
+    - launchd 作业的 agent：装 3.0.4、Start Agent、建测试密钥（Notify）、退出主 app。换包前
+      `launchctl print gui/501/com.maxgoedjen.Secretive.SecretAgent` 有一行 `\tpid = 77600`。`duo install` →
+      `installed`，作业 pid 77600 → 78398、`runs` 1 → 2，日志 `restarted from the new bundle (pid 78398)`；签名成功，
+      杀两次 XPC 后仍成功。
+    - LaunchServices 拉起的 agent：放回 3.0.4，`launchctl bootout gui/501/com.maxgoedjen.Secretive.SecretAgent`，
+      `open …/LoginItems/SecretAgent.app`（标签 `application.com.maxgoedjen.Secretive.SecretAgent.…`），签名成功。
+      `duo install --json` → `{"agentsNotRestarted":["com.maxgoedjen.Secretive.SecretAgent"],…,"outcome":"installed"}`，
+      stderr 警告，日志 `not running as its launchd job (job pid none) — left running`，agent pid 不变。杀 XPC 后
+      `ssh-add -L` 超时（exit 124），即 #1457 的挂死。打开 Secretive：它重新注册登录项，launchd 拉起新 agent
+      （pid 80844），签名成功，再杀 XPC 仍成功；旧 agent（可执行文件已删）还在跑但不再接 socket，测试后手动结束。
+    - 清理：删除测试密钥、Disable Agent（BTM `disabled`）、app 与 4 个容器移入废纸篓；`~/.ssh/config` 字节一致。
+- 端到端（2026-10-19）: 装 3.0.4 → `duo check` 报 `3.0.4 → 4.0.0 [GitHub, in-place]` → `duo install` 装上，
+  agent 随之重启（见上）。2026-09-29 只检测时是 `Skipping: Secretive — detection only`。
 
 ## 已知问题
-- 装不了新版的系统上会报「有更新」。4.0.0 要求 macOS 15。macOS 14 上装着 3.0.4 的用户会看到
-  `3.0.4 → 4.0.0`，而厂商更新器按正文里的下限会跳过这一版、保持安静。因为只做检测，不会装上一个
-  打不开的包，但这条提示对这部分用户没用。`GitHubReleaseRule` 目前没有表达 OS 下限的字段。
+- 无。（2026-09-29 记的「macOS 14 上会报 4.0.0 更新」不成立：DuoUpdater 自身 `deploymentTarget` 是
+  macOS 15.0（`App/project.yml`），跑不到 macOS 14 上；4.0.0 的 `LSMinimumSystemVersion` 15.0 恰好落在
+  这个下限上。）
 
 ## 如何复验
 ```
@@ -119,8 +192,5 @@ swift run --package-path application-test channel-verify <v3.0.4>/Secretive.app 
 ```
 
 ## 建议下一步
-1. 一键安装: 先在测试机上实测「agent 常驻、主 app 关着时替换 bundle」之后 `ssh-add -l` 和一次
-   签名是否还正常；要是不正常，就需要引擎在换包后重拉 `LoginItems` 下的 accessory 登录项，
-   做完这一步再加 `installAssetPattern: ^Secretive\.zip$`、`installerKind: .zip`。
-2. OS 下限: 如果以后给 `GitHubReleaseRule` 加上按正文或包内 `LSMinimumSystemVersion` 过滤的能力，
-   这个 app 是现成的用例。
+1. 一键安装: 已接入（见「一键安装」）。菜单栏 app 里 agent 没回来时只有日志，界面上没有提示。
+2. OS 下限: 已不需要（DuoUpdater 最低 macOS 15，见「已知问题」）。

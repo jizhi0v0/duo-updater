@@ -60,3 +60,5 @@ changelogPages = Dictionary(count: 1)
 changelogPages["com.mitchellh.ghostty"] = URL("https://ghostty.org/docs/install/release-notes")
 
 oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)

@@ -11,18 +11,26 @@ enum com_maxgoedjen_Secretive_Host {
         // CFBundleShortVersionString (CFBundleVersion is `1.<run id>`). One
         // `Secretive.zip` per release, universal. Team Z72PRUAWF6, notarized.
         //
-        // DETECTION-ONLY, although the zip would pass the install gate: the
-        // bundle embeds `Contents/Library/LoginItems/SecretAgent.app`, the SSH
-        // agent every `ssh` call talks to. It is an accessory process, so
-        // `AppRestarter` neither quits nor relaunches it, and nothing here
-        // restarts it after the swap; the vendor relies on the host app
-        // relaunching it on its next activation. Until that happens the agent
-        // keeps running the old code while its bundle has been replaced on disk,
-        // and whether SSH signing keeps working then has not been shown. The user
-        // updates by hand, as the vendor's own flow expects.
+        // One-click with the agent restarted after the swap. The bundle embeds
+        // `Contents/Library/LoginItems/SecretAgent.app`, an `SMAppService` login
+        // item and the SSH agent every `ssh` call talks to; it runs while the
+        // host app is closed. Left running across a swap, the old agent signs
+        // only until its `SecretAgentInputParser.xpc` relaunches from the new
+        // bundle; the new XPC refuses the old agent on its code-signing
+        // requirement and every `ssh` signing request hangs (audit, 「一键安装」).
+        // `loginItemAgentRestarts` below has the engine end the old agent right
+        // after the swap; launchd starts it again from the new bundle
+        // (`LoginItemAgentRestart`). An agent Secretive started through
+        // LaunchServices (its fallback when the login item is not running) is
+        // not a launchd job, so it is left alone and reported instead.
         GitHubReleaseRule(
             bundleID: "com.maxgoedjen.Secretive.Host",
             owner: "maxgoedjen", repo: "secretive",
-            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#),
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^Secretive\.zip$"#,
+            installerKind: .zip),
+        ],
+        loginItemAgentRestarts: [
+            "com.maxgoedjen.Secretive.Host": ["com.maxgoedjen.Secretive.SecretAgent"],
         ])
 }

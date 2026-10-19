@@ -850,9 +850,11 @@ Only after detection is confirmed. For each supported channel:
   `.claude/skills/coverage-discovery/scripts/check-bundle.sh <package>` lists
   them with `LSUIElement` / `LSBackgroundOnly`. A resident helper keeps running
   the replaced code after a swap, and `AppRestarter` only restarts `.regular`
-  nested apps. So read what the helper does before allowing one-click.
-  Secretive's `SecretAgent` (resident SSH agent) is detection-only for this
-  reason. OpenInTerminal's `LSBackgroundOnly` launcher exits right after it
+  nested apps. So read what the helper does before allowing one-click. If a
+  stale login-item agent is shown to break on a real machine, the recipe can
+  name it in `loginItemAgentRestarts`: the engine ends it after the swap and
+  launchd starts it from the new bundle (Secretive's `SecretAgent`, the
+  resident SSH agent). OpenInTerminal's `LSBackgroundOnly` launcher exits right after it
   starts the app, so it is fine.
 - Authentication or special headers needed?
 - Does the body publish a digest of the download? Wire it, but only after a

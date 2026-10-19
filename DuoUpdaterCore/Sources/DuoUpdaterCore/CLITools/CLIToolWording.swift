@@ -34,7 +34,7 @@ public enum CLIToolWording {
         case .deno: return "Deno Land"
         case .mise: return "Jeffrey Dickey"
         case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship,
-             .pnpm, .yarn: return nil
+             .obelus, .pnpm, .yarn: return nil
         }
     }
 
@@ -264,6 +264,11 @@ public enum CLIToolWording {
         case (.unsupportedInstaller, .zoxide(let zoxide)):
             if !zoxide.linked, !zoxide.writable { return String(localized: "Updating it needs administrator rights") }
         case (.unverified, .zoxide):
+            return String(localized: "The new release can’t be checked against a published digest")
+        // In `ObelusCheck`'s order, as zoxide's.
+        case (.unsupportedInstaller, .obelus(let obelus)):
+            if !obelus.linked, !obelus.writable { return String(localized: "Updating it needs administrator rights") }
+        case (.unverified, .obelus):
             return String(localized: "The new release can’t be checked against a published digest")
         case (.unsupportedInstaller, .atuin(let atuin)) where atuin.problem == nil && !atuin.writable:
             return String(localized: "Updating it needs administrator rights")

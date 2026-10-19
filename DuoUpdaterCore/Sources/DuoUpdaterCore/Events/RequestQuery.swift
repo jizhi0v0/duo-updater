@@ -550,9 +550,9 @@ public struct RequestQuery: Sendable, Equatable {
     /// only for a row that already has no status: a `CASE`, because inside
     /// the summary's `SUM` an `AND` does not stop at its first false operand.
     /// Measured with the `sqlite3` tool on a copy of one machine's log (39,876
-    /// app rows, 2026-10-19): the summary's aggregate took 0.10 s with an
-    /// `AND`, against 0.03–0.04 s for both the `CASE` and the predicate before
-    /// this existed — the cost ``notCached`` was rewritten to escape.
+    /// app rows, 2026-10-19, three warm runs each): the summary's aggregate took
+    /// 0.10 s with an `AND`, against 0.04–0.05 s with the `CASE` and 0.03–0.06 s
+    /// before this existed — the cost ``notCached`` was rewritten to escape.
     static let unanswered = """
         CASE WHEN status IS NULL AND \(notCached) THEN \
         COALESCE(json_extract(payload, '$.errorDomain') = '\(NSURLErrorDomain)' \

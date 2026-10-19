@@ -1602,7 +1602,7 @@ private struct WorkbenchSidebarRow: View {
             // wording, same model calls as the popover's row menu.
             Divider()
             if result.hasUpdate {
-                let offered = result.remote?.displayVersion ?? String(localized: "this version")
+                let offered = result.offeredDisplay ?? String(localized: "this version")
                 if isVersionSkipped {
                     Button("Don’t skip \(offered)", action: clearSkip)
                 } else {
@@ -2655,7 +2655,8 @@ private struct DetailHeader: View {
                         retryPausedUntil: model.gitHubPausedUntil),
                     helperEnabled: model.helperEnabled,
                     testFlightUnboundedReason: model.testFlightUnboundedReason,
-                    installCancel: model.installCancels[result.id])
+                    installCancel: model.installRows.cancels[result.id],
+                    installCancelPending: model.installRows.cancelPending.contains(result.id))
                 if let url = changelogURL {
                     Link(destination: url) {
                         Label("Open page", systemImage: "safari")

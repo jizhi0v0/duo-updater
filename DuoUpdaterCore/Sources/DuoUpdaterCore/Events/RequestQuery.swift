@@ -31,11 +31,13 @@ public struct RequestQuery: Sendable, Equatable {
         case code(Int)
         /// A class of codes: `4xx`.
         case family(Int)
-        /// No answer at all — a transport error or a cancellation.
+        /// No answer at all — a transport error. A request we stopped ourselves
+        /// is not one (``RequestEvent/cancelled``).
         case failed
         /// Answered locally; nothing crossed the network.
         case cache
-        /// Anything a person would call wrong: no answer, or an answer ≥ 400.
+        /// Anything a person would call wrong: no answer (one we did not stop
+        /// ourselves), or an answer ≥ 400.
         ///
         /// Deliberately wider than ``failed``. A 403 from a rate-limited GitHub
         /// is the single most common reason an app stops updating, and it is not
@@ -467,11 +469,11 @@ public struct RequestQuery: Sendable, Equatable {
                     values.append(.int(Int64(family) * 100))
                     values.append(.int(Int64(family) * 100 + 100))
                 case .failed:
-                    parts.append("(status IS NULL AND \(Self.notCached))")
+                    parts.append("(\(Self.unanswered))")
                 case .cache:
                     parts.append("NOT (\(Self.notCached))")
                 case .problem:
-                    parts.append("(status >= 400 OR (status IS NULL AND \(Self.notCached)))")
+                    parts.append("(status >= 400 OR \(Self.unanswered))")
                 }
             }
             clauses.append("(" + parts.joined(separator: " OR ") + ")")
@@ -540,6 +542,23 @@ public struct RequestQuery: Sendable, Equatable {
     /// migration, so no row is left NULL to be misread as "not from cache".
     static let notCached =
         "COALESCE(from_cache, json_extract(payload, '$.fetchType') = 'localCache', 0) = 0"
+
+    /// SQL for ``RequestEvent/failed``: no status, not a cache hit, and not
+    /// stopped by us (``RequestEvent/cancelled``).
+    ///
+    /// The error is read from the payload — there is no column for it — and
+    /// only for a row that already has no status: a `CASE`, because inside
+    /// the summary's `SUM` an `AND` does not stop at its first false operand.
+    /// Measured with the `sqlite3` tool on a copy of one machine's log (39,876
+    /// app rows, 2026-10-19, three warm runs each): the summary's aggregate took
+    /// 0.10 s with an `AND`, against 0.04–0.05 s with the `CASE` and 0.03–0.06 s
+    /// before this existed — the cost ``notCached`` was rewritten to escape.
+    static let unanswered = """
+        CASE WHEN status IS NULL AND \(notCached) THEN \
+        COALESCE(json_extract(payload, '$.errorDomain') = '\(NSURLErrorDomain)' \
+        AND json_extract(payload, '$.errorCode') = \(NSURLErrorCancelled), 0) = 0 \
+        ELSE 0 END
+        """
 
     static let durationMicros =
         "json_extract(payload, '$.responseEnd') - json_extract(payload, '$.fetchStart')"

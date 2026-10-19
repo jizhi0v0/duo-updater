@@ -63,11 +63,23 @@ LOG="$DD/app-tests-$$.log"
 RESULT_BUNDLE="$DD/app-tests-$$.xcresult"
 rm -rf "$RESULT_BUNDLE"
 
+# A hung test is a failed test, not a hung run. With timeouts on, xcodebuild
+# ends a test that runs past the allowance and restarts the runner for the rest.
+# Measured 2026-10-19 (Xcode 27.0) on Swift Testing cases, a main thread blocked
+# for good and an await never resumed, allowance 60: both "✘ … Time limit was
+# exceeded: 60.000 seconds", "Restarting after unexpected exit, crash, or test
+# timeout", exit 65 after 126 s. Before this, a wedged case (a WebKit cancel no
+# one answered, a wait on a cache entry NSCache had dropped) held `make test`
+# for 19–49 minutes. Not a performance bound: the slowest passing case in 129
+# local runs took 32 s, and CI's whole test-app step takes about 5 minutes.
 set +e
 xcodebuild -project App/DuoUpdater.xcodeproj \
            -scheme DuoUpdaterAppTests -configuration Debug \
            -derivedDataPath "$DD" \
            -resultBundlePath "$RESULT_BUNDLE" \
+           -test-timeouts-enabled YES \
+           -default-test-execution-time-allowance 300 \
+           -maximum-test-execution-time-allowance 300 \
            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
            test > "$LOG" 2>&1
 STATUS=$?

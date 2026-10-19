@@ -46,6 +46,8 @@ struct DownloadJobResumeServerTests {
         do {
             let result = try await Self.run(job, from: server.url)
             Issue.record(Comment(rawValue: "a refused resume came back as a \(result.bytesDownloaded)-byte archive"))
+        } catch let error as NoAnswer {
+            throw error
         } catch {
             let nsError = error as NSError
             #expect(nsError.domain == "com.duoupdater.app.XcodeDownload")
@@ -80,14 +82,49 @@ struct DownloadJobResumeServerTests {
 
     /// Runs the job with a deadline, so a WebKit that never calls back fails
     /// the test instead of hanging the suite.
+    ///
+    /// At the deadline the job is cancelled and left behind, not awaited. Its
+    /// cancel waits for `WKDownload.cancel()`, which WebKit's Networking process
+    /// answers only when it runs, and under heavy load it can get no CPU at all
+    /// (#1423). Awaiting it turned this deadline into a hang: with that process
+    /// stopped (`SIGSTOP`, 2026-10-19) the old helper sat past its 30 s until
+    /// the process was continued at 181 s, then failed with `CancellationError`.
+    /// The timer is on its own queue, not a task or `global()`: a `global()`
+    /// timer got no thread while every cooperative thread was blocked
+    /// (`StreamedLines.capQueue`, measured by its `theCapFires…` test).
     private static func run(_ job: DownloadJob, from url: URL) async throws -> XcodeArchiveDownload {
         let task = Task { try await job.run(authorizedURL: url) }
-        let deadline = Task {
-            try await Task.sleep(for: .seconds(30))
-            task.cancel()
+        let outcome: Result<XcodeArchiveDownload, Error> = await withCheckedContinuation { continuation in
+            let once = Once(continuation)
+            Task { once.resume(await task.result) }
+            deadlineQueue.asyncAfter(deadline: .now() + deadline) {
+                task.cancel()
+                once.resume(.failure(NoAnswer()))
+            }
         }
-        defer { deadline.cancel() }
-        return try await task.value
+        return try outcome.get()
+    }
+
+    nonisolated private static let deadline: TimeInterval = 30
+    nonisolated private static let deadlineQueue = DispatchQueue(label: "DownloadJobResumeServerTests.deadline")
+
+    /// The job had not finished by the deadline.
+    struct NoAnswer: Error, CustomStringConvertible {
+        var description: String {
+            "the download had not finished \(Int(DownloadJobResumeServerTests.deadline)) s after it started; "
+                + "the job was cancelled and abandoned, not awaited"
+        }
+    }
+
+    /// Resumes a continuation once; later calls do nothing.
+    private final class Once<T: Sendable>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<T, Never>?
+        init(_ continuation: CheckedContinuation<T, Never>) { self.continuation = continuation }
+        func resume(_ value: T) {
+            lock.lock(); let c = continuation; continuation = nil; lock.unlock()
+            c?.resume(returning: value)
+        }
     }
 
     private static func scratchDirectory() throws -> URL {

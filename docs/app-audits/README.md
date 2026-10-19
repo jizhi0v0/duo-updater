@@ -288,6 +288,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**RustGIS**](org-rustgis-RustGIS.md) · `org.rustgis.RustGIS` — G (one-click arm64/x86_64 dmg) · 真包 0.1.0 两个架构挂载验证 ✓ · **一键端到端未跑**（只有 v0.1.0 一个 release） · changelog 结构化 ✓ · 单轨（settled from source） · 2026-10-13
 - [x] [**MuseScore Studio 4**](org-musescore-MuseScore.md) · `org.musescore.MuseScore` — G (one-click universal dmg，主版本钉在 4：5.x 换 bundle id) · 真包 4.0.0/4.2.1/4.7.4/4.7.5 挂载验证 ✓ · channel-verify 4.7.4→4.7.5 ✓ · 一键真机端到端 ✓ 4.7.4→4.7.5 · changelog 结构化 ✓（只有最新一条） · MuseScore 3 同 bundle id：提示 4.x、不给一键（`OneClickGate` 按已装版本 `^4\.`） · Testing 预发布读成 stable，Nightly 读成 nightly 不推 · 2026-10-16
 - [x] [**MusicBrainz Picard**](org-musicbrainz-Picard.md) · `org.musicbrainz.Picard`（2.0.x 的 `org.musicbrainz.picard` 由 `BundleIDMigration` 归到这里）— G (one-click arm64 dmg + GitHub digest) C · 真包 3.0.1/3.0.2 channel-verify ✓（另验 3.0.0rc4、2.13.3、2.0.4）· beta 轨（同 id）未接（偏好 `update_level` 位置已真机确认）· 一键真机端到端 ✓ 3.0.1→3.0.2 · 2026-10-16
+- [x] [**Obelus**](io-github-obelus-editor-obelus.md) · `io.github.obelus-editor.obelus` — G (**digest-only**，ad-hoc 签名，universal2 `.app.zip`) · 3 个真包核对封印/标识/版本/digest ✓ · 一键端到端 ✓（设置关闭→拒绝；打开→installed） · changelog 结构化 ✓ · `install.sh`/mise 装的 `ob`/`obg` 裸二进制未接 · 2026-10-19
 - [x] [**AstrLink**](com-astrlink-desktop.md) · `com.astrlink.desktop` — G (one-click aarch64/x64 dmg) · 真包 0.2.4 x64 / 0.2.5 / 0.2.6 两个架构挂载验证 ✓ · 一键端到端：0.2.5 → 0.2.7 ✓（不运行、运行中 + `duo restart` 两轮） · changelog 结构化 ⚠（`中文` / `English` 两节，每条出现两次） · **preview 轨未接**（app 内开关，尚无 pre-release） · 2026-10-13
 - [x] [**yomado**](dev-chekusu-yomado.md) · `dev.chekusu.yomado` — G (one-click arm64 zip，**每个 release 都标 prerelease**，`usePrereleases` 读列表) · 真包 0.3.1/0.3.2/0.3.3 验证 ✓（0.3.2 → 0.3.3、0.3.3 up to date） · **一键只对 0.3.3 起的副本**（0.3.1/0.3.2 ad-hoc 签名，Team 闸拒绝） · 一键端到端：0.3.2（ad-hoc）→ 拒绝 ✓，**0.3.3 → 下一签名版未跑**（只有一个签名版） · changelog 结构化 ✓（厂商无小标题；0.3.1/0.3.2 正文无条目） · 单轨（settled from source） · 2026-10-13
 - [x] [**Swifty Download Manager**](top-kyleye-swifty-download-manager-app.md) · `top.kyleye.swifty-download-manager-app` — G (one-click zip) · 真包 0.4.0/0.5.1/0.6.0 验证 ✓ · 一键端到端：0.5.1 → 0.6.0 不运行 ✓、运行中 ✓ · changelog 结构化（分节保留）· 单轨（settled from source）· 2026-10-15
@@ -300,6 +301,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**xbar**](com-xbarapp-app.md) · `com.xbarapp.app` — G (one-click universal dmg，每个 2.x tag 都是 `vX.Y.Z-beta` 且不标 prerelease，pattern 保留后缀) · 真包 v2.1.6-beta/v2.1.7-beta 挂载验证 ✓ · 一键端到端 ✓ · changelog 结构化 ✓ · 单轨（settled from source）· v2.0.40 前 bundle id 逐版不同、BitBar 另一产品，均不覆盖 · 2026-10-16
 - [x] [**SwitchHosts**](net-oldj-switchhosts.md) · `net.oldj.switchhosts` — G(stable/beta，两轨一键 universal dmg；beta rule 同 WhatCable 也收 stable tag，channel proof 锚请求) · Tauri v5，app 自己的 updater 只读 `/releases/latest` 的 `latest.json`，无 beta 开关 · 旧 id `SwitchHosts`（≤ 4.2.0，Electron）经 `BundleIDMigration` 归到 stable rule · 真包 3.5.8/4.0.3/4.1.2/4.2.0/4.3.0/5.0.1/5.0.2/5.0.3-beta.3 挂载验证 ✓（Team J5J6USUX2F）· bundle 内有 SMAppService LaunchDaemon `swh_helper` · 真机端到端 ✓ 5.0.1 → 5.0.2 · changelog 结构化 ✓ · 2026-10-16
 - [x] [**Open Screen Sharing**](io-nekohasekai-screensharing.md) · `io.nekohasekai.screensharing` — G (one-click pkg，系统 Installer) · 真包 1.0.0/1.0.1 channel-verify ✓ · 一键端到端 ✓（不运行 + 运行中 + `duo restart`） · changelog 结构化 ✓（厂商正文无小节） · nightly 轨 ✓（V，`OpenScreenSharingChannel` 读 group 容器 SQLite，要完全磁盘访问；真 app 拨开关取证，一键端到端 ✓） · 2026-10-17
+- [x] [**PennyBar**](dev-pennybar-PennyBar.md) · `dev.pennybar.PennyBar` — G (one-click dmg) · 无自更新器 · 只有 v0.1.0 一个 release · changelog ✗（厂商正文只有 Full Changelog 链接）· 一键真机端到端 ✓ · 2026-10-19
+- [x] [**Git Switch**](dev-xinan-git-switch.md) · `dev.xinan.git-switch` — G (one-click zip) · 无自更新器 · 只有 v1.0.1 一个 release；版本号写死在 Xcode 工程、不随 tag 盖章 · changelog ✗（厂商正文只有 Full Changelog 链接）· 一键真机端到端 ✓ · 2026-10-19
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 
@@ -378,6 +381,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Backdrop**](com-cindori-Backdrop.md) · `com.cindori.Backdrop` — S · 一键（delta，壁纸 agent 在跑也可） · changelog 结构化（无分节）· 2026-10-12
 - [x] [**Kuvo**](run-kuvo-app.md) · `run.kuvo.app` — S · 一键 ✓ · ✗ changelog：厂商 release 正文为空、无 CHANGELOG · 2026-10-12
 - [x] [**Seedmux**](com-xx-seedmux.md) · `com.xx.seedmux` — S · arm64/x86_64 各自 feed · 一键（delta）不运行 ✓、运行中（守护进程换新）✓ · changelog 结构化（双语、无分节）· 2026-10-15
+- [x] [**Tamio**](sb-moe-tamio.md) · `sb.moe.tamio` — S · 单轨 · changelog recipe ✓（仓库 CHANGELOG.md，分节保留）· 一键真机端到端 ✓（不运行 + 运行中）· 首启许可窗挡退出，restart 未验 · 2026-10-19
 
 ## Investigated — blocked safely
 

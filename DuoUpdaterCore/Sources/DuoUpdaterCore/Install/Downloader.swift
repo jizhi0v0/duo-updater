@@ -114,7 +114,11 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     /// Exact number of bytes received over the network, for per-app traffic
     /// accounting. Accumulated across resume attempts, so it reflects real traffic
     /// (a partial transfer that was retried counts the bytes that were actually
-    /// pulled, including any discarded on a `200` restart). Guarded by a lock
+    /// pulled, including any discarded on a `200` restart). That includes a kept
+    /// partial's bytes (`ResumableDownloadStore`): an earlier call fetched them
+    /// and was stopped — a Cancel, a failure — so no install recorded them, and
+    /// without this the Downloads ledger counted only the tail of a resumed
+    /// download. Guarded by a lock
     /// because the delegate fires on a background queue while a caller reads this.
     private let bytesLock = NSLock()
     private var _bytesDownloaded: Int64 = 0
@@ -274,6 +278,10 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         // file in the dir we own, with a fresh name so attempt 1 starts at zero.
         let lease = ResumableDownloadStore.open(for: url, appID: attributedApp)
         self.lease = lease
+        // Counted even when the server then refuses to extend them and the
+        // download starts over: they were fetched either way.
+        let keptBytes = lease?.keptBytes ?? 0
+        bytesLock.withLock { _bytesDownloaded = keptBytes }
         let partial = lease?.entry.partial ?? destinationDir
             .appendingPathComponent(".duo-download-\(UUID().uuidString).partial", isDirectory: false)
         if lease == nil { try? FileManager.default.removeItem(at: partial) }
@@ -333,7 +341,7 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                 let result = try await runAttempt(url: url, headers: headers, partial: partial)
                 let secs = Date().timeIntervalSince(started)
                 Log.install.notice(
-                    "download ok: \(self.bytesDownloaded, privacy: .public) bytes transferred in \(Int(secs), privacy: .public)s from \(Redactor.host(url), privacy: .public) (attempt \(attempt + 1, privacy: .public))")
+                    "download ok: \(self.bytesDownloaded, privacy: .public) bytes transferred (\(keptBytes, privacy: .public) of them by an earlier attempt) in \(Int(secs), privacy: .public)s from \(Redactor.host(url), privacy: .public) (attempt \(attempt + 1, privacy: .public))")
                 return result
             } catch {
                 lastError = error

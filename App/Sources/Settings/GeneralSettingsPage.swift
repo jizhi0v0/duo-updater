@@ -162,7 +162,7 @@ struct GeneralSettingsPage: View {
                 SettingsToggle(
                     "Allow one-click updates for apps without a developer signature",
                     detail: "Checks only that the download is byte for byte the file GitHub publishes for the release. That doesn’t protect you the way a developer signature does if the developer’s account is taken over, and macOS may ask you to grant these apps’ privacy permissions again after each update.",
-                    info: "For apps whose GitHub releases are only ad-hoc signed — Alacritty, Flameshot, darktable, disktree and Lokii — and not for apps that sign their own updates with Sparkle or MyGo: those are updated in one click without it, checked against the update key in the copy you have installed. An app installed with a developer signature is never replaced by one without, whatever this says.",
+                    info: "For apps whose GitHub releases are only ad-hoc signed — Alacritty, Flameshot, darktable, disktree, Lokii and Obelus — and not for apps that sign their own updates with Sparkle or MyGo: those are updated in one click without it, checked against the update key in the copy you have installed. An app installed with a developer signature is never replaced by one without, whatever this says.",
                     isOn: $prefs.allowsDigestOnlyInstalls)
                     .settingsAnchor(.digestOnlyInstalls)
             }

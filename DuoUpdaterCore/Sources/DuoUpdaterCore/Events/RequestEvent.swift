@@ -174,8 +174,15 @@ public struct RequestEvent: Codable, Sendable, Hashable {
     /// The server was asked and answered "unchanged" — the cheapest possible
     /// non-free request, and the one `versionFeedCachePolicy` produces by design.
     public var isNotModified: Bool { status == 304 }
-    /// Nothing came back and it was not a cache hit.
-    public var failed: Bool { status == nil && !fromCache }
+    /// Stopped by us before any answer: URLSession's `-999`. A user's Cancel,
+    /// a refresh that superseded this one, a closed notes panel, the app
+    /// quitting — not something the server or the network did, so not a
+    /// failure. A deadline is not among them: a timeout ends as `-1001`.
+    public var cancelled: Bool {
+        status == nil && errorDomain == NSURLErrorDomain && errorCode == NSURLErrorCancelled
+    }
+    /// Nothing came back, it was not a cache hit, and we did not stop it.
+    public var failed: Bool { status == nil && !fromCache && !cancelled }
 
     /// Wall time for the hop, when both ends were measured.
     public var duration: TimeInterval? {

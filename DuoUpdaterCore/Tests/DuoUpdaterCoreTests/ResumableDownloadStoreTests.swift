@@ -202,7 +202,10 @@ struct ResumableDownloadStoreTests {
             let downloader = Downloader(destinationDir: work) { _ in }
             let file = try await downloader.download(url)
             #expect(try Data(contentsOf: file) == Self.body)
-            #expect(downloader.bytesDownloaded == Int64(Self.body.count - Self.stallAt))
+            // The whole file, not the tail: the cancelled call fetched the first
+            // `stallAt` bytes and recorded them nowhere, so this one carries them
+            // into the Downloads ledger.
+            #expect(downloader.bytesDownloaded == Int64(Self.body.count))
         }
         let requests = server.requests
         #expect(requests.count == 2)
@@ -265,7 +268,9 @@ struct ResumableDownloadStoreTests {
             let downloader = Downloader(destinationDir: work) { _ in }
             let file = try await downloader.download(url)
             #expect(try Data(contentsOf: file) == Self.body)
-            #expect(downloader.bytesDownloaded == Int64(Self.body.count))
+            // The kept bytes were fetched and then thrown away by the `200`:
+            // fetched all the same.
+            #expect(downloader.bytesDownloaded == Int64(Self.stallAt + Self.body.count))
         }
         let requests = server.requests
         #expect(requests.count == 2)
@@ -293,6 +298,7 @@ struct ResumableDownloadStoreTests {
             let downloader = Downloader(destinationDir: work) { _ in }
             let file = try await downloader.download(url)
             #expect(try Data(contentsOf: file) == Self.body)
+            #expect(downloader.bytesDownloaded == Int64(2 * Self.body.count))
         }
         let requests = server.requests
         #expect(requests.count == 2)

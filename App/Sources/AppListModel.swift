@@ -169,19 +169,34 @@ final class AppListModel {
     private(set) var lastScan: Date?
 
     /// Per-app install progress, keyed by app id.
-    private(set) var installing: [String: InstallStage] = [:]
+    private(set) var installing: [String: InstallStage] = [:] {
+        didSet { smoothInstallRows() }
+    }
     /// True while "Update All" is running. Blocks a second batch from being
     /// started while the first one still has queued work.
     private(set) var isInstallingAll = false
     /// The Cancel each row an install runs for offers (`InstallCancelState`),
     /// from the moment the install is registered — or claimed by "Update All" —
     /// until it returns. A row with no entry offers none: a rollback, a re-check.
-    private(set) var installCancels: [String: InstallCancelState] = [:]
+    private(set) var installCancels: [String: InstallCancelState] = [:] {
+        didSet { smoothInstallRows() }
+    }
+    /// What the rows draw of `installing` and `installCancels`: the same rows,
+    /// without stages and "Cancelling…" that would only flash
+    /// (`InstallRowSmoothing`). Both windows read this; everything that decides
+    /// anything reads the tables themselves.
+    private(set) var installRows = InstallRowSmoothing<String>.Output()
+    @ObservationIgnored private var installRowSmoothing = InstallRowSmoothing<String>()
+    @ObservationIgnored private var installRowWake: Task<Void, Never>?
     /// One `runInstall` per row at a time: a click in the previous run's tail
     /// waits for it (`InstallRowRuns`).
     private let rowRuns = InstallRowRuns()
     /// From a click on Cancel All until the batch ends: the button says so.
     private(set) var isCancellingAll = false
+    /// What that clicked Cancel All says, from the rows as they draw
+    /// (`InstallRowSmoothing.Output.cancelAllPhase(holding:)`); nil until a
+    /// click, and again once the batch ends.
+    private(set) var cancelAllPhase: InstallRowSmoothing<String>.CancelAllPhase?
     /// The running "Update All"'s targets, for its Cancel All and for a row's
     /// Cancel on a target it has not started (`InstallBatchQueue`).
     @ObservationIgnored private var batchQueue: InstallBatchQueue?
@@ -897,7 +912,7 @@ final class AppListModel {
     /// break here rather than go quiet. Same rule as `RowActions.live`.
     private var rowStateTables: RowStateTables {
         RowStateTables.live(
-            installing: installing,
+            installing: installRows.stages,
             needsRestart: needsRestart,
             pendingBatchRestart: pendingBatchRestart,
             pendingSelfUpdate: pendingSelfUpdate,
@@ -9045,6 +9060,7 @@ final class AppListModel {
         defer {
             isInstallingAll = false
             isCancellingAll = false
+            cancelAllPhase = nil
             batchQueue = nil
             batchClaims = [:]
             appManagementPermissionFlowPresentedInBatch = false
@@ -9171,6 +9187,28 @@ final class AppListModel {
         listActivity.canOfferUpdateAll(targetCount: installAllTargets().count)
     }
 
+    /// Re-derive `installRows` from the install tables, and wake again when a
+    /// stage that is waiting for its turn, or a "Cancelling…", is due.
+    private func smoothInstallRows() {
+        let rows = installRowSmoothing.update(
+            stages: installing, cancels: installCancels, now: .now)
+        if rows != installRows { installRows = rows }
+        if isCancellingAll {
+            let phase = rows.cancelAllPhase(holding: cancelAllPhase)
+            if phase != cancelAllPhase { cancelAllPhase = phase }
+        }
+        installRowWake?.cancel()
+        installRowWake = rows.nextWake.map { due in
+            Task { @MainActor [weak self] in
+                // cancel-ok: a superseded wake is cancelled on purpose; the next
+                // table change has already re-derived the rows.
+                try? await Task.sleep(until: due, clock: .continuous)
+                guard !Task.isCancelled else { return }
+                self?.smoothInstallRows()
+            }
+        }
+    }
+
     /// A row's Cancel. A target "Update All" has not started leaves its queue
     /// at once; a running install is cancelled through the registry
     /// (`InstallJobs.cancel`), which refuses once it is committing. Refused is
@@ -9198,7 +9236,6 @@ final class AppListModel {
     /// committing finish (`InstallBatchQueue.cancelAll`).
     func cancelInstallAll() {
         guard isInstallingAll, !isCancellingAll, let queue = batchQueue else { return }
-        isCancellingAll = true
         // A target whose row was clicked again since is left to that click; one
         // queued behind its row's earlier run has no job yet, and the
         // registered one is that earlier run's wrap-up, which must not be cut.
@@ -9220,6 +9257,13 @@ final class AppListModel {
         for (id, answer) in answers where installCancels[id] == .available {
             installCancels[id] = InstallCancelState.after(answer, claimed: installing[id] != nil)
         }
+        // Set only now, with every table above as Cancel All leaves it: each
+        // write there re-derives the rows, and a title taken from a halfway
+        // state — two queued targets, one removed — would read "Finishing…"
+        // and be held once the second went (`cancelAllPhase(holding:)`). Said
+        // at once, whether or not a table above changed.
+        isCancellingAll = true
+        smoothInstallRows()
     }
 
     // MARK: - Interrupted installs

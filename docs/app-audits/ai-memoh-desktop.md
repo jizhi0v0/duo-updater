@@ -53,13 +53,17 @@ v0.17.0 之前，`felinics/Memoh`（原 `memohai/Memoh`）的 GitHub release 附
 
 | 资产 | app | 版本 | Team | 自带 server | 包内 `app-update.yml` | 编进去的服务地址 |
 |---|---|---|---|---|---|---|
-| `Memoh-0.16.0-mac-arm64.dmg`（0.10–0.16 同名） | `Memoh.app` | `0.16.0` | P9R669C27U | 无 | `provider: github`、`memohai/Memoh` | `localhost:18080`（自托管） |
-| `Memoh-Local-0.13.0-mac-arm64.dmg`（0.10 / 0.13） | `Memoh Local.app` | `0.13.0` | P9R669C27U | `Resources/server/memoh-server` | 同上 | `127.0.0.1`（本地 server） |
-| `Memoh-Desktop-0.9.0-mac-arm64.dmg` | `Memoh.app` | `0.9.0` | P9R669C27U | `Resources/server/memoh-server` | 同上 | `127.0.0.1:18731` |
-| `Memoh_0.7.0_aarch64.dmg` | `Memoh.app`（13 MB，非 Electron） | `0.7.0` | P9R669C27U | — | 无 | 没查 |
+| `Memoh-0.16.0-mac-arm64.dmg`（`Memoh-<v>-*.dmg`，0.10.0–0.16.0） | `Memoh.app` | `0.16.0` | P9R669C27U | 无 | `provider: github`、`memohai/Memoh` | `localhost:18080`（自托管） |
+| `Memoh-Local-0.13.0-mac-arm64.dmg`（0.10.0–0.14.0） | `Memoh Local.app` | `0.13.0` | P9R669C27U | `Resources/server/memoh-server` | 同上 | `127.0.0.1`（本地 server） |
+| `Memoh-Desktop-0.9.0-mac-arm64.dmg`（0.8.0–0.10.0-alpha.1） | `Memoh.app` | `0.9.0` | P9R669C27U | `Resources/server/memoh-server` | 同上 | `127.0.0.1:18731` |
+| `Memoh_0.7.0_aarch64.dmg`（`Memoh_<v>_*.dmg`，0.6.0-beta.1–0.7.1；0.7.3 另有 `Memoh-0.7.3*` 与 `latest-mac.yml`） | `Memoh.app`（13 MB，非 Electron） | `0.7.0` | P9R669C27U | — | 无 | 没查 |
 
 四个的 `CFBundleIdentifier` 都是 `ai.memoh.desktop`，`codesign --verify --deep --strict` 都退 0。
-厂商 CDN 构建（`2026.10.19-1`）编进去的是 `https://app.memoh.net`（Memoh Cloud），不带 server。
+同一批 release 里的 `memoh_<v>_darwin_*.tar.gz` 是命令行二进制，不是 app。家族与范围按 API 的资产列表归类（2026-10-19）；
+每家族只挂载了一个代表包，其余没下，但全部是 `0.x`，门控都挡得住。
+厂商 CDN 的日期构建都不带 server：2026.9.16-1（接入时的第一版）、2026.9.27-1、2026.10.5-1、2026.10.19-1
+四个 arm64 zip 解包核对，`Contents/Resources/server` 不存在、bundle 里没有 `memoh-server*`，`app.asar` 都编进
+`https://app.memoh.net`（Memoh Cloud），short == build == 日期串，Team 都是 `P9R669C27U`。
 
 - **它们自己的更新器拿不到更新**: 0.9–0.16 的 updater 读 GitHub，而 v0.17.0 起 GitHub release 不再附 Mac 安装包
   （settled from source：felinics/Memoh#873「no longer publish prebuilt Desktop installers」，下游分发自己签名发布）。

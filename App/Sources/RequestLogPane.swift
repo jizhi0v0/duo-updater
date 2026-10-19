@@ -655,8 +655,8 @@ struct RequestLogPane: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .frame(width: Column.time, alignment: .leading)
-            // Three states, not two: an HTTP status, a cache hit that never
-            // asked, and a transfer that got no answer at all.
+            // Four states: an HTTP status, a cache hit that never
+            // asked, a transfer we stopped ourselves, and one that got no answer.
             Text(statusText(request))
                 .font(.system(size: 11.5, design: .monospaced))
                 .foregroundStyle(statusColor(request))
@@ -798,11 +798,12 @@ struct RequestLogPane: View {
     private func statusText(_ request: RequestEvent) -> String {
         if request.fromCache { return String(localized: "cache") }
         if let status = request.status { return String(status) }
+        if request.cancelled { return String(localized: "cancel") }
         return String(localized: "fail")
     }
 
     private func statusColor(_ request: RequestEvent) -> Color {
-        if request.fromCache { return .secondary }
+        if request.fromCache || request.cancelled { return .secondary }
         guard let status = request.status else { return .orange }
         return (200..<400).contains(status) ? .secondary : .orange
     }

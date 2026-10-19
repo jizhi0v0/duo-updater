@@ -132,6 +132,11 @@ public enum ResumableDownloadStore {
         /// The validator to send as `If-Range` when the partial on disk is
         /// resumed; nil when there is nothing to resume.
         let validator: String?
+        /// Bytes an earlier call fetched into the partial and stopped before
+        /// finishing — 0 when there is nothing to resume. No ledger has them:
+        /// only a finished install records its bytes, and the call that fetched
+        /// these did not finish one.
+        var keptBytes: Int64 = 0
     }
 
     // MARK: - In-process claims
@@ -192,7 +197,7 @@ public enum ResumableDownloadStore {
            size > 0, !isExpired(entry, at: now) {
             Log.install.notice("resumable download: resuming from \(size, privacy: .public) bytes kept by an earlier attempt")
             return Lease(entry: entry, url: url, appID: appID, createdAt: meta.createdAt,
-                         validator: meta.validator)
+                         validator: meta.validator, keptBytes: size)
         }
         remove(entry)
         return Lease(entry: entry, url: url, appID: appID, createdAt: now, validator: nil)

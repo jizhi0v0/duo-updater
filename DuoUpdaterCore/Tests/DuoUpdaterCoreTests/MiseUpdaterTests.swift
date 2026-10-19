@@ -84,6 +84,33 @@ import Foundation
         }
     }
 
+    /// The row's Cancel lands while the app's token is being looked up for the
+    /// retry: the lookup comes back empty in the cancelled task, the retry
+    /// never runs — and that is what the click stopped, so the row reads it as
+    /// a cancel, not as the first run's 403.
+    /// Mutation: drop the `noteRefusedCommit` in `update` → false, red.
+    @Test func aCancelThatCutsTheTokenLookupStoppedTheRetry() async throws {
+        let box = try MiseSandbox()
+        try box.install(Self.updating(extra: """
+        echo "run:$MISE_GITHUB_TOKEN" >> "$HOME/RUNS"
+        echo "mise WARN  No GitHub token was found, so mise is making unauthenticated requests to GitHub which have a much lower rate limit." >&2
+        echo "mise ERROR HTTP status client error (403 Forbidden) for url (https://api.github.com/repos/jdx/mise/releases/tags/v2026.10.4)" >&2
+        exit 1
+        """))
+        let id = "zz-mise-\(UUID().uuidString)"
+        let updater = MiseUpdater(
+            busy: { _ in nil }, scanner: box.scanner, check: MiseTests.check("2026.10.4"), environment: { [:] },
+            token: { InstallJobs.cancel(id); return nil })
+        let status = try await MiseTests.status(box)
+        let stopped = await InstallJobs.run(id) {
+            _ = await updater.update(status)
+            return InstallJobs.cancelStoppedSomething(id)
+        }
+        #expect(stopped)
+        let ran = try String(contentsOf: box.home.appendingPathComponent("RUNS"), encoding: .utf8)
+        #expect(ran == "run:\n")
+    }
+
     @Test func updatesAndChecksWhatItLeft() async throws {
         let box = try MiseSandbox()
         try box.install(Self.updating())

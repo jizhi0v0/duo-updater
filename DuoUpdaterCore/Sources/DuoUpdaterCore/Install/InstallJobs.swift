@@ -190,14 +190,44 @@ public enum InstallJobs {
         guard let id else { return }
         let changed = try registry.withLock { jobs -> (@Sendable (Phase) -> Void)? in
             guard var job = jobs[id] else { return nil }
-            if job.cancelRequested { throw CancellationError() }
+            if job.cancelRequested {
+                job.refusedACommit = true
+                jobs[id] = job
+                throw CancellationError()
+            }
             let was = job.committing
+            job.ranACommit = true
             job.depth += 1
             job.committing = job.committing ?? label
             jobs[id] = job
             return was == nil ? job.phaseChanged : nil
         }
         changed?(.committing)
+    }
+
+    /// A commit of job `id` did not start because its task was already
+    /// cancelled — by the registry's cancel when one was requested.
+    static func noteRefusedCommit(_ id: String?) {
+        guard let id else { return }
+        registry.withLock { jobs in
+            guard var job = jobs[id], job.cancelRequested else { return }
+            job.refusedACommit = true
+            jobs[id] = job
+        }
+    }
+
+    /// Whether the cancel answered `.cancelled` for job `id` kept anything
+    /// from running: no commit of it ever started, or one was refused for it.
+    /// False when the cancel came after every commit the job would start had
+    /// already run — a command that ran and failed, its job then ending — so
+    /// the job's result is that command's, not the cancel's. False too when
+    /// no cancel was requested, or for an unknown id. Ask from inside the
+    /// job's body: the job is forgotten when it ends.
+    public static func cancelStoppedSomething(_ id: String) -> Bool {
+        registry.withLock { jobs in
+            guard let job = jobs[id], job.cancelRequested else { return false }
+            return job.refusedACommit || !job.ranACommit
+        }
     }
 
     /// The commit `beginCommit` marked has ended. One that returned leaves the
@@ -227,6 +257,10 @@ public enum InstallJobs {
         var depth = 0
         /// Whether any commit of this job returned.
         var landed = false
+        /// Whether any commit of this job started.
+        var ranACommit = false
+        /// Whether a commit of this job was refused for its cancel.
+        var refusedACommit = false
     }
 
     private static let registry = Registry()

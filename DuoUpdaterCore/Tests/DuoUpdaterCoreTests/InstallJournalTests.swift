@@ -1586,6 +1586,29 @@ extension InstallJournalTests {
         }
     }
 
+    /// A file whose owner is gone but whose child still runs is an orphaned
+    /// child — what a host watches for to process again once it exits; one
+    /// whose owner runs (this process) is not, and neither is one whose child
+    /// has exited.
+    /// Mutation: drop `!ownerIsRunning` → the live-owner case red; drop
+    /// `childIsRunning` → the exited-child case red.
+    @Test func anOrphanedChildIsSeenUntilItExits() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            #expect(!InstallJournal.hasOrphanedChild())
+            let child = try await LoopingChild(in: scratch.dir)
+            let mine = try #require(InstallJournal.ProcessStamp.of(getpid()))
+            let live = try store(entry(for: app, owner: mine, child: child.stamp), in: scratch)
+            #expect(!InstallJournal.hasOrphanedChild())
+            try FileManager.default.removeItem(at: live)
+
+            try store(entry(for: app, owner: try await deadProcess(), child: child.stamp), in: scratch)
+            #expect(InstallJournal.hasOrphanedChild())
+            try await child.stop()
+            #expect(!InstallJournal.hasOrphanedChild())
+        }
+    }
+
     /// An install of the app still running — an orphaned child — is not
     /// raced: nothing restored.
     @Test func aRestoreWhileAnInstallOfTheAppRunsWaits() async throws {

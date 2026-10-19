@@ -260,10 +260,17 @@ jobs:
         # Hosted only: on the mini that connection is metered again, and the test
         # itself says SKIPPED when the variable is unset. Same for the Makefile's
         # CORE_TEST_FLAGS (says why there): set only where it is not hosted.
+        #
+        # On a hosted runner, through scripts/run-unclamped.sh too: the runner
+        # clamps every process it starts to utility QoS, and under that clamp the
+        # tests' children wait minutes in the kernel's low-priority I/O throttle.
+        # That was the 120–165 s tail of this step (the script has the numbers).
+        # Outside the hang wrapper, so the wrapper still finds the test process
+        # among its own descendants.
         env:
           DUO_DOWNLOAD_GATE: ${{ runner.environment == 'github-hosted' && '1' || '' }}
           CORE_TEST_FLAGS: ${{ runner.environment != 'github-hosted' && '--skip installPipelineDryRun' || '' }}
-        run: scripts/run-with-hang-report.sh 1800 make test-swift
+        run: ${{ runner.environment == 'github-hosted' && 'scripts/run-unclamped.sh' || '' }} scripts/run-with-hang-report.sh 1800 make test-swift
 
       # After a failed test too: the build itself is sound, and main's failures
       # are mostly tests. Not after a cancel, which can stop a build halfway.
@@ -469,10 +476,11 @@ jobs:
       # hence `make test-release` rather than a bare `swift test -c release`
       # (DuoUpdaterCore/Package.swift says why). Checked on 2026-10-04 that the
       # Junie abort still reproduces that way.
+      # Unclamped on a hosted runner, as in the swift job's `make test-swift`.
       - name: Core tests (Release)
         env:
           CORE_TEST_FLAGS: ${{ runner.environment != 'github-hosted' && '--skip installPipelineDryRun' || '' }}
-        run: scripts/run-with-hang-report.sh 1200 make test-release
+        run: ${{ runner.environment == 'github-hosted' && 'scripts/run-unclamped.sh' || '' }} scripts/run-with-hang-report.sh 1200 make test-release
 
       # After a failed test too: the build itself is sound, and main's failures
       # are mostly tests. Not after a cancel, which can stop a build halfway.

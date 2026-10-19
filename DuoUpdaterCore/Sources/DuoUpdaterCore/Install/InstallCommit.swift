@@ -97,8 +97,13 @@ public enum InstallCommit {
         _ body: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         if isInside { return try await body() }
-        try Task.checkCancellation()
         let job = InstallJobs.currentID
+        do {
+            try Task.checkCancellation()
+        } catch {
+            InstallJobs.noteRefusedCommit(job)
+            throw error
+        }
         // Throws if the registry already answered a cancel for this job, and
         // marks it committing in the same critical section otherwise.
         try InstallJobs.beginCommit(job, label: label)

@@ -5,7 +5,7 @@
 - Bundle ID: `org.openlogi.openlogi`
 - Team ID: `8U3ZJ258K9`
 - 已安装验证版本: `0.8.1`（build `20260826.132846`）
-- 自更新机制: 自研 `gpui-updater`，release build 内写死官方 stable manifest
+- 自更新机制: 0.8.14 起改用 Sparkle（见「历史与实测」2026-10-19）；之前是自研 `gpui-updater`，release build 内写死官方 stable manifest
   `https://updates.openlogi.org/channels/stable/latest.json`
 - 分发: 官网 / GitHub Releases / Homebrew cask `openlogi`
 
@@ -15,9 +15,9 @@
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **stable**   | —       | — (`auto_updates`) | — | ✓ | ○（官方 manifest，未采用） |
+| **stable**   | ✓（0.8.14 起） | — (`auto_updates`) | — | ✓ | ○（官方 manifest，未采用） |
 
-当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**。
+当前生效源（`UpdateChecker` 优先链中第一个应答的）: 0.8.13 及以前的副本 **GitHub**；0.8.14 起的副本 **Sparkle**（自带 `SUFeedURL`，未跑 channel-verify）。
 
 `auto_updates: true` 的含义是 Homebrew 把更新责任交回应用自身；即使这份 app
 由 brew 安装，`HomebrewCaskSource` 也会按设计返回 nil。接入前对真实 brew 安装
@@ -94,6 +94,15 @@ beta/nightly 构建或本机需要辨识的 channel 偏好。
    安装边界，然后在本 app PR 内或后续 OpenLogi 专属 PR 打开资产规则。
 
 ## 历史与实测
+
+### 0.8.14 起改用 Sparkle（2026-10-19 实测，#1351）
+
+`duo verify-install` 报 `identityChanged: Sparkle key none → dwOe6ZzI…lBlq1zkdI=`（记录于 0.8.13，2026-10-11）。
+
+- v0.8.14（2026-10-15）的说明写着 "feat(gui): update macOS through Sparkle"（厂商 PR AprilNEA/OpenLogi#1744，2026-10-13 由 AprilNEA 合并）。key 在构建时由环境变量注入，源码里没有，无法与仓库对照。
+- 0.8.14 arm64 dmg（sha256 与厂商 SHA256SUMS 一致）：`org.openlogi.openlogi` 0.8.14，`CFBundleVersion` 0.8.14（之前是时间戳），Team `8U3ZJ258K9` 未变，`SUFeedURL` = `https://updates.openlogi.org/channels/stable/appcast-arm64.xml`，`SUEnableAutomaticChecks` = false。
+- appcast 一项 0.8.14，enclosure `https://updates.openlogi.org/releases/v0.8.14/OpenLogi-v0.8.14-macos-arm64.dmg`（20,741,647 B，与 GitHub 的 dmg 同长）。`openssl pkeyutl -verify -rawin` 用上述 key 验它的 `edSignature`：`Signature Verified Successfully`；同一签名验 appcast 文件本身：`Signature Verification Failure`（对照）。
+- 处理：`verify/identities.json` 的 `github:AprilNEA/OpenLogi:stable` 补上 `sparklePublicKey`，接受这次变化。Team 相同，Sparkle 一键路线的 Team 闸能过（未真机跑）。
 
 从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
 

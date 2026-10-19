@@ -134,6 +134,12 @@ nightly 不是可订阅的轨道，但装上了必须认得出来:
       再杀 XPC 签名仍成功。Secretive 的 agent 面板显示 agent 版本 4.0.0。
     - 清理：删除测试密钥、Disable Agent（BTM `disabled`）、app 与 4 个容器移入废纸篓（含上一轮留下的两个 XPC
       容器）；`~/.ssh/config` 与 shell 配置字节一致。
+  - **2.x 不一键（`oneClickGates`：已装版本须 ≥ 3.0）**。2.x 用旧的 `SMLoginItemSetEnabled` / `forceLaunch`
+    拉 agent。2026-10-19 实测 2.4.1：打开主 app 后 agent 是 LaunchServices 起的（`launchctl list` 里的标签是
+    `application.com.maxgoedjen.Secretive.SecretAgent.…`，没有 `com.maxgoedjen.Secretive.SecretAgent` 这个 launchd
+    作业）；退出主 app、对 agent 发 `SIGTERM`，15 s 内没人重新拉起它。也就是说对 2.x 结束旧 agent 会让 SSH
+    签名停到用户打开 Secretive 为止，所以 2.x 副本只检测、手动更新。（这台机器之前跑过 3.x 测试，BTM 里留着
+    已 disabled 的条目；干净机器上 2.4.1 会不会注册成 launchd 登录项未验证，按不会处理。）
 - 端到端（2026-10-19）: 装 3.0.4 → `duo check` 报 `3.0.4 → 4.0.0 [GitHub, in-place]` → `duo install` 装上，
   agent 随之重启（见上）。2026-09-29 只检测时是 `Skipping: Secretive — detection only`。
 

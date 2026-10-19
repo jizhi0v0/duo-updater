@@ -28,6 +28,17 @@ enum com_maxgoedjen_Secretive_Host {
             installAssetPattern: #"^Secretive\.zip$"#,
             installerKind: .zip),
         ],
+        oneClickGates: [
+            // 3.x and later register the agent with `SMAppService`, a launchd
+            // job that starts it again after the restart above. 2.x starts it
+            // through LaunchServices instead (no launchd job), so ending it
+            // leaves SSH signing off until Secretive is opened (audit,
+            // 「一键安装」). Those copies update by hand.
+            OneClickGate(
+                bundleID: "com.maxgoedjen.Secretive.Host",
+                requirement: .installedVersion(pattern: #"^(?:[3-9]|[1-9][0-9]+)\."#),
+                reason: "Secretive before 3.0 starts its SSH agent in a way nothing restarts after the update; update it from github.com/maxgoedjen/secretive"),
+        ],
         loginItemAgentRestarts: [
             "com.maxgoedjen.Secretive.Host": ["com.maxgoedjen.Secretive.SecretAgent"],
         ])

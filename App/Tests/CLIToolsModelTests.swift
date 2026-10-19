@@ -610,7 +610,12 @@ struct CLIToolsModelTests {
         #expect(model.cancels[id] == .available)
         model.cancel(id)
         #expect(model.cancels[id] == .cancelling)
-        #expect(model.progress[id] == "Cancelling…")
+        // Its row keeps its line, Cancel greyed, until "Cancelling…" is due
+        // (`InstallRowSmoothing`), and says so once it is.
+        #expect(model.progressLine(id) != "Cancelling…")
+        #expect(model.cancelRows.cancelPending.contains(id))
+        await until { model.progressLine(id) == "Cancelling…" }
+        #expect(model.cancelRows.cancelPending.isEmpty)
         await gate.open()
         await running.value
 

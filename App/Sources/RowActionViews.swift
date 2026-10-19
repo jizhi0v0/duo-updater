@@ -177,6 +177,9 @@ func installProgressLabel(_ stage: InstallStage, cancel: InstallCancelState?) ->
 /// "Cancelling…" instead (`installProgressLabel`).
 struct InstallCancelButton: View {
     let state: InstallCancelState
+    /// Accepted, with "Cancelling…" not shown yet (`InstallRowSmoothing`): greyed,
+    /// so a second click has nothing to do, with the help a live one has.
+    var pending = false
     let action: () -> Void
 
     /// What the glyph takes in the row, for a row that budgets its width.
@@ -187,7 +190,7 @@ struct InstallCancelButton: View {
             Image(systemName: "xmark.circle.fill")
         }
         .buttonStyle(.borderless)
-        .disabled(state != .available)
+        .disabled(state != .available || pending)
         .help(help)
         // The glyph alone has the accessibility title "Close" (read from the
         // running app's AX tree, 2026-10-18).
@@ -367,10 +370,14 @@ struct WorkbenchRowAction: View {
     /// and what that mark explains (`TestFlightUnboundedReason`). An input for the
     /// same reason as `helperEnabled`.
     var testFlightUnboundedReason: TestFlightUnboundedReason = .storeSilent
-    /// The running install's Cancel (`AppListModel.installCancels`), nil when
-    /// the row's stage is no install of ours — a rollback, a re-check. An input
-    /// for the same reason as `helperEnabled`.
+    /// The running install's Cancel as the rows draw it
+    /// (`AppListModel.installRows`), nil when the row's stage is no install of
+    /// ours — a rollback, a re-check. An input for the same reason as
+    /// `helperEnabled`.
     var installCancel: InstallCancelState? = nil
+    /// Its cancel was accepted, and "Cancelling…" is not due yet: the Cancel
+    /// stays, greyed (`InstallRowSmoothing`).
+    var installCancelPending = false
 
     @State private var showTestFlightTip = false
     @State private var showOrphanHint = false
@@ -417,7 +424,8 @@ struct WorkbenchRowAction: View {
             HStack(spacing: 8) {
                 installProgress(stage)
                 if let installCancel, installCancel != .cancelling {
-                    InstallCancelButton(state: installCancel, action: actions.cancelInstall)
+                    InstallCancelButton(
+                        state: installCancel, pending: installCancelPending, action: actions.cancelInstall)
                 }
             }
 

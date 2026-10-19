@@ -2655,7 +2655,8 @@ private struct DetailHeader: View {
                         retryPausedUntil: model.gitHubPausedUntil),
                     helperEnabled: model.helperEnabled,
                     testFlightUnboundedReason: model.testFlightUnboundedReason,
-                    installCancel: model.installCancels[result.id])
+                    installCancel: model.installRows.cancels[result.id],
+                    installCancelPending: model.installRows.cancelPending.contains(result.id))
                 if let url = changelogURL {
                     Link(destination: url) {
                         Label("Open page", systemImage: "safari")

@@ -102,7 +102,15 @@ final class CLIToolsModel {
     /// (`InstallCancelState`): live while it waits its turn under `updateAll`
     /// or runs what comes before its command, greyed once the command started
     /// (its `InstallCommit`). Cleared with the claim (`release`).
-    private(set) var cancels: [CLIToolID: InstallCancelState] = [:]
+    private(set) var cancels: [CLIToolID: InstallCancelState] = [:] {
+        didSet { smoothCancelRows() }
+    }
+    /// `cancels` as the rows draw them: an accepted cancel says "Cancelling…"
+    /// only once it has lasted `InstallRowSmoothing.cancellingDelay`, and one
+    /// that ended the update sooner never does (`InstallRowSmoothing`).
+    private(set) var cancelRows = InstallRowSmoothing<CLIToolID>.Output()
+    @ObservationIgnored private var cancelRowSmoothing = InstallRowSmoothing<CLIToolID>()
+    @ObservationIgnored private var cancelRowWake: Task<Void, Never>?
     /// Copies cancelled while `updateAll` had them queued: their lane skips them.
     @ObservationIgnored private var cancelledWhileQueued: Set<CLIToolID> = []
     /// The latest output line of each running update.
@@ -871,7 +879,26 @@ final class CLIToolsModel {
             return
         }
         cancels[id] = InstallCancelState.after(InstallJobs.cancel(Self.jobID(id)))
-        if cancels[id] == .cancelling { progress[id] = String(localized: "Cancelling…") }
+    }
+
+    /// The running update's line on its row: its latest output, or
+    /// "Cancelling…" once that is due (`cancelRows`).
+    func progressLine(_ id: CLIToolID) -> String? {
+        cancelRows.cancels[id] == .cancelling ? String(localized: "Cancelling…") : progress[id]
+    }
+
+    private func smoothCancelRows() {
+        let rows = cancelRowSmoothing.update(stages: [:], cancels: cancels, now: .now)
+        if rows != cancelRows { cancelRows = rows }
+        cancelRowWake?.cancel()
+        cancelRowWake = rows.nextWake.map { due in
+            Task { @MainActor [weak self] in
+                // cancel-ok: one-shot; a superseded wake is cancelled on purpose.
+                try? await Task.sleep(until: due, clock: .continuous)
+                guard !Task.isCancelled else { return }
+                self?.smoothCancelRows()
+            }
+        }
     }
 
     /// The registry's id for a copy's update: apart from the app rows', whose

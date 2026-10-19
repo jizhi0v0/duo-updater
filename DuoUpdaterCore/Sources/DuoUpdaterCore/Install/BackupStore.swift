@@ -1060,7 +1060,9 @@ public enum BackupStore {
     /// normalization that path is in. So each executable is tried in its own
     /// spelling and in both canonical forms. Measured 2026-10-19: a file named
     /// in NFD and started through its NFC spelling got the NFC bytes
-    /// (`Café-Überwach`).
+    /// (`Café-Überwach`); `enumerator(atPath:)` hands back the on-disk bytes
+    /// unchanged, a mixed-form name included. Not covered: a launch through a
+    /// spelling that mixes forms differently from all three.
     static func anyExecutable(_ executables: [String], isNamed names: [[UInt8]]) -> Bool {
         let cut = 15
         let spellings = executables.flatMap { executable in

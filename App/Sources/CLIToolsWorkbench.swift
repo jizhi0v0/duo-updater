@@ -45,7 +45,8 @@ struct LogoTile<Mark: View>: View {
 /// Fly.io (for flyctl), nvm and GHCup's Haskell mark are Simple Icons 16.34.0 too (nvm cropped to its
 /// wordmark); Deno is deno.com's brand kit, its light mark and, in the dark, its
 /// outlined one, as the kit's guidelines ask; mise is its repo's
-/// `docs/public/logo-light.svg`; Atuin's turtle (atuin.sh's brand assets) and
+/// `docs/public/logo-light.svg`; Obelus is its release's `obelus.svg`, the
+/// dot-line-dot mark without its tile; Atuin's turtle (atuin.sh's brand assets) and
 /// zoxide's keycap (`contrib/logo-{light,dark}.svg`) keep their own colours,
 /// since one colour would leave a blob and a blank square. bub and Lorca publish
 /// only a PNG, so they stand in with an SF Symbol.
@@ -100,6 +101,7 @@ struct CLIToolIcon: View {
         case .deno: "cli-deno"
         case .mise: "cli-mise"
         case .flyctl: "cli-flyctl"
+        case .obelus: "cli-obelus"
         case .bub, .lorca: nil
         }
     }
@@ -129,6 +131,13 @@ struct CLIToolIcon: View {
                 : NSColor(srgbRed: 0x9C / 255, green: 0x82 / 255, blue: 0x26 / 255, alpha: 1)
         })
         case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr, .lorca, .zoxide, .nvm, .deno, .mise: Color(nsColor: .labelColor)
+        // Obelus's brass (`obelus.svg`'s gradient): its #C9A227 in the dark,
+        // the gradient's darker #8C6F33 on a light sidebar.
+        case .obelus: Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                ? NSColor(srgbRed: 0xC9 / 255, green: 0xA2 / 255, blue: 0x27 / 255, alpha: 1)
+                : NSColor(srgbRed: 0x8C / 255, green: 0x6F / 255, blue: 0x33 / 255, alpha: 1)
+        })
         case .starship: Color(red: 0xDD / 255, green: 0x0B / 255, blue: 0x78 / 255)
         // Simple Icons' brand colours: pnpm's orange, Yarn's blue.
         case .pnpm: Color(red: 0xF6 / 255, green: 0x92 / 255, blue: 0x20 / 255)

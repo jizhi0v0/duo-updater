@@ -89,7 +89,14 @@
   | `Obelus-0.9.0-universal2-apple-darwin.app.zip` | 40756016 | `d3bde27b6b51db8568acd0a0d1e976cee71186b57660527ebd3bc62e48d3dd60` |
 
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`，README 和 app 自己的版本检查都指向它）
-- 端到端: E2E_PENDING
+- 端到端（2026-10-19，真机，Apple silicon；`make cli` 用本分支构建的 `duo`）:
+  - 不运行、设置关闭: 0.15.0 放进 `/Applications` → `duo check` `0.15.0 → 0.16.0 [GitHub]` → `duo install --yes --json`
+    `skipped`，原因「no developer signature — turn on one-click updates for such apps …」；bundle 原样（版本、inode 不变）
+  - 不运行、设置打开（`AllowDigestOnlyInstalls`）: `installed`（`route` vendor，50388533 字节 = 0.16.0 的 `.app.zip`，
+    17 s）→ short / build 都是 `0.16.0`、inode 变、签名标识 `io.github.obelus-editor.obelus`（adhoc）、
+    `--deep --strict` 0、`spctl` rejected（预期，ad-hoc）、与厂商 zip 解出的 bundle `diff -r` 一致；之后 `duo check` up to date。
+    `duo backups` 没有 Obelus 的条目：这次运行时「保留备份」（`KeepBackups`）是关的，没备份是预期结果，与本 rule 无关
+  - 运行中一轮没跑: app 没有自更新器（只读 `/releases/latest` 的 JSON），不存在碰撞面
 - 阻塞: 无
 
 ## 已知问题

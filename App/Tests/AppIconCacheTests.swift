@@ -170,8 +170,9 @@ struct AppIconCacheTests {
         let dir = try Self.tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let path = try Self.makeBundle(in: dir, version: "1.0")
-        _ = AppIconCache.icon(for: path)
         let gate = Gate()
+        // On every way out, so a pass held in its `stat` never outlives the test.
+        defer { gate.open() }
         let real = AppIconCache.probeBundle
         AppIconCache.probeBundle = { path in
             gate.enter()
@@ -179,17 +180,42 @@ struct AppIconCacheTests {
         }
         defer { AppIconCache.probeBundle = real }
 
-        AppIconCache.revalidate([path])
-        while gate.entered == 0 { try await Task.sleep(for: .milliseconds(5)) }
+        guard try await Self.firstPassHeld(at: path, by: gate) else {
+            Issue.record("the pass never reached its stat: the cache had lost the entry on every try")
+            return
+        }
         // The first pass is now stuck in its `stat`.
         for _ in 0..<4 { AppIconCache.revalidate([path]) }
         // Long enough for every call's pass to have reached its `stat` if each one
         // started its own.
         try await Task.sleep(for: .milliseconds(300))
         #expect(gate.entered == 1)
+        // Cached again in case it was dropped meanwhile: the queued pass, like
+        // the first, stats only what is cached.
+        _ = AppIconCache.icon(for: path)
         gate.open()
         await AppIconCache.revalidationSettled()
         #expect(gate.entered == 2)
+    }
+
+    /// Caches `path` and starts a pass, until one is held at `gate`. A pass
+    /// stats only paths still cached, and `NSCache` drops entries by itself
+    /// "if memory is needed by other applications" (its documentation). A pass
+    /// that found the entry gone ended without a `stat`, and waiting for the
+    /// gate alone then never ended. `make test` hung here for 19 and 42 min on
+    /// 2026-10-18 (`sample`: this wait), and again on 10-19 among WebKit's
+    /// memory-pressure warnings; removing the entry by hand reproduces it. So a
+    /// pass that ends counts as a miss.
+    private static func firstPassHeld(at path: String, by gate: Gate) async throws -> Bool {
+        for _ in 0..<3 {
+            _ = AppIconCache.icon(for: path)
+            AppIconCache.revalidate([path])
+            let ended = Flag()
+            Task { await AppIconCache.revalidationSettled(); ended.set() }
+            while gate.entered == 0, !ended.isSet { try await Task.sleep(for: .milliseconds(5)) }
+            if gate.entered > 0 { return true }
+        }
+        return false
     }
 }
 

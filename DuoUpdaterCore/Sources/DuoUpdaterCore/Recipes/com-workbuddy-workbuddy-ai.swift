@@ -96,8 +96,8 @@ enum com_workbuddy_workbuddy_ai {
         // nightly `duo verify` sweep reports).
         //
         // One-click: the JSON's `url` is a plain, unsigned zip on Tencent COS
-        // (intl: `codebuddy-1328495429.cos.accelerate.myqcloud.com`; CN:
-        // `download.codebuddy.cn`). The `sha256hash` field alongside it is NOT
+        // (intl: `download.codebuddy.ai`; CN: `download.codebuddy.cn` — each a
+        // branded front for the vendor's COS bucket). The `sha256hash` field alongside it is NOT
         // that zip's digest: it is the SHA-256 of the `.dmg` sibling at the same
         // path (measured 2026-10-07 on all four host×arch pairs; History). So
         // one-click installs that dmg, checked against `sha256hash`, then Team
@@ -108,12 +108,12 @@ enum com_workbuddy_workbuddy_ai {
         // `Recipes/com-tencent-workbuddy-mac.swift`.
         VendorProbeRegistry.workBuddyRecipe(
             bundleID: "com.workbuddy.workbuddy-ai", host: "www.workbuddy.ai",
-            assetHost: "codebuddy-1328495429.cos.accelerate.myqcloud.com", arch: .arm64,
+            assetHost: "download.codebuddy.ai", arch: .arm64,
             downloadURL: URL(string: "https://www.workbuddy.ai/")!,
             changelogURL: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!),
         VendorProbeRegistry.workBuddyRecipe(
             bundleID: "com.workbuddy.workbuddy-ai", host: "www.workbuddy.ai",
-            assetHost: "codebuddy-1328495429.cos.accelerate.myqcloud.com", arch: .x86_64,
+            assetHost: "download.codebuddy.ai", arch: .x86_64,
             downloadURL: URL(string: "https://www.workbuddy.ai/")!,
             changelogURL: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!),
         ],

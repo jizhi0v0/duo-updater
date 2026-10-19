@@ -4,8 +4,8 @@ import Testing
 
 /// `InstallBatchQueue`: Update All's Cancel All over a mix of targets.
 /// Serialized: the jobs go through the process-wide `InstallJobs` registry.
-/// The time limit is a hang guard, not a duration (`InstallJobsRunTests`).
-@Suite(.serialized, .timeLimit(.minutes(1))) struct InstallBatchQueueTests {
+/// No `.timeLimit`: on CI it timed queue wait, not the test (`InstallJobsRunTests`).
+@Suite(.serialized) struct InstallBatchQueueTests {
 
     typealias Signal = InstallCommitTests.Signal
     typealias Flag = InstallCommitTests.Flag

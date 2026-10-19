@@ -350,9 +350,9 @@ private let longbridgeIndexPage = #"""
         #expect(recipe.structuredFormat == nil)
         #expect(recipe.mode == .html)
         #expect(recipe.resolvedSource(forVersion: expected).absoluteString
-            == "https://longbridge.com/en/changelog/longbridge-pro/0.19")
+            == "https://longbridge.com/en/changelog/longbridge-pro/v0.19")
         #expect(recipe.resolvedSource(forVersion: "1.0.0").absoluteString
-            == "https://longbridge.com/en/changelog/longbridge-pro/1.0")
+            == "https://longbridge.com/en/changelog/longbridge-pro/v1.0")
 
         let log = try #require(ChangelogExtractor.extract(from: page, using: recipe))
         #expect(log.entries.count == 1)

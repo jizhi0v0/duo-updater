@@ -3934,14 +3934,12 @@ final class AppListModel {
     /// code" across updates.
     func digestOnlyNote(for result: UpdateResult) -> String? {
         // A MyGo app is checked against its developer's own update signature
-        // (`InstallTrust.myGoSignatureOnly`), not a GitHub hash: same three
-        // states, its own words.
+        // (`InstallTrust.myGoSignatureOnly`), not a GitHub hash, and is not behind
+        // the setting: its own words, and never the "turned off" state.
         if result.remote?.installTrust == .myGoSignatureOnly {
             switch UpdatePolicy.digestOnlyOffer(result, settings: policySettings) {
-            case nil:
+            case nil, .turnedOff?:
                 return nil
-            case .turnedOff?:
-                return String(localized: "This app has no developer signature, so it isn’t updated in one click unless you allow it in Settings — checked only against its developer’s update signature.")
             case .noPublishedDigest?:
                 return String(localized: "This app has no developer signature, and its update feed signs no file for this release, so it can’t be updated in one click.")
             case .offered?:

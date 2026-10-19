@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 @testable import DuoUpdaterCore
@@ -784,7 +785,11 @@ import Testing
             """)
         let tool = try #require(DeltaApplier.toolURL(bundle: host))
 
-        // The installed app, at the build the patch was cut against.
+        // The installed app, at the build the patch was cut against. It is not
+        // code-signed, so it has no Team ID and takes the key-only route: it
+        // carries an update key, and the patch is signed with it, so the route
+        // gets past gate 1 to the patch.
+        let vendor = Curve25519.Signing.PrivateKey()
         let installed = top.appendingPathComponent("ZZInstalled.app", isDirectory: true)
         try fm.createDirectory(at: installed.appendingPathComponent("Contents"), withIntermediateDirectories: true)
         try Data("""
@@ -792,6 +797,7 @@ import Testing
             <plist version="1.0"><dict>
             <key>CFBundleIdentifier</key><string>com.example.zzfixture.delta</string>
             <key>CFBundleVersion</key><string>1.1.0</string>
+            <key>SUPublicEDKey</key><string>\(vendor.publicKey.rawRepresentation.base64EncodedString())</string>
             </dict></plist>
             """.utf8).write(to: installed.appendingPathComponent("Contents/Info.plist"))
         let app = InstalledApp(
@@ -803,7 +809,8 @@ import Testing
         try Data("patch".utf8).write(to: patchFile)
         let patch = DeltaPatch(
             fromBuild: "1.1.0", url: URL(string: "https://example.com/1.1.0-1.2.0.delta")!,
-            size: 5, edSignature: nil)
+            size: 5,
+            edSignature: try vendor.signature(for: Data("patch".utf8)).base64EncodedString())
         let download = DownloadedUpdate(
             archiveURL: patchFile, bytesDownloaded: 5, workDir: top, appliedPatch: patch)
         let remote = RemoteVersion(

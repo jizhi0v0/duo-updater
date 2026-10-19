@@ -383,9 +383,12 @@ import Testing
 
 /// `InstallJobs.run`: a host's job, cancellable through the registry only.
 /// Serialized like `InstallJobsTests`, for the same process-wide registry.
-/// The time limit is a hang guard, not a duration: a job its cancel never
-/// reaches waits for nothing, and the run must fail rather than stall.
-@Suite(.serialized, .timeLimit(.minutes(1))) struct InstallJobsRunTests {
+/// No `.timeLimit`: it counts the time a test waits for a thread, not just its
+/// own run. On CI's 3-core hosted runner about 5,200 tests start in the first
+/// 5 s, and this suite's and `InstallRowRunsTests`' first tests, 0.01 s alone,
+/// ended 131 and 135 s in (run 39164040853) beside some 100 untimed tests just
+/// as slow. Nor would it stop a hang: past the limit it waits for the body.
+@Suite(.serialized) struct InstallJobsRunTests {
 
     typealias Signal = InstallCommitTests.Signal
     typealias Flag = InstallCommitTests.Flag

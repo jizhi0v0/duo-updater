@@ -145,8 +145,9 @@ public struct ObelusScanner: Sendable {
 
     /// `obelus/`, the User-Agent's prefix. Measured 2026-10-19 on every macOS
     /// build of both binaries from 0.9.0 to 0.16.0: `obelus/<version>` twice (a
-    /// slice each), always the build's own version; every other `obelus/` in
-    /// the file is a path (`obelus/src/…`), which reads as no version.
+    /// slice each), always the build's own version. The other `obelus/` hits
+    /// read as no version: paths (`obelus/src/…`), and in the x86 slice two
+    /// `obelus/0` followed by instruction bytes, a bare `0`.
     static let anchor = Data("obelus/".utf8)
 
     /// What follows each `obelus/`; nil when the file cannot be read. Read, never

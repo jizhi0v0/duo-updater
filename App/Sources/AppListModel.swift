@@ -4602,8 +4602,8 @@ final class AppListModel {
             }
             return (failure, InstallJobs.cancelStoppedSomething(jobID))
         }
-        // Stopped before the upgrade started: nothing changed, so no error and
-        // no re-read.
+        // Stopped before the upgrade started: nothing installed changed, so no
+        // error and no re-read, as for a row (`upgradeBrewFormula`).
         if cancelStopped {
             Log.app.notice("brew upgrade (all): cancelled before the upgrade started")
             return
@@ -4657,8 +4657,9 @@ final class AppListModel {
             // Asked while the job is still registered: it is forgotten when it ends.
             return (failure, InstallJobs.cancelStoppedSomething(jobID))
         }
-        // Stopped before the upgrade started: nothing changed, so no error and
-        // no re-read.
+        // Stopped before the upgrade started: nothing installed changed, so no
+        // error and no re-read. (brew's auto-update before the dry run may have
+        // moved the package lists; the next background read picks that up.)
         if cancelStopped {
             Log.app.notice("brew upgrade \(name, privacy: .public): cancelled before the upgrade started")
             return

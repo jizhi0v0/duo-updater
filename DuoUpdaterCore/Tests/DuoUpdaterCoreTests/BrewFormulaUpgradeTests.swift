@@ -126,16 +126,19 @@ import Foundation
         let id = "test-brew-upgrade-all:\(UUID().uuidString)"
         let answer = Answer()
         let watchdog = brew.watchdog()
-        let result = await InstallJobs.run(id) { () -> Result<Void, any Error> in
-            await Result.of {
+        let (result, stopped) = await InstallJobs.run(id) { () -> (Result<Void, any Error>, Bool) in
+            let result = await Result.of {
                 try await brew.service.upgradeAll(casks: ["zzfixture-cask"]) { line in
                     if line == "fetching" { answer.set(InstallJobs.cancel(id)) }
                 }
             }
+            // What `upgradeBrewFormulae` reads to show no error and skip the re-read.
+            return (result, InstallJobs.cancelStoppedSomething(id))
         }
         watchdog.cancel()
         #expect(answer.value == .cancelled)
         #expect(throws: CancellationError.self) { try result.get() }
+        #expect(stopped)
         #expect(!brew.calls.contains { $0.hasPrefix("upgrade --formula|") || $0.hasPrefix("upgrade --cask") })
         #expect(!brew.calls.contains { $0.hasPrefix("fetch --cask") }, "the casks' fetch never started either")
         #expect(brew.exists("fetch.interrupted"), "the fetch ran its own SIGINT handler")

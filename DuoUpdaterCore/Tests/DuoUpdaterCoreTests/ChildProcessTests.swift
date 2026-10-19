@@ -399,7 +399,7 @@ import Testing
     ///
     /// Mutations: (a) `toProcessGroup: false` in `interruptLadder` → only the
     /// child gets SIGINT, its trap waits on the grandchild, and the ladder's
-    /// SIGKILL a minute later ends it with neither marker; (b) route
+    /// SIGKILL or the watchdog ends it 300 s later with neither marker; (b) route
     /// `.interruptChild` through `request.ladder` → SIGKILL straight away, no
     /// marker.
     @Test func interruptChildInterruptsTheChildsGroupAndLetsItHandleIt() async throws {

@@ -142,13 +142,19 @@ public enum ChildProcess {
     /// Ctrl-C to its foreground group: brew forwards it to its curl workers
     /// itself, and the group reaches any other child (`brew update`'s `git`).
     ///
-    /// Sent twice. `brew update` ignores SIGINT while it puts back what it
-    /// stashed (`trap '' SIGINT` in `cmd/update.sh`, Homebrew 7.0.9) and then
-    /// carries on, so a first one landing there is lost. SIGKILL only after a
-    /// minute without an exit: a kill cuts brew short with no cleanup at all.
+    /// Sent once, as one Ctrl-C. A second would reach brew's own interrupt
+    /// handling: `brew update` answers the first by running `git reset --hard`
+    /// back to where it started (`reset_on_interrupt` in `cmd/update.sh`,
+    /// Homebrew 7.0.9), and another signal to the group would cut that `git`
+    /// short. A first one that lands while `brew update` ignores SIGINT (`trap
+    /// '' SIGINT`, while it puts back what it stashed) is lost: brew then
+    /// finishes, and the call still throws `CancellationError`, so the caller
+    /// stops where it would have. That costs the rest of the run, not a change.
+    ///
+    /// SIGKILL to the group only after five minutes without an exit — for a
+    /// brew that is stuck, since a kill cuts it short with no cleanup at all.
     static let interruptLadder: [TeardownStep] = [
-        .send(signal: .interrupt, toProcessGroup: true, allowedDurationToNextStep: .seconds(15)),
-        .send(signal: .interrupt, toProcessGroup: true, allowedDurationToNextStep: .seconds(45)),
+        .send(signal: .interrupt, toProcessGroup: true, allowedDurationToNextStep: .seconds(300)),
     ]
 
     public struct Deadline: Sendable, Equatable {

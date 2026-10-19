@@ -1024,7 +1024,10 @@ public actor BrewFormulaService {
     /// `reset_on_interrupt`). The auto-update's `brew update-report` has no
     /// handler of its own: a cancel landing there ends it as a terminal's
     /// Ctrl-C during `brew upgrade` would (`brew.rb`, `rescue Interrupt` →
-    /// exit 130) — no more than that, and no worse.
+    /// exit 130) — no more than that, and no worse. A cancel during the
+    /// auto-update can still let the dry run itself run to its end before the
+    /// call throws (`ChildProcess.interruptLadder`); no fetch or upgrade
+    /// follows.
     ///
     /// Nothing here is needed for the upgrade to work: a dry run or fetch that
     /// fails is logged and the upgrade downloads what is missing itself, as it

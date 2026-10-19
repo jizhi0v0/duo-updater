@@ -64,6 +64,11 @@ v0.17.0 之前，`felinics/Memoh`（原 `memohai/Memoh`）的 GitHub release 附
 厂商 CDN 的日期构建都不带 server：2026.9.16-1（接入时的第一版）、2026.9.27-1、2026.10.5-1、2026.10.19-1
 四个 arm64 zip 解包核对，`Contents/Resources/server` 不存在、bundle 里没有 `memoh-server*`，`app.asar` 都编进
 `https://app.memoh.net`（Memoh Cloud），short == build == 日期串，Team 都是 `P9R669C27U`。
+更早的日期构建: CDN 没有索引，按文件名对 2026-07-28（下游分发 felinics/Memoh#873 合入）到 2026-09-15 逐日 HEAD
+`Memoh-<日期>-{1,2,3}-mac-arm64.zip`，找到 18 个（最早 `2026.8.5-2`）。用 HTTP Range 只读每个 zip 末尾的目录，
+18 个都只有 `Memoh.app`、没有 `Resources/server` 或 `memoh-server*` 条目（609 或 611 项）。方法核对：
+远程读 2026.10.19-1 得 611 项，与本地 `unzip -Z1` 相同；过滤条件在 Memoh Local 0.13.0 真包的
+`Resources/server/memoh-server` 上命中。
 
 - **它们自己的更新器拿不到更新**: 0.9–0.16 的 updater 读 GitHub，而 v0.17.0 起 GitHub release 不再附 Mac 安装包
   （settled from source：felinics/Memoh#873「no longer publish prebuilt Desktop installers」，下游分发自己签名发布）。

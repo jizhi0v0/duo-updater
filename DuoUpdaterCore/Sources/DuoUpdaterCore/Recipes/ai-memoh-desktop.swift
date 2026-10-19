@@ -89,7 +89,7 @@ enum ai_memoh_desktop {
         // under the same bundle id and Team, numbered `0.x`, and their own
         // updater reads GitHub, which has carried no Mac installer since
         // v0.17.0. Some of them are a different product: Memoh-Desktop 0.9.0
-        // and `Memoh Local.app` (0.10 / 0.13) bundle and run `memoh-server`,
+        // and `Memoh Local.app` (0.10–0.14) bundle and run `memoh-server`,
         // which the desktop build no longer does ("remove sqlite and local
         // desktop", felinics/Memoh#748), so this build would turn a local
         // install into a client of Memoh Cloud. A `0.x` copy keeps detection

@@ -668,8 +668,13 @@ public enum InstallJournal {
                 }
                 // The result record of an install whose process died before
                 // it could report one. `.notice`, like `install returned`.
+                // A moved app is read where it went, not at the empty old path.
+                let readAt = resolution == .moved
+                    ? movedCopy(of: URL(fileURLWithPath: entry.appPath), bundleID: entry.bundleID, atLeast: entry.targetSide)
+                    : nil
+                let at = readAt ?? URL(fileURLWithPath: entry.appPath)
                 Log.install.notice(
-                    "install journal: \(name, privacy: .public) [\(entry.bundleID ?? "?", privacy: .public)] via \(entry.route, privacy: .public): its installer process ended before it finished; the app reads \(String(describing: resolution), privacy: .public) (\(versions(at: URL(fileURLWithPath: entry.appPath)).text(withBuild: true), privacy: .public))")
+                    "install journal: \(name, privacy: .public) [\(entry.bundleID ?? "?", privacy: .public)] via \(entry.route, privacy: .public): its installer process ended before it finished; the app reads \(String(describing: resolution), privacy: .public)\(readAt.map { " to \($0.path)" } ?? "", privacy: .public) (\(versions(at: at).text(withBuild: true), privacy: .public))")
                 // The old path's rollback point would be kept for good: the
                 // sweep keeps every point whose app does not read there.
                 if resolution == .moved {

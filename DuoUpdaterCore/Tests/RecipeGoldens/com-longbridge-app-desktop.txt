@@ -85,7 +85,7 @@ changelogs = Array(count: 2)
 changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.longbridge.app.desktop"
 changelogs[0].source = URL("https://longbridge.com/desktop/release-notes/")
-changelogs[0].sourceTemplate? = "https://longbridge.com/en/changelog/longbridge-pro/{majorMinor}"
+changelogs[0].sourceTemplate? = "https://longbridge.com/en/changelog/longbridge-pro/v{majorMinor}"
 changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
 changelogs[0].entryPattern = "<section id=\"v[^\"]*\" class=\"release-section\"[^>]*\\bdata-rail-version=\"(?<version>[0-9]+(?:\\.[0-9]+)+)\"[^>]*\\bdata-rail-date=\"(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\"[^>]*>(?:(?!</section>).)*?<div class=\"prose[^\"]*\">(?<body>(?:(?!</section>).)*?)</section>"

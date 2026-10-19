@@ -99,6 +99,10 @@ public enum InstallVerify {
         /// What the last runs left for this recipe; nil on a full pass, which
         /// downloads whatever it resolves.
         var previous: Previous? = nil
+        /// The `SUPublicEDKey` recorded for this recipe's installer, on every
+        /// pass: for a download without a Team ID it is the key copies installed
+        /// from it check their updates against (`sparkleKeyCheck`).
+        var recordedSparkleKey: String? = nil
     }
 
     struct Previous: Sendable {
@@ -225,7 +229,8 @@ public enum InstallVerify {
                 recipeID: recipe.recipeID, registry: "vendor", bundleID: recipe.bundleID,
                 probeHost: host,
                 resolve: { await vendor.probeDiagnostic(recipe) },
-                previous: previous(recipe.recipeID)))
+                previous: previous(recipe.recipeID),
+                recordedSparkleKey: identities?.entries[recipe.recipeID]?.sparklePublicKey))
         }
         for rule in Verify.filtered(GitHubReleaseRegistry.rules, selector)
         where rule.installAssetPattern != nil {
@@ -233,7 +238,8 @@ public enum InstallVerify {
                 recipeID: rule.recipeID, registry: "github", bundleID: rule.bundleID,
                 probeHost: "api.github.com",
                 resolve: { await github.resolveDiagnostic(rule) },
-                previous: previous(rule.recipeID)))
+                previous: previous(rule.recipeID),
+                recordedSparkleKey: identities?.entries[rule.recipeID]?.sparklePublicKey))
         }
         guard !targets.isEmpty else {
             die("nothing to verify — no recipe with an installer matches "
@@ -388,9 +394,83 @@ public enum InstallVerify {
             item.warnings = renamed + warnings(
                 identity: inspected.identity, remote: remote, recipeBundleID: target.bundleID)
             item.notes += notes(identity: inspected.identity, remote: remote)
+            if let check = await sparkleKeyCheck(
+                identity: inspected.identity, recordedKey: target.recordedSparkleKey,
+                bundleID: target.bundleID) {
+                let verdict = sparkleKeyVerdict(check)
+                item.warnings += verdict.warnings
+                item.notes += verdict.notes
+            }
             item.status = item.warnings.isEmpty ? .ok : .warn
         }
         return item
+    }
+
+    // MARK: - The update key of an app without a Team ID
+
+    /// What `sparkleKeyCheck` came back with: the feed could not be read, or its
+    /// newest item was checked.
+    enum SparkleKeyAnswer: Sendable, Equatable {
+        case feedUnreadable(String)
+        case checked(UpdateKeyCheck)
+    }
+
+    /// For a download with no Team ID that carries a Sparkle feed, the update key
+    /// is the only thing a one-click of a copy installed from it is checked
+    /// against (`SparkleInstaller`'s key-only route). So: read that feed through
+    /// `SparkleAppcastSource`, and verify its newest item's smallest signed file
+    /// against the key recorded for this recipe — the bundle's own on a first
+    /// sighting. Nil when the download has a Team ID, no feed or no key: the
+    /// route does not apply.
+    static func sparkleKeyCheck(
+        identity: ArtifactInspection.Identity?, recordedKey: String?, bundleID: String
+    ) async -> SparkleKeyAnswer? {
+        guard let identity, identity.teamIdentifier == nil,
+              let feed = identity.sparkleFeedURL.flatMap(URL.init(string:)),
+              let key = recordedKey ?? identity.sparklePublicKey, !key.isEmpty
+        else { return nil }
+        let source = SparkleAppcastSource()
+        // A copy as the source sees one: the version only decides `status`,
+        // which is not read here.
+        let app = InstalledApp(
+            name: bundleID, bundleID: bundleID, shortVersion: "0", buildVersion: "0",
+            path: URL(fileURLWithPath: "/nonexistent/\(bundleID).app"), isMASApp: false,
+            sparkleFeedURL: feed, sparkleEdPublicKey: key)
+        let remote: RemoteVersion
+        do {
+            guard let answered = try await source.latestVersion(for: app) else {
+                return .feedUnreadable("\(feed.host ?? feed.absoluteString) answered no item")
+            }
+            remote = answered
+        } catch {
+            return .feedUnreadable("\(feed.host ?? feed.absoluteString): \(error.localizedDescription)")
+        }
+        return .checked(await source.checkKey(remote, publicKey: key))
+    }
+
+    /// The decision half, offline. A key that does not verify, or a feed that
+    /// stopped signing, ends every one-click of the app — and its own Sparkle
+    /// refuses the same update — so both are warnings. Everything that says
+    /// nothing about the key (unreachable, too large, no feed answer) is a note.
+    static func sparkleKeyVerdict(_ answer: SparkleKeyAnswer) -> (warnings: [String], notes: [String]) {
+        switch answer {
+        case .feedUnreadable(let detail):
+            return ([], ["sparkleKeyNotChecked: the feed could not be read (\(detail))"])
+        case .checked(.verified(let file, let bytes)):
+            return ([], ["sparkleKeyVerified: \(file.lastPathComponent) (\(bytes) B) verifies against the update key"])
+        case .checked(.invalid(let file)):
+            return (["sparkleKeyMismatch: \(file.lastPathComponent), the feed's newest signed file, does not "
+                + "verify against the update key recorded for this app — it has no Team ID, so every "
+                + "one-click is refused, and its own Sparkle refuses the update too"], [])
+        case .checked(.noSignedFile):
+            return (["sparkleUnsigned: the feed's newest item carries no EdDSA signature — the app has "
+                + "no Team ID, so every one-click is refused"], [])
+        case .checked(.tooLarge(let file, let bytes)):
+            return ([], ["sparkleKeyNotChecked: \(file.lastPathComponent) is \(megabytes(bytes)), "
+                + "more than the check downloads"])
+        case .checked(.unreachable(let file, let detail)):
+            return ([], ["sparkleKeyNotChecked: \(file.lastPathComponent) could not be fetched (\(detail))"])
+        }
     }
 
     /// Hold one item's download against what was recorded for its recipe. Only
@@ -404,11 +484,26 @@ public enum InstallVerify {
         else { return }
         let changes = store.record(item.recipeID, observed)
         guard !changes.isEmpty else { return }
-        let since = store.entries[item.recipeID].map {
+        let recorded = store.entries[item.recipeID]
+        let since = recorded.map {
             " (recorded at \($0.lastSeenVersion ?? "?"), \($0.lastSeenAt.formatted(.iso8601.year().month().day())))"
         } ?? ""
-        item.warnings.append("identityChanged: " + changes.joined(separator: "; ") + since)
+        item.warnings.append("identityChanged: " + changes.joined(separator: "; ") + since
+            + keyOnlyConsequence(recorded: recorded, changes: changes))
         item.status = .warn
+    }
+
+    /// What an `identityChanged` means for an app with no Team ID whose recorded
+    /// Sparkle key changed (not a first key: `none → key` is an adoption, which a
+    /// reviewer accepts after checking the key against the vendor's own repo).
+    /// The key is that app's only anchor, so this is not a detail to accept in
+    /// passing.
+    static func keyOnlyConsequence(recorded: InstallIdentities.Recorded?, changes: [String]) -> String {
+        guard let recorded, recorded.teamIdentifier == nil, recorded.sparklePublicKey != nil,
+              changes.contains(where: { $0.hasPrefix("Sparkle key ") })
+        else { return "" }
+        return " — this app has no Team ID, so its update key is the only thing a one-click "
+            + "checks: until the new key is confirmed as the vendor's, every one-click is refused"
     }
 
     /// This command's id for a recipe in `Baseline` and on an issue. Namespaced

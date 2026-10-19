@@ -26,8 +26,7 @@ import Foundation
 ///
 /// Trust follows the installed copy. A Developer ID app takes the ordinary
 /// Team-ID route with the signature on top; an ad-hoc signed one (three of the
-/// five MyGo apps measured) takes `InstallTrust.myGoSignatureOnly`, behind the
-/// user's setting for apps without a developer signature.
+/// five MyGo apps measured) takes `InstallTrust.myGoSignatureOnly`.
 ///
 /// Version: `mygo build` writes the config's `version` to both
 /// `CFBundleShortVersionString` and `CFBundleVersion` (`cmd/mygo/bundle.go`) and
@@ -356,13 +355,14 @@ public struct MyGoUpdateSource: UpdateSource {
 
 // MARK: - The nightly key check
 
-/// What `MyGoUpdateSource.checkKey` saw: whether the vendor still signs with the
-/// key recorded for the app.
-public enum MyGoKeyCheck: Sendable, Equatable {
+/// What a nightly key check saw (`MyGoUpdateSource.checkKey`,
+/// `SparkleAppcastSource.checkKey`): whether the vendor still signs with the key
+/// recorded for the app.
+public enum UpdateKeyCheck: Sendable, Equatable {
     /// The smallest signed file of the release verified against the key.
     case verified(file: URL, bytes: Int)
     /// It did not: the vendor signs with another key, or the file is not the one
-    /// the manifest describes. Either way every one-click of this release fails.
+    /// the feed describes. Either way every one-click of this release fails.
     case invalid(file: URL)
     /// Neither the archive nor any patch carries a signature.
     case noSignedFile
@@ -370,28 +370,21 @@ public enum MyGoKeyCheck: Sendable, Equatable {
     case tooLarge(file: URL, bytes: Int64)
     /// The file could not be fetched; says nothing about the key.
     case unreachable(file: URL, detail: String)
-}
 
-extension MyGoUpdateSource {
-
-    /// The most `checkKey` downloads. Patches run 0.16–1.3 MB and archives
+    /// The most a key check downloads. MyGo patches run 0.16–1.3 MB and archives
     /// 6–33 MB in the apps measured; a release with no patch and a larger
     /// archive is reported rather than fetched.
-    public static let keyCheckByteCap: Int64 = 64 * 1024 * 1024
+    public static let byteCap: Int64 = 64 * 1024 * 1024
 
-    /// Download the smallest file `remote` publishes a signature for — a patch
-    /// when there is one, else the archive — and verify it against `publicKey`.
-    /// For `duo verify`, which has no installed binary to take the key from.
-    public func checkKey(_ remote: RemoteVersion, publicKey: String) async -> MyGoKeyCheck {
-        var signed: [(url: URL, size: Int64, signature: String)] = remote.deltas.compactMap {
-            guard $0.format == .myGo, let signature = $0.edSignature else { return nil }
-            return ($0.url, $0.size ?? .max, signature)
-        }
-        if let url = remote.downloadURL, let signature = remote.myGoSignature?.signature {
-            signed.append((url, remote.downloadSize ?? .max, signature))
-        }
+    /// Download the smallest of `signed` and check it with `verify` (which
+    /// throws when the signature does not hold).
+    static func smallest(
+        of signed: [(url: URL, size: Int64, signature: String)],
+        session: URLSession,
+        verify: (Data, String) throws -> Void
+    ) async -> UpdateKeyCheck {
         guard let smallest = signed.min(by: { $0.size < $1.size }) else { return .noSignedFile }
-        guard smallest.size <= Self.keyCheckByteCap else {
+        guard smallest.size <= byteCap else {
             return .tooLarge(file: smallest.url, bytes: smallest.size)
         }
         var request = URLRequest(url: smallest.url)
@@ -404,14 +397,39 @@ extension MyGoUpdateSource {
                 return .unreachable(file: smallest.url, detail: "HTTP \(http.statusCode)")
             }
             do {
-                try SignatureVerifier.verifyMyGoSignature(
-                    fileData: data, signatureBase64: smallest.signature, publicKeyBase64: publicKey)
+                try verify(data, smallest.signature)
                 return .verified(file: smallest.url, bytes: data.count)
             } catch {
                 return .invalid(file: smallest.url)
             }
         } catch {
             return .unreachable(file: smallest.url, detail: error.localizedDescription)
+        }
+    }
+}
+
+/// The MyGo sweep's name for `UpdateKeyCheck`, from before Sparkle had one.
+public typealias MyGoKeyCheck = UpdateKeyCheck
+
+extension MyGoUpdateSource {
+
+    /// See `UpdateKeyCheck.byteCap`.
+    public static let keyCheckByteCap: Int64 = UpdateKeyCheck.byteCap
+
+    /// Download the smallest file `remote` publishes a signature for — a patch
+    /// when there is one, else the archive — and verify it against `publicKey`.
+    /// For `duo verify`, which has no installed binary to take the key from.
+    public func checkKey(_ remote: RemoteVersion, publicKey: String) async -> MyGoKeyCheck {
+        var signed: [(url: URL, size: Int64, signature: String)] = remote.deltas.compactMap {
+            guard $0.format == .myGo, let signature = $0.edSignature else { return nil }
+            return ($0.url, $0.size ?? .max, signature)
+        }
+        if let url = remote.downloadURL, let signature = remote.myGoSignature?.signature {
+            signed.append((url, remote.downloadSize ?? .max, signature))
+        }
+        return await UpdateKeyCheck.smallest(of: signed, session: session) { data, signature in
+            try SignatureVerifier.verifyMyGoSignature(
+                fileData: data, signatureBase64: signature, publicKeyBase64: publicKey)
         }
     }
 }

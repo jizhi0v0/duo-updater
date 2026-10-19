@@ -353,7 +353,6 @@ public actor VendorInstaller {
         // gates below cannot run without it; the archive and patch paths check
         // it again on their own, which costs one more hash of a few megabytes.
         if remote.installTrust == .myGoSignatureOnly {
-            guard digestOnlyAllowed else { throw InstallError.digestOnlyNotAllowed }
             guard download.localStash == nil else { throw InstallError.digestOnlyNeedsTheAsset }
             let signed: (signature: String?, key: String)
             if let patch = download.appliedPatch {

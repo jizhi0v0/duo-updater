@@ -46,6 +46,13 @@ public enum BackupStore {
     /// Production never binds it and reads ``configure(compression:)``'s value.
     @TaskLocal public static var compressionOverride: BundleArchive.Compression?
 
+    /// Test seam for "is anything running from this bundle", which a reuse
+    /// asks (see `write`). Bound like the seams above; production never binds
+    /// it and asks `mayHaveProcesses(insideBundle:)`. A fixture in
+    /// a temporary directory cannot be asked that for real: the bundle path
+    /// resolves without `/private` while the kernel reports the process with it.
+    @TaskLocal public static var runningOverride: (@Sendable (URL) -> Bool)?
+
     /// Where backups are written first, always on the boot volume.
     ///
     /// This is the store as it has always been — the name changed, the meaning
@@ -463,7 +470,7 @@ public enum BackupStore {
         let bundleID: String?
         let originalPath: String
         let bundleName: String
-        let savedAt: Date
+        var savedAt: Date
         /// Optional so sidecars written before this field decode unchanged —
         /// a stricter decoder would make every existing backup unreadable, and
         /// `backup(forKey:)` returns nil without a readable sidecar.
@@ -548,6 +555,22 @@ public enum BackupStore {
         /// above, and absent means ``Purpose/userBackup``: every sidecar written
         /// before the field existed is one.
         var purpose: Purpose?
+        /// ``BundleStatIdentity`` of the bundle at `originalPath`, read just
+        /// before it was copied — what lets a retried install see that the
+        /// bundle it is about to back up is this copy's source, unchanged, and
+        /// reuse it (see ``reusableBackup(key:store:isUserBackup:identity:version:buildVersion:bundleID:appPath:fromPackageInstall:fromAppStore:purpose:)``).
+        /// Optional for the same reason as the fields above; absent — on every
+        /// older sidecar, and whenever the walk could not vouch for the tree —
+        /// means the next attempt copies again, which is what it always did.
+        var sourceIdentity: String?
+        /// ``BundleStatIdentity`` of the stored copy itself, read just after its
+        /// manifest. A retry used to replace a copy that had been altered in
+        /// the store since (the backed-up app launched from here and wrote into
+        /// itself, a cleaning tool); reusing it instead must not keep the
+        /// alteration, so the copy is walked again and has to match this.
+        /// Only on a copy that is a plain bundle on this Mac; absent means no
+        /// reuse.
+        var storedIdentity: String?
     }
 
     /// A filesystem-safe directory name for one installed copy of an app. It keeps
@@ -694,6 +717,63 @@ public enum BackupStore {
         // missing rollback point, and it keeps the manifest recorded below computed
         // on APFS, which is what lets the same manifest gate a restore later.
         let dir = root.appendingPathComponent(key, isDirectory: true)
+        let name = appPath.lastPathComponent
+
+        // A retried install — cancelled, then started again over the same
+        // update — would otherwise copy, hash and (with a backup disk) archive
+        // again the very bundle the store already holds. Walked before the copy
+        // below, never after: a write that lands while `ditto` runs is then
+        // newer than what this records, so the next attempt cannot match it.
+        // Not for an input method: its user-data snapshot is taken after this
+        // returns, into the outbox key directory, and needs the fresh
+        // generation there to attach to.
+        let racyWindow = BundleStatIdentity.currentRacyWindow
+        let sourceIdentity = InPlaceSwap.usesContentsRotation(target: appPath)
+            ? nil
+            : await offCooperativePool(qos: .userInitiated) {
+                BundleStatIdentity.compute(for: appPath, racyWindow: racyWindow)
+            }
+        if let sourceIdentity,
+           let candidate = await reusableBackup(
+               key: key, store: store, isUserBackup: isUserBackup, identity: sourceIdentity,
+               version: version, buildVersion: buildVersion, bundleID: bundleID,
+               appPath: appPath, fromPackageInstall: fromPackageInstall,
+               fromAppStore: fromAppStore, purpose: purpose) {
+            // A running app can change its own files through a shared mapping
+            // without moving any time the walk reads (see `BundleStatIdentity`);
+            // once nothing runs from the bundle, every such mapping is gone and
+            // its write shows. Asked after the match, so it is only paid — and
+            // only logged — when it is what stands between a retry and reuse.
+            let isRunning = runningOverride ?? { mayHaveProcesses(insideBundle: $0) }
+            if await offCooperativePool(qos: .userInitiated, { isRunning(appPath) }) {
+                Log.install.notice(
+                    "backup: not reusing the stored copy of \(name, privacy: .public) — it is running, and a running app can change its own files without the filesystem showing it; copying again")
+            } else {
+                // The same answer a copy cut off by the cancel gives, so the
+                // caller stops the install rather than going on.
+                if Task.isCancelled { throw CancellationError() }
+                // Dated now: the copy is what a backup taken now would hold, and
+                // the low-space prune removes the oldest `savedAt` first — the
+                // cancelled attempt's date would put the rollback point for the
+                // latest update ahead of backups taken since.
+                var refreshed = candidate.meta
+                refreshed.savedAt = Date()
+                let redated = (try? JSONEncoder().encode(refreshed)).map {
+                    (try? $0.write(to: candidate.dir.appendingPathComponent("backup.json"),
+                                   options: .atomic)) != nil
+                } ?? false
+                if !redated {
+                    Log.install.error(
+                        "backup: could not re-date the reused copy of \(name, privacy: .public) — it keeps the date of the attempt that made it")
+                }
+                if let reused = backup(forKey: key, in: candidate.store) {
+                    Log.install.notice(
+                        "backup: reusing the stored copy of \(name, privacy: .public) \(version ?? "?", privacy: .public) (\(buildVersion ?? "?", privacy: .public)) — the bundle on disk is the one it was taken from, unchanged; nothing copied\(reused.location == .destination ? " or transferred" : "", privacy: .public)")
+                    return reused
+                }
+            }
+        }
+
         // Build the new backup in a hidden staging dir FIRST, then swap it into place
         // atomically. Retention = 1 must not delete the prior rollback point until the
         // new copy is fully written — otherwise a failed/interrupted re-backup (disk
@@ -724,7 +804,6 @@ public enum BackupStore {
         await sweepStagingLeftovers(in: root, key: key)
         try fm.createDirectory(at: staging, withIntermediateDirectories: false)
 
-        let name = appPath.lastPathComponent
         let staged = staging.appendingPathComponent(name)
 
         // An app that keeps runtime state inside its own bundle (ToDesk writes an
@@ -839,6 +918,14 @@ public enum BackupStore {
         let manifest = await offCooperativePool(qos: .userInitiated) {
             BackupManifest.compute(for: staged)
         }
+        // What the copy looks like now, for a reuse to check it is still this.
+        // No racy window: the copy is ours, and nothing writes into it between
+        // here and a retry that could land on the very timestamp read here.
+        let storedIdentity = sourceIdentity == nil || manifest == nil
+            ? nil
+            : await offCooperativePool(qos: .userInitiated) {
+                BundleStatIdentity.compute(for: staged, racyWindow: 0)
+            }
         if manifest == nil {
             Log.install.error(
                 "backup: could not fingerprint \(name, privacy: .public) — restoring it will fall back to the signature gate")
@@ -855,7 +942,11 @@ public enum BackupStore {
             // it came back. Never a rollback point: it stays on this Mac, where
             // the clone is close to free and the restore needs no disk.
             pendingTransfer: isUserBackup && destination.kind == .external ? true : nil,
-            purpose: purpose)
+            purpose: purpose,
+            // Only beside a manifest: a copy we never fingerprinted is one
+            // nothing may be reused against.
+            sourceIdentity: manifest == nil ? nil : sourceIdentity,
+            storedIdentity: storedIdentity)
         // The sidecar is what EVERY read path keys off (`backup(forKey:)` returns nil
         // without it), so a backup whose sidecar didn't write is unusable. Fail the
         // save (leaving the prior backup intact) rather than leave an invisible bundle.
@@ -936,6 +1027,130 @@ public enum BackupStore {
             fromPackageInstall: fromPackageInstall, fromAppStore: fromAppStore,
             omittedFiles: unreadable.unsealed, fingerprint: manifest?.digest,
             purpose: purpose)
+    }
+
+    /// Whether anything may be running out of `bundle`, for a reuse to stand
+    /// down on. A path match first; then, for every process whose executable
+    /// path the kernel will not give (its file was replaced while it ran —
+    /// see ``AppRestarter/processNamesWithoutPath()``), its short name against
+    /// the names of the executables in the bundle. Answering yes for a
+    /// same-named process from somewhere else only costs a copy.
+    ///
+    /// The two process reads are parameters only so a test can stand in for
+    /// a process the kernel cannot place, which a test cannot start.
+    static func mayHaveProcesses(
+        insideBundle bundle: URL,
+        hasProcesses: (URL) -> Bool = AppRestarter.hasProcesses(insideBundle:),
+        unplacedNames: () -> [[UInt8]] = AppRestarter.processNamesWithoutPath
+    ) -> Bool {
+        if hasProcesses(bundle) { return true }
+        let unplaced = unplacedNames()
+        guard !unplaced.isEmpty else { return false }
+        return anyExecutable(executableNames(in: bundle), isNamed: unplaced)
+    }
+
+    /// Whether one of `executables` (file names) is what a process with one of
+    /// these short names was started from. The kernel keeps 15 bytes of the
+    /// name, so a 15-byte name matches any executable whose UTF-8 bytes it
+    /// begins — compared as bytes, since the cut can split a character; a
+    /// shorter one is the whole name.
+    ///
+    /// The kernel takes the name from the path the launcher passed to `exec`,
+    /// not from the directory entry, and APFS finds a file whichever Unicode
+    /// normalization that path is in. So each executable is tried in its own
+    /// spelling and in both canonical forms. Measured 2026-10-19: a file named
+    /// in NFD and started through its NFC spelling got the NFC bytes
+    /// (`Café-Überwach`); `enumerator(atPath:)` hands back the on-disk bytes
+    /// unchanged, a mixed-form name included. Not covered: a launch through a
+    /// spelling that mixes forms differently from all three.
+    static func anyExecutable(_ executables: [String], isNamed names: [[UInt8]]) -> Bool {
+        let cut = 15
+        let spellings = executables.flatMap { executable in
+            [executable, executable.precomposedStringWithCanonicalMapping,
+             executable.decomposedStringWithCanonicalMapping].map { Array($0.utf8) }
+        }
+        return names.contains { short in
+            spellings.contains { full in
+                short.count >= cut ? full.starts(with: short) : full == short
+            }
+        }
+    }
+
+    /// File names of everything in `bundle` a process could have been started
+    /// from: regular files with an execute bit, and symlinks, which `exec` can
+    /// go through under their own name.
+    static func executableNames(in bundle: URL) -> [String] {
+        let base = bundle.standardizedFileURL.path
+        guard let walker = FileManager.default.enumerator(atPath: base) else { return [] }
+        var names = Set<String>()
+        while let relative = walker.nextObject() as? String {
+            var st = stat()
+            guard lstat(base + "/" + relative, &st) == 0 else { continue }
+            let type = st.st_mode & S_IFMT
+            if type == S_IFLNK || (type == S_IFREG && st.st_mode & 0o111 != 0) {
+                names.insert((relative as NSString).lastPathComponent)
+            }
+        }
+        return Array(names)
+    }
+
+    /// The stored generation for `key` that a new copy of `appPath` would
+    /// only duplicate, or nil when one has to be made.
+    ///
+    /// Looked for where `write` would put the new copy — the outbox slot, or
+    /// the rollback points' — and, for a user backup only, on the active disk
+    /// when that slot is empty: a finished transfer removes the outbox copy,
+    /// and the disk's is then the generation. A slot that holds anything at all
+    /// is the only place asked, so a newer outbox copy can never be passed over
+    /// for an older one on the disk.
+    ///
+    /// Everything has to agree, not only the walk: the label pair, the bundle
+    /// id, the path and name, the route flags and the purpose, and the copy
+    /// must have a manifest — the gate a restore checks it against — and still
+    /// be what was stored: a bundle on this Mac walks to its recorded
+    /// ``Meta/storedIdentity``, an archive on the disk is still its recorded
+    /// size (its digest is checked on restore, as always).
+    private static func reusableBackup(
+        key: String, store: Store, isUserBackup: Bool, identity: String,
+        version: String?, buildVersion: String?, bundleID: String?, appPath: URL,
+        fromPackageInstall: Bool, fromAppStore: Bool, purpose: Purpose
+    ) async -> (store: Store, dir: URL, meta: Meta)? {
+        let local = store.root.appendingPathComponent(key, isDirectory: true)
+        var candidate = store
+        if !FileManager.default.fileExists(atPath: local.path) {
+            guard isUserBackup, let diskRoot = try? destinationRoot() else { return nil }
+            candidate = activeStore(root: diskRoot)
+        }
+        let dir = candidate.root.appendingPathComponent(key, isDirectory: true)
+        guard let meta = readMeta(in: dir),
+              meta.sourceIdentity == identity,
+              meta.manifest != nil,
+              meta.version == version, meta.buildVersion == buildVersion,
+              meta.bundleID == bundleID,
+              meta.originalPath == appPath.path,
+              meta.bundleName == appPath.lastPathComponent,
+              meta.fromPackageInstall == fromPackageInstall,
+              meta.fromAppStore == fromAppStore,
+              (meta.purpose ?? .userBackup) == purpose
+        else { return nil }
+        switch candidate.location {
+        case .outbox:
+            guard let stored = meta.storedIdentity else { return nil }
+            // A whole-bundle walk, so to Dispatch; `dir` is resolved already.
+            let copy = dir.appendingPathComponent(meta.bundleName)
+            let now = await offCooperativePool(qos: .userInitiated) {
+                BundleStatIdentity.compute(for: copy, racyWindow: 0)
+            }
+            guard now == stored else { return nil }
+        case .destination:
+            guard meta.archiveSHA256 != nil, let archiveName = meta.archiveName,
+                  let bytes = meta.archiveBytes,
+                  let onDisk = try? FileManager.default.attributesOfItem(
+                    atPath: dir.appendingPathComponent(archiveName).path)[.size] as? Int64,
+                  onDisk == bytes
+            else { return nil }
+        }
+        return (candidate, dir, meta)
     }
 
     // MARK: - Transfer

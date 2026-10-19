@@ -68,20 +68,9 @@ struct OneClickGateTests {
             status: .updateAvailable(latest: "99.0"))
     }
 
-    @Test func theRegisteredGatesAreTheMeasuredCases() {
+    @Test func theRegisteredGatesAreTheTwoMeasuredCases() {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
-            == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "com.maxgoedjen.Secretive.Host"])
-    }
-
-    /// Mutation: widen the pattern to `^[2-9]\.` → 2.4.1 admitted, red.
-    @Test func secretiveOneClickIsFor3xAndLater() {
-        let id = "com.maxgoedjen.Secretive.Host"
-        #expect(OneClickGateRegistry.withholding(app(id, "2.4.1")) != nil)
-        #expect(OneClickGateRegistry.withholding(app(id, "0.0.0_nightly-2026-10-13")) != nil)
-        #expect(OneClickGateRegistry.withholding(app(id, nil)) != nil)
-        #expect(OneClickGateRegistry.withholding(app(id, "3.0.4")) == nil)
-        #expect(OneClickGateRegistry.withholding(app(id, "4.0.0")) == nil)
-        #expect(OneClickGateRegistry.withholding(app(id, "10.0")) == nil)
+            == ["org.musescore.MuseScore", "com.axosoft.gitkraken"])
     }
 
     @Test func museScoreOneClickIsFor4xCopiesOnly() {

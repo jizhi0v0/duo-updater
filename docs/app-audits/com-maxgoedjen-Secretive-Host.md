@@ -120,7 +120,7 @@ nightly 不是可订阅的轨道，但装上了必须认得出来:
     要接一键需要先加「换包后重启指定后台登录项」。
   - **现在的做法**：recipe 的 `loginItemAgentRestarts` 声明 `com.maxgoedjen.Secretive.SecretAgent`。
     `InstallCoordinator` 在换包前记下从本 bundle `Contents/Library/LoginItems/SecretAgent.app/Contents/MacOS/`
-    跑着的进程（pid + 启动时间），换包后对它们发 `SIGTERM`，再在 10 s 内等 launchd 从新包拉起新进程；
+    跑着的进程（pid + 启动时间），换包后确认它是 launchd 作业（见下）再发 `SIGTERM`，再在 10 s 内等 launchd 从新包拉起新进程；
     没回来就记日志、`duo install` 打警告、`--json` 带 `agentsNotRestarted`（`LoginItemAgentRestart`）；菜单栏 app 发系统通知并在行上留一行说明（`AppListModel.reportAgentsNotRestarted`）。
     agent 原本没在跑就不动它。
   - **真机端到端（2026-10-19，本分支 `make install` + `make cli`）**：装 3.0.4、Start Agent、建不需认证（Notify）
@@ -134,12 +134,16 @@ nightly 不是可订阅的轨道，但装上了必须认得出来:
       再杀 XPC 签名仍成功。Secretive 的 agent 面板显示 agent 版本 4.0.0。
     - 清理：删除测试密钥、Disable Agent（BTM `disabled`）、app 与 4 个容器移入废纸篓（含上一轮留下的两个 XPC
       容器）；`~/.ssh/config` 与 shell 配置字节一致。
-  - **2.x 不一键（`oneClickGates`：已装版本须 ≥ 3.0）**。2.x 用旧的 `SMLoginItemSetEnabled` / `forceLaunch`
-    拉 agent。2026-10-19 实测 2.4.1：打开主 app 后 agent 是 LaunchServices 起的（`launchctl list` 里的标签是
-    `application.com.maxgoedjen.Secretive.SecretAgent.…`，没有 `com.maxgoedjen.Secretive.SecretAgent` 这个 launchd
-    作业）；退出主 app、对 agent 发 `SIGTERM`，15 s 内没人重新拉起它。也就是说对 2.x 结束旧 agent 会让 SSH
-    签名停到用户打开 Secretive 为止，所以 2.x 副本只检测、手动更新。（这台机器之前跑过 3.x 测试，BTM 里留着
-    已 disabled 的条目；干净机器上 2.4.1 会不会注册成 launchd 登录项未验证，按不会处理。）
+  - **只重启 launchd 管着的 agent**。Secretive 2.x 和 3.x 都是先注册登录项（2.x `SMLoginItemSetEnabled`，3.x
+    `SMAppService`），登录项没在跑时都回退成 LaunchServices 直接拉起（`App.swift` 的 `forceLaunchAgent()`，
+    读源码 v2.4.1 / v3.0.0 / v3.0.2；3.0.3 起先 `register()` 再回退）。LaunchServices 拉起的 agent 没有
+    launchd 作业，结束它就没人再拉起。2026-10-19 实测 2.4.1（这台机器的 BTM 里留着上一轮已 disabled 的
+    条目，所以走的正是回退路径）：`launchctl list` 里 agent 的标签是
+    `application.com.maxgoedjen.Secretive.SecretAgent.…`，没有 `com.maxgoedjen.Secretive.SecretAgent` 作业；
+    退出主 app、`SIGTERM` 后 15 s 内没有新 agent。所以 `LoginItemAgentRestart` 在发信号前先
+    `launchctl print gui/<uid>/<agent bundle id>`，只有作业的 `pid` 正是快照里的旧进程才结束它；否则不动它、
+    报 `agentsNotRestarted`（用户打开 Secretive 时它会按 `justUpdatedBuild` 自己换掉 agent）。不按版本分：
+    同一版本两种状态都可能出现。
 - 端到端（2026-10-19）: 装 3.0.4 → `duo check` 报 `3.0.4 → 4.0.0 [GitHub, in-place]` → `duo install` 装上，
   agent 随之重启（见上）。2026-09-29 只检测时是 `Skipping: Secretive — detection only`。
 

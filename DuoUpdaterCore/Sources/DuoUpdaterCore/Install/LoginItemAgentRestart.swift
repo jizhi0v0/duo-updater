@@ -29,13 +29,23 @@ import Foundation
 ///   bundle" can be read off the executable path: afterwards the old file has
 ///   been moved aside or deleted, and what the kernel reports for it is not
 ///   something to match on.
-/// - `restart` runs once the swap has landed. It sends `SIGTERM` to each
-///   recorded process that is still the same process (pid *and* start time, so
-///   a reused pid is never signalled), waits for it to exit, then waits for a
-///   new process running the agent's executable from the live bundle. That one
-///   is launchd's doing — the job `SMAppService` registered — not ours: we
-///   never launch the agent, so an agent the user had not enabled stays off.
-///   Both waits are bounded, and an agent that did not come back is reported.
+/// - `restart` runs once the swap has landed. It first asks launchd whether it
+///   runs the agent as the job labelled with the agent's bundle id (the job
+///   `SMAppService` or `SMLoginItemSetEnabled` registers), with one of the
+///   recorded processes as that job's pid. Only then does it send that process
+///   `SIGTERM` — if it is still the same process (pid *and* start time, so a
+///   reused pid is never signalled) — wait for it to exit, and wait for launchd
+///   to start a new one from the live bundle. We never launch the agent, so an
+///   agent the user had not enabled stays off. Both waits are bounded, and an
+///   agent that did not come back is reported.
+/// - An agent launchd does not run as that job is left running and reported.
+///   Secretive starts its agent through LaunchServices (`NSWorkspace
+///   openApplication`) when its login item is not running — in 2.x and 3.x
+///   alike — and nothing relaunches an agent started that way: measured on
+///   2.4.1, whose agent had the label `application.…` and was not back 15 s
+///   after `SIGTERM`. Ending it would turn "signing may hang later" into "no
+///   agent at all". Opening the host after the update replaces it (the vendor's
+///   `justUpdatedBuild` path), which is what the report tells the user.
 ///
 /// An agent outside the swapped bundle is never touched, even with a declared
 /// bundle id: only processes whose executable was inside this bundle's
@@ -80,10 +90,14 @@ public enum LoginItemAgentRestart {
         case stillRunning(bundleID: String)
         /// The old process exited and nothing relaunched it within the wait.
         case notRelaunched(bundleID: String)
+        /// launchd does not run the old process as the agent's job, so nothing
+        /// would start it again. Not signalled; still the old code.
+        case notManagedByLaunchd(bundleID: String)
 
         public var bundleID: String {
             switch self {
-            case .restarted(let id, _), .stillRunning(let id), .notRelaunched(let id): id
+            case .restarted(let id, _), .stillRunning(let id), .notRelaunched(let id),
+                 .notManagedByLaunchd(let id): id
             }
         }
 
@@ -194,6 +208,7 @@ public enum LoginItemAgentRestart {
         _ snapshot: [Agent],
         processes: @Sendable () -> [Process] = liveProcesses,
         signal: @Sendable (pid_t, Int32) -> Void = { _ = kill($0, $1) },
+        launchdJobPID: @Sendable (String) async -> pid_t? = launchdJobPID,
         exitTimeout: Duration = .seconds(5),
         relaunchTimeout: Duration = .seconds(10),
         pollInterval: Duration = .milliseconds(200)
@@ -201,13 +216,21 @@ public enum LoginItemAgentRestart {
         var results: [Result] = []
         for agent in snapshot where !agent.processes.isEmpty {
             let old = Set(agent.processes.map(Identity.init))
-            // Only the processes still alive *as the same process*: a pid that
-            // has since exited and been reused by something else is not signalled.
-            for process in processes() where old.contains(Identity(process)) {
-                signal(process.pid, SIGTERM)
+            // Only a process still alive *as the same process* (a pid that has
+            // since exited and been reused by something else is not ours) and
+            // that launchd runs as the agent's job, so it will start it again.
+            let jobPID = await launchdJobPID(agent.bundleID)
+            guard let target = processes().first(where: {
+                old.contains(Identity($0)) && $0.pid == jobPID
+            }) else {
+                Log.install.error(
+                    "login-item agent \(agent.bundleID, privacy: .public): not running as its launchd job (job pid \(jobPID.map(String.init) ?? "none", privacy: .public)) — left running")
+                results.append(.notManagedByLaunchd(bundleID: agent.bundleID))
+                continue
             }
+            signal(target.pid, SIGTERM)
             let exited = await poll(timeout: exitTimeout, interval: pollInterval) {
-                !processes().contains { old.contains(Identity($0)) }
+                !processes().contains { Identity($0) == Identity(target) }
             }
             guard exited else {
                 Log.install.error(
@@ -233,6 +256,30 @@ public enum LoginItemAgentRestart {
             }
         }
         return results
+    }
+
+    /// The pid launchd runs as the job labelled `label` in this user's GUI
+    /// domain, or nil when there is no such job or it is not running. For an
+    /// `SMAppService` login item the label is the agent's bundle id (Secretive
+    /// 3.0.4: `launchctl print gui/501/com.maxgoedjen.Secretive.SecretAgent` →
+    /// `pid = …`); an app LaunchServices started gets an `application.…`
+    /// label instead, so it is not found.
+    public static func launchdJobPID(_ label: String) async -> pid_t? {
+        guard let outcome = try? await ChildProcess.run(
+            "/bin/launchctl", ["print", "gui/\(getuid())/\(label)"],
+            deadline: .init(terminateAfter: .seconds(5), killAfter: .seconds(6)),
+            onCancel: .runToCompletion),
+            outcome.succeeded
+        else { return nil }
+        return jobPID(inLaunchctlPrint: String(decoding: outcome.standardOutput, as: UTF8.self))
+    }
+
+    /// The job's own `pid = N` line: one tab deep, before any nested block.
+    static func jobPID(inLaunchctlPrint output: String) -> pid_t? {
+        for line in output.split(separator: "\n") where line.hasPrefix("\tpid = ") {
+            return pid_t(line.dropFirst("\tpid = ".count).trimmingCharacters(in: .whitespaces))
+        }
+        return nil
     }
 
     private struct Identity: Hashable {

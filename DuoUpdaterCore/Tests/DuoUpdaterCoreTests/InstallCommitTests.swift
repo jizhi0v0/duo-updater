@@ -291,6 +291,46 @@ import Testing
         }
     }
 
+    /// Whether a cancel kept anything from running: before any commit, yes;
+    /// after a refused run, when the retry is refused for it, yes; after the
+    /// only command ran and failed, no — the job ends on that command's result.
+    /// Without a cancel, no.
+    /// Mutations: drop `!ranACommit` → the first case red; never set
+    /// `refusedACommit` → the retry case red; always true → the third red.
+    @Test func aCancelSaysWhetherItStoppedAnything() async throws {
+        let before = Self.id()
+        InstallJobs.register(before, cancel: {})
+        defer { InstallJobs.unregister(before) }
+        #expect(InstallJobs.cancel(before) == .cancelled)
+        #expect(InstallJobs.cancelStoppedSomething(before))
+
+        let retry = Self.id()
+        InstallJobs.register(retry, cancel: {})
+        defer { InstallJobs.unregister(retry) }
+        try await InstallJobs.$currentID.withValue(retry) {
+            _ = try await InstallCommit.run("ZZFixture-cmd", landed: { $0 == 0 }) { () -> Int32 in 1 }
+            #expect(InstallJobs.cancel(retry) == .cancelled)
+            await #expect(throws: CancellationError.self) {
+                _ = try await InstallCommit.run("ZZFixture-cmd", landed: { $0 == 0 }) { () -> Int32 in 0 }
+            }
+        }
+        #expect(InstallJobs.cancelStoppedSomething(retry))
+
+        let after = Self.id()
+        InstallJobs.register(after, cancel: {})
+        defer { InstallJobs.unregister(after) }
+        _ = try await InstallJobs.$currentID.withValue(after) {
+            try await InstallCommit.run("ZZFixture-cmd", landed: { $0 == 0 }) { () -> Int32 in 1 }
+        }
+        #expect(InstallJobs.cancel(after) == .cancelled)
+        #expect(!InstallJobs.cancelStoppedSomething(after))
+
+        let none = Self.id()
+        InstallJobs.register(none, cancel: {})
+        defer { InstallJobs.unregister(none) }
+        #expect(!InstallJobs.cancelStoppedSomething(none))
+    }
+
     /// A body that reports "refused, nothing changed" by value: `landed` says
     /// no, the value still comes back, and the job is preparing again. One whose
     /// value lands keeps it committing.

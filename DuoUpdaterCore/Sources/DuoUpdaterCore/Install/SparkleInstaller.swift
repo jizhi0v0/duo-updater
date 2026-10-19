@@ -199,6 +199,18 @@ public actor SparkleInstaller {
         guard let remote = result.remote, remote.sourceName == "Sparkle" else {
             throw InstallError.notSparkleUpdate
         }
+        // Which trust this install rests on is decided here, once, from the
+        // installed copy on disk — never from the scan's `installedLacksTeamIdentifier`
+        // (a `try?` that reads an unreadable signature as "no Team"). A copy with
+        // no Team ID takes its own route, whose only anchor is its update key.
+        let installedApp = result.app.path
+        let installedTeam = try await offCooperativePool {
+            try SignatureVerifier.teamIdentifier(at: installedApp)
+        }
+        guard installedTeam != nil else {
+            return try await applyKeyOnly(result, remote: remote, download: download, onStage: onStage)
+        }
+
         // EdDSA is verified only when the app ships an `SUPublicEDKey` — the
         // normal, strongly-signed Sparkle feed. Some vendors publish an UNSIGNED
         // feed (no `SUPublicEDKey` in the bundle, no `sparkle:edSignature` in the
@@ -303,6 +315,72 @@ public actor SparkleInstaller {
         onStage(.installing)
         try await installApp(newApp, over: result.app.path)
 
+        onStage(.done)
+    }
+
+    /// The route for an installed copy without a Team ID (ad-hoc, or signed with
+    /// its own certificate). Trust rests on one thing, as it does for the app's
+    /// own Sparkle: the update is signed by the key in the installed copy's
+    /// `SUPublicEDKey`. So, unlike the route above:
+    ///
+    /// - the key is read from the installed bundle on disk, and is required — no
+    ///   key falls into no unsigned-feed fallback, because there is no Team-ID
+    ///   gate to fall back on;
+    /// - the signature is checked before anything is extracted or reconstructed,
+    ///   over exactly the bytes downloaded (the patch's own signature on the patch
+    ///   route), and a bad one throws at once: no key-rotation fallback, which is
+    ///   only safe when gate 3 follows it;
+    /// - the identity gate is `verifySparkleKeyOnlyIdentity`: signing never
+    ///   changes kind, and the bundle is the same app.
+    ///
+    /// Gates 2, 5, 5b, 6 and 7 are the same as on the route above.
+    private func applyKeyOnly(
+        _ result: UpdateResult,
+        remote: RemoteVersion,
+        download: DownloadedUpdate,
+        onStage: @Sendable @escaping (InstallStage) -> Void
+    ) async throws {
+        let installedApp = result.app.path
+        let patch = download.appliedPatch
+        if let patch, patch.format != .sparkle {
+            throw SignatureVerifier.VerifyError.edSignatureMissing
+        }
+        onStage(.verifyingSignature)
+        let file = download.archiveURL
+        // The patch's own signature on the patch route, never the archive's.
+        let signature = patch.map(\.edSignature) ?? remote.edSignature
+        let proof = try await offCooperativePool {
+            try SignatureVerifier.verifySparkleSignature(
+                of: file, signatureBase64: signature, installedApp: installedApp)
+        }
+
+        onStage(.extracting)
+        let newApp: URL
+        if let patch {
+            // The same key `verifySparkleSignature` just used; `reconstruct`
+            // checks the patch against it again before applying it.
+            newApp = try await DeltaApplier.reconstruct(
+                installedApp: installedApp,
+                patch: patch,
+                patchFile: file,
+                workDir: download.workDir,
+                edPublicKey: SignatureVerifier.embeddedEdPublicKey(at: installedApp),
+                onStage: onStage)
+        } else {
+            newApp = try await ArchiveExtractor.extractApp(from: file, workDir: download.workDir)
+        }
+
+        onStage(.verifyingCodeSignature)
+        try await SignatureVerifier.verifyInstallArtifact(
+            downloadedApp: newApp,
+            installedApp: installedApp,
+            trust: .sparkleSignature(proof)
+        )
+        try SignatureVerifier.verifyNoBundleVersionDowngrade(
+            installedApp: installedApp, downloadedApp: newApp)
+
+        onStage(.installing)
+        try await installApp(newApp, over: installedApp)
         onStage(.done)
     }
 

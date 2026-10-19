@@ -471,14 +471,11 @@ public enum Install {
                         + "in DuoUpdater's Settings → General to install it checked by file hash only",
                     nil)
             }
-            // The MyGo ad-hoc route, stopped by the same setting or by a manifest
-            // that signed nothing for this download.
+            // The MyGo ad-hoc route, stopped only by a manifest that signed nothing
+            // for this download (it is not behind the setting).
             if result.remote?.installTrust == .myGoSignatureOnly {
-                return .refuse(settings.updateSettings.allowsDigestOnlyInstalls
-                    ? "no developer signature, and its update manifest signs no file for this release"
-                    : "no developer signature — turn on one-click updates for such apps "
-                        + "in DuoUpdater's Settings → General to install it checked by its "
-                        + "developer's update signature",
+                return .refuse(
+                    "no developer signature, and its update manifest signs no file for this release",
                     nil)
             }
             return .refuse("detection only — this source publishes no installable artefact", nil)
@@ -1395,12 +1392,14 @@ public enum Install {
             print("   installed.")
         }
         // A login-item agent the recipe restarts after the swap
-        // (`LoginItemAgentRestart`) that is not back on the new bundle: the app
-        // is updated, but the agent is gone or still the old code.
+        // (`LoginItemAgentRestart`) that is not running from the new bundle:
+        // the app is updated, but the agent is gone or still the old code.
+        // Opening Secretive replaced an agent left running this way (audit,
+        // 「一键安装」).
         if !outcome.agentsNotRestarted.isEmpty {
             FileHandle.standardError.write(Data("""
-                   warning: \(outcome.agentsNotRestarted.joined(separator: ", ")) did not come \
-                back from the new bundle. Open \(name) or log out and back in to start it.\n
+                   warning: \(outcome.agentsNotRestarted.joined(separator: ", ")) is not running \
+                from the new bundle. Open \(name) to restart it.\n
                 """.utf8))
         }
     }

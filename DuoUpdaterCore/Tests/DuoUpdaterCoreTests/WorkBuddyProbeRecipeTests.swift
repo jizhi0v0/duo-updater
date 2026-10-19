@@ -12,7 +12,9 @@ import Foundation
 struct WorkBuddyProbeRecipeTests {
 
     /// The two sites and the version each served when the recipes were written.
-    /// `body` is the endpoint's response captured verbatim on 2026-08-27.
+    /// `body` is the endpoint's response captured verbatim: the China site's on
+    /// 2026-08-27, the international site's on 2026-10-19 (after it moved its
+    /// downloads to `download.codebuddy.ai`).
     private struct Site {
         let bundleID: String
         let host: String
@@ -31,11 +33,11 @@ struct WorkBuddyProbeRecipeTests {
         Site(
             bundleID: "com.workbuddy.workbuddy-ai",
             host: "www.workbuddy.ai",
-            installedShortVersion: "5.4.2",
+            installedShortVersion: "5.8.4",
             installKind: .dmg,
             bodies: [
-                "arm64": #"{"version":"5.4.2.36857725","url":"https://codebuddy-1328495429.cos.accelerate.myqcloud.com/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-5.4.2.36857725-d74591c4.zip","productVersion":"5.4.2.36857725","sha256hash":"5d28d2b009dddb661ca8f2b1821dc57f853132071ae23101465f385d016a7743","timestamp":1787580925,"hash":"","name":"","supportsFastUpdate":false}"#,
-                "x64": #"{"version":"5.4.2.36857725","url":"https://codebuddy-1328495429.cos.accelerate.myqcloud.com/workbuddy/saas/darwin-x64/WorkBuddy-darwin-x64-5.4.2.36857725-d74591c4.zip","productVersion":"5.4.2.36857725","sha256hash":"0f1dce554df89f5e50db04823144e01faee7ea88483875cdc7066406d15b362b","timestamp":1787580925,"hash":"","name":"","supportsFastUpdate":false}"#,
+                "arm64": #"{"version":"5.8.4.41366630","url":"https://download.codebuddy.ai/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-5.8.4.41366630-73952edb.zip","productVersion":"5.8.4.41366630","sha256hash":"e5ef3f91e7f9d61a3d41eb9e279f1bc676e4317afdb211fee94efc03548f1133","timestamp":1792089830,"hash":"","name":"","supportsFastUpdate":false}"#,
+                "x64": #"{"version":"5.8.4.41366630","url":"https://download.codebuddy.ai/workbuddy/saas/darwin-x64/WorkBuddy-darwin-x64-5.8.4.41366630-73952edb.zip","productVersion":"5.8.4.41366630","sha256hash":"8404d7eeb2653ec49ca3f3bce4b69fd101ecf60bd1fd9f8472181108a11aa63e","timestamp":1792089830,"hash":"","name":"","supportsFastUpdate":false}"#,
             ]),
         Site(
             bundleID: "com.tencent.workbuddy.mac",

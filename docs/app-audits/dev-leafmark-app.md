@@ -58,7 +58,7 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持，需要打开「允许无开发者签名的 app 一键更新」**（`InstallTrust.myGoSignatureOnly`）
+- 状态: **支持**（`InstallTrust.myGoSignatureOnly`）。2026-10-19 起不再受「允许无开发者签名的 app 一键更新」控制：校验用的是已装 app 自己二进制里的 key，与 app 自带更新器同一个锚点。下面的端到端是在开关打开时跑的
 - 格式: `.tar.gz`（manifest 顶层 `url`），解出 `Leafmark.app`，没有嵌套 app、helper 或 LaunchAgent
 - 校验: 来源证明是 MyGo Ed25519 签名（签文件的 SHA-256），key 取自已装 app 的二进制；之后跑 ad-hoc 身份闸（ad-hoc 标记、
   bundle id 两边一致、版本与 manifest 一致）。manifest 不发摘要

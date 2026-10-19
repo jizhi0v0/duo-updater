@@ -218,9 +218,10 @@ public enum InstallTrust: Sendable, Hashable, CaseIterable {
     /// INSTALLED binary — exactly what the app's own updater checks it with, and
     /// a key only the vendor's build step holds the private half of. Patches
     /// carry their own signature under the same key, so unlike the digest route
-    /// this one may take a delta. Gated by the same setting as
-    /// `publishedDigestOnly` (`UpdateSettings.allowsDigestOnlyInstalls`), re-checked
-    /// at click time, and followed by the same ad-hoc identity gates.
+    /// this one may take a delta. Not behind `UpdateSettings.allowsDigestOnlyInstalls`:
+    /// the anchor is the installed copy's own key, as for the app's own updater
+    /// (and as for a Sparkle app without a Team ID, `SparkleInstaller`'s key-only
+    /// route). Followed by the same ad-hoc identity gates as `publishedDigestOnly`.
     case myGoSignatureOnly
 }
 

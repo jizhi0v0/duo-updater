@@ -116,18 +116,20 @@ import Testing
         #expect(results == [.notManagedByLaunchd(bundleID: Self.agentID)])
     }
 
-    /// `launchctl print`'s own `pid` line, not one from a nested block.
+    /// `launchctl print`'s own `pid` line, not one from a nested block. The
+    /// nested one comes first, so a parser that ignores depth reads 99.
+    /// Mutation: match `pid = ` at any depth → 99, red.
     @Test func theJobPIDIsReadFromLaunchctlPrint() {
         let output = """
             gui/501/com.maxgoedjen.Secretive.SecretAgent = {
             \tstate = running
             \tprogram identifier = com.maxgoedjen.Secretive.SecretAgent (mode: 1)
             \truns = 1
-            \tpid = 11236
-            \tlast exit code = (never exited)
             \tpid-local endpoints = {
             \t\tpid = 99
             \t}
+            \tpid = 11236
+            \tlast exit code = (never exited)
             }
             """
         #expect(LoginItemAgentRestart.jobPID(inLaunchctlPrint: output) == 11236)

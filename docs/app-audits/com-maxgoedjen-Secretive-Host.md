@@ -137,13 +137,42 @@ nightly 不是可订阅的轨道，但装上了必须认得出来:
   - **只重启 launchd 管着的 agent**。Secretive 2.x 和 3.x 都是先注册登录项（2.x `SMLoginItemSetEnabled`，3.x
     `SMAppService`），登录项没在跑时都回退成 LaunchServices 直接拉起（`App.swift` 的 `forceLaunchAgent()`，
     读源码 v2.4.1 / v3.0.0 / v3.0.2；3.0.3 起先 `register()` 再回退）。LaunchServices 拉起的 agent 没有
-    launchd 作业，结束它就没人再拉起。2026-10-19 实测 2.4.1（这台机器的 BTM 里留着上一轮已 disabled 的
-    条目，所以走的正是回退路径）：`launchctl list` 里 agent 的标签是
+    launchd 作业，结束它就没人再拉起。2026-10-19 实测 2.4.1 首次打开：`launchctl list` 里 agent 的标签是
     `application.com.maxgoedjen.Secretive.SecretAgent.…`，没有 `com.maxgoedjen.Secretive.SecretAgent` 作业；
-    退出主 app、`SIGTERM` 后 15 s 内没有新 agent。所以 `LoginItemAgentRestart` 在发信号前先
+    退出主 app、`SIGTERM` 后 15 s 内没有新 agent。BTM 清空后（app 进废纸篓后 `sfltool dumpbtm` 里已无 Secretive
+    条目）重装 2.4.1 再打开，结果一样：BTM 新建的条目是 `[disabled, allowed, notified]`，agent 仍是
+    `application.…`；走完它自己的 Help ▸ Setup Secretive ▸ Install 之后才有 `com.maxgoedjen.Secretive.SecretAgent`
+    作业。所以 2.4.1 首次打开就走回退路径，不是上一轮残留造成的。所以 `LoginItemAgentRestart` 在发信号前先
     `launchctl print gui/<uid>/<agent bundle id>`，只有作业的 `pid` 正是快照里的旧进程才结束它；否则不动它、
     报 `agentsNotRestarted`（用户打开 Secretive 时它会按 `justUpdatedBuild` 自己换掉 agent）。不按版本分：
     同一版本两种状态都可能出现。
+  - **按版本与位置补测（2026-10-19，commit b7d32728 的 `make cli`）**。同一把 Notify 测试密钥（2.4.1 建的，
+    升级后 4.0.0 照样能用）；每个版本：放进去、结束旧作业让 launchd 从新放的包拉起、开关一次主 app、基线签名、
+    `duo install Secretive --yes --json`、签名后杀 XPC，共签三次：
+    | 起点 | 换包前作业 | `duo install` | 作业 pid（`runs`） | 换包后签名（含两次杀 XPC） |
+    |---|---|---|---|---|
+    | 2.4.1，`/Applications`（Setup ▸ Install 之后） | `\tpid = 69232`，`SMLoginItemSetEnabled` | `installed` | 69232 → 76355（1 → 2） | 3/3 成功 |
+    | 3.0.0，`/Applications` | 77374，`parent bundle version` = 3.0.0 的 build | `installed` | 77374 → 77920（1 → 2） | 3/3 成功 |
+    | 3.0.3，`/Applications` | 78640（agent 是放进 3.0.3 之后拉起的） | `installed` | 78640 → 80666（3 → 4） | 3/3 成功 |
+    | 3.0.4，`~/Applications`（Start Agent 重新注册） | 82108；`proc_pidpath` 给出的 agent 路径与 `realpath` 拼法逐字一致 | `installed` | 82108 → 82966（1 → 2） | 3/3 成功 |
+    每次 duo 的日志都是 `restarted from the new bundle (pid …)`。2.x 的 launchd 作业标签就是 agent 的 bundle id，
+    launchd 结束后会重新拉起（last exit −15），所以 2.x 不需要版本闸。3.0.3 那一行的作业是 3.0.0 注册的（3.0.3 主 app
+    没有重新注册），agent 跑的是 3.0.3 的二进制。`~/Applications` 不是 firmlink（firmlink 是 `/Applications` ↔
+    `/System/Volumes/Data/Applications`，已在上面测过）；`/private/var` 一类靠 `realpath` 的拼法由单测覆盖。
+    清理：app、4 个容器进废纸篓；Disable Agent 没生效，用 `launchctl bootout` 停掉作业，之后无 Secretive 进程；
+    `~/.ssh/config` 与 shell 配置字节一致。
+  - **复测（2026-10-19，commit 96d735c1 的 `make install` + `make cli`）**：
+    - launchd 作业的 agent：装 3.0.4、Start Agent、建测试密钥（Notify）、退出主 app。换包前
+      `launchctl print gui/501/com.maxgoedjen.Secretive.SecretAgent` 有一行 `\tpid = 77600`。`duo install` →
+      `installed`，作业 pid 77600 → 78398、`runs` 1 → 2，日志 `restarted from the new bundle (pid 78398)`；签名成功，
+      杀两次 XPC 后仍成功。
+    - LaunchServices 拉起的 agent：放回 3.0.4，`launchctl bootout gui/501/com.maxgoedjen.Secretive.SecretAgent`，
+      `open …/LoginItems/SecretAgent.app`（标签 `application.com.maxgoedjen.Secretive.SecretAgent.…`），签名成功。
+      `duo install --json` → `{"agentsNotRestarted":["com.maxgoedjen.Secretive.SecretAgent"],…,"outcome":"installed"}`，
+      stderr 警告，日志 `not running as its launchd job (job pid none) — left running`，agent pid 不变。杀 XPC 后
+      `ssh-add -L` 超时（exit 124），即 #1457 的挂死。打开 Secretive：它重新注册登录项，launchd 拉起新 agent
+      （pid 80844），签名成功，再杀 XPC 仍成功；旧 agent（可执行文件已删）还在跑但不再接 socket，测试后手动结束。
+    - 清理：删除测试密钥、Disable Agent（BTM `disabled`）、app 与 4 个容器移入废纸篓；`~/.ssh/config` 字节一致。
 - 端到端（2026-10-19）: 装 3.0.4 → `duo check` 报 `3.0.4 → 4.0.0 [GitHub, in-place]` → `duo install` 装上，
   agent 随之重启（见上）。2026-09-29 只检测时是 `Skipping: Secretive — detection only`。
 

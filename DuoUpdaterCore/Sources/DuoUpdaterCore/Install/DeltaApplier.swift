@@ -304,10 +304,15 @@ public func deltaRouteFailureIsWorthRetrying(_ error: Error) -> Bool {
         // installed one. The feed entry is wrong, not the bytes, and the full
         // archive comes from the same entry. Retrying only spends the download.
         return false
+    case .noTeamIdentifierOrUpdateKey:
+        // A property of the INSTALLED copy (no Team ID and no update key), read
+        // before anything is extracted: the full archive is refused identically.
+        return false
     case .edSignatureMissing, .edSignatureInvalid, .myGoSignatureMissing, .myGoSignatureInvalid,
          .codeSignatureInvalid,
          .noTeamIdentifier, .teamIdentifierMismatch,
-         .noBundleIdentifier, .bundleIdentifierMismatch:
+         .noBundleIdentifier, .bundleIdentifierMismatch,
+         .signingKindChanged, .designatedRequirementNotSatisfied:
         return true
     // The digest-only route never takes a patch (`VendorInstaller.download`), so
     // these cannot arrive here; classed with the trust gates they stand in for.

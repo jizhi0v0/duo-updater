@@ -372,19 +372,23 @@ struct MyGoAdHocTrustTests {
     private static let environment = InstallEnvironment(
         isHelperEnabled: false, runningAppPaths: [], stagedSelfUpdates: [:])
 
-    /// Mutations: drop the setting test → offered while off; drop the signature
-    /// test → offered with nothing to check it against.
-    @Test func anAdHocMyGoUpdateIsOfferedOnlyWhenAllowedAndSigned() {
+    /// Not behind the setting for apps without a developer signature: the key is
+    /// the installed copy's own, as for the app's own updater. Mutations: put the
+    /// setting test back → not offered while off; drop the signature test →
+    /// offered with nothing to check it against.
+    @Test func anAdHocMyGoUpdateIsOfferedWhenSignedWhateverTheSetting() {
         let off = Self.settings(allowing: false), on = Self.settings(allowing: true)
-        #expect(!UpdatePolicy.canAutoInstall(Self.offer(trust: .myGoSignatureOnly), settings: off, environment: Self.environment))
-        #expect(UpdatePolicy.canAutoInstall(Self.offer(trust: .myGoSignatureOnly), settings: on, environment: Self.environment))
-        #expect(!UpdatePolicy.canAutoInstall(
-            Self.offer(trust: .myGoSignatureOnly, signature: nil), settings: on, environment: Self.environment))
+        for settings in [off, on] {
+            #expect(UpdatePolicy.canAutoInstall(Self.offer(trust: .myGoSignatureOnly), settings: settings, environment: Self.environment))
+            #expect(!UpdatePolicy.canAutoInstall(
+                Self.offer(trust: .myGoSignatureOnly, signature: nil), settings: settings, environment: Self.environment))
+        }
         // A Developer ID MyGo app is the ordinary route, whatever the setting.
         for settings in [off, on] {
             #expect(UpdatePolicy.canAutoInstall(Self.offer(trust: .developerID), settings: settings, environment: Self.environment))
         }
-        #expect(UpdatePolicy.digestOnlyOffer(Self.offer(trust: .myGoSignatureOnly), settings: off) == .turnedOff)
+        #expect(UpdatePolicy.digestOnlyOffer(Self.offer(trust: .myGoSignatureOnly), settings: off) == .offered)
+        #expect(UpdatePolicy.digestOnlyOffer(Self.offer(trust: .myGoSignatureOnly, signature: nil), settings: off) == .noPublishedDigest)
         #expect(UpdatePolicy.digestOnlyOffer(Self.offer(trust: .myGoSignatureOnly, signature: nil), settings: on) == .noPublishedDigest)
         #expect(UpdatePolicy.digestOnlyOffer(Self.offer(trust: .myGoSignatureOnly), settings: on) == .offered)
         #expect(UpdatePolicy.digestOnlyOffer(Self.offer(trust: .developerID), settings: on) == nil)
@@ -420,12 +424,12 @@ struct MyGoAdHocTrustTests {
         return nil
     }
 
-    /// The setting is re-checked at click time, and the vendor's signature over
-    /// exactly the downloaded bytes — the archive, or the patch when a patch was
-    /// downloaded — is checked before anything is unpacked. Mutations: drop the
-    /// setting guard, or verify the archive's signature for a patch download →
-    /// the wrong file passes or the right one fails.
-    @Test func theInstallerChecksTheSettingThenTheVendorsSignature() async throws {
+    /// The vendor's signature over exactly the downloaded bytes — the archive, or
+    /// the patch when a patch was downloaded — is checked before anything is
+    /// unpacked, and the setting is not consulted. Mutations: put the setting
+    /// guard back → refused while off; verify the archive's signature for a patch
+    /// download → the wrong file passes or the right one fails.
+    @Test func theInstallerChecksTheVendorsSignatureNotTheSetting() async throws {
         let fm = FileManager.default
         #expect(!fm.fileExists(atPath: "/Applications/ZZMyGoAdHoc-Installed.app"))
         let scratch = fm.temporaryDirectory
@@ -454,8 +458,11 @@ struct MyGoAdHocTrustTests {
             return UpdateResult(app: r.app, remote: remote, status: r.status)
         }
 
-        // Off: refused before anything is read.
-        #expect(Self.gate(await Self.failure(result(signature: try sign(archiveBytes)), full, allowed: false)) == "notAllowed")
+        // Off: not consulted — past the gate, as when on (refused later: the
+        // bytes are no archive).
+        let offPast = await Self.failure(result(signature: try sign(archiveBytes)), full, allowed: false)
+        #expect(offPast != nil)
+        #expect(Self.gate(offPast) == nil, "the setting stopped a signed MyGo download: \(String(describing: offPast))")
         // On, another key's signature, or none: refused at the gate.
         let stranger = try Curve25519.Signing.PrivateKey()
             .signature(for: Data(SHA256.hash(data: archiveBytes))).base64EncodedString()

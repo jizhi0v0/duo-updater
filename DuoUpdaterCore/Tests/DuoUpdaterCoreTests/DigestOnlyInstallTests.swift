@@ -215,21 +215,25 @@ import Testing
         }
     }
 
-    /// A one-executable app bundle at `url`, signed as `signing` says.
+    /// A one-executable app bundle at `url`, signed as `signing` says. `info` is
+    /// merged into its Info.plist before signing, so the seal covers it.
     @discardableResult
     static func makeApp(
-        at url: URL, bundleID: String = bundleID, version: String = "2.0.0", signing: Signing
+        at url: URL, bundleID: String = bundleID, version: String = "2.0.0", build: String = "2",
+        info: [String: Any] = [:], signing: Signing
     ) async throws -> URL {
         let fm = FileManager.default
         try fm.createDirectory(at: url.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
         try fm.createDirectory(at: url.appendingPathComponent("Contents/Resources"), withIntermediateDirectories: true)
-        try PropertyListSerialization.data(fromPropertyList: [
+        let plist: [String: Any] = [
             "CFBundleIdentifier": bundleID,
             "CFBundleShortVersionString": version,
-            "CFBundleVersion": "2",
+            "CFBundleVersion": build,
             "CFBundleExecutable": "zz",
             "CFBundlePackageType": "APPL",
-        ], format: .xml, options: 0).write(to: url.appendingPathComponent("Contents/Info.plist"))
+        ].merging(info) { _, new in new }
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+            .write(to: url.appendingPathComponent("Contents/Info.plist"))
         try Data("resource".utf8).write(to: url.appendingPathComponent("Contents/Resources/r.txt"))
         let exe = url.appendingPathComponent("Contents/MacOS/zz").path
         var clang = ["/usr/bin/xcrun", "clang", "-x", "c", "-", "-o", exe]

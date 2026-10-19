@@ -345,6 +345,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Proxyman**](com-proxyman-NSProxy.md) · `com.proxyman.NSProxy` — S · 一键 ✓ · changelog recipe（GitHub）✓ · 2026-10-08
 - [x] [**MonitorControl**](app-monitorcontrol-MonitorControl.md) · `app.monitorcontrol.MonitorControl` — S+B · 一键 ✓ · beta 开关（`MonitorControlChannel`，feed 尚无 beta）· changelog recipe ✓ · 2026-10-08
 - [x] [**RuntimeViewer**](com-JH-RuntimeViewer.md) · `com.JH.RuntimeViewer` — S+B · stable/beta（`RuntimeViewerChannel`）· 一键 ✓（含 beta、无 Sparkle 的 1.x）· changelog recipe ✓（stable/beta）· 2026-10-18
+- [x] [**AirBuild**](plus-yellow-AirBuild.md) · `plus.yellow.AirBuild` — S+B · stable/beta（`AirBuildChannel`）· 一键 ✓（不运行 / 运行中）· changelog ✗（厂商不发）· 2026-10-19
 - [x] [**Maccy**](org-p0deje-Maccy.md) · `org.p0deje.Maccy` — S · 检测 + changelog 结构化 ✓ · 一键未跑 · 2026-10-08
 - [x] [**TrellisWM**](app-trellisui-trelliswm.md) · `app.trellisui.trelliswm` — S · 一键（delta）✓ 0.9.4→0.9.5 · changelog recipe ✓（版本说明页按 `<h1>` 拆、分节保留）· 运行中一轮 ✓（未授辅助功能权限，系统设置前后一致）· 2026-10-19
 - [x] [**Keka**](com-aone-keka.md) · `com.aone.keka` — S · 检测 ✓ · changelog recipe（GitHub）✓ · 一键未跑 · 2026-10-08

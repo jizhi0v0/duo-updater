@@ -154,6 +154,12 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
   （3.0.0-beta.7 读 `3.0.0`），`detect()` 没有信号，所以 `RuntimeViewerChannel`：`true` → `.beta`，其他 → `.stable`（权威，和 app 自己一样）。
   标签是派生的，不需要 proof。详见 [审计](docs/app-audits/com-JH-RuntimeViewer.md)
 
+### Pattern C 续 — AirBuild（2026-10-19 接 beta）
+
+- **AirBuild** `plus.yellow.AirBuild` — 设置 → General →「Receive Beta Updates」写 CFPrefs `ReceiveBetaVersions`（真 app 拨开关实测：开 `1`、关布尔 `0`，键保留；从未拨过时没有键）。
+  一个 feed，beta item 打 `<sparkle:channel>beta`。beta 包的版本号与 `AirBuildReleaseLabel` 都不带渠道（1.1.120 beta 与 1.1.121 stable 同为 `1.1` / `v1.1-beta.143`），
+  `AirBuildChannel`：`true` → `.beta`，其他 → `.stable`（权威）。标签是派生的，不需要 proof。详见 [审计](docs/app-audits/plus-yellow-AirBuild.md)
+
 ### Pattern C 续 — CodeEdit（2026-09-12 接，`dev` 是唯一轨的标签）
 
 - **CodeEdit** `app.codeedit.CodeEdit` — Info.plist 自带 `SUFeedURL`

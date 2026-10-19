@@ -144,6 +144,7 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///                                     true→beta; else nil, see the type)
 ///   * Open Screen Sharing → `updateTrack` row in its group container's GRDB
 ///                                     database (`"nightly"`→nightly; else nil)
+///   * AirBuild → `UserDefaults[ReceiveBetaVersions]` (Bool: true → `<sparkle:channel>beta`, else stable)
 ///   * RuntimeViewer → `…/Application Support/RuntimeViewer/settings.json`
 ///                                     → `update.includePrereleases` (Bool: true→beta, else stable)
 ///
@@ -198,6 +199,7 @@ public enum ChannelBinding {
         ZettlrChannel.bundleID.lowercased(),
         OpenScreenSharingChannel.bundleID.lowercased(),
         RuntimeViewerChannel.bundleID.lowercased(),
+        AirBuildChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -529,6 +531,8 @@ public enum ChannelBinding {
             return { _, strings in AdGuardChannel.resolve(bundleStrings: strings) }
         case OpenScreenSharingChannel.bundleID.lowercased():
             return { _, _ in OpenScreenSharingChannel.resolveCurrent() }
+        case AirBuildChannel.bundleID.lowercased():
+            return { _, _ in AirBuildChannel.resolveCurrent() }
         case RuntimeViewerChannel.bundleID.lowercased():
             return { feeds, _ in RuntimeViewerChannel.resolveCurrent(bundleFeeds: feeds) }
         default:                       return nil
@@ -583,6 +587,8 @@ public enum ChannelBinding {
         (MacMouseFixChannel.bundleID, MacMouseFixChannel.resolve(checkForPrereleases: true)),
         // A copy that declares its feed stands in for the bundle; the older ones
         // that do not are handed the same address (see the type).
+        (AirBuildChannel.bundleID, AirBuildChannel.resolve(receiveBetaVersions: false)),
+        (AirBuildChannel.bundleID, AirBuildChannel.resolve(receiveBetaVersions: true)),
         (RuntimeViewerChannel.bundleID, RuntimeViewerChannel.resolve(
             includePrereleases: false, bundleFeeds: RuntimeViewerChannel.declaringBundleFeeds)),
         (RuntimeViewerChannel.bundleID, RuntimeViewerChannel.resolve(

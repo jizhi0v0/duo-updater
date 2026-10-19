@@ -81,8 +81,10 @@ public enum SignatureVerifier {
         /// with the same certificate.
         case designatedRequirementNotSatisfied(OSStatus)
         /// Sparkle route, installed copy without a Team ID: the download carries
-        /// no `SUPublicEDKey`. Installed, it would have no Team ID and no key, and
-        /// nothing — this route or its own Sparkle — could update it again.
+        /// no `SUPublicEDKey`. Installed, it would have no Team ID and no key, so
+        /// this route could not update it again, and neither could an ad-hoc
+        /// copy's own Sparkle (a copy signed with its own certificate could still
+        /// update through Sparkle's code-signing check).
         case updateKeyRemoved
 
         public var errorDescription: String? {
@@ -138,7 +140,7 @@ public enum SignatureVerifier {
             case .designatedRequirementNotSatisfied:
                 return String(localized: "The download isn’t signed with the same certificate as the installed copy. Refusing to install it.")
             case .updateKeyRemoved:
-                return String(localized: "This version no longer carries an update signing key, so once installed nothing could check its future updates. Refusing to install it.")
+                return String(localized: "This version no longer carries an update signing key, so once installed DuoUpdater couldn’t check its future updates. Refusing to install it.")
             }
         }
     }

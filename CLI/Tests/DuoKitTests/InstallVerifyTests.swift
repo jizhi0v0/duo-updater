@@ -467,6 +467,10 @@ import DuoUpdaterCore
         let change = ["Sparkle key old= → new="]
         #expect(InstallVerify.keyOnlyConsequence(recorded: recorded(team: nil, key: "old="), changes: change)
             .contains("Accepting the new key here changes neither"))
+        // A copy signed with its own certificate is not stranded by its own
+        // Sparkle, which can take the new key through its code-signing check.
+        #expect(InstallVerify.keyOnlyConsequence(recorded: recorded(team: nil, key: "old="), changes: change)
+            .contains("its own certificate may still take it"))
         #expect(InstallVerify.keyOnlyConsequence(
             recorded: recorded(team: nil, key: nil), changes: ["Sparkle key none → new="]).isEmpty)
         #expect(InstallVerify.keyOnlyConsequence(

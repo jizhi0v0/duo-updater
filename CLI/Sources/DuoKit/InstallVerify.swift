@@ -504,10 +504,11 @@ public enum InstallVerify {
               changes.contains(where: { $0.hasPrefix("Sparkle key ") })
         else { return "" }
         return " — this app has no Team ID, so its update key is the only thing a one-click checks, "
-            + "against the key in each installed copy (not this file): an update signed with the new "
-            + "key is refused for copies carrying the old one, and by their own Sparkle; one signed "
-            + "with the old key that ships the new one is an ordinary rotation. Accepting the new key "
-            + "here changes neither"
+            + "against the key in each installed copy (not this file): DuoUpdater refuses an update "
+            + "signed with the new key for copies carrying the old one (an ad-hoc copy's own Sparkle "
+            + "refuses it too; one signed with its own certificate may still take it through its own "
+            + "updater), and one signed with the old key that ships the new one is an ordinary "
+            + "rotation. Accepting the new key here changes neither"
     }
 
     /// This command's id for a recipe in `Baseline` and on an issue. Namespaced

@@ -232,15 +232,27 @@ public enum InstallJournal {
             guard let mine else { return }
             let app = URL(fileURLWithPath: mine.appPath)
             let earlier = InstallJournal.earlierEntries(for: app, excluding: mine.job)
+            // A reinstall that moved the app (a renamed cask) left nothing at
+            // the old path to verify: verify where it went.
+            let moved = succeeded && !BackupStore.hasReadableBundle(at: app)
+                ? InstallJournal.movedCopy(of: app, bundleID: mine.bundleID, atLeast: mine.targetSide) : nil
             if !earlier.isEmpty,
                await InstallJournal.isVerifiablyAt(
-                   mine.targetSide, app: app,
+                   mine.targetSide, app: moved ?? app,
                    wasSigned: InstallJournal.wasSigned([mine] + earlier.map(\.entry))) {
                 for (file, entry) in earlier where entry.workDirectories.isEmpty && entry.mounts.isEmpty {
                     unlink(file.path)
                 }
                 Log.install.notice(
                     "install journal: \(mine.appName, privacy: .public) reinstalled over its interrupted install; cleared")
+                // The settle before this kept the old path's rollback point
+                // for that install; with it repaired under the new name, the
+                // point is no one's way back.
+                if let moved {
+                    await BackupStore.removeRollbackPoint(forKey: mine.backupKey)
+                    Log.install.notice(
+                        "install journal: \(mine.appName, privacy: .public) now at \(moved.path, privacy: .public); its old path's rollback point is discarded")
+                }
             }
             if earlier.isEmpty, !succeeded, mine.committed == true, !BackupStore.hasReadableBundle(at: app) {
                 var kept = mine
@@ -251,7 +263,7 @@ public enum InstallJournal {
                 kept.child = nil
                 InstallJournal.write(kept, to: file)
                 Log.install.error(
-                    "install journal: \(mine.appName, privacy: .public) is \(kept.damage?.rawValue ?? "?", privacy: .public) after its install ended; kept as an interrupted install")
+                    "install journal: \(mine.appName, privacy: .public) is \(kept.damage?.rawValue ?? "?", privacy: .public) after its install ended; kept as an interrupted install — \(InstallJournal.wayBackForTheLog(kept), privacy: .public)")
                 return
             }
             if unlink(file.path) != 0, errno != ENOENT {
@@ -391,6 +403,30 @@ public enum InstallJournal {
         }
     }
 
+    /// Where the app once at `app` is now, when its update moved it: a cask
+    /// renamed in its new version ("Foo.app" → "Foo Pro.app") is installed
+    /// beside the old path, and the old one is gone. Another app in the same
+    /// folder with `bundleID`, readable, with its executable, at `target` or
+    /// newer. Nil without a bundle ID or a target to go by.
+    static func movedCopy(of app: URL, bundleID: String?, atLeast target: VersionSide) -> URL? {
+        guard let bundleID, !bundleID.isEmpty, !target.isEmpty else { return nil }
+        let folder = app.deletingLastPathComponent()
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return nil }
+        for name in names.sorted() where name.hasSuffix(".app") && name != app.lastPathComponent {
+            let candidate = folder.appendingPathComponent(name, isDirectory: true)
+            // Read from the file: `Bundle(url:)` caches per URL, and this one
+            // was just written.
+            guard BackupStore.hasReadableBundle(at: candidate), !namesAMissingExecutable(candidate),
+                  let data = try? Data(contentsOf: BundleLayout.infoPlistURL(for: candidate)),
+                  let info = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+                  info["CFBundleIdentifier"] as? String == bundleID
+            else { continue }
+            let onDisk = versions(at: candidate)
+            if !onDisk.isEmpty, !VersionComparator.isNewer(target, than: onDisk) { return candidate }
+        }
+        return nil
+    }
+
     /// Whether the Info.plist names a `CFBundleExecutable` the bundle does not
     /// have. False when it names none, unlike ``hasMainExecutable(_:)``.
     static func namesAMissingExecutable(_ app: URL) -> Bool {
@@ -520,6 +556,9 @@ public enum InstallJournal {
         case completed
         case unchanged
         case changedElsewhere
+        /// Gone from its path, but at the target version beside it under
+        /// another name: a cask renamed in its new version (`movedCopy`).
+        case moved
     }
 
     /// What processing runs to clean a disk image up, so a test can replay one
@@ -631,6 +670,11 @@ public enum InstallJournal {
                 // it could report one. `.notice`, like `install returned`.
                 Log.install.notice(
                     "install journal: \(name, privacy: .public) [\(entry.bundleID ?? "?", privacy: .public)] via \(entry.route, privacy: .public): its installer process ended before it finished; the app reads \(String(describing: resolution), privacy: .public) (\(versions(at: URL(fileURLWithPath: entry.appPath)).text(withBuild: true), privacy: .public))")
+                // The old path's rollback point would be kept for good: the
+                // sweep keeps every point whose app does not read there.
+                if resolution == .moved {
+                    await BackupStore.removeRollbackPoint(forKey: entry.backupKey)
+                }
                 processed.append(.resolved(app: name, resolution))
             case .damaged(let damage):
                 var kept = entry
@@ -641,7 +685,7 @@ public enum InstallJournal {
                 kept.child = nil
                 write(kept, to: file)
                 Log.install.error(
-                    "install journal: \(name, privacy: .public) at \(entry.appPath, privacy: .public) is \(damage.rawValue, privacy: .public) after an install via \(entry.route, privacy: .public) was cut off")
+                    "install journal: \(name, privacy: .public) at \(entry.appPath, privacy: .public) is \(damage.rawValue, privacy: .public) after an install via \(entry.route, privacy: .public) was cut off — \(wayBackForTheLog(kept), privacy: .public)")
                 processed.append(.interrupted(app: name, damage))
             }
         }
@@ -665,7 +709,15 @@ public enum InstallJournal {
     static func classify(_ entry: Entry) async -> Verdict {
         let app = URL(fileURLWithPath: entry.appPath)
         guard BackupStore.hasReadableBundle(at: app) else {
-            return .damaged(FileManager.default.fileExists(atPath: app.path) ? .unreadable : .missing)
+            if !FileManager.default.fileExists(atPath: app.path) {
+                // Not missing: moved. Offering the old version back at the
+                // old path would leave two copies and spend the way back.
+                if movedCopy(of: app, bundleID: entry.bundleID, atLeast: entry.targetSide) != nil {
+                    return .resolved(.moved)
+                }
+                return .damaged(.missing)
+            }
+            return .damaged(.unreadable)
         }
         // A bundle copied into place file by file (a move across volumes is a
         // copy) and cut off can have the new Info.plist before the executable
@@ -788,6 +840,18 @@ public enum InstallJournal {
                     route: entry.route, damage: entry.damage ?? .missing,
                     restoreFrom: source, iconSource: icon)
             }
+    }
+
+    /// What an interrupted install's row can offer, said in the log line that
+    /// records it: a row with no way back has no Restore and no way to dismiss
+    /// it (nothing to put back; it goes once the app reads again), and a
+    /// report about one is answered from this line.
+    static func wayBackForTheLog(_ entry: Entry) -> String {
+        guard let source = restoreSource(for: entry) else {
+            return "no way back: no rollback point and no backup under \(entry.backupKey); the row offers no Restore"
+        }
+        let kind = source.purpose == .installRollbackPoint ? "rollback point" : "backup"
+        return "way back: \(kind) \(source.version ?? "?") under \(source.key)"
     }
 
     private static func restoreSource(for entry: Entry) -> RestoreSource? {

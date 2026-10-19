@@ -169,14 +169,25 @@ final class AppListModel {
     private(set) var lastScan: Date?
 
     /// Per-app install progress, keyed by app id.
-    private(set) var installing: [String: InstallStage] = [:]
+    private(set) var installing: [String: InstallStage] = [:] {
+        didSet { smoothInstallRows() }
+    }
     /// True while "Update All" is running. Blocks a second batch from being
     /// started while the first one still has queued work.
     private(set) var isInstallingAll = false
     /// The Cancel each row an install runs for offers (`InstallCancelState`),
     /// from the moment the install is registered — or claimed by "Update All" —
     /// until it returns. A row with no entry offers none: a rollback, a re-check.
-    private(set) var installCancels: [String: InstallCancelState] = [:]
+    private(set) var installCancels: [String: InstallCancelState] = [:] {
+        didSet { smoothInstallRows() }
+    }
+    /// What the rows draw of `installing` and `installCancels`: the same rows,
+    /// without stages and "Cancelling…" that would only flash
+    /// (`InstallRowSmoothing`). Both windows read this; everything that decides
+    /// anything reads the tables themselves.
+    private(set) var installRows = InstallRowSmoothing<String>.Output()
+    @ObservationIgnored private var installRowSmoothing = InstallRowSmoothing<String>()
+    @ObservationIgnored private var installRowWake: Task<Void, Never>?
     /// One `runInstall` per row at a time: a click in the previous run's tail
     /// waits for it (`InstallRowRuns`).
     private let rowRuns = InstallRowRuns()
@@ -897,7 +908,7 @@ final class AppListModel {
     /// break here rather than go quiet. Same rule as `RowActions.live`.
     private var rowStateTables: RowStateTables {
         RowStateTables.live(
-            installing: installing,
+            installing: installRows.stages,
             needsRestart: needsRestart,
             pendingBatchRestart: pendingBatchRestart,
             pendingSelfUpdate: pendingSelfUpdate,
@@ -9138,6 +9149,24 @@ final class AppListModel {
     /// it would act on. Both halves live in `ListActivity.canOfferUpdateAll`.
     var canUpdateAll: Bool {
         listActivity.canOfferUpdateAll(targetCount: installAllTargets().count)
+    }
+
+    /// Re-derive `installRows` from the install tables, and wake again when a
+    /// stage that is waiting for its turn, or a "Cancelling…", is due.
+    private func smoothInstallRows() {
+        let rows = installRowSmoothing.update(
+            stages: installing, cancels: installCancels, now: .now)
+        if rows != installRows { installRows = rows }
+        installRowWake?.cancel()
+        installRowWake = rows.nextWake.map { due in
+            Task { @MainActor [weak self] in
+                // cancel-ok: a superseded wake is cancelled on purpose; the next
+                // table change has already re-derived the rows.
+                try? await Task.sleep(until: due, clock: .continuous)
+                guard !Task.isCancelled else { return }
+                self?.smoothInstallRows()
+            }
+        }
     }
 
     /// A row's Cancel. A target "Update All" has not started leaves its queue

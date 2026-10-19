@@ -528,13 +528,13 @@ struct PopoverRowAction: View {
     /// here; what changes is the app itself. The install path is the ordinary
     /// one: the download replaces this copy in place, and a rollback point exists
     /// only when backups are on.
-    /// The two versions the confirmations name, formatted as the row's update
-    /// line formats them (`UpdateResult.updateLineSides`).
+    /// The two versions the confirmations name, as the row's update line names
+    /// them (`UpdateResult.updateLineText`).
     private var confirmationSides: (installed: String, offered: String) {
         guard let latest = result.remote?.displayVersion else {
             return (result.app.shortVersion ?? "?", "?")
         }
-        return result.updateLineSides(latest: latest)
+        return result.updateLineText(latest: latest)
     }
 
     private var vendorRewritePopover: some View {

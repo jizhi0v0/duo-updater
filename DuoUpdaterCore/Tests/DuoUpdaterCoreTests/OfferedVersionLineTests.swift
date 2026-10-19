@@ -93,6 +93,15 @@ import Testing
         let arc = result(installedShort: "1.168.0", installedBuild: "88413",
                          offered: "1.169.0 (88758)", offeredBuild: "88758")
         #expect(arc.offeredDisplay == "1.169.0")
+        // Same marketing version: the line puts the builds back, so the labels
+        // do too — "Update 1.169.0" would name the version already installed.
+        // Mutation: `offeredDisplay` from `updateLineSides` alone → red.
+        let sameMarketing = result(installedShort: "1.169.0", installedBuild: "88700",
+                                   offered: "1.169.0 (88758)", offeredBuild: "88758")
+        #expect(sameMarketing.offeredDisplay == "1.169.0 (88758)")
+        let text = sameMarketing.updateLineText(latest: "1.169.0 (88758)")
+        #expect(text.installed == "1.169.0 (88700)")
+        #expect(text.offered == "1.169.0 (88758)")
         let both = result(id: "com.apple.dt.Xcode", installedShort: "27.0 beta 1 (27A5194q)",
                           installedBuild: "27A5194q", offered: "27.0 beta 5 (27A5237l)",
                           offeredBuild: "27A5237l", source: "Xcode Releases")

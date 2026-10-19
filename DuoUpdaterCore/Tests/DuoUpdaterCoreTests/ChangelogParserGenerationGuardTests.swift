@@ -126,8 +126,11 @@ import Foundation
     /// is one app's recipe. Pinned by `sublimeTextEntryVersionsMatchTheInstalledBundle`.
     /// 19 (the prose pass drops a leading `•`) moves neither fixture: neither has
     /// a `•` line. Pinned by `proseLinesDropATypedBulletGlyph`.
+    /// 20 (`markdownSource` unwraps a code span split by a hard wrap) moves
+    /// neither fixture: neither recipe sets `markdownSource`. Pinned by
+    /// `inlineCodeWrappedAcrossALineIsUnwrapped`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 19)
+        #expect(Changelog.parserGeneration == 20)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

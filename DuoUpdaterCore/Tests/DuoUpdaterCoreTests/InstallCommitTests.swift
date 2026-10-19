@@ -262,6 +262,105 @@ import Testing
         #expect(!cancelled.value)
     }
 
+    /// A cancel that stands (`cancelStands`, `duo`'s signal), refused while a
+    /// commit runs, applies when that commit did not land — under the lock
+    /// `beginCommit` checks — so a retry that commits straight after it is
+    /// refused, with nothing run between the two commits that could apply it.
+    /// Mutation: never set `cancelPending` in `cancel` (or never apply it in
+    /// `endCommit`) → the retry runs, red.
+    @Test func aStandingCancelStopsTheRetryAfterACommitThatDidNotLand() async throws {
+        let outcome = try await Self.refusedCommitThenRetry(cancelStands: true)
+        #expect(outcome.result == "refused")
+        #expect(!outcome.retryRan)
+        #expect(outcome.cancelCalled)
+        #expect(outcome.stoppedSomething)
+    }
+
+    /// Without `cancelStands` — a window's Cancel, which re-arms instead — a
+    /// cancel refused during a commit is not kept: the retry runs, as before.
+    /// Mutation: keep every refused cancel → the retry is refused, red.
+    @Test func aCancelThatDoesNotStandLetsTheRetryRun() async throws {
+        let outcome = try await Self.refusedCommitThenRetry(cancelStands: false)
+        #expect(outcome.result == "retried")
+        #expect(outcome.retryRan)
+        #expect(!outcome.cancelCalled)
+        #expect(!outcome.stoppedSomething)
+    }
+
+    /// A standing cancel refused during a commit that landed never applies:
+    /// the job is past its point of no return for good, and what it does next
+    /// (a re-read, a second commit) runs.
+    /// Mutation: apply the pending cancel whatever `landed` says → red.
+    @Test func aStandingCancelNeverAppliesAfterACommitThatLanded() async throws {
+        let id = Self.id()
+        let cancelled = Flag()
+        let secondRan = Flag()
+        InstallJobs.register(id, cancel: { cancelled.set() }, cancelStands: true)
+        defer { InstallJobs.unregister(id) }
+        let entered = Signal()
+        let release = Signal()
+        let task = Task {
+            try await InstallJobs.$currentID.withValue(id) {
+                _ = try await InstallCommit.run("ZZFixture-cmd", landed: { (code: Int) in code == 0 }) {
+                    entered.fire()
+                    await release.wait()
+                    return 0
+                }
+                try await InstallCommit.run("ZZFixture-second") { secondRan.set() }
+            }
+        }
+        await entered.wait()
+        #expect(InstallJobs.cancel(id) == .tooLate(committing: "ZZFixture-cmd"))
+        release.fire()
+        try await task.value
+        #expect(secondRan.value)
+        #expect(!cancelled.value)
+        #expect(InstallJobs.phase(of: id) == .committing)
+    }
+
+    struct RetryOutcome {
+        let result: String
+        let retryRan: Bool
+        let cancelCalled: Bool
+        let stoppedSomething: Bool
+    }
+
+    /// A command commit that is cancelled (refused: too late) while it runs
+    /// and then does not land, followed at once — no suspension in between
+    /// that anything else could use — by a retry's commit.
+    static func refusedCommitThenRetry(cancelStands: Bool) async throws -> RetryOutcome {
+        let id = Self.id()
+        let cancelled = Flag()
+        let retryRan = Flag()
+        InstallJobs.register(id, cancel: { cancelled.set() }, cancelStands: cancelStands)
+        defer { InstallJobs.unregister(id) }
+        let entered = Signal()
+        let release = Signal()
+        let task = Task { () -> (String, Bool) in
+            try await InstallJobs.$currentID.withValue(id) {
+                _ = try await InstallCommit.run("ZZFixture-cmd", landed: { (code: Int) in code == 0 }) {
+                    entered.fire()
+                    await release.wait()
+                    return 1
+                }
+                let result: String
+                do {
+                    try await InstallCommit.run("ZZFixture-retry") { retryRan.set() }
+                    result = "retried"
+                } catch is CancellationError {
+                    result = "refused"
+                }
+                return (result, InstallJobs.cancelStoppedSomething(id))
+            }
+        }
+        await entered.wait()
+        #expect(InstallJobs.cancel(id) == .tooLate(committing: "ZZFixture-cmd"))
+        release.fire()
+        let (result, stopped) = try await task.value
+        return RetryOutcome(
+            result: result, retryRan: retryRan.value, cancelCalled: cancelled.value, stoppedSomething: stopped)
+    }
+
     /// A body that handed the install over — App Store's button pressed, brew
     /// run — and then threw has not undone it: the job stays committing and a
     /// cancel is too late, so the row's Cancel stays greyed through the

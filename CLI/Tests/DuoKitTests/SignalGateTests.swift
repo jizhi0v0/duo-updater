@@ -517,9 +517,8 @@ import Foundation
     /// goes on to a retry, the signal still stands: the retry does not start,
     /// and the row is cancelled, saying it was the retry that was stopped.
     ///
-    /// Mutation: drop the re-applied cancel (`phaseChanged` and the `onCancel`
-    /// phase read in `CLIToolRows.apply`) → the retry runs and the row is
-    /// installed.
+    /// Mutation: run the job without `cancelStands` in `CLIToolRows.apply` →
+    /// the retry runs and the row is installed.
     @Test func aRetryAfterARefusedCommandDoesNotStartOnceSignalled() async {
         let inCommand = Latch()
         let cancelled = Latch()

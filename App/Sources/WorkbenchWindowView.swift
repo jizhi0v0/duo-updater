@@ -907,6 +907,7 @@ struct WorkbenchWindowView: View {
                                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                         }
                         ProgressView().controlSize(.small)
+                        BrewUpgradeCancelButton(jobID: AppListModel.upgradeAllJobID, model: model)
                     }
                 }
             }
@@ -1836,7 +1837,7 @@ private struct BrewFormulaSidebarRow: View {
             if upgrading {
                 HStack(spacing: 4) {
                     ProgressView().controlSize(.small)
-                    BrewFormulaCancelButton(name: formula.name, model: model)
+                    BrewUpgradeCancelButton(jobID: AppListModel.formulaJobID(formula.name), model: model)
                 }
             } else if formula.hasUpdate {
                 let blocked = model.cliBlockedReason(.upgradeFormula)
@@ -1851,18 +1852,19 @@ private struct BrewFormulaSidebarRow: View {
     }
 }
 
-/// A formula row's Cancel beside its progress (`InstallCancelButton`), while
-/// its own row's upgrade runs — not during Upgrade All, which has none. Gone
-/// once the cancel was accepted: the progress line says "Cancelling…" until
-/// the row settles (`AppListModel.cancelFormulaUpgrade`).
-private struct BrewFormulaCancelButton: View {
-    let name: String
+/// A brew upgrade's Cancel beside its progress (`InstallCancelButton`): a
+/// formula row's own upgrade (`AppListModel.formulaJobID`) or Upgrade All
+/// (`upgradeAllJobID`) — a row that only spins because Upgrade All covers it
+/// has none. Gone once the cancel was accepted: the progress says
+/// "Cancelling…" until the run ends (`AppListModel.cancelBrewUpgrade`).
+struct BrewUpgradeCancelButton: View {
+    let jobID: String
     let model: AppListModel
 
     var body: some View {
-        if let state = model.formulaCancelRows.cancels[name], state != .cancelling {
-            InstallCancelButton(state: state, pending: model.formulaCancelRows.cancelPending.contains(name)) {
-                model.cancelFormulaUpgrade(name)
+        if let state = model.brewCancelRows.cancels[jobID], state != .cancelling {
+            InstallCancelButton(state: state, pending: model.brewCancelRows.cancelPending.contains(jobID)) {
+                model.cancelBrewUpgrade(jobID)
             }
         }
     }
@@ -2251,7 +2253,7 @@ private struct FormulaDetailPane: View {
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(.quaternary, in: Capsule())
-                BrewFormulaCancelButton(name: formula.name, model: model)
+                BrewUpgradeCancelButton(jobID: AppListModel.formulaJobID(formula.name), model: model)
             } else if formula.hasUpdate {
                 let blocked = model.cliBlockedReason(.upgradeFormula)
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }

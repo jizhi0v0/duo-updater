@@ -1188,19 +1188,22 @@ final class AppListModel {
     /// line), keyed by formula name — so the row shows real progress instead of a bare
     /// spinner. Cleared when the upgrade finishes.
     private(set) var formulaUpgradeNotes: [String: String] = [:]
-    /// The Cancel of each per-row formula upgrade (`InstallCancelState`): live
-    /// while it waits out a background `brew update` and while brew downloads
-    /// ahead (`BrewFormulaService.upgrade(formula:)`), greyed once the upgrade
-    /// itself started (its `InstallCommit`). Cleared when the row's run ends.
-    private(set) var formulaCancels: [String: InstallCancelState] = [:] {
-        didSet { smoothFormulaCancelRows() }
+    /// The Cancel of each brew upgrade we run — a formula row's, and Upgrade
+    /// All's — keyed by its job id (`formulaJobID`, `upgradeAllJobID`)
+    /// (`InstallCancelState`): live while it waits out a background
+    /// `brew update` and while brew downloads ahead
+    /// (`BrewFormulaService.upgrade(formula:)`, `upgradeAll(casks:)`), greyed
+    /// once the upgrade itself started (its `InstallCommit`). Cleared when the
+    /// run ends.
+    private(set) var brewCancels: [String: InstallCancelState] = [:] {
+        didSet { smoothBrewCancelRows() }
     }
-    /// `formulaCancels` as the rows draw them (`InstallRowSmoothing`): an
+    /// `brewCancels` as the rows draw them (`InstallRowSmoothing`): an
     /// accepted cancel says "Cancelling…" only once it has lasted
     /// `InstallRowSmoothing.cancellingDelay`, as a tool row's does.
-    private(set) var formulaCancelRows = InstallRowSmoothing<String>.Output()
-    @ObservationIgnored private var formulaCancelSmoothing = InstallRowSmoothing<String>()
-    @ObservationIgnored private var formulaCancelWake: Task<Void, Never>?
+    private(set) var brewCancelRows = InstallRowSmoothing<String>.Output()
+    @ObservationIgnored private var brewCancelSmoothing = InstallRowSmoothing<String>()
+    @ObservationIgnored private var brewCancelWake: Task<Void, Never>?
 
     /// A newer Homebrew release to offer `brew update` for, at the top of the
     /// workbench Brew tree. nil = show nothing — including when the user disabled
@@ -4564,28 +4567,49 @@ final class AppListModel {
         let caskTokens = brewOutdatedFormulae.filter { $0.kind == .cask }.map(\.name)
         brewUpgradeTotal = targets.count
         brewUpgradeDone = 0
-        defer { brewUpgrading = false; brewUpgradeNote = nil; brewUpgradeDone = 0; brewUpgradeTotal = 0 }
-        await afterBackgroundHomebrewUpdate()
-        do {
-            let onOutput: @Sendable (String) -> Void = { [weak self] line in
-                Task { @MainActor in
-                    self?.brewUpgradeNote = line
-                    // One 🍺 Cellar line per poured formula — count only the targeted
-                    // ones, clamped so it never reads past the total. Casks don't emit
-                    // a Cellar line, so they're counted separately below.
-                    if let name = BrewFormulaService.pouredFormula(fromLine: line), targets.contains(name),
-                       let self, self.brewUpgradeDone < self.brewUpgradeTotal {
-                        self.brewUpgradeDone += 1
-                    }
+        let jobID = Self.upgradeAllJobID
+        brewCancels[jobID] = .available
+        defer {
+            brewUpgrading = false; brewUpgradeNote = nil; brewUpgradeDone = 0; brewUpgradeTotal = 0
+            brewCancels[jobID] = nil
+        }
+        let onOutput: @Sendable (String) -> Void = { [weak self] line in
+            Task { @MainActor in
+                self?.brewUpgradeNote = line
+                // One 🍺 Cellar line per poured formula — count only the targeted
+                // ones, clamped so it never reads past the total. Casks don't emit
+                // a Cellar line, so they're counted separately below.
+                if let name = BrewFormulaService.pouredFormula(fromLine: line), targets.contains(name),
+                   let self, self.brewUpgradeDone < self.brewUpgradeTotal {
+                    self.brewUpgradeDone += 1
                 }
             }
-            try await brewFormulaService.upgradeAll(onOutput: onOutput)
-            if !caskTokens.isEmpty {
-                try await brewFormulaService.upgrade(casks: caskTokens, onOutput: onOutput)
-                brewUpgradeDone = min(brewUpgradeDone + caskTokens.count, brewUpgradeTotal)
+        }
+        // A job of its own, as a formula row's upgrade (`upgradeBrewFormula`).
+        let (failure, cancelStopped) = await InstallJobs.run(jobID, phaseChanged: { [weak self] _ in
+            Task { @MainActor in self?.followBrewPhase(jobID) }
+        }) { @MainActor [weak self] () -> ((any Error)?, Bool) in
+            guard let self else { return (nil, false) }
+            await self.afterBackgroundHomebrewUpdate()
+            var failure: (any Error)?
+            do {
+                try await self.brewFormulaService.upgradeAll(casks: caskTokens, onOutput: onOutput)
+                if !caskTokens.isEmpty {
+                    self.brewUpgradeDone = min(self.brewUpgradeDone + caskTokens.count, self.brewUpgradeTotal)
+                }
+            } catch {
+                failure = error
             }
-        } catch {
-            brewUpgradeError = error.localizedDescription
+            return (failure, InstallJobs.cancelStoppedSomething(jobID))
+        }
+        // Stopped before the upgrade started: nothing changed, so no error and
+        // no re-read.
+        if cancelStopped {
+            Log.app.notice("brew upgrade (all): cancelled before the upgrade started")
+            return
+        }
+        if let failure {
+            brewUpgradeError = failure.localizedDescription
         }
         // Re-read even when brew failed: a failed run still upgrades what it can.
         // brew carries on past a formula that fails, and a post-install failure
@@ -4603,18 +4627,18 @@ final class AppListModel {
         upgradingFormulae.insert(name)
         formulaUpgradeErrors[name] = nil
         formulaUpgradeNotes[name] = String(localized: "Starting…")
-        formulaCancels[name] = .available
+        let jobID = Self.formulaJobID(name)
+        brewCancels[jobID] = .available
         defer {
             upgradingFormulae.remove(name)
             formulaUpgradeNotes[name] = nil
-            formulaCancels[name] = nil
+            brewCancels[jobID] = nil
         }
         // A job of its own (`InstallJobs.run`), so the row's Cancel reaches the
         // wait for a background `brew update` and brew's downloads ahead of the
         // upgrade, and the upgrade's `InstallCommit` greys it.
-        let jobID = Self.formulaJobID(name)
         let (failure, cancelStopped) = await InstallJobs.run(jobID, phaseChanged: { [weak self] _ in
-            Task { @MainActor in self?.followFormulaPhase(name) }
+            Task { @MainActor in self?.followBrewPhase(jobID) }
         }) { @MainActor [weak self] () -> ((any Error)?, Bool) in
             guard let self else { return (nil, false) }
             await self.afterBackgroundHomebrewUpdate()
@@ -4652,38 +4676,44 @@ final class AppListModel {
         "brew-formula:\(name)"
     }
 
-    /// A formula row's Cancel: through the registry (`InstallJobs.cancel`),
-    /// which refuses once the upgrade itself started — no error then (§5.8),
-    /// the row says it is already finishing. Cancelled is not failed: no red
-    /// line, no re-read.
-    func cancelFormulaUpgrade(_ name: String) {
-        guard formulaCancels[name] == .available else { return }
-        formulaCancels[name] = InstallCancelState.after(InstallJobs.cancel(Self.formulaJobID(name)))
+    /// The registry's id for Upgrade All. Not a formula's: a formula name has
+    /// no `:`.
+    nonisolated static let upgradeAllJobID = "brew-upgrade-all"
+
+    /// A brew upgrade's Cancel — a formula row's or Upgrade All's: through the
+    /// registry (`InstallJobs.cancel`), which refuses once the upgrade itself
+    /// started — no error then (§5.8), the row says it is already finishing.
+    /// Cancelled is not failed: no red line, no re-read.
+    func cancelBrewUpgrade(_ jobID: String) {
+        guard brewCancels[jobID] == .available else { return }
+        brewCancels[jobID] = InstallCancelState.after(InstallJobs.cancel(jobID))
     }
 
     /// The line under a formula row's name while it upgrades: brew's phase, or
-    /// "Cancelling…" once that is due (`formulaCancelRows`).
+    /// "Cancelling…" once that is due (`brewCancelRows`).
     func formulaProgressLine(_ name: String) -> String? {
-        if formulaCancelRows.cancels[name] == .cancelling { return String(localized: "Cancelling…") }
+        if brewCancelRows.cancels[Self.formulaJobID(name)] == .cancelling {
+            return String(localized: "Cancelling…")
+        }
         return formulaUpgradeNotes[name]
     }
 
     /// The Cancel moves with the job: greyed once the upgrade started.
-    private func followFormulaPhase(_ name: String) {
-        guard let state = formulaCancels[name] else { return }
-        formulaCancels[name] = state.following(InstallJobs.phase(of: Self.formulaJobID(name)))
+    private func followBrewPhase(_ jobID: String) {
+        guard let state = brewCancels[jobID] else { return }
+        brewCancels[jobID] = state.following(InstallJobs.phase(of: jobID))
     }
 
-    private func smoothFormulaCancelRows() {
-        let rows = formulaCancelSmoothing.update(stages: [:], cancels: formulaCancels, now: .now)
-        if rows != formulaCancelRows { formulaCancelRows = rows }
-        formulaCancelWake?.cancel()
-        formulaCancelWake = rows.nextWake.map { due in
+    private func smoothBrewCancelRows() {
+        let rows = brewCancelSmoothing.update(stages: [:], cancels: brewCancels, now: .now)
+        if rows != brewCancelRows { brewCancelRows = rows }
+        brewCancelWake?.cancel()
+        brewCancelWake = rows.nextWake.map { due in
             Task { @MainActor [weak self] in
                 // cancel-ok: one-shot; a superseded wake is cancelled on purpose.
                 try? await Task.sleep(until: due, clock: .continuous)
                 guard !Task.isCancelled else { return }
-                self?.smoothFormulaCancelRows()
+                self?.smoothBrewCancelRows()
             }
         }
     }
@@ -4735,7 +4765,9 @@ final class AppListModel {
     }
 
     var brewBulkProgressText: String? {
-        guard brewUpgrading, brewUpgradeTotal > 0 else { return nil }
+        guard brewUpgrading else { return nil }
+        if brewCancelRows.cancels[Self.upgradeAllJobID] == .cancelling { return String(localized: "Cancelling…") }
+        guard brewUpgradeTotal > 0 else { return nil }
         let current = min(brewUpgradeDone + 1, brewUpgradeTotal)
         return String(localized: "Upgrading… (\(current)/\(brewUpgradeTotal))")
     }

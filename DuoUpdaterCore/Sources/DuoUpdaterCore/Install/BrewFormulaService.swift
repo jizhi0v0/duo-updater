@@ -303,8 +303,8 @@ public struct BrewUncheckedPackage: Sendable, Identifiable, Equatable {
 /// an acceptable trade for a CLI-tools convenience: no subprocess writes to the
 /// user's tap on a mere check, and `brew` itself auto-updates on the actual
 /// `brew upgrade` (>24h since last update) — so clicking Upgrade still lands the
-/// real latest even if the pre-count was conservative. For a single formula that
-/// is its dry run (`prefetch`), which runs before the upgrade itself.
+/// real latest even if the pre-count was conservative. That is its dry run now
+/// (`prefetch`), which runs before the upgrade itself.
 public actor BrewFormulaService {
 
     /// A read-only `brew` invocation, factored out so tests can control timing and
@@ -956,28 +956,40 @@ public actor BrewFormulaService {
         return out.sorted { $0.name < $1.name }
     }
 
-    /// Run `brew upgrade --formula`, streaming output lines. Upgrades every
-    /// outdated formula at once — the bulk action, mirroring a bare terminal
-    /// `brew upgrade` but scoped so casks (and their distribution channel) are
-    /// never touched.
-    public func upgradeAll(
-        onOutput: @Sendable @escaping (String) -> Void
-    ) async throws {
-        try await run(["upgrade", "--formula"], onOutput: onOutput)
-    }
-
-    /// Upgrade specific casks by token (`brew upgrade --cask <tokens…>`).
+    /// Run `brew upgrade --formula`, then upgrade `casks` by token
+    /// (`brew upgrade --cask <tokens…>`), streaming output lines. The formula
+    /// run upgrades every outdated formula at once — the bulk action, mirroring
+    /// a bare terminal `brew upgrade` but scoped so casks (and their
+    /// distribution channel) are never touched. The casks are always named —
+    /// never a bare `brew upgrade --cask`, which would sweep GUI casks this
+    /// surface doesn't own: callers pass only the app-less casks
+    /// `outdatedCasks()` returned, or none.
     ///
-    /// Always named explicitly — never a bare `brew upgrade --cask`, which would
-    /// sweep GUI casks this surface doesn't own. Callers pass only the app-less
-    /// casks `outdatedCasks()` returned. A no-op on an empty list so the caller can
-    /// call it unconditionally.
-    public func upgrade(
+    /// As `upgrade(formula:)`: everything downloads first, where a cancel stops
+    /// it (`prefetch`, and `brew fetch --cask` of the casks), then both upgrades
+    /// run as one commit. A cask pass after a formula run that failed never
+    /// starts, as before.
+    public func upgradeAll(
         casks tokens: [String],
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws {
-        guard !tokens.isEmpty else { return }
-        try await run(["upgrade", "--cask"] + tokens, onOutput: onOutput)
+        let formulae = ["upgrade", "--formula"]
+        try await prefetch(formulae, kind: "--formula", onOutput: onOutput)
+        if !tokens.isEmpty {
+            let (fetch, _) = try await launch(
+                ["fetch", "--cask", "--"] + tokens, environment: ["HOMEBREW_NO_AUTO_UPDATE": "1"],
+                onCancel: .interruptChild, onOutput: onOutput)
+            if !fetch.succeeded {
+                Log.install.notice("brew fetch --cask \(tokens.joined(separator: " "), privacy: .public) exited \(fetch.terminationStatus, privacy: .public): the upgrade downloads what is missing")
+            }
+        }
+        try await InstallCommit.run("brew upgrade") {
+            try await self.run(formulae, environment: ["HOMEBREW_NO_AUTO_UPDATE": "1"], onOutput: onOutput)
+            guard !tokens.isEmpty else { return }
+            try await self.run(
+                ["upgrade", "--cask"] + tokens, environment: ["HOMEBREW_NO_AUTO_UPDATE": "1"],
+                onOutput: onOutput)
+        }
     }
 
     /// Upgrade a single formula by name (`brew upgrade --formula <name>`). The

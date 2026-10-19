@@ -55,6 +55,36 @@ import Foundation
         #expect(brew.calls.last == "upgrade --formula zzfixture-node|1")
     }
 
+    /// Upgrade All: the formulae's dry run and fetch, the named casks' fetch,
+    /// then the two upgrades with auto-update off. Casks are always named.
+    ///
+    /// Mutation: drop the cask fetch → no `fetch --cask` line.
+    @Test func upgradeAllDownloadsFormulaeAndCasksThenUpgradesBoth() async throws {
+        let brew = try FakeBrew()
+        defer { brew.remove() }
+        try await brew.service.upgradeAll(casks: ["zzfixture-cask"]) { _ in }
+        #expect(brew.calls == [
+            "upgrade --formula --dry-run|\(Self.hostNoAutoUpdate)",
+            "fetch --formula -- zzfixture-simdjson zzfixture-node|1",
+            "fetch --cask -- zzfixture-cask|1",
+            "upgrade --formula|1",
+            "upgrade --cask zzfixture-cask|1",
+        ])
+    }
+
+    /// No casks: no cask fetch and no `brew upgrade --cask` at all, which with
+    /// no tokens would sweep every cask.
+    ///
+    /// Mutation: drop the commit's `guard !tokens.isEmpty` → a bare
+    /// `upgrade --cask` line.
+    @Test func upgradeAllWithoutCasksNeverRunsACaskCommand() async throws {
+        let brew = try FakeBrew()
+        defer { brew.remove() }
+        try await brew.service.upgradeAll(casks: []) { _ in }
+        #expect(!brew.calls.contains { $0.contains("--cask") })
+        #expect(brew.calls.last == "upgrade --formula|1")
+    }
+
     // MARK: - Cancel
 
     /// A cancel while brew fetches interrupts the fetch — it runs its own
@@ -83,6 +113,32 @@ import Foundation
         #expect(stopped)
         #expect(brew.exists("fetch.interrupted"), "the fetch ran its own SIGINT handler")
         #expect(!brew.calls.contains { $0.hasPrefix("upgrade --formula zzfixture-node|") })
+    }
+
+    /// Upgrade All cancelled while brew fetches: the fetch runs its own SIGINT
+    /// handler, and neither the casks' fetch nor either upgrade starts.
+    ///
+    /// Mutation: run `prefetch`'s fetch `.terminateChild` → killed without its
+    /// handler, so no `fetch.interrupted`.
+    @Test func upgradeAllCancelledWhileFetchingUpgradesNothing() async throws {
+        let brew = try FakeBrew(fetch: .holdUntilInterrupted)
+        defer { brew.remove() }
+        let id = "test-brew-upgrade-all:\(UUID().uuidString)"
+        let answer = Answer()
+        let watchdog = brew.watchdog()
+        let result = await InstallJobs.run(id) { () -> Result<Void, any Error> in
+            await Result.of {
+                try await brew.service.upgradeAll(casks: ["zzfixture-cask"]) { line in
+                    if line == "fetching" { answer.set(InstallJobs.cancel(id)) }
+                }
+            }
+        }
+        watchdog.cancel()
+        #expect(answer.value == .cancelled)
+        #expect(throws: CancellationError.self) { try result.get() }
+        #expect(!brew.calls.contains { $0.hasPrefix("upgrade --formula|") || $0.hasPrefix("upgrade --cask") })
+        #expect(!brew.calls.contains { $0.hasPrefix("fetch --cask") }, "the casks' fetch never started either")
+        #expect(brew.exists("fetch.interrupted"), "the fetch ran its own SIGINT handler")
     }
 
     /// Once the upgrade itself runs, a cancel is refused and the upgrade

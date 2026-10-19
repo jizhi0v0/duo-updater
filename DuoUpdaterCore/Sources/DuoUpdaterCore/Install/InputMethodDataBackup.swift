@@ -221,13 +221,18 @@ public enum InputMethodDataBackup {
     ///
     /// Returns the locations actually stored.
     @discardableResult
-    public static func save(bundleName: String, bundleID: String?, key: String) async -> [Location] {
+    ///
+    /// `root` is the store the bundle copy went to: the outbox, or the pending
+    /// copies' root for an install's backup (`BackupStore.pendingBackupsRoot`).
+    public static func save(
+        bundleName: String, bundleID: String?, key: String, in root: URL = BackupStore.root
+    ) async -> [Location] {
         let fm = FileManager.default
-        let dir = snapshotDirectory(forKey: key)
+        let dir = snapshotDirectory(forKey: key, in: root)
         // Only ever written beside a bundle backup that already landed. Without
         // that directory there is no generation to attach this to, and a snapshot
         // in a directory `BackupStore` does not know about would never be pruned.
-        guard fm.fileExists(atPath: BackupStore.root.appendingPathComponent(key).path) else {
+        guard fm.fileExists(atPath: root.appendingPathComponent(key).path) else {
             Log.install.error(
                 "user data: no backup directory for \(key, privacy: .public) — nothing to attach a snapshot to")
             return []
@@ -255,7 +260,7 @@ public enum InputMethodDataBackup {
         // Safe against the sweep deleting one of ours mid-write: the sweep runs
         // at the top of `BackupStore.save`, and `InstallCoordinator.backUp` only
         // calls us once that has returned.
-        let staging = BackupStore.root.appendingPathComponent(
+        let staging = root.appendingPathComponent(
             stagingName(key: key), isDirectory: true)
         try? fm.removeItem(at: staging)
         guard (try? fm.createDirectory(at: staging, withIntermediateDirectories: true)) != nil else {
@@ -329,8 +334,8 @@ public enum InputMethodDataBackup {
     /// Spelled once and used by both `save` and the default `restore`, because a
     /// second copy of this path is how a snapshot gets written somewhere nothing
     /// reads it back from.
-    static func snapshotDirectory(forKey key: String) -> URL {
-        BackupStore.root
+    static func snapshotDirectory(forKey key: String, in root: URL = BackupStore.root) -> URL {
+        root
             .appendingPathComponent(key, isDirectory: true)
             .appendingPathComponent(directoryName, isDirectory: true)
     }

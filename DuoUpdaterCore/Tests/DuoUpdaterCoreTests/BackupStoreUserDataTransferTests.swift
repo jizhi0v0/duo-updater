@@ -115,14 +115,17 @@ import Testing
             try? String(contentsOf: dictionary, encoding: .utf8)
         }
 
-        /// Everything `InstallCoordinator.backUp` does for an input method:
-        /// the bundle rollback point, then the snapshot beside it.
+        /// Everything `InstallCoordinator.backUp` does for an input method —
+        /// the bundle copy into the pending slot, then the snapshot beside it —
+        /// and the promotion that makes it the backup once the install lands.
         func backUp(version: String) async throws {
-            try await BackupStore.save(
+            try await BackupStore.savePending(
                 appPath: app, key: key, version: version, bundleID: Self.bundleID)
             let captured = await InputMethodDataBackup.save(
-                bundleName: Self.bundleName, bundleID: Self.bundleID, key: key)
+                bundleName: Self.bundleName, bundleID: Self.bundleID, key: key,
+                in: BackupStore.pendingBackupsRoot)
             #expect(!captured.isEmpty, "the fixture's own snapshot must have been taken")
+            #expect(await BackupStore.promotePending(forKey: key))
         }
 
         func diskEntries() -> [String] {

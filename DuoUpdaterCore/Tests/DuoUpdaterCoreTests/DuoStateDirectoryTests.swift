@@ -75,6 +75,7 @@ struct DuoStateDirectoryTests {
             ("HelmPublishedDigests", HelmPublishedDigests().fileURL),
             ("LorcaPublishedDigests", LorcaPublishedDigests().fileURL),
             ("LuvusPublishedDigests", LuvusPublishedDigests().fileURL),
+            ("ObelusPublishedDigests", ObelusPublishedDigests().fileURL),
             ("StarshipPublishedDigests", StarshipPublishedDigests().fileURL),
             ("UvVerifiedFiles", UvVerifiedFiles().fileURL),
             ("ZoxidePublishedDigests", ZoxidePublishedDigests().fileURL),

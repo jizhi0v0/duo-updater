@@ -8,7 +8,8 @@ struct CLIToolGitHubAPITests {
 
     /// Bun, OpenCode, zoxide and nvm ask `releases/latest` on every check, Herdr
     /// when its manifests do not name the build (measured 2026-10-08). Every other tool's
-    /// version source revalidates to 304 without the GitHub API.
+    /// version source revalidates to 304 without the GitHub API; Obelus's reads
+    /// a release download (`SHA256SUMS`), not the API.
     ///
     /// Mutation: drop `readsGitHubAPI` from any of the five providers, or set it
     /// on another one.
@@ -19,7 +20,7 @@ struct CLIToolGitHubAPITests {
             VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), ZoxideProvider(), NvmProvider(),
             AtuinProvider(), GhcupProvider(),
             FlyctlProvider(), HelmProvider(), StarshipProvider(),
-            DenoProvider(), MiseProvider(), GlobalPackagesProvider(.pnpm), GlobalPackagesProvider(.yarn),
+            DenoProvider(), MiseProvider(), ObelusProvider(), GlobalPackagesProvider(.pnpm), GlobalPackagesProvider(.yarn),
         ]
         #expect(Set(providers.map(\.kind)) == Set(CLIToolKind.allCases))
         #expect(Set(providers.filter(\.readsGitHubAPI).map(\.kind)) == [.bun, .opencode, .herdr, .zoxide, .nvm])

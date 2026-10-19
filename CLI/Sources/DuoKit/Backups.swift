@@ -241,6 +241,9 @@ public enum Backups {
         // an app that reads again is no longer one. Under the install lock;
         // skipped when another process holds it.
         await InstallJournal.processLeftovers()
+        // And the install backups such a run left pending: the copy of an app
+        // that changed since is the backup to restore (`sweepPendingBackups`).
+        await InstallCoordinator.sweepPendingBackups()
         let settings = await Settings.load()
         let installed = await Inventory.scanIfFinished(settings)
         let app: InstalledApp

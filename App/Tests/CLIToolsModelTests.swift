@@ -70,6 +70,7 @@ struct CLIToolsModelTests {
         case .starship: detail = .starship(StarshipInstall(path: path, version: version))
         case .deno: detail = .deno(DenoInstall(path: path, version: version))
         case .mise: detail = .mise(MiseInstall(path: path, version: version))
+        case .obelus: detail = .obelus(ObelusInstall(path: path, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -111,6 +112,7 @@ struct CLIToolsModelTests {
         case .starship: context = .starship
         case .deno: context = .deno
         case .mise: context = .mise
+        case .obelus: context = .obelus
         case .pnpm: context = .pnpm
         case .yarn: context = .yarn
         }

@@ -243,11 +243,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:chekusu\/yomado:stable" : {
-      "consecutiveActionable" : 1,
+      "consecutiveActionable" : 2,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
+      "issueNumber" : 1489,
+      "lastCommentedAt" : "2026-10-19T17:53:52Z",
       "lastSignature" : "identityChanged: Sparkle key none → knah",
-      "sweepsSinceComment" : 1
+      "previousSignature" : "identityChanged: Sparkle key none → knah",
+      "sweepsSinceComment" : 0
     },
     "install:github:cjpais\/Handy:stable" : {
       "consecutiveActionable" : 0,
@@ -582,6 +585,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:newmarcel\/KeepingYouAwake:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:obelus-editor\/obelus:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1925,5 +1934,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-19T11:23:42Z"
+  "updatedAt" : "2026-10-19T17:53:52Z"
 }

@@ -48,7 +48,7 @@ feed 3 条 item 都没有 `<sparkle:channel>`；产品页只有一个下载。
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
 | 结论 | 没查 | 无 | 不适用 |
-| 证据 | — | 第二轮启动后 Sparkle 只弹提示窗口，Caches / Application Support 下没有 TrellisWM 的新文件 | — |
+| 证据 | — | 第二轮启动后 Sparkle 只弹提示窗口。不限大小列出启动后新建的文件（`find ~/Library/Caches ~/Library/"Application Support" ~/Library/Containers ~/Library/HTTPStorages -newermt @T0 -iname '*trellis*'`，再 `find ~/Library/Caches/app.trellisui.trelliswm -type f`）：只有 URL 缓存（`Cache.db*`，`fsCachedData` 里一个 7320 字节的文件即 appcast 本身）和 WebKit 的 `salt`；没有 `org.sparkle-project.Sparkle` 下载或安装暂存目录。delta 只有 12462 字节，所以不能用 `-size +8M` 之类的过滤 | — |
 
 ## Changelog
 - 来源: feed 只给 `releaseNotesLink`。`Recipes/app-trellisui-trelliswm.swift` 按 `sourceTemplate` 取所提供版本的 `releases/TrellisWM-<version>.html`：每个版本一个 `<h1>`，下面是 `<h2>` 分节和 `<li>` 条目。0.9.5 的页面还带着 0.9.4 那一节，所以版本取自每个 `<h1>`，每节一条。

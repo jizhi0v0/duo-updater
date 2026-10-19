@@ -4704,7 +4704,7 @@ final class AppListModel {
         Log.install.error("install done, but login-item agents not back on the new bundle: \(app, privacy: .public) — \(agentBundleIDs.joined(separator: ", "), privacy: .public)")
         let note = String(localized: "\(agents) didn’t come back after the update. Open \(app), or log out and back in, to start it.")
         installNotes[updated.id] = [installNotes[updated.id], note].compactMap { $0 }.joined(separator: "\n")
-        UpdateNotifier.agentsNotRestarted(app: app, body: note, appID: updated.app.bundleID)
+        UpdateNotifier.agentsNotRestarted(app: app, body: note, rowID: updated.id)
     }
 
     /// The in-flight "Updated ✓" window per row id, so re-entry can restart it.

@@ -47,8 +47,8 @@ enum UpdateNotifier {
     /// The app was updated, but a login-item agent the recipe restarts after
     /// the swap did not come back (`AppListModel.reportAgentsNotRestarted`,
     /// which writes `body`). One per app, so a retry replaces rather than stacks.
-    static func agentsNotRestarted(app: String, body: String, appID: String) {
-        post(title: app, body: body, identifier: "agents:\(appID)")
+    static func agentsNotRestarted(app: String, body: String, rowID: String) {
+        post(title: app, body: body, identifier: "agents:\(rowID)")
     }
 
     /// "Update All" finished — one summary instead of a banner per app. Apps that

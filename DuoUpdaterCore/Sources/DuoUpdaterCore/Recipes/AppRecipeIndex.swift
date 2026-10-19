@@ -28,6 +28,7 @@ public enum AppRecipeIndex {
         app_macdown_macdown3000.set,
         app_monitorcontrol_MonitorControl.set,
         app_shift.set,
+        app_trellisui_trelliswm.set,
         app_yaak_desktop.set,
         app_zen_browser_zen.set,
         art_ginzburg_MiddleClick.set,

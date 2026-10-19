@@ -53,8 +53,9 @@ extension InstallCoordinator {
     /// then it is the backup of the version that hand-off replaced. A missing
     /// app counts as changed only when the install journal records an install
     /// of it as cut off (`InstallJournal.standing`), or when the app has no
-    /// backup it could replace (`BackupStore.hasNoBackup`): otherwise it may
-    /// be on a volume that is not mounted, intact.
+    /// backup a promotion could replace (`BackupStore.hasNoBackup(forPendingKey:)`,
+    /// legacy keys included): otherwise it may be on a volume that is not
+    /// mounted, intact.
     ///
     /// Takes the machine-wide install lock, non-blocking, like
     /// ``sweepSettledInstallRollbackPoints(lock:)``: another process may be
@@ -77,10 +78,18 @@ extension InstallCoordinator {
             let standing = InstallJournal.standing(of: appPath)
             if case .stillRunning = standing { continue }
             guard await InstallRollbackPointClaims.pendingBackups.beginSweeping(key) else { continue }
-            let missingAppIsChanged = standing == .interrupted || BackupStore.hasNoBackup(forKey: key)
-            if await BackupStore.settlePending(
-                forKey: key, missingAppIsChanged: missingAppIsChanged) == .promoted {
+            switch await BackupStore.settlePending(
+                forKey: key, missingAppIsChanged: standing == .interrupted) {
+            case .promoted:
                 promoted += 1
+            case .kept where !BackupStore.hasReadableBundle(at: appPath)
+                && BackupStore.hasNoBackup(forPendingKey: key):
+                // A missing app with no backup anywhere: promoting costs
+                // nothing, whether its folder went with it or not, and makes
+                // the copy a listed backup Clean Up can reach.
+                if await BackupStore.promotePending(forKey: key) { promoted += 1 }
+            case .kept, .none, .promotionFailed:
+                break
             }
             await InstallRollbackPointClaims.pendingBackups.endSweeping(key)
         }

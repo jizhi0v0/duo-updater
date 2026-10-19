@@ -1259,7 +1259,9 @@ public enum BackupStore {
     /// sit on a volume that is not mounted — whose mount point folder can
     /// outlive it, so the folder test below cannot tell — or have been put in
     /// the Trash. The sweep passes true only for an app the install journal
-    /// records as cut off, whose way back this copy is.
+    /// records as cut off, whose way back this copy is. (It promotes the copy
+    /// of a missing app with no backup at all itself, folder or not: there
+    /// is nothing for that promotion to cost — `hasNoBackup(forPendingKey:)`.)
     @discardableResult
     public static func settlePending(
         forKey key: String, missingAppIsChanged: Bool = true
@@ -1366,16 +1368,26 @@ public enum BackupStore {
         removeClearingImmutableFlags(at: dir)
     }
 
-    /// Whether `key` has no backup of the user's anywhere a promotion could
-    /// replace: none on this Mac, and none on the backup disk — which, when
-    /// one is configured, has to be connected to say so.
-    static func hasNoBackup(forKey key: String) -> Bool {
-        let fm = FileManager.default
-        guard !fm.fileExists(atPath: outboxRoot.appendingPathComponent(key, isDirectory: true).path)
+    /// Whether the app pending copy `key` was taken from has no backup of
+    /// the user's anywhere a promotion could replace or remove: under none of
+    /// the keys its backup can be read under (``keyCandidates(bundleID:path:migrations:)``
+    /// — promotion removes the legacy one), on this Mac or on the backup disk,
+    /// which, when one is configured, has to be connected to say so. False
+    /// when there is no pending copy.
+    static func hasNoBackup(forPendingKey key: String) -> Bool {
+        guard let meta = readMeta(in: pendingBackupsRoot.appendingPathComponent(key, isDirectory: true))
         else { return false }
-        guard destination.kind == .external else { return true }
-        guard let disk = reachableDestinationRoot else { return false }
-        return !fm.fileExists(atPath: disk.appendingPathComponent(key, isDirectory: true).path)
+        let keys = Set([key] + keyCandidates(
+            bundleID: meta.bundleID, path: URL(fileURLWithPath: meta.originalPath)))
+        var roots = [outboxRoot]
+        if destination.kind == .external {
+            guard let disk = reachableDestinationRoot else { return false }
+            roots.append(disk)
+        }
+        let fm = FileManager.default
+        return !roots.contains { root in
+            keys.contains { fm.fileExists(atPath: root.appendingPathComponent($0, isDirectory: true).path) }
+        }
     }
 
     /// Every pending copy's key and the app it was taken from.

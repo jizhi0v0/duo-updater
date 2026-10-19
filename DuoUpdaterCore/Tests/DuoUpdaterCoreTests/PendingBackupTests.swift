@@ -449,8 +449,9 @@ import Testing
     /// cost, so the sweep promotes the copy, and it is listed — Clean Up
     /// reaches it with the orphan setting off. With a backup disk configured
     /// but not connected the sweep cannot know that, and keeps it.
-    /// Mutations: drop `hasNoBackup` from the sweep → kept, unlisted, red;
-    /// `hasNoBackup` answering true for an unconnected disk → promoted, red.
+    /// Mutations: drop the `hasNoBackup` branch from the sweep → kept,
+    /// unlisted, red; `hasNoBackup` answering true for an unconnected disk →
+    /// promoted, red.
     @Test func aCopyOfARemovedAppWithNoBackupIsPromotedSoItIsListed() async throws {
         try await withStore { apps, outbox, _ in
             let app = try install(in: apps, version: "2.0")
@@ -469,6 +470,63 @@ import Testing
 
             #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 1)
             #expect(BackupStore.listing().map(\.version) == ["2.0"])
+        }
+    }
+
+    /// A first install's copy (no backup yet) whose app is still there and
+    /// unchanged — a cancel — stays pending: it is a retry's to reuse, not a
+    /// backup of the version installed. Mutation: the sweep's nothing-to-lose
+    /// branch without its missing-app test → promoted and listed, red.
+    @Test func aFirstInstallsCopyStaysPendingWhileItsAppIsThere() async throws {
+        try await withStore { apps, outbox, _ in
+            let app = try install(in: apps, version: "2.0")
+            try await BackupStore.savePending(
+                appPath: app, key: key(app), version: "2.0", buildVersion: "1",
+                bundleID: Self.bundleID)
+            #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 0)
+            #expect(FileManager.default.fileExists(atPath: pendingDir(app).path))
+            #expect(BackupStore.listing().isEmpty)
+        }
+    }
+
+    /// The same with the app's own folder deleted along with it
+    /// (`/Applications/Foo/Foo.app`): still nothing to lose, still promoted.
+    /// Mutation: route this case through `settlePending`'s folder test (drop
+    /// the `hasNoBackup` branch of the sweep) → kept, red.
+    @Test func aCopyOfAnAppRemovedWithItsFolderAndNoBackupIsPromoted() async throws {
+        try await withStore { apps, outbox, _ in
+            let folder = apps.appendingPathComponent("Foo", isDirectory: true)
+            let app = try install(in: folder, version: "2.0")
+            try await BackupStore.savePending(
+                appPath: app, key: key(app), version: "2.0", buildVersion: "1",
+                bundleID: Self.bundleID)
+            try FileManager.default.removeItem(at: folder)
+            #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 1)
+            #expect(BackupStore.listing().map(\.version) == ["2.0"])
+        }
+    }
+
+    /// An earlier backup under the app's legacy key (from before keys were
+    /// path-scoped) is a backup a promotion would remove: the sweep keeps the
+    /// copy of a missing app then, and that backup stays.
+    /// Mutation: `hasNoBackup(forPendingKey:)` checking only the pending key
+    /// → promoted, and the legacy backup removed, red.
+    @Test func aLegacyKeyBackupStopsTheNothingToLosePromotion() async throws {
+        try await withStore { apps, outbox, _ in
+            let app = try install(in: apps, version: "1.0")
+            let legacy = try #require(BackupStore.keyCandidates(bundleID: Self.bundleID, path: app).last)
+            #expect(legacy != key(app))
+            try await BackupStore.save(
+                appPath: app, key: legacy, version: "1.0", buildVersion: "1",
+                bundleID: Self.bundleID)
+            try install(in: apps, version: "2.0")
+            try await BackupStore.savePending(
+                appPath: app, key: key(app), version: "2.0", buildVersion: "1",
+                bundleID: Self.bundleID)
+            try FileManager.default.removeItem(at: app)
+            #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 0)
+            #expect(BackupStore.backup(forKey: legacy)?.version == "1.0")
+            #expect(FileManager.default.fileExists(atPath: pendingDir(app).path))
         }
     }
 

@@ -80,11 +80,11 @@ import Testing
             [LoginItemAgentRestart.Process(pid: 10, startTime: 999, executablePath: "/usr/bin/zzother")],
             relaunch: nil)
         let results = await LoginItemAgentRestart.restart(
-            snapshot, processes: launchd.list, signal: launchd.send,
+            snapshot, processes: launchd.list, signal: launchd.send, launchdJobPID: { _ in 10 },
             exitTimeout: .milliseconds(100), relaunchTimeout: .milliseconds(100),
             pollInterval: .milliseconds(10))
         #expect(launchd.signals.isEmpty)
-        #expect(results == [.notRelaunched(bundleID: Self.agentID)])
+        #expect(results == [.notManagedByLaunchd(bundleID: Self.agentID)])
     }
 
     @Test func anAgentThatIgnoresSIGTERMIsReported() async throws {
@@ -100,6 +100,38 @@ import Testing
         let launchd = FakeLaunchd([Self.process(10, fixture.agentExecutable)], relaunch: nil)
         let results = await restart(fixture, launchd)
         #expect(results == [.notRelaunched(bundleID: Self.agentID)])
+    }
+
+    /// An agent LaunchServices started (Secretive's fallback when its login
+    /// item is not running) has no launchd job to start it again: it is left
+    /// running, and reported.
+    /// Mutation: drop the job-pid check in `restart` (signal any recorded
+    /// process) → pid 10 signalled, red.
+    @Test func anAgentLaunchdDoesNotRunIsLeftRunningAndReported() async throws {
+        let fixture = try Fixture()
+        let launchd = FakeLaunchd([Self.process(10, fixture.agentExecutable)],
+                                  relaunch: nil, managedByLaunchd: false)
+        let results = await restart(fixture, launchd)
+        #expect(launchd.signals.isEmpty)
+        #expect(results == [.notManagedByLaunchd(bundleID: Self.agentID)])
+    }
+
+    /// `launchctl print`'s own `pid` line, not one from a nested block.
+    @Test func theJobPIDIsReadFromLaunchctlPrint() {
+        let output = """
+            gui/501/com.maxgoedjen.Secretive.SecretAgent = {
+            \tstate = running
+            \tprogram identifier = com.maxgoedjen.Secretive.SecretAgent (mode: 1)
+            \truns = 1
+            \tpid = 11236
+            \tlast exit code = (never exited)
+            \tpid-local endpoints = {
+            \t\tpid = 99
+            \t}
+            }
+            """
+        #expect(LoginItemAgentRestart.jobPID(inLaunchctlPrint: output) == 11236)
+        #expect(LoginItemAgentRestart.jobPID(inLaunchctlPrint: "\tstate = not running\n") == nil)
     }
 
     /// The old process being gone is not enough: the new one must run from the
@@ -198,7 +230,8 @@ import Testing
             signalAgent: { pid, signal in
                 if !applied.value { signalledBeforeApply.set() }
                 launchd.send(pid, signal)
-            })
+            },
+            agentJobPID: launchd.jobPID)
         let workDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ZZFixture-agent-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
@@ -229,7 +262,7 @@ import Testing
             bundle: fixture.host, agentBundleIDs: [Self.agentID], processes: launchd.list)
         launchd.swapDeletesExecutables()
         return await LoginItemAgentRestart.restart(
-            snapshot, processes: launchd.list, signal: launchd.send,
+            snapshot, processes: launchd.list, signal: launchd.send, launchdJobPID: launchd.jobPID,
             exitTimeout: .milliseconds(200), relaunchTimeout: .milliseconds(200),
             pollInterval: .milliseconds(10))
     }
@@ -274,12 +307,21 @@ import Testing
         private var sent: [Sent] = []
         private let relaunch: (pid: pid_t, path: String)?
         private let exitsOnSignal: Bool
+        /// The pid launchd reports for the agent's job: the first process in
+        /// the table when the agent is a launchd job, nil when LaunchServices
+        /// started it.
+        private var job: pid_t?
 
         init(_ table: [LoginItemAgentRestart.Process], relaunch: (pid: pid_t, path: String)?,
-             exitsOnSignal: Bool = true) {
+             exitsOnSignal: Bool = true, managedByLaunchd: Bool = true) {
             self.table = table
             self.relaunch = relaunch
             self.exitsOnSignal = exitsOnSignal
+            self.job = managedByLaunchd ? table.first?.pid : nil
+        }
+
+        var jobPID: @Sendable (String) async -> pid_t? {
+            { [self] _ in lock.withLock { job } }
         }
 
         var signals: [Sent] { lock.withLock { sent } }
@@ -304,8 +346,10 @@ import Testing
                     sent.append(Sent(pid: pid, signal: signal))
                     guard exitsOnSignal else { return }
                     table.removeAll { $0.pid == pid }
+                    job = nil
                     if let relaunch {
                         table.append(LoginItemAgentRestartTests.process(relaunch.pid, relaunch.path))
+                        job = relaunch.pid
                     }
                 }
             }

@@ -121,6 +121,7 @@ public actor InstallCoordinator {
     /// Seams for tests.
     private let agentProcesses: @Sendable () -> [LoginItemAgentRestart.Process]
     private let signalAgent: @Sendable (pid_t, Int32) -> Void
+    private let agentJobPID: @Sendable (String) async -> pid_t?
     /// Free space claimed by this process's installs. See `DiskSpaceGuard`.
     private let space: DiskSpaceGuard.SpaceLedger
 
@@ -131,10 +132,12 @@ public actor InstallCoordinator {
         space: DiskSpaceGuard.SpaceLedger = .shared,
         vendor: VendorInstaller = VendorInstaller(),
         agentProcesses: @escaping @Sendable () -> [LoginItemAgentRestart.Process] = LoginItemAgentRestart.liveProcesses,
-        signalAgent: @escaping @Sendable (pid_t, Int32) -> Void = { _ = kill($0, $1) }
+        signalAgent: @escaping @Sendable (pid_t, Int32) -> Void = { _ = kill($0, $1) },
+        agentJobPID: @escaping @Sendable (String) async -> pid_t? = LoginItemAgentRestart.launchdJobPID
     ) {
         self.agentProcesses = agentProcesses
         self.signalAgent = signalAgent
+        self.agentJobPID = agentJobPID
         self.permits = permits
         self.vendor = vendor
         self.space = space
@@ -885,9 +888,10 @@ public actor InstallCoordinator {
     /// state this exists to prevent. Its waits are bounded (about 15 s).
     private func restartLoginItemAgents(_ snapshot: [LoginItemAgentRestart.Agent]) async -> [String] {
         guard snapshot.contains(where: { !$0.processes.isEmpty }) else { return [] }
-        let processes = agentProcesses, signal = signalAgent
+        let processes = agentProcesses, signal = signalAgent, jobPID = agentJobPID
         let results = await Task {
-            await LoginItemAgentRestart.restart(snapshot, processes: processes, signal: signal)
+            await LoginItemAgentRestart.restart(
+                snapshot, processes: processes, signal: signal, launchdJobPID: jobPID)
         }.value
         return results.filter { !$0.succeeded }.map(\.bundleID)
     }

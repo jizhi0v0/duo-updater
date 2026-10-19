@@ -89,13 +89,15 @@ struct DownloadJobResumeServerTests {
     /// (#1423). Awaiting it turned this deadline into a hang: with that process
     /// stopped (`SIGSTOP`, 2026-10-19) the old helper sat past its 30 s until
     /// the process was continued at 181 s, then failed with `CancellationError`.
-    /// The timer is on a global queue, not a task, so a busy pool can't hold it.
+    /// The timer is on its own queue, not a task or `global()`: a `global()`
+    /// timer got no thread while every cooperative thread was blocked
+    /// (`StreamedLines.capQueue`, measured by its `theCapFires…` test).
     private static func run(_ job: DownloadJob, from url: URL) async throws -> XcodeArchiveDownload {
         let task = Task { try await job.run(authorizedURL: url) }
         let outcome: Result<XcodeArchiveDownload, Error> = await withCheckedContinuation { continuation in
             let once = Once(continuation)
             Task { once.resume(await task.result) }
-            DispatchQueue.global().asyncAfter(deadline: .now() + deadline) {
+            deadlineQueue.asyncAfter(deadline: .now() + deadline) {
                 task.cancel()
                 once.resume(.failure(NoAnswer()))
             }
@@ -104,6 +106,7 @@ struct DownloadJobResumeServerTests {
     }
 
     nonisolated private static let deadline: TimeInterval = 30
+    nonisolated private static let deadlineQueue = DispatchQueue(label: "DownloadJobResumeServerTests.deadline")
 
     /// The job had not finished by the deadline.
     struct NoAnswer: Error, CustomStringConvertible {

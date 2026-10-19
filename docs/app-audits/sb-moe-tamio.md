@@ -27,12 +27,13 @@ Homebrew 一栏是 —：cask 在第三方 tap（未信任的 tap 不会出现�
 
 只有一条轨，settled from source: `.github/workflows/release.yml` on `main`。推 `v*` tag 触发，
 `gh release create … --latest`，不带 `--prerelease`；appcast 由 `Workflow/Scripts/appcast.sh` 每次重写，只有一个 item，
-没有 `<sparkle:channel>`。到 2026-10-19 共 8 个 release（v0.1.2 – v0.2.4），全部非 prerelease。
+没有 `<sparkle:channel>`。到 2026-10-19 共 9 个 release（v0.1.2 – v0.2.5，0.2.5 在本次审计当天稍后发布），全部非 prerelease。
 
 覆盖清单：
 - **bundle id**: 0.1.2、0.2.3、0.2.4 都是 `sb.moe.tamio`，没有改名；同仓库没有别的 Mac app
-- **版本区间**: 最早的 0.1.2 已带同一个 `SUFeedURL` 与 `SUPublicEDKey`（当时 Sparkle 在 `Contents/PlugIns/MacBridge.bundle` 里），
-  Team 同为 `NCFNX3LJ83`，所以所有已发布的版本都能检测、都能一键
+- **版本区间**: 9 个 release 的 dmg 逐个挂载核对（2026-10-19）：`CFBundleIdentifier` 都是 `sb.moe.tamio`，`SUFeedURL` 都是
+  上面那个地址，`codesign` 的 TeamIdentifier 都是 `NCFNX3LJ83`。最早的 0.1.2 已带同一个 `SUPublicEDKey`（当时 Sparkle 在
+  `Contents/PlugIns/MacBridge.bundle` 里）。所以每个已发布版本都能检测，Team 闸也不会拦；一键真机只跑了 0.2.3 → 0.2.4
 - **发布轨**: 只有 stable
 
 ## 更新检测

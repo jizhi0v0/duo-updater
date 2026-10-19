@@ -677,9 +677,18 @@ public struct UpdateChecker: Sendable {
         }
 
         // Otherwise fall back to the marketing (short) version.
-        guard let rs = remote.shortVersion, let isv = installed.shortVersion else {
+        guard let rs = remote.shortVersion, let labelled = installed.shortVersion else {
             return .unknown
         }
+        // The scanner names Xcode "<marketing> (<ProductBuildVersion>)" so two
+        // Xcodes side by side can be told apart (`AppScanner`): a label, not a
+        // version. Compared as one, the App Store's "27.0.1" read as older than
+        // "27.0 (27A266a)" — the third parts are 1 and 27 — so a store point
+        // release of Xcode showed as up to date. Only Xcode is named that way, so
+        // only Xcode's label is taken back to its marketing version.
+        let isv = installed.bundleID == AppScanner.xcodeBundleID
+            ? UpdateResult.droppingTrailingBuild(labelled, build: installed.buildVersion)
+            : labelled
         if !VersionComparator.isNewer(rs, than: isv) {
             return .upToDate
         }

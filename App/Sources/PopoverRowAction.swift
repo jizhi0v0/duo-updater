@@ -43,10 +43,14 @@ struct PopoverRowAction: View {
     /// Why a TestFlight row cannot bound its beta — decides which mark it carries
     /// and what that mark explains (`TestFlightUnboundedReason`).
     var testFlightUnboundedReason: TestFlightUnboundedReason = .storeSilent
-    /// The running install's Cancel (`AppListModel.installCancels`), nil when
-    /// the row's stage is no install of ours — a rollback, a re-check. The row
-    /// budgets its width (`AppRow.cancelReserve`).
+    /// The running install's Cancel as the rows draw it
+    /// (`AppListModel.installRows`), nil when the row's stage is no install of
+    /// ours — a rollback, a re-check. The row budgets its width
+    /// (`AppRow.cancelReserve`).
     var installCancel: InstallCancelState? = nil
+    /// Its cancel was accepted, and "Cancelling…" is not due yet: the Cancel
+    /// stays, greyed (`InstallRowSmoothing`).
+    var installCancelPending = false
 
     /// Owned here rather than by the row: the licence-boundary warning belongs to
     /// this control, and nothing outside it reads the flag.
@@ -91,7 +95,8 @@ struct PopoverRowAction: View {
             HStack(spacing: 4) {
                 installProgress(stage)
                 if let installCancel, installCancel != .cancelling {
-                    InstallCancelButton(state: installCancel, action: actions.cancelInstall)
+                    InstallCancelButton(
+                        state: installCancel, pending: installCancelPending, action: actions.cancelInstall)
                 }
             }
 

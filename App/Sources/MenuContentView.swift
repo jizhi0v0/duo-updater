@@ -915,7 +915,7 @@ private struct CommandLineRow: View {
             let head = Set(named.map(\.kind)).count == 1
                 ? String(localized: "Updating \(named[0].kind.displayName)")
                 : String(localized: "Updating command-line tools")
-            let progress = named.lazy.compactMap { tools.progress[$0.toolID] }.first
+            let progress = named.lazy.compactMap { tools.progressLine($0.toolID) }.first
             return half([Text(head), progress.map { Text($0).monospacedDigit() }].compactMap { $0 }, mark: spinner)
         }
         if !tools.checked { return half([Text(String(localized: "Checking…"))], mark: spinner) }
@@ -1187,7 +1187,7 @@ private struct AppRow: View {
     @Bindable var model: AppListModel
     @Environment(\.openWindow) private var openWindow
 
-    private var stage: InstallStage? { model.installing[result.id] }
+    private var stage: InstallStage? { model.installRows.stages[result.id] }
     private var installError: String? { model.installErrorText(for: result) }
 
     /// The row's height when nothing is stacked under the name line. See the
@@ -1325,7 +1325,7 @@ private struct AppRow: View {
     /// between. Nothing once the cancel was accepted — "Cancelling…" replaces
     /// the readout and the glyph is gone (`PopoverRowAction.installCancel`).
     private var cancelReserve: CGFloat {
-        guard let cancel = model.installCancels[result.id], cancel != .cancelling else { return 0 }
+        guard let cancel = model.installRows.cancels[result.id], cancel != .cancelling else { return 0 }
         return InstallCancelButton.width + 4
     }
 
@@ -1344,7 +1344,7 @@ private struct AppRow: View {
     /// "Extracting", and that difference decides the case for a long name.
     private func showsStageLabel(_ stage: InstallStage) -> Bool {
         let label = NSAttributedString(
-            string: installProgressLabel(stage, cancel: model.installCancels[result.id]),
+            string: installProgressLabel(stage, cancel: model.installRows.cancels[result.id]),
             attributes: [.font: NSFont.preferredFont(forTextStyle: .caption2)]
         ).size().width
         return nameFits(besideReadout: max(64, DownloadReadout.spinner + 4 + label) + cancelReserve)
@@ -1441,7 +1441,8 @@ private struct AppRow: View {
                     downloadReadout: { downloadReadout },
                     showsStageLabel: showsStageLabel,
                     testFlightUnboundedReason: model.testFlightUnboundedReason,
-                    installCancel: model.installCancels[result.id])
+                    installCancel: model.installRows.cancels[result.id],
+                    installCancelPending: model.installRows.cancelPending.contains(result.id))
                     .frame(minWidth: trailingSlot, alignment: .trailing)
             }
             if let installError {

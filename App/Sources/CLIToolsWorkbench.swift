@@ -226,7 +226,7 @@ struct CLIToolSidebarRow: View {
         } else if updating {
             // The update's own output ("Downloading…"), so it visibly moves, like a
             // formula upgrade's row.
-            Text(verbatim: cli.progress[id] ?? String(localized: "Updating…"))
+            Text(verbatim: cli.progressLine(id) ?? String(localized: "Updating…"))
                 .font(.caption).foregroundStyle(.secondary)
                 .lineLimit(1).truncationMode(.middle)
         } else if let version = cli.justUpdated[id] {
@@ -381,8 +381,10 @@ private struct CLIToolCancelButton: View {
     let cli: CLIToolsModel
 
     var body: some View {
-        if let state = cli.cancels[id], state != .cancelling {
-            InstallCancelButton(state: state) { cli.cancel(id) }
+        if let state = cli.cancelRows.cancels[id], state != .cancelling {
+            InstallCancelButton(state: state, pending: cli.cancelRows.cancelPending.contains(id)) {
+                cli.cancel(id)
+            }
         }
     }
 }
@@ -529,7 +531,7 @@ struct ClaudeCodeDetailPane: View {
             }
             Spacer()
             if updating {
-                UpdateProgressCapsule(line: cli.progress[id])
+                UpdateProgressCapsule(line: cli.progressLine(id))
                 CLIToolCancelButton(id: id, cli: cli)
             } else if status.oneClick != nil, let latest = status.latestVersion {
                 Button("Update to \(latest)") { Task { await cli.update(id) } }
@@ -721,7 +723,7 @@ struct CLIToolDetailPane: View {
             }
             Spacer()
             if updating {
-                UpdateProgressCapsule(line: cli.progress[id])
+                UpdateProgressCapsule(line: cli.progressLine(id))
                 CLIToolCancelButton(id: id, cli: cli)
             } else if status.needsAdministrator, status.oneClick != nil, let latest = status.latestVersion {
                 Button("Update to \(latest)") { Task { await cli.update(id) } }

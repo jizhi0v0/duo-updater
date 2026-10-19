@@ -6,7 +6,8 @@ import Testing
 /// repositories actually published (every stable release with a digest, read
 /// from the GitHub API 2026-10-02 — see `docs/app-audits/org-alacritty.md`),
 /// and Lokii, added since (both releases, 2026-10-07 — `docs/app-audits/com-lokii-app.md`),
-/// and disktree (its two newest releases, 2026-10-12 — `docs/app-audits/io-github-tobi-disktree.md`).
+/// and disktree (its two newest releases, 2026-10-12 — `docs/app-audits/io-github-tobi-disktree.md`),
+/// and Obelus (its two newest releases, 2026-10-19 — `docs/app-audits/io-github-obelus-editor-obelus.md`).
 @Suite struct DigestOnlyRecipeTests {
 
     private static let expected: [String: [[String]]] = [
@@ -43,6 +44,34 @@ import Testing
              "disktree-0.10.1-x86_64-macos.zip", "disktree-0.10.1-x86_64-macos.zip.sha256",
              "disktree-0.10.1-x86_64-windows.zip", "disktree-0.10.1-x86_64-windows.zip.sha256"],
         ],
+        "io.github.obelus-editor.obelus": [
+            ["ob-0.16.0-aarch64-pc-windows-msvc.zip", "ob-0.16.0-aarch64-unknown-linux-gnu.tar.xz",
+             "ob-0.16.0-aarch64-unknown-linux-musl.tar.xz", "ob-0.16.0-universal2-apple-darwin.tar.xz",
+             "ob-0.16.0-x86_64-pc-windows-msvc.zip", "ob-0.16.0-x86_64-unknown-linux-gnu.tar.xz",
+             "ob-0.16.0-x86_64-unknown-linux-musl.tar.xz", "obelus-0.16.0-1.aarch64.rpm",
+             "obelus-0.16.0-1.x86_64.rpm", "Obelus-0.16.0-aarch64-pc-windows-msvc.msi",
+             "Obelus-0.16.0-universal2-apple-darwin.app.zip", "Obelus-0.16.0-x86_64-pc-windows-msvc.msi",
+             "obelus-gui-0.16.0-1.aarch64.rpm", "obelus-gui-0.16.0-1.x86_64.rpm", "obelus-gui_0.16.0-1_amd64.deb",
+             "obelus-gui_0.16.0-1_arm64.deb", "obelus-terminal.desktop", "obelus.desktop", "obelus.svg",
+             "obelus.toml.tpl", "obelus_0.16.0-1_amd64.deb", "obelus_0.16.0-1_arm64.deb",
+             "obg-0.16.0-aarch64-pc-windows-msvc.zip", "obg-0.16.0-aarch64-unknown-linux-gnu.tar.xz",
+             "obg-0.16.0-aarch64.AppImage", "obg-0.16.0-universal2-apple-darwin.tar.xz",
+             "obg-0.16.0-x86_64-pc-windows-msvc.zip", "obg-0.16.0-x86_64-unknown-linux-gnu.tar.xz",
+             "obg-0.16.0-x86_64.AppImage", "SHA256SUMS"],
+            ["ob-0.15.0-aarch64-pc-windows-msvc.zip", "ob-0.15.0-aarch64-unknown-linux-gnu.tar.xz",
+             "ob-0.15.0-aarch64-unknown-linux-musl.tar.xz", "ob-0.15.0-universal2-apple-darwin.tar.xz",
+             "ob-0.15.0-x86_64-pc-windows-msvc.zip", "ob-0.15.0-x86_64-unknown-linux-gnu.tar.xz",
+             "ob-0.15.0-x86_64-unknown-linux-musl.tar.xz", "obelus-0.15.0-1.aarch64.rpm",
+             "obelus-0.15.0-1.x86_64.rpm", "Obelus-0.15.0-aarch64-pc-windows-msvc.msi",
+             "Obelus-0.15.0-universal2-apple-darwin.app.zip", "Obelus-0.15.0-x86_64-pc-windows-msvc.msi",
+             "obelus-gui-0.15.0-1.aarch64.rpm", "obelus-gui-0.15.0-1.x86_64.rpm", "obelus-gui_0.15.0-1_amd64.deb",
+             "obelus-gui_0.15.0-1_arm64.deb", "obelus-terminal.desktop", "obelus.desktop", "obelus.svg",
+             "obelus.toml.tpl", "obelus_0.15.0-1_amd64.deb", "obelus_0.15.0-1_arm64.deb",
+             "obg-0.15.0-aarch64-pc-windows-msvc.zip", "obg-0.15.0-aarch64-unknown-linux-gnu.tar.xz",
+             "obg-0.15.0-aarch64.AppImage", "obg-0.15.0-universal2-apple-darwin.tar.xz",
+             "obg-0.15.0-x86_64-pc-windows-msvc.zip", "obg-0.15.0-x86_64-unknown-linux-gnu.tar.xz",
+             "obg-0.15.0-x86_64.AppImage", "SHA256SUMS"],
+        ],
     ]
 
     private func rule(_ bundleID: String) -> GitHubReleaseRule? {
@@ -70,6 +99,8 @@ import Testing
             "org.darktable": ["darktable-5.6.1-arm64.dmg", "darktable-5.2.1-arm64.dmg", "darktable-5.4.0-arm64.dmg"],
             "com.lokii.app": ["Lokii-arm64.dmg", "Lokii-arm64.dmg"],
             "io.github.tobi.disktree": ["disktree-0.11.0-aarch64-macos.zip", "disktree-0.10.1-aarch64-macos.zip"],
+            "io.github.obelus-editor.obelus": ["Obelus-0.16.0-universal2-apple-darwin.app.zip",
+                                               "Obelus-0.15.0-universal2-apple-darwin.app.zip"],
         ]
         for (bundleID, releases) in Self.expected {
             let pattern = try #require(rule(bundleID)?.installAssetPattern, "\(bundleID)")

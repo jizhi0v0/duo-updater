@@ -398,3 +398,80 @@ import DuoUpdaterCore
         #expect(markdown.contains("**skipped** 2"))
     }
 }
+
+/// The nightly check of an app without a Team ID: its update key is the only
+/// thing a one-click checks (`SparkleInstaller`'s key-only route), so
+/// `verify-install` verifies the feed's newest signed file against the key it
+/// recorded. The network half (`sparkleKeyCheck`) goes through production
+/// `SparkleAppcastSource`; these pin the offline halves.
+@Suite struct InstallVerifySparkleKeyTests {
+
+    private let file = URL(string: "https://example.com/App-2.0.zip")!
+
+    private func identity(team: String?, key: String?, feed: String?) -> ArtifactInspection.Identity {
+        ArtifactInspection.Identity(
+            signedIdentifier: "com.example.app", bundleIdentifier: "com.example.app",
+            teamIdentifier: team, shortVersion: "2.0", bundleVersion: "2", architectures: ["arm64"],
+            minimumSystemVersion: nil, sparklePublicKey: key, sparkleFeedURL: feed)
+    }
+
+    /// A key that does not verify, and a feed that stopped signing, are
+    /// warnings; nothing else is. Mutation: make either a note → red.
+    @Test func onlyAFailedOrMissingSignatureIsAWarning() {
+        let mismatch = InstallVerify.sparkleKeyVerdict(.checked(.invalid(file: file)))
+        #expect(mismatch.warnings.count == 1 && mismatch.warnings[0].hasPrefix("sparkleKeyMismatch:"))
+        let unsigned = InstallVerify.sparkleKeyVerdict(.checked(.noSignedFile))
+        #expect(unsigned.warnings.count == 1 && unsigned.warnings[0].hasPrefix("sparkleUnsigned:"))
+        for answer: InstallVerify.SparkleKeyAnswer in [
+            .checked(.verified(file: file, bytes: 5)),
+            .checked(.tooLarge(file: file, bytes: 1 << 30)),
+            .checked(.unreachable(file: file, detail: "HTTP 503")),
+            .feedUnreadable("example.com: timed out"),
+        ] {
+            let verdict = InstallVerify.sparkleKeyVerdict(answer)
+            #expect(verdict.warnings.isEmpty, "\(answer)")
+            #expect(verdict.notes.count == 1, "\(answer)")
+        }
+    }
+
+    /// The check applies only where the key-only route does: no Team ID, a feed
+    /// and a key. Returns before any request otherwise. Mutation: drop the Team
+    /// test → a Developer ID download is checked (and, offline, answers).
+    @Test func theCheckOnlyRunsForADownloadWithoutATeamID() async {
+        for identity in [
+            identity(team: "ABCDE12345", key: "key", feed: "https://example.invalid/appcast.xml"),
+            identity(team: nil, key: nil, feed: "https://example.invalid/appcast.xml"),
+            identity(team: nil, key: "key", feed: nil),
+        ] {
+            #expect(await InstallVerify.sparkleKeyCheck(
+                identity: identity, recordedKey: nil, bundleID: "com.example.app") == nil)
+        }
+        #expect(await InstallVerify.sparkleKeyCheck(
+            identity: nil, recordedKey: "key", bundleID: "com.example.app") == nil)
+    }
+
+    private func recorded(team: String?, key: String?) -> InstallIdentities.Recorded {
+        let day = Date(timeIntervalSince1970: 1_790_000_000)
+        return InstallIdentities.Recorded(
+            bundleIdentifier: "com.example.app", signedIdentifier: "com.example.app",
+            teamIdentifier: team, packageTeamIdentifier: nil, sparklePublicKey: key,
+            architectures: ["arm64"], firstSeenAt: day, firstSeenVersion: "1.0",
+            lastSeenAt: day, lastSeenVersion: "1.0")
+    }
+
+    /// A changed key on an entry without a Team ID says what it costs; a first
+    /// key (adoption) and a Team-signed app's key change do not. Mutations: drop
+    /// the `teamIdentifier == nil` test → a Team app's message changes, red;
+    /// drop the recorded-key test → an adoption reads as a loss, red.
+    @Test func aChangedKeyWithoutATeamIDSaysWhatItCosts() {
+        let change = ["Sparkle key old= → new="]
+        #expect(InstallVerify.keyOnlyConsequence(recorded: recorded(team: nil, key: "old="), changes: change)
+            .contains("every one-click is refused"))
+        #expect(InstallVerify.keyOnlyConsequence(
+            recorded: recorded(team: nil, key: nil), changes: ["Sparkle key none → new="]).isEmpty)
+        #expect(InstallVerify.keyOnlyConsequence(
+            recorded: recorded(team: "ABCDE12345", key: "old="), changes: change).isEmpty)
+        #expect(InstallVerify.keyOnlyConsequence(
+            recorded: recorded(team: nil, key: "old="), changes: ["bundle id a → b"]).isEmpty)
+    }
+}

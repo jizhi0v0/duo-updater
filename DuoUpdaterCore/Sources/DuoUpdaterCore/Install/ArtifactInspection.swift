@@ -33,11 +33,14 @@ public enum ArtifactInspection {
         public var minimumSystemVersion: String?
         /// `SUPublicEDKey` when the bundle carries one.
         public var sparklePublicKey: String?
+        /// `SUFeedURL` when the bundle carries one — the feed a copy of this
+        /// download would be updated from.
+        public var sparkleFeedURL: String?
 
         public init(
             signedIdentifier: String?, bundleIdentifier: String?, teamIdentifier: String?,
             shortVersion: String?, bundleVersion: String?, architectures: [String],
-            minimumSystemVersion: String?, sparklePublicKey: String?
+            minimumSystemVersion: String?, sparklePublicKey: String?, sparkleFeedURL: String? = nil
         ) {
             self.signedIdentifier = signedIdentifier
             self.bundleIdentifier = bundleIdentifier
@@ -47,6 +50,7 @@ public enum ArtifactInspection {
             self.architectures = architectures
             self.minimumSystemVersion = minimumSystemVersion
             self.sparklePublicKey = sparklePublicKey
+            self.sparkleFeedURL = sparkleFeedURL
         }
     }
 
@@ -187,7 +191,9 @@ public enum ArtifactInspection {
             bundleVersion: plist["CFBundleVersion"] as? String,
             architectures: archs,
             minimumSystemVersion: SignatureVerifier.declaredMinimumSystemVersion(ofAppAt: app),
-            sparklePublicKey: SignatureVerifier.embeddedEdPublicKey(at: app))
+            sparklePublicKey: SignatureVerifier.embeddedEdPublicKey(at: app),
+            sparkleFeedURL: (plist["SUFeedURL"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     /// The pkg route's own gates, as far as they go without an installed copy:

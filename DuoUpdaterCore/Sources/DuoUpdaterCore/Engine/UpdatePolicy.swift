@@ -259,11 +259,12 @@ public enum UpdatePolicy {
                       result.remote?.expectedSHA256 != nil,
                       result.remote?.vendorInstallerKind != .pkg else { return false }
             }
-            // The MyGo ad-hoc route: the same setting, and a vendor signature
-            // published for the archive to check it against.
+            // The MyGo ad-hoc route: a vendor signature published for the archive
+            // to check it against. Not behind the setting: the key is the one in
+            // the installed binary, the anchor the app's own updater uses — see
+            // `InstallTrust.myGoSignatureOnly`.
             if result.remote?.installTrust == .myGoSignatureOnly {
-                guard settings.allowsDigestOnlyInstalls,
-                      result.remote?.myGoSignature?.signature != nil,
+                guard result.remote?.myGoSignature?.signature != nil,
                       result.remote?.vendorInstallerKind != .pkg else { return false }
             }
             return result.remote?.vendorInstallerKind != nil
@@ -326,10 +327,10 @@ public enum UpdatePolicy {
 
     /// What an ad-hoc update's row should say about its one-click, or nil for
     /// any other row and while nothing is on offer — both ad-hoc routes, the
-    /// GitHub digest (`publishedDigestOnly`) and the MyGo signature
-    /// (`myGoSignatureOnly`), which share the setting. The detail pane words
-    /// these per route; the decision is here so it cannot drift from
-    /// `canAutoInstall`'s.
+    /// GitHub digest (`publishedDigestOnly`), which the setting gates, and the
+    /// MyGo signature (`myGoSignatureOnly`), which it does not, so that route is
+    /// never `.turnedOff`. The detail pane words these per route; the decision is
+    /// here so it cannot drift from `canAutoInstall`'s.
     public enum DigestOnlyOffer: Sendable, Equatable {
         /// The user has not allowed installs of apps without a developer signature.
         case turnedOff
@@ -348,7 +349,8 @@ public enum UpdatePolicy {
         switch remote.installTrust {
         case .developerID: return nil
         case .publishedDigestOnly: published = remote.expectedSHA256 != nil
-        case .myGoSignatureOnly: published = remote.myGoSignature?.signature != nil
+        case .myGoSignatureOnly:
+            return remote.myGoSignature?.signature != nil ? .offered : .noPublishedDigest
         }
         guard settings.allowsDigestOnlyInstalls else { return .turnedOff }
         guard published else { return .noPublishedDigest }
@@ -486,8 +488,8 @@ public enum UpdatePolicy {
     }
 
     /// The installed copy has no Team ID (`UpdateResult.installedLacksTeamIdentifier`)
-    /// and the route would pin one: Sparkle, whose installer runs gate 3 on every
-    /// enclosure; a Vendor/GitHub/Electron/MyGo download on
+    /// and the route would pin one: Sparkle, unless the update can take the
+    /// no-Team-ID route (`sparkleKeyOnlyEligible`); a Vendor/GitHub/Electron/MyGo download on
     /// `InstallTrust.developerID`; or a Homebrew cask handed to the system
     /// installer, which goes through `PackageInstaller`'s Team check. The two
     /// ad-hoc trusts are the routes built for a copy without a Team ID and are
@@ -497,7 +499,7 @@ public enum UpdatePolicy {
         guard result.installedLacksTeamIdentifier else { return false }
         switch result.remote?.sourceName {
         case "Sparkle":
-            return true
+            return !sparkleKeyOnlyEligible(result)
         case "Vendor", "GitHub", "Electron", MyGoUpdateSource.sourceName:
             return result.remote?.installTrust == .developerID
         case "Homebrew":
@@ -505,6 +507,19 @@ public enum UpdatePolicy {
         default:
             return false
         }
+    }
+
+    /// A Sparkle update over a copy without a Team ID that `SparkleInstaller`'s
+    /// key-only route can take: the installed copy carries an `SUPublicEDKey`,
+    /// the feed signs the enclosure, and the enclosure is an archive. A package
+    /// stays withheld — `PackageInstaller` refuses a copy without a Team ID, and
+    /// a package has no bundle for the identity gate to read. This is the offer;
+    /// the installer re-reads the Team ID and the key from disk and decides again.
+    static func sparkleKeyOnlyEligible(_ result: UpdateResult) -> Bool {
+        guard let remote = result.remote, remote.sourceName == "Sparkle" else { return false }
+        return !isSparklePackage(remote)
+            && result.app.sparkleEdPublicKey?.isEmpty == false
+            && remote.edSignature?.isEmpty == false
     }
 
     /// The missing Team ID is the only thing keeping this row from our own

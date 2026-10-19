@@ -869,8 +869,10 @@ private struct CommandLineRow: View {
                  mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) })
         }
         if model.brewUpgrading {
+            // Its Cancel where the Update button stood, as an app row's.
             return half([Text(model.brewBulkProgressText ?? String(localized: "Running brew upgrade…"))
-                .monospacedDigit()], mark: spinner)
+                .monospacedDigit()], mark: spinner,
+                        button: BrewUpgradeCancelButton(jobID: AppListModel.upgradeAllJobID, model: model))
         }
         if outdated == 0 && !model.brewChecked {
             // Before the first verdict only; a re-check keeps the last answer up.

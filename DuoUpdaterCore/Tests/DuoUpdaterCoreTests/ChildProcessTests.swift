@@ -386,6 +386,75 @@ import Testing
         #expect(launches.value == 0)
     }
 
+    /// `.interruptChild`: cancelling the caller sends SIGINT to the child's whole
+    /// group, as a terminal's Ctrl-C does, lets the child handle it, and throws.
+    ///
+    /// The child runs a grandchild in the foreground, as brew runs curl or git.
+    /// Each traps SIGINT by writing its marker; the child's trap runs only once
+    /// the grandchild has exited (sh defers a trap until its foreground command
+    /// ends). So both markers say the interrupt reached the group and each
+    /// process ran its own handler — the shape of brew's download queue
+    /// stopping its curl workers. A Dispatch watchdog kills both 300 s after the
+    /// cancel, as in `terminateChildTearsTheChildDownOnCancellation`.
+    ///
+    /// Mutations: (a) `toProcessGroup: false` in `interruptLadder` → only the
+    /// child gets SIGINT, its trap waits on the grandchild, and the ladder's
+    /// SIGKILL or the watchdog ends it 300 s later with neither marker; (b) route
+    /// `.interruptChild` through `request.ladder` → SIGKILL straight away, no
+    /// marker.
+    @Test func interruptChildInterruptsTheChildsGroupAndLetsItHandleIt() async throws {
+        let dir = try scratch()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let child = dir.appendingPathComponent("child")
+        let grandchild = dir.appendingPathComponent("grandchild")
+        let grandchildPID = dir.appendingPathComponent("grandchild.pid")
+        let inner = "echo $$ > '\(grandchildPID.path)'; trap \"touch '\(grandchild.path)'; exit 130\" INT; echo started; while :; do sleep 0.2; done"
+        let started = Signal()
+        let pid = PID()
+        let task = Task {
+            try await ChildProcess.run(
+                "/bin/sh",
+                ["-c", "trap \"touch '\(child.path)'; exit 130\" INT; /bin/sh -c \"$1\"", "sh", inner],
+                standardError: .mergeIntoOutput,
+                onCancel: .interruptChild,
+                onOutputChunk: { chunk in
+                    if String(decoding: chunk, as: UTF8.self).contains("started") { started.fire() }
+                },
+                onLaunch: { pid.set($0) })
+        }
+        await started.wait()
+        task.cancel()
+        let watchdog = DispatchWorkItem {
+            if let child = pid.value { kill(-child, SIGKILL) }
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 300, execute: watchdog)
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+        watchdog.cancel()
+        // A mutant can leave the grandchild looping: never leak it.
+        if let text = try? String(contentsOf: grandchildPID, encoding: .utf8),
+           let leftover = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            kill(leftover, SIGKILL)
+        }
+        #expect(FileManager.default.fileExists(atPath: grandchild.path), "the grandchild got SIGINT")
+        #expect(FileManager.default.fileExists(atPath: child.path), "the child got SIGINT")
+    }
+
+    /// A task already cancelled never spawns under `.interruptChild` either.
+    ///
+    /// Mutation: drop the leading `Task.checkCancellation()` in its branch →
+    /// `onLaunch` fires once.
+    @Test func anAlreadyCancelledTaskNeverSpawnsUnderInterruptChild() async throws {
+        let launches = Counter()
+        let task = Task { () async throws -> ChildProcess.Outcome in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await ChildProcess.run(
+                "/bin/sh", ["-c", "sleep 5"], onCancel: .interruptChild,
+                onLaunch: { _ in launches.increment() })
+        }
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+        #expect(launches.value == 0)
+    }
+
     // MARK: - Round 1 of review: process group, environment, stdin, deadline clock
 
     /// The child is the leader of its own process group, as a `Process` child was

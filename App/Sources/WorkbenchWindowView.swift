@@ -907,6 +907,7 @@ struct WorkbenchWindowView: View {
                                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                         }
                         ProgressView().controlSize(.small)
+                        BrewUpgradeCancelButton(jobID: AppListModel.upgradeAllJobID, model: model)
                     }
                 }
             }
@@ -1791,7 +1792,7 @@ private struct BrewFormulaSidebarRow: View {
 
     private var upgrading: Bool { model.isUpgrading(formula) }
     private var error: String? { model.formulaUpgradeErrors[formula.name] }
-    private var progressNote: String? { model.formulaUpgradeNotes[formula.name] }
+    private var progressNote: String? { model.formulaProgressLine(formula.name) }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -1834,7 +1835,10 @@ private struct BrewFormulaSidebarRow: View {
             }
             Spacer()
             if upgrading {
-                ProgressView().controlSize(.small)
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.small)
+                    BrewUpgradeCancelButton(jobID: AppListModel.formulaJobID(formula.name), model: model)
+                }
             } else if formula.hasUpdate {
                 let blocked = model.cliBlockedReason(.upgradeFormula)
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
@@ -1845,6 +1849,24 @@ private struct BrewFormulaSidebarRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// A brew upgrade's Cancel beside its progress (`InstallCancelButton`): a
+/// formula row's own upgrade (`AppListModel.formulaJobID`) or Upgrade All
+/// (`upgradeAllJobID`) — a row that only spins because Upgrade All covers it
+/// has none. Gone once the cancel was accepted: the progress says
+/// "Cancelling…" until the run ends (`AppListModel.cancelBrewUpgrade`).
+struct BrewUpgradeCancelButton: View {
+    let jobID: String
+    let model: AppListModel
+
+    var body: some View {
+        if let state = model.brewCancelRows.cancels[jobID], state != .cancelling {
+            InstallCancelButton(state: state, pending: model.brewCancelRows.cancelPending.contains(jobID)) {
+                model.cancelBrewUpgrade(jobID)
+            }
+        }
     }
 }
 
@@ -2225,12 +2247,13 @@ private struct FormulaDetailPane: View {
             if upgrading {
                 HStack(spacing: 7) {
                     ProgressView().controlSize(.small)
-                    Text(model.formulaUpgradeNotes[formula.name] ?? String(localized: "Updating…"))
+                    Text(model.formulaProgressLine(formula.name) ?? String(localized: "Updating…"))
                         .font(.callout).foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(.quaternary, in: Capsule())
+                BrewUpgradeCancelButton(jobID: AppListModel.formulaJobID(formula.name), model: model)
             } else if formula.hasUpdate {
                 let blocked = model.cliBlockedReason(.upgradeFormula)
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }

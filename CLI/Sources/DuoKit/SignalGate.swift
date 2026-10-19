@@ -224,9 +224,11 @@ public final class SignalGate: @unchecked Sendable {
     /// reopened, or reopened under ShipIt mid-swap), and every `.terminateChild`
     /// `ChildProcess.run` refuses to spawn (a tool's version re-read after its
     /// update, so a successful update reads as failed). So each item of a gated
-    /// command — a restart, a tool update with its verification — runs in here
+    /// command that has no commit point of its own — a restart — runs in here
     /// once it has started; the "stop before the next item" checks stay in the
-    /// loops.
+    /// loops. A tool update has one (`InstallCommit`), and runs as an
+    /// `InstallJobs` job instead (`CLIToolRows.apply`): the signal still stops
+    /// its preparation, and is refused once its command started.
     ///
     /// `Task { }` rather than `Task.detached`: an unstructured task is not
     /// cancelled with the task that awaits it, and it still inherits task-locals
@@ -237,7 +239,7 @@ public final class SignalGate: @unchecked Sendable {
     /// Concurrency") that an unstructured task "doesn't have a parent task"
     /// and runs with "the same actor isolation, priority, and task-local state
     /// as the current task". `aRestartCancelledInItsQuitWaitStillReopensTheApp`
-    /// and `aToolUpdateCancelledMidwayIsReportedAsApplied` go red without it.
+    /// goes red without it.
     /// The Core side of the same problem — the steps inside
     /// `InstallCoordinator.perform` after its commit point — is
     /// `InstallCommit`'s (#1404); this does not depend on it.

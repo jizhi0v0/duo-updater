@@ -941,7 +941,7 @@ public enum Install {
             // are reported as cancelled, so the summary and the `--json` stream
             // still account for every item the user approved.
             //
-            // Unlike a restart or a tool update (`SignalGate.finishing`), the item
+            // Unlike a restart (`SignalGate.finishing`), the item
             // in flight is NOT shielded here: `coordinator.perform` must stay
             // cancellable so its preparation (download, permits) still aborts,
             // and what follows it below is synchronous bookkeeping — the row,

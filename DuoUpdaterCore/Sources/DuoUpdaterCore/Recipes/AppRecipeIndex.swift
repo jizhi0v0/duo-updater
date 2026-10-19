@@ -221,6 +221,7 @@ public enum AppRecipeIndex {
         dev_kdrag0n_MacVirt.set,
         dev_kiro_desktop.set,
         dev_kitten_Kitten_Preview.set,
+        dev_mayoi_editor.set,
         dev_openchamber_desktop.set,
         dev_warp_Warp_Stable.set,
         dev_zed_Zed.set,

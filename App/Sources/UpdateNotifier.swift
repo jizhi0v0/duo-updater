@@ -44,6 +44,13 @@ enum UpdateNotifier {
         post(title: app, body: version.map { String(localized: "Updated to \($0).") } ?? String(localized: "Updated."))
     }
 
+    /// The app was updated, but a login-item agent the recipe restarts after
+    /// the swap did not come back (`AppListModel.reportAgentsNotRestarted`,
+    /// which writes `body`). One per app, so a retry replaces rather than stacks.
+    static func agentsNotRestarted(app: String, body: String, rowID: String) {
+        post(title: app, body: body, identifier: "agents:\(rowID)")
+    }
+
     /// "Update All" finished — one summary instead of a banner per app. Apps that
     /// were running show a Restart badge in the menu, so we don't enumerate them.
     /// Apps a cancel stopped are named only when there were some.

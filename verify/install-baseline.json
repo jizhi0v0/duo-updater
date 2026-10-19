@@ -1,14 +1,14 @@
 {
   "entries" : {
     "install:github:AprilNEA\/OpenLogi:stable" : {
-      "consecutiveActionable" : 13,
+      "consecutiveActionable" : 14,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1351,
       "lastCommentedAt" : "2026-10-15T20:39:13Z",
       "lastSignature" : "identityChanged: Sparkle key none → dwOe",
       "previousSignature" : "identityChanged: Sparkle key none → dwOe",
-      "sweepsSinceComment" : 11
+      "sweepsSinceComment" : 12
     },
     "install:github:BlueBubblesApp\/bluebubbles-server:stable" : {
       "consecutiveActionable" : 0,
@@ -389,11 +389,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:huangy7\/lokii:stable" : {
-      "consecutiveActionable" : 1,
+      "consecutiveActionable" : 2,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
+      "issueNumber" : 1449,
+      "lastCommentedAt" : "2026-10-19T01:43:27Z",
       "lastSignature" : "identityChanged: Sparkle key none → pxrs",
-      "sweepsSinceComment" : 1
+      "previousSignature" : "identityChanged: Sparkle key none → pxrs",
+      "sweepsSinceComment" : 0
     },
     "install:github:imputnet\/helium-macos:stable" : {
       "consecutiveActionable" : 0,
@@ -1901,5 +1904,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-18T20:23:03Z"
+  "updatedAt" : "2026-10-19T01:43:27Z"
 }

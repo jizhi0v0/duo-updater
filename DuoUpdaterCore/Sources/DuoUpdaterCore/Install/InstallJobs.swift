@@ -12,16 +12,18 @@ import Foundation
 /// **Phases.** `.preparing` until a commit starts; `.committing` while one runs
 /// AND after one returned — past the point of no return a job stays there
 /// (the design's rule: cancellable up to the commit, never after it). A commit
-/// that did NOT land puts the job back to `.preparing`: one that threw, or one
-/// whose value its `landed` predicate rejected (`InstallCommit.run`). The
+/// that did NOT land puts the job back to `.preparing`: one that threw before
+/// its body said `InstallCommit.handedOver()`, or one whose value its `landed`
+/// predicate rejected (`InstallCommit.run`). The
 /// routes report "refused, nothing installed" one of those two ways — a swap
 /// that did not land throws; a `mas install` attempt that exited non-zero, or
 /// a vendor update command that exited with a failure status, returns that
 /// status — so stopping then loses nothing. The backoff between two
 /// `mas install` attempts, and a CLI runner's second try after a rejected
 /// token, are exactly that window. A failed commit can still have changed
-/// something on the way (a brew run that failed halfway); `.preparing` then
-/// means only "this job will start nothing further".
+/// something on the way; a route whose third party already has the install
+/// (App Store's pressed button, a brew that ran) says so with `handedOver()`,
+/// and its throw then keeps the job committing.
 ///
 /// **A truthful answer.** `cancel` answering `.cancelled` means no commit of
 /// that job will start: the request is recorded under the lock that
@@ -31,7 +33,8 @@ import Foundation
 /// host registered before it had a task to cancel.
 ///
 /// A host must register before the job can reach its first commit; a commit
-/// for an id nobody registered runs as if there were no registry.
+/// for an id nobody registered runs as if there were no registry. `run` does
+/// the registering, the binding and the task for a host.
 public enum InstallJobs {
 
     /// The job the current task works for. Bound by the host around the whole
@@ -57,9 +60,80 @@ public enum InstallJobs {
 
     /// Register job `id`. `cancel` is called at most once, outside any lock,
     /// by `cancel(_:)` or `cancelAll()` — typically `{ task.cancel() }`.
-    /// Registering an id that is already registered replaces it.
-    public static func register(_ id: String, cancel: @escaping @Sendable () -> Void) {
-        registry.withLock { $0[id] = Job(cancel: cancel) }
+    /// `phaseChanged`, when given, is called outside any lock, on whichever
+    /// thread moved the job, each time its phase changes — what a window's
+    /// Cancel button greys out on. Registering an id that is already
+    /// registered replaces it.
+    public static func register(
+        _ id: String, cancel: @escaping @Sendable () -> Void,
+        phaseChanged: (@Sendable (Phase) -> Void)? = nil
+    ) {
+        registry.withLock { $0[id] = Job(cancel: cancel, phaseChanged: phaseChanged) }
+    }
+
+    /// Run `body` as job `id`, for a host: registered for the whole of it, with
+    /// `currentID` bound, in a task of its own whose only canceller is the
+    /// registry.
+    ///
+    /// The caller's own cancellation reaches the job through `cancel(_:)`, so
+    /// it is refused once the job is committing: a caller torn down past the
+    /// commit point — a stopped batch, a closed window's task — cannot cut the
+    /// job's wrap-up short (the re-check, the journal's finish), which the
+    /// body runs after its commit returned. A `Task.cancel()` of the caller
+    /// would have reached all of it.
+    ///
+    /// The body keeps its isolation (`@isolated(any)`): a main-actor host's
+    /// install runs on the main actor, as it did when called directly.
+    ///
+    /// `isolation` is the caller's, so a main-actor host registers the job in
+    /// the same turn it showed the row's Cancel: no suspension between the two
+    /// for a click to land in ("guaranteed not to happen at the moments of call
+    /// and return between functions with the same isolation", SE-0420).
+    /// Nonisolated, the call hopped to the pool first, and a click in that hop
+    /// found no job and was lost while the install went on.
+    public static func run<T: Sendable>(
+        _ id: String,
+        phaseChanged: (@Sendable (Phase) -> Void)? = nil,
+        isolation: isolated (any Actor)? = #isolation,
+        _ body: @escaping @Sendable @isolated(any) () async -> T
+    ) async -> T {
+        let handle = TaskHandle()
+        // Before the task exists: a cancel that comes first is applied the
+        // moment it does, and no commit of the job can start unregistered.
+        register(id, cancel: { handle.cancel() }, phaseChanged: phaseChanged)
+        defer { unregister(id) }
+        // Bound around the creation: an unstructured task inherits the
+        // creator's task-locals.
+        let task = $currentID.withValue(id) { Task(operation: body) }
+        handle.set { task.cancel() }
+        return await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            cancel(id)
+        }
+    }
+
+    /// A task's cancel, for a closure registered before the task exists.
+    private final class TaskHandle: @unchecked Sendable {
+        private let lock = NSLock()
+        private var cancelTask: (@Sendable () -> Void)?
+        private var cancelled = false
+
+        func set(_ cancelTask: @escaping @Sendable () -> Void) {
+            let now = lock.withLock { () -> Bool in
+                self.cancelTask = cancelTask
+                return cancelled
+            }
+            if now { cancelTask() }
+        }
+
+        func cancel() {
+            let toCall = lock.withLock { () -> (@Sendable () -> Void)? in
+                cancelled = true
+                return cancelTask
+            }
+            toCall?()
+        }
     }
 
     /// Forget job `id`, whatever its phase. Call it when the job's task ends.
@@ -114,13 +188,16 @@ public enum InstallJobs {
     /// cancel was already answered for it. No-op for nil or an unknown id.
     static func beginCommit(_ id: String?, label: String) throws {
         guard let id else { return }
-        try registry.withLock { jobs in
-            guard var job = jobs[id] else { return }
+        let changed = try registry.withLock { jobs -> (@Sendable (Phase) -> Void)? in
+            guard var job = jobs[id] else { return nil }
             if job.cancelRequested { throw CancellationError() }
+            let was = job.committing
             job.depth += 1
             job.committing = job.committing ?? label
             jobs[id] = job
+            return was == nil ? job.phaseChanged : nil
         }
+        changed?(.committing)
     }
 
     /// The commit `beginCommit` marked has ended. One that returned leaves the
@@ -128,17 +205,21 @@ public enum InstallJobs {
     /// returned before, the job is preparing again.
     static func endCommit(_ id: String?, landed: Bool) {
         guard let id else { return }
-        registry.withLock { jobs in
-            guard var job = jobs[id] else { return }
+        let changed = registry.withLock { jobs -> (@Sendable (Phase) -> Void)? in
+            guard var job = jobs[id] else { return nil }
             job.depth -= 1
             if landed { job.landed = true }
+            let was = job.committing
             if job.depth == 0 && !job.landed { job.committing = nil }
             jobs[id] = job
+            return was != nil && job.committing == nil ? job.phaseChanged : nil
         }
+        changed?(.preparing)
     }
 
     private struct Job {
         let cancel: @Sendable () -> Void
+        let phaseChanged: (@Sendable (Phase) -> Void)?
         var cancelRequested = false
         /// The label of the commit that moved the job past preparing.
         var committing: String?

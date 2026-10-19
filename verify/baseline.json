@@ -30,11 +30,20 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "changelog:Jellyfin.Server:-" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 20,
+      "lastGoodVersion" : "12.2",
+      "sweepsSinceComment" : 0
+    },
     "changelog:MstyStudio:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 33,
       "lastGoodVersion" : "2.9.11",
       "sweepsSinceComment" : 0
@@ -43,16 +52,16 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodEntryCount" : 11,
-      "lastGoodVersion" : "0.4.6",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 12,
+      "lastGoodVersion" : "0.4.7",
       "sweepsSinceComment" : 0
     },
     "changelog:ai.elementlabs.lmstudio:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 10,
       "lastGoodVersion" : "0.4.26",
       "sweepsSinceComment" : 0
@@ -61,7 +70,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 10,
       "lastGoodVersion" : "v0.21.0",
       "sweepsSinceComment" : 0
@@ -70,16 +79,16 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 30,
-      "lastGoodVersion" : "1.19.0",
+      "lastGoodVersion" : "1.19.3",
       "sweepsSinceComment" : 0
     },
     "changelog:app.chatwise:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "26.9.1",
       "sweepsSinceComment" : 0
@@ -101,9 +110,9 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 9,
-      "lastGoodVersion" : "0.5.18",
+      "lastGoodVersion" : "0.5.23",
       "sweepsSinceComment" : 0
     },
     "changelog:app.lorca:-" : {
@@ -116,7 +125,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 22,
       "lastGoodVersion" : "4.4.0",
       "sweepsSinceComment" : 0
@@ -125,7 +134,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "0.1.1",
       "sweepsSinceComment" : 0
@@ -134,7 +143,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "2026.9.0-beta.4",
       "sweepsSinceComment" : 0
@@ -143,7 +152,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 11,
       "lastGoodVersion" : "2026.9.0",
       "sweepsSinceComment" : 0
@@ -152,7 +161,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "6.5",
       "sweepsSinceComment" : 0
@@ -161,7 +170,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 10,
       "lastGoodVersion" : "1.0.928.1",
       "sweepsSinceComment" : 0
@@ -172,7 +181,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 943,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 6,
       "lastGoodVersion" : "0.0.23-beta.1",
       "sweepsSinceComment" : 0,
@@ -182,16 +191,16 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodEntryCount" : 15,
-      "lastGoodVersion" : "0.0.46",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 14,
+      "lastGoodVersion" : "0.0.48",
       "sweepsSinceComment" : 0
     },
     "changelog:cc.ffitch.shottr:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 16,
       "lastGoodVersion" : "1.9.3",
       "sweepsSinceComment" : 0
@@ -200,7 +209,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "8.12.40",
       "sweepsSinceComment" : 0
@@ -209,16 +218,70 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "2.70",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:com.JH.RuntimeViewer:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 20,
+      "lastGoodVersion" : "3.0.0-beta.7",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:com.JH.RuntimeViewer:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 8,
+      "lastGoodVersion" : "2.1.2",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:com.ScooterSoftware.BeyondCompare:-:4-5" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 40,
+      "lastGoodVersion" : "4.4.7.28397",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:com.ScooterSoftware.BeyondCompare:-:5-6" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 23,
+      "lastGoodVersion" : "5.2.6.32774",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:com.Snipaste:-" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 20,
+      "lastGoodVersion" : "2.11.3",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:com.adguard.mac.adguard:-" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 10,
+      "lastGoodVersion" : "2.20",
       "sweepsSinceComment" : 0
     },
     "changelog:com.aionui.app:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "2.2.2",
       "sweepsSinceComment" : 0
@@ -227,16 +290,16 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
-      "lastGoodVersion" : "1.33.0",
+      "lastGoodVersion" : "1.34.0",
       "sweepsSinceComment" : 0
     },
     "changelog:com.amunx.rockxy.community:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "0.41.0",
       "sweepsSinceComment" : 0
@@ -245,16 +308,16 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "2.37337.1",
+      "lastGoodVersion" : "2.42304.0",
       "sweepsSinceComment" : 0
     },
     "changelog:com.anythingllm:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "1.18.0",
       "sweepsSinceComment" : 0
@@ -263,7 +326,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "1.6.8",
       "sweepsSinceComment" : 0
@@ -272,16 +335,25 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "Xcode 27",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:com.axosoft.gitkraken:-" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 13,
+      "lastGoodVersion" : "12.6.0",
       "sweepsSinceComment" : 0
     },
     "changelog:com.baidu.BaiduNetdisk-mac:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "8.9.2",
       "sweepsSinceComment" : 0
@@ -290,7 +362,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "7.2.2-b4",
       "sweepsSinceComment" : 0
@@ -299,7 +371,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 37,
       "lastGoodVersion" : "5.1.28",
       "sweepsSinceComment" : 0
@@ -308,7 +380,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "6.1.13",
       "sweepsSinceComment" : 0
@@ -317,9 +389,9 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodEntryCount" : 14,
-      "lastGoodVersion" : "7.2.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 15,
+      "lastGoodVersion" : "7.2.2",
       "sweepsSinceComment" : 0
     },
     "changelog:com.bytedance.inputmethod.doubaoime:-" : {
@@ -328,7 +400,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 497,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "1.0.2",
       "sweepsSinceComment" : 0,
@@ -340,7 +412,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 918,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 9,
       "lastGoodVersion" : "1.5.0",
       "sweepsSinceComment" : 0,
@@ -350,7 +422,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "1.5.0",
       "sweepsSinceComment" : 0
@@ -359,16 +431,16 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 5,
-      "lastGoodVersion" : "0.90.0",
+      "lastGoodVersion" : "0.91.0",
       "sweepsSinceComment" : 0
     },
     "changelog:com.corecode.MacUpdater:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "3.5.0",
       "sweepsSinceComment" : 0
@@ -377,7 +449,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "7.1.2",
       "sweepsSinceComment" : 0
@@ -386,25 +458,36 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "7.1.2",
       "sweepsSinceComment" : 0
     },
-    "changelog:com.dirijor.diri:-" : {
+    "changelog:com.cu4uc.mounty:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 21,
+      "lastGoodVersion" : "2.4",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:com.dirijor.diri:-" : {
+      "closedAt" : "2026-10-18T20:32:02Z",
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "issueNumber" : 1427,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "0.9.5",
+      "lastGoodVersion" : "0.10.0",
       "sweepsSinceComment" : 0
     },
     "changelog:com.docker.docker:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "4.95.0",
       "sweepsSinceComment" : 0
@@ -413,9 +496,9 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodEntryCount" : 12,
-      "lastGoodVersion" : "0.1.15",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 25,
+      "lastGoodVersion" : "0.1.28",
       "sweepsSinceComment" : 0
     },
     "changelog:com.electron.ollama:-" : {
@@ -424,9 +507,9 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 872,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 9,
-      "lastGoodVersion" : "0.40.4",
+      "lastGoodVersion" : "0.40.6",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "newest changelog entry (0.40.0) reads AH"
     },
@@ -434,7 +517,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 29,
       "lastGoodVersion" : "26.9.1",
       "sweepsSinceComment" : 0
@@ -443,7 +526,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "3.10.67",
       "sweepsSinceComment" : 0
@@ -454,7 +537,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 736,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "Here’s everything from Config India 2026",
       "sweepsSinceComment" : 0
@@ -463,7 +546,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "Here’s everything from Config India 2026",
       "sweepsSinceComment" : 0
@@ -472,7 +555,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 10,
       "lastGoodVersion" : "3.6.8-beta2",
       "sweepsSinceComment" : 0
@@ -481,7 +564,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 10,
       "lastGoodVersion" : "3.6.7",
       "sweepsSinceComment" : 0
@@ -490,7 +573,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 21,
       "lastGoodVersion" : "0.51.0",
       "sweepsSinceComment" : 0
@@ -499,7 +582,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "15.6",
       "sweepsSinceComment" : 0
@@ -510,9 +593,9 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 821,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodEntryCount" : 2,
-      "lastGoodVersion" : "155.0.8059.79",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 3,
+      "lastGoodVersion" : "155.0.8059.84",
       "sweepsSinceComment" : 0
     },
     "changelog:com.google.antigravity-ide:-" : {
@@ -521,7 +604,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 922,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "2.5.5",
       "sweepsSinceComment" : 0,
@@ -533,26 +616,30 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 822,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "2.23.1",
+      "lastGoodVersion" : "2.24.0",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "noEntriesExtracted"
     },
     "changelog:com.googlecode.iterm2:-" : {
-      "consecutiveActionable" : 0,
+      "consecutiveActionable" : 12,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "issueNumber" : 1428,
+      "lastCommentedAt" : "2026-10-18T14:33:27Z",
+      "lastGoodAt" : "2026-10-15T20:32:19Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "3.7.5",
-      "sweepsSinceComment" : 0
+      "lastSignature" : "noEntriesExtracted",
+      "previousSignature" : "noEntriesExtracted",
+      "sweepsSinceComment" : 1
     },
     "changelog:com.henrikruscon.Alcove:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 30,
       "lastGoodVersion" : "1.7.9",
       "sweepsSinceComment" : 0
@@ -563,7 +650,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 811,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "262.1037.6",
       "sweepsSinceComment" : 0,
@@ -573,7 +660,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "2026.2.3",
       "sweepsSinceComment" : 0
@@ -582,7 +669,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "3.8.1",
       "sweepsSinceComment" : 0
@@ -591,7 +678,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 22,
       "lastGoodVersion" : "1.1.3",
       "sweepsSinceComment" : 0
@@ -608,27 +695,29 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1272,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "1.0.0-preview.3",
       "sweepsSinceComment" : 0
     },
     "changelog:com.longbridge.app.desktop:stable" : {
-      "closedAt" : "2026-10-14T14:34:07Z",
-      "consecutiveActionable" : 0,
+      "consecutiveActionable" : 10,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1273,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastCommentedAt" : "2026-10-18T14:33:31Z",
+      "lastGoodAt" : "2026-10-16T08:23:41Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "1.0.0",
-      "sweepsSinceComment" : 0
+      "lastSignature" : "noEntriesExtracted",
+      "previousSignature" : "noEntriesExtracted",
+      "sweepsSinceComment" : 1
     },
     "changelog:com.microsoft.Excel:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 30,
       "lastGoodVersion" : "16.114",
       "sweepsSinceComment" : 0
@@ -637,25 +726,29 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodEntryCount" : 18,
-      "lastGoodVersion" : "0.45.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 19,
+      "lastGoodVersion" : "0.46.0",
       "sweepsSinceComment" : 0
     },
     "changelog:com.microsoft.OneDrive:-" : {
-      "consecutiveActionable" : 0,
+      "consecutiveActionable" : 9,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "issueNumber" : 1429,
+      "lastCommentedAt" : "2026-10-18T14:33:34Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 30,
       "lastGoodVersion" : "26.173.0906",
-      "sweepsSinceComment" : 0
+      "lastSignature" : "newest changelog entry (26.173.0906) rea",
+      "previousSignature" : "newest changelog entry (26.173.0906) rea",
+      "sweepsSinceComment" : 1
     },
     "changelog:com.microsoft.Outlook:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 30,
       "lastGoodVersion" : "16.114",
       "sweepsSinceComment" : 0
@@ -664,7 +757,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 30,
       "lastGoodVersion" : "16.114",
       "sweepsSinceComment" : 0
@@ -675,7 +768,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1318,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "1.142",
       "sweepsSinceComment" : 0,
@@ -685,7 +778,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "1.143",
       "sweepsSinceComment" : 0
@@ -694,7 +787,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 30,
       "lastGoodVersion" : "16.114",
       "sweepsSinceComment" : 0
@@ -703,17 +796,17 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
-      "lastGoodVersion" : "156.0.4314.23",
+      "lastGoodVersion" : "156.0.4314.30",
       "sweepsSinceComment" : 0
     },
     "changelog:com.microsoft.edgemac:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodEntryCount" : 4,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 6,
       "lastGoodVersion" : "155.0.4283.45",
       "sweepsSinceComment" : 0
     },
@@ -721,7 +814,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 30,
       "lastGoodVersion" : "16.114",
       "sweepsSinceComment" : 0
@@ -730,7 +823,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "1.3.1",
       "sweepsSinceComment" : 0
@@ -739,7 +832,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 19,
       "lastGoodVersion" : "1.53.0",
       "sweepsSinceComment" : 0
@@ -748,7 +841,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 22,
       "lastGoodVersion" : "3.2.17",
       "sweepsSinceComment" : 0
@@ -757,7 +850,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "3.1.0",
       "sweepsSinceComment" : 0
@@ -766,7 +859,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 6,
       "lastGoodVersion" : "0.2.5",
       "sweepsSinceComment" : 0
@@ -777,7 +870,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1112,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "32.2.2",
       "sweepsSinceComment" : 0
@@ -788,7 +881,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 7,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "",
       "sweepsSinceComment" : 0,
@@ -800,7 +893,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 834,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 6,
       "lastGoodVersion" : "137.0.6036.63",
       "sweepsSinceComment" : 0
@@ -809,7 +902,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 10,
       "lastGoodVersion" : "V16.6.0.32198",
       "sweepsSinceComment" : 0
@@ -818,7 +911,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "9.8.1",
       "sweepsSinceComment" : 0
@@ -827,18 +920,18 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 30,
-      "lastGoodVersion" : "12.32.3",
+      "lastGoodVersion" : "12.32.4",
       "sweepsSinceComment" : 0
     },
     "changelog:com.proxyman.NSProxy:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 15,
-      "lastGoodVersion" : "26.1.0",
+      "lastGoodVersion" : "26.2.0",
       "sweepsSinceComment" : 0
     },
     "changelog:com.qoder.app:-" : {
@@ -847,31 +940,29 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 753,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 19,
       "lastGoodVersion" : "0.4.8",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "newest changelog entry (0.3.3) reads AHE"
     },
     "changelog:com.qoder.ide:-" : {
-      "consecutiveActionable" : 9,
+      "closedAt" : "2026-10-18T14:33:36Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1276,
-      "lastCommentedAt" : "2026-10-13T20:24:04Z",
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
-      "lastGoodVersion" : "1.32.0",
-      "lastSignature" : "newest changelog entry (1.32.0) trails t",
-      "previousSignature" : "newest changelog entry (1.32.0) trails t",
-      "sweepsSinceComment" : 7,
+      "lastGoodVersion" : "1.34.0",
+      "sweepsSinceComment" : 0,
       "triagedSignature" : "newest changelog entry (1.29.0) trails t"
     },
     "changelog:com.qodercn.app:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 19,
       "lastGoodVersion" : "0.4.8",
       "sweepsSinceComment" : 0
@@ -880,7 +971,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 10,
       "lastGoodVersion" : "2.8",
       "sweepsSinceComment" : 0
@@ -889,7 +980,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 10,
       "lastGoodVersion" : "1.104.0",
       "sweepsSinceComment" : 0
@@ -898,7 +989,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "3.13.4",
       "sweepsSinceComment" : 0
@@ -907,25 +998,25 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "0.7.15-beta.1",
+      "lastGoodVersion" : "0.7.16-beta.1",
       "sweepsSinceComment" : 0
     },
     "changelog:com.robinebers.openusage:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodEntryCount" : 13,
-      "lastGoodVersion" : "0.7.14",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 14,
+      "lastGoodVersion" : "0.7.15",
       "sweepsSinceComment" : 0
     },
     "changelog:com.runningwithcrayons.Alfred:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 23,
       "lastGoodVersion" : "5.8.1",
       "sweepsSinceComment" : 0
@@ -934,7 +1025,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 15,
       "lastGoodVersion" : "1.6.0-build17",
       "sweepsSinceComment" : 0
@@ -943,7 +1034,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "6.25.1",
       "sweepsSinceComment" : 0
@@ -952,7 +1043,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "Build 2132",
       "sweepsSinceComment" : 0
@@ -961,7 +1052,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 17,
       "lastGoodVersion" : "Build 4215",
       "sweepsSinceComment" : 0
@@ -970,7 +1061,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "7.0.5",
       "sweepsSinceComment" : 0
@@ -979,7 +1070,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "6.6.2",
       "sweepsSinceComment" : 0
@@ -988,16 +1079,16 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
-      "lastGoodVersion" : "0.85",
+      "lastGoodVersion" : "0.87",
       "sweepsSinceComment" : 0
     },
     "changelog:com.tdesktop.Telegram:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "7.3.1",
       "sweepsSinceComment" : 0
@@ -1006,16 +1097,16 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "2.2.3",
+      "lastGoodVersion" : "3.0.0",
       "sweepsSinceComment" : 0
     },
     "changelog:com.tencent.qqmusicmac:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "11.10.5",
       "sweepsSinceComment" : 0
@@ -1026,9 +1117,9 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 191,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
-      "lastGoodVersion" : "2.02.2610142",
+      "lastGoodVersion" : "2.02.2610162",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "noEntriesExtracted"
     },
@@ -1036,7 +1127,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "2.02.2609231",
       "sweepsSinceComment" : 0
@@ -1045,29 +1136,27 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "2.02.2608080",
       "sweepsSinceComment" : 0
     },
     "changelog:com.tencent.workbuddy.mac:-" : {
-      "consecutiveActionable" : 7,
+      "closedAt" : "2026-10-18T14:33:38Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1291,
-      "lastCommentedAt" : "2026-10-14T08:32:00Z",
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
-      "lastGoodVersion" : "5.7.7",
-      "lastSignature" : "newest changelog entry (5.7.7) trails th",
-      "previousSignature" : "newest changelog entry (5.7.7) trails th",
-      "sweepsSinceComment" : 5
+      "lastGoodVersion" : "5.8.2",
+      "sweepsSinceComment" : 0
     },
     "changelog:com.tencent.xinWeChat:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "4.1.15",
       "sweepsSinceComment" : 0
@@ -1076,7 +1165,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "10.2.0",
       "sweepsSinceComment" : 0
@@ -1085,7 +1174,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "1.16.2",
       "sweepsSinceComment" : 0
@@ -1094,7 +1183,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 34,
       "lastGoodVersion" : "27.0.2",
       "sweepsSinceComment" : 0
@@ -1103,7 +1192,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 30,
       "lastGoodVersion" : "4.52.178",
       "sweepsSinceComment" : 0
@@ -1112,16 +1201,16 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 5,
-      "lastGoodVersion" : "Oct 13, 2026",
+      "lastGoodVersion" : "Oct 16, 2026",
       "sweepsSinceComment" : 0
     },
     "changelog:com.trae.app:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "3.6.0",
       "sweepsSinceComment" : 0
@@ -1132,7 +1221,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 956,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "1.7.1",
       "sweepsSinceComment" : 0,
@@ -1142,25 +1231,25 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
-      "lastGoodVersion" : "5.0.6",
+      "lastGoodVersion" : "5.0.8",
       "sweepsSinceComment" : 0
     },
     "changelog:com.utmapp.UTM:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodEntryCount" : 16,
-      "lastGoodVersion" : "4.7.5",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 17,
+      "lastGoodVersion" : "5.0.8",
       "sweepsSinceComment" : 0
     },
     "changelog:com.vivaldi.Vivaldi.snapshot:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "8.3.4185.3",
       "sweepsSinceComment" : 0
@@ -1175,9 +1264,9 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "0.5.3",
+      "lastGoodVersion" : "0.6.1",
       "sweepsSinceComment" : 0
     },
     "changelog:com.windscribe.client:beta" : {
@@ -1186,7 +1275,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 790,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "2.25.4",
       "sweepsSinceComment" : 0,
@@ -1198,7 +1287,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 791,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "2.25.4",
       "sweepsSinceComment" : 0,
@@ -1208,7 +1297,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 9,
       "lastGoodVersion" : "2.24.13",
       "sweepsSinceComment" : 0
@@ -1219,9 +1308,9 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 913,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodEntryCount" : 5,
-      "lastGoodVersion" : "5.7.6",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 6,
+      "lastGoodVersion" : "5.8.4",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "noEntriesExtracted"
     },
@@ -1229,27 +1318,36 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "0.1.109",
+      "lastGoodVersion" : "0.1.110",
       "sweepsSinceComment" : 0
     },
     "changelog:com.xd.cindycn:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "0.1.109",
+      "lastGoodVersion" : "0.1.110",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:com.xk72.Charles:-" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 20,
+      "lastGoodVersion" : "5.2.2",
       "sweepsSinceComment" : 0
     },
     "changelog:com.yetone.magpie:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
-      "lastGoodVersion" : "0.1.1256",
+      "lastGoodVersion" : "0.1.1288",
       "sweepsSinceComment" : 0
     },
     "changelog:com.zarifpour.superconductor:-" : {
@@ -1258,16 +1356,34 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 579,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "9cd78956",
+      "lastGoodVersion" : "15aae8f8",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:com.zettlr.app:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 20,
+      "lastGoodVersion" : "4.8.0",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:com.zettlr.app:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 20,
+      "lastGoodVersion" : "4.8.0",
       "sweepsSinceComment" : 0
     },
     "changelog:dev.commandline.waveterm:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 15,
       "lastGoodVersion" : "0.14.5",
       "sweepsSinceComment" : 0
@@ -1276,9 +1392,9 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
-      "lastGoodVersion" : "b361",
+      "lastGoodVersion" : "b420",
       "sweepsSinceComment" : 0
     },
     "changelog:dev.hyperframes.desktop:-" : {
@@ -1287,16 +1403,16 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1319,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
-      "lastGoodVersion" : "b356",
+      "lastGoodVersion" : "b420",
       "sweepsSinceComment" : 0
     },
     "changelog:dev.kdrag0n.MacVirt:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "2.2.4",
       "sweepsSinceComment" : 0
@@ -1305,7 +1421,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 7,
       "lastGoodVersion" : "",
       "sweepsSinceComment" : 0
@@ -1314,7 +1430,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 2,
       "lastGoodVersion" : "0.1.1",
       "sweepsSinceComment" : 0
@@ -1323,25 +1439,25 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "0.2026.10.07.08.29.00",
+      "lastGoodVersion" : "0.2026.10.14.08.27.01",
       "sweepsSinceComment" : 0
     },
     "changelog:dev.warp.Warp-Stable:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "0.2026.10.07.08.29.00",
+      "lastGoodVersion" : "0.2026.10.14.08.27.01",
       "sweepsSinceComment" : 0
     },
     "changelog:dev.zed.Zed-Preview:preview" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 15,
       "lastGoodVersion" : "1.25.0",
       "sweepsSinceComment" : 0
@@ -1350,16 +1466,25 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 15,
       "lastGoodVersion" : "1.24.2",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:eu.davidbures.cork:-" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 14,
+      "lastGoodVersion" : "2.0.3",
       "sweepsSinceComment" : 0
     },
     "changelog:fr.handbrake.HandBrake:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 10,
       "lastGoodVersion" : "1.11.2",
       "sweepsSinceComment" : 0
@@ -1368,16 +1493,16 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 12,
-      "lastGoodVersion" : "1.12.31",
+      "lastGoodVersion" : "1.12.32",
       "sweepsSinceComment" : 0
     },
     "changelog:io.dcloud.HBuilderX:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 10,
       "lastGoodVersion" : "5.26.2026091802",
       "sweepsSinceComment" : 0
@@ -1386,16 +1511,25 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 10,
-      "lastGoodVersion" : "5.31.2026093020-alpha",
+      "lastGoodVersion" : "5.32.2026101609-alpha",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:io.nekohasekai.screensharing:nightly" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 3,
+      "lastGoodVersion" : "nightly",
       "sweepsSinceComment" : 0
     },
     "changelog:io.tailscale.ipn.macsys:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "1.104.1",
       "sweepsSinceComment" : 0
@@ -1404,7 +1538,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 7,
       "lastGoodVersion" : "1.14.4",
       "sweepsSinceComment" : 0
@@ -1413,7 +1547,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 21,
       "lastGoodVersion" : "3.7",
       "sweepsSinceComment" : 0
@@ -1424,39 +1558,37 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1123,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "0.19.3.1",
+      "lastGoodVersion" : "0.19.4.1",
       "sweepsSinceComment" : 0
     },
     "changelog:net.kovidgoyal.calibre:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "9.16",
       "sweepsSinceComment" : 0
     },
     "changelog:notion.id:-" : {
-      "consecutiveActionable" : 3,
+      "closedAt" : "2026-10-16T02:22:08Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1329,
-      "lastCommentedAt" : "2026-10-15T08:33:13Z",
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "7.37.0",
-      "lastSignature" : "newest changelog entry (7.37.0) trails t",
-      "previousSignature" : "newest changelog entry (7.37.0) trails t",
-      "sweepsSinceComment" : 1,
+      "lastGoodVersion" : "7.39.0",
+      "sweepsSinceComment" : 0,
       "triagedSignature" : "newest changelog entry (7.32.0) trails t"
     },
     "changelog:now.typeless.desktop:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 12,
       "lastGoodVersion" : "2.8.0",
       "sweepsSinceComment" : 0
@@ -1465,7 +1597,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 2,
       "lastGoodVersion" : "4.0.1",
       "sweepsSinceComment" : 0
@@ -1474,7 +1606,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 2,
       "lastGoodVersion" : "4.0.1",
       "sweepsSinceComment" : 0
@@ -1483,7 +1615,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 39,
       "lastGoodVersion" : "3.7.9",
       "sweepsSinceComment" : 0
@@ -1494,7 +1626,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 874,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "5.2",
       "sweepsSinceComment" : 0,
@@ -1504,7 +1636,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 7,
       "lastGoodVersion" : "3.22.3+105",
       "sweepsSinceComment" : 0
@@ -1513,16 +1645,34 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-14T20:32:05Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "1.4.4",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:org.krita:-:6+" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 4,
+      "lastGoodVersion" : "6.0.4",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:org.krita:-:<6" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 4,
+      "lastGoodVersion" : "5.3.4",
       "sweepsSinceComment" : 0
     },
     "changelog:org.mozilla.firefox:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "159.0beta",
       "sweepsSinceComment" : 0
@@ -1531,7 +1681,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "153.5.0",
       "sweepsSinceComment" : 0
@@ -1540,7 +1690,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "158.0",
       "sweepsSinceComment" : 0
@@ -1549,7 +1699,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "159.0beta",
       "sweepsSinceComment" : 0
@@ -1558,7 +1708,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "160.0a1",
       "sweepsSinceComment" : 0
@@ -1567,7 +1717,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "153.5.0esr",
       "sweepsSinceComment" : 0
@@ -1576,7 +1726,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "158.0",
       "sweepsSinceComment" : 0
@@ -1585,16 +1735,25 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "159.0beta",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:org.musicbrainz.Picard:-" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 40,
+      "lastGoodVersion" : "3.0.2",
       "sweepsSinceComment" : 0
     },
     "changelog:org.pgadmin.pgadmin4:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "9.18",
       "sweepsSinceComment" : 0
@@ -1605,7 +1764,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 812,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 1,
       "lastGoodVersion" : "3.0.24",
       "sweepsSinceComment" : 0,
@@ -1615,16 +1774,16 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
-      "lastGoodVersion" : "8.31.0-beta.1",
+      "lastGoodVersion" : "8.32.0-beta.1",
       "sweepsSinceComment" : 0
     },
     "changelog:org.whispersystems.signal-desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 18,
       "lastGoodVersion" : "8.31.0",
       "sweepsSinceComment" : 0
@@ -1633,7 +1792,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 7,
       "lastGoodVersion" : "10.0.6",
       "sweepsSinceComment" : 0
@@ -1642,7 +1801,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 40,
       "lastGoodVersion" : "5.0.1",
       "sweepsSinceComment" : 0
@@ -1651,7 +1810,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 15,
       "lastGoodVersion" : "5.1.0",
       "sweepsSinceComment" : 0
@@ -1660,7 +1819,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 15,
       "lastGoodVersion" : "5.1.1",
       "sweepsSinceComment" : 0
@@ -1669,7 +1828,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 15,
       "lastGoodVersion" : "5.1.0",
       "sweepsSinceComment" : 0
@@ -1678,7 +1837,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 13,
       "lastGoodVersion" : "0.6.0",
       "sweepsSinceComment" : 0
@@ -1687,7 +1846,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 15,
       "lastGoodVersion" : "0.1.20",
       "sweepsSinceComment" : 0
@@ -1696,18 +1855,24 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodEntryCount" : 23,
-      "lastGoodVersion" : "2.3.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodEntryCount" : 24,
+      "lastGoodVersion" : "2.4.0",
       "sweepsSinceComment" : 0
     },
     "changelog:xyz.chatboxapp.app:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodEntryCount" : 20,
       "lastGoodVersion" : "1.23.5",
+      "sweepsSinceComment" : 0
+    },
+    "coverage:Jellyfin.Server" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
     "coverage:MstyStudio" : {
@@ -1764,6 +1929,18 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "coverage:com.ScooterSoftware.BeyondCompare" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "coverage:com.Snipaste" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "coverage:com.aionui.app" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -1777,6 +1954,12 @@
       "sweepsSinceComment" : 0
     },
     "coverage:com.anythingllm" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "coverage:com.axosoft.gitkraken" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1819,6 +2002,12 @@
       "sweepsSinceComment" : 0
     },
     "coverage:com.corecode.MacUpdater" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "coverage:com.cu4uc.mounty" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -2220,6 +2409,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "coverage:com.xk72.Charles" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "coverage:dev.commandline.waveterm" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -2262,6 +2457,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "coverage:eu.davidbures.cork" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "coverage:im.riot.app" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -2281,6 +2482,12 @@
       "sweepsSinceComment" : 0
     },
     "coverage:io.dcloud.HBuilderXAlpha" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "coverage:io.nekohasekai.screensharing" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -2384,6 +2591,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "coverage:org.krita" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "coverage:org.libreoffice.script" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -2478,7 +2691,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.5.0",
       "sweepsSinceComment" : 0
     },
@@ -2486,7 +2699,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.5.0",
       "sweepsSinceComment" : 0
     },
@@ -2506,7 +2719,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.3.1",
       "sweepsSinceComment" : 0
     },
@@ -2514,7 +2727,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "6.11.0",
       "sweepsSinceComment" : 0
     },
@@ -2522,7 +2735,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "6.10.0",
       "sweepsSinceComment" : 0
     },
@@ -2530,7 +2743,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.1.0",
       "sweepsSinceComment" : 0
     },
@@ -2538,7 +2751,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.1.0",
       "sweepsSinceComment" : 0
     },
@@ -2546,7 +2759,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.13.4",
       "sweepsSinceComment" : 0
     },
@@ -2554,23 +2767,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.85",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.87",
       "sweepsSinceComment" : 0
     },
     "feed:net.imput.helium" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.19.3.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.19.4.1",
       "sweepsSinceComment" : 0
     },
     "github:AprilNEA\/OpenLogi:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.8.14",
       "sweepsSinceComment" : 0
     },
@@ -2578,7 +2791,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.9.9",
       "sweepsSinceComment" : 0
     },
@@ -2586,15 +2799,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.2.10",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.2.12",
       "sweepsSinceComment" : 0
     },
     "github:CherryHQ\/cherry-studio:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.1.6",
       "sweepsSinceComment" : 0
     },
@@ -2602,7 +2815,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.0.238",
       "sweepsSinceComment" : 0
     },
@@ -2610,7 +2823,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "11.18",
       "sweepsSinceComment" : 0
     },
@@ -2618,7 +2831,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.1.4",
       "sweepsSinceComment" : 0
     },
@@ -2626,7 +2839,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.3.9",
       "sweepsSinceComment" : 0
     },
@@ -2634,23 +2847,31 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "13.3.1",
+      "sweepsSinceComment" : 0
+    },
+    "github:Kruszoneq\/macUSB:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2.5",
       "sweepsSinceComment" : 0
     },
     "github:KunAgent\/Kun:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.4.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.4.1",
       "sweepsSinceComment" : 0
     },
     "github:Kyle-Ye\/SwiftyDownloadManager:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.6.0",
       "sweepsSinceComment" : 0
     },
@@ -2658,7 +2879,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.2.6",
       "sweepsSinceComment" : 0
     },
@@ -2666,15 +2887,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.36.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.37.0",
+      "sweepsSinceComment" : 0
+    },
+    "github:MrKai77\/Loop:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.4.2",
       "sweepsSinceComment" : 0
     },
     "github:MuhammedKalkan\/OpenLens:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "6.5.2-366",
       "sweepsSinceComment" : 0
     },
@@ -2682,7 +2911,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "6.0.3",
       "sweepsSinceComment" : 0
     },
@@ -2690,15 +2919,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.0.26",
+      "sweepsSinceComment" : 0
+    },
+    "github:TermiT\/Flycut:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.9.6",
       "sweepsSinceComment" : 0
     },
     "github:TuringSoftware\/CrystalFetch:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.2.0",
       "sweepsSinceComment" : 0
     },
@@ -2706,7 +2943,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.140.06829-insider",
       "sweepsSinceComment" : 0
     },
@@ -2714,7 +2951,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.140.06880",
       "sweepsSinceComment" : 0
     },
@@ -2722,7 +2959,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.8.6",
       "sweepsSinceComment" : 0
     },
@@ -2730,31 +2967,55 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.4.1",
+      "sweepsSinceComment" : 0
+    },
+    "github:Zettlr\/Zettlr:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "4.8.0",
+      "sweepsSinceComment" : 0
+    },
+    "github:Zettlr\/Zettlr:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "4.8.0",
+      "sweepsSinceComment" : 0
+    },
+    "github:Zettlr\/Zettlr:stable:www" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "4.8.0",
       "sweepsSinceComment" : 0
     },
     "github:aaif-goose\/goose:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.54.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.55.0",
       "sweepsSinceComment" : 0
     },
     "github:abue-ammar\/tinycast:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.11.21-beta.120",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.12.0-beta.122",
       "sweepsSinceComment" : 0
     },
     "github:abue-ammar\/tinycast:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.11.19",
       "sweepsSinceComment" : 0
     },
@@ -2762,7 +3023,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.4.0",
       "sweepsSinceComment" : 0
     },
@@ -2770,7 +3031,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.17.0",
       "sweepsSinceComment" : 0
     },
@@ -2778,7 +3039,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "5.4.3",
       "sweepsSinceComment" : 0
     },
@@ -2786,7 +3047,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.6.11",
       "sweepsSinceComment" : 0
     },
@@ -2794,7 +3055,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "26.09.3",
       "sweepsSinceComment" : 0
     },
@@ -2802,7 +3063,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.0.0-rc.15",
       "sweepsSinceComment" : 0
     },
@@ -2810,23 +3071,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.19.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.19.3",
       "sweepsSinceComment" : 0
     },
     "github:anywhere-labs\/dsh-desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "2.0.17",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2.0.18",
       "sweepsSinceComment" : 0
     },
     "github:artginzburg\/MiddleClick:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.3.0",
       "sweepsSinceComment" : 0
     },
@@ -2834,7 +3095,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.7.9",
       "sweepsSinceComment" : 0
     },
@@ -2842,7 +3103,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "4.0.1",
       "sweepsSinceComment" : 0
     },
@@ -2850,7 +3111,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.1.7",
       "sweepsSinceComment" : 0
     },
@@ -2858,7 +3119,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "6.1.6",
       "sweepsSinceComment" : 0
     },
@@ -2866,23 +3127,27 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "2026.9.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2026.10.0",
       "sweepsSinceComment" : 0
     },
     "github:chekusu\/yomado:stable" : {
-      "consecutiveActionable" : 0,
+      "consecutiveActionable" : 11,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "issueNumber" : 1430,
+      "lastCommentedAt" : "2026-10-18T14:33:41Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.3.5",
-      "sweepsSinceComment" : 0
+      "lastSignature" : "installAssetMissing: a newer release has",
+      "previousSignature" : "installAssetMissing: a newer release has",
+      "sweepsSinceComment" : 1
     },
     "github:cjpais\/Handy:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.9.8",
       "sweepsSinceComment" : 0
     },
@@ -2892,7 +3157,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 787,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.5.8",
       "sweepsSinceComment" : 0
     },
@@ -2900,7 +3165,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "7.1.2",
       "sweepsSinceComment" : 0
     },
@@ -2908,7 +3173,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "7.1.2",
       "sweepsSinceComment" : 0
     },
@@ -2916,31 +3181,31 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.9.7",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.10.0",
       "sweepsSinceComment" : 0
     },
     "github:crmne\/spotifast:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.13.2",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.13.3",
       "sweepsSinceComment" : 0
     },
     "github:crmne\/spotifast:stable:fastpotify" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.13.2",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.13.3",
       "sweepsSinceComment" : 0
     },
     "github:cryptomator\/cryptomator:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.19.3",
       "sweepsSinceComment" : 0
     },
@@ -2948,7 +3213,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.5.22",
       "sweepsSinceComment" : 0
     },
@@ -2956,7 +3221,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "5.6.2",
       "sweepsSinceComment" : 0
     },
@@ -2964,7 +3229,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.5.0",
       "sweepsSinceComment" : 0
     },
@@ -2972,7 +3237,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.5.0",
       "sweepsSinceComment" : 0
     },
@@ -2980,15 +3245,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "26.2.2",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "26.2.3",
       "sweepsSinceComment" : 0
     },
     "github:desktop\/desktop:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.6.8-beta2",
       "sweepsSinceComment" : 0
     },
@@ -2996,7 +3261,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.6.7",
       "sweepsSinceComment" : 0
     },
@@ -3004,7 +3269,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.0.5",
       "sweepsSinceComment" : 0
     },
@@ -3012,7 +3277,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.11.1",
       "sweepsSinceComment" : 0
     },
@@ -3020,7 +3285,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.4.1",
       "sweepsSinceComment" : 0
     },
@@ -3028,23 +3293,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "3.0.21",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "3.0.22",
       "sweepsSinceComment" : 0
     },
     "github:farion1231\/cc-switch:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "4.0.12",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "4.0.15",
       "sweepsSinceComment" : 0
     },
     "github:flameshot-org\/flameshot:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "14.0.0",
       "sweepsSinceComment" : 0
     },
@@ -3052,7 +3317,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.10.3",
       "sweepsSinceComment" : 0
     },
@@ -3060,7 +3325,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.3.0",
       "sweepsSinceComment" : 0
     },
@@ -3068,23 +3333,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.11.2",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.11.4",
       "sweepsSinceComment" : 0
     },
     "github:github\/app:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.1.29",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.1.30",
       "sweepsSinceComment" : 0
     },
     "github:godotengine\/godot:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "4.7.2",
       "sweepsSinceComment" : 0
     },
@@ -3092,15 +3357,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.1.2",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.1.3",
       "sweepsSinceComment" : 0
     },
     "github:iebb\/petex:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.0.12",
       "sweepsSinceComment" : 0
     },
@@ -3108,15 +3373,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.19.3.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.19.4.1",
       "sweepsSinceComment" : 0
     },
     "github:janhq\/jan:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.8.6",
       "sweepsSinceComment" : 0
     },
@@ -3124,15 +3389,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "32.4.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "32.5.5",
       "sweepsSinceComment" : 0
     },
     "github:johnste\/finicky:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "4.2.2",
       "sweepsSinceComment" : 0
     },
@@ -3140,7 +3405,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.7.12",
       "sweepsSinceComment" : 0
     },
@@ -3148,7 +3413,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.45.0",
       "sweepsSinceComment" : 0
     },
@@ -3156,7 +3421,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.49.2",
       "sweepsSinceComment" : 0
     },
@@ -3164,15 +3429,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.45.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.46.0",
       "sweepsSinceComment" : 0
     },
     "github:leits\/MeetingBar:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "4.11.6",
       "sweepsSinceComment" : 0
     },
@@ -3180,7 +3445,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.18.2",
       "sweepsSinceComment" : 0
     },
@@ -3188,7 +3453,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.4.5",
       "sweepsSinceComment" : 0
     },
@@ -3196,47 +3461,55 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.1.109",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.1.110",
       "sweepsSinceComment" : 0
     },
     "github:makecindy\/cindy:beta:global" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.1.109",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.1.110",
       "sweepsSinceComment" : 0
     },
     "github:makecindy\/cindy:stable:cn" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.1.109",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.1.110",
       "sweepsSinceComment" : 0
     },
     "github:makecindy\/cindy:stable:global" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.1.109",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.1.110",
       "sweepsSinceComment" : 0
     },
     "github:marktext\/marktext:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.21.2",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.22.0",
+      "sweepsSinceComment" : 0
+    },
+    "github:matryer\/xbar:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2.1.7-beta",
       "sweepsSinceComment" : 0
     },
     "github:matt1398\/claude-devtools:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.5.0",
       "sweepsSinceComment" : 0
     },
@@ -3244,15 +3517,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "4.0.0",
+      "sweepsSinceComment" : 0
+    },
+    "github:metabrainz\/picard:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "3.0.2",
       "sweepsSinceComment" : 0
     },
     "github:momenbasel\/PureMac:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.1.0",
       "sweepsSinceComment" : 0
     },
@@ -3260,7 +3541,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "6.2.0",
       "sweepsSinceComment" : 0
     },
@@ -3268,7 +3549,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2026.9.0-beta.4",
       "sweepsSinceComment" : 0
     },
@@ -3276,7 +3557,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2026.9.0",
       "sweepsSinceComment" : 0
     },
@@ -3284,15 +3565,47 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.3.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.4.1",
+      "sweepsSinceComment" : 0
+    },
+    "github:mullvad\/mullvad-browser:alpha" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "16.0a13",
+      "sweepsSinceComment" : 0
+    },
+    "github:mullvad\/mullvad-browser:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "15.0.25",
+      "sweepsSinceComment" : 0
+    },
+    "github:musescore\/MuseScore:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "4.7.5",
+      "sweepsSinceComment" : 0
+    },
+    "github:nekohasekai\/open-screen-sharing:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.0.1",
       "sweepsSinceComment" : 0
     },
     "github:neovide\/neovide:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.16.2",
       "sweepsSinceComment" : 0
     },
@@ -3300,79 +3613,103 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.6.8",
+      "sweepsSinceComment" : 0
+    },
+    "github:objective-see\/KnockKnock:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "4.1.0",
       "sweepsSinceComment" : 0
     },
     "github:objective-see\/LuLu:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "4.5.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "4.5.2",
+      "sweepsSinceComment" : 0
+    },
+    "github:oldj\/SwitchHosts:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.0.3-beta.3",
+      "sweepsSinceComment" : 0
+    },
+    "github:oldj\/SwitchHosts:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.0.2",
       "sweepsSinceComment" : 0
     },
     "github:ollama\/ollama:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.40.4",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.40.6",
       "sweepsSinceComment" : 0
     },
     "github:openchamber\/openchamber:preview" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "2.3.3",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2.4.0",
       "sweepsSinceComment" : 0
     },
     "github:openchamber\/openchamber:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "2.3.3",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2.4.0",
       "sweepsSinceComment" : 0
     },
     "github:opengeos\/RustGIS:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.2.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.3.0",
       "sweepsSinceComment" : 0
     },
     "github:penso\/herdr-gpui:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "20261014.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "20261016.1",
       "sweepsSinceComment" : 0
     },
     "github:pingdotgg\/t3code:alpha" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.0.45",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.1.0",
       "sweepsSinceComment" : 0
     },
     "github:pingdotgg\/t3code:nightly" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.0.46-nightly.20261015.3158",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.1.1-nightly.20261018.3315",
       "sweepsSinceComment" : 0
     },
     "github:podman-desktop\/podman-desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.30.5",
       "sweepsSinceComment" : 0
     },
@@ -3380,7 +3717,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "5.2.4",
       "sweepsSinceComment" : 0
     },
@@ -3388,7 +3725,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.7.4",
       "sweepsSinceComment" : 0
     },
@@ -3396,7 +3733,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.24.0",
       "sweepsSinceComment" : 0
     },
@@ -3404,7 +3741,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "v2.0.12",
       "sweepsSinceComment" : 0
     },
@@ -3412,7 +3749,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.8.0",
       "sweepsSinceComment" : 0
     },
@@ -3420,15 +3757,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.6.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.7.0",
       "sweepsSinceComment" : 0
     },
     "github:rustdesk\/rustdesk:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.5.0",
       "sweepsSinceComment" : 0
     },
@@ -3436,7 +3773,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3000.0.7",
       "sweepsSinceComment" : 0
     },
@@ -3444,7 +3781,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.13.1",
       "sweepsSinceComment" : 0
     },
@@ -3452,7 +3789,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.1.0",
       "sweepsSinceComment" : 0
     },
@@ -3460,63 +3797,63 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.8.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.9.0",
       "sweepsSinceComment" : 0
     },
     "github:storytold\/effectcraft:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.10.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.11.1",
       "sweepsSinceComment" : 0
     },
     "github:storytold\/filmcraft:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.8.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.9.0",
       "sweepsSinceComment" : 0
     },
     "github:storytold\/lightcraft:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.8.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.9.1",
       "sweepsSinceComment" : 0
     },
     "github:storytold\/pdfcraft:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.8.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.9.0",
       "sweepsSinceComment" : 0
     },
     "github:storytold\/photocraft:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.9.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.10.0",
       "sweepsSinceComment" : 0
     },
     "github:storytold\/vectorcraft:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.11.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.13.1",
       "sweepsSinceComment" : 0
     },
     "github:swiftbar\/SwiftBar:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.1.1",
       "sweepsSinceComment" : 0
     },
@@ -3524,7 +3861,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.4.2",
       "sweepsSinceComment" : 0
     },
@@ -3532,7 +3869,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.11.0",
       "sweepsSinceComment" : 0
     },
@@ -3540,7 +3877,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.5",
       "sweepsSinceComment" : 0
     },
@@ -3548,7 +3885,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.2.5",
       "sweepsSinceComment" : 0
     },
@@ -3558,7 +3895,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 947,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.30.5",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "versionPatternNoMatch"
@@ -3567,15 +3904,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.35.4",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.36.0",
       "sweepsSinceComment" : 0
     },
     "github:upscayl\/upscayl:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.15.0",
       "sweepsSinceComment" : 0
     },
@@ -3583,7 +3920,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "4.2.1",
       "sweepsSinceComment" : 0
     },
@@ -3593,31 +3930,31 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 559,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "5.0.6",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.0.8",
       "sweepsSinceComment" : 0
     },
     "github:utmapp\/UTM:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "4.7.5",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.0.8",
       "sweepsSinceComment" : 0
     },
     "github:vorssaint\/vorssaint-utils:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "3.4.1-beta.5",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "3.4.2-beta.1",
       "sweepsSinceComment" : 0
     },
     "github:vorssaint\/vorssaint-utils:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.4.1",
       "sweepsSinceComment" : 0
     },
@@ -3647,7 +3984,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.13.2",
       "sweepsSinceComment" : 0
     },
@@ -3655,15 +3992,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.1.1255",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.1.1288",
       "sweepsSinceComment" : 0
     },
     "github:zaproxy\/zaproxy:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.17.0",
       "sweepsSinceComment" : 0
     },
@@ -3671,7 +4008,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.25.0",
       "sweepsSinceComment" : 0
     },
@@ -3679,7 +4016,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.24.2",
       "sweepsSinceComment" : 0
     },
@@ -3687,32 +4024,32 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.23.2b",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.23.3b",
       "sweepsSinceComment" : 0
     },
     "mygo:app.getmoshi.desktop" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.5.19",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.5.23",
       "sweepsSinceComment" : 0
     },
     "mygo:com.egoist.pulse" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.1.15",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.1.28",
       "sweepsSinceComment" : 0
     },
     "mygo:dev.leafmark.app" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.9.2",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.9.3",
       "sweepsSinceComment" : 0
     },
     "pkgarch:cc.ffitch.shottr:stable" : {
@@ -3829,6 +4166,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "pkgarch:io.nekohasekai.screensharing:nightly" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "pkgarch:io.tailscale.ipn.macsys:rc" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -3847,11 +4190,19 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "vendor:Jellyfin.Server:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "12.2",
+      "sweepsSinceComment" : 0
+    },
     "vendor:MstyStudio:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.9.12",
       "sweepsSinceComment" : 0
     },
@@ -3859,7 +4210,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.4.26",
       "sweepsSinceComment" : 0
     },
@@ -3867,8 +4218,8 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "2026.10.12-1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2026.10.15-1",
       "sweepsSinceComment" : 0
     },
     "vendor:ai.perplexity.comet:stable" : {
@@ -3877,7 +4228,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 920,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "154.0.8037.179",
       "sweepsSinceComment" : 0
     },
@@ -3885,7 +4236,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "26.9.1",
       "sweepsSinceComment" : 0
     },
@@ -3893,8 +4244,8 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.5.19",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.5.23",
       "sweepsSinceComment" : 0
     },
     "vendor:at.obdev.littlesnitch:nightly" : {
@@ -3903,7 +4254,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 861,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "6.5.1",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "versionPatternNoMatch"
@@ -3914,7 +4265,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 862,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "6.5",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "entryPatternNoMatch"
@@ -3923,7 +4274,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.0.928.1",
       "sweepsSinceComment" : 0
     },
@@ -3931,7 +4282,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.0.23-beta.1",
       "sweepsSinceComment" : 0
     },
@@ -3939,15 +4290,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.0.46",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.0.48",
       "sweepsSinceComment" : 0
     },
     "vendor:cc.ffitch.shottr:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.9.3",
       "sweepsSinceComment" : 0
     },
@@ -3955,15 +4306,39 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "8.12.40",
+      "sweepsSinceComment" : 0
+    },
+    "vendor:com.ScooterSoftware.BeyondCompare:stable:bc4" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "4.4.7.28397",
+      "sweepsSinceComment" : 0
+    },
+    "vendor:com.ScooterSoftware.BeyondCompare:stable:bc5" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.2.6.32774",
+      "sweepsSinceComment" : 0
+    },
+    "vendor:com.Snipaste:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2.11.3",
       "sweepsSinceComment" : 0
     },
     "vendor:com.aionui.app:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.2.2",
       "sweepsSinceComment" : 0
     },
@@ -3971,23 +4346,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.33.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.34.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.anthropic.claudefordesktop:stable:ga" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "2.37337.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2.42304.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.anthropic.claudefordesktop:stable:rollout" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.46388.4",
       "sweepsSinceComment" : 0
     },
@@ -3995,7 +4370,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.71.2",
       "sweepsSinceComment" : 0
     },
@@ -4003,15 +4378,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.18.0",
+      "sweepsSinceComment" : 0
+    },
+    "vendor:com.axosoft.gitkraken:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "12.6.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.baidu.BaiduNetdisk-mac:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "8.9.2",
       "sweepsSinceComment" : 0
     },
@@ -4021,7 +4404,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 713,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "7.50",
       "sweepsSinceComment" : 0
     },
@@ -4031,8 +4414,8 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 612,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "7.2.2-b4",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "7.2.2",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "versionPatternNoMatch"
     },
@@ -4040,7 +4423,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "5.1.28",
       "sweepsSinceComment" : 0
     },
@@ -4048,7 +4431,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "6.1.13",
       "sweepsSinceComment" : 0
     },
@@ -4056,24 +4439,26 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "7.2.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "7.2.2",
       "sweepsSinceComment" : 0
     },
     "vendor:com.brave.Browser.beta:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.99.44.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.brave.Browser.nightly:nightly" : {
+      "closedAt" : "2026-10-18T14:33:44Z",
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.99.41.0",
+      "issueNumber" : 1354,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.100.5.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.bytedance.inputmethod.doubaoime:stable" : {
@@ -4082,7 +4467,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1178,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.0.2",
       "sweepsSinceComment" : 0
     },
@@ -4090,7 +4475,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.126.1",
       "sweepsSinceComment" : 0
     },
@@ -4098,23 +4483,31 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.90.2",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.91.1",
       "sweepsSinceComment" : 0
     },
     "vendor:com.corecode.MacUpdater:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.5.0",
+      "sweepsSinceComment" : 0
+    },
+    "vendor:com.cu4uc.mounty:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2.4",
       "sweepsSinceComment" : 0
     },
     "vendor:com.docker.docker:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "4.95.0",
       "sweepsSinceComment" : 0
     },
@@ -4122,7 +4515,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2026.10.121159-latest",
       "sweepsSinceComment" : 0
     },
@@ -4130,15 +4523,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.6.1147",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.6.1174",
       "sweepsSinceComment" : 0
     },
     "vendor:com.exafunction.windsurf:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.10.67",
       "sweepsSinceComment" : 0
     },
@@ -4146,7 +4539,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "126.9.13",
       "sweepsSinceComment" : 0
     },
@@ -4154,7 +4547,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "126.11.2",
       "sweepsSinceComment" : 0
     },
@@ -4164,7 +4557,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 747,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "274.4.4905",
       "sweepsSinceComment" : 0
     },
@@ -4172,47 +4565,47 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "156.0.8078.12",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "157.0.8103.6",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.Chrome.canary:canary" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "158.0.8106.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "158.0.8110.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.Chrome.dev:dev" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "157.0.8092.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "158.0.8106.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.Chrome:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "155.0.8059.80",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "155.0.8059.85",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.GeminiMacOS:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.128.14.1166",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.131.4.1198",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.android.studio:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2026.2.1 RC 2",
       "sweepsSinceComment" : 0
     },
@@ -4220,23 +4613,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "2026.2.2 Canary 4",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2026.2.2 Canary 5",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.android.studio:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "2026.2.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2026.2.1.8",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.antigravity-ide:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.5.5",
       "sweepsSinceComment" : 0
     },
@@ -4244,15 +4637,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "2.23.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2.24.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.granola.app:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "7.663.2",
       "sweepsSinceComment" : 0
     },
@@ -4260,7 +4653,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.7.9",
       "sweepsSinceComment" : 0
     },
@@ -4268,7 +4661,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.0.416",
       "sweepsSinceComment" : 0
     },
@@ -4276,31 +4669,31 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.0.1383",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.0.1400",
       "sweepsSinceComment" : 0
     },
     "vendor:com.hnc.DiscordPTB:ptb" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.0.264",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.0.265",
       "sweepsSinceComment" : 0
     },
     "vendor:com.jetbrains.intellij-EAP:preview" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "263.6800.24",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "263.7031.23",
       "sweepsSinceComment" : 0
     },
     "vendor:com.jetbrains.intellij:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2026.2.3",
       "sweepsSinceComment" : 0
     },
@@ -4308,7 +4701,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.8.1.88030",
       "sweepsSinceComment" : 0
     },
@@ -4316,21 +4709,21 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.1.3",
       "sweepsSinceComment" : 0
     },
     "vendor:com.lemon.lvoverseas:beta" : {
-      "consecutiveActionable" : 56,
+      "consecutiveActionable" : 69,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 427,
-      "lastCommentedAt" : "2026-10-09T02:30:22Z",
+      "lastCommentedAt" : "2026-10-18T14:33:45Z",
       "lastGoodAt" : "2026-09-28T02:20:40Z",
       "lastGoodVersion" : "9.6.0-beta5",
       "lastSignature" : "version went BACKWARDS since the last sw",
       "previousSignature" : "version went BACKWARDS since the last sw",
-      "sweepsSinceComment" : 26,
+      "sweepsSinceComment" : 1,
       "triagedSignature" : "versionPatternNoMatch"
     },
     "vendor:com.lemon.lvoverseas:stable" : {
@@ -4339,7 +4732,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 447,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "9.5.0",
       "sweepsSinceComment" : 0
     },
@@ -4347,7 +4740,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.0.0-preview.3",
       "sweepsSinceComment" : 0
     },
@@ -4355,7 +4748,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.0.0",
       "sweepsSinceComment" : 0
     },
@@ -4363,7 +4756,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "4.3.9",
       "sweepsSinceComment" : 0
     },
@@ -4371,7 +4764,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "4.0",
       "sweepsSinceComment" : 0
     },
@@ -4379,23 +4772,27 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "16.114.26101123",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.OneDrive:stable" : {
-      "consecutiveActionable" : 0,
+      "consecutiveActionable" : 9,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "issueNumber" : 1431,
+      "lastCommentedAt" : "2026-10-18T14:33:48Z",
+      "lastGoodAt" : "2026-10-16T14:22:48Z",
       "lastGoodVersion" : "26.173.0906",
-      "sweepsSinceComment" : 0
+      "lastSignature" : "version went BACKWARDS since the last sw",
+      "previousSignature" : "version went BACKWARDS since the last sw",
+      "sweepsSinceComment" : 1
     },
     "vendor:com.microsoft.Outlook:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "16.114.26101123",
       "sweepsSinceComment" : 0
     },
@@ -4403,7 +4800,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "16.114.26101123",
       "sweepsSinceComment" : 0
     },
@@ -4411,7 +4808,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.142.0",
       "sweepsSinceComment" : 0
     },
@@ -4419,7 +4816,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.143.0-insider",
       "sweepsSinceComment" : 0
     },
@@ -4427,7 +4824,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "16.114.26101123",
       "sweepsSinceComment" : 0
     },
@@ -4435,15 +4832,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "156.0.4314.23",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "156.0.4314.30",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.edgemac.Dev:dev" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "157.0.4334.0",
       "sweepsSinceComment" : 0
     },
@@ -4451,15 +4848,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "155.0.4283.45",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "155.0.4283.62",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.m365copilot:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.2609.2301",
       "sweepsSinceComment" : 0
     },
@@ -4467,7 +4864,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "16.114.26101123",
       "sweepsSinceComment" : 0
     },
@@ -4475,7 +4872,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "26261.303.5165.1465",
       "sweepsSinceComment" : 0
     },
@@ -4483,23 +4880,25 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.53.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.netease.uuremote:stable" : {
+      "closedAt" : "2026-10-18T20:32:05Z",
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "4.43.0",
+      "issueNumber" : 1432,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "4.43.1",
       "sweepsSinceComment" : 0
     },
     "vendor:com.openai.chat:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.2026.184",
       "sweepsSinceComment" : 0
     },
@@ -4507,23 +4906,31 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "26.1007.71326",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "26.1013.40934",
       "sweepsSinceComment" : 0
     },
     "vendor:com.operasoftware.Opera:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "137.0.6036.63",
+      "sweepsSinceComment" : 0
+    },
+    "vendor:com.oracle.mysqlworkbench:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "26.7.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.oray.sunlogin.macclient:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "16.6.0.32198",
       "sweepsSinceComment" : 0
     },
@@ -4531,7 +4938,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "9.8.1",
       "sweepsSinceComment" : 0
     },
@@ -4539,15 +4946,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "12.32.3",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "12.32.4",
       "sweepsSinceComment" : 0
     },
     "vendor:com.qianwen.inputmethod.desktopime:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.2.35",
       "sweepsSinceComment" : 0
     },
@@ -4555,7 +4962,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.4.8",
       "sweepsSinceComment" : 0
     },
@@ -4563,15 +4970,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.33.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.34.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.raycast.macos:stable:v1" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.104.31",
       "sweepsSinceComment" : 0
     },
@@ -4579,15 +4986,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "2.8.0.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2.8.2.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.runningwithcrayons.Alfred:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "5.8.1",
       "sweepsSinceComment" : 0
     },
@@ -4595,7 +5002,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "5.8.1",
       "sweepsSinceComment" : 0
     },
@@ -4603,7 +5010,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "6.25.1.11973",
       "sweepsSinceComment" : 0
     },
@@ -4611,15 +5018,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.3.5.3058",
+      "sweepsSinceComment" : 0
+    },
+    "vendor:com.stremio.stremio-shell-macos:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.1.28",
       "sweepsSinceComment" : 0
     },
     "vendor:com.sublimemerge:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "Build 2132",
       "sweepsSinceComment" : 0
     },
@@ -4627,7 +5042,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "Build 4215",
       "sweepsSinceComment" : 0
     },
@@ -4635,7 +5050,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "6.6.2",
       "sweepsSinceComment" : 0
     },
@@ -4643,7 +5058,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "5.2.2",
       "sweepsSinceComment" : 0
     },
@@ -4653,7 +5068,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 450,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "7.3.1",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "versionPatternNoMatch"
@@ -4662,7 +5077,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "11.10.5",
       "sweepsSinceComment" : 0
     },
@@ -4672,8 +5087,8 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 22,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "2.2.3",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "3.0.0",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "remote is BEHIND the installed copy (647"
     },
@@ -4681,15 +5096,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "2.02.2610142",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2.02.2610162",
       "sweepsSinceComment" : 0
     },
     "vendor:com.tencent.wechatdevtools:rc" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.02.2609231",
       "sweepsSinceComment" : 0
     },
@@ -4697,7 +5112,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.02.2608080",
       "sweepsSinceComment" : 0
     },
@@ -4705,23 +5120,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "5.8.2",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.8.3",
       "sweepsSinceComment" : 0
     },
     "vendor:com.tencent.workbuddy.mac:stable:x64" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "5.8.2",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.8.3",
       "sweepsSinceComment" : 0
     },
     "vendor:com.tencent.xinWeChat:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "4.1.15",
       "sweepsSinceComment" : 0
     },
@@ -4729,7 +5144,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "10.2.1",
       "sweepsSinceComment" : 0
     },
@@ -4737,7 +5152,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "10.2.1",
       "sweepsSinceComment" : 0
     },
@@ -4745,7 +5160,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.16.2",
       "sweepsSinceComment" : 0
     },
@@ -4753,7 +5168,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "4.52.178",
       "sweepsSinceComment" : 0
     },
@@ -4761,8 +5176,8 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "3.25.6",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "3.25.9",
       "sweepsSinceComment" : 0
     },
     "vendor:com.trae.app:stable:arm64" : {
@@ -4771,7 +5186,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1113,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.6.2",
       "sweepsSinceComment" : 0
     },
@@ -4781,7 +5196,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1114,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.6.2",
       "sweepsSinceComment" : 0
     },
@@ -4789,7 +5204,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.22.3",
       "sweepsSinceComment" : 0
     },
@@ -4797,15 +5212,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "8.3.4185.3",
+      "sweepsSinceComment" : 0
+    },
+    "vendor:com.westbridge.stremio5-mac:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.1.28",
       "sweepsSinceComment" : 0
     },
     "vendor:com.windscribe.client:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.24.12",
       "sweepsSinceComment" : 0
     },
@@ -4813,7 +5236,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.25.2",
       "sweepsSinceComment" : 0
     },
@@ -4821,31 +5244,43 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.24.12",
       "sweepsSinceComment" : 0
     },
     "vendor:com.workbuddy.workbuddy-ai:stable:arm64" : {
-      "closedAt" : "2026-09-18T08:25:34Z",
-      "consecutiveActionable" : 0,
+      "consecutiveActionable" : 10,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "issueNumber" : 737,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "5.7.6",
-      "sweepsSinceComment" : 0,
+      "issueNumber" : 1433,
+      "lastCommentedAt" : "2026-10-18T14:33:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.8.4",
+      "lastSignature" : "installURLUnresolved",
+      "previousSignature" : "installURLUnresolved",
+      "sweepsSinceComment" : 1,
       "triagedSignature" : "Homebrew's cask `workbuddy-ai` is at 5.5|installURLNotFound: HTTP 404 from codebu|version went BACKWARDS since the last sw"
     },
     "vendor:com.workbuddy.workbuddy-ai:stable:x64" : {
-      "closedAt" : "2026-09-18T08:25:35Z",
+      "consecutiveActionable" : 10,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "issueNumber" : 1434,
+      "lastCommentedAt" : "2026-10-18T14:33:56Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.8.4",
+      "lastSignature" : "installURLUnresolved",
+      "previousSignature" : "installURLUnresolved",
+      "sweepsSinceComment" : 1,
+      "triagedSignature" : "Homebrew's cask `workbuddy-ai` is at 5.5|installURLNotFound: HTTP 404 from codebu|version went BACKWARDS since the last sw"
+    },
+    "vendor:com.xk72.Charles:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "issueNumber" : 738,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "5.7.6",
-      "sweepsSinceComment" : 0,
-      "triagedSignature" : "Homebrew's cask `workbuddy-ai` is at 5.5|installURLNotFound: HTTP 404 from codebu|version went BACKWARDS since the last sw"
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.2.2",
+      "sweepsSinceComment" : 0
     },
     "vendor:com.youqu.todesk.mac:stable" : {
       "closedAt" : "2026-10-09T02:30:23Z",
@@ -4853,8 +5288,8 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 646,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "5.2.1.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.2.2.0",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "remote is BEHIND the installed copy (4.1"
     },
@@ -4862,15 +5297,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "9cd78956",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "15aae8f8",
       "sweepsSinceComment" : 0
     },
     "vendor:dev.commandline.waveterm:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.14.5",
       "sweepsSinceComment" : 0
     },
@@ -4878,23 +5313,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "b361",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "b420",
       "sweepsSinceComment" : 0
     },
     "vendor:dev.hyperframes.desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "b356",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "b420",
       "sweepsSinceComment" : 0
     },
     "vendor:dev.kdrag0n.MacVirt:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.2.4",
       "sweepsSinceComment" : 0
     },
@@ -4902,7 +5337,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.2.4",
       "sweepsSinceComment" : 0
     },
@@ -4910,7 +5345,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.2.4",
       "sweepsSinceComment" : 0
     },
@@ -4918,15 +5353,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.3.0",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.3.11",
       "sweepsSinceComment" : 0
     },
     "vendor:dev.kitten.Kitten-Preview:preview" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.1.1",
       "sweepsSinceComment" : 0
     },
@@ -4934,47 +5369,55 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.2026.10.15.08.27.00",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.2026.10.18.08.22.00",
       "sweepsSinceComment" : 0
     },
     "vendor:dev.warp.Warp-Preview:preview" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.2026.10.07.08.29.00",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.2026.10.14.08.27.01",
       "sweepsSinceComment" : 0
     },
     "vendor:dev.warp.Warp-Stable:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "0.2026.10.07.08.29.00",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "0.2026.10.14.08.27.01",
+      "sweepsSinceComment" : 0
+    },
+    "vendor:eu.davidbures.cork:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2.0.3",
       "sweepsSinceComment" : 0
     },
     "vendor:im.riot.app:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "1.12.31",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.12.32",
       "sweepsSinceComment" : 0
     },
     "vendor:im.riot.nightly:nightly" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "2026101501",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "2026101801",
       "sweepsSinceComment" : 0
     },
     "vendor:io.dcloud.HBuilderX:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "5.26.2026091802",
       "sweepsSinceComment" : 0
     },
@@ -4982,15 +5425,23 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "5.31.2026093020-alpha",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.32.2026101609-alpha",
+      "sweepsSinceComment" : 0
+    },
+    "vendor:io.nekohasekai.screensharing:nightly" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "1.0.1",
       "sweepsSinceComment" : 0
     },
     "vendor:io.tailscale.ipn.macsys:rc" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.104.1",
       "sweepsSinceComment" : 0
     },
@@ -4998,7 +5449,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.104.1",
       "sweepsSinceComment" : 0
     },
@@ -5006,7 +5457,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.105.59",
       "sweepsSinceComment" : 0
     },
@@ -5014,7 +5465,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.8.4-5203",
       "sweepsSinceComment" : 0
     },
@@ -5022,7 +5473,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "0.8.4-5203",
       "sweepsSinceComment" : 0
     },
@@ -5030,7 +5481,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.14.4",
       "sweepsSinceComment" : 0
     },
@@ -5038,7 +5489,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "9.16.0",
       "sweepsSinceComment" : 0
     },
@@ -5046,7 +5497,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "158.0",
       "sweepsSinceComment" : 0
     },
@@ -5054,7 +5505,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.9.3",
       "sweepsSinceComment" : 0
     },
@@ -5062,7 +5513,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.8.1",
       "sweepsSinceComment" : 0
     },
@@ -5070,58 +5521,55 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "26.41.14",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "26.41.28",
       "sweepsSinceComment" : 0
     },
     "vendor:notion.id:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "7.38.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "7.39.0",
       "sweepsSinceComment" : 0
     },
     "vendor:now.typeless.desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "2.8.2",
       "sweepsSinceComment" : 0
     },
     "vendor:org.blenderfoundation.blender:alpha" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 1,
+      "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "infraSince" : "2026-10-15T14:32:54Z",
-      "lastGoodAt" : "2026-10-15T08:33:04Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "5.4.0",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 0
     },
     "vendor:org.blenderfoundation.blender:beta" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 1,
+      "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "infraSince" : "2026-10-15T14:32:54Z",
-      "lastGoodAt" : "2026-10-15T08:33:04Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "5.3.0",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 0
     },
     "vendor:org.blenderfoundation.blender:rc" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 1,
+      "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "infraSince" : "2026-10-15T14:32:54Z",
-      "lastGoodAt" : "2026-10-15T08:33:04Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "5.2.3",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 0
     },
     "vendor:org.blenderfoundation.blender:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "5.2.2",
       "sweepsSinceComment" : 0
     },
@@ -5131,7 +5579,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1254,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "4.3.6",
       "sweepsSinceComment" : 0
     },
@@ -5139,7 +5587,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.2.6",
       "sweepsSinceComment" : 0
     },
@@ -5147,7 +5595,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.22.3+105",
       "sweepsSinceComment" : 0
     },
@@ -5155,7 +5603,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "31.1",
       "sweepsSinceComment" : 0
     },
@@ -5163,24 +5611,39 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "5.0.2",
       "sweepsSinceComment" : 0
     },
     "vendor:org.inkscape.Inkscape:stable" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 3,
+      "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "infraSince" : "2026-10-15T02:22:37Z",
-      "lastGoodAt" : "2026-10-14T20:32:05Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.4.4",
-      "sweepsSinceComment" : 3
+      "sweepsSinceComment" : 0
+    },
+    "vendor:org.krita:stable:download-page" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "5.3.4",
+      "sweepsSinceComment" : 0
+    },
+    "vendor:org.krita:stable:krita6" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "6.0.4",
+      "sweepsSinceComment" : 0
     },
     "vendor:org.libreoffice.script:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "26.8.1",
       "sweepsSinceComment" : 0
     },
@@ -5188,15 +5651,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "159.0b2",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "159.0b3",
       "sweepsSinceComment" : 0
     },
     "vendor:org.mozilla.firefox:esr" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "153.5.0esr",
       "sweepsSinceComment" : 0
     },
@@ -5204,7 +5667,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "158.0",
       "sweepsSinceComment" : 0
     },
@@ -5212,15 +5675,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "159.0b2",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "159.0b3",
       "sweepsSinceComment" : 0
     },
     "vendor:org.mozilla.nightly:nightly" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "160.0a1",
       "sweepsSinceComment" : 0
     },
@@ -5228,7 +5691,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "160.0a1",
       "sweepsSinceComment" : 0
     },
@@ -5236,7 +5699,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "153.5.0esr",
       "sweepsSinceComment" : 0
     },
@@ -5244,7 +5707,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "158.0",
       "sweepsSinceComment" : 0
     },
@@ -5252,7 +5715,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "159.0b2",
       "sweepsSinceComment" : 0
     },
@@ -5260,7 +5723,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "9.18",
       "sweepsSinceComment" : 0
     },
@@ -5268,7 +5731,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "15.0.25",
       "sweepsSinceComment" : 0
     },
@@ -5276,7 +5739,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "3.0.24",
       "sweepsSinceComment" : 0
     },
@@ -5284,15 +5747,15 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
-      "lastGoodVersion" : "8.31.0-beta.1",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
+      "lastGoodVersion" : "8.32.0-beta.1",
       "sweepsSinceComment" : 0
     },
     "vendor:org.whispersystems.signal-desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "8.31.0",
       "sweepsSinceComment" : 0
     },
@@ -5302,7 +5765,7 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 8,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "10.0.6",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "versionPatternNoMatch"
@@ -5311,7 +5774,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.115.0",
       "sweepsSinceComment" : 0
     },
@@ -5319,11 +5782,11 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-10-15T14:32:54Z",
+      "lastGoodAt" : "2026-10-18T20:31:59Z",
       "lastGoodVersion" : "1.23.5",
       "sweepsSinceComment" : 0
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-15T14:32:54Z"
+  "updatedAt" : "2026-10-18T20:32:05Z"
 }

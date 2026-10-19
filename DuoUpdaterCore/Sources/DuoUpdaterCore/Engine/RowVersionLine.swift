@@ -8,6 +8,9 @@ import Foundation
 /// action, so the line must explain the running → on-disk change rather than show
 /// the otherwise-correct, action-less installed ↓ remote note (#210).
 public enum RowVersionLineState: Sendable, Equatable {
+    /// An earlier update was cut off (`RowActionState.interruptedInstall`):
+    /// the version from before it, which the copy on disk may no longer be.
+    case interrupted(oldVersion: String?)
     /// The app's own updater has the current release staged for a relaunch.
     case stagedRelaunch(StagedSelfUpdate)
     /// The app's own updater has an update parked on its quit, but what it staged
@@ -33,6 +36,10 @@ public enum RowVersionLine {
     /// batch deliberately defers that detector until all installs finish, while it
     /// already knows the pre-install marketing version.
     ///
+    /// `interrupted` is the cut-off install of the row's app, when there is
+    /// one — the condition the action ladder's `.interruptedInstall` rung
+    /// reads.
+    ///
     /// `armedWithUnknownVersion` must be the same condition the action ladder
     /// offers the version-less Relaunch on (an armed installer AND an update on
     /// offer), so the line explains the button beside it.
@@ -41,8 +48,11 @@ public enum RowVersionLine {
         armedWithUnknownVersion: Bool,
         pendingBatchRestartMarketing: String?,
         restartFrom: VersionSide?,
-        downgradeVersion: String?
+        downgradeVersion: String?,
+        interrupted: InstallJournal.InterruptedInstall? = nil
     ) -> RowVersionLineState {
+        // First, as the action's rung is above all of these.
+        if let interrupted { return .interrupted(oldVersion: interrupted.oldVersion) }
         if let staged { return .stagedRelaunch(staged) }
         if armedWithUnknownVersion { return .stagedRelaunchVersionUnknown }
         if let from = pendingBatchRestartMarketing {

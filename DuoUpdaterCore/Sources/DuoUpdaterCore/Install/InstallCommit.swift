@@ -55,6 +55,25 @@ public enum InstallCommit {
     /// task-locals — which is what makes a nested `run` a pass-through.
     @TaskLocal static var isInside = false
 
+    /// The running commit's "handed over" mark (`handedOver()`), nil outside one.
+    @TaskLocal private static var handOver: HandOver?
+
+    /// Say, from inside a commit's body, that the install is the third party's
+    /// from here: App Store's offer button is pressed, brew has run. A throw
+    /// after this no longer means "nothing changed" — the job stays committing
+    /// (`InstallJobs`), so the row's Cancel stays greyed through the wrap-up and
+    /// a click is answered "too late". Without it a throw puts the job back to
+    /// preparing, which is right for a swap that rolled itself back. Outside a
+    /// commit it does nothing.
+    public static func handedOver() { handOver?.mark() }
+
+    private final class HandOver: @unchecked Sendable {
+        private let lock = NSLock()
+        private var marked = false
+        func mark() { lock.withLock { marked = true } }
+        var isMarked: Bool { lock.withLock { marked } }
+    }
+
     /// Run `body` as the commit labelled `label` (a short noun for the log and
     /// for `InstallJobs.CancelResult.tooLate`: "swap", "brew upgrade", …).
     ///
@@ -70,14 +89,21 @@ public enum InstallCommit {
     /// value counts like a throw (`InstallJobs`: back to `.preparing`, so a
     /// cancel before the caller's retry is still a cancel); the value is
     /// returned to the caller either way.
+    ///
+    /// A throw lands only when the body said `handedOver()` before it.
     public static func run<T: Sendable>(
         _ label: String,
         landed isLanded: @escaping @Sendable (T) -> Bool = { _ in true },
         _ body: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         if isInside { return try await body() }
-        try Task.checkCancellation()
         let job = InstallJobs.currentID
+        do {
+            try Task.checkCancellation()
+        } catch {
+            InstallJobs.noteRefusedCommit(job)
+            throw error
+        }
         // Throws if the registry already answered a cancel for this job, and
         // marks it committing in the same critical section otherwise.
         try InstallJobs.beginCommit(job, label: label)
@@ -98,9 +124,17 @@ public enum InstallCommit {
                 InstallJobs.endCommit(job, landed: landed)
                 Log.install.debug("commit end: \(label, privacy: .public) landed=\(landed, privacy: .public)")
             }
-            let value = try await $isInside.withValue(true) { try await body() }
-            landed = isLanded(value)
-            return value
+            let handOver = HandOver()
+            do {
+                let value = try await $isInside.withValue(true) {
+                    try await $handOver.withValue(handOver) { try await body() }
+                }
+                landed = isLanded(value)
+                return value
+            } catch {
+                landed = handOver.isMarked
+                throw error
+            }
         }
         return try await task.value
     }

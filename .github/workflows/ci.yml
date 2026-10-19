@@ -209,6 +209,32 @@ jobs:
           echo "waiting ${left}s"
           if [ "$left" -gt 0 ]; then sleep "$left"; fi
 
+      # Then `simdiskimaged` goes, for the rest of the job: nothing here runs a
+      # Simulator, and it ejects disk images Core's tests have just attached. It
+      # unmounts its watchOS runtime disk by BSD name and retries; once that disk
+      # is gone, a test image attached a moment later gets the freed number, and
+      # the retry unmounts and ejects the test's image instead. Seen twice in
+      # the unified log on this runner (macOS 27.0.1, diag run 39156823747,
+      # 2026-10-18): `simdiskimaged` writes `/dev/disk9` and asks storagekitd to
+      # unmount it, "hfs: unmount initiated on ZZFixture on device disk9s2",
+      # then an eject — 0.1 s and 6 s after a test's image took disk9 from the
+      # watchOS runtime. To the test, `attach` succeeded and the volume then
+      # vanished: `noAppFound`, or "not listed as attached". Booted out after
+      # the mounts above (the runtimes stay mounted), in diag run 39162841326:
+      # 0 failed of 30 full Release suites and no such write, against 2 failed
+      # of 30 (both a runner's first suite) and 8 such writes in 5 suites with
+      # it left running; on main's own code (diag run 39168640317), a runner's
+      # first suite failed 4 of 12 times with it running (one a 17-minute hang
+      # in `hdiutil attach`) and 0 of 12 with it stopped. Hosted only: the mini
+      # is a real Mac.
+      - name: Stop simdiskimaged
+        if: runner.environment == 'github-hosted'
+        run: |
+          sudo launchctl disable system/com.apple.CoreSimulator.simdiskimaged || true
+          sudo launchctl bootout system/com.apple.CoreSimulator.simdiskimaged || true
+          sleep 2
+          if pgrep -lf simdiskimaged; then echo "::warning::simdiskimaged is still running"; fi
+
       - name: make test-swift
         # DUO_DOWNLOAD_GATE moves the one test that fetches real vendor builds off
         # a metered connection onto this runner, where egress is free. Measured on
@@ -234,10 +260,17 @@ jobs:
         # Hosted only: on the mini that connection is metered again, and the test
         # itself says SKIPPED when the variable is unset. Same for the Makefile's
         # CORE_TEST_FLAGS (says why there): set only where it is not hosted.
+        #
+        # On a hosted runner, through scripts/run-unclamped.sh too: the runner
+        # clamps every process it starts to utility QoS, and under that clamp the
+        # tests' children wait minutes in the kernel's low-priority I/O throttle.
+        # That was the 120–165 s tail of this step (the script has the numbers).
+        # Outside the hang wrapper, so the wrapper still finds the test process
+        # among its own descendants.
         env:
           DUO_DOWNLOAD_GATE: ${{ runner.environment == 'github-hosted' && '1' || '' }}
           CORE_TEST_FLAGS: ${{ runner.environment != 'github-hosted' && '--skip installPipelineDryRun' || '' }}
-        run: scripts/run-with-hang-report.sh 1800 make test-swift
+        run: ${{ runner.environment == 'github-hosted' && 'scripts/run-unclamped.sh' || '' }} scripts/run-with-hang-report.sh 1800 make test-swift
 
       # After a failed test too: the build itself is sound, and main's failures
       # are mostly tests. Not after a cancel, which can stop a build halfway.
@@ -420,6 +453,15 @@ jobs:
           echo "waiting ${left}s"
           if [ "$left" -gt 0 ]; then sleep "$left"; fi
 
+      # Same as `swift` (see there): `simdiskimaged` ejects test images.
+      - name: Stop simdiskimaged
+        if: runner.environment == 'github-hosted'
+        run: |
+          sudo launchctl disable system/com.apple.CoreSimulator.simdiskimaged || true
+          sudo launchctl bootout system/com.apple.CoreSimulator.simdiskimaged || true
+          sleep 2
+          if pgrep -lf simdiskimaged; then echo "::warning::simdiskimaged is still running"; fi
+
       # Core's tests once more, optimized — the configuration the app ships in.
       # `make test` builds them in debug only, and on 2026-10-02 that let a
       # crash through: Junie's release-notes task group returned nothing and
@@ -434,10 +476,11 @@ jobs:
       # hence `make test-release` rather than a bare `swift test -c release`
       # (DuoUpdaterCore/Package.swift says why). Checked on 2026-10-04 that the
       # Junie abort still reproduces that way.
+      # Unclamped on a hosted runner, as in the swift job's `make test-swift`.
       - name: Core tests (Release)
         env:
           CORE_TEST_FLAGS: ${{ runner.environment != 'github-hosted' && '--skip installPipelineDryRun' || '' }}
-        run: scripts/run-with-hang-report.sh 1200 make test-release
+        run: ${{ runner.environment == 'github-hosted' && 'scripts/run-unclamped.sh' || '' }} scripts/run-with-hang-report.sh 1200 make test-release
 
       # After a failed test too: the build itself is sound, and main's failures
       # are mostly tests. Not after a cancel, which can stop a build halfway.

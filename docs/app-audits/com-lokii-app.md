@@ -7,7 +7,7 @@
 - 签名: **ad-hoc，无 Team ID**（`spctl` rejected）；封印完整（`codesign --verify --deep --strict` 0），
   签名标识 = bundle id
 - 观测版本: 0.1.1（2026-10-06）；观测日期: 2026-10-07
-- 自更新机制: 自带 `AppUpdater`，读 `api.github.com/repos/huangy7/lokii/releases/latest`（二进制字符串）；无 Sparkle
+- 自更新机制: 自带 `AppUpdater`，读 `api.github.com/repos/huangy7/lokii/releases/latest`（二进制字符串）；0.1.2 及以前无 Sparkle，0.1.3 起内嵌 Sparkle（见「历史与实测」）
 - 分发: 只有 GitHub Releases
 - 开源: 是
 
@@ -17,9 +17,9 @@
 
 |            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |------------|---------|----------|-----|--------|-------------|
-| **stable** | —       | —        | —   | ✓      | —           |
+| **stable** | ✓（0.1.3 起） | —        | —   | ✓      | —           |
 
-当前生效源: **GitHub**（channel-verify 实测）。
+当前生效源: 0.1.2 及以前的副本 **GitHub**（channel-verify 实测）；0.1.3 起的副本 **Sparkle**（channel-verify 实测，见「历史与实测」2026-10-19）。
 
 ## 更新检测
 - 源: `huangy7/lokii` GitHub Releases，`/releases/latest`
@@ -58,3 +58,16 @@
 swift run --package-path application-test channel-verify Lokii-arm64.dmg   # 0.1.1 → up to date；0.1.0 → UPDATE → 0.1.1
 gh api repos/huangy7/lokii/releases --jq '.[] | .assets[] | "\(.name) \(.digest)"'   # 对照 shasum -a 256
 ```
+
+## 历史与实测
+
+### 0.1.3 起改用 Sparkle（2026-10-19 实测，#1449）
+
+`duo verify-install` 报 `identityChanged: Sparkle key none → pxrsUMDm…3SXtE=`（记录于 0.1.2，2026-10-13）。
+
+- v0.1.3（2026-10-18）是第一个带 Sparkle 的 release，同时多了 `Lokii-0.1.3-<arch>.zip`（Sparkle enclosure）。厂商仓库 `main` 的 `Lokii/Lokii/Info.plist`：
+  `SUPublicEDKey` = `pxrsUMDmDnkDlrD0UqaLGc8tIGwWuY7xmmVT2G3SXtE=`，`SUFeedURL` = `https://huangy7.github.io/lokii/updates/$(CURRENT_ARCH).xml`（`gh api …/contents/Lokii/Lokii/Info.plist` 读出，与上面的 key 一致）。
+- 0.1.3 arm64 dmg（sha256 与 GitHub digest 一致）：`com.lokii.app` 0.1.3，`CFBundleVersion` 0.1.3（之前恒为 `1`），仍是 ad-hoc 签名、无 Team，`codesign --verify --deep --strict` 退 0；带 `Sparkle.framework`。feed `arm64.xml` 一项 0.1.3，enclosure 的 EdDSA 签名用上述 key 验证通过（子 agent 实测，`openssl pkeyutl -verify`，对照组失败）。
+- 0.1.3 arm64 dmg 里 `SUFeedURL` 已展开为 `https://huangy7.github.io/lokii/updates/arm64.xml`。`channel-verify`（本分支构建）对这份 0.1.3 副本：winning source Sparkle、latest 0.1.3、download `…/v0.1.3/Lokii-0.1.3-arm64.zip`、`up to date`。
+- 处理：`verify/identities.json` 的 `github:huangy7/lokii:stable` 补上 `sparklePublicKey`，接受这次变化。
+- ⚠️ 未处理的缺口：0.1.3 起的副本由 Sparkle 源应答，而 `SparkleInstaller` 用默认 `.developerID` 信任（`verifyInstallArtifact` 跑 Team 闸），ad-hoc 副本没有 Team，一键安装会被拒。0.1.2 及以前的副本仍走本 GitHub 规则的 `.publishedDigestOnly`。读代码得出，未真机跑。

@@ -175,6 +175,16 @@ struct CLIToolsModelTests {
         var commits = false
         var commitGate: Gate?
         func setCommits(gate: Gate?) { commits = true; commitGate = gate }
+        /// The command exits by itself with a failure status (the runner's
+        /// `landed` says no), then the update holds at `afterCommit` — and,
+        /// with `retries`, tries the command once more, as uv's, bun's and
+        /// mise's token retry does.
+        var commitLands = true
+        var afterCommit: Gate?
+        var retries = false
+        func setRefusedCommand(then gate: Gate, retries: Bool) {
+            commits = true; commitLands = false; afterCommit = gate; self.retries = retries
+        }
 
         func set(_ id: CLIToolID, _ outcome: CLIToolUpdateOutcome) { outcomes[id] = outcome }
         func setGate(_ gate: Gate?) { self.gate = gate }
@@ -193,8 +203,13 @@ struct CLIToolsModelTests {
             await gates[status.toolID]?.wait()
             if commits {
                 let held = commitGate
+                let lands = commitLands
                 do {
-                    try await InstallCommit.run("update command") { await held?.wait() }
+                    try await InstallCommit.run("update command", landed: { _ in lands }) { await held?.wait() }
+                    await afterCommit?.wait()
+                    if retries {
+                        try await InstallCommit.run("update command", landed: { _ in lands }) {}
+                    }
                 } catch {
                     running -= 1
                     return .failed(message: "could not start: \(error)", output: "")
@@ -632,6 +647,62 @@ struct CLIToolsModelTests {
 
         #expect(model.justUpdated[id] == "2.1.285")
         #expect(model.errors[id] == nil)
+    }
+
+    /// The command ran and exited with a failure status — not landed, so the
+    /// Cancel is live again — and the click lands before the update ends, with
+    /// nothing left to start (npm's single run). The cancel stopped nothing:
+    /// the command's failure is on the row, red line and log, not hidden as
+    /// "cancelled before its command started".
+    /// Mutation: `cancelStoppedSomething` always true → no red line, red.
+    @Test(.timeLimit(.minutes(1))) func aCancelAfterTheCommandFailedLeavesItsFailure() async {
+        let path = Self.ownPath()
+        let id = Self.id(path)
+        let check = FakeCheck([(Self.report(Self.status(path)), nil)])
+        let updater = FakeUpdater()
+        await updater.set(id, .failed(message: "npm ERR! code EACCES", output: "npm ERR! code EACCES"))
+        let after = Gate()
+        await updater.setRefusedCommand(then: after, retries: false)
+        let model = Self.model(check: check, updater: updater)
+        await model.refresh()
+
+        let running = Task { await model.update(id) }
+        await until { await after.arrived == 1 }
+        await until { model.cancels[id] == .available }
+        model.cancel(id)
+        #expect(model.cancels[id] == .cancelling)
+        await after.open()
+        await running.value
+
+        #expect(model.errors[id] == "npm ERR! code EACCES")
+        #expect(model.errorLogs[id] == "npm ERR! code EACCES")
+    }
+
+    /// The same, but the click keeps the retry from starting (uv's, bun's,
+    /// mise's second try after a rejected token): the cancel stopped the
+    /// update, so no failure lands.
+    /// Mutation: `cancelStoppedSomething` ignores `refusedACommit` → the
+    /// retry's "could not start" lands, red.
+    @Test(.timeLimit(.minutes(1))) func aCancelThatStopsTheRetryIsNotAFailure() async {
+        let path = Self.ownPath()
+        let id = Self.id(path)
+        let check = FakeCheck([(Self.report(Self.status(path)), nil)])
+        let updater = FakeUpdater()
+        let after = Gate()
+        await updater.setRefusedCommand(then: after, retries: true)
+        let model = Self.model(check: check, updater: updater)
+        await model.refresh()
+
+        let running = Task { await model.update(id) }
+        await until { await after.arrived == 1 }
+        await until { model.cancels[id] == .available }
+        model.cancel(id)
+        await after.open()
+        await running.value
+
+        #expect(model.errors[id] == nil)
+        #expect(model.errorLogs[id] == nil)
+        #expect(model.cancels.isEmpty)
     }
 
     /// A copy waiting its turn under Update All is cancelled at once: its row

@@ -52,5 +52,10 @@ public enum MyGoFeedCatalog {
             bundleID: "dev.leafmark.app",
             feed: "https://github.com/KevinXC5/leafmark/releases/latest/download/update-darwin-arm64.json",
             publicKey: "arFeLNqUcZDj4bjo7f1FiZ3ndod0Ghgu6B15b/BKUH8="),
+        // docs/app-audits/dev-mayoi-editor.md — Mayoi 0.1.0, 0.10.0 and 0.11.0 binaries.
+        Entry(
+            bundleID: "dev.mayoi.editor",
+            feed: "https://github.com/sorrycc/Mayoi/releases/latest/download/update-darwin-arm64.json",
+            publicKey: "kW6/B4DkWNQdyHkFOrU6tpvLfb5xGVvyYhrIQF7Bct4="),
     ]
 }

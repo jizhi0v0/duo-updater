@@ -262,6 +262,75 @@ import Testing
         #expect(!cancelled.value)
     }
 
+    /// A body that handed the install over — App Store's button pressed, brew
+    /// run — and then threw has not undone it: the job stays committing and a
+    /// cancel is too late, so the row's Cancel stays greyed through the
+    /// wrap-up. The mark set by a nested commit (a pass-through) is the outer
+    /// one's. Outside any commit `handedOver()` does nothing.
+    /// Mutation: ignore the mark on a throw → `.preparing` and `.cancelled`, red.
+    @Test func aCommitThatThrowsAfterHandingOverStaysCommitting() async throws {
+        InstallCommit.handedOver()
+        for nested in [false, true] {
+            let id = Self.id()
+            InstallJobs.register(id, cancel: {})
+            defer { InstallJobs.unregister(id) }
+            await #expect(throws: ZZBodyFailed.self) {
+                try await InstallJobs.$currentID.withValue(id) {
+                    _ = try await InstallCommit.run("ZZFixture-press") { () throws -> Int in
+                        if nested {
+                            try await InstallCommit.run("ZZFixture-inner") { InstallCommit.handedOver() }
+                        } else {
+                            InstallCommit.handedOver()
+                        }
+                        throw ZZBodyFailed()
+                    }
+                }
+            }
+            #expect(InstallJobs.phase(of: id) == .committing, "nested: \(nested)")
+            #expect(InstallJobs.cancel(id) == .tooLate(committing: "ZZFixture-press"), "nested: \(nested)")
+        }
+    }
+
+    /// Whether a cancel kept anything from running: before any commit, yes;
+    /// after a refused run, when the retry is refused for it, yes; after the
+    /// only command ran and failed, no — the job ends on that command's result.
+    /// Without a cancel, no.
+    /// Mutations: drop `!ranACommit` → the first case red; never set
+    /// `refusedACommit` → the retry case red; always true → the third red.
+    @Test func aCancelSaysWhetherItStoppedAnything() async throws {
+        let before = Self.id()
+        InstallJobs.register(before, cancel: {})
+        defer { InstallJobs.unregister(before) }
+        #expect(InstallJobs.cancel(before) == .cancelled)
+        #expect(InstallJobs.cancelStoppedSomething(before))
+
+        let retry = Self.id()
+        InstallJobs.register(retry, cancel: {})
+        defer { InstallJobs.unregister(retry) }
+        try await InstallJobs.$currentID.withValue(retry) {
+            _ = try await InstallCommit.run("ZZFixture-cmd", landed: { $0 == 0 }) { () -> Int32 in 1 }
+            #expect(InstallJobs.cancel(retry) == .cancelled)
+            await #expect(throws: CancellationError.self) {
+                _ = try await InstallCommit.run("ZZFixture-cmd", landed: { $0 == 0 }) { () -> Int32 in 0 }
+            }
+        }
+        #expect(InstallJobs.cancelStoppedSomething(retry))
+
+        let after = Self.id()
+        InstallJobs.register(after, cancel: {})
+        defer { InstallJobs.unregister(after) }
+        _ = try await InstallJobs.$currentID.withValue(after) {
+            try await InstallCommit.run("ZZFixture-cmd", landed: { $0 == 0 }) { () -> Int32 in 1 }
+        }
+        #expect(InstallJobs.cancel(after) == .cancelled)
+        #expect(!InstallJobs.cancelStoppedSomething(after))
+
+        let none = Self.id()
+        InstallJobs.register(none, cancel: {})
+        defer { InstallJobs.unregister(none) }
+        #expect(!InstallJobs.cancelStoppedSomething(none))
+    }
+
     /// A body that reports "refused, nothing changed" by value: `landed` says
     /// no, the value still comes back, and the job is preparing again. One whose
     /// value lands keeps it committing.
@@ -354,9 +423,12 @@ import Testing
 
 /// `InstallJobs.run`: a host's job, cancellable through the registry only.
 /// Serialized like `InstallJobsTests`, for the same process-wide registry.
-/// The time limit is a hang guard, not a duration: a job its cancel never
-/// reaches waits for nothing, and the run must fail rather than stall.
-@Suite(.serialized, .timeLimit(.minutes(1))) struct InstallJobsRunTests {
+/// No `.timeLimit`: it counts the time a test waits for a thread, not just its
+/// own run. On CI's 3-core hosted runner about 5,200 tests start in the first
+/// 5 s, and this suite's and `InstallRowRunsTests`' first tests, 0.01 s alone,
+/// ended 131 and 135 s in (run 39164040853) beside some 100 untimed tests just
+/// as slow. Nor would it stop a hang: past the limit it waits for the body.
+@Suite(.serialized) struct InstallJobsRunTests {
 
     typealias Signal = InstallCommitTests.Signal
     typealias Flag = InstallCommitTests.Flag

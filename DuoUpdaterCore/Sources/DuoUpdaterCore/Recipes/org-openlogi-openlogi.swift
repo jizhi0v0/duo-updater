@@ -5,9 +5,11 @@ enum org_openlogi_openlogi {
         family: "org-openlogi-openlogi",
         githubRules: [
         // History: docs/app-audits/org-openlogi-openlogi.md#历史与实测
-        // OpenLogi — fast-moving native Logitech utility. The real 0.8.1 bundle
-        // is `org.openlogi.openlogi` and carries neither Sparkle nor another
-        // standard update feed in Info.plist; its Homebrew cask is
+        // OpenLogi — fast-moving native Logitech utility, `org.openlogi.openlogi`.
+        // Up to 0.8.13 it carries no standard update feed; from 0.8.14 it embeds
+        // Sparkle with a per-arch `SUFeedURL` on updates.openlogi.org, so a copy
+        // that new is answered by its feed and this rule serves older copies. Its
+        // Homebrew cask is
         // `auto_updates: true`, so Homebrew correctly defers to the app updater.
         // That updater's compiled-in stable manifest and release workflow both
         // point at AprilNEA/OpenLogi, where stable tags are exactly `vX.Y.Z` and
@@ -29,8 +31,9 @@ enum org_openlogi_openlogi {
         // notarization ticket (0.8.2 and 0.8.3 both; it is how this vendor ships,
         // not a regression) — `SignatureVerifier` checks signature validity and
         // Team, never stapling, so the swap is unaffected, but Gatekeeper has to
-        // resolve the ticket online at first launch. And `CFBundleVersion` is a
-        // TIMESTAMP (`20260830.162827`), a different namespace from the tag —
+        // resolve the ticket online at first launch. And `CFBundleVersion` was a
+        // TIMESTAMP (`20260830.162827`) up to 0.8.13, a different namespace from
+        // the tag (from 0.8.14 it is the version itself) —
         // harmless only because this source sets the remote build to nil, so the
         // comparison is marketing-only. Do not "improve" that by feeding the tag
         // in as a build.

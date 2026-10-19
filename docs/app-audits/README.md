@@ -214,6 +214,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Moshi（Tauri）**](app-getmoshi-desktop-tauri.md) · `app.getmoshi.desktop.tauri` — 无自己的 recipe（2026-10-11 退役）· 厂商经 Tauri feed 迁往 Moshi Go，`BundleIDMigration` 让 Tauri 副本走 Moshi Go 的 recipe（一键未真机验证）· Tauri feed 的 0.5.12 包即 Moshi Go，真包核对 ✓ · 2026-10-11
 - [x] [**Jellyfin Server**](Jellyfin-Server.md) · `Jellyfin.Server` — P C (one-click) · 菜单栏启动器 + 子进程服务端，无自更新器 · 读厂商文件服务器 `latest-stable/arm64/` 索引，按比较过的版本拼不可变目录下 dmg · GitHub release 无 asset，只取说明 · rc 同 id，读作 stable（终版发布后带回 stable；rc 窗口期不推下一个 rc）· channel-verify 12.1→12.2 ✓，真机端到端待跑 · 2026-10-16
 - [x] [**Krita**](org-krita.md) · `org.krita` — P C (one-click dmg) · 5.x（下载页）与 6.x（Qt 6，读发布 RSS）两条正式线共用 id，按装机主版本分 recipe · 热修复第四段只在 `CFBundleLongVersionString`，版本取前三段 · 夜构建同 id 无后缀，未接 · 4.x 是另一个 Team，一键被拒 · 真实 DMG channel-verify ✓（5.3.3/5.3.4.1/6.0.3/6.0.4.1）· 2026-10-16
+- [x] [**Kiln**](com-superultra-kiln.md) · `com.superultra.kiln` — P (one-click zip) · 无自更新器（静态与运行时都核过），读产品页 `kiln-meta` 下载行的版本 · 安装固定 `latest/Kiln-mac.zip` · changelog ✗（厂商不发）· 一键真机端到端 ✓ · 2026-10-18
 
 ## Single-channel — GitHub Releases
 
@@ -332,6 +333,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] [**Pulse**](com-egoist-pulse.md) · `com.egoist.pulse` — C（历史走 GitHub release 列表）· 检测与 tar.gz 一键走 MyGoUpdateSource · MyGo delta ✓（dmg 副本缺公证票据文件，首次退回全量）· 厂商 Ed25519 签名 + Team ID · 真包 0.1.11/0.1.12 ✓ · 一键端到端 ✓（dmg 布局 / tar.gz 布局 / 运行中）· `install.sh` 只装 Linux，无 macOS CLI · 2026-10-13
 - [x] [**Leafmark**](dev-leafmark-app.md) · `dev.leafmark.app` — 检测与 tar.gz 一键走 MyGoUpdateSource（无 recipe）· ad-hoc 签名，一键要打开「无开发者签名」设置 · MyGo delta ✓（未公证，dmg 副本也能吃）· changelog 结构化 ✓（manifest notes 按版本拆）· 一键端到端 ✓（设置开 / 运行中 / 设置关→拒绝）· 2026-10-13
+- [x] [**Mayoi**](dev-mayoi-editor.md) · `dev.mayoi.editor` — C（历史读仓库 `CHANGELOG.md`，19 版全）· 检测与 tar.gz/delta 一键走 MyGoUpdateSource · Developer ID + 公证 · MyGo delta ✓ · 真包 0.1.0/0.10.0/0.11.0 ✓ · 一键端到端 ✓ · 2026-10-18
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 

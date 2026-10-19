@@ -1136,12 +1136,15 @@ private func matches(
 /// yomado flags every release prerelease, so `/releases/latest` is a 404 and the
 /// rule has to read the list. Its release also carries a source zip (whose case
 /// has varied: `Yomado-source-` on v0.3.3, `yomado-source-` before) and a
-/// checksum text beside the app zip (v0.3.1–v0.3.3's assets).
+/// checksum text beside the app zip (v0.3.1–v0.3.3's assets). From v0.3.6 the
+/// app zip is an unversioned `Yomado.zip` (v0.3.6 and v0.3.7's assets).
 @Test func yomadoRuleReadsTheListAndTakesTheAppZip() {
     #expect(rule("dev.chekusu.yomado").usePrereleases)
     #expect(extract("v0.3.3", "dev.chekusu.yomado") == "0.3.3")
     #expect(extract("v0.4.0-beta.1", "dev.chekusu.yomado") == nil)
     #expect(matches("Yomado-v0.3.3.zip", "dev.chekusu.yomado"))
+    #expect(matches("Yomado.zip", "dev.chekusu.yomado"))
+    #expect(!matches("yomado-v0.3.7-SHA256SUMS.txt", "dev.chekusu.yomado"))
     #expect(!matches("Yomado-source-v0.3.3.zip", "dev.chekusu.yomado"))
     #expect(!matches("yomado-source-v0.3.2.zip", "dev.chekusu.yomado"))
     #expect(!matches("yomado-v0.3.3-SHA256SUMS.txt", "dev.chekusu.yomado"))

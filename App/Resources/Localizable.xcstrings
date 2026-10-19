@@ -16048,67 +16048,67 @@
         }
       }
     },
-    "For apps whose GitHub releases are only ad-hoc signed — Alacritty, Flameshot, darktable, disktree and Lokii — and not for apps that sign their own updates with Sparkle or MyGo: those are updated in one click without it, checked against the update key in the copy you have installed. An app installed with a developer signature is never replaced by one without, whatever this says.": {
+    "For apps whose GitHub releases are only ad-hoc signed — Alacritty, Flameshot, darktable, disktree, Lokii and Obelus — and not for apps that sign their own updates with Sparkle or MyGo: those are updated in one click without it, checked against the update key in the copy you have installed. An app installed with a developer signature is never replaced by one without, whatever this says.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Für Apps, deren GitHub-Releases nur ad-hoc signiert sind – Alacritty, Flameshot, darktable, disktree und Lokii. Apps ohne Entwicklersignatur, die ihre Updates selbst signieren (mit Sparkle oder MyGo), brauchen das nicht: Sie werden mit einem Klick aktualisiert und gegen den Update-Schlüssel der installierten Kopie geprüft. Eine mit Entwicklersignatur installierte App wird nie durch eine ohne ersetzt, ganz gleich, was hier eingestellt ist."
+            "value": "Für Apps, deren GitHub-Releases nur ad-hoc signiert sind – Alacritty, Flameshot, darktable, disktree, Lokii und Obelus. Apps ohne Entwicklersignatur, die ihre Updates selbst signieren (mit Sparkle oder MyGo), brauchen das nicht: Sie werden mit einem Klick aktualisiert und gegen den Update-Schlüssel der installierten Kopie geprüft. Eine mit Entwicklersignatur installierte App wird nie durch eine ohne ersetzt, ganz gleich, was hier eingestellt ist."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Para apps cuyas versiones en GitHub solo tienen firma ad hoc: Alacritty, Flameshot, darktable, disktree y Lokii. Las apps sin firma de desarrollador que firman sus propias actualizaciones (con Sparkle o MyGo) no lo necesitan: se actualizan con un clic y se comprueban con la clave de actualización de la copia que tienes instalada. Una app instalada con firma de desarrollador nunca se sustituye por una sin ella, sea cual sea este ajuste."
+            "value": "Para apps cuyas versiones en GitHub solo tienen firma ad hoc: Alacritty, Flameshot, darktable, disktree, Lokii y Obelus. Las apps sin firma de desarrollador que firman sus propias actualizaciones (con Sparkle o MyGo) no lo necesitan: se actualizan con un clic y se comprueban con la clave de actualización de la copia que tienes instalada. Una app instalada con firma de desarrollador nunca se sustituye por una sin ella, sea cual sea este ajuste."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pour les apps dont les versions GitHub ne sont signées qu’ad hoc : Alacritty, Flameshot, darktable, disktree et Lokii. Les apps sans signature de développeur qui signent elles-mêmes leurs mises à jour (avec Sparkle ou MyGo) n’en ont pas besoin : elles sont mises à jour en un clic, vérifiées avec la clé de mise à jour de la copie installée. Une app installée avec une signature de développeur n’est jamais remplacée par une version sans, quel que soit ce réglage."
+            "value": "Pour les apps dont les versions GitHub ne sont signées qu’ad hoc : Alacritty, Flameshot, darktable, disktree, Lokii et Obelus. Les apps sans signature de développeur qui signent elles-mêmes leurs mises à jour (avec Sparkle ou MyGo) n’en ont pas besoin : elles sont mises à jour en un clic, vérifiées avec la clé de mise à jour de la copie installée. Une app installée avec une signature de développeur n’est jamais remplacée par une version sans, quel que soit ce réglage."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Per le app le cui release su GitHub hanno solo una firma ad hoc: Alacritty, Flameshot, darktable, disktree e Lokii. Le app senza firma dello sviluppatore che firmano da sé i propri aggiornamenti (con Sparkle o MyGo) non ne hanno bisogno: si aggiornano con un clic e vengono verificate con la chiave di aggiornamento della copia installata. Un’app installata con la firma dello sviluppatore non viene mai sostituita da una senza, qualunque sia questa impostazione."
+            "value": "Per le app le cui release su GitHub hanno solo una firma ad hoc: Alacritty, Flameshot, darktable, disktree, Lokii e Obelus. Le app senza firma dello sviluppatore che firmano da sé i propri aggiornamenti (con Sparkle o MyGo) non ne hanno bisogno: si aggiornano con un clic e vengono verificate con la chiave di aggiornamento della copia installata. Un’app installata con la firma dello sviluppatore non viene mai sostituita da una senza, qualunque sia questa impostazione."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub のリリースがアドホック署名だけの App（Alacritty、Flameshot、darktable、disktree、Lokii）が対象です。開発元の署名がなくても、Sparkle や MyGo で自分のアップデートに署名している App にはこの設定は不要です。インストール済みのコピーにあるアップデート鍵で確認したうえで、ワンクリックでアップデートされます。開発元の署名付きでインストールされている App が、署名のないものに置き換えられることは、この設定にかかわらずありません。"
+            "value": "GitHub のリリースがアドホック署名だけの App（Alacritty、Flameshot、darktable、disktree、Lokii、Obelus）が対象です。開発元の署名がなくても、Sparkle や MyGo で自分のアップデートに署名している App にはこの設定は不要です。インストール済みのコピーにあるアップデート鍵で確認したうえで、ワンクリックでアップデートされます。開発元の署名付きでインストールされている App が、署名のないものに置き換えられることは、この設定にかかわらずありません。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Para apps cujas versões no GitHub têm apenas assinatura ad hoc — Alacritty, Flameshot, darktable, disktree e Lokii. Apps sem assinatura de desenvolvedor que assinam as próprias atualizações (com Sparkle ou MyGo) não precisam disso: são atualizados com um clique, verificados com a chave de atualização da cópia que você instalou. Um app instalado com assinatura de desenvolvedor nunca é substituído por um sem, seja qual for este ajuste."
+            "value": "Para apps cujas versões no GitHub têm apenas assinatura ad hoc — Alacritty, Flameshot, darktable, disktree, Lokii e Obelus. Apps sem assinatura de desenvolvedor que assinam as próprias atualizações (com Sparkle ou MyGo) não precisam disso: são atualizados com um clique, verificados com a chave de atualização da cópia que você instalou. Um app instalado com assinatura de desenvolvedor nunca é substituído por um sem, seja qual for este ajuste."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Для приложений, релизы которых на GitHub подписаны только ad hoc, — Alacritty, Flameshot, darktable, disktree и Lokii. Приложениям без подписи разработчика, которые сами подписывают свои обновления (через Sparkle или MyGo), это не нужно: они обновляются в один клик с проверкой по ключу обновлений установленной копии. Приложение, установленное с подписью разработчика, никогда не заменяется версией без неё, что бы ни было выбрано здесь."
+            "value": "Для приложений, релизы которых на GitHub подписаны только ad hoc, — Alacritty, Flameshot, darktable, disktree, Lokii и Obelus. Приложениям без подписи разработчика, которые сами подписывают свои обновления (через Sparkle или MyGo), это не нужно: они обновляются в один клик с проверкой по ключу обновлений установленной копии. Приложение, установленное с подписью разработчика, никогда не заменяется версией без неё, что бы ни было выбрано здесь."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub sürümleri yalnızca ad hoc imzalı olan uygulamalar için: Alacritty, Flameshot, darktable, disktree ve Lokii. Geliştirici imzası olmayan ama güncellemelerini kendisi imzalayan uygulamaların (Sparkle veya MyGo ile) buna ihtiyacı yoktur: yüklü kopyadaki güncelleme anahtarıyla doğrulanarak tek tıkla güncellenirler. Geliştirici imzasıyla yüklenmiş bir uygulama, bu ayar ne olursa olsun, imzasız bir sürümle asla değiştirilmez."
+            "value": "GitHub sürümleri yalnızca ad hoc imzalı olan uygulamalar için: Alacritty, Flameshot, darktable, disktree, Lokii ve Obelus. Geliştirici imzası olmayan ama güncellemelerini kendisi imzalayan uygulamaların (Sparkle veya MyGo ile) buna ihtiyacı yoktur: yüklü kopyadaki güncelleme anahtarıyla doğrulanarak tek tıkla güncellenirler. Geliştirici imzasıyla yüklenmiş bir uygulama, bu ayar ne olursa olsun, imzasız bir sürümle asla değiştirilmez."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "适用于 GitHub 发布版只有 ad hoc 签名的 App（Alacritty、Flameshot、darktable、disktree 和 Lokii）。没有开发者签名、但用 Sparkle 或 MyGo 给自己的更新签名的 App 不需要这个设置：它们会用已装副本里的更新密钥核对后一键更新。已装的 App 如果带开发者签名，无论这里怎么设，都不会被没有签名的版本替换。"
+            "value": "适用于 GitHub 发布版只有 ad hoc 签名的 App（Alacritty、Flameshot、darktable、disktree、Lokii 和 Obelus）。没有开发者签名、但用 Sparkle 或 MyGo 给自己的更新签名的 App 不需要这个设置：它们会用已装副本里的更新密钥核对后一键更新。已装的 App 如果带开发者签名，无论这里怎么设，都不会被没有签名的版本替换。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "適用於 GitHub 發布版只有 ad hoc 簽署的 App（Alacritty、Flameshot、darktable、disktree 和 Lokii）。沒有開發者簽署、但用 Sparkle 或 MyGo 為自己的更新簽署的 App 不需要這個設定：它們會用已安裝副本裡的更新金鑰核對後一鍵更新。已安裝的 App 如果帶開發者簽署，無論這裡怎麼設，都不會被未簽署的版本替換。"
+            "value": "適用於 GitHub 發布版只有 ad hoc 簽署的 App（Alacritty、Flameshot、darktable、disktree、Lokii 和 Obelus）。沒有開發者簽署、但用 Sparkle 或 MyGo 為自己的更新簽署的 App 不需要這個設定：它們會用已安裝副本裡的更新金鑰核對後一鍵更新。已安裝的 App 如果帶開發者簽署，無論這裡怎麼設，都不會被未簽署的版本替換。"
           }
         }
       }

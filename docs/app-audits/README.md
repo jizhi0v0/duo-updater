@@ -343,6 +343,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**IINA**](com-colliderli-iina.md) · `com.colliderli.iina` — S+B · stable/beta（`IINAChannel`）· 一键（delta）✓ · changelog recipe ✓ · 2026-10-08
 - [x] [**Proxyman**](com-proxyman-NSProxy.md) · `com.proxyman.NSProxy` — S · 一键 ✓ · changelog recipe（GitHub）✓ · 2026-10-08
 - [x] [**MonitorControl**](app-monitorcontrol-MonitorControl.md) · `app.monitorcontrol.MonitorControl` — S+B · 一键 ✓ · beta 开关（`MonitorControlChannel`，feed 尚无 beta）· changelog recipe ✓ · 2026-10-08
+- [x] [**RuntimeViewer**](com-JH-RuntimeViewer.md) · `com.JH.RuntimeViewer` — S+B · stable/beta（`RuntimeViewerChannel`）· 一键 ✓（含 beta、无 Sparkle 的 1.x）· changelog recipe ✓（stable/beta）· 2026-10-18
 - [x] [**Maccy**](org-p0deje-Maccy.md) · `org.p0deje.Maccy` — S · 检测 + changelog 结构化 ✓ · 一键未跑 · 2026-10-08
 - [x] [**Keka**](com-aone-keka.md) · `com.aone.keka` — S · 检测 ✓ · changelog recipe（GitHub）✓ · 一键未跑 · 2026-10-08
 - [x] [**Vivaldi**](com-vivaldi-Vivaldi.md) · `com.vivaldi.Vivaldi` — S · 真包 8.2.4133.83/.84 验证 ✓ · 一键（delta）✓ · Snapshot 为独立 bundle id · changelog recipe（stable + Snapshot）· 2026-10-08

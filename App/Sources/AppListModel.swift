@@ -173,6 +173,30 @@ final class AppListModel {
     /// True while "Update All" is running. Blocks a second batch from being
     /// started while the first one still has queued work.
     private(set) var isInstallingAll = false
+    /// The Cancel each row an install runs for offers (`InstallCancelState`),
+    /// from the moment the install is registered — or claimed by "Update All" —
+    /// until it returns. A row with no entry offers none: a rollback, a re-check.
+    private(set) var installCancels: [String: InstallCancelState] = [:]
+    /// One `runInstall` per row at a time: a click in the previous run's tail
+    /// waits for it (`InstallRowRuns`).
+    private let rowRuns = InstallRowRuns()
+    /// From a click on Cancel All until the batch ends: the button says so.
+    private(set) var isCancellingAll = false
+    /// The running "Update All"'s targets, for its Cancel All and for a row's
+    /// Cancel on a target it has not started (`InstallBatchQueue`).
+    @ObservationIgnored private var batchQueue: InstallBatchQueue?
+    /// The running "Update All"'s claim on each of its targets: a row whose
+    /// latest claim is not the batch's was clicked again after the batch was
+    /// done with it, and that run is not the batch's to cancel.
+    @ObservationIgnored private var batchClaims: [String: InstallRowRuns.Claim] = [:]
+    /// Installs an earlier run cut off (`InstallJournal.interruptedInstalls`),
+    /// as last read — after the launch's cleanup, after each install and each
+    /// Restore. Their rows offer Restore, or Reinstall, instead of Update.
+    private(set) var interruptedInstalls: [InstallJournal.InterruptedInstall] = []
+    /// `interruptedInstalls` by path, as the row tables want it: whether each
+    /// has a copy to restore from. Under the path as the journal wrote it and
+    /// as standardized, so a row's id finds it either way.
+    @ObservationIgnored private var interruptedByPath: [String: Bool] = [:]
     /// Per-app install error message, keyed by app id.
     private(set) var installErrors: [String: String] = [:]
     /// Per-app informational note (not an error), keyed by app id — e.g. "opened
@@ -780,7 +804,8 @@ final class AppListModel {
             armedWithUnknownVersion: armedSelfInstallers.contains(result.id) && result.hasUpdate,
             pendingBatchRestartMarketing: pendingBatchRestart[result.id],
             restartFrom: needsRestart.contains(result.id) ? restartFromSide(result.id) : nil,
-            downgradeVersion: downgradeNote(result))
+            downgradeVersion: downgradeNote(result),
+            interrupted: interruptedInstall(for: result))
     }
 
     /// Bring JetBrains Toolbox forward — the action for every Toolbox-managed row,
@@ -879,7 +904,8 @@ final class AppListModel {
             armedSelfInstallers: armedSelfInstallers,
             relaunching: relaunching,
             awaitingQuitConfirm: awaitingQuitConfirm,
-            justUpdated: justUpdated)
+            justUpdated: justUpdated,
+            interrupted: interruptedByPath)
     }
 
     /// How an available update would be applied. Resolved here rather than in each
@@ -3275,6 +3301,7 @@ final class AppListModel {
             // `sweepSettledInstallRollbackPoints`), retried with the rest when
             // another process held the lock.
             if await InstallCoordinator.sweepSettledInstallRollbackPoints() == nil { swept = false }
+            await MainActor.run { self?.refreshInterruptedInstalls() }
             guard !swept else { return }
             await MainActor.run { self?.didRecoverSwaps = false }
         }
@@ -4705,8 +4732,16 @@ final class AppListModel {
         installErrors[id] = nil
         installNotes[id] = nil
         installing[id] = .queued
+        // The row's previous run may still be wrapping up after it freed the
+        // row: this run queues behind it with a Cancel of its own, not the
+        // previous run's left-over one (`InstallRowRuns`).
+        // Live from here, through an Xcode row's sign-in check too: a click
+        // before the job registers is answered "not found" for a claimed
+        // row, which `runInstall` turns into a cancel before it starts.
+        let claim = rowRuns.claim(id)
+        installCancels[id] = .available
         guard isXcodeRow(result) else {
-            return await runInstall(result, notify: notify, deferBookkeeping: deferBookkeeping, backUpOnce: backUpOnce)
+            return await runInstall(result, claim: claim, notify: notify, deferBookkeeping: deferBookkeeping, backUpOnce: backUpOnce)
         }
         // Ask Apple before the rollback copy of a ~4 GB bundle and the download,
         // not after. Expired → the row turns to "Sign In…" and nothing starts.
@@ -4715,9 +4750,10 @@ final class AppListModel {
         await session.check()
         guard session.signInNeed == nil else {
             installing[id] = nil
+            if rowRuns.isLatest(id, claim) { installCancels[id] = nil }
             return .notInstalled
         }
-        let outcome = await runInstall(result, notify: notify, deferBookkeeping: deferBookkeeping, backUpOnce: backUpOnce)
+        let outcome = await runInstall(result, claim: claim, notify: notify, deferBookkeeping: deferBookkeeping, backUpOnce: backUpOnce)
         // Expired mid-download: the row already says so and offers Sign In…,
         // so the downloader's copy of that message would only repeat it.
         if session.signInNeed != nil, installErrors[id] == AppleDeveloperSession.expiredMessage {
@@ -4733,7 +4769,55 @@ final class AppListModel {
     /// the re-entrancy guard blocks a manual click) while the gates here still pace
     /// the actual installs.
     private func runInstall(
-        _ result: UpdateResult, notify: Bool, deferBookkeeping: Bool, backUpOnce: Bool = false
+        _ result: UpdateResult, claim: InstallRowRuns.Claim, notify: Bool, deferBookkeeping: Bool,
+        backUpOnce: Bool = false
+    ) async -> InstallAttemptOutcome {
+        let id = result.id
+        // A job of its own (`InstallJobs.run`): the row's Cancel and Cancel All
+        // reach it through the registry, which refuses once it is committing —
+        // and so does a cancel of the caller, so a stopped batch cannot cut a
+        // committing install's wrap-up short. The registry tells the row when
+        // to grey its Cancel; the hop can trail the install, which is what the
+        // `.tooLate` answer is for.
+        // The row's previous run may still be wrapping up after it freed the
+        // row: wait for it. The claim (`install`, `installAll`) already made
+        // this run's Cancel its own.
+        await rowRuns.enter(id, claim)
+        defer { rowRuns.leave(id, claim) }
+        // Cancelled between Update All starting it and this task running,
+        // before there was a job to cancel (`InstallCancelState.after`), or
+        // while it waited for the previous run.
+        if installCancels[id] == .cancelling {
+            installCancels[id] = nil
+            installing[id] = nil
+            return .cancelled(result.app, at: .queued)
+        }
+        if installCancels[id] == nil { installCancels[id] = .available }
+        let outcome = await InstallJobs.run(id, phaseChanged: { [weak self] _ in
+            Task { @MainActor in self?.followInstallPhase(id) }
+        }) { @MainActor [self] in
+            await self.runInstallJob(
+                result, notify: notify, deferBookkeeping: deferBookkeeping, backUpOnce: backUpOnce)
+        }
+        // A next run waiting for this one owns the row's Cancel by now.
+        if rowRuns.isLatest(id, claim) { installCancels[id] = nil }
+        // The install's own journal entry is settled by now: one that left the
+        // app cut off is an interrupted install from here, and a reinstall that
+        // repaired one cleared it.
+        refreshInterruptedInstalls()
+        return outcome
+    }
+
+    /// The row's Cancel moves with its job: greyed once a commit starts, live
+    /// again if that commit did not land.
+    private func followInstallPhase(_ id: String) {
+        guard let state = installCancels[id] else { return }
+        installCancels[id] = state.following(InstallJobs.phase(of: id))
+    }
+
+    /// `runInstall`'s body, run as the row's job.
+    private func runInstallJob(
+        _ result: UpdateResult, notify: Bool, deferBookkeeping: Bool, backUpOnce: Bool
     ) async -> InstallAttemptOutcome {
         let id = result.id
         // Hold the list still for the duration — this row's rank is about to change
@@ -8504,6 +8588,8 @@ final class AppListModel {
         // Claimed before the first suspension, released on every return.
         let bundleClaim = beginBundleChange(id, .rollback)
         defer { endBundleChange(id, token: bundleClaim) }
+        // A restore clears an interrupted install of the app (`BackupStore`).
+        defer { refreshInterruptedInstalls() }
         let target = result.app.path
         let key = BackupStore.keyCandidates(bundleID: result.app.bundleID, path: target)
             .first { BackupStore.backup(forKey: $0) != nil }
@@ -8717,6 +8803,9 @@ final class AppListModel {
                 // `runInstall` would refuse it after queueing it anyway. The
                 // versioned staged case is already out via `canAutoInstall`.
                 && !armedSelfInstallers.contains(result.id)
+                // The row offers Restore or Reinstall (`.interruptedInstall`),
+                // which is the user's to click; nothing restores by itself.
+                && interruptedByPath[result.id] == nil
                 && installing[result.id] == nil
                 // Xcode is one row at a time, by the user: a multi-gigabyte
                 // download that may open an Apple sign-in window mid-batch, and a
@@ -8765,7 +8854,9 @@ final class AppListModel {
         }
     }
 
-    private func installInParallel(_ targets: [UpdateResult], limit: Int) async -> InstallBatchSummary {
+    private func installInParallel(
+        _ targets: [UpdateResult], claims: [String: InstallRowRuns.Claim], limit: Int, queue: InstallBatchQueue
+    ) async -> InstallBatchSummary {
         var summary = InstallBatchSummary()
         guard !targets.isEmpty, limit > 0 else { return summary }
         await withTaskGroup(of: InstallAttemptOutcome.self) { group in
@@ -8773,16 +8864,20 @@ final class AppListModel {
             var inFlight = 0
 
             func addNext() -> Bool {
-                guard next < targets.count else { return false }
-                let target = targets[next]
-                next += 1
-                group.addTask {
-                    // `runInstall`, not `install`: the batch already claimed this
-                    // target `.queued` up front, so going through `install`'s guard
-                    // would reject it as "already in flight".
-                    await self.runInstall(target, notify: false, deferBookkeeping: true)
+                while next < targets.count {
+                    let target = targets[next]
+                    next += 1
+                    // Off the queue already: its row's Cancel, or Cancel All.
+                    guard let claim = claims[target.id], queue.start(target.id) else { continue }
+                    group.addTask {
+                        // `runInstall`, not `install`: the batch already claimed this
+                        // target `.queued` up front, so going through `install`'s guard
+                        // would reject it as "already in flight".
+                        await self.runInstall(target, claim: claim, notify: false, deferBookkeeping: true)
+                    }
+                    return true
                 }
-                return true
+                return false
             }
 
             while inFlight < limit, addNext() {
@@ -8850,16 +8945,30 @@ final class AppListModel {
         // the gates still pace the actual work. Anything we claim but never run (a
         // cancelled batch, or serial targets after an App Management gate breaks the
         // loop) is released in the `defer` so no row is left with a phantom spinner.
+        // Each target's claim on its row (`InstallRowRuns`).
+        var claims: [String: InstallRowRuns.Claim] = [:]
         for target in targets {
             installErrors[target.id] = nil  // clear a prior attempt's error up front (see `install`)
             installNotes[target.id] = nil
             installing[target.id] = .queued
+            installCancels[target.id] = .available
+            claims[target.id] = rowRuns.claim(target.id)
         }
+        let queue = InstallBatchQueue(targets.map(\.id))
+        batchQueue = queue
+        batchClaims = claims
         defer {
             isInstallingAll = false
+            isCancellingAll = false
+            batchQueue = nil
+            batchClaims = [:]
             appManagementPermissionFlowPresentedInBatch = false
-            for target in targets where installing[target.id] == .queued {
+            // Not a row its own Cancel released and a click queued again
+            // since: that click's claim is the row's latest now.
+            for target in targets where installing[target.id] == .queued
+                && claims[target.id].map({ rowRuns.isLatest(target.id, $0) }) == true {
                 installing[target.id] = nil
+                installCancels[target.id] = nil
             }
             // The batch is the LAST thing to clear `isInstallingAll`, so every
             // `releaseRowOrder` inside it — each `runInstall`'s, each restart's — was
@@ -8893,11 +9002,14 @@ final class AppListModel {
         // `.handedOffToSystemInstaller` for a `.pkg` whose Installer window the user
         // has yet to drive — so the summary banner is exact. Cancelled ones are
         // counted apart, with the targets a cancel kept from starting at all.
-        var summary = await installInParallel(parallelTargets, limit: limit)
+        var summary = await installInParallel(parallelTargets, claims: claims, limit: limit, queue: queue)
         for target in serialTargets + installerTargets {
-            if Task.isCancelled { break }
+            if Task.isCancelled || queue.isCancelled { break }
+            // Off the queue already: its row's Cancel.
+            guard queue.start(target.id) else { continue }
             // `runInstall`, not `install`: the target is already claimed above.
-            summary.record(await runInstall(target, notify: false, deferBookkeeping: true))
+            guard let claim = claims[target.id] else { continue }
+            summary.record(await runInstall(target, claim: claim, notify: false, deferBookkeeping: true))
             if hitAppManagementGate(target) {
                 Log.app.info("update all: stopping serial batch after App Management gate")
                 break
@@ -8949,13 +9061,19 @@ final class AppListModel {
                 staged: pendingSelfUpdate[result.id],
                 isIgnored: prefs.isIgnored(result.app),
                 isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) }) {
-                if Task.isCancelled { break }
+                // Nothing new after Cancel All: these relaunches are no
+                // install's wrap-up.
+                if Task.isCancelled || queue.isCancelled { break }
                 await relaunchStagedUpdate(result)
             }
             batchRelaunchInFlight = false
             startOwedBackupTransferIfIdle()
         }
-        if Task.isCancelled { summary.recordCancelledBeforeStart(targets.count - summary.attempted) }
+        // Cancel All took every target it had not started off the queue, and a
+        // row's Cancel took its own; a cancel of the batch's task leaves them on
+        // it, never started.
+        summary.recordCancelledBeforeStart(
+            Task.isCancelled ? targets.count - summary.attempted : queue.cancelledBeforeStart)
         // Nothing updated, nothing to announce: a cancel posts no banner.
         if prefs.notifyOnUpdates && summary.updated > 0 {
             UpdateNotifier.batchUpdated(count: summary.updated, cancelled: summary.cancelled)
@@ -8966,6 +9084,146 @@ final class AppListModel {
     /// it would act on. Both halves live in `ListActivity.canOfferUpdateAll`.
     var canUpdateAll: Bool {
         listActivity.canOfferUpdateAll(targetCount: installAllTargets().count)
+    }
+
+    /// A row's Cancel. A target "Update All" has not started leaves its queue
+    /// at once; a running install is cancelled through the registry
+    /// (`InstallJobs.cancel`), which refuses once it is committing. Refused is
+    /// no error (§5.8): the registry logs it, and the row says the install is
+    /// already finishing. A job that ended meanwhile needs nothing.
+    func cancelInstall(_ result: UpdateResult) {
+        let id = result.id
+        guard installCancels[id] == .available else { return }
+        switch rowRuns.cancel(id, queue: batchQueue) {
+        case .tookOffTheQueue:
+            _ = InstallAttemptOutcome.cancelled(result.app, at: .queued)
+            installing[id] = nil
+            installCancels[id] = nil
+        case .stopsBeforeItStarts:
+            // Waiting for the previous run's tail: no job of its own yet, and
+            // the registry's is the previous run's.
+            installCancels[id] = .cancelling
+        case .registeredJob:
+            installCancels[id] = InstallCancelState.after(InstallJobs.cancel(id), claimed: installing[id] != nil)
+        }
+    }
+
+    /// "Cancel All" while "Update All" runs: the targets it has not started are
+    /// taken off its queue, the ones preparing are cancelled, and the ones
+    /// committing finish (`InstallBatchQueue.cancelAll`).
+    func cancelInstallAll() {
+        guard isInstallingAll, !isCancellingAll, let queue = batchQueue else { return }
+        isCancellingAll = true
+        // A target whose row was clicked again since is left to that click; one
+        // queued behind its row's earlier run has no job yet, and the
+        // registered one is that earlier run's wrap-up, which must not be cut.
+        let (reclaimed, behind) = rowRuns.batchCancel(batchClaims)
+        let (removed, answers, spared) = queue.cancelAll(sparing: behind.union(reclaimed))
+        for id in spared where behind.contains(id) && installCancels[id] == .available {
+            installCancels[id] = .cancelling
+        }
+        Log.app.info("update all: cancel all — \(removed.count, privacy: .public) not started, \(answers.count, privacy: .public) started")
+        for id in removed {
+            if let target = results.first(where: { $0.id == id }) {
+                _ = InstallAttemptOutcome.cancelled(target.app, at: .queued)
+            }
+            if installing[id] == .queued { installing[id] = nil }
+            installCancels[id] = nil
+        }
+        // A committing one's Cancel is greyed already and stays so; one whose
+        // grey had not landed yet says it is finishing.
+        for (id, answer) in answers where installCancels[id] == .available {
+            installCancels[id] = InstallCancelState.after(answer, claimed: installing[id] != nil)
+        }
+    }
+
+    // MARK: - Interrupted installs
+
+    /// Re-read the installs an earlier run cut off, and give the rows of the
+    /// apps they left gone the icon of the copy they would be restored from.
+    private func refreshInterruptedInstalls() {
+        let now = InstallJournal.interruptedInstalls()
+        guard now != interruptedInstalls else { return }
+        interruptedInstalls = now
+        var byPath: [String: Bool] = [:]
+        for item in now {
+            let hasWayBack = item.restoreFrom != nil
+            for path in [item.appPath.path, item.appPath.standardizedFileURL.path] {
+                byPath[path] = (byPath[path] ?? false) || hasWayBack
+            }
+            if let source = item.iconSource, source != item.appPath {
+                AppIconCache.standIn(for: item.appPath.path, from: source.path)
+            }
+        }
+        interruptedByPath = byPath
+    }
+
+    /// The cut-off install of `result`'s app, when there is one.
+    func interruptedInstall(for result: UpdateResult) -> InstallJournal.InterruptedInstall? {
+        guard !interruptedInstalls.isEmpty else { return nil }
+        let path = result.app.path.standardizedFileURL.path
+        return interruptedInstalls.first { $0.appPath.standardizedFileURL.path == path }
+    }
+
+    /// Rows for the cut-off installs whose app the scan has none for — gone,
+    /// or unreadable (`InterruptedInstallRows`). Both windows list them with
+    /// the scanned rows; they are not in `results`, which every scan rewrites
+    /// and every check and batch walks.
+    var interruptedStandIns: [UpdateResult] {
+        guard !interruptedInstalls.isEmpty else { return [] }
+        return InterruptedInstallRows.standIns(interruptedInstalls, scanned: results)
+    }
+
+    /// An interrupted row's Restore. What is there now is looked at first
+    /// (`InstallJournal.restoreInterrupted`): a `mas` install records no child
+    /// to wait for, so the store may have finished writing the app since its
+    /// verdict, and then there is nothing to restore — the row is refreshed.
+    /// Otherwise the same restore `duo backups restore` runs, from the copy
+    /// the journal points at; it clears the interrupted install.
+    func restoreInterrupted(_ result: UpdateResult) async {
+        let id = result.id
+        guard canRollback(id) else {
+            Log.install.notice("restore: \(result.app.name, privacy: .public) is busy — ignoring")
+            return
+        }
+        let bundleClaim = beginBundleChange(id, .rollback)
+        defer { endBundleChange(id, token: bundleClaim) }
+        installErrors[id] = nil
+        installNotes[id] = nil
+        installing[id] = .installing
+        pinRowOrder()
+        defer { releaseRowOrder() }
+        Log.install.info("restore interrupted: \(result.app.name, privacy: .public)")
+        do {
+            switch try await InstallJournal.restoreInterrupted(at: result.app.path) {
+            case .restored(let outcome):
+                Log.install.info("restore interrupted done: \(result.app.name, privacy: .public) → \(outcome.version ?? "?", privacy: .public)")
+                AppIconCache.invalidate(result.app.path.path)
+            case .noLongerInterrupted:
+                Log.install.notice("restore interrupted: \(result.app.name, privacy: .public) reads again — nothing restored")
+            case .stillRunning(let pid):
+                installErrors[id] = String(localized: "An earlier update of \(result.app.name) is still running (process \(Int(pid))). Try again once it has finished.")
+            case .deferred:
+                installErrors[id] = InstallLock.Failure.heldByAnother(pid: nil).errorDescription
+            case .noWayBack:
+                // Nothing to restore from after all: the row turns to what it
+                // offers without one once the list is read again below.
+                Log.install.notice("restore interrupted: \(result.app.name, privacy: .public) has nothing to restore from")
+            }
+        } catch {
+            Log.install.error("restore interrupted failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            installErrors[id] = error.localizedDescription
+        }
+        refreshInterruptedInstalls()
+        installing[id] = nil
+        // A gone app is not in `results` until a scan finds it again: now, or
+        // once the installs running meanwhile are through (`refreshLocal`'s
+        // rule, and its drain).
+        if installing.isEmpty, !isInstallingAll, !isChecking {
+            await performLocalRescan(unattended: false)
+        } else {
+            localRescanDeferred = true
+        }
     }
 
     // MARK: - Ignore / skip

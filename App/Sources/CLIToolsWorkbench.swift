@@ -276,7 +276,10 @@ struct CLIToolSidebarRow: View {
     @ViewBuilder
     private var trailing: some View {
         if updating {
-            ProgressView().controlSize(.small)
+            HStack(spacing: 4) {
+                ProgressView().controlSize(.small)
+                CLIToolCancelButton(id: id, cli: cli)
+            }
         } else if status.needsAdministrator, status.oneClick != nil {
             // The same button as every row's, as an app row whose update can
             // raise the administrator panel has; the password is in its help.
@@ -370,6 +373,20 @@ private struct CopyCommandButton: View {
 
 /// The detail panes' running-update capsule: a spinner and the update's own
 /// latest line.
+/// A copy's Cancel beside its progress (`InstallCancelButton`), while
+/// DuoUpdater runs its update. Gone once the cancel was accepted: the progress
+/// line says "Cancelling…" until the row settles (`CLIToolsModel.cancel`).
+private struct CLIToolCancelButton: View {
+    let id: CLIToolID
+    let cli: CLIToolsModel
+
+    var body: some View {
+        if let state = cli.cancels[id], state != .cancelling {
+            InstallCancelButton(state: state) { cli.cancel(id) }
+        }
+    }
+}
+
 private struct UpdateProgressCapsule: View {
     let line: String?
 
@@ -513,6 +530,7 @@ struct ClaudeCodeDetailPane: View {
             Spacer()
             if updating {
                 UpdateProgressCapsule(line: cli.progress[id])
+                CLIToolCancelButton(id: id, cli: cli)
             } else if status.oneClick != nil, let latest = status.latestVersion {
                 Button("Update to \(latest)") { Task { await cli.update(id) } }
                     .controlSize(.large)
@@ -704,6 +722,7 @@ struct CLIToolDetailPane: View {
             Spacer()
             if updating {
                 UpdateProgressCapsule(line: cli.progress[id])
+                CLIToolCancelButton(id: id, cli: cli)
             } else if status.needsAdministrator, status.oneClick != nil, let latest = status.latestVersion {
                 Button("Update to \(latest)") { Task { await cli.update(id) } }
                     .controlSize(.large)

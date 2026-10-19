@@ -287,6 +287,23 @@ struct InstallJournalTests {
         }
     }
 
+    /// A bundle copied into place file by file and cut off between its
+    /// Info.plist and its executable reads as the target version but does not
+    /// run: interrupted, its file kept (and with it the rollback point, which
+    /// the sweep keeps for a journaled app). One with no `CFBundleExecutable`
+    /// at all stays completed (`anAppAtTheTargetVersionResolvesAsCompleted`).
+    /// Mutation: drop the `namesAMissingExecutable` check in `classify` → red
+    /// (`.resolved(.completed)`).
+    @Test func anAppAtTheTargetVersionWithoutItsExecutableIsInterrupted() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "2.0", withExecutable: true)
+            try FileManager.default.removeItem(at: app.appendingPathComponent("Contents/MacOS/ZZFixture"))
+            let file = try store(entry(for: app, owner: try await deadProcess()), in: scratch)
+            #expect(try await process(scratch) == [.interrupted(app: "ZZFixture-Journal", .unreadable)])
+            #expect(FileManager.default.fileExists(atPath: file.path))
+        }
+    }
+
     /// Brew empties a bundle whose successor has the same name: the directory
     /// is there, its Info.plist is not.
     @Test func anEmptiedBundleIsInterruptedAsUnreadable() async throws {
@@ -1368,4 +1385,93 @@ final class JournalBox<T>: @unchecked Sendable {
     init(_ value: T) { stored = value }
     var value: T { lock.withLock { stored } }
     func set(_ value: T) { lock.withLock { stored = value } }
+}
+
+extension InstallJournalTests {
+
+    // MARK: - Restore from a row (`restoreInterrupted`)
+
+    /// The app was cut off, then came back by itself before Restore was
+    /// clicked (the store finished writing): the click looks again first and
+    /// restores nothing over it.
+    /// Mutation: skip the `processLeftovers` re-check → the stale verdict
+    /// stands and 1.0 is restored over the 2.0 that landed, red.
+    @Test func aRestoreLooksAgainFirstAndLeavesAnAppThatReadsAgain() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: key, version: "1.0", bundleID: bundleID)
+            try FileManager.default.removeItem(at: app)
+            try store(entry(for: app, owner: try await deadProcess()), in: scratch)
+            _ = try await process(scratch)
+            try #require(InstallJournal.interruptedInstalls().count == 1)
+
+            try makeApp(in: scratch.apps, version: "2.0")
+            let outcome = try await InstallJournal.restoreInterrupted(
+                at: app, lock: scratch.lock, cleanup: Self.noMounts)
+            #expect(outcome == .noLongerInterrupted)
+            #expect(InstallJournal.versions(at: app).marketing == "2.0")
+            #expect(InstallJournal.interruptedInstalls().isEmpty)
+        }
+    }
+
+    /// Still gone: restored from the rollback point, put back where nothing
+    /// is, and the interrupted install is cleared.
+    @Test func aRestoreOfAMissingAppPutsItBack() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: key, version: "1.0", bundleID: bundleID)
+            try FileManager.default.removeItem(at: app)
+            try store(entry(for: app, owner: try await deadProcess()), in: scratch)
+            _ = try await process(scratch)
+
+            let outcome = try await InstallJournal.restoreInterrupted(
+                at: app, lock: scratch.lock, cleanup: Self.noMounts)
+            guard case .restored(let restored) = outcome else {
+                Issue.record("not restored: \(outcome)")
+                return
+            }
+            #expect(restored.version == "1.0")
+            #expect(InstallJournal.versions(at: app).marketing == "1.0")
+            #expect(InstallJournal.interruptedInstalls().isEmpty)
+        }
+    }
+
+    /// Cut off with nothing kept: no restore, and the answer says why.
+    @Test func aRestoreWithNoWayBackSaysSo() async throws {
+        try await withScratch { scratch in
+            let app = scratch.apps.appendingPathComponent("ZZFixture-Journal.app")
+            try store(entry(for: app, owner: try await deadProcess()), in: scratch)
+            _ = try await process(scratch)
+            try #require(InstallJournal.interruptedInstalls().first?.restoreFrom == nil)
+
+            let outcome = try await InstallJournal.restoreInterrupted(
+                at: app, lock: scratch.lock, cleanup: Self.noMounts)
+            #expect(outcome == .noWayBack)
+            #expect(InstallJournal.interruptedInstalls().count == 1)
+        }
+    }
+
+    /// An install of the app still running — an orphaned child — is not
+    /// raced: nothing restored.
+    @Test func aRestoreWhileAnInstallOfTheAppRunsWaits() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: key, version: "1.0", bundleID: bundleID)
+            try FileManager.default.removeItem(at: app)
+            let child = try await LoopingChild(in: scratch.dir)
+            try store(entry(for: app, owner: try await deadProcess(), child: child.stamp), in: scratch)
+
+            let outcome = try await InstallJournal.restoreInterrupted(
+                at: app, lock: scratch.lock, cleanup: Self.noMounts)
+            try await child.stop()
+            #expect(outcome == .stillRunning(pid: child.stamp.pid))
+            #expect(!FileManager.default.fileExists(atPath: app.path))
+        }
+    }
 }

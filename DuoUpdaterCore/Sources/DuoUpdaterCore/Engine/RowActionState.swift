@@ -34,6 +34,10 @@ public enum RowActionState: Sendable, Equatable {
     case justUpdated
     /// An install of ours is running on this row.
     case installing(InstallStage)
+    /// An earlier update of this app was cut off and left it missing or broken
+    /// (`InstallJournal.interruptedInstalls`). The row offers the way back
+    /// instead of its update; nothing restores it by itself.
+    case interruptedInstall(InterruptedInstallAction)
     /// The user hid this app from update checks. Never offers an action.
     case ignored
     /// The user skipped this specific version. Never offers an action.
@@ -116,6 +120,18 @@ public enum RowActionState: Sendable, Equatable {
         case appStore, toolbox, testFlight
     }
 
+    /// What an `.interruptedInstall` row offers.
+    public enum InterruptedInstallAction: Sendable, Equatable {
+        /// Put back the copy from before that update — the install rollback
+        /// point, or the user's backup (`InstallJournal.wayBack`).
+        case restore
+        /// Nothing was kept to restore from: run the same update again, which
+        /// installs the new version.
+        case reinstall
+        /// Nothing was kept, and no one-click update is on offer to run again.
+        case noWayBack
+    }
+
     /// Which channel a current row keeps naming instead of drawing a bare
     /// checkmark. `.none` is the ordinary case: nothing else claims this app, so
     /// a plain checkmark is accurate.
@@ -138,7 +154,7 @@ public enum RowActionState: Sendable, Equatable {
     public var needsExplanation: Bool {
         switch self {
         case .checkFailed, .noSourceCovers, .notForThisMacOS, .subscriptionHold, .orphanedStoreCopy, .ignored,
-             .versionSkipped:
+             .versionSkipped, .interruptedInstall:
             return true
         case .updateAvailable(let route):
             return !route.isInstallable
@@ -414,6 +430,9 @@ public struct RowStateTables: Sendable {
     public var relaunching: Set<String>
     public var awaitingQuitConfirm: [String: String]
     public var justUpdated: Set<String>
+    /// Rows an earlier update cut off (`InstallJournal.interruptedInstalls`),
+    /// each with whether there is a copy to restore from.
+    public var interrupted: [String: Bool]
 
     public init(
         installing: [String: InstallStage] = [:],
@@ -423,7 +442,8 @@ public struct RowStateTables: Sendable {
         armedSelfInstallers: Set<String> = [],
         relaunching: Set<String> = [],
         awaitingQuitConfirm: [String: String] = [:],
-        justUpdated: Set<String> = []
+        justUpdated: Set<String> = [],
+        interrupted: [String: Bool] = [:]
     ) {
         self.installing = installing
         self.needsRestart = needsRestart
@@ -433,6 +453,7 @@ public struct RowStateTables: Sendable {
         self.relaunching = relaunching
         self.awaitingQuitConfirm = awaitingQuitConfirm
         self.justUpdated = justUpdated
+        self.interrupted = interrupted
     }
 
     /// The same tables with **no defaults** — what a UI layer must use.
@@ -456,14 +477,16 @@ public struct RowStateTables: Sendable {
         armedSelfInstallers: Set<String>,
         relaunching: Set<String>,
         awaitingQuitConfirm: [String: String],
-        justUpdated: Set<String>
+        justUpdated: Set<String>,
+        interrupted: [String: Bool]
     ) -> RowStateTables {
         RowStateTables(
             installing: installing, needsRestart: needsRestart,
             pendingBatchRestart: pendingBatchRestart,
             pendingSelfUpdate: pendingSelfUpdate,
             armedSelfInstallers: armedSelfInstallers, relaunching: relaunching,
-            awaitingQuitConfirm: awaitingQuitConfirm, justUpdated: justUpdated)
+            awaitingQuitConfirm: awaitingQuitConfirm, justUpdated: justUpdated,
+            interrupted: interrupted)
     }
 }
 
@@ -474,6 +497,9 @@ public struct RowActionFacts {
     public var hasPendingBatchRestart: Bool
     public var justUpdated: Bool
     public var installStage: InstallStage?
+    /// Non-nil when an earlier update cut this app off: whether there is a
+    /// copy to restore from.
+    public var interruptedHasWayBack: Bool?
     public var isIgnored: Bool
     public var isVersionSkipped: Bool
     public var stagedRelaunchTarget: String?
@@ -515,6 +541,7 @@ public struct RowActionFacts {
         hasPendingBatchRestart: Bool = false,
         justUpdated: Bool = false,
         installStage: InstallStage? = nil,
+        interruptedHasWayBack: Bool? = nil,
         isIgnored: Bool = false,
         isVersionSkipped: Bool = false,
         stagedRelaunchTarget: String? = nil,
@@ -533,6 +560,7 @@ public struct RowActionFacts {
         self.hasPendingBatchRestart = hasPendingBatchRestart
         self.justUpdated = justUpdated
         self.installStage = installStage
+        self.interruptedHasWayBack = interruptedHasWayBack
         self.isIgnored = isIgnored
         self.isVersionSkipped = isVersionSkipped
         self.stagedRelaunchTarget = stagedRelaunchTarget
@@ -560,6 +588,14 @@ public enum RowAction {
         if facts.hasPendingBatchRestart { return .pendingBatchRestart }
         if facts.justUpdated { return .justUpdated }
         if let stage = facts.installStage { return .installing(stage) }
+        // Above the user's verdicts and every offer: the copy on disk is the
+        // damaged one, and an ignored or skipped app is no less broken. A
+        // reinstall is offered only where the update runs in one click.
+        if let hasWayBack = facts.interruptedHasWayBack {
+            if hasWayBack { return .interruptedInstall(.restore) }
+            if facts.hasUpdate, facts.route() == .autoInstall { return .interruptedInstall(.reinstall) }
+            return .interruptedInstall(.noWayBack)
+        }
         if facts.isIgnored { return .ignored }
         if facts.hasUpdate && facts.isVersionSkipped { return .versionSkipped }
         if let target = facts.stagedRelaunchTarget { return .relaunchToApplyStaged(to: target) }
@@ -638,6 +674,7 @@ extension RowActionFacts {
             hasPendingBatchRestart: tables.pendingBatchRestart[result.id] != nil,
             justUpdated: tables.justUpdated.contains(result.id),
             installStage: tables.installing[result.id],
+            interruptedHasWayBack: tables.interrupted[result.id],
             isIgnored: isIgnored,
             isVersionSkipped: isVersionSkipped,
             stagedRelaunchTarget: staged.map { result.stagedRelaunchLine($0).to },

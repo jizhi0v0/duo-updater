@@ -412,9 +412,24 @@ enum CLIToolRows {
         out: (String) -> Void = { Swift.print($0) },
         err: @escaping @Sendable (String) -> Void = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
     ) async {
-        for status in plan {
-            // `SignalGate`'s first signal: the next tool is not started.
-            if Task.isCancelled { break }
+        for (index, status) in plan.enumerated() {
+            // `SignalGate`'s first signal: the next tool is not started. The
+            // ones not started are reported as cancelled, as `Install.apply`
+            // reports its items, so the summary still accounts for each.
+            if Task.isCancelled {
+                for rest in plan[index...] {
+                    if json {
+                        var row = payload(rest, Result(outcome: .cancelled))
+                        row["stage"] = InstallStage.queued.name
+                        NDJSON.emit(row)
+                    } else {
+                        out("→ \(rest.name ?? rest.kind.displayName)  \(rest.path)")
+                        out("   \(Install.cancelledLine(.queued))")
+                    }
+                    tally.record(.cancelled)
+                }
+                break
+            }
             let name = status.name ?? status.kind.displayName
             if !json { out("→ \(name)  \(status.path)") }
             guard let provider = providers.first(where: { $0.kind == status.kind }) else { continue }

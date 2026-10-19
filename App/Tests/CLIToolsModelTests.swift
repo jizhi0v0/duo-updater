@@ -911,6 +911,35 @@ struct CLIToolsModelTests {
         #expect(model.updating.isEmpty)
     }
 
+    /// A row's line follows its stage as the app rows' does: "Queued" can be
+    /// held up by the dwell when "Starting…" follows it fast, and the row moves
+    /// on to the newest line once the dwell is up, with nothing else changing
+    /// meanwhile — the gated copy below reports nothing more.
+    ///
+    /// Mutation: drop the wake in `smoothCancelRows` → the row stays on
+    /// "Queued" whenever "Starting…" came within the dwell, and `until` never
+    /// holds.
+    @Test func aHeldLineMovesOnWhenItsDwellIsUp() async {
+        let check = FakeCheck([
+            (Self.report(.npm, [Self.status(Self.pnpmCLI, kind: .npm), Self.status(Self.tsx, kind: .npm)]), nil),
+            (Self.report(.npm, [Self.status(Self.pnpmCLI, kind: .npm), Self.status(Self.tsx, kind: .npm)]), nil),
+        ])
+        let updater = FakeUpdater()
+        let tsxGate = Gate()
+        await updater.setGate(Self.id(Self.tsx, .npm), tsxGate)
+        let model = Self.model([FakeProvider(kind: .npm, checker: check, updater: updater)])
+        await model.refresh()
+
+        let all = Task { await model.updateAll() }
+        await until { await tsxGate.arrived == 1 }
+        let tsx = Self.id(Self.tsx, .npm)
+        #expect(model.progress[tsx] == String(localized: "Starting…"))
+        await until { model.progressLine(tsx) == String(localized: "Starting…") }
+        await tsxGate.open()
+        await all.value
+        #expect(model.progressLine(tsx) == nil)
+    }
+
     /// A copy whose update has run waits for its tool's re-check — here the
     /// rest of its lane — still claimed, and says so: "Waiting to check", not
     /// "Checking…" while no check runs. "Checking…" once it does.

@@ -105,16 +105,25 @@ final class CLIToolsModel {
     private(set) var cancels: [CLIToolID: InstallCancelState] = [:] {
         didSet { smoothCancelRows() }
     }
-    /// `cancels` as the rows draw them: an accepted cancel says "Cancelling…"
-    /// only once it has lasted `InstallRowSmoothing.cancellingDelay`, and one
-    /// that ended the update sooner never does (`InstallRowSmoothing`).
+    /// `cancels` and the progress lines' stages as the rows draw them
+    /// (`InstallRowSmoothing`): an accepted cancel says "Cancelling…" only once
+    /// it has lasted `InstallRowSmoothing.cancellingDelay`, and one that ended
+    /// the update sooner never does; a stage — "Queued", "Starting…" and the
+    /// command's output, "Checking…" — stays up for `InstallRowSmoothing.dwell`
+    /// before the next one replaces it, as an app row's does.
     private(set) var cancelRows = InstallRowSmoothing<CLIToolID>.Output()
+    /// Each row's line with the stage it belongs to, so a row whose stage is
+    /// held back keeps that stage's line (`progressLine`).
+    @ObservationIgnored private var progressLines = InstallRowLines<CLIToolID>()
     @ObservationIgnored private var cancelRowSmoothing = InstallRowSmoothing<CLIToolID>()
     @ObservationIgnored private var cancelRowWake: Task<Void, Never>?
     /// Copies cancelled while `updateAll` had them queued: their lane skips them.
     @ObservationIgnored private var cancelledWhileQueued: Set<CLIToolID> = []
-    /// The latest output line of each running update.
-    private(set) var progress: [CLIToolID: String] = [:]
+    /// The latest output line of each running update. Set through
+    /// `setProgress`, which records its stage for the rows (`progressLine`).
+    private(set) var progress: [CLIToolID: String] = [:] {
+        didSet { smoothCancelRows() }
+    }
     /// The last failed update of each install: the row's one line. Also an update
     /// that exited 0 but left the version where it was.
     private(set) var errors: [CLIToolID: String] = [:]
@@ -845,7 +854,7 @@ final class CLIToolsModel {
         // Cancelled before its command started: nothing ran, nothing to re-check.
         guard let outcome = await run(status, with: provider) else { return }
         if Self.needsRecheck(outcome) {
-            progress[id] = String(localized: "Checking…")
+            setProgress(id, .checking, String(localized: "Checking…"))
             await check([provider])
         }
         settle(status, outcome)
@@ -861,6 +870,7 @@ final class CLIToolsModel {
         updating.remove(id)
         queued.remove(id)
         awaitingCheck.remove(id)
+        progressLines.clear(id)
         progress[id] = nil
         cancels[id] = nil
     }
@@ -881,14 +891,26 @@ final class CLIToolsModel {
         cancels[id] = InstallCancelState.after(InstallJobs.cancel(Self.jobID(id)))
     }
 
-    /// The running update's line on its row: its latest output, or
-    /// "Cancelling…" once that is due (`cancelRows`).
+    /// The running update's line on its row: the line of the stage the row
+    /// shows (`cancelRows`), or "Cancelling…" once that is due.
     func progressLine(_ id: CLIToolID) -> String? {
-        cancelRows.cancels[id] == .cancelling ? String(localized: "Cancelling…") : progress[id]
+        if cancelRows.cancels[id] == .cancelling { return String(localized: "Cancelling…") }
+        // Read through `progress`, which is observed, rather than only
+        // `progressLines`, which is not: a new line of the same stage —
+        // "Waiting to check", then "Checking…" — redraws the row by itself
+        // instead of on whatever else changes `cancelRows` with it.
+        guard progress[id] != nil else { return nil }
+        return progressLines.line(id, shown: cancelRows.stages[id])
+    }
+
+    /// `id`'s row now reads `text`, a line of `stage`.
+    private func setProgress(_ id: CLIToolID, _ stage: InstallStage, _ text: String) {
+        progressLines.record(id, stage: stage, text: text)
+        progress[id] = text
     }
 
     private func smoothCancelRows() {
-        let rows = cancelRowSmoothing.update(stages: [:], cancels: cancels, now: .now)
+        let rows = cancelRowSmoothing.update(stages: progressLines.stages, cancels: cancels, now: .now)
         if rows != cancelRows { cancelRows = rows }
         cancelRowWake?.cancel()
         cancelRowWake = rows.nextWake.map { due in
@@ -922,7 +944,7 @@ final class CLIToolsModel {
         let id = status.toolID
         errors[id] = nil
         errorLogs[id] = nil
-        progress[id] = String(localized: "Starting…")
+        setProgress(id, .runningCommand(""), String(localized: "Starting…"))
         let update = providers[provider]
         // A job of its own (`InstallJobs.run`), so the row's Cancel reaches the
         // update before its command, and the command's `InstallCommit` greys it.
@@ -937,7 +959,7 @@ final class CLIToolsModel {
                         // been cleared; writing it then would pin a stale line on the row.
                         // Nor over "Cancelling…", which holds until the row settles.
                         guard let self, self.updating.contains(id), self.cancels[id] != .cancelling else { return }
-                        self.progress[id] = line
+                        self.setProgress(id, .runningCommand(line), line)
                     }
                 }
             }
@@ -978,7 +1000,7 @@ final class CLIToolsModel {
             awaitingCheck.insert(id)
             // Said apart from "Checking…": under `updateAll` the check can wait a
             // while on the tool's other lanes, and nothing is checking meanwhile.
-            progress[id] = String(localized: "Waiting to check")
+            setProgress(id, .checking, String(localized: "Waiting to check"))
         }
         return outcome
     }
@@ -1046,7 +1068,7 @@ final class CLIToolsModel {
             updating.insert(status.toolID)
             queued.insert(status.toolID)
             cancels[status.toolID] = .available
-            progress[status.toolID] = String(localized: "Queued")
+            setProgress(status.toolID, .queued, String(localized: "Queued"))
         }
         var lanes: [[(CLIToolStatus, Int)]] = []
         var laneOf: [String: Int] = [:]
@@ -1101,7 +1123,9 @@ final class CLIToolsModel {
         }
         guard !ready.isEmpty else { return }
         for provider in ready {
-            for (status, _) in run.ran[provider] ?? [] { progress[status.toolID] = String(localized: "Checking…") }
+            for (status, _) in run.ran[provider] ?? [] {
+                setProgress(status.toolID, .checking, String(localized: "Checking…"))
+            }
         }
         await check(ready.sorted())
         for provider in ready {

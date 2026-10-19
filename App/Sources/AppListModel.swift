@@ -193,6 +193,10 @@ final class AppListModel {
     private let rowRuns = InstallRowRuns()
     /// From a click on Cancel All until the batch ends: the button says so.
     private(set) var isCancellingAll = false
+    /// What that clicked Cancel All says, from the rows as they draw
+    /// (`InstallRowSmoothing.Output.cancelAllPhase(holding:)`); nil until a
+    /// click, and again once the batch ends.
+    private(set) var cancelAllPhase: InstallRowSmoothing<String>.CancelAllPhase?
     /// The running "Update All"'s targets, for its Cancel All and for a row's
     /// Cancel on a target it has not started (`InstallBatchQueue`).
     @ObservationIgnored private var batchQueue: InstallBatchQueue?
@@ -9025,6 +9029,7 @@ final class AppListModel {
         defer {
             isInstallingAll = false
             isCancellingAll = false
+            cancelAllPhase = nil
             batchQueue = nil
             batchClaims = [:]
             appManagementPermissionFlowPresentedInBatch = false
@@ -9157,6 +9162,10 @@ final class AppListModel {
         let rows = installRowSmoothing.update(
             stages: installing, cancels: installCancels, now: .now)
         if rows != installRows { installRows = rows }
+        if isCancellingAll {
+            let phase = rows.cancelAllPhase(holding: cancelAllPhase)
+            if phase != cancelAllPhase { cancelAllPhase = phase }
+        }
         installRowWake?.cancel()
         installRowWake = rows.nextWake.map { due in
             Task { @MainActor [weak self] in
@@ -9196,7 +9205,6 @@ final class AppListModel {
     /// committing finish (`InstallBatchQueue.cancelAll`).
     func cancelInstallAll() {
         guard isInstallingAll, !isCancellingAll, let queue = batchQueue else { return }
-        isCancellingAll = true
         // A target whose row was clicked again since is left to that click; one
         // queued behind its row's earlier run has no job yet, and the
         // registered one is that earlier run's wrap-up, which must not be cut.
@@ -9218,6 +9226,13 @@ final class AppListModel {
         for (id, answer) in answers where installCancels[id] == .available {
             installCancels[id] = InstallCancelState.after(answer, claimed: installing[id] != nil)
         }
+        // Set only now, with every table above as Cancel All leaves it: each
+        // write there re-derives the rows, and a title taken from a halfway
+        // state — two queued targets, one removed — would read "Finishing…"
+        // and be held once the second went (`cancelAllPhase(holding:)`). Said
+        // at once, whether or not a table above changed.
+        isCancellingAll = true
+        smoothInstallRows()
     }
 
     // MARK: - Interrupted installs

@@ -20,7 +20,12 @@ import Foundation
 ///
 /// Unticked or absent resolves to `.stable`, authoritatively, as for
 /// `RuntimeViewerChannel`: the app's default is off, and its updater then offers
-/// the untagged items only. Nobody who left the box unticked is moved onto a beta.
+/// the untagged items only, even to a beta build. Measured with the app's own
+/// "Check for Updates…" against a local feed holding a beta-tagged 1.1.150 and
+/// an untagged 1.1.140 (feed swapped in through the `SUFeedURL` user default):
+/// 1.1.93 unticked → 1.1.140; 1.1.93 ticked → 1.1.150; the beta 1.1.120 unticked
+/// → 1.1.140. So `nil`, which would let feed inference keep a beta copy on the
+/// betas, would disagree with the app.
 /// The `beta` tag is derived from `ReleaseChannel.beta`, the spelling the feed uses.
 enum AirBuildChannel {
     static let bundleID = "plus.yellow.AirBuild"

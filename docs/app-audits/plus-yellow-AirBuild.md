@@ -29,6 +29,7 @@
 - 开关：Settings ▸ General ▸「Receive Beta Updates」（说明文字「Beta versions arrive more often and may be less stable.」）。二进制里 `AppUpdater.swift` 旁有 `ReceiveBetaVersions` 与 `allowedChannelsForUpdater:`。
 - 真机确认（2026-10-19，1.1.93 运行中，从设置界面拨开关）：打开 → `defaults read plus.yellow.AirBuild` 出现 `ReceiveBetaVersions = 1`；关闭 → 布尔 `0`，键保留；启动后、拨开关前没有这个键。app 未沙盒，域在 `~/Library/Preferences`。
 - 为什么要 binding：beta 包没有渠道标记。1.1.120（beta）与 1.1.121（stable）的 `CFBundleShortVersionString` 都是 `1.1`，`AirBuildReleaseLabel` 都是 `v1.1-beta.143`（121 就是 beta.143 升成正式的那个构建），`ReleaseChannel.detect` 一律判 stable。feed 保留全部构建，所以已装 beta 靠反查 build 能认出来（channel-verify 1.1.120：`release history 292 entries`）；认不出的是勾了开关、装着 stable 的副本。
+- app 自己的更新器怎么用这个开关（2026-10-19 实测）：用户默认值 `SUFeedURL` 临时指向本地 feed（一条 `beta` 标签的 1.1.150、一条无标签的 1.1.140，版本是编的、只看提示不安装），用 app 菜单的「Check for Updates…」看它弹的「Software Update」：1.1.93 + 不勾 → 「1.1 (1.1.140) is now available」；1.1.93 + 勾 → 1.1.150；**beta 1.1.120 + 不勾 → 1.1.140**。也就是不勾时连 beta 副本也只给正式版。之后删掉 `SUFeedURL`、开关还原为 `0`、装回 1.1.121。
 - 不勾或没有键 → `.stable`（权威），与 app 自己的默认一致；勾了 → `.beta`（标签由 `ReleaseChannel.beta` 推出，与 feed 写法一致，不需要 binding proof）。
 - 生产路径（app 已退出，`defaults write` 后跑 `channel-verify /Applications/AirBuild.app`，事后还原为 app 写过的 `0`）：`true` → `ChannelBinding beta — read from this app's own preference`、`detected channel → beta`；`false` → `stable`。
 

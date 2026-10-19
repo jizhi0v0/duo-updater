@@ -354,9 +354,16 @@ public enum ChangelogExtractor {
     /// produced. (Caught by a test, not by reading — the two-pass version looked
     /// right.)
     ///
-    /// A lone unpaired backtick stays put: both alternatives are confined to one
-    /// line, so an unterminated span simply doesn't match. The `$1$2` template
-    /// works because a non-participating group substitutes as empty.
+    /// A span may cross ONE line break, never a blank line. Notes are hard-wrapped
+    /// (Mayoi 0.10.0: `` `mayoi\n  <path>` ``) and CommonMark reads a line ending
+    /// inside a code span as a space, so the span is still code. A blank line ends
+    /// the paragraph, and nothing pairs across it. This is narrower than collapsing
+    /// whitespace first, which would also turn that blank line into a space.
+    /// `collapseWhitespace` runs after and folds the line break into one space.
+    ///
+    /// A lone unpaired backtick stays put: an unterminated span within its
+    /// paragraph simply doesn't match. The `$1$2` template works because a
+    /// non-participating group substitutes as empty.
     static func unwrapMarkdownInline(_ s: String) -> String {
         flattenMarkdownLinks(unwrapMarkdownInlineCode(s))
     }
@@ -372,7 +379,7 @@ public enum ChangelogExtractor {
     }
 
     private static let inlineCodeRegex = try? NSRegularExpression(
-        pattern: "``([^\n]*?)``|`([^`\n]+?)`")
+        pattern: #"``((?:[^\n]|\n(?![ \t\r]*\n))*?)``|`((?:[^`\n]|\n(?![ \t\r]*\n))+?)`"#)
 
     static func unwrapMarkdownInlineCode(_ s: String) -> String {
         guard let regex = inlineCodeRegex else { return s }

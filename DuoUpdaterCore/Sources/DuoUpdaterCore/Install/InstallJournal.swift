@@ -414,8 +414,10 @@ public enum InstallJournal {
     /// Where the app once at `app` is now, when its update moved it: a cask
     /// renamed in its new version ("Foo.app" → "Foo Pro.app") is installed
     /// beside the old path, and the old one is gone. Another app in the same
-    /// folder with `bundleID`, readable, with its executable, at `target` or
-    /// newer. Nil without a bundle ID or a target to go by.
+    /// folder with `bundleID`, readable, with its executable, at exactly
+    /// `target` — what the update installs; a channel sibling's version
+    /// (DB Browser's Nightly is pinned at 3.13.99) is not that. Nil without a
+    /// bundle ID or a target to go by.
     ///
     /// `siblings` are the same-ID apps the folder held when the install began
     /// (``Entry/sameIDSiblings``): a channel sibling already there is never
@@ -430,7 +432,8 @@ public enum InstallJournal {
         for candidate in sameIDApps(beside: app, bundleID: bundleID) where !before.contains(standardized(candidate.path)) {
             guard BackupStore.hasReadableBundle(at: candidate), !namesAMissingExecutable(candidate) else { continue }
             let onDisk = versions(at: candidate)
-            if !onDisk.isEmpty, !VersionComparator.isNewer(target, than: onDisk) { return candidate }
+            if !onDisk.isEmpty, !VersionComparator.isNewer(target, than: onDisk),
+               !VersionComparator.isNewer(onDisk, than: target) { return candidate }
         }
         return nil
     }
@@ -743,17 +746,20 @@ public enum InstallJournal {
     static func classify(_ entry: Entry) async -> Verdict {
         let app = URL(fileURLWithPath: entry.appPath)
         guard BackupStore.hasReadableBundle(at: app) else {
-            if !FileManager.default.fileExists(atPath: app.path) {
-                // Not missing: moved. Offering the old version back at the
-                // old path would leave two copies and spend the way back.
+            // Not missing: moved. Offering the old version back at the old
+            // path would leave two copies and spend the way back. Only on
+            // the first look at an install cut off mid-way: a file already
+            // found cut off, or kept by `finish`, describes an install that
+            // is over, and a same-ID app turning up beside it since (a channel
+            // sibling installed after) is no move of it.
+            if !FileManager.default.fileExists(atPath: app.path), entry.damage == nil, entry.ended != true {
                 if movedCopy(
                     of: app, bundleID: entry.bundleID, atLeast: entry.targetSide, excluding: entry.sameIDSiblings
                 ) != nil {
                     return .resolved(.moved)
                 }
-                return .damaged(.missing)
             }
-            return .damaged(.unreadable)
+            return .damaged(FileManager.default.fileExists(atPath: app.path) ? .unreadable : .missing)
         }
         // A bundle copied into place file by file (a move across volumes is a
         // copy) and cut off can have the new Info.plist before the executable

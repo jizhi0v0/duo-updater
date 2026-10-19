@@ -548,6 +548,14 @@ public enum BackupStore {
         /// above, and absent means ``Purpose/userBackup``: every sidecar written
         /// before the field existed is one.
         var purpose: Purpose?
+        /// ``BundleStatIdentity`` of the bundle at `originalPath`, read just
+        /// before it was copied — what lets a retried install see that the
+        /// bundle it is about to back up is this copy's source, unchanged, and
+        /// reuse it (see ``reusableBackup(key:store:isUserBackup:identity:version:buildVersion:bundleID:appPath:fromPackageInstall:fromAppStore:purpose:)``).
+        /// Optional for the same reason as the fields above; absent — on every
+        /// older sidecar, and whenever the walk could not vouch for the tree —
+        /// means the next attempt copies again, which is what it always did.
+        var sourceIdentity: String?
     }
 
     /// A filesystem-safe directory name for one installed copy of an app. It keeps
@@ -694,6 +702,36 @@ public enum BackupStore {
         // missing rollback point, and it keeps the manifest recorded below computed
         // on APFS, which is what lets the same manifest gate a restore later.
         let dir = root.appendingPathComponent(key, isDirectory: true)
+        let name = appPath.lastPathComponent
+
+        // A retried install — cancelled, then started again over the same
+        // update — would otherwise copy, hash and (with a backup disk) archive
+        // again the very bundle the store already holds. Walked before the copy
+        // below, never after: a write that lands while `ditto` runs is then
+        // newer than what this records, so the next attempt cannot match it.
+        // Not for an input method: its user-data snapshot is taken after this
+        // returns, into the outbox key directory, and needs the fresh
+        // generation there to attach to.
+        let racyWindow = BundleStatIdentity.currentRacyWindow
+        let sourceIdentity = InPlaceSwap.usesContentsRotation(target: appPath)
+            ? nil
+            : await offCooperativePool(qos: .userInitiated) {
+                BundleStatIdentity.compute(for: appPath, racyWindow: racyWindow)
+            }
+        if let sourceIdentity,
+           let reused = reusableBackup(
+               key: key, store: store, isUserBackup: isUserBackup, identity: sourceIdentity,
+               version: version, buildVersion: buildVersion, bundleID: bundleID,
+               appPath: appPath, fromPackageInstall: fromPackageInstall,
+               fromAppStore: fromAppStore, purpose: purpose) {
+            // The same answer a copy cut off by the cancel gives, so the caller
+            // stops the install rather than going on.
+            if Task.isCancelled { throw CancellationError() }
+            Log.install.notice(
+                "backup: reusing the stored copy of \(name, privacy: .public) \(version ?? "?", privacy: .public) (\(buildVersion ?? "?", privacy: .public)) — the bundle on disk is the one it was taken from, unchanged; nothing copied\(reused.location == .destination ? " or transferred" : "", privacy: .public)")
+            return reused
+        }
+
         // Build the new backup in a hidden staging dir FIRST, then swap it into place
         // atomically. Retention = 1 must not delete the prior rollback point until the
         // new copy is fully written — otherwise a failed/interrupted re-backup (disk
@@ -724,7 +762,6 @@ public enum BackupStore {
         await sweepStagingLeftovers(in: root, key: key)
         try fm.createDirectory(at: staging, withIntermediateDirectories: false)
 
-        let name = appPath.lastPathComponent
         let staged = staging.appendingPathComponent(name)
 
         // An app that keeps runtime state inside its own bundle (ToDesk writes an
@@ -855,7 +892,10 @@ public enum BackupStore {
             // it came back. Never a rollback point: it stays on this Mac, where
             // the clone is close to free and the restore needs no disk.
             pendingTransfer: isUserBackup && destination.kind == .external ? true : nil,
-            purpose: purpose)
+            purpose: purpose,
+            // Only beside a manifest: a copy we never fingerprinted is one
+            // nothing may be reused against.
+            sourceIdentity: manifest == nil ? nil : sourceIdentity)
         // The sidecar is what EVERY read path keys off (`backup(forKey:)` returns nil
         // without it), so a backup whose sidecar didn't write is unusable. Fail the
         // save (leaving the prior backup intact) rather than leave an invisible bundle.
@@ -936,6 +976,48 @@ public enum BackupStore {
             fromPackageInstall: fromPackageInstall, fromAppStore: fromAppStore,
             omittedFiles: unreadable.unsealed, fingerprint: manifest?.digest,
             purpose: purpose)
+    }
+
+    /// The stored generation for `key` that a new copy of `appPath` would
+    /// only duplicate, or nil when one has to be made.
+    ///
+    /// Looked for where `write` would put the new copy — the outbox slot, or
+    /// the rollback points' — and, for a user backup only, on the active disk
+    /// when that slot is empty: a finished transfer removes the outbox copy,
+    /// and the disk's is then the generation. A slot that holds anything at all
+    /// is the only place asked, so a newer outbox copy can never be passed over
+    /// for an older one on the disk.
+    ///
+    /// Everything has to agree, not only the walk: the label pair, the bundle
+    /// id, the path and name, the route flags and the purpose, and the copy
+    /// must have a manifest — the gate a restore checks it against — and its
+    /// payload must still be there.
+    private static func reusableBackup(
+        key: String, store: Store, isUserBackup: Bool, identity: String,
+        version: String?, buildVersion: String?, bundleID: String?, appPath: URL,
+        fromPackageInstall: Bool, fromAppStore: Bool, purpose: Purpose
+    ) -> Backup? {
+        let local = store.root.appendingPathComponent(key, isDirectory: true)
+        var candidate = store
+        if !FileManager.default.fileExists(atPath: local.path) {
+            guard isUserBackup, let diskRoot = try? destinationRoot() else { return nil }
+            candidate = activeStore(root: diskRoot)
+        }
+        let dir = candidate.root.appendingPathComponent(key, isDirectory: true)
+        guard let meta = readMeta(in: dir),
+              meta.sourceIdentity == identity,
+              meta.manifest != nil,
+              meta.version == version, meta.buildVersion == buildVersion,
+              meta.bundleID == bundleID,
+              meta.originalPath == appPath.path,
+              meta.bundleName == appPath.lastPathComponent,
+              meta.fromPackageInstall == fromPackageInstall,
+              meta.fromAppStore == fromAppStore,
+              (meta.purpose ?? .userBackup) == purpose
+        else { return nil }
+        if candidate.location == .destination, meta.archiveSHA256 == nil { return nil }
+        // Reads the payload's presence the way every list does.
+        return backup(forKey: key, in: candidate)
     }
 
     // MARK: - Transfer

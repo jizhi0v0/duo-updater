@@ -29,6 +29,7 @@ import Testing
         _ dir: URL,
         installedKey: String?,
         downloadKey: String? = nil,
+        downloadCarriesKey: Bool = true,
         downloadBundleID: String = bundleID,
         download: DigestOnlyInstallTests.Signing = .sealed(identifier: nil),
         sign: (Data) throws -> String?
@@ -39,7 +40,7 @@ import Testing
             signing: .sealed(identifier: nil))
         let source = try await DigestOnlyInstallTests.makeApp(
             at: dir.appendingPathComponent("src/App.app"), bundleID: downloadBundleID, build: "2",
-            info: (downloadKey ?? installedKey).map { ["SUPublicEDKey": $0] } ?? [:],
+            info: downloadCarriesKey ? ((downloadKey ?? installedKey).map { ["SUPublicEDKey": $0] } ?? [:]) : [:],
             signing: download)
         let work = dir.appendingPathComponent("work", isDirectory: true)
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
@@ -149,6 +150,44 @@ import Testing
             return
         }
         #expect(!extracted(download))
+    }
+
+    /// An update whose bundle dropped its `SUPublicEDKey`, signed with the
+    /// installed key: Sparkle refuses it ("only supports rotation, but not
+    /// removal"), and installed it would leave the copy with no Team ID and no
+    /// key — nothing could update it again. Mutation: drop the key check in
+    /// `verifySparkleKeyOnlyIdentity` → refused only at gate 7, red.
+    @Test func anUpdateThatDropsItsKeyIsRefused() async throws {
+        let dir = try DigestOnlyInstallTests.scratch("sparkle-keyremoved")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vendor = Curve25519.Signing.PrivateKey()
+        let (result, download) = try await fixture(
+            dir, installedKey: Self.key(vendor), downloadCarriesKey: false
+        ) { try vendor.signature(for: $0).base64EncodedString() }
+        let error = await applyError(result, download)
+        guard case SignatureVerifier.VerifyError.updateKeyRemoved? = error else {
+            Issue.record("expected updateKeyRemoved, got \(String(describing: error))")
+            return
+        }
+    }
+
+    /// A rotation done Sparkle's way — the update ships the vendor's NEW key and
+    /// is signed with the installed (old) one — is not a removal and goes on, as
+    /// it does for the app's own Sparkle (refused here only by gate 7).
+    /// Mutation: require the download's key to equal the installed one → red.
+    @Test func aRotationSignedWithTheInstalledKeyGoesOn() async throws {
+        let dir = try DigestOnlyInstallTests.scratch("sparkle-rotation-ok")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let old = Curve25519.Signing.PrivateKey()
+        let new = Curve25519.Signing.PrivateKey()
+        let (result, download) = try await fixture(
+            dir, installedKey: Self.key(old), downloadKey: Self.key(new)
+        ) { try old.signature(for: $0).base64EncodedString() }
+        let error = await applyError(result, download)
+        guard case SignatureVerifier.VerifyError.bundleVersionDowngrade? = error else {
+            Issue.record("expected gate 7's refusal, got \(String(describing: error))")
+            return
+        }
     }
 
     /// Another app signed with the same key — a vendor shipping two apps under

@@ -312,7 +312,7 @@ public func deltaRouteFailureIsWorthRetrying(_ error: Error) -> Bool {
          .codeSignatureInvalid,
          .noTeamIdentifier, .teamIdentifierMismatch,
          .noBundleIdentifier, .bundleIdentifierMismatch,
-         .signingKindChanged, .designatedRequirementNotSatisfied:
+         .signingKindChanged, .designatedRequirementNotSatisfied, .updateKeyRemoved:
         return true
     // The digest-only route never takes a patch (`VendorInstaller.download`), so
     // these cannot arrive here; classed with the trust gates they stand in for.

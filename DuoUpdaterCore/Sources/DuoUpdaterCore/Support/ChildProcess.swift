@@ -146,10 +146,17 @@ public enum ChildProcess {
     /// handling: `brew update` answers the first by running `git reset --hard`
     /// back to where it started (`reset_on_interrupt` in `cmd/update.sh`,
     /// Homebrew 7.0.9), and another signal to the group would cut that `git`
-    /// short. A first one that lands while `brew update` ignores SIGINT (`trap
-    /// '' SIGINT`, while it puts back what it stashed) is lost: brew then
-    /// finishes, and the call still throws `CancellationError`, so the caller
-    /// stops where it would have. That costs the rest of the run, not a change.
+    /// short.
+    ///
+    /// So one SIGINT does not always end the run. Once `brew update` has its
+    /// handler in place, it handles the SIGINT and exits normally; brew's outer
+    /// script has none, takes the update as done, and goes on to the command
+    /// it auto-updated for (`exec` in `utils/auto-update.sh`), which runs to
+    /// its end. The same when the SIGINT lands while `brew update` ignores it
+    /// (`trap '' SIGINT`, while it puts back what it stashed). Either way the
+    /// call returns once brew has exited and still throws `CancellationError`,
+    /// so the caller stops where it would have: the stop comes later, and
+    /// nothing more is changed.
     ///
     /// SIGKILL to the group only after five minutes without an exit — for a
     /// brew that is stuck, since a kill cuts it short with no cleanup at all.

@@ -169,7 +169,7 @@ public struct ObelusRelease: Sendable {
 /// (`ObelusRelease`), not for the bare binary. So, as for zoxide
 /// (`ZoxideVerifier`): download the archive, check it against that line, unpack
 /// it, and hash the binary in it. What is remembered is that last hash, per
-/// version and binary (`ObelusPublishedDigests`). The archive (~25–35 MB) is
+/// version and binary (`ObelusPublishedDigests`). The archive (20–34 MB) is
 /// downloaded once per version, only by a click, never by a background check.
 struct ObelusVerifier: Sendable {
 

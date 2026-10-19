@@ -56,7 +56,7 @@ public struct ObelusUpdater: Sendable {
     let tools: [String: String]
     let deadline: ChildProcess.Deadline
 
-    /// Each archive is 25–35 MB. The deadline is for a child that hangs.
+    /// Each archive is 20–34 MB (v0.9.0 to v0.16.0). The deadline is for a child that hangs.
     static let defaultDeadline = ChildProcess.Deadline(terminateAfter: .seconds(10 * 60), killAfter: .seconds(10 * 60 + 30))
 
     /// The installer reads `OBELUS_INSTALL_DIR` before its arguments; `--dir`

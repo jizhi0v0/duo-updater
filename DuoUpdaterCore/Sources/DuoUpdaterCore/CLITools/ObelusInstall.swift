@@ -97,7 +97,7 @@ public struct ObelusScanner: Sendable {
 
     var directory: String { home.path + "/.local/bin" }
 
-    /// Blocking: each file is stat'd and read (`obg` is ~180 MB).
+    /// Blocking: each file is stat'd and read (`obg` is 167–198 MB, 0.9.0 to 0.16.0).
     public func scan() -> [ObelusInstall] {
         ObelusInstall.Binary.allCases.compactMap { read(directory + "/" + $0.rawValue, as: $0) }
     }

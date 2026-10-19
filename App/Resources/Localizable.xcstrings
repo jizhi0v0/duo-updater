@@ -15269,6 +15269,70 @@
         }
       }
     },
+    "This version no longer carries an update signing key, so once installed nothing could check its future updates. Refusing to install it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Version enthält keinen Update-Schlüssel mehr, sodass nach der Installation nichts ihre künftigen Updates prüfen könnte. Sie wird nicht installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versión ya no incluye una clave de firma de actualizaciones, así que, una vez instalada, nada podría comprobar sus próximas actualizaciones. No se instalará."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette version ne contient plus de clé de signature des mises à jour : une fois installée, rien ne pourrait vérifier ses prochaines mises à jour. Installation refusée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa versione non contiene più una chiave di firma degli aggiornamenti, quindi una volta installata nulla potrebbe verificarne gli aggiornamenti futuri. Non verrà installata."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このバージョンにはアップデートの署名鍵が含まれていないため、インストールすると今後のアップデートを確認する手段がなくなります。インストールしません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versão não traz mais uma chave de assinatura de atualizações, então, depois de instalada, nada poderia verificar as próximas atualizações. Não será instalada."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этой версии больше нет ключа подписи обновлений, поэтому после установки проверять её будущие обновления будет нечем. Установка не выполняется."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sürüm artık bir güncelleme imzalama anahtarı içermiyor; yüklenirse sonraki güncellemelerini denetleyecek hiçbir şey kalmaz. Yüklenmeyecek."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个版本不再带有更新签名密钥，装上后它以后的更新将无从核对。不会安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個版本不再帶有更新簽署金鑰，安裝後它以後的更新將無從核對。不會安裝。"
+          }
+        }
+      }
+    },
     "checking upstream…": {
       "extractionState": "manual",
       "localizations": {

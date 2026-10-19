@@ -466,7 +466,7 @@ import DuoUpdaterCore
     @Test func aChangedKeyWithoutATeamIDSaysWhatItCosts() {
         let change = ["Sparkle key old= → new="]
         #expect(InstallVerify.keyOnlyConsequence(recorded: recorded(team: nil, key: "old="), changes: change)
-            .contains("every one-click is refused"))
+            .contains("Accepting the new key here changes neither"))
         #expect(InstallVerify.keyOnlyConsequence(
             recorded: recorded(team: nil, key: nil), changes: ["Sparkle key none → new="]).isEmpty)
         #expect(InstallVerify.keyOnlyConsequence(

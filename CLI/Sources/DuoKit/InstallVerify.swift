@@ -496,14 +496,18 @@ public enum InstallVerify {
     /// What an `identityChanged` means for an app with no Team ID whose recorded
     /// Sparkle key changed (not a first key: `none → key` is an adoption, which a
     /// reviewer accepts after checking the key against the vendor's own repo).
-    /// The key is that app's only anchor, so this is not a detail to accept in
-    /// passing.
+    /// The key is that app's only anchor, but the install path never reads this
+    /// file: what a copy accepts depends on which key signed the update, which
+    /// `sparkleKeyCheck` reports, not on whether the change is accepted here.
     static func keyOnlyConsequence(recorded: InstallIdentities.Recorded?, changes: [String]) -> String {
         guard let recorded, recorded.teamIdentifier == nil, recorded.sparklePublicKey != nil,
               changes.contains(where: { $0.hasPrefix("Sparkle key ") })
         else { return "" }
-        return " — this app has no Team ID, so its update key is the only thing a one-click "
-            + "checks: until the new key is confirmed as the vendor's, every one-click is refused"
+        return " — this app has no Team ID, so its update key is the only thing a one-click checks, "
+            + "against the key in each installed copy (not this file): an update signed with the new "
+            + "key is refused for copies carrying the old one, and by their own Sparkle; one signed "
+            + "with the old key that ships the new one is an ordinary rotation. Accepting the new key "
+            + "here changes neither"
     }
 
     /// This command's id for a recipe in `Baseline` and on an issue. Namespaced

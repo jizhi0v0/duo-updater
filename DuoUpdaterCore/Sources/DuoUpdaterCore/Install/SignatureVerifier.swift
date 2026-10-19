@@ -80,6 +80,10 @@ public enum SignatureVerifier {
         /// satisfy the installed copy's designated requirement — it was not signed
         /// with the same certificate.
         case designatedRequirementNotSatisfied(OSStatus)
+        /// Sparkle route, installed copy without a Team ID: the download carries
+        /// no `SUPublicEDKey`. Installed, it would have no Team ID and no key, and
+        /// nothing — this route or its own Sparkle — could update it again.
+        case updateKeyRemoved
 
         public var errorDescription: String? {
             switch self {
@@ -133,6 +137,8 @@ public enum SignatureVerifier {
                 return String(localized: "The download is signed differently from the installed copy, so DuoUpdater can’t confirm they’re the same app. Install this version by hand once.")
             case .designatedRequirementNotSatisfied:
                 return String(localized: "The download isn’t signed with the same certificate as the installed copy. Refusing to install it.")
+            case .updateKeyRemoved:
+                return String(localized: "This version no longer carries an update signing key, so once installed nothing could check its future updates. Refusing to install it.")
             }
         }
     }
@@ -326,6 +332,12 @@ public enum SignatureVerifier {
     ///   to the download's signed identifier, for the reason
     ///   `verifyDigestOnlyIdentity` gives (linker-signed builds sign as
     ///   `Electron`). Sparkle itself has no such check.
+    /// - The download still carries an `SUPublicEDKey`. Sparkle refuses an update
+    ///   that drops the key ("Sparkle only supports rotation, but not removal of
+    ///   (Ed)DSA keys", `SUUpdateValidator`); here the key is the copy's only
+    ///   anchor, so installing one would leave nothing to check a later update
+    ///   against. A DIFFERENT key is a rotation, which Sparkle allows when the
+    ///   update is signed with the installed key — as gate 1 already required.
     ///
     /// No version pin: gate 7 (`verifyNoBundleVersionDowngrade`) refuses an older
     /// build, which is the downgrade a feed could replay.
@@ -355,6 +367,7 @@ public enum SignatureVerifier {
             try verifySatisfiesDesignatedRequirement(
                 installedApp: installedApp, downloadedApp: downloadedApp)
         }
+        guard embeddedEdPublicKey(at: downloadedApp) != nil else { throw VerifyError.updateKeyRemoved }
         let installedID = infoPlist(of: installedApp)["CFBundleIdentifier"] as? String ?? ""
         let downloadedID = infoPlist(of: downloadedApp)["CFBundleIdentifier"] as? String ?? ""
         let signedID = downloadedInfo[kSecCodeInfoIdentifier as String] as? String

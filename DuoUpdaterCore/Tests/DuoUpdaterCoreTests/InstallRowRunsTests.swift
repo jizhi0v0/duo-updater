@@ -3,7 +3,8 @@ import Testing
 
 /// `InstallRowRuns`: a row's later claim waits for its earlier run to end,
 /// wrap-up and all, and owns the row's Cancel from the moment it is made.
-@MainActor @Suite(.timeLimit(.minutes(1))) struct InstallRowRunsTests {
+/// No `.timeLimit`: on CI it timed queue wait, not the test (`InstallJobsRunTests`).
+@MainActor @Suite struct InstallRowRunsTests {
 
     @MainActor final class Flag { var value = false }
 

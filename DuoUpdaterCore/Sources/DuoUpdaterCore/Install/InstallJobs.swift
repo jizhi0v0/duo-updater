@@ -138,7 +138,11 @@ public enum InstallJobs {
 
     /// Forget job `id`, whatever its phase. Call it when the job's task ends.
     public static func unregister(_ id: String) {
-        registry.withLock { $0[id] = nil }
+        let cancelledAt = registry.withLock { jobs in jobs.removeValue(forKey: id)?.cancelRequestedAt }
+        if let cancelledAt {
+            Log.install.notice(
+                "job \(id, privacy: .public) ended \(Log.seconds(.now - cancelledAt), privacy: .public) after its cancel was requested")
+        }
     }
 
     /// Where job `id` stands, or nil when it is not registered.
@@ -159,11 +163,15 @@ public enum InstallJobs {
             if let label = job.committing { return (.tooLate(committing: label), nil) }
             let first = !job.cancelRequested
             job.cancelRequested = true
+            if first { job.cancelRequestedAt = .now }
             jobs[id] = job
             return (.cancelled, first ? job.cancel : nil)
         }
         // Outside the lock: the closure is the host's, and cancelling a task
         // runs its cancellation handlers inline.
+        if toCall != nil {
+            Log.install.notice("cancel requested: \(id, privacy: .public) is preparing")
+        }
         toCall?()
         // Not an error: the job finishes, which is the rule past the commit.
         if case .tooLate(let label) = answer {
@@ -251,6 +259,10 @@ public enum InstallJobs {
         let cancel: @Sendable () -> Void
         let phaseChanged: (@Sendable (Phase) -> Void)?
         var cancelRequested = false
+        /// When the first cancel of this job was asked for, so its end can say
+        /// how long the row read "Cancelling…": the cancel line is logged where
+        /// the install stops, before its work directory and journal are cleaned.
+        var cancelRequestedAt: ContinuousClock.Instant?
         /// The label of the commit that moved the job past preparing.
         var committing: String?
         /// Commits of this job running now (two can, from a task group).

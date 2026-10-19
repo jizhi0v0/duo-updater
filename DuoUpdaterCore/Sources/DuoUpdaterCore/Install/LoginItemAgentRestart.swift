@@ -164,8 +164,8 @@ public enum LoginItemAgentRestart {
         return String(cString: resolved)
     }
 
-    /// Read from the plist, not `Bundle(url:)`, which caches per path for the
-    /// life of the process and can answer from a bundle since replaced.
+    /// Read from the plist each time rather than through `Bundle`, so the
+    /// answer is always the bundle on disk now.
     private static func plistBundleID(_ app: URL) -> String? {
         let plist = app.appendingPathComponent("Contents/Info.plist")
         guard let data = try? Data(contentsOf: plist),

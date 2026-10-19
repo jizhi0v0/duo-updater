@@ -766,16 +766,17 @@ import Testing
         #expect(!deltaRouteFailureIsWorthRetrying(CancellationError()))
     }
 
-    /// A cancel that lands during the patch on the real Sparkle patch route does not
-    /// stop the install there. The patch runs to its end (`DeltaApplier.apply` is
-    /// `.runToCompletion`), and then the route goes on to the bundle gate, which
-    /// refuses this fixture. That refusal is a `SignatureVerifier.VerifyError`, which
-    /// the patch route wraps as `DeltaRouteFailure`. The test pins what is true
-    /// today: no `CancellationError` comes out of the route, and the gate ran. There
-    /// is no checkpoint between the patch and the swap, so a checkpoint added there
-    /// changes this test on purpose.
+    /// A cancel that lands during the patch on the real Sparkle patch route lets the
+    /// patch run to its end (`DeltaApplier.apply` is `.runToCompletion`) and then
+    /// stops the install before the bundle gates: `verifyInstallArtifact` checks
+    /// first thing. Without that check the gates ran — ~2 s of `codesign` for Arc,
+    /// measured 2026-10-19 — only for the swap to refuse the cancel afterwards; here
+    /// they would refuse this fixture with a `VerifyError`, wrapped by the patch
+    /// route as `DeltaRouteFailure`.
     ///
-    @Test func aCancelledPatchRouteRunsThePatchAndReachesTheGate() async throws {
+    /// Mutation: drop the `Task.checkCancellation()` at the top of
+    /// `verifyInstallArtifact` → the route throws `DeltaRouteFailure`, red.
+    @Test func aCancelledPatchRouteRunsThePatchAndStopsBeforeTheGates() async throws {
         let fm = FileManager.default
         let top = try scratch("delta-route")
         defer { try? fm.removeItem(at: top) }
@@ -830,9 +831,27 @@ import Testing
 
         #expect(fm.fileExists(atPath: top.appendingPathComponent("patched-ZZInstalled.app/Contents").path),
                 "the patch did not run to its end")
-        #expect(!(routeError is CancellationError), "the cancel stopped the route before the gate")
-        let refusal = (routeError as? DeltaRouteFailure)?.underlying
-        #expect(refusal is SignatureVerifier.VerifyError, "the bundle gate did not run: \(String(describing: routeError))")
+        #expect(routeError is CancellationError,
+                "the cancel did not stop the route before the gates: \(String(describing: routeError))")
+    }
+
+    /// Every route's bundle gates (Sparkle, key-only Sparkle, Vendor, Xcode) start
+    /// with the cancel check, whatever produced the bundle: a cancelled install
+    /// throws `CancellationError` and runs no gate. The fixture would fail gate 2
+    /// (there is no bundle), so a gate that ran shows as a `VerifyError`.
+    ///
+    /// Mutation: drop the `Task.checkCancellation()` at the top of
+    /// `verifyInstallArtifact` → `VerifyError`, red.
+    @Test func aCancelledInstallRunsNoBundleGate() async throws {
+        let top = try scratch("gates-cancel")
+        defer { try? FileManager.default.removeItem(at: top) }
+        await #expect(throws: CancellationError.self) {
+            try await cancelledBeforeStart {
+                try await SignatureVerifier.verifyInstallArtifact(
+                    downloadedApp: top.appendingPathComponent("ZZMissing.app"),
+                    installedApp: top.appendingPathComponent("ZZInstalled.app"))
+            }
+        }
     }
 
     // MARK: - Backups

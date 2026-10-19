@@ -395,3 +395,32 @@ import Foundation
         }
     }
 }
+
+/// An App Store Xcode is named "27.0 (27A266a)" by the scanner (marketing plus
+/// `ProductBuildVersion`, so two Xcodes side by side differ). The store answers a
+/// bare marketing version and no build, so `evaluate` compares marketing strings:
+/// the label's build must not take part. Before, "27.0.1" read as older than
+/// "27.0 (27A266a)" (1 < 27) and the point release showed as up to date.
+///
+/// Mutation: compare against the label (drop the Xcode branch) → the 27.0.1 case
+/// is `.upToDate`, red.
+@Test func anAppStoreXcodePointReleaseIsAnUpdate() {
+    let xcode = InstalledApp(
+        name: "Xcode", bundleID: AppScanner.xcodeBundleID, shortVersion: "27.0 (27A266a)",
+        buildVersion: "27A266a", path: URL(fileURLWithPath: "/Applications/Xcode.app"),
+        isMASApp: true, sparkleFeedURL: nil, hasSelfUpdater: false, hasSparkleUpdater: false)
+    func store(_ v: String) -> RemoteVersion {
+        RemoteVersion(shortVersion: v, version: nil, downloadURL: nil, sourceName: "App Store")
+    }
+    #expect(UpdateChecker.evaluate(installed: xcode, remote: store("27.0.1")) == .updateAvailable(latest: "27.0.1"))
+    #expect(UpdateChecker.evaluate(installed: xcode, remote: store("27.1")) == .updateAvailable(latest: "27.1"))
+    #expect(UpdateChecker.evaluate(installed: xcode, remote: store("27.0")) == .upToDate)
+    #expect(UpdateChecker.evaluate(installed: xcode, remote: store("26.4")) == .upToDate)
+
+    // Another app whose own marketing string ends in "(<build>)" keeps it.
+    let other = InstalledApp(
+        name: "ZZFixture", bundleID: "com.example.zzfixture", shortVersion: "1.2 (345)",
+        buildVersion: "345", path: URL(fileURLWithPath: "/Applications/ZZFixture.app"),
+        isMASApp: true, sparkleFeedURL: nil, hasSelfUpdater: false, hasSparkleUpdater: false)
+    #expect(UpdateChecker.evaluate(installed: other, remote: store("1.2 (345)")) == .upToDate)
+}

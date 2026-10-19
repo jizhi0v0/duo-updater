@@ -62,7 +62,7 @@ changelog 页面标记、一键安装的闸与 host 钉死、验证方法——�
 ## 一键安装
 
 - 状态：**支持**（检测 + 一键）
-- install 正则钉死的下载 host：`download.codebuddy.ai`（2026-10-15 前是 `codebuddy-1328495429.cos.accelerate.myqcloud.com`，见「历史与实测」2026-10-19）
+- install 正则钉死的下载 host：`download.codebuddy.ai`（之前是 `codebuddy-1328495429.cos.accelerate.myqcloud.com`；何时切换没有直接观测到，新 host 上 5.8.4 对象的 Last-Modified 是 2026-10-15，见「历史与实测」2026-10-19）
   （为什么要钉、钉错会怎样，见国内站文档「一键安装」）
 - 格式与校验：装 `url` 同路径的 `.dmg`，按 `sha256hash`（hex SHA-256）核对（2026-10-07 起，见国内站文档「一键安装」）
 - 端到端：2026-10-07 `duo install` 5.5.2 → 5.6.2（app 未运行），下载 533,453,859 B 的 dmg，29 s，`spctl` accepted
@@ -80,7 +80,7 @@ changelog 页面标记、一键安装的闸与 host 钉死、验证方法——�
 install 正则钉的是旧 host `codebuddy-1328495429.cos.accelerate.myqcloud.com`，所以解析不到——这正是钉 host 要的「换 host 就大声失败」。
 
 - 新 host 上同路径的 `.dmg` / `.zip` 都 200：arm64 dmg 403,550,488 B、x64 dmg 434,820,267 B，Last-Modified 2026-10-15；ETag 与 `x-cos-hash-crc64ecma` 和旧 host 同路径对象逐一相同，`server: tencent-cos`，是同一个桶。旧 host 仍能下。
-- arm64 dmg（从新 host 下载）`shasum -a 256` = `sha256hash`（`e5ef3f91…8f1133`），「`sha256hash` 是 dmg 的摘要」仍成立；挂载后 `WorkBuddy AI.app`：`com.workbuddy.workbuddy-ai` 5.8.4，Team `FN2V63AD2J`，`spctl` accepted / Notarized Developer ID，与已装副本同 Team。
+- arm64 dmg（从新 host 下载）`shasum -a 256` = `sha256hash`（`e5ef3f91…8f1133`）；x64 dmg（434,820,267 B）同样 = 其 `sha256hash`（`8404d7ee…11aa63e`），挂载后 `com.workbuddy.workbuddy-ai` 5.8.4、Team `FN2V63AD2J`、主执行文件 x86_64。「`sha256hash` 是 dmg 的摘要」两个架构都成立；挂载后 `WorkBuddy AI.app`：`com.workbuddy.workbuddy-ai` 5.8.4，Team `FN2V63AD2J`，`spctl` accepted / Notarized Developer ID，与已装副本同 Team。
 - 修法：两个架构的 `assetHost` 改成 `download.codebuddy.ai`。新正则在两份实时响应上分别解析出各自架构的 `.dmg`，交叉（arm64 正则读 x64 响应）都是 nil。国内站仍是 `download.codebuddy.cn`，两站 host 不同，钉 host 防串站的作用不变。
 - `WorkBuddyProbeRecipeTests` 国际站的两份 fixture 换成这次的实时响应（5.8.4）。
 

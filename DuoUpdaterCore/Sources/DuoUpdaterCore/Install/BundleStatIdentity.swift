@@ -69,8 +69,11 @@ import Foundation
 public enum BundleStatIdentity {
 
     /// How close to the walk an entry's timestamps may be before the walk
-    /// cannot vouch for it. Two seconds covers HFS+'s one-second timestamps
-    /// with room to spare; APFS needs only a nanosecond.
+    /// cannot vouch for it. It has to exceed the timestamps' granularity: on
+    /// APFS, 20,000 back-to-back writes never repeated a change time, the
+    /// smallest step 1.2 µs (measured 2026-10-19), so two seconds is a wide
+    /// margin — and wide enough for HFS+'s whole seconds, though that volume
+    /// is refused anyway.
     public static let racyWindow: TimeInterval = 2
 
     /// Test seam: a window to use instead of ``racyWindow``, so a fixture

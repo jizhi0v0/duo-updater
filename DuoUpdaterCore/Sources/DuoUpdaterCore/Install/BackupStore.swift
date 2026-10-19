@@ -48,7 +48,7 @@ public enum BackupStore {
 
     /// Test seam for "is anything running from this bundle", which a reuse
     /// asks (see `write`). Bound like the seams above; production never binds
-    /// it and asks ``AppRestarter/hasProcesses(insideBundle:)``. A fixture in
+    /// it and asks `mayHaveProcesses(insideBundle:)`. A fixture in
     /// a temporary directory cannot be asked that for real: the bundle path
     /// resolves without `/private` while the kernel reports the process with it.
     @TaskLocal public static var runningOverride: (@Sendable (URL) -> Bool)?
@@ -799,7 +799,7 @@ public enum BackupStore {
             // once nothing runs from the bundle, every such mapping is gone and
             // its write shows. Asked after the match, so it is only paid — and
             // only logged — when it is what stands between a retry and reuse.
-            let isRunning = runningOverride ?? AppRestarter.hasProcesses(insideBundle:)
+            let isRunning = runningOverride ?? { mayHaveProcesses(insideBundle: $0) }
             if await offCooperativePool(qos: .userInitiated, { isRunning(appPath) }) {
                 Log.install.notice(
                     "backup: not reusing the stored copy of \(name, privacy: .public) — it is running, and a running app can change its own files without the filesystem showing it; copying again")
@@ -1083,6 +1083,59 @@ public enum BackupStore {
             fromPackageInstall: fromPackageInstall, fromAppStore: fromAppStore,
             omittedFiles: unreadable.unsealed, fingerprint: manifest?.digest,
             purpose: purpose)
+    }
+
+    /// Whether anything may be running out of `bundle`, for a reuse to stand
+    /// down on. A path match first; then, for every process whose executable
+    /// path the kernel will not give (its file was replaced while it ran —
+    /// see ``AppRestarter/processNamesWithoutPath()``), its short name against
+    /// the names of the executables in the bundle. Answering yes for a
+    /// same-named process from somewhere else only costs a copy.
+    ///
+    /// The two process reads are parameters only so a test can stand in for
+    /// a process the kernel cannot place, which a test cannot start.
+    static func mayHaveProcesses(
+        insideBundle bundle: URL,
+        hasProcesses: (URL) -> Bool = AppRestarter.hasProcesses(insideBundle:),
+        unplacedNames: () -> [[UInt8]] = AppRestarter.processNamesWithoutPath
+    ) -> Bool {
+        if hasProcesses(bundle) { return true }
+        let unplaced = unplacedNames()
+        guard !unplaced.isEmpty else { return false }
+        return anyExecutable(executableNames(in: bundle), isNamed: unplaced)
+    }
+
+    /// Whether one of `executables` (file names) is what a process with one of
+    /// these short names was started from. The kernel keeps 15 bytes of the
+    /// name, so a 15-byte name matches any executable whose UTF-8 bytes it
+    /// begins — compared as bytes, since the cut can split a character; a
+    /// shorter one is the whole name.
+    static func anyExecutable(_ executables: [String], isNamed names: [[UInt8]]) -> Bool {
+        let cut = 15
+        return names.contains { short in
+            executables.contains { executable in
+                let full = Array(executable.utf8)
+                return short.count >= cut ? full.starts(with: short) : full == short
+            }
+        }
+    }
+
+    /// File names of everything in `bundle` a process could have been started
+    /// from: regular files with an execute bit, and symlinks, which `exec` can
+    /// go through under their own name.
+    static func executableNames(in bundle: URL) -> [String] {
+        let base = bundle.standardizedFileURL.path
+        guard let walker = FileManager.default.enumerator(atPath: base) else { return [] }
+        var names = Set<String>()
+        while let relative = walker.nextObject() as? String {
+            var st = stat()
+            guard lstat(base + "/" + relative, &st) == 0 else { continue }
+            let type = st.st_mode & S_IFMT
+            if type == S_IFLNK || (type == S_IFREG && st.st_mode & 0o111 != 0) {
+                names.insert((relative as NSString).lastPathComponent)
+            }
+        }
+        return Array(names)
     }
 
     /// The stored generation for `key` that a new copy of `appPath` would

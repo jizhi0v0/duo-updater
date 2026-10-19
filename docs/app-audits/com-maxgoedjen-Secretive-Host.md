@@ -121,7 +121,7 @@ nightly 不是可订阅的轨道，但装上了必须认得出来:
   - **现在的做法**：recipe 的 `loginItemAgentRestarts` 声明 `com.maxgoedjen.Secretive.SecretAgent`。
     `InstallCoordinator` 在换包前记下从本 bundle `Contents/Library/LoginItems/SecretAgent.app/Contents/MacOS/`
     跑着的进程（pid + 启动时间），换包后确认它是 launchd 作业（见下）再发 `SIGTERM`，再在 10 s 内等 launchd 从新包拉起新进程；
-    没回来就记日志、`duo install` 打警告、`--json` 带 `agentsNotRestarted`（`LoginItemAgentRestart`）。
+    没回来就记日志、`duo install` 打警告、`--json` 带 `agentsNotRestarted`（`LoginItemAgentRestart`）；菜单栏 app 发系统通知并在行上留一行说明（`AppListModel.reportAgentsNotRestarted`）。
     agent 原本没在跑就不动它。
   - **真机端到端（2026-10-19，本分支 `make install` + `make cli`）**：装 3.0.4、Start Agent、建不需认证（Notify）
     的测试密钥，基线签名成功。
@@ -192,5 +192,5 @@ swift run --package-path application-test channel-verify <v3.0.4>/Secretive.app 
 ```
 
 ## 建议下一步
-1. 一键安装: 已接入（见「一键安装」）。菜单栏 app 里 agent 没回来时只有日志，界面上没有提示。
+1. 一键安装: 已接入（见「一键安装」）。agent 没回来时菜单栏 app 发系统通知并在行上留说明（#1462）。
 2. OS 下限: 已不需要（DuoUpdater 最低 macOS 15，见「已知问题」）。

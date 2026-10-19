@@ -121,6 +121,17 @@ public enum LoginItemAgentRestart {
         return table
     }()
 
+    /// What a notice calls an agent from `Outcome.agentsNotRestarted`: the last
+    /// component of its bundle id (`com.maxgoedjen.Secretive.SecretAgent` →
+    /// `SecretAgent`), the id itself when it has no dot or ends in one. Taken
+    /// from the id rather than the agent's `Info.plist` because the agent being
+    /// reported is the one that may not be there to read.
+    public static func displayName(forAgentBundleID bundleID: String) -> String {
+        guard let last = bundleID.split(separator: ".", omittingEmptySubsequences: false).last,
+              !last.isEmpty else { return bundleID }
+        return String(last)
+    }
+
     /// The agents to restart for `app`, or nil when its recipe names none —
     /// every app but a few.
     public static func declaredAgents(for app: InstalledApp) -> [String]? {

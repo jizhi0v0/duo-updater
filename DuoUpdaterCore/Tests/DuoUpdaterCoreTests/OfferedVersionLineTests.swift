@@ -83,4 +83,21 @@ import Testing
             installed: "1.0", installedBuild: "10", offered: "2.0 (beta)", offeredBuild: "20")
         #expect(sides == (installed: "1.0", offered: "2.0 (beta)"))
     }
+
+    /// The labels beside the row ("Update …", "Skip …", the confirmations) name
+    /// the offered version as the line does: Arc's is "1.169.0", not the feed's
+    /// "1.169.0 (88758)" the line just dropped.
+    ///
+    /// Mutation: `offeredDisplay` returns `remote.displayVersion` → red.
+    @Test func theLabelsNameTheOfferedVersionAsTheLineDoes() {
+        let arc = result(installedShort: "1.168.0", installedBuild: "88413",
+                         offered: "1.169.0 (88758)", offeredBuild: "88758")
+        #expect(arc.offeredDisplay == "1.169.0")
+        let both = result(id: "com.apple.dt.Xcode", installedShort: "27.0 beta 1 (27A5194q)",
+                          installedBuild: "27A5194q", offered: "27.0 beta 5 (27A5237l)",
+                          offeredBuild: "27A5237l", source: "Xcode Releases")
+        #expect(both.offeredDisplay == "27.0 beta 5 (27A5237l)")
+        let none = UpdateResult(app: arc.app, remote: nil, status: .upToDate)
+        #expect(none.offeredDisplay == nil)
+    }
 }

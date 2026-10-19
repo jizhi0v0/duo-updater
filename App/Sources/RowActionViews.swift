@@ -654,9 +654,9 @@ struct WorkbenchRowAction: View {
                 .help("Major version upgrade — review and install it from the menu-bar popover")
 
         case .autoInstall:
-            Button("Update \(result.remote?.displayVersion ?? "")") { actions.install() }
+            Button("Update \(result.offeredDisplay ?? "")") { actions.install() }
                 .buttonStyle(.borderedProminent)
-                .help("Download and install \(result.app.name) \(result.remote?.displayVersion ?? "")")
+                .help("Download and install \(result.app.name) \(result.offeredDisplay ?? "")")
 
         case .installer(let stagedFileName):
             // Already downloaded → "Install" re-opens that exact package instead of

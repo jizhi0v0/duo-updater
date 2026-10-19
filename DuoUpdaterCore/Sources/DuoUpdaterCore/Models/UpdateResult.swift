@@ -671,6 +671,14 @@ extension UpdateResult {
             offered: latest, offeredBuild: remote?.version)
     }
 
+    /// The offered version as every label beside the row names it ("Update …",
+    /// "Skip …", the confirmations): the update line's offered side, so a label
+    /// never shows a build the line just dropped ("Update 1.169.0 (88758)" under
+    /// "1.168.0 → 1.169.0"). Nil when nothing is offered.
+    public var offeredDisplay: String? {
+        remote?.displayVersion.map { updateLineSides(latest: $0).offered }
+    }
+
     /// ``updateLineSides(latest:)`` for a host that holds the strings rather than
     /// an `UpdateResult` (`duo check`'s row).
     public static func updateLineSides(

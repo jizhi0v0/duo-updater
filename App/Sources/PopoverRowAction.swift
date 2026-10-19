@@ -523,11 +523,20 @@ struct PopoverRowAction: View {
     /// here; what changes is the app itself. The install path is the ordinary
     /// one: the download replaces this copy in place, and a rollback point exists
     /// only when backups are on.
+    /// The two versions the confirmations name, formatted as the row's update
+    /// line formats them (`UpdateResult.updateLineSides`).
+    private var confirmationSides: (installed: String, offered: String) {
+        guard let latest = result.remote?.displayVersion else {
+            return (result.app.shortVersion ?? "?", "?")
+        }
+        return result.updateLineSides(latest: latest)
+    }
+
     private var vendorRewritePopover: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Rewritten app", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
-            Text("\(result.app.name) \(result.app.shortVersion ?? "?") → \(result.remote?.displayVersion ?? "?") replaces this app with the vendor’s rewrite. Features and settings may differ from the version you have now.")
+            Text("\(result.app.name) \(confirmationSides.installed) → \(confirmationSides.offered) replaces this app with the vendor’s rewrite. Features and settings may differ from the version you have now.")
                 .font(.callout)
             Text("The new version replaces this copy. If “Keep a backup of the previous version” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.")
                 .font(.caption)
@@ -543,7 +552,7 @@ struct PopoverRowAction: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Major version upgrade", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
-            Text("\(result.app.name) \(result.app.shortVersion ?? "?") → \(result.remote?.displayVersion ?? "?") is a major new version. If this is a commercial app, it may need a new license — with an expired subscription the update can drop into a limited/trial mode.")
+            Text("\(result.app.name) \(confirmationSides.installed) → \(confirmationSides.offered) is a major new version. If this is a commercial app, it may need a new license — with an expired subscription the update can drop into a limited/trial mode.")
                 .font(.callout)
             Text("Continue only if it’s free or your license covers the new version. The new version replaces this copy. If “Keep a backup of the previous version” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.")
                 .font(.caption)
@@ -615,7 +624,7 @@ struct PopoverRowAction: View {
         Button { actions.openSelfUpdater() } label: { Text("Open").rowButtonLabel() }
             .controlSize(.small)
             .buttonStyle(.bordered)
-            .help("\(result.app.name) is running — open it and let its own updater apply \(result.remote?.displayVersion ?? String(localized: "the update")). Quit it, or pick “Always replace” in Settings, to install directly.")
+            .help("\(result.app.name) is running — open it and let its own updater apply \(result.offeredDisplay ?? String(localized: "the update")). Quit it, or pick “Always replace” in Settings, to install directly.")
     }
 
     private func openAction() {
@@ -782,7 +791,7 @@ struct PopoverRowAction: View {
         return VStack(alignment: .leading, spacing: 8) {
             Label("Region-locked", systemImage: "globe.badge.chevron.backward")
                 .font(.headline)
-            Text("\(result.app.name) isn’t in your App Store region (\(here)). It’s listed in \(there)\(result.remote?.displayVersion.map { String(localized: " — latest \($0)") } ?? "").")
+            Text("\(result.app.name) isn’t in your App Store region (\(here)). It’s listed in \(there)\(result.offeredDisplay.map { String(localized: " — latest \($0)") } ?? "").")
                 .font(.callout)
             // The region lock blocks a *fresh install* (the product page is "App Not
             // Available" under a \(here) account), but it does NOT block updating an
@@ -813,7 +822,7 @@ struct PopoverRowAction: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Not supported on this Mac", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
-            Text("\(result.app.name) is an iPhone/iPad app running on Apple Silicon. Its latest version\(result.remote?.displayVersion.map { " (\($0))" } ?? "") no longer supports Mac, so the App Store won't install it on this device.")
+            Text("\(result.app.name) is an iPhone/iPad app running on Apple Silicon. Its latest version\(result.offeredDisplay.map { " (\($0))" } ?? "") no longer supports Mac, so the App Store won't install it on this device.")
                 .font(.callout)
             Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))). Updating isn't possible until the developer ships a Mac-compatible build again — it's the vendor's choice, not a refresh problem.")
                 .font(.caption)
@@ -830,7 +839,7 @@ struct PopoverRowAction: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Needs a newer macOS", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
-            Text("\(result.app.name)'s latest version\(result.remote?.displayVersion.map { " (\($0))" } ?? "") requires macOS \(minimum) or later. This Mac can't install it until it's upgraded.")
+            Text("\(result.app.name)'s latest version\(result.offeredDisplay.map { " (\($0))" } ?? "") requires macOS \(minimum) or later. This Mac can't install it until it's upgraded.")
                 .font(.callout)
             Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))) until then.")
                 .font(.caption)

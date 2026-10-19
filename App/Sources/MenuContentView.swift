@@ -1571,7 +1571,7 @@ private struct AppRow: View {
             .disabled(stage != nil)
         Divider()
         if result.hasUpdate {
-            let offered = result.remote?.displayVersion ?? String(localized: "this version")
+            let offered = result.offeredDisplay ?? String(localized: "this version")
             if model.prefs.isVersionSkipped(result.app, version: result.remote?.versionSide) {
                 Button("Don’t skip \(offered)") { model.prefs.clearSkip(result.app) }
             } else {

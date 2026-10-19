@@ -3,7 +3,7 @@
 ## 基本信息
 - Bundle ID: `ai.memoh.desktop`
 - Team ID: `P9R669C27U`（`Developer ID Application: Shenzhen Moerin Technology Co., Ltd.`）
-- 观测版本: `2026.9.27-1`（short == build，后缀一并带着；2026-09-16 接入时为 `2026.9.16-1`）
+- 观测版本: `2026.10.19-1`（2026-10-19；short == build，后缀一并带着；2026-09-16 接入时为 `2026.9.16-1`）
 - 自更新机制: electron-updater，generic provider（`desktopresource.memoh.ai`）
 - 开源: `felinics/Memoh`（AGPL-3.0），桌面端在 `apps/desktop/`
 
@@ -47,6 +47,35 @@
   是 `12.0`，低于 DuoUpdater 自己的下限，不需要 `hostRequirement`。
 - 灰度: manifest 里没有 `stagingPercentage`，所有安装读的是同一份文件。
 
+## 旧副本：OSS 仓库 GitHub release 里的 Mac 安装包（0.x）
+v0.17.0 之前，`felinics/Memoh`（原 `memohai/Memoh`）的 GitHub release 附带 Mac 安装包，和厂商 CDN 的构建
+**同一个 bundle id、同一个 Team**，但版本号是 `0.x`。2026-10-19 下载各家族的 arm64 dmg 挂载核对:
+
+| 资产 | app | 版本 | Team | 自带 server | 包内 `app-update.yml` | 编进去的服务地址 |
+|---|---|---|---|---|---|---|
+| `Memoh-0.16.0-mac-arm64.dmg`（0.10–0.16 同名） | `Memoh.app` | `0.16.0` | P9R669C27U | 无 | `provider: github`、`memohai/Memoh` | `localhost:18080`（自托管） |
+| `Memoh-Local-0.13.0-mac-arm64.dmg`（0.10 / 0.13） | `Memoh Local.app` | `0.13.0` | P9R669C27U | `Resources/server/memoh-server` | 同上 | `127.0.0.1`（本地 server） |
+| `Memoh-Desktop-0.9.0-mac-arm64.dmg` | `Memoh.app` | `0.9.0` | P9R669C27U | `Resources/server/memoh-server` | 同上 | `127.0.0.1:18731` |
+| `Memoh_0.7.0_aarch64.dmg` | `Memoh.app`（13 MB，非 Electron） | `0.7.0` | P9R669C27U | — | 无 | 没查 |
+
+四个的 `CFBundleIdentifier` 都是 `ai.memoh.desktop`，`codesign --verify --deep --strict` 都退 0。
+厂商 CDN 构建（`2026.10.19-1`）编进去的是 `https://app.memoh.net`（Memoh Cloud），不带 server。
+
+- **它们自己的更新器拿不到更新**: 0.9–0.16 的 updater 读 GitHub，而 v0.17.0 起 GitHub release 不再附 Mac 安装包
+  （settled from source：felinics/Memoh#873「no longer publish prebuilt Desktop installers」，下游分发自己签名发布）。
+- **带 server 的是另一个产品**: `apps/desktop/README.md` 写明桌面端「does not start or package a local server」，
+  本地版在 felinics/Memoh#748（「remove sqlite and local desktop」，2026-07-07）删掉。把 2026 构建一键装到
+  `Memoh Local.app` 或 0.9.0 上，会把本地安装悄悄换成云端客户端。
+- **处理**: `oneClickGates` 只放行 `CFBundleShortVersionString` 匹配 `^20[0-9]{2}\.` 的副本（厂商的日期构建）。
+  `0.x` 副本照常检测、显示 CDN 最新版，但不给一键，提示去 memoh.ai 手动下载。0.10–0.16 的纯客户端
+  理论上可以一键（2026 构建有 `ConnectServer` 换服务地址），但升级后自托管地址是否保留没验证，所以一并挡住。
+  单测 `OneClickGateTests.memohOneClickIsForTheVendorsDatedBuildsOnly`；变异把 pattern 放宽成 `^[0-9]`，5 个 0.x/1.0 用例变红。
+  真机（2026-10-19，`duo` 用本分支构建）: 真的 `Memoh 0.16.0` 与 `Memoh Local 0.13.0` 分别放进 `/Applications`，
+  `duo check` 照常显示 `→ 2026.10.19-1 [Vendor]`（不带 `in-place`），`duo install --yes --json` 都是 `skipped`，
+  原因「detection only for this copy — a Memoh build from GitHub, which may run its own local server; …」，版本与 inode 不变。
+- 从源码本地构建的副本也是 `0.x`（不设 `MEMOH_DESKTOP_VERSION` 时取 `apps/desktop/package.json`，现在是 `0.22.0`；
+  `appId` 默认 `ai.memoh.desktop`），同样只检测。
+
 ## 增量更新（delta / binary patch）
 
 | | 客户端能力 | 服务端实际下发 | 我们能否消费 |
@@ -75,10 +104,25 @@
 - 跟随 channel: 单渠道，不涉及。
 - Recipe 状态: 已有。
 
+## 已停放整包（自更新器下完、还没装的那份）
+
+| | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
+|---|---|---|---|
+| 结论 | 会 | 有 | 能（已接） |
+| 证据 | electron-updater，`autoDownload` 开（`updates.ts`） | 2026-10-19：2026.10.5-1 启动约 15 s 后 `~/Library/Caches/@memohaidesktop-updater/pending/` 有 `Memoh-2026.10.19-1-mac-arm64.zip`（134040328 B，= feed）和 `update-info.json`（`fileName`、`sha512` = feed 的 arm64 值）；下载中是 `temp-` 前缀 | `SelfUpdaterStash` 读 electron-updater 的 `pending/update-info.json`（目录名取包内 `updaterCacheDirName`）；端到端 `bytesDownloaded: 0` |
+
 ## 一键安装
-- 状态: **支持**
+- 状态: **支持**（仅厂商日期构建；`0.x` 的 GitHub 构建只检测，见上）
 - 格式: zip —— `Memoh-{ver}-mac-arm64.zip`，相对路径，解析到 `https://desktopresource.memoh.ai/`
 - **读的是**: 人人可手动下载的 GA（memoh.ai 下载页给的就是同一个文件），无灰度
+- 端到端（2026-10-19，真机，Apple silicon，`duo` 用 `origin/main` 构建）:
+  - 不运行: 2026.10.5-1（CDN 下载，Team P9R669C27U）放进 `/Applications` → `duo check`
+    `2026.10.5-1 → 2026.10.19-1 [Vendor, in-place]` → `duo install --yes --json` `installed`（route vendor，
+    134040328 B，19 s）→ short `2026.10.19-1`、inode 变、`--deep --strict` 0、`spctl` accepted / Notarized Developer ID、
+    与厂商 zip 解出的 bundle 逐文件 sha256 + 符号链接清单一致（287 项）；`duo check` up to date
+  - 运行中、自更新器已暂存: 重装 2026.10.5-1 并启动，等它把 2026.10.19-1 下完（见「已停放整包」）→ `duo install`
+    `installed`、`bytesDownloaded: 0`（用的是停放的 zip）→ `duo restart Memoh` → 之后 12 s 内磁盘版本一直是
+    `2026.10.19-1`。**局限**: 停放的是和 duo 装的同一版本，自更新器若把换上去的版本换回来也看不出来，这一轮证明不了没有碰撞
 - **校验和**: feed 里 arm64 条目的 base64 sha512，锚在 `url: Memoh-…-mac-arm64.zip` 那一行后面。
   x64 条目紧挨着它，`path:` / 顶层 `sha512:` 指的也是 x64，所以不能取首个 `sha512:`。
   今天的 feed 里 arm64 恰好排第一，朴素写法碰巧也对，所以测试里另有一份把两条对调的 fixture 钉住锚点。
@@ -97,8 +141,9 @@
 ## 已知问题
 - 厂商若不再把渠道写进 bundle（或改发 `1-mac.yml`），通用的 `ElectronManifestSource` 就能接住。
   到那时这条 recipe 可以退役，前提是先确认一键安装仍然选中 arm64。
-- 老的 GitHub 构建（≤ v0.16.0，`Memoh-0.16.0-mac-arm64.dmg` 等）是另一套版本编号；没有核对过它们的
-  bundle id 是否也是 `ai.memoh.desktop`。
+- 老的 GitHub 构建（≤ v0.16.0）也是 `ai.memoh.desktop`，已核对并用 `oneClickGates` 挡住一键（见「旧副本」）。
+  它们的检测会显示 CDN 的 2026 版本；对本地版用户来说那是后继产品，不是同一个东西的新版，只能提示。
+- 0.10–0.16 纯客户端升到 2026 构建后，原来连的自托管地址是否保留没验证；验过之后可以考虑为它们放开一键。
 
 ## 如何复验
 ```

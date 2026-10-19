@@ -35,8 +35,8 @@ and in the audit doc. Reporting only the parts that work, so the reader assumes
 the rest works too, is the failure this rule exists for. Legitimate "can't"s
 seen so far:
 
-- one-click withheld on purpose (Secretive: a long-running login-item agent
-  would keep running replaced code);
+- one-click refused while a nested app runs (VMPal: a running VM keeps the
+  old bundle's code, and nothing can restart it without stopping the VM);
 - one-click refused by the Team-ID gate for old copies (OpenInTerminal changed
   signing Team at 2.3.9; 2.3.8 users update by hand once);
 - changelog flattened: the Sparkle markdown path keeps headings as plain items
@@ -212,7 +212,7 @@ blank:
 |---|---|---|---|
 | Neovide | ✓ GitHub, 0.16.1→0.16.2 | ✓ e2e 0.16.1→0.16.2 | ✓ 结构化，小标题 Bug Fixes / Docs |
 | Osaurus | ✓ Sparkle + binding | ✓ e2e（含 EdDSA） | ⚠ 结构化但小标题被压平成条目 |
-| Secretive | ✓ GitHub | ✗ 只检测：常驻 SSH agent 换包后跑旧代码 | ✓ Features / Fixes |
+| Secretive | ✓ GitHub | ✓ e2e 3.0.4→4.0.0，换包后重启 SSH agent，签名实测通过 | ✓ Features / Fixes |
 ```
 
 Also list:

@@ -385,6 +385,7 @@ struct RecipeCodableTests {
             try stable(set.loginWalls, "\(at).loginWalls")
             try stable(set.changelogPages, "\(at).changelogPages")
             try stable(set.oneClickGates, "\(at).oneClickGates")
+            try stable(set.loginItemAgentRestarts, "\(at).loginItemAgentRestarts")
         }
         #expect(failures.isEmpty, Comment(rawValue: failures.joined(separator: "\n")))
         // The kinds above are listed by hand; a kind added to `AppRecipeSet` and
@@ -452,6 +453,7 @@ struct RecipeCodableTests {
         case let v as [String: SparkleFeedCatalog.SupersededFeed]: return try check(v, count: v.count)
         case let v as [String: SparkleFeedCatalog.LoginWall]: return try check(v, count: v.count)
         case let v as [OneClickGate]: return try check(v, count: v.count)
+        case let v as [String: [String]]: return try check(v, count: v.count)
         default: return (0, "no round trip for \(type(of: value))")
         }
     }

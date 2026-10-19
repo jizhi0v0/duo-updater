@@ -97,3 +97,5 @@ changelogPages = Dictionary(count: 1)
 changelogPages["app.chatwise"] = URL("https://chatwise.app/changelog")
 
 oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)

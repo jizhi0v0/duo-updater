@@ -43,7 +43,7 @@
 - 版本方案: tag `v0.16.0` → bundle 的 `CFBundleShortVersionString` 与 `CFBundleVersion` 都是 `0.16.0`；
   0.9.0 / 0.15.0 / 0.16.0 三个真包一致
 - `versionPattern` `^v([0-9]+\.[0-9]+\.[0-9]+)$`（锚死，将来的 `-rc` tag 读不进来；v1.0.0 这样的下一个主版本照读）
-- install pattern `^Obelus-[0-9]+\.[0-9]+\.[0-9]+-universal2-apple-darwin\.app\.zip$`：一个 release 30 个资产里只命中
+- install pattern `^Obelus-[0-9]+\.[0-9]+\.[0-9]+-universal2-apple-darwin\.app\.zip$`：每个 release 的 30 个资产（v0.9.x 是 28 个）里只命中
   这一个 `.app.zip`（`obg-…-universal2-apple-darwin.tar.xz` 是裸二进制，不是 app，不能命中）
 - 首个 release v0.9.0 起每个 release 都有这个 `.app.zip`，bundle id 从未变过
 

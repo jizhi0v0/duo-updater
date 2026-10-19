@@ -751,7 +751,7 @@ public actor EventStore {
             SELECT COUNT(*), COALESCE(SUM(bytes_in), 0), COALESCE(SUM(bytes_out), 0),
                    COALESCE(SUM(status = 304), 0),
                    COALESCE(SUM(NOT (\(notCached))), 0),
-                   COALESCE(SUM(status >= 400 OR (status IS NULL AND \(notCached))), 0),
+                   COALESCE(SUM(status >= 400 OR \(RequestQuery.unanswered)), 0),
                    MIN(at), MAX(at)
             FROM events WHERE \(clause);
             """

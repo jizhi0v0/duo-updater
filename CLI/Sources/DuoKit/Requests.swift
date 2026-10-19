@@ -168,12 +168,13 @@ public enum Requests {
     private static func printRecent(_ rows: [(DuoEvent, RequestEvent)]) {
         guard !rows.isEmpty else { print("Nothing recorded yet."); return }
         for (envelope, row) in rows {
-            // Status column has to distinguish three things, not two: an HTTP
-            // status, a cache hit that never asked, and a transfer that never got
-            // an answer at all.
+            // Status column has to distinguish four things: an HTTP
+            // status, a cache hit that never asked, a transfer we stopped ourselves,
+            // and one that never got an answer at all.
             let status: String
             if row.fromCache { status = "cache" }
             else if let code = row.status { status = String(code) }
+            else if row.cancelled { status = "cancel" }
             else { status = "fail" }
             let where_ = row.remoteAddress.map { "\($0):\(row.remotePort ?? 0)" } ?? "—"
             print(

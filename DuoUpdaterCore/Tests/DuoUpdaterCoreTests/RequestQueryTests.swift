@@ -228,12 +228,13 @@ struct RequestQueryTests {
         purpose: RequestPurpose = .versionCheck, client: RequestClient = .app,
         status: Int? = 200, fetchType: RequestEvent.FetchType = .networkLoad,
         received: Int64 = 1000, appID: String? = nil,
-        seconds: TimeInterval = 0.1, at: Date = Date()
+        seconds: TimeInterval = 0.1, at: Date = Date(), urlError: Int? = nil
     ) -> DuoEvent {
         DuoEvent(date: at, client: client, payload: .request(RequestEvent(
             purpose: purpose, method: "GET", scheme: "https", host: host, port: nil,
             path: path, appID: appID, taskID: UUID(), hopIndex: 0, redirectCount: 0,
-            status: status, fetchType: fetchType,
+            status: status, errorDomain: urlError.map { _ in NSURLErrorDomain }, errorCode: urlError,
+            fetchType: fetchType,
             responseBodyBytes: received,
             fetchStart: at, responseEnd: at.addingTimeInterval(seconds))))
     }
@@ -268,6 +269,39 @@ struct RequestQueryTests {
         // updating.
         #expect(await store.requestLog(.parse("status:problems")).count == 2)
         #expect(await store.requestLog(.parse("status:4xx")).count == 1)
+    }
+
+    /// A request we stopped ourselves — URLSession's `-999`: a Cancel, a
+    /// superseded refresh, the app quitting — got no answer, but nothing went
+    /// wrong. Counting it made every cancelled update an orange "fail" and a
+    /// Problem. A timeout (`-1001`) still is one.
+    ///
+    /// Mutation: drop `notCancelled` from the summary's SQL → `problems` 2, red;
+    /// drop `!cancelled` from `RequestEvent.failed` → the rollup's 2, red.
+    @Test("A request we cancelled is not a failure; one that timed out is")
+    func aCancelledRequestIsNotAProblem() async throws {
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+        let cancelled = Self.request(host: "dl.example.com", path: "/App.dmg", purpose: .install,
+                                     status: nil, received: 0, urlError: NSURLErrorCancelled)
+        let timedOut = Self.request(host: "feed.example.com", status: nil, received: 0,
+                                    urlError: NSURLErrorTimedOut)
+        await store.append(cancelled)
+        await store.append(timedOut)
+        await store.flush()
+
+        #expect(cancelled.request?.cancelled == true)
+        #expect(cancelled.request?.failed == false)
+        #expect(timedOut.request?.cancelled == false)
+        #expect(timedOut.request?.failed == true)
+
+        #expect(await store.requestLog(.parse("status:fail")).compactMap(\.request?.host) == ["feed.example.com"])
+        #expect(await store.requestLog(.parse("status:problems")).compactMap(\.request?.host) == ["feed.example.com"])
+        let summary = await store.requestSummary(.parse("client:app"))
+        #expect(summary.requests == 2)
+        #expect(summary.problems == 1)
+        // `duo requests` reads the rollup, which counts failures as they land.
+        #expect(await store.totals().totals.reduce(0) { $0 + $1.failures } == 1)
     }
 
     @Test("The strip is recomputed for the filter, not for the lifetime")

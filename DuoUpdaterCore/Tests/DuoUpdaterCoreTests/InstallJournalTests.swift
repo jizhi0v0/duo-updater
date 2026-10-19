@@ -138,9 +138,10 @@ struct InstallJournalTests {
         child: InstallJournal.ProcessStamp? = nil,
         oldVersion: String = "1.0", target: String? = "2.0",
         oldCDHash: String? = nil, workDirs: [URL] = [],
-        mounts: [InstallJournal.Mount] = [], damage: InstallJournal.Damage? = nil
+        mounts: [InstallJournal.Mount] = [], damage: InstallJournal.Damage? = nil,
+        siblings: [String]? = []
     ) -> InstallJournal.Entry {
-        InstallJournal.Entry(
+        var made = InstallJournal.Entry(
             job: UUID().uuidString, appID: app.path, appName: "ZZFixture-Journal",
             bundleID: bundleID, appPath: app.path,
             oldVersion: oldVersion, oldBuild: nil, oldCDHash: oldCDHash,
@@ -148,6 +149,8 @@ struct InstallJournalTests {
             backupKey: BackupStore.key(bundleID: bundleID, path: app),
             startedAt: Date(), owner: owner, child: child,
             workDirectories: workDirs.map(\.path), mounts: mounts, damage: damage)
+        made.sameIDSiblings = siblings
+        return made
     }
 
     @discardableResult
@@ -1118,6 +1121,134 @@ extension InstallJournalTests {
             #expect(await InstallJournal.mayDiscardRollbackPoint(for: app) == false)
             await recording.finish(succeeded: false)
             #expect(InstallJournal.interruptedInstalls().count == 1)
+        }
+    }
+
+    /// A cask renamed in its new version: the install was cut off after brew
+    /// put "… Pro.app" in place and took the old one away. Not missing —
+    /// moved: no Restore row (it would put the old version back beside the
+    /// new one), the file goes, and so does the old path's rollback point,
+    /// which the sweep would otherwise keep for good. A same-ID app below the
+    /// target is no such move: still missing, point kept.
+    /// A same-ID app that was already beside it when the install began — a
+    /// channel sibling (DB Browser for SQLite Nightly, Android Studio's
+    /// previews), however new — is no move either: the app is missing and its
+    /// rollback point stays. Neither is anything for a file written before the
+    /// siblings were recorded.
+    /// Mutations: drop the `movedCopy` check in `classify` → `.missing`, red;
+    /// drop the point's removal → the point stays, red; drop the version
+    /// floor in `movedCopy` → the second case resolves, red; drop the
+    /// `siblings` exclusion → the third resolves, red; treat nil as none → the
+    /// fourth resolves, red; `≥` instead of `=` the target → the fifth (an
+    /// app newer than the update installs) resolves, red.
+    @Test func aCaskRenamedByItsUpdateIsMovedNotMissing() async throws {
+        let sibling = "ZZFixture-Journal Pro.app"
+        for (renamedVersion, siblingsAtStart, moved) in [
+            ("2.0", [] as [String]?, true), ("1.0", [], false), ("3.0", [sibling], false), ("2.0", nil, false),
+            ("2.1", [], false),
+        ] {
+            try await withScratch { scratch in
+                let app = try makeApp(in: scratch.apps, version: "1.0")
+                let key = BackupStore.key(bundleID: bundleID, path: app)
+                try await BackupStore.saveInstallRollbackPoint(
+                    appPath: app, key: key, version: "1.0", bundleID: bundleID)
+                try FileManager.default.removeItem(at: app)
+                let renamed = try makeApp(in: scratch.apps, version: renamedVersion, name: sibling, withExecutable: true)
+                let file = try store(
+                    entry(for: app, owner: try await deadProcess(),
+                          siblings: siblingsAtStart?.map { _ in renamed.path }),
+                    in: scratch)
+
+                let processed = try await process(scratch)
+                if moved {
+                    #expect(processed == [.resolved(app: "ZZFixture-Journal", .moved)])
+                    #expect(!FileManager.default.fileExists(atPath: file.path))
+                    #expect(BackupStore.rollbackPoint(forKey: key) == nil)
+                    #expect(InstallJournal.interruptedInstalls().isEmpty)
+                } else {
+                    #expect(processed == [.interrupted(app: "ZZFixture-Journal", .missing)])
+                    #expect(BackupStore.rollbackPoint(forKey: key) != nil)
+                }
+            }
+        }
+    }
+
+    /// The line that records an interrupted install says what its row can
+    /// offer — the copy it would restore, or that there is none and the row
+    /// has no Restore — so a report about a row that will not go away is
+    /// answered from the log.
+    /// Mutation: always say "way back" → the first check red.
+    @Test func theLogSaysWhetherAnInterruptedInstallHasAWayBack() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let none = entry(for: app, owner: try await deadProcess(), damage: .missing)
+            #expect(InstallJournal.wayBackForTheLog(none).hasPrefix("no way back: no rollback point and no backup"))
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: none.backupKey, version: "1.0", bundleID: bundleID)
+            #expect(InstallJournal.wayBackForTheLog(none) == "way back: rollback point 1.0 under \(none.backupKey)")
+        }
+    }
+
+    /// A file already found cut off (or kept by `finish`) describes an
+    /// install that is over: a same-ID app at the target turning up beside it
+    /// afterwards — a channel sibling installed since — is no move of it. The
+    /// app stays missing, its rollback point kept, its Restore offered.
+    /// Mutation: drop the `damage == nil, ended != true` guard in `classify`
+    /// → resolved as moved, point deleted, red.
+    @Test func aSameIDAppArrivingAfterTheCutOffIsNoMove() async throws {
+        for kept in [InstallJournal.Damage.missing, nil] {
+            try await withScratch { scratch in
+                let app = try makeApp(in: scratch.apps, version: "1.0")
+                let key = BackupStore.key(bundleID: bundleID, path: app)
+                try await BackupStore.saveInstallRollbackPoint(
+                    appPath: app, key: key, version: "1.0", bundleID: bundleID)
+                try FileManager.default.removeItem(at: app)
+                var cut = entry(for: app, owner: try await deadProcess(), damage: kept)
+                if kept == nil { cut.ended = true }
+                try store(cut, in: scratch)
+                try makeApp(in: scratch.apps, version: "2.0", name: "ZZFixture-Journal Nightly.app", withExecutable: true)
+
+                #expect(try await process(scratch) == [.interrupted(app: "ZZFixture-Journal", .missing)])
+                #expect(BackupStore.rollbackPoint(forKey: key) != nil)
+                #expect(InstallJournal.interruptedInstalls().count == 1)
+            }
+        }
+    }
+
+    /// A reinstall over an interrupted install that moves the app (a renamed
+    /// cask) repaired it: the earlier file is cleared, verified where the app
+    /// went, and the old path's rollback point goes with it.
+    /// One that was there before the reinstall began (`begin` records it) is
+    /// not where the app went.
+    /// Mutations: verify at the old path only → the interrupted row stays,
+    /// red; `begin` records no siblings → the second case clears, red.
+    @Test func aReinstallThatMovedTheAppClearsTheInterruptedOne() async throws {
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            try await adHocSign(try makeApp(
+                in: scratch.apps, version: "3.0", name: "ZZFixture-Journal Nightly.app", withExecutable: true))
+            try FileManager.default.removeItem(at: app)
+            try store(entry(for: app, owner: try await deadProcess(), damage: .missing), in: scratch)
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            await recording.finish(succeeded: true)
+            #expect(InstallJournal.interruptedInstalls().count == 1)
+        }
+        try await withScratch { scratch in
+            let app = try makeApp(in: scratch.apps, version: "1.0")
+            let key = BackupStore.key(bundleID: bundleID, path: app)
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: key, version: "1.0", bundleID: bundleID)
+            try FileManager.default.removeItem(at: app)
+            try store(entry(for: app, owner: try await deadProcess(), damage: .missing), in: scratch)
+            #expect(InstallJournal.interruptedInstalls().count == 1)
+            let recording = try #require(await InstallJournal.begin(
+                app: installed(app, version: "1.0"), route: .homebrew, target: VersionSide(marketing: "2.0")))
+            try await adHocSign(try makeApp(
+                in: scratch.apps, version: "2.0", name: "ZZFixture-Journal Pro.app", withExecutable: true))
+            await recording.finish(succeeded: true)
+            #expect(InstallJournal.interruptedInstalls().isEmpty)
+            #expect(BackupStore.rollbackPoint(forKey: key) == nil)
         }
     }
 

@@ -895,6 +895,11 @@ final class CLIToolsModel {
     /// shows (`cancelRows`), or "Cancelling…" once that is due.
     func progressLine(_ id: CLIToolID) -> String? {
         if cancelRows.cancels[id] == .cancelling { return String(localized: "Cancelling…") }
+        // Read through `progress`, which is observed, rather than only
+        // `progressLines`, which is not: a new line of the same stage —
+        // "Waiting to check", then "Checking…" — redraws the row by itself
+        // instead of on whatever else changes `cancelRows` with it.
+        guard progress[id] != nil else { return nil }
         return progressLines.line(id, shown: cancelRows.stages[id])
     }
 

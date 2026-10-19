@@ -16,10 +16,13 @@ enum com_maxgoedjen_Secretive_Host {
         // agent every `ssh` call talks to. It is an accessory process, so
         // `AppRestarter` neither quits nor relaunches it, and nothing here
         // restarts it after the swap; the vendor relies on the host app
-        // relaunching it on its next activation. Until that happens the agent
-        // keeps running the old code while its bundle has been replaced on disk,
-        // and whether SSH signing keeps working then has not been shown. The user
-        // updates by hand, as the vendor's own flow expects.
+        // relaunching it on its next activation. Measured 2026-10-19 (audit,
+        // 「一键安装」): after a swap the old agent signs until its
+        // `SecretAgentInputParser.xpc` relaunches from the new bundle; the new XPC
+        // then refuses the old agent's messages on its code-signing requirement
+        // and every `ssh` signing request hangs, until the agent is restarted.
+        // One-click needs the engine to restart that login item after the swap
+        // first. The user updates by hand, as the vendor's own flow expects.
         GitHubReleaseRule(
             bundleID: "com.maxgoedjen.Secretive.Host",
             owner: "maxgoedjen", repo: "secretive",

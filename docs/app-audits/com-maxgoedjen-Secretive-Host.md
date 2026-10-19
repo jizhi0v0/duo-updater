@@ -98,15 +98,33 @@ nightly 不是可订阅的轨道，但装上了必须认得出来:
   - 厂商自己的做法（`Sources/Secretive/App.swift`）是主 app 下一次激活时，若
     `justUpdatedBuild` 为真就 `forceLaunch()` 重拉 agent，注释写的是 agent "will be running
     from earlier update still"。我们的一键更新只在主 app 原本就开着时才重开它，而日常主 app 是关着的。
-  - 换包后旧 agent 还能不能正常签名（比如它按需拉起的 `SecretAgentInputParser.xpc` 在 bundle
-    被替换后能否启动）**未验证**。按规定没有启动真包去测，所以这条风险证明不了是安全的，只好不接一键。
+  - **实测（2026-10-19）：换包后，签名会在 XPC 重新拉起时挂死。** 装 3.0.4、启动、装上 agent（登录项）、
+    在 Secretive 里建一把不需认证的测试密钥；主 app 退出、agent 常驻；在测试分支上临时给规则加
+    `installAssetPattern: ^Secretive\.zip$` + `.zip`，`duo install Secretive --yes --json` → `installed`（22831028 B），
+    磁盘上主 app 与 agent 都成了 4.0.0，agent 可执行文件 inode 变了，旧 agent（3.0.4）的 pid 与两个 XPC 不变。
+    用 `SSH_AUTH_SOCK=~/Library/Containers/com.maxgoedjen.Secretive.SecretAgent/Data/socket.ssh` 跑
+    `ssh-keygen -Y sign`（只签本地文件，`-Y verify` 校验）：
+    - 旧 agent + 旧 XPC：签名成功。
+    - 让 `SecretAgentInputParser.xpc` 退出（SIGKILL，模拟它空闲退出），它从**新**包被拉起（4.0.0）：
+      签名 **20 s 超时、两次都挂住**，`ssh-add -L` 也列不出。日志：新 XPC
+      `Received message forbidden due to code signing requirement`（`xpc_support_check_token` -67065），
+      旧 agent `SWIFT TASK CONTINUATION MISUSE: send(_:) leaked its continuation without resuming it`。
+      也就是新 XPC 拒收旧 agent 的消息，旧 agent 不处理失败，`ssh` 永远等。
+    - 结束旧 agent：launchd 立刻从新包把 agent 拉起（4.0.0），签名恢复。
+    - 测完删除测试密钥、Disable Agent（BTM 变 disabled）、app 与容器移入废纸篓；`~/.ssh/config` 与 shell
+      配置前后校验和不变。
+  - 所以直接开一键会在主 app 关着时让 SSH 签名在某个时刻开始挂死，直到用户打开 Secretive 或重新登录。
+    补救办法已证实：换包后重启 agent（结束旧 agent 进程即可，launchd 会从新包拉起）。DuoUpdater 现在
+    没有这个机制（`AppRestarter` 只重启 `.regular` 内嵌 app，`NestedAppGuard` 跳过 `LoginItems`），
+    要接一键需要先加「换包后重启指定后台登录项」，见「建议下一步」。
+  - 未测：主 app 运行中被一键（`duo restart` 会让它以 `justUpdatedBuild` 启动、按源码会重拉 agent）。
 - 端到端（2026-09-29）: 装 3.0.4 → `duo check` 报 `3.0.4 → 4.0.0 [GitHub]`（无 in-place）→
   `duo install --yes` 输出 `Skipping: Secretive — detection only`，未改动已装副本
 
 ## 已知问题
-- 装不了新版的系统上会报「有更新」。4.0.0 要求 macOS 15。macOS 14 上装着 3.0.4 的用户会看到
-  `3.0.4 → 4.0.0`，而厂商更新器按正文里的下限会跳过这一版、保持安静。因为只做检测，不会装上一个
-  打不开的包，但这条提示对这部分用户没用。`GitHubReleaseRule` 目前没有表达 OS 下限的字段。
+- 无。（2026-09-29 记的「macOS 14 上会报 4.0.0 更新」不成立：DuoUpdater 自身 `deploymentTarget` 是
+  macOS 15.0（`App/project.yml`），跑不到 macOS 14 上；4.0.0 的 `LSMinimumSystemVersion` 15.0 恰好落在
+  这个下限上。）
 
 ## 如何复验
 ```
@@ -119,8 +137,7 @@ swift run --package-path application-test channel-verify <v3.0.4>/Secretive.app 
 ```
 
 ## 建议下一步
-1. 一键安装: 先在测试机上实测「agent 常驻、主 app 关着时替换 bundle」之后 `ssh-add -l` 和一次
-   签名是否还正常；要是不正常，就需要引擎在换包后重拉 `LoginItems` 下的 accessory 登录项，
-   做完这一步再加 `installAssetPattern: ^Secretive\.zip$`、`installerKind: .zip`。
-2. OS 下限: 如果以后给 `GitHubReleaseRule` 加上按正文或包内 `LSMinimumSystemVersion` 过滤的能力，
-   这个 app 是现成的用例。
+1. 一键安装: 2026-10-19 已实测，不正常（见「一键安装」）。需要引擎在换包后重启 `LoginItems` 下指定的
+   accessory 登录项（结束旧进程，launchd 会从新包拉起），做完这一步再加
+   `installAssetPattern: ^Secretive\.zip$`、`installerKind: .zip`，并在真机上复测签名。
+2. OS 下限: 已不需要（DuoUpdater 最低 macOS 15，见「已知问题」）。

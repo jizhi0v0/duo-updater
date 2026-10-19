@@ -177,8 +177,9 @@ func installProgressLabel(_ stage: InstallStage, cancel: InstallCancelState?) ->
 /// "Cancelling…" instead (`installProgressLabel`).
 struct InstallCancelButton: View {
     let state: InstallCancelState
-    /// Accepted, with "Cancelling…" not shown yet (`InstallRowSmoothing`): greyed,
-    /// so a second click has nothing to do, with the help a live one has.
+    /// Accepted, with "Cancelling…" not shown on the row yet
+    /// (`InstallRowSmoothing`): greyed, so a second click has nothing to do, and
+    /// its help already says what is happening.
     var pending = false
     let action: () -> Void
 
@@ -207,6 +208,7 @@ struct InstallCancelButton: View {
     }
 
     private var help: String {
+        if pending { return String(localized: "Cancelling…") }
         switch state {
         case .available, .cancelling: return String(localized: "Cancel update")
         case .committing: return String(localized: "Installing — can’t cancel now")

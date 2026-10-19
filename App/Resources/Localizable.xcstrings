@@ -781,6 +781,71 @@
         }
       }
     },
+    "%@ didn’t come back after the update. Open %@, or log out and back in, to start it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ist nach dem Update nicht wieder gestartet. Öffne %@ oder melde dich ab und wieder an, um es zu starten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ no volvió a iniciarse tras la actualización. Abre %@ o cierra sesión y vuelve a entrar para iniciarlo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas redémarré après la mise à jour. Ouvrez %@, ou fermez la session puis rouvrez-la, pour le lancer."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ non si è riavviato dopo l’aggiornamento. Apri %@, oppure esci e rientra nella sessione, per avviarlo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデート後、%@ が再起動しませんでした。起動するには %@ を開くか、ログアウトしてからもう一度ログインしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ não voltou a ser iniciado após a atualização. Abra %@ ou encerre a sessão e entre de novo para iniciá-lo."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ не запустился снова после обновления. Откройте %@ или выйдите из системы и войдите снова, чтобы запустить его."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ güncellemeden sonra yeniden başlamadı. Başlatmak için %@ uygulamasını açın ya da oturumu kapatıp yeniden açın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新后 %@ 没有重新启动。请打开 %@，或注销后重新登录，以启动它。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新後 %@ 沒有重新啟動。請打開 %@，或登出後重新登入，以啟動它。"
+          }
+        }
+      }
+    },
     "%@ didn’t quit — it has a window waiting for you (a save prompt, a sign-in sheet, a dialog). Switch to it, deal with that window, then quit it or click Relaunch again. Nothing was changed and the new version is already installed.": {
       "extractionState": "manual",
       "localizations": {

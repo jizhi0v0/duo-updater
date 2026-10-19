@@ -222,6 +222,18 @@ import Testing
         return (outcome, signalledBeforeApply.value)
     }
 
+    // MARK: - Naming an agent in a notice
+
+    /// What the app's notice calls an agent that did not come back: the last
+    /// component of its id, the id as given when that component is empty.
+    @Test func displayNameIsTheLastComponentOfTheID() {
+        #expect(LoginItemAgentRestart.displayName(
+            forAgentBundleID: "com.maxgoedjen.Secretive.SecretAgent") == "SecretAgent")
+        #expect(LoginItemAgentRestart.displayName(forAgentBundleID: "SecretAgent") == "SecretAgent")
+        #expect(LoginItemAgentRestart.displayName(forAgentBundleID: "com.example.") == "com.example.")
+        #expect(LoginItemAgentRestart.displayName(forAgentBundleID: "") == "")
+    }
+
     // MARK: - Helpers
 
     private func restart(_ fixture: Fixture, _ launchd: FakeLaunchd) async -> [LoginItemAgentRestart.Result] {
